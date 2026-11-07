@@ -7,6 +7,7 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  SheetDescription,
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ import {
 } from "@/components/ui/table";
 import { ArrowUpRight, Euro, TrendingUp, Package, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { margineVoce } from "@/lib/marginalita/margineVoce";
 import { margineAffidabile, vociConsuntivo } from "@/lib/marginalita/fasceMargine";
 
 const COLORE_VOCE: Record<string, string> = {
@@ -60,6 +62,8 @@ interface Props {
   open: boolean;
   onClose: () => void;
   row: MarginalitaRow | null;
+  structureImpact?: { source: "automatic" | "fallback" | "none"; structureAmount: number; adjustedMargin: number; adjustedMarginPct: number; months: number | null };
+  targetMarginPct?: number;
 }
 
 interface LinkedAnomaly {
@@ -108,21 +112,22 @@ function BreakdownBar({
 }) {
   const cleanValue = safeNumber(value);
   const cleanTotal = safeNumber(total);
-  const pct = cleanTotal > 0 ? Math.min((cleanValue / cleanTotal) * 100, 100) : 0;
+  const pct = cleanTotal > 0 ? (cleanValue / cleanTotal) * 100 : null;
+  const larghezza = Math.min(100, Math.max(0, pct ?? 0));
   return (
     <div className="space-y-1">
       <div className="flex justify-between text-xs">
         <span className="text-muted-foreground">{label}</span>
-        <span className="font-medium">{formatCurrency(cleanValue)} ({pct.toFixed(1)}%)</span>
+        <span className="font-medium">{formatCurrency(cleanValue)} ({pct === null ? "incidenza non calcolabile" : `${pct.toFixed(1)}%`})</span>
       </div>
       <div className="h-2 rounded-full bg-muted overflow-hidden">
-        <div className={cn("h-full rounded-full transition-all", colorClass)} style={{ width: `${pct}%` }} />
+        <div className={cn("h-full rounded-full transition-all", colorClass)} style={{ width: `${larghezza}%` }} />
       </div>
     </div>
   );
 }
 
-export default function MargineVociDetail({ open, onClose, row }: Props) {
+export default function MargineVociDetail({ open, onClose, row, structureImpact, targetMarginPct }: Props) {
   // Fetch order items with costs
   const { data: items = [], isLoading: itemsLoading, error: itemsError, refetch: refetchItems } = useQuery({
     queryKey: ["margine-voci-detail", row?.id],
@@ -148,7 +153,7 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
     staleTime: 2 * 60 * 1000,
   });
 
-  const { data: anomalies = [], isLoading: anomaliesLoading } = useQuery({
+  const { data: anomalies = [], isLoading: anomaliesLoading, error: anomaliesError, refetch: refetchAnomalies } = useQuery({
     queryKey: ["margine-voci-anomalie", row?.id],
     queryFn: async () => {
       const rich = await (supabase.from("order_errors") as any)
@@ -192,20 +197,13 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
   const openAnomalyTotal = openAnomalies.reduce((sum, item) => sum + safeNumber(item.amount), 0);
 
   // Per-voce computed values
-  const vociWithMargin = items.map((item) => {
-    const quantity = safeNumber(item.quantity) || 1;
-    const ricavo = safeNumber(item.unit_price) * quantity;
-    const costo = (safeNumber(item.purchase_price) || safeNumber(item.standard_cost)) * quantity;
-    const margineVoce = ricavo - costo;
-    const margineVocePerc = ricavo > 0 ? (margineVoce / ricavo) * 100 : 0;
-    return { ...item, ricavo, costo, margineVoce, margineVocePerc };
-  });
+  const vociWithMargin = items.map((item) => ({ ...item, ...margineVoce(item) }));
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
       <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
         <SheetHeader className="pb-4 border-b">
-          <SheetTitle className="flex items-center gap-2 text-base">
+          <SheetTitle className="flex flex-wrap items-center gap-2 pr-7 text-left text-base">
             <TrendingUp className="h-5 w-5 text-primary" aria-hidden="true" />
             <span>Marginalità per voce</span>
             <Link
@@ -217,6 +215,7 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
               <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
             </Link>
           </SheetTitle>
+          <SheetDescription>Costi registrati, quota di struttura e stime delle voci della commessa.</SheetDescription>
           {row.description && (
             <p className="text-sm text-muted-foreground">{row.description}</p>
           )}
@@ -227,7 +226,7 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
 
         <div className="space-y-5 py-4">
           {/* Global summary */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="rounded-lg border p-3 space-y-1">
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Preventivo</p>
               <p className="text-lg font-bold text-primary">{formatCurrency(preventivoTotale)}</p>
@@ -240,7 +239,7 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
               <p className="text-lg font-bold">{formatCurrency(consuntivo)}</p>
             </div>
             <div className="rounded-lg border p-3 space-y-1">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide">Margine</p>
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Margine diretto</p>
               {affidabile ? (
                 <>
                   <p className={cn("text-lg font-bold", margineTextColor)}>{formatCurrency(margine)}</p>
@@ -256,12 +255,23 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
                 <>
                   <p className="text-lg font-bold text-muted-foreground">—</p>
                   <p className="text-xs text-orange-700">
-                    {preventivoTotale > 0 ? "Nessun costo registrato" : "Ricavo mancante"}
+                    {preventivoTotale <= 0 ? "Ricavo mancante" : prelieviSenzaCosto > 0 ? "Costi di magazzino da completare" : "Nessun costo registrato"}
                   </p>
                 </>
               )}
             </div>
           </div>
+
+          {structureImpact && <section className="space-y-2 rounded-lg border border-blue-100 bg-blue-50/50 p-4" aria-label="Margine dopo struttura">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-semibold">Dopo struttura stimata</p>
+              <p className={cn("font-bold", structureImpact.adjustedMargin < 0 ? "text-red-700" : "text-slate-900")}>
+                {affidabile && structureImpact.source !== "none" ? `${formatCurrency(structureImpact.adjustedMargin)} (${structureImpact.adjustedMarginPct.toFixed(1)}%)` : "—"}
+              </p>
+            </div>
+            <p className="text-xs text-muted-foreground">{structureImpact.source === "none" ? "Quota di struttura non disponibile: completa date e dati aziendali." : `Quota struttura: ${formatCurrency(structureImpact.structureAmount)} · ${structureImpact.source === "automatic" ? `ripartizione automatica su ${structureImpact.months?.toFixed(1)} mesi` : "percentuale della vista corrente"}.`}</p>
+            {targetMarginPct !== undefined && <p className="text-xs text-muted-foreground">Target della vista corrente: {targetMarginPct.toFixed(1)}%.</p>}
+          </section>}
 
           {/* Cost breakdown bars */}
           <div className="space-y-3 p-4 rounded-lg bg-muted/30 border">
@@ -286,8 +296,8 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
             )}
             {affidabile && (
               <BreakdownBar
-                label="Margine lordo"
-                value={Math.max(margine, 0)}
+                label={margine < 0 ? "Perdita diretta" : "Margine diretto"}
+                value={margine}
                 total={preventivoTotale}
                 colorClass={margineColor}
               />
@@ -301,16 +311,19 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
                 <p className="mt-1 text-sm text-orange-900">
                   {anomaliesLoading
                     ? "Caricamento anomalie..."
+                    : anomaliesError
+                      ? "Impossibile caricare le anomalie."
                     : openAnomalies.length > 0
                       ? `${openAnomalies.length} anomalie aperte impattano per ${formatCurrency(openAnomalyTotal)}.`
                       : "Nessuna anomalia aperta su questa commessa."}
                 </p>
               </div>
               <Badge className="border border-orange-200 bg-white text-orange-700 hover:bg-white">
-                {formatCurrency(openAnomalyTotal)}
+                {anomaliesLoading || anomaliesError ? "—" : formatCurrency(openAnomalyTotal)}
               </Badge>
             </div>
-            {!anomaliesLoading && anomalies.length > 0 && (
+            {anomaliesError && <Button variant="outline" size="sm" onClick={() => refetchAnomalies()}>Riprova anomalie</Button>}
+            {!anomaliesLoading && !anomaliesError && anomalies.length > 0 && (
               <div className="space-y-2">
                 {anomalies.slice(0, 4).map((item) => {
                   const status = normalizeReviewStatus(item.review_status);
@@ -347,9 +360,10 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
           <div>
             <div className="flex items-center gap-1.5 mb-3">
               <Package className="h-4 w-4 text-primary" aria-hidden="true" />
-              <h3 className="text-sm font-semibold">Voci d'ordine ({items.length})</h3>
+              <h3 className="text-sm font-semibold">Stime per voce ({items.length})</h3>
             </div>
 
+            <p className="mb-3 text-xs text-muted-foreground">Ricavi e costi unitari delle voci d’ordine. I costi mancanti sono indicati come da completare; il consuntivo registrato è riepilogato sopra.</p>
             {itemsLoading ? (
               <div className="space-y-2">
                 {[1, 2, 3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
@@ -386,18 +400,18 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
                         </TableCell>
                         <TableCell className="text-right text-sm">{item.quantity}</TableCell>
                         <TableCell className="text-right text-sm hidden sm:table-cell">
-                          {item.ricavo > 0 ? formatCurrency(item.ricavo) : "—"}
+                          {item.ricavo !== null ? formatCurrency(item.ricavo) : "—"}
                         </TableCell>
                         <TableCell className="text-right text-sm hidden sm:table-cell">
-                          {item.costo > 0 ? formatCurrency(item.costo) : "—"}
+                          {item.costo !== null ? formatCurrency(item.costo) : "Da completare"}
                         </TableCell>
                         <TableCell className={cn("text-right text-sm font-semibold",
-                          item.margineVoce > 0 ? "text-green-600" : item.margineVoce < 0 ? "text-red-600" : "text-muted-foreground"
+                          item.margineVoce !== null && item.margineVoce > 0 ? "text-green-600" : item.margineVoce !== null && item.margineVoce < 0 ? "text-red-600" : "text-muted-foreground"
                         )}>
-                          {item.ricavo > 0 ? formatCurrency(item.margineVoce) : "—"}
+                          {item.margineVoce !== null ? formatCurrency(item.margineVoce) : "—"}
                         </TableCell>
                         <TableCell className="text-right">
-                          {item.ricavo > 0 ? (
+                          {item.margineVocePerc !== null ? (
                             <div className="flex flex-col items-end gap-1">
                               <span className={cn("text-xs font-medium",
                                 item.margineVocePerc >= 25 ? "text-green-600" :

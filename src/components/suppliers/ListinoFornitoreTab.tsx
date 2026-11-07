@@ -293,7 +293,7 @@ function ListinoEditor({
               {visibili.map((v) => (
                 <tr key={v.id} className="border-b last:border-0">
                   <td className="p-1">
-                    <Input value={v.codice} onChange={(e) => aggiorna(v.id, { codice: e.target.value })} readOnly={!puoModificare} className="h-8 text-sm" />
+                    <Input aria-label={`Codice voce ${v.codice || v.descrizione || v.id}`} value={v.codice} onChange={(e) => aggiorna(v.id, { codice: e.target.value })} readOnly={!puoModificare} className="h-8 text-sm" />
                   </td>
                   <td className="p-1">
                     <div className="flex items-center gap-2">
@@ -305,14 +305,15 @@ function ListinoEditor({
                           className="h-9 w-9 shrink-0 rounded border bg-white object-contain"
                         />
                       )}
-                      <Input value={v.descrizione} onChange={(e) => aggiorna(v.id, { descrizione: e.target.value })} readOnly={!puoModificare} className="h-8 text-sm" />
+                      <Input aria-label={`Descrizione voce ${v.codice || v.descrizione || v.id}`} value={v.descrizione} onChange={(e) => aggiorna(v.id, { descrizione: e.target.value })} readOnly={!puoModificare} className="h-8 text-sm" />
                     </div>
                   </td>
                   <td className="p-1">
-                    <Input value={v.unita} onChange={(e) => aggiorna(v.id, { unita: e.target.value })} readOnly={!puoModificare} className="h-8 text-sm" />
+                    <Input aria-label={`Unità di misura voce ${v.codice || v.descrizione || v.id}`} value={v.unita} onChange={(e) => aggiorna(v.id, { unita: e.target.value })} readOnly={!puoModificare} className="h-8 text-sm" />
                   </td>
                   <td className="p-1">
                     <Input
+                      aria-label={`Prezzo voce ${v.codice || v.descrizione || v.id}`}
                       type="number" min={0} step="0.01"
                       value={Number.isFinite(v.prezzo) ? v.prezzo : 0}
                       readOnly={!puoModificare}
@@ -322,6 +323,7 @@ function ListinoEditor({
                   </td>
                   <td className="p-1">
                     <Input
+                      aria-label={`Sconto percentuale voce ${v.codice || v.descrizione || v.id}`}
                       type="number" min={0} max={100} step="0.5"
                       value={Number.isFinite(v.sconto_pct) ? v.sconto_pct : 0}
                       readOnly={!puoModificare}
@@ -367,6 +369,7 @@ function ListinoEditor({
             </DialogDescription>
           </DialogHeader>
           <Textarea
+            aria-label="Righe del listino da Excel"
             value={testoIncolla}
             onChange={(e) => setTestoIncolla(e.target.value)}
             rows={10}

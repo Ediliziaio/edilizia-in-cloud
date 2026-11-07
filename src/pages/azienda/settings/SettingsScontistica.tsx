@@ -93,12 +93,12 @@ const schema = z
     salesperson_id: z.string().nullable().optional(),
     client_category: z.string().trim().nullable().optional(),
     tipo_lavoro: z.string().trim().nullable().optional(),
-    importo_min: z.coerce.number().min(0, "Min ≥ 0").nullable().optional(),
-    importo_max: z.coerce.number().min(0, "Max ≥ 0").nullable().optional(),
-    margine_min_pct: z.coerce.number().min(0).max(99, "Margine min deve essere < 100% (altrimenti nessuno sconto applicabile)"),
-    sconto_max_pct: z.coerce.number().min(0.1, "Sconto max deve essere > 0% (altrimenti la regola non concede sconti)").max(100),
-    approva_oltre_pct: z.coerce.number().min(0).max(100).nullable().optional(),
-    priority: z.coerce.number().int().min(1).max(1000),
+    importo_min: z.coerce.number<string | number>().min(0, "Min ≥ 0").nullable().optional(),
+    importo_max: z.coerce.number<string | number>().min(0, "Max ≥ 0").nullable().optional(),
+    margine_min_pct: z.coerce.number<string | number>().min(0).max(99, "Margine min deve essere < 100% (altrimenti nessuno sconto applicabile)"),
+    sconto_max_pct: z.coerce.number<string | number>().min(0.1, "Sconto max deve essere > 0% (altrimenti la regola non concede sconti)").max(100),
+    approva_oltre_pct: z.coerce.number<string | number>().min(0).max(100).nullable().optional(),
+    priority: z.coerce.number<string | number>().int().min(1).max(1000),
     is_active: z.boolean(),
   })
   // Cross-validation: importo_max ≥ importo_min
@@ -172,7 +172,7 @@ export default function SettingsScontistica() {
     },
   });
 
-  const form = useForm<FormValues>({
+  const form = useForm<z.input<typeof schema>, unknown, FormValues>({
     resolver: zodResolver(schema),
     defaultValues: DEFAULT_VALUES,
     mode: "onBlur",
@@ -1068,9 +1068,9 @@ function DiscountSimulator({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Commerciale</label>
+            <label htmlFor="sim-sconto-commerciale" className="text-xs font-medium text-muted-foreground">Commerciale</label>
             <Select value={simSalesperson} onValueChange={setSimSalesperson}>
-              <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger id="sim-sconto-commerciale" className="h-9 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="any">— non specificato —</SelectItem>
                 {salespeople.map((sp) => (
@@ -1082,8 +1082,9 @@ function DiscountSimulator({
             </Select>
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Categoria cliente</label>
+            <label htmlFor="sim-sconto-categoria" className="text-xs font-medium text-muted-foreground">Categoria cliente</label>
             <Input
+              id="sim-sconto-categoria"
               value={simCategoria}
               onChange={(e) => setSimCategoria(e.target.value)}
               placeholder="es. vip, standard"
@@ -1091,12 +1092,12 @@ function DiscountSimulator({
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Tipo lavoro</label>
+            <label htmlFor="sim-sconto-lavoro" className="text-xs font-medium text-muted-foreground">Tipo lavoro</label>
             <Select
               value={simTipoLavoro || SELECT_NONE}
               onValueChange={(v) => setSimTipoLavoro(v === SELECT_NONE ? "" : v)}
             >
-              <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger id="sim-sconto-lavoro" className="h-9 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={SELECT_NONE}>— non specificato —</SelectItem>
                 {TIPI_LAVORO_NOTI.map((t) => (
@@ -1106,18 +1107,20 @@ function DiscountSimulator({
             </Select>
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Importo € (subtotal)</label>
+            <label htmlFor="sim-sconto-importo" className="text-xs font-medium text-muted-foreground">Importo imponibile €</label>
             <Input
               type="number" min="0" inputMode="decimal"
+              id="sim-sconto-importo"
               value={simImporto}
               onChange={(e) => setSimImporto(toNum(e.target.value, 0))}
               className="h-9 text-xs"
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Sconto richiesto %</label>
+            <label htmlFor="sim-sconto-sconto" className="text-xs font-medium text-muted-foreground">Sconto richiesto %</label>
             <Input
               type="number" min="0" max="100" step="0.1" inputMode="decimal"
+              id="sim-sconto-sconto"
               value={simSconto}
               onChange={(e) => setSimSconto(toNum(e.target.value, 0))}
               className="h-9 text-xs"

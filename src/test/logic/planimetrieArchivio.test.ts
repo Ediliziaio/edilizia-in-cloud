@@ -58,12 +58,12 @@ describe("archivio delle planimetrie", () => {
     expect(finto.rpc).not.toHaveBeenCalled();
   });
 
-  it("salva una versione dicendo quale si era aperta; se un altro ha salvato prima, lo dice", async () => {
+  it.each(["PT409","40001"])("salva una versione e riconosce il conflitto %s senza riprovare", async (code) => {
     finto.rpc.mockResolvedValue({ data: 4, error: null });
     expect(await salvaNuovaVersione({ planimetriaId: "p", documento: bilocale, versioneAttesa: 3 })).toBe(4);
     expect(finto.rpc.mock.calls[0][1]).toMatchObject({ p_planimetria_id: "p", p_versione_attesa: 3 });
 
-    finto.rpc.mockResolvedValue({ data: null, error: { code: "40001", message: "..." } });
+    finto.rpc.mockResolvedValue({ data: null, error: { code, message: "..." } });
     await expect(salvaNuovaVersione({ planimetriaId: "p", documento: bilocale, versioneAttesa: 3 }))
       .rejects.toThrow("Qualcun altro ha salvato la pianta nel frattempo: ricarica per vedere le sue modifiche.");
   });

@@ -78,6 +78,8 @@ export default function DocumentoDetail() {
   const updateMutation = useUpdateDocumento();
   const emittiMutation = useEmittiDocumento();
   const [ncLoading, setNcLoading] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfMessaggio, setPdfMessaggio] = useState<string | null>(null);
   const [convertLoading, setConvertLoading] = useState(false);
   const [pagaAperto, setPagaAperto] = useState(false);
   const [emailAperta, setEmailAperta] = useState(false);
@@ -127,15 +129,31 @@ export default function DocumentoDetail() {
   // Stampa nativa del browser: «Salva PDF» e «Stampa» aprono lo stesso dialogo,
   // da cui si sceglie la stampante o «Salva come PDF» (testo vero, non immagine).
   const handleStampa = async (salva: boolean) => {
+    if (pdfBusy) return;
+    setPdfBusy(true);
+    setPdfMessaggio(salva
+      ? "Preparazione della stampa. Per salvare il PDF scegli «Salva come PDF» nel dialogo del browser: non è un download automatico."
+      : "Preparazione del documento per la stampa…");
     try {
       await downloadNativePDF(doc.id, doc.numero);
-      if (salva) toast.info("Nel dialogo di stampa scegli «Salva come PDF» come destinazione");
-    } catch (err: unknown) { toast.error("Errore nella preparazione del PDF", { description: getErrorMessage(err) }); }
+      setPdfMessaggio("Stampa richiesta. Se il dialogo non compare nel browser integrato, apri il portale nel browser esterno e riprova. Nessun documento è stato emesso o inviato.");
+    } catch (err: unknown) {
+      setPdfMessaggio(`PDF non preparato: ${getErrorMessage(err)}`);
+      toast.error("Errore nella preparazione del PDF", { description: getErrorMessage(err) });
+    } finally { setPdfBusy(false); }
   };
 
   const handleApriPdf = async () => {
-    try { await apriDocumentoInScheda(doc.id); }
-    catch (err: unknown) { toast.error("Impossibile aprire il PDF", { description: getErrorMessage(err) }); }
+    if (pdfBusy) return;
+    setPdfBusy(true);
+    setPdfMessaggio("Apertura del documento in una nuova scheda…");
+    try {
+      await apriDocumentoInScheda(doc.id);
+      setPdfMessaggio("Documento aperto nella nuova scheda. Per ottenere un PDF usa la stampa del browser.");
+    } catch (err: unknown) {
+      setPdfMessaggio(`Documento non aperto: ${getErrorMessage(err)}`);
+      toast.error("Impossibile aprire il PDF", { description: getErrorMessage(err) });
+    } finally { setPdfBusy(false); }
   };
 
   const handleDuplica = () => {
@@ -247,9 +265,9 @@ export default function DocumentoDetail() {
           </AlertDialog>
         )}
         <Button size="sm" variant="secondary" className="gap-1.5" onClick={handleDuplica}><Copy className="h-4 w-4" />Duplica</Button>
-        <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" onClick={() => void handleApriPdf()}><FileText className="h-4 w-4" />Apri PDF</Button>
-        <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" onClick={() => void handleStampa(true)}><Save className="h-4 w-4" />Salva PDF</Button>
-        <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" onClick={() => void handleStampa(false)}><Printer className="h-4 w-4" />Stampa</Button>
+        <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" disabled={pdfBusy} onClick={() => void handleApriPdf()}><FileText className="h-4 w-4" />Apri PDF</Button>
+        <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" disabled={pdfBusy} onClick={() => void handleStampa(true)}><Save className="h-4 w-4" />Salva PDF</Button>
+        <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" disabled={pdfBusy} onClick={() => void handleStampa(false)}><Printer className="h-4 w-4" />Stampa</Button>
         {doc.stato !== "bozza" && (
           <Button size="sm" variant="secondary" className="gap-1.5" onClick={() => setEmailAperta(true)}><Mail className="h-4 w-4" />Invia per e-mail</Button>
         )}
@@ -359,6 +377,7 @@ export default function DocumentoDetail() {
       </div>
 
       {/* L'anteprima, al centro, come sarà sul foglio. Mobile no: vedi sopra. */}
+      {pdfMessaggio && <p role="status" className="rounded-md border p-3 text-sm">{pdfMessaggio}</p>}
       <section className="max-sm:hidden" aria-label="Anteprima del documento">
         <div className="mb-3 text-center">
           <h2 className="text-lg font-semibold">Anteprima del documento</h2>

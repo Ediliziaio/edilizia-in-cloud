@@ -6,9 +6,9 @@ import type { TablesInsert, TablesUpdate } from '@/integrations/supabase/types';
 import { queryKeys } from '@/lib/queryKeys';
 import { logger } from '@/utils/logger';
 
-type QuoteTemplateMutation = Partial<Omit<QuoteTemplate, 'created_at' | 'updated_at'>> & { id?: string };
+type QuoteTemplateMutation = Partial<Omit<QuoteTemplate, 'created_at' | 'updated_at'>> & { id?: string; expectedUpdatedAt?: string };
 
-export function useQuoteTemplates(options: { live?: boolean } = {}) {
+export function useQuoteTemplates(options: { live?: boolean; refetchOnWindowFocus?: boolean } = {}) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -31,7 +31,7 @@ export function useQuoteTemplates(options: { live?: boolean } = {}) {
     },
     enabled: !!companyId,
     staleTime: options.live ? 0 : 5 * 60 * 1000,
-    refetchOnWindowFocus: options.live ? 'always' : true,
+    refetchOnWindowFocus: options.refetchOnWindowFocus ?? (options.live ? 'always' : true),
     refetchInterval: options.live ? 60_000 : false,
     refetchIntervalInBackground: false,
     gcTime: 15 * 60 * 1000,
@@ -46,17 +46,18 @@ export function useQuoteTemplates(options: { live?: boolean } = {}) {
   const upsertTemplate = useMutation({
     mutationFn: async (template: QuoteTemplateMutation) => {
       if (!companyId) throw new Error('Azienda non disponibile');
-      const { id, ...rest } = template;
+      const { id, expectedUpdatedAt, ...rest } = template;
       if (id) {
-        const { data, error } = await supabase
+        let request = supabase
           .from('quote_templates')
           // QuoteTemplate (tipo locale) è più largo delle colonne reali: il cast
           // evita che i tipi generati rifiutino chiavi che a runtime restano undefined.
           .update({ ...rest, updated_at: new Date().toISOString() } as unknown as TablesUpdate<'quote_templates'>)
           .eq('id', id)
-          .eq('company_id', companyId)
-          .select('id')
-          .single();
+          .eq('company_id', companyId);
+        if (expectedUpdatedAt) request = request.eq('updated_at', expectedUpdatedAt);
+        const { data, error } = await request.select('id').single();
+        if (error && expectedUpdatedAt && error.code === 'PGRST116') throw new Error('Il contratto è stato aggiornato da un altro terminale. Ricarica i contratti prima di salvare.');
         if (error) throw error;
         return data; // { id }
       } else {

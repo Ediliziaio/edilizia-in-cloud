@@ -60,6 +60,8 @@ import { COLORE_BARRA, COLORE_STATO } from "./coloriStato";
 import { bilancioPosa, consumiPerArticolo, type ConsumoArticolo } from "@/lib/distinta/consumiMateriali";
 import { useConsumiMateriali } from "@/hooks/useConsumiMateriali";
 
+const UscitaCommessaDialog = lazy(() => import("@/components/warehouse/UscitaCommessaDialog"));
+
 const GeneraMaterialiDialog = lazy(() => import("./GeneraMaterialiDialog"));
 const PlanimetrieDialog = lazy(() => import("./PlanimetrieDialog"));
 const RientroMagazzinoDialog = lazy(() => import("./RientroMagazzinoDialog"));
@@ -346,8 +348,14 @@ function RigaMateriale({
   const calcolata = m.quantita_calcolata != null && Math.abs(Number(m.quantita_calcolata) - m.quantity) > 0.005 ? Number(m.quantita_calcolata) : null;
   const salva = () => {
     if (bozza == null) return;
-    const q = Math.round(Number(bozza.replace(",", ".")));
+    const q = Number(bozza.replace(",", "."));
     setBozza(null);
+    if (Number.isFinite(q) && !Number.isInteger(q)) {
+      toast.error("La quantità d’acquisto richiede un numero intero", {
+        description: "Il valore non è stato modificato. La quantità calcolata può contenere decimali e resta indicata separatamente.",
+      });
+      return;
+    }
     if (Number.isFinite(q) && q > 0 && q !== m.quantity) onQuantita(q);
   };
   const oltre = (m.ordinata ?? 0) > m.quantity && m.quantity > 0;
@@ -624,6 +632,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
   silvio?: ReactNode;
 }) {
   const perm = usePermissions();
+  const [uscitaMerce, setUscitaMerce] = useState(false);
   const permessi: PermessiMateriali = {
     canEditOrders: !!perm.canEditOrders, canValidateBom: !!perm.canValidateBom, canManagePurchasing: !!perm.canManagePurchasing,
   };
@@ -940,7 +949,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
                   }}>
                   Richiedi offerta
                 </Button>
-                <Button size="sm" className="h-8" disabled={!sceltiAcquistabili.length || azioni.creaOrdini.isPending}
+                <Button size="sm" className="h-8" disabled={!sceltiAcquistabili.some((m) => m.ordinabile) || azioni.creaOrdini.isPending}
                   onClick={() => azioni.creaOrdini.mutate({ materiali: sceltiAcquistabili.filter((m) => m.ordinabile) }, { onSuccess: () => setSelezione(new Set()) })}>
                   <ShoppingCart className="mr-1.5 h-3.5 w-3.5" aria-hidden /> Crea ordine
                 </Button>
@@ -1098,6 +1107,8 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
         {editor && (
           <OrderItemsList
             soloFinestra
+            stockPickBlockedReason="Il prelievo va registrato con Uscita merce: scegli magazzino, quantità e matricole. La riga della commessa da sola non scarica la giacenza."
+            onOpenWarehouseExit={perm.canViewWarehouse && perm.canEditWarehouse ? () => setUscitaMerce(true) : undefined}
             richiesta={richiesta}
             items={editor.items}
             onItemsChange={editor.onItemsChange}
@@ -1112,6 +1123,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
         )}
 
         <Suspense fallback={null}>
+          {uscitaMerce && <UscitaCommessaDialog orderId={orderId} onClose={() => setUscitaMerce(false)} />}
           {genera && <GeneraMaterialiDialog orderId={orderId} orderCode={orderCode} open={genera} onOpenChange={setGenera} />}
           {tavole && <PlanimetrieDialog orderId={orderId} open={tavole} onOpenChange={setTavole} />}
           {rientroDi && <RientroMagazzinoDialog orderId={orderId} riga={rientroDi} onClose={() => setRientroDi(null)} />}

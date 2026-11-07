@@ -4871,7 +4871,7 @@ function PortalPreview({
             <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Libreria personale</p>
             <h3 className="mt-1 text-xl font-bold text-slate-950">I tuoi corsi sbloccati</h3>
             <p className="mt-1 text-sm text-slate-500">
-              Corsi pubblicati, stato di avanzamento e prossimo passo.
+              Anteprima amministratore: può includere corsi in bozza oltre a quelli pubblicati. Non rappresenta i permessi di un utente finale.
             </p>
           </div>
           {/* Mobile: i quattro filtri su una riga sola, che scorre se serve. */}

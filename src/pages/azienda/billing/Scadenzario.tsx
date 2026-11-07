@@ -175,7 +175,7 @@ export default function Scadenzario() {
           riferimento: r.invoices?.invoice_number ? `Fatt. ${r.invoices.invoice_number}` : r.orders?.order_code ? `Ord. ${r.orders.order_code}` : "",
           importo: String(r.amount ?? 0).replace(".", ","),
           residuo: String(Math.round((Number(r.amount || 0) - Number(r.paid_amount || 0)) * 100) / 100).replace(".", ","),
-          stato: r.status || "",
+          stato: r.status === "da_pagare" ? (r.direction === "entrata" ? "Da incassare" : "Da pagare") : r.status === "pagata" ? (r.direction === "entrata" ? "Incassata" : "Pagata") : r.status === "parziale" ? "Parziale" : r.status === "annullata" ? "Annullata" : r.status || "",
         }));
       if (rows.length === 0) { toast.info("Nessuna scadenza da esportare"); return; }
       exportToCSV(rows, [

@@ -1,5 +1,5 @@
 import { Copy, Trash2 } from "lucide-react";
-import GridLayout, { type Layout } from "react-grid-layout";
+import GridLayout, { type Layout } from "react-grid-layout/legacy";
 import type { DashboardWidget, ResolvedWidget } from "@/lib/dashboardBuilder/types";
 import { WIDGET_LABELS } from "@/lib/dashboardBuilder/widgetLabels";
 import { KpiCard } from "../widgets/KpiCard";
@@ -67,7 +67,7 @@ export function BuilderGrid({
   columns = 12,
   readonly = false,
 }: Props) {
-  const layout: Layout[] = widgets.map((w) => ({
+  const layout: Layout = widgets.map((w) => ({
     i: w.id,
     x: w.x,
     y: w.y,
@@ -78,7 +78,7 @@ export function BuilderGrid({
     static: readonly,
   }));
 
-  const handleLayoutChange = (next: Layout[]) => {
+  const handleLayoutChange = (next: Layout) => {
     if (readonly) return;
     const byId = new Map(widgets.map((w) => [w.id, w]));
     const updated = next

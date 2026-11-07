@@ -1,5 +1,6 @@
+import { classificaBozzeRender } from "@/lib/render/renderDrafts";
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
@@ -280,6 +281,7 @@ const groupLabels: Record<CategoryGroup, string> = {
 };
 
 const statusLabel: Record<string, string> = {
+  draft: "Da completare",
   completed: "Completato",
   processing: "In corso",
   pending: "In coda",
@@ -294,7 +296,6 @@ function formatType(value: string) {
 }
 
 export default function RenderCategoryHub() {
-  const navigate = useNavigate();
   const permessi = usePermissions();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -317,7 +318,7 @@ export default function RenderCategoryHub() {
         .limit(48);
       if (error) throw error;
 
-      const rows = (data ?? []) as unknown as Omit<RecentRender, "meta">[];
+      const rows = await classificaBozzeRender((data ?? []) as unknown as Omit<RecentRender, "meta">[], companyId);
       const maps = await loadRenderGalleryMeta(rows);
       return rows.map((row) => ({
         ...row,
@@ -367,13 +368,6 @@ export default function RenderCategoryHub() {
     return { completed, processing, linked, stale };
   }, [recentRenders]);
 
-  const handleCategoryClick = (cat: RenderCategory) => {
-    if (cat.active) {
-      navigate(cat.path);
-    } else {
-      toast("Questa funzionalità sarà disponibile a breve.");
-    }
-  };
 
   if (isScopriPlan) return <UpgradeScopriWall type="render_ai" inline />;
 
@@ -436,7 +430,7 @@ export default function RenderCategoryHub() {
             <Clock className="h-5 w-5 text-amber-600" />
             <div>
               <p className="text-2xl font-bold">{stats.processing}</p>
-              <p className="text-xs text-muted-foreground">in lavorazione</p>
+              <p className="text-xs text-muted-foreground">in attesa o elaborazione</p>
             </div>
           </CardContent>
         </Card>
@@ -459,9 +453,9 @@ export default function RenderCategoryHub() {
               <div className="max-md:min-w-0">
                 <p className="text-sm font-semibold text-orange-950 max-md:text-[13px]">Ci sono render da verificare</p>
                 <p className="text-sm text-orange-800 max-md:hidden">
-                  {stats.stale} render risultano in coda o elaborazione da oltre 30 minuti. Controlla il modulo relativo prima di rigenerare per evitare doppie operazioni.
+                  {stats.stale} sessioni non concluse sono state create da oltre 30 minuti. Possono includere foto caricate senza avviare il render: questa età non misura il tempo di elaborazione. Apri il modulo e controlla lo stato prima di rigenerare.
                 </p>
-                <p className="hidden text-[11px] text-orange-800 max-md:block">{stats.stale} in coda da oltre 30 minuti</p>
+                <p className="hidden text-[11px] text-orange-800 max-md:block">{stats.stale} sessioni non concluse create da oltre 30 minuti</p>
               </div>
             </div>
             <Button variant="outline" size="sm" className="border-orange-200 bg-white/80 max-md:h-8 max-md:shrink-0 max-md:px-2.5 max-md:text-xs" onClick={() => setRecentStatusFilter("processing")}>
@@ -532,12 +526,10 @@ export default function RenderCategoryHub() {
             const Icon = cat.icon;
             const count = categoryCounts[cat.id] ?? 0;
             return (
-              <Card
-                key={cat.id}
+              <Link key={cat.id} to={cat.active ? cat.path : "#"} aria-label={cat.title} aria-disabled={!cat.active} className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" onClick={(e) => { if (!cat.active) { e.preventDefault(); toast("Questa funzionalità sarà disponibile a breve."); } }}><Card
                 className={`border-slate-200 transition-all duration-200 ${
                   cat.active ? "cursor-pointer hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-md" : "cursor-not-allowed opacity-60"
                 }`}
-                onClick={() => handleCategoryClick(cat)}
               >
                 <CardContent className="p-5 space-y-4 max-md:flex max-md:items-center max-md:gap-2 max-md:space-y-0 max-md:p-2.5">
                   <div className="flex items-start justify-between gap-3 max-md:shrink-0">
@@ -572,7 +564,7 @@ export default function RenderCategoryHub() {
                     ))}
                   </div>
                 </CardContent>
-              </Card>
+              </Card></Link>
             );
           })}
         </div>
@@ -609,7 +601,9 @@ export default function RenderCategoryHub() {
                 <SelectItem value="all">Tutti gli stati</SelectItem>
                 <SelectItem value="completed">Completati</SelectItem>
                 <SelectItem value="processing">In elaborazione</SelectItem>
+                <SelectItem value="draft">Da completare</SelectItem>
                 <SelectItem value="pending">In coda</SelectItem>
+                  <SelectItem value="draft">Da completare</SelectItem>
                 <SelectItem value="failed">Con errore</SelectItem>
               </SelectContent>
             </Select>
@@ -674,10 +668,8 @@ export default function RenderCategoryHub() {
               const typeColor = categories.find((cat) => cat.id === item.render_type)?.color ?? "bg-muted text-foreground";
               const status = normalizeRenderStatus(item.status);
               return (
-                <Card
-                  key={`${item.render_type}-${item.id}`}
+                <Link key={`${item.render_type}-${item.id}`} to={`${typePath[item.render_type] ?? "/azienda/render"}/gallery/${item.id}`} aria-label={`Apri render ${formatType(item.render_type)} del ${formatRenderDate(item.created_at)}`} className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><Card
                   className="overflow-hidden cursor-pointer hover:border-primary/40 hover:shadow-md transition-all"
-                  onClick={() => navigate(`${typePath[item.render_type] ?? "/azienda/render"}/gallery/${item.id}`)}
                 >
                   <div className="aspect-video bg-muted overflow-hidden">
                     {item.result_url ? (
@@ -726,7 +718,7 @@ export default function RenderCategoryHub() {
                       )}
                     </div>
                   </CardContent>
-                </Card>
+                </Card></Link>
               );
             })}
           </div>

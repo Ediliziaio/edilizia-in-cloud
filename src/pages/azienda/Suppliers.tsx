@@ -156,7 +156,7 @@ function SuppliersList({
         </Card>
         <Card>
           <CardContent className="pt-3 pb-2">
-            <p className="text-xs text-muted-foreground">Debito residuo</p>
+            <p className="text-xs text-muted-foreground">Residuo scadenzario</p>
             <p
               className={`text-xl font-bold ${totalDebt > 0 ? "text-destructive" : ""}`}
             >
@@ -268,7 +268,7 @@ function SuppliersList({
                     </p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Da pagare</p>
+                    <p className="text-muted-foreground">Residuo scadenzario</p>
                     <p
                       className={`font-medium ${(s.scadenze_importo || 0) > 0 ? "text-destructive" : ""}`}
                     >
@@ -514,6 +514,11 @@ function SupplierDetail({
           </Card>
         </div>
       )}
+
+      <p className="text-sm text-muted-foreground">
+        I contatori delle scadenze includono solo le voci presenti nello scadenzario.
+        Uno zero non esclude fatture ancora da pagare: consulta anche «Fatture e debiti».
+      </p>
 
       {/* Tabs */}
       <Tabs

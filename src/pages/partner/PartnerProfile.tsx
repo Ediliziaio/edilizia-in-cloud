@@ -23,30 +23,6 @@ import {
   getReferralPayoutDetails,
 } from "@/lib/referralCompliance";
 
-const partnerSubmitPayoutDetails = supabase.rpc.bind(supabase) as unknown as (
-  fn: "partner_submit_referral_payout_details",
-  args: {
-    p_name: string;
-    p_phone: string | null;
-    p_partner_type: string;
-    p_payout_method: string;
-    p_iban: string | null;
-    p_account_holder: string | null;
-    p_bank: string | null;
-    p_fiscal_code: string | null;
-  },
-) => ReturnType<typeof supabase.rpc>;
-
-const partnerSignContract = supabase.rpc.bind(supabase) as unknown as (
-  fn: "partner_sign_referral_contract",
-  args: {
-    p_signed_name: string;
-    p_ip_address: string;
-    p_user_agent: string;
-    p_contract_version: string;
-  },
-) => ReturnType<typeof supabase.rpc>;
-
 export default function PartnerProfile() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -130,7 +106,7 @@ export default function PartnerProfile() {
       const nextBankStatus = bankChanged || previousBankStatus === "rejected" || previousBankStatus === "draft"
         ? "pending"
         : previousBankStatus;
-      const { error } = await partnerSubmitPayoutDetails("partner_submit_referral_payout_details", {
+      const { error } = await supabase.rpc("partner_submit_referral_payout_details", {
         p_name: name,
         p_phone: phone || null,
         p_partner_type: partnerType,
@@ -170,7 +146,7 @@ export default function PartnerProfile() {
       } catch { /* IP non disponibile: non blocca la firma locale */ }
 
       const currentDetails = getReferralPayoutDetails(referrer!.payout_details);
-      const { error } = await partnerSignContract("partner_sign_referral_contract", {
+      const { error } = await supabase.rpc("partner_sign_referral_contract", {
         p_signed_name: contractSignerName.trim(),
         p_ip_address: ip,
         p_user_agent: navigator.userAgent,

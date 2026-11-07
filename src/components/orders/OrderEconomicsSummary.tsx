@@ -627,7 +627,11 @@ export function OrderEconomicsSummary({
                   ? structure.data?.monthlyStructure
                     ? "Costi di struttura: nessun cantiere attivo su cui dividerli."
                     : "Costi di struttura: inserisci i costi fissi e il personale d'ufficio per calcolarne la quota."
-                  : "Costi di struttura: imposta la data di inizio lavori per calcolare la quota maturata."}
+                  : !workStartDate
+                    ? "Costi di struttura: imposta la data di inizio lavori per calcolare la quota maturata."
+                    : Date.parse(workStartDate) > Date.parse(structure.data?.today ?? "")
+                      ? "Costi di struttura: i lavori non sono ancora iniziati; la quota non è ancora maturata."
+                      : "Costi di struttura: verifica le date dei lavori per calcolare la quota maturata."}
             </p>
           )}
           {quality.canShowMargin && structure.data?.monthlyPerActiveOrder != null && structureImpact.months != null && (

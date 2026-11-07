@@ -3,7 +3,8 @@
  * (29/10/2026), così un tecnico lo riapre in PriMus. Si scrive la stessa
  * struttura che legge `computoXpwe.ts`: capitoli come super categorie, elenco
  * prezzi (EPItem) e voci di computo (VCItem) con le righe di misura (RGItem).
- * Un file esportato si reimporta qui identico: lo prova il test di andata e ritorno.
+ * Il roundtrip conserva quantità e prezzi; formule originali e costi interni
+ * richiedono la copia nativa della bozza (backupComputo).
  */
 import { calcolaVoce, numeroEditor, quantitaMisura, type BozzaComputo } from "./editorNativo";
 

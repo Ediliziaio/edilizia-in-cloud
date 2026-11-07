@@ -490,6 +490,9 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
           standard_cost: r.standard_cost != null ? Number(r.standard_cost) : null,
           readiness,
           odaNumber: covered ? (odaByItem.get(id) ?? null) : null,
+          // Servono a dividere il costo tra le fasi in base alla posa (consumiMateriali): senza, l'unità valeva «pz».
+          unita_misura: (r.unita_misura as string) ?? null,
+          stock_item_id: (r.stock_item_id as string) ?? null,
         };
       });
     },

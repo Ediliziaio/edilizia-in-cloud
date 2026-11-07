@@ -41,7 +41,7 @@ import { ScostamentoVoce } from "@/components/prezzario/ScostamentoVoce";
 import { VoceDettagli } from "@/components/computo/VoceDettagli";
 
 /** Unità di misura selezionabili (allineate a `RstUnitaMisura`). */
-const UM_OPTIONS: RstUnitaMisura[] = ["mq", "ml", "cad", "corpo", "kg", "h", "a corpo"];
+const UM_OPTIONS: RstUnitaMisura[] = ["mq", "mc", "ml", "cad", "corpo", "kg", "h", "a corpo"];
 
 interface Props {
   voce: RstComputoVoce;

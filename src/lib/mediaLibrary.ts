@@ -448,7 +448,7 @@ function inferProfile(input: BuildMediaLibraryItemInput): Pick<MediaLibraryItem,
     return { category: "render", securityLevel: "standard", areaLabel: "Render" };
   }
 
-  if (QUOTE_DOC_TYPES.has(docType) || input.source === "quote_pdf" || input.source === "quote_material" || input.source === "computo") {
+  if (QUOTE_DOC_TYPES.has(docType) || input.source === "quote_pdf" || input.source === "quote_material") {
     return { category: "preventivi", securityLevel: "standard", areaLabel: "Preventivi" };
   }
 

@@ -1,3 +1,4 @@
+import { leggiModalitaCommesse } from "@/lib/finanziamenti/leggiModalitaCommesse";
 import {OrdersAnnualScope, OrdersCarryoverSummary} from "@/components/orders/OrdersAnnualScope";
 import { OrdersTrashDialog } from '@/components/orders/OrdersTrashDialog';
 import {currentManagementScope, orderEconomics, orderYear, previousOrderReasons, orderScopeGroupIds, orderWorkflowCounts, type OrderScopeGroup} from "@/lib/orders/annualScope";
@@ -17,7 +18,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Plus, Package, LayoutList, Columns3, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, LifeBuoy, Hammer, CheckCircle2, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Map as MapIcon, FileQuestion, HardHat, NotebookPen, Sparkles } from "lucide-react";
+import { Plus, Package, LayoutList, Columns3, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Map as MapIcon, FileQuestion, HardHat, NotebookPen } from "lucide-react";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 
 // 🆕 Sprint S3: Sopralluoghi come tab dentro Commesse
@@ -287,7 +288,7 @@ function OrdersListInner() {
           .lte("created_at", new Date(selectedYear, 11, 31, 23, 59, 59, 999).toISOString());
       }
       query = query.order("id");
-      const allRows = await readAllOrderRows((from, to) => query.range(from, to)) as unknown as OrderWithDetails[];
+      const allRows = await leggiModalitaCommesse(effectiveCompany.id, await readAllOrderRows((from, to) => query.range(from, to)) as unknown as OrderWithDetails[]);
       const tickets = orderPerms.canViewTickets ? await readAllOrderRows((from,to) => supabase.from("tickets")
         .select("id, order_id, status").eq("company_id",effectiveCompany.id).not("order_id","is",null)
         .not("status","in",`(${TICKET_STATI_CHIUSI.join(",")})`).order("id").range(from,to)) : [];
@@ -477,7 +478,7 @@ function OrdersListInner() {
       `).eq("company_id", effectiveCompany.id).is("deleted_at", null)
         .gte("created_at", comparisonPeriod.previousFrom.toISOString())
         .lt("created_at", comparisonPeriod.previousTo.toISOString());
-      return readAllOrderRows((from,to) => query.order("created_at", {ascending:true}).order("id").range(from,to));
+      return leggiModalitaCommesse(effectiveCompany.id, await readAllOrderRows((from,to) => query.order("created_at", {ascending:true}).order("id").range(from,to)));
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -514,7 +515,7 @@ function OrdersListInner() {
         .gte("created_at", from.toISOString());
       query = query.is("deleted_at", null);
       if (to) query = query.lte("created_at", to.toISOString());
-      return readAllOrderRows((from,to) => query.order("created_at", {ascending:true}).order("id").range(from,to));
+      return leggiModalitaCommesse(effectiveCompany.id, await readAllOrderRows((from,to) => query.order("created_at", {ascending:true}).order("id").range(from,to)));
     },
     // Si scarica solo col grafico aperto (23/10/2026): prima leggeva tutte le
     // commesse dell'anno con rate e varianti anche a grafico chiuso. Su mobile
@@ -1960,7 +1961,7 @@ function OrdersListInner() {
 
 export default function OrdersList() {
   const [searchParams, setSearchParams] = useSearchParams();
-  // Tab da scrivania (offerte, anomalie, marginalità, provvigioni) fuori dal telefono.
+  // Le analisi di marginalità hanno una vista a schede anche sul telefono.
   const isMobile = useIsMobile();
   const permissions = usePermissions();
   // Chi ha solo il permesso «Ufficio acquisti» (senza vedere le commesse) entra
@@ -1993,7 +1994,7 @@ export default function OrdersList() {
     { id: "acquisto", label: "Acquisti", icon: ShoppingCart, show: permissions.canViewOrders || permissions.canManagePurchasing },
     { id: "ddt", label: "DDT", icon: FileCheck, show: permissions.canViewOrders },
     { id: "anomalie", label: "Anomalie", icon: AlertTriangle, show: permissions.canViewCosts && !isMobile },
-    { id: "marginalita", label: "Marginalità", icon: PieChart, show: permissions.canViewCosts && !isMobile },
+    { id: "marginalita", label: "Marginalità", icon: PieChart, show: permissions.canViewCosts },
     { id: "provvigioni", label: "Provvigioni", icon: Euro, show: permissions.canViewCosts && !isMobile },
   ].filter((t) => t.show);
   const activeTab = tabs.some((tab) => tab.id === requestedTab) ? requestedTab : (soloAcquisti ? "acquisto" : "ordini");

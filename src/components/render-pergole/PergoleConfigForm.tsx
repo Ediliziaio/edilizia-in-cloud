@@ -1,3 +1,4 @@
+import { QualitaRender } from "@/components/render/QualitaRender";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -212,6 +213,7 @@ export function PergoleConfigForm({ value, onChange, disabled }: Props) {
 
   return (
     <div className="space-y-6 max-md:space-y-4">
+      <QualitaRender value={value.qualita_render} onChange={(qualita_render) => onChange({ ...value, qualita_render })} />
       <section className="space-y-3">
         <Label className="text-sm font-semibold max-md:text-[13px]">Tipo intervento</Label>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 max-sm:grid-cols-2 max-sm:gap-1.5">

@@ -27,7 +27,7 @@ export function pianiDaPlanimetria(doc: Planimetria, propostaId?: string): Piano
   return [...doc.livelli]
     .sort((a, b) => a.quota - b.quota)
     .map((l) => {
-      const p = pianteDaPlanimetria(doc, { livelloId: l.id, propostaId: l.proposte.some((x) => x.id === propostaId) ? propostaId : undefined });
+      const p = pianteDaPlanimetria(doc, { livelloId: l.id, propostaId, ...(propostaId ? { materialiAmbito: `progetto:${propostaId}` } : {}) });
       return { id: l.id, nome: l.nome, quota: l.quota, piante: { fatto: p.fatto, progetto: p.progetto } };
     });
 }

@@ -321,7 +321,7 @@ export function snoozeUntil(preset: SnoozePreset, from: Date = new Date()): stri
   return d.toISOString();
 }
 
-export function contactName(c: ContactRow | null, email: string | null): string {
+export function contactName(c: Pick<ContactRow, "first_name" | "last_name" | "company_name" | "email"> | null, email: string | null): string {
   if (c) {
     const full = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim();
     if (full) return full;

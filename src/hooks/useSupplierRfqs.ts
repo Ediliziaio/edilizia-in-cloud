@@ -1,3 +1,6 @@
+import { confrontoOfferta } from "@/lib/acquisti/confronto";
+import { oggiLocale } from "@/lib/acquisti/attivita";
+import type {TablesUpdate} from "@/integrations/supabase/types";
 /**
  * Richieste d'offerta ai fornitori (RDO).
  *
@@ -35,7 +38,7 @@ export interface SupplierRfq {
   motivazione_scelta: string | null;
   note: string | null;
   created_at: string;
-  orders?: { order_code: string | null } | null;
+  orders?: { order_code: string | null; work_address?: string | null } | null;
 }
 
 export interface RfqItem {
@@ -68,6 +71,9 @@ export interface RfqSupplier {
   inviata_at: string | null;
   inviata_via: CanaleRichiesta | null;
   risposta_at: string | null;
+  trasporto_tipo?: "da_confermare" | "incluso" | "extra" | "ritiro";
+  costo_trasporto?: number | null;
+  disponibilita_note?: string | null;
   totale_offerto: number | null;
   giorni_consegna: number | null;
   validita_offerta: string | null;
@@ -96,7 +102,7 @@ export interface RfqQuote {
 export function totaleRigaOfferta(q: RfqQuote | undefined, quantita: number): number | null {
   if (!q || q.prezzo_unitario == null || !q.disponibile) return null;
   const lordo = Number(q.prezzo_unitario) * quantita;
-  return lordo * (1 - Number(q.sconto_percentuale || 0) / 100);
+  return Math.round((lordo * (1 - Number(q.sconto_percentuale || 0) / 100) + Number.EPSILON) * 100) / 100;
 }
 
 export interface ContatoriRichiesta {
@@ -137,7 +143,7 @@ export function useSupplierRfqs() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("supplier_rfqs")
-        .select("*, orders(order_code)")
+        .select("*, orders(order_code, work_address)")
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -166,17 +172,16 @@ export function useSupplierRfqs() {
       };
 
       const [fornitori, voci, righe] = await Promise.all([
-        tutte<{ id: string; rfq_id: string; supplier_id: string; status: string; totale_offerto: number | null; inviata_at: string | null }>(
-          "supplier_rfq_suppliers", "id, rfq_id, supplier_id, status, totale_offerto, inviata_at"),
+        tutte<RfqSupplier>(
+          "supplier_rfq_suppliers", "id, rfq_id, supplier_id, status, totale_offerto, inviata_at, trasporto_tipo, costo_trasporto, validita_offerta"),
         tutte<{ id: string; rfq_id: string }>("supplier_rfq_items", "id, rfq_id"),
         tutte<RfqQuote & { supplier_rfq_items: { quantita: number } | null }>(
           "supplier_rfq_quotes", "id, rfq_supplier_id, prezzo_unitario, sconto_percentuale, disponibile, supplier_rfq_items(quantita)"),
       ]);
 
       // Il totale di chi ha risposto si calcola come nel dettaglio: la somma
-      // delle righe offerte, oppure il totale del documento se l'offerta è a
-      // corpo. E la migliore si sceglie fra le offerte che coprono più voci:
-      // chi ne quota una su due costa meno perché manca metà fornitura.
+      // delle righe e trasporto, oppure il totale documento già comprensivo.
+      // Come nel dettaglio: migliore solo tra offerte complete, valide e confrontabili.
       const vociPerRichiesta = new Map<string, number>();
       for (const v of voci) vociPerRichiesta.set(v.rfq_id, (vociPerRichiesta.get(v.rfq_id) ?? 0) + 1);
       const sommaRighe = new Map<string, { totale: number; coperte: number }>();
@@ -202,12 +207,13 @@ export function useSupplierRfqs() {
         if (r.status === "risposta") {
           m.risposte += 1;
           const daRighe = sommaRighe.get(r.id);
-          const offerta = daRighe
-            ? daRighe
-            : r.totale_offerto != null
-              ? { totale: Number(r.totale_offerto), coperte: vociPerRichiesta.get(r.rfq_id) ?? 0 }
-              : null;
-          if (offerta) offerte.set(r.rfq_id, [...(offerte.get(r.rfq_id) ?? []), offerta]);
+          const numeroVoci=vociPerRichiesta.get(r.rfq_id)??0;
+          const offerta=confrontoOfferta(r,{
+            totale:daRighe?.totale??(r.totale_offerto==null?null:Number(r.totale_offerto)),
+            righeCoperte:daRighe?.coperte??(r.totale_offerto==null?0:numeroVoci),
+            daRighe:!!daRighe,
+          },numeroVoci,oggiLocale());
+          if (offerta.confrontabile && offerta.totale!=null) offerte.set(r.rfq_id,[...(offerte.get(r.rfq_id)??[]),{totale:offerta.totale,coperte:numeroVoci}]);
         }
       }
       for (const [rfqId, elenco] of offerte) {
@@ -271,7 +277,7 @@ export function useSupplierRfqDetail(rfqId: string | null) {
     queryKey: rfqKeys.detail(rfqId),
     queryFn: async () => {
       const [rfqRes, itemsRes, fornRes] = await Promise.all([
-        (supabase as any).from("supplier_rfqs").select("*, orders(order_code)").eq("id", rfqId!).single(),
+        (supabase as any).from("supplier_rfqs").select("*, orders(order_code, work_address)").eq("id", rfqId!).single(),
         (supabase as any).from("supplier_rfq_items").select("*").eq("rfq_id", rfqId!).order("posizione"),
         (supabase as any)
           .from("supplier_rfq_suppliers")
@@ -301,13 +307,13 @@ export function useSupplierRfqDetail(rfqId: string | null) {
   });
 
   const updateRfq = useMutation({
-    mutationFn: async (updates: Record<string, unknown>) => {
-      const { error } = await (supabase as any).from("supplier_rfqs").update(updates).eq("id", rfqId!);
+    mutationFn: async (updates: TablesUpdate<"supplier_rfqs">) => {
+      if(!companyId) throw new Error("Azienda non selezionata");
+      const { error } = await supabase.from("supplier_rfqs").update(updates).eq("id", rfqId!).eq("company_id",companyId).select("id").single();
       if (error) throw error;
     },
-    onSuccess: () => {
-      invalida();
-      queryClient.invalidateQueries({ queryKey: rfqKeys.all });
+    onSuccess: async () => {
+      await Promise.all([invalida(),queryClient.invalidateQueries({ queryKey: rfqKeys.all })]);
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
@@ -362,11 +368,11 @@ export function useSupplierRfqDetail(rfqId: string | null) {
   });
 
   const updateFornitore = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Record<string, unknown> }) => {
-      const { error } = await (supabase as any).from("supplier_rfq_suppliers").update(updates).eq("id", id);
+    mutationFn: async ({ id, updates }: { id: string; updates: TablesUpdate<"supplier_rfq_suppliers"> }) => {
+      const { error } = await supabase.from("supplier_rfq_suppliers").update(updates).eq("id", id).eq("company_id",companyId!).select("id").single();
       if (error) throw error;
     },
-    onSuccess: invalida,
+    onSuccess: async () => {await invalida();},
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
 
@@ -461,11 +467,10 @@ export function useSupplierRfqDetail(rfqId: string | null) {
     mutationFn: async (f: RfqSupplier) => {
       const updates: Record<string, unknown> = { status: "risposta", risposta_at: new Date().toISOString() };
       if (!f.aggancio_da) updates.aggancio_da = "manuale";
-      if (!f.inviata_at) updates.inviata_at = new Date().toISOString();
       const { error } = await (supabase as any).from("supplier_rfq_suppliers").update(updates).eq("id", f.id);
       if (error) throw error;
-      if (query.data?.rfq.status === "bozza") {
-        const { error: e2 } = await (supabase as any).from("supplier_rfqs").update({ status: "inviata" }).eq("id", rfqId!);
+      if (query.data?.rfq.status === "bozza" || query.data?.rfq.status === "inviata") {
+        const { error: e2 } = await (supabase as any).from("supplier_rfqs").update({ status: "in_valutazione" }).eq("id", rfqId!);
         if (e2) throw e2;
       }
     },
@@ -480,7 +485,7 @@ export function useSupplierRfqDetail(rfqId: string | null) {
   const allegaOfferta = useMutation({
     mutationFn: async ({ id, file }: { id: string; file: File }) => {
       if (file.size > 10 * 1024 * 1024) throw new Error("File troppo grande (max 10 MB)");
-      const nome = file.name.replace(/[^\w.\-]+/g, "_").slice(-80);
+      const nome = file.name.replace(/[^\w.-]+/g, "_").slice(-80);
       const path = `${companyId}/rdo/${rfqId}/${Date.now()}-${nome}`;
       const { error: upErr } = await supabase.storage.from("order-attachments").upload(path, file, { upsert: false });
       if (upErr) throw upErr;

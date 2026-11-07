@@ -145,7 +145,7 @@ export default function RenderPergoleNew() {
           contact_id: contactId,
           opportunity_id: opportunityId,
         })
-        .select("id")
+        .select<{ id: string }>("id")
         .single();
       if (sessErr || !sess) throw new Error(sessErr?.message ?? "Creazione sessione fallita");
       setSessionId(sess.id as string);
@@ -186,7 +186,7 @@ export default function RenderPergoleNew() {
 
       const { data: sess } = await db
         .from("render_pergole_sessions")
-        .select("status, result_urls, error_message")
+        .select<{ status: string; result_urls: string[] | null; error_message: string | null }>("status, result_urls, error_message")
         .eq("id", sid)
         .single();
 
@@ -353,7 +353,7 @@ export default function RenderPergoleNew() {
         <RenderCreditsWidget />
       </div>
 
-      <RenderCreditGate />
+      <RenderCreditGate>{null}</RenderCreditGate>
 
       {step === 1 && (
         <div className="space-y-4 max-md:space-y-3">

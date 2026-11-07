@@ -1,3 +1,5 @@
+import { QualitaRender } from "@/components/render/QualitaRender";
+import { jsonPayload } from "@/lib/jsonPayload";
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -425,7 +427,7 @@ export default function RenderNewV2() {
     try {
       const { error } = await supabase
         .from("render_sessions")
-        .update({ foto_analisi: nextAnalysis })
+        .update({ foto_analisi: jsonPayload(nextAnalysis) })
         .eq("id", sessionId);
       if (error) throw error;
       // success: nessun toast (override è azione minore, non vogliamo spam)
@@ -546,11 +548,11 @@ export default function RenderNewV2() {
       result_urls?: string[] | null;
       error_message?: string | null;
       processing_started_at?: string | null;
-      meta?: { stage?: string } | Record<string, unknown> | null;
+      meta?: unknown;
     } | null,
   ): Promise<boolean> => {
     // F3 (audit 16/07) — Stage reale dal server (meta.stage) → ProcessingCard.
-    const stage = (sess?.meta as { stage?: string } | null)?.stage;
+    const stage = sess?.meta && typeof sess.meta === "object" && "stage" in sess.meta ? sess.meta.stage : null;
     if (typeof stage === "string" && stage) setServerStage(stage);
 
     if (sess?.status === "completed" && sess.result_urls?.length) {
@@ -732,7 +734,7 @@ export default function RenderNewV2() {
     const { error: updateError } = await supabase
       .from("render_sessions")
       .update({
-        config,
+        config: jsonPayload(config),
         status: "pending",
         result_urls: null,
         error_message: null,
@@ -762,6 +764,7 @@ export default function RenderNewV2() {
       const { data, error } = await supabase.functions.invoke("generate-render", {
         body: {
           session_id: sessionId,
+          qualita_render: state.qualita_render,
           config,
           target_width: photoMeta?.width,
           target_height: photoMeta?.height,
@@ -885,6 +888,7 @@ export default function RenderNewV2() {
         sessionStorage.removeItem(RESUME_KEY);
         return;
       }
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Ripristino esplicito di uno snapshot esterno del browser.
       setResumable(snap);
     } catch {
       // snapshot corrotto → ignora
@@ -1175,7 +1179,8 @@ export default function RenderNewV2() {
       )}
 
       <div className="space-y-4 px-4 max-md:space-y-3 max-md:px-0">
-        <RenderCreditGate />
+        <RenderCreditGate>{null}</RenderCreditGate>
+        {step === STEP_LABELS.length - 1 && <QualitaRender value={state.qualita_render} onChange={(qualita_render) => setState((old) => ({ ...old, qualita_render }))} disabled={generating} />}
 
         {step === 1 && resumable && !photo && (
           <RipresaRender
@@ -1261,6 +1266,7 @@ export default function RenderNewV2() {
 
         {step === 7 && (
           <StepRender
+            traverso={state.traverso}
             preview={renderPreview}
             originalSignedUrl={originalSignedUrl}
             localPreview={photoPreview}
@@ -1992,7 +1998,7 @@ function StepInfisso({
                   return (
                     <ChoiceCard
                       key={option.id}
-                      title={`${option.label}${option.upsell ? " · premium" : ""}`}
+                      title={`${option.label}${"upsell" in option && option.upsell ? " · premium" : ""}`}
                       desc={disabled ? "Disponibile su PVC, alluminio, minimal o legno-alluminio." : option.desc}
                       selected={state.nodo === option.id}
                       disabled={disabled}
@@ -2444,7 +2450,7 @@ function StepAccessori({
               {WIZARD_CERNIERE_OPTIONS.map((option) => (
                 <ChoiceCard
                   key={option.id}
-                  title={`${option.label}${option.upsell ? " · premium" : ""}`}
+                  title={`${option.label}${"upsell" in option && option.upsell ? " · premium" : ""}`}
                   desc={option.desc}
                   selected={state.cerniere === option.id}
                   onClick={() =>
@@ -2516,6 +2522,7 @@ function StepAccessori({
 }
 
 function StepRender({
+  traverso,
   preview,
   originalSignedUrl,
   localPreview,
@@ -2538,6 +2545,7 @@ function StepRender({
   onCreateQuote,
   downloading,
 }: {
+  traverso: WizardState["traverso"];
   preview: WindowRenderConfig | null;
   originalSignedUrl: string | null;
   localPreview: string | null;
@@ -2652,7 +2660,7 @@ function StepRender({
                           {spec.hingeMode === "visible" && <MiniBadge text={`${spec.hingesPerSash} cerniere per anta`} />}
                           {spec.hingeMode === "visible" && <MiniBadge text="cerniere uniformi come maniglia" />}
                           {spec.compositionChange && <MiniBadge text="composizione aggiornata" intent="warning" />}
-                          {spec.transomRule && <MiniBadge text={`traverso ${spec.transomMode}`} />}
+                          {spec.transomRule && <MiniBadge text={`traverso ${WIZARD_TRAVERSO_OPTIONS.find((option) => option.id === traverso)?.label ?? traverso}`} />}
                           {spec.cassonetto.replace && <MiniBadge text={`cassonetto ${spec.cassonetto.colorLabel ?? ""}`.trim()} />}
                           {spec.cassonetto.replace && <MiniBadge text="ingombro cassonetto come esistente" />}
                           {spec.shutter.replace && <MiniBadge text={spec.shutter.isMotorized ? "tapparella motorizzata" : "tapparella nuova"} />}
@@ -2703,7 +2711,7 @@ function StepRender({
           {!resultUrl && !generating && !error && (
             // Telefono: indietro a icona a sinistra, «Genera render AI» che prende il resto.
             <div className="flex flex-col gap-3 sm:flex-row max-md:flex-row-reverse max-md:gap-2">
-              <Button size="lg" className="flex-1 gap-2 bg-orange-500 hover:bg-orange-600 max-md:min-w-0" onClick={onGenerate} disabled={!preview}>
+              <Button size="lg" className="flex-1 gap-2 bg-orange-500 hover:bg-orange-600 max-md:min-w-0" onClick={() => onGenerate()} disabled={!preview}>
                 <Sparkles className="h-4 w-4" />
                 Genera render AI
               </Button>

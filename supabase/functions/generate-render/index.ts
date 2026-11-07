@@ -1,3 +1,4 @@
+import { parametriQualitaRender, qualitaImmagineRender, tempoQaRender } from "../../../shared/render-quality/quality.ts";
 // generate-render — Edge Function EiC
 // Render Infissi AI — pipeline unificata via _shared/ai-provider/
 //
@@ -708,6 +709,7 @@ Deno.serve(async (req) => {
           revenueEur,
           purchaseId,
           requestStartMs,
+          qualityRequest: body,
           refine: isRefine,
           refineSourcePath,
           refineNotes: String((rawConfig as { notes?: unknown }).notes ?? ""),
@@ -844,6 +846,7 @@ interface BackgroundRenderArgs {
   revenueEur: number;
   purchaseId: string | null | undefined;
   requestStartMs: number;
+  qualityRequest?: unknown;
   /** F4 — correzione mirata: usa il risultato precedente come sorgente. */
   refine?: boolean;
   refineSourcePath?: string | null;
@@ -866,6 +869,9 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
     purchaseId,
     requestStartMs,
   } = args;
+  const body = args.qualityRequest;
+  const requestStartedAt = requestStartMs;
+  const highQuality = qualitaImmagineRender(body) === "high";
   let composedPrompt = args.composedPrompt;
   const { negativePrompt, referenceImageDescriptors } = args;
 
@@ -1220,10 +1226,7 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
       // il budget residuo va tutto al tentativo. Dividerlo comunque a meta' era
       // proprio cio' che mandava in timeout il provider diretto sul retry e
       // faceva scattare il fallback su OpenRouter.
-      const perAttemptTimeout = Math.max(
-        30_000,
-        Math.min(75_000, Math.floor(remaining / (soloProviderDiretto ? 1 : 2))),
-      );
+      const qualityParams = parametriQualitaRender(body, requestStartedAt, soloProviderDiretto);
       try {
         const result = await editImage({
           prompt: promptText,
@@ -1234,9 +1237,9 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
           effectiveWidth: srcW,
           effectiveHeight: srcH,
           negativePrompt,
-          timeoutMs: perAttemptTimeout,
+          ...qualityParams,
           maxRetries: 0,
-          directProviderOnly: soloProviderDiretto,
+
           metadata: {
             task_kind: "render_image_edit",
             company_id: session.company_id as string,
@@ -1300,6 +1303,7 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
     try {
       candidate = await generateCandidate(composedPrompt, true);
     } catch (primoErr) {
+        if (highQuality) throw primoErr;
       logWarn({
         session_id,
         msg: "provider_diretto_fallito_si_passa_alla_catena",
@@ -1387,6 +1391,7 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
       // v8.6.22 — usa la helper cached invece di riconvertire sourceBlob
       const sourceDataUrl = await getSourceDataUrl();
       const qaResult = await callVisionQa({
+          timeoutMs: tempoQaRender(requestStartedAt),
         sourceImageDataUrl: sourceDataUrl,
         candidateImageDataUrl: candidate.imageDataUrl,
         qaPrompt: buildMultiCriterionQaPrompt(normalizedConfig),
@@ -1422,7 +1427,7 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
       // Se siamo gia' oltre QA_RETRY_BUDGET_MS (90s), saltiamo il retry e
       // consegniamo il primo render anche se imperfetto. Evita il kill a 150s.
       const elapsedNow = elapsed();
-      const canRetry = elapsedNow < QA_RETRY_BUDGET_MS;
+      const canRetry = elapsedNow < (highQuality ? 40_000 : QA_RETRY_BUDGET_MS);
 
       if (qaResult.checked && !qaResult.pass && parsedIssues.length > 0 && canRetry) {
         logInfo({

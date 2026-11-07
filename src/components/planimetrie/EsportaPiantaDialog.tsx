@@ -47,10 +47,11 @@ export function disegniDellaTavola(stato: StatoPianta | null | undefined, tetto?
   ].filter((d) => d.primitive.length > 0);
 }
 
-type Formato = "pdf" | "dxf" | "svg" | "png";
+type Formato = "fascicolo" | "pdf" | "dxf" | "svg" | "png";
 type Stile = "tecnico" | "presentazione";
 
 const FORMATI: Array<{ id: Formato; nome: string; nota: string; icona: typeof FileText }> = [
+  { id: "fascicolo", nome: "Fascicolo completo PDF", nota: "Tutti i piani, 3D, materiali, schede ambiente, serramenti, impianti e render di questa versione", icona: FileText },
   { id: "pdf", nome: "PDF in scala", nota: "Da stampare: cartiglio, scala, tabella delle stanze", icona: FileText },
   { id: "dxf", nome: "DXF (AutoCAD)", nota: "Si apre in AutoCAD e nei CAD: muri, demolizioni, nuovo, aperture, quote su layer separati", icona: PenTool },
   { id: "svg", nome: "SVG", nota: "Disegno vettoriale in scala, per grafica e web", icona: FileImage },
@@ -84,7 +85,7 @@ export async function unisciPdf(parti: Uint8Array[]): Promise<Uint8Array> {
 const nomeFile = (t: string) => (t || "pianta").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase() || "pianta";
 
 export function EsportaPiantaDialog({
-  aperto, onChiudi, documento, titolo, versione, livelloId, propostaId, haProgetto, planimetriaId,
+  aperto, onChiudi, documento, titolo, versione, livelloId, propostaId, haProgetto, planimetriaId, ambitoIniziale,
 }: {
   aperto: boolean;
   /** Per allegare la pianta a un preventivo (fase 8): il file prende l'id e la versione. */
@@ -97,11 +98,13 @@ export function EsportaPiantaDialog({
   propostaId?: string;
   /** La pianta ha uno stato di progetto: si può scegliere progetto o confronto. */
   haProgetto: boolean;
+  /** Stato scelto nella scheda, anche su un piano senza opere della proposta. */
+  ambitoIniziale?: string;
 }) {
   const { effectiveCompany } = useAuth();
   const { branding } = useBranding();
-  const [formato, setFormato] = useState<Formato>("pdf");
-  const [modo, setModo] = useState<ModoVista>(haProgetto ? "progetto" : "fatto");
+  const [formato, setFormato] = useState<Formato>("fascicolo");
+  const [modo, setModo] = useState<ModoVista>(ambitoIniziale ? ambitoIniziale.startsWith("progetto:") ? "progetto" : "fatto" : haProgetto ? "progetto" : "fatto");
   const [stile, setStile] = useState<Stile>("tecnico");
   const [foglio, setFoglio] = useState<FormatoFoglio>("A4");
   const [orientamento, setOrientamento] = useState<Orientamento>("orizzontale");
@@ -109,6 +112,7 @@ export function EsportaPiantaDialog({
   const [cliente, setCliente] = useState("");
   const [cantiere, setCantiere] = useState("");
   const [inCorso, setInCorso] = useState(false);
+  const [faseFascicolo, setFaseFascicolo] = useState("");
   const [preventivoId, setPreventivoId] = useState<string>("");
   const [allegando, setAllegando] = useState(false);
   // Tavola completa: dopo la pianta, i fogli con prospetti e sezione.
@@ -149,7 +153,9 @@ export function EsportaPiantaDialog({
 
   const vista = useMemo(() => {
     try {
-      const v = vistaDaPlanimetria(documento, { modo: haProgetto ? modo : "fatto", livelloId, propostaId });
+      const l = documento.livelli.find((l) => l.id === livelloId) ?? documento.livelli[0];
+      const modoPiano = propostaId && !l?.proposte.some((p) => p.id === propostaId) ? "fatto" : haProgetto ? modo : "fatto";
+      const v = vistaDaPlanimetria(documento, { modo: modoPiano, livelloId, propostaId });
       return numera ? numeraLocali(v) : v;
     } catch {
       return null;
@@ -161,7 +167,7 @@ export function EsportaPiantaDialog({
     const liv = documento.livelli.find((l) => l.id === livelloId) ?? documento.livelli[0];
     if (!liv) return null;
     if (!haProgetto || modo === "fatto") return liv.fatto;
-    return liv.proposte.find((p) => p.id === propostaId) ?? liv.proposte[0] ?? liv.fatto;
+    return propostaId ? liv.proposte.find((p) => p.id === propostaId) ?? liv.fatto : liv.proposte[0] ?? liv.fatto;
   }, [documento, livelloId, propostaId, haProgetto, modo]);
 
   const anteprima = useMemo(() => {
@@ -189,6 +195,23 @@ export function EsportaPiantaDialog({
     };
   };
 
+  const preparaFascicolo = async (cartiglio: DatiCartiglio) => {
+    const { renderPerFascicolo, sorgentePerFascicolo, campioniPersonaliPerFascicolo } = await import("@/lib/planimetrie/fascicoloDati");
+    const { esportaFascicolo } = await import("@/lib/planimetrie/fascicoloPdf");
+    setFaseFascicolo("Leggo i render del progetto");
+    const renders = planimetriaId && effectiveCompany?.id ? await renderPerFascicolo(effectiveCompany.id, planimetriaId) : [];
+    const proposta = propostaId ?? documento.livelli.flatMap((l) => l.proposte)[0]?.id;
+    const ambito = modo !== "fatto" && proposta ? `progetto:${proposta}` : "fatto";
+    const sorgenti = new Map<string, Promise<Uint8Array | null>>();
+    const leggiSorgente = (render: { original_photo_url?: string | null }) => {
+      const path = render.original_photo_url;
+      if (!path || !effectiveCompany?.id) return Promise.resolve(null);
+      if (!sorgenti.has(path)) sorgenti.set(path, sorgentePerFascicolo(effectiveCompany.id, path));
+      return sorgenti.get(path)!;
+    };
+    return esportaFascicolo({ documento, titolo, versione, ambito, cartiglio, renders, progresso: setFaseFascicolo, leggiSorgente, leggiCampioniPersonali: (render) => effectiveCompany?.id ? campioniPersonaliPerFascicolo(effectiveCompany.id, render.scelte) : Promise.resolve([]) });
+  };
+
   /** La pianta in A4 come scheda del preventivo: si accoda al PDF che parte al cliente. */
   const allega = async () => {
     if (!vista || !planimetriaId || !preventivoId || !effectiveCompany?.id) return;
@@ -196,24 +219,25 @@ export function EsportaPiantaDialog({
     try {
       const cartiglio = await cartiglioPerOra();
       if (!cartiglio) throw new Error("La pianta non ha niente da disegnare.");
-      const a = await allegatoPreventivo(vista, cartiglio, { stile });
+      const a = formato === "fascicolo" ? await preparaFascicolo(cartiglio) : await allegatoPreventivo(vista, cartiglio, { stile });
       const percorso = `${effectiveCompany.id}/planimetrie/${planimetriaId}-v${versione}-${Date.now()}.pdf`;
       const corpo = new Uint8Array(a.dati).buffer as ArrayBuffer;
       const { error: errFile } = await supabase.storage.from("quote-materials").upload(percorso, new Blob([corpo], { type: "application/pdf" }), { contentType: "application/pdf" });
       if (errFile) throw new Error("Il file della pianta non si è caricato: controlla di poter modificare i preventivi.");
       const { data: utente } = await supabase.auth.getUser();
       const { data: scheda, error: errScheda } = await supabase.from("quote_pdf_materials")
-        .insert({ company_id: effectiveCompany.id, created_by: utente.user!.id, name: `Pianta — ${titolo} (v${versione})`, storage_path: percorso, category: "planimetria", file_size_bytes: a.dati.byteLength })
+        .insert({ company_id: effectiveCompany.id, created_by: utente.user!.id, name: `${formato === "fascicolo" ? "Fascicolo completo" : "Pianta"} — ${titolo} (v${versione})`, storage_path: percorso, category: "planimetria", file_size_bytes: a.dati.byteLength })
         .select("id").single();
       if (errScheda || !scheda) throw new Error("La scheda della pianta non si è creata.");
       const nonAllegate = await allegaSchedeTecniche(preventivoId, [{ material_id: scheda.id, sort_order: 0, nome: titolo }]);
       if (nonAllegate.length) throw new Error("La pianta non si è allegata al preventivo.");
       const q = preventivi.data?.find((x) => x.id === preventivoId);
-      toast.success("Pianta allegata al preventivo", { description: `${q?.quote_number ?? ""} — esce in fondo al PDF del preventivo (se «schede tecniche» è acceso).` });
+      toast.success(formato === "fascicolo" ? "Fascicolo completo allegato al preventivo" : "Pianta allegata al preventivo", { description: `${q?.quote_number ?? ""} — esce in fondo al PDF del preventivo (se «schede tecniche» è acceso).` });
     } catch (e) {
       toast.error("Allegato non riuscito", { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setAllegando(false);
+      setFaseFascicolo("");
     }
   };
 
@@ -221,7 +245,12 @@ export function EsportaPiantaDialog({
     if (!vista) { toast.error("La pianta non ha niente da disegnare in questo stato."); return; }
     setInCorso(true);
     try {
-      if (formato === "pdf") {
+      if (formato === "fascicolo") {
+        const cartiglio = (await cartiglioPerOra())!;
+        const r = await preparaFascicolo(cartiglio);
+        scarica(`${nomeFile(titolo)}-fascicolo-completo-v${versione}.pdf`, r.dati, "application/pdf");
+        toast.success(`Fascicolo completo pronto: ${r.pagine} pagine`, { description: `${r.immaginiRender} immagini render, planimetrie e viste 3D.` });
+      } else if (formato === "pdf") {
         const cartiglio = (await cartiglioPerOra())!;
         const opzioniPdf = { formato: foglio, orientamento, scala: scala === "auto" ? ("auto" as const) : Number(scala), stile };
         let r = await esportaPdf(vista, cartiglio, opzioniPdf);
@@ -230,7 +259,7 @@ export function EsportaPiantaDialog({
           const parti: Uint8Array[] = [];
           let n = 1;
           for (const l of [...documento.livelli].sort((a, b) => a.quota - b.quota)) {
-            const pr = l.proposte.find((p) => p.id === propostaId) ?? l.proposte[0];
+            const pr = propostaId ? l.proposte.find((p) => p.id === propostaId) : l.proposte[0];
             const grezza = vistaDaPlanimetria(documento, { modo: haProgetto && pr ? modo : "fatto", livelloId: l.id, propostaId: pr?.id });
             // numerazione continua su tutti i piani
             const v = numera ? numeraLocali(grezza, n) : grezza;
@@ -270,22 +299,23 @@ export function EsportaPiantaDialog({
       toast.error("Esportazione non riuscita", { description: messaggio });
     } finally {
       setInCorso(false);
+      setFaseFascicolo("");
     }
   };
 
   return (
-    <Dialog open={aperto} onOpenChange={(v) => { if (!v && !inCorso) onChiudi(); }}>
+    <Dialog open={aperto} onOpenChange={(v) => { if (!v && !inCorso && !allegando) onChiudi(); }}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Esporta la pianta</DialogTitle>
-          <DialogDescription>Scegli il formato: il file si scarica subito, in scala e con le misure della pianta.</DialogDescription>
+          <DialogTitle>Esporta il progetto</DialogTitle>
+          <DialogDescription>Un fascicolo completo con disegni, informazioni e immagini, oppure una singola tavola in scala.</DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-5 md:grid-cols-[1fr_1.1fr]">
+        <fieldset disabled={inCorso || allegando} className="grid gap-5 md:grid-cols-[1fr_1.1fr]">
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Formato">
               {FORMATI.map((f) => (
-                <button key={f.id} type="button" role="radio" aria-checked={formato === f.id} onClick={() => setFormato(f.id)}
+                <button key={f.id} type="button" role="radio" aria-checked={formato === f.id} onClick={() => { setFormato(f.id); if (f.id === "fascicolo" && modo === "confronto") setModo("progetto"); }}
                   className={`rounded-lg border p-3 text-left transition-colors ${formato === f.id ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:bg-muted/50"}`}>
                   <f.icona className="mb-1 h-4 w-4 text-primary" aria-hidden="true" />
                   <p className="text-sm font-medium">{f.nome}</p>
@@ -300,23 +330,25 @@ export function EsportaPiantaDialog({
                 <ToggleGroup type="single" value={modo} onValueChange={(v) => v && setModo(v as ModoVista)} variant="outline" size="sm" className="justify-start">
                   <ToggleGroupItem value="fatto">Com'è oggi</ToggleGroupItem>
                   <ToggleGroupItem value="progetto">Progetto</ToggleGroupItem>
-                  <ToggleGroupItem value="confronto">Confronto</ToggleGroupItem>
+                  {formato !== "fascicolo" && <ToggleGroupItem value="confronto">Confronto</ToggleGroupItem>}
                 </ToggleGroup>
                 {modo === "confronto" && <p className="text-[11px] text-muted-foreground">Giallo = da demolire, rosso = nuovo.</p>}
               </div>
             )}
 
-            <div className="space-y-1.5">
+            {formato !== "fascicolo" && <div className="space-y-1.5">
               <Label className="text-xs">Stile</Label>
               <ToggleGroup type="single" value={stile} onValueChange={(v) => v && setStile(v as Stile)} variant="outline" size="sm" className="justify-start">
                 <ToggleGroupItem value="tecnico">Tecnico</ToggleGroupItem>
                 <ToggleGroupItem value="presentazione">Presentazione</ToggleGroupItem>
               </ToggleGroup>
               {stile === "presentazione" && <p className="text-[11px] text-muted-foreground">Pavimenti e arredi colorati: per il cliente.</p>}
-            </div>
+            </div>}
 
-            {formato === "pdf" && (
+            {(formato === "pdf" || formato === "fascicolo") && (
               <div className="space-y-3 rounded-lg border p-3">
+                {formato === "fascicolo" && <p className="text-xs">Il fascicolo comprende tutti i piani dello stato selezionato, indice, campioni dei materiali comuni, viste 3D della casa e degli ambienti, misure e finiture, porte e finestre, arredi e impianti, prospetti, sezioni e tutti i render completati di questa versione. Le stanze senza render sono indicate. Le vecchie versioni rimangono nello storico.</p>}
+                {formato === "pdf" && <>
                 <div className="grid grid-cols-3 gap-2">
                   <div className="space-y-1">
                     <Label className="text-xs">Foglio</Label>
@@ -343,6 +375,7 @@ export function EsportaPiantaDialog({
                     </Select>
                   </div>
                 </div>
+                </>}
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <Label className="text-xs" htmlFor="cartiglio-cliente">Committente (facoltativo)</Label>
@@ -354,6 +387,7 @@ export function EsportaPiantaDialog({
                   </div>
                 </div>
                 <p className="text-[11px] text-muted-foreground">Nel cartiglio: nome, recapiti e logo della tua azienda, data e versione {versione}.</p>
+                {formato === "pdf" && <>
                 <div className="flex items-start justify-between gap-3 border-t pt-3">
                   <div>
                     <Label htmlFor="numera-locali" className="text-xs">Numera i locali</Label>
@@ -377,6 +411,7 @@ export function EsportaPiantaDialog({
                   </div>
                   <Switch id="tavola-completa" checked={conProspetti} onCheckedChange={setConProspetti} />
                 </div>
+                </>}
               </div>
             )}
           </div>
@@ -398,7 +433,7 @@ export function EsportaPiantaDialog({
                     {allegando ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Paperclip className="mr-1 h-4 w-4" />}Allega
                   </Button>
                 </div>
-                <p className="text-[11px] text-muted-foreground">Un foglio A4 in scala con il cartiglio, in fondo al PDF del preventivo. Per i preventivi standard; non firmati.</p>
+                <p className="text-[11px] text-muted-foreground">{formato === "fascicolo" ? "Il fascicolo completo, con tutte le pagine e immagini, in fondo al PDF del preventivo." : "Un foglio A4 in scala con il cartiglio, in fondo al PDF del preventivo."} Per i preventivi standard; non firmati.</p>
               </div>
             )}
             <Label className="text-xs">Anteprima</Label>
@@ -407,13 +442,15 @@ export function EsportaPiantaDialog({
                 : <p className="p-4 text-center text-sm text-muted-foreground">Niente da disegnare in questo stato.</p>}
             </div>
           </div>
-        </div>
+        </fieldset>
+
+        {(inCorso || allegando) && faseFascicolo && <p role="status" className="text-sm text-muted-foreground">{faseFascicolo}…</p>}
 
         <DialogFooter>
-          <Button variant="outline" onClick={onChiudi} disabled={inCorso}>Chiudi</Button>
-          <Button onClick={() => void esporta()} disabled={inCorso || !vista}>
+          <Button variant="outline" onClick={onChiudi} disabled={inCorso || allegando}>Chiudi</Button>
+          <Button onClick={() => void esporta()} disabled={inCorso || allegando || !vista}>
             {inCorso ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}
-            Scarica {FORMATI.find((f) => f.id === formato)?.nome}
+            {inCorso && faseFascicolo ? faseFascicolo : `Scarica ${FORMATI.find((f) => f.id === formato)?.nome}`}
           </Button>
         </DialogFooter>
       </DialogContent>

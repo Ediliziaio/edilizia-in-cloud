@@ -49,7 +49,7 @@ describe("il saldo finale del piano rate", () => {
     for (const file of ["src/pages/azienda/EditOrder.tsx", "src/pages/azienda/CreateOrder.tsx"]) {
       const src = readFileSync(resolve(process.cwd(), file), "utf8");
       expect(src).toContain("conSaldoFinale(installments, balance");
-      expect(src).toContain("importoSaldoFinale(installments, totalWithVat, fCostForBalance)");
+      expect(src).toContain("importoSaldoFinale(installments, totalWithVat, fCostForBalance, financingCostMode)");
       expect(src).not.toMatch(/i\.type === 'balance' \? \{ \.\.\.i, amount: balance \}/);
     }
   });

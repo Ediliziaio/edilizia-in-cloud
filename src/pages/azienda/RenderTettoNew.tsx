@@ -1,3 +1,5 @@
+import { salvaConfigurazioneSessione } from "@/lib/render/salvaConfigurazioneSessione";
+import { jsonPayload } from "@/lib/jsonPayload";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -142,7 +144,7 @@ export default function RenderTettoNew() {
           created_by: user.id,
           status: "pending",
           original_photo_url: storagePath,
-          config: config,
+          config: jsonPayload(config),
           contact_id: contactId,
           opportunity_id: opportunityId,
         })
@@ -243,15 +245,15 @@ export default function RenderTettoNew() {
     setPollState({ dots: 0, elapsedSec: 0, status: "pending" });
 
     try {
-    await supabase
-      .from("render_tetto_sessions")
-      .update({
-        config: config,
-        status: "pending",
-        result_urls: null,
-        error_message: null,
-      })
-      .eq("id", sessionId);
+    const salvataggio = await salvaConfigurazioneSessione({
+      tabella: "render_tetto_sessions", sessionId, companyId, config: config,
+    });
+    if (salvataggio.ok === false) {
+      setGenerating(false);
+      setStep(2);
+      toast.error(salvataggio.messaggio);
+      return;
+    }
 
     let targetWidth: number | undefined;
     let targetHeight: number | undefined;
@@ -271,7 +273,7 @@ export default function RenderTettoNew() {
     const { data: fnData, error: fnErr } = await supabase.functions.invoke("generate-roof-render", {
       body: {
         session_id: sessionId,
-        config: config,
+        config: jsonPayload(config),
         ...(targetWidth && targetHeight ? { target_width: targetWidth, target_height: targetHeight } : {}),
       },
       headers,
@@ -385,7 +387,7 @@ export default function RenderTettoNew() {
       </div>
 
       {/* FIX P2.5 + P5.1: banner pre-wizard su saldo crediti */}
-      <RenderCreditGate />
+      <RenderCreditGate>{null}</RenderCreditGate>
 
       {/* ══════════════════════════════════════════════════════════════════════
           STEP 1 — Foto

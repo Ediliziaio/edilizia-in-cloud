@@ -30,6 +30,7 @@ import { QueryClient, QueryCache, MutationCache } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { createIdbPersister, shouldPersistQuerySafe } from "@/lib/queryPersister";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BannerCookie } from "@/components/legal/BannerCookie";
 import { toast } from "sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { usePaymentGateStore } from "@/store/paymentGateStore";
@@ -433,7 +434,7 @@ const queryClient = new QueryClient({
 const idbPersister = createIdbPersister();
 
 /** Sets the document title based on the current subdomain */
-function SubdomainTitleSetter() {
+function SubdomainTitleSetter(): null {
   const { title } = useSubdomainRoute();
   useEffect(() => {
     // Only set if not already overridden by domain branding
@@ -486,7 +487,7 @@ const PIXEL_VIEW_CONTENT_PAGES: Record<string, { name: string; category: string 
 };
 
 /** Tracks public marketing SPA route changes in Google Analytics 4 + Meta Pixel */
-function GARouteTracker() {
+function GARouteTracker(): null {
   const location = useLocation();
   const firstPixelRun = useRef(true);
   useEffect(() => {
@@ -534,7 +535,7 @@ function PublicSiteChatWidgetGate() {
   return <WhatsAppFab />;
 }
 
-function BootGuardDismiss() {
+function BootGuardDismiss(): null {
   useEffect(() => {
     window.__EIC_BOOT_OK__?.();
     // React ha montato e committato: libera i marker di recovery nativi così un
@@ -554,7 +555,7 @@ function BootGuardDismiss() {
  * v8.6.99 — Monta hook globale che forza logout dopo 45gg dal login.
  * 24/09/2026 — e che torna al login quando l'accesso viene chiuso (revoca, blocco).
  */
-function SessionTimeoutGuard() {
+function SessionTimeoutGuard(): null {
   useSessionTimeout();
   useAccessoRevocato();
   return null;
@@ -585,10 +586,11 @@ const App = () => (
      <ConfirmProvider>
       {/* mobileOffset: i toast non coprono la bottom nav mobile (h-16 + safe-area) né il composer chat */}
       <Sonner mobileOffset={{ bottom: 88 }} />
-      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <BrowserRouter>
         <BootGuardDismiss />
         <SubdomainTitleSetter />
         <GARouteTracker />
+        <BannerCookie />
         <ScrollToTop />
         {/* MobileBootstrap è lazy SOLO su native. Va isolato in un suo Suspense:
             se il suo chunk è lento/non risolve su WKWebView, il fallback={null}

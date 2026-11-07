@@ -188,7 +188,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
       m.scene.remove(m.gruppo);
       liberaGruppo(m.gruppo);
     }
-    m.gruppo = creaGruppo(scena);
+    m.gruppo = creaGruppo(scena, { onTextureReady: () => m.disegna() });
     m.scene.add(m.gruppo);
     adattaAmbiente(m.ambiente, scena);
     m.disegna();
@@ -480,8 +480,8 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
                   <SelectTrigger className="h-8 w-44" aria-label="Facciata"><SelectValue /></SelectTrigger>
                   <SelectContent>{ID_FACCIATE.map((id) => <SelectItem key={id} value={id}>{FACCIATE[id].nome}</SelectItem>)}</SelectContent>
                 </Select>
-                <Select value={asp.infissi} onValueChange={(v) => cambiaAsp({ infissi: v as OpzioniAspetto["infissi"] })}>
-                  <SelectTrigger className="h-8 w-52" aria-label="Infissi"><SelectValue /></SelectTrigger>
+                <Select disabled={!!pianta.infissiProgetto} value={pianta.infissiProgetto?.colore ?? asp.infissi} onValueChange={(v) => cambiaAsp({ infissi: v as OpzioniAspetto["infissi"] })}>
+                  <SelectTrigger className="h-8 w-52" aria-label={pianta.infissiProgetto ? "Infissi comuni del progetto" : "Infissi"}><SelectValue /></SelectTrigger>
                   <SelectContent>{ID_INFISSI.map((id) => <SelectItem key={id} value={id}>Infissi: {INFISSI[id].nome.toLowerCase()}</SelectItem>)}</SelectContent>
                 </Select>
                 <div className="flex items-center gap-2">
@@ -502,7 +502,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
           </div>
         )}
         {modo === "dentro" && onFotogramma && (
-          <Button size="sm" disabled={occupato} onClick={() => esegui(async () => onFotogramma(await fotogramma()))}>
+          <Button size="sm" disabled={occupato} onClick={() => esegui(async () => onFotogramma(await fotogramma({ larghezza: 1536, altezza: 1024 })))}>
             Usa questa vista per il render
           </Button>
         )}

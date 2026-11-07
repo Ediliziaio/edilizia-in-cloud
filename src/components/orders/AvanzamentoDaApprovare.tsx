@@ -1,19 +1,19 @@
 // src/components/orders/AvanzamentoDaApprovare.tsx
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { anteprimaAvanzamento, fasiAperte, type RigaAnteprima } from "@/lib/orders/anteprimaAvanzamento";
+import { anteprimaAvanzamento, avanzateInAnteprima, fasiAperte, type AvanzataInAnteprima, type RigaAnteprima } from "@/lib/orders/anteprimaAvanzamento";
 import { SOTTOFASI_NELLA_FASE, sottofasiDalleFasi } from "@/lib/orders/sottofasi";
 
 // Le sottofasi non sono ancora nei tipi generati: cast localizzato.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-interface Anteprima { righe: RigaAnteprima[]; aperte: string[] }
+interface Anteprima { righe: RigaAnteprima[]; aperte: string[]; avanzate?: AvanzataInAnteprima[] }
 const NIENTE: Anteprima = { righe: [], aperte: [] };
 
 /** Nell'approvazione di un rapportino: cosa cambia alle fasi della commessa se si approva. */
 export function AvanzamentoDaApprovare({ orderId, reportId }: { orderId: string; reportId: string }) {
-  const { data: { righe, aperte } = NIENTE } = useQuery({
+  const { data: { righe, aperte, avanzate = [] } = NIENTE } = useQuery({
     queryKey: ["avanzamento-da-approvare", orderId, reportId],
     staleTime: 0,
     retry: false,
@@ -30,7 +30,19 @@ export function AvanzamentoDaApprovare({ orderId, reportId }: { orderId: string;
         // Un rapporto di fine lavori non muove l'avanzamento (trigger): si dice solo cosa resta aperto.
         if (rapp.data?.lavoro_completato || rapp.data?.firma_cliente_url) return { righe: [], aperte: fasiAperte(fasi.data ?? []) };
         if (!Array.isArray(rapp.data?.fasi_lavorate)) return NIENTE;
-        return { righe: anteprimaAvanzamento(fasi.data ?? [], sottofasiDalleFasi(fasi.data), rapp.data.fasi_lavorate), aperte: [] };
+        const sottofasi = sottofasiDalleFasi(fasi.data);
+        // Le quantità senza i costi; se non si leggono, si mostrano solo le percentuali.
+        let righeQuantita: Array<{ subphase_id: string; quantita: number; unita: string | null }> = [];
+        try {
+          const quantita = await db.rpc("campo_quantita_sottofasi", { p_order_id: orderId });
+          if (!quantita.error) righeQuantita = quantita.data ?? [];
+        } catch { /* senza quantità restano le percentuali */ }
+        const quantitaDi = new Map(righeQuantita.map((r) => [r.subphase_id, { quantita: Number(r.quantita), unita: r.unita }]));
+        return {
+          righe: anteprimaAvanzamento(fasi.data ?? [], sottofasi, rapp.data.fasi_lavorate),
+          aperte: [],
+          avanzate: avanzateInAnteprima(sottofasi, rapp.data.fasi_lavorate, quantitaDi),
+        };
       } catch {
         return NIENTE;
       }
@@ -43,7 +55,7 @@ export function AvanzamentoDaApprovare({ orderId, reportId }: { orderId: string;
       </p>
     );
   }
-  if (righe.length === 0) return null;
+  if (righe.length === 0 && avanzate.length === 0) return null;
 
   return (
     <section aria-label="Avanzamento che passa in commessa" className="rounded-xl border p-3">
@@ -65,6 +77,19 @@ export function AvanzamentoDaApprovare({ orderId, reportId }: { orderId: string;
           </li>
         ))}
       </ul>
+      {avanzate.length > 0 && (
+        <div className="mt-2 border-t pt-2">
+          <p className="text-xs font-semibold">Fatto oggi</p>
+          <ul className="mt-1 space-y-0.5">
+            {avanzate.map((a) => (
+              <li key={a.id} className="flex justify-between gap-3 text-xs">
+                <span className="min-w-0 truncate">{a.nome}</span>
+                <span className={a.oltre ? "shrink-0 font-semibold text-amber-800" : "shrink-0 tabular-nums"}>{a.testo}{a.oltre ? " · oltre il previsto, la chiude" : ""}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <p className="mt-2 text-xs text-muted-foreground">Vale se approvi. Dopo si cambia dalle fasi della commessa.</p>
     </section>
   );

@@ -68,7 +68,7 @@ export function PianoMezziCantiere({
     isError: erroreMezzi,
     refetch: refetchMezzi,
   } = useMezzi();
-  const { piani, prezzi, salva } = usePianoMezziCantiere(orderId, vede, costi);
+  const { piani, prezzi, salva, chiudiRientro } = usePianoMezziCantiere(orderId, vede, costi);
   const { fonti } = useMezziPianoEconomia(orderId, vede && costi);
   const companyId = useEffectiveCompanyId();
   const fasi = useQuery({
@@ -157,7 +157,7 @@ export function PianoMezziCantiere({
     pianiPassati.length +
     (presenti.data ?? []).filter((m) => !m.adesso).length +
     (montati.data ?? []).filter((g) => !g.adesso).length;
-  const occupato = assegna.isPending || monta.isPending || rientro.isPending || salva.isPending;
+  const occupato = assegna.isPending || monta.isPending || rientro.isPending || salva.isPending || chiudiRientro.isPending;
   const arriva = async (mezzoId: string, piano: PianoMezzo | null, quantita?: number) => {
     const m = mezzi.find((x) => x.id === mezzoId);
     if (m?.gestione === "quantita")
@@ -167,12 +167,13 @@ export function PianoMezziCantiere({
     if (piano && piano.dal > oggi) await salva.mutateAsync({ ...piano, dal: oggi, al: piano.al && piano.al < oggi ? oggi : piano.al });
   };
   const rientra = async (r: RigaMezzoCantiere) => {
-    if (r.presenza?.allocazione_id)
+    if (r.piano) {
+      await chiudiRientro.mutateAsync({ pianoId: r.piano.id, allocazioneId: r.presenza?.allocazione_id });
+    } else if (r.presenza?.allocazione_id) {
       await rientro.mutateAsync({ allocazioneId: r.presenza.allocazione_id, quantita: r.presenza.quantita ?? 0 });
-    else await assegna.mutateAsync({ mezzoId: r.mezzo_id, orderId: null });
-    // Rientrato: la prenotazione finisce oggi e passa nello storico.
-    if (r.piano && (!r.piano.al || r.piano.al > oggi))
-      await salva.mutateAsync({ ...r.piano, dal: r.piano.dal > oggi ? oggi : r.piano.dal, al: oggi });
+    } else {
+      await assegna.mutateAsync({ mezzoId: r.mezzo_id, orderId: null });
+    }
   };
   const azione = (fn: () => Promise<void>) => {
     void fn().catch(() => {

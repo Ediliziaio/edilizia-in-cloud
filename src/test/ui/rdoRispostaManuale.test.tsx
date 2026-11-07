@@ -1,0 +1,20 @@
+import { afterEach, expect, it, vi } from "vitest";
+import { act, cleanup, renderHook } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { rfqKeys, useSupplierRfqDetail, type RfqSupplier } from "@/hooks/useSupplierRfqs";
+const update = vi.hoisted(() => vi.fn());
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "demo" } }) }));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: (table: string) => ({ update: (patch: unknown) => ({ eq: async (column: string, value: string): Promise<{ error: null }> => { update(table, patch, column, value); return { error: null }; } }) }) } }));
+afterEach(() => { cleanup(); vi.clearAllMocks(); });
+it.each(["bozza", "inviata", "aggiudicata"])("registra l'offerta manuale da %s senza inventare un invio", async status => {
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
+  client.setQueryData(rfqKeys.detail("rdo"), { rfq: { status }, items: [], fornitori: [], quotes: [] });
+  vi.spyOn(client, "invalidateQueries").mockResolvedValue(undefined);
+  const supplier: RfqSupplier = { id: "risposta", rfq_id: "rdo", supplier_id: "fornitore", status: "da_inviare", inviata_at: null, inviata_via: null, risposta_at: null, totale_offerto: null, giorni_consegna: null, validita_offerta: null, condizioni_pagamento: null, note: null, allegato_url: null, email_inbox_id: null, aggancio_da: null, aggancio_confidenza: null, aggancio_da_confermare: false };
+  const { result } = renderHook(() => useSupplierRfqDetail("rdo"), { wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider> });
+  await act(() => result.current.registraOfferta.mutateAsync(supplier));
+  expect(update).toHaveBeenCalledWith("supplier_rfq_suppliers", { status: "risposta", risposta_at: expect.any(String), aggancio_da: "manuale" }, "id", "risposta");
+  if (status === "aggiudicata") expect(update).toHaveBeenCalledTimes(1);
+  else expect(update).toHaveBeenCalledWith("supplier_rfqs", { status: "in_valutazione" }, "id", "rdo");
+  client.clear();
+});

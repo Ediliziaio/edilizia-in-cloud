@@ -1,3 +1,6 @@
+import { z } from "zod";
+import type { TablesInsert } from "@/integrations/supabase/types";
+import { jsonPayload } from "@/lib/jsonPayload";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -210,7 +213,7 @@ export function useRunCsvImport() {
           imported_rows: 0,
           failed_rows: 0,
           error_log: [],
-          column_mapping: mapping,
+          column_mapping: jsonPayload(mapping),
           source: source || null,
           notes: notes || null,
         })
@@ -228,7 +231,7 @@ export function useRunCsvImport() {
       const righeValide: Array<{
         name: string;
         email: string;
-        sector: string | null;
+        sector: TablesInsert<"companies">["sector"] | null;
       }> = [];
 
       rows.forEach((row, idx) => {
@@ -278,11 +281,15 @@ export function useRunCsvImport() {
         }
 
         if (!haErrore) {
-          const settore = mapping.settore ? (row[mapping.settore] ?? null) : null;
+          const settore = mapping.settore ? (row[mapping.settore]?.trim().toLowerCase() || null) : null;
+          if (settore !== null && settore !== "serramenti" && settore !== "infissi" && settore !== "bagni" && settore !== "tetti" && settore !== "fotovoltaico" && settore !== "pittura" && settore !== "ristrutturazioni" && settore !== "altro") {
+            errori.push({ row: rigaNum, field: "settore", value: settore, message: "Settore non riconosciuto: scegli serramenti, infissi, bagni, tetti, fotovoltaico, pittura, ristrutturazioni oppure altro." });
+            return;
+          }
           righeValide.push({
             name: name || email, // fallback su email come nome
             email,
-            sector: settore,
+            sector: z.enum(["serramenti", "infissi", "bagni", "tetti", "fotovoltaico", "pittura", "ristrutturazioni", "altro"]).nullable().parse(settore),
           });
         }
       });
@@ -333,7 +340,7 @@ export function useRunCsvImport() {
           status: "completed",
           imported_rows: importate,
           failed_rows: righe_fallite,
-          error_log: errori,
+          error_log: jsonPayload(errori),
           completed_at: new Date().toISOString(),
         })
         .eq("id", jobId);

@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import bilocale from "../../../shared/planimetrie/esempi/bilocale.json";
+import { pavimentoDaCampione } from "../../../shared/planimetrie/materialiProgetto";
 
 const archivio = vi.hoisted(() => ({
   creaPlanimetria: vi.fn(),
@@ -104,6 +105,38 @@ describe("Modifica la pianta", () => {
 });
 
 describe("Nuova pianta", () => {
+  it("distingue il pavimento comune dalle finiture proprie della stanza", async () => {
+    const doc = { ...structuredClone(bilocale), materialiProgetto: { fatto: { pavimento: pavimentoDaCampione("rovere") } } };
+    monta(<EditorConSalvataggio companyId="azienda-1" titoloPagina="Disegna una pianta" indietro="/x" iniziale={doc as never} />, "/n", "/n");
+    fireEvent.click(vocePanello("Soggiorno"));
+    expect(await screen.findByText("Pavimento comune del progetto")).toBeTruthy();
+    expect(screen.queryByRole("combobox", { name: "Finitura pavimento" })).toBeNull();
+    expect(screen.getByRole("combobox", { name: "Finitura pareti" })).toBeTruthy();
+  });
+
+  it("dopo l'arredo automatico una nuova stanza mostra i propri dettagli", async () => {
+    monta(<EditorConSalvataggio companyId="azienda-1" titoloPagina="Disegna una pianta" indietro="/x" iniziale={bilocale as never} />, "/n", "/n");
+    fireEvent.click(vocePanello("Soggiorno"));
+    fireEvent.click(await screen.findByRole("button", { name: "Arreda con un clic" }));
+    expect(screen.getByRole("button", { name: "Deseleziona (Esc)" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Scrivi le misure" }));
+    fireEvent.change(screen.getByLabelText("Nome (facoltativo)"), { target: { value: "Nuova stanza QA" } });
+    fireEvent.change(screen.getByLabelText("Larghezza (m)"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("Lunghezza (m)"), { target: { value: "4" } });
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi la stanza" }));
+    expect((await screen.findByLabelText("Nome della stanza") as HTMLInputElement).value).toBe("Nuova stanza QA");
+    expect(screen.queryByRole("button", { name: "Deseleziona (Esc)" })).toBeNull();
+  });
+
+  it("Indietro lascia aperto il disegno quando si annulla l'uscita con modifiche non salvate", async () => {
+    const conferma = vi.spyOn(window, "confirm").mockReturnValue(false);
+    monta(<EditorConSalvataggio companyId="azienda-1" titoloPagina="Disegna una pianta" indietro="/x" iniziale={bilocale as never} />, "/n", "/n");
+    fireEvent.click(screen.getByRole("link", { name: "Indietro" }));
+    expect(conferma).toHaveBeenCalledOnce();
+    expect(screen.getByText("Disegna una pianta")).toBeTruthy();
+    conferma.mockRestore();
+  });
+
   it("disegno: senza nome non si salva; col nome si crea e si va alla scheda", async () => {
     archivio.creaPlanimetria.mockResolvedValue("nuova-1");
     monta(

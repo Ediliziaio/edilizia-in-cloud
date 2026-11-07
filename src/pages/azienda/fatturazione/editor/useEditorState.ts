@@ -205,7 +205,13 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
       return recalculate({ ...action.payload, _initialized: true });
 
     case "SET_FIELD":
-      return recalculate({ ...state, [action.field]: action.value });
+      return recalculate({
+        ...state,
+        // Il valore calcolato dalla vecchia percentuale non è uno sconto
+        // fisso: va scartato anche quando la percentuale torna a zero.
+        ...(action.field === "sconto_globale_percentuale" ? { sconto_globale_valore: 0 } : {}),
+        [action.field]: action.value,
+      });
 
     case "SET_CLIENTE":
       return recalculate({

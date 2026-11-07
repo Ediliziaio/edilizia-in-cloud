@@ -157,7 +157,7 @@ export default function InventoryAuditDialog({ open, onOpenChange, stockItem, co
                         applyAdjustment.mutate({
                           auditId: a.id,
                           stockItemId: a.stock_item_id,
-                          actualQuantity: a.actual_quantity,
+                          actualQuantity: a.counted_quantity,
                           difference: a.difference,
                           companyId,
                         })

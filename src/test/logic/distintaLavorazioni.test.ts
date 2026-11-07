@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  statoVoce, contaFiltri, dateInFila, dateValide, ordineSpostando, distintaConsigliata, filtraDistinta, pianoInBlocco, righeDistinta, totaliDistinta, type VoceDistinta,
+  statoVoce, contaFiltri, dateSpostate, rispettaFiltro, dateInFila, dateValide, ordineSpostando, distintaConsigliata, filtraDistinta, pianoInBlocco, righeDistinta, totaliDistinta, type VoceDistinta,
 } from "@/lib/orders/distintaLavorazioni";
 import type { Sottofase } from "@/lib/orders/sottofasi";
 
@@ -48,7 +48,7 @@ describe("filtri e ricerca", () => {
   ]]]), [voce("v1", { descrizione: "Controparete in cartongèsso", origine_codice: "DB5.14" }), voce("v2", { costo_materiali: 1 })]);
 
   it("conta quello che serve per decidere, senza contare le righe chiuse", () => {
-    expect(contaFiltri(righe, OGGI)).toEqual({ tutte: 6, da_fare: 5, senza_date: 3, senza_previsto: 1, in_ritardo: 1 });
+    expect(contaFiltri(righe, OGGI)).toMatchObject({ tutte: 6, da_fare: 5, senza_date: 3, senza_previsto: 1, in_ritardo: 1 });
   });
   it("cerca parole in qualunque ordine, senza accenti, anche nel codice", () => {
     expect(filtraDistinta(righe, { testo: "cartongesso controparete", oggi: OGGI }).map((r) => r.voceId)).toEqual(["v1"]);
@@ -130,5 +130,21 @@ describe("totali e soglie", () => {
     expect(dateValide("2026-02-01", "2026-01-01")).toBe(false);
     expect(dateValide("2026-01-01", "2026-01-01")).toBe(true);
     expect(dateValide(null, "2026-01-01")).toBe(true);
+  });
+});
+
+describe("Lavori lunghi: spostare e filtrare la settimana", () => {
+  const riga = (x: Record<string, unknown>) => ({ sottofaseId: "s", inizio: null, fine: null, giorni: null, fatta: false, percentuale: 0, iniziata: false, ...x }) as never;
+  it("sposta le date di N giorni, anche indietro, e lascia le fatte e quelle senza date", () => {
+    const passi = dateSpostate([riga({ inizio: "2026-11-28", fine: "2026-12-02", giorni: 3 }), riga({ sottofaseId: "f", inizio: "2026-11-01", fatta: true }), riga({ sottofaseId: "n" })], 5);
+    expect(passi).toEqual([{ id: "s", data_inizio: "2026-12-03", data_fine: "2026-12-07", giorni: 3 }]);
+    expect(dateSpostate([riga({ inizio: "2026-03-01" })], -1)[0].data_inizio).toBe("2026-02-28");
+  });
+  it("questa settimana: avviata, cominciata o in programma entro sette giorni", () => {
+    const oggi = "2026-11-05";
+    expect(rispettaFiltro(riga({ percentuale: 20 }), "settimana", oggi)).toBe(true);
+    expect(rispettaFiltro(riga({ inizio: "2026-11-12" }), "settimana", oggi)).toBe(true);
+    expect(rispettaFiltro(riga({ inizio: "2026-11-13" }), "settimana", oggi)).toBe(false);
+    expect(rispettaFiltro(riga({ inizio: "2026-11-01", fatta: true }), "settimana", oggi)).toBe(false);
   });
 });

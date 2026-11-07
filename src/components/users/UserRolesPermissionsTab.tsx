@@ -1047,7 +1047,7 @@ export function UserRolesPermissionsTab({
         )}
 
         {/* Sticky save bar */}
-        {!isAdmin && !readOnly && (
+        {!isAdmin && !readOnly && isDirty && (
           <div
             ref={saveBarRef}
             className={cn(

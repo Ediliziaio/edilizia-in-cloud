@@ -11,6 +11,7 @@ import {
   Info,
   TrendingUp,
 } from "lucide-react";
+import { differenzaTotaleVisibile } from "@/lib/finanziamenti/riconciliaTotale";
 import type { RisultatoCalcolo } from "@/lib/finanziamenti/types";
 import { formattaPercentuale } from "./comuni";
 import { TitoloAvviso } from "./pezzi";
@@ -60,8 +61,14 @@ export function CalcolatoreOutput({
     );
   }
 
+  const differenza = differenzaTotaleVisibile(risultato);
   return (
     <div className="space-y-4">
+      {differenza !== null && <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <TitoloAvviso>Verifica il totale con la tabella originale</TitoloAvviso>
+        <AlertDescription>Il totale riportato differisce di € {formatEur(differenza, 2)} dalla somma delle rate e delle spese di istruttoria visibili. Potrebbero mancare componenti o esserci dati da correggere: verifica la fonte prima di usare questa simulazione. Gli importi della tabella non sono stati modificati.</AlertDescription>
+      </Alert>}
       {/* Highlight: rata + totale */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Highlight

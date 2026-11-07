@@ -1,3 +1,6 @@
+import { emailDaMostrare, nomeCliente } from "@/lib/orders/nuovaCommessaProposte";
+import { verificaCostoSuPiano, modalitaCostoFinanziaria, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
+import { verificaSupportoModalitaFinanziaria } from "@/lib/finanziamenti/verificaSupportoModalita";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { logger } from "@/utils/logger";
 import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
@@ -52,6 +55,7 @@ import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
 import { AssignedToSelect } from "@/components/orders/AssignedToSelect";
 import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useFattureByOrdine } from "@/hooks/billing/useFatturaOrdineLink";
 import {
   type OrderCustomer as Customer,
   type OrderItemData,
@@ -108,6 +112,7 @@ interface OrderData {
   financing_paid_date: string | null;
   financing_expected_date: string | null;
   financing_cost: number | null;
+  financing_cost_mode?: ModalitaCostoFinanziaria | null;
   has_building_bonus: boolean;
   destination_warehouse_id?: string | null;
   assigned_to: string | null;
@@ -122,7 +127,7 @@ const EMPTY_DB_INSTALLMENTS: (Installment & { id: string })[] = [];
 const EMPTY_ORDER_ITEMS: OrderItemData[] = [];
 const EMPTY_BONUS_LINES: BonusLine[] = [];
 
-function EditOrderInner() {
+function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
@@ -154,6 +159,7 @@ function EditOrderInner() {
   const [paymentType, setPaymentType] = useState<PaymentType>('standard');
   const [totalAmount, setTotalAmount] = useState("");
   const [vatRate, setVatRate] = useState("22");
+  const [financingCostMode, setFinancingCostMode] = useState<ModalitaCostoFinanziaria | null>(null);
   const [financingCost, setFinancingCost] = useState("");
   const [hasBuildingBonus, setHasBuildingBonus] = useState(false);
   // Ripartizione su più agevolazioni (opt-in azienda).
@@ -217,7 +223,7 @@ function EditOrderInner() {
   const totalWithVat = (total + variazioniApprovate) * (1 + vat / 100);
   // Il saldo finale è l'ultima rata «balance»: i SAL intermedi tengono il loro importo
   // e si tolgono dal residuo (stessa regola della vista in sola lettura).
-  const balance = importoSaldoFinale(installments, totalWithVat, fCostForBalance);
+  const balance = importoSaldoFinale(installments, totalWithVat, fCostForBalance, financingCostMode);
 
   // Payment type change handler
   const handlePaymentTypeChange = (type: PaymentType) => {
@@ -283,6 +289,8 @@ function EditOrderInner() {
   });
 
   // Fetch order installments
+  const { data: documentiCollegati = [], isError: erroreDocumentiCollegati } = useFattureByOrdine(id);
+
   const { data: dbInstallments = EMPTY_DB_INSTALLMENTS } = useQuery({
     queryKey: ["order-installments", id],
     queryFn: async () => {
@@ -402,6 +410,7 @@ function EditOrderInner() {
       setTotalAmount(draft.totalAmount || "");
       setVatRate(draft.vatRate ?? (order.workflow_kind === "contratto" ? "" : "22"));
       setFinancingCost(draft.financingCost || "");
+      setFinancingCostMode(modalitaCostoFinanziaria(draft.financingCostMode === undefined ? order.financing_cost_mode : draft.financingCostMode));
       setHasBuildingBonus(draft.hasBuildingBonus || false);
       if (draft.bonusLines?.length) setBonusLines(draft.bonusLines);
       if (Array.isArray(draft.installments)) {
@@ -411,7 +420,8 @@ function EditOrderInner() {
       if (draft.orderItems?.length) setOrderItems(draft.orderItems);
       // Campi non sempre presenti nella bozza → ripristina da bozza o dal record DB,
       // altrimenti al salvataggio verrebbero azzerati (assegnazione persa, tipo→cliente).
-      setAssignedTo(draft.assignedTo || order.assigned_to || "");
+      setAssignedTo(draft.assignedTo ?? order.assigned_to ?? "");
+      setDestinationWarehouseId(draft.destinationWarehouseId === undefined ? order.destination_warehouse_id ?? null : draft.destinationWarehouseId);
       setOrderTypeState(order.order_type === "appaltatore_lavoro" ? "appaltatore_lavoro" : "cliente");
       setWorkAddress(order.work_address || "");
       setWorkDescription(order.work_description || "");
@@ -439,6 +449,7 @@ function EditOrderInner() {
     if (order.work_start_date) setWorkStartDate(new Date(order.work_start_date));
     if (order.work_end_date) setWorkEndDate(new Date(order.work_end_date));
     setFinancingCost(order.financing_cost > 0 ? formatDecimalIT(order.financing_cost) : "");
+    setFinancingCostMode(modalitaCostoFinanziaria(order.financing_cost_mode));
     setHasBuildingBonus(order.has_building_bonus || false);
     // Ripartizione bonus già salvata sulla commessa.
     if (dbBonusLines.length > 0) setBonusLines(dbBonusLines);
@@ -534,6 +545,8 @@ function EditOrderInner() {
       workEndDate: dateToIso(workEndDate),
       paymentType, totalAmount, vatRate,
       financingCost,
+      financingCostMode,
+      destinationWarehouseId,
       hasBuildingBonus,
       bonusLines,
       orderItems,
@@ -553,45 +566,17 @@ function EditOrderInner() {
   }, [customerId, orderCode, description, internalNotes, salespersonId, salespersonData,
       expectedDate, warehouseArrivalDate, workStartDate, workEndDate,
       paymentType, totalAmount, vatRate,
-      installments, financingCost,
+      installments, financingCost, financingCostMode, destinationWarehouseId,
       hasBuildingBonus, bonusLines,
       orderItems, dataLoaded, saveDraft, dateToIso, order?.customer_id]);
 
   const handleClearDraft = useCallback(() => {
     clearDraft();
-    if (order) {
-      setCustomerId(order.customer_id);
-      setOrderCode(order.order_code || "");
-      setDescription(order.description);
-      setTotalAmount(formatDecimalIT(order.total_amount));
-      setPaymentType((order.payment_type as PaymentType) || 'standard');
-      setInternalNotes(order.internal_notes || "");
-      setVatRate(order.vat_rate == null ? (order.workflow_kind === "contratto" ? "" : "22") : String(order.vat_rate));
-      setExpectedDate(order.expected_date ? new Date(order.expected_date) : undefined);
-      setWarehouseArrivalDate(order.warehouse_arrival_date ? new Date(order.warehouse_arrival_date) : undefined);
-      setWorkStartDate(order.work_start_date ? new Date(order.work_start_date) : undefined);
-      setWorkEndDate(order.work_end_date ? new Date(order.work_end_date) : undefined);
-      setFinancingCost(order.financing_cost > 0 ? formatDecimalIT(order.financing_cost) : "");
-      setHasBuildingBonus(order.has_building_bonus || false);
-      setBonusLines(dbBonusLines);
-      // Restore installments from DB or legacy
-      if (dbInstallments.length > 0) {
-        setInstallments(dbInstallments.map(i => ({
-          id: i.id, position: i.position, label: i.label,
-          type: i.type as Installment['type'], amount: i.amount,
-          is_paid: i.is_paid, paid_date: i.paid_date, expected_date: i.expected_date,
-        })));
-        setNumInstallments(dbInstallments.length);
-      } else {
-        const legacyInstallments = order.workflow_kind === "contratto" && !order.deposit_amount && !order.deposit_2_amount && !order.balance_amount && !order.financing_amount ? [] : buildInstallmentsFromLegacy(order);
-        setInstallments(legacyInstallments);
-        setNumInstallments(legacyInstallments.length);
-      }
-    }
-    if (existingItems.length > 0) {
-      setOrderItems(existingItems.map(mapDbItemToOrderItem));
-    }
-  }, [clearDraft, order, existingItems, dbInstallments, dbBonusLines]);
+    // Ricostruisci tutto il modulo dal database, come alla prima apertura.
+    // Il reset parziale ometteva assegnazione, magazzino e trigger delle rate;
+    // l'autosave con l'impronta precedente ricreava subito la bozza eliminata.
+    onRestoreOriginal();
+  }, [clearDraft, onRestoreOriginal]);
 
   const { data: customers = [], isLoading: isLoadingCustomers } = useCompanyCustomers(effectiveCompany?.id);
 
@@ -634,6 +619,15 @@ function EditOrderInner() {
       if (order?.workflow_kind === "intervento") throw new Error("Gli importi si gestiscono sul contratto di origine.");
       if (order?.workflow_kind === "contratto" && (!vatRate.trim() || !installments.length)) throw new Error("Conferma IVA e piano dei pagamenti prima di salvare i dati economici del contratto.");
       // Solo il saldo finale prende il residuo: i SAL intermedi restano col loro importo.
+      if (paymentType === "financing" && parseDecimalIT(financingCost) > 0 && !financingCostMode &&
+          (order?.payment_type !== paymentType || Number(order?.financing_cost ?? 0) !== parseDecimalIT(financingCost))) {
+        throw new Error("Scegli se il costo della finanziaria è trattenuto o pagato separatamente.");
+      }
+      if (order?.financing_cost_mode && !financingCostMode) throw new Error("Scegli come viene pagato il costo della finanziaria.");
+      if (financingCostMode) {
+        verificaCostoSuPiano(parseDecimalIT(financingCost), financingCostMode, installments);
+        await verificaSupportoModalitaFinanziaria();
+      }
       const installmentsForSave = conSaldoFinale(installments, balance);
 
       // Un solo giro sul database invece di una ventina di scritture in fila.
@@ -662,6 +656,7 @@ function EditOrderInner() {
         work_start_date: workStartDate ? format(workStartDate, "yyyy-MM-dd") : null,
         work_end_date: workEndDate ? format(workEndDate, "yyyy-MM-dd") : null,
         financing_cost: parseDecimalIT(financingCost),
+        ...(financingCostMode ? { financing_cost_mode: financingCostMode } : {}),
         has_building_bonus: hasBuildingBonus,
         destination_warehouse_id: destinationWarehouseId || null,
         assigned_to: assignedTo || null,
@@ -772,9 +767,9 @@ function EditOrderInner() {
       });
 
       if (error) {
-        // 40001 è il conflitto di versione: lo diciamo con il messaggio che la
+        // PT409 è il conflitto di versione (40001 resta compatibile coi vecchi server): lo diciamo con il messaggio che la
         // pagina sa già mostrare, non con l'errore grezzo di Postgres.
-        if (error.code === "40001") throw new ConflittoModifica("commessa");
+        if (["PT409", "40001"].includes(error.code ?? "")) throw new ConflittoModifica("commessa");
         // La funzione rifiuta con messaggi in italiano che servono a chi salva
         // («campo non scrivibile da qui», «una delle voci non appartiene a
         // questa commessa»). Vanno incartati in un Error: il gestore mostra il
@@ -998,7 +993,7 @@ function EditOrderInner() {
                       {(() => {
                         const c = allCustomers.find((x) => x.id === (customerId || order?.customer_id));
                         return c
-                          ? `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || c.email
+                          ? nomeCliente(c)
                           : "Committente";
                       })()}
                     </span>
@@ -1024,14 +1019,14 @@ function EditOrderInner() {
                     value={customerId && allCustomers.some(c => c.id === customerId) ? customerId : "__none__"}
                     onValueChange={(value) => setCustomerId(value === "__none__" ? "" : value)}
                   >
-                    <SelectTrigger className="flex-1">
+                    <SelectTrigger id="customer" className="flex-1">
                       <SelectValue placeholder={isLoadingCustomers ? "Caricamento..." : "Seleziona un cliente"} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__" disabled>Seleziona un cliente</SelectItem>
                       {allCustomers.map((customer) => (
                         <SelectItem key={customer.id} value={customer.id}>
-                          {customer.first_name} {customer.last_name} ({customer.email})
+                          {nomeCliente(customer)}{emailDaMostrare(customer.email) ? ` (${emailDaMostrare(customer.email)})` : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1128,7 +1123,10 @@ function EditOrderInner() {
               </p>
             </QuoteCard>
           ) : (
-          <FinancialSummary daContratto={order.workflow_kind === "contratto"}
+          <FinancialSummary
+            hasLinkedInvoices={documentiCollegati.length > 0 || dbInstallments.some(rata => !!rata.documento_fiscale_id)}
+            invoiceLinksError={erroreDocumentiCollegati}
+            daContratto={order.workflow_kind === "contratto"}
             dateCommessa={{
               warehouse_arrival_date: warehouseArrivalDate ? warehouseArrivalDate.toLocaleDateString("en-CA") : null,
               work_start_date: workStartDate ? workStartDate.toLocaleDateString("en-CA") : null,
@@ -1157,6 +1155,8 @@ function EditOrderInner() {
               pivaImpresa: effectiveCompany?.vat_number ?? null,
               cfBeneficiario: null,
             }}
+            financingCostMode={financingCostMode}
+            onFinancingCostModeChange={setFinancingCostMode}
             financingCost={financingCost}
             onFinancingCostChange={setFinancingCost}
           />
@@ -1381,9 +1381,11 @@ function EditOrderInner() {
 }
 
 export default function EditOrder() {
+  const [revision, setRevision] = useState(0);
+  const restoreOriginal = useCallback(() => setRevision((value) => value + 1), []);
   return (
     <ErrorBoundary title="Errore nella modifica commessa">
-      <EditOrderInner />
+      <EditOrderInner key={revision} onRestoreOriginal={restoreOriginal} />
     </ErrorBoundary>
   );
 }

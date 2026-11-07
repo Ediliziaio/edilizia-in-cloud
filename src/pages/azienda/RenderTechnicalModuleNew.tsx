@@ -1,3 +1,4 @@
+import { QualitaRender } from "@/components/render/QualitaRender";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { prendiDaPianta } from "@/lib/planimetrie/render/fotoDaPianta";
 import { useNavigate } from "react-router-dom";
@@ -192,19 +193,20 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [contactId, setContactId] = useState<string | null>(null);
+  const [opportunityId, setOpportunityId] = useState<string | null>(null);
+  const [config, setConfig] = useState<TechnicalRenderConfig>(spec.defaultConfig);
   // Arrivati dalla pianta («Render esterni»): la vista 3D è già la foto di partenza.
   useEffect(() => {
     if (moduleId !== "giardini" && moduleId !== "pavimenti-esterni") return;
     const d = prendiDaPianta(moduleId);
     if (!d) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- La foto è una consegna esterna consumata una sola volta dalla pianta.
     setPhoto(d.file);
     setPhotoPreview(URL.createObjectURL(d.file));
     if (d.nota) setConfig((c) => ({ ...c, technicalDetails: [c.technicalDetails, d.nota].filter(Boolean).join("\n") }));
   }, [moduleId]);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [contactId, setContactId] = useState<string | null>(null);
-  const [opportunityId, setOpportunityId] = useState<string | null>(null);
-  const [config, setConfig] = useState<TechnicalRenderConfig>(spec.defaultConfig);
   const presetCorrente = spec.presets.find((preset) => preset.value === config.interventionPreset);
   const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -273,7 +275,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
           contact_id: contactId,
           opportunity_id: opportunityId,
         })
-        .select("id")
+        .select<{ id: string }>("id")
         .single();
 
       if (error || !session) throw new Error(error?.message ?? "Creazione sessione fallita");
@@ -315,7 +317,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
 
       const { data: session } = await db
         .from("render_technical_sessions")
-        .select("status, result_urls, error_message")
+        .select<{ status: string; result_urls: string[] | null; error_message: string | null }>("status, result_urls, error_message")
         .eq("id", sid)
         .single();
 
@@ -372,6 +374,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
       const { data, error } = await supabase.functions.invoke("generate-technical-render", {
         body: {
           session_id: sessionId,
+          qualita_render: config.qualita_render,
           config,
           ...(dims.width && dims.height ? { target_width: dims.width, target_height: dims.height } : {}),
         },
@@ -454,11 +457,11 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
           else if (step === 2) setStep(1);
           else if (step === 3 && !generating) setStep(2);
         }}
-        eyebrow="Render tecnico fotorealistico"
-        title="Sostituzione modulo tecnico"
+        eyebrow="Render fotorealistico"
+        title={`Render ${spec.label}`}
         mobileTitle={`Render ${spec.label}`}
-        description="Genera il render dell'elemento tecnico mantenendo coerenza con la foto originale."
-        badgeLabel="Render AI — Tecnico"
+        description={`Configura ${spec.singularLabel} e genera un'anteprima a partire dalla foto originale.`}
+        badgeLabel={`Render AI — ${spec.label}`}
         stepLabels={["Foto", "Configura", "Elaborazione", "Risultato"]}
         currentStep={step}
         accent="orange"
@@ -468,7 +471,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
         <RenderCreditsWidget />
       </div>
 
-      <RenderCreditGate />
+      <RenderCreditGate>{null}</RenderCreditGate>
 
       {step === 1 && (
         <div className="space-y-4 max-md:space-y-3">
@@ -580,7 +583,8 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
                 </div>
               </div>
 
-              <OpzioniModuloTecnico
+              <QualitaRender value={config.qualita_render} onChange={(qualita_render) => setConfig({ ...config, qualita_render })} disabled={generating} />
+                  <OpzioniModuloTecnico
                 spec={spec}
                 config={config}
                 onScelta={(chiave, valore) => setConfig((prev) => cambiaOpzioneTecnica(spec, prev, chiave, valore))}
@@ -667,7 +671,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
           elapsedSec={elapsedSec}
           dots={dots}
           accent="orange"
-          subjectLabel="L'AI sta elaborando il render tecnico"
+          subjectLabel={`L'AI sta elaborando il render: ${spec.label}`}
         />
       )}
 

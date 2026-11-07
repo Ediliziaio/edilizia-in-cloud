@@ -136,6 +136,10 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
   const selectedOrder = orders.find((o) => o.id === orderId);
 
   const handleConfirm = async () => {
+    if (attachmentFile && !companyId) {
+      toast.error("Azienda non disponibile: riapri la registrazione prima di caricare l’allegato.");
+      return;
+    }
     // Upload attachment if present
     let attachmentUrl: string | undefined;
     let attachmentName: string | undefined;
@@ -148,21 +152,16 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
         const { error: uploadErr } = await supabase.storage
           .from("prima-nota-attachments")
           .upload(path, attachmentFile);
-        if (uploadErr) {
-          // Bucket might not exist, just warn
-          logger.warn("Upload failed:", uploadErr.message);
-          toast.warning("Allegato non caricato", { description: uploadErr.message });
-        } else {
-          const { data: urlData } = supabase.storage
-            .from("prima-nota-attachments")
-            .getPublicUrl(path);
-          attachmentUrl = urlData.publicUrl;
-          attachmentName = attachmentFile.name;
-        }
-      } catch (e) {
-        logger.warn("Upload error:", e);
+        if (uploadErr) throw uploadErr;
+        attachmentUrl = `prima-nota-attachments/${path}`;
+        attachmentName = attachmentFile.name;
+      } catch (error) {
+        logger.warn("Upload allegato fallito", error);
+        toast.error("Allegato non caricato: la registrazione non è stata salvata. Riprova o rimuovi il file.");
+        return;
+      } finally {
+        setIsUploading(false);
       }
-      setIsUploading(false);
     }
 
     onConfirm({

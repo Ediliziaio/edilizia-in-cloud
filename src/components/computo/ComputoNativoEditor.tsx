@@ -126,6 +126,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
   const [fileChat, setFileChat] = useState<File | undefined>(undefined);
   const [revisioniAperte, setRevisioniAperte] = useState(false);
   const [errore, setErrore] = useState(iniziale.errore);
+  const [avvisoXpwe, setAvvisoXpwe] = useState(false);
   const [erroreLettura, setErroreLettura] = useState(!!iniziale.errore);
   const [salvato, setSalvato] = useState(!!iniziale.raw);
   const [conflitto, setConflitto] = useState(false);
@@ -213,7 +214,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
     const aliquota = bozza.ivaModalita === "applicata" ? numeroEditor(bozza.ivaAliquota) : bozza.ivaModalita === "non-applicabile" ? 0 : null;
     const quoteId = await preparaCommessaDaComputo({ companyId: firmaOnline.companyId, userId: firmaOnline.userId, draftId: firmaOnline.draftId, bozza: bozzaPdf,
       subtotal: fiscaleDocumento.imponibile ?? 0, vatAmount: fiscaleDocumento.iva ?? 0, total: fiscaleDocumento.totale ?? fiscaleDocumento.imponibile ?? 0, aliquotaIva: aliquota,
-      rate: pianoPdf.map(r => ({ descrizione: r.descrizione, percentuale: r.percentuale, importo: r.importo })), validityDays: modello?.giorniValidita ?? 30,
+      rate: pianoPdf.map(r => ({ descrizione: r.descrizione, percentuale: r.percentuale, importo: r.importo, importoIvato: r.importoIvato })), validityDays: modello?.giorniValidita ?? 30,
       conCosti: vediMargini, generaPdf: generaPdfDefinitivo });
     firmaOnline.onApriCommessa(quoteId);
   };
@@ -236,8 +237,14 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
     const { generaDocumentoComputo } = await import("@/lib/computo/esportaComputo");
     return generaDocumentoComputo(vociDaBozza(bozzaPdf, senzaPrezzi), { ...intestazione, stato: "" }, await allegatiDaIncludere(storageKey, bozza.allegati ?? []));
   };
+  const rivalutaErroreLavorazioni = (nuova: BozzaComputo) => {
+    if (nuova.voci.some(r => !r.opzionale && !nuova.capitoliEsclusiPdf.includes(r.capitolo.trim() || "Opere edili"))) {
+      setErrore(attuale => attuale === "Aggiungi almeno una lavorazione." ? "" : attuale);
+    }
+  };
   const cambia = (nuova: BozzaComputo) => {
     if (conflitto) return;
+    rivalutaErroreLavorazioni(nuova);
     setDocumentoPronto(false);
     setStorico(h => [...h.slice(-29), bozza]);
     setBozza(nuova); modificato.current = true; setSalvato(false);
@@ -309,12 +316,13 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
     } catch (e) { setErrore(e instanceof Error ? e.message : "Excel non generato. Riprova."); }
   };
   const scaricaXpwe = () => {
+    setAvvisoXpwe(true);
     void import("@/lib/computo/scriviXpwe").then(({ scriviComputoXpwe }) => {
       const blob = new Blob([scriviComputoXpwe(bozza, azienda ?? "")], { type: "application/xml" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a"); a.href = url; a.download = `${(bozza.titolo.trim() || "computo").replace(/[^\w\-àèéìòù ]+/gi, "").trim().replace(/\s+/g, "-").slice(0, 80) || "computo"}.xpwe`; a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-    });
+    }).catch((e: unknown) => setErrore(e instanceof Error ? e.message : "XPWE non generato. Riprova."));
   };
   const copiaBozza = async () => {
     setCaricando(true);
@@ -382,6 +390,11 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
       <p role="status" aria-label="Salvataggio bozza" className="text-xs text-muted-foreground">
         {conflitto || erroreLettura ? "Salvataggio sospeso" : cloud ? cloud.status : salvato ? "Salvato su questo computer" : "Modifiche da salvare…"}
       </p>
+    {avvisoXpwe && <div role="status" className="rounded-md border p-3 text-sm">
+      Il file XPWE conserva quantità e prezzi, ma non tutte le formule originali o i costi interni.
+      Per riaprire il computo completo in Edilizia in Cloud usa «Scarica una copia della bozza» e poi «Riapri una copia salvata».
+      <Button variant="outline" size="sm" className="ml-2" onClick={() => { void copiaBozza(); }}>Scarica copia completa</Button>
+    </div>}
     <BarraFasi passi={[{ key: "0", label: "Dati" }, { key: "1", label: "Progetto" }, { key: "2", label: "Computo" }, { key: "3", label: "Economia" }, { key: "4", label: "Documento" }]}
       corrente={String(step)} completati={new Set([!!bozza.titolo.trim() && !!bozza.committente.trim(), true, !!bozza.voci.length && !invalide, !!bozza.voci.length && !invalide && !erroreIva && !sconto.errore, documentoPronto].flatMap((ok, n) => ok ? [String(n)] : []))}
       onSelect={n => cambiaFase(Number(n))} ariaLabel="Fasi del preventivo con computo" />
@@ -428,7 +441,9 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
           <Button size="sm" variant="outline" className="bg-white" disabled={bozza.voci.length >= 5000} title="PDF o XPWE di PriMus, oppure foglio Excel (.xlsx): voci e importi come sono scritti" onClick={() => importPrimus.current?.scegliFile()}><FileUp className="mr-1 h-4 w-4" /><span className="max-sm:hidden">Importa da PriMus</span><span className="sm:hidden">PriMus</span></Button>
           <span className="ml-auto flex items-center gap-2">
             <Button variant="outline" size="sm" title="Annulla ultima modifica" aria-label="Annulla ultima modifica" disabled={!storico.length} onClick={() => {
-              setBozza(storico.at(-1)!); setStorico(h => h.slice(0, -1)); modificato.current = true; setSalvato(false); setDocumentoPronto(false);
+              const ripristinata = storico.at(-1)!;
+              rivalutaErroreLavorazioni(ripristinata);
+              setBozza(ripristinata); setStorico(h => h.slice(0, -1)); modificato.current = true; setSalvato(false); setDocumentoPronto(false);
             }}><Undo2 className="h-4 w-4" /></Button>
             {!!bozza.voci.length && <Button size="sm" disabled={bozza.voci.length >= 5000} onClick={() => consentiListini ? setPicker({}) : aggiungi()}><Plus className="mr-1 h-4 w-4" />Aggiungi lavorazione</Button>}
           </span>

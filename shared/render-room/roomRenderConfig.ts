@@ -1,3 +1,4 @@
+import { vincoloInfissiProgetto, type InfissiProgetto } from "../planimetrie/materialiProgetto.ts";
 import { buildFloorPrompt } from "../render-floor/floorPromptBuilder.ts";
 import type { ConfigurazionePavimento, FloorPhotoMeta, PatternPosa, TipoPavimento } from "../render-floor/types.ts";
 import {
@@ -24,12 +25,62 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
+/** Qualità esplicita, mantenendo il comportamento delle configurazioni precedenti. */
+export function qualitaImmagineStanza(config: unknown): "medium" | "high" {
+  return asRecord(config).qualita_render === "alta" ? "high" : "medium";
+}
+
+/** Il QA confronta i nuovi materiali coi campioni, non coi materiali da sostituire. */
+export function contrattoModificheQaStanza(config: unknown): string[] {
+  const cfg = asRecord(config);
+  const changed = ["pavimento", "verniciatura", "arredo", "soffitto", "illuminazione", "carta_da_parati", "rivestimento_pareti", "tende", "restyling_cucina"]
+    .filter((key) => asRecord(cfg[key]).attivo === true)
+    .map((key) => `${key}: ${JSON.stringify(asRecord(cfg[key]))}`);
+  return [
+    "AUTHORIZED CHANGES — these selections explicitly replace their SOURCE materials/finishes. They take priority over preservation of the old surface appearance:",
+    ...changed,
+    ...(cfg.infissi_progetto ? [vincoloInfissiProgetto(cfg.infissi_progetto as InfissiProgetto)] : []),
+    "The SOURCE is the reference for room geometry, viewpoint, opening positions and furniture inventory. The MATERIAL BOARDS plus the explicit selections above are the reference for the NEW finishes.",
+    "PASS a selected new wooden floor replacing old ceramic/terracotta tiles; the difference from the SOURCE floor is intentional, not a selected_material_mismatch.",
+    "PASS the selected new wall colour/finish replacing the old wall appearance on the selected wall area. A finish change alone is not a wall geometry change.",
+    "PASS minor warmth, brightness, saturation, grain and vein variations caused by natural material variation or scene lighting. Never require pixel equality to a sample or literal hex-colour equality in a photograph.",
+    "Fail selected_material_mismatch ONLY for a clearly different material identity, motif or requested fixture (e.g. tile instead of selected wood, geometric instead of tropical wallpaper, or an explicitly selected material omitted). Never fail because an authorized NEW finish differs from the OLD source finish.",
+    "A STYLE panel guides atmosphere only; do not require its sample room, furniture, palette or composition to be copied.",
+  ];
+}
+
 function str(value: unknown, fallback = ""): string {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
 function bool(value: unknown, fallback = false): boolean {
   return typeof value === "boolean" ? value : fallback;
+}
+
+/** Restano dopo la riscrittura AI: fondo e travi sono due superfici distinte. */
+export function vincoloColoriSoffitto(config: unknown): string {
+  const ceiling = asRecord(asRecord(config).soffitto);
+  if (!bool(ceiling.attivo) || ceiling.tipo !== "travi_legno") return "";
+  return [
+    "CEILING SURFACE COLOUR LOCK — overrides any conflicting prose above:",
+    `Ceiling infill/background BETWEEN the beams only: ${str(ceiling.colore_hex, "existing ceiling colour")}.`,
+    `Exposed WOODEN BEAMS finish only: ${str(ceiling.colore_travi, "natural unpainted oak wood with visible grain")}.`,
+    "These are independent surfaces. Never transfer the infill/background paint to the beams. Preserve visible wood grain and the selected beam finish, unless that beam finish itself explicitly requests painted wood.",
+  ].join("\n");
+}
+
+/** Il pavimento nuovo non può essere annullato dalla preservazione della foto. */
+export function vincoloSostituzionePavimento(config: unknown): string {
+  const floor = asRecord(asRecord(config).pavimento);
+  if (floor.attivo !== true) return "";
+  return [
+    "MANDATORY FLOOR REPLACEMENT — takes priority over preservation of OLD surface appearance:",
+    "Replace the ENTIRE visible walkable floor with the selected new material. This is a required edit, not an optional suggestion.",
+    `Exact new floor selection: ${JSON.stringify(floor)}.`,
+    "Use the FLOOR SURFACE and FLOOR ESSENCE panels as the NEW floor reference. Keep the room outline, perspective, furniture footprints and sanitary fixtures exactly in place.",
+    "Remove the old floor's tile grid, old grout, old colour and old material identity where they conflict with the selected floor. Do not leave the original floor unchanged. For large tiles, show the new requested tile scale; for parquet show real wood grain and plank joints.",
+    "This instruction applies to the horizontal floor only. Existing wall tiles, shower walls, doors, fixtures and furniture stay unchanged unless another explicitly active intervention targets them.",
+  ].join("\n");
 }
 
 function hexName(record: Record<string, unknown>, nameKey: string, hexKey: string, fallback: string): string {
@@ -108,6 +159,7 @@ function mapRoomFloorType(value: unknown): TipoPavimento {
     marmo: "marmo",
     resina: "resina_continua",
     cemento_spatolato: "microcemento",
+    microcemento: "microcemento",
     mosaico: "ceramica",
     pietra_naturale: "pietra_naturale",
     vinile_lvt: "vinile_lvt",
@@ -425,7 +477,9 @@ export function buildRoomReplacementManifest(
     active.push(buildSimpleIntervention(
       "ceiling",
       "Ceiling",
-      `Ceiling: ${str(ceiling.tipo, "piano").replace(/_/g, " ")} with color ${str(ceiling.colore_hex, "existing/selected")}${str(ceiling.colore_travi) ? `, beams ${str(ceiling.colore_travi)}` : ""}.`,
+      ceiling.tipo === "travi_legno"
+        ? vincoloColoriSoffitto(cfg)
+        : `Ceiling: ${str(ceiling.tipo, "piano").replace(/_/g, " ")} with color ${str(ceiling.colore_hex, "existing/selected")}.`,
       ["Keep ceiling height and room geometry plausible; no floating fixtures or warped planes."],
     ));
   }

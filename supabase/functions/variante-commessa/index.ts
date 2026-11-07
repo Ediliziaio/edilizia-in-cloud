@@ -1,3 +1,5 @@
+// 06/11/2026: la bozza tiene anche «destinazione» e «chi» (lavoro extra → fase nelle Lavorazioni all'approvazione).
+// _render.mjs rigenerato con scripts/variation-render/build.mjs; questo commento fa ripubblicare la funzione.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";

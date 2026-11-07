@@ -1,3 +1,4 @@
+import { costoTrattenuto, costoDaSottrarreAlSaldo, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 /**
  * Il saldo finale del piano rate: UNA regola per il modulo (nuova commessa,
  * modifica) e per la vista in sola lettura.
@@ -40,11 +41,12 @@ export function importoSaldoFinale(
   rate: ReadonlyArray<RataMinima>,
   totaleLordo: number,
   costoFinanziaria = 0,
+  modalita?: ModalitaCostoFinanziaria | null,
 ): number {
   // Al centesimo, come le rate e le fatture (211.764,71 × 1,10 dà 232.941,181): prima il totale,
   // poi la sottrazione.
   const lordo = Math.round((Number(totaleLordo) || 0) * 100) / 100;
-  const residuo = lordo - sommaRateNonSaldo(rate) - (Number(costoFinanziaria) || 0);
+  const residuo = lordo - sommaRateNonSaldo(rate) - costoDaSottrarreAlSaldo(Number(costoFinanziaria) || 0, modalita);
   return Math.max(0, Math.round(residuo * 100) / 100);
 }
 
@@ -69,6 +71,7 @@ export interface CommessaPerRate {
   vat_rate: number | string | null;
   payment_type: string | null;
   financing_cost: number | string | null;
+  financing_cost_mode?: ModalitaCostoFinanziaria | null;
   /** Somma delle varianti approvate, IVA esclusa. */
   variazioni_approvate?: number | string | null;
   /**
@@ -137,19 +140,26 @@ export function rateDaIncassare(
       ? varianti.reduce((s, v) => (fino && (v.il ?? "") > fino ? s : s + (Number(v.importo) || 0)), 0)
       : Number(commessa.variazioni_approvate) || 0;
     const costoFinanziaria = commessa.payment_type === "financing" ? Number(commessa.financing_cost) || 0 : 0;
-    const totale = centesimi((contratto + sommaVarianti()) * (1 + iva / 100)) - costoFinanziaria;
+    const modalita = commessa.financing_cost_mode;
+    const costoSaldo = costoDaSottrarreAlSaldo(costoFinanziaria, modalita);
+    const trattenuta = modalita === "trattenuto" ? costoFinanziaria : 0;
+    const erogazioni = rateCommessa.filter(r => r.type === "financing");
+    if (trattenuta > 0 && (erogazioni.length !== 1 || trattenuta > Number(erogazioni[0].amount))) {
+      throw new Error("La trattenuta richiede una singola erogazione di importo sufficiente.");
+    }
+    const totale = centesimi((contratto + sommaVarianti()) * (1 + iva / 100)) - costoTrattenuto(costoFinanziaria, modalita);
     // Il saldo già pagato conta con le varianti approvate fino al giorno del pagamento.
     const saldo = finale < 0 ? null : rateCommessa[finale];
     const finoA = saldo?.is_paid && saldo.paid_date && varianti ? saldo.paid_date : null;
     const saldoGrezzo = finale < 0 ? 0
-      : centesimi(centesimi((contratto + sommaVarianti(finoA)) * (1 + iva / 100)) - sommaRateNonSaldo(rateCommessa) - costoFinanziaria);
+      : centesimi(centesimi((contratto + sommaVarianti(finoA)) * (1 + iva / 100)) - sommaRateNonSaldo(rateCommessa) - costoSaldo);
     // Il costo della finanziaria che il saldo non riesce ad assorbire si toglie dalla rata della
     // finanziaria, mai più del costo stesso (come rate_importi nel database).
-    const avanzo = Math.min(Math.max(0, -saldoGrezzo), costoFinanziaria);
+    const avanzo = Math.min(Math.max(0, -saldoGrezzo), costoSaldo);
     const importi = rateCommessa.map((r, i) => i === finale
       ? Math.max(0, saldoGrezzo)
       : r.type === "financing"
-        ? Math.max(0, centesimi((Number(r.amount) || 0) - avanzo))
+        ? Math.max(0, centesimi((Number(r.amount) || 0) - avanzo - trattenuta))
         : centesimi(Number(r.amount) || 0));
     const scoperto = centesimi(totale - importi.reduce((s, n) => s + n, 0));
     if (scoperto > 0) risultato.push({ id: `${orderId}:non-pianificato`, order_id: orderId, expected_date: null, amount: scoperto, finanziamento: false });

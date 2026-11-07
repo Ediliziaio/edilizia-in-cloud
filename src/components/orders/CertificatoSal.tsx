@@ -44,9 +44,11 @@ interface Props {
   /** Cumulativo dell'ultimo SAL emesso prima di questo: serve se quel SAL non ha certificato. */
   giaMaturato: number;
   puoModificare: boolean;
+  /** Perché non si può più cambiare (rata fatturata o incassata, certificato dopo): si mostra al posto del pulsante. */
+  bloccato?: string | null;
 }
 
-export function CertificatoSal({ salId, orderId, companyId, numero, cumulativo, certificato, precedente, giaMaturato, puoModificare }: Props) {
+export function CertificatoSal({ salId, orderId, companyId, numero, cumulativo, certificato, precedente, giaMaturato, puoModificare, bloccato }: Props) {
   const queryClient = useQueryClient();
   const [bozza, setBozza] = useState<Bozza | null>(null);
 
@@ -93,7 +95,8 @@ export function CertificatoSal({ salId, orderId, companyId, numero, cumulativo, 
           {Number(certificato.altre_detrazioni) > 0 && <div title={certificato.altre_detrazioni_nota ?? undefined}><dt className="text-muted-foreground">Altre detrazioni</dt><dd className="font-medium tabular-nums">{formatCurrency(certificato.altre_detrazioni)}</dd></div>}
           <div><dt className="text-muted-foreground">Acconti precedenti</dt><dd className="font-medium tabular-nums">{formatCurrency(certificato.acconti_precedenti)}</dd></div>
           <div><dt className="text-muted-foreground">Netto certificato</dt><dd className="font-semibold tabular-nums">{formatCurrency(certificato.netto)}</dd></div>
-          {puoModificare && <div className="col-span-full"><Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={apri}>Modifica certificato</Button></div>}
+          {puoModificare && !bloccato && <div className="col-span-full"><Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={apri}>Modifica certificato</Button></div>}
+          {puoModificare && bloccato && <p className="col-span-full text-[11px] text-muted-foreground">{bloccato}</p>}
         </dl>
       ) : puoModificare ? (
         <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={apri}>Aggiungi certificato di pagamento</Button>

@@ -21,12 +21,12 @@ import { ODA_STATI_EMESSI } from "@/lib/odaStatus";
 interface Props {
   odaId: string;
   orderId: string | null;
-  /** Totale e stato correnti di QUESTO ordine (gia' caricati dal dettaglio). */
-  totaleOrdine: number;
+  /** Imponibile e stato correnti di QUESTO ordine (gia' caricati dal dettaglio). */
+  imponibileOrdine: number;
   statoOrdine: string;
 }
 
-export function OdaImpattoCommessaCard({ odaId, orderId, totaleOrdine, statoOrdine }: Props) {
+export function OdaImpattoCommessaCard({ odaId, orderId, imponibileOrdine, statoOrdine }: Props) {
   const { data } = useQuery({
     queryKey: ["oda-impatto-commessa", orderId, odaId],
     queryFn: async () => {
@@ -34,7 +34,7 @@ export function OdaImpattoCommessaCard({ odaId, orderId, totaleOrdine, statoOrdi
         supabase.from("orders").select("order_code, total_amount").eq("id", orderId!).single(),
         supabase
           .from("purchase_orders")
-          .select("id, total, status")
+          .select("id, subtotal, status")
           .eq("order_id", orderId!),
       ]);
       if (commessaRes.error) throw commessaRes.error;
@@ -49,7 +49,7 @@ export function OdaImpattoCommessaCard({ odaId, orderId, totaleOrdine, statoOrdi
       return {
         codice: commessaRes.data.order_code as string | null,
         valoreCommessa: Number(commessaRes.data.total_amount) || 0,
-        impegnatoAltri: altri.reduce((s, o) => s + Number(o.total || 0), 0),
+        impegnatoAltri: altri.reduce((s, o) => s + Number(o.subtotal || 0), 0),
         numAltri: altri.length,
       };
     },
@@ -60,7 +60,7 @@ export function OdaImpattoCommessaCard({ odaId, orderId, totaleOrdine, statoOrdi
 
   const { codice, valoreCommessa, impegnatoAltri, numAltri } = data;
   const questoEmesso = (ODA_STATI_EMESSI as readonly string[]).includes(statoOrdine);
-  const totale = impegnatoAltri + totaleOrdine;
+  const totale = impegnatoAltri + imponibileOrdine;
   const pct = valoreCommessa > 0 ? (totale / valoreCommessa) * 100 : null;
 
   // Fasce oneste sull'incidenza acquisti/vendita: sotto meta' commessa e'
@@ -80,6 +80,7 @@ export function OdaImpattoCommessaCard({ odaId, orderId, totaleOrdine, statoOrdi
   return (
     <QuoteCard title="Impatto sulla commessa" icon={<Scale className="h-4 w-4" />}>
       <div className="space-y-2 text-sm">
+        <p className="text-xs text-slate-500">Importi al netto dell’IVA.</p>
         <div className="flex justify-between">
           <span className="text-slate-500">Valore commessa{codice ? ` (${codice})` : ""}</span>
           <span className="font-medium text-slate-900 tabular-nums">{formatCurrency(valoreCommessa)}</span>
@@ -94,7 +95,7 @@ export function OdaImpattoCommessaCard({ odaId, orderId, totaleOrdine, statoOrdi
           <span className="text-slate-500">
             {questoEmesso ? "Questo ordine" : "Questo ordine (bozza)"}
           </span>
-          <span className="font-medium text-slate-900 tabular-nums">{formatCurrency(totaleOrdine)}</span>
+          <span className="font-medium text-slate-900 tabular-nums">{formatCurrency(imponibileOrdine)}</span>
         </div>
         <div className="flex justify-between border-t border-slate-100 pt-2">
           <span className="font-semibold text-slate-700">

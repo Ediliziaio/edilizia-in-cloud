@@ -60,17 +60,12 @@ export function NpsModal({ open, onClose }: NpsModalProps) {
     if (score === null) return;
     setSubmitting(true);
     try {
-      // Save to nps_responses — best-effort (table may not exist in all envs)
-      await (supabase
-        .from("nps_responses" as never)
-        .insert({
-          company_id: effectiveCompany?.id,
-          user_id: user?.id,
-          score,
-          comment: comment.trim() || null,
-          source: "onboarding_completion",
-        }) as any
-      ).catch(() => {});
+      if (!effectiveCompany?.id || !user?.id) throw new Error("Sessione non disponibile");
+      const { error } = await supabase.from("nps_responses").insert({
+        company_id: effectiveCompany.id, user_id: user.id, score,
+        comment: comment.trim() || null, triggered_at_phase: "onboarding_completion",
+      });
+      if (error) throw error;
 
       // Mark as shown
       try { localStorage.setItem(STORAGE_KEY, String(Date.now())); } catch { /* Safari Private Browsing */ }

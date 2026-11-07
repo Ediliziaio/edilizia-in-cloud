@@ -309,6 +309,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
 
             <section aria-label="Materiali che entrano">
               <h4 className="mb-1 font-semibold">Entrano {risultato.righe.length} materiali</h4>
+              <p className="mb-2 text-xs text-muted-foreground">La quantità calcolata conserva i decimali. La quantità d’acquisto viene arrotondata per eccesso all’intero; eventuali quantità già modificate a mano restano conservate.</p>
               {perFase.map(([fase, righe]) => (
                 <details key={fase} className="mb-1 rounded border" open={perFase.length <= 3}>
                   <summary className="cursor-pointer px-2 py-1.5 font-medium">{nomeFase(fase === SENZA ? null : fase)} · {righe.length}</summary>
@@ -320,6 +321,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
                           <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">
                             {r.quantita_calcolata.toLocaleString("it-IT")} {r.unita_misura}
                             {r.sfrido ? <span className="text-slate-400"> (+{r.sfrido}%)</span> : null}
+                            {!Number.isInteger(r.quantita_calcolata) && <span className="block text-muted-foreground">Acquisto proposto: {Math.max(1, Math.ceil(r.quantita_calcolata)).toLocaleString("it-IT")} {r.unita_misura}</span>}
                           </td>
                           <td className="px-2 py-1 text-slate-500">{r.origine === "planimetria" ? "Tavola" : r.origini.length > 1 ? `${r.origini.length} voci` : "Computo"}</td>
                         </tr>

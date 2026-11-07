@@ -20,7 +20,7 @@ describe("fotovoltaico PDF generation utils", () => {
       }),
     ).toThrow("Errore macrocategorie listino: relation does not exist");
 
-    expect(() => assertFvPdfQueryOk("componenti", { data: [], error: null })).not.toThrow();
+    expect(() => assertFvPdfQueryOk("componenti", { error: null })).not.toThrow();
   });
 
   it("maps saved labor rows into PDF-visible services", () => {

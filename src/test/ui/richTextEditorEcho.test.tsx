@@ -29,3 +29,13 @@ describe('editor controllato: echo del testo con campi automatici', () => {
     expect(state.setContent).toHaveBeenCalledWith('<p>Condizioni copiate</p>', { emitUpdate: false });
   });
 });
+
+it('mantiene la tipografia ma rimuove gli stili fuori lista e le risorse esterne', () => {
+  const onChange = vi.fn();
+  render(<RichTextEditor value="<p>Testo</p>" onChange={onChange} documentMode />);
+  state.options!.onUpdate({ editor: { getHTML: () => '<p style="color: red; position: fixed; background: url(https://example.test/pixel); padding: 4px" onclick="alert(1)">Testo</p>' } });
+  const html = onChange.mock.calls[0][0];
+  expect(html).toContain('color: red');
+  expect(html).toContain('padding: 4px');
+  expect(html).not.toMatch(/position|url\(|onclick|example\.test/);
+});

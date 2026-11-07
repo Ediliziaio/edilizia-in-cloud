@@ -46,7 +46,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
-import type { Integration } from "@/types/integrations";
 import { testoTecnico } from "@/lib/userErrorMessage";
 
 type ReputationTab = "dashboard" | "richieste" | "recensioni" | "automazioni" | "integrazioni";
@@ -591,7 +590,7 @@ export default function ReputationManager() {
         .select("*")
         .eq("company_id", companyId);
       if (error) throw error;
-      return (data ?? []) as Integration[];
+      return data ?? [];
     },
     enabled: Boolean(companyId && companyId !== "local"),
   });

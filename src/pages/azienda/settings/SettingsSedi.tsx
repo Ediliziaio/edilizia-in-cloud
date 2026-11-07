@@ -52,9 +52,8 @@ import { userErrorMessage } from '@/lib/userErrorMessage'
 // ── Schema Zod ──────────────────────────────────────────────
 // Un campo vuoto è «niente». Le coordinate già salvate arrivano al modulo come numeri, non come testi: `.trim()` su un
 // numero lanciava un errore e una sede con le coordinate non si poteva più modificare. Il tipo resta quello di prima.
-const emptyToUndefined = (v: string | undefined): string | undefined => {
-  const valore: unknown = v
-  return valore == null || (typeof valore === 'string' && valore.trim() === '') ? undefined : v
+const emptyToUndefined = (value: unknown): unknown => {
+  return value == null || (typeof value === 'string' && value.trim() === '') ? undefined : value
 }
 
 const sedeSchema = z.object({
@@ -263,7 +262,7 @@ export default function SettingsSedi() {
     return map
   }, [sedi])
 
-  const form = useForm<SedeFormData>({
+  const form = useForm<z.input<typeof sedeSchema>, unknown, SedeFormData>({
     resolver: zodResolver(sedeSchema),
     defaultValues: { nome: '', tipo: 'showroom', colore: '#1E3A5F', nazione: 'Italia' },
   })
@@ -862,7 +861,7 @@ export default function SettingsSedi() {
               <CampoIndirizzo
                 id="sede-indirizzo"
                 placeholder="Via Roma 1"
-                value={form.watch('indirizzo') ?? ''}
+                value={typeof form.watch('indirizzo') === 'string' ? String(form.watch('indirizzo')) : ''}
                 onChange={(v) => form.setValue('indirizzo', v, { shouldDirty: true })}
                 onScegli={(a) => riempiCampi(a, (campo, valore) =>
                   form.setValue(({ via: 'indirizzo', citta: 'citta', cap: 'cap', provincia: 'provincia' } as const)[campo], valore, { shouldDirty: true, shouldValidate: campo !== 'via' }))}

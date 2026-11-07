@@ -45,16 +45,16 @@ function makeFakeDb(initialStato: string, opts: { deleted?: boolean } = {}) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async rpc(fn: string, args: Record<string, any>) {
       if (fn !== "claim_documento_per_invio") throw new Error("unexpected rpc " + fn);
-      if (rpcError) return { data: null, error: rpcError };
+      if (rpcError) return { data: null as null, error: rpcError };
       if (args.p_documento_id !== row.id || row.deleted_at) {
-        return { data: [{ claimed: false, previous_stato: null, current_stato: null }], error: null };
+        return { data: [{ claimed: false, previous_stato: null, current_stato: null }], error: null as null };
       }
       const prev = row.stato;
       if (STATI_INVIABILI.includes(prev as never)) {
         row.stato = STATO_IN_INVIO; // mutazione sincrona = serializzazione FOR UPDATE
-        return { data: [{ claimed: true, previous_stato: prev, current_stato: STATO_IN_INVIO }], error: null };
+        return { data: [{ claimed: true, previous_stato: prev, current_stato: STATO_IN_INVIO }], error: null as null };
       }
-      return { data: [{ claimed: false, previous_stato: prev, current_stato: prev }], error: null };
+      return { data: [{ claimed: false, previous_stato: prev, current_stato: prev }], error: null as null };
     },
     // Modella .from(t).update(patch).eq().eq() come compare-and-set sulla riga.
     from(_table: string) {
@@ -70,11 +70,14 @@ function makeFakeDb(initialStato: string, opts: { deleted?: boolean } = {}) {
           return builder;
         },
         // PostgREST builders sono thenable: await fa scattare .then
-        then(resolve: (v: { data: unknown; error: unknown }) => void) {
+        then<TResult1 = { data: unknown; error: unknown }, TResult2 = never>(
+            resolve?: ((v: { data: unknown; error: unknown }) => TResult1 | PromiseLike<TResult1>) | null,
+            reject?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+          ): PromiseLike<TResult1 | TResult2> {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const match = conds.every(([c, v]) => (row as any)[c] === v);
           if (match && patch) Object.assign(row, patch);
-          resolve({ data: null, error: null });
+          return Promise.resolve({ data: null, error: null }).then(resolve, reject);
         },
       };
       return builder;
@@ -97,7 +100,7 @@ describe("valutaPreInvio", () => {
   it("blocca lo stato 'bozza' con istruzione ad emettere", () => {
     const r = valutaPreInvio({ stato: "bozza" });
     expect(r.ok).toBe(false);
-    if (!r.ok) {
+    if (r.ok === false) {
       expect(r.status).toBe(422);
       expect(r.error).toMatch(/Emetti/i);
     }
@@ -106,7 +109,7 @@ describe("valutaPreInvio", () => {
   it("blocca un invio già in corso ('in_invio') con 409", () => {
     const r = valutaPreInvio({ stato: "in_invio" });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.status).toBe(409);
+    if (r.ok === false) expect(r.status).toBe(409);
   });
 
   // "pagata" stava in questo elenco: era l'errore. Una fattura incassata non è
@@ -188,13 +191,16 @@ describe("aggiornaStatoDaNotifica", () => {
           update(p: Record<string, unknown>) { patch = p; return builder; },
           eq(col: string, val: unknown) { eqConds.push([col, val]); return builder; },
           neq(col: string, val: unknown) { neqConds.push([col, val]); return builder; },
-          then(resolve: (v: { data: unknown; error: unknown }) => void) {
+          then<TResult1 = { data: unknown; error: unknown }, TResult2 = never>(
+            resolve?: ((v: { data: unknown; error: unknown }) => TResult1 | PromiseLike<TResult1>) | null,
+            reject?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+          ): PromiseLike<TResult1 | TResult2> {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const match = eqConds.every(([c, v]) => (row as any)[c] === v)
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               && neqConds.every(([c, v]) => (row as any)[c] !== v);
             if (match && patch) Object.assign(row, patch);
-            resolve({ data: null, error: null });
+            return Promise.resolve({ data: null, error: null }).then(resolve, reject);
           },
         };
         return builder;

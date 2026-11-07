@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 import { ArrowUpRight, LayoutDashboard } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
@@ -26,6 +26,7 @@ interface Props {
   cashTotalGross: number;
   /** Per il «da pagare»: lo stesso calcolo della cassa della commessa. */
   financingCost?: number;
+  financingCostMode?: ModalitaCostoFinanziaria | null;
   varianti?: ReadonlyArray<VarianteDatata>;
   canViewAmounts: boolean;
   canViewMargins: boolean;
@@ -56,6 +57,7 @@ export function OrderFinancialOverview(props: Props) {
     totalAmount,
     vatRate,
     financingCost: props.financingCost ?? 0,
+    financingCostMode: props.financingCostMode,
     installments: props.installments,
     varianti: props.varianti,
     enabled: canViewCosts,
@@ -65,6 +67,7 @@ export function OrderFinancialOverview(props: Props) {
   const loading = isPending || props.itemsLoading;
   const error = isError || props.itemsError;
   const realeReady = !loading && !error && quality.canShowMargin;
+  const costiReady = !loading && !error;
   const previstoReady = !previsto.isLoading && !previsto.isError;
   // Il ricavo della vista (contratto + varianti approvate), lo stesso del margine reale:
   // previsto, stima e percentuali stanno sulla stessa base. Finché la vista non c'è, il contratto.
@@ -88,8 +91,10 @@ export function OrderFinancialOverview(props: Props) {
       : quality.status === "ready" ? "Sui costi registrati" : quality.issues[0]?.label ?? quality.label;
   const scarto = numeri.scostamento;
   const fine = realeReady && previstoReady ? numeri.aFinire : null;
-  const costiHint = !realeReady || !fine || scarto == null
+  const costiHint = !costiReady
     ? realeHint
+    : !fine || scarto == null
+      ? "Sui costi registrati"
     : scarto > 0.5
       ? `Oltre il previsto di ${formatCurrency(scarto)}`
       : `Speso il ${fine.spesoPct}% del previsto · restano ${formatCurrency(fine.residuo)}`;
@@ -172,9 +177,9 @@ export function OrderFinancialOverview(props: Props) {
           {canViewMargins && <>
             <Cella
               label="Costi sostenuti"
-              value={realeReady ? formatCurrency(numeri.reale.costi) : "—"}
+              value={costiReady ? formatCurrency(numeri.reale.costi) : "—"}
               hint={costiHint}
-              dettaglio={realeReady ? dettaglioCosti(actual) : undefined}
+              dettaglio={costiReady ? dettaglioCosti(actual) : undefined}
               progresso={fine ? Math.min(100, fine.spesoPct) : undefined}
               progressoNome="Previsto già speso"
               progressoColore={fine ? (fine.spesoPct > 100 ? "bg-red-400" : fine.spesoPct > 90 ? "bg-amber-400" : "bg-sky-400") : undefined}

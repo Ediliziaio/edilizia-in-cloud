@@ -78,6 +78,7 @@ export type TappetiPavimento = "mantieni" | "rimuovi";
 export const TAPPETI_PAVIMENTO: TappetiPavimento[] = ["mantieni", "rimuovi"];
 
 export interface ConfigurazionePavimento {
+  qualita_render?: "standard" | "alta";
   tipo: TipoPavimento;
   finitura: FinituraPavimento;
   colore_mode: "palette" | "ral" | "legno" | "free";

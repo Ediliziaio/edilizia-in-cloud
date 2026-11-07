@@ -1,3 +1,6 @@
+import { preparaMaterialiStanza } from "@/lib/render/roomMaterialsBoard";
+import { salvaConfigurazioneSessione } from "@/lib/render/salvaConfigurazioneSessione";
+import { jsonPayload } from "@/lib/jsonPayload";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -142,7 +145,7 @@ export default function RenderStanzaNew() {
           created_by: user.id,
           status: "pending",
           original_photo_url: storagePath,
-          config: config,
+          config: jsonPayload(config),
           contact_id: contactId,
           opportunity_id: opportunityId,
         })
@@ -246,16 +249,17 @@ export default function RenderStanzaNew() {
     setPollState({ dots: 0, elapsedSec: 0, status: "pending" });
 
     try {
+    const configRender = await preparaMaterialiStanza(config, companyId);
     // Update config on session
-    await supabase
-      .from("render_stanza_sessions")
-      .update({
-        config: config,
-        status: "pending",
-        result_urls: null,
-        error_message: null,
-      })
-      .eq("id", sessionId);
+    const salvataggio = await salvaConfigurazioneSessione({
+      tabella: "render_stanza_sessions", sessionId, companyId, config: configRender,
+    });
+    if (salvataggio.ok === false) {
+      setGenerating(false);
+      setStep(2);
+      toast.error(salvataggio.messaggio);
+      return;
+    }
 
     // Get image dimensions
     let targetWidth: number | undefined;
@@ -280,7 +284,7 @@ export default function RenderStanzaNew() {
     const { data: fnData, error: fnErr } = await supabase.functions.invoke("generate-room-render", {
       body: {
         session_id: sessionId,
-        config: config,
+        config: jsonPayload(configRender),
         ...(targetWidth && targetHeight ? { target_width: targetWidth, target_height: targetHeight } : {}),
       },
       headers,
@@ -428,7 +432,7 @@ export default function RenderStanzaNew() {
       </div>
 
       {/* FIX P2.5 + P5.1: banner pre-wizard su saldo crediti */}
-      <RenderCreditGate />
+      <RenderCreditGate>{null}</RenderCreditGate>
 
       {/* ══════════════════════════════════════════════════════════════════════
           STEP 1 — Foto

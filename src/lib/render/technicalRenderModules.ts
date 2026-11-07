@@ -16,6 +16,7 @@ export const TECHNICAL_RENDER_MODULE_IDS = [
 export type TechnicalRenderModuleId = typeof TECHNICAL_RENDER_MODULE_IDS[number];
 
 export interface TechnicalRenderConfig {
+  qualita_render?: "standard" | "alta";
   interventionPreset: string;
   targetArea: string;
   materialOrSystem: string;

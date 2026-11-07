@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bozzaVuota, voceVuota } from "@/lib/computo/editorNativo";
-import { fasiDaRate, righeDaComputo } from "@/lib/computo/commessaDaComputo";
+import { fasiDaRate, righeDaComputo, prezzoConcordatoComputo } from "@/lib/computo/commessaDaComputo";
 import { applicaCostiListino, codiciSenzaCosto } from "@/lib/computo/costiDalListino";
 
 /** Dal preventivo con computo alla commessa (29/10/2026): voci → righe del preventivo, piano → fasi di pagamento. */
@@ -34,3 +34,28 @@ describe("costi dal listino", () => {
     expect(trovate).toBe(1);
   });
 });
+
+ it("BUG-81: trasferisce gli acconti IVA inclusa e conserva il netto se IVA assente", () => {
+    const fasi = fasiDaRate([
+      { descrizione: "Acconto", percentuale: 30, importo: 194.4, importoIvato: 237.17 },
+      { descrizione: "SAL", percentuale: 40, importo: 259.2, importoIvato: 316.22 },
+      { descrizione: "Saldo", percentuale: 30, importo: 194.4, importoIvato: 237.17 },
+    ]);
+    expect(fasi.map(f => f.amount)).toEqual([237.17, 316.22, 237.17]);
+    expect(fasiDaRate([{ descrizione: "Saldo", percentuale: 100, importo: 648 }])[0].amount).toBe(648);
+ });
+
+ describe("BUG-81: prezzo concordato del computo", () => {
+   it("mantiene il netto scontato senza ricalcolarlo dalle righe a prezzo pieno", () => {
+     expect(prezzoConcordatoComputo({ subtotal: 648, vatAmount: 142.56, total: 790.56, aliquotaIva: 22 }))
+       .toEqual({ prezzo_manuale: 648, prezzo_manuale_iva_pct: 22, discount_percent: 0 });
+   });
+   it("conserva i centesimi di uno sconto fisso e il caso senza IVA", () => {
+     expect(prezzoConcordatoComputo({ subtotal: 93.17, vatAmount: 20.50, total: 113.67, aliquotaIva: 22 }).prezzo_manuale).toBe(93.17);
+     expect(prezzoConcordatoComputo({ subtotal: 93.17, vatAmount: 0, total: 93.17, aliquotaIva: null }).prezzo_manuale_iva_pct).toBe(0);
+   });
+   it("preserva zero e blocca importi incoerenti prima di scrivere", () => {
+     expect(prezzoConcordatoComputo({ subtotal: 0, vatAmount: 0, total: 0, aliquotaIva: 22 }).discount_percent).toBe(100);
+     expect(() => prezzoConcordatoComputo({ subtotal: 648, vatAmount: 142.56, total: 878.4, aliquotaIva: 22 })).toThrow(/riconciliati/);
+   });
+ });

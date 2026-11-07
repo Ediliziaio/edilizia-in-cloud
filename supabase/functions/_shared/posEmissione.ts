@@ -12,7 +12,7 @@ export class ErroreEmissionePos extends Error {
   constructor(message: string, readonly status = 422) { super(message); }
 }
 function erroreRpc(e: { code?: string; message?: string }) {
-  return new ErroreEmissionePos(e.message || "Operazione emissione non riuscita", e.code === "42501" ? 403 : ["40001", "55P03"].includes(e.code || "") ? 409 : 422);
+  return new ErroreEmissionePos(e.message || "Operazione emissione non riuscita", e.code === "42501" ? 403 : ["PT409", "40001", "55P03"].includes(e.code || "") ? 409 : 422);
 }
 export interface RigaEmissionePos {
   id: string; company_id: string; pos_id: string; revisione: number;

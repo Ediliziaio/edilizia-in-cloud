@@ -37,18 +37,13 @@ export default function DashboardsList() {
   useDashboardTemplates();
   useEffect(() => {
     // Defer al prossimo idle per non competere con il rendering iniziale.
-    const id = typeof window !== "undefined" && "requestIdleCallback" in window
-      ? (window as unknown as { requestIdleCallback: (cb: () => void) => number })
-          .requestIdleCallback(prefetchBuilder)
-      : window.setTimeout(prefetchBuilder, 300);
-    return () => {
-      if (typeof window !== "undefined" && "cancelIdleCallback" in window) {
-        (window as unknown as { cancelIdleCallback: (id: number) => void })
-          .cancelIdleCallback(id as number);
-      } else {
-        window.clearTimeout(id as number);
-      }
-    };
+    if (typeof window === "undefined") return;
+    if (typeof window.requestIdleCallback === "function" && typeof window.cancelIdleCallback === "function") {
+      const id = window.requestIdleCallback(prefetchBuilder);
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = window.setTimeout(prefetchBuilder, 300);
+    return () => window.clearTimeout(id);
   }, []);
 
   if (flagsLoading) {

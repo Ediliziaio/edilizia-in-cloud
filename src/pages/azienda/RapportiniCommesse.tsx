@@ -3,13 +3,14 @@
  * Quattro divisioni dello stesso elenco (giorni, cantieri, persone, mappa del mese):
  * i filtri valgono per tutte. L'approvazione resta dove sta, nella commessa.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ArrowUpRight, ChevronLeft, ChevronRight, ClipboardList, Download, FileDown, Image as ImageIcon, Loader2, NotebookPen, RefreshCcw, Search, X } from "lucide-react";
+import { RapportiPeriodoDialog } from "@/components/documentiOperativi/RapportiPeriodoDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -143,6 +144,8 @@ function Pagina({ companyId }: { companyId?: string }) {
     return [{ value: "", label: "Persone" }, ...scelta, ...voci];
   }, [righe, persona]);
 
+  const elencoNavigabile = giorni.flatMap((g) => g.righe);
+  const indiceAperto = elencoNavigabile.findIndex((r) => r.id === aperto);
   const selezionato = righe.find((r) => r.id === aperto) ?? null;
   const filtriAttivi = !!(giorno || cantiere || persona || stato || testo);
   const pulisci = () => imposta({ rap_giorno: null, rap_cantiere: null, rap_persona: null, rap_stato: null, rap_q: null });
@@ -203,6 +206,7 @@ function Pagina({ companyId }: { companyId?: string }) {
         </div>
       </div>
 
+      {!isError && !isLoading && <RapportiPeriodoDialog key={companyId} companyId={companyId} mese={mese} righe={filtrate as RapportinoCompleto[]} />}
       {isError ? (
         <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           Non riesco a leggere i rapportini: i numeri non sarebbero affidabili.
@@ -226,7 +230,7 @@ function Pagina({ companyId }: { companyId?: string }) {
         <>
           {/* Il riepilogo del mese: stessa fascia blu della scheda Commesse */}
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className={cn("grid gap-0", !isMobile && "xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]")}>
+            <div className="grid gap-0">
               <div className="bg-eic-navy-deep p-3 text-white">
                 <div className="flex items-start gap-2.5 sm:gap-3">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white">
@@ -238,7 +242,7 @@ function Pagina({ companyId }: { companyId?: string }) {
                   </div>
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {numeri.map((n) => {
+                  {numeri.filter((n) => !n.soloScrivania).map((n) => {
                     const Elemento = n.onClick ? "button" : "div";
                     return (
                       <Elemento key={n.label} {...(n.onClick ? { type: "button" as const, onClick: n.onClick, "aria-pressed": stato === "inviato" } : {})}
@@ -253,6 +257,15 @@ function Pagina({ companyId }: { companyId?: string }) {
                 </div>
               </div>
 
+              <details className="group border-t border-slate-200">
+                <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">Statistiche del mese</summary>
+                <div className="grid grid-cols-2 gap-3 px-4 pb-3 sm:grid-cols-4">
+                  {numeri.filter((n) => n.soloScrivania).map((n) => <div key={n.label}>
+                    <span className="block text-xs font-semibold uppercase text-slate-500">{n.label}</span>
+                    <span className="block text-lg font-bold tabular-nums text-slate-900">{n.valore}</span>
+                    {n.nota && <span className="text-xs text-slate-500">{n.nota}</span>}
+                  </div>)}
+                </div>
               {/* Le statistiche: l'andamento del mese e dove sono andate le ore */}
               {!isMobile && (
                 <aside className="grid min-w-0 gap-3 border-t border-slate-200 p-3 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:border-l xl:border-t-0">
@@ -303,6 +316,7 @@ function Pagina({ companyId }: { companyId?: string }) {
                   </div>
                 </aside>
               )}
+              </details>
             </div>
           </section>
 
@@ -338,6 +352,15 @@ function Pagina({ companyId }: { companyId?: string }) {
                     {giornoLungo(giorno)} <X className="h-3 w-3" aria-label="Togli il giorno" />
                   </button>
                 )}
+                {[
+                  { key: "rap_cantiere", value: cantiere, label: opzioniCantieri.find((v) => v.value === cantiere)?.label },
+                  { key: "rap_persona", value: persona, label: opzioniPersone.find((v) => v.value === persona)?.label },
+                  { key: "rap_stato", value: stato, label: STATI[stato as StatoRapportino]?.label },
+                  { key: "rap_q", value: testo, label: `Ricerca: ${testo}` },
+                ].filter((f) => f.value).map((f) => <button key={f.key} type="button" aria-label={`Togli filtro: ${f.label}`} onClick={() => imposta({ [f.key]: null })}
+                  className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-slate-700 hover:bg-slate-100">
+                  {f.label}<X className="h-3 w-3" aria-hidden="true" />
+                </button>)}
                 <span>{conto(filtrate.length, "rapportino", "rapportini")} su {righe.length.toLocaleString("it-IT")}</span>
                 <button type="button" className="ml-auto font-medium text-slate-700 underline-offset-2 hover:underline" onClick={pulisci}>Togli i filtri</button>
               </div>
@@ -347,6 +370,9 @@ function Pagina({ companyId }: { companyId?: string }) {
               <p className="px-4 py-10 text-center text-sm text-slate-500">Nessun rapportino con questi filtri.</p>
             ) : vista === "giorni" ? (
               <div>
+                <div aria-hidden="true" className="hidden border-b border-slate-200 bg-slate-50 py-2 pl-3 pr-[3.25rem] text-xs font-semibold text-slate-500 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)_13rem_3.5rem_2.5rem_6.5rem] lg:gap-x-3">
+                  <span>Cantiere</span><span>Lavori eseguiti</span><span>Persone</span><span className="text-right">Ore</span><span className="text-right">Foto</span><span className="text-right">Stato</span>
+                </div>
                 {giorni.map((g) => (
                   <div key={g.data}>
                     <div className="sticky top-0 z-[1] flex flex-wrap items-baseline justify-between gap-x-3 border-b border-slate-100 bg-slate-50 px-3 py-1.5">
@@ -379,7 +405,11 @@ function Pagina({ companyId }: { companyId?: string }) {
         </>
       )}
 
-      <DettaglioRapportino r={selezionato as RapportinoCompleto | null} conCosti={canViewCosts} pdf={pdf} onChiudi={() => imposta({ rap_id: null }, false)} />
+      <DettaglioRapportino r={selezionato as RapportinoCompleto | null} conCosti={canViewCosts} pdf={pdf} navigazione={indiceAperto >= 0 ? <div className="mb-4 flex items-center justify-between gap-2 border-b border-slate-100 pb-3 pr-6">
+        <Button variant="outline" size="sm" disabled={indiceAperto === 0} onClick={() => imposta({ rap_id: elencoNavigabile[indiceAperto - 1].id })}><ChevronLeft className="mr-1 h-4 w-4" />Precedente</Button>
+        <span className="text-xs tabular-nums text-slate-500">{indiceAperto + 1} di {elencoNavigabile.length}</span>
+        <Button variant="outline" size="sm" disabled={indiceAperto === elencoNavigabile.length - 1} onClick={() => imposta({ rap_id: elencoNavigabile[indiceAperto + 1].id })}>Successivo<ChevronRight className="ml-1 h-4 w-4" /></Button>
+      </div> : null} onChiudi={() => imposta({ rap_id: null }, false)} />
     </div>
   );
 }
@@ -578,7 +608,7 @@ function MappaDelMese({ righe, mese, oggi, onCella }: { righe: RapportinoRiga[];
   );
 }
 
-function DettaglioRapportino({ r, conCosti, pdf, onChiudi }: { r: RapportinoCompleto | null; conCosti: boolean; pdf: ReturnType<typeof useScaricaPdf>; onChiudi: () => void }) {
+function DettaglioRapportino({ r, conCosti, pdf, navigazione, onChiudi }: { navigazione?: ReactNode; r: RapportinoCompleto | null; conCosti: boolean; pdf: ReturnType<typeof useScaricaPdf>; onChiudi: () => void }) {
   const { data: nomiFasi } = useNomiFasiCommessa(r?.order_id);
   const [foto, setFoto] = useState<string | null>(null);
   const stato = r ? statoDi(r) : null;
@@ -590,6 +620,7 @@ function DettaglioRapportino({ r, conCosti, pdf, onChiudi }: { r: RapportinoComp
         <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
           {r && stato && (
             <>
+              {navigazione}
               <SheetHeader className="space-y-1 pr-6 text-left">
                 <SheetTitle className="text-lg leading-tight">{nomeCantiere(r)}</SheetTitle>
                 <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">

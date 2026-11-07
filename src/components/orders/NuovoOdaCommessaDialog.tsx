@@ -1,3 +1,4 @@
+import { condizioniPagamentoFornitore } from "@/lib/documentiOperativi/fornitore";
 /**
  * «Nuovo ordine» dalla commessa: un popup solo per fare l'ordine d'acquisto
  * (30/10/2026). Come si ordina, a chi, cosa (articoli della commessa ancora da
@@ -97,9 +98,13 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
     if (errore || !companyId || !fornitore || !origine || salvando) return;
     setSalvando(true);
     try {
+      const datiFornitore = suppliers.find(s => s.id === fornitore);
+      const condizioni = condizioniPagamentoFornitore(datiFornitore || {});
       const { data: po, error } = await supabase.from("purchase_orders").insert({
         company_id: companyId,
         supplier_id: fornitore,
+        payment_terms: condizioni === "Da definire con il fornitore" ? null : condizioni,
+        payment_method: datiFornitore?.payment_method || null,
         order_id: orderId,
         status: "bozza",
         // Il numero lo dà il trigger, unico per azienda.
@@ -255,7 +260,7 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
 
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm">
           <span>{quante} {quante === 1 ? "riga" : "righe"}</span>
-          <span className="tabular-nums">
+          <span className="tabular-nums">{righeInOrdine(righe).some(r => r.price_pending && r.unit_price === 0) && <span className="mr-2 text-amber-700">Totale parziale · prezzi da confermare</span>}
             {formatCurrency(totali.imponibile)} + IVA {formatCurrency(totali.iva)} = <strong>{formatCurrency(totali.totale)}</strong>
           </span>
         </div>
@@ -283,7 +288,7 @@ function RigaModificabile({
   onTogli?: () => void;
 }) {
   const [qta, setQta] = useState(numeroTesto(riga.quantity));
-  const [prezzo, setPrezzo] = useState(numeroTesto(riga.unit_price));
+  const [prezzo, setPrezzo] = useState(riga.price_pending ? "" : numeroTesto(riga.unit_price));
   const spenta = conSpunta && !riga.scelta;
   return (
     <div className={`flex flex-wrap items-center gap-2 px-3 py-2 text-sm ${spenta ? "opacity-60" : ""}`}>
@@ -321,7 +326,8 @@ function RigaModificabile({
         inputMode="decimal"
         className="h-8 w-24 text-right tabular-nums"
         value={prezzo}
-        onChange={(e) => { setPrezzo(e.target.value); onCambia({ unit_price: leggiImporto(e.target.value) }); }}
+        placeholder="Da confermare"
+        onChange={(e) => { setPrezzo(e.target.value); onCambia({ unit_price: leggiImporto(e.target.value), price_pending: e.target.value.trim() === "" }); }}
       />
       <span className="text-xs text-muted-foreground">€</span>
       {onTogli && (

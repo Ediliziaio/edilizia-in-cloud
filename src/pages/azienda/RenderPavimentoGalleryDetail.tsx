@@ -19,6 +19,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 
+import { floorConfigSummary } from "@/lib/render/floorConfigSummary";
 import { useIsMobile } from "@/hooks/use-mobile";
 const STATUS_CONFIG = {
   pending:    { label: "In coda",         variant: "secondary",   icon: Clock },
@@ -26,9 +27,6 @@ const STATUS_CONFIG = {
   completed:  { label: "Completato",      variant: "secondary",   icon: CheckCircle2 },
   failed:     { label: "Fallito",         variant: "destructive", icon: XCircle },
 } as const;
-
-const INTERNAL_CONFIG_KEY_RE =
-  /(schema|prompt|provider|openai|gemini|model|cost|costo|addeb|billing|token|api|manifest|rules|directives|analysis|analisi)/i;
 
 export default function RenderPavimentoGalleryDetail() {
   const isMobile = useIsMobile();
@@ -130,6 +128,7 @@ export default function RenderPavimentoGalleryDetail() {
     STATUS_CONFIG.pending;
   const StatusIcon = statusCfg.icon;
   const config = session.config as Record<string, unknown> | null;
+  const summary = floorConfigSummary(config ?? {});
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto max-md:space-y-3">
@@ -299,8 +298,7 @@ export default function RenderPavimentoGalleryDetail() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {Object.entries(config)
-                .filter(([k, v]) => !INTERNAL_CONFIG_KEY_RE.test(k) && v && typeof v !== "object")
+              {summary.active
                 .map(([k, v]) => (
                   <div key={k} className="bg-muted/50 rounded-md p-2">
                     <p className="text-[10px] text-muted-foreground capitalize">
@@ -312,6 +310,23 @@ export default function RenderPavimentoGalleryDetail() {
                   </div>
                 ))}
             </div>
+            {summary.other.length > 0 && (
+              <details className="mt-4 text-sm">
+                <summary className="cursor-pointer">Altri valori salvati nella configurazione</summary>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Modalità di scelta del colore e parametri non pertinenti al materiale o al formato selezionato.
+                  Sono conservati per consultare lo storico; non descrivono il risultato dell’immagine.
+                </p>
+                <dl className="mt-2 space-y-1">
+                  {summary.other.map(([key, value]) => (
+                    <div key={key} className="flex gap-2">
+                      <dt className="capitalize">{key.replace(/_/g, " ")}:</dt>
+                      <dd>{String(value).replace(/_/g, " ")}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </details>
+            )}
           </CardContent>
         </Card>
       )}

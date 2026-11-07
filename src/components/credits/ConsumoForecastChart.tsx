@@ -68,7 +68,7 @@ export function ConsumoForecastChart({ currentBalanceEur }: Props) {
       const bucket = byDay.get(day);
       if (!bucket) return;
       const amt = Math.abs(entry.amount_eur);
-      if (entry.type === "deduction") bucket.spent += amt;
+      if ((entry.type === "deduction" || entry.type === "deduct")) bucket.spent += amt;
       else bucket.topup += amt;
     });
     return Array.from(byDay.values()).map((d) => ({

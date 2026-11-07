@@ -197,8 +197,9 @@ export default function StepImmobile({ form, onChange, model }: Props) {
             />
           </div>
           <div className="col-span-12 sm:col-span-6">
-            <Label className="text-xs">Note dimensioni (es. 8×4 m, h 1,5 m)</Label>
+            <Label htmlFor="piscina-profondita-media" className="text-xs">Profondità media (cm)</Label>
             <Input
+              id="piscina-profondita-media"
               value={form.immobile_piani != null ? String(form.immobile_piani) : ""}
               onChange={(e) => onChange("immobile_piani", toInt(e.target.value))}
               placeholder="Profondità media in cm"

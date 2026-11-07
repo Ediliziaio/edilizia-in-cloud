@@ -461,8 +461,8 @@ function SerramentiConversionEditorImpl({
       {/* ═══ 6. FAQ ═════════════════════════════════════════════════════════ */}
       <Section icon={<HelpCircle />} title={titolo("6. FAQ — obiezioni anticipate")} tag="+3-5% conv">
         <p className="text-[11px] text-muted-foreground mb-2">
-          6 domande comuni dei clienti con risposte chiare. Riduce friction nel
-          decision making.
+          {faqItems.length} domande e risposte nel modello. Usa risposte chiare
+          per aiutare il cliente a valutare la proposta.
         </p>
         <div className="space-y-2">
           {faqItems.map((f, idx) => (

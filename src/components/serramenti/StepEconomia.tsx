@@ -63,7 +63,7 @@ import { useTariffeManodopera } from "@/lib/serramenti/queries";
 import { useFamilies } from "@/hooks/useFamilies";
 import { costoTariffa } from "@/lib/listino/costoTariffa";
 import {
-  calcolaEcobonus, calcolaCashflow,
+  calcolaEcobonus, calcolaCashflow, type CashflowRiga,
   ALIQUOTE_DETRAZIONE_SERRAMENTI, aliquotaDetrazioneSerramenti,
 } from "@/lib/serramenti/ecobonus";
 import {
@@ -71,7 +71,7 @@ import {
   type ZonaClimatica,
 } from "@/lib/serramenti/risparmio";
 import type {
-  SrProgettoRow, SrProgettoDetail, SrPianoFinanziamento, SrCashflowRiga,
+  SrProgettoRow, SrProgettoDetail, SrPianoFinanziamento,
   SrSchemaPagamento, SrPagamentoMilestone, SrWizardStep,
 } from "@/types/serramenti";
 import { SR_SCHEMI_PAGAMENTO } from "@/types/serramenti";
@@ -1822,7 +1822,7 @@ function RigaMargine({ m, className }: { m: MargineRiga; className?: string }) {
 function RoiChart({
   righe, costoIniziale, payback,
 }: {
-  righe: SrCashflowRiga[];
+  righe: CashflowRiga[];
   costoIniziale: number;
   payback: number | null;
 }) {

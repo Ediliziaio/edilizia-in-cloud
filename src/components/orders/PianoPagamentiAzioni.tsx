@@ -1,3 +1,4 @@
+import { type ModalitaCostoFinanziaria, costoDaSottrarreAlSaldo } from "@/lib/finanziamenti/costoFinanziaria";
 // src/components/orders/PianoPagamentiAzioni.tsx
 import { useState } from "react";
 import { Banknote } from "lucide-react";
@@ -22,6 +23,7 @@ interface Props {
   vatRate: number;
   paymentType: "standard" | "financing";
   financingCost?: number;
+  financingCostMode?: ModalitaCostoFinanziaria | null;
   installments: Installment[];
   /** Chi ha «Ordini e Commesse»: gli altri non vedono comandi. */
   puoModificare: boolean;
@@ -33,7 +35,7 @@ const arrotonda = (n: number): number => Math.round(n * 100) / 100;
  * Sopra il piano rate di una commessa: «Come si paga questa commessa?» (se non ha rate), «Cambia il piano»
  * (finché non ha incassi, fatture o SAL legati), e l'avviso del saldo salvato che non torna con il totale.
  */
-export function PianoPagamentiAzioni({ orderId, totalAmount, vatRate, paymentType, financingCost = 0, installments, puoModificare }: Props) {
+export function PianoPagamentiAzioni({ orderId, totalAmount, vatRate, paymentType, financingCost = 0, financingCostMode, installments, puoModificare }: Props) {
   const confirm = useConfirm();
   const { offerti } = useModelliPagamento();
   const { rateConSal } = useSalLegatiARate(orderId);
@@ -45,7 +47,7 @@ export function PianoPagamentiAzioni({ orderId, totalAmount, vatRate, paymentTyp
   const totaleLordo = arrotonda(totalAmount * (1 + vatRate / 100));
   const standard = paymentType === "standard";
   const cambio = puoCambiarePiano(installments, rateConSal);
-  const saldo = standard ? saldoDaAllineare(installments, totaleLordo, financingCost) : null;
+  const saldo = standard ? saldoDaAllineare(installments, totaleLordo, costoDaSottrarreAlSaldo(financingCost, financingCostMode)) : null;
   const modello = offerti.find((m) => m.id === scelto) ?? null;
   const anteprima = modello ? rateDaModello(modello, totaleLordo) : [];
 

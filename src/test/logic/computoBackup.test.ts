@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { vi } from "vitest";
 import { creaBackupComputo, ripristinaBackupComputo } from "@/lib/computo/backupComputo";
 import { caricaAllegatoLocale, leggiAllegatoLocale } from "@/lib/computo/allegatiLocali";
-import { bozzaVuota, voceVuota } from "@/lib/computo/editorNativo";
+import { bozzaVuota, voceVuota, misuraVuota } from "@/lib/computo/editorNativo";
 import { applicaVarianteComputo } from "@/lib/computo/variantiPdf";
 
 beforeAll(() => vi.stubGlobal("Blob", NodeBlob));
@@ -65,4 +65,12 @@ describe("copia completa del computo", () => {
     await expect(ripristinaBackupComputo(crypto.randomUUID(), JSON.stringify(dati))).rejects.toThrow();
     expect(await (await leggiAllegatoLocale(scope, meta.id))?.text()).toBe("%PDF-prova");
   });
+});
+
+it("la copia nativa conserva formula originale e costo interno che XPWE non trasporta", async () => {
+  const originale = { ...bozza(), voci: [{...voceVuota(), descrizione:"Prova", costo:"7.25", misure:[{...misuraVuota(),formula:"3 * (2 + 2)"}]}] };
+  const copia = await creaBackupComputo("origine-formula", originale);
+  const ripristinata = await ripristinaBackupComputo("destinazione-formula", await copia.text());
+  expect(ripristinata.voci[0].costo).toBe("7.25");
+  expect(ripristinata.voci[0].misure[0].formula).toBe("3 * (2 + 2)");
 });

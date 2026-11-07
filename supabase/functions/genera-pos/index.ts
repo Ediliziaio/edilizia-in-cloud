@@ -192,7 +192,7 @@ Deno.serve(async (req: Request) => {
     if(azione === "apri_originale_addetto") {
       const persona=String(body.persona_id||"");
       const {data:fonte,error}=await db.rpc("pos_originale_addetto_per_autore",{_company:companyId,_ordine:String(body.order_id||""),_riesame:String(body.riesame_id||""),_persona:persona,_documento:String(body.documento_id||""),_impronta:String(body.impronta||""),_autore:userId});
-      if(error)return errorResponse(error.message,error.code==="40001"?409:error.code==="42501"?403:400,cors);
+      if(error)return errorResponse(error.message,["PT409","40001"].includes(error.code??"")?409:error.code==="42501"?403:400,cors);
       const path=fonte?.path;
       if(fonte?.bucket!=="hr-documenti"||typeof path!=="string"||!path.startsWith(`${companyId}/${persona}/`)||!percorsoStorageSicuro(path)||path.split("/").length!==3)return errorResponse("Originale formativo non disponibile",403,cors);
       const {data:link,error:err}=await db.storage.from("hr-documenti").createSignedUrl(path,300);
@@ -202,7 +202,7 @@ Deno.serve(async (req: Request) => {
     if(azione === "apri_documento_mezzo") {
       const ordine=String(body.order_id||""),mezzo=String(body.mezzo_id||""),documento=String(body.documento_id||""),impronta=String(body.impronta||"");
       const {data:path,error}=await db.rpc("pos_documento_mezzo_per_autore",{_company:companyId,_ordine:ordine,_mezzo:mezzo,_documento:documento,_impronta:impronta,_autore:userId});
-      if(error)return errorResponse(error.message,error.code==="40001"?409:error.code==="42501"?403:400,cors);
+      if(error)return errorResponse(error.message,["PT409","40001"].includes(error.code??"")?409:error.code==="42501"?403:400,cors);
       if(typeof path!=="string"||!path.startsWith(`${companyId}/${mezzo}/`)||!percorsoStorageSicuro(path)||path.split("/").length!==3)return errorResponse("Originale attrezzatura non disponibile",403,cors);
       const {data:link,error:err}=await db.storage.from("mezzi-documenti").createSignedUrl(path,300);
       if(err||!link?.signedUrl)return errorResponse("Originale attrezzatura non disponibile",503,cors);

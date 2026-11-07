@@ -105,8 +105,8 @@ export const WIZARD_TIPI = [
 
 export const WIZARD_PROFILI = [
   { id: "pvc", referenceImage: "Profilo-PVC-5-Camere-Sezione-Bianco.webp", label: "PVC", desc: "Profilo isolante classico 70-80 mm, adatto a sostituzione residenziale." },
-  { id: "alluminio", label: "Alluminio", desc: "Estruso 55 mm, proporzioni più snelle, thermal break a vista." },
-  { id: "minimal", label: "Alluminio Minimal", desc: "Profilo architettonico ultra-sottile 45 mm con sightline minimale (look premium)." },
+  { id: "alluminio", referenceImage: "Profilo-Alluminio-2ante-Nodo-Asimmetrico-Bianco.jpeg", label: "Alluminio", desc: "Estruso 55 mm, proporzioni più snelle, thermal break a vista." },
+  { id: "minimal", referenceImage: "Profilo-Alluminio-Minimal-Angolo-Vetrocamera.webp", label: "Alluminio Minimal", desc: "Profilo architettonico ultra-sottile 45 mm con sightline minimale (look premium)." },
   { id: "legno", referenceImage: "Profilo-Legno-Euro68-Sezione-Vetrocamera.webp", label: "Legno", desc: "Resa calda e tradizionale con profilo 82 mm più materico." },
   { id: "legno_alluminio", referenceImage: "Profilo-Legno-Alluminio-Sezione-Tripla-Vetrata.webp", label: "Legno-Alluminio", desc: "Legno interno 82 mm + protezione alluminio esterna." },
 ] as const;
@@ -159,9 +159,9 @@ export const PROFILI_MANIGLIA_CENTRALE_COMPATIBILI = PROFILI_NODO_ASIMMETRICO_CO
 
 export const WIZARD_RAL = [
   // ── Colori base massa ──
-  { id: "bianco_massa", code: null, nome: "Bianco massa", hex: "#F7F5E8",
+  { id: "bianco_massa", code: null as null, nome: "Bianco massa", hex: "#F7F5E8",
     family: "bianchi", referenceImage: "Bianco-massa-Colore-base-PVC.webp" },
-  { id: "avorio_massa", code: null, nome: "Avorio massa", hex: "#F0E8D0",
+  { id: "avorio_massa", code: null as null, nome: "Avorio massa", hex: "#F0E8D0",
     family: "bianchi", referenceImage: "Avorio-massa-Colore-base-PVC.webp" },
   { id: "508_crema_avorio", code: "508", nome: "Crema Avorio Pellicolato", hex: "#EFE4C8",
     family: "bianchi", referenceImage: "508-Crema-Avorio-Pellicolato-Finitura-classica-PVC.webp" },
@@ -447,7 +447,7 @@ export const WIZARD_LEGNO = [
   // ── Touch Premium (effetto spazzolato 3D) ──
   {
     id: "bianco_frassino",
-    code: null,
+    code: null as null,
     nome: "Bianco Frassino (Touch spazzolato)",
     hex: "#ECEAE2",
     grad: "linear-gradient(135deg,#F1EFE7,#DAD6CB)",
@@ -551,7 +551,7 @@ export const WIZARD_HANDLE_TYPES = [
     label: "Alzante scorrevole",
     desc: "Corpo maniglia dedicato agli scorrevoli.",
     family: "alzante",
-    referenceImage: null,
+    referenceImage: null as null,
   },
   {
     id: "dk_vasistas",
@@ -593,7 +593,7 @@ export const WIZARD_CASS_MATERIALI = [
     label: "Altro RAL",
     desc: "Cassonetto con colore dedicato.",
     icon: "🎯",
-    referenceImage: null,
+    referenceImage: null as null,
   },
 ] as const;
 
@@ -602,7 +602,7 @@ export const WIZARD_CASS_MATERIALI = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const WIZARD_TAPP_OPTIONS = [
-  { id: "no", label: "Mantieni attuali", desc: "Lascia invariato il sistema oscurante esistente.", icon: "—", referenceImage: null },
+  { id: "no", label: "Mantieni attuali", desc: "Lascia invariato il sistema oscurante esistente.", icon: "—", referenceImage: null as null },
   {
     id: "motorizzate",
     label: "Motorizzata",
@@ -610,7 +610,7 @@ export const WIZARD_TAPP_OPTIONS = [
     icon: "⚡",
     referenceImage: "Bottone-Tapparella-Elettrica-Bianco-Vimar-80x80.webp",
   },
-  { id: "nuove", label: "Nuove + colore", desc: "Sostituisci la tapparella con nuovo colore/finitura.", icon: "🎨", referenceImage: null },
+  { id: "nuove", label: "Nuove + colore", desc: "Sostituisci la tapparella con nuovo colore/finitura.", icon: "🎨", referenceImage: null as null },
 ] as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -671,7 +671,7 @@ export const WIZARD_TRAVERSO_OPTIONS = [
     label: "Automatico",
     desc: "Se nella foto c'è un traverso, lo mantengo. Altrimenti, anta intera vetrata.",
     icon: "✨",
-    referenceImage: null,
+    referenceImage: null as null,
   },
   {
     id: "mantieni",
@@ -748,6 +748,7 @@ export type WizardCerniere = (typeof WIZARD_CERNIERE_OPTIONS)[number]["id"];
 export type WizardNodo = (typeof WIZARD_NODO_OPTIONS)[number]["id"];
 
 export interface WizardState {
+  qualita_render?: "standard" | "alta";
   tipo: WizardTipo | "";
   profilo: WizardProfilo | "";
   /** @deprecated v8.1 — usa `nodo: "maniglia_centrale"`. */

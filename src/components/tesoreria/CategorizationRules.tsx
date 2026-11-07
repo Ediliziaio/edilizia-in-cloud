@@ -244,11 +244,11 @@ export default function CategorizationRules({ companyId }: Props) {
                   <span className="text-xs text-muted-foreground">P{rule.priority}</span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <Switch checked={rule.auto_apply !== false} disabled={pendingActionId === rule.id} onCheckedChange={() => handleToggle(rule.id, rule.auto_apply !== false)} />
-                  <Button variant="ghost" size="icon" disabled={pendingActionId === rule.id} onClick={() => openEdit(rule)}>
+                  <Switch aria-label={`Applica automaticamente la regola ${rule.match_value}`} checked={rule.auto_apply !== false} disabled={pendingActionId === rule.id} onCheckedChange={() => handleToggle(rule.id, rule.auto_apply !== false)} />
+                  <Button variant="ghost" size="icon" disabled={pendingActionId === rule.id} aria-label={`Modifica regola ${rule.match_value}`} onClick={() => openEdit(rule)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" disabled={pendingActionId === rule.id} onClick={() => setDeleteId(rule.id)}>
+                  <Button variant="ghost" size="icon" disabled={pendingActionId === rule.id} aria-label={`Elimina regola ${rule.match_value}`} onClick={() => setDeleteId(rule.id)}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>
@@ -303,12 +303,12 @@ export default function CategorizationRules({ companyId }: Props) {
                   onChange={(e) => setForm({ ...form, priority: parseInt(e.target.value) || 10 })} />
               </div>
               <div className="flex items-center gap-2 pb-2">
-                <Switch checked={form.is_case_sensitive} onCheckedChange={(v) => setForm({ ...form, is_case_sensitive: v })} />
+                <Switch aria-label="Distingui maiuscole e minuscole" checked={form.is_case_sensitive} onCheckedChange={(v) => setForm({ ...form, is_case_sensitive: v })} />
                 <Label>Maiuscole/minuscole</Label>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Switch checked={form.auto_apply} onCheckedChange={(v) => setForm({ ...form, auto_apply: v })} />
+              <Switch aria-label="Applica automaticamente alle sincronizzazioni" checked={form.auto_apply} onCheckedChange={(v) => setForm({ ...form, auto_apply: v })} />
               <Label>Applica automaticamente alle sincronizzazioni</Label>
             </div>
           </div>

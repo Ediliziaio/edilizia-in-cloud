@@ -1,3 +1,4 @@
+import { costoTrattenuto, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 /**
  * Incassato e da incassare della commessa: UNA regola per tutti i riquadri
  * (intestazione, Panoramica, Conto economico, piano rate, cassa).
@@ -33,17 +34,19 @@ export function incassiDellaCommessa(input: {
   vatRate: number;
   paymentType: string | null | undefined;
   financingCost: number | null | undefined;
+  financingCostMode?: ModalitaCostoFinanziaria | null;
   /** Varianti approvate comprese in totalAmount, con la data: vedi calculateInstallmentCollections. */
   varianti?: ReadonlyArray<VarianteDatata>;
 }): IncassiCommessa {
   const iva = Number.isFinite(input.vatRate) ? input.vatRate : 22;
   const costoFinanziaria = input.paymentType === "financing" ? Math.max(0, Number(input.financingCost) || 0) : 0;
-  const totaleLordo = Math.max(0, Math.round((Number(input.totalAmount) || 0) * (1 + iva / 100) * 100) / 100 - costoFinanziaria);
+  const totaleLordo = Math.max(0, Math.round((Number(input.totalAmount) || 0) * (1 + iva / 100) * 100) / 100 - costoTrattenuto(costoFinanziaria, input.financingCostMode));
   const incassatoLordo = calculateCollectedGrossFromInstallments({
     installments: input.installments,
     totalAmount: input.totalAmount,
     vatRate: iva,
     financingCost: costoFinanziaria,
+    financingCostMode: input.financingCostMode,
     includeFinancing: true,
     varianti: input.varianti,
   });

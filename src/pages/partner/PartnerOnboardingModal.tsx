@@ -9,15 +9,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchWithTimeout } from "@/lib/utils/fetchWithTimeout";
 
-const partnerSignContract = supabase.rpc.bind(supabase) as unknown as (
-  fn: "partner_sign_referral_contract",
-  args: {
-    p_signed_name: string;
-    p_ip_address: string;
-    p_user_agent: string;
-    p_contract_version: string;
-  },
-) => ReturnType<typeof supabase.rpc>;
+
 
 interface PartnerOnboardingReferrer {
   id: string;
@@ -79,7 +71,7 @@ export function PartnerOnboardingModal({ referrer }: Props) {
         ip = data.ip;
       } catch { /* storage non disponibile — silenzioso */ }
 
-      const { error } = await partnerSignContract("partner_sign_referral_contract", {
+      const { error } = await supabase.rpc("partner_sign_referral_contract", {
         p_signed_name: referrer.name,
         p_ip_address: ip,
         p_user_agent: navigator.userAgent,

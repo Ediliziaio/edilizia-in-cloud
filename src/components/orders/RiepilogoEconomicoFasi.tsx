@@ -136,6 +136,11 @@ export function RiepilogoEconomicoFasi({
         </table>
       </div>
 
+      {vedeCosti && <p className="border-t px-3 py-2 text-xs text-muted-foreground">
+        Questo consuntivo comprende manodopera, ditte e materiali. Altri costi, rimborsi,
+        provvigioni ed errori/perdite restano nel conto economico complessivo della commessa,
+        anche se una spesa è collegata a una fase. Il margine qui mostrato riguarda solo le categorie incluse.
+      </p>}
       {contratto != null && (
         <p className="border-t px-3 py-2 text-xs text-muted-foreground tabular-nums">
           Contratto <b className="font-semibold text-foreground">{eur.format(contratto)}</b>

@@ -41,8 +41,8 @@ export type EsitoSalvataggio =
 export const MESSAGGIO_CONFLITTO =
   "La pianta è stata salvata da qualcun altro nel frattempo. Le tue modifiche non sono state salvate: ricarica la pagina per vedere le sue.";
 
-/** Il messaggio che l'archivio dà per l'errore 40001 (versione cambiata nel frattempo). */
-const MESSAGGIO_40001 = messaggioErrorePlanimetria({ code: "40001" });
+/** Il messaggio che l'archivio dà per il conflitto PT409 (versione cambiata nel frattempo). */
+const MESSAGGIO_ARCHIVIO_CONFLITTO = messaggioErrorePlanimetria({ code: "PT409" });
 
 export async function salvaPianta(archivio: ScrittureArchivio, dati: DaSalvare): Promise<EsitoSalvataggio> {
   try {
@@ -67,7 +67,7 @@ export async function salvaPianta(archivio: ScrittureArchivio, dati: DaSalvare):
     return { ok: true, id: dati.planimetriaId, versione, creata: false };
   } catch (e) {
     const messaggio = e instanceof Error && e.message ? e.message : "Pianta non salvata: riprova tra qualche secondo.";
-    const conflitto = messaggio === MESSAGGIO_40001;
+    const conflitto = messaggio === MESSAGGIO_ARCHIVIO_CONFLITTO;
     return { ok: false, conflitto, messaggio: conflitto ? MESSAGGIO_CONFLITTO : messaggio };
   }
 }

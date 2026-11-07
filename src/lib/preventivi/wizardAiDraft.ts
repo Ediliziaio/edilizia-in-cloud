@@ -130,6 +130,9 @@ export function computoChatDocument(
 
 const units: Record<string, NativeComputoRow["unita_misura"]> = {
   mq: "mq",
+  mc: "mc",
+  "m³": "mc",
+  m3: "mc",
   "m²": "mq",
   m2: "mq",
   ml: "ml",

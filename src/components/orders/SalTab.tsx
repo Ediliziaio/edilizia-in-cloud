@@ -1,3 +1,4 @@
+import { type ModalitaCostoFinanziaria, costoDaSottrarreAlSaldo, costoTrattenuto } from "@/lib/finanziamenti/costoFinanziaria";
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,7 +32,7 @@ import {saveSalDraft,SalSaveError} from "@/lib/orders/saveSalDraft";
 import {SalPlanInfo} from "./SalPlanInfo";
 import {VerbaleSalDialog} from "./VerbaleSalDialog";
 import {CertificatoSal} from "./CertificatoSal";
-import {certificatoDelSal,certificatoPrecedente} from "@/lib/orders/salCertificato";
+import {certificatoDelSal,certificatoBloccato, certificatoPrecedente} from "@/lib/orders/salCertificato";
 import {giornoLocale} from "@/lib/orders/cronoprogramma";
 
 interface SalVoce {
@@ -85,6 +86,7 @@ interface SalTabProps {
   vatRate?: number;
   /** Costo finanziaria già "gated" dal chiamante (0 se non financing). */
   financingCost?: number;
+  financingCostMode?: ModalitaCostoFinanziaria | null;
   showPaymentProgress?: boolean;
 }
 
@@ -102,7 +104,7 @@ const emptyVoce = (): VoceForm => ({
   note: "",
 });
 
-export function SalTab({ orderId, companyId, orderTotalAmount, installments, vatRate = 22, financingCost = 0, showPaymentProgress = true }: SalTabProps) {
+export function SalTab({ orderId, companyId, orderTotalAmount, installments, vatRate = 22, financingCost = 0, financingCostMode, showPaymentProgress = true }: SalTabProps) {
   const queryClient = useQueryClient();
   const permissions = usePermissions();
   const confirm = useConfirm();
@@ -326,18 +328,18 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   const sommaAltreRate = (installments ?? [])
     .filter((i) => !isSaldoFinale(i))
     .reduce((s, i) => s + i.amount, 0);
-  const balanceAmount = Math.max(0, totalWithVat - sommaAltreRate - financingCost);
+  const balanceAmount = Math.max(0, totalWithVat - sommaAltreRate - costoDaSottrarreAlSaldo(financingCost, financingCostMode));
   const oggi = new Date();
   oggi.setHours(0, 0, 0, 0);
   const recapRows = (installments ?? [])
-    .map((inst) => ({ inst, amount: isSaldoFinale(inst) ? balanceAmount : inst.amount }))
+    .map((inst) => ({ inst, amount: isSaldoFinale(inst) ? balanceAmount : inst.type === "financing" && financingCostMode === "trattenuto" ? Math.max(0, inst.amount - financingCost) : inst.amount }))
     .filter(({ inst, amount }) => amount > 0 || inst.type === "balance")
     .map((row) => ({
       ...row,
       scaduta: !row.inst.is_paid && !!row.inst.expected_date && new Date(row.inst.expected_date) < oggi,
     }));
   const incassato = recapRows.filter((r) => r.inst.is_paid).reduce((s, r) => s + r.amount, 0);
-  const incassoTarget = Math.max(0, totalWithVat - financingCost);
+  const incassoTarget = Math.max(0, totalWithVat - costoTrattenuto(financingCost, financingCostMode));
   const incassoPct = incassoTarget > 0 ? Math.round((incassato / incassoTarget) * 100) : 0;
   const rateIncassate = recapRows.filter((r) => r.inst.is_paid).length;
   const fmtDateIt = (d: string) => {
@@ -546,6 +548,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                       certificato={certificatoDelSal(sal.sal_certificati)}
                       precedente={certificatoPrecedente(sal,salList)}
                       giaMaturato={maturatoPrecedente(sal,salList)}
+                      bloccato={certificatoBloccato(sal,salList,installments ?? [])}
                       puoModificare={permissions.canEditOrders && !blocked}/>
                     {(() => {
                       const precedente = maturatoPrecedente(sal, salList);

@@ -1,6 +1,7 @@
 // src/test/logic/anteprimaAvanzamento.test.ts
 import { describe, expect, it } from "vitest";
 import { anteprimaAvanzamento, fasiAperte } from "@/lib/orders/anteprimaAvanzamento";
+import { avanzateInAnteprima } from "@/lib/orders/anteprimaAvanzamento";
 
 const fase = (id: string, patch: Record<string, unknown> = {}) => ({ id, name: `Fase ${id}`, status: "in_corso", percentuale: 20 as number | null, ...patch });
 const sotto = (id: string, phase_id: string, fatta = false, peso = 1) => ({ id, phase_id, name: `Sotto ${id}`, position: 0, peso, fatta, fatta_il: null as string | null });
@@ -81,3 +82,19 @@ describe("fasiAperte", () => {
   });
 });
 
+describe("Chi approva vede quanto è stato fatto", () => {
+  const sottofasi = [
+    { id: "a", name: "Intonaco", fatta: false, percentuale: 25, quantita_fatta: 76.5 },
+    { id: "b", name: "Tracce", fatta: false, percentuale: 0, quantita_fatta: null },
+    { id: "c", name: "Già finita", fatta: true, percentuale: 100, quantita_fatta: null },
+  ];
+  const quantita = new Map([["a", { quantita: 306, unita: "mq" }]]);
+  it("quantità con l'unità, percentuale altrimenti, e niente sulle già fatte", () => {
+    const righe = avanzateInAnteprima(sottofasi, [{ sottofasi_avanzate: [{ id: "a", quantita: 50 }, { id: "b", percentuale: 75 }, { id: "c", quantita: 1 }] }], quantita);
+    expect(righe.map((r) => [r.nome, r.testo, r.oltre])).toEqual([["Intonaco", "+50 mq", false], ["Tracce", "fino al 75%", false]]);
+  });
+  it("un numero sbagliato che supera il previsto si vede prima di approvare", () => {
+    const [r] = avanzateInAnteprima(sottofasi, [{ sottofasi_avanzate: [{ id: "a", quantita: 1000 }] }], quantita);
+    expect(r.oltre).toBe(true);
+  });
+});

@@ -39,7 +39,8 @@ const NotFound = () => {
   });
 
   useEffect(() => {
-    logger.warn("404 Error: User attempted to access non-existent route:", location.pathname, {
+    logger.warn("404 Error: User attempted to access non-existent route", {
+      pathname: location.pathname,
       area,
       authenticated: !!user,
       impersonating: isImpersonating,

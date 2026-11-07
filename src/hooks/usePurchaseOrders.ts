@@ -1,5 +1,7 @@
+import type { Supplier } from "@/lib/suppliers/anagraficaFornitore";
+import { condizioniPagamentoFornitore } from "@/lib/documentiOperativi/fornitore";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { TablesUpdate } from "@/integrations/supabase/types";
+import type { Json, TablesUpdate } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -35,9 +37,10 @@ export interface PurchaseOrder {
   created_at: string;
   updated_at: string;
   last_verification_id: string | null;
+  document_details?: Json;
   // joined
-  suppliers?: { name: string; email: string | null } | null;
-  orders?: { order_code: string; description?: string | null; deleted_at?: string | null } | null;
+  suppliers?: Supplier | null;
+  orders?: { work_address?: string | null; order_code: string; description?: string | null; deleted_at?: string | null } | null;
   /** solo nell'elenco: per «quanto è arrivato» senza aprire l'ordine */
   purchase_order_items?: Array<{ quantity: number | null; quantity_received: number | null; unit_price?: number | null }>;
   ddt_ricezione?: Array<{ count: number }>;
@@ -54,6 +57,7 @@ export interface PurchaseOrderItem {
   unit_of_measure: string | null;
   quantity: number;
   unit_price: number;
+  price_pending?: boolean;
   discount_percent: number;
   vat_rate: number;
   line_total: number;
@@ -104,12 +108,17 @@ export function usePurchaseOrders() {
       /** Commessa per cui si compra. Null = acquisto generico (magazzino). */
       order_id?: string | null;
     }) => {
+      const {data:fornitore,error:erroreFornitore}=await supabase.from("suppliers").select("payment_method,termini_giorni,termini_fine_mese").eq("id",params.supplier_id).eq("company_id",companyId!).single();
+      if(erroreFornitore) throw erroreFornitore;
+      const condizioni = condizioniPagamentoFornitore(fornitore);
       const user = (await supabase.auth.getUser()).data.user;
       const { data, error } = await supabase
         .from("purchase_orders")
         .insert({
           company_id: companyId!,
           supplier_id: params.supplier_id,
+          payment_terms: condizioni === "Da definire con il fornitore" ? null : condizioni,
+          payment_method: fornitore.payment_method,
           notes: params.notes || null,
           expected_delivery_date: params.expected_delivery_date || null,
           delivery_warehouse_id: params.delivery_warehouse_id || null,
@@ -196,13 +205,16 @@ export function usePurchaseOrders() {
 
   const updateMutation = useMutation({
     mutationFn: async (params: { id: string; updates: TablesUpdate<"purchase_orders"> }) => {
-      const { error } = await supabase.from("purchase_orders").update(params.updates).eq("id", params.id);
+      if (!companyId) throw new Error("Sessione aziendale non disponibile. Accedi di nuovo.");
+      const { error } = await supabase.from("purchase_orders").update(params.updates).eq("id", params.id).eq("company_id", companyId).select("id").single();
       if (error) throw error;
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: async (_data, variables) => {
       refreshMaterialQueries(queryClient);
-      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(variables.id) });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(variables.id) }),
+      ]);
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
@@ -227,7 +239,7 @@ export function usePurchaseOrderDetail(poId: string | null) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("purchase_orders")
-        .select("*, suppliers(name, email, email_ordini, altri_referenti, codice_cliente, termini_giorni, termini_fine_mese, sconto_percentuale, iban, bank_name, payment_method, address, city, province, postal_code, vat_number), orders(order_code)")
+        .select("*, suppliers(*), orders(order_code, work_address)")
         .eq("id", poId!)
         .single();
       if (error) throw error;
@@ -261,8 +273,9 @@ export function usePurchaseOrderDetail(poId: string | null) {
         purchase_order_id: params.purchase_order_id,
         description: params.description || "Nuovo articolo",
         quantity: params.quantity || 1,
-        unit_price: params.unit_price || 0,
-        vat_rate: params.vat_rate || 22,
+        unit_price: params.price_pending || params.unit_price == null ? 0 : params.unit_price,
+        price_pending: params.price_pending ?? params.unit_price == null,
+        vat_rate: params.vat_rate ?? 22,
         discount_percent: params.discount_percent || 0,
         unit_of_measure: params.unit_of_measure || "pz",
         sku: params.sku || null,
@@ -271,23 +284,28 @@ export function usePurchaseOrderDetail(poId: string | null) {
       });
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       refreshMaterialQueries(queryClient);
-      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.items(poId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(poId) });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.items(poId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(poId) }),
+      ]);
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
 
   const updateItemMutation = useMutation({
     mutationFn: async (params: { id: string; updates: TablesUpdate<"purchase_order_items"> }) => {
-      const { error } = await supabase.from("purchase_order_items").update(params.updates).eq("id", params.id);
+      const updates = {...params.updates,...(params.updates.unit_price != null && params.updates.price_pending === undefined ? {price_pending:false} : {})};
+      const { error } = await supabase.from("purchase_order_items").update(updates).eq("id", params.id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       refreshMaterialQueries(queryClient);
-      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.items(poId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(poId) });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.items(poId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(poId) }),
+      ]);
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
@@ -297,10 +315,12 @@ export function usePurchaseOrderDetail(poId: string | null) {
       const { error } = await supabase.from("purchase_order_items").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       refreshMaterialQueries(queryClient);
-      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.items(poId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(poId) });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.items(poId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(poId) }),
+      ]);
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
@@ -310,6 +330,7 @@ export function usePurchaseOrderDetail(poId: string | null) {
     isLoading: detailQuery.isLoading,
     items: itemsQuery.data || [],
     isItemsLoading: itemsQuery.isLoading,
+    isItemsFetching: itemsQuery.isFetching,
     addItem: addItemMutation,
     updateItem: updateItemMutation,
     deleteItem: deleteItemMutation,

@@ -49,7 +49,7 @@ export function useProgetti() {
     enabled: Boolean(companyId),
     queryFn: async (): Promise<Array<FvProgetto & { cliente_nome: string | null }>> => {
       const { data, error } = await supabase
-        .from("v_fv_progetti_dashboard" as never)
+        .from("v_fv_progetti_dashboard")
         .select("*")
         .eq("company_id", companyId as string)
         .order("created_at", { ascending: false });
@@ -67,7 +67,7 @@ export function useProgetto(id: string | undefined) {
     queryFn: async (): Promise<FvProgetto | null> => {
       if (!id) return null;
       const { data, error } = await supabase
-        .from("fv_progetti" as never)
+        .from("fv_progetti")
         // Join al contatto CRM: fallback per ripristinare i recapiti dei progetti
         // creati prima dello snapshot cliente (colonne cliente_* sul progetto).
         .select("*, cliente:marketing_contacts(first_name,last_name,email,phone)" as never)
@@ -100,7 +100,7 @@ export function useCreaProgetto() {
       );
 
       const { data, error } = await supabase
-        .from("fv_progetti" as never)
+        .from("fv_progetti")
         .insert({
           company_id: companyId,
           numero: numero as string,
@@ -134,7 +134,7 @@ export function useAggiornaProgetto(options?: { onVersion?: (id: string, updated
       // divergere per un istante dal server → update su 0 righe → toast
       // intermittente "Progetto non trovato o non modificabile".
       const { data, error } = await supabase
-        .from("fv_progetti" as never)
+        .from("fv_progetti")
         .update(input.patch as never)
         .eq("id", input.id)
         .select("id, updated_at")
@@ -178,7 +178,7 @@ export function useEliminaProgetto() {
     mutationFn: async (id: string) => {
       if (!companyId) throw new Error("Azienda non disponibile");
       const { data, error } = await supabase
-        .from("fv_progetti" as never)
+        .from("fv_progetti")
         // Anche lo stato: pagina di dettaglio e wizard guardano quello, e un
         // preventivo emesso annullato mostrava ancora «Modifica» e «Richiedi firma».
         .update({ annullato: true, annullato_il: new Date().toISOString(), stato: "annullato" } as never)
@@ -205,7 +205,7 @@ export function useComponentiProgetto(progettoId: string | undefined) {
     queryFn: async (): Promise<FvComponente[]> => {
       if (!progettoId) return [];
       const { data, error } = await supabase
-        .from("fv_componenti_progetto" as never)
+        .from("fv_componenti_progetto")
         .select("*")
         .eq("progetto_id", progettoId)
         .order("ordinamento");
@@ -223,7 +223,7 @@ export function useManodoperaProgetto(progettoId: string | undefined) {
     queryFn: async (): Promise<FvManodopera[]> => {
       if (!progettoId) return [];
       const { data, error } = await supabase
-        .from("fv_manodopera_progetto" as never)
+        .from("fv_manodopera_progetto")
         .select("*")
         .eq("progetto_id", progettoId)
         .order("ordinamento");
@@ -241,7 +241,7 @@ export function useServiziProgetto(progettoId: string | undefined) {
     queryFn: async (): Promise<FvServizio[]> => {
       if (!progettoId) return [];
       const { data, error } = await supabase
-        .from("fv_servizi_progetto" as never)
+        .from("fv_servizi_progetto")
         .select("*")
         .eq("progetto_id", progettoId)
         .order("ordinamento");
@@ -259,7 +259,7 @@ export function usePannelliProgetto(progettoId: string | undefined) {
     queryFn: async (): Promise<FvPannelloLayout[]> => {
       if (!progettoId) return [];
       const { data, error } = await supabase
-        .from("fv_pannelli_layout" as never)
+        .from("fv_pannelli_layout")
         .select("*")
         .eq("progetto_id", progettoId)
         .eq("attivo", true);
@@ -280,7 +280,7 @@ export function useIncentiviCatalogo(soloAttivi = true) {
     staleTime: STATIC_STALE_TIME,
     queryFn: async (): Promise<FvIncentivoCatalogo[]> => {
       let q = supabase
-        .from("fv_incentivi_catalogo" as never)
+        .from("fv_incentivi_catalogo")
         .select("*")
         .order("ordinamento");
       if (soloAttivi) q = q.eq("attivo", true);
@@ -297,7 +297,7 @@ export function useParametriCalcolo() {
     staleTime: STATIC_STALE_TIME,
     queryFn: async (): Promise<FvParametroCalcolo[]> => {
       const { data, error } = await supabase
-        .from("fv_parametri_calcolo" as never)
+        .from("fv_parametri_calcolo")
         .select("*");
       if (error) throw error;
       return (data as never) ?? [];
@@ -311,7 +311,7 @@ export function useProfiliAutoconsumo() {
     staleTime: STATIC_STALE_TIME,
     queryFn: async (): Promise<FvProfiloAutoconsumo[]> => {
       const { data, error } = await supabase
-        .from("fv_profili_autoconsumo" as never)
+        .from("fv_profili_autoconsumo")
         .select("*")
         .eq("attivo", true)
         .order("ordinamento");
@@ -329,7 +329,7 @@ export function useStatsAzienda() {
     enabled: Boolean(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("v_fv_stats_azienda" as never)
+        .from("v_fv_stats_azienda")
         .select("*")
         .eq("company_id", companyId as string)
         .maybeSingle();
@@ -349,7 +349,7 @@ export function useArticoliFv(categoria?: string) {
     staleTime: 60 * 60 * 1000, // 1h
     queryFn: async () => {
       let q = supabase
-        .from("articoli_native" as never)
+        .from("articoli_native")
         .select("*")
         .eq("company_id", companyId as string)
         .not("categoria_fv", "is", null)
@@ -402,7 +402,7 @@ export function useArticoliFvCatalogo() {
     enabled: Boolean(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("articoli_native" as never)
+        .from("articoli_native")
         .select(FV_CAT_COLS)
         .eq("company_id", companyId as string)
         .not("categoria_fv", "is", null)
@@ -430,7 +430,7 @@ export function useListinoPerFv(search?: string) {
     enabled: Boolean(companyId),
     queryFn: async () => {
       let q = supabase
-        .from("article_families" as never)
+        .from("article_families")
         .select("id, nome, descrizione, prezzo_base_vendita, prezzo_base_acquisto")
         .eq("company_id", companyId as string)
         .eq("attivo", true)
@@ -514,13 +514,13 @@ export function useUpsertArticoloFv() {
         // il suo prezzo di acquisto (e garanzia, efficienza, unità di misura).
         const soloPassati = campiDaAggiornare(payload, input as unknown as Record<string, unknown>);
         const { error } = await supabase
-          .from("articoli_native" as never)
+          .from("articoli_native")
           .update(soloPassati as never)
           .eq("id", input.id)
           .eq("company_id", companyId);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("articoli_native" as never).insert(payload);
+        const { error } = await supabase.from("articoli_native").insert(payload);
         if (error) throw error;
       }
     },
@@ -539,7 +539,7 @@ export function useToggleArticoloFv() {
     mutationFn: async ({ id, attivo }: { id: string; attivo: boolean }) => {
       if (!companyId) throw new Error("Azienda non identificata");
       const { error } = await supabase
-        .from("articoli_native" as never)
+        .from("articoli_native")
         .update({ attivo })
         .eq("id", id)
         .eq("company_id", companyId);
@@ -608,7 +608,7 @@ export function useTabelleFinanziamentoFv(importoTarget?: number) {
     staleTime: 60 * 60 * 1000, // 1h
     queryFn: async (): Promise<FvTabellaFinanziamento[]> => {
       let q = supabase
-        .from("eic_tabelle_finanziamento" as never)
+        .from("eic_tabelle_finanziamento")
         .select(
           "id, finanziaria_id, nome_prodotto, codice_condizione, tan_base, importo_min, importo_max, durate_disponibili, righe_count, attiva, data_decorrenza, data_scadenza, eic_finanziarie!inner(nome, ragione_sociale, attiva)",
         )
@@ -669,7 +669,7 @@ export function useLookupRataFv(
     queryFn: async (): Promise<FvRigaFinanziamento | null> => {
       if (!tabellaId || !importo || !durataMesi) return null;
       const { data, error } = await supabase
-        .from("eic_tabelle_finanziamento_righe" as never)
+        .from("eic_tabelle_finanziamento_righe")
         .select(
           "id, tabella_id, importo_erogato, durata_mesi, numero_rate, importo_rata, tan, taeg, importo_totale_dovuto, spese_istruttoria, spese_incasso_rata, interessi_cliente",
         )
@@ -741,7 +741,7 @@ export function useTopFinanziamentiFv(
       if (!importo || !durataMesi) return [];
       // 1) lista tabelle attive nel range
       const { data: tabs, error } = await supabase
-        .from("eic_tabelle_finanziamento" as never)
+        .from("eic_tabelle_finanziamento")
         .select(
           "id, finanziaria_id, nome_prodotto, codice_condizione, tan_base, importo_min, importo_max, durate_disponibili, righe_count, attiva, eic_finanziarie!inner(nome, attiva)",
         )
@@ -763,7 +763,7 @@ export function useTopFinanziamentiFv(
       const results = await Promise.all(
         tabsFiltrate.map(async (t) => {
           const { data: righeData } = await supabase
-            .from("eic_tabelle_finanziamento_righe" as never)
+            .from("eic_tabelle_finanziamento_righe")
             .select(
               "id, tabella_id, importo_erogato, durata_mesi, numero_rate, importo_rata, tan, taeg, importo_totale_dovuto, spese_istruttoria, spese_incasso_rata, interessi_cliente",
             )
@@ -853,7 +853,7 @@ export function useTariffeFv() {
     staleTime: 60 * 60 * 1000, // 1h
     queryFn: async (): Promise<FvTariffaAziendale[]> => {
       const { data, error } = await supabase
-        .from("tariffe_aziendali" as never)
+        .from("tariffe_aziendali")
         .select(
           "id, tipo, nome, descrizione, unita, prezzo_costo, prezzo_vendita, vertical_associato",
         )
@@ -883,7 +883,7 @@ export function useUpsertComponenti() {
         // Se la cancellazione fallisce non si inserisce: le righe nuove si sommerebbero alle vecchie
         // e il prezzo del preventivo (la somma delle righe) salirebbe, con la schermata che dice «salvato».
         const { error: errCancella } = await supabase
-          .from("fv_componenti_progetto" as never)
+          .from("fv_componenti_progetto")
           .delete()
           .eq("progetto_id", input.progetto_id);
         if (errCancella) throw errCancella;
@@ -894,7 +894,7 @@ export function useUpsertComponenti() {
         progetto_id: input.progetto_id,
       }));
       const { error } = await supabase
-        .from("fv_componenti_progetto" as never)
+        .from("fv_componenti_progetto")
         .insert(payload as never);
       if (error) throw error;
     },
@@ -918,7 +918,7 @@ export function useUpsertManodopera() {
         // Se la cancellazione fallisce non si inserisce: le righe nuove si sommerebbero alle vecchie
         // e il prezzo del preventivo (la somma delle righe) salirebbe, con la schermata che dice «salvato».
         const { error: errCancella } = await supabase
-          .from("fv_manodopera_progetto" as never)
+          .from("fv_manodopera_progetto")
           .delete()
           .eq("progetto_id", input.progetto_id);
         if (errCancella) throw errCancella;
@@ -929,7 +929,7 @@ export function useUpsertManodopera() {
         progetto_id: input.progetto_id,
       }));
       const { error } = await supabase
-        .from("fv_manodopera_progetto" as never)
+        .from("fv_manodopera_progetto")
         .insert(payload as never);
       if (error) throw error;
     },
@@ -953,7 +953,7 @@ export function useUpsertServizi() {
         // Se la cancellazione fallisce non si inserisce: le righe nuove si sommerebbero alle vecchie
         // e il prezzo del preventivo (la somma delle righe) salirebbe, con la schermata che dice «salvato».
         const { error: errCancella } = await supabase
-          .from("fv_servizi_progetto" as never)
+          .from("fv_servizi_progetto")
           .delete()
           .eq("progetto_id", input.progetto_id);
         if (errCancella) throw errCancella;
@@ -964,7 +964,7 @@ export function useUpsertServizi() {
         progetto_id: input.progetto_id,
       }));
       const { error } = await supabase
-        .from("fv_servizi_progetto" as never)
+        .from("fv_servizi_progetto")
         .insert(payload as never);
       if (error) throw error;
     },
@@ -982,7 +982,7 @@ export function useTemplatePdf() {
     enabled: Boolean(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("fv_template_pdf" as never)
+        .from("fv_template_pdf")
         .select("*")
         .eq("company_id", companyId as string)
         .maybeSingle();
@@ -1002,7 +1002,7 @@ export function useUpsertTemplatePdf() {
       // mai un link firmato (vedi supabase/functions/_shared/immaginiModelloPdf.ts).
       const riga = normalizzaImmaginiModello({ ...input, company_id: companyId }, CAMPI_IMMAGINE_FOTOVOLTAICO, companyId);
       const { error } = await supabase
-        .from("fv_template_pdf" as never)
+        .from("fv_template_pdf")
         .upsert(riga as never, { onConflict: "company_id" });
       if (error) throw error;
     },
@@ -1022,7 +1022,7 @@ export function useServiziCatalogo() {
     staleTime: 60 * 60 * 1000, // 1h
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("fv_servizi_catalogo" as never)
+        .from("fv_servizi_catalogo")
         .select("*")
         .eq("company_id", companyId as string)
         .eq("attivo", true)

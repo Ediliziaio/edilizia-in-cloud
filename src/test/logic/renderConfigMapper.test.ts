@@ -18,6 +18,7 @@ const baseState: WizardState = {
   tipoManiglia: "q_moderna",
   coloreHw: "cromo",
   traverso: "auto",
+  nodo: "simmetrico",
   cerniere: "visibili",
   cass: false,
   cassMat: "stesso_colore",
@@ -39,7 +40,7 @@ describe("configMapper — A3 manigliaCentrale decoupled", () => {
   });
 
   it("PVC + manigliaCentrale=true → materiale PVC (NON alluminio), stile nodo_asimmetrico_maniglia_centrale", () => {
-    const out = mapWizardToConfig({ ...baseState, profilo: "pvc", manigliaCentrale: true });
+    const out = mapWizardToConfig({ ...baseState, profilo: "pvc", manigliaCentrale: true, nodo: "maniglia_centrale" });
     expect(out.nuovo_infisso.materiale).toBe("pvc");
     expect(out.nuovo_infisso.stile_telaio).toBe("nodo_asimmetrico_maniglia_centrale");
   });
@@ -48,21 +49,27 @@ describe("configMapper — A3 manigliaCentrale decoupled", () => {
   // (vedi PROFILI_NODO_ASIMMETRICO_COMPATIBILI in catalog.ts — legno escluso).
   // Il fallback è lo stile_telaio default del profilo legno = classico_arrotondato.
   it("Legno + manigliaCentrale=true → materiale legno, fallback stile classico (v8.2 disabilita nodo per legno)", () => {
-    const out = mapWizardToConfig({ ...baseState, profilo: "legno", manigliaCentrale: true });
+    const out = mapWizardToConfig({ ...baseState, profilo: "legno", manigliaCentrale: true, nodo: "maniglia_centrale" });
     expect(out.nuovo_infisso.materiale).toBe("legno");
     expect(out.nuovo_infisso.stile_telaio).toBe("classico_arrotondato");
   });
 
   it("Alluminio + manigliaCentrale=true → alluminio, stile nodo_asimmetrico_maniglia_centrale", () => {
-    const out = mapWizardToConfig({ ...baseState, profilo: "alluminio", manigliaCentrale: true });
+    const out = mapWizardToConfig({ ...baseState, profilo: "alluminio", manigliaCentrale: true, nodo: "maniglia_centrale" });
     expect(out.nuovo_infisso.materiale).toBe("alluminio");
     expect(out.nuovo_infisso.stile_telaio).toBe("nodo_asimmetrico_maniglia_centrale");
   });
 
   it("Minimal + manigliaCentrale=true → alluminio, stile nodo_asimmetrico_maniglia_centrale (override di minimal_squadrato)", () => {
-    const out = mapWizardToConfig({ ...baseState, profilo: "minimal", manigliaCentrale: true });
+    const out = mapWizardToConfig({ ...baseState, profilo: "minimal", manigliaCentrale: true, nodo: "maniglia_centrale" });
     expect(out.nuovo_infisso.materiale).toBe("alluminio");
     expect(out.nuovo_infisso.stile_telaio).toBe("nodo_asimmetrico_maniglia_centrale");
+  });
+
+  it("mantiene la compatibilità con le sessioni precedenti prive del nodo", () => {
+    const legacy = { ...baseState, manigliaCentrale: true };
+    Reflect.deleteProperty(legacy, "nodo");
+    expect(mapWizardToConfig(legacy).nuovo_infisso.stile_telaio).toBe("nodo_asimmetrico_maniglia_centrale");
   });
 
   it("PROFILI_MANIGLIA_CENTRALE_COMPATIBILI contiene solo id presenti in WIZARD_PROFILI", () => {

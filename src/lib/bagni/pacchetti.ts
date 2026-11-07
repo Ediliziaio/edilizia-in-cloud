@@ -118,9 +118,9 @@ export function buildPacchettoRows(
       importo,
       margine_eur,
       margine_pct: importo > 0 ? (margine_eur / importo) * 100 : 0,
-      listino_voce_id: null,
+      listino_voce_id: null as null,
       ordine: i,
-      fonte: null,
+      fonte: null as null,
     };
   });
 }

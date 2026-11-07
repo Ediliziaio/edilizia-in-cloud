@@ -1,3 +1,4 @@
+import { jsonPayload } from "@/lib/jsonPayload";
 /**
  * Hook per gestire le richieste di modifica del commercialista (workflow
  * approval_required).
@@ -105,7 +106,7 @@ export function useSubmitChangeRequest() {
           resource_type: input.resourceType,
           resource_id: input.resourceId ?? null,
           operation: input.operation,
-          payload: input.payload,
+          payload: jsonPayload(input.payload),
         })
         .select()
         .single();

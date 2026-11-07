@@ -27,6 +27,9 @@ export interface PlanimetriaNelRender extends RiferimentoStanza {
 }
 
 export interface RenderDellaPianta {
+  original_photo_url?: string | null;
+  /** Solo il fascicolo legge le scelte effettive salvate alla generazione. */
+  scelte?: Record<string, unknown> | null;
   id: string;
   status: string;
   result_urls: string[] | null;

@@ -915,7 +915,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                 </CardContent>
               </Card>
             ) : vista === "stats" ? (
-              <TaskStatsView tasks={tasks} />
+              <TaskStatsView tasks={filteredTasks} />
             ) : vista === "agenda" ? (
               <TaskAgendaView
                 tasks={filteredTasks}

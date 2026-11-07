@@ -220,7 +220,7 @@ function templateFields(
 export function topoOrder(nodes: Node<FlowNodeData>[], edges: Edge[]): string[] {
   const ids = nodes.map((n) => n.id);
   const indeg = new Map<string, number>(ids.map((id) => [id, 0]));
-  const adj = new Map<string, string[]>(ids.map((id) => [id, []]));
+  const adj = new Map<string, string[]>(ids.map((id): [string, string[]] => [id, []]));
   for (const e of edges) {
     if (!indeg.has(e.target) || !adj.has(e.source)) continue;
     indeg.set(e.target, (indeg.get(e.target) ?? 0) + 1);
@@ -338,7 +338,7 @@ export function validateFlow(nodes: Node<FlowNodeData>[], edges: Edge[]): Valida
   if (roots.length === 0) {
     roots = [...nodes].sort((a, b) => a.position.y - b.position.y).slice(0, 1);
   }
-  const adj = new Map<string, string[]>(nodes.map((n) => [n.id, []]));
+  const adj = new Map<string, string[]>(nodes.map((n): [string, string[]] => [n.id, []]));
   for (const e of edges) adj.get(e.source)?.push(e.target);
   const reachable = new Set<string>();
   const stack = roots.map((r) => r.id);

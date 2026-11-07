@@ -154,7 +154,7 @@ export default function SicurezzaCantiere() {
     order_id: "",
     data: format(new Date(), "yyyy-MM-dd"),
     tipo: "sopralluogo",
-    esito: "conforme",
+    esito: "",
     note: "",
     redatto_da: "",
   });
@@ -351,6 +351,8 @@ export default function SicurezzaCantiere() {
           "Non hai il permesso di modificare la sicurezza cantiere",
         );
       if (!companyId) throw new Error("Nessuna azienda selezionata");
+      if (!verbaleForm.esito)
+        throw new Error("Seleziona l’esito del controllo prima di salvare il verbale");
       if (!verbaleForm.note.trim() && !verbaleForm.redatto_da.trim())
         throw new Error("Inserisci almeno le note o il nome del redattore");
       const campi = {
@@ -383,7 +385,7 @@ export default function SicurezzaCantiere() {
         order_id: "",
         data: format(new Date(), "yyyy-MM-dd"),
         tipo: "sopralluogo",
-        esito: "conforme",
+        esito: "",
         note: "",
         redatto_da: "",
       });
@@ -604,7 +606,7 @@ export default function SicurezzaCantiere() {
       order_id: "",
       data: format(new Date(), "yyyy-MM-dd"),
       tipo: "sopralluogo",
-      esito: "conforme",
+      esito: "",
       note: "",
       redatto_da: "",
     });
@@ -764,7 +766,7 @@ export default function SicurezzaCantiere() {
       order_id: v.order_id ?? "",
       data: v.data ?? format(new Date(), "yyyy-MM-dd"),
       tipo: v.tipo ?? "sopralluogo",
-      esito: v.esito ?? "conforme",
+      esito: v.esito ?? "",
       note: v.note ?? "",
       redatto_da: v.redatto_da ?? "",
     });
@@ -1767,15 +1769,15 @@ export default function SicurezzaCantiere() {
               </div>
             </div>
             <div className="space-y-1">
-              <Label>Esito</Label>
+              <Label htmlFor="verbale-esito">Esito</Label>
               <Select
                 value={verbaleForm.esito}
                 onValueChange={(v) =>
                   setVerbaleForm((p) => ({ ...p, esito: v }))
                 }
               >
-                <SelectTrigger>
-                  <SelectValue />
+                <SelectTrigger id="verbale-esito">
+                  <SelectValue placeholder="Seleziona l’esito del controllo" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="conforme">Conforme</SelectItem>
@@ -1821,7 +1823,7 @@ export default function SicurezzaCantiere() {
             </Button>
             <Button
               onClick={() => createVerbaleMutation.mutate()}
-              disabled={!canWrite || createVerbaleMutation.isPending}
+              disabled={!canWrite || createVerbaleMutation.isPending || !verbaleForm.esito}
             >
               {createVerbaleMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

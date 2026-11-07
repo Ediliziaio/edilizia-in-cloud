@@ -15,6 +15,11 @@ const COLOR_PALETTE = [
   "#f97316", "#eab308", "#22c55e", "#14b8a6",
   "#3b82f6", "#64748b",
 ];
+const COLOR_NAMES: Record<string, string> = {
+  "#6366f1": "Indaco", "#8b5cf6": "Viola", "#ec4899": "Rosa", "#ef4444": "Rosso",
+  "#f97316": "Arancione", "#eab308": "Giallo", "#22c55e": "Verde", "#14b8a6": "Turchese",
+  "#3b82f6": "Blu", "#64748b": "Grigio",
+};
 
 interface Tag {
   id: string;
@@ -170,6 +175,8 @@ export function TaskTagPicker({ taskId, assignedTags, onChanged }: TaskTagPicker
                   <button
                     key={c}
                     type="button"
+                    aria-label={`Colore ${COLOR_NAMES[c]}`}
+                    aria-pressed={newColor === c}
                     className={cn(
                       "w-5 h-5 rounded-full border-2 transition-transform",
                       newColor === c ? "border-foreground scale-110" : "border-transparent",

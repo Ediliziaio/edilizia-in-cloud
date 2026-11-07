@@ -268,8 +268,8 @@ type DocumentoSubappaltatoreRow = Pick<
 >;
 
 type DocumentoOperaioRow = Pick<
-  Database["public"]["Tables"]["documenti_operai"]["Row"],
-  "id" | "operaio_id" | "nome_file" | "file_path" | "data_scadenza" | "stato" | "created_at" | "caricato_da" | "note"
+  Database["public"]["Tables"]["hr_documenti"]["Row"],
+  "id" | "hr_profilo_id" | "titolo" | "file_name" | "file_path" | "data_scadenza" | "alert_giorni_prima" | "categoria" | "created_at" | "created_by" | "note"
 >;
 
 interface MediaLibraryLoadOptions {
@@ -576,7 +576,7 @@ function iconForItem(item: MediaLibraryItem) {
   return FileText;
 }
 
-const EMPTY_QUERY_RESULT = { data: [], error: null } as const;
+const EMPTY_QUERY_RESULT = { data: [], error: null as null } as const;
 
 async function loadMediaItems(companyId: string, options: MediaLibraryLoadOptions = {}): Promise<MediaLibraryLoadResult> {
   // Se non abbiamo userId (utente non loggato), evitiamo del tutto la query e
@@ -755,7 +755,7 @@ async function loadMediaItems(companyId: string, options: MediaLibraryLoadOption
         ...quoteMaterialRows.map((row) => row.created_by),
         ...renderSessionRows.map((row) => row.created_by),
         ...employeeDocumentRows.map((row) => row.user_id),
-        ...workerDocumentRows.map((row) => row.caricato_da),
+        ...workerDocumentRows.map((row) => row.created_by),
       ].filter((id): id is string => Boolean(id)),
     ),
   );

@@ -57,10 +57,7 @@ interface OpsHealth {
 
 function usePipelineStats(companyId: string | undefined) {
   // Cast away strict typing for tables not yet in generated types
-  const sbAny = supabase as unknown as {
-    from: (t: string) => ReturnType<typeof supabase.from>;
-    rpc: (fn: string, params?: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
-  };
+
 
   return useQuery<PipelineStats>({
     queryKey: ["email-pipeline-stats", companyId],
@@ -71,24 +68,26 @@ function usePipelineStats(companyId: string | undefined) {
       const cutoff24h = new Date(now.getTime() - 24 * 3600 * 1000).toISOString();
 
       const [r24h, rDocs, rOpps] = await Promise.all([
-        sbAny
+        supabase
           .from("email_inbox")
           .select("id, ai_category, embedding")
           .eq("company_id", companyId as string)
           .gte("received_at", cutoff24h),
-        sbAny
+        supabase
           .from("email_documento_estratto")
           .select("id", { count: "exact", head: false })
           .eq("company_id", companyId as string)
           .in("stato", ["da_confermare", "duplicato"])
           .limit(1),
-        sbAny
+        supabase
           .from("email_opportunita_bozza")
           .select("id", { count: "exact", head: false })
           .eq("company_id", companyId as string)
           .eq("stato", "da_valutare")
           .limit(1),
       ]);
+
+      for (const result of [r24h, rDocs, rOpps]) if (result.error) throw result.error;
 
       const emails24 = ((r24h as { data: unknown[] | null }).data ?? []) as Array<{
         ai_category: string | null;
@@ -98,16 +97,18 @@ function usePipelineStats(companyId: string | undefined) {
       const embedded24 = emails24.filter((e) => e.embedding).length;
 
       // For totals use count queries
-      const rTotalAll = await sbAny
+      const rTotalAll = await supabase
         .from("email_inbox")
-        .select("id, ai_category", { count: "exact" } as Record<string, unknown>)
+        .select("id, ai_category", { count: "exact" })
         .eq("company_id", companyId as string);
+      if (rTotalAll.error) throw rTotalAll.error;
       const totalEmails = (rTotalAll as { count: number | null }).count ?? 0;
-      const rClassified = await sbAny
+      const rClassified = await supabase
         .from("email_inbox")
-        .select("id", { count: "exact" } as Record<string, unknown>)
+        .select("id", { count: "exact" })
         .eq("company_id", companyId as string)
         .not("ai_category", "is", null);
+      if (rClassified.error) throw rClassified.error;
       const totalClassified = (rClassified as { count: number | null }).count ?? 0;
 
       return {
@@ -174,11 +175,11 @@ function StatCard({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function EmailPipelineStatus() {
-  const { effectiveCompany, profile } = useAuth();
+  const { effectiveCompany, role } = useAuth();
   const companyId = effectiveCompany?.id;
-  const isSuperAdmin = profile?.role === "super_admin";
+  const isSuperAdmin = role === "super_admin";
 
-  const { data: stats, isLoading: loadingStats } = usePipelineStats(companyId);
+  const { data: stats, isLoading: loadingStats, isError: statsError, refetch: retryStats } = usePipelineStats(companyId);
   const { data: health, isLoading: loadingHealth } = useOpsHealth(isSuperAdmin);
 
   // ─ Classification % ─────────────────────────────────────────────────────
@@ -197,6 +198,12 @@ export function EmailPipelineStatus() {
   // ─ Cron health summary ──────────────────────────────────────────────────
   const cronsFailing = health ? health.cron_falliti_2h.length : 0;
 
+  if (statsError) return (
+    <div role="alert" className="space-y-2 text-sm">
+      <p>Non è stato possibile leggere le statistiche email. I conteggi non sono disponibili.</p>
+      <button type="button" className="underline" onClick={() => void retryStats()}>Riprova</button>
+    </div>
+  );
   return (
     <div className="space-y-5">
       {/* ── Section 1: Processing stats ──────────────────────────────── */}

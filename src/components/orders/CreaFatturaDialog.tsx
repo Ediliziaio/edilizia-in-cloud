@@ -3,7 +3,7 @@ import { impostaSuImponibile } from "@/lib/fatturazione/calcoli";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
-  Receipt, Sparkles, Check, User, Package, Loader2, Info, Plus, Trash2, ListPlus, Eye, Scale, RotateCcw, AlertTriangle, Landmark, ClipboardCheck, Layers, ChevronRight,
+  Receipt, Sparkles, Check, User, Package, Loader2, Info, Plus, Trash2, Eye, Scale, RotateCcw, AlertTriangle, Landmark, ClipboardCheck, Layers, ChevronRight,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -44,6 +44,7 @@ import {
   type SalPerFattura,
   documentiDaArchivio,
   fatturatoDaDocumenti,
+  giaFatturatoFase,
   fuoriDalleFasi,
   modoSuggerito,
   primaRataDaFatturare,
@@ -64,6 +65,7 @@ import {
   PROFILI_FATTURA,
   type ProfiloFattura,
   avvisiClausole,
+  clausoleApplicabili,
   clausola,
   clausolePerProfilo,
   clausolePredefinite,
@@ -504,32 +506,20 @@ export function CreaFatturaDialog({
   });
 
   // ── Fetch matching anagrafica ────────────────────────────────
-  const { data: matchedAnagrafica } = useQuery({
-    queryKey: ["anagrafica-match", customerId, companyId],
+  const { data: matchedAnagrafica, isPending: anagraficaPending, isError: anagraficaError, refetch: ricaricaAnagrafica } = useQuery({
+    queryKey: ["anagrafica-match-esatto", customerId, companyId],
     enabled: open && !!customerId && !!companyId,
     queryFn: async () => {
-      const { data: byClienteId } = await (supabase as any)
+      const { data: byClienteId, error } = await (supabase as any)
         .from("anagrafiche_native")
         .select("*")
         .eq("company_id", companyId!)
         .eq("cliente_id", customerId!)
         .maybeSingle();
-      if (byClienteId) return byClienteId;
-
-      if (customerName) {
-        const parts = customerName.trim().split(/\s+/);
-        if (parts.length >= 2) {
-          const { data: byName } = await (supabase as any)
-            .from("anagrafiche_native")
-            .select("*")
-            .eq("company_id", companyId!)
-            .or(`ragione_sociale.ilike.%${customerName}%,and(nome.ilike.%${parts[0]}%,cognome.ilike.%${parts[parts.length - 1]}%)`)
-            .limit(1)
-            .maybeSingle();
-          if (byName) return byName;
-        }
-      }
-      return null;
+      if (error) throw error;
+      // Il nome non identifica un soggetto fiscale: nessun abbinamento automatico
+      // per somiglianza, che potrebbe intestare la fattura a un omonimo.
+      return byClienteId ?? null;
     },
   });
 
@@ -540,7 +530,8 @@ export function CreaFatturaDialog({
   );
 
   // ── Da fasi, voci e SAL ──────────────────────────────────────
-  const fatturato = useMemo(() => fatturatoDaDocumenti(documentiCommessa), [documentiCommessa]);
+  const fatturato = useMemo(() => fatturatoDaDocumenti(documentiCommessa, fasi), [documentiCommessa, fasi]);
+  const riservatoInBozza = useMemo(() => fatturatoDaDocumenti(documentiCommessa.filter(d => d.stato === "bozza"), fasi).totale, [documentiCommessa, fasi]);
   const scelta = (id: string): SceltaRiga => scelteRighe[id] ?? {};
   const cambiaScelta = (id: string, patch: SceltaRiga) => {
     setScelteRighe((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
@@ -551,12 +542,13 @@ export function CreaFatturaDialog({
   // Senza contratto scritto non c'è un tetto: si propone il maturato.
   const residuoContratto = contrattoNetto > 0 ? Math.max(0, round2(contrattoNetto - fatturato.totale)) : Infinity;
   const fasiVendute = useMemo(() => {
-    const righe = fasi
-      .filter((f) => Number(f.importo_venduto) > 0)
+    const vendute = fasi.filter((f) => Number(f.importo_venduto) > 0);
+    const vendutoTotale = vendute.reduce((t, f) => t + Number(f.importo_venduto), 0);
+    const righe = vendute
       .map((f) => {
         const venduto = Number(f.importo_venduto);
         const avanzamento = avanzamentoFase({ status: f.status, percentuale: f.percentuale });
-        const gia = fatturato.perFase.get(f.id) ?? 0;
+        const gia = giaFatturatoFase(fatturato, f.id, venduto, vendutoTotale);
         return { id: f.id, nome: f.name, venduto, avanzamento, gia, maturato: quotaDaFatturare(venduto, avanzamento, gia) };
       });
     const dentro = quoteDentroIlContratto(righe.map((r) => r.maturato), residuoContratto);
@@ -567,8 +559,13 @@ export function CreaFatturaDialog({
   const fuoriFasi = fuoriDalleFasi(contrattoNetto, fasiVendute);
 
   // L'importo «ora» di una voce: scritto a mano, o il suo maturato al netto del già fatturato.
-  const voceCalcolata = (v: VoceRow, f: (typeof fasiVendute)[number]) =>
-    round2(quotaDaFatturare(Number(v.importo), f.avanzamento, fatturato.perVoce.get(v.id) ?? 0) * (f.maturato > 0 ? f.calcolato / f.maturato : 0));
+  // Le voci aperte non superano mai la quota della fase: il SAL già fatturato e il tetto del contratto stanno lì.
+  const quotaVoce = (v: VoceRow, f: (typeof fasiVendute)[number]) => quotaDaFatturare(Number(v.importo), f.avanzamento, fatturato.perVoce.get(v.id) ?? 0);
+  const fattoreVoci = (f: (typeof fasiVendute)[number]) => {
+    const somma = vociDiFase(f.id).reduce((t, v) => t + quotaVoce(v, f), 0);
+    return somma > 0 ? Math.min(1, f.calcolato / somma) : 0;
+  };
+  const voceCalcolata = (v: VoceRow, f: (typeof fasiVendute)[number]) => round2(quotaVoce(v, f) * fattoreVoci(f));
   const importoVoce = (v: VoceRow, f: (typeof fasiVendute)[number]) => {
     const s = scelta(v.id);
     if (s.esclusa) return 0;
@@ -665,7 +662,9 @@ export function CreaFatturaDialog({
   );
   const profilo = profiloScelto ?? profiloSuggerito;
   const clausoleCatalogo = clausoleScelte ?? clausolePredefinite(profilo, defaultVat);
-  const clausoleAttive = [...clausoleCatalogo, ...clausoleMie.map((c) => c.id)];
+  // Il netto del certificato è già senza ritenuta: la trattenuta a garanzia non si applica di nuovo.
+  const ritenutaGiaTolta = mode === "sal" && !!salAttivo && !!certificatoDelSal(salAttivo.sal_certificati);
+  const clausoleAttive = clausoleApplicabili([...clausoleCatalogo, ...clausoleMie.map((c) => c.id)], { ritenutaGiaTolta });
   const testoClausola = (id: string) => {
     if (clausola(id)?.effetto === "trattenuta") {
       const t = composta.trattenute.find((x) => x.id === id);
@@ -703,8 +702,6 @@ export function CreaFatturaDialog({
   const righeFattura = previewRighe.filter((r) => !r.id.startsWith("trattenuta-"));
   const fonteMostrata = fonteAperta ?? righeFattura.length === 0;
   const totali = composta.totali;
-  // Il netto del certificato è già senza ritenuta: va detto, o la si toglie due volte.
-  const ritenutaGiaTolta = mode === "sal" && !!salAttivo && !!certificatoDelSal(salAttivo.sal_certificati);
   const avvisi = avvisiClausole(clausoleAttive, { ritenutaGiaTolta });
 
   const scriviRiga = (id: string, patch: TestiRiga) => setTestiRighe((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
@@ -865,9 +862,9 @@ export function CreaFatturaDialog({
 
   const datiDocumento = {
     tipo: clientePA ? ("fattura_pa" as const) : ("fattura" as const),
-    ...(clienteSnapshot && {
-      cliente_snapshot: { ...clienteSnapshot, ...(cigFinale && { cig: cigFinale }), ...(cupFinale && { cup: cupFinale }) },
-    }),
+    cliente_snapshot: clienteSnapshot
+      ? { ...clienteSnapshot, ...(cigFinale && { cig: cigFinale }), ...(cupFinale && { cup: cupFinale }) }
+      : { ragione_sociale: customerName, tipo_cliente: (profilo === "pa" ? "PA" : profilo === "impresa" ? "B2B" : "B2C") as ClienteSnapshot["tipo_cliente"] },
     ...(matchedAnagrafica?.id && { anagrafica_id: matchedAnagrafica.id }),
     righe: previewRighe,
     riepilogo_iva: totali.riepilogo_iva,
@@ -905,6 +902,10 @@ export function CreaFatturaDialog({
   } as unknown as EditorState;
 
   const handleCreaFattura = async () => {
+    if (customerId && (anagraficaPending || anagraficaError)) {
+      toast.error("Attendi la verifica dell’anagrafica o riprova il caricamento.");
+      return;
+    }
     // Blocca la creazione di una fattura senza righe (non emettibile).
     if (previewRighe.length === 0) {
       toast.error("Nessuna riga da fatturare", {
@@ -983,13 +984,15 @@ export function CreaFatturaDialog({
     const attiva = clausoleAttive.includes(id);
     const testo = testoClausola(id);
     const c = clausola(id);
+    const giaNelCertificato = ritenutaGiaTolta && c?.effetto === "trattenuta";
+    if (giaNelCertificato) aiuto = "Già tolta dal certificato di pagamento del SAL: qui non si toglie una seconda volta.";
     return (
       <div key={id} className={`px-3 py-2 space-y-1.5 ${attiva ? "" : "opacity-70"}`}>
         <div className="flex items-start gap-2">
           {rimuovibile ? (
             <Check className="h-4 w-4 mt-0.5 text-primary shrink-0" />
           ) : (
-            <Checkbox id={`cl-${id}`} checked={attiva} onCheckedChange={() => toggleClausola(id)} className="mt-0.5" />
+            <Checkbox id={`cl-${id}`} checked={attiva} disabled={giaNelCertificato} onCheckedChange={() => toggleClausola(id)} className="mt-0.5" />
           )}
           <label htmlFor={`cl-${id}`} className="flex-1 min-w-0 cursor-pointer">
             <span className="text-xs font-medium">{titolo}</span>
@@ -1084,7 +1087,7 @@ export function CreaFatturaDialog({
             <User className="h-4 w-4 text-muted-foreground shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{customerName}</p>
-              {matchedAnagrafica ? (
+              {customerId && anagraficaPending ? <span className="text-xs text-muted-foreground">Verifica dell’anagrafica…</span> : anagraficaError ? <div role="alert" className="text-xs text-destructive">Impossibile verificare l’anagrafica. <Button variant="link" size="sm" onClick={() => void ricaricaAnagrafica()}>Riprova</Button></div> : matchedAnagrafica ? (
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <Check className="h-3 w-3 text-green-600" />
                   <span className="text-xs text-green-700 dark:text-green-400">
@@ -1094,7 +1097,7 @@ export function CreaFatturaDialog({
                 </div>
               ) : (
                 <span className="text-xs text-amber-600">
-                  Anagrafica non trovata — potrai selezionarla nell'editor
+                  Anagrafica fiscale non collegata: la bozza conserva il nome della commessa. Nell’editor seleziona il soggetto corretto o crea la sua anagrafica e completa i dati fiscali.
                 </span>
               )}
             </div>
@@ -1239,10 +1242,11 @@ export function CreaFatturaDialog({
                   Non riesco a leggere le fatture già fatte su questa commessa: controlla tu il già fatturato.
                 </p>
               )}
+              {riservatoInBozza > 0 && <p role="status" className="text-xs text-amber-700">{fmt(riservatoInBozza)} senza IVA sono già presenti in fatture in bozza: riducono la proposta per evitare duplicati, ma non sono fatturato emesso. Puoi aprire le bozze in «Fatture al cliente».</p>}
               {(mode === "fasi" || (mode === "sal" && salAttivo && statoSal(salAttivo).stato === "da_fatturare")) && fatturato.senzaDettaglio > 0 && (
                 <p className="flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
                   <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                  Su questa commessa ci sono già {fmt(fatturato.senzaDettaglio)} senza IVA fatturati senza dettaglio per fase: {mode !== "fasi" ? "controlla che non comprendano già questo SAL." : Number.isFinite(residuoContratto) ? `le quote proposte si fermano ai ${fmt(residuoContratto)} che restano del contratto.` : "controlla le quote prima di creare la fattura."}
+                  Su questa commessa ci sono già {fmt(fatturato.senzaDettaglio)} senza IVA in fatture o bozze senza dettaglio per fase: {mode !== "fasi" ? "controlla che non comprendano già questo SAL." : Number.isFinite(residuoContratto) ? `le quote proposte si fermano ai ${fmt(residuoContratto)} che restano del contratto.` : "controlla le quote prima di creare la fattura."}
                 </p>
               )}
               {/* Le righe di un SAL non dicono quali fasi contenevano: dopo averlo fatturato,
@@ -1257,7 +1261,7 @@ export function CreaFatturaDialog({
               {mode !== "importo" && contrattoNetto > 0 && round2(fatturato.totale + totali.imponibile_totale) > contrattoNetto + 1 && (
                 <p className="flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
                   <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                  Con questa fattura il fatturato arriva a {fmt(round2(fatturato.totale + totali.imponibile_totale))}, oltre il contratto di {fmt(contrattoNetto)} senza IVA.
+                  Con questa bozza il totale delle fatture e bozze arriva a {fmt(round2(fatturato.totale + totali.imponibile_totale))}, oltre il contratto di {fmt(contrattoNetto)} senza IVA.
                 </p>
               )}
 
@@ -1381,7 +1385,7 @@ export function CreaFatturaDialog({
                     <span>Fase · senza IVA</span>
                     <span className="text-right">Venduto</span>
                     <span className="text-right">Avanz.</span>
-                    <span className="text-right">Fatturato</span>
+                    <span className="text-right">In fatture/bozze</span>
                     <span className="text-right">Ora</span>
                   </div>
                   <div className="divide-y max-h-72 overflow-auto">
@@ -1406,7 +1410,7 @@ export function CreaFatturaDialog({
                                 </button>
                               )}
                               <span className="block sm:hidden text-[10px] text-muted-foreground tabular-nums">
-                                {fmt(f.venduto)} · {f.avanzamento}% · fatturato {fmt(f.gia)}
+                                {fmt(f.venduto)} · {f.avanzamento}% · in fatture/bozze {fmt(f.gia)}
                               </span>
                             </span>
                             <span className="hidden sm:block text-right tabular-nums text-muted-foreground">{fmt(f.venduto)}</span>
@@ -1438,7 +1442,7 @@ export function CreaFatturaDialog({
                                       <span className="line-clamp-2">{v.descrizione}</span>
                                       <span className="block text-[10px] text-muted-foreground tabular-nums">
                                         {v.quantita != null && v.unita ? `${String(v.quantita).replace(".", ",")} ${v.unita} · ` : ""}{fmt(Number(v.importo))}
-                                        {giaVoce > 0 ? ` · fatturato ${fmt(giaVoce)}` : ""}
+                                        {giaVoce > 0 ? ` · in fatture/bozze ${fmt(giaVoce)}` : ""}
                                       </span>
                                     </span>
                                     <Input
@@ -1592,7 +1596,7 @@ export function CreaFatturaDialog({
                       : mode === "sal"
                         ? "Nessun SAL con una quota da fatturare: scegline un altro o aggiungi una riga."
                         : mode === "fasi"
-                          ? "Nessun importo da fatturare: le fasi sono già fatturate per il loro avanzamento. Scrivi un importo o aggiungi una riga."
+                          ? "Nessun importo proposto: verifica l'avanzamento delle fasi e gli importi già presenti in fatture o bozze. Puoi inserire un importo o aggiungere una riga."
                           : "Nessuna riga selezionata: includi almeno un articolo o aggiungi una riga."}
                   </span>
                 </div>
@@ -1865,7 +1869,7 @@ export function CreaFatturaDialog({
             </Button>
             <Button
               onClick={() => { void handleCreaFattura(); }}
-              disabled={createMutation.isPending || previewRighe.length === 0}
+              disabled={createMutation.isPending || previewRighe.length === 0 || (!!customerId && (anagraficaPending || anagraficaError))}
             >
               {createMutation.isPending ? (
                 <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />

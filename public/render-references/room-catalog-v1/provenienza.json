@@ -1,0 +1,582 @@
+{
+  "version": 1,
+  "generated_with": "image_gen.imagegen",
+  "assets": [
+    {
+      "id": "ceiling-boiserie_soffitto",
+      "group": "ceiling",
+      "key": "boiserie_soffitto",
+      "label": "Boiserie a soffitto",
+      "bn": true,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: the upper portion of a neutral room with a complete refined natural oak panelled ceiling, rectangular timber panels with discreet framed joints, realistic visible oak grain. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "ceiling-boiserie_soffitto-BN.webp"
+    },
+    {
+      "id": "ceiling-controsoffitto_cartongesso",
+      "group": "ceiling",
+      "key": "controsoffitto_cartongesso",
+      "label": "Controsoffitto in cartongesso",
+      "bn": true,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: the upper portion of a neutral room showing a realistic white plasterboard dropped ceiling with a clearly readable stepped perimeter and a shallow recessed central area, precise plasterboard construction. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "ceiling-controsoffitto_cartongesso-BN.webp"
+    },
+    {
+      "id": "ceiling-piano",
+      "group": "ceiling",
+      "key": "piano",
+      "label": "Soffitto piano",
+      "bn": true,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: the upper portion of an empty neutral room showing a completely flat smooth painted white ceiling, clean straight wall junctions, no beams, no recesses, no coving. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "ceiling-piano-BN.webp"
+    },
+    {
+      "id": "ceiling-travi_legno",
+      "group": "ceiling",
+      "key": "travi_legno",
+      "label": "Travi in legno",
+      "bn": true,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: the upper portion of a neutral living room with exposed natural oak structural ceiling beams and white plaster ceiling between the beams, clear real timber grain and plausible beam spacing. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "ceiling-travi_legno-BN.webp"
+    },
+    {
+      "id": "cladding-boiserie_legno",
+      "group": "cladding",
+      "key": "boiserie_legno",
+      "label": "Boiserie in legno",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a front-on close-up of a refined natural oak wall boiserie with three rectangular framed wood panels, real raised mouldings and clear grain, authentic joints and panel depth. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "cladding-boiserie_legno.webp"
+    },
+    {
+      "id": "cladding-pannelli_3d",
+      "group": "cladding",
+      "key": "pannelli_3d",
+      "label": "Pannelli 3D",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a front-on close-up of an ivory wall covered with repeating sculptural geometric three-dimensional decorative panels, four complete modules visible with real relief, fine joints and soft raking shadows. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "cladding-pannelli_3d.webp"
+    },
+    {
+      "id": "curtains-rullo",
+      "group": "curtains",
+      "key": "rullo",
+      "label": "Tenda a rullo",
+      "bn": true,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a complete window with a minimalist roller blind partially lowered, one continuous flat neutral fabric sheet, neat top roller cassette and discreet side mechanism. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "curtains-rullo-BN.webp"
+    },
+    {
+      "id": "curtains-tende_a_pannello",
+      "group": "curtains",
+      "key": "tende_a_pannello",
+      "label": "Tende a pannello",
+      "bn": true,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a complete wide window with modern sliding panel curtains, three straight overlapping fabric panels suspended from a slim ceiling track, neutral ivory fabric, clearly readable panel construction. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "curtains-tende_a_pannello-BN.webp"
+    },
+    {
+      "id": "curtains-tende_classiche",
+      "group": "curtains",
+      "key": "tende_classiche",
+      "label": "Tende classiche",
+      "bn": true,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a complete tall window dressed with traditional full-length ivory curtain drapes, elegant gathered pleats on a slim rod, floor-length fabric, clearly readable mounting. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "curtains-tende_classiche-BN.webp"
+    },
+    {
+      "id": "curtains-tende_lino",
+      "group": "curtains",
+      "key": "tende_lino",
+      "label": "Tende in lino",
+      "bn": true,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a complete tall window with softly pleated natural linen sheer curtains, warm ivory linen weave visibly translucent in diffuse daylight, floor-length drapes. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "curtains-tende_lino-BN.webp"
+    },
+    {
+      "id": "curtains-tende_velluto",
+      "group": "curtains",
+      "key": "tende_velluto",
+      "label": "Tende in velluto",
+      "bn": true,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a complete tall window with luxurious deep muted olive velvet curtains, heavy soft folds with realistic velvet pile and sheen, full-length drapes. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "curtains-tende_velluto-BN.webp"
+    },
+    {
+      "id": "curtains-veneziane",
+      "group": "curtains",
+      "key": "veneziane",
+      "label": "Veneziane",
+      "bn": true,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a complete window with horizontal venetian blinds, narrow parallel slats slightly tilted to admit light, realistic side cords and neat headrail, complete fixture visible. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "curtains-veneziane-BN.webp"
+    },
+    {
+      "id": "floor-layout-cassero_irregolare",
+      "group": "floor-layout",
+      "key": "cassero_irregolare",
+      "label": "Cassero irregolare",
+      "bn": true,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a straight orthographic overhead photograph of a wood plank floor in an irregular random-length staggered pattern, long parallel plank rows with clearly irregular end-joint positions, uniform neutral plank colour. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "floor-layout-cassero_irregolare-BN.webp"
+    },
+    {
+      "id": "floor-layout-cassero_regolare",
+      "group": "floor-layout",
+      "key": "cassero_regolare",
+      "label": "Cassero regolare",
+      "bn": true,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a straight orthographic overhead photograph of a wood plank floor in a regular staggered running-bond pattern with each adjacent row shifted by exactly half a plank, uniform neutral plank colour so only the laying geometry is prominent. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "floor-layout-cassero_regolare-BN.webp"
+    },
+    {
+      "id": "floor-layout-esagonale",
+      "group": "floor-layout",
+      "key": "esagonale",
+      "label": "Posa esagonale",
+      "bn": true,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a straight orthographic overhead photograph of a regular hexagonal honeycomb tiled floor, at least six rows of identical neutral grey hexagons, uniform tile colour and fine contrasting grout so the laying pattern is unambiguous. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "floor-layout-esagonale-BN.webp"
+    },
+    {
+      "id": "furniture-legno_chiaro",
+      "group": "furniture",
+      "key": "legno_chiaro",
+      "label": "Arredi in legno chiaro",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a contemporary light natural oak low sideboard and matching small side table, visible fine oak grain, natural oiled finish, product vignette on a neutral light background. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "furniture-legno_chiaro.webp"
+    },
+    {
+      "id": "furniture-legno_scuro",
+      "group": "furniture",
+      "key": "legno_scuro",
+      "label": "Arredi in legno scuro",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a contemporary dark walnut low sideboard and matching small side table, visible natural walnut grain, deep warm brown wood, product vignette on a neutral light background. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "furniture-legno_scuro.webp"
+    },
+    {
+      "id": "furniture-metallo",
+      "group": "furniture",
+      "key": "metallo",
+      "label": "Arredi in metallo",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a refined modern brushed steel and black metal low sideboard and small metal side table, realistic brushed metal construction and thin metal edges, neutral product vignette. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "furniture-metallo.webp"
+    },
+    {
+      "id": "furniture-pelle",
+      "group": "furniture",
+      "key": "pelle",
+      "label": "Arredi in pelle",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a refined contemporary cognac leather sofa and matching small leather ottoman, realistic supple leather grain and stitching, neutral product vignette. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "furniture-pelle.webp"
+    },
+    {
+      "id": "furniture-tessuto",
+      "group": "furniture",
+      "key": "tessuto",
+      "label": "Arredi in tessuto",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a refined contemporary sofa and small upholstered ottoman in warm beige woven linen fabric, highly visible realistic woven textile texture and soft cushions, neutral product vignette. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "furniture-tessuto.webp"
+    },
+    {
+      "id": "furniture-vetro",
+      "group": "furniture",
+      "key": "vetro",
+      "label": "Arredi in vetro",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: an elegant modern transparent glass coffee table with matching clear-glass shelving, realistic thick transparent glass edges and restrained chrome joints, neutral product vignette. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "furniture-vetro.webp"
+    },
+    {
+      "id": "kitchen-front-effetto_legno",
+      "group": "kitchen-front",
+      "key": "effetto_legno",
+      "label": "Frontali effetto legno",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a close-up product photograph of three kitchen cabinet fronts in premium oak-look laminate, consistent printed oak grain, precise panel edges and refined modern construction. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "kitchen-front-effetto_legno.webp"
+    },
+    {
+      "id": "kitchen-front-laccato",
+      "group": "kitchen-front",
+      "key": "laccato",
+      "label": "Frontali laccati",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a close-up product photograph of three smooth white lacquered kitchen cabinet fronts with a subtle satin reflection, precise cabinet joints and refined modern construction. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "kitchen-front-laccato.webp"
+    },
+    {
+      "id": "kitchen-front-legno",
+      "group": "kitchen-front",
+      "key": "legno",
+      "label": "Frontali in legno",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a close-up product photograph of three kitchen cabinet fronts in genuine natural oak, continuous real wood grain and subtle knots, refined flat panel construction. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "kitchen-front-legno.webp"
+    },
+    {
+      "id": "kitchen-front-metallo",
+      "group": "kitchen-front",
+      "key": "metallo",
+      "label": "Frontali in metallo",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a close-up product photograph of three brushed stainless-steel kitchen cabinet fronts, genuine metallic linear brushing and restrained reflections, precise professional cabinet joints. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "kitchen-front-metallo.webp"
+    },
+    {
+      "id": "kitchen-front-vetro",
+      "group": "kitchen-front",
+      "key": "vetro",
+      "label": "Frontali in vetro",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a close-up product photograph of three frosted pale-grey glass kitchen cabinet fronts with subtle slim frames, clearly readable real glass surface and discreet reflection. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "kitchen-front-vetro.webp"
+    },
+    {
+      "id": "kitchen-handle-cromato",
+      "group": "kitchen-handle",
+      "key": "cromato",
+      "label": "Maniglia cromata",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a close-up of a simple straight slim polished chrome kitchen cabinet pull handle mounted horizontally on a neutral ivory drawer, realistic chrome reflections and complete handle mounting visible. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "kitchen-handle-cromato.webp"
+    },
+    {
+      "id": "kitchen-handle-legno",
+      "group": "kitchen-handle",
+      "key": "legno",
+      "label": "Maniglia in legno",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a close-up of a simple rounded natural oak kitchen cabinet pull handle mounted horizontally on a neutral ivory drawer, clear timber grain and complete handle mounting visible. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "kitchen-handle-legno.webp"
+    },
+    {
+      "id": "kitchen-handle-metallo_nero",
+      "group": "kitchen-handle",
+      "key": "metallo_nero",
+      "label": "Maniglia nera",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a close-up of a simple straight slim black metal kitchen cabinet pull handle mounted horizontally on a neutral ivory cabinet drawer, complete handle and both mounts visible. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "kitchen-handle-metallo_nero.webp"
+    },
+    {
+      "id": "kitchen-handle-metallo_oro",
+      "group": "kitchen-handle",
+      "key": "metallo_oro",
+      "label": "Maniglia oro",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a close-up of a simple straight slim brushed brass gold kitchen cabinet pull handle mounted horizontally on a neutral ivory cabinet drawer, complete handle and both mounts visible. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "kitchen-handle-metallo_oro.webp"
+    },
+    {
+      "id": "lighting-applique_parete",
+      "group": "lighting",
+      "key": "applique_parete",
+      "label": "Applique a parete",
+      "bn": true,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a pair of refined compact wall sconces mounted on a plain plaster wall, realistic brushed metal bodies and soft upward and downward light, complete fixtures readable. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "lighting-applique_parete-BN.webp"
+    },
+    {
+      "id": "lighting-faretti_incassati",
+      "group": "lighting",
+      "key": "faretti_incassati",
+      "label": "Faretti incassati",
+      "bn": true,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: three recessed round flush-mounted ceiling downlights in a smooth white ceiling, complete fittings and trim detail visible, clean realistic built-in mounting. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "lighting-faretti_incassati-BN.webp"
+    },
+    {
+      "id": "lighting-lampadario_centrale",
+      "group": "lighting",
+      "key": "lampadario_centrale",
+      "label": "Lampadario centrale",
+      "bn": true,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: one elegant contemporary central ceiling chandelier with a restrained sculptural branching form and opal glass shades, complete fixture and ceiling rose visible. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "lighting-lampadario_centrale-BN.webp"
+    },
+    {
+      "id": "lighting-lampade_sospensione",
+      "group": "lighting",
+      "key": "lampade_sospensione",
+      "label": "Lampade a sospensione",
+      "bn": true,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: three contemporary pendant lights at staggered heights, simple opal glass pendant shades on slim suspension cords, complete fixtures and ceiling mounting visible. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "lighting-lampade_sospensione-BN.webp"
+    },
+    {
+      "id": "lighting-led_strip_perimetrale",
+      "group": "lighting",
+      "key": "led_strip_perimetrale",
+      "label": "LED perimetrale",
+      "bn": true,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: the ceiling corner of an empty room with a continuous concealed perimeter LED strip installed inside a neat plasterboard cove, indirect light softly washing the ceiling, realistic continuous luminous line. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "lighting-led_strip_perimetrale-BN.webp"
+    },
+    {
+      "id": "lighting-misto",
+      "group": "lighting",
+      "key": "misto",
+      "label": "Illuminazione mista",
+      "bn": true,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a cohesive simple living-room corner showing one restrained pendant light, two recessed ceiling spots and one wall sconce together, clearly distinguishable complementary fixtures. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "lighting-misto-BN.webp"
+    },
+    {
+      "id": "paint-lucido",
+      "group": "paint",
+      "key": "lucido",
+      "label": "Pittura lucida",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a close-up of a polished glossy warm-white painted wall with clear smooth controlled reflection, uniform continuous surface, subtle grazing daylight. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "paint-lucido.webp"
+    },
+    {
+      "id": "paint-opaco",
+      "group": "paint",
+      "key": "opaco",
+      "label": "Pittura opaca",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a close-up of a smooth painted warm-white interior plaster wall with fully matte diffuse finish, no sheen, fine real plaster grain. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "paint-opaco.webp"
+    },
+    {
+      "id": "paint-satinato",
+      "group": "paint",
+      "key": "satinato",
+      "label": "Pittura satinata",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a close-up of a painted ivory interior wall with refined satin eggshell finish, broad soft low-sheen reflection, fine real plaster texture. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "paint-satinato.webp"
+    },
+    {
+      "id": "style-art_deco",
+      "group": "style",
+      "key": "art_deco",
+      "label": "Art Deco",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a realistic refined Art Deco living room: geometric decorative motifs, curved velvet seating, restrained brass metal details, dark wood and emerald accents, elegant balanced interior. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "style-art_deco.webp"
+    },
+    {
+      "id": "style-classico",
+      "group": "style",
+      "key": "classico",
+      "label": "Classico",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a realistic elegant classical Italian living room: balanced symmetrical furniture arrangement, fine wall mouldings, subtly carved wooden furniture, refined neutral upholstery and traditional chandelier. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "style-classico.webp"
+    },
+    {
+      "id": "style-eclettico",
+      "group": "style",
+      "key": "eclettico",
+      "label": "Eclettico",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a realistic tasteful eclectic living room: a coherent mix of vintage wood and contemporary furniture, carefully balanced muted colour accents, art and layered textiles, curated rather than cluttered. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "style-eclettico.webp"
+    },
+    {
+      "id": "style-giapponese",
+      "group": "style",
+      "key": "giapponese",
+      "label": "Giapponese",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a realistic Japanese-inspired living room: low natural timber furniture, warm paper-like light, neutral linen cushions, uncluttered calm composition and fine wood joinery. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "style-giapponese.webp"
+    },
+    {
+      "id": "style-industriale",
+      "group": "style",
+      "key": "industriale",
+      "label": "Industriale",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a realistic industrial living room: black steel furniture details, tactile concrete, exposed warm brick accent wall, brown leather sofa, restrained industrial pendant fixtures. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "style-industriale.webp"
+    },
+    {
+      "id": "style-luxe_contemporaneo",
+      "group": "style",
+      "key": "luxe_contemporaneo",
+      "label": "Luxe contemporaneo",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a realistic luxury contemporary living room: pale natural marble accents, elegant walnut furniture, refined velvet seating, subtle brushed brass and restrained atmospheric lighting. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "style-luxe_contemporaneo.webp"
+    },
+    {
+      "id": "style-mediterraneo",
+      "group": "style",
+      "key": "mediterraneo",
+      "label": "Mediterraneo",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a realistic Mediterranean living room: warm white lime plaster walls, terracotta floor, natural woven textures, oak furniture and restrained blue accents in sunny soft daylight. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "style-mediterraneo.webp"
+    },
+    {
+      "id": "style-minimalista",
+      "group": "style",
+      "key": "minimalista",
+      "label": "Minimalista",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a realistic minimalist living room: very few low clean-lined furnishings, continuous pale grey surfaces, white walls, restrained low sofa, no clutter and soft clean light. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "style-minimalista.webp"
+    },
+    {
+      "id": "style-moderno",
+      "group": "style",
+      "key": "moderno",
+      "label": "Moderno",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a realistic contemporary Italian living room in a modern style: straight clean-lined furniture, neutral warm grey and ivory palette, restrained oak details, uncluttered architecture and balanced natural light. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "style-moderno.webp"
+    },
+    {
+      "id": "style-provenzale",
+      "group": "style",
+      "key": "provenzale",
+      "label": "Provenzale",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a realistic Provencal living room: soft muted ivory and lavender accents, painted wooden furniture, natural linen curtains, subtle classic country details and warm natural light. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "style-provenzale.webp"
+    },
+    {
+      "id": "style-rustico",
+      "group": "style",
+      "key": "rustico",
+      "label": "Rustico",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a realistic refined rustic living room: exposed timber beams, natural stone wall details, warm substantial wooden furniture, linen upholstery and earthy tones. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "style-rustico.webp"
+    },
+    {
+      "id": "style-scandinavo",
+      "group": "style",
+      "key": "scandinavo",
+      "label": "Scandinavo",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a realistic Scandinavian living room: pale oak furniture, warm white walls, light linen sofa, natural woven fabrics, functional simple forms and abundant soft daylight. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "style-scandinavo.webp"
+    },
+    {
+      "id": "wallpaper-astratto",
+      "group": "wallpaper",
+      "key": "astratto",
+      "label": "Carta astratta",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a seamless flat front-on wallpaper surface with a refined abstract organic brushstroke pattern, flowing overlapping shapes in sand taupe and muted blue, realistic premium printed paper texture. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "wallpaper-astratto.webp"
+    },
+    {
+      "id": "wallpaper-botanico",
+      "group": "wallpaper",
+      "key": "botanico",
+      "label": "Carta botanica",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a seamless flat front-on wallpaper surface with a delicate repeating botanical pattern of fern fronds and eucalyptus branches, muted sage and olive green on pale cream, realistic printed paper texture. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "wallpaper-botanico.webp"
+    },
+    {
+      "id": "wallpaper-damasco",
+      "group": "wallpaper",
+      "key": "damasco",
+      "label": "Carta damascata",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a seamless flat front-on wallpaper surface with a sophisticated symmetrical traditional damask repeat in pale champagne and warm ivory, fine subtle ornamental relief and realistic premium paper texture. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "wallpaper-damasco.webp"
+    },
+    {
+      "id": "wallpaper-floreale",
+      "group": "wallpaper",
+      "key": "floreale",
+      "label": "Carta floreale",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a seamless flat front-on wallpaper surface with an elegant repeating pattern of delicate hand-painted wildflowers on warm ivory, soft blush petals and sage leaves, realistic printed paper texture. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "wallpaper-floreale.webp"
+    },
+    {
+      "id": "wallpaper-geometrico",
+      "group": "wallpaper",
+      "key": "geometrico",
+      "label": "Carta geometrica",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a seamless flat front-on wallpaper surface with an elegant repeating geometric pattern of fine interlocking arches and circles, warm beige ivory and restrained muted terracotta, real printed paper texture. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "wallpaper-geometrico.webp"
+    },
+    {
+      "id": "wallpaper-minimal",
+      "group": "wallpaper",
+      "key": "minimal",
+      "label": "Carta minimal",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a seamless flat front-on minimalist wallpaper surface with an extremely subtle irregular fine linear textured pattern in warm ivory and pale greige, calm spacious restrained design, realistic fibrous paper texture. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "wallpaper-minimal.webp"
+    },
+    {
+      "id": "wallpaper-righe",
+      "group": "wallpaper",
+      "key": "righe",
+      "label": "Carta a righe",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a seamless flat front-on wallpaper surface with classic regular vertical alternating ivory and soft taupe stripes, subtle real woven paper texture, strictly straight parallel stripes. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "wallpaper-righe.webp"
+    },
+    {
+      "id": "wallpaper-toile_de_jouy",
+      "group": "wallpaper",
+      "key": "toile_de_jouy",
+      "label": "Carta Toile de Jouy",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a seamless flat front-on classic toile de Jouy wallpaper surface, detailed monochrome cobalt blue pastoral countryside engravings with trees and cottages on ivory, repeating elegant historic French decorative motif, no people. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "wallpaper-toile_de_jouy.webp"
+    },
+    {
+      "id": "wallpaper-tropicale",
+      "group": "wallpaper",
+      "key": "tropicale",
+      "label": "Carta tropicale",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a seamless flat front-on wallpaper surface with a lush elegant tropical pattern of overlapping banana leaves and palm fronds in natural deep and muted greens on ivory, realistic printed paper texture. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "wallpaper-tropicale.webp"
+    },
+    {
+      "id": "worktop-granito",
+      "group": "worktop",
+      "key": "granito",
+      "label": "Piano in granito",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a close-up of a real honed granite kitchen worktop slab including its polished straight front edge, natural dense fine grey black and cream mineral crystals, no tiles and no joints. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "worktop-granito.webp"
+    },
+    {
+      "id": "worktop-laminato",
+      "group": "worktop",
+      "key": "laminato",
+      "label": "Piano in laminato",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a close-up of a realistic warm light-grey laminate kitchen worktop with its neatly bonded straight edge clearly visible, restrained fine mineral pattern and matte durable finish. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "worktop-laminato.webp"
+    },
+    {
+      "id": "worktop-legno",
+      "group": "worktop",
+      "key": "legno",
+      "label": "Piano in legno",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a close-up of a natural oak solid timber kitchen worktop with its thick straight front edge, realistic joined timber staves and continuous wood grain, oiled satin finish. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "worktop-legno.webp"
+    },
+    {
+      "id": "worktop-quarzo",
+      "group": "worktop",
+      "key": "quarzo",
+      "label": "Piano in quarzo",
+      "bn": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: architectural interior render reference catalogue, one individual selectable sample, square 1024 by 1024 image. Primary request: a close-up of a pale ivory engineered quartz kitchen worktop slab including its clean straight front edge, very fine uniform mineral flecks, soft satin finish, no veining and no tile grid. Photorealistic professional material/product photography, refined but physically realistic Italian interiors catalogue. Keep the selected item or surface clearly readable and dominant, softly lit with neutral diffuse daylight. For surfaces use a front-on close-up with natural visible texture; for fixtures show the complete fixture and its mounting in a simple neutral setting; for interior style show a coherent complete living room. No text, no logos, no watermarks, no people, no collage, no comparison panels. The image itself is the exact visual reference for the selected option; avoid unrelated decorative distractions.",
+      "filename": "worktop-quarzo.webp"
+    }
+  ]
+}

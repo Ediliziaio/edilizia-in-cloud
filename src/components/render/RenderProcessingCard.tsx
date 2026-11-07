@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -63,13 +63,22 @@ const ACCENT: Record<NonNullable<RenderProcessingCardProps["accent"]>, {
 
 export function RenderProcessingCard({
   photoPreview,
-  elapsedSec,
+  elapsedSec: reportedElapsedSec,
   serverStage,
   dots = 0,
   accent = "red",
   tips,
   subjectLabel = "L'AI sta lavorando sulla tua foto",
 }: RenderProcessingCardProps) {
+  // Alcuni motori rispondono solo a immagine pronta: il tempo deve avanzare
+  // anche mentre la richiesta è aperta, prima dell'eventuale polling.
+  const [startedAt] = useState(() => Date.now() - reportedElapsedSec * 1000);
+  const [localElapsedSec, setLocalElapsedSec] = useState(reportedElapsedSec);
+  useEffect(() => {
+    const timer = setInterval(() => setLocalElapsedSec(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, [startedAt]);
+  const elapsedSec = Math.max(reportedElapsedSec, localElapsedSec);
   const stages = DEFAULT_STAGES;
   const tipsList = useMemo(() => (tips && tips.length > 0 ? tips : DEFAULT_TIPS), [tips]);
 

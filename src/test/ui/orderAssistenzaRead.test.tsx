@@ -11,7 +11,7 @@ vi.mock("@/integrations/supabase/client", () => ({supabase: {from: state.from}})
 const ticket = {id: "t", subject: "Intervento demo", status: "aperto", priority: "normale", tipo: "intervento", created_at: "2026-10-13", data_intervento_prevista: null as string | null, a_pagamento: true, pagato: false, importo_finale: 120, importo_preventivato: 100, merce_richiesta: false};
 function draw(alert = false, client = new QueryClient({defaultOptions: {queries: {retry: false}}})) {
   const open = vi.fn();
-  render(<QueryClientProvider client={client}><MemoryRouter>{alert ? <OrderAssistenzaAlert orderId="order" onOpen={open} /> : <OrderAssistenzaTab orderId="order" />}</MemoryRouter></QueryClientProvider>);
+  render(<QueryClientProvider client={client}><MemoryRouter>{alert ? <OrderAssistenzaAlert orderId="order" onOpen={open} /> : <OrderAssistenzaTab orderId="order" customerId="cliente-demo" />}</MemoryRouter></QueryClientProvider>);
   return {client, open};
 }
 beforeEach(() => {
@@ -63,4 +63,12 @@ describe("Assistenza collegata: letture e avvisi affidabili", () => {
     state.error = null; state.rows = [ticket]; fireEvent.click(screen.getByRole("button", {name: "Riprova"}));
     await waitFor(() => expect(screen.getByText("1 assistenza aperta")).toBeInTheDocument());
   });
+});
+
+it("BUG-60: il link di creazione conserva cliente e commessa", async () => {
+ draw();
+ const link = await screen.findByRole("link", { name: "Nuova assistenza" });
+ const url = new URL(link.getAttribute("href")!, "https://example.test");
+ expect(url.searchParams.get("order")).toBe("order");
+ expect(url.searchParams.get("customer_id")).toBe("cliente-demo");
 });

@@ -165,9 +165,9 @@ export default function PlanDetail() {
         name: `${plan.name} (copia)`,
         slug: `${plan.slug}-copia-${Date.now().toString(36)}`,
         is_active: false,
-        stripe_product_id: null,
-        stripe_price_monthly_id: null,
-        stripe_price_yearly_id: null,
+        stripe_product_id: null as null,
+        stripe_price_monthly_id: null as null,
+        stripe_price_yearly_id: null as null,
       };
       const { data, error } = await supabase
         .from("subscription_plans")

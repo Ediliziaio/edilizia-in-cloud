@@ -156,6 +156,8 @@ interface OrderItemsListProps {
   showOdaCoverage?: boolean;
   onAttachmentsRefresh?: () => void;
   onStockPick?: (stockItemId: string, quantity: number) => void;
+  stockPickBlockedReason?: string;
+  onOpenWarehouseExit?: () => void;
   onItemUpdate?: (item: OrderItem) => void;
   /**
    * v8.6.34 — Company id della commessa.
@@ -273,6 +275,8 @@ export function OrderItemsList({
   showStatusControls = false,
   onAttachmentsRefresh,
   onStockPick,
+  stockPickBlockedReason,
+  onOpenWarehouseExit,
   onItemUpdate,
   showOdaCoverage = false,
   fallbackCompanyId,
@@ -1054,14 +1058,19 @@ export function OrderItemsList({
 
   const handlePickFromStock = () => {
     setDialogError(null);
+    if (stockPickBlockedReason) { setDialogError(stockPickBlockedReason); return; }
     const stock = stockItems.find((s) => s.id === selectedStockItem);
     if (!stock) {
       setDialogError("Seleziona un articolo da magazzino.");
       return;
     }
-    const qty = Math.round(Number(stockPickQuantity));
-    if (!Number.isFinite(qty) || qty <= 0) {
-      setDialogError("La quantità da prelevare deve essere maggiore di zero.");
+    if (stock.tracking_mode === "serialized") {
+      setDialogError("Per gli articoli serializzati usa Magazzino → Uscita merce, seleziona la commessa e le matricole da consegnare.");
+      return;
+    }
+    const qty = Number(stockPickQuantity);
+    if (!Number.isInteger(qty) || qty <= 0) {
+      setDialogError("La quantità da prelevare deve essere un numero intero maggiore di zero.");
       return;
     }
     if (qty > stock.quantity) {
@@ -1665,6 +1674,10 @@ export function OrderItemsList({
               </TabsContent>
 
               <TabsContent value="stock">
+                {stockPickBlockedReason && <div className="mb-3 space-y-2">
+                  <p role="alert" className="text-sm text-amber-800">{stockPickBlockedReason}</p>
+                  {onOpenWarehouseExit && <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); onOpenWarehouseExit(); }}>Apri uscita merce per questa commessa</Button>}
+                </div>}
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label>Articolo da Magazzino *</Label>
@@ -1768,6 +1781,11 @@ export function OrderItemsList({
                           {stock.description && <p className="text-muted-foreground">{stock.description}</p>}
                         </div>
                         <div className="space-y-2">
+                          {(!stockPickBlockedReason && stock.tracking_mode === "serialized") && (
+                            <p role="alert" className="text-sm text-amber-800">
+                              {stockPickBlockedReason || "Per gli articoli serializzati usa Magazzino → Uscita merce, seleziona la commessa e le matricole da consegnare."}
+                            </p>
+                          )}
                           <Label>Quantità da prelevare</Label>
                           <Input type="number" min="1" max={stock.quantity} value={stockPickQuantity} onChange={(e) => setStockPickQuantity(e.target.value)} />
                           {parseInt(stockPickQuantity) > stock.quantity && (
@@ -1790,7 +1808,7 @@ export function OrderItemsList({
                     type="button"
                     className="max-sm:flex-1"
                     onClick={handlePickFromStock}
-                    disabled={!selectedStockItem || !parseInt(stockPickQuantity) || parseInt(stockPickQuantity) > (stockItems.find((s) => s.id === selectedStockItem)?.quantity || 0)}
+                    disabled={!!stockPickBlockedReason || stockItems.find((s) => s.id === selectedStockItem)?.tracking_mode === "serialized" || !selectedStockItem || !parseInt(stockPickQuantity) || parseInt(stockPickQuantity) > (stockItems.find((s) => s.id === selectedStockItem)?.quantity || 0)}
                   >
                     <Warehouse className="h-4 w-4 mr-2" />
                     Preleva

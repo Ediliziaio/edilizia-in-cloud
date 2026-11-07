@@ -157,11 +157,13 @@ describe("Salvataggio e bozza", () => {
 
   it("il pulsante dice «Salva permessi» e c'è solo con modifiche", () => {
     render(<UserRolesPermissionsTab user={persona()} onSave={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "Salva permessi" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Salva permessi" })).toBeNull();
     apriTuttiIGruppi();
     fireEvent.click(screen.getByRole("switch", { name: "Magazzino" }));
     expect(screen.getByRole("button", { name: "Salva permessi" })).toBeEnabled();
     expect(screen.queryByRole("button", { name: /Salva Permessi/ })).toBeNull();
+    fireEvent.click(screen.getByRole("switch", { name: "Magazzino" }));
+    expect(screen.queryByRole("button", { name: "Salva permessi" })).toBeNull();
   }, TIMEOUT);
 });
 

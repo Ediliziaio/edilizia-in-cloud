@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, Info, Loader2, Maximize2, Minimize2, RotateCcw, Save } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { EffettoPrezzo } from "../EffettoPrezzo";
 import { effettoSulPrezzo, useRigheCollegate } from "@/lib/planimetrie/effettoPrezzo";
 import { calcolaQuantita } from "../../../../shared/planimetrie/quantita.ts";
+import { controlliDalDocumento } from "../../../../shared/planimetrie/letturaDocumento.ts";
 
 interface Props {
   companyId: string;
@@ -53,10 +55,11 @@ export function EditorConSalvataggio({
   titoloProposto = "",
   collegamenti,
   origine = "manuale",
-  avvisi = [],
+  avvisi: avvisiPassati,
   sopra,
 }: Props) {
   const navigate = useNavigate();
+  const avvisi = avvisiPassati ?? (iniziale ? controlliDalDocumento(iniziale) : []);
   const queryClient = useQueryClient();
   const ricalcoArchivio = useMemo(() => archivioRicalco(companyId), [companyId]);
   const [titolo, setTitolo] = useState(titoloProposto);
@@ -97,16 +100,8 @@ export function EditorConSalvataggio({
     if (cambi.current > 1) setModificata(true);
   }, []);
 
-  // Uscendo con modifiche non salvate, il browser chiede conferma.
-  useEffect(() => {
-    if (!modificata) return;
-    const avvisa = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    window.addEventListener("beforeunload", avvisa);
-    return () => window.removeEventListener("beforeunload", avvisa);
-  }, [modificata]);
+  // Protegge anche «Indietro» e le altre voci del menu dell'app.
+  useSettingsDraftGuard(modificata);
 
   const salva = async () => {
     if (!documento.current) return;

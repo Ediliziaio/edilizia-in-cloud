@@ -1,0 +1,17 @@
+import "@testing-library/jest-dom/vitest";
+import {render,screen,waitFor,fireEvent,cleanup} from "@testing-library/react";
+import {afterEach,beforeEach,expect,it,vi} from "vitest";
+import type {DocumentoOperativo} from "@/lib/documentiOperativi/modello";
+const m=vi.hoisted(()=>({prepare:vi.fn()}));
+vi.mock("@/contexts/AuthContext",()=>({useAuth:()=>({effectiveCompany:{id:"c",name:"Impresa"},user:{id:"u"}})}));
+vi.mock("@/lib/documentiOperativi/preparaEmail",()=>({preparaEmailDocumento:m.prepare}));
+vi.mock("@/pages/azienda/email/components/EmailComposeDialog",()=>({EmailComposeDialog:({context,documentSummary}:{context:unknown;documentSummary:unknown})=><div role="dialog" aria-label="Email al fornitore"><pre>{JSON.stringify({context,documentSummary})}</pre></div>}));
+import {DocumentoEmailDialog} from "@/components/documentiOperativi/DocumentoEmailDialog";
+const documento:DocumentoOperativo={tipo:"materiali",numero:"ODA-1",fornitoreId:"f",destinatario:{nome:"Fornitore"},righe:[{descrizione:"Tegole",unita:"pz",quantita:1,prezzo:2,iva:22}]};
+const props={open:true,documento,modo:"pdf" as const,context:{mode:"new" as const},onOpenChange:vi.fn()};
+afterEach(cleanup);
+beforeEach(()=>{m.prepare.mockReset().mockResolvedValue({mode:"new",initialBodyHtml:"Ordine",initialAttachments:[{name:"ODA-1.pdf"}]});});
+it.each(["testo","pdf"] as const)("il pulsante %s porta direttamente all’email senza scelta del documento",async modo=>{render(<DocumentoEmailDialog {...props} modo={modo}/>);expect(await screen.findByRole("dialog",{name:"Email al fornitore"})).toHaveTextContent("Ordine");expect(screen.queryByText("Prepara documento e invio")).not.toBeInTheDocument();expect(m.prepare).toHaveBeenCalledTimes(1);expect(m.prepare).toHaveBeenCalledWith(expect.objectContaining({modo}));});
+it("non rigenera l’allegato quando un refetch cambia i dati mentre l’email è aperta",async()=>{const v=render(<DocumentoEmailDialog {...props}/>);await screen.findByRole("dialog",{name:"Email al fornitore"});v.rerender(<DocumentoEmailDialog {...props} documento={{...documento,note:"Refetch"}}/>);expect(m.prepare).toHaveBeenCalledTimes(1);});
+it("un errore resta recuperabile con Riprova senza aprire il vecchio wizard",async()=>{m.prepare.mockRejectedValueOnce(new Error("Caricamento PDF fallito"));render(<DocumentoEmailDialog {...props}/>);expect(await screen.findByRole("alert")).toHaveTextContent("Caricamento PDF fallito");fireEvent.click(screen.getByRole("button",{name:"Riprova"}));await waitFor(()=>expect(screen.getByRole("dialog",{name:"Email al fornitore"})).toBeInTheDocument());});
+it("chiudere mentre prepara annulla l’operazione senza aprire email in ritardo",async()=>{m.prepare.mockImplementationOnce(()=>new Promise(()=>{}));const v=render(<DocumentoEmailDialog {...props}/>);await waitFor(()=>expect(m.prepare).toHaveBeenCalledTimes(1));const signal=m.prepare.mock.calls[0][0].signal as AbortSignal;v.unmount();expect(signal.aborted).toBe(true);});

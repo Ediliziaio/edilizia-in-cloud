@@ -2,7 +2,8 @@ import { useEffect, useRef } from "react";
 
 export interface SEOOptions {
   title: string;
-  description: string;
+  /** Se omessa viene usata la descrizione predefinita del sito. */
+  description?: string;
   canonical?: string;
   ogImage?: string;
   noindex?: boolean;

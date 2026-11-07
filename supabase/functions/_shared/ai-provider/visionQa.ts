@@ -10,6 +10,8 @@
 
 import { callOpenRouter } from "./openrouter.ts";
 import type { ChatMessage } from "./types.ts";
+import { AiTurnControl } from "../aiTurnControl.ts";
+import { isProviderCreditError } from "../aiRequestGuard.ts";
 
 // v8.6.32 — Gemini eliminato. Chain: Claude Haiku + GPT-4o-mini.
 /**
@@ -41,9 +43,12 @@ const VISION_MODELS_CHAIN = [
 ];
 
 export interface VisionQaArgs {
+  /** Per i render vincolati alla pianta, un JSON senza pass booleano non è una verifica. */
+  requireExplicitPass?: boolean;
   sourceImageDataUrl: string;
   candidateImageDataUrl: string;
   qaPrompt: string;
+  referenceImages?: Array<{ label: string; dataUrl: string }>;
   metadata: {
     task_kind: string;
     company_id?: string | null;
@@ -82,12 +87,21 @@ export async function callVisionQa(
         { type: "text", text: args.qaPrompt },
         { type: "image_url", image_url: { url: args.sourceImageDataUrl } },
         { type: "image_url", image_url: { url: args.candidateImageDataUrl } },
+        ...(args.referenceImages ?? []).slice(0, 3).flatMap((r) => [
+          { type: "text" as const, text: r.label },
+          { type: "image_url" as const, image_url: { url: r.dataUrl } },
+        ]),
       ],
     },
   ];
 
   let lastError: Error | null = null;
+  const durata = args.timeoutMs && Number.isFinite(args.timeoutMs) ? Math.max(1_000, Math.min(25_000, args.timeoutMs)) : undefined;
+  // Il budget è unico per tutti i modelli e i retry HTTP. Le immagini in base64
+  // pesano nella stima a caratteri: il limite è proporzionato al payload reale.
+  const turnControl = durata ? new AiTurnControl({ durationMs: durata, providerTimeoutMs: durata, maxAttempts: 3, maxEstimatedInputTokens: Math.max(240_000, Math.ceil(JSON.stringify(messages).length / 3) * 3) }) : undefined;
   for (const model of (args.models ?? VISION_MODELS_CHAIN)) {
+    if (turnControl && turnControl.remainingMs() < 1_000) break;
     try {
       const result = await callOpenRouter(
         {
@@ -100,6 +114,7 @@ export async function callVisionQa(
         {
           task_kind: args.metadata.task_kind,
           company_id: args.metadata.company_id,
+          ...(turnControl ? { turnControl } : {}),
         },
       );
 
@@ -111,6 +126,7 @@ export async function callVisionQa(
 
       try {
         const parsed = JSON.parse(text) as { pass?: boolean; issues?: unknown };
+        if (args.requireExplicitPass && typeof parsed.pass !== "boolean") throw new Error("Missing explicit QA verdict");
         // v8.3.7 — Accetta sia stringhe che oggetti {category, detail}.
         const issues: VisionQaIssue[] = Array.isArray(parsed.issues)
           ? parsed.issues
@@ -163,6 +179,7 @@ export async function callVisionQa(
           detail: String(lastError.message ?? lastError),
         }),
       );
+      if (isProviderCreditError(e)) break; // tutti i modelli usano lo stesso conto
     }
   }
 

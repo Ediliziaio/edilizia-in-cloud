@@ -1,3 +1,4 @@
+import { erroreVerificaDDT } from "@/lib/ddt/verificaNuovoDDT";
 // ============================================================================
 // NewDDTDialog — Wizard procedurale per la registrazione di un nuovo DDT
 // ----------------------------------------------------------------------------
@@ -22,7 +23,7 @@
 // in `ddt_righe`, col loro prezzo.
 // ============================================================================
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
@@ -318,6 +319,7 @@ export function NewDDTDialog({
     }
   };
 
+  const erroreVerifica = erroreVerificaDDT({data,stato,quantita:qty,righe,haDocumento:!!ddtFile});
   // ── Validation per step ───────────────────────────
   const canGoNext = useMemo(() => {
     if (currentStep.key === "documento") {
@@ -331,8 +333,8 @@ export function NewDDTDialog({
     if (currentStep.key === "consegna") {
       return true; // tutto opzionale
     }
-    return true;
-  }, [currentStep.key, poId, orderId, origine, numero]);
+    return !erroreVerifica;
+  }, [currentStep.key, poId, orderId, origine, numero, erroreVerifica]);
 
   // «Va in cantiere» si può dire solo se si sa quale: con l'ODA la commessa
   // arriva dall'ordine, altrimenti è quella scelta a mano. Senza commessa la
@@ -354,16 +356,19 @@ export function NewDDTDialog({
 
   // ── Confirm submit (all'ultimo step) ───────────────
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitInCorso = useRef(false);
 
   const handleSubmit = async () => {
     // Guard interno contro double-submit: prima c'erano solo button
     // `disabled={isSubmitting}` ma tra primo click e setIsSubmitting(true)
     // c'è micro-finestra che doppio click ravvicinato attraversa → 2 DDT
     // duplicati creati. Pattern identico al P2 FIX di QuoteBuilder.
-    if (isSubmitting) return;
+    if (submitInCorso.current) return;
+    if (erroreVerifica) {toast.error(erroreVerifica);return;}
     if (!numero.trim()) return;
     if (origine === "oda" && !poId) return;
     if (origine === "commessa" && !orderId) return;
+    submitInCorso.current = true;
     setIsSubmitting(true);
     try {
       const created = await createDDT.mutateAsync({
@@ -421,6 +426,7 @@ export function NewDDTDialog({
     } catch {
       // Toast gestito dalle mutation
     } finally {
+      submitInCorso.current = false;
       setIsSubmitting(false);
     }
   };
@@ -571,6 +577,7 @@ export function NewDDTDialog({
           )}
         </div>
 
+        {isFinalStep && erroreVerifica && <p role="alert" className="px-4 text-sm text-amber-700">{erroreVerifica}</p>}
         {/* ── Footer nav ─────────────────────────────── */}
         <DialogFooter className="flex-row justify-between sm:justify-between border-t px-4 py-3 bg-muted/30 gap-2">
           {stepIdx === 0 ? (
@@ -818,6 +825,7 @@ function DocumentoStep({
             Numero DDT *
           </Label>
           <Input
+            aria-label="Numero DDT"
             value={numero}
             onChange={(e) => onNumeroChange(e.target.value)}
             placeholder="es. DDT-2026-001"
@@ -832,6 +840,7 @@ function DocumentoStep({
           </Label>
           <Input
             type="date"
+            aria-label="Data ricezione"
             value={data}
             onChange={(e) => onDataChange(e.target.value)}
             className="h-11"
@@ -1248,6 +1257,7 @@ function VerificaStep(props: VerificaStepProps) {
             type="number"
             min="0"
             step="0.01"
+            aria-label="Quantità ricevuta"
             value={props.qty}
             onChange={(e) => props.onQtyChange(e.target.value)}
             placeholder="0"

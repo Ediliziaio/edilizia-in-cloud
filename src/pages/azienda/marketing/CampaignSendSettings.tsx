@@ -1,3 +1,4 @@
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { useState, useEffect, useRef } from "react";
 import DOMPurify from "dompurify";
 import { useParams, useNavigate } from "react-router-dom";
@@ -215,7 +216,7 @@ export default function CampaignSendSettings() {
   const saveMut = useMutation({
     mutationFn: async () => {
       if (!company?.id) throw new Error("Azienda non disponibile");
-      const payload: Record<string, any> = {
+      const payload: TablesUpdate<"email_campaigns"> = {
         sender_name: senderName || null,
         sender_email: senderEmail || null,
         subject,
@@ -264,7 +265,7 @@ export default function CampaignSendSettings() {
       if (abTestEnabled && !abSubjectB?.trim()) throw new Error("Oggetto variante B obbligatorio per A/B test");
 
       // Save settings first
-      const payload: Record<string, any> = {
+      const payload: TablesUpdate<"email_campaigns"> = {
         sender_name: senderName || null,
         sender_email: senderEmail,
         subject,

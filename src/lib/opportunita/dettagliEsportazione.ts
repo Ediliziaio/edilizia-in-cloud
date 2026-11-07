@@ -33,6 +33,30 @@ export interface AppuntamentoEsportato {
   internal_notes: string | null;
 }
 
+/** Chi può leggere note e appuntamenti, come le regole del database: senza, la colonna uscirebbe a zero e sembrerebbe vera. */
+export interface PermessiDettagli {
+  isAdmin?: boolean;
+  onlyAssigned?: boolean;
+  canViewMarketingContacts?: boolean;
+  canViewOrders?: boolean;
+  canViewCalendar?: boolean;
+  canViewMarketingAppointments?: boolean;
+  canEditOrders?: boolean;
+}
+
+export function accessoDettagli(p: PermessiDettagli) {
+  const tutto = !!p.isAdmin;
+  return {
+    note: tutto || !!p.canViewMarketingContacts || !!p.canViewOrders,
+    appuntamenti: tutto || !!p.canViewCalendar || !!p.canViewMarketingAppointments || !!p.canEditOrders,
+    /** Vede solo una parte: i numeri nel file valgono per quello che può vedere. */
+    parzialeNote: !tutto && !!p.onlyAssigned,
+    // Dal calendario o dalle commesse si vedono solo gli appuntamenti con una commessa
+    // o propri: tutti quelli del CRM soltanto col permesso sugli appuntamenti marketing.
+    parzialeAppuntamenti: !tutto && (!!p.onlyAssigned || !p.canViewMarketingAppointments),
+  };
+}
+
 export interface OpportunitaPerDettagli { id: string; contact_id?: string | null }
 
 const BLOCCO = 200;
@@ -102,6 +126,24 @@ export function perOpportunita<T extends { opportunity_id: string | null; contac
   return out;
 }
 
+/** I nomi di chi ha scritto note o segue appuntamenti, anche se non è più nello staff. */
+export async function leggiNomiPersone(ids: readonly (string | null | undefined)[], noti: Record<string, string>): Promise<Record<string, string>> {
+  const mancanti = [...new Set(ids.filter((id): id is string => !!id && !noti[id]))];
+  if (mancanti.length === 0) return noti;
+  // I nomi sono un di più: se non si leggono il file parte lo stesso, con «Nome non disponibile».
+  const righe = await leggiPerBlocchi<{ id: string; first_name: string | null; last_name: string | null }>("profiles", "id, first_name, last_name", "id", mancanti)
+    .catch((): Array<{ id: string; first_name: string | null; last_name: string | null }> => []);
+  const trovati = Object.fromEntries(righe.flatMap((p) => {
+    const nome = [p.first_name, p.last_name].map((v) => v?.trim()).filter(Boolean).join(" ");
+    return nome ? [[p.id, nome] as const] : [];
+  }));
+  return { ...noti, ...trovati };
+}
+
+/** Il nome di una persona; se non si può leggere si dice questo, non che ha lasciato l'azienda. */
+export const nomePersona = (id: string | null | undefined, nomi: Record<string, string>) =>
+  (id ? nomi[id] || "Nome non disponibile" : "");
+
 const quandoNota = (iso: string) => new Intl.DateTimeFormat("it-IT", {
   timeZone: "Europe/Rome", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
 }).format(new Date(iso)).replace(",", "");
@@ -116,10 +158,13 @@ const parola = (t: string | null | undefined) => {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
 };
 
+/** Completato per lo spunta o per lo stato: nei dati ci sono tutti e due i casi. */
+const completato = (a: Pick<AppuntamentoEsportato, "status" | "is_completed">) => !!a.is_completed || a.status === "completato";
+
 /** Lo stato di un appuntamento: quello scritto, ma un annullato resta annullato. */
 export function statoAppuntamento(a: Pick<AppuntamentoEsportato, "status" | "is_completed">): string {
   if (a.status === "annullato") return "Annullato";
-  if (a.is_completed) return "Completato";
+  if (completato(a)) return "Completato";
   return parola(a.status);
 }
 
@@ -127,9 +172,13 @@ const titoloAppuntamento = (a: AppuntamentoEsportato) => a.title?.trim() || paro
 const quandoAppuntamento = (a: AppuntamentoEsportato) => [dataItaliana(a.appointment_date), ora(a.appointment_time)].filter(Boolean).join(" ");
 const descriviAppuntamento = (a: AppuntamentoEsportato) => `${quandoAppuntamento(a)} ${titoloAppuntamento(a)} (${statoAppuntamento(a)})`.trim();
 
-/** Una cella di Excel tiene al massimo 32.767 caratteri: meglio dire cosa manca che tagliare in silenzio. */
+/**
+ * Una cella di Excel tiene al massimo 32.767 caratteri: meglio dire cosa manca, e dove
+ * trovarlo, che tagliare in silenzio. Il CSV quel limite non ce l'ha, e nemmeno il foglio.
+ */
 const MASSIMO_CELLA = 32000;
-function uniscePerCella(voci: string[]): string {
+function uniscePerCella(voci: string[], perExcel: boolean): string {
+  if (!perExcel) return voci.join("\n");
   let testo = "";
   for (let i = 0; i < voci.length; i++) {
     const prossimo = testo ? `${testo}\n${voci[i]}` : voci[i];
@@ -140,7 +189,7 @@ function uniscePerCella(voci: string[]): string {
 }
 
 /** Le colonne delle note di un'opportunità: dalla più recente. */
-export function celleNote(note: readonly NotaEsportata[] | undefined, autori: Record<string, string>): Record<string, string> {
+export function celleNote(note: readonly NotaEsportata[] | undefined, autori: Record<string, string>, perExcel = true): Record<string, string> {
   const ordinate = [...(note ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at));
   return {
     note_numero: String(ordinate.length),
@@ -148,24 +197,24 @@ export function celleNote(note: readonly NotaEsportata[] | undefined, autori: Re
     note_testo: uniscePerCella(ordinate.flatMap((n) => {
       const testo = n.content?.trim();
       if (!testo) return [];
-      const autore = n.created_by ? autori[n.created_by] : "";
+      const autore = nomePersona(n.created_by, autori);
       return [`[${quandoNota(n.created_at)}${autore ? ` · ${autore}` : ""}] ${testo}`];
-    })),
+    }), perExcel),
   };
 }
 
 /** Le colonne degli appuntamenti: il prossimo non annullato, l'ultimo passato, l'elenco. */
-export function celleAppuntamenti(lista: readonly AppuntamentoEsportato[] | undefined, oggi: string): Record<string, string> {
+export function celleAppuntamenti(lista: readonly AppuntamentoEsportato[] | undefined, oggi: string, perExcel = true): Record<string, string> {
   const ordinati = [...(lista ?? [])].sort((a, b) => `${a.appointment_date ?? ""}${a.appointment_time ?? ""}`.localeCompare(`${b.appointment_date ?? ""}${b.appointment_time ?? ""}`));
   const validi = ordinati.filter((a) => a.status !== "annullato");
-  const prossimo = validi.find((a) => (a.appointment_date ?? "") >= oggi && !a.is_completed);
-  const passati = validi.filter((a) => (a.appointment_date ?? "") < oggi || a.is_completed);
+  const prossimo = validi.find((a) => (a.appointment_date ?? "") >= oggi && !completato(a));
+  const passati = validi.filter((a) => (a.appointment_date ?? "") < oggi || completato(a));
   const ultimo = passati[passati.length - 1];
   return {
     app_numero: String(ordinati.length),
     app_prossimo: prossimo ? descriviAppuntamento(prossimo) : "",
     app_ultimo: ultimo ? descriviAppuntamento(ultimo) : "",
-    app_elenco: uniscePerCella([...ordinati].reverse().map(descriviAppuntamento)),
+    app_elenco: uniscePerCella([...ordinati].reverse().map(descriviAppuntamento), perExcel),
   };
 }
 
@@ -178,7 +227,7 @@ export function righeFoglioNote(noteDi: Record<string, NotaEsportata[]>, opp: re
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .map((n) => ({
       opportunita: o.name ?? "", contatto: o.contatto, telefono: o.telefono,
-      quando: quandoNota(n.created_at), autore: (n.created_by && autori[n.created_by]) || "", testo: n.content!.trim(),
+      quando: quandoNota(n.created_at), autore: nomePersona(n.created_by, autori), testo: n.content!.trim(),
     })));
 }
 
@@ -190,7 +239,7 @@ export function righeFoglioAppuntamenti(appDi: Record<string, AppuntamentoEsport
       opportunita: o.name ?? "", contatto: o.contatto, telefono: o.telefono,
       data: dataItaliana(a.appointment_date), ora: ora(a.appointment_time), fine: ora(a.appointment_end_time),
       tipo: parola(a.appointment_type), titolo: a.title?.trim() ?? "", stato: statoAppuntamento(a),
-      assegnato: (a.assigned_to && persone[a.assigned_to]) || "",
+      assegnato: nomePersona(a.assigned_to, persone),
       luogo: [a.address_line, a.address_city].map((v) => v?.trim()).filter(Boolean).join(", "),
       note: a.internal_notes?.trim() ?? "",
     })));

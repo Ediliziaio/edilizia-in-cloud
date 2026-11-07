@@ -97,8 +97,6 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 // M12 · Preset stili cover 1-click (front-end batches, no migration).
 import { COVER_PRESETS, detectActiveCoverPreset } from "./coverPresets";
-// M14 · Contrast WCAG check (testo vs sfondo cover)
-import { contrastRatio, wcagLevel, suggestBestTextColor } from "@/lib/utils/contrast";
 // M16 · Galleria immagini curate EiC per cover
 import { COVER_STOCK_IMAGES, COVER_STOCK_CATEGORIE, type CoverStockImage } from "./coverStockImages";
 // M20 · Palette colore intelligente (brand variations + curate)
@@ -503,7 +501,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
   const qualityItems = useMemo(() => {
     const items = buildTemplateQualityItems(form, companyAnagrafica);
     if (localModule && (!form.condizioni_legali_attivo || !form.condizioni_legali_testo?.trim())) {
-      items.unshift({ level: "critical", title: "Condizioni dell'offerta da completare", detail: "Prima dell'invio, inserisci e verifica i testi approvati dall'azienda: pagamenti, validità, inclusioni, esclusioni e condizioni applicabili. Il modello locale non è ancora collegato al preventivatore.", section: "Condizioni contrattuali" });
+      items.unshift({ level: "critical", title: "Condizioni dell'offerta da completare", detail: "Prima dell'invio, inserisci e verifica i testi approvati dall'azienda: pagamenti, validità, inclusioni, esclusioni e condizioni applicabili.", section: "Condizioni contrattuali" });
     }
     return items;
   }, [form, companyAnagrafica, !!localModule]);
@@ -1800,7 +1798,9 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
       {/* Pagine dedicate macrocategoria — sincronizzate con il listino */}
       <SrCard
         title="Pagine dedicate macrocategoria"
-        description="Quando un articolo di una macro attivata è nel preventivo, il PDF aggiunge una pagina dedicata (foto + descrizione estesa). Le modifiche qui sono sincronizzate con il listino."
+        description={localModule
+          ? "Le pagine prodotto del PDF usano le schede del listino del preventivo. Questo modello non modifica il catalogo condiviso."
+          : "Quando un articolo di una macro attivata è nel preventivo, il PDF aggiunge una pagina dedicata (foto + descrizione estesa). Le modifiche qui sono sincronizzate con il listino."}
         icon={<FileText className="h-4 w-4" />}
       >
         {localModule ? <p className="text-sm text-muted-foreground">Le schede prodotto vengono dal listino del preventivo. Questo modello non modifica il catalogo condiviso.</p> : <MacroPagineDedicateManager vertical="serramentista" />}

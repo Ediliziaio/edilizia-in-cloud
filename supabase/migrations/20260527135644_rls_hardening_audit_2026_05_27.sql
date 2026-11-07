@@ -8,6 +8,59 @@
 -- + 3 osservazioni sicure.
 -- =============================================================
 
+-- Prerequisiti: definizioni introdotte successivamente nello storico.
+CREATE TABLE IF NOT EXISTS public.fv_function_logs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  function_name text NOT NULL,
+  company_id uuid,
+  user_id uuid,
+  progetto_id uuid,
+  request_payload jsonb,
+  response_status integer,
+  response_summary jsonb,
+  error_message text,
+  duration_ms integer,
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE public.fv_function_logs ENABLE ROW LEVEL SECURITY;
+CREATE TABLE IF NOT EXISTS public.customer_interactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  -- Canale
+  channel TEXT NOT NULL CHECK (channel IN (
+    'email_inbound', 'email_outbound',
+    'chat_inbound', 'chat_outbound',
+    'whatsapp_inbound', 'whatsapp_outbound',
+    'phone_call_inbound', 'phone_call_outbound',
+    'ticket_created', 'ticket_replied', 'ticket_resolved',
+    'nps_submitted', 'demo_completed',
+    'in_app_chat_inbound', 'in_app_chat_outbound'
+  )),
+  -- Direction derivata (inbound = da cliente, outbound = noi → cliente)
+  direction TEXT NOT NULL CHECK (direction IN ('inbound', 'outbound')),
+  -- Chi (utente del cliente o membro team noi)
+  contact_user_id UUID,  -- null se ignoto / interlocutore esterno
+  staff_user_id UUID,    -- staff member nostro che ha risposto (null se AI auto)
+  -- Quale persona AI (se applicable): sofia/giorgio/elena/tommaso/beatrice/marco
+  ai_persona_key TEXT,
+  -- Contenuto
+  subject TEXT,
+  body TEXT,
+  -- Sentiment analysis (popolato async da gpt-4o-mini)
+  sentiment TEXT CHECK (sentiment IN ('positive', 'neutral', 'frustrated', 'angry', 'unknown')),
+  sentiment_confidence NUMERIC(3,2) CHECK (sentiment_confidence BETWEEN 0 AND 1),
+  -- Riferimenti esterni (per de-dup + sync)
+  external_thread_id TEXT,
+  external_message_id TEXT,
+  -- Related ticket (se applicabile)
+  related_ticket_id UUID,
+  -- Metadata
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  occurred_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.customer_interactions ENABLE ROW LEVEL SECURITY;
+
 -- ─── L1 ai_model_config: cross-tenant leak ──────────────────
 DROP POLICY IF EXISTS config_read_all ON public.ai_model_config;
 CREATE POLICY ai_model_config_read_own ON public.ai_model_config

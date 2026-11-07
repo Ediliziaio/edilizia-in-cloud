@@ -16,6 +16,8 @@ import { TabellaCronoprogramma } from "./TabellaCronoprogramma";
 import { righeTabellaCronoprogramma } from "@/lib/orders/tabellaCronoprogramma";
 import { realeSottofase, vociDelleSottofasi, type Sottofase } from "@/lib/orders/sottofasi";
 import { useCostiMaterialiFasi } from "@/hooks/useCostiMaterialiFasi";
+import { useCostiDirettiFasi } from "@/hooks/useCostiDirettiFasi";
+import { ripartisciCostiDiretti } from "@/lib/orders/costiDirettiFasi";
 import { posaPerFaseDi } from "@/lib/distinta/consumiMateriali";
 import { useVociPrevisteFasi } from "@/hooks/useVociPrevisteFasi";
 import { economiaFasi, type EconomiaFase } from "@/lib/orders/economiaFasi";
@@ -329,12 +331,18 @@ export function CronoprogrammaCommessa({
   const { data: costiMateriali } = useCostiMaterialiFasi(orderId, canViewCosts);
   const posaPerFase = useMemo(() => posaPerFaseDi(costiMateriali?.rapportini, materials), [costiMateriali, materials]);
   const { data: vociPreviste } = useVociPrevisteFasi(orderId, canViewCosts);
+  // Lo stesso consuntivo delle Lavorazioni: anche fatture e spese della commessa.
+  const { data: costiDiretti } = useCostiDirettiFasi(orderId, canViewCosts);
+  const quoteCosti = useMemo(
+    () => (costiDiretti?.costi ? ripartisciCostiDiretti({ costi: costiDiretti.costi, fasi: phases, ditte: costiDiretti.ditte, contratti: costiDiretti.contratti }) : []),
+    [costiDiretti, phases],
+  );
   const { daMostrare: avanzamentoDellaCommessa } = useAvanzamentoCommessa(orderId);
 
   const oggi = giornoLocale(new Date().toISOString());
   const economia = useMemo(
-    () => economiaFasi({ fasi: phases, righe: materials, assegnazioni: allAssignments, acquisti: costiMateriali?.acquisti, movimenti: costiMateriali?.movimenti, posaPerFase, vociPreviste }),
-    [phases, materials, allAssignments, costiMateriali, posaPerFase, vociPreviste],
+    () => economiaFasi({ fasi: phases, righe: materials, assegnazioni: allAssignments, acquisti: costiMateriali?.acquisti, movimenti: costiMateriali?.movimenti, posaPerFase, vociPreviste, costiDiretti: quoteCosti }),
+    [phases, materials, allAssignments, costiMateriali, posaPerFase, vociPreviste, quoteCosti],
   );
   const fasi = useMemo(
     () => fasiCronoprogramma(

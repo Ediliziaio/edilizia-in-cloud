@@ -488,7 +488,8 @@ export function prospettoQuotato(piani: PianoProspetto[], lato: Lato): Disegno2D
 
 // ─── Uscite ──────────────────────────────────────────────────────────────────
 
-const STILE_SVG: Record<string, { fill: string; stroke: string; width: number; dash?: string }> = {
+/** Stesso aspetto per ante, oscuranti e coperture nell'anteprima e nel PDF. */
+export const STILE_DISEGNO: Record<string, { fill: string; stroke: string; width: number; dash?: string }> = {
   muro: { fill: "#ffffff", stroke: "#0f172a", width: 0.5 },
   muro_lontano: { fill: "#f8fafc", stroke: "#94a3b8", width: 0.3 },
   taglio: { fill: "#1e293b", stroke: "#0f172a", width: 0.5 },
@@ -525,7 +526,7 @@ export function disegnoInSvg(d: Disegno2D, scala = 50): { svg: string; larghezza
   const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
   const parti: string[] = [`<rect width="${w}" height="${h}" fill="#ffffff"/>`];
   for (const p of d.primitive) {
-    const st = STILE_SVG[p.stile] ?? STILE_SVG.muro;
+    const st = STILE_DISEGNO[p.stile] ?? STILE_DISEGNO.muro;
     if (p.tipo === "rett") {
       parti.push(`<rect x="${X(p.u1).toFixed(2)}" y="${Y(p.z2).toFixed(2)}" width="${((p.u2 - p.u1) * k).toFixed(2)}" height="${((p.z2 - p.z1) * k).toFixed(2)}" fill="${st.fill}" stroke="${st.stroke}" stroke-width="${st.width}"/>`);
       if (p.stile === "porta") parti.push(`<line x1="${X(p.u1)}" y1="${Y(p.z2)}" x2="${X((p.u1 + p.u2) / 2)}" y2="${Y(p.z1)}" stroke="#94a3b8" stroke-width="0.2"/>`);

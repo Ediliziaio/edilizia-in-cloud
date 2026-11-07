@@ -102,8 +102,9 @@ export function useManualTreasury() {
         const opening = Number(params.opening_balance) || 0;
         patch.opening_balance = opening;
         // ricalcola il saldo = apertura + somma movimenti
-        const { data: sumRow } = await supabase
-          .from("bank_transactions").select("amount").eq("account_id", params.id);
+        const { data: sumRow, error: sumError } = await supabase
+          .from("bank_transactions").select("amount").eq("account_id", params.id).eq("company_id", companyId!);
+        if (sumError) throw sumError;
         const sum = (sumRow ?? []).reduce((s, r) => s + (Number((r as { amount: number }).amount) || 0), 0);
         patch.current_balance = opening + sum;
         patch.balance_updated_at = new Date().toISOString();
@@ -129,7 +130,9 @@ export function useManualTreasury() {
         transaction_type: amount >= 0 ? "credit" : "debit",
         status: "booked",
         category: tx.category?.trim() || null,
-        counterparty_name: tx.counterparty_name?.trim() || null,
+        // counterparty_name è generata dal DB: scrivere solo i campi sorgente.
+        creditor_name: amount < 0 ? tx.counterparty_name?.trim() || null : null,
+        debtor_name: amount >= 0 ? tx.counterparty_name?.trim() || null : null,
         source: tx.source || "manuale",
         // external_transaction_id è NOT NULL + UNIQUE (company_id, ...): per i
         // movimenti manuali senza id esterno ne generiamo uno sintetico univoco.
@@ -175,11 +178,12 @@ export function useManualTreasury() {
       const existing = new Set<string>();
       for (let i = 0; i < extIds.length; i += 300) {
         const slice = extIds.slice(i, i + 300);
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("bank_transactions")
           .select("external_transaction_id")
           .eq("account_id", params.account_id)
           .in("external_transaction_id", slice);
+        if (error) throw error;
         (data ?? []).forEach((r) => { const v = (r as { external_transaction_id: string | null }).external_transaction_id; if (v) existing.add(v); });
       }
       const toInsert = prefixed.filter((r) => !existing.has(r.external_transaction_id));
@@ -193,7 +197,9 @@ export function useManualTreasury() {
             booking_date: tx.booking_date, value_date: tx.booking_date,
             description: tx.description?.trim() || "Movimento", amount, currency: "EUR",
             transaction_type: amount >= 0 ? "credit" : "debit", status: "booked",
-            category: tx.category?.trim() || null, counterparty_name: tx.counterparty_name?.trim() || null,
+            category: tx.category?.trim() || null, // counterparty_name è generata dal DB: scrivere solo i campi sorgente.
+        creditor_name: amount < 0 ? tx.counterparty_name?.trim() || null : null,
+        debtor_name: amount >= 0 ? tx.counterparty_name?.trim() || null : null,
             source: params.source, external_transaction_id: tx.external_transaction_id,
           };
         });

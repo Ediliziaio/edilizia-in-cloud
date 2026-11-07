@@ -153,6 +153,7 @@ export interface PergolaArredoConfig {
 }
 
 export interface ConfigurazionePergole {
+  qualita_render?: "standard" | "alta";
   operazione: TipoOperazionePergola;
   installazione: ConfigInstallazionePergola;
   struttura: PergolaStrutturaConfig;

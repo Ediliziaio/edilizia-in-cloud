@@ -10,7 +10,9 @@ const TARIFFE = vi.hoisted(() => Array.from({ length: 60 }, (_, i) => ({
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "c1" }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/hooks/useProdottiListino", () => ({ useProdottiListino: () => ({ data: [{ id: "p1", nome: "Parquet rovere", modo: "mq", prezzo_vendita: 50, posa_vendita: 10, prezzo_acquisto: 20, posa_costo: 5, unita: "mq", immagine_url: null as string | null, descrizione: "Rovere" }], isFetching: false }) }));
-vi.mock("@/lib/prezzario/queries", () => ({ usePrezzarioVociGlobalSearch: () => ({ data: [] as unknown[], isFetching: false }) }));
+const PREZZARIO = vi.hoisted(() => ({ voci: [] as unknown[] }));
+vi.mock("@/lib/prezzario/queries", () => ({ usePrezzarioVociGlobalSearch: () => ({ data: PREZZARIO.voci, isFetching: false }) }));
+afterEach(() => { PREZZARIO.voci = []; });
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ order: () => ({ order: () => ({ range: async (da: number) => ({ data: da === 0 ? TARIFFE : [], error: null as null }) }) }) }) }) }) }) } }));
 import { ScegliVociListino, type FontiModulo } from "@/components/moduli/ScegliVociListino";
 
@@ -44,6 +46,16 @@ describe("il calcolo della scelta", () => {
     expect(c.totale).toBe(30);
     expect(c.mancanti).toBe(1);
     expect(c.voci[0].quantita).toBe(3);
+  });
+  it("una voce senza unità resta da completare finché non si sceglie l'unità, che il modulo adatta", () => {
+    const senza: RigaScelta = { ...riga(3.18), unitaDaScegliere: true, voce: { ...riga(3.18).voce, unita_misura: "cad" } };
+    const prima = totaleScelte([{ riga: senza, quantita: "10" }]);
+    expect(prima).toMatchObject({ mancanti: 1, unitaDaScegliere: 1, voci: [] });
+    const dopo = totaleScelte([{ riga: senza, quantita: "10", unita: "mq" }], (u) => `modulo-${u}`);
+    expect(dopo.mancanti).toBe(0);
+    expect(dopo.voci[0]).toMatchObject({ unita_misura: "modulo-mq", unita_originale: "mq", sourceUnit: "mq", quantita: 10 });
+    // Le voci con l'unità non cambiano.
+    expect(totaleScelte([{ riga: riga(10), quantita: "1", unita: "mc" }]).voci[0].unita_misura).toBe("mq");
   });
   it("riconosce una voce già presente, anche con la descrizione estesa sotto", () => {
     expect(voceGiaPresente("Platea", insiemeVoci(["platea\ndettagli"]))).toBe(true);
@@ -276,6 +288,27 @@ describe("le aggiunte al popup delle voci", () => {
     expect(voci.find((v) => v.descrizione === "Silicone")?.codice_tariffa).toBe("SIL-9");
   });
 
+  it("una voce del prezzario senza unità non diventa «cad»: si sceglie leggendo come si misura", async () => {
+    const descrizione = "Demolizione di solaio misto. La misurazione sarà eseguita al m² per ogni cm di spessore del solaio.";
+    PREZZARIO.voci = [{ id: "pz1", descrizione, codice: "02.03.017*", unita_misura: null, prezzo: 3.18, incidenza_manodopera_pct: null, fonteLabel: "Prezzario Regione Marche 2025" }];
+    const modulo = { ...fonti, mapUnita: (u: string) => (u === "mq" ? "mq-modulo" : "cad") };
+    const { onPick } = apri({ fonti: modulo });
+    fireEvent.click(screen.getByRole("button", { name: /prezzario regionale/i }));
+    fireEvent.change(screen.getByLabelText("Cerca una voce"), { target: { value: "demolizione" } });
+    const spunta = await screen.findByRole("checkbox", { name: `Scegli: ${descrizione}` });
+    expect(screen.getByText("unità non indicata")).toBeTruthy();
+    fireEvent.click(spunta);
+    expect(screen.getByText("scegli l'unità")).toBeTruthy();
+    expect(screen.getByText("Come si misura: «La misurazione sarà eseguita al m² per ogni cm di spessore del solaio.»")).toBeTruthy();
+    const conferma = screen.getByRole("button", { name: "Aggiungi al computo" }) as HTMLButtonElement;
+    expect(conferma.disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText(`Unità: ${descrizione}`), { target: { value: "mq" } });
+    expect(conferma.disabled).toBe(false);
+    fireEvent.click(conferma);
+    expect(onPick.mock.calls[0][0][0]).toMatchObject({ unita_misura: "mq-modulo", unita_originale: "mq", sourceUnit: "mq", prezzo_unitario: 3.18, codice_tariffa: "02.03.017*" });
+    PREZZARIO.voci = [];
+  });
+
   it("il prezzo: «0.500» è mezzo euro e «0,125» resta tale", () => {
     expect(leggiPrezzo("0.500")).toBe(0.5);
     expect(leggiPrezzo("0,125")).toBe(0.125);
@@ -290,4 +323,20 @@ describe("le aggiunte al popup delle voci", () => {
     expect(leggiPrezzo("")).toBeNull();
     expect(leggiPrezzo("-3")).toBeNull();
   });
+});
+
+
+it("non trasforma in cadauno una voce regionale senza unità e conserva mq quando presente", async () => {
+  PREZZARIO.voci.push(
+    { id: "senza", descrizione: "Voce senza unità", unita_misura: null, prezzo: 8.4, codice: "2.3.90.1", fonteLabel: "Demo" },
+    { id: "con", descrizione: "Voce misurata", unita_misura: "mq", prezzo: 12, codice: "ABC", fonteLabel: "Demo" },
+  );
+  const { onPick } = apri();
+  fireEvent.click(screen.getByRole("button", { name: /Cerca nel prezzario regionale/ }));
+  const missing = await screen.findByRole("checkbox", { name: "Scegli: Voce senza unità" });
+  expect(missing).toBeEnabled();
+  expect(screen.getByText("unità non indicata")).toBeTruthy();
+  fireEvent.click(screen.getByRole("checkbox", { name: "Scegli: Voce misurata" }));
+  fireEvent.click(screen.getByRole("button", { name: "Aggiungi al computo" }));
+  expect(onPick).toHaveBeenCalledWith([expect.objectContaining({ unita_misura: "mq", unita_originale: "mq", codice_tariffa: "ABC" })]);
 });

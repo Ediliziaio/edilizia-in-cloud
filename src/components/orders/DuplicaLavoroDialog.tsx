@@ -48,7 +48,7 @@ export function DuplicaLavoroDialog({ tipo, sourceId, open, onOpenChange, onDupl
         p_tipo: tipo, p_source_id: sourceId, p_mantieni_cliente: mantieniCliente,
         p_anteprima: false, p_impronta: riepilogo.impronta, p_request_id: requestId,
       } as never);
-      if (error) { setAggiornare(error.code === "40001"); throw new Error(error.message); }
+      if (error) { setAggiornare(["PT409", "40001"].includes(error.code ?? "")); throw new Error(error.message); }
       const risultato = data as unknown as RiepilogoCopia;
       if (!risultato?.id) throw new Error("Duplicazione non confermata. Riprova.");
       toast.success(tipo === "commessa" ? "Commessa duplicata" : "Preventivo duplicato", { description: "La copia è pronta da modificare. L’originale resta invariato." });

@@ -82,14 +82,18 @@ export function FattureDebitiFornitore({ supplierId, partitaIva }: { supplierId:
       const viste = new Set(rate.map((r) => r.id));
       const ids = fatture.map((f) => f.id);
       for (let i = 0; i < ids.length; i += 150) {
-        const { data, error } = await db
+        const aggiuntive = await readAllPages<RataFornitore>((from, to) => db
           .from("rate_fornitori")
           .select("id,fattura_ricevuta_id,company_cost_id,numero,scadenza,importo,metodo,stato,pagata_il")
           .eq("company_id", companyId!)
           .in("fattura_ricevuta_id", ids.slice(i, i + 150))
-          .abortSignal(signal);
-        if (error) throw error;
-        for (const r of (data ?? []) as RataFornitore[]) if (!viste.has(r.id)) rate.push(r);
+          .order("id")
+          .range(from, to)
+          .abortSignal(signal) as never);
+        for (const r of aggiuntive) if (!viste.has(r.id)) {
+          viste.add(r.id);
+          rate.push(r);
+        }
       }
       return { fatture, rate };
     },

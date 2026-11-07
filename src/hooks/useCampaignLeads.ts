@@ -127,7 +127,7 @@ function mapLeadRows(
       full_name: [row.first_name, row.last_name].filter(Boolean).join(" ").trim() || (platform === "google" ? "Lead Google" : "Lead Meta"),
       email: row.email ?? null,
       phone: row.phone ?? null,
-      city: null,
+      city: null as null,
       status: row.source ?? null,
       created_at: row.created_at,
       meta_lead_id: row.source_campaign_id ?? row.google_campaign_id ?? undefined,

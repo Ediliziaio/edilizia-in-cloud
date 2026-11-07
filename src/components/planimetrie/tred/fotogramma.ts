@@ -8,7 +8,7 @@
  */
 import * as THREE from "three";
 import { costruisciScena, scenaEdificio, metadatiFotogramma, type PianoPer3D, type MetadatiFotogramma, type PiantaPer3D, type Telecamera3D, type Vista3D } from "@/lib/planimetrie/tred";
-import { adattaAmbiente, applicaTelecamera, creaGruppo, liberaGruppo, preparaAmbiente } from "./scenaThree";
+import { adattaAmbiente, attendiTexture, applicaTelecamera, creaGruppo, liberaGruppo, preparaAmbiente } from "./scenaThree";
 import { creaAspetto } from "./aspetto";
 import type { OpzioniAspetto } from "@/lib/planimetrie/tred/aspettoOpzioni";
 
@@ -22,6 +22,8 @@ export interface RichiestaFotogramma {
   vista?: Vista3D;
   /** Arredi e sanitari nell'immagine. Predefinito: sì. */
   elementi?: boolean;
+  /** Viste aperte del piano per il fascicolo; gli interni render mantengono il soffitto. */
+  soffitto?: boolean;
   /** Prato intorno, in metri (viste da fuori). */
   terreno?: number;
   /** Viste da fuori di un edificio a più piani: tutti, uno sopra l'altro. */
@@ -50,7 +52,7 @@ export async function catturaFotogramma(r: RichiestaFotogramma): Promise<Fotogra
   renderer.setSize(larghezza, altezza, false);
   const scene = new THREE.Scene();
   const ambiente = preparaAmbiente(renderer, scene);
-  const opzioni = { vista, soffitto: true, elementi: r.elementi ?? true, terreno: r.terreno };
+  const opzioni = { vista, soffitto: r.soffitto ?? true, elementi: r.elementi ?? true, terreno: r.terreno };
   const scena = r.piani && r.piani.length > 1 ? scenaEdificio(r.piani, opzioni) : costruisciScena(r.pianta, opzioni);
   adattaAmbiente(ambiente, scena);
   const gruppo = creaGruppo(scena);
@@ -60,6 +62,7 @@ export async function catturaFotogramma(r: RichiestaFotogramma): Promise<Fotogra
   // con l'aspetto scelto (facciata, infissi, cielo, ora, alberi) la vista è quella del 3D realistico
   const aspetto = r.aspetto?.realistico ? creaAspetto({ renderer, scene, camera }) : null;
   try {
+    await attendiTexture(gruppo);
     if (aspetto && r.aspetto) {
       aspetto.dimensiona(larghezza, altezza);
       aspetto.applica(gruppo, scena, { ...r.aspetto, dentro: false }, ambiente);

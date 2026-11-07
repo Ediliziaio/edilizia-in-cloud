@@ -917,8 +917,7 @@ export function AppointmentDialog({
           gcalUpdate(currentAppointment.id).catch(() => {});
         }
       } else {
-        payload.created_by = user.id;
-        const { data: inserted, error } = await supabase.from("appointments").insert(payload).select("id").single();
+        const { data: inserted, error } = await supabase.from("appointments").insert({ ...payload, created_by: user.id }).select("id").single();
         if (error) throw error;
         toast({ title: "Appuntamento creato" });
         // Diary log (fire-and-forget, solo se collegato a un ordine)

@@ -140,7 +140,7 @@ export function AutenticazioneDomini() {
       <div className="flex items-start justify-between gap-3">
         <p className="text-xs text-muted-foreground">
           Controllo automatico sui domini delle caselle collegate: se questi record mancano o sono
-          sbagliati, le tue email finiscono in spam o possono essere falsificate.
+          sbagliati, le tue email possono finire in spam o essere falsificate. Questo controllo riguarda le caselle collegate, non il dominio mittente delle email inviate dalla piattaforma, configurato in Dominio Email.
         </p>
         <Button size="sm" variant="outline" className="h-8 gap-1 shrink-0" disabled={isFetching} onClick={ricontrolla}>
           <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} /> Ricontrolla

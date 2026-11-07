@@ -609,7 +609,7 @@ export default function SettingsIntegrations() {
       voci.push({
         id: "domini",
         Logo: EmailLogo,
-        titolo: uno ? `Dominio ${domini.daSistemare[0].dominio}` : "Domini email",
+        titolo: uno ? `Dominio casella ${domini.daSistemare[0].dominio}` : "Domini delle caselle collegate",
         messaggio: `${uno ? "Mancano" : `${domini.daSistemare.length} domini: mancano`} record DNS (SPF, DKIM o DMARC), le email rischiano di finire in spam.`,
         azione: "Vedi i record",
         onAzione: apri("email", "dominio"),

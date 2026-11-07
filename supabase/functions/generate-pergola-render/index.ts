@@ -1,3 +1,4 @@
+import { parametriQualitaRender, qualitaImmagineRender, tempoQaRender } from "../../../shared/render-quality/quality.ts";
 // generate-pergola-render — Edge Function EiC
 // Render Pergole AI — Provider unificato OpenRouter + fallback
 // Prompt Engine v1.0 — surgical outdoor pergola installation visualization
@@ -125,6 +126,8 @@ Deno.serve(async (req) => {
     user = { id: auth.userId };
 
     const body = await req.json().catch(() => ({}));
+    const requestStartedAt = Date.now();
+    const highQuality = qualitaImmagineRender(body) === "high";
     const { session_id, config, target_width, target_height } = body as {
       session_id?: string;
       config?: Record<string, unknown>;
@@ -340,23 +343,20 @@ Deno.serve(async (req) => {
 
       // F1-parity (audit 16/07) — budget deadline-aware, 1 tentativo per tier.
       const PERGOLE_BUDGET_MS = 140_000;
-      const jobStartMs = Date.now();
+      const jobStartMs = requestStartedAt;
       const jobElapsed = () => Date.now() - jobStartMs;
       let sharedReferences: ImageReferenceInput[] = [];
       const generateCandidate = (prompt: string, soloProviderDiretto = false) => {
         const remaining = PERGOLE_BUDGET_MS - jobElapsed() - 20_000;
-        const perAttemptTimeout = Math.max(
-          30_000,
-          Math.min(75_000, Math.floor(remaining / (soloProviderDiretto ? 1 : 2))),
-        );
+        const qualityParams = parametriQualitaRender(body, requestStartedAt, soloProviderDiretto);
         return editImage({
           prompt,
           sourceImageBlob: imgBlob,
           effectiveWidth,
           effectiveHeight,
-          openaiQuality: "medium",
-          timeoutMs: perAttemptTimeout,
-          directProviderOnly: soloProviderDiretto,
+
+          ...qualityParams,
+
           maxRetries: 0,
           referenceImages: sharedReferences.length > 0 ? sharedReferences : undefined,
           metadata: {
@@ -395,10 +395,12 @@ Deno.serve(async (req) => {
         console.warn(JSON.stringify({ lvl: "warn", fn: "generate-pergola-render", session_id, msg: "shared_references_threw", error: String((refErr as Error)?.message ?? refErr) }));
       }
 
+      finalProviderPrompt = [finalProviderPrompt, vincoloFonte3d(rawConfig)].filter(Boolean).join("\n\n");
       let providerResult: Awaited<ReturnType<typeof generateCandidate>>;
       try {
         providerResult = await generateCandidate(finalProviderPrompt, true);
       } catch (primoErr) {
+        if (highQuality) throw primoErr;
         console.warn(JSON.stringify({
           lvl: "warn", fn: "generate-pergola-render", session_id,
           msg: "provider_diretto_fallito_si_passa_alla_catena",
@@ -432,6 +434,7 @@ Deno.serve(async (req) => {
         };base64,${bytesToBase64(new Uint8Array(await imgBlob.arrayBuffer()))}`;
 
         const qaResult = await callVisionQa({
+          timeoutMs: tempoQaRender(requestStartedAt),
           sourceImageDataUrl: sourceDataUrl,
           candidateImageDataUrl: providerResult.imageDataUrl,
           qaPrompt,
@@ -448,7 +451,7 @@ Deno.serve(async (req) => {
           return { category: r.category ?? "unspecified", detail: r.detail ?? "" };
         });
 
-        if (qaResult.checked && !qaResult.pass && qaIssues.length > 0 && jobElapsed() < 95_000) {
+        if (qaResult.checked && !qaResult.pass && qaIssues.length > 0 && jobElapsed() < (highQuality ? 40_000 : 95_000)) {
           console.log(JSON.stringify({
             fn: "generate-pergola-render",
             msg: "qa_failed_retry_corrective",
@@ -680,3 +683,4 @@ Regenerate applying the FULL brief. ABSOLUTE rules: exactly ONE pergola, posts f
     );
   }
 });
+import { vincoloFonte3d } from "../../../shared/render-planimetria/fonte3d.ts";

@@ -13,7 +13,7 @@ const stanza = (nome: string, x0: number, y0: number, x1: number, y1: number, ex
 
 describe("lettura AI p2: fogli difficili", () => {
   it("il prompt chiede piani, appartamenti, elementi e sa dei fogli scuri e ruotati", () => {
-    expect(VERSIONE_PROMPT).toBe("p2");
+    expect(VERSIONE_PROMPT).toBe("p5");
     for (const s of ["piano:", "unita:", "ELEMENTI", "pilastro", "sfondo nero", "ruotate", "80/210", "capannoni"]) expect(PROMPT_DOCUMENTO).toContain(s);
   });
 

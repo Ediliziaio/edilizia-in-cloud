@@ -78,6 +78,36 @@ jobs:
       - name: Run critical tests
         run: bun run test:critical
 
+      - name: Run definitive conflict and database memory regressions
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/logic/conflittiSenzaRetrySql.test.ts
+          src/test/logic/ricicloPostgrestListener.test.ts
+          src/test/ui/rdoCampoVoce.test.tsx
+          src/test/logic/sentinellaMemoria.test.ts
+          src/test/logic/sentinellaDatabase.test.ts
+          src/test/logic/planimetrieArchivio.test.ts
+          src/test/wizard-audit/verticalConversation.test.ts
+
+      - name: Run purchase order and supplier request workflow regressions
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/logic/acquistiOperativi.test.ts
+          src/test/logic/preparaEmailDocumento.test.ts
+          src/test/logic/documentiOperativi.test.ts
+          src/test/ui/odaModificaOrdine.test.tsx
+          src/test/ui/rdoEmailDiretta.test.tsx
+          src/test/ui/rdoCondizioniOfferta.test.tsx
+          src/test/ui/documentoEmailDiretta.test.tsx
+          src/test/ui/rdoDettagliCard.test.tsx
+          src/test/ui/rdoRispostaManuale.test.tsx
+          src/test/ui/odaDettagliCard.test.tsx
+          src/test/ui/odaFornitoreCard.test.tsx
+          src/test/ui/odaNoteCard.test.tsx
+          src/test/ui/purchaseOrderItemRow.test.tsx
+          src/test/ui/acquistiStorico.test.tsx
+          src/test/ui/acquistiAnteprima.test.tsx
+
       - name: Run computo persistence, tenant isolation and PDF regressions
         run: >-
           bunx vitest run --maxWorkers=2

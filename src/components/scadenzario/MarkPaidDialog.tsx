@@ -51,7 +51,7 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Registra Pagamento</DialogTitle>
+          <DialogTitle>{scadenza.direction === "entrata" ? "Registra incasso" : "Registra pagamento"}</DialogTitle>
         </DialogHeader>
         {/* Mobile: campi a due colonne (importo e conto, metodo e data), via le note. */}
         <div className="space-y-4 max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-2 max-sm:gap-y-3 max-sm:space-y-0">
@@ -63,8 +63,9 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
           </div>
 
           <div className="space-y-2">
-            <Label>{isMobile ? "Importo" : "Importo pagato"}</Label>
+            <Label htmlFor="scadenza-importo">{isMobile ? "Importo" : scadenza.direction === "entrata" ? "Importo incassato" : "Importo pagato"}</Label>
             <Input
+              id="scadenza-importo"
               type="number"
               inputMode="decimal"
               step="0.01"
@@ -93,8 +94,8 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Data<span className="max-sm:hidden"> pagamento</span></Label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <Label htmlFor="scadenza-data">Data<span className="max-sm:hidden"> {scadenza.direction === "entrata" ? "incasso" : "pagamento"}</span></Label>
+              <Input id="scadenza-data" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
           </div>
 

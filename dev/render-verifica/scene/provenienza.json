@@ -1,0 +1,65 @@
+[
+  {
+    "id": "bagno",
+    "prompt": "Use case: photorealistic-natural. Asset type: synthetic BEFORE renovation test photograph for an architectural rendering app, not a finished redesign. Create one natural documentary property photograph: an existing modest Italian bathroom, beige 20x20 ceramic tile floor and half-height walls, exactly one wall-hung sink vanity and mirror on left, one toilet and one bidet on back wall, one shower enclosure on right, one small frosted window high on back wall; all visible and separated; slightly dated but clean. Wide landscape 3:2, 28mm lens, eye-level interior or stated outdoor viewpoint, entire floor area and ceiling edges visible, physically plausible proportions and ordinary daylight. Neutral unpolished lived-in materials with clear texture, no dramatic styling. No text, watermark or collage. This is a fictitious room with no private data.",
+    "file": "bagno.webp",
+    "generator": "built-in imagegen",
+    "data": "2026-11-05"
+  },
+  {
+    "id": "camera",
+    "prompt": "Use case: photorealistic-natural. Asset type: synthetic BEFORE renovation test photograph for an architectural rendering app, not a finished redesign. Create one natural documentary property photograph: a modest Italian bedroom with exactly one double bed, two bedside cabinets, a wardrobe against the right wall and a window on left wall; pale blue painted walls, plain light oak floor, no rug, all furniture feet visible. Wide landscape 3:2, 28mm lens, eye-level interior or stated outdoor viewpoint, entire floor area and ceiling edges visible, physically plausible proportions and ordinary daylight. Neutral unpolished lived-in materials with clear texture, no dramatic styling. No text, watermark or collage. This is a fictitious room with no private data.",
+    "file": "camera.webp",
+    "generator": "built-in imagegen",
+    "data": "2026-11-05"
+  },
+  {
+    "id": "studio",
+    "prompt": "Use case: photorealistic-natural. Asset type: synthetic BEFORE renovation test photograph for an architectural rendering app, not a finished redesign. Create one natural documentary property photograph: a home office with exactly one wooden desk, one office chair, one bookcase, a window left and a closed interior door right; neutral cream walls, beige tile floor, no rugs or extra seating. Wide landscape 3:2, 28mm lens, eye-level interior or stated outdoor viewpoint, entire floor area and ceiling edges visible, physically plausible proportions and ordinary daylight. Neutral unpolished lived-in materials with clear texture, no dramatic styling. No text, watermark or collage. This is a fictitious room with no private data.",
+    "file": "studio.webp",
+    "generator": "built-in imagegen",
+    "data": "2026-11-05"
+  },
+  {
+    "id": "ingresso",
+    "prompt": "Use case: photorealistic-natural. Asset type: synthetic BEFORE renovation test photograph for an architectural rendering app, not a finished redesign. Create one natural documentary property photograph: a small Italian apartment entrance with exactly one closed front door on back wall, one shallow console and wall mirror on left, one coat rack right, beige square tiled floor, cream walls; no other rooms or furniture visible. Wide landscape 3:2, 28mm lens, eye-level interior or stated outdoor viewpoint, entire floor area and ceiling edges visible, physically plausible proportions and ordinary daylight. Neutral unpolished lived-in materials with clear texture, no dramatic styling. No text, watermark or collage. This is a fictitious room with no private data.",
+    "file": "ingresso.webp",
+    "generator": "built-in imagegen",
+    "data": "2026-11-05"
+  },
+  {
+    "id": "taverna",
+    "prompt": "Use case: photorealistic-natural. Asset type: synthetic BEFORE renovation test photograph for an architectural rendering app, not a finished redesign. Create one natural documentary property photograph: an Italian basement rec room with one small high window on the back wall, two exposed timber ceiling beams, one simple sofa left and one low sideboard right; terracotta floor and plain plaster walls, no other furniture. Wide landscape 3:2, 28mm lens, eye-level interior or stated outdoor viewpoint, entire floor area and ceiling edges visible, physically plausible proportions and ordinary daylight. Neutral unpolished lived-in materials with clear texture, no dramatic styling. No text, watermark or collage. This is a fictitious room with no private data.",
+    "file": "taverna.webp",
+    "generator": "built-in imagegen",
+    "data": "2026-11-05"
+  },
+  {
+    "id": "sala_da_pranzo",
+    "prompt": "Use case: photorealistic-natural. Asset type: synthetic BEFORE renovation test photograph for an architectural rendering app, not a finished redesign. Create one natural documentary property photograph: an Italian dining room with one rectangular oak dining table and exactly six chairs, one low sideboard at rear, one window on left, a closed door right, cream walls and beige ceramic tile floor; no rugs. Wide landscape 3:2, 28mm lens, eye-level interior or stated outdoor viewpoint, entire floor area and ceiling edges visible, physically plausible proportions and ordinary daylight. Neutral unpolished lived-in materials with clear texture, no dramatic styling. No text, watermark or collage. This is a fictitious room with no private data.",
+    "file": "sala_da_pranzo.webp",
+    "generator": "built-in imagegen",
+    "data": "2026-11-05"
+  },
+  {
+    "id": "corridoio",
+    "prompt": "Use case: photorealistic-natural. Asset type: synthetic BEFORE renovation test photograph for an architectural rendering app, not a finished redesign. Create one natural documentary property photograph: a narrow straight Italian apartment corridor with three closed interior doors, two on left and one on right, plain cream walls and beige square tile floor, ceiling light; no furniture, end wall solid, crisp straight verticals. Wide landscape 3:2, 28mm lens, eye-level interior or stated outdoor viewpoint, entire floor area and ceiling edges visible, physically plausible proportions and ordinary daylight. Neutral unpolished lived-in materials with clear texture, no dramatic styling. No text, watermark or collage. This is a fictitious room with no private data.",
+    "file": "corridoio.webp",
+    "generator": "built-in imagegen",
+    "data": "2026-11-05"
+  },
+  {
+    "id": "altro",
+    "prompt": "Use case: photorealistic-natural. Asset type: synthetic BEFORE renovation test photograph for an architectural rendering app, not a finished redesign. Create one natural documentary property photograph: a compact home laundry room with exactly one washing machine and one dryer side by side under one counter, upper cabinets above, a small window left, plain white walls and grey tile floor, no people or decor. Wide landscape 3:2, 28mm lens, eye-level interior or stated outdoor viewpoint, entire floor area and ceiling edges visible, physically plausible proportions and ordinary daylight. Neutral unpolished lived-in materials with clear texture, no dramatic styling. No text, watermark or collage. This is a fictitious room with no private data.",
+    "file": "altro.webp",
+    "generator": "built-in imagegen",
+    "data": "2026-11-05"
+  },
+  {
+    "id": "esterno",
+    "prompt": "Use case: photorealistic-natural. Asset type: synthetic BEFORE renovation test photograph for an architectural rendering app, not a finished redesign. Create one natural documentary property photograph: an existing detached Italian two-storey villa seen in a three-quarter view from 2.8m camera height, whole terracotta gabled roof visible with gutters, cream plaster facade, four rectangular windows with dark green shutters, one closed wooden front entrance door, one glazed patio door on ground floor, a broad old beige tiled patio along the facade and a generous open lawn on the right with perimeter hedges; no pool, pergola, vehicles, people or solar panels; clear daylight. Wide landscape 3:2, 28mm lens, eye-level interior or stated outdoor viewpoint, entire floor area and ceiling edges visible, physically plausible proportions and ordinary daylight. Neutral unpolished lived-in materials with clear texture, no dramatic styling. No text, watermark or collage. This is a fictitious room with no private data.",
+    "file": "esterno.webp",
+    "generator": "built-in imagegen",
+    "data": "2026-11-05"
+  }
+]

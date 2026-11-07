@@ -20,6 +20,8 @@ export interface RiferimentoStanza {
   livello_id: string;
   /** «fatto» oppure «progetto:<id proposta>». */
   ambito: string;
+  /** Materiali del progetto scelto anche quando questo piano mantiene lo stato di fatto. */
+  materiali_ambito?: string;
   locale_id: string;
 }
 

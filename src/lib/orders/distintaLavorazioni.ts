@@ -58,16 +58,24 @@ export interface RigaDistinta {
   /** A che punto è, 0–100. */
   percentuale: number;
   quantitaFatta: number | null;
+  /** Costi unitari scritti sulla voce; 0 se non ha una voce. */
+  costoManodopera: number;
+  costoMateriali: number;
+  /** Primo giorno di lavoro dai rapportini approvati. */
+  iniziataIl: string | null;
+  risorse: number | null;
+  inParallelo: boolean;
   venduto: number | null;
   /** Null se la riga non ha una voce o la voce non ha costi: non è un costo zero. */
   previsto: number | null;
 }
 
-export type FiltroDistinta = "tutte" | "da_fare" | "senza_date" | "senza_previsto" | "in_ritardo";
+export type FiltroDistinta = "tutte" | "da_fare" | "settimana" | "senza_date" | "senza_previsto" | "in_ritardo";
 
 export const FILTRI_DISTINTA: ReadonlyArray<{ value: FiltroDistinta; label: string; soloCosti?: boolean }> = [
   { value: "tutte", label: "Tutte" },
   { value: "da_fare", label: "Da fare" },
+  { value: "settimana", label: "Questa settimana" },
   { value: "senza_date", label: "Senza date" },
   { value: "senza_previsto", label: "Senza previsto", soloCosti: true },
   { value: "in_ritardo", label: "In ritardo" },
@@ -123,6 +131,11 @@ export function righeDistinta(
         fatta: s?.fatta ?? (fase.status === "completata" || Number(fase.percentuale) >= 100),
         percentuale: s ? (s.fatta ? 100 : Number(s.percentuale) || 0) : fase.status === "completata" || Number(fase.percentuale) >= 100 ? 100 : 0,
         quantitaFatta: s?.quantita_fatta ?? null,
+        costoManodopera: Number(v.costo_manodopera) || 0,
+        costoMateriali: Number(v.costo_materiali) || 0,
+        iniziataIl: s?.iniziata_il ?? null,
+        risorse: s?.risorse ?? null,
+        inParallelo: !!s?.in_parallelo,
         venduto: v.importo,
         previsto: costo > 0 ? costo : null,
       };
@@ -145,6 +158,11 @@ export function righeDistinta(
       fatta: s.fatta,
       percentuale: s.fatta ? 100 : Number(s.percentuale) || 0,
       quantitaFatta: s.quantita_fatta ?? null,
+      costoManodopera: 0,
+      costoMateriali: 0,
+      iniziataIl: s.iniziata_il ?? null,
+      risorse: s.risorse ?? null,
+      inParallelo: !!s.in_parallelo,
       venduto: null,
       previsto: null,
     }));
@@ -156,9 +174,27 @@ export function righeDistinta(
   });
 }
 
+const piuGiorni = (giorno: string, n: number) => {
+  const d = new Date(`${giorno}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+/** Le date spostate di N giorni di calendario; senza data la riga resta com'è. */
+export function dateSpostate(
+  righe: ReadonlyArray<Pick<RigaDistinta, "sottofaseId" | "inizio" | "fine" | "giorni" | "fatta">>,
+  giorni: number,
+): Array<{ id: string; data_inizio: string | null; data_fine: string | null; giorni: number | null }> {
+  return righe
+    .filter((r) => r.sottofaseId && !r.fatta && (r.inizio || r.fine))
+    .map((r) => ({ id: r.sottofaseId!, data_inizio: r.inizio ? piuGiorni(r.inizio, giorni) : null, data_fine: r.fine ? piuGiorni(r.fine, giorni) : null, giorni: r.giorni }));
+}
+
 export function rispettaFiltro(r: RigaDistinta, filtro: FiltroDistinta, oggi: string): boolean {
   switch (filtro) {
     case "da_fare": return !r.fatta;
+    // Da fare e già cominciata, oppure in programma entro sette giorni: quello su cui si lavora adesso.
+    case "settimana": return !r.fatta && (r.percentuale > 0 || r.iniziata || (!!r.inizio && r.inizio <= piuGiorni(oggi, 7)));
     case "senza_date": return !r.fatta && !r.fine;
     case "senza_previsto": return r.voceId !== null && r.previsto === null;
     case "in_ritardo": return !r.fatta && !!r.fine && r.fine < oggi;
@@ -206,9 +242,9 @@ export function totaliDistinta(righe: ReadonlyArray<RigaDistinta>): TotaliDistin
 }
 
 export function contaFiltri(righe: ReadonlyArray<RigaDistinta>, oggi: string): Record<FiltroDistinta, number> {
-  const conti: Record<FiltroDistinta, number> = { tutte: righe.length, da_fare: 0, senza_date: 0, senza_previsto: 0, in_ritardo: 0 };
+  const conti: Record<FiltroDistinta, number> = { tutte: righe.length, da_fare: 0, settimana: 0, senza_date: 0, senza_previsto: 0, in_ritardo: 0 };
   for (const r of righe) {
-    for (const f of ["da_fare", "senza_date", "senza_previsto", "in_ritardo"] as const) {
+    for (const f of ["da_fare", "settimana", "senza_date", "senza_previsto", "in_ritardo"] as const) {
       if (rispettaFiltro(r, f, oggi)) conti[f] += 1;
     }
   }

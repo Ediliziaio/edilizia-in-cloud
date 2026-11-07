@@ -1,3 +1,4 @@
+import { normalizzaMetadatiMessaggio } from "@/lib/chat/normalizzaMetadatiMessaggio";
 /**
  * SilvioAIPage (Beta) — interfaccia stile ChatGPT/Claude per Silvio AI.
  *
@@ -482,7 +483,7 @@ export default function SilvioAIPage() {
         .order("created_at", { ascending: false })
         .limit(50);
       if (error) throw error;
-      return ((data ?? []) as SilvioMsg[]).slice().reverse();
+      return ((data ?? []).map(normalizzaMetadatiMessaggio)).slice().reverse();
     },
   });
 

@@ -57,6 +57,8 @@ function RimandoConParametri({ to }: { to: string }) {
 }
 
 /** Commesse e acquisti: ci entra anche chi ha solo il permesso «Ufficio acquisti». */
+const VerificaRenderCompleta = import.meta.env.DEV ? lazy(() => import("../../dev/render-verifica/VerificaRender")) : (): null => null;
+
 const vedeOrdiniOAcquisti = (p: Permissions) => p.canViewOrders || p.canManagePurchasing;
 
 function addSearch(path: string, search: string) {
@@ -185,6 +187,7 @@ const SettingsWhatsAppBot = lazy(() => import("@/pages/azienda/settings/Settings
 const SettingsCostCategories = lazy(() => import("@/pages/azienda/settings/SettingsCostCategories"));
 const SettingsFinanceAutomation = lazy(() => import("@/pages/azienda/settings/SettingsFinanceAutomation"));
 const SettingsCreditsRedirect = lazy(() => import("@/pages/azienda/settings/SettingsCreditsRedirect"));
+const SettingsModelliPdf = lazy(() => import("@/pages/azienda/settings/SettingsModelliPdf"));
 const SettingsQuoteTemplates = lazy(() => import("@/pages/azienda/settings/SettingsQuoteTemplates"));
 const AITestLab = lazy(() => import("@/pages/azienda/settings/AITestLab"));
 const SettingsFirmaElettronica = lazy(() => import("@/pages/azienda/settings/SettingsFirmaElettronica"));
@@ -906,6 +909,7 @@ export default function CompanyRoutesContainer() {
         <Route path="render/piscine/gallery" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPiscineGallery /></FeatureRoute>)} />
         <Route path="render/piscine/gallery/:id" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPiscineGalleryDetail /></FeatureRoute>)} />
         {/* Render Stanza */}
+        {import.meta.env.DEV && <Route path="render/verifica-completa" element={withCompanyPermission("canViewRenderAi", <VerificaRenderCompleta />)} />}
         <Route path="render/stanza" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderStanzaHub /></FeatureRoute>)} />
         <Route path="render/stanza/new" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderStanzaNew /></FeatureRoute>)} />
         <Route path="render/stanza/gallery" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderStanzaGallery /></FeatureRoute>)} />
@@ -1386,6 +1390,7 @@ export default function CompanyRoutesContainer() {
           <Route path="preferenze-email" element={withCompanyPermission("canViewMarketingEmail", <SettingsEmailPreferences />)} />
           <Route path="privacy" element={<Navigate to="/azienda/impostazioni/sicurezza-privacy?tab=privacy" replace />} />
           <Route path="branding" element={withCompanyPermission("canViewSettingsCustomization", <SettingsBranding />)} />
+          <Route path="modelli-pdf" element={withCompanyPermission("canViewSettingsOrders", <SettingsModelliPdf />)} />
           <Route path="template-preventivi" element={withCompanyPermission("canViewSettingsPricing", <SettingsQuoteTemplates />)} />
           {/* AI Test Lab — gated all'interno della pagina (auto-redirect se non autorizzato) */}
           <Route path="ai-test-lab" element={withCompanyPermission("canViewMarketingAiAgent", <AITestLab />)} />

@@ -1,3 +1,4 @@
+import { materialiProgettoValidi, type MaterialiProgetto } from "./materialiProgetto.ts";
 /**
  * Planimetrie — il modello del documento (contratto fra editor, AI, 3D, esportazioni).
  *
@@ -332,6 +333,10 @@ export interface Riferimenti {
 }
 
 export interface Planimetria {
+  /** Segnalazioni della lettura iniziale: restano con il disegno anche dopo salvataggi e modifiche. */
+  letturaDocumento?: { avvisiIniziali: string[]; superficiScritteMq: Record<string, number> };
+  /** Materiali comuni, distinti per stato/proposta e salvati con la versione. */
+  materialiProgetto?: Record<string, MaterialiProgetto>;
   schema: typeof VERSIONE_SCHEMA;
   unita: "cm";
   titolo?: string;
@@ -467,6 +472,12 @@ export function validaPlanimetria(dato: unknown): EsitoValidazione {
   if (dato.schema !== VERSIONE_SCHEMA) errori.push("La pianta: la versione dello schema manca o non è valida.");
   if (dato.unita !== "cm") errori.push("La pianta: le misure devono essere in centimetri.");
   if (dato.titolo !== undefined && typeof dato.titolo !== "string") errori.push("La pianta: il titolo deve essere un testo.");
+  if (dato.letturaDocumento !== undefined && !(eOggetto(dato.letturaDocumento)
+    && Array.isArray(dato.letturaDocumento.avvisiIniziali) && dato.letturaDocumento.avvisiIniziali.length <= 100
+    && dato.letturaDocumento.avvisiIniziali.every((v) => typeof v === "string" && v.length <= 4000)
+    && eOggetto(dato.letturaDocumento.superficiScritteMq)
+    && Object.entries(dato.letturaDocumento.superficiScritteMq).every(([id, v]) => ID_VALIDO.test(id) && eNumero(v) && v > 0))) errori.push("La pianta: i controlli del documento originale non sono validi.");
+  if (dato.materialiProgetto !== undefined && !materialiProgettoValidi(dato.materialiProgetto)) errori.push("La pianta: i materiali comuni non sono validi.");
   if (dato.scala !== undefined && !(eNumero(dato.scala) && dato.scala > 0)) errori.push("La pianta: la scala deve essere un numero maggiore di zero.");
   if (dato.nord !== undefined && !eNumero(dato.nord)) errori.push("La pianta: il nord deve essere un numero di gradi.");
   if (dato.lavoriFatti !== undefined && (!eOggetto(dato.lavoriFatti) || !Object.values(dato.lavoriFatti).every((v) => Array.isArray(v) && v.every((x) => typeof x === "string")))) {

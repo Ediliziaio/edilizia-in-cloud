@@ -5,6 +5,8 @@
  * `Vista3DPigra.tsx`), mai dal bundle principale.
  */
 import * as THREE from "three";
+import { textureFiniture } from "./textureFiniture";
+import { uvFinitura } from "@/lib/planimetrie/tred/uvFiniture";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import type { Materiale3D, Scena3D, Telecamera3D } from "@/lib/planimetrie/tred";
 
@@ -27,15 +29,28 @@ function materialeThree(chiave: string, m: Materiale3D): THREE.MeshStandardMater
 /** Materiali dei fondi dei campi sportivi e delle loro linee. */
 const SUPERFICI_A_TERRA = new Set(["terra_rossa", "terra_rossa_scura", "resina_blu", "resina_blu_scura", "resina_arancio", "resina_verde", "erba_sintetica", "erba_sintetica_scura", "sabbia", "linee", "linee_blu"]);
 
-export function creaGruppo(scena: Scena3D): THREE.Group {
+export function creaGruppo(scena: Scena3D, opzioni: { onTextureReady?: () => void } = {}): THREE.Group {
   const gruppo = new THREE.Group();
   gruppo.name = "Planimetria";
-  const materiali = new Map(Object.entries(scena.materiali).map(([k, m]) => [k, materialeThree(k, m)]));
+  const tessiture = textureFiniture(() => { if (!gruppo.userData.liberato) opzioni.onTextureReady?.(); });
+  gruppo.userData.texturePronte = tessiture.pronte;
+  const materiali = new Map(Object.entries(scena.materiali).map(([k, m]) => {
+    const mat = materialeThree(k, m);
+    if (m.finituraProgetto) mat.userData.finitura = true;
+    if (m.tessitura) {
+      mat.map = tessiture.carica(m.tessitura.trama);
+      mat.userData.finitura = true;
+      if (m.tessitura.tinta) mat.color.set(m.tessitura.tinta);
+    }
+    return [k, mat] as const;
+  }));
   for (const m of scena.mesh) {
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.Float32BufferAttribute(m.posizioni, 3));
     g.setAttribute("normal", new THREE.Float32BufferAttribute(m.normali, 3));
     g.setIndex(m.indici);
+    const tessitura = scena.materiali[m.materiale]?.tessitura;
+    if (tessitura) g.setAttribute("uv", new THREE.BufferAttribute(uvFinitura(m.posizioni, m.normali, tessitura.metri), 2));
     g.computeBoundingSphere();
     const mesh = new THREE.Mesh(g, materiali.get(m.materiale) ?? new THREE.MeshStandardMaterial());
     mesh.name = m.nome;
@@ -51,7 +66,9 @@ export function creaGruppo(scena: Scena3D): THREE.Group {
 }
 
 export function liberaGruppo(gruppo: THREE.Object3D): void {
+  gruppo.userData.liberato = true;
   const materiali = new Set<THREE.Material>();
+  const texture = new Set<THREE.Texture>();
   gruppo.traverse((o) => {
     if (o instanceof THREE.Mesh) {
       o.geometry.dispose();
@@ -60,7 +77,11 @@ export function liberaGruppo(gruppo: THREE.Object3D): void {
       if (o.userData.materialeBase instanceof THREE.Material) materiali.add(o.userData.materialeBase);
     }
   });
-  materiali.forEach((m) => m.dispose());
+  materiali.forEach((m) => {
+    if (m instanceof THREE.MeshStandardMaterial && m.userData.finitura && m.map) texture.add(m.map);
+    m.dispose();
+  });
+  texture.forEach((t) => t.dispose());
 }
 
 /**
@@ -144,4 +165,9 @@ export function applicaTelecamera(camera: THREE.PerspectiveCamera, t: Telecamera
   camera.near = 0.05;
   camera.far = 500;
   camera.updateProjectionMatrix();
+}
+
+/** Attende le foto dei materiali prima di esportare un fotogramma. */
+export async function attendiTexture(gruppo: THREE.Group): Promise<void> {
+  await Promise.all((gruppo.userData.texturePronte ?? []) as Promise<void>[]);
 }

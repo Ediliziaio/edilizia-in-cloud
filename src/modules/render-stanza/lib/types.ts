@@ -16,26 +16,8 @@ export interface ConfigVerniciatura {
   pareti_specifiche?: string;
 }
 
-export interface ConfigPavimentoStanza {
-  attivo: boolean;
-  tipo?: string;
-  colore_hex?: string;
-  colore_nome?: string;
-  pattern?: string;
-  finitura?: string;
-  dimensione?: string;
-  effetto_visivo?: string;
-  /** Essenza del legno (chiavi del render pavimento): vale solo se il pavimento è legno o effetto legno. */
-  essenza_legno?: string;
-  formato_piastrella?: string;
-  larghezza_listello_mm?: number;
-  lunghezza_listello_mm?: number;
-  fuga_larghezza_mm?: number;
-  fuga_colore?: "bianco" | "grigio_chiaro" | "grigio_scuro" | "nero" | "beige" | "tono_su_tono";
-  battiscopa_azione?: "mantieni" | "sostituisci" | "rimuovi";
-  battiscopa_tipo?: "coordinato_pavimento" | "bianco" | "legno" | "alluminio";
-  battiscopa_altezza_cm?: 6 | 8 | 10;
-}
+export type { ConfigPavimentoStanza } from "../../../../shared/render-room/floorSelection.ts";
+import type { ConfigPavimentoStanza } from "../../../../shared/render-room/floorSelection.ts";
 
 export interface ConfigArredo {
   attivo: boolean;
@@ -102,9 +84,14 @@ export interface ConfigSpaziDettagli {
 }
 
 export interface ConfigurazioneStanza {
+  infissi_progetto?: import("../../../../shared/planimetrie/materialiProgetto.ts").InfissiProgetto;
+  eccezioni_materiali_progetto?: import("../../../../shared/planimetrie/materialiProgetto.ts").EccezioniMateriali;
+  /** Tavole private dei campioni scelti, lette e verificate dal server prima del credito. */
+  materiali_visivi?: import("../../../../shared/render-references/roomVisualCatalog.ts").RoomVisualBoards;
   tipo_stanza: TipoStanza;
   stile_target: StileTarget;
   intensita: IntensitaTrasformazione;
+  qualita_render?: "standard" | "alta";
   verniciatura: ConfigVerniciatura;
   pavimento: ConfigPavimentoStanza;
   arredo: ConfigArredo;

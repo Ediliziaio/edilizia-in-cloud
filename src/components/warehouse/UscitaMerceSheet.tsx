@@ -59,6 +59,7 @@ import { OrderSelectCombobox, type OrderOption } from "./OrderSelectCombobox";
 import { ManualArticleAdder } from "./ManualArticleAdder";
 import { AnagraficaSelectCombobox, type AnagraficaOption, anagraficaDisplayName } from "./AnagraficaSelectCombobox";
 import { CreaDdtDaUscitaDialog } from "./CreaDdtDaUscitaDialog";
+import { validaRigheUscita } from "@/lib/magazzino/validaRigheUscita";
 import type { UscitaPerDdt } from "@/lib/magazzino/usciteDdt";
 
 const BatchBarcodeScanner = lazy(() =>
@@ -66,6 +67,7 @@ const BatchBarcodeScanner = lazy(() =>
 );
 
 interface UscitaMerceSheetProps {
+  initialOrder?: OrderOption;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -123,7 +125,7 @@ function StepHead({ n, label }: { n: number; label: string }) {
   );
 }
 
-export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) {
+export function UscitaMerceSheet({ open, onOpenChange, initialOrder }: UscitaMerceSheetProps) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const register = useRegisterUscita();
@@ -141,15 +143,15 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
   const [anagraficaId, setAnagraficaId] = useState<string | undefined>();
   const [selectedAnagrafica, setSelectedAnagrafica] = useState<AnagraficaOption | null>(null);
   // cantiere
-  const [orderId, setOrderId] = useState<string | undefined>();
-  const [selectedOrder, setSelectedOrder] = useState<OrderOption | null>(null);
+  const [orderId, setOrderId] = useState<string | undefined>(initialOrder?.id);
+  const [selectedOrder, setSelectedOrder] = useState<OrderOption | null>(initialOrder ?? null);
   // libero
   const [liberoRagione, setLiberoRagione] = useState("");
   const [liberoIndirizzo, setLiberoIndirizzo] = useState("");
   const [liberoPiva, setLiberoPiva] = useState("");
 
   // ── Magazzino + articoli ──────────────────────────────────────
-  const [warehouseId, setWarehouseId] = useState<string | undefined>();
+  const [warehouseId, setWarehouseId] = useState<string | undefined>(initialOrder?.default_warehouse_id ?? undefined);
   const [entries, setEntries] = useState<BatchScanEntry[]>([]);
   const [note, setNote] = useState("");
   // Sezione "Trasportatore e note" collassata di default (mobile pulito)
@@ -209,9 +211,9 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
 
   // Magazzino default dell'ordine (cantiere)
   useEffect(() => {
-    if (destTipo !== "cantiere" || !selectedOrder?.default_warehouse_id) return;
+    if (destTipo !== "cantiere" || !selectedOrder?.default_warehouse_id || entries.length > 0) return;
     setWarehouseId(selectedOrder.default_warehouse_id);
-  }, [destTipo, selectedOrder]);
+  }, [destTipo, selectedOrder, entries.length]);
 
   // ── Auto-fill articoli dall'ordine (solo cantiere) ────────────
   const { data: orderItemsPrefill = [] } = useQuery({
@@ -225,11 +227,12 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
         .eq("order_id", orderId!);
       if (error) throw error;
       const stockItemIds = (data ?? []).map((r) => r.stock_item_id).filter((v): v is string => !!v);
-      const { data: stockData } = await supabase
+      const { data: stockData, error: stockError } = await supabase
         .from("warehouse_stock")
         .select("id, name, quantity, tracking_mode")
         .in("id", stockItemIds)
         .eq("warehouse_id", warehouseId!);
+      if (stockError) throw stockError;
       const stockMap = new Map((stockData ?? []).map((s) => [s.id, s]));
       return (data ?? [])
         .filter((r) => r.stock_item_id && stockMap.has(r.stock_item_id))
@@ -240,7 +243,7 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
             order_item_id: r.id,
             stock_item_id: r.stock_item_id!,
             name: stock.name ?? r.name ?? "—",
-            quantity: r.quantity || 1,
+            quantity: r.quantity ?? 0,
             tracking_mode: stock.tracking_mode as "fungible" | "serialized",
             product_code: r.product_code ?? "",
             available_in_warehouse: stock.quantity || 0,
@@ -259,16 +262,16 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
       setOrderPrefillApplied(orderId);
       return;
     }
-    const prefillEntries: BatchScanEntry[] = orderItemsPrefill.map((it) => ({
-      id: crypto.randomUUID(),
+    const prefillEntries: BatchScanEntry[] = orderItemsPrefill.map((it): BatchScanEntry => ({
+      clientUuid: crypto.randomUUID(),
+      scannedAt: Date.now(),
       stockItemId: it.stock_item_id,
       itemName: it.name,
-      quantity: Math.min(it.quantity, it.available_in_warehouse || it.quantity),
+      quantity: Math.max(0, Math.min(it.quantity, it.available_in_warehouse)),
       serialNumbers: [],
       rawCode: it.product_code,
       trackingMode: it.tracking_mode,
-      resolutionStatus: "matched",
-    } as BatchScanEntry));
+    }));
     setEntries(prefillEntries);
     setOrderPrefillApplied(orderId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -328,10 +331,11 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
     destTipo === "cliente"
       ? !!anagraficaId
       : destTipo === "cantiere"
-        ? !!orderId
+        ? !!orderId && selectedOrder?.id === orderId
         : liberoRagione.trim().length > 0;
 
-  const canRegister = !!warehouseId && destinatarioValid && entries.length > 0;
+  const erroreRighe = validaRigheUscita(entries);
+  const canRegister = !!warehouseId && destinatarioValid && !erroreRighe;
 
   function buildDestinatario(): UscitaDestinatario {
     if (destTipo === "cliente" && selectedAnagrafica) {
@@ -398,7 +402,11 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
   }
 
   async function handleRegister() {
-    if (!warehouseId || !destinatarioValid || entries.length === 0) return;
+    if (!warehouseId || !destinatarioValid || register.isPending) return;
+    if (erroreRighe) {
+      toast.error(erroreRighe);
+      return;
+    }
     const scans = entriesToScans(entries);
     if (scans.length === 0) {
       toast.error("Nessun articolo valido da scaricare");
@@ -498,9 +506,7 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
     ? "Scegli il destinatario"
     : !warehouseId
       ? "Scegli il magazzino di partenza"
-      : entries.length === 0
-        ? "Aggiungi almeno un articolo"
-        : null;
+      : erroreRighe;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -610,7 +616,7 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
                 </AlertDescription>
               </Alert>
             ) : (
-              <Select value={warehouseId} onValueChange={setWarehouseId}>
+              <Select value={warehouseId} onValueChange={setWarehouseId} disabled={entries.length > 0}>
                 <SelectTrigger id="um-warehouse">
                   <SelectValue placeholder="Scegli un magazzino..." />
                 </SelectTrigger>
@@ -629,6 +635,8 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
               </Select>
             )}
           </section>
+
+          {entries.length > 0 && <p className="text-xs text-muted-foreground">Per cambiare magazzino, rimuovi prima gli articoli selezionati: le giacenze e i seriali appartengono al magazzino di partenza.</p>}
 
           {/* 3 · Articoli */}
           <section className="rounded-xl border bg-card p-3 sm:p-4 space-y-2.5">

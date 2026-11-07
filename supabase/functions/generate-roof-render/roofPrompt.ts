@@ -154,6 +154,11 @@ const INTERVENTI_CHE_RIFANNO_IL_MANTO = ["sostituzione_manto", "sovracopertura_c
  * un tetto di marsigliesi. Con il manto da rifare la configurazione passa intatta.
  */
 export function configPerIlRewriter(config: Record<string, unknown>): Record<string, unknown> {
+  // I valori rimasti nei controlli disattivati non sono richieste di modifica.
+  // In particolare il marrone predefinito non deve ricolorare gronde esistenti.
+  if (!bool(asRecord(config.grondaie).attivo)) {
+    config = { ...config, grondaie: { attivo: false, preserva: "Keep existing gutters and downpipes exactly as photographed, including colour and material." } };
+  }
   const tipoIntervento = text(config.tipo_intervento, "sostituzione_manto");
   if (INTERVENTI_CHE_RIFANNO_IL_MANTO.includes(tipoIntervento)) return config;
   const manto = asRecord(config.manto);
@@ -504,7 +509,7 @@ export function buildRoofPrompt(session: Record<string, unknown>): {
       "Chimneys, skylights, dormers and wall abutments need compatible step/apron/side flashings, correctly tucked under/over the selected covering.",
     gutters_downpipes: bool(grondaie.attivo)
       ? "New gutters/downpipes collect from the drip edge with plausible slope, brackets, joints, end caps, elbows and facade-mounted downpipe continuity."
-      : "Existing gutters/downpipes remain as photographed unless an insulated edge requires a subtle physically necessary relationship update.",
+      : "Existing gutters/downpipes retain their exact photographed colour and material. Insulation may require a subtle edge relationship update, never recolouring or replacement.",
     no_water_trap_rules: [
       "no open gaps uphill of skylights or chimneys",
       "no reverse-lap seams",

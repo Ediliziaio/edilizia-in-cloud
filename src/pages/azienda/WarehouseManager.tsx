@@ -153,7 +153,7 @@ export default function WarehouseManager() {
     if (!dialogOpen) return;
     if (!editingId) return; // create mode: già resettato in openCreate
     const items: PickerReferente[] = existingReferenti
-      .map((r) => {
+      .map((r): PickerReferente | null => {
         const person = referenteToPerson(r);
         if (!person) return null;
         return {

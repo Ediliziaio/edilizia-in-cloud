@@ -1,3 +1,4 @@
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { useState, useRef } from "react";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
@@ -304,7 +305,7 @@ export default function GiornaleLavori() {
       // ufficio cancellerebbe la firma e le coordinate prese in cantiere.
       let entry: { id: string };
       if (editingEntry?.id) {
-        const patch: Record<string, unknown> = { ...campi };
+        const patch: TablesUpdate<"giornale_lavori"> = { ...campi };
         if (firmaBase64) {
           patch.firma_capocantiere = firmaBase64;
           patch.firmato_il = new Date().toISOString();

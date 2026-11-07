@@ -4,7 +4,7 @@
  *
  * L'impaginazione (`impaginaDisegni`) è pura e si prova senza pdf-lib; pdf-lib si carica solo quando serve.
  */
-import type { Disegno2D } from "./prospetti";
+import { STILE_DISEGNO, type Disegno2D } from "./prospetti";
 import type { StatoPianta } from "../../../shared/planimetrie/modello.ts";
 import { metriConSfrido, percorsiImpianti } from "../../../shared/planimetrie/impianti.ts";
 
@@ -76,24 +76,8 @@ const hex = (c: string): Rgb => {
   return { r: ((n >> 16) & 255) / 255, g: ((n >> 8) & 255) / 255, b: (n & 255) / 255 };
 };
 
-const STILE: Record<string, { fill: string | null; stroke: string; width: number; dash?: number[] }> = {
-  muro: { fill: "#ffffff", stroke: "#0f172a", width: 0.5 },
-  muro_lontano: { fill: "#f8fafc", stroke: "#94a3b8", width: 0.3 },
-  taglio: { fill: "#1e293b", stroke: "#0f172a", width: 0.5 },
-  vano: { fill: "#ffffff", stroke: "#64748b", width: 0.3 },
-  vetro: { fill: "#e0f2fe", stroke: "#0f172a", width: 0.35 },
-  porta: { fill: "#f1f5f9", stroke: "#0f172a", width: 0.35 },
-  terra: { fill: null, stroke: "#0f172a", width: 0.7 },
-  quota: { fill: null, stroke: "#0f766e", width: 0.25 },
-  solaio: { fill: null, stroke: "#475569", width: 0.35, dash: [2, 1.5] },
-  falda: { fill: "#e7d3c4", stroke: "#0f172a", width: 0.4 },
-  timpano: { fill: "#ffffff", stroke: "#0f172a", width: 0.5 },
-  falda_lontana: { fill: "#f8fafc", stroke: "#94a3b8", width: 0.3 },
-  taglio_tetto: { fill: "#1e293b", stroke: "#0f172a", width: 0.5 },
-};
-
 /** Testo sicuro per i font standard del PDF (WinAnsi): niente caratteri che pdf-lib rifiuta. */
-const ansi = (s: string) => s.replace(/[–—]/g, "-").replace(/[‘’]/g, "'").replace(/[“”«»]/g, '"').replace(/[^\x20-\x7E\xA0-\xFF]/g, "");
+const ansi = (s: string) => s.replace(/[–—−]/g, "-").replace(/[‘’]/g, "'").replace(/[“”«»]/g, '"').replace(/[^\x20-\x7E\xA0-\xFF]/g, "");
 
 export interface OpzioniTavole {
   formato?: Foglio;
@@ -124,7 +108,7 @@ export async function accodaTavole(pdf: Uint8Array | null, disegni: Disegno2D[],
     p.drawText(ansi(o.intestazione), { x: MARGINE * PT, y: (H - MARGINE - 6) * PT, size: 10, font: grassetto, color: col("#0f172a"), maxWidth: (W - 2 * MARGINE - 60) * PT });
     p.drawText(ansi(`Prospetti e sezioni - scala 1:${imp.scala}`), { x: (W - MARGINE - 70) * PT, y: (H - MARGINE - 6) * PT, size: 8, font: normale, color: col("#475569") });
     p.drawText(ansi(`Foglio ${primo + i} di ${totale}`), { x: (W - MARGINE - 30) * PT, y: (MARGINE + 1) * PT, size: 7, font: normale, color: col("#64748b") });
-    p.drawText(ansi("Misure in metri. Stampare al 100% (senza adattare alla pagina) per misurare col righello."), { x: MARGINE * PT, y: (MARGINE + 1) * PT, size: 7, font: normale, color: col("#64748b") });
+    p.drawText(ansi("Quote senza unità in cm; quote di livello e misure con 'm' in metri. Stampare al 100% (senza adattare alla pagina)."), { x: MARGINE * PT, y: (MARGINE + 1) * PT, size: 7, font: normale, color: col("#64748b") });
     return p;
   });
 
@@ -135,26 +119,34 @@ export async function accodaTavole(pdf: Uint8Array | null, disegni: Disegno2D[],
     const X = (u: number) => (posto.x + BORDO_DISEGNO + (u - d.minU) * k) * PT;
     const Y = (z: number) => (H - (posto.y + BORDO_DISEGNO + (d.maxZ - z) * k)) * PT;
     for (const pr of d.primitive) {
-      const st = STILE[pr.stile] ?? STILE.muro;
+      const st = STILE_DISEGNO[pr.stile] ?? STILE_DISEGNO.muro;
+      const fill = st.fill !== "none" ? { color: col(st.fill) } : {};
+      const dash = st.dash ? { dashArray: st.dash.split(" ").map((v) => Number(v) * PT) } : {};
       if (pr.tipo === "rett") {
         pagina.drawRectangle({
           x: X(pr.u1), y: Y(pr.z1), width: (pr.u2 - pr.u1) * k * PT, height: (pr.z2 - pr.z1) * k * PT,
-          ...(st.fill ? { color: col(st.fill) } : {}), borderColor: col(st.stroke), borderWidth: st.width * PT * 0.6,
+          ...fill, ...dash, borderColor: col(st.stroke), borderWidth: st.width * PT * 0.6,
         });
         if (pr.stile === "porta") pagina.drawLine({ start: { x: X(pr.u1), y: Y(pr.z2) }, end: { x: X((pr.u1 + pr.u2) / 2), y: Y(pr.z1) }, thickness: 0.3, color: col("#94a3b8") });
       } else if (pr.tipo === "poligono") {
         // drawSvgPath ribalta la y: i punti vanno dati con la y cambiata di segno
         const path = pr.punti.map((q, i) => `${i ? "L" : "M"} ${X(q.u).toFixed(2)} ${(-Y(q.z)).toFixed(2)}`).join(" ") + " Z";
-        pagina.drawSvgPath(path, { x: 0, y: 0, ...(st.fill ? { color: col(st.fill) } : {}), borderColor: col(st.stroke), borderWidth: st.width * PT * 0.6 });
+        pagina.drawSvgPath(path, { x: 0, y: 0, ...fill, ...dash, borderColor: col(st.stroke), borderWidth: st.width * PT * 0.6 });
       } else if (pr.tipo === "linea") {
-        pagina.drawLine({ start: { x: X(pr.a.u), y: Y(pr.a.z) }, end: { x: X(pr.b.u), y: Y(pr.b.z) }, thickness: st.width * PT * 0.6, color: col(st.stroke), ...(st.dash ? { dashArray: st.dash.map((v) => v * PT) } : {}) });
+        pagina.drawLine({ start: { x: X(pr.a.u), y: Y(pr.a.z) }, end: { x: X(pr.b.u), y: Y(pr.b.z) }, thickness: st.width * PT * 0.6, color: col(st.stroke), ...dash });
       } else {
-        const titolo = pr.stile === "titolo";
+        const titolo = pr.stile === "titolo", etichetta = pr.stile === "etichetta";
         const size = titolo ? 9 : 6.5;
         const testo = ansi(titolo ? pr.testo.toUpperCase() : pr.testo);
         const font = titolo ? grassetto : normale;
         const larghezza = font.widthOfTextAtSize(testo, size);
-        pagina.drawText(testo, { x: titolo ? X(pr.u) : X(pr.u) - larghezza / 2, y: Y(pr.z), size, font, color: col(titolo ? "#0f172a" : "#0f766e") });
+        const scarto = titolo ? 0 : pr.ancora === "fine" ? larghezza : larghezza / 2;
+        pagina.drawText(testo, {
+          x: pr.ruota ? X(pr.u) : X(pr.u) - scarto,
+          y: pr.ruota ? Y(pr.z) - scarto : Y(pr.z),
+          ...(pr.ruota ? { rotate: lib.degrees(90) } : {}),
+          size, font, color: col(titolo || etichetta ? "#0f172a" : "#0f766e"),
+        });
       }
     }
   }

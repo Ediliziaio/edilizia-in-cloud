@@ -9,13 +9,16 @@ type Righe = Array<Record<string, unknown>>;
 const mocks = vi.hoisted(() => ({
   tabelle: {} as Record<string, unknown[]>,
   crea: vi.fn(),
+  anagraficaError: null as { message: string } | null,
+  ricercaPerNome: vi.fn(),
 }));
 
 vi.mock("@/integrations/supabase/client", () => {
   const costruttore = (tabella: string) => {
     const q: Record<string, unknown> = {};
     for (const m of ["select", "eq", "order", "limit", "in", "or", "is"]) q[m] = () => q;
-    q.maybeSingle = async () => ({ data: null as unknown, error: null as unknown });
+    q.or = (...args: unknown[]) => { if (tabella === "anagrafiche_native") mocks.ricercaPerNome(...args); return q; };
+    q.maybeSingle = async () => ({ data: null as unknown, error: tabella === "anagrafiche_native" ? mocks.anagraficaError : null });
     q.then = (ok: (v: unknown) => unknown) => ok({ data: mocks.tabelle[tabella] ?? [], error: null });
     return q;
   };
@@ -28,10 +31,10 @@ vi.mock("@/hooks/useAnagraficaAzienda", () => ({ useAnagraficaAzienda: () => ({ 
 vi.mock("@/hooks/useBonusFiscaliFlags", () => ({ useBonusFiscaliFlags: () => ({ bonusMultipli: false }) }));
 vi.mock("@/components/fatturazione/PreviewFattura", () => ({ PreviewFattura: (): null => null }));
 
-const apri = (installments: Installment[] = []) => render(
+const apri = (installments: Installment[] = [], customerId: string | null = null) => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
     <MemoryRouter>
-      <CreaFatturaDialog open onOpenChange={vi.fn()} orderId="o1" orderCode="ORD-1" orderDescription="Lavori" totalAmount={30000} vatRate={10} customerId={null} customerName="Mario" installments={installments} />
+      <CreaFatturaDialog open onOpenChange={vi.fn()} orderId="o1" orderCode="ORD-1" orderDescription="Lavori" totalAmount={30000} vatRate={10} customerId={customerId} customerName="Mario" installments={installments} />
     </MemoryRouter>
   </QueryClientProvider>,
 );
@@ -42,6 +45,7 @@ const apriFasi = async () => { fireEvent.click(await screen.findByRole("button",
 const creaFattura = () => fireEvent.click(screen.getByRole("button", { name: /Crea fattura ·/ }));
 
 beforeEach(() => {
+  mocks.anagraficaError = null;
   mocks.tabelle = {
     order_work_phases: [fase("f1", "Opere murarie", 60, 20000), fase("f2", "Impianti", 0, 10000)],
     order_work_phase_voci: [
@@ -63,6 +67,8 @@ describe("Crea fattura: cosa fatturi", () => {
     expect(screen.getByLabelText("Importo da fatturare: Opere murarie")).toHaveValue("12.000,00");
     expect(screen.getByLabelText("Importo da fatturare: Impianti")).toHaveValue("0,00");
     creaFattura();
+    expect(mocks.crea.mock.calls[0][0].cliente_snapshot).toMatchObject({ ragione_sociale: "Mario" });
+    expect(mocks.crea.mock.calls[0][0].anagrafica_id).toBeUndefined();
     expect(righeCreate()).toEqual([expect.objectContaining({ id: "fase:f1", prezzo_unitario: 12000, aliquota_iva: "10", descrizione: "Opere murarie — avanzamento lavori 60%" })]);
   });
 
@@ -128,9 +134,9 @@ describe("Crea fattura: cosa fatturi", () => {
     mocks.tabelle.documenti_fiscali = [{ id: "d1", tipo: "fattura", stato: "emessa", righe: [{ id: "importo-rata", imponibile: 30000 }], totale_documento: 33000 }];
     apri();
     fireEvent.click(await screen.findByRole("button", { name: "Fasi" }));
-    await screen.findByText(/fatturati senza dettaglio per fase/);
+    await screen.findByText(/in fatture o bozze senza dettaglio per fase/);
     await waitFor(() => expect(screen.getByLabelText("Importo da fatturare: Opere murarie")).toHaveValue("0,00"));
-    expect(screen.getByText(/fatturati senza dettaglio per fase/)).toBeInTheDocument();
+    expect(screen.getByText(/in fatture o bozze senza dettaglio per fase/)).toBeInTheDocument();
   });
 
   it("un SAL da fatturare viene prima di tutto, e la fattura si lega alla sua rata", async () => {
@@ -167,7 +173,7 @@ describe("Crea fattura: cosa fatturi", () => {
     apri();
     await apriFasi();
     expect(await screen.findByLabelText("Importo da fatturare: Opere murarie")).toHaveValue("5.000,00");
-    expect(screen.getByText(/fatturati senza dettaglio per fase/)).toHaveTextContent("25.000,00");
+    expect(screen.getByText(/in fatture o bozze senza dettaglio per fase/)).toHaveTextContent("25.000,00");
   });
 
   it("una rata già fatturata non si propone, si vede il numero e rifarla chiede conferma", async () => {
@@ -194,4 +200,31 @@ describe("Crea fattura: cosa fatturi", () => {
     expect(await screen.findByRole("button", { name: "Un importo", pressed: true })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Fasi" })).not.toBeInTheDocument();
   });
+});
+
+it("CHECK-57: una lettura fallita blocca la bozza e non cerca un omonimo", async () => {
+  mocks.anagraficaError = { message: "Lettura non disponibile" };
+  apri([], "cliente-demo");
+  expect(await screen.findByRole("alert")).toHaveTextContent("Impossibile verificare l’anagrafica");
+  expect(screen.getByRole("button", { name: /Crea fattura ·/ })).toBeDisabled();
+  expect(mocks.ricercaPerNome).not.toHaveBeenCalled();
+  expect(mocks.crea).not.toHaveBeenCalled();
+});
+it("CHECK-57: un cliente senza anagrafica collegata non viene abbinato per nome", async () => {
+  apri([], "cliente-demo");
+  await screen.findByText(/Anagrafica fiscale non collegata/);
+  await screen.findByLabelText("Descrizione della riga");
+  creaFattura();
+  expect(mocks.crea.mock.calls[0][0].cliente_snapshot.ragione_sociale).toBe("Mario");
+  expect(mocks.crea.mock.calls[0][0].anagrafica_id).toBeUndefined();
+  expect(mocks.ricercaPerNome).not.toHaveBeenCalled();
+});
+
+it("CHECK-79: distingue una bozza dal fatturato emesso senza riproporre la quota", async () => {
+  mocks.tabelle.fattura_ordine = [{ fattura_id: "d1", importo_associato: null }];
+  mocks.tabelle.documenti_fiscali = [{ id: "d1", tipo: "fattura", stato: "bozza", righe: [{ id: "importo-rata", imponibile: 30000 }], totale_documento: 33000 }];
+  apri();
+  fireEvent.click(await screen.findByRole("button", { name: "Fasi" }));
+  expect(await screen.findByText(/non sono fatturato emesso/)).toHaveTextContent("30.000,00");
+  await waitFor(() => expect(screen.getByLabelText("Importo da fatturare: Opere murarie")).toHaveValue("0,00"));
 });

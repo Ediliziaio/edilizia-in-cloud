@@ -457,7 +457,7 @@ export function SurveyTechnicalPdf({
           </View>
         </View>
         <Text style={st.eyebrow}>SOPRALLUOGO / DOSSIER TECNICO</Text>
-        <Text style={st.title}>{detail.template.category === "fotovoltaico" ? "Rilievo fotovoltaico" : detail.template.category === "climatizzazione" ? "Rilievo impianto termico" : "Rilievo serramenti"}</Text>
+        <Text style={st.title}>{detail.template.category === "fotovoltaico" ? "Rilievo fotovoltaico" : detail.template.category === "climatizzazione" ? "Rilievo impianto termico" : detail.template.category === "infissi" ? "Rilievo serramenti" : clean(detail.template.name)}</Text>
         <Text style={st.subtitle}>{clean(detail.template.name)}</Text>
         <Text style={st.code}>
           {clean(survey.code)} /{" "}

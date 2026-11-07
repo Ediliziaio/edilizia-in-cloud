@@ -17,7 +17,7 @@ describe("Pianificazione nelle azioni rapide", () => {
   it("su mobile mostra solo tre pulsanti e conserva contatti e fattura nel menu", async () => {
     mocks.mobile = true;
     const invoice = vi.fn(); const task = vi.fn(); const files = vi.fn();
-    render(<OrderQuickActions {...base} customer={{ name: "Test", email: "test@example.invalid", phone: "+390000000000" }} onCreateTask={task} onOpenFiles={files} onCreateInvoice={invoice} />);
+    render(<OrderQuickActions {...base} customer={{ name: "Test", email: "test@example.com", phone: "+390000000000" }} onCreateTask={task} onOpenFiles={files} onCreateInvoice={invoice} />);
     expect(screen.getAllByRole("button")).toHaveLength(3);
     expect(screen.getByRole("button", { name: "Nuova attività" })).toHaveTextContent("Attività");
     fireEvent.click(screen.getByRole("button", { name: "Documenti" }));
@@ -44,7 +44,7 @@ describe("Pianificazione nelle azioni rapide", () => {
     expect(invoice).not.toHaveBeenCalled();
   });
   it("un solo «Contatta»: apre il popup senza inviare, con Chiama e Invia PDF dentro", () => {
-    render(<OrderQuickActions {...base} customer={{ name: "Cliente test", email: "test@example.invalid", phone: "+390000000000" }} />);
+    render(<OrderQuickActions {...base} customer={{ name: "Cliente test", email: "test@example.com", phone: "+390000000000" }} />);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     for (const name of ["Email", "WhatsApp", "SMS", "Chiama", "Invia PDF"]) expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Contatta" }));
@@ -121,4 +121,12 @@ describe("Pianificazione nelle azioni rapide", () => {
     expect(modifica).toHaveBeenCalledOnce();
     expect(screen.queryByRole("menuitem", { name: "Scarica PDF" })).not.toBeInTheDocument();
   });
+});
+
+it('non propone l’email tecnica come canale di contatto della commessa', () => {
+ render(<OrderQuickActions {...base} customer={{name:'Demo',email:'cliente-demo@no-email.ediliziaincloud.local',phone:'+390000000000'}} />);
+ fireEvent.click(screen.getByRole('button',{name:'Contatta'}));
+ expect(screen.getByRole('dialog')).toHaveTextContent('Canale whatsapp');
+ expect(screen.queryByRole('button',{name:'Invia PDF'})).not.toBeInTheDocument();
+ expect(mocks.from).not.toHaveBeenCalled();
 });

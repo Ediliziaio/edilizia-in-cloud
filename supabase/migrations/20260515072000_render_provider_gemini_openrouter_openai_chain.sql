@@ -6,6 +6,44 @@
 --
 -- Idempotent and safe to run multiple times.
 
+-- Prerequisiti: tabelle introdotte storicamente in agosto/settembre.
+CREATE TABLE IF NOT EXISTS public.render_provider_config (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  provider_key text NOT NULL UNIQUE,
+  label text NOT NULL,
+  model text NOT NULL,
+  api_endpoint text NOT NULL,
+  is_active boolean DEFAULT false,
+  is_default boolean DEFAULT false,
+  quality text DEFAULT 'high',
+  timeout_sec integer DEFAULT 120,
+  cost_real_per_render numeric DEFAULT 0.04,
+  markup_multiplier numeric DEFAULT 2.5,
+  cost_billed_per_render numeric DEFAULT 0.10,
+  renders_generated integer DEFAULT 0,
+  notes text,
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE public.render_provider_config ENABLE ROW LEVEL SECURITY;
+CREATE TABLE IF NOT EXISTS public.render_provider_pricing (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  provider_key text NOT NULL,
+  model text NOT NULL,
+  pricing_mode text NOT NULL CHECK (pricing_mode IN ('per_image','per_token','hybrid')),
+  price_input_image_eur numeric(10,8) NOT NULL DEFAULT 0,
+  price_input_token_eur numeric(12,10) NOT NULL DEFAULT 0,
+  price_output_image_eur numeric(10,8) NOT NULL DEFAULT 0,
+  price_output_token_eur numeric(12,10) NOT NULL DEFAULT 0,
+  -- Fallback deterministico quando l'API non ritorna usage (per_image mode):
+  fallback_cost_per_call_eur numeric(10,6) NOT NULL DEFAULT 0,
+  effective_from timestamptz NOT NULL DEFAULT now(),
+  effective_to timestamptz,
+  notes text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(provider_key, model, effective_from)
+);
+ALTER TABLE public.render_provider_pricing ENABLE ROW LEVEL SECURITY;
+
 INSERT INTO public.platform_settings (key, value)
 VALUES ('render_default_provider', 'gemini')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;

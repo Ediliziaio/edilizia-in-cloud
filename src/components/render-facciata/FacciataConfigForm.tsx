@@ -1,3 +1,4 @@
+import { QualitaRender } from "@/components/render/QualitaRender";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -149,6 +150,7 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
 
   return (
     <div className="space-y-4 max-md:space-y-3">
+      <QualitaRender value={config.qualita_render} onChange={(qualita_render) => onChange({ ...config, qualita_render })} />
       {/* Telefono: la lettura dell'edificio è già al passo «Analisi». */}
       {analysis && !isMobile && (
         <Card className="border-orange-200 bg-orange-50/40">

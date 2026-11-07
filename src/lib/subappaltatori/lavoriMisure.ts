@@ -101,9 +101,12 @@ export function vociDaAllegato(
   importoContratto: number,
   nuovoId: () => string = () => crypto.randomUUID(),
 ): VoceSub[] | null {
-  if (!Array.isArray(elenco) || elenco.length === 0 || elenco.length > 100) return null;
+  if (!Array.isArray(elenco) || elenco.length === 0) return null;
+  // Il quadro dei lavori tiene al massimo 100 voci: oltre, una voce a corpo per fase, con la fase collegata.
+  if (elenco.length > 100) return vociPerFase(elenco as Array<Record<string, unknown>>, importoContratto, nuovoId);
   const voci: VoceSub[] = [];
   for (const r of elenco as Array<Record<string, unknown>>) {
+    const faseId = typeof r?.fase_id === "string" && r.fase_id ? r.fase_id : null;
     const descrizione = String(r?.descrizione ?? "").trim();
     const unita = String(r?.unita ?? "").trim().toLowerCase();
     const quantita = Math.round(Number(r?.quantita) * 10000) / 10000;
@@ -112,15 +115,57 @@ export function vociDaAllegato(
     const testo = descrizione.slice(0, 2000);
     if (/corpo/.test(unita)) {
       const importo = Math.round(quantita * prezzo * 100) / 100;
-      voci.push({ id: nuovoId(), fase_id: null, descrizione: testo, base: "corpo", unita: "quota", quantita: 1, prezzo: importo });
+      voci.push({ id: nuovoId(), fase_id: faseId, descrizione: testo, base: "corpo", unita: "quota", quantita: 1, prezzo: importo });
     } else if (/^(h|ore|ora)$/.test(unita)) {
-      voci.push({ id: nuovoId(), fase_id: null, descrizione: testo, base: "ore", unita: "h", quantita, prezzo });
+      voci.push({ id: nuovoId(), fase_id: faseId, descrizione: testo, base: "ore", unita: "h", quantita, prezzo });
     } else {
-      voci.push({ id: nuovoId(), fase_id: null, descrizione: testo, base: "misura", unita: (unita || "cad").slice(0, 15), quantita, prezzo });
+      voci.push({ id: nuovoId(), fase_id: faseId, descrizione: testo, base: "misura", unita: (unita || "cad").slice(0, 15), quantita, prezzo });
     }
   }
   const totale = voci.reduce((s, v) => s + Math.round(v.quantita * v.prezzo * 100) / 100, 0);
   return Math.abs(Math.round(totale * 100) / 100 - Number(importoContratto)) < 0.005 ? voci : null;
+}
+
+function vociPerFase(elenco: Array<Record<string, unknown>>, importoContratto: number, nuovoId: () => string): VoceSub[] | null {
+  const gruppi = new Map<string, { fase: string; faseId: string | null; centesimi: number; righe: number }>();
+  for (const r of elenco) {
+    const fase = String(r?.fase ?? "").trim() || "Altri lavori";
+    const faseId = typeof r?.fase_id === "string" && r.fase_id ? r.fase_id : null;
+    const g = gruppi.get(fase) ?? { fase, faseId, centesimi: 0, righe: 0 };
+    g.centesimi += Math.round(Number(r?.quantita) * Number(r?.prezzo) * 100) || 0;
+    g.righe += 1;
+    gruppi.set(fase, g);
+  }
+  if (gruppi.size > 100) return null;
+  const voci = [...gruppi.values()].map((g): VoceSub => ({
+    id: nuovoId(), fase_id: g.faseId, descrizione: `${g.fase} (${g.righe} lavorazioni)`.slice(0, 2000), base: "corpo", unita: "quota", quantita: 1, prezzo: g.centesimi / 100,
+  }));
+  const totale = voci.reduce((s, v) => s + Math.round(v.prezzo * 100), 0) / 100;
+  return Math.abs(totale - Number(importoContratto)) < 0.005 ? voci : null;
+}
+
+/** Una riga del cantiere: la voce con la sua sottofase e a che punto è. */
+export interface RigaCantiere { phase_id: string; descrizione: string; percentuale: number; quantita_fatta: number | null; quantita: number | null }
+
+const testoUguale = (a: string, b: string) => a.trim().toLocaleLowerCase("it-IT") === b.trim().toLocaleLowerCase("it-IT");
+
+/**
+ * Quanto risulta fatto in cantiere per una voce del SAL della ditta, nella sua unità (a corpo: frazione 0–1).
+ * Si riconosce dalla fase e dalla descrizione; una voce a corpo che raccoglie tutta la fase prende la media
+ * pesata sulle quantità. Null se la voce non ha una fase o nessuna riga corrisponde: non si inventa un numero.
+ */
+export function fattoInCantiere(voce: Pick<VoceSub, "fase_id" | "descrizione" | "base" | "quantita">, righe: ReadonlyArray<RigaCantiere>): number | null {
+  if (!voce.fase_id) return null;
+  const dellaFase = righe.filter((r) => r.phase_id === voce.fase_id);
+  const stessa = dellaFase.find((r) => testoUguale(r.descrizione, voce.descrizione));
+  if (stessa) {
+    if (voce.base === "corpo") return stessa.percentuale / 100;
+    return Math.round(Math.min(voce.quantita, stessa.quantita_fatta ?? (voce.quantita * stessa.percentuale) / 100) * 10000) / 10000;
+  }
+  if (voce.base !== "corpo" || dellaFase.length === 0) return null;
+  const peso = (r: RigaCantiere) => Math.max(0, Number(r.quantita) || 0) || 1;
+  const totale = dellaFase.reduce((s, r) => s + peso(r), 0);
+  return Math.round((dellaFase.reduce((s, r) => s + peso(r) * r.percentuale, 0) / totale) * 100) / 10000;
 }
 
 /**

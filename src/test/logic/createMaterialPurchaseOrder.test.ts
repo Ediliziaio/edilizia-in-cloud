@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const state = vi.hoisted(() => ({ calls: [] as Array<{ table: string; op: string; values?: unknown; filters: Array<[string, unknown]>; range?: number[] }>, headers: [] as unknown[], orphanRows: [] as unknown[], coverage: [] as unknown[], current: [] as unknown[], coverageError: null as Error | null, lineError: null as Error | null, headerError: null as Error | null, diaryError: null as Error | null, pages: null as unknown[][] | null }));
+const state = vi.hoisted(() => ({ rpc: vi.fn(), calls: [] as Array<{ table: string; op: string; values?: unknown; filters: Array<[string, unknown]>; range?: number[] }>, headers: [] as unknown[], orphanRows: [] as unknown[], coverage: [] as unknown[], current: [] as unknown[], coverageError: null as Error | null, lineError: null as Error | null, headerError: null as Error | null, diaryError: null as Error | null, pages: null as unknown[][] | null }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company" } }) }));
 vi.mock("@/utils/logger", () => ({ logger: { error: vi.fn() } }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: (table: string) => {
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: state.rpc, from: (table: string) => {
   const call: typeof state.calls[number] = { table, op: "select", filters: [] }; state.calls.push(call);
   const result = () => {
     if (table === "order_items") return { data: state.current, error: null };
@@ -21,19 +21,19 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: (table: str
   };
   return q;
 } } }));
-import { createMaterialPurchaseOrder, IncompletePurchaseOrderError } from "@/lib/orders/createMaterialPurchaseOrder";
+import { createMaterialPurchaseOrder } from "@/lib/orders/createMaterialPurchaseOrder";
 import { loadMaterialCoverage } from "@/hooks/useMaterialProcurement";
 const item = { id: "a", name: "Pavimento", quantity: 10, purchase_price: 20, vat_rate: 0, supplier_id: "s", status: "da_ordinare" };
 const row = { id: "r", order_item_id: "a", quantity: 4, quantity_received: 2, purchase_orders: { id: "old", oda_number: "ODA-1", status: "confermato" } };
 const input = () => ({ companyId: "company", orderId: "order", supplierId: "s", items: [item] });
-beforeEach(() => Object.assign(state, { calls: [], headers: [], orphanRows: [], coverage: [], current: [item], coverageError: null, lineError: null, headerError: null, diaryError: null, pages: null }));
+beforeEach(() => { state.rpc.mockReset().mockImplementation(async () => ({ data: { poId: "po" }, error: state.lineError ?? state.headerError })); Object.assign(state, { calls: [], headers: [], orphanRows: [], coverage: [], current: [item], coverageError: null, lineError: null, headerError: null, diaryError: null, pages: null }); });
 const inserts = () => state.calls.filter(c => c.op === "insert");
 
 describe("OdA commessa: preflight reale e mutazioni simulate", () => {
   it("crea una bozza collegata con IVA zero e non cambia lo stato dell’articolo", async () => {
     await expect(createMaterialPurchaseOrder(input())).resolves.toEqual({ poId: "po", n: 1 });
-    expect(inserts()[0]).toMatchObject({ table: "purchase_orders", values: { company_id: "company", order_id: "order", status: "bozza" } });
-    expect(inserts()[1].values).toEqual([expect.objectContaining({ quantity: 10, vat_rate: 0, order_item_id: "a" })]);
+    expect(state.rpc).toHaveBeenCalledWith("crea_oda_materiali_atomica", expect.objectContaining({ p_company_id: "company", p_order_id: "order", p_righe: [expect.objectContaining({ quantity: 10, vat_rate: 0, order_item_id: "a" })] }));
+    expect(inserts().some(c => c.table === "purchase_orders" || c.table === "purchase_order_items")).toBe(false);
     expect(state.calls.some(c => c.op !== "select" && c.table === "order_items")).toBe(false);
   });
   it("se il controllo copertura fallisce non crea nemmeno la testata", async () => {
@@ -44,16 +44,17 @@ describe("OdA commessa: preflight reale e mutazioni simulate", () => {
   });
   it("prepara solo il residuo già mostrato all’utente", async () => {
     state.coverage = [row]; await createMaterialPurchaseOrder({ ...input(), items: [{ ...item, quantity: 6 }] });
-    expect(inserts()[1].values).toEqual([expect.objectContaining({ quantity: 6 })]);
+    expect(state.rpc).toHaveBeenCalledWith("crea_oda_materiali_atomica", expect.objectContaining({ p_righe: [expect.objectContaining({ quantity: 6 })] }));
   });
   it.each(["supplier", "price", "stock", "missing"])("blocca dati modificati da un altro terminale: %s", async what => {
     state.current = what === "missing" ? [] : [{ ...item, ...(what === "supplier" ? { supplier_id: "other" } : what === "price" ? { purchase_price: 999 } : { stock_item_id: "stock" }) }];
     await expect(createMaterialPurchaseOrder(input())).rejects.toThrow("cambiati"); expect(inserts()).toHaveLength(0);
   });
   it("senza selezione non fa scritture", async () => { await expect(createMaterialPurchaseOrder({ ...input(), items: [] })).rejects.toThrow("Nessun articolo"); expect(inserts()).toHaveLength(0); });
-  it("un errore sulle righe restituisce la bozza da verificare senza cancellarla", async () => {
-    state.lineError = new Error("rete"); await expect(createMaterialPurchaseOrder(input())).rejects.toMatchObject({ poId: "po", name: "Error" });
-    try { await createMaterialPurchaseOrder(input()); } catch (e) { expect(e).toBeInstanceOf(IncompletePurchaseOrderError); }
+  it("un errore della transazione non ripiega su insert separati e non cancella ordini", async () => {
+    state.lineError = new Error("rete");
+    await expect(createMaterialPurchaseOrder(input())).rejects.toThrow("verifica gli ordini");
+    expect(inserts()).toHaveLength(0);
     expect(state.calls.every(c => c.op !== "delete")).toBe(true);
   });
   it("riconosce ordini preesistenti senza righe collegate e non duplica acquisti", async () => {
@@ -73,7 +74,7 @@ describe("OdA commessa: preflight reale e mutazioni simulate", () => {
     await expect(createMaterialPurchaseOrder(input())).resolves.toMatchObject({ poId: "po" });
   });
   it("errore testata non avvia insert righe", async () => {
-    state.headerError = new Error("RLS"); await expect(createMaterialPurchaseOrder(input())).rejects.toThrow("RLS"); expect(inserts()).toHaveLength(1);
+    state.headerError = new Error("RLS"); await expect(createMaterialPurchaseOrder(input())).rejects.toThrow("RLS"); expect(inserts()).toHaveLength(0);
   });
   it("errore diario non fa credere che l’OdA sia fallito", async () => {
     state.diaryError = new Error("diario"); await expect(createMaterialPurchaseOrder(input())).resolves.toMatchObject({ poId: "po" });
@@ -81,7 +82,7 @@ describe("OdA commessa: preflight reale e mutazioni simulate", () => {
   it("due click simultanei nella stessa app non creano due ordini", async () => {
     const results = await Promise.allSettled([createMaterialPurchaseOrder(input()), createMaterialPurchaseOrder(input())]);
     expect(results.map(r => r.status).sort()).toEqual(["fulfilled", "rejected"]);
-    expect(inserts().filter(c => c.table === "purchase_orders")).toHaveLength(1);
+    expect(state.rpc).toHaveBeenCalledTimes(1);
   });
   it("tutte le letture sono circoscritte ad azienda e commessa", async () => {
     await createMaterialPurchaseOrder(input());
@@ -96,4 +97,11 @@ describe("OdA commessa: preflight reale e mutazioni simulate", () => {
   it("non nasconde un errore di lettura", async () => {
     state.coverageError = new Error("lettura"); await expect(loadMaterialCoverage("company", ["a"])).rejects.toThrow("lettura");
   });
+});
+
+
+it("se la RPC non è distribuita interrompe senza tornare al salvataggio non atomico", async () => {
+  state.rpc.mockResolvedValueOnce({ data: null, error: { code: "PGRST202", message: "Function missing" } });
+  await expect(createMaterialPurchaseOrder(input())).rejects.toThrow("non è ancora attivo sul server");
+  expect(inserts()).toHaveLength(0);
 });

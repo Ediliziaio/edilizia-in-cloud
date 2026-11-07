@@ -1,3 +1,4 @@
+import { type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 import { FinancialSummaryReadOnly, type PaymentType } from "./FinancialSummary";
 import type { VarianteDatata } from "@/lib/commissions";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -12,6 +13,7 @@ interface OrdineEconomicoProps {
   installments: Installment[];
   hasBuildingBonus: boolean;
   financingCost?: number;
+  financingCostMode?: ModalitaCostoFinanziaria | null;
   collectedAmount: number;
   onInstallmentPaidToggle: (installment: Installment, paid: boolean) => void;
   onInstallmentDateChange?: (installment: Installment, field: 'paid_date' | 'expected_date', date?: Date) => void;
@@ -40,6 +42,7 @@ export function OrdineEconomico({
   installments,
   hasBuildingBonus,
   financingCost,
+  financingCostMode,
   onInstallmentPaidToggle,
   onInstallmentDateChange,
   orderCode,
@@ -59,6 +62,7 @@ export function OrdineEconomico({
         vatRate={vatRate}
         paymentType={paymentType}
         financingCost={financingCost}
+        financingCostMode={financingCostMode}
         installments={installments}
         puoModificare={permissions.canEditOrders}
       />
@@ -69,6 +73,7 @@ export function OrdineEconomico({
         installments={installments}
         hasBuildingBonus={hasBuildingBonus}
         financingCost={financingCost}
+        financingCostMode={financingCostMode}
         onInstallmentPaidToggle={onInstallmentPaidToggle}
         onInstallmentDateChange={onInstallmentDateChange}
         orderId={orderId}

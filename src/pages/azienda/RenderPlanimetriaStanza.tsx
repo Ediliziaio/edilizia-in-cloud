@@ -1,3 +1,5 @@
+import { applicaMaterialiProgetto, materialiDelProgetto, descrizionePavimento, PROFILI_PROGETTO, COLORI_INFISSI_PROGETTO } from "../../../shared/planimetrie/materialiProgetto.ts";
+import { preparaMaterialiStanza } from "@/lib/render/roomMaterialsBoard";
 /**
  * «Fai il render di questa stanza» da una pianta (Planimetrie, fase 5b).
  *
@@ -71,12 +73,13 @@ export default function RenderPlanimetriaStanza() {
   // La stanza e lo stato possono cambiare se nel 3D si sceglie un'altra stanza o
   // «com'è oggi» invece del progetto: il render segue l'inquadratura scelta.
   const [scelta, setScelta] = useState<{ ambito: string; localeId: string }>({ ambito: params.get("ambito") ?? "fatto", localeId: localeParam });
+  const materialiAmbito = params.get("materiali_ambito") ?? scelta.ambito;
   const vincoli = useMemo(
     () => (documento ? vincoliDellaStanza(documento, { livello_id: livelloId, ambito: scelta.ambito, locale_id: scelta.localeId }) : null),
     [documento, livelloId, scelta],
   );
   const propostaId = scelta.ambito.startsWith("progetto:") ? scelta.ambito.slice("progetto:".length) : undefined;
-  const piante3D = useMemo(() => (documento ? pianteDaPlanimetria(documento, { livelloId, propostaId }) : null), [documento, livelloId, propostaId]);
+  const piante3D = useMemo(() => (documento ? pianteDaPlanimetria(documento, { livelloId, propostaId, ...(params.get("materiali_ambito") ? { materialiAmbito } : {}) }) : null), [documento, livelloId, propostaId, params, materialiAmbito]);
 
   const [passo, setPasso] = useState<Passo>(1);
   const [partenza, setPartenza] = useState<PartenzaRender>("vista_3d");
@@ -85,7 +88,10 @@ export default function RenderPlanimetriaStanza() {
   const [anteprima, setAnteprima] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [config, setConfig] = useState<ConfigurazioneStanza>(DEFAULT_STANZA_CONFIG);
+  const [config, setConfig] = useState<ConfigurazioneStanza>(() => ({ ...structuredClone(DEFAULT_STANZA_CONFIG), qualita_render: "alta" }));
+  const [eccezionePavimento, setEccezionePavimento] = useState(false);
+  const materialiComuni = documento ? materialiDelProgetto(documento, materialiAmbito) : {};
+  const configEffettiva = applicaMaterialiProgetto({ ...config, eccezioni_materiali_progetto: { pavimento: eccezionePavimento } }, materialiComuni);
   const configIniziale = useRef(false);
   useEffect(() => {
     if (!vincoli || configIniziale.current) return;
@@ -205,12 +211,14 @@ export default function RenderPlanimetriaStanza() {
     setRisultato(null);
     setSalvato(false);
     try {
+      const configRender = await preparaMaterialiStanza(applicaMaterialiProgetto({ ...config, eccezioni_materiali_progetto: { pavimento: eccezionePavimento } }, materialiDelProgetto(data.versione.documento, materialiAmbito)), companyId);
       let sid = sessione;
       const rif: PlanimetriaNelRender = {
         planimetria_id: id,
         versione: data.versione.numero,
         livello_id: livelloId,
         ambito: scelta.ambito,
+        ...(materialiAmbito !== scelta.ambito ? { materiali_ambito: materialiAmbito } : {}),
         locale_id: scelta.localeId,
         locale_nome: vincoli.locale.nome,
         partenza,
@@ -238,7 +246,7 @@ export default function RenderPlanimetriaStanza() {
             created_by: user.id,
             status: "pending",
             original_photo_url: storagePath,
-            config: { ...config, planimetria: rif } as never,
+            config: { ...configRender, planimetria: rif } as never,
           })
           .select("id")
           .single();
@@ -250,7 +258,7 @@ export default function RenderPlanimetriaStanza() {
         rif.pianta_path = ((vecchia as { config?: { planimetria?: PlanimetriaNelRender } } | null)?.config?.planimetria?.pianta_path) ?? null;
         await supabase
           .from("render_stanza_sessions")
-          .update({ config: { ...config, planimetria: rif } as never, status: "pending", result_urls: null, error_message: null })
+          .update({ config: { ...configRender, planimetria: rif } as never, status: "pending", result_urls: null, error_message: null })
           .eq("id", sid);
       }
 
@@ -261,7 +269,7 @@ export default function RenderPlanimetriaStanza() {
       controlla(sid);
       const headers = await getEdgeFunctionAuthHeaders();
       const { data: risposta, error: errFn } = await supabase.functions.invoke("generate-room-render", {
-        body: { session_id: sid, config: { ...config, planimetria: rif }, ...(dim ? { target_width: dim.w, target_height: dim.h } : {}) },
+        body: { session_id: sid, config: { ...configRender, planimetria: rif }, ...(dim ? { target_width: dim.w, target_height: dim.h } : {}) },
         headers,
       });
       if (errFn || risposta?.error) {
@@ -279,7 +287,7 @@ export default function RenderPlanimetriaStanza() {
       setPasso(2);
       toast.error(fraseErroreRender(e instanceof Error ? e.message : ""));
     }
-  }, [anteprima, companyId, config, controlla, data, fermaAttesa, foto, fotogramma, id, inCorso, livelloId, partenza, scelta, sessione, user, vincoli]);
+  }, [anteprima, companyId, config, eccezionePavimento, controlla, data, fermaAttesa, foto, fotogramma, id, inCorso, livelloId, materialiAmbito, partenza, scelta, sessione, user, vincoli]);
 
   const salvaInGalleria = async () => {
     if (!sessione) return;
@@ -464,7 +472,8 @@ export default function RenderPlanimetriaStanza() {
               </CardTitle>
             </CardHeader>
             <CardContent className="max-md:p-0">
-              <StanzaConfigForm value={config} onChange={setConfig} companyId={companyId} />
+              {(materialiComuni.pavimento || materialiComuni.infissi) && <div className="mb-4 space-y-2 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950"><p className="font-semibold">Materiali comuni del progetto</p>{materialiComuni.pavimento && <><p>{descrizionePavimento(materialiComuni.pavimento)}</p><label className="flex items-center gap-2"><input type="checkbox" checked={eccezionePavimento} onChange={(e) => setEccezionePavimento(e.target.checked)} />Usa un pavimento diverso solo per questo render</label></>}{materialiComuni.infissi && <p>Infissi: {PROFILI_PROGETTO[materialiComuni.infissi.profilo]}, {COLORI_INFISSI_PROGETTO[materialiComuni.infissi.colore].nome}. Stesso materiale, misure proprie di ogni apertura.</p>}<Link className="inline-block underline" to={percorsiPlanimetrie.pianta(id)}>Modifica i materiali per tutte le stanze</Link></div>}
+              <StanzaConfigForm value={configEffettiva} onChange={setConfig} pavimentoBloccato={!!materialiComuni.pavimento && !eccezionePavimento} companyId={companyId} />
             </CardContent>
           </Card>
           {/* Senza crediti avvisa e blocca, come negli altri render. */}
@@ -511,6 +520,7 @@ export default function RenderPlanimetriaStanza() {
               <Link to={salvato ? `${percorsiPlanimetrie.pianta(id)}?galleria=${encodeURIComponent(scelta.localeId)}` : percorsiPlanimetrie.pianta(id)}>{salvato ? "Apri la galleria della stanza" : "Torna alla pianta"}</Link>
             </Button>
           </div>
+          <Button asChild className="w-full gap-2"><Link to={`${percorsiPlanimetrie.pianta(id)}?esporta=fascicolo&ambito=${encodeURIComponent(materialiAmbito)}&livello=${encodeURIComponent(livelloId)}`}><Download className="h-4 w-4" />Prepara il fascicolo completo della casa</Link></Button>
         </div>
       )}
     </div>

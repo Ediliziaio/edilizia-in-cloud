@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
 import { useOrderVariations } from "@/hooks/useOrderVariations";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -63,6 +64,35 @@ export function OdVSection({ orderId, companyId, context: contestoCommessa = {},
     catch { toast.error("Copia non riuscita. Apri il link e copialo dalla barra degli indirizzi."); }
   };
   const approvate = odvList.filter(o => o.status === "approvato");
+  // La fase che ogni variante approvata ha creato nelle Lavorazioni (06/11/2026): dalle sue voci, origine «variante».
+  const fasiDaVarianti = useQuery({
+    queryKey: ["varianti-fasi", orderId],
+    enabled: approvate.length > 0,
+    staleTime: 30_000,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any;
+      const { data, error } = await db.from("order_work_phase_voci").select("origine_codice, phase:order_work_phases(id,name)")
+        .eq("order_id", orderId).eq("origine", "variante").limit(1000);
+      if (error) throw error;
+      const m = new Map<string, { id: string; name: string }>();
+      for (const v of (data ?? []) as Array<{ origine_codice: string | null; phase: { id: string; name: string } | null }>) if (v.origine_codice && v.phase) m.set(v.origine_codice, v.phase);
+      return m;
+    },
+  });
+  const creaFase = useMutation({
+    mutationFn: async (id: string) => {
+      const { data, error } = await (supabase.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>)("variante_crea_lavori_da_ufficio", { p_variante: id });
+      if (error) throw new Error(/does not exist|schema cache/i.test(error.message) ? "La creazione della fase non è ancora attiva su questo database." : error.message);
+      if (!data) throw new Error("Questa variante non crea lavori (è una riduzione o un importo negativo).");
+    },
+    onSuccess: () => {
+      toast.success("Fase creata nelle Lavorazioni");
+      void queryClient.invalidateQueries({ queryKey: ["varianti-fasi", orderId] });
+      refreshWorkQueries(queryClient, orderId);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const colonne: ColonnaTabella<WorkflowVariation>[] = [
     { titolo: "Variante", principale: true, cella: odv => (
       <div className="min-w-0 max-w-xl">
@@ -76,7 +106,13 @@ export function OdVSection({ orderId, companyId, context: contestoCommessa = {},
     { titolo: "Stato", cella: odv => {
       const cfg = STATUS_CONFIG[odv.status] || STATUS_CONFIG.in_attesa;
       const quando = variationEventDate(odv.offline_signed_on ?? odv.firmato_il);
-      return <><StatoPill tono={cfg.tono}>{cfg.label}</StatoPill>{quando && <p className="mt-0.5 text-xs text-muted-foreground">{odv.status === "approvato" ? "Approvato" : odv.status === "rifiutato" ? "Rifiutato" : "Elaborato"} {quando}</p>}</>;
+      const fase = fasiDaVarianti.data?.get(odv.id);
+      const lavori = odv.status === "approvato" && Number(odv.impatto_economico) >= 0;
+      return <><StatoPill tono={cfg.tono}>{cfg.label}</StatoPill>{quando && <p className="mt-0.5 text-xs text-muted-foreground">{odv.status === "approvato" ? "Approvato" : odv.status === "rifiutato" ? "Rifiutato" : "Elaborato"} {quando}</p>}
+        {lavori && fase && <p className="mt-0.5 text-xs text-emerald-700">Nelle Lavorazioni: {fase.name}</p>}
+        {lavori && !fase && fasiDaVarianti.isSuccess && permissions.canEditOrders && <Button variant="outline" size="sm" className="mt-1 h-7 text-xs" disabled={creaFase.isPending} onClick={() => creaFase.mutate(odv.id)}>
+          {creaFase.isPending && creaFase.variables === odv.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}Crea la fase nelle Lavorazioni</Button>}
+        {odv.status === "in_attesa" && <p className="mt-0.5 text-xs text-muted-foreground">Quando il cliente accetta diventa una fase delle Lavorazioni</p>}</>;
     } },
     { titolo: "Azioni", intestazione: <span className="sr-only">Azioni</span>, destra: true, cella: odv => {
       const linkAttivo = odv.status === "in_attesa" && odv.firma_token && !odv.link_revoked_at && (!odv.link_expires_at || new Date(odv.link_expires_at).getTime() > Date.now());

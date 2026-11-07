@@ -99,6 +99,8 @@ export interface PavTemplatePdf {
   usp: PavListItem[];
   testimonianze: PavTestimonianza[];
   cronoprogramma: PavCronoFase[];
+  /** Titolo del modello congelato, letto anche dal renderer condiviso. */
+  pdf_cover_hero?: string | null;
   cover_title: string | null;
   cover_subtitle: string | null;
   cover_image_url: string | null;

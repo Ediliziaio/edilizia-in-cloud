@@ -174,11 +174,16 @@ Deno.serve(async req => {
         }
         // Reuse GIN(search); bounded discovery followed by technical reranking.
         // No new SQL function/schema, wildcard scans, catalogue copy or totals.
+        // Voci senza unità INCLUSE (06/11/2026): 16 prezzari regionali su 19 sono
+        // stati importati senza unità, e il vecchio `.not(unita_misura is null)`
+        // svuotava la ricerca per descrizione di quelle regioni. assessCatalogueMatch
+        // le segnala («unità di misura mancante»), il ranking le mette in coda: sono
+        // candidati da verificare, mai prezzi compatibili. Vedi _shared/prezzarioUnita.ts.
         const searches = catalogueQueries(terms, targets);
         for (let i = 0; i < searches.length; i += 2) {
           req.signal.throwIfAborted(); control.assertCanStart();
           await Promise.all(searches.slice(i, i + 2).map(async s => {
-            const q = s.kind === "code" ? query().in("codice", catalogueCodeVariants(s.text)) : query().gt("prezzo", 0).not("unita_misura", "is", null).textSearch("search", s.text, { config: "italian", type: "websearch" });
+            const q = s.kind === "code" ? query().in("codice", catalogueCodeVariants(s.text)) : query().gt("prezzo", 0).textSearch("search", s.text, { config: "italian", type: "websearch" });
             const { data, error } = await q.order("codice").order("id").limit(CATALOGUE_LIMITS.rowsPerQuery).abortSignal(AbortSignal.timeout(8_000));
             if (error) throw new Error("Ricerca prezzario non riuscita"); collect(data ?? []);
           }));

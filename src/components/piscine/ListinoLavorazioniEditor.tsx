@@ -88,6 +88,7 @@ import {
 import { ImportaPrezzarioDialog } from "@/components/piscine/ImportaPrezzarioDialog";
 
 const UNITA_OPZIONI: PisUnitaMisura[] = [
+  "mc",
   "mq",
   "ml",
   "cad",

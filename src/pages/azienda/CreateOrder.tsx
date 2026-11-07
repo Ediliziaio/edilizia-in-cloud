@@ -1,3 +1,5 @@
+import { verificaCostoSuPiano, modalitaCostoFinanziaria, costoDaSottrarreAlSaldo, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
+import { verificaSupportoModalitaFinanziaria } from "@/lib/finanziamenti/verificaSupportoModalita";
 import { ContractOfficeAssignments } from "@/components/orders/ContractOfficeAssignments";
 import { useContractWorkflowProfile } from "@/hooks/useContractWorkflowProfile";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
@@ -115,6 +117,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
   // ── Prefill da preventivo (?quote_id): additivo, attivo solo se presente ──
   const [searchParams] = useSearchParams();
+  const customerIdDaUrl = searchParams.get("customer_id");
   const invoiceId = searchParams.get("invoice_id");
   const invoiceSource = useQuery({
     queryKey: ["commessa-da-emessa",effectiveCompany?.id,invoiceId], enabled: !!invoiceId && !!effectiveCompany?.id, retry: false,
@@ -185,6 +188,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const paymentType = _paymentTypeRaw as PaymentType;
 
   // ── Non-form state (arrays / UI) ────────────────────────────
+  const [financingCostMode, setFinancingCostMode] = useState<ModalitaCostoFinanziaria | null>(null);
   const [installments, setInstallments] = useState<Installment[]>(() => rateDiPartenza(modelloIniziale));
   const [numInstallments, setNumInstallments] = useState(modelloIniziale?.righe.length ?? 2);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
@@ -222,8 +226,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   // Il saldo finale è l'ultima rata «balance»: i SAL intermedi tengono il loro importo
   // e si tolgono dal residuo (stessa regola della vista in sola lettura).
   const nonBalanceSum = sommaRateNonSaldo(installments);
-  const balance = importoSaldoFinale(installments, totalWithVat, fCostForBalance);
-  const overAllocatedPayments = nonBalanceSum + fCostForBalance > totalWithVat + 0.01;
+  const balance = importoSaldoFinale(installments, totalWithVat, fCostForBalance, financingCostMode);
+  const overAllocatedPayments = nonBalanceSum + costoDaSottrarreAlSaldo(fCostForBalance, financingCostMode) > totalWithVat + 0.01;
   const invalidOrderItems = orderItems.filter(
     (item) =>
       !item.name.trim() ||
@@ -306,6 +310,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     createdOrderIdRef.current = null;
     setCreatedOrderId(null);
     reset({ ...orderDefaultValues, assigned_to: onlyAssigned ? user?.id ?? "" : "" });
+    setFinancingCostMode(null);
     setInstallments(rateDiPartenza(modelloIniziale));
     setNumInstallments(modelloIniziale?.righe.length ?? 2);
     setOrderItems([]);
@@ -348,6 +353,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       financing_cost: draft.financingCost || "",
       has_building_bonus: draft.hasBuildingBonus || false,
     });
+    setFinancingCostMode(modalitaCostoFinanziaria(draft.financingCostMode));
     if (Array.isArray(draft.installments)) {
       setInstallments(draft.installments);
       setNumInstallments(draft.installments.length);
@@ -412,7 +418,10 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     setValue("vat_rate", String(quotePrefill.vatRate));
     setOrderItems(quotePrefill.orderItems);
     // Fasi di pagamento del preventivo → rate della commessa (già compilate).
-    if (quotePrefill.installments.length > 0) setInstallments(prefillExpectedDates(quotePrefill.installments));
+    if (quotePrefill.installments.length > 0) {
+      setInstallments(prefillExpectedDates(quotePrefill.installments));
+      setNumInstallments(quotePrefill.installments.length);
+    }
     // Preventivo con finanziamento → commessa in modalità finanziamento (il "Costo
     // Finanziaria"/commissione lo conferma l'utente: dipende dalla tabella finanziaria).
     if (quotePrefill.hasFinancing) setValue("payment_type", "financing");
@@ -496,6 +505,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     setValue("internal_notes", contractPreparationNotes(piano));
     setValue("customer_id", "");
     setValue("financing_cost", "");
+    setFinancingCostMode(null);
     setValue("has_building_bonus", false);
     setValue("payment_type", "standard");
     for (const campo of ["work_start_date", "work_end_date", "expected_date", "warehouse_arrival_date"] as const) setValue(campo, undefined);
@@ -616,6 +626,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       officeAssignments,
         contractSource,
         customerId: customerId || "",
+        prefilledCustomerId: customerIdDaUrl,
         orderCode: orderCode || "",
         description: description || "",
         internalNotes: internalNotes || "",
@@ -640,15 +651,16 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         totalAmount: totalAmount || "",
         vatRate: vatRate ?? "22",
         financingCost: financingCost || "",
+        financingCostMode,
         hasBuildingBonus: hasBuildingBonus || false,
         bonusLines,
         orderItems,
         installments,
-      }), [customerId, orderCode, description, internalNotes, statusId, salespersonId, salespersonData,
+      }), [customerId, customerIdDaUrl, orderCode, description, internalNotes, statusId, salespersonId, salespersonData,
       assignedTo, destinationWarehouseId, sedeId,
       expectedDate, warehouseArrivalDate, workStartDate, workEndDate,
       paymentType, totalAmount, vatRate,
-      installments, financingCost,
+      installments, financingCost, financingCostMode,
       hasBuildingBonus, bonusLines,
       orderItems, dateToIso, cantiereAddress, cantiereAddressData,
       fasiDiPartenza.scelto, fasiDiPartenza.modello, fasiPersonalizzate, fasiDaCreare,
@@ -662,13 +674,20 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     return () => { if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current); };
   }, [createdOrderId, saveDraft, datiBozza]);
 
+  const { data: customers = [] } = useCompanyCustomers(effectiveCompany?.id);
+
   const handleClearDraft = useCallback(() => {
+    if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
     setContrattoImportato(null);
     setOfficeAssignments({});
     setContractSource(null);
     standardApplicatoRef.current = null;
     clearDraft();
-    reset(orderDefaultValues);
+    reset({ ...orderDefaultValues,
+      customer_id: customers.find(customer => customer.id === customerIdDaUrl)?.id ?? "",
+      assigned_to: onlyAssigned ? user?.id ?? "" : "",
+    });
+    setFinancingCostMode(null);
     setInstallments(rateDiPartenza(modelloIniziale));
     setNumInstallments(modelloIniziale?.righe.length ?? 2);
     setOrderItems([]);
@@ -682,9 +701,9 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     setSettimanaLavorativa(5);
     setBonusLines([]);
     setPendingFiles([]);
-  }, [clearDraft, reset, modelloIniziale, scegliModelloFasi]);
+  }, [clearDraft, reset, modelloIniziale, scegliModelloFasi, customers, customerIdDaUrl, onlyAssigned, user?.id]);
 
-  const { data: customers = [] } = useCompanyCustomers(effectiveCompany?.id);
+
 
   // ── Cliente passato nell'indirizzo (?customer_id) ─────────────────────────
   // "Nuova commessa" dalla scheda cliente passava già l'identificativo e questa
@@ -692,7 +711,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   // cliente da cui si era appena usciti. Lo agganciamo, ma solo se esiste
   // davvero nell'anagrafica dell'azienda: un id inventato nell'URL non deve
   // selezionare niente.
-  const customerIdDaUrl = searchParams.get("customer_id");
+
   // «Nuovo ordine di lavoro» / «Nuova unità» dalla pagina di una commessa generale: alla fine la commessa ci entra dentro.
   const generaleDaUrl = searchParams.get("generale");
   const { data: generaleDaUrlNome } = useQuery({
@@ -957,6 +976,13 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       if (contrattoImportato && !installments.length) throw new Error("Conferma il piano dei pagamenti prima di salvare.");
       const vatValue = parseDecimalIT(values.vat_rate);
       const fCost = parseDecimalIT(values.financing_cost || "");
+      if (values.payment_type === "financing" && fCost > 0 && !financingCostMode) {
+        throw new Error("Scegli se il costo della finanziaria è trattenuto o pagato separatamente.");
+      }
+      if (financingCostMode) {
+        verificaCostoSuPiano(fCost, financingCostMode, installments);
+        await verificaSupportoModalitaFinanziaria();
+      }
 
       // Compute legacy columns from installments for backward compat
       // Solo il saldo finale prende il residuo (se il contratto non ne dichiara già l'importo):
@@ -981,6 +1007,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         work_start_date: toDateStr(values.work_start_date),
         work_end_date: toDateStr(values.work_end_date),
         financing_cost: fCost,
+        ...(financingCostMode ? { financing_cost_mode: financingCostMode } : {}),
         has_building_bonus: values.has_building_bonus,
         assigned_to: values.assigned_to || null,
         destination_warehouse_id: values.destination_warehouse_id || null,
@@ -1807,6 +1834,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             bonusLines={bonusLines}
             onBonusLinesChange={setBonusLines}
             datiCausale={{ pivaImpresa: effectiveCompany?.vat_number ?? null }}
+            financingCostMode={financingCostMode}
+            onFinancingCostModeChange={setFinancingCostMode}
             financingCost={financingCost || ""}
             onFinancingCostChange={(val) => setValue("financing_cost", val)}
           />

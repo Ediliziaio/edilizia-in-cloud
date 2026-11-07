@@ -1,3 +1,4 @@
+import { costoDaSottrarreAlSaldo, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 import { IncarichiCantiere } from '@/components/sicurezza/IncarichiCantiere';
 import type { Tables, TablesUpdate } from "@/integrations/supabase/types";
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
@@ -115,6 +116,7 @@ import { OrderRichiesteOfferta } from "@/components/orders/OrderRichiesteOfferta
 import { DocumentiInPopup } from "@/components/orders/DocumentiInPopup";
 import { useConteggioRichiesteCommessa } from "@/hooks/useSupplierRfqs";
 import { OrdineVariazione } from "@/components/orders/OrdineVariazione";
+import { LavoriExtraPopup } from "@/components/orders/LavoriExtraPopup";
 
 import { useOrdinePDF, type OrdinePDFProps } from "@/hooks/useOrdinePDF";
 import { RiepilogoPdfDialog, type SceltaRiepilogo } from "@/components/orders/RiepilogoPdfDialog";
@@ -316,6 +318,7 @@ interface OrderDetail extends Pick<Tables<"orders">, "status" | "quote_number" |
   financing_paid_date: string | null;
   financing_expected_date: string | null;
   financing_cost: number | null;
+  financing_cost_mode?: ModalitaCostoFinanziaria | null;
   has_building_bonus: boolean;
   customer: {
     id: string;
@@ -1148,9 +1151,9 @@ function OrderDetailInner() {
     const altre = displayInstallments
       .filter(i => !(i.type === "balance" && i.position === posSaldo))
       .reduce((s, i) => s + i.amount, 0);
-    const saldoCalcolato = Math.max(0, totaleIvato - altre - costoFin);
+    const saldoCalcolato = Math.max(0, totaleIvato - altre - costoDaSottrarreAlSaldo(costoFin, order.financing_cost_mode));
     const conImportiMostrati = displayInstallments.map(i =>
-      i.type === "balance" && i.position === posSaldo ? { ...i, amount: saldoCalcolato } : i,
+      i.type === "balance" && i.position === posSaldo ? { ...i, amount: saldoCalcolato } : i.type === "financing" && order.financing_cost_mode === "trattenuto" ? { ...i, amount: Math.max(0, i.amount - costoFin) } : i,
     );
     // Una rata agganciata a un evento del cantiere non ha una data propria:
     // la scadenza si calcola dalle date della commessa e si sposta con loro.
@@ -1210,7 +1213,7 @@ function OrderDetailInner() {
   const handleDownloadFiscalDocument = async (documento: LinkedFiscalDocument) => {
     try {
       await downloadNativePDF(documento.id, documento.numero || "documento");
-      toast.success("Documento scaricato");
+      toast.info("Stampa richiesta", { description: "Per salvare il file scegli «Salva come PDF» nel dialogo del browser. Il file non viene scaricato automaticamente.", duration: 12000 });
     } catch (error) {
       toast.error("Download non riuscito", {
         description: error instanceof Error ? error.message : "Apri il documento e riprova dal dettaglio.",
@@ -1417,6 +1420,7 @@ function OrderDetailInner() {
     vatRate: order.vat_rate ?? 22,
     paymentType: order.payment_type,
     financingCost: order.financing_cost,
+    financingCostMode: order.financing_cost_mode,
     varianti: variantiDatate,
   }), nettoUnitaInLordo(incassiUnita.data?.incassi ?? 0, order.vat_rate ?? 22), order.vat_rate ?? 22, nettoUnitaInLordo(incassiUnita.data?.permute ?? 0, order.vat_rate ?? 22));
   const collectedAmount = incassi.incassatoNetto;
@@ -1533,6 +1537,8 @@ function OrderDetailInner() {
     />
   ) : null;
 
+  // Lo stesso contesto per le varianti in Economia e per il popup «Lavori extra» delle Lavorazioni.
+  const contestoVarianti = { currentNet: agreedAmount, vatRate: order.vat_rate ?? undefined, customerName: [order.customer?.first_name, order.customer?.last_name].filter(Boolean).join(" "), orderCode: order.order_code, companyName: effectiveCompany?.name, customerAddress: order.customer?.address ?? undefined, siteAddress: order.indirizzo_lavori || order.work_address || undefined };
   return (
     // commessa-elevated: ombra più marcata su tutte le Card della pagina (vedi index.css)
     <div id="order-detail-overview" className="commessa-elevated min-h-screen bg-slate-50 scroll-mt-4">
@@ -1591,12 +1597,13 @@ function OrderDetailInner() {
           items={economicsItems}
           itemsLoading={orderItemsPending}
           itemsError={orderItemsError}
-          installments={resolvedInstallments}
+          installments={displayInstallments}
           installmentsLoading={installmentsPending}
           installmentsError={installmentsError}
           collectedGross={collectedGross}
           cashTotalGross={cashTotalGross}
-          financingCost={order.payment_type === 'financing' ? order.financing_cost ?? 0 : 0}
+          financingCostMode={order.financing_cost_mode}
+                  financingCost={order.payment_type === 'financing' ? order.financing_cost ?? 0 : 0}
           varianti={variantiDatate}
           canViewAmounts={permissions.canViewOrderAmounts}
           canViewMargins={permissions.canViewMargins && contractLink.data?.workflow_kind !== "contratto"}
@@ -1824,12 +1831,6 @@ function OrderDetailInner() {
                     (Number(i.purchase_price) || 0) * (Number(i.quantity) || 0),
                   0,
                 );
-                const daOrdinare = displayItems.filter(
-                  (i) => i.status === "da_ordinare",
-                ).length;
-                const arrivati = displayItems.filter(
-                  (i) => i.status === "in_magazzino",
-                ).length;
                 return (
                   <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-lg border bg-muted/30 px-4 py-3 max-sm:gap-x-3 max-sm:px-3 max-sm:py-2">
                     <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
@@ -1838,18 +1839,6 @@ function OrderDetailInner() {
                           {displayItems.length}
                         </strong>{" "}
                         articoli
-                      </span>
-                      {daOrdinare > 0 && (
-                        <span className="text-muted-foreground">
-                          <strong className="text-amber-600">
-                            {daOrdinare}
-                          </strong>{" "}
-                          con stato “da ordinare”
-                        </span>
-                      )}
-                      <span className="text-muted-foreground">
-                        <strong className="text-emerald-600">{arrivati}</strong>{" "}
-                        in magazzino
                       </span>
                     </div>
                     <div className="text-sm">
@@ -1963,6 +1952,7 @@ function OrderDetailInner() {
                 {companyId && <OrdineSAL orderId={id!} companyId={companyId}
                   showPaymentProgress={false} orderTotalAmount={agreedAmount}
                   installments={displayInstallments} vatRate={order.vat_rate ?? 22}
+                  financingCostMode={order.financing_cost_mode}
                   financingCost={order.payment_type === "financing" ? (order.financing_cost ?? 0) : 0} />}
               </div>
             </details>}
@@ -2026,7 +2016,8 @@ function OrderDetailInner() {
                     paymentType={(order.payment_type as PaymentType) || "standard"}
                     installments={displayInstallments}
                     hasBuildingBonus={order.has_building_bonus}
-                    financingCost={order.financing_cost ?? undefined}
+                    financingCostMode={order.financing_cost_mode}
+              financingCost={order.financing_cost ?? undefined}
                     collectedAmount={collectedAmount}
                     varianti={variantiDatate}
                     onInstallmentPaidToggle={handleInstallmentPaidToggle}
@@ -2068,6 +2059,7 @@ function OrderDetailInner() {
                   orderId={id!}
                   totalAmount={agreedAmount}
                   vatRate={order.vat_rate ?? 22}
+                  financingCostMode={order.financing_cost_mode}
                   financingCost={order.payment_type === 'financing' ? order.financing_cost ?? 0 : 0}
                   installments={displayInstallments}
                   varianti={variantiDatate}
@@ -2076,7 +2068,7 @@ function OrderDetailInner() {
                   anchorId="esposizione-commessa"
                 />
                 <div className="mt-4">
-                  <PrevisioneCassaMateriali incassato={collectedGross} materiali={costoMaterialiGross} saldoResiduo={saldoResiduoGross} saldoData={saldoDate} />
+                  <PrevisioneCassaMateriali incassato={collectedGross} materiali={costoMaterialiGross} saldoResiduo={saldoResiduoGross} saldoData={saldoDate} rate={resolvedInstallments} />
                 </div>
               </ErrorBoundary>
             )}
@@ -2089,7 +2081,7 @@ function OrderDetailInner() {
             </div>}
             {activeEconomiaView === "margini" && !(permissions.canViewCosts || permissions.canViewMargins) && <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">Il tuo ruolo non permette di consultare costi e margini. Puoi aprire le altre viste consentite.</p>}
             {activeEconomiaView === "varianti" && effectiveCompany?.id && <div id="section-varianti" className="scroll-mt-24">
-              <OrdineVariazione orderId={id!} companyId={effectiveCompany.id} context={{currentNet: agreedAmount, vatRate: order.vat_rate ?? undefined, customerName: [order.customer?.first_name,order.customer?.last_name].filter(Boolean).join(" "), orderCode: order.order_code, companyName:effectiveCompany.name,customerAddress:order.customer?.address ?? undefined,siteAddress:order.indirizzo_lavori || order.work_address || undefined}} onOpenDocuments={()=>navigateTo({tab:"panoramica",section:"section-documenti"})} />
+              <OrdineVariazione orderId={id!} companyId={effectiveCompany.id} context={contestoVarianti} onOpenDocuments={()=>navigateTo({tab:"panoramica",section:"section-documenti"})} />
             </div>}
 
             {/* Le uscite verso fornitori, subappalti, ditte, professionisti, noleggi e
@@ -2273,13 +2265,13 @@ function OrderDetailInner() {
             <OrderViewTransition viewKey={vistaCantiere}>
             <Suspense fallback={vistaInCaricamento}>
             {vistaCantiere === "lavorazioni" && <>
-            {permissions.canViewOrderAmounts && <div className="flex justify-end"><Button variant="outline" size="sm" onClick={() => navigateTo({tab:"finanza",economiaView:"documenti",section:"section-varianti"})}>Lavori extra e varianti</Button></div>}
             <div id="section-lavorazioni" className="scroll-mt-24">
               <OrderWorkPhases key={id} orderId={id!} orderCode={order.order_code}
                 view={vistaCantiere}
                 importoContratto={agreedAmount}
                 organizationContent={figureResponsabilita}
-                onApriCronoprogramma={() => navigateTo({ tab: "cantiere", cantiereView: "cronoprogramma" })} />
+                onApriCronoprogramma={() => navigateTo({ tab: "cantiere", cantiereView: "cronoprogramma" })}
+                lavoriExtra={permissions.canViewOrderAmounts && effectiveCompany?.id ? <LavoriExtraPopup orderId={id!} companyId={effectiveCompany.id} context={contestoVarianti} onOpenDocuments={()=>navigateTo({tab:"panoramica",section:"section-documenti"})} /> : undefined} />
               {/* «Supporto AI per le assegnazioni» è nel menu «Silvio AI» in testa alla commessa (31/10/2026). */}
             </div>
             </>}
@@ -2342,7 +2334,7 @@ function OrderDetailInner() {
                   ? [order.customer.first_name, order.customer.last_name].filter(Boolean).join(" ")
                   : order.client_name || ""}
               />
-              <div id="section-assistenza" className="scroll-mt-24"><OrderAssistenzaTab orderId={id!} /></div>
+              <div id="section-assistenza" className="scroll-mt-24"><OrderAssistenzaTab orderId={id!} customerId={order.customer_id} /></div>
             </>}
             </Suspense>
             </OrderViewTransition>

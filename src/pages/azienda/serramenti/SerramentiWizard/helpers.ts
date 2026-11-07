@@ -8,7 +8,7 @@
  */
 import type {
   SrWizardStep, SrProgettoRow, SrProgettoDetail,
-} from "@/lib/serramenti/api";
+} from "@/types/serramenti";
 
 export const compactText = (...parts: Array<string | null | undefined>) =>
   parts.map((part) => part?.trim()).filter(Boolean).join(" ");

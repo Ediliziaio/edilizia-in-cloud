@@ -5,7 +5,7 @@ export default function PrivacyPolicy() {
     <LegalLayout
       title="Privacy Policy"
       metaDescription="Informativa sul trattamento dei dati personali di Edilizia in Cloud (Domus Group S.r.l.) ai sensi del GDPR (Reg. UE 2016/679)."
-      lastUpdate="26 ottobre 2026"
+      lastUpdate="30 ottobre 2026"
       downloadHref="/legal/Edilizia-in-Cloud_Privacy-Policy.pdf"
       currentPath="/privacy-policy"
     >
@@ -15,7 +15,7 @@ export default function PrivacyPolicy() {
         Resa ai sensi degli artt. 13 e 14 del Regolamento (UE) 2016/679 ("GDPR") e del D.Lgs.
         196/2003 e ss.mm.ii. ("Codice Privacy").
         <br />
-        Ultimo aggiornamento: 30 ottobre 2026 · Versione: 1.3
+        Ultimo aggiornamento: 30 ottobre 2026 · Versione: 1.4
       </p>
 
       <h2>Indice</h2>
@@ -25,7 +25,9 @@ export default function PrivacyPolicy() {
         <li>Doppio ruolo: Titolare e Responsabile del trattamento</li>
         <li>Categorie di dati personali trattati</li>
         <li>Finalità e basi giuridiche del trattamento</li>
-        <li>Trattamenti basati su intelligenza artificiale</li>
+        <li>Trattamenti basati su intelligenza artificiale e decisioni automatizzate</li>
+        <li>6-bis. Prospect e attività di marketing</li>
+        <li>6-ter. Firma elettronica dei documenti</li>
         <li>Modalità del trattamento e sicurezza</li>
         <li>Periodo di conservazione</li>
         <li>Comunicazione dei dati e sub-responsabili</li>
@@ -35,6 +37,7 @@ export default function PrivacyPolicy() {
         <li>Modifiche all'informativa</li>
         <li>Reclami all'Autorità di controllo</li>
         <li>Dati degli account Google</li>
+        <li>Minori</li>
       </ol>
 
       <h2>1. Premesse e ambito di applicazione</h2>
@@ -86,7 +89,13 @@ export default function PrivacyPolicy() {
           Email:{" "}
           <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>
         </li>
-        <li>PEC: domusgroupsrl@legalmail.it</li>
+        <li>
+          Email per la privacy:{" "}
+          <a href="mailto:privacy@ediliziaincloud.com">privacy@ediliziaincloud.com</a>
+        </li>
+        <li>
+          PEC: <a href="mailto:domusgroupsrl@legalmail.it">domusgroupsrl@legalmail.it</a>
+        </li>
         <li>Codice destinatario SDI: USAL8PV</li>
         <li>Telefono: <a href="tel:+393501780908">+39 350 178 0908</a></li>
       </ul>
@@ -97,7 +106,8 @@ export default function PrivacyPolicy() {
       <p>
         Per qualsiasi richiesta o esercizio dei diritti di cui agli artt. 15-22 GDPR, gli Utenti
         possono scrivere all'indirizzo{" "}
-        <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>.
+        <a href="mailto:privacy@ediliziaincloud.com">privacy@ediliziaincloud.com</a> oppure
+        alla PEC indicata sopra.
       </p>
 
       <h2>3. Doppio ruolo: Titolare e Responsabile del trattamento</h2>
@@ -212,14 +222,14 @@ export default function PrivacyPolicy() {
         </li>
         <li>
           <strong>Credenziali di accesso:</strong> username, password (protette mediante
-          hash non reversibili), token di sessione, fattori di autenticazione
-          a due fattori;
+          hash non reversibili), token di sessione e, se l'Utente attiva la verifica in due
+          passaggi, i dati del secondo fattore (app di autenticazione o codice via email);
         </li>
         <li>
           <strong>Dati di fatturazione e pagamento:</strong> dati di intestazione fattura, IBAN
-          per addebiti SEPA Direct Debit, ultime 4 cifre della carta di pagamento e relativo
-          brand (i dati completi della carta sono trattati direttamente dal provider di pagamento
-          e non sono mai conservati sui nostri sistemi);
+          per eventuali addebiti SEPA, ultime 4 cifre della carta di pagamento e relativo
+          circuito (i dati completi della carta e del conto sono trattati direttamente da Stripe,
+          il fornitore dei pagamenti, e non sono mai conservati sui nostri sistemi);
         </li>
         <li>
           <strong>Dati di utilizzo e log:</strong> data e ora degli accessi, indirizzo IP, azioni
@@ -255,9 +265,10 @@ export default function PrivacyPolicy() {
           dipendenti/operai del Cliente;
         </li>
         <li>
-          <strong>Dati biometrici tecnici:</strong> in caso di utilizzo della firma elettronica
-          avanzata (FEA) per la sottoscrizione di documenti, secondo i parametri tecnici previsti
-          dalla normativa italiana ed eIDAS.
+          <strong>Dati dei firmatari dei documenti:</strong> in caso di utilizzo della firma
+          elettronica dei documenti, i dati descritti nella sezione 6-ter (inclusi, solo per la
+          firma elettronica avanzata, i dati e le immagini del documento d'identità). Non sono
+          raccolti dati biometrici (ad esempio la firma grafometrica).
         </li>
       </ul>
       <p>
@@ -306,7 +317,11 @@ export default function PrivacyPolicy() {
             <td>
               Esecuzione di un contratto di cui l'interessato è parte (art. 6.1.b GDPR)
             </td>
-            <td>Durata del contratto + 10 anni (obblighi civilistici e fiscali)</td>
+            <td>
+              Per la durata del contratto; dopo la cessazione, 30 giorni per l&apos;eventuale
+              esportazione, poi cancellazione (le copie di backup si cancellano entro 90 giorni).
+              Restano i dati necessari agli obblighi fiscali e contabili (riga successiva)
+            </td>
           </tr>
           <tr>
             <td>Adempimento di obblighi fiscali, contabili, antiriciclaggio</td>
@@ -359,17 +374,18 @@ export default function PrivacyPolicy() {
           </tr>
           <tr>
             <td>
-              Pubblicità mirata e retargeting su piattaforme di terzi (Meta/Facebook/Instagram,
-              Google Ads, TikTok, LinkedIn), inclusa la creazione di pubblici personalizzati
-              (custom audience) tramite identificatori pseudonimizzati e il tracciamento delle
-              conversioni tramite pixel e API server-side (Conversions API)
+              Pubblicità mirata e retargeting su Meta (Facebook/Instagram), inclusa la creazione
+              di pubblici personalizzati (custom audience) tramite identificatori pseudonimizzati e
+              la misurazione delle conversioni tramite Meta Pixel e Conversions API; statistiche
+              di visita del Sito tramite Google Analytics 4 e Google Tag Manager
             </td>
             <td>
               Dati di navigazione, identificatori online, dati di contatto in forma pseudonimizzata
               (hash)
             </td>
             <td>
-              Consenso dell'interessato espresso tramite il banner cookie (art. 6.1.a GDPR)
+              Consenso dell'interessato espresso tramite il banner cookie (art. 6.1.a GDPR e
+              art. 122 Codice Privacy)
             </td>
             <td>
               Secondo le durate indicate nella Cookie Policy; revocabile in ogni momento dal
@@ -409,79 +425,82 @@ export default function PrivacyPolicy() {
         </tbody>
       </table>
 
-      <h2>6. Trattamenti basati su intelligenza artificiale</h2>
+      <h2>6. Trattamenti basati su intelligenza artificiale e decisioni automatizzate</h2>
       <p>
-        La Piattaforma integra numerose funzionalità basate su sistemi di intelligenza artificiale
-        (di seguito, "Funzionalità AI"), tra cui — a titolo esemplificativo e non esaustivo —
-        assistenti conversazionali e agenti AI (inclusi agenti vocali per la gestione delle
-        chiamate e bot conversazionali via chat e WhatsApp), generazione e assistenza alla
-        redazione di preventivi e computi, estrazione di dati da immagini e documenti, generazione
-        di immagini e video promozionali, sintesi vocale (text-to-speech), trascrizione audio,
-        ricerca semantica e suggerimenti contestuali.
+        La Piattaforma integra funzionalità basate su sistemi di intelligenza artificiale (di
+        seguito, "Funzionalità AI"), tra cui — a titolo esemplificativo — assistenti
+        conversazionali e bot via chat e WhatsApp, assistenza alla redazione di preventivi e
+        computi, estrazione di dati da immagini e documenti (ad esempio DDT e fatture),
+        trascrizione dei messaggi vocali, classificazione e riassunto delle email, generazione di
+        immagini, ricerca semantica e suggerimenti contestuali.
       </p>
       <p>
         Per l'erogazione delle Funzionalità AI, la Società si avvale di modelli e servizi di
         intelligenza artificiale di fornitori terzi (i "Fornitori AI"), in parte tramite
         l'aggregatore OpenRouter (che instrada le richieste verso i modelli selezionati) e in parte
         tramite integrazione diretta. Tali Fornitori AI agiscono in qualità di Sub-responsabili del
-        trattamento. I principali Fornitori AI includono, a titolo esemplificativo e non esaustivo:
+        trattamento. Alla data di questa Informativa i Fornitori AI utilizzati sono:
       </p>
       <ul>
         <li>
-          <strong>Anthropic</strong> (modelli Claude) — elaborazione di linguaggio naturale;
+          <strong>Anthropic</strong> (modelli Claude, tramite OpenRouter) — modelli principali per
+          l'elaborazione del linguaggio naturale;
         </li>
         <li>
-          <strong>OpenAI</strong> (modelli GPT; generazione immagini GPT-image e DALL·E) — testo e
-          immagini;
+          <strong>OpenAI</strong> (modelli GPT, tramite OpenRouter; embeddings e trascrizione
+          audio tramite integrazione diretta) — testo, ricerca semantica e trascrizione;
         </li>
         <li>
-          <strong>Moonshot AI</strong> (modelli Kimi) — elaborazione di linguaggio naturale;
+          <strong>Google</strong> (modelli Gemini, tramite OpenRouter e integrazione diretta) —
+          testo e generazione di immagini;
         </li>
         <li>
-          <strong>Google</strong> (modelli Gemini) — testo e immagini;
-        </li>
-        <li>
-          <strong>DeepSeek, xAI</strong> (Grok), <strong>Meta</strong> (Llama),{" "}
-          <strong>Mistral AI, Cohere</strong> (anche per embeddings), <strong>Qwen</strong>{" "}
-          (Alibaba), <strong>Perplexity</strong> — elaborazione di linguaggio naturale e ricerca
-          semantica;
-        </li>
-        <li>
-          <strong>ElevenLabs</strong> — sintesi vocale e voci degli agenti AI;
-        </li>
-        <li>
-          <strong>Replicate</strong> e <strong>MiniMax</strong> — generazione di immagini e video.
+          <strong>DeepSeek</strong> (tramite OpenRouter) — elaborazione del linguaggio naturale.
         </li>
       </ul>
       <p>
         L'elenco dei Fornitori AI può variare nel tempo in funzione dell'evoluzione tecnologica e
-        delle prestazioni dei modelli. L'elenco aggiornato dei sub-responsabili è disponibile
-        all'indirizzo www.ediliziaincloud.com/sub-processors e su richiesta scritta a{" "}
-        <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>.
+        delle prestazioni dei modelli: ogni variazione è riportata nella sezione 9.2 di questa
+        informativa e nell&apos;Allegato 3 del DPA. L'elenco aggiornato dei sub-responsabili è
+        disponibile anche su richiesta scritta a{" "}
+        <a href="mailto:privacy@ediliziaincloud.com">privacy@ediliziaincloud.com</a>.
       </p>
-      <p>In relazione a tali Funzionalità AI, la Società dichiara e garantisce che:</p>
+      <p>In relazione a tali Funzionalità AI, la Società:</p>
       <ul>
         <li>
-          i dati personali degli Utenti e i Dati del Cliente trasmessi ai Fornitori AI sono
-          trattati esclusivamente in forma transitoria, per il tempo strettamente necessario a
-          generare la risposta richiesta;
+          trasmette ai Fornitori AI solo i dati necessari a produrre la risposta richiesta; i
+          Fornitori AI possono conservarli per il tempo previsto dalle rispettive condizioni d'uso
+          delle API (di norma per un periodo limitato, a fini di sicurezza e prevenzione degli
+          abusi);
         </li>
         <li>
-          i dati degli Utenti e i Dati del Cliente <strong>non sono utilizzati per addestrare</strong>,
-          perfezionare o migliorare i modelli di intelligenza artificiale, in conformità ai
-          contratti commerciali (API enterprise/business) sottoscritti con tali fornitori;
+          utilizza i Fornitori AI tramite le loro API commerciali: l&apos;eventuale uso dei dati
+          inviati per <strong>addestrare</strong> o migliorare i modelli è regolato dalle
+          condizioni commerciali delle API di ciascun fornitore e di OpenRouter, che per i
+          fornitori principali (Anthropic, OpenAI, Google) lo escludono [DA COMPLETARE: verificare
+          le condizioni e l&apos;impostazione di OpenRouter per DeepSeek];
         </li>
         <li>
-          la Società adotta misure tecniche per limitare al minimo necessario i dati trasmessi ai
-          Fornitori AI e, ove tecnicamente possibile, applica tecniche di pseudonimizzazione e
-          minimizzazione;
+          adotta misure tecniche per limitare al minimo necessario i dati trasmessi ai Fornitori
+          AI;
         </li>
         <li>
-          gli output generati dalle Funzionalità AI hanno natura probabilistica, possono contenere
-          errori o imprecisioni e sono destinati a costituire un mero supporto operativo: non
-          sostituiscono valutazioni professionali, fiscali, tecniche o legali.
+          ricorda che gli output generati dalle Funzionalità AI hanno natura probabilistica,
+          possono contenere errori o imprecisioni e sono un supporto operativo: non sostituiscono
+          valutazioni professionali, fiscali, tecniche o legali.
         </li>
       </ul>
+      <p>
+        <strong>Decisioni automatizzate (art. 22 GDPR).</strong> La Società non adotta decisioni
+        basate unicamente su un trattamento automatizzato, compresa la profilazione, che producano
+        effetti giuridici o incidano in modo analogo significativamente sugli interessati. Le
+        Funzionalità AI assistono le persone: propongono testi, dati estratti, classificazioni e
+        bozze che l&apos;Utente verifica. Alcune automazioni configurate dall&apos;azienda Cliente
+        (ad esempio la risposta a un contatto, la proposta o la fissazione di un appuntamento, lo
+        spostamento di una scheda nel CRM) possono svolgersi senza intervento umano, ma non
+        producono effetti giuridici sull&apos;interessato, che può sempre chiedere di parlare con
+        una persona.
+      </p>
       <p>
         <strong>Responsabilità dell'utilizzatore.</strong> Il Cliente è l'unico responsabile
         dell'uso che fa delle Funzionalità AI e degli output da esse generati, ed è tenuto a
@@ -491,8 +510,8 @@ export default function PrivacyPolicy() {
       </p>
       <p>
         La Società opera in conformità ai principi del Regolamento (UE) 2024/1689 ("AI Act") e
-        adotta le misure di trasparenza, governance e supervisione umana richieste dalla normativa
-        applicabile in funzione del livello di rischio dei sistemi AI utilizzati.
+        adotta le misure di trasparenza e supervisione umana richieste dalla normativa applicabile
+        in funzione del livello di rischio dei sistemi AI utilizzati.
       </p>
 
       <h2>6-bis. Prospect e attività di marketing</h2>
@@ -504,14 +523,15 @@ export default function PrivacyPolicy() {
         <strong>Fonti dei dati.</strong> I dati di contatto di natura professionale dei Prospect
         (nome, cognome, ruolo, ragione sociale, P.IVA, email, telefono) sono raccolti: (i)
         direttamente dall'interessato tramite form di contatto sul Sito, richieste di demo,
-        iscrizione a newsletter, eventi e fiere di settore, biglietti da visita; (ii) da fonti
+        iscrizione a newsletter, moduli pubblicitari compilati su Meta (Facebook/Instagram Lead
+        Ads), eventi e fiere di settore, biglietti da visita; (ii) da fonti
         pubblicamente accessibili e registri pubblici (es. visure camerali, siti web aziendali,
         albi professionali), nel rispetto delle finalità per cui tali fonti sono pubbliche.
       </p>
       <p>
         <strong>Canali utilizzati.</strong> Le comunicazioni commerciali possono avvenire tramite
-        email, telefono, SMS e WhatsApp, nonché tramite pubblicità mirata e retargeting sulle
-        piattaforme indicate alla sezione 5 (Meta/Facebook/Instagram, Google Ads, TikTok, LinkedIn).
+        email, telefono, SMS e WhatsApp, nonché tramite pubblicità mirata e retargeting su Meta
+        (Facebook/Instagram), come indicato alla sezione 5.
       </p>
       <p>
         <strong>Base giuridica e opposizione.</strong> Le comunicazioni di marketing rivolte a
@@ -519,7 +539,7 @@ export default function PrivacyPolicy() {
         Titolare, fermo restando il diritto dell'interessato di opporsi in qualsiasi momento,
         gratuitamente e con modalità semplici (link di disiscrizione in ogni email, risposta con
         richiesta di cancellazione, scrivendo a{" "}
-        <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>). Ove richiesto dalla
+        <a href="mailto:privacy@ediliziaincloud.com">privacy@ediliziaincloud.com</a>). Ove richiesto dalla
         normativa, le comunicazioni avvengono previo consenso. In caso di opposizione, i dati di
         contatto sono inseriti in una lista di esclusione per onorare la richiesta.
       </p>
@@ -527,6 +547,53 @@ export default function PrivacyPolicy() {
         <strong>Conservazione.</strong> I dati dei Prospect sono conservati per il tempo necessario
         alle finalità indicate e comunque non oltre 24 mesi dall'ultimo contatto utile, salvo
         rinnovo dell'interesse o conversione in cliente.
+      </p>
+
+      <h2>6-ter. Firma elettronica dei documenti</h2>
+      <p>
+        La Piattaforma permette alle aziende Clienti di far firmare documenti (ad esempio
+        preventivi, contratti, ordini, verbali) ai propri clienti e collaboratori. La firma è
+        offerta dall&apos;azienda Cliente che invia il documento: per questi dati il{" "}
+        <strong>Cliente è Titolare</strong> e la Società è Responsabile del trattamento (sezione
+        3.2 e DPA). La presente sezione informa i firmatari su come funziona il trattamento; le
+        caratteristiche del servizio sono descritte anche nella pagina{" "}
+        <a href="/firma-elettronica-avanzata">Firma elettronica avanzata</a>.
+      </p>
+      <ul>
+        <li>
+          <strong>Firma semplice (predefinita):</strong> il firmatario riceve un link personale e
+          un codice monouso via email e, se l&apos;azienda ha il suo cellulare, via SMS. Si
+          trattano nome, email, telefono, indirizzo IP, dati del dispositivo e del browser (user
+          agent), data e ora di ogni passaggio e, solo se il firmatario lo consente dal browser,
+          la posizione geografica.
+        </li>
+        <li>
+          <strong>Firma elettronica avanzata (attivabile da ciascuna azienda Cliente):</strong>{" "}
+          oltre ai dati precedenti, al primo documento il firmatario carica la foto di un
+          documento d&apos;identità valido, inserisce nome, cognome, tipo, numero e scadenza del
+          documento (e, se vuole, codice fiscale ed ente di rilascio) e accetta le condizioni del servizio. Le immagini del
+          documento d&apos;identità sono conservate in un archivio privato, non accessibile
+          pubblicamente.
+        </li>
+      </ul>
+      <p>
+        <strong>Basi giuridiche.</strong> Esecuzione del contratto o delle misure precontrattuali
+        tra il firmatario e l&apos;azienda Cliente (art. 6.1.b GDPR); per la firma elettronica
+        avanzata, anche l&apos;adempimento degli obblighi di identificazione e conservazione
+        previsti dal D.P.C.M. 22 febbraio 2013 (art. 6.1.c GDPR).
+      </p>
+      <p>
+        <strong>Conservazione.</strong> Il documento firmato, i dati di identificazione, la
+        dichiarazione accettata e il registro dei passaggi della firma sono conservati per{" "}
+        <strong>20 anni</strong>, come richiesto dall&apos;art. 57 del D.P.C.M. 22 febbraio 2013,
+        anche dopo la cessazione del rapporto tra la Società e l&apos;azienda Cliente. Durante
+        questo periodo i dati non sono modificabili e sono usati solo come prova della firma.
+      </p>
+      <p>
+        Per esercitare i propri diritti il firmatario si rivolge all&apos;azienda che gli ha
+        inviato il documento; può anche scrivere a{" "}
+        <a href="mailto:privacy@ediliziaincloud.com">privacy@ediliziaincloud.com</a>, e la
+        Società inoltrerà la richiesta all&apos;azienda interessata.
       </p>
 
       <h2>7. Modalità del trattamento e sicurezza</h2>
@@ -550,8 +617,8 @@ export default function PrivacyPolicy() {
           (AES-256);
         </li>
         <li>
-          politica di password forti, rotazione periodica delle credenziali amministrative e
-          supporto all'autenticazione a due fattori (2FA);
+          politica di password forti e verifica in due passaggi (2FA) attivabile dall&apos;Utente,
+          con app di autenticazione (TOTP) o codice via email;
         </li>
         <li>
           controlli di accesso basati sui ruoli (Role-Based Access Control) e Row-Level Security
@@ -562,15 +629,18 @@ export default function PrivacyPolicy() {
           siano accessibili da parte di altri Clienti;
         </li>
         <li>
-          monitoraggio continuo dei sistemi, gestione centralizzata dei log e procedure di
-          rilevamento di intrusioni;
+          monitoraggio dei sistemi con allarmi automatici e registrazione degli accessi e delle
+          operazioni rilevanti;
         </li>
-        <li>backup periodici cifrati con politica di rotazione e geo-ridondanza;</li>
+        <li>
+          backup cifrati dell&apos;infrastruttura e, in aggiunta, un backup settimanale dei dati di
+          ciascuna azienda Cliente, conservato in un archivio privato e sottoposto a prove di ripristino;
+        </li>
         <li>
           processi di gestione degli incidenti di sicurezza, con notifica all'Autorità Garante
           entro 72 ore in caso di violazione dei dati personali (artt. 33-34 GDPR);
         </li>
-        <li>formazione periodica del personale interno e vincoli di riservatezza contrattuali.</li>
+        <li>istruzioni al personale autorizzato e vincoli di riservatezza contrattuali.</li>
       </ul>
 
       <h2>8. Periodo di conservazione</h2>
@@ -581,10 +651,12 @@ export default function PrivacyPolicy() {
         presente Informativa.
       </p>
       <p>
-        Al termine del rapporto contrattuale con il Cliente, i Dati del Cliente saranno restituiti
-        o cancellati secondo le modalità previste dal DPA, salvo l'obbligo di conservazione
-        previsto dalla normativa fiscale, civilistica e di settore. Per ulteriori dettagli si
-        rinvia all'art. 10 dei Termini e Condizioni e al DPA.
+        Al termine del rapporto contrattuale con il Cliente, i Dati del Cliente restano
+        disponibili per l&apos;esportazione per 30 giorni; decorso tale termine sono cancellati
+        dai sistemi di produzione e, entro i successivi 90 giorni, dalle copie di backup, salvo
+        l'obbligo di conservazione previsto dalla normativa fiscale, civilistica e di settore e
+        salvo le prove della firma elettronica, conservate per 20 anni (sezione 6-ter). Per
+        ulteriori dettagli si rinvia all'art. 11 dei Termini e Condizioni e al DPA.
       </p>
 
       <h2>9. Comunicazione dei dati e sub-responsabili</h2>
@@ -618,134 +690,104 @@ export default function PrivacyPolicy() {
         <tbody>
           <tr>
             <td>Supabase Inc.</td>
-            <td>Database, autenticazione, storage applicativo, funzioni server</td>
-            <td>
-              UE (Irlanda, datacenter AWS eu-west-1); eventuale accesso del supporto tecnico dagli USA
-              con Clausole Contrattuali Standard (SCC)
-            </td>
+            <td>Database, autenticazione, archivio dei file, funzioni server, backup</td>
+            <td>UE (Irlanda, datacenter AWS eu-west-1); eventuale accesso del supporto tecnico dagli USA con Clausole Contrattuali Standard (SCC)</td>
           </tr>
           <tr>
             <td>Cloudflare Inc.</td>
-            <td>CDN, sicurezza di rete, hosting frontend (Pages)</td>
-            <td>Rete globale con punti di presenza UE; trasferimenti USA</td>
+            <td>Hosting del Sito e della Piattaforma (Cloudflare Pages), CDN, sicurezza di rete</td>
+            <td>Rete globale con punti di presenza UE; USA (DPF / SCC)</td>
           </tr>
           <tr>
             <td>Stripe Payments Europe Ltd.</td>
-            <td>Gestione pagamenti con carta e abbonamenti</td>
-            <td>UE (Irlanda); trasferimenti USA</td>
-          </tr>
-          <tr>
-            <td>GoCardless Ltd.</td>
-            <td>
-              Servizio di iniziazione pagamenti e account information ai sensi PSD2 (open banking)
-            </td>
-            <td>UE / Regno Unito (decisione di adeguatezza)</td>
-          </tr>
-          <tr>
-            <td>Distyra (Brightfield Software) — Enable Banking Oy</td>
-            <td>
-              Accesso in sola lettura ai dati di conto corrente ai sensi della PSD2 (account
-              information), normalizzazione e categorizzazione dei movimenti bancari. Nessuna
-              disposizione di pagamento.
-            </td>
-            <td>UE (Francia, Germania; Finlandia per Enable Banking)</td>
+            <td>Pagamenti con carta e gestione degli abbonamenti</td>
+            <td>UE (Irlanda); USA (DPF / SCC)</td>
           </tr>
           <tr>
             <td>Openapi S.p.A. (openapi.it)</td>
             <td>Trasmissione e ricezione delle fatture elettroniche tramite il Sistema di Interscambio (SDI)</td>
-            <td>Italia / UE</td>
+            <td>Italia</td>
           </tr>
           <tr>
             <td>Aruba S.p.A.</td>
-            <td>
-              Canale alternativo per la trasmissione delle fatture elettroniche tramite SDI e la
-              conservazione digitale a norma, se scelto dall&apos;azienda cliente
-            </td>
-            <td>Italia / UE</td>
+            <td>Canale alternativo di trasmissione delle fatture elettroniche tramite SDI, solo se scelto dall&apos;azienda Cliente. La Società non fornisce il servizio di conservazione digitale a norma</td>
+            <td>Italia</td>
           </tr>
           <tr>
-            <td>Telnyx LLC</td>
-            <td>Invio di SMS transazionali e di marketing, infrastruttura voce</td>
-            <td>UE / USA (con SCC)</td>
-          </tr>
-          <tr>
-            <td>ElevenLabs Inc.</td>
-            <td>Sintesi vocale per agenti vocali AI</td>
-            <td>USA (con SCC)</td>
-          </tr>
-          <tr>
-            <td>Meta Platforms Ireland Ltd.</td>
-            <td>WhatsApp Business / Cloud API per comunicazioni con i Clienti finali</td>
-            <td>UE (Irlanda); trasferimenti USA</td>
-          </tr>
-          <tr>
-            <td>OpenRouter, Inc.</td>
-            <td>Aggregatore di modelli AI (instradamento richieste ai modelli di linguaggio)</td>
-            <td>USA (con SCC)</td>
-          </tr>
-          <tr>
-            <td>Anthropic PBC</td>
-            <td>Modelli di linguaggio per Funzionalità AI (Claude)</td>
-            <td>USA (con SCC)</td>
-          </tr>
-          <tr>
-            <td>OpenAI Ireland Ltd. / OpenAI L.L.C.</td>
-            <td>Modelli di linguaggio e generazione immagini (GPT, GPT-image, DALL·E)</td>
-            <td>UE / USA (con SCC)</td>
-          </tr>
-          <tr>
-            <td>Moonshot AI</td>
-            <td>Modelli di linguaggio per Funzionalità AI (Kimi), via OpenRouter</td>
-            <td>Extra-UE (con SCC)</td>
-          </tr>
-          <tr>
-            <td>Google Ireland Ltd. / Google LLC</td>
-            <td>
-              Modelli AI Gemini, Google Maps, sincronizzazione Calendar, analytics
-            </td>
-            <td>UE / USA (con SCC)</td>
-          </tr>
-          <tr>
-            <td>
-              Altri Fornitori AI via OpenRouter (DeepSeek, xAI, Meta, Mistral, Cohere, Qwen,
-              Perplexity e ulteriori)
-            </td>
-            <td>
-              Modelli di linguaggio, ricerca semantica ed embeddings per le Funzionalità AI
-            </td>
-            <td>UE / USA / Extra-UE (con SCC)</td>
-          </tr>
-          <tr>
-            <td>Replicate, Inc.</td>
-            <td>Generazione di immagini e video (incl. modelli MiniMax)</td>
-            <td>USA (con SCC)</td>
-          </tr>
-          <tr>
-            <td>Twilio Inc. — SendGrid</td>
-            <td>Invio di email transazionali</td>
-            <td>USA (con SCC)</td>
+            <td>Distyra (Brightfield Software) — Enable Banking Oy</td>
+            <td>Collegamento dei conti bancari scelto dall&apos;azienda Cliente: accesso in sola lettura ai saldi e ai movimenti ai sensi della PSD2 (servizio di informazione sui conti). Nessuna disposizione di pagamento.</td>
+            <td>UE (Francia, Germania; Finlandia per Enable Banking)</td>
           </tr>
           <tr>
             <td>Resend, Inc.</td>
-            <td>Invio di email transazionali</td>
-            <td>USA (con SCC)</td>
+            <td>Invio delle email transazionali (accessi, notifiche, documenti)</td>
+            <td>USA (SCC)</td>
           </tr>
           <tr>
             <td>Elastic Email Inc.</td>
-            <td>Invio di email di marketing</td>
-            <td>UE / USA (con SCC)</td>
+            <td>Invio delle email di marketing</td>
+            <td>[DA COMPLETARE: paese di sede e dei server e relativa garanzia]</td>
           </tr>
           <tr>
-            <td>Apple Inc.</td>
-            <td>Sincronizzazione calendario Apple (CalDAV)</td>
-            <td>USA (con SCC)</td>
+            <td>Telnyx LLC</td>
+            <td>Invio di SMS (ad esempio codici di verifica e notifiche)</td>
+            <td>UE / USA (SCC)</td>
+          </tr>
+          <tr>
+            <td>Meta Platforms Ireland Ltd.</td>
+            <td>WhatsApp Business Cloud API (messaggi WhatsApp), ricezione dei contatti da moduli Lead Ads, Conversions API</td>
+            <td>UE (Irlanda); USA (DPF / SCC)</td>
+          </tr>
+          <tr>
+            <td>DigitalOcean, LLC</td>
+            <td>Server dedicato che ospita il collegamento WhatsApp gestito dalla Società (OpenWA), usato per alcuni numeri WhatsApp</td>
+            <td>UE (Germania, Francoforte); società statunitense con DPF + SCC</td>
+          </tr>
+          <tr>
+            <td>Google Ireland Ltd. / Google LLC</td>
+            <td>Sincronizzazione di Gmail e Google Calendar collegati dall&apos;Utente, Google Maps e geocodifica degli indirizzi, Google Ads e Google Business Profile collegati dall&apos;Utente, modelli AI Gemini, statistiche del Sito (Google Analytics 4, Google Tag Manager)</td>
+            <td>UE / USA (DPF / SCC)</td>
+          </tr>
+          <tr>
+            <td>OpenRouter, Inc.</td>
+            <td>Aggregatore di modelli AI (instradamento delle richieste ai modelli di linguaggio)</td>
+            <td>USA (SCC)</td>
+          </tr>
+          <tr>
+            <td>Anthropic PBC</td>
+            <td>Modelli di linguaggio per le Funzionalità AI (Claude), tramite OpenRouter</td>
+            <td>USA (DPF / SCC)</td>
+          </tr>
+          <tr>
+            <td>OpenAI Ireland Ltd. / OpenAI L.L.C.</td>
+            <td>Modelli di linguaggio (tramite OpenRouter), embeddings per la ricerca semantica e trascrizione audio (integrazione diretta)</td>
+            <td>UE / USA (DPF / SCC)</td>
+          </tr>
+          <tr>
+            <td>DeepSeek (Hangzhou DeepSeek Artificial Intelligence Co., Ltd.)</td>
+            <td>Modelli di linguaggio per le Funzionalità AI, tramite OpenRouter</td>
+            <td>
+              Cina, se la richiesta è servita dall&apos;infrastruttura di DeepSeek; nessuna decisione
+              di adeguatezza [DA COMPLETARE: garanzia ex art. 46 GDPR o esclusione
+              dell&apos;instradamento verso la Cina]
+            </td>
           </tr>
         </tbody>
       </table>
 
       <p>
-        L'elenco completo e aggiornato dei sub-responsabili è disponibile su richiesta scritta
-        inoltrata a <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>.
+        L&apos;elenco corrisponde all&apos;Allegato 3 del <a href="/dpa/">DPA</a>, a cui si
+        aggiungono, per i dati dei Visitatori del Sito di cui la Società è titolare, Google
+        Analytics 4 e Meta Pixel (sezione 12). Se l&apos;Utente collega un proprio calendario Apple
+        (iCloud), la Piattaforma scambia gli eventi con il suo account presso Apple su sua
+        istruzione: Apple resta un fornitore dell&apos;Utente.
+      </p>
+      <p>
+        Il Servizio contiene anche integrazioni con altri fornitori (ad esempio canali
+        alternativi di invio email o di fatturazione elettronica) che alla data di questa
+        Informativa non sono in uso: se e quando saranno attivate, l&apos;elenco sarà aggiornato.
+        L'elenco aggiornato dei sub-responsabili è disponibile anche su richiesta scritta a{" "}
+        <a href="mailto:privacy@ediliziaincloud.com">privacy@ediliziaincloud.com</a>.
       </p>
 
       <h3>9.3 Titolari autonomi</h3>
@@ -763,12 +805,11 @@ export default function PrivacyPolicy() {
         </li>
         <li>
           <strong>Piattaforme pubblicitarie</strong> — Meta Platforms Ireland Ltd.
-          (Facebook/Instagram), Google Ireland Ltd. (Google Ads), TikTok Technology Ltd., LinkedIn
-          Ireland Unlimited Co. — che, in relazione ai dati raccolti tramite pixel, tag e
-          Conversions API per finalità di pubblicità mirata e retargeting, operano quali titolari
-          autonomi o, per specifiche operazioni (es. custom audience), quali contitolari del
-          trattamento ai sensi dell'art. 26 GDPR, secondo i rispettivi accordi di contitolarità
-          pubblicati;
+          (Facebook/Instagram) che, in relazione ai dati raccolti tramite Meta Pixel e Conversions
+          API per finalità di pubblicità mirata e retargeting, opera quale titolare autonomo o,
+          per specifiche operazioni (es. raccolta tramite pixel, custom audience), quale
+          contitolare del trattamento ai sensi dell'art. 26 GDPR, secondo l&apos;accordo di
+          contitolarità pubblicato da Meta;
         </li>
         <li>
           Soggetti coinvolti in operazioni di natura societaria (potenziali investitori,
@@ -802,7 +843,7 @@ export default function PrivacyPolicy() {
       </ul>
       <p>
         Una copia delle garanzie adottate è disponibile su richiesta scritta a{" "}
-        <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>.
+        <a href="mailto:privacy@ediliziaincloud.com">privacy@ediliziaincloud.com</a>.
       </p>
 
       <h2>11. Diritti degli interessati</h2>
@@ -842,16 +883,22 @@ export default function PrivacyPolicy() {
         </li>
         <li>
           <strong>Diritto di non essere sottoposto a decisioni automatizzate</strong> (art. 22
-          GDPR), incluso il diritto di ottenere l'intervento umano nei processi decisionali
-          automatizzati che producano effetti giuridici significativi.
+          GDPR) che producano effetti giuridici o incidano in modo analogo significativamente
+          sulla persona: come indicato alla sezione 6, la Società non adotta decisioni di questo
+          tipo.
         </li>
       </ul>
       <p>
         I diritti possono essere esercitati gratuitamente inviando una richiesta scritta a{" "}
-        <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>, allegando
-        copia di un documento di identità ove necessario per verificare l'identità del
-        richiedente. La Società risponderà entro 30 giorni dal ricevimento della richiesta, salvo
-        proroga di ulteriori 60 giorni nei casi di particolare complessità (art. 12 GDPR).
+        <a href="mailto:privacy@ediliziaincloud.com">privacy@ediliziaincloud.com</a> o alla PEC{" "}
+        <a href="mailto:domusgroupsrl@legalmail.it">domusgroupsrl@legalmail.it</a>. Se ci sono
+        dubbi ragionevoli sull&apos;identità del richiedente, la Società può chiedere le
+        informazioni necessarie a verificarla. La Società risponde entro un mese dal ricevimento
+        della richiesta, prorogabile di due mesi nei casi di particolare complessità o numero
+        delle richieste, informandone l&apos;interessato (art. 12 GDPR). Su richiesta, i dati
+        dell&apos;account e dell&apos;azienda possono essere esportati in un formato strutturato
+        o cancellati, fatti salvi gli obblighi di conservazione indicati alla sezione 8.
+        Resta fermo il diritto di proporre reclamo al Garante (sezione 14).
       </p>
       <p>
         Se la richiesta riguarda dati che il Cliente ha caricato nella Piattaforma in qualità di
@@ -862,15 +909,15 @@ export default function PrivacyPolicy() {
 
       <h2>12. Cookie e tecnologie di tracciamento</h2>
       <p>
-        Il Sito e la Piattaforma utilizzano cookie e tecnologie analoghe (local storage, pixel,
-        SDK). Per i dettagli sulle finalità, sui tempi di conservazione e sulle modalità per
-        concedere o revocare il consenso, si rinvia alla{" "}
-        <a href="/cookie-policy/">Cookie Policy</a>, accessibile dal piè di pagina del Sito e
-        direttamente dal banner di consenso visualizzato alla prima visita.
+        Il Sito e la Piattaforma utilizzano cookie e tecnologie analoghe (local storage, pixel).
+        Per l&apos;elenco, le finalità, i tempi di conservazione e le modalità per concedere o
+        revocare il consenso, si rinvia alla <a href="/cookie-policy/">Cookie Policy</a>,
+        accessibile dal piè di pagina del Sito.
       </p>
       <p>
-        L'Utente può modificare le proprie preferenze in qualsiasi momento utilizzando il pannello
-        di gestione dei cookie disponibile sul Sito.
+        L'Utente può modificare le proprie preferenze in qualsiasi momento con le modalità
+        indicate nella Cookie Policy. Sul Sito il consenso si dà e si
+        revoca dal banner dei cookie e dal link «Preferenze cookie» in fondo alle pagine.
       </p>
 
       <h2>13. Modifiche all'informativa</h2>
@@ -1022,6 +1069,18 @@ export default function PrivacyPolicy() {
         L'uso delle informazioni ricevute dalle API di Google, e il loro trasferimento ad altre app,
         rispettano le Norme sui dati utente dei servizi API di Google, compresi i requisiti di Uso
         limitato.
+      </p>
+
+      <h2>16. Minori</h2>
+      <p>
+        Il Servizio è destinato a imprese e professionisti e non è rivolto ai minori di 18 anni.
+        La Società non raccoglie consapevolmente dati personali di minori tramite il Sito o la
+        registrazione alla Piattaforma. Se un genitore o tutore ritiene che un minore abbia
+        fornito dati personali, può scrivere a{" "}
+        <a href="mailto:privacy@ediliziaincloud.com">privacy@ediliziaincloud.com</a> e i dati
+        saranno cancellati. Gli eventuali dati di minori caricati da un&apos;azienda Cliente
+        nella propria area restano sotto la responsabilità del Cliente come Titolare (sezione
+        3.2).
       </p>
 
       <p>

@@ -936,7 +936,7 @@ function PanoramicaTab() {
                         {format(new Date(s.created_at), "dd MMM HH:mm", { locale: itLocale })}
                       </TableCell>
                       <TableCell className="font-mono text-xs">
-                        {s.scanned_code.length > 32 ? `${s.scanned_code.slice(0, 32)}…` : s.scanned_code}
+                        {s.scanned_code?.trim() ? (s.scanned_code.length > 32 ? `${s.scanned_code.slice(0, 32)}…` : s.scanned_code) : "Codice non registrato"}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-[10px]">{scanTypeLabel(s.scan_type)}</Badge>

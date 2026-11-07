@@ -1,3 +1,4 @@
+import { jsonPayload } from "@/lib/jsonPayload";
 /**
  * Preventivatore Verticalizzato Serramentisti — FASE 4.1
  *
@@ -29,13 +30,25 @@ function erroreDb(error: { message: string; code?: string; details?: string | nu
   return Object.assign(new Error(error.message), { code: error.code, details: error.details, hint: error.hint });
 }
 
+function serializzaFamiglia<T extends { custom_field_values?: unknown; disegno_definizione?: unknown }>(value: T) {
+  const { custom_field_values, disegno_definizione, ...rest } = value;
+  return {
+    ...rest,
+    ...(custom_field_values !== undefined ? { custom_field_values: jsonPayload(custom_field_values) } : {}),
+    ...(disegno_definizione !== undefined ? { disegno_definizione: jsonPayload(disegno_definizione) } : {}),
+  };
+}
+
 // ── Input types ───────────────────────────────────────────────────────────────
 
 export type FamilyInsert = Omit<
   ArticleFamily,
-  "id" | "created_at" | "updated_at"
+  "id" | "created_at" | "updated_at" | "deleted_at" | "mostra_preventivo" | "categoria_id"
 > & {
   id?: string;
+  deleted_at?: string | null;
+  mostra_preventivo?: boolean;
+  categoria_id?: string | null;
 };
 
 export type FamilyUpdate = Partial<
@@ -116,8 +129,8 @@ export function useFamilyMutations() {
       if (!companyId) throw new Error("Azienda non identificata");
       validateFamilyEconomics(payload);
       const { data, error } = await supabase
-        .from("article_families" as never)
-        .insert({ ...payload, company_id: companyId })
+        .from("article_families")
+        .insert({ ...serializzaFamiglia(payload), company_id: companyId })
         .select("*")
         .single();
       if (error) throw erroreDb(error);
@@ -133,8 +146,8 @@ export function useFamilyMutations() {
       if (!companyId) throw new Error("Azienda non identificata");
       validateFamilyEconomics(args.patch);
       const { data, error } = await supabase
-        .from("article_families" as never)
-        .update(args.patch)
+        .from("article_families")
+        .update(serializzaFamiglia(args.patch))
         .eq("id", args.id)
         .eq("company_id", companyId)
         .select("*")
@@ -152,13 +165,13 @@ export function useFamilyMutations() {
     mutationFn: async (args: { id: string; catalogo: CatalogoColori; expected: CatalogoColori | null }) => {
       if (!companyId) throw new Error("Azienda non identificata");
       const catalogo = catalogoColoriSchema.parse(args.catalogo);
-      const { data, error } = await supabase.from("article_families" as never)
+      const { data, error } = await supabase.from("article_families")
         .select("custom_field_values, updated_at").eq("id", args.id).eq("company_id", companyId).single();
       if (error || !data) throw new Error(error?.message ?? "Prodotto non accessibile");
       const attuale = data as unknown as Pick<ArticleFamily, "custom_field_values" | "updated_at">;
       if (JSON.stringify(leggiCatalogoColori(attuale.custom_field_values)) !== JSON.stringify(args.expected))
         throw new Error("I colori sono stati modificati da un altro editor. Ricarica il prodotto prima di salvare.");
-      const { data: salvato, error: errore } = await supabase.from("article_families" as never)
+      const { data: salvato, error: errore } = await supabase.from("article_families")
         .update({ custom_field_values: { ...attuale.custom_field_values, [CHIAVE_CATALOGO_COLORI]: catalogo } } as never)
         .eq("id", args.id).eq("company_id", companyId).eq("updated_at", attuale.updated_at).select("id").single();
       if (errore || !salvato) throw new Error(errore?.code === "PGRST116" ? "Il prodotto è cambiato durante il salvataggio. Ricarica e riprova." : errore?.message ?? "Salvataggio non riuscito");
@@ -187,7 +200,7 @@ export function useFamilyMutations() {
     mutationFn: async (familyId: string) => {
       if (!companyId) throw new Error("Azienda non identificata");
       const { data: toccati, error } = await supabase
-        .from("article_families" as never)
+        .from("article_families")
         .update({ deleted_at: new Date().toISOString() })
         .eq("id", familyId)
         .eq("company_id", companyId)
@@ -212,7 +225,7 @@ export function useFamilyMutations() {
     mutationFn: async (familyId: string) => {
       if (!companyId) throw new Error("Azienda non identificata");
       const { data: toccati, error } = await supabase
-        .from("article_families" as never)
+        .from("article_families")
         .update({ deleted_at: null })
         .eq("id", familyId)
         .eq("company_id", companyId)
@@ -241,7 +254,7 @@ export function useFamilyMutations() {
     mutationFn: async (familyId: string) => {
       if (!companyId) throw new Error("Azienda non identificata");
       const { data: toccati, error } = await supabase
-        .from("article_families" as never)
+        .from("article_families")
         .delete()
         .eq("id", familyId)
         .eq("company_id", companyId)
@@ -275,7 +288,7 @@ export function useFamilyMutations() {
 
       // 1. leggi sorgente con assi+valori
       const { data: src, error: errSrc } = await supabase
-        .from("article_families" as never)
+        .from("article_families")
         .select(
           `*,
            axes:article_family_axes(
@@ -329,8 +342,8 @@ export function useFamilyMutations() {
       }
 
       const { data: newFam, error: errNew } = await supabase
-        .from("article_families" as never)
-        .insert({ ...famRest, ...overrides })
+        .from("article_families")
+        .insert(serializzaFamiglia({ ...famRest, ...overrides }))
         .select("id")
         .single();
       if (errNew) throw new Error(errNew.message);
@@ -342,7 +355,7 @@ export function useFamilyMutations() {
       // 3. per ogni asse, insert + insert valori
       for (const ax of source.axes ?? []) {
         const { data: newAx, error: errAx } = await supabase
-          .from("article_family_axes" as never)
+          .from("article_family_axes")
           .insert({
             family_id: newFamilyId,
             company_id: companyId,
@@ -380,7 +393,7 @@ export function useFamilyMutations() {
             attivo: v.attivo,
           }));
           const { error: errVal } = await supabase
-            .from("article_family_axis_values" as never)
+            .from("article_family_axis_values")
             .insert(rows);
           if (errVal) throw new Error(errVal.message);
         }
@@ -394,7 +407,7 @@ export function useFamilyMutations() {
       const PAGE = 1000;
       for (let from = 0; ; from += PAGE) {
         const { data: cells, error: errCells } = await supabase
-          .from("listino_griglia" as never)
+          .from("listino_griglia")
           .select(
             "axis_config, valore_x, valore_y, prezzo_vendita, prezzo_acquisto, supplier_catalog_id, supplier_product_line_id, note",
           )
@@ -403,11 +416,11 @@ export function useFamilyMutations() {
           .order("id", { ascending: true })
           .range(from, from + PAGE - 1);
         if (errCells) throw new Error(errCells.message);
-        const page = (cells ?? []) as unknown as Array<Record<string, unknown>>;
+        const page = cells ?? [];
         if (page.length === 0) break;
 
         const { error: errIns } = await supabase
-          .from("listino_griglia" as never)
+          .from("listino_griglia")
           .insert(
             page.map((c) => ({
               ...c,
@@ -419,8 +432,8 @@ export function useFamilyMutations() {
         if (page.length < PAGE) break;
       }
       } catch (err) {
-        await supabase.from("listino_griglia" as never).delete().eq("family_id", newFamilyId).eq("company_id", companyId);
-        await supabase.from("article_families" as never).delete().eq("id", newFamilyId).eq("company_id", companyId);
+        await supabase.from("listino_griglia").delete().eq("family_id", newFamilyId).eq("company_id", companyId);
+        await supabase.from("article_families").delete().eq("id", newFamilyId).eq("company_id", companyId);
         throw err instanceof Error ? new Error(`Copia non completata, annullata: ${err.message}`) : err;
       }
 
@@ -437,7 +450,7 @@ export function useFamilyMutations() {
     mutationFn: async (payload: Omit<AxisInsert, "company_id">) => {
       if (!companyId) throw new Error("Azienda non identificata");
       const { data, error } = await supabase
-        .from("article_family_axes" as never)
+        .from("article_family_axes")
         .insert({ ...payload, company_id: companyId })
         .select("*")
         .single();
@@ -457,7 +470,7 @@ export function useFamilyMutations() {
     }) => {
       if (!companyId) throw new Error("Azienda non identificata");
       const { data, error } = await supabase
-        .from("article_family_axes" as never)
+        .from("article_family_axes")
         .update(args.patch)
         .eq("id", args.id)
         .eq("company_id", companyId)
@@ -475,7 +488,7 @@ export function useFamilyMutations() {
     mutationFn: async (args: { id: string; familyId: string }) => {
       if (!companyId) throw new Error("Azienda non identificata");
       const { error } = await supabase
-        .from("article_family_axes" as never)
+        .from("article_family_axes")
         .delete()
         .eq("id", args.id)
         .eq("company_id", companyId);
@@ -497,7 +510,7 @@ export function useFamilyMutations() {
       const { familyId: _fam, ...rest } = args;
       void _fam;
       const { data, error } = await supabase
-        .from("article_family_axis_values" as never)
+        .from("article_family_axis_values")
         .insert({ ...rest, company_id: companyId })
         .select("*")
         .single();
@@ -517,7 +530,7 @@ export function useFamilyMutations() {
     }) => {
       if (!companyId) throw new Error("Azienda non identificata");
       const { data, error } = await supabase
-        .from("article_family_axis_values" as never)
+        .from("article_family_axis_values")
         .update(args.patch)
         .eq("id", args.id)
         .eq("company_id", companyId)
@@ -535,7 +548,7 @@ export function useFamilyMutations() {
     mutationFn: async (args: { id: string; familyId: string }) => {
       if (!companyId) throw new Error("Azienda non identificata");
       const { error } = await supabase
-        .from("article_family_axis_values" as never)
+        .from("article_family_axis_values")
         .delete()
         .eq("id", args.id)
         .eq("company_id", companyId);
@@ -597,7 +610,7 @@ export function useFamilyMutations() {
         sort_order: ax.sort_order,
       }));
       const { data: newAxes, error: errAx } = await supabase
-        .from("article_family_axes" as never)
+        .from("article_family_axes")
         .insert(axisRows)
         .select("id, codice");
       if (errAx) throw new Error(errAx.message);
@@ -643,7 +656,7 @@ export function useFamilyMutations() {
       }
       if (valueRows.length > 0) {
         const { error: errVal } = await supabase
-          .from("article_family_axis_values" as never)
+          .from("article_family_axis_values")
           .insert(valueRows);
         if (errVal) {
           // M-34 (audit): due insert non transazionali — se i valori
@@ -652,7 +665,7 @@ export function useFamilyMutations() {
           // (FK CASCADE su eventuali valori parziali) prima di rilanciare.
           const createdAxisIds = Array.from(codiceToId.values());
           const { error: errCleanup } = await supabase
-            .from("article_family_axes" as never)
+            .from("article_family_axes")
             .delete()
             .in("id", createdAxisIds)
             .eq("company_id", companyId);

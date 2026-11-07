@@ -39,12 +39,10 @@ const CARTELLE_ESCLUSE = [
 
 /** Eccezioni legittime: `file|tabella` → perché va bene così. */
 const ECCEZIONI: Record<string, string> = {
-  // Il costo ripartito su più commesse tiene la commessa DENTRO il json:
-  // `.contains("allocations", [{ order_id }])`. La lettura è legata alla
-  // commessa come la sua gemella `.eq("order_id", …)` due righe sopra, ma il
-  // nome della colonna filtrata è "allocations", non un *_id.
-  "src/hooks/useCostiDirettiPerTipo.ts|company_costs": "costi ripartiti: la commessa è dentro allocations",
-  "src/lib/orders/dossierEconomico.ts|company_costs": "costi ripartiti: la commessa è dentro allocations",
+  "src/lib/finanziamenti/verificaSupportoModalita.ts|orders": "sonda dello schema con limit(0): non legge righe; il test dedicato impone il limite zero",
+  "src/hooks/useCostiDirettiPerTipo.ts|company_costs": "costi ripartiti filtrati tramite allocations contenente l'order_id della commessa; controllo specifico sotto",
+  "src/lib/orders/dossierEconomico.ts|company_costs": "costi ripartiti filtrati tramite allocations contenente l'order_id della commessa; controllo specifico sotto",
+  "src/lib/orders/dossierEconomico.ts|purchase_order_items": "join purchase_orders!inner filtrato su purchase_orders.order_id; controllo specifico sotto",
   "src/components/settings/MarketingCalendarsConfig.tsx|marketing_calendars": "lo slug di prenotazione è unico in tutta la piattaforma",
   "src/components/users/UserActivityLogTab.tsx|user_audit_log": "registro di un utente preciso",
   "src/components/orders/BloccaPrezzoCard.tsx|blocca_prezzo": "filtrata per commessa o preventivo subito dopo",
@@ -82,11 +80,7 @@ const ECCEZIONI: Record<string, string> = {
 // `.from("tabella")` e i piccoli aiuti con cui certi file la chiamano.
 const LETTURA = /(?:\.from|\b(?:fromTable|metaTable|gTable|table|reputationTable|fromT|tbl|sbFrom))\(\s*["'`]([a-zA-Z0-9_]+)["'`]\s*(?:as [a-zA-Z]+)?\)/g;
 // Filtri che legano la lettura a un record preciso (quindi già a un'azienda).
-// Il nome della colonna può essere puntato quando il filtro è su una tabella
-// agganciata: `.eq("purchase_orders.order_id", orderId)` lega la lettura alla
-// commessa esattamente come `.eq("order_id", …)`, e senza il punto nel regex
-// risultava una lettura non filtrata.
-const FILTRO_SU_RECORD = /\.(eq|in|match|contains|filter|neq|is)\(\s*["'`]([a-z_.]*id|id|token|slug|signature_token|email)["'`]/;
+const FILTRO_SU_RECORD = /\.(eq|in|match|contains|filter|neq|is)\(\s*["'`]([a-z_]*id|id|token|slug|signature_token|email)["'`]/;
 
 function sorgenti(dir: string): string[] {
   const out: string[] = [];
@@ -123,6 +117,25 @@ function letturaSenzaFiltro(): string[] {
 
 describe("ogni elenco filtra l'azienda", () => {
   const trovate = letturaSenzaFiltro();
+
+  it("la sonda della modalità finanziaria verifica solo la colonna, senza leggere commesse", () => {
+    const testo = readFileSync(join(ROOT, "src/lib/finanziamenti/verificaSupportoModalita.ts"), "utf8");
+    expect(testo).toMatch(/\.from\("orders"\)\.select\("financing_cost_mode"\)\.limit\(0\)/);
+    expect([...testo.matchAll(/\.from\("orders"\)/g)]).toHaveLength(1);
+  });
+
+  it("le eccezioni dei costi ripartiti e delle righe ODA restano vincolate alla commessa", () => {
+    for (const file of ["src/hooks/useCostiDirettiPerTipo.ts", "src/lib/orders/dossierEconomico.ts"]) {
+      const testo = readFileSync(join(ROOT, file), "utf8");
+      const letture = [...testo.matchAll(/\.from\("company_costs"\)\.select\([^)]*\)([\s\S]*?)(?=;|\.range\(|\.catch)/g)];
+      expect(letture.length, file).toBeGreaterThanOrEqual(2);
+      for (const lettura of letture) {
+        expect(lettura[1], file).toMatch(/\.eq\("order_id", orderId\)|\.contains\("allocations", JSON\.stringify\(\[\{ order_id: orderId \}\]\)\)/);
+      }
+    }
+    const dossier = readFileSync(join(ROOT, "src/lib/orders/dossierEconomico.ts"), "utf8");
+    expect(dossier).toMatch(/\.from\("purchase_order_items"\)\.select\("[^"\n]*purchase_orders!inner[^"\n]*"\)\s*\.eq\("purchase_orders.order_id", orderId\)/);
+  });
 
   it("la lettura dei tipi del database trova le tabelle per azienda", () => {
     const tabelle = tabelleConAzienda();

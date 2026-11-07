@@ -1,3 +1,4 @@
+import { jsonPayload } from "@/lib/jsonPayload";
 /**
  * AdminSettingsAIMemory — Gestione Memoria Silvio per tutte le aziende.
  * SOLO SuperAdmin. Selettore azienda + visualizzazione fatti + sintesi.
@@ -72,7 +73,7 @@ export default function AdminSettingsAIMemory() {
     queryKey: ["admin_silvio_memory_companies"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("companies" as never)
+        .from("companies")
         .select("id, name")
         .order("name");
       if (error) throw error;
@@ -85,7 +86,7 @@ export default function AdminSettingsAIMemory() {
     queryFn: async () => {
       if (!selectedCompanyId) return [];
       const { data, error } = await supabase
-        .from("ai_brain_facts" as never)
+        .from("ai_brain_facts")
         .select("id, company_id, fact_key, fact_value, source, confidence, notes, updated_at")
         .eq("company_id", selectedCompanyId)
         .order("confidence", { ascending: false });
@@ -100,7 +101,7 @@ export default function AdminSettingsAIMemory() {
     queryFn: async () => {
       if (!selectedCompanyId) return [];
       const { data, error } = await supabase
-        .from("ai_brain_chat_summaries" as never)
+        .from("ai_brain_chat_summaries")
         .select("id, company_id, user_id, period_start, period_end, summary, topics, messages_count, created_at")
         .eq("company_id", selectedCompanyId)
         .order("period_end", { ascending: false })
@@ -149,7 +150,7 @@ export default function AdminSettingsAIMemory() {
 
   const deleteFactMut = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("ai_brain_facts" as never).delete().eq("id", id);
+      const { error } = await supabase.from("ai_brain_facts").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -348,8 +349,8 @@ function EditFactDialog({ fact, onClose }: { fact: BrainFact; onClose: () => voi
       try { parsed = JSON.parse(valueText); }
       catch { parsed = valueText; }
       const { error } = await supabase
-        .from("ai_brain_facts" as never)
-        .update({ fact_value: parsed, notes: notes || null, source: "manual", confidence: 1.0 })
+        .from("ai_brain_facts")
+        .update({ fact_value: jsonPayload(parsed), notes: notes || null, source: "manual", confidence: 1.0 })
         .eq("id", fact.id);
       if (error) throw error;
     },

@@ -1,3 +1,4 @@
+import { parametriQualitaRender, qualitaImmagineRender, tempoQaRender } from "../../../shared/render-quality/quality.ts";
 // generate-floor-render — Edge Function EiC
 // Render Pavimento AI — pipeline unificata via OpenRouter + fallback OpenAI.
 
@@ -129,6 +130,8 @@ Deno.serve(async (req) => {
 
     // ── Parse request ───────────────────────────────────────────────────
     const body = await req.json().catch(() => ({}));
+    const requestStartedAt = Date.now();
+    const highQuality = qualitaImmagineRender(body) === "high";
     const {
       action,
       session_id,
@@ -496,17 +499,14 @@ Use short values. Do not describe a renovation.`;
     // F1-parity (audit 16/07) — 1 tentativo per tier, timeout dal budget
     // residuo (75s fisso × retry interni sforava comunque il cap 150s).
     const PAVIMENTO_BUDGET_MS = 140_000;
-    const jobStartMs = Date.now();
+    const jobStartMs = requestStartedAt;
     const jobElapsed = () => Date.now() - jobStartMs;
     // Foto prodotto del catalogo dell'azienda (scelte nel wizard, max 4):
     // riempite PRIMA del primo tentativo e allegate al modello come reference.
     let catalogReferences: ImageReferenceInput[] = [];
     const generateCandidate = (prompt: string, soloProviderDiretto = false) => {
       const remaining = PAVIMENTO_BUDGET_MS - jobElapsed() - 15_000;
-      const perAttemptTimeout = Math.max(
-        30_000,
-        Math.min(75_000, Math.floor(remaining / (soloProviderDiretto ? 1 : 2))),
-      );
+      const qualityParams = parametriQualitaRender(body, requestStartedAt, soloProviderDiretto);
       return editImage({
         prompt,
         sourceImageBlob: imageBlob,
@@ -515,9 +515,9 @@ Use short values. Do not describe a renovation.`;
         // quadrato anche se la rete di sicurezza le aveva gia' lette dai byte.
         effectiveWidth,
         effectiveHeight,
-        openaiQuality: "medium",
-        timeoutMs: perAttemptTimeout,
-          directProviderOnly: soloProviderDiretto,
+
+        ...qualityParams,
+
         maxRetries: 0,
         referenceImages: catalogReferences.length > 0 ? catalogReferences : undefined,
         metadata: {
@@ -589,6 +589,7 @@ Use short values. Do not describe a renovation.`;
     try {
       renderResult = await generateCandidate(fullPrompt, true);
     } catch (primoErr) {
+        if (highQuality) throw primoErr;
       console.warn(JSON.stringify({
         lvl: "warn", fn: "generate-floor-render", session_id,
         msg: "provider_diretto_fallito_si_passa_alla_catena",
@@ -626,6 +627,7 @@ Use short values. Do not describe a renovation.`;
       };base64,${originalImage.base64}`;
 
       const qaResult = await callVisionQa({
+          timeoutMs: tempoQaRender(requestStartedAt),
         sourceImageDataUrl: sourceDataUrl,
         candidateImageDataUrl: renderResult.imageDataUrl,
         qaPrompt,
@@ -642,7 +644,7 @@ Use short values. Do not describe a renovation.`;
         return { category: r.category ?? "unspecified", detail: r.detail ?? "" };
       });
 
-      if (qaResult.checked && !qaResult.pass && qaIssues.length > 0 && jobElapsed() < 95_000) {
+      if (qaResult.checked && !qaResult.pass && qaIssues.length > 0 && jobElapsed() < (highQuality ? 40_000 : 95_000)) {
         console.log(JSON.stringify({
           fn: "generate-floor-render",
           msg: "qa_failed_retry_corrective",

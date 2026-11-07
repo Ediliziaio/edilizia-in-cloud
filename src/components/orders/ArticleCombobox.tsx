@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { applyMarkup, applyScontiFornitore } from "@/lib/priceMarkup";
 import type { MarkupTipo } from "@/types/articleFamily";
+import { formatCurrency } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -42,6 +43,8 @@ export interface ArticleTemplateData {
 }
 
 interface ArticleComboboxProps {
+  modalita?: "vendita" | "acquisto";
+  preferredSupplierId?: string;
   value: string;
   onValueChange: (value: string, templateData?: ArticleTemplateData) => void;
   placeholder?: string;
@@ -64,6 +67,8 @@ export function ArticleCombobox({
   placeholder = "Seleziona o digita nome articolo...",
   fallbackCompanyId,
   includeListino = false,
+  modalita = "vendita",
+  preferredSupplierId,
 }: ArticleComboboxProps) {
   const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
@@ -72,7 +77,7 @@ export function ArticleCombobox({
 
   const companyId = effectiveCompany?.id ?? fallbackCompanyId;
 
-  const { data: templates = [] } = useQuery({
+  const { data: templates = [], isLoading: loadingCatalogo, isError: erroreCatalogo } = useQuery({
     queryKey: ["article-templates", companyId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -260,8 +265,10 @@ export function ArticleCombobox({
 
   const filteredTemplates = allTemplates.filter((template) =>
     template.name.toLowerCase().includes(searchValue.toLowerCase()) ||
-    (template.sku && template.sku.toLowerCase().includes(searchValue.toLowerCase()))
-  );
+    (template.sku && template.sku.toLowerCase().includes(searchValue.toLowerCase())) ||
+    (template.description?.toLowerCase().includes(searchValue.toLowerCase())) ||
+    (template.category?.toLowerCase().includes(searchValue.toLowerCase()))
+  ).sort((a,b)=> modalita === "acquisto" && preferredSupplierId ? Number(b.supplier_id === preferredSupplierId)-Number(a.supplier_id === preferredSupplierId) : 0);
 
   const exactMatch = allTemplates.some(
     (template) => template.name.toLowerCase() === searchValue.toLowerCase()
@@ -296,22 +303,25 @@ export function ArticleCombobox({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-full justify-between font-normal"
+          className="h-auto min-h-9 w-full min-w-0 justify-between gap-2 py-2 text-left font-normal"
+          aria-label={modalita === "acquisto" ? "Articolo da acquistare" : "Articolo"}
         >
-          {value || placeholder}
+          <span className="min-w-0 whitespace-normal break-words leading-snug">{value || placeholder}</span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+      <PopoverContent className="w-[min(34rem,calc(100vw-2rem))] min-w-[min(var(--radix-popover-trigger-width),calc(100vw-2rem))] p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="Cerca o digita nuovo nome..."
+            placeholder="Cerca nome, codice, categoria o descrizione…"
             value={searchValue}
             onValueChange={setSearchValue}
           />
-          <CommandList>
+          <div className="flex items-center justify-between gap-2 border-b bg-slate-50 px-3 py-2 text-xs text-slate-500"><span>{modalita === "acquisto" ? "Costi di acquisto · IVA esclusa" : "Articoli disponibili"}</span><span>{filteredTemplates.length} risultati</span></div>
+          {erroreCatalogo && <p role="alert" className="px-3 py-2 text-xs text-red-700">Catalogo non disponibile. Chiudi e riapri per riprovare.</p>}
+          <CommandList className="max-h-[min(24rem,50vh)]">
             <CommandEmpty className="py-3 px-4 text-sm text-muted-foreground">
-              {searchValue.trim()
+              {loadingCatalogo ? "Caricamento articoli…" : searchValue.trim()
                 ? <>Nessun articolo "{searchValue}" — premi <kbd className="px-1 py-0.5 mx-0.5 rounded border bg-muted text-[10px]">↩</kbd> o clicca sotto per crearne uno nuovo</>
                 : allTemplates.length === 0
                   ? (includeListino
@@ -322,10 +332,10 @@ export function ArticleCombobox({
             <CommandGroup>
               {filteredTemplates.map((template) => (
                 <CommandItem
-                  key={template.id}
-                  value={template.name}
+                  key={`${template.source}:${template.id}`}
+                  value={`${template.source}:${template.id}`}
                   onSelect={() => handleSelect(template)}
-                  className="items-start gap-2"
+                  className="items-start gap-2 px-3 py-3"
                 >
                   <Check
                     className={cn(
@@ -347,7 +357,8 @@ export function ArticleCombobox({
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-medium truncate">{template.name}</span>
+                      <span className="font-semibold leading-snug">{template.name}</span>
+                      {modalita === "acquisto" && preferredSupplierId && template.supplier_id === preferredSupplierId && <span className="rounded bg-emerald-50 px-1.5 text-[10px] text-emerald-700">Questo fornitore</span>}
                       {template.sku && (
                         <span className="text-[10px] text-muted-foreground">({template.sku})</span>
                       )}
@@ -361,12 +372,11 @@ export function ArticleCombobox({
                       )}
                     </div>
                     {template.description && (
-                      <p className="text-[11px] text-muted-foreground truncate">{template.description}</p>
+                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{template.description}</p>
                     )}
                     <div className="flex items-center gap-2 mt-0.5">
-                      {template.unit_price > 0 && (
-                        <span className="text-[11px] text-muted-foreground">€{template.unit_price.toFixed(2)}</span>
-                      )}
+                      {modalita === "acquisto" ? <span className="text-xs font-medium text-slate-700">{template.standard_cost > 0 ? `${formatCurrency(template.standard_cost)} / ${template.unit_of_measure || "pz"}` : "Costo da definire"}</span> : template.unit_price > 0 && <span className="text-xs text-muted-foreground">{formatCurrency(template.unit_price)} / {template.unit_of_measure || "pz"}</span>}
+                      {modalita === "acquisto" && <span className="text-[11px] text-slate-500">IVA {template.vat_rate ?? 22}%</span>}
                       {template.pdf_scheda_url && (
                         <span className="inline-flex items-center gap-0.5 text-[10px] text-blue-600">
                           <FileText className="h-3 w-3" /> scheda

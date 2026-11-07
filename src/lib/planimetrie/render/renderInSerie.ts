@@ -1,3 +1,5 @@
+import { applicaMaterialiProgetto, materialiDelProgetto } from "../../../../shared/planimetrie/materialiProgetto.ts";
+import { preparaMaterialiStanza } from "@/lib/render/roomMaterialsBoard";
 /**
  * Render in serie dalla pianta: più stanze, o più stili per la stessa stanza, con un clic.
  *
@@ -51,6 +53,7 @@ export interface ContestoSerie {
   /** «fatto» oppure «progetto:<id proposta>». */
   ambito: string;
   nota?: string;
+  qualita_render?: "standard" | "alta";
 }
 
 /**
@@ -66,13 +69,13 @@ export async function avviaRenderStanza(contesto: ContestoSerie, lavoro: LavoroR
   const vincoli = vincoliDellaStanza(ctx.documento, { livello_id: ctx.livelloId, ambito: ctx.ambito, locale_id: lavoro.localeId });
   if (!vincoli) throw new Error("Stanza non trovata nella pianta.");
   const propostaId = ctx.ambito.startsWith("progetto:") ? ctx.ambito.slice("progetto:".length) : undefined;
-  const piante = pianteDaPlanimetria(ctx.documento, { livelloId: ctx.livelloId, propostaId });
+  const piante = pianteDaPlanimetria(ctx.documento, { livelloId: ctx.livelloId, propostaId, materialiAmbito: contesto.ambito });
   const pianta = ctx.ambito === "fatto" ? piante.fatto : piante.progetto;
   const locale3D = pianta.locali.find((l) => l.id === lavoro.localeId);
   if (!locale3D) throw new Error("Stanza non trovata nel 3D.");
 
   const cattura = await caricaFotogramma();
-  const f = await cattura({ pianta, localeId: lavoro.localeId, telecamera: vistaDentroLocale(locale3D), vista: ctx.ambito === "fatto" ? "fatto" : "progetto" });
+  const f = await cattura({ pianta, localeId: lavoro.localeId, telecamera: vistaDentroLocale(locale3D), vista: ctx.ambito === "fatto" ? "fatto" : "progetto", larghezza: 1536, altezza: 1024 });
 
   const ora = Date.now();
   const casuale = Math.random().toString(36).slice(2, 7);
@@ -86,6 +89,7 @@ export async function avviaRenderStanza(contesto: ContestoSerie, lavoro: LavoroR
     versione: ctx.versione,
     livello_id: ctx.livelloId,
     ambito: ctx.ambito,
+    materiali_ambito: contesto.ambito,
     locale_id: lavoro.localeId,
     locale_nome: vincoli.locale.nome,
     partenza: "vista_3d",
@@ -99,7 +103,7 @@ export async function avviaRenderStanza(contesto: ContestoSerie, lavoro: LavoroR
     if (!error) rif.pianta_path = percorso;
   } catch { /* si va avanti con misure e aperture scritte */ }
 
-  const config = configPerStanza(vincoli.locale.destinazione, lavoro.idea, ctx.nota);
+  const config = await preparaMaterialiStanza(applicaMaterialiProgetto({ ...configPerStanza(vincoli.locale.destinazione, lavoro.idea, ctx.nota), qualita_render: ctx.qualita_render ?? "alta" }, materialiDelProgetto(ctx.documento, contesto.ambito)), ctx.companyId);
   const { data: nuova, error: errSessione } = await supabase
     .from("render_stanza_sessions")
     .insert({ company_id: ctx.companyId, created_by: ctx.userId, status: "pending", original_photo_url: storagePath, config: { ...config, planimetria: rif } as never })
@@ -110,7 +114,7 @@ export async function avviaRenderStanza(contesto: ContestoSerie, lavoro: LavoroR
 
   const headers = await getEdgeFunctionAuthHeaders();
   const { data: risposta, error: errFn } = await supabase.functions.invoke("generate-room-render", {
-    body: { session_id: sid, config: { ...config, planimetria: rif }, target_width: 1024, target_height: 768 },
+    body: { session_id: sid, config: { ...config, planimetria: rif }, target_width: 1536, target_height: 1024 },
     headers,
   });
   if (errFn || risposta?.error) {

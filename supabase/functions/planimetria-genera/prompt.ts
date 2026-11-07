@@ -1,6 +1,6 @@
 // Prompt della generazione. Ogni modifica qui va misurata col banco di prova
 // (scripts/planimetrie-banco/): il punteggio si salva a ogni versione.
-export const VERSIONE_PROMPT = "p2";
+export const VERSIONE_PROMPT = "p5";
 
 const DESTINAZIONI_TESTO =
   "soggiorno, cucina, camera, bagno, disimpegno, ingresso, ripostiglio, studio, lavanderia, balcone, terrazzo, garage, cantina, altro";
@@ -25,6 +25,7 @@ ${LOCALE_CAMPI} Vano scala → nome "Vano scala", destinazione altro; ascensore 
 APERTURE — porte, finestre, portefinestre:
 - da, a: i due estremi del vano, sulla linea del muro (non l'arco di apertura).
 - tipo: "porta" (vano in un muro interno o portoncino d'ingresso, di solito con l'arco), "finestra" (sul muro esterno, disegnata con linee sottili parallele), "portafinestra" (finestra che arriva a terra, di solito verso un balcone o terrazzo), "varco" (apertura senza serramento, o portone di un capannone).
+- Un serramento interrompe il muro spesso: verifica il vano tra due spallette. Un mobile TV, un divano, un lavabo o una doccia accostati a un muro continuo NON sono finestre. Non spostare sulla parete superiore un vano che vedi sulla parete laterale.
 - piano: come per le stanze, solo se il foglio ha più piani.
 
 QUOTE — ogni misura scritta di cui capisci il tratto misurato (linea di quota con frecce o trattini, oppure numero scritto lungo una parete):
@@ -44,6 +45,8 @@ AREE ESTERNE — solo se il foglio è una planimetria generale, un estratto di m
 MISURE: le quote si scrivono in molti modi — "420" o "4,20" o "4.20 m" o "4,20 ML"; "275 cm"; con due numeri sovrapposti su una porta o finestra ("80/210", "150/138") il primo è la larghezza in cm, il secondo l'altezza: non sono quote. "H 2,70", "H.3,85ML", "H 275" sono altezze. "R.I." e "mq" non sono quote.
 
 altezza_m: altezza dei locali se è scritta una volta per tutta la pianta ("H = 2,70"), altrimenti null.
+
+CONTROLLO FINALE prima del JSON: riconta le aperture parete per parete, distinguendole dagli arredi. Rileggi le superfici scritte dentro le stanze e confrontale con le proporzioni e le quote. Il contorno segue le facce interne: non usare una quota esterna, che comprende muri o altre stanze, come larghezza interna. Non aggiungere vani o arredi solo perché sono usuali in quel tipo di stanza.
 
 Se l'immagine non è una pianta o non si legge: {"sistema":"immagine","leggibile":false,"motivo_non_leggibile":"..."}.
 

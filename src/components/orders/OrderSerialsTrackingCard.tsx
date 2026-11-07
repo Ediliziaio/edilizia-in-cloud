@@ -13,7 +13,7 @@ import { Package, ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RiquadroCommessa, StatoPill, TabellaCommessa, type ColonnaTabella } from "@/components/orders/TabellaCommessa";
 import { AssignSerialsDialog } from "@/components/warehouse/AssignSerialsDialog";
-import { useArticoliConSeriale, useStockUnitsByOrderItemIds } from "@/hooks/warehouse/useStockUnits";
+import { useArticoliConSeriale, useStockUnitsByOrderItemIds, useSerialiCommessaSenzaRiga } from "@/hooks/warehouse/useStockUnits";
 import type { OrderItemData } from "@/lib/orderUtils";
 
 interface OrderSerialsTrackingCardProps {
@@ -34,7 +34,9 @@ export function OrderSerialsTrackingCard({ orderId, orderItems }: OrderSerialsTr
   const { data: serialsByItem = new Map() } = useStockUnitsByOrderItemIds(itemIds);
   const { data: conSeriale = new Set<string>() } = useArticoliConSeriale(trackableItems.map((it) => it.stock_item_id ?? ""));
 
-  if (trackableItems.length === 0) return null;
+  const { data: senzaRiga = [], isError: erroreSenzaRiga } = useSerialiCommessaSenzaRiga(orderId);
+
+  if (trackableItems.length === 0 && senzaRiga.length === 0 && !erroreSenzaRiga) return null;
 
   const assegnati = (it: OrderItemData): number => (serialsByItem.get(it.id) ?? []).length;
   const daSeguire = trackableItems.filter((it) => (it.stock_item_id && conSeriale.has(it.stock_item_id)) || assegnati(it) > 0);
@@ -66,7 +68,15 @@ export function OrderSerialsTrackingCard({ orderId, orderItems }: OrderSerialsTr
       <div className="space-y-3">
         {daSeguire.length > 0
           ? <TabellaCommessa etichetta="Seriali degli articoli" colonne={colonne} righe={daSeguire} chiave={(it) => it.id} />
-          : <p className="text-sm text-muted-foreground">Nessun articolo del magazzino prevede una matricola in questa commessa.</p>}
+          : <p className="text-sm text-muted-foreground">Nessuna matricola risulta collegata alle righe materiale elencate.</p>}
+        {erroreSenzaRiga && <p role="alert" className="text-sm text-destructive">Non è stato possibile controllare i seriali associati direttamente alla commessa.</p>}
+        {senzaRiga.length > 0 && (
+          <div className="rounded-md border p-3 space-y-2">
+            <p className="font-medium">Seriali della commessa da abbinare alle righe ({senzaRiga.length})</p>
+            <p className="text-sm text-muted-foreground">Questi seriali sono associati alla commessa, ma non a una riga materiale. Non vengono conteggiati come assegnazioni complete.</p>
+            <ul className="text-sm">{senzaRiga.map((u) => <li key={u.id}>{u.serial_number}</li>)}</ul>
+          </div>
+        )}
         {altri.length > 0 && (
           <Button variant="ghost" size="sm" className="h-8 text-muted-foreground" aria-expanded={altriAperti} onClick={() => setAltriAperti((v) => !v)}>
             {altriAperti ? "Nascondi gli altri articoli" : `Altri articoli (${altri.length})`}

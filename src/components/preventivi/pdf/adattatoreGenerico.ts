@@ -49,12 +49,13 @@ export function datiGenerici(input: { quote: Riga; items: Riga[]; righePerIva?: 
       condizioni_legali_testo: [t.show_contractual_terms !== false ? t.contractual_terms_text : null, t.show_legal_terms !== false ? t.legal_terms_text : null].filter(Boolean).join("\n\n"),
       default_validita_giorni: q.expires_at && q.created_at ? Math.max(0, Math.round((Date.parse(str(q.expires_at)) - Date.parse(str(q.created_at))) / 86400000)) : null,
     },
-    capitoli: [...capitoli].map(([nome, righe]) => ({ nome, fuoriTotale: righe.every(r => r.is_optional === true), subtotale: righe.reduce((s, r) => s + num(r.line_total), 0), voci: righe.map((r, i) => ({ id: str(r.id) || `riga-${i}`, descrizione: str(r.name), descrizione_estesa: str(r.description), quantita: num(r.quantity), unita_misura: str(r.unit_of_measure), prezzo_unitario: num(r.unit_price), importo: num(r.line_total), immagine_url: str(r.image_url) })) })),
+    capitoli: [...capitoli].map(([nome, righe]) => ({ nome, fuoriTotale: righe.every(r => r.is_optional === true), subtotale: righe.reduce((s, r) => s + num(r.line_total), 0), voci: righe.map((r, i) => ({ id: str(r.id) || `riga-${i}`, descrizione: str(r.name), descrizione_estesa: str(r.description), quantita: num(r.quantity), unita_misura: str(r.unit_of_measure), prezzo_unitario: num(r.unit_price), sconto_pct: num(r.discount_percent), importo: num(r.line_total), immagine_url: str(r.image_url) })) })),
     totali: { imponibileLordo: iva.subTotShown, scontoEur: iva.scontoShown, scontoPct: num(q.discount_percent), imponibile, iva: iva.ivaToShow, ivaPct: iva.righeIva[0]?.aliquota ?? 0, aliquoteIva: iva.righeIva, totale, detrazionePct: 0, detrazioneEur: 0, costoTot: 0, margineEur: null, marginePct: null, prezzoManuale: num(q.prezzo_manuale) > 0 },
     // «Solo il totale» (sul preventivo o nelle impostazioni dell'azienda): il computo a corpo, senza le righe.
     media: [], opzioniComputo: { livello: q.pdf_mostra_solo_totale === true ? "corpo" : "dettagliato", mostraPrezzi: q.pdf_mostra_prezzi !== false, mostraQta: q.pdf_mostra_quantita !== false },
   });
   // Lo sconto si mostra solo se è vero: non i centesimi dell'IVA che righeRiepilogoIva assorbe nello sconto.
+  dati.totali.mostraScontiRiga = q.pdf_mostra_sconti !== false;
   dati.totali.mostraSconti = q.pdf_mostra_sconti !== false && num(q.discount_amount) >= 0.01;
   dati.titoloDocumento = `Preventivo ${str(q.quote_number)}`;
   dati.filigrana = t.show_watermark ? str(t.watermark_text) : null;

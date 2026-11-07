@@ -224,7 +224,6 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
       onEntriesChange([
         ...entries,
         {
-          id: uuid,
           clientUuid: uuid,
           stockItemId: realStockItemId,
           itemName: pendingItem.name,
@@ -233,8 +232,8 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
           rawCode: pendingItem.internal_code ?? "",
           trackingMode: pendingItem.tracking_mode,
           purchasePrice: parsedPrice,
-          resolutionStatus: "matched",
-        } as BatchScanEntry,
+          scannedAt: Date.now(),
+        },
       ]);
     }
 
@@ -246,7 +245,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
 
   const handleRemoveEntry = useCallback(
     (entryId: string) => {
-      onEntriesChange(entries.filter((e) => e.id !== entryId));
+      onEntriesChange(entries.filter((e) => e.clientUuid !== entryId));
     },
     [entries, onEntriesChange],
   );
@@ -254,7 +253,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
   const handleUpdateQty = useCallback(
     (entryId: string, newQty: number) => {
       onEntriesChange(
-        entries.map((e) => (e.id === entryId ? { ...e, quantity: Math.max(0, newQty) } : e)),
+        entries.map((e) => (e.clientUuid === entryId ? { ...e, quantity: Math.max(0, newQty) } : e)),
       );
     },
     [entries, onEntriesChange],
@@ -269,10 +268,10 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
       const nextSerials = [...entry.serialNumbers, trimmed];
       onEntriesChange(
         entries.map((e) =>
-          e.id === entry.id ? { ...e, serialNumbers: nextSerials, quantity: nextSerials.length } : e,
+          e.clientUuid === entry.clientUuid ? { ...e, serialNumbers: nextSerials, quantity: nextSerials.length } : e,
         ),
       );
-      setSerialDraft((d) => ({ ...d, [entry.id]: "" }));
+      setSerialDraft((d) => ({ ...d, [entry.clientUuid]: "" }));
     },
     [entries, onEntriesChange],
   );
@@ -282,7 +281,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
       const nextSerials = entry.serialNumbers.filter((s) => s !== code);
       onEntriesChange(
         entries.map((e) =>
-          e.id === entry.id
+          e.clientUuid === entry.clientUuid
             ? { ...e, serialNumbers: nextSerials, quantity: nextSerials.length > 0 ? nextSerials.length : e.quantity }
             : e,
         ),
@@ -506,7 +505,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
               const qtyLocked = isSerialized && entry.serialNumbers.length > 0;
               return (
                 <div
-                  key={entry.id}
+                  key={entry.clientUuid}
                   className="bg-background rounded-md border px-2 py-1.5 text-xs space-y-1.5"
                 >
                   <div className="flex items-center gap-2">
@@ -520,7 +519,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                       type="number"
                       min="1"
                       value={entry.quantity}
-                      onChange={(e) => handleUpdateQty(entry.id, parseFloat(e.target.value) || 0)}
+                      onChange={(e) => handleUpdateQty(entry.clientUuid, parseFloat(e.target.value) || 0)}
                       disabled={qtyLocked}
                       title={qtyLocked ? "Quantità = numero di seriali inseriti" : undefined}
                       className="h-7 w-16 text-right tabular-nums text-xs disabled:opacity-70"
@@ -530,7 +529,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                       variant="ghost"
                       size="icon"
                       className="h-7 w-7 shrink-0"
-                      onClick={() => handleRemoveEntry(entry.id)}
+                      onClick={() => handleRemoveEntry(entry.clientUuid)}
                       aria-label="Rimuovi"
                     >
                       <X className="h-3 w-3 text-destructive" />
@@ -561,12 +560,12 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                       </div>
                       <div className="flex gap-1">
                         <Input
-                          value={serialDraft[entry.id] ?? ""}
-                          onChange={(e) => setSerialDraft((d) => ({ ...d, [entry.id]: e.target.value }))}
+                          value={serialDraft[entry.clientUuid] ?? ""}
+                          onChange={(e) => setSerialDraft((d) => ({ ...d, [entry.clientUuid]: e.target.value }))}
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
                               e.preventDefault();
-                              addSerial(entry, serialDraft[entry.id] ?? "");
+                              addSerial(entry, serialDraft[entry.clientUuid] ?? "");
                             }
                           }}
                           placeholder="Codice univoco del pezzo + Invio (oppure scansiona)"
@@ -577,8 +576,8 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                           size="sm"
                           variant="outline"
                           className="h-7 shrink-0"
-                          onClick={() => addSerial(entry, serialDraft[entry.id] ?? "")}
-                          disabled={!(serialDraft[entry.id] ?? "").trim()}
+                          onClick={() => addSerial(entry, serialDraft[entry.clientUuid] ?? "")}
+                          disabled={!(serialDraft[entry.clientUuid] ?? "").trim()}
                         >
                           <Plus className="h-3 w-3" />
                         </Button>

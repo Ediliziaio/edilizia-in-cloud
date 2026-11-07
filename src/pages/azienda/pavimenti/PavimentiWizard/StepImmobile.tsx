@@ -80,6 +80,7 @@ const toInt = (raw: string): number | null => {
 
 export default function StepImmobile({ form, onChange, model }: Props) {
   const isMobile = useIsMobile();
+  const verde = ["giardino", "verde", "irrigazione", "recinzioni"].includes(model?.id ?? "");
   return (
     <Card>
       {/* Telefono: colonna con spazi fissi, così il titolo nascosto non lascia un buco in cima. */}
@@ -92,7 +93,7 @@ export default function StepImmobile({ form, onChange, model }: Props) {
           <div>
             <h2 className="text-sm font-semibold text-slate-900">Dati intervento</h2>
             <p className="text-[11px] text-muted-foreground max-sm:hidden">
-              Tipo di intervento, materiale e superficie.
+              {verde ? "Area esterna, superficie e vincoli dell’intervento." : "Tipo di intervento, materiale e superficie."}
             </p>
           </div>
         </div>
@@ -116,7 +117,7 @@ export default function StepImmobile({ form, onChange, model }: Props) {
             </Select>}
           </div>
           <div className="col-span-12 sm:col-span-6">
-            <Label className="text-xs">Materiale</Label>
+            <Label className="text-xs">{verde ? "Materiale di eventuali pavimentazioni (facoltativo)" : "Materiale"}</Label>
             <Select
               value={form.tipo_materiale ?? ""}
               onValueChange={(v) => onChange("tipo_materiale", v)}
@@ -152,7 +153,7 @@ export default function StepImmobile({ form, onChange, model }: Props) {
             </Select>
           </div>
           <div className="col-span-6 sm:col-span-3">
-            <Label className="text-xs">Superficie<span className="max-sm:hidden"> da posare</span> (m²)</Label>
+            <Label className="text-xs">{verde ? "Area interessata (m²)" : <>Superficie<span className="max-sm:hidden"> da posare</span> (m²)</>}</Label>
             <Input
               type="number"
               inputMode="decimal"
@@ -164,7 +165,7 @@ export default function StepImmobile({ form, onChange, model }: Props) {
             />
           </div>
           <div className="col-span-6 sm:col-span-3">
-            <Label className="text-xs">N. ambienti</Label>
+            <Label className="text-xs">{verde ? "N. aree (facoltativo)" : "N. ambienti"}</Label>
             <Input
               type="number"
               step={1}
@@ -209,11 +210,11 @@ export default function StepImmobile({ form, onChange, model }: Props) {
           <Textarea
             value={form.note ?? ""}
             onChange={(e) => onChange("note", e.target.value || null)}
-            placeholder={isMobile ? "Vincoli, accessi, orari…" : "Es. stato del sottofondo, presenza di umidità di risalita, necessità di livellamento, quote porte/soglie, condominio con orari cantiere…"}
+            placeholder={verde ? "Terreno, drenaggio, essenze, accessi, impianti esistenti e opere da escludere…" : isMobile ? "Vincoli, accessi, orari…" : "Es. stato del sottofondo, presenza di umidità di risalita, necessità di livellamento, quote porte/soglie, condominio con orari cantiere…"}
             className="min-h-20 text-sm max-sm:min-h-16"
           />
           <p className="text-[10px] text-muted-foreground mt-0.5 max-sm:hidden">
-            Vincoli edilizi/condominiali e annotazioni utili per il preventivo (stato sottofondo, livellamento, soglie).
+            {verde ? "Descrivi le condizioni dell’area e le lavorazioni da includere. I dati dell’immobile sono facoltativi se non pertinenti." : "Vincoli edilizi/condominiali e annotazioni utili per il preventivo (stato sottofondo, livellamento, soglie)."}
           </p>
         </div>
       </CardContent>

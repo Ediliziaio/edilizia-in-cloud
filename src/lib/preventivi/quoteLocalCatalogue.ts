@@ -37,9 +37,13 @@ export async function readLocalQuoteCatalogue(sourceId: string, codes: string[],
         let read = client.from("prezzario_voce").select("id,fonte_id,codice,descrizione,unita_misura,prezzo,fonte:prezzario_fonte!inner(stato,nome)").eq("fonte_id", sourceId).eq("fonte.stato", "pubblicato");
         // Filter before the bounded page: unrelated units must not crowd out
         // matching work. Exact-code reads still expose missing-unit defects.
+        // Rows WITHOUT a unit stay in (05/11/2026): 16 of 19 regional price lists
+        // were imported without units, and a strict IN made the whole source look
+        // empty. assessCatalogueMatch still flags them («unità mancante»), so they
+        // surface as candidates to check, never as compatible prices.
         const unit = targets.length === 1 ? catalogueUnit(targets[0].unit) : '';
         const aliases: Record<string, string[]> = { m2: ['m²', 'm2', 'mq'], m3: ['m³', 'm3', 'mc'], m: ['m', 'ml'], cad: ['cad', 'cad.', 'pz', 'n', 'n.'], h: ['h', 'ora'], t: ['t', 'ton'], kg: ['kg'] };
-        if (q.kind !== 'code' && aliases[unit]) read = read.in('unita_misura', aliases[unit]);
+        if (q.kind !== 'code' && aliases[unit]) read = read.or(`unita_misura.in.(${aliases[unit].map(a => `"${a}"`).join(',')}),unita_misura.is.null`);
         if (q.kind === 'code') {
           const variants = catalogueCodeVariants(q.text);
           read = variants.length === 1 ? read.eq('codice', variants[0]) : read.in('codice', variants);

@@ -17,6 +17,7 @@
  * "modifica tutto". Pattern marketing standard.
  */
 import { useState } from "react";
+import { emailDaMostrare } from "@/lib/orders/nuovaCommessaProposte";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -167,7 +168,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
       // cantiere → site_lat/lng). Fire-and-forget: errori ignorati.
       const residenceFields = ["address", "city", "postal_code", "province"];
       const siteFields = ["site_address", "site_city", "site_postal_code", "site_province"];
-      const merged = { ...customer, ...(extra ?? {}), [field]: value } as Record<string, string | null>;
+      const merged = { ...customer, ...(extra ?? {}), [field]: value };
       // Indirizzo scelto dalla ricerca: le coordinate sono già salvate insieme.
       if (extra && ("address_lat" in extra || "site_lat" in extra)) return;
       if (residenceFields.includes(field)) {
@@ -386,7 +387,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                     <InlineField
                       disabled={solaLettura}
                       label="Email"
-                      value={customer.email || ""}
+                      value={emailDaMostrare(customer.email) || ""}
                       onSave={(v) => updateField.mutate({ field: "email", value: v || null })}
                       type="email"
                     />

@@ -146,6 +146,7 @@ export interface ConfigElementiArchitettonici {
 }
 
 export interface ConfigurazioneFacciata {
+  qualita_render?: "standard" | "alta";
   tipo_intervento: TipoInterventoFacciata;
   intonaco: ConfigIntonaco;
   rivestimento: ConfigRivestimento;

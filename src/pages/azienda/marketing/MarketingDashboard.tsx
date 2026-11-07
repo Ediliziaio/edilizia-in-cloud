@@ -564,7 +564,8 @@ export default function MarketingDashboard() {
                     className="cursor-pointer"
                     onClick={(state) => {
                       // Drill-down: click sul mese -> contatti creati nel periodo
-                      const key = (state?.activePayload?.[0]?.payload as { key?: string } | undefined)?.key;
+                      const index = state?.activeTooltipIndex;
+                      const key = index != null && Number.isInteger(Number(index)) ? marketingTrend[Number(index)]?.key : undefined;
                       if (!key) return;
                       navigate(`/azienda/marketing/contatti?mese=${key}`);
                     }}

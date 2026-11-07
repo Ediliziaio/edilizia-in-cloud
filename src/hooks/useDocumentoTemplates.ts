@@ -16,7 +16,7 @@ export function useDocumentoTemplates() {
     queryKey: ['documento-templates', effectiveCompany?.id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('documento_templates' as never)
+        .from('documento_templates')
         .select(DOCUMENTO_TEMPLATE_SELECT)
         .eq('company_id', effectiveCompany!.id)
         .eq('attivo', true)
@@ -40,13 +40,13 @@ export function useDocumentoTemplates() {
           if (error) throw error;
         },
         register: async (row) => {
-          const { data, error } = await supabase.from('documento_templates' as never)
+          const { data, error } = await supabase.from('documento_templates')
             .insert(row as never).select('id').single() as unknown as { data: { id: string } | null; error: unknown };
           if (error) throw error;
           if (!data?.id) throw new Error('Il modello non è stato registrato. Verifica i permessi dell’azienda.');
         },
         registered: async (id) => {
-          const { data, error } = await supabase.from('documento_templates' as never).select('id')
+          const { data, error } = await supabase.from('documento_templates').select('id')
             .eq('id', id).eq('company_id', companyId).maybeSingle();
           if (error) throw error;
           return !!data;
@@ -64,7 +64,7 @@ export function useDocumentoTemplates() {
   const deleteTemplate = useMutation({
     mutationFn: async (id: string) => {
       const { data, error } = await supabase
-        .from('documento_templates' as never)
+        .from('documento_templates')
         .update({ attivo: false })
         .eq('id', id).eq('company_id', effectiveCompany!.id).select('id') as unknown as { data: { id: string }[] | null; error: unknown };
       if (error) throw error;
@@ -89,7 +89,7 @@ export function useTemplateFields(templateId: string | null) {
     queryKey: ['template-fields', companyId, templateId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('documento_template_fields' as never)
+        .from('documento_template_fields')
         .select('*')
         .eq('template_id', templateId!)
         .eq('company_id', companyId!)
@@ -104,7 +104,7 @@ export function useTemplateFields(templateId: string | null) {
     mutationFn: async (field: Omit<DocumentoTemplateField, 'id' | 'created_at'>) => {
       if (!companyId || field.company_id !== companyId || field.template_id !== templateId) throw new Error('Azienda o modello non corrispondenti.');
       const { data, error } = await supabase
-        .from('documento_template_fields' as never)
+        .from('documento_template_fields')
         .insert(field as never).select('id').single() as unknown as { data: { id: string } | null; error: unknown };
       if (error) throw error;
       if (!data?.id) throw new Error('Campo non salvato. Verifica i permessi del modello.');
@@ -119,7 +119,7 @@ export function useTemplateFields(templateId: string | null) {
   const removeField = useMutation({
     mutationFn: async (fieldId: string) => {
       const { data, error } = await supabase
-        .from('documento_template_fields' as never)
+        .from('documento_template_fields')
         .delete()
         .eq('id', fieldId).eq('template_id', templateId!).eq('company_id', companyId!).select('id') as unknown as { data: { id: string }[] | null; error: unknown };
       if (error) throw error;
@@ -134,7 +134,7 @@ export function useTemplateFields(templateId: string | null) {
   const updatePositions = useMutation({
     mutationFn: async ({ id, posizioni_pdf }: Pick<DocumentoTemplateField, 'id' | 'posizioni_pdf'>) => {
       if (!companyId || !templateId || !posizioni_pdf?.every(posizioneValida)) throw new Error('Posizioni PDF non valide.');
-      const { data, error } = await supabase.from('documento_template_fields' as never)
+      const { data, error } = await supabase.from('documento_template_fields')
         .update({ posizioni_pdf } as never).eq('id', id).eq('company_id', companyId!)
         .eq('template_id', templateId!).select('id') as unknown as { data: { id: string }[] | null; error: unknown };
       if (error) throw error;

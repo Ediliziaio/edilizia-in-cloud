@@ -95,7 +95,7 @@ export function confrontaVoce(
   riferimento: VocePrezzario | null,
   confidenza: ConfidenzaConfronto | null,
 ): ConfrontoVoce {
-  const vuoto = { voceId: voce.id, riferimento: null, confidenza: null, scostamentoPct: null, scostamentoEuro: null };
+  const vuoto = { voceId: voce.id, riferimento: null as null, confidenza: null as null, scostamentoPct: null as null, scostamentoEuro: null as null };
   if (!riferimento) return { ...vuoto, motivo: "nessuna-corrispondenza" };
   if (riferimento.prezzo == null || riferimento.prezzo <= 0) {
     return { ...vuoto, riferimento, confidenza, motivo: "prezzo-mancante" };

@@ -1157,7 +1157,7 @@ function SelezioniAnalytics({ candidates, reports }: { candidates: TalentCandida
 
   const conversion = useMemo(() => {
     const total = candidates.length;
-    const completed = candidates.filter((c) => c.status === "completed" || c.status === "reviewed").length;
+    const completed = candidates.filter((c) => c.status === "completed").length;
     const reliable = reports.filter((r) => r.reliability_index === "YES").length;
     const completedPct = total === 0 ? 0 : Math.round((completed / total) * 100);
     const reliablePct = total === 0 ? 0 : Math.round((reliable / total) * 100);
@@ -1259,7 +1259,7 @@ function SelezioniAnalytics({ candidates, reports }: { candidates: TalentCandida
             ) : (
               <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
-                  <Pie data={profileTypeData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={(entry: { name: string; percent: number }) => `${entry.name} ${(entry.percent * 100).toFixed(0)}%`}>
+                  <Pie data={profileTypeData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={(entry) => `${entry.name ?? ""} ${((entry.percent ?? 0) * 100).toFixed(0)}%`}>
                     {profileTypeData.map((_, index) => (
                       <Cell key={`pcell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                     ))}

@@ -10379,6 +10379,8 @@ export type Database = {
           created_at: string
           custom_field_values: Json
           deleted_at: string | null
+          disegno_tipologia: string | null
+          disegno_definizione: Json | null
           descrizione: string | null
           embedding: string | null
           embedding_updated_at: string | null
@@ -10422,6 +10424,8 @@ export type Database = {
           created_at?: string
           custom_field_values?: Json
           deleted_at?: string | null
+          disegno_tipologia?: string | null
+          disegno_definizione?: Json | null
           descrizione?: string | null
           embedding?: string | null
           embedding_updated_at?: string | null
@@ -10465,6 +10469,8 @@ export type Database = {
           created_at?: string
           custom_field_values?: Json
           deleted_at?: string | null
+          disegno_tipologia?: string | null
+          disegno_definizione?: Json | null
           descrizione?: string | null
           embedding?: string | null
           embedding_updated_at?: string | null
@@ -10575,6 +10581,7 @@ export type Database = {
       }
       article_family_axes: {
         Row: {
+          visibile_se: Json | null
           codice: string
           company_id: string
           created_at: string
@@ -10587,6 +10594,7 @@ export type Database = {
           tipo: string
         }
         Insert: {
+          visibile_se?: Json | null
           codice: string
           company_id: string
           created_at?: string
@@ -10599,6 +10607,7 @@ export type Database = {
           tipo?: string
         }
         Update: {
+          visibile_se?: Json | null
           codice?: string
           company_id?: string
           created_at?: string
@@ -11171,6 +11180,8 @@ export type Database = {
       }
       articoli_native: {
         Row: {
+          larghezza_mm: number | null
+          lunghezza_mm: number | null
           aliquota_iva: string
           attivo: boolean | null
           capacita_kwh: number | null
@@ -11201,6 +11212,8 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          larghezza_mm?: number | null
+          lunghezza_mm?: number | null
           aliquota_iva?: string
           attivo?: boolean | null
           capacita_kwh?: number | null
@@ -11231,6 +11244,8 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          larghezza_mm?: number | null
+          lunghezza_mm?: number | null
           aliquota_iva?: string
           attivo?: boolean | null
           capacita_kwh?: number | null
@@ -21199,6 +21214,7 @@ export type Database = {
           giorni_preavviso: number
           id: string
           is_paid: boolean
+          mezzo_id: string | null
           name: string
           notes: string | null
           order_id: string | null
@@ -21230,6 +21246,7 @@ export type Database = {
           giorni_preavviso?: number
           id?: string
           is_paid?: boolean
+          mezzo_id?: string | null
           name: string
           notes?: string | null
           order_id?: string | null
@@ -21261,6 +21278,7 @@ export type Database = {
           giorni_preavviso?: number
           id?: string
           is_paid?: boolean
+          mezzo_id?: string | null
           name?: string
           notes?: string | null
           order_id?: string | null
@@ -21281,6 +21299,13 @@ export type Database = {
           vat_rate?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "company_costs_mezzo_id_fkey"
+            columns: ["mezzo_id"]
+            isOneToOne: false
+            referencedRelation: "mezzi"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "company_costs_company_id_fkey"
             columns: ["company_id"]
@@ -21740,6 +21765,12 @@ export type Database = {
             referencedColumns: ["azienda_id"]
           },
         ]
+      }
+      company_document_templates: {
+        Row: { company_id: string; document_type: string; config: Json; updated_at: string }
+        Insert: { company_id: string; document_type: string; config?: Json; updated_at?: string }
+        Update: { company_id?: string; document_type?: string; config?: Json; updated_at?: string }
+        Relationships: [{ foreignKeyName: "company_document_templates_company_id_fkey"; columns: ["company_id"]; isOneToOne: false; referencedRelation: "companies"; referencedColumns: ["id"] }]
       }
       company_email_preferences: {
         Row: {
@@ -34106,6 +34137,7 @@ export type Database = {
       }
       email_outbox: {
         Row: {
+          procurement_context: Json | null
           attachments: Json | null
           attempts: number
           bcc_emails: string[] | null
@@ -34132,6 +34164,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          procurement_context?: Json | null
           attachments?: Json | null
           attempts?: number
           bcc_emails?: string[] | null
@@ -34158,6 +34191,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          procurement_context?: Json | null
           attachments?: Json | null
           attempts?: number
           bcc_emails?: string[] | null
@@ -47544,6 +47578,7 @@ export type Database = {
       }
       internal_chat_messages: {
         Row: {
+          streaming: boolean
           ai_confidence: string | null
           ai_requires_human_review: boolean | null
           attachment_name: string | null
@@ -47575,6 +47610,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          streaming?: boolean
           ai_confidence?: string | null
           ai_requires_human_review?: boolean | null
           attachment_name?: string | null
@@ -47606,6 +47642,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          streaming?: boolean
           ai_confidence?: string | null
           ai_requires_human_review?: boolean | null
           attachment_name?: string | null
@@ -67764,6 +67801,7 @@ export type Database = {
           sort_order: number
           stock_item_id: string | null
           unit_of_measure: string | null
+          price_pending: boolean
           unit_price: number
           updated_at: string
           vat_amount: number | null
@@ -67788,6 +67826,7 @@ export type Database = {
           sort_order?: number
           stock_item_id?: string | null
           unit_of_measure?: string | null
+          price_pending?: boolean
           unit_price?: number
           updated_at?: string
           vat_amount?: number | null
@@ -67812,6 +67851,7 @@ export type Database = {
           sort_order?: number
           stock_item_id?: string | null
           unit_of_measure?: string | null
+          price_pending?: boolean
           unit_price?: number
           updated_at?: string
           vat_amount?: number | null
@@ -68039,6 +68079,51 @@ export type Database = {
           },
         ]
       }
+      procurement_document_events: {
+        Row: {
+          id: string
+          company_id: string
+          purchase_order_id: string | null
+          rfq_id: string | null
+          outbox_id: string | null
+          kind: string
+          entity: string
+          operation: string
+          actor_id: string | null
+          actor_label: string | null
+          payload: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          purchase_order_id?: string | null
+          rfq_id?: string | null
+          outbox_id?: string | null
+          kind: string
+          entity: string
+          operation: string
+          actor_id?: string | null
+          actor_label?: string | null
+          payload: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          purchase_order_id?: string | null
+          rfq_id?: string | null
+          outbox_id?: string | null
+          kind?: string
+          entity?: string
+          operation?: string
+          actor_id?: string | null
+          actor_label?: string | null
+          payload?: Json
+          created_at?: string
+        }
+        Relationships: []
+      }
       purchase_orders: {
         Row: {
           actual_delivery_date: string | null
@@ -68047,6 +68132,7 @@ export type Database = {
           confirmed_at: string | null
           created_at: string
           created_by: string | null
+          document_details: Json
           delivery_address: string | null
           delivery_warehouse_id: string | null
           expected_delivery_date: string | null
@@ -68079,6 +68165,7 @@ export type Database = {
           confirmed_at?: string | null
           created_at?: string
           created_by?: string | null
+          document_details?: Json
           delivery_address?: string | null
           delivery_warehouse_id?: string | null
           expected_delivery_date?: string | null
@@ -68111,6 +68198,7 @@ export type Database = {
           confirmed_at?: string | null
           created_at?: string
           created_by?: string | null
+          document_details?: Json
           delivery_address?: string | null
           delivery_warehouse_id?: string | null
           expected_delivery_date?: string | null
@@ -87253,6 +87341,10 @@ export type Database = {
       }
       supplier_rfq_suppliers: {
         Row: {
+          inviata_via: string | null
+          trasporto_tipo: string
+          costo_trasporto: number | null
+          disponibilita_note: string | null
           aggancio_confidenza: number | null
           aggancio_da: string | null
           aggancio_da_confermare: boolean
@@ -87274,6 +87366,10 @@ export type Database = {
           validita_offerta: string | null
         }
         Insert: {
+          inviata_via?: string | null
+          trasporto_tipo?: string
+          costo_trasporto?: number | null
+          disponibilita_note?: string | null
           aggancio_confidenza?: number | null
           aggancio_da?: string | null
           aggancio_da_confermare?: boolean
@@ -87295,6 +87391,10 @@ export type Database = {
           validita_offerta?: string | null
         }
         Update: {
+          inviata_via?: string | null
+          trasporto_tipo?: string
+          costo_trasporto?: number | null
+          disponibilita_note?: string | null
           aggancio_confidenza?: number | null
           aggancio_da?: string | null
           aggancio_da_confermare?: boolean

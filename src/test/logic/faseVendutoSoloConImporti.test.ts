@@ -108,10 +108,14 @@ describe("l'app scrive il venduto solo con gli stessi due permessi", () => {
     // Un file nuovo qui: se scrive il venduto, deve chiedere gli stessi due
     // permessi del trigger, altrimenti l'utente vede il campo e poi un errore.
     expect(conVenduto).toEqual([
+      "src/components/orders/CreaFatturaDialog.tsx", // legge le fasi vendute per preparare le righe fattura
       "src/components/orders/OrderWorkPhases.tsx",
       "src/components/orders/SalTab.tsx",
+      "src/components/silvio-commessa/presentazione.ts", // solo dizionario etichette
       "src/hooks/useOrderWorkPhases.ts",
+      "src/lib/orders/dossierEconomico.ts", // lettura del dossier, non aggiorna il venduto
       "src/lib/orders/economiaFasi.ts",
+      "src/lib/orders/registroCommessa.ts", // solo dizionario etichette
       "src/lib/orders/salDaFasi.ts",
     ]);
   });

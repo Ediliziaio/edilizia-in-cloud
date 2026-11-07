@@ -89,3 +89,12 @@ describe("cosa vede davvero", () => {
     expect(nomiPermessi(["can_view_orders", "can_edit_orders"], conVoci)).toEqual(["Ordini e Commesse"]);
   });
 });
+
+it("BUG-02: traduce i permessi storici senza ripetere le etichette dei moduli", () => {
+  const aree = [{ id: "c", label: "Cantieri", modules: [
+    { label: "Ordini e Commesse", viewKey: "can_view_orders_list" },
+    { label: "Magazzino", viewKey: "can_view_warehouse_stock" },
+    { label: "Ticket Assistenza", viewKey: "can_view_tickets_list" },
+  ] }];
+  expect(nomiPermessi(["can_view_orders", "can_edit_orders", "can_view_orders_list", "can_view_warehouse", "can_view_warehouse_stock", "can_view_tickets", "can_view_tickets_list"], aree)).toEqual(["Ordini e Commesse", "Magazzino", "Ticket Assistenza"]);
+});

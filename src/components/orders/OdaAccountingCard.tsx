@@ -48,7 +48,7 @@ export function OdaAccountingCard({
   stato: string;
 }) {
   const [paymentCostId, setPaymentCostId] = useState<string | null>(null);
-  const { data } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["oda-contabilita", odaId],
     queryFn: async () => {
       const [costiRes, fattureRes, quoteRes] = await Promise.all([
@@ -101,12 +101,15 @@ export function OdaAccountingCard({
         rate,
       };
     },
-    enabled: !!odaId,
+    enabled: !!odaId && stato !== "bozza" && stato !== "annullato",
   });
 
   // Sulle bozze non c'e' niente da contabilizzare: mostrare due righe vuote
   // sarebbe solo rumore.
   if (stato === "bozza" || stato === "annullato") return null;
+
+  if (isLoading) return <QuoteCard title="Contabilità" icon={<Wallet className="h-4 w-4"/>}><p role="status" className="text-sm text-slate-500">Caricamento dati contabili…</p></QuoteCard>;
+  if (isError) return <QuoteCard title="Contabilità" icon={<Wallet className="h-4 w-4"/>}><p role="alert" className="text-sm text-red-700">Dati contabili non disponibili. Non è possibile verificare costi e fatture.</p><Button size="sm" variant="outline" className="mt-3" onClick={()=>void refetch()}>Riprova</Button></QuoteCard>;
 
   const costi = data?.costi ?? [];
   const fatture = data?.fatture ?? [];

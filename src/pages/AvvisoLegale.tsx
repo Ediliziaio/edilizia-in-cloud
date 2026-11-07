@@ -5,7 +5,7 @@ export default function AvvisoLegale() {
     <LegalLayout
       title="Avviso Legale"
       metaDescription="Avviso legale Edilizia in Cloud — informazioni societarie, responsabilità e diritti d'autore. Domus Group S.r.l."
-      lastUpdate="27 aprile 2026"
+      lastUpdate="30 ottobre 2026"
       downloadHref="/legal/Edilizia-in-Cloud_Avviso-Legale.pdf"
       currentPath="/avviso-legale"
     >
@@ -16,13 +16,13 @@ export default function AvvisoLegale() {
       </p>
 
       <p>
-        <strong>Ultimo aggiornamento:</strong> 27 aprile 2026 · <strong>Versione:</strong> 1.0
+        <strong>Ultimo aggiornamento:</strong> 30 ottobre 2026 · <strong>Versione:</strong> 1.1
       </p>
 
       <h2>Indice</h2>
       <ol>
         <li>Editore del Sito</li>
-        <li>Direttore della pubblicazione</li>
+        <li>Responsabile dei contenuti</li>
         <li>Hosting provider e infrastruttura</li>
         <li>Marchi e segni distintivi</li>
         <li>Diritti d&apos;autore sui contenuti del Sito</li>
@@ -62,11 +62,22 @@ export default function AvvisoLegale() {
           </tr>
           <tr>
             <td><strong>Iscrizione al Registro delle Imprese</strong></td>
-            <td>CCIAA di Milano Monza Brianza Lodi — n. REA [da visura camerale]</td>
+            <td>
+              Registro delle Imprese di Milano Monza Brianza Lodi n. 13132010961 — REA n. [DA
+              COMPLETARE: numero REA]
+            </td>
           </tr>
           <tr>
             <td><strong>Capitale sociale</strong></td>
             <td>€ 20.000,00 i.v.</td>
+          </tr>
+          <tr>
+            <td><strong>Socio unico / liquidazione</strong></td>
+            <td>[DA COMPLETARE: indicare se la società ha socio unico (art. 2250 c.c.)]</td>
+          </tr>
+          <tr>
+            <td><strong>Telefono</strong></td>
+            <td><a href="tel:+393501780908">+39 350 178 0908</a></td>
           </tr>
           <tr>
             <td><strong>Email</strong></td>
@@ -89,30 +100,36 @@ export default function AvvisoLegale() {
         con marchio commerciale &quot;Edilizia in Cloud&quot;.
       </p>
 
-      <h2>2. Direttore della pubblicazione</h2>
+      <h2>2. Responsabile dei contenuti</h2>
       <p>
-        Il direttore responsabile della pubblicazione del Sito è <strong>Florin Andriciuc</strong>,
-        in qualità di Amministratore e Legale Rappresentante della Società.
+        Il responsabile dei contenuti del Sito è <strong>Florin Andriciuc</strong>, in qualità di
+        Amministratore e Legale Rappresentante della Società. Il Sito non è una testata
+        giornalistica registrata ai sensi della Legge 47/1948 e non è aggiornato con periodicità
+        regolare.
       </p>
 
       <h2>3. Hosting provider e infrastruttura</h2>
-      <p>Il Sito è ospitato sull&apos;infrastruttura di:</p>
+      <p>Il Sito e la piattaforma applicativa sono ospitati sull&apos;infrastruttura di:</p>
 
       <h3>Provider di frontend e CDN</h3>
       <p>
         <strong>Cloudflare, Inc.</strong> — 101 Townsend Street, San Francisco, CA 94107, USA.
-        Tramite il servizio Cloudflare Pages, con punti di presenza distribuiti nello Spazio
-        Economico Europeo.
+        Tramite il servizio Cloudflare Pages, con rete di distribuzione globale e punti di presenza
+        anche nell&apos;Unione Europea.
       </p>
 
       <h3>Provider di backend e database</h3>
       <p>
-        <strong>Supabase, Inc.</strong> — 970 Toa Payoh North #07-04, Singapore 318992. I trattamenti possono avvenire anche al di fuori dell'Unione Europea, con garanzie adeguate ai sensi degli artt. 44 e ss. del GDPR (Clausole Contrattuali Standard).
+        <strong>Supabase, Inc.</strong> — 970 Toa Payoh North #07-04, Singapore 318992. Database,
+        autenticazione, archiviazione dei file e funzioni server sono ospitati in data center
+        situati nell&apos;Unione Europea (Irlanda, Amazon Web Services regione eu-west-1).
+        L&apos;eventuale accesso del supporto tecnico del fornitore da Paesi extra-UE avviene con
+        garanzie adeguate ai sensi degli artt. 44 e ss. del GDPR (Clausole Contrattuali Standard).
       </p>
 
       <p>
         Per ulteriori informazioni sui sub-fornitori coinvolti nel trattamento dei dati personali,
-        si rinvia alla Privacy Policy, sezione 9.
+        si rinvia alla <a href="/privacy-policy/">Privacy Policy</a>, sezione 9.
       </p>
 
       <h2>4. Marchi e segni distintivi</h2>

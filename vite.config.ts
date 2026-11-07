@@ -314,7 +314,7 @@ export default defineConfig(({ command, mode }) => ({
     })]),
   ],
   resolve: {
-    alias: {
+    alias: { "https://esm.sh/pdf-lib@1.17.1": "pdf-lib",
       "@": path.resolve(__dirname, "./src"),
     },
     // Forza UNA sola copia del core di React Flow. In node_modules c'erano DUE

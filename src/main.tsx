@@ -139,8 +139,11 @@ if (window.location.search.includes("__recovery=")) {
 }
 
 // Meta Ads attribution: idempotente, no-op se fbclid assente.
-// Va PRIMA del render perché il fbclid arriva da URL al primo paint.
-initFacebookClickTracker();
+// Va PRIMA del render perché il fbclid arriva da URL al primo paint. I cookie
+// _fbp/_fbc si scrivono SOLO col consenso al marketing (banner dei cookie,
+// window.eicConsensoCookie in index.html): senza, niente.
+(window as unknown as { eicConsensoCookie?: { quando: (c: string, fn: () => void) => void } })
+  .eicConsensoCookie?.quando("marketing", initFacebookClickTracker);
 
 // iPhone e iPad: niente ingrandimento al tocco di un campo, così i campi
 // possono stare a 14px (vedi zoomCampiIos.ts). Prima del render.

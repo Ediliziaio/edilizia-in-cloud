@@ -19,6 +19,7 @@ export interface PianoMezzo {
   quantita: number;
   note: string | null;
   annullato: boolean;
+  rientrato_il?: string | null;
 }
 export function costoPianoMezzo(
   p: Pick<PianoMezzo, "dal" | "al">,
@@ -39,11 +40,13 @@ export function costoPianoMezzo(
   );
 }
 export function statoPianoMezzo(
-  p: Pick<PianoMezzo, "annullato" | "dal" | "al">,
+  p: Pick<PianoMezzo, "annullato" | "dal" | "al" | "rientrato_il">,
   oggi: string,
 ) {
   return p.annullato
     ? "Annullato"
+    : p.rientrato_il
+      ? "Rientrato"
     : p.dal > oggi
       ? "Programmato"
       : p.al && p.al < oggi
@@ -76,8 +79,8 @@ export interface RigaMezzoCantiere {
 }
 
 /** Prenotazione ancora valida: non annullata e non finita prima di oggi. */
-export function pianoAttivo(p: Pick<PianoMezzo, "annullato" | "al">, oggi: string) {
-  return !p.annullato && (!p.al || p.al >= oggi);
+export function pianoAttivo(p: Pick<PianoMezzo, "annullato" | "al" | "rientrato_il">, oggi: string) {
+  return !p.annullato && !p.rientrato_il && (!p.al || p.al >= oggi);
 }
 
 export function righeMezziCantiere(piani: PianoMezzo[], presenti: PresenzaMezzo[], oggi: string): RigaMezzoCantiere[] {

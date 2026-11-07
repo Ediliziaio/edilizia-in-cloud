@@ -81,7 +81,7 @@ function OtpInput({ value, onChange, disabled, onComplete }: OtpInputProps) {
       {chars.map((ch, idx) => (
         <Input
           key={idx}
-          ref={(el) => (refs.current[idx] = el)}
+          ref={(el) => { refs.current[idx] = el; }}
           type="text"
           inputMode="numeric"
           maxLength={1}

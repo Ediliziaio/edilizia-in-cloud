@@ -156,6 +156,7 @@ export interface PiscinaComfortConfig {
 }
 
 export interface ConfigurazionePiscine {
+  qualita_render?: "standard" | "alta";
   operazione: TipoOperazionePiscina;
   inserimento: ConfigInserimentoPiscina;
   piscina: PiscinaSpecConfig;

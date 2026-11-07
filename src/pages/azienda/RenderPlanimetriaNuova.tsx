@@ -117,6 +117,7 @@ function ChiediPianta({ companyId, modo, onPronta }: { companyId: string; modo: 
   const [file, setFile] = useState<File | null>(null);
   const [testo, setTesto] = useState("");
   const [inCorso, setInCorso] = useState(false);
+  const avvioInCorso = useRef(false);
   const [errore, setErrore] = useState<string | null>(null);
 
   // Anteprima del foglio: si raddrizza (rotazione) e, nei PDF a più pagine, si sceglie la pagina.
@@ -149,50 +150,60 @@ function ChiediPianta({ companyId, modo, onPronta }: { companyId: string; modo: 
   };
 
   const avvia = async () => {
-    setErrore(null);
-    riconoscitore.current?.stop();
-    const ingresso: IngressoAI = modo === "testo" ? "descrizione" : modo === "sopralluogo" ? "rilievo" : tipo;
-    const richiesta: RichiestaAI = { company_id: companyId, ingresso };
-    if (modo === "testo" || modo === "sopralluogo") {
-      richiesta.testo = testo.trim();
-    }
-    if (modo === "sopralluogo" && foto.length) {
-      try {
-        richiesta.foto_base64 = await Promise.all(foto.slice(0, MASSIMO_FOTO).map(fotoPerRilievo));
-      } catch {
-        setErrore("Una delle foto non si legge: toglila e riprova.");
+    if (avvioInCorso.current) return;
+    avvioInCorso.current = true;
+    setInCorso(true);
+    try {
+      setErrore(null);
+      riconoscitore.current?.stop();
+      const ingresso: IngressoAI = modo === "testo" ? "descrizione" : modo === "sopralluogo" ? "rilievo" : tipo;
+      const richiesta: RichiestaAI = { company_id: companyId, ingresso };
+      if (modo === "testo" || modo === "sopralluogo") {
+        richiesta.testo = testo.trim();
+      }
+      if (modo === "sopralluogo" && foto.length) {
+        try {
+          richiesta.foto_base64 = await Promise.all(foto.slice(0, MASSIMO_FOTO).map(fotoPerRilievo));
+        } catch {
+          setErrore("Una delle foto non si legge: toglila e riprova.");
+          return;
+        }
+      }
+      if (modo !== "testo" && file) {
+        // Foto enormi e schermate CAD a sfondo nero: ridotte e portate a fondo bianco; il foglio
+        // raddrizzato come l'ha girato l'utente e reso quadrato con margini bianchi (l'AI sbaglia la scala
+        // sui fogli larghi o alti). Anche i PDF si disegnano e si squadrano; se non si riesce parte il PDF così com'è.
+        const pdf = file.type === "application/pdf";
+        const pronta = pdf
+          ? await paginaPdf(file, pagina).then((r) => preparaImmagine(file, rotazione, r.canvas)).catch((): null => null)
+          : await preparaImmagine(file, rotazione);
+        richiesta.mime = pronta?.mime ?? file.type;
+        richiesta.file_base64 = await inBase64(pronta?.file ?? file);
+        if (pronta) {
+          richiesta.larghezza = pronta.larghezza;
+          richiesta.altezza = pronta.altezza;
+        } else if (file.type.startsWith("image/")) {
+          const url = URL.createObjectURL(file);
+          const misure = await misureImmagine(url);
+          URL.revokeObjectURL(url);
+          if (misure) Object.assign(richiesta, misure);
+        }
+      }
+      const esito = await chiediAllAI(richiesta).catch(() => leggiRispostaAI(null, null));
+      if (esito.ok === false) {
+        setErrore(esito.messaggio);
         return;
       }
+      const titolo = esito.planimetria.titolo ?? (modo === "sopralluogo" ? "Pianta dal sopralluogo" : file ? file.name.replace(/\.[^.]+$/, "") : "Pianta da descrizione");
+      // Il PDF viene rasterizzato per la lettura, ma l'origine resta il file scelto.
+      const origine = ingresso === "documento" && file?.type === "application/pdf" ? "ai_pdf" : esito.origine;
+      onPronta({ ...esito, origine, ingresso, titolo });
+    } catch {
+      setErrore("Non riesco a preparare il documento: controlla il file e riprova.");
+    } finally {
+      avvioInCorso.current = false;
+      setInCorso(false);
     }
-    if (modo !== "testo" && file) {
-      // Foto enormi e schermate CAD a sfondo nero: ridotte e portate a fondo bianco; il foglio
-      // raddrizzato come l'ha girato l'utente e reso quadrato con margini bianchi (l'AI sbaglia la scala
-      // sui fogli larghi o alti). Anche i PDF si disegnano e si squadrano; se non si riesce parte il PDF così com'è.
-      const pdf = file.type === "application/pdf";
-      const pronta = pdf
-        ? await paginaPdf(file, pagina).then((r) => preparaImmagine(file, rotazione, r.canvas)).catch((): null => null)
-        : await preparaImmagine(file, rotazione);
-      richiesta.mime = pronta?.mime ?? file.type;
-      richiesta.file_base64 = await inBase64(pronta?.file ?? file);
-      if (pronta) {
-        richiesta.larghezza = pronta.larghezza;
-        richiesta.altezza = pronta.altezza;
-      } else if (file.type.startsWith("image/")) {
-        const url = URL.createObjectURL(file);
-        const misure = await misureImmagine(url);
-        URL.revokeObjectURL(url);
-        if (misure) Object.assign(richiesta, misure);
-      }
-    }
-    setInCorso(true);
-    const esito = await chiediAllAI(richiesta).catch(() => leggiRispostaAI(null, null));
-    setInCorso(false);
-    if (esito.ok === false) {
-      setErrore(esito.messaggio);
-      return;
-    }
-    const titolo = esito.planimetria.titolo ?? (modo === "sopralluogo" ? "Pianta dal sopralluogo" : file ? file.name.replace(/\.[^.]+$/, "") : "Pianta da descrizione");
-    onPronta({ ...esito, ingresso, titolo });
   };
 
   const pronto = modo === "testo" || modo === "sopralluogo" ? testo.trim().length >= 10 : !!file;

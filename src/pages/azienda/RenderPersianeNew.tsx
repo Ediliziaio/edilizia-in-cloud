@@ -1,3 +1,5 @@
+import { salvaConfigurazioneSessione } from "@/lib/render/salvaConfigurazioneSessione";
+import { jsonPayload } from "@/lib/jsonPayload";
 import { useState, useRef, useCallback, useEffect, useMemo, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -264,7 +266,7 @@ export default function RenderPersianeNew() {
           created_by: user.id,
           status: "pending",
           original_photo_url: storagePath,
-          config,
+          config: jsonPayload(config),
           contact_id: contactId,
           opportunity_id: opportunityId,
         })
@@ -375,15 +377,15 @@ export default function RenderPersianeNew() {
     elapsedRef.current = 0;
     setPollState({ dots: 0, elapsedSec: 0, status: "pending" });
 
-    await supabase
-      .from("render_persiane_sessions")
-      .update({
-        config: renderPlan,
-        status: "pending",
-        result_urls: null,
-        error_message: null,
-      })
-      .eq("id", sessionId);
+    const salvataggio = await salvaConfigurazioneSessione({
+      tabella: "render_persiane_sessions", sessionId, companyId, config: renderPlan,
+    });
+    if (salvataggio.ok === false) {
+      setGenerating(false);
+      setStep(3);
+      toast.error(salvataggio.messaggio);
+      return;
+    }
 
     const headers = await getEdgeFunctionAuthHeaders();
     const { data: fnData, error: fnErr } = await supabase.functions.invoke(
@@ -391,7 +393,7 @@ export default function RenderPersianeNew() {
       {
         body: {
           session_id: sessionId,
-          config: renderPlan,
+          config: jsonPayload(renderPlan),
           ...(photoMeta ? { target_width: photoMeta.width, target_height: photoMeta.height } : {}),
         },
         headers,
@@ -509,7 +511,7 @@ export default function RenderPersianeNew() {
         <RenderCreditsWidget />
       </div>
 
-      <RenderCreditGate />
+      <RenderCreditGate>{null}</RenderCreditGate>
 
       {step === 1 && (
         <div className="space-y-4 max-md:space-y-3">

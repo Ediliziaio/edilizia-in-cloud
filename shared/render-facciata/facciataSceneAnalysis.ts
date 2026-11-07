@@ -115,7 +115,7 @@ function fallbackOpenings(count: number): FacciataSceneOpening[] {
     floorHint: index < Math.ceil(safeCount / 2) ? "upper floor" : "ground floor",
     openingKind: "window",
     apparentSize: "medium",
-    specialShape: null,
+    specialShape: null as null,
     hasCornice: false,
     hasSill: true,
     sillMaterial: "existing sill",

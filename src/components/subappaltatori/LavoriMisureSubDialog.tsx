@@ -34,6 +34,8 @@ import {
   riepilogoVoceSub,
   misurePerSalSub,
   vociDaAllegato,
+  fattoInCantiere,
+  type RigaCantiere,
   quotaOneriSal,
 } from "@/lib/subappaltatori/lavoriMisure";
 
@@ -176,7 +178,7 @@ export function LavoriMisureSubDialog({
   });
   const fasi = useQuery({
     queryKey: ["subappalto-lavori-fasi", companyId, c.order_id],
-    enabled: modifica && scrittura,
+    enabled: !!c.order_id,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_work_phases")
@@ -189,6 +191,28 @@ export function LavoriMisureSubDialog({
       if ((data ?? []).length > 300)
         throw Error("Troppe lavorazioni per questo selettore");
       return data ?? [];
+    },
+  });
+  // A che punto è il cantiere: il SAL della ditta riparte da lì. Senza permesso sui costi le voci non si leggono, e si va a mano.
+  const cantiere = useQuery({
+    queryKey: ["subappalto-lavori-cantiere", companyId, c.order_id],
+    enabled: !!c.order_id,
+    queryFn: async (): Promise<RigaCantiere[]> => {
+      const db = supabase as unknown as { from: (t: string) => { select: (s: string) => { eq: (k: string, v: string) => Promise<{ data: unknown; error: unknown }> } } };
+      const [fasi, voci] = await Promise.all([
+        db.from("order_work_phases").select("id, sottofasi:order_work_subphases(id, name, fatta, percentuale, quantita_fatta)").eq("order_id", c.order_id as string),
+        db.from("order_work_phase_voci").select("phase_id, subphase_id, descrizione, quantita").eq("order_id", c.order_id as string),
+      ]);
+      type S = { id: string; name: string; fatta: boolean; percentuale: number | null; quantita_fatta: number | null };
+      const righe: RigaCantiere[] = [];
+      const collegate = new Map(((voci.data ?? []) as Array<{ subphase_id: string | null; descrizione: string; quantita: number }>).filter((v) => v.subphase_id).map((v) => [v.subphase_id as string, v]));
+      for (const f of (fasi.data ?? []) as Array<{ id: string; sottofasi: S[] | null }>) {
+        for (const s of f.sottofasi ?? []) {
+          const v = collegate.get(s.id);
+          righe.push({ phase_id: f.id, descrizione: v?.descrizione ?? s.name, percentuale: s.fatta ? 100 : Number(s.percentuale) || 0, quantita_fatta: s.quantita_fatta == null ? null : Number(s.quantita_fatta), quantita: v ? Number(v.quantita) : null });
+        }
+      }
+      return righe;
     },
   });
   const quadro = q.data?.quadro,
@@ -276,7 +300,8 @@ export function LavoriMisureSubDialog({
   };
   const voci = bozza.map((v) => ({
     ...v,
-    fase_id: v.fase_id || null,
+    // Una fase cancellata dopo il contratto non esiste più: la voce resta, senza fase (altrimenti il quadro si rifiuta).
+    fase_id: v.fase_id && (!fasi.data || fasi.data.some((f) => f.id === v.fase_id)) ? v.fase_id : null,
     quantita: parseDecimalIT(v.quantita),
     prezzo: parseDecimalIT(v.prezzo),
   }));
@@ -896,13 +921,20 @@ export function LavoriMisureSubDialog({
                             <tbody className="block md:table-row-group">
                               {quadro.voci.map((v) => {
                                 const r = riepilogoVoceSub(v, misure);
+                                const fatto = fattoInCantiere(v, cantiere.data ?? []);
+                                const nomeFase = fasi.data?.find((f) => f.id === v.fase_id)?.name;
+                                // Quanto del fatto in cantiere non è ancora né riconosciuto né dichiarato.
+                                const inAttesa = misure.filter((m) => m.voce_id === v.id && m.stato === "dichiarata").reduce((s, m) => s + Number(m.quantita_dichiarata), 0);
+                                const daDichiarare = fatto == null ? 0 : Math.round(Math.max(0, fatto - r.riconosciuta - inAttesa) * 10000) / 10000;
                                 return (
                                   <tr
                                     key={v.id}
                                     className="block border-t p-3 first:border-t-0 md:table-row md:p-0"
                                   >
                                     <td className="block pb-3 md:table-cell md:p-3">
+                                      {nomeFase && <span className="block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{nomeFase}</span>}
                                       <strong>{v.descrizione}</strong>
+                                      {fatto != null && <span className="block text-xs text-muted-foreground">In cantiere: {quantitaSub(fatto, v)}</span>}
                                       <p className="text-xs text-muted-foreground">
                                         {v.base === "corpo"
                                           ? "A corpo"
@@ -958,6 +990,21 @@ export function LavoriMisureSubDialog({
                                       >
                                         Rileva quantità
                                       </Button>
+                                      {daDichiarare > 0 && (
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="mt-1"
+                                          disabled={!scrittura}
+                                          onClick={() => {
+                                            mostraDettaglio({ tipo: "rileva", voce: v });
+                                            setQuantita(String(Math.round(daDichiarare * (v.base === "corpo" ? 100 : 1) * 10000) / 10000));
+                                            setRiferimento("Dal cantiere");
+                                          }}
+                                        >
+                                          Dal cantiere: {quantitaSub(daDichiarare, v)}
+                                        </Button>
+                                      )}
                                     </td>
                                   </tr>
                                 );
