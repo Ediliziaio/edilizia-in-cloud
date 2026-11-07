@@ -11,27 +11,39 @@ const text = (v: unknown) => typeof v === 'string' ? v : '';
  * stanno in cima all'elenco, prima dei modelli di preventivo, perché sono il posto dove l'azienda
  * tiene le sue condizioni. Copiare non cambia il modello: resta una copia indipendente.
  */
-function dallArchivio(companyId: string, righe: unknown[]): FonteCondizioni[] {
-  const fonti: FonteCondizioni[] = [];
+function dallArchivio(companyId: string, righe: unknown[], perQuestoDocumento: AmbitoCondizioni): FonteCondizioni[] {
+  const fonti: Array<FonteCondizioni & { suo: boolean }> = [];
   for (const raw of righe) {
     const row = record(raw);
     if (row.company_id !== companyId || row.attivo === false) continue;
     const clausole = Array.isArray(row.clausole) ? (row.clausole as Clausola[]) : [];
     const testo = testoDelModello({ clausole });
     if (!testo.trim()) continue;
-    const ambito = NOMI_AMBITI[String(row.ambito) as AmbitoCondizioni];
+    const chiave = String(row.ambito) as AmbitoCondizioni;
+    const ambito = NOMI_AMBITI[chiave];
+    // «Predefinito» vale solo per il documento che si sta scrivendo: il modello predefinito
+    // dell'appalto, dentro un blocco di preventivo, predefinito non è (07/11/2026).
+    const suo = chiave === perQuestoDocumento;
     fonti.push({
       id: `archivio:${text(row.id)}`,
       companyId,
-      nome: `Archivio · ${text(row.nome)}${ambito ? ` (${ambito})` : ''}${row.predefinito ? ' · predefinito' : ''}`,
+      nome: `Archivio · ${text(row.nome)}${ambito ? ` (${ambito})` : ''}${suo && row.predefinito ? ' · predefinito' : ''}`,
       testo,
+      suo,
     });
   }
-  return fonti.sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+  // Prima i modelli di questo tipo di documento, poi gli altri: si copiano, ma non si confondono.
+  return fonti
+    .sort((a, b) => (a.suo === b.suo ? a.nome.localeCompare(b.nome, 'it') : a.suo ? -1 : 1))
+    .map(({ suo: _suo, ...f }) => f);
 }
 
 /** Tenant isolation also at the source boundary; never follow references to another company. */
-export function fontiCondizioni(companyId: string, classicRows: unknown[], moduleRows: unknown[], archivioRows: unknown[] = []): FonteCondizioni[] {
+export function fontiCondizioni(
+  companyId: string, classicRows: unknown[], moduleRows: unknown[], archivioRows: unknown[] = [],
+  /** Per quale documento si stanno scrivendo queste condizioni: decide chi è «predefinito» e chi viene prima. */
+  perQuestoDocumento: AmbitoCondizioni = 'preventivo',
+): FonteCondizioni[] {
   const classic = classicRows.map(record).filter(r => r.company_id === companyId && r.is_active !== false);
   const resolve = (id: unknown) => classic.find(r => r.id === id);
   const result: FonteCondizioni[] = [];
@@ -61,5 +73,5 @@ export function fontiCondizioni(companyId: string, classicRows: unknown[], modul
     const title = area?.interventions.find(i => i.id === moduleId)?.title ?? moduleId;
     result.push({ id: `modulo:${text(row.chiave)}`, companyId, nome: `Modulo · ${area?.title ?? 'Modello salvato'} · ${title}`, testo });
   }
-  return [...dallArchivio(companyId, archivioRows), ...result.sort((a, b) => a.nome.localeCompare(b.nome, 'it'))];
+  return [...dallArchivio(companyId, archivioRows, perQuestoDocumento), ...result.sort((a, b) => a.nome.localeCompare(b.nome, 'it'))];
 }

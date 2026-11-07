@@ -4,17 +4,20 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { htmlPerEditorContratto } from '@/lib/preventivi/contrattoEditor';
 import { fontiCondizioni, type FonteCondizioni } from '@/lib/preventivi/fontiCondizioni';
+import type { AmbitoCondizioni } from '@/lib/condizioni/archivio';
 
 /** Read-only sources. Copying changes only the caller's draft, never the source. */
-export function CopiaCondizioni({ companyId, value, onChange, disabled = false }: {
+export function CopiaCondizioni({ companyId, value, onChange, disabled = false, ambito = 'preventivo' }: {
   companyId?: string | null; value: string; onChange: (html: string) => void; disabled?: boolean;
+  /** Per quale documento sono queste condizioni: decide chi è «predefinito» e chi compare per primo. */
+  ambito?: AmbitoCondizioni;
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState('');
   const [copied, setCopied] = useState(false);
   const { data = [], isPending, isError, refetch } = useQuery<FonteCondizioni[]>({
-    queryKey: ['fonti-condizioni', companyId], enabled: open && !!companyId && !disabled,
+    queryKey: ['fonti-condizioni', companyId, ambito], enabled: open && !!companyId && !disabled,
     staleTime: 0,
     queryFn: async () => {
       const [classic, modules, archivio] = await Promise.all([
@@ -25,7 +28,7 @@ export function CopiaCondizioni({ companyId, value, onChange, disabled = false }
         supabase.from('condizioni_modelli' as never).select('id,company_id,nome,ambito,predefinito,attivo,clausole').eq('company_id', companyId!),
       ]);
       if (classic.error || modules.error) throw classic.error ?? modules.error;
-      return fontiCondizioni(companyId!, classic.data ?? [], modules.data ?? [], archivio.error ? [] : (archivio.data ?? []));
+      return fontiCondizioni(companyId!, classic.data ?? [], modules.data ?? [], archivio.error ? [] : (archivio.data ?? []), ambito);
     },
   });
   const source = data.find(item => item.id === selected && item.companyId === companyId);

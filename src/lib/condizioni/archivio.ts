@@ -83,13 +83,23 @@ export interface OrigineCondizioni {
   congelate_il?: string | null;
 }
 
-const haParole = (v: unknown): boolean =>
-  String(v ?? "").replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ").trim().length > 0;
+/**
+ * Il testo di un modello si compone in un posto solo (07/11/2026): le regole stanno nel modulo
+ * condiviso con le edge function, perché il contratto d'appalto lo scrive il server e il preventivo
+ * il browser — e devono comporre lo stesso identico testo. Qui si ri-espongono, nulla si riscrive.
+ */
+import * as condiviso from "../../../supabase/functions/_shared/condizioniArchivio";
 
+const haParole = condiviso.haParole;
 /** Le clausole buone di un modello: niente righe vuote, nell'ordine in cui sono. */
-export function clausoleDelModello(modello: Pick<ModelloCondizioni, "clausole"> | null | undefined): Clausola[] {
-  return (modello?.clausole ?? []).filter((c) => haParole(c?.titolo) || haParole(c?.testo));
-}
+export const clausoleDelModello = (modello: Pick<ModelloCondizioni, "clausole"> | null | undefined): Clausola[] =>
+  condiviso.clausoleBuone(modello as condiviso.ModelloArchivio | null) as Clausola[];
+/** Il testo stampabile di un modello: un titolo e un testo per clausola. */
+export const testoDelModello = (modello: Pick<ModelloCondizioni, "clausole"> | null | undefined): string =>
+  condiviso.testoDelModello(modello as condiviso.ModelloArchivio | null);
+/** Il titolo si ripete già nella prima riga del testo? Allora non si scrive due volte. */
+export const titoloGiaNelTesto = (titolo: string, testo: string): boolean =>
+  condiviso.titoloGiaNelTesto(titolo, testo);
 
 /** Il modello che vale per un ambito: il predefinito attivo. Niente predefinito, niente modello. */
 export function modelloPredefinito(
@@ -97,32 +107,6 @@ export function modelloPredefinito(
   ambito: AmbitoCondizioni,
 ): ModelloCondizioni | null {
   return modelli.find((m) => m.ambito === ambito && m.predefinito && m.attivo) ?? null;
-}
-
-const senzaFronzoli = (v: string): string =>
-  v.replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ").replace(/^#{1,6}\s*/, "").replace(/\s+/g, " ").trim().toLowerCase();
-
-/**
- * Il titolo si ripete nel testo? Capita coi contratti importati interi: la clausola si chiama
- * «Termini legali» e il testo si apre con «# Termini legali». Stamparli tutti e due è una svista
- * che il cliente vede, quindi in quel caso il titolo non si scrive.
- */
-export function titoloGiaNelTesto(titolo: string, testo: string): boolean {
-  const primaRiga = testo.split("\n").find((r) => haParole(r)) ?? "";
-  return senzaFronzoli(primaRiga) === senzaFronzoli(titolo);
-}
-
-/** Il testo stampabile di un modello: un titolo e un testo per clausola. */
-export function testoDelModello(modello: Pick<ModelloCondizioni, "clausole"> | null | undefined): string {
-  return clausoleDelModello(modello)
-    .map((c) => {
-      const titolo = c.titolo?.trim() ?? "";
-      const testo = c.testo?.trim() ?? "";
-      const saltaIlTitolo = haParole(titolo) && haParole(testo) && titoloGiaNelTesto(titolo, testo);
-      return (saltaIlTitolo ? [testo] : [titolo, testo]).filter(haParole).join("\n");
-    })
-    .filter(haParole)
-    .join("\n\n");
 }
 
 /**

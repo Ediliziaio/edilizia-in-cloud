@@ -37,14 +37,15 @@ export interface OrigineCondizioni {
   congelate_il: string;
 }
 
-const haParole = (v: unknown): boolean =>
+/** Testo vero: non vuoto una volta tolti tag e spazi insulsi. */
+export const haParole = (v: unknown): boolean =>
   String(v ?? "").replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ").trim().length > 0;
 
 const senzaFronzoli = (v: string): string =>
   v.replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ").replace(/^#{1,6}\s*/, "").replace(/\s+/g, " ").trim().toLowerCase();
 
 /** Il titolo non si ripete quando il testo si apre già con quello: capita coi contratti importati interi. */
-function titoloGiaNelTesto(titolo: string, testo: string): boolean {
+export function titoloGiaNelTesto(titolo: string, testo: string): boolean {
   const primaRiga = testo.split("\n").find((r) => haParole(r)) ?? "";
   return senzaFronzoli(primaRiga) === senzaFronzoli(titolo);
 }

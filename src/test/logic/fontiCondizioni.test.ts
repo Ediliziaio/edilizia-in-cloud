@@ -53,6 +53,22 @@ describe("l'archivio «Contratti e condizioni» è una fonte da copiare (07/11/2
     expect(fonti).toEqual([]);
   });
 
+  it("«predefinito» lo è solo per il suo documento: dentro un preventivo, il modello dell'appalto non lo è", () => {
+    const appalto = { ...modello, id: 'a5', nome: 'Appalto privato 2026', ambito: 'appalto' };
+    const fonti = fontiCondizioni('c', [], [], [appalto, modello], 'preventivo');
+    expect(fonti.map((f) => f.nome)).toEqual([
+      'Archivio · Condizioni standard 2026 (Preventivi e computi) · predefinito',
+      "Archivio · Appalto privato 2026 (Contratto col committente)",
+    ]);
+  });
+
+  it('scrivendo le condizioni di un appalto, è il modello dell appalto a venire per primo', () => {
+    const appalto = { ...modello, id: 'a5', nome: 'Appalto privato 2026', ambito: 'appalto' };
+    const fonti = fontiCondizioni('c', [], [], [modello, appalto], 'appalto');
+    expect(fonti[0].nome).toBe('Archivio · Appalto privato 2026 (Contratto col committente) · predefinito');
+    expect(fonti[1].nome).toBe('Archivio · Condizioni standard 2026 (Preventivi e computi)');
+  });
+
   it('senza archivio (tabelle non ancora attive) l elenco resta quello di prima', () => {
     const classico = { id: 'g', company_id: 'c', kind: 'condizioni', name: 'Base', body_html: '<p>Testo</p>' };
     expect(fontiCondizioni('c', [classico], [])).toHaveLength(1);
