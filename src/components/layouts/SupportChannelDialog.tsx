@@ -38,11 +38,24 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ChatMarkdown } from "@/components/ui/ChatMarkdown";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+
+/** In assistenza i link operativi restano circoscritti al portale e al centro guide. */
+function safeSupportMarkdown(content: string): string {
+  return content.replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g, (whole, label: string, href: string) => {
+    if (/^\/azienda(?:\/|$|[?#])/.test(href)) return whole;
+    try {
+      const url = new URL(href);
+      if (url.protocol === 'https:' && url.hostname === 'guide.ediliziaincloud.com' && !url.username && !url.password) return whole;
+    } catch { /* Non mostrare link malformati. */ }
+    return label;
+  });
+}
 
 interface SupportChannelDialogProps {
   open: boolean;
@@ -396,7 +409,7 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
                             : "bg-muted rounded-bl-sm",
                         )}
                       >
-                        {m.content}
+                        {m.role === "assistant" ? <ChatMarkdown content={safeSupportMarkdown(m.content)} /> : m.content}
                       </div>
                     </div>
                   ))}
