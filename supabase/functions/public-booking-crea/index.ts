@@ -333,3 +333,4 @@ Deno.serve(async (req) => {
     return json({ error: e instanceof Error ? e.message : "Errore durante la prenotazione" }, 500);
   }
 });
+// 07/11/2026: ripubblicata perché le email degli appuntamenti escono da Elastic Email anche senza mittente del calendario, col solo nome dell'azienda (_shared/mittenteCalendario.ts, _shared/resolveSender.ts).

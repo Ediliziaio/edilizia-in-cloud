@@ -168,6 +168,9 @@ async function invia(
       attachments: opz.ics ? [allegatoIcs(opz.ics)] : undefined,
       adminClient: admin,
       metadata: { appointment_id: a.id, notifica: tipo },
+      // 07/11/2026: le email degli appuntamenti escono da Elastic Email come
+      // quelle del calendario pubblico (mittenteCalendario.ts), non da Resend.
+      viaMarketingProvider: true,
     });
     ok = !(r && r.ok === false);
     if (!ok) dettaglio = JSON.stringify(r?.body ?? { status: r?.status }).slice(0, 500);

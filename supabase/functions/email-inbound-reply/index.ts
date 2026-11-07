@@ -215,3 +215,4 @@ Deno.serve(async (req) => {
 
   return json({ ok: true });
 });
+// 07/11/2026: ripubblicata perché le email di servizio partono col solo nome dell'azienda, senza «via EdiliziaInCloud» (_shared/resolveSender.ts).

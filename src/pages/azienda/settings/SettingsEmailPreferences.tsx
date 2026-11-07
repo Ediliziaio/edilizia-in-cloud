@@ -97,7 +97,8 @@ interface RiepilogoCanale {
 /**
  * Riepilogo di un canale (messaggi di servizio / campagne) dai campi della pagina. Stessa regola di resolveSender:
  * il dominio scelto vale solo se è verificato per quel canale, altrimenti si parte dal dominio della piattaforma
- * (e lì il mittente è «Nome via EdiliziaInCloud», senza la parte prima della @ scelta qui).
+ * (e lì il mittente è «Nome via EdiliziaInCloud» per le campagne, il solo «Nome» per i messaggi di servizio
+ * dal 07/11/2026; senza la parte prima della @ scelta qui).
  */
 function riepilogoCanale(args: {
   titolo: string;
@@ -107,6 +108,8 @@ function riepilogoCanale(args: {
   fallback: string;
   nome: string;
   prefisso: string;
+  /** «via EdiliziaInCloud» sul dominio della piattaforma: solo per le campagne. */
+  conVia: boolean;
 }): RiepilogoCanale {
   const scelto = args.dominioScelto ? args.pronti.find((d) => d.id === args.dominioScelto) ?? null : null;
   if (scelto) {
@@ -120,7 +123,7 @@ function riepilogoCanale(args: {
   }
   return {
     titolo: args.titolo,
-    mittente: `${args.nome} via EdiliziaInCloud · ${args.fallback}`,
+    mittente: `${args.nome}${args.conVia ? " via EdiliziaInCloud" : ""} · ${args.fallback}`,
     stato: "Dominio della piattaforma",
     tuo: false,
     nota: args.dominioScelto ? "Il dominio scelto non è verificato per questo tipo di email: si parte da quello della piattaforma." : null,
@@ -410,6 +413,7 @@ export default function SettingsEmailPreferences({
       fallback: DOMINIO_PIATTAFORMA.transactional,
       nome: nomeMittente,
       prefisso: form.sender_prefix,
+      conVia: false,
     }),
     riepilogoCanale({
       titolo: "Campagne e newsletter",
@@ -419,6 +423,7 @@ export default function SettingsEmailPreferences({
       fallback: DOMINIO_PIATTAFORMA.marketing,
       nome: nomeMittente,
       prefisso: form.sender_prefix,
+      conVia: true,
     }),
   ];
   const testoStato = saveMutation.isPending

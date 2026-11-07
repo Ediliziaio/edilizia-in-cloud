@@ -77,6 +77,10 @@ export interface UnifiedEmailArgs {
    * dominio verificato solo sul provider del marketing: le email degli
    * appuntamenti di Edilizia in Cloud da mkt.ediliziaincloud.com (22/09/2026).
    * Niente tracciamento dei link: il link della videochiamata resta quello vero.
+   * Senza senderOverride il mittente si risolve sul canale marketing (dominio
+   * verificato su Elastic dell'azienda, altrimenti quello di riserva del
+   * marketing), senza «via EdiliziaInCloud» (07/11/2026): notifiche.… non è
+   * verificato su Elastic.
    */
   viaMarketingProvider?: boolean;
 }
@@ -317,7 +321,12 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
     effectiveReplyTo   = args.senderOverride.replyTo ?? effectiveReplyTo;
   } else if (args.companyId && !args.platformSender) {
     try {
-      const resolved = await resolveSender(args.companyId, args.stream, admin);
+      // Dal provider del marketing il mittente deve stare su un dominio
+      // verificato lì: si risolve sul canale marketing, ma come email di
+      // servizio (senza suffisso). Lo stream logico resta args.stream.
+      const resolved = args.viaMarketingProvider
+        ? await resolveSender(args.companyId, "marketing", admin, { senzaSuffisso: true })
+        : await resolveSender(args.companyId, args.stream, admin);
       fromAddress = resolved.from;
       providerDomain = resolved.domain;
       customDomain = resolved.usingCustomDomain ? resolved.domain : null;

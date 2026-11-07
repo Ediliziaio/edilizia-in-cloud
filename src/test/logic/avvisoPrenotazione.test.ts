@@ -53,12 +53,15 @@ describe("L'avviso di prenotazione al titolare", () => {
 
 describe("Il mittente non si presenta due volte", () => {
   const mittente = leggi("supabase/functions/_shared/resolveSender.ts");
+  const regola = leggi("supabase/functions/_shared/nomeMittenteRiserva.ts");
 
   it("«EdiliziaInCloud via EdiliziaInCloud» diventa «EdiliziaInCloud»", () => {
-    // Il suffisso serve quando a scrivere è un'azienda cliente dal dominio di
-    // EiC («Ke Bei Serramenti via EdiliziaInCloud»); quando il mittente è già
-    // la piattaforma, ripeterlo fa solo brutta figura.
-    expect(mittente).toContain("piattaformaNelSuffisso");
-    expect(mittente).toContain("? senderName");
+    // Il suffisso serve quando un'azienda cliente manda una campagna dal
+    // dominio di EiC («Ke Bei Serramenti via EdiliziaInCloud»); quando il
+    // mittente è già la piattaforma, ripeterlo fa solo brutta figura. La regola
+    // vera (e il «via» solo sulle campagne, dal 07/11/2026) è provata in
+    // mittenteServizioSenzaVia.test.ts.
+    expect(mittente).toContain("nomeMittenteDiRiserva({");
+    expect(regola).toContain("soloLettere(args.nome) === piattaforma ? args.nome");
   });
 });

@@ -45,9 +45,9 @@ interface DnsRecord {
   type: "TXT" | "CNAME" | "MX";
   host: string;
   value: string;
-  /** Priority MX — solo Resend ha record MX per return-path SES. */
   priority?: number;
-  provider: "elastic_email" | "sendgrid" | "resend";
+  /** Dal 07/11/2026 solo Elastic Email: il dominio serve alle campagne. */
+  provider: "elastic_email";
   purpose: string;
   verified: boolean;
   /** Una riga in più dal server (es. «hai già un SPF: non aggiungerne un secondo»). */
@@ -66,46 +66,27 @@ interface DomainStatus {
   ee_spf_verified: boolean;
   ee_dkim_verified: boolean;
   ee_tracking_verified: boolean;
-  // SendGrid (transactional legacy)
-  sg_domain_id: string | null;
-  sg_cname_1_host: string | null;
-  sg_cname_1_value: string | null;
-  sg_cname_1_valid: boolean;
-  sg_cname_2_host: string | null;
-  sg_cname_2_value: string | null;
-  sg_cname_2_valid: boolean;
-  sg_cname_3_host: string | null;
-  sg_cname_3_value: string | null;
-  sg_cname_3_valid: boolean;
-  // Resend (transactional new default)
-  resend_domain_id: string | null;
-  resend_status:
-    | "pending"
-    | "verifying"
-    | "verified"
-    | "failed"
-    | "temporary_failure"
-    | "not_started";
-  resend_region: string;
-  // Stato aggregato
+  // Stato aggregato. is_verified chiede anche i messaggi di servizio, che dal
+  // 07/11/2026 non escono più dal dominio aziendale: la pagina guarda le campagne.
   is_verified: boolean;
   is_active: boolean;
   verified_at: string | null;
 }
 
-/** Il mittente vero di ogni canale, calcolato dal server con resolveSender (get_status). */
-type Mittenti = Partial<Record<CanaleEmail, MittenteDelCanale | null>>;
+/**
+ * Il mittente vero delle campagne, calcolato dal server con resolveSender (get_status).
+ * Solo il marketing: i messaggi di servizio partono sempre dalla piattaforma (07/11/2026).
+ */
+type Mittenti = { marketing?: MittenteDelCanale | null };
 
 interface DomainResponse {
   domain: DomainStatus | null;
   dnsRecords: DnsRecord[];
   /** Tutti i domini dell'azienda (due marchi = due domini): `domain` è quello mostrato. */
   tutti?: Array<{ domain: DomainStatus; dnsRecords: DnsRecord[] }>;
-  /** Errori dei provider durante add/verify (non i record non ancora propagati). */
+  /** Errori del provider durante add/verify (non i record non ancora propagati). */
   providerErrors?: Record<string, string | null>;
-  /** Guasto lato piattaforma (es. chiave del provider transazionale): non dipende dai DNS dell'azienda. */
-  avvisoPiattaforma?: string | null;
-  /** Da dove partono davvero le email di ogni canale (get_status). */
+  /** Da dove partono davvero le campagne (get_status). */
   mittenti?: Mittenti;
   /** I canali di cui il dominio è diventato il mittente con questa verifica (verify). */
   collegati?: CanaleEmail[];
@@ -130,13 +111,8 @@ function notaProvenienza(provenienza: ProvenienzaCanale, vaiAlMittente: string):
   }
 }
 
-/** Cosa è cambiato con la verifica, detto con i canali collegati davvero. */
-function avvisoCollegati(collegati: CanaleEmail[]): string {
-  if (collegati.length === 2) return "Da adesso le campagne e i messaggi di servizio escono dal tuo dominio.";
-  return collegati[0] === "marketing"
-    ? "Da adesso le campagne escono dal tuo dominio."
-    : "Da adesso i messaggi di servizio escono dal tuo dominio.";
-}
+/** Le campagne della pagina: verificate quando lo sono SPF e DKIM di Elastic Email. */
+const campagneVerificate = (d: DomainStatus) => verificatoPer(d, "marketing");
 
 /**
  * Il testo che il server scrive nel campo `purpose` è pensato per un log
@@ -152,8 +128,6 @@ function etichettaRecord(purpose: string): { titolo: string; dettaglio?: string;
   if (p.includes("dkim")) return { titolo: "Firma di sicurezza delle email", dettaglio: "record DKIM", facoltativo: false };
   if (p.includes("dmarc")) return { titolo: "Protezione anti-spam in più", dettaglio: "record DMARC · consigliato", facoltativo: true };
   if (p.includes("tracking")) return { titolo: "Conteggio di chi apre e clicca", dettaglio: "facoltativo", facoltativo: true };
-  if (p.includes("legacy")) return { titolo: "Verifica aggiuntiva", dettaglio: "non necessaria, si può saltare", facoltativo: true };
-  if (p.includes("transazional")) return { titolo: "Notifiche e documenti del gestionale", dettaglio: undefined, facoltativo: false };
   return { titolo: purpose, dettaglio: undefined, facoltativo: false };
 }
 
@@ -171,7 +145,6 @@ function normalizeDomainResponse(resp: unknown): DomainResponse {
     domain_row?: DomainStatus;
     dns_records?: DnsRecord[];
     provider_errors?: Record<string, string | null>;
-    avviso_piattaforma?: string | null;
     mittenti?: Mittenti;
     collegati?: CanaleEmail[];
   } | null;
@@ -189,7 +162,6 @@ function normalizeDomainResponse(resp: unknown): DomainResponse {
       domain: r.domain_row,
       dnsRecords: r.dns_records ?? [],
       providerErrors: r.provider_errors,
-      avvisoPiattaforma: r.avviso_piattaforma ?? null,
       collegati: r.collegati,
     };
   }
@@ -288,8 +260,6 @@ function DialogProvaEmail({
   descrizione,
   to,
   onToChange,
-  stream,
-  onStreamChange,
   mittenti,
   inCorso,
   onInvia,
@@ -300,17 +270,11 @@ function DialogProvaEmail({
   descrizione: string;
   to: string;
   onToChange: (valore: string) => void;
-  stream: "transactional" | "marketing";
-  onStreamChange: (valore: "transactional" | "marketing") => void;
   mittenti?: Mittenti;
   inCorso: boolean;
   onInvia: () => void;
   conScorrimento?: boolean;
 }) {
-  const scelte: Array<{ valore: "transactional" | "marketing"; titolo: string; sotto: string }> = [
-    { valore: "transactional", titolo: "Messaggi di servizio", sotto: "Codici, firme, cambio password" },
-    { valore: "marketing", titolo: "Campagne e newsletter", sotto: "Email di marketing" },
-  ];
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={conScorrimento ? "sm:max-w-md max-h-[90vh] overflow-y-auto" : "sm:max-w-md"}>
@@ -332,28 +296,11 @@ function DialogProvaEmail({
               placeholder="prova@esempio.it"
             />
           </div>
-          <div>
-            <Label id="prova-tipo">Tipo di email</Label>
-            <div role="radiogroup" aria-labelledby="prova-tipo" className="grid grid-cols-2 gap-2 mt-1">
-              {scelte.map((scelta) => (
-                <button
-                  key={scelta.valore}
-                  type="button"
-                  role="radio"
-                  aria-checked={stream === scelta.valore}
-                  onClick={() => onStreamChange(scelta.valore)}
-                  className={`border rounded-md p-2 text-left text-xs transition min-h-11 ${stream === scelta.valore ? "border-primary bg-primary/5" : "hover:bg-muted"}`}
-                >
-                  <div className="font-medium">{scelta.titolo}</div>
-                  <div className="text-muted-foreground text-[10px]">{scelta.sotto}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-          {mittenti?.[stream] && (
+          {/* La prova è sempre una campagna: la scelta del tipo non c'è più (07/11/2026). */}
+          {mittenti?.marketing && (
             <p className="text-xs text-muted-foreground">
               Mittente:{" "}
-              <code className="text-[11px] break-all">{mittenti[stream]?.from}</code>
+              <code className="text-[11px] break-all">{mittenti.marketing.from}</code>
             </p>
           )}
           <Alert>
@@ -402,10 +349,8 @@ export default function SettingsEmailDomain({
   // Test email dialog
   const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [testEmailTo, setTestEmailTo] = useState("");
-  const [testStream, setTestStream] = useState<"transactional" | "marketing">("transactional");
   function apriTest() {
     setTestEmailTo(user?.email ?? "");
-    setTestStream("transactional");
     setTestDialogOpen(true);
   }
 
@@ -429,7 +374,7 @@ export default function SettingsEmailDomain({
     enabled: !!companyId,
     refetchInterval: (query) => {
       const r = query.state.data as DomainResponse | undefined;
-      const daVerificare = (r?.tutti ?? []).some((d) => !d.domain.is_verified);
+      const daVerificare = (r?.tutti ?? []).some((d) => !campagneVerificate(d.domain));
       if (!autoPoll || !daVerificare) return false;
       return 30_000;
     },
@@ -450,13 +395,14 @@ export default function SettingsEmailDomain({
   const data: DomainResponse | undefined = risposta
     ? { ...risposta, domain: mostrato?.domain ?? null, dnsRecords: mostrato?.dnsRecords ?? [] }
     : undefined;
-  // Il mittente vero di ogni canale (resolveSender, dal server): la pagina
+  // Il mittente vero delle campagne (resolveSender, dal server): la pagina
   // non lo ricostruisce più da from_email, che nessuno scrive.
   const mittenti = risposta?.mittenti;
-  const prefisso = prefissoMittente(mittenti?.transactional) || prefissoMittente(mittenti?.marketing) || "no-reply";
+  const prefisso = prefissoMittente(mittenti?.marketing) || "no-reply";
 
   const testEmailMutation = useMutation({
-    mutationFn: async (input: { to: string; stream: "transactional" | "marketing" }) => {
+    // Solo campagne: i messaggi di servizio non escono dal dominio aziendale (07/11/2026).
+    mutationFn: async (input: { to: string }) => {
       // company_id: la prova parte dal mittente di QUESTA azienda, come le
       // email vere. Senza, partiva da quello della piattaforma, che per il
       // marketing Elastic rifiuta: la prova falliva anche col dominio verificato.
@@ -465,21 +411,19 @@ export default function SettingsEmailDomain({
           testMode: true,
           company_id: companyId,
           to: input.to,
-          stream: input.stream,
+          stream: "marketing",
           subject: `[TEST] Email di verifica · ${data?.domain?.domain ?? "EdiliziaInCloud"}`,
           html: `<html><body style="font-family:system-ui,sans-serif;padding:24px;background:#f8fafc;">
             <div style="max-width:540px;margin:0 auto;background:white;padding:24px;border-radius:12px;border:1px solid #e2e8f0;">
               <h2 style="color:#0f172a;margin:0 0 12px 0;">✅ Email di prova riuscita</h2>
               <p style="color:#334155;line-height:1.6;">
-                Questa è una email di prova
-                ${input.stream === "transactional" ? "dei messaggi di servizio" : "delle campagne"}.
-                Il mittente che vedi è quello da cui partono
-                ${input.stream === "transactional" ? "i messaggi di servizio" : "le campagne"} della tua azienda.
+                Questa è una email di prova delle campagne.
+                Il mittente che vedi è quello da cui partono le campagne della tua azienda.
               </p>
               <p style="color:#334155;line-height:1.6;">
-                Se ricevi questa email l'invio funziona e le prossime email dell'azienda partiranno regolarmente.
+                Se ricevi questa email l'invio funziona e le prossime campagne dell'azienda partiranno regolarmente.
               </p>
-              ${!data?.domain ? `<p style="color:#64748b;font-size:13px;background:#f1f5f9;padding:12px;border-radius:8px;margin-top:16px;">💡 Con un dominio tuo il mittente è il tuo e le email finiscono meno spesso in spam: lo registri in <strong>Impostazioni → Dominio email</strong>.</p>` : ""}
+              ${!data?.domain ? `<p style="color:#64748b;font-size:13px;background:#f1f5f9;padding:12px;border-radius:8px;margin-top:16px;">💡 Con un dominio tuo il mittente delle campagne è il tuo e finiscono meno spesso in spam: lo registri in <strong>Impostazioni → Dominio email</strong>.</p>` : ""}
               <p style="color:#64748b;font-size:12px;margin-top:24px;">
                 Inviata il ${new Date().toLocaleString("it-IT")} · EdiliziaInCloud
               </p>
@@ -540,16 +484,12 @@ export default function SettingsEmailDomain({
       const d = resp.domain;
       const marketingOk = Boolean(d?.ee_spf_verified && d?.ee_dkim_verified);
       // Si dice solo quello che la verifica ha cambiato davvero: da dove
-      // escono i canali lo mostrano le due caselle, dopo il ricaricamento.
+      // escono le campagne lo mostra la casella, dopo il ricaricamento.
       const collegati = resp.collegati ?? [];
-      if (collegati.length > 0) {
-        toast.success(avvisoCollegati(collegati));
-      } else if (d?.is_verified) {
-        toast.success("Dominio verificato: è tutto a posto.");
+      if (collegati.includes("marketing")) {
+        toast.success("Da adesso le campagne escono dal tuo dominio.");
       } else if (marketingOk && d?.is_active) {
-        toast.success("Campagne verificate. I messaggi di servizio si attivano quando risultano verificate anche le loro righe.");
-      } else if (resp.avvisoPiattaforma && !marketingOk) {
-        toast.message(resp.avvisoPiattaforma);
+        toast.success("Dominio verificato: le campagne possono partire dal tuo dominio.");
       } else if (resp.providerErrors?.elastic_email) {
         // Non sono i record: è il canale marketing che non ha potuto controllare.
         // Prima finiva sotto «record non ancora propagati» e si aspettava per niente.
@@ -643,26 +583,18 @@ export default function SettingsEmailDomain({
                 <p className="font-medium text-sm text-blue-900">
                   Le email funzionano già.
                 </p>
+                {/* Solo le campagne: i messaggi di servizio partono sempre dalla piattaforma
+                    col nome dell'azienda e non si configurano qui (07/11/2026). */}
                 <p className="text-xs text-blue-800 mt-0.5">
-                  Stai usando il dominio della piattaforma. I messaggi di servizio (codici di firma,
-                  cambio password, notifiche) partono come{" "}
+                  Stai usando il dominio della piattaforma. Le campagne partono come{" "}
                   <code className="text-[11px] bg-white/60 px-1 rounded border border-blue-200 break-all">
-                    {mittenti?.transactional?.from ?? "Tua Azienda via EdiliziaInCloud <no-reply@notifiche.ediliziaincloud.it>"}
+                    {mittenti?.marketing?.from ?? "Tua Azienda via EdiliziaInCloud <no-reply@mkt.eic-mail.com>"}
                   </code>
                   .
-                  {mittenti?.marketing && (
-                    <>
-                      {" "}Le campagne come{" "}
-                      <code className="text-[11px] bg-white/60 px-1 rounded border border-blue-200 break-all">
-                        {mittenti.marketing.from}
-                      </code>
-                      : per le campagne serve un dominio tuo.
-                    </>
-                  )}
                 </p>
                 <p className="text-xs text-blue-800 mt-2">
-                  <strong>Con un dominio tuo</strong> il mittente è il tuo, senza «via
-                  EdiliziaInCloud», e le email finiscono meno spesso in spam.
+                  <strong>Con un dominio tuo</strong> il mittente delle campagne è il tuo, senza «via
+                  EdiliziaInCloud», e finiscono meno spesso in spam.
                 </p>
               </div>
               <Button
@@ -685,7 +617,7 @@ export default function SettingsEmailDomain({
               <CardTitle>Usa il tuo dominio (facoltativo)</CardTitle>
             </div>
             <CardDescription>
-              Le email partono da un indirizzo tuo, per esempio <code className="text-xs">info@tuaazienda.it</code>,
+              Le campagne partono da un indirizzo tuo, per esempio <code className="text-xs">info@tuaazienda.it</code>,
               invece che dal dominio della piattaforma. Ti serve l'accesso al pannello del dominio (Aruba, Register.it,
               Cloudflare, GoDaddy…): dovrai copiare alcune righe.
             </CardDescription>
@@ -714,7 +646,7 @@ export default function SettingsEmailDomain({
             {/* Qui c'erano «Parte locale email» e «Nome mittente»: add_domain non
                 li ha mai salvati, e la pagina poi mostrava "noreply@". */}
             <p className="text-xs text-muted-foreground">
-              Verificato il dominio, le email partiranno da{" "}
+              Verificato il dominio, le campagne partiranno da{" "}
               <code className="text-[11px]">{prefisso}@{inputDomain || "tuaazienda.it"}</code>.
               Il nome e la parte prima della @ si cambiano in{" "}
               <Link to={percorsoPreferenze} className="underline">Mittente e aspetto</Link>{" "}
@@ -742,11 +674,9 @@ export default function SettingsEmailDomain({
         <DialogProvaEmail
           open={testDialogOpen}
           onOpenChange={setTestDialogOpen}
-          descrizione="Controlla che le email partano. Senza un dominio tuo la prova parte dal dominio della piattaforma, come le email vere."
+          descrizione="Controlla che le campagne partano. Senza un dominio tuo la prova parte dal dominio della piattaforma, come le campagne vere."
           to={testEmailTo}
           onToChange={setTestEmailTo}
-          stream={testStream}
-          onStreamChange={setTestStream}
           mittenti={mittenti}
           inCorso={testEmailMutation.isPending}
           onInvia={() => {
@@ -754,7 +684,7 @@ export default function SettingsEmailDomain({
             toast.error("L'indirizzo email non è valido");
             return;
           }
-          testEmailMutation.mutate({ to: testEmailTo, stream: testStream });
+          testEmailMutation.mutate({ to: testEmailTo });
         }}
           conScorrimento
         />
@@ -765,16 +695,14 @@ export default function SettingsEmailDomain({
   // ── Step 2+3: domain registered — show DNS records and verify button ─────
   const verifiedCount = records.filter((r) => r.verified).length;
   const totalCount = records.length;
-  // Da dove esce ogni canale rispetto a questo dominio: le due caselle lo
-  // dicono, e il riquadro verde parla di «marketing e transazionali» solo
-  // quando escono davvero tutti e due da qui.
-  const provenienza: Record<CanaleEmail, ProvenienzaCanale> = {
-    marketing: provenienzaCanale(domain, "marketing", mittenti?.marketing),
-    transactional: provenienzaCanale(domain, "transactional", mittenti?.transactional),
-  };
-  const mittenteDaQui = [mittenti?.marketing, mittenti?.transactional]
-    .find((m) => m?.usingCustomDomain && m.customDomainId === domain.id) ?? null;
-  const tuttiDaQui = provenienza.marketing === "dal_dominio" && provenienza.transactional === "dal_dominio";
+  // Da dove escono le campagne rispetto a questo dominio: il riquadro verde
+  // compare solo quando escono davvero da qui.
+  const campagneOk = campagneVerificate(domain);
+  const provenienzaCampagne = provenienzaCanale(domain, "marketing", mittenti?.marketing);
+  const mittenteDaQui = mittenti?.marketing?.usingCustomDomain && mittenti.marketing.customDomainId === domain.id
+    ? mittenti.marketing
+    : null;
+  const campagneDaQui = provenienzaCampagne === "dal_dominio";
 
   return (
     // Fino a 1600px: le righe DNS sono lunghe e da xl la guida sta a destra invece di sotto.
@@ -819,21 +747,16 @@ export default function SettingsEmailDomain({
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              {domain.is_verified && domain.is_active ? (
+              {campagneOk && domain.is_active ? (
                 <Badge className="bg-green-600 hover:bg-green-700">
                   <CheckCircle2 className="h-3 w-3 mr-1" /> Attivo
-                </Badge>
-              ) : domain.is_active && domain.ee_spf_verified && domain.ee_dkim_verified ? (
-                // Marketing già operativo (EE SPF+DKIM ok) — transazionale in attesa
-                <Badge className="bg-emerald-500 hover:bg-emerald-600">
-                  <CheckCircle2 className="h-3 w-3 mr-1" /> Campagne attive
                 </Badge>
               ) : (
                 <Badge variant="outline">
                   {verifiedCount}/{totalCount} righe verificate
                 </Badge>
               )}
-              {(domain.is_verified || (domain.is_active && domain.ee_spf_verified && domain.ee_dkim_verified)) && (
+              {campagneOk && domain.is_active && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -860,7 +783,7 @@ export default function SettingsEmailDomain({
                   <AlertDialogHeader>
                     <AlertDialogTitle>Rimuovere il dominio?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Le email torneranno a partire dal dominio della piattaforma.
+                      Le campagne torneranno a partire dal dominio della piattaforma.
                       Potrai registrarlo di nuovo quando vuoi.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
@@ -873,33 +796,23 @@ export default function SettingsEmailDomain({
             </div>
           </div>
 
-          {/* Status per-provider compatto */}
-          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-            {/* White-label: canali, non provider. SendGrid (legacy) nascosto. */}
+          {/* Solo le campagne: la scheda «Messaggi di servizio» non c'è più (07/11/2026). */}
+          <div className="mt-3 grid grid-cols-1 gap-2 text-xs sm:max-w-md">
             <ProviderStatusCard
               label="Campagne e newsletter"
               sublabel="Email di marketing"
               // SPF+DKIM bastano per inviare; il tracking CNAME è opzionale
-              verified={verificatoPer(domain, "marketing")}
+              verified={campagneOk}
               added={domain.ee_domain_added}
-              extra={verificatoPer(domain, "marketing") && !domain.ee_tracking_verified ? "Conteggio aperture e clic: facoltativo, non attivo" : undefined}
+              extra={campagneOk && !domain.ee_tracking_verified ? "Conteggio aperture e clic: facoltativo, non attivo" : undefined}
               mittente={mittenti?.marketing?.from}
-              nota={mittenti?.marketing ? notaDelCanale(provenienza.marketing) : null}
-            />
-            <ProviderStatusCard
-              label="Messaggi di servizio"
-              sublabel="Notifiche, documenti, codici di accesso"
-              verified={verificatoPer(domain, "transactional")}
-              added={!!domain.resend_domain_id}
-              extra={domain.resend_status && domain.resend_status !== "verified" ? "In attesa di verifica" : undefined}
-              mittente={mittenti?.transactional?.from}
-              nota={mittenti?.transactional ? notaDelCanale(provenienza.transactional) : null}
+              nota={mittenti?.marketing ? notaDelCanale(provenienzaCampagne) : null}
             />
           </div>
         </CardHeader>
       </Card>
 
-      {!domain.is_verified && (
+      {!campagneOk && (
         <Alert>
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
@@ -928,8 +841,7 @@ export default function SettingsEmailDomain({
           <CardTitle className="text-base">Righe da copiare nel pannello del dominio</CardTitle>
           <CardDescription>
             Le <strong>campagne</strong> si attivano quando risultano verificate «Autorizzazione a spedire» e «Firma di
-            sicurezza»; i <strong>messaggi di servizio</strong> (notifiche, documenti) quando risultano verificate anche
-            le loro righe.
+            sicurezza».
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -958,7 +870,7 @@ export default function SettingsEmailDomain({
               <p className="text-xs text-muted-foreground">
                 Hai già copiato le righe? Premi «Verifica DNS»: controlliamo se risultano attive.
               </p>
-              {!domain.is_verified && (
+              {!campagneOk && (
                 <label className="flex items-center gap-2 text-xs">
                   <Switch checked={autoPoll} onCheckedChange={setAutoPoll} className="scale-75" />
                   <span className="text-muted-foreground flex items-center gap-1">
@@ -990,7 +902,7 @@ export default function SettingsEmailDomain({
         </CardContent>
       </Card>
 
-      {!domain.is_verified && (
+      {!campagneOk && (
         <Card>
           <CardHeader
             className="cursor-pointer select-none"
@@ -1017,12 +929,12 @@ export default function SettingsEmailDomain({
       )}
       </div>
 
-      {tuttiDaQui && (
+      {campagneDaQui && (
         <Alert className="border-green-600">
           <CheckCircle2 className="h-4 w-4 text-green-600" />
           <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
             <span>
-              Dominio attivo: le campagne e i messaggi di servizio escono da{" "}
+              Dominio attivo: le campagne escono da{" "}
               <code className="text-xs break-all">{mittenti?.marketing?.fromEmail}</code>.
             </span>
             <Button
@@ -1041,11 +953,9 @@ export default function SettingsEmailDomain({
       <DialogProvaEmail
         open={testDialogOpen}
         onOpenChange={setTestDialogOpen}
-        descrizione="Controlla che le email partano davvero: la prova usa il mittente vero del tipo che scegli qui sotto, come le email dell'azienda."
+        descrizione="Controlla che le campagne partano davvero: la prova usa il mittente vero delle campagne dell'azienda."
         to={testEmailTo}
         onToChange={setTestEmailTo}
-        stream={testStream}
-        onStreamChange={setTestStream}
         mittenti={mittenti}
         inCorso={testEmailMutation.isPending}
         onInvia={() => {
@@ -1053,7 +963,7 @@ export default function SettingsEmailDomain({
             toast.error("L'indirizzo email non è valido");
             return;
           }
-          testEmailMutation.mutate({ to: testEmailTo, stream: testStream });
+          testEmailMutation.mutate({ to: testEmailTo });
         }}
       />
     </div>

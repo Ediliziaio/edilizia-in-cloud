@@ -142,10 +142,22 @@ describe("DMARC", () => {
 describe("manage-email-domain usa le regole", () => {
   const funzione = leggi("supabase/functions/manage-email-domain/index.ts");
 
-  it("le chiavi si leggono in un posto solo, senza il ripiego `??` che non scattava", () => {
-    expect(funzione).toContain("async function leggiChiaviProvider()");
-    expect(funzione.match(/await leggiChiaviProvider\(\)/g)).toHaveLength(3); // add, verify, remove
+  it("la chiave si legge in un posto solo, ed è solo quella di Elastic Email (07/11/2026)", () => {
+    expect(funzione).toContain("async function leggiChiaveMarketing()");
+    expect(funzione.match(/await leggiChiaveMarketing\(\)/g)).toHaveLength(3); // add, verify, remove
     expect(funzione).not.toContain('.then((v) => v ?? getPlatformSetting(');
+  });
+
+  it("niente più Resend né SendGrid: nessuna chiamata, nessun errore o avviso del transazionale", () => {
+    expect(funzione).not.toContain("api.resend.com");
+    expect(funzione).not.toContain("api.sendgrid.com");
+    expect(funzione).not.toContain("leggiChiaviProvider");
+    expect(funzione).not.toContain("failure_reason = `Resend:");
+    expect(funzione).not.toContain("avviso_piattaforma");
+    expect(funzione).not.toContain("resend_chiave_rifiutata");
+    expect(funzione).not.toMatch(/providerErrors\.(resend|sendgrid)/);
+    expect(funzione).not.toMatch(/provider: "(resend|sendgrid)"/);
+    expect(funzione).toContain("const providerErrors: Record<string, string | null> = { elastic_email: null };");
   });
 
   it("il transazionale mancante non blocca più la registrazione del dominio", () => {
@@ -297,25 +309,27 @@ describe("manage-email-domain e la pagina usano il mittente vero", () => {
   it("la verifica collega i canali con canaliDaCollegare, solo dove la scelta è ancora vuota", () => {
     const verifica = funzione.slice(funzione.indexOf("async function actionVerifyDomain("), funzione.indexOf("async function actionRemoveDomain("));
     expect(verifica).toContain("const collegati = await collegaComeMittente(admin, companyId, row, finale);");
-    expect(verifica).toContain("const canali = canaliDaCollegare(prima, dopo, prefs);");
+    // Solo le campagne: i messaggi di servizio non escono più dal dominio aziendale.
+    expect(verifica).toContain('const canali = canaliDaCollegare(prima, dopo, prefs).filter((c) => c === "marketing");');
     expect(verifica).toContain(".is(colonna, null)");
     // Il vecchio collegamento del solo marketing, dentro il blocco di attivazione.
     expect(verifica).not.toContain(".update({ marketing_domain_id: row.id })");
   });
 
-  it("get_status restituisce il mittente di ogni canale calcolato da resolveSender", () => {
+  it("get_status restituisce il mittente delle campagne calcolato da resolveSender", () => {
     expect(funzione).toContain("const m = await resolveSender(companyId, canale, admin);");
     expect(funzione).toContain('mittenteVero(admin, companyId, "marketing"),');
-    expect(funzione).toContain('mittenteVero(admin, companyId, "transactional"),');
-    expect(funzione).toContain("return { domains, mittenti: { marketing, transactional } };");
+    expect(funzione).not.toContain('mittenteVero(admin, companyId, "transactional")');
+    expect(funzione).toContain("return { domains, mittenti: { marketing } };");
   });
 
   it("la pagina non promette più «marketing e transazionali» né mostra from_email", () => {
     expect(pagina).not.toContain("Tutte le prossime email (marketing e transazionali)");
     expect(pagina).not.toContain("{domain.from_email}");
     expect(pagina).not.toContain("${domain.from_email}");
-    expect(pagina).toContain('provenienzaCanale(domain, "transactional", mittenti?.transactional)');
-    expect(pagina).toContain("{tuttiDaQui && (");
+    expect(pagina).toContain('provenienzaCanale(domain, "marketing", mittenti?.marketing)');
+    expect(pagina).not.toContain('provenienzaCanale(domain, "transactional"');
+    expect(pagina).toContain("{campagneDaQui && (");
   });
 
   it("il modulo non chiede più nome e parte locale che add_domain buttava via", () => {

@@ -192,3 +192,4 @@ async function spedisci(r: Record<string, unknown>, titolo: string, corsH: Heade
 
   return new Response(JSON.stringify({ ok: true, titolo, destinatari: destinatari.length }), { headers: corsH });
 }
+// 07/11/2026: ripubblicata perché le email di servizio partono col solo nome dell'azienda, senza «via EdiliziaInCloud» (_shared/resolveSender.ts).

@@ -176,7 +176,9 @@ describe("parole di tutti i giorni", () => {
   });
 
   it("dopo la registrazione: le righe da copiare, l'avviso breve e la spiegazione chiusa", async () => {
-    mostra([dominio()]);
+    // Appena registrato: firma ancora da verificare. Dal 07/11/2026 l'avviso e il controllo automatico seguono le
+    // campagne, non is_verified (che chiedeva anche i messaggi di servizio).
+    mostra([{ ...dominio(), ee_dkim_verified: false, is_active: false }]);
     await screen.findByRole("button", { name: "Verifica DNS" });
     expect(screen.getByText("Righe da copiare nel pannello del dominio")).toBeTruthy();
     expect(screen.getByText(/Possono servire da pochi minuti a 48 ore\. Quando hai finito, premi «Verifica DNS»\./)).toBeTruthy();

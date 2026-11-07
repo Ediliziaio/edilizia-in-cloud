@@ -242,3 +242,4 @@ async function avvisaTitolare(admin: any, cal: any, app: any, testo: string): Pr
     console.error("[gestisci] avviso al titolare:", e instanceof Error ? e.message : e);
   }
 }
+// 07/11/2026: ripubblicata perché le email degli appuntamenti escono da Elastic Email anche senza mittente del calendario, col solo nome dell'azienda (_shared/mittenteCalendario.ts, _shared/resolveSender.ts).

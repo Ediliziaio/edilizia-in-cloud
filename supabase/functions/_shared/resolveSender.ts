@@ -1,6 +1,7 @@
 // deno-lint-ignore-file no-explicit-any
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getPlatformSetting } from "./getPlatformSetting.ts";
+import { nomeMittenteDiRiserva } from "./nomeMittenteRiserva.ts";
 
 export type EmailStream = "marketing" | "transactional";
 
@@ -35,7 +36,10 @@ export interface ResolvedSender {
  *   2. Altrimenti usa il sottodominio fallback EiC (platform_settings):
  *        transactional → notifiche.ediliziaincloud.it
  *        marketing     → mail.ediliziaincloud.it
- *      Output: `"<sender_name> via EdiliziaInCloud <sender_prefix@fallback>"`,
+ *      Output marketing:      `"<sender_name> via EdiliziaInCloud <sender_prefix@fallback>"`
+ *      Output transactional:  `"<sender_name> <sender_prefix@fallback>"` (07/11/2026:
+ *      le email di servizio portano il solo nome dell'azienda; idem con
+ *      `senzaSuffisso`, per quelle spedite dal provider del marketing),
  *              reply_to = preferences.reply_to_email (cliente vede risposte)
  *   3. Se company_email_preferences assente (edge case): platform_default
  *      da `email_{stream}_from_address` + `email_{stream}_from_name`.
@@ -44,11 +48,20 @@ export async function resolveSender(
   companyId: string | null,
   stream: EmailStream,
   adminClient?: SupabaseClient,
-  opzioni?: { nome?: string | null },
+  opzioni?: {
+    nome?: string | null;
+    /**
+     * Niente «via EdiliziaInCloud» anche sul canale marketing: le email di
+     * servizio che escono dal provider del marketing (viaMarketingProvider in
+     * sendEmailUnified) usano il suo dominio, ma restano email di servizio.
+     */
+    senzaSuffisso?: boolean;
+  },
 ): Promise<ResolvedSender> {
   // Nome scelto da chi invia (il mittente di un'automazione, 19/09/2026):
   // prende il posto di quello dell'azienda ma passa dalle stesse regole,
-  // compreso il «via EdiliziaInCloud» quando l'indirizzo è di piattaforma.
+  // compreso il «via EdiliziaInCloud» quando l'indirizzo è di piattaforma
+  // (solo per le campagne, dal 07/11/2026).
   // Deve arrivare già pronto per l'intestazione (sanitizeFromName).
   const nomeScelto = opzioni?.nome?.trim() || undefined;
 
@@ -67,9 +80,11 @@ export async function resolveSender(
   const fallbackFromName =
     (await getPlatformSetting(`email_${stream}_fallback_from_name`)) ||
     "EdiliziaInCloud";
-  const fallbackFromSuffix =
-    (await getPlatformSetting(`email_${stream}_fallback_from_suffix`)) ||
-    " via EdiliziaInCloud";
+  // Il suffisso conta solo per le campagne: per il transazionale non si legge.
+  const senzaSuffisso = stream === "transactional" || opzioni?.senzaSuffisso === true;
+  const fallbackFromSuffix = senzaSuffisso
+    ? ""
+    : await getPlatformSetting(`email_${stream}_fallback_from_suffix`);
 
   // ── 2. Platform-level email (companyId null) → platform default ──────────
   if (!companyId) {
@@ -171,15 +186,14 @@ export async function resolveSender(
 
   // ── 5. Fallback subdomain EiC ────────────────────────────────────────────
   const fallbackEmail = `${senderPrefix}@${fallbackSubdomain}`;
-  // "EdiliziaInCloud via EdiliziaInCloud": il suffisso serve a dire da dove
-  // arriva l'email quando a scrivere è un'azienda cliente ("Ke Bei Serramenti
-  // via EdiliziaInCloud"). Quando il mittente è già la piattaforma, ripeterlo
-  // fa solo una brutta figura nella casella di chi riceve.
-  const soloLettere = (t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const piattaformaNelSuffisso = soloLettere(fallbackFromSuffix.replace(/^\s*via\s*/i, ""));
-  const fallbackName = soloLettere(senderName) === piattaformaNelSuffisso
-    ? senderName
-    : `${senderName}${fallbackFromSuffix}`;
+  // Il suffisso dice da dove arriva una campagna («Ke Bei Serramenti via
+  // EdiliziaInCloud»); le email di servizio portano il solo nome dell'azienda.
+  const fallbackName = nomeMittenteDiRiserva({
+    nome: senderName,
+    canale: stream,
+    suffisso: fallbackFromSuffix,
+    senzaSuffisso,
+  });
   return {
     from: `${fallbackName} <${fallbackEmail}>`,
     fromEmail: fallbackEmail,

@@ -312,3 +312,4 @@ serveConMetricheRapida("ops-canarino", async (req) => {
     return new Response(JSON.stringify({ ok: false, error: (err as Error).message }), { status: 500, headers: corsH });
   }
 });
+// 07/11/2026: ripubblicata perché le email di servizio partono col solo nome dell'azienda, senza «via EdiliziaInCloud» (_shared/resolveSender.ts).

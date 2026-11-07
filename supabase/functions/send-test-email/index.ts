@@ -127,7 +127,8 @@ serveConMetriche("send-test-email", async (req) => {
 
       // Con companyId valorizzato sendEmailUnified sceglie il mittente
       // dell'azienda (resolveSender): il suo dominio se verificato per quel
-      // canale, altrimenti il sottodominio della piattaforma «via EdiliziaInCloud».
+      // canale, altrimenti il sottodominio della piattaforma (con «via
+      // EdiliziaInCloud» solo per le campagne).
       const result = await sendEmailUnified({
         companyId,
         stream:       providerStream,
@@ -227,3 +228,4 @@ serveConMetriche("send-test-email", async (req) => {
     return json({ error: (err instanceof Error && err.message) || "Errore interno" }, 500);
   }
 });
+// 07/11/2026: ripubblicata perché le email di servizio partono col solo nome dell'azienda, senza «via EdiliziaInCloud» (_shared/resolveSender.ts).

@@ -109,3 +109,4 @@ Deno.serve(conMetriche("openwa-riconcilia-stati", async (req) => {
     return new Response(JSON.stringify({ ok: false, error: (e as Error).message, ...esito }), { status: 500, headers: jsonH });
   }
 }));
+// 07/11/2026: ripubblicata perché le email di servizio partono col solo nome dell'azienda, senza «via EdiliziaInCloud» (_shared/resolveSender.ts).

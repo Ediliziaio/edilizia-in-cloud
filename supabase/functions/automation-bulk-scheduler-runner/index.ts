@@ -663,3 +663,4 @@ async function generateWithAi(supabase: any, companyId: string, userId: string, 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return ((result as any)?.content ?? "").trim() || "Briefing AI non disponibile.";
 }
+// 07/11/2026: ripubblicata perché le email di servizio partono col solo nome dell'azienda, senza «via EdiliziaInCloud» (_shared/resolveSender.ts).

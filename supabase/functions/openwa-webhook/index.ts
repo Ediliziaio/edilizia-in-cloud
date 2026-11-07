@@ -550,3 +550,4 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: (e as Error)?.message ?? "error" }), { status: 500, headers: jsonH });
   }
 });
+// 07/11/2026: ripubblicata perché le email di servizio partono col solo nome dell'azienda, senza «via EdiliziaInCloud» (_shared/resolveSender.ts).

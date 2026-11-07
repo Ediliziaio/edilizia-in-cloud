@@ -192,3 +192,4 @@ async function handleDeliveryEvent(supabase: any, ev: DeliveryEvent, rawBody: an
 function json(body: unknown, status: number, cors: Record<string, string>): Response {
   return new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 }
+// 07/11/2026: ripubblicata perché le email di servizio partono col solo nome dell'azienda, senza «via EdiliziaInCloud» (_shared/resolveSender.ts).

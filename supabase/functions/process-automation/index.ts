@@ -5390,3 +5390,4 @@ async function executeSyncMetaLead(supabase: any, cfg: Record<string, any>, enti
     return { success: false, error: `Meta lead sync error: ${e.message}` };
   }
 }
+// 07/11/2026: ripubblicata perché le email di servizio partono col solo nome dell'azienda, senza «via EdiliziaInCloud» (_shared/resolveSender.ts).
