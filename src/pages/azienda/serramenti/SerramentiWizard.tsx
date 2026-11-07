@@ -782,12 +782,14 @@ export default function SerramentiWizard() {
     // -m: il guscio va a bordo pagina (annulla il padding del contenitore che scorre). Al passo PDF da telefono la barra
     // di invio è fissa: sotto il contenuto serve lo spazio per non coprirne la fine.
     <div className={cn("-m-3 min-h-full bg-slate-50 md:-m-6", currentStep === "pdf" && id && detail && RISERVA_BARRA_INVIO_TELEFONO)}>
-      {modelDefinition && <div className="mx-auto max-w-6xl px-4 pt-4"><div className="rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm">
+      {/* Una riga sola (07/11/2026): il modello, cosa vuol dire, e l'aggiornamento. I passi li dice la barra qui sotto. */}
+      {modelDefinition && <div className="mx-auto max-w-6xl px-4 pt-3"><div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm">
         <p className="font-semibold">{modelDefinition.title}</p>
-        <p className="mt-1 text-muted-foreground">{isNew ? "Il PDF userà il modello personalizzato dall'azienda, se c'è, altrimenti quello standard. Prodotti e prezzi arrivano dal tuo listino." : "Il modello PDF è conservato in questo preventivo: finché è in bozza lo puoi aggiornare con quello di adesso."}</p>
-        {!isNew && detail && <div className="mt-2">{modelloDelPreventivo}</div>}
-        <p className="mt-2 text-xs">Cliente e cantiere → Prodotti e servizi → Prezzi, sconti e PDF</p>
-        {isNew && !modelSupport.supported && <p role="alert" className="mt-3 rounded border border-amber-300 bg-amber-50 p-3">Il salvataggio di questo intervento richiede l'attivazione del database. Non inserire dati finché il collegamento non è attivo.</p>}
+        <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground" title={isNew ? "Il PDF userà il modello personalizzato dall'azienda, se c'è, altrimenti quello standard. Prodotti e prezzi arrivano dal tuo listino." : "Il modello PDF è conservato in questo preventivo: finché è in bozza lo puoi aggiornare con quello di adesso."}>
+          {isNew ? "Il PDF userà il modello personalizzato dall'azienda, se c'è, altrimenti quello standard. Prodotti e prezzi arrivano dal tuo listino." : "Il modello PDF è conservato in questo preventivo: finché è in bozza lo puoi aggiornare con quello di adesso."}
+        </p>
+        {!isNew && detail && <div className="shrink-0">{modelloDelPreventivo}</div>}
+        {isNew && !modelSupport.supported && <p role="alert" className="w-full rounded border border-amber-300 bg-amber-50 p-3">Il salvataggio di questo intervento richiede l'attivazione del database. Non inserire dati finché il collegamento non è attivo.</p>}
       </div></div>}
       {!modelDefinition && !isNew && detail && <div className="mx-auto max-w-6xl px-4 pt-4">{modelloDelPreventivo}</div>}
       {/* Sticky header */}

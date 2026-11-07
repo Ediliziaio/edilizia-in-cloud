@@ -562,11 +562,11 @@ export default function TermoidraulicoWizard() {
         }}
         sopra={(model || (!isNew && detail)) && (
           // Telefono: niente testata del modello (il nome è nel passo dell'intervento); resta solo l'avviso, se c'è.
-          <section className={cn("mx-auto max-w-6xl space-y-2 p-4 max-sm:space-y-0 max-sm:px-3 max-sm:py-0 max-sm:pb-3", !(isNew && !modelSupport.supported) && "max-sm:hidden")}>
-            <div className="space-y-2 max-sm:hidden">
-              <h1 className="text-xl font-semibold">Preventivo{model ? ` · ${model.title}` : ""}</h1>
-              {model && <p className="text-sm text-muted-foreground">{model.summary}</p>}
-              <p className="text-xs">Cliente → Immobile → Lavorazioni e prodotti → Prezzi e sconti → PDF dell'intervento</p>
+          <section className={cn("mx-auto max-w-6xl space-y-2 px-4 pb-2 pt-3 max-sm:space-y-0 max-sm:px-3 max-sm:py-0 max-sm:pb-3", !(isNew && !modelSupport.supported) && "max-sm:hidden")}>
+            {/* Una riga: modello e a cosa serve. I passi li dice già la barra qui sotto (07/11/2026). */}
+            <div className="flex min-w-0 items-baseline gap-2 max-sm:hidden">
+              <h1 className="shrink-0 text-base font-semibold">Preventivo{model ? ` · ${model.title}` : ""}</h1>
+              {model && <p className="truncate text-sm text-muted-foreground" title={model.summary}>{model.summary}</p>}
             </div>
             {!isNew && detail && (
               <div className="flex flex-wrap items-center gap-2">

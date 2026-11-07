@@ -139,7 +139,7 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondiz
     },
     {
       ok: numSerramenti > 0,
-      label: `${numSerramenti} serramenti in BOM`,
+      label: `${numSerramenti} ${numSerramenti === 1 ? "serramento" : "serramenti"} nell'offerta`,
       hint: numSerramenti === 0 ? "Mancanti — vai allo Step Serramenti" : undefined,
       breve: "serramenti", passo: "bom",
     },
@@ -215,11 +215,12 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondiz
         />
       )}
 
-      {/* Anteprima dati PDF */}
+      {/* Anteprima dati PDF. Da 1280 px in su non serve: a destra c'è il PDF vero (07/11/2026). */}
       <SrCard
         title="Anteprima dati preventivo"
         description="Riepilogo di cosa entrerà nel PDF cliente."
         icon={<FileText className="h-4 w-4" />}
+        className="xl:hidden"
       >
         {/* Telefono: codice e totale sono già nella testata e qui sotto. */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4 max-md:hidden">

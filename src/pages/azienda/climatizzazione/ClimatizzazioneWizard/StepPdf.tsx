@@ -184,8 +184,9 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
         />
       )}
 
-      {/* Anteprima del preventivo — mini-documento brandizzato (sul telefono senza la cornice) */}
-      <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
+      {/* Anteprima del preventivo — mini-documento brandizzato (sul telefono senza la cornice). Da 1280 px in su
+          non serve: a destra c'è il PDF vero (07/11/2026). */}
+      <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none xl:hidden">
         <CardContent className="space-y-3 p-4 max-md:p-0">
           <div className="flex items-center gap-2 max-md:hidden">
             <FileText className="h-4 w-4 text-orange-600" />
@@ -402,7 +403,7 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
               <div className="flex items-start gap-2.5 rounded-xl border border-blue-100 bg-blue-50/60 px-3 py-2">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
                 <p className="flex-1 text-[11px] text-blue-900">
-                  Il PDF è generabile. Restano {erroriCount} elementi consigliati non compilati
+                  Il PDF è generabile. {erroriCount === 1 ? "Resta 1 elemento consigliato non compilato" : `Restano ${erroriCount} elementi consigliati non compilati`}
                   (vedi checklist): puoi generarlo comunque, ma compilarli lo rende più convincente.
                 </p>
               </div>

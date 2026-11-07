@@ -933,7 +933,12 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
       {/* Riepilogo BOM */}
       <SrCard
         title="Riepilogo composizione"
-        description={`${detail.serramenti.length} serramenti · ${detail.accessori.length} complementi · ${(detail.servizi ?? []).length} servizi · ${formatNumero(totaleCalc.metri_quadri, 2)} m²`}
+        description={[
+          `${detail.serramenti.length} ${detail.serramenti.length === 1 ? "serramento" : "serramenti"}`,
+          `${detail.accessori.length} ${detail.accessori.length === 1 ? "complemento" : "complementi"}`,
+          `${(detail.servizi ?? []).length} ${(detail.servizi ?? []).length === 1 ? "servizio" : "servizi"}`,
+          `${formatNumero(totaleCalc.metri_quadri, 2)} m²`,
+        ].join(" · ")}
         icon={<Calculator className="h-4 w-4" />}
       >
         {/* Telefono: le tre voci in riga; imponibile e totale li dice il riquadro «Totale» sotto. */}

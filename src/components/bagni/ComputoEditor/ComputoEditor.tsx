@@ -199,8 +199,7 @@ export default function ComputoEditor({
             <Calculator className="h-4 w-4" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-slate-900 max-sm:hidden">Computo metrico</h3>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-sm font-medium text-slate-900">
               {nVoci > 0
                 ? `${nVoci} ${nVoci === 1 ? "voce" : "voci"} · ${capitoli.length} ${capitoli.length === 1 ? "capitolo" : "capitoli"}`
                 : "Componi capitoli e voci dai listini"}

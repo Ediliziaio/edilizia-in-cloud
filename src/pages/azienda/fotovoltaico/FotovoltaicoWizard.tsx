@@ -1824,12 +1824,16 @@ function FotovoltaicoWizard() {
   // F11: il campo reale su FvProgetto è `numero` (non `numero_progetto`),
   // altrimenti l'header mostrava sempre "Progetto fotovoltaico" senza codice.
   const numero = (progettoEsistente as { numero?: string } | undefined)?.numero;
+  // Il codice c'è già nel badge sopra il titolo (07/11/2026): il titolo dice per chi è, il sottotitolo dove.
+  const nomeCliente = [data.cliente_nome, data.cliente_cognome].filter(Boolean).join(" ").trim();
   const titoloHeader = progettoId
-    ? `Progetto ${numero ?? "fotovoltaico"}`
+    ? nomeCliente || `Progetto ${numero ?? "fotovoltaico"}`
     : modelloRichiesto ? `Nuovo preventivo · ${modelloRichiesto.title}` : "Nuovo progetto fotovoltaico";
-  const subtitleHeader = data.cliente_nome || data.indirizzo
-    ? `${[data.cliente_nome, data.cliente_cognome].filter(Boolean).join(" ")}${data.indirizzo ? " · " + data.indirizzo : ""}`
-    : "Compila la fase 1 per iniziare";
+  const subtitleHeader = progettoId && nomeCliente
+    ? data.indirizzo || "Indirizzo dell'impianto da scrivere nella fase 2"
+    : nomeCliente || data.indirizzo
+      ? `${nomeCliente}${data.indirizzo ? `${nomeCliente ? " · " : ""}${data.indirizzo}` : ""}`
+      : "Compila la fase 1 per iniziare";
 
   const lastSaveText = lastSaveAt
     ? `Ultima modifica ${lastSaveAt.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`
@@ -2334,7 +2338,8 @@ function Step1Cliente({
 
       {/* Prima privato, azienda o Pubblica Amministrazione, poi nome e cognome (30/10/2026). */}
       <SceltaTipoCliente valore={data.cliente_tipo} onChange={(t) => update("cliente_tipo", t)} />
-      <div className="grid lg:grid-cols-2 gap-4">
+      {/* Anagrafica e contatti affiancati, il cointestato sotto su tutta la riga (07/11/2026). */}
+      <div className="grid items-start gap-4 lg:grid-cols-2">
         <FvCard title="Anagrafica">
           {/* Telefono: nome e cognome affiancati. */}
           <div className="grid grid-cols-2 gap-3 mb-3 max-sm:gap-2">
@@ -2369,23 +2374,15 @@ function Step1Cliente({
               </SelectContent>
             </Select>
           </div>
+          {/* I dati fiscali nella stessa scheda (07/11/2026): prima restavano soli nella colonna di destra. */}
+          <div className="mt-3">
+            <DatiFiscaliCliente
+              form={{ cliente_tipo: data.cliente_tipo, cliente_ragione_sociale: data.cliente_ragione_sociale,
+                cliente_codice_fiscale: data.cliente_codice_fiscale, cliente_partita_iva: data.cliente_partita_iva, cliente_codice_univoco: data.cliente_codice_univoco }}
+              onChange={(campo, valore) => campo === "cliente_tipo" ? update("cliente_tipo", valore === "azienda" || valore === "pa" ? valore : "privato") : update(campo, valore ?? "")}
+            />
+          </div>
         </FvCard>
-
-        <DatiFiscaliCliente
-          form={{ cliente_tipo: data.cliente_tipo, cliente_ragione_sociale: data.cliente_ragione_sociale,
-            cliente_codice_fiscale: data.cliente_codice_fiscale, cliente_partita_iva: data.cliente_partita_iva, cliente_codice_univoco: data.cliente_codice_univoco }}
-          onChange={(campo, valore) => campo === "cliente_tipo" ? update("cliente_tipo", valore === "azienda" || valore === "pa" ? valore : "privato") : update(campo, valore ?? "")}
-        />
-
-        <Cointestatario
-          form={{
-            cointestatario_nome: data.cointestatario_nome, cointestatario_cognome: data.cointestatario_cognome,
-            cointestatario_codice_fiscale: data.cointestatario_codice_fiscale,
-            cointestatario_email: data.cointestatario_email, cointestatario_telefono: data.cointestatario_telefono,
-          }}
-          onChange={(campo, valore) => update(campo, valore ?? "")}
-        />
-
         <FvCard title="Contatti">
           <div className="grid sm:grid-cols-2 gap-3 mb-3">
             <div>
@@ -2416,6 +2413,16 @@ function Step1Cliente({
             </FvCallout>
           </div>
         </FvCard>
+        <div className="lg:col-span-2">
+          <Cointestatario
+            form={{
+              cointestatario_nome: data.cointestatario_nome, cointestatario_cognome: data.cointestatario_cognome,
+              cointestatario_codice_fiscale: data.cointestatario_codice_fiscale,
+              cointestatario_email: data.cointestatario_email, cointestatario_telefono: data.cointestatario_telefono,
+            }}
+            onChange={(campo, valore) => update(campo, valore ?? "")}
+          />
+        </div>
       </div>
     </>
   );
