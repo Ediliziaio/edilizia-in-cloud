@@ -33,6 +33,7 @@ interface Props {
 /** «€ 120 cad.» per i pezzi, «€ 18 / mq» per le misure: il prezzo unitario dice a cosa si riferisce. */
 function perUnita(unita?: string | null): string {
   const u = (unita ?? "").trim().toLowerCase();
+  if (u === "a_corpo" || u === "a corpo") return "a corpo";
   return !u || u === "pz" || u === "cad" ? "cad." : `/ ${u}`;
 }
 

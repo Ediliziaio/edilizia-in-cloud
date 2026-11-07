@@ -210,12 +210,21 @@ Deno.serve(async (req: Request) => {
       // Lavori extra e varianti (06/11/2026): prima diceva solo «Variante», senza numero né importo.
       const { data: v } = await supabaseAdmin
         .from("ordini_variazione")
-        .select("numero_odv, titolo, impatto_economico")
+        .select("numero_odv, titolo, impatto_economico, order_id")
         .eq("id", sigReq.odv_id)
         .maybeSingle();
       documento_titolo = v?.numero_odv ? `Lavori extra n. ${v.numero_odv}` : "Lavori extra";
       titolo = v?.titolo ?? null;
-      importo_totale = v ? Number(v.impatto_economico) || 0 : null;
+      // La pagina scrive «IVA inclusa»: qui si manda quello che il cliente paga davvero, non
+      // l'imponibile della variante (06/11/2026). Con IVA 0 (reverse charge) i due coincidono.
+      if (v) {
+        const netto = Number(v.impatto_economico) || 0;
+        const { data: o } = await supabaseAdmin.from("orders").select("vat_rate").eq("id", v.order_id).maybeSingle();
+        const aliquota = Number(o?.vat_rate);
+        importo_totale = Number.isFinite(aliquota) && aliquota > 0
+          ? Math.round(netto * (1 + aliquota / 100) * 100) / 100
+          : netto;
+      }
     } else if (tipo === "odv") {
       documento_titolo = "Lavori extra";
     } else if (tipo === "subappalto" && sigReq.contratto_subappalto_id) {

@@ -192,6 +192,14 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
       dati = await workflow.request(id,"publish",{revision:revisione,document_hash:dati.document.document_hash,reviewed:true});
       absorb(dati);
     }
+    // Un link c'è già (clic doppio, o mandato prima): non se ne crea un altro, se no al cliente
+    // arrivano due email con due link diversi per lo stesso lavoro (06/11/2026, prova dal vivo).
+    const giaMandato = await firmaEsistente.refetch();
+    if (giaMandato.data?.link) {
+      if (alive.current) setPasso("manda");
+      toast.success("Era già stato mandato: il link è qui sotto.");
+      return;
+    }
     // Da qui il lavoro extra è «in attesa» e non si modifica più: se la firma non parte lo si dice,
     // così non sembra che non sia successo niente (06/11/2026, revisione).
     const esito = await richiediFirma({
