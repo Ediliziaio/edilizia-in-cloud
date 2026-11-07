@@ -73,6 +73,7 @@ import {
   profiloDaCliente,
   testoTrattenuta,
 } from "@/lib/fatturazione/clausoleFattura";
+import { useCondizioniDocumento } from "@/hooks/useCondizioniDocumento";
 
 /** I metodi che un'impresa edile usa davvero; gli altri restano nell'editor. */
 const METODI_PROPOSTI = ["MP05", "MP12", "MP08", "MP02", "MP19", "MP23", "MP01"] as const;
@@ -346,6 +347,8 @@ export function CreaFatturaDialog({
   const [clausoleScelte, setClausoleScelte] = useState<string[] | null>(null);
   const [testiClausole, setTestiClausole] = useState<Record<string, string>>({});
   const [clausoleMie, setClausoleMie] = useState<Array<{ id: string; testo: string }>>([]);
+  /** Le condizioni dell'azienda tolte a mano da questa fattura (vengono spuntate da sole). */
+  const [aziendaTolte, setAziendaTolte] = useState<string[]>([]);
   const [nuovaClausola, setNuovaClausola] = useState("");
   const [altreClausole, setAltreClausole] = useState(false);
   const [cig, setCig] = useState<string | null>(null);
@@ -656,22 +659,45 @@ export function CreaFatturaDialog({
   }, [mode, lordoImporto, importo.descrizione, aliquotaImporto, includedItemRighe, freeLines, defaultVat, fasiVendute, voci, scelteRighe, salAttivo, salList, fatturato, testiRighe]);
 
   // ── Tipo di fattura e clausole ──────────────────────────────
+  const condizioniAzienda = useCondizioniDocumento("fattura");
   const profiloSuggerito = profiloDaCliente(
     matchedAnagrafica?.tipo_cliente,
     matchedAnagrafica?.ragione_sociale || customerName,
   );
   const profilo = profiloScelto ?? profiloSuggerito;
   const clausoleCatalogo = clausoleScelte ?? clausolePredefinite(profilo, defaultVat);
+  /**
+   * Le condizioni che l'azienda ha scritto per le fatture, dall'archivio «Contratti e condizioni»
+   * (07/11/2026): prima si riscrivevano a mano a ogni fattura. Arrivano già spuntate — sono lo
+   * standard dell'azienda — e si tolgono con una spunta. Quello che finisce in fattura è una copia:
+   * cambiare il modello domani non tocca la fattura di oggi.
+   */
+  const clausoleDAzienda = useMemo(
+    () => condizioniAzienda.clausole.map((c, i) => ({
+      id: `azienda:${i}`,
+      titolo: (c.titolo ?? "").trim() || "Condizione dell'azienda",
+      testo: (c.testo ?? "").trim(),
+    })).filter((c) => c.testo),
+    [condizioniAzienda.clausole],
+  );
+  const clausoleAziendaAttive = clausoleDAzienda.filter((c) => !aziendaTolte.includes(c.id)).map((c) => c.id);
   // Il netto del certificato è già senza ritenuta: la trattenuta a garanzia non si applica di nuovo.
   const ritenutaGiaTolta = mode === "sal" && !!salAttivo && !!certificatoDelSal(salAttivo.sal_certificati);
-  const clausoleAttive = clausoleApplicabili([...clausoleCatalogo, ...clausoleMie.map((c) => c.id)], { ritenutaGiaTolta });
+  const clausoleAttive = clausoleApplicabili(
+    [...clausoleCatalogo, ...clausoleAziendaAttive, ...clausoleMie.map((c) => c.id)], { ritenutaGiaTolta },
+  );
   const testoClausola = (id: string) => {
     if (clausola(id)?.effetto === "trattenuta") {
       const t = composta.trattenute.find((x) => x.id === id);
       return t ? testoTrattenuta(t) : "";
     }
-    return testiClausole[id] ?? clausoleMie.find((c) => c.id === id)?.testo ?? clausola(id)?.testo ?? "";
+    return testiClausole[id]
+      ?? clausoleMie.find((c) => c.id === id)?.testo
+      ?? clausoleDAzienda.find((c) => c.id === id)?.testo
+      ?? clausola(id)?.testo ?? "";
   };
+  const toggleClausolaAzienda = (id: string) =>
+    setAziendaTolte((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
 
   const scegliProfilo = (p: ProfiloFattura) => {
     setProfiloScelto(p);
@@ -1655,6 +1681,22 @@ export function CreaFatturaDialog({
 
           <div className="rounded-lg border divide-y">
             {clausoleDelTipo.map((c) => rigaClausola(c.id, c.titolo, c.aiuto))}
+            {/* Le condizioni che l'azienda ha scritto una volta sola, nelle impostazioni (07/11/2026). */}
+            {clausoleDAzienda.map((c) => (
+              <div key={c.id} className={`px-3 py-2 space-y-1 ${aziendaTolte.includes(c.id) ? "opacity-70" : ""}`}>
+                <div className="flex items-start gap-2">
+                  <Checkbox id={`cl-${c.id}`} checked={!aziendaTolte.includes(c.id)}
+                    onCheckedChange={() => toggleClausolaAzienda(c.id)} className="mt-0.5" />
+                  <label htmlFor={`cl-${c.id}`} className="flex-1 min-w-0 cursor-pointer">
+                    <span className="text-xs font-medium">{c.titolo}</span>
+                    <span className="ml-1.5 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                      dalle tue condizioni
+                    </span>
+                    <span className="block text-[11px] text-muted-foreground leading-snug line-clamp-2">{c.testo}</span>
+                  </label>
+                </div>
+              </div>
+            ))}
             {clausoleMie.map((c) => rigaClausola(c.id, "Clausola aggiunta da te", undefined, true))}
             <div className="flex gap-1.5 p-2">
               <Input

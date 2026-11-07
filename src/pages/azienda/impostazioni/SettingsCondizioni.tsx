@@ -23,17 +23,52 @@ import { useCondizioniArchivio, type ClausolaArchivio } from "@/hooks/useCondizi
 import { useCondizioniImporta } from "@/hooks/useCondizioniImporta";
 import { testoLeggibile } from "@/lib/condizioni/importa";
 import {
-  AMBITI_CONDIZIONI, CLAUSOLE_DI_PARTENZA, CONTROPARTE, DOVE_SI_USA, NOMI_AMBITI, testoDelModello,
+  AMBITI_CONDIZIONI, CLAUSOLE_DI_PARTENZA, CONTROPARTE, DOVE_SI_USA, NOMI_AMBITI, testoDelModello, titoloGiaNelTesto,
   type AmbitoCondizioni, type Clausola, type ModelloCondizioni,
 } from "@/lib/condizioni/archivio";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import { htmlPerEditorContratto } from "@/lib/preventivi/contrattoEditor";
+import DOMPurify from "dompurify";
 import { cn } from "@/lib/utils";
+
+/**
+ * Il testo di una clausola può essere vecchio (Markdown importato) o nuovo (HTML dell'editor):
+ * all'editor e all'anteprima si dà sempre HTML, così si vede come esce davvero.
+ */
+const perVedere = (testo: string | null | undefined): string =>
+  DOMPurify.sanitize(htmlPerEditorContratto(String(testo ?? "")));
+
+/** L'anteprima del modello intero: le clausole una dopo l'altra, come sul documento. */
+function AnteprimaModello({ clausole }: { clausole: ReadonlyArray<Clausola> }) {
+  const buone = clausole.filter((c) => (c.titolo ?? "").trim() || (c.testo ?? "").trim());
+  if (buone.length === 0) return <p className="text-xs text-muted-foreground">Qui vedrai il testo come esce sul documento.</p>;
+  return (
+    <div className="space-y-3">
+      {buone.map((c, i) => {
+        const titolo = (c.titolo ?? "").trim();
+        const html = perVedere(c.testo);
+        // Il titolo non si ripete se il testo si apre già con quello (contratti importati interi).
+        const mostraTitolo = !!titolo && !titoloGiaNelTesto(titolo, String(c.testo ?? ""));
+        return (
+          <div key={i} className="space-y-1">
+            {mostraTitolo && <p className="text-xs font-semibold">{titolo}</p>}
+            <div className="prose prose-sm max-w-none text-xs leading-relaxed [&_h1]:text-sm [&_h2]:text-xs [&_p]:my-1"
+              dangerouslySetInnerHTML={{ __html: html }} />
+            {c.vessatoria && (
+              <p className="text-[11px] text-amber-700">Da approvare a parte (art. 1341 c.c.)</p>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 const NOMI_CONTROPARTE = {
   cliente: "Al cliente", fornitore: "Al fornitore", subappaltatore: "Al subappaltatore", dipendente: "Al dipendente",
@@ -97,6 +132,14 @@ export default function SettingsCondizioni() {
   const nuovo = (ambito: AmbitoCondizioni): void =>
     setModello({ nome: "", ambito, clausole: [], predefinito: !attivi.some((m) => m.ambito === ambito && m.predefinito) });
 
+  /**
+   * Aprire un modello in modifica (07/11/2026): i testi vecchi (Markdown importato) diventano HTML
+   * qui, una volta sola. Così l'editor mostra il contratto formattato e non i cancelletti, e dentro
+   * il dialogo non serve nessun effetto che riscrive lo stato.
+   */
+  const apriModello = (m: ModelloCondizioni): void =>
+    setModello({ ...m, clausole: (m.clausole ?? []).map((c) => ({ ...c, testo: perVedere(c.testo) })) });
+
   if (!archivio.disponibile) {
     return (
       <div className="p-4">
@@ -118,6 +161,22 @@ export default function SettingsCondizioni() {
           con cui è uscito.
         </span>
       </p>
+
+      {/* Florin: «non capisco la differenza tra modelli e clausole» (07/11/2026). Detta in due righe,
+          con l'esempio: la clausola è il mattone, il modello è il muro che esce sul documento. */}
+      {(scheda === "modelli" || scheda === "clausole") && (
+        <div className="grid gap-2 rounded-lg border bg-muted/20 p-3 sm:grid-cols-2">
+          <p className="text-xs leading-relaxed">
+            <span className="font-semibold text-foreground">Una clausola</span> è un pezzo di testo che riusi:
+            «Modalità di pagamento», «Garanzia sulle opere», «Foro competente». La scrivi una volta.
+          </p>
+          <p className="text-xs leading-relaxed">
+            <span className="font-semibold text-foreground">Un modello</span> è l'insieme di clausole, nell'ordine,
+            che esce su un tipo di documento. La stessa clausola può stare in più modelli: se la cambi lì, i modelli
+            che la usano non cambiano da soli — ognuno tiene la sua copia.
+          </p>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex rounded-lg border p-0.5" role="tablist" aria-label="Contratti e condizioni">
@@ -201,7 +260,7 @@ export default function SettingsCondizioni() {
 
                     {predefinito ? (
                       <RigaModello m={predefinito} puoGestire={puoGestire} predefinito
-                        onApri={() => setModello(predefinito)} onVedi={() => setAnteprima(predefinito)}
+                        onApri={() => apriModello(predefinito)} onVedi={() => setAnteprima(predefinito)}
                         onArchivia={() => archivio.eliminaModello.mutate(predefinito.id)} />
                     ) : (
                       <p className="mt-2 rounded-md border border-dashed px-2.5 py-2 text-xs text-muted-foreground">
@@ -214,7 +273,7 @@ export default function SettingsCondizioni() {
                         <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Altri modelli</p>
                         {altri.map((m) => (
                           <RigaModello key={m.id} m={m} puoGestire={puoGestire}
-                            onApri={() => setModello(m)} onVedi={() => setAnteprima(m)}
+                            onApri={() => apriModello(m)} onVedi={() => setAnteprima(m)}
                             onArchivia={() => archivio.eliminaModello.mutate(m.id)} />
                         ))}
                       </div>
@@ -363,7 +422,11 @@ function DialogAnteprima({ modello, onChiudi }: { modello: ModelloCondizioni | n
           <DialogTitle>{modello?.nome}</DialogTitle>
           <DialogDescription>Come esce sul documento, oggi. Versione {modello?.versione}.</DialogDescription>
         </DialogHeader>
-        <pre className="whitespace-pre-wrap rounded-md border bg-muted/30 p-3 text-xs leading-relaxed">{testoDelModello(modello) || "Il modello non ha ancora clausole."}</pre>
+        <div className="rounded-md border bg-muted/30 p-3">
+          {testoDelModello(modello)
+            ? <AnteprimaModello clausole={modello?.clausole ?? []} />
+            : <p className="text-xs text-muted-foreground">Il modello non ha ancora clausole.</p>}
+        </div>
         <DialogFooter><Button variant="outline" onClick={onChiudi}>Chiudi</Button></DialogFooter>
       </DialogContent>
     </Dialog>
@@ -394,8 +457,15 @@ function DialogClausola({ clausola, onChiudi, onSalva }: {
               <div className="space-y-1"><Label htmlFor="cl-categoria">Categoria</Label>
                 <Input id="cl-categoria" value={attiva.categoria ?? ""} onChange={(e) => setBozza({ ...bozza, categoria: e.target.value })} placeholder="Pagamenti" /></div>
             </div>
-            <div className="space-y-1"><Label htmlFor="cl-testo">Testo</Label>
-              <Textarea id="cl-testo" rows={7} value={attiva.testo ?? ""} onChange={(e) => setBozza({ ...bozza, testo: e.target.value })} /></div>
+            <div className="space-y-1">
+              <Label>Testo</Label>
+              {/* L'editor vero (07/11/2026): grassetto, corsivo, dimensione e carattere, elenchi. */}
+              {/* Finché non si scrive, si mostra il testo di prima convertito; poi vale quello dell'editor,
+                  identico a quello che l'editor ha appena emesso (altrimenti il cursore salterebbe). */}
+              <RichTextEditor value={bozza.testo ?? perVedere(clausola?.testo)} minHeight={200}
+                placeholder="Scrivi qui la clausola, come la vuoi sul documento."
+                onChange={(html) => setBozza({ ...bozza, testo: html })} />
+            </div>
             <label className="flex items-center gap-2 text-sm">
               <Switch checked={!!attiva.vessatoria} onCheckedChange={(v) => setBozza({ ...bozza, vessatoria: v })} />
               Il cliente la approva a parte (clausola vessatoria, art. 1341 c.c.)
@@ -433,7 +503,7 @@ function DialogModello({ modello, clausole, onChiudi, onSalva }: {
   };
   return (
     <Dialog open={!!modello} onOpenChange={(o) => { if (!o) chiudi(); }}>
-      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-2xl lg:max-w-5xl">
         <DialogHeader>
           <DialogTitle>{modello?.id ? `Modifica «${modello.nome}»` : "Nuovo modello"}</DialogTitle>
           <DialogDescription>
@@ -458,14 +528,14 @@ function DialogModello({ modello, clausole, onChiudi, onSalva }: {
               È il modello che il sistema prende da solo per questo tipo di documento
             </label>
 
+            {/* A sinistra si scrive, a destra si vede come esce: senza aprire niente (07/11/2026). */}
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-medium">Clausole del modello {dentro.length > 0 && <span className="text-muted-foreground">({dentro.length})</span>}</p>
-                {dentro.length > 0 && (
-                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setVedi((v) => !v)}>
-                    <Eye className="mr-1 h-3.5 w-3.5" />{vedi ? "Nascondi l'anteprima" : "Vedi come esce"}
-                  </Button>
-                )}
+                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs lg:hidden" onClick={() => setVedi((v) => !v)}>
+                  <Eye className="mr-1 h-3.5 w-3.5" />{vedi ? "Nascondi" : "Come esce"}
+                </Button>
               </div>
               {dentro.length === 0 && <p className="text-xs text-muted-foreground">Ancora nessuna: aggiungine dalla libreria o scrivine una qui.</p>}
               {dentro.map((c, i) => (
@@ -476,7 +546,9 @@ function DialogModello({ modello, clausole, onChiudi, onSalva }: {
                   </div>
                   <div className="min-w-0 flex-1 space-y-1">
                     <Input aria-label={`Titolo della clausola ${i + 1}`} value={c.titolo} onChange={(e) => cambia(dentro.map((x, j) => j === i ? { ...x, titolo: e.target.value } : x))} />
-                    <Textarea aria-label={`Testo della clausola ${i + 1}`} rows={3} value={c.testo} onChange={(e) => cambia(dentro.map((x, j) => j === i ? { ...x, testo: e.target.value } : x))} />
+                    <RichTextEditor value={c.testo} minHeight={120}
+                      placeholder="Il testo di questa clausola."
+                      onChange={(html) => cambia(dentro.map((x, j) => j === i ? { ...x, testo: html } : x))} />
                     <label className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Switch checked={!!c.vessatoria} onCheckedChange={(v) => cambia(dentro.map((x, j) => j === i ? { ...x, vessatoria: v } : x))} />
                       Da approvare a parte
@@ -503,9 +575,15 @@ function DialogModello({ modello, clausole, onChiudi, onSalva }: {
               </div>
             </div>
 
-            {vedi && dentro.length > 0 && (
-              <pre className="whitespace-pre-wrap rounded-md border bg-muted/30 p-3 text-xs leading-relaxed">{testoDelModello({ clausole: dentro })}</pre>
-            )}
+            <aside className={cn("rounded-lg border bg-muted/20 p-3", vedi ? "" : "hidden lg:block")}>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Come esce sul documento
+              </p>
+              <div className="max-h-[50dvh] overflow-y-auto">
+                <AnteprimaModello clausole={dentro} />
+              </div>
+            </aside>
+            </div>
           </div>
         )}
         <DialogFooter>

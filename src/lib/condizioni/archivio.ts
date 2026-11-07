@@ -107,7 +107,7 @@ const senzaFronzoli = (v: string): string =>
  * «Termini legali» e il testo si apre con «# Termini legali». Stamparli tutti e due è una svista
  * che il cliente vede, quindi in quel caso il titolo non si scrive.
  */
-function titoloGiaNelTesto(titolo: string, testo: string): boolean {
+export function titoloGiaNelTesto(titolo: string, testo: string): boolean {
   const primaRiga = testo.split("\n").find((r) => haParole(r)) ?? "";
   return senzaFronzoli(primaRiga) === senzaFronzoli(titolo);
 }
