@@ -8,6 +8,7 @@
  * Finché le tabelle non esistono (migrazioni 20281219100000 e 20281219110000) la lettura non rompe niente
  * e la sezione resta vuota.
  */
+import { dimenticaArchivioLetto } from "@/lib/condizioni/archivioNelModello";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -39,6 +40,8 @@ export function useCondizioniArchivio() {
   const aggiorna = (): void => {
     void qc.invalidateQueries({ queryKey: CHIAVE_CLAUSOLE(azienda) });
     void qc.invalidateQueries({ queryKey: CHIAVE_MODELLI(azienda) });
+    // Il PDF dei preventivi aperti rilegge l'archivio al prossimo giro, senza aspettare il minuto.
+    dimenticaArchivioLetto();
   };
   const errore = (e: unknown): void => { toast.error(e instanceof Error && e.message ? e.message : "Non salvato: riprova."); };
 

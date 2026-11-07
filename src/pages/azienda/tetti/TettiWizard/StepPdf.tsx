@@ -18,13 +18,12 @@ import { perLaFirma } from "@/lib/preventivi/condizioniDelPreventivo";
  * derivano da `useMemo`, la company da react-query.
  */
 import { useMemo, useState } from "react";
+import { OPZIONI_PDF_DI_SERIE, opzioniEffettive, useAziendaDelPdf, type OpzioniPdfComputo } from "@/lib/preventivatore/datiPdfEdile";
 import { nomeCointestatario } from "@/lib/preventivatore/cointestatario";
-import { useQuery } from "@tanstack/react-query";
 import {
   FileText, Download, Eye, Loader2, Check, AlertCircle, AlertTriangle,
   ClipboardList, Settings2,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -37,7 +36,7 @@ import {
 } from "@/hooks/useTettiProgetto";
 import {
   useTettiPDF,
-  type TetPdfCompany, renderTetPreviewBlobUrl } from "@/hooks/useTettiPDF";
+  renderTetPreviewBlobUrl } from "@/hooks/useTettiPDF";
 import type { TetProgetto, TetComputoVoce, TetProgettoMedia } from "@/types/tetti";
 import { InviaFirmaCard } from "@/components/moduli/InviaFirmaCard";
 import { CondizioniDelPreventivoCard } from "@/components/moduli/CondizioniDelPreventivoCard";
@@ -54,6 +53,9 @@ interface Props {
   onVaiAlPasso?: (passo: PassoDaCompletare) => void;
   /** Scrive sul preventivo la scelta sulle condizioni contrattuali. */
   onCondizioni?: (patch: { condizioni_nel_pdf?: boolean | null; condizioni_testo?: string | null }) => void;
+  /** «Come mostrare il computo nel PDF»: le tiene il wizard, perché le usa anche il PDF vero a destra. */
+  opzioniPdf?: OpzioniPdfComputo;
+  onOpzioniPdf?: (o: OpzioniPdfComputo) => void;
 }
 
 type PassoDaCompletare = "cliente" | "immobile" | "computo";
@@ -64,7 +66,7 @@ interface ChecklistItem {
   hint?: string;
 }
 
-export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlPasso, onCondizioni }: Props) {
+export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlPasso, onCondizioni, opzioniPdf, onOpzioniPdf }: Props) {
   const isMobile = useIsMobile();
   const companyId = useEffectiveCompanyId();
   const { data: templateAzienda } = useTetTemplatePdf();
@@ -73,49 +75,24 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
   const { downloadPDF, previewPDF, isGenerating } = useTettiPDF();
 
   // Come mostrare il computo nel PDF — scelta PER QUESTO PREVENTIVO (non template).
-  const [computoLivello, setComputoLivello] = useState<"dettagliato" | "sintetico" | "corpo">("dettagliato");
-  const [mostraPrezzi, setMostraPrezzi] = useState(true);
-  const [mostraQta, setMostraQta] = useState(true);
-  const [mostraSubtotali, setMostraSubtotali] = useState(true);
+  // Senza il wizard (le prove) le tiene il passo stesso.
+  const [opzioniLocali, setOpzioniLocali] = useState<OpzioniPdfComputo>(OPZIONI_PDF_DI_SERIE);
+  const opzioni = opzioniPdf ?? opzioniLocali;
+  const cambiaOpzioni = (patch: Partial<OpzioniPdfComputo>) => (onOpzioniPdf ?? setOpzioniLocali)({ ...opzioni, ...patch });
+  const computoLivello = opzioni.livello;
+  const setComputoLivello = (livello: OpzioniPdfComputo["livello"]) => cambiaOpzioni({ livello });
+  const mostraPrezzi = opzioni.mostraPrezzi;
+  const setMostraPrezzi = (v: boolean) => cambiaOpzioni({ mostraPrezzi: v });
+  const mostraQta = opzioni.mostraQta;
+  const setMostraQta = (v: boolean) => cambiaOpzioni({ mostraQta: v });
+  const mostraSubtotali = opzioni.mostraSubtotali;
+  const setMostraSubtotali = (v: boolean) => cambiaOpzioni({ mostraSubtotali: v });
   const soloDettaglio = computoLivello === "dettagliato"; // i toggle colonne hanno senso solo qui
 
   // Company per intestazione/contatti del PDF (best-effort; l'hook ha comunque
   // un fallback che la rilegge se non la passiamo).
-  const { data: company } = useQuery<TetPdfCompany | null>({
-    queryKey: ["tet-step-pdf-company", companyId],
-    enabled: !!companyId,
-    staleTime: 5 * 60 * 1000,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("companies")
-        .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, website, logo_url, brand_primary_color, brand_logo_dark_url")
-        .eq("id", companyId!)
-        .maybeSingle();
-      if (error) throw new Error(error.message);
-      if (!data) return null;
-      const indirizzo = [
-        data.legal_address,
-        [data.legal_postal_code, data.legal_city].filter(Boolean).join(" "),
-        data.legal_province,
-      ].filter(Boolean).join(", ");
-      return {
-        name: data.name,
-        ragione_sociale: data.business_name ?? data.name,
-        indirizzo: indirizzo || null,
-        telefono: data.phone,
-        email: data.email,
-        partita_iva: data.vat_number,
-        // `website` può non esistere su companies: cast difensivo.
-        website: (data as Record<string, unknown>).website as string | null ?? null,
-        logo_url: data.logo_url,
-        // Il kit del marchio: il colore vale quando il modello è rimasto a quello di
-        // fabbrica, il logo chiaro va sulla copertina scura. Fino al 22/09/2026 da qui
-        // non arrivavano, e il preventivo scaricato dal preventivatore li ignorava.
-        colore_marca: data.brand_primary_color ?? null,
-        logo_chiaro_url: data.brand_logo_dark_url ?? null,
-      };
-    },
-  });
+  // Una lettura per azienda, condivisa col PDF vero a destra del wizard.
+  const { data: company } = useAziendaDelPdf(companyId);
 
   const totali = useMemo(
     () =>
@@ -190,12 +167,7 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
 
   const payload = {
     progetto, computo, media, template: template ?? null, company: company ?? null,
-    pdfOptions: {
-      livello: computoLivello,
-      mostraPrezzi: soloDettaglio ? mostraPrezzi : true,
-      mostraQta: soloDettaglio ? mostraQta : true,
-      mostraSubtotali: soloDettaglio ? mostraSubtotali : true,
-    },
+    pdfOptions: opzioniEffettive(opzioni),
   };
   const handleDownload = () => { void downloadPDF(payload); };
   const handlePreview = () => { void previewPDF(payload); };

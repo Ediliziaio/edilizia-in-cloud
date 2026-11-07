@@ -16,6 +16,7 @@
  * supabase/functions/_shared/immaginiModelloPdf.ts.
  */
 
+import { registraMemoria } from "@/lib/memorieDaSvuotare";
 import { supabase } from "@/integrations/supabase/client";
 import { BUCKET_IMMAGINI_MODELLO } from "../../../supabase/functions/_shared/immaginiModelloPdf";
 
@@ -106,6 +107,18 @@ export async function linkFileRiservato(
 }
 
 /** Come sopra ma per un elenco: una sola chiamata per contenitore. */
+/**
+ * I link firmati già chiesti, per file e durata (07/11/2026). Il PDF vero a destra dei preventivatori si rifà a
+ * ogni modifica: senza questa memoria ogni giro chiedeva di nuovo la firma di tutte le foto del progetto, e con
+ * un link nuovo il browser riscaricava anche la foto. Un link si riusa finché gli resta almeno metà della durata.
+ */
+const FIRMATI = new Map<string, { url: string; scade: number }>();
+const FIRMATI_MAX = 500;
+
+/** Per le prove: si riparte senza link in memoria. */
+export function dimenticaLinkFirmati(): void { FIRMATI.clear(); }
+registraMemoria(dimenticaLinkFirmati);
+
 export async function linkFileRiservati(
   valori: (string | null | undefined)[],
   scadenzaSecondi = SCADENZA_PREDEFINITA,
@@ -123,12 +136,23 @@ export async function linkFileRiservati(
     perBucket.set(rif.bucket, lista);
   });
 
-  await Promise.all([...perBucket.entries()].map(async ([bucket, voci]) => {
+  const ora = Date.now();
+  await Promise.all([...perBucket.entries()].map(async ([bucket, tutte]) => {
+    const chiave = (path: string) => `${bucket}\u0000${path}\u0000${scadenzaSecondi}`;
+    const voci = tutte.filter((x) => {
+      const ricordato = FIRMATI.get(chiave(x.path));
+      if (ricordato && ricordato.scade - ora > (scadenzaSecondi * 1000) / 2) { esito[x.indice] = ricordato.url; return false; }
+      return true;
+    });
+    if (voci.length === 0) return;
     try {
       const { data, error } = await supabase.storage.from(bucket).createSignedUrls(voci.map((x) => x.path), scadenzaSecondi);
       if (error || !data) return;
       data.forEach((r, k) => {
-        if (r.signedUrl && voci[k]) esito[voci[k].indice] = r.signedUrl;
+        if (!r.signedUrl || !voci[k]) return;
+        esito[voci[k].indice] = r.signedUrl;
+        if (FIRMATI.size >= FIRMATI_MAX) FIRMATI.delete(FIRMATI.keys().next().value as string);
+        FIRMATI.set(chiave(voci[k].path), { url: r.signedUrl, scade: ora + scadenzaSecondi * 1000 });
       });
     } catch { /* restano gli indirizzi di partenza */ }
   }));

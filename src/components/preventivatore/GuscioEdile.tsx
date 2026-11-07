@@ -4,8 +4,9 @@
  * fisso. Il modulo tiene il suo stato e i suoi passi (`children`); qui sta solo
  * ciò che è uguale per tutti, come nel Fotovoltaico e in Serramenti.
  *
- * - L'anteprima è `AnteprimaVeloce` sui dati di `anteprimaComputo`. La vista
- *   «Impresa» (costi e margine) c'è solo per chi ha il permesso di vederli.
+ * - A destra, di serie, il PDF vero (`pdfVero`, dal 07/11/2026): le pagine che riceve il cliente.
+ *   «Anteprima» resta come seconda scelta: `AnteprimaVeloce` sui dati di `anteprimaComputo`, con la vista
+ *   «Impresa» (costi e margine) per chi ha il permesso di vederli.
  * - Sotto i 1280 px non c'è la colonna: il totale sta nel piede e apre l'anteprima
  *   dal basso. Sopra, la colonna si può nascondere (la scelta resta).
  * - Perché la barra e il piede restino fermi la rotta deve avere l'altezza
@@ -27,6 +28,7 @@ import { PannelloAnteprima } from "./PannelloAnteprima";
 import { PiedePreventivatore, StatoDelSalvataggio, type StatoSalvataggio } from "./PiedePreventivatore";
 import { RISERVA_BARRA_INVIO_TELEFONO, STICKY_ALTO } from "./posizione";
 import { useAnteprimaNascosta } from "./useAnteprimaNascosta";
+import { useColonnaAnteprimaVisibile, useModalitaAnteprima } from "./useModalitaAnteprima";
 
 export interface TestataGuscioEdile {
   icona: ComponentType<{ className?: string }>;
@@ -68,24 +70,36 @@ interface Props {
   /** Sopra la barra delle fasi: l'avviso del modello, per esempio. */
   sopra?: ReactNode;
   ariaLabelFasi?: string;
+  /**
+   * Il PDF vero del preventivo (`PdfVeroEdile`), solo quando il preventivo è salvato. `attivo` dice se si
+   * vede davvero: a colonna chiusa, o sotto i 1280 px senza il pannello aperto, non si prepara niente.
+   */
+  pdfVero?: (attivo: boolean) => ReactNode;
   /** Il passo corrente (e i suoi eventuali ErrorBoundary). */
   children: ReactNode;
 }
 
 export function GuscioEdile({
   testata, passi, corrente, completati, conAvviso, bloccati, onSelect, anteprima,
-  statoSalvataggio, testoSalvataggio, piede, sopra, ariaLabelFasi, children,
+  statoSalvataggio, testoSalvataggio, piede, sopra, ariaLabelFasi, pdfVero, children,
 }: Props) {
   const permessi = usePermissions();
   const puoVedereImpresa = permessi.canViewMargins || permessi.canViewCosts;
   const [vista, setVista] = useState<VistaAnteprima>("cliente");
   const [nascosta, impostaNascosta] = useAnteprimaNascosta();
   const [mobileAperta, setMobileAperta] = useState(false);
+  const [modalita, impostaModalita] = useModalitaAnteprima();
+  const colonnaVisibile = useColonnaAnteprimaVisibile();
+  const conPdf = !!pdfVero && modalita === "pdf";
 
   const vistaImpresa = puoVedereImpresa && vista === "impresa";
   const vistaEffettiva: VistaAnteprima = vistaImpresa ? "impresa" : "cliente";
   const totaleTesto = anteprima.totaleDocumento != null ? formattaEuro(anteprima.totaleDocumento, 2) : null;
-  const nota = "Bozza visiva: voci, totali e cliente sono quelli del preventivo. Il documento definitivo è al passo PDF.";
+  const nota = conPdf
+    ? "Il documento vero, come lo riceve il cliente: si rifà da solo poco dopo ogni modifica."
+    : pdfVero
+      ? "Bozza visiva: voci, totali e cliente sono quelli del preventivo. Il documento vero è in «PDF vero»."
+      : "Bozza visiva: voci, totali e cliente sono quelli del preventivo. Il PDF vero compare qui appena il preventivo è salvato.";
   const Icona = testata.icona;
 
   // Cambiando fase si riparte dall'alto: il contenitore che scorre è <main>, non la finestra.
@@ -181,13 +195,16 @@ export function GuscioEdile({
         anteprimaNascosta={nascosta}
         anteprima={
           <PannelloAnteprima
+            modalita={conPdf ? "pdf" : "veloce"}
+            onModalita={impostaModalita}
+            pdfDisponibile={!!pdfVero}
             vista={vista}
             onVista={setVista}
             puoVedereImpresa={puoVedereImpresa}
             onNascondi={() => impostaNascosta(true)}
             nota={nota}
           >
-            <AnteprimaVeloce dati={anteprima} vista={vistaEffettiva} />
+            {conPdf ? pdfVero!(colonnaVisibile && !nascosta) : <AnteprimaVeloce dati={anteprima} vista={vistaEffettiva} />}
           </PannelloAnteprima>
         }
       >
@@ -221,8 +238,9 @@ export function GuscioEdile({
 
       {/* Sotto i 1280 px non c'è la colonna: l'anteprima sale dal basso. */}
       <AnteprimaMobile aperta={mobileAperta} onApertaChange={setMobileAperta}>
-        <PannelloAnteprima vista={vista} onVista={setVista} puoVedereImpresa={puoVedereImpresa} nota={nota}>
-          <AnteprimaVeloce dati={anteprima} vista={vistaEffettiva} />
+        <PannelloAnteprima modalita={conPdf ? "pdf" : "veloce"} onModalita={impostaModalita} pdfDisponibile={!!pdfVero}
+          vista={vista} onVista={setVista} puoVedereImpresa={puoVedereImpresa} nota={nota}>
+          {conPdf ? pdfVero!(mobileAperta && !colonnaVisibile) : <AnteprimaVeloce dati={anteprima} vista={vistaEffettiva} />}
         </PannelloAnteprima>
       </AnteprimaMobile>
     </div>

@@ -164,7 +164,8 @@ describe("Serramenti nel guscio comune", () => {
     await screen.findByRole("navigation", { name: "Fasi del preventivo" });
     fireEvent.click(within(anteprima()).getByRole("button", { name: "PDF vero" }));
     await waitFor(() => expect(within(anteprima()).getByText("PDF vero segnaposto")).toBeTruthy());
-    expect(localStorage.getItem("sr_pannello_pdf_live")).toBe("1");
+    // Dal 07/11/2026 la scelta è una sola per tutti i preventivatori.
+    expect(localStorage.getItem("preventivatore_anteprima_modalita")).toBe("pdf");
   });
 
   it("l'anteprima si nasconde e si riapre dalla barra; la scelta resta", async () => {

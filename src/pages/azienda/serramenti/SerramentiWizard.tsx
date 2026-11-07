@@ -31,6 +31,7 @@ import { useIsMutating, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSerramentoPDF } from "@/hooks/useSerramentoPDF";
 import { useTemplatePdf, useAziendaPerPdf } from "@/lib/serramenti/queries";
+import { useColonnaAnteprimaVisibile, useModalitaAnteprima } from "@/components/preventivatore/useModalitaAnteprima";
 import { AnteprimaPdfLive } from "@/components/serramenti/AnteprimaPdfLive";
 import { Eye, ChevronDown, Copy, GitBranch } from "lucide-react";
 import { STATI_LABEL, TRANSIZIONI_STATO } from "@/lib/serramenti/statoLabels";
@@ -170,13 +171,12 @@ export default function SerramentiWizard() {
   const { data: pdfCompany } = useAziendaPerPdf(detail?.progetto.company_id);
 
   // Il pannello a destra: la scheda dei dati o il PDF in tempo reale (la scelta resta per la prossima volta).
-  const [pdfLive, setPdfLive] = useState<boolean>(() => {
-    try { return localStorage.getItem("sr_pannello_pdf_live") === "1"; } catch { return false; }
-  });
-  const impostaPdfLive = (v: boolean) => {
-    setPdfLive(v);
-    try { localStorage.setItem("sr_pannello_pdf_live", v ? "1" : "0"); } catch { /* senza memoria resta valido per questa visita */ }
-  };
+  // Dal 07/11/2026 di serie è il PDF vero, e la scelta è la stessa in tutti i preventivatori.
+  const [modalitaPannello, impostaModalitaPannello] = useModalitaAnteprima();
+  const pdfLive = modalitaPannello === "pdf";
+  // Sotto i 1280 px la colonna non c'è: lì il PDF non si prepara.
+  const colonnaVisibile = useColonnaAnteprimaVisibile();
+  const impostaPdfLive = (v: boolean) => impostaModalitaPannello(v ? "pdf" : "veloce");
 
   // PDF anteprima è disponibile solo se il preventivo è salvato (ha id) e
   // ha almeno 1 serramento o accessorio nel BOM (altrimenti PDF vuoto).
@@ -1061,7 +1061,7 @@ export default function SerramentiWizard() {
           >
             {pdfLive && !isNew && detail ? (
               <AnteprimaPdfLive
-                attivo
+                attivo={colonnaVisibile && !anteprimaNascosta}
                 payload={{
                   detail: { ...detail, progetto: { ...detail.progetto, ...form } as SrProgettoRow },
                   template: pdfTemplate ?? null,

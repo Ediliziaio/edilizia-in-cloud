@@ -29,6 +29,7 @@
  * esportabile (canvas "tainted" da CORS) — lì react-pdf ha una chance concreta
  * di farcela con la sua richiesta, e il timeout a valle ci copre comunque.
  */
+import { registraMemoria } from "@/lib/memorieDaSvuotare";
 const IMAGE_LOAD_TIMEOUT_MS = 12_000;
 
 /** C'è almeno un pixel non del tutto opaco? `pixel` è RGBA, come ImageData.data. */
@@ -61,10 +62,34 @@ export function inScalaDiGrigi(pixel: Uint8ClampedArray | number[]): void {
   }
 }
 
+/**
+ * Le immagini già convertite, per indirizzo e opzioni (07/11/2026): il PDF vero a destra dei preventivatori si
+ * rifà a ogni modifica, e senza memoria ogni giro riscaricava e ridisegnava logo, foto e immagini del modello.
+ * Solo le riuscite; tetto alle voci, perché un'immagine grande pesa qualche centinaio di kB.
+ */
+const CONVERTITE = new Map<string, string>();
+const CONVERTITE_MAX = 60;
+
+/** Per le prove: si riparte senza immagini in memoria. */
+export function dimenticaImmaginiConvertite(): void { CONVERTITE.clear(); }
+registraMemoria(dimenticaImmaginiConvertite);
+
 export async function toDataUrl(url: string | null | undefined, opzioni: OpzioniImmaginePdf = {}): Promise<string | null> {
   if (!url) return null;
   if (url.startsWith("data:") && !opzioni.scalaDiGrigi) return url;
   if (typeof globalThis.Image !== "function" || typeof document === "undefined") return url;
+  const chiave = `${url}\u0000${JSON.stringify(opzioni)}`;
+  const giaFatta = CONVERTITE.get(chiave);
+  if (giaFatta) return giaFatta;
+  const fatta = await convertiInDataUrl(url, opzioni);
+  if (fatta && fatta.startsWith("data:")) {
+    if (CONVERTITE.size >= CONVERTITE_MAX) CONVERTITE.delete(CONVERTITE.keys().next().value as string);
+    CONVERTITE.set(chiave, fatta);
+  }
+  return fatta;
+}
+
+function convertiInDataUrl(url: string, opzioni: OpzioniImmaginePdf): Promise<string | null> {
   return new Promise<string | null>((resolve) => {
     let settled = false;
     const img = new globalThis.Image();

@@ -43,6 +43,9 @@ import type { BgnComputoVoce, BgnProgetto } from "@/types/bagni";
 import { ModelloDelPreventivo } from "@/components/preventivatore/ModelloDelPreventivo";
 import { CopiaConAltroModello } from "@/components/preventivatore/CopiaConAltroModello";
 import { GuscioEdile, type StatoSalvataggio } from "@/components/preventivatore";
+import { PdfVeroEdile } from "@/components/preventivatore/PdfVeroEdile";
+import { OPZIONI_PDF_DI_SERIE, type OpzioniPdfComputo } from "@/lib/preventivatore/datiPdfEdile";
+import { renderBgnPreviewBlobUrl } from "@/hooks/useBagniPDF";
 import { anteprimaComputo } from "@/lib/preventivatore/anteprimaComputo";
 import { RITENTA_SALVATAGGIO_DOPO_MS } from "@/lib/moduli/salvataggioProgetto";
 import { avvisaSalvataggioFallito, motivoSalvataggioNonRiuscito, type OpzioniAvviso } from "@/lib/preventivatore/salvataggioFallito";
@@ -337,6 +340,8 @@ export default function BagniWizard() {
   const completion = stepCompletion(model ? { ...form, tipo_intervento: null } : form, vociAnteprima);
 
   const { data: templatePdf } = useBgnTemplatePdf();
+  // «Come mostrare il computo nel PDF»: le usano il passo PDF e il PDF vero a destra, quindi stanno qui.
+  const [opzioniPdf, setOpzioniPdf] = useState<OpzioniPdfComputo>(OPZIONI_PDF_DI_SERIE);
   const datiAnteprima = useMemo(
     () => anteprimaComputo(vociAnteprima, { ...(detail?.progetto ?? {}), ...form }, calcoliBgn, {
       emittente: templatePdf?.ragione_sociale ?? effectiveCompany?.name ?? null,
@@ -534,6 +539,10 @@ export default function BagniWizard() {
         bloccati={new Set<string>(isNew ? BGN_WIZARD_STEPS.slice(1).map((s) => s.key) : [])}
         onSelect={(key) => void handleStepClick(key as BgnWizardStepKey)}
         anteprima={datiAnteprima}
+        pdfVero={id && detail ? (attivo) => (
+          <PdfVeroEdile attivo={attivo} progetto={{ ...detail.progetto, ...form }} computo={computoLive ?? detail.computo}
+            media={detail.media} templateAzienda={templatePdf} opzioni={opzioniPdf} disegna={renderBgnPreviewBlobUrl} />
+        ) : undefined}
         statoSalvataggio={statoSalvataggio}
         testoSalvataggio={savedLabel}
         ariaLabelFasi="Fasi del preventivo bagni"
@@ -617,6 +626,8 @@ export default function BagniWizard() {
             progetto={{ ...detail.progetto, ...form }}
             computo={computoLive ?? detail.computo}
             media={detail.media}
+            opzioniPdf={opzioniPdf}
+            onOpzioniPdf={setOpzioniPdf}
             onIndietro={handleBack}
             onVaiAlPasso={(passo) => void handleStepClick(passo)}
             onCondizioni={(patch) => { for (const [k, v] of Object.entries(patch)) onChange(k as keyof typeof form, v as never); }}
