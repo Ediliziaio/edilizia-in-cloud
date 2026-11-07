@@ -126,9 +126,15 @@ describe("la funzione e la scrittura", () => {
     expect(funzione).toContain('"email_esiti_elastic_rimborsi_dal"');
   });
 
-  it("il cursore avanza solo se la pagina è stata scritta", () => {
+  it("il cursore avanza solo se la pagina è stata scritta, e si salva pagina per pagina", () => {
     expect(funzione).toContain('if (error) { errore = `email_esiti_registra: ${error.message}`; break; }');
-    expect(funzione).toContain("if (!errore && ultimoCursore && ultimoCursore !== cursore)");
+    const ciclo = funzione.slice(funzione.indexOf("for (let p = 0;"), funzione.indexOf("if (errore) console.error"));
+    // Il salvataggio del cursore sta DENTRO il ciclo, dopo la scrittura della pagina.
+    expect(ciclo.indexOf("CHIAVE_CURSORE")).toBeGreaterThan(ciclo.indexOf('admin.rpc("email_esiti_registra"'));
+  });
+
+  it("il riepilogo somma tutte le pagine, non solo l'ultima", () => {
+    expect(funzione).toContain("totale.scritti[k] = (totale.scritti[k] ?? 0) + (Number(v) || 0);");
   });
 
   it("la funzione SQL è chiusa: solo service role", () => {

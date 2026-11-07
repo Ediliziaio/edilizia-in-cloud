@@ -105,7 +105,7 @@ serveConMetricheRapida("elastic-email-esiti", async (req) => {
 
   const da = inizioFinestra(cursore, new Date(adesso.getTime() - STORICO_GIORNI * 24 * 3600_000));
   const inizio = Date.now();
-  const totale = { letti: 0, esiti: {} as Record<string, number>, scritti: {} as Record<string, unknown>, rimborsi: 0, pagine: 0 };
+  const totale = { letti: 0, esiti: {} as Record<string, number>, scritti: {} as Record<string, number>, rimborsi: 0, pagine: 0 };
   let ultimoCursore = cursore;
   let errore: string | null = null;
 
@@ -124,7 +124,9 @@ serveConMetricheRapida("elastic-email-esiti", async (req) => {
     if (esiti.length > 0) {
       const { data, error } = await admin.rpc("email_esiti_registra", { p_esiti: esiti });
       if (error) { errore = `email_esiti_registra: ${error.message}`; break; }
-      totale.scritti = data ?? {};
+      for (const [k, v] of Object.entries((data ?? {}) as Record<string, number>)) {
+        totale.scritti[k] = (totale.scritti[k] ?? 0) + (Number(v) || 0);
+      }
 
       // Rimborso del credito sui rimbalzi definitivi, solo da rimborsi_dal.
       for (const e of esiti) {
@@ -135,14 +137,17 @@ serveConMetricheRapida("elastic-email-esiti", async (req) => {
         if (!errRimborso) totale.rimborsi++;
       }
     }
-    // Il cursore avanza solo dopo che la pagina è stata scritta.
-    ultimoCursore = nuovoCursore(esiti, ultimoCursore);
+    // Il cursore avanza solo dopo che la pagina è stata scritta, e si salva
+    // subito: un giro interrotto a metà riparte da qui, non da capo.
+    const avanzato = nuovoCursore(esiti, ultimoCursore);
+    if (avanzato && avanzato !== ultimoCursore) {
+      await admin.from("platform_settings").upsert({ key: CHIAVE_CURSORE, value: avanzato }, { onConflict: "key" });
+      ultimoCursore = avanzato;
+    }
     if (eventi.length < PER_PAGINA) break;
   }
 
-  if (!errore && ultimoCursore && ultimoCursore !== cursore) {
-    await admin.from("platform_settings").upsert({ key: CHIAVE_CURSORE, value: ultimoCursore }, { onConflict: "key" });
-  } else if (!errore && !cursore) {
+  if (!errore && !ultimoCursore) {
     // Nessun evento nello storico: si parte da adesso, per non rileggerlo ogni volta.
     await admin.from("platform_settings").upsert({ key: CHIAVE_CURSORE, value: adesso.toISOString() }, { onConflict: "key" });
   }
