@@ -32,7 +32,7 @@ import PavStep from '@/pages/azienda/pavimenti/PavimentiWizard/StepPdf';
 vi.mock('@/hooks/usePavimentiProgetto',()=>({useEffectiveCompanyId:()=> 'azienda',usePavTemplatePdf:()=>({data:{cover_title:'Titolo aziendale corrente',usp:[] as never[],chi_siamo:''}})}));
 vi.mock('@/hooks/usePavimentiPDF',()=>({usePavimentiPDF:()=>({downloadPDF:vi.fn(),previewPDF:vi.fn(),isGenerating:false}),renderPavPreviewBlobUrl:vi.fn()}));
 describe('Anteprima ristrutturazione',()=>{
- const snapshot={version:1,modulo:'ristrutturazione',companyId:'azienda',modelId:'pergola-bioclimatica',capturedAt:'2026-11-04T07:56:00Z',template:{company_id:'azienda',pdf_blocchi:{modulo_intervento:'pergola-bioclimatica'},pdf_cover_hero:'Titolo congelato del cliente',cover_title:'Titolo precedente',pdf_ordine_capitoli:['copertina'],usp:[]}};
+ const snapshot={version:1,modulo:'ristrutturazione',companyId:'azienda',modelId:'pergola-bioclimatica',capturedAt:'2026-11-04T07:56:00Z',template:{company_id:'azienda',pdf_blocchi:{modulo_intervento:'pergola-bioclimatica'},pdf_cover_hero:'Titolo congelato del cliente',cover_title:'Titolo precedente',pdf_ordine_capitoli:['copertina'],usp:[] as never[]}};
  const progetto=(modello_snapshot:unknown)=>({company_id:'azienda',cliente_nome:'Demo',cliente_cognome:'Cliente',modello_snapshot} as unknown as ComponentProps<typeof RstStep>['progetto']);
  it('usa il modello congelato anche con aziendale differente',()=>{
   render(<RstStep progetto={progetto(snapshot)} computo={[]} media={[]}/>);
@@ -49,7 +49,7 @@ describe('Anteprima ristrutturazione',()=>{
  });
 });
 describe('Anteprima bagni',()=>{
- const snapshot={version:1,modulo:'bagni',companyId:'azienda',modelId:'completo',capturedAt:'2026-11-04T07:56:00Z',template:{company_id:'azienda',pdf_blocchi:{modulo_intervento:'completo'},pdf_cover_hero:'Titolo congelato del cliente',cover_title:'Titolo precedente',pdf_ordine_capitoli:['copertina'],usp:[]}};
+ const snapshot={version:1,modulo:'bagni',companyId:'azienda',modelId:'completo',capturedAt:'2026-11-04T07:56:00Z',template:{company_id:'azienda',pdf_blocchi:{modulo_intervento:'completo'},pdf_cover_hero:'Titolo congelato del cliente',cover_title:'Titolo precedente',pdf_ordine_capitoli:['copertina'],usp:[] as never[]}};
  const progetto=(modello_snapshot:unknown)=>({company_id:'azienda',cliente_nome:'Demo',cliente_cognome:'Cliente',modello_snapshot} as unknown as ComponentProps<typeof BgnStep>['progetto']);
  it('usa il modello congelato anche con aziendale differente',()=>{
   render(<BgnStep progetto={progetto(snapshot)} computo={[]} media={[]}/>);
@@ -66,7 +66,7 @@ describe('Anteprima bagni',()=>{
  });
 });
 describe('Anteprima climatizzazione',()=>{
- const snapshot={version:1,modulo:'climatizzazione',companyId:'azienda',modelId:'monosplit',capturedAt:'2026-11-04T07:56:00Z',template:{company_id:'azienda',pdf_blocchi:{modulo_intervento:'monosplit'},pdf_cover_hero:'Titolo congelato del cliente',cover_title:'Titolo precedente',pdf_ordine_capitoli:['copertina'],usp:[]}};
+ const snapshot={version:1,modulo:'climatizzazione',companyId:'azienda',modelId:'monosplit',capturedAt:'2026-11-04T07:56:00Z',template:{company_id:'azienda',pdf_blocchi:{modulo_intervento:'monosplit'},pdf_cover_hero:'Titolo congelato del cliente',cover_title:'Titolo precedente',pdf_ordine_capitoli:['copertina'],usp:[] as never[]}};
  const progetto=(modello_snapshot:unknown)=>({company_id:'azienda',cliente_nome:'Demo',cliente_cognome:'Cliente',modello_snapshot} as unknown as ComponentProps<typeof ClmStep>['progetto']);
  it('usa il modello congelato anche con aziendale differente',()=>{
   render(<ClmStep progetto={progetto(snapshot)} computo={[]} media={[]}/>);
@@ -83,7 +83,7 @@ describe('Anteprima climatizzazione',()=>{
  });
 });
 describe('Anteprima elettrico',()=>{
- const snapshot={version:1,modulo:'elettrico',companyId:'azienda',modelId:'completo',capturedAt:'2026-11-04T07:56:00Z',template:{company_id:'azienda',pdf_blocchi:{modulo_intervento:'completo'},pdf_cover_hero:'Titolo congelato del cliente',cover_title:'Titolo precedente',pdf_ordine_capitoli:['copertina'],usp:[]}};
+ const snapshot={version:1,modulo:'elettrico',companyId:'azienda',modelId:'completo',capturedAt:'2026-11-04T07:56:00Z',template:{company_id:'azienda',pdf_blocchi:{modulo_intervento:'completo'},pdf_cover_hero:'Titolo congelato del cliente',cover_title:'Titolo precedente',pdf_ordine_capitoli:['copertina'],usp:[] as never[]}};
  const progetto=(modello_snapshot:unknown)=>({company_id:'azienda',cliente_nome:'Demo',cliente_cognome:'Cliente',modello_snapshot} as unknown as ComponentProps<typeof EleStep>['progetto']);
  it('usa il modello congelato anche con aziendale differente',()=>{
   render(<EleStep progetto={progetto(snapshot)} computo={[]} media={[]}/>);
@@ -100,7 +100,7 @@ describe('Anteprima elettrico',()=>{
  });
 });
 describe('Anteprima piscine',()=>{
- const snapshot={version:1,modulo:'piscine',companyId:'azienda',modelId:'nuova',capturedAt:'2026-11-04T07:56:00Z',template:{company_id:'azienda',pdf_blocchi:{modulo_intervento:'nuova'},pdf_cover_hero:'Titolo congelato del cliente',cover_title:'Titolo precedente',pdf_ordine_capitoli:['copertina'],usp:[]}};
+ const snapshot={version:1,modulo:'piscine',companyId:'azienda',modelId:'nuova',capturedAt:'2026-11-04T07:56:00Z',template:{company_id:'azienda',pdf_blocchi:{modulo_intervento:'nuova'},pdf_cover_hero:'Titolo congelato del cliente',cover_title:'Titolo precedente',pdf_ordine_capitoli:['copertina'],usp:[] as never[]}};
  const progetto=(modello_snapshot:unknown)=>({company_id:'azienda',cliente_nome:'Demo',cliente_cognome:'Cliente',modello_snapshot} as unknown as ComponentProps<typeof PisStep>['progetto']);
  it('usa il modello congelato anche con aziendale differente',()=>{
   render(<PisStep progetto={progetto(snapshot)} computo={[]} media={[]}/>);
@@ -117,7 +117,7 @@ describe('Anteprima piscine',()=>{
  });
 });
 describe('Anteprima termoidraulico',()=>{
- const snapshot={version:1,modulo:'termoidraulico',companyId:'azienda',modelId:'caldaia',capturedAt:'2026-11-04T07:56:00Z',template:{company_id:'azienda',pdf_blocchi:{modulo_intervento:'caldaia'},pdf_cover_hero:'Titolo congelato del cliente',cover_title:'Titolo precedente',pdf_ordine_capitoli:['copertina'],usp:[]}};
+ const snapshot={version:1,modulo:'termoidraulico',companyId:'azienda',modelId:'caldaia',capturedAt:'2026-11-04T07:56:00Z',template:{company_id:'azienda',pdf_blocchi:{modulo_intervento:'caldaia'},pdf_cover_hero:'Titolo congelato del cliente',cover_title:'Titolo precedente',pdf_ordine_capitoli:['copertina'],usp:[] as never[]}};
  const progetto=(modello_snapshot:unknown)=>({company_id:'azienda',cliente_nome:'Demo',cliente_cognome:'Cliente',modello_snapshot} as unknown as ComponentProps<typeof IdrStep>['progetto']);
  it('usa il modello congelato anche con aziendale differente',()=>{
   render(<IdrStep progetto={progetto(snapshot)} computo={[]} media={[]}/>);
@@ -134,7 +134,7 @@ describe('Anteprima termoidraulico',()=>{
  });
 });
 describe('Anteprima tetti',()=>{
- const snapshot={version:1,modulo:'tetti',companyId:'azienda',modelId:'rifacimento',capturedAt:'2026-11-04T07:56:00Z',template:{company_id:'azienda',pdf_blocchi:{modulo_intervento:'rifacimento'},pdf_cover_hero:'Titolo congelato del cliente',cover_title:'Titolo precedente',pdf_ordine_capitoli:['copertina'],usp:[]}};
+ const snapshot={version:1,modulo:'tetti',companyId:'azienda',modelId:'rifacimento',capturedAt:'2026-11-04T07:56:00Z',template:{company_id:'azienda',pdf_blocchi:{modulo_intervento:'rifacimento'},pdf_cover_hero:'Titolo congelato del cliente',cover_title:'Titolo precedente',pdf_ordine_capitoli:['copertina'],usp:[] as never[]}};
  const progetto=(modello_snapshot:unknown)=>({company_id:'azienda',cliente_nome:'Demo',cliente_cognome:'Cliente',modello_snapshot} as unknown as ComponentProps<typeof TetStep>['progetto']);
  it('usa il modello congelato anche con aziendale differente',()=>{
   render(<TetStep progetto={progetto(snapshot)} computo={[]} media={[]}/>);
@@ -151,7 +151,7 @@ describe('Anteprima tetti',()=>{
  });
 });
 describe('Anteprima pavimenti',()=>{
- const snapshot={version:1,modulo:'pavimenti',companyId:'azienda',modelId:'giardino',capturedAt:'2026-11-04T07:56:00Z',template:{company_id:'azienda',pdf_blocchi:{modulo_intervento:'giardino'},pdf_cover_hero:'Titolo congelato del cliente',cover_title:'Titolo precedente',pdf_ordine_capitoli:['copertina'],usp:[]}};
+ const snapshot={version:1,modulo:'pavimenti',companyId:'azienda',modelId:'giardino',capturedAt:'2026-11-04T07:56:00Z',template:{company_id:'azienda',pdf_blocchi:{modulo_intervento:'giardino'},pdf_cover_hero:'Titolo congelato del cliente',cover_title:'Titolo precedente',pdf_ordine_capitoli:['copertina'],usp:[] as never[]}};
  const progetto=(modello_snapshot:unknown)=>({company_id:'azienda',cliente_nome:'Demo',cliente_cognome:'Cliente',modello_snapshot} as unknown as ComponentProps<typeof PavStep>['progetto']);
  it('usa il modello congelato anche con aziendale differente',()=>{
   render(<PavStep progetto={progetto(snapshot)} computo={[]} media={[]}/>);
