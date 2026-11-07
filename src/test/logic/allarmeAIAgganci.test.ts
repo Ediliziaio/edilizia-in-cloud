@@ -48,6 +48,16 @@ describe("I punti in cui il provider risponde sono agganciati all'allarme", () =
     expect(s.match(/aiRouterComplete\(/g)?.length).toBe(4); // OCR delle pagine scansionate, lettura, chat sulla bozza e Silvio nel popup delle fasi
   });
 
+  it("la dettatura segnala dove Whisper risponde male o non risponde, e pulisce solo dal router", () => {
+    const s = sorgente("supabase/functions/detta-testo/index.ts");
+    expect(s).toContain('import { segnalaErroreAI } from "../_shared/allarmeAI.ts"');
+    expect(s).toMatch(/catch \(e\) \{\s*segnalaErroreAI\(e, contesto\);/);
+    expect(s).toMatch(/if \(!res\.ok\) \{[\s\S]*?segnalaErroreAI\(\{ provider: "openai", stato: res\.status/);
+    // La pulizia passa dal router, che segnala gli errori di ogni tentativo.
+    expect(s).toContain('await import("../_shared/aiRouter.ts")');
+    expect(s).not.toMatch(/claudeProxy|callOpenRouter/);
+  });
+
   it("la funzione dei PDF non avvisa più per conto suo: lo fa il sistema degli allarmi", () => {
     const s = sorgente("supabase/functions/email-ai-estrai-allegato/index.ts");
     expect(s).not.toContain("alertOutreach");

@@ -10,6 +10,7 @@ import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { requireCompanyAccess } from "../_shared/auth.ts";
 import { chargeAndLogDirect, estimateWhisperCostUsd } from "../_shared/ai-provider/directApi.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
+import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -217,6 +218,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return jsonResponse({ error: "Nessuna azienda associata" }, 400);
   }
   await requireCompanyAccess(supabaseAdmin, user.id, companyId, corsHeaders);
+  // 07/11/2026: carta e abbonamento PRIMA di Whisper, come le altre funzioni AI.
+  // Senza, un'azienda senza carta faceva spendere OpenAI alla piattaforma.
+  const pagamento = await gateAiPayment(supabaseAdmin, companyId, corsHeaders);
+  if (pagamento) return pagamento;
 
   // Rate limiting: conta rapportini oggi
   const todayStart = new Date();

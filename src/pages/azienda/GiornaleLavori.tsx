@@ -30,6 +30,7 @@ import { GiornaleCard } from "@/components/orders/GiornaleCard";
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 import { useFotoGiornaleFirmate } from "@/hooks/useFotoGiornaleFirmate";
+import { DettaTesto } from "@/components/campo/DettaTesto";
 import {
   BUCKET_FOTO_GIORNALE, percorsoFotoGiornale, urlSalvatoFotoGiornale,
 } from "../../../supabase/functions/_shared/fotoGiornale";
@@ -719,6 +720,8 @@ export default function GiornaleLavori() {
                 rows={4}
                 className="resize-none"
               />
+              {/* Detta: il testo pulito si aggiunge in fondo, chi scrive lo rivede prima di salvare. */}
+              <DettaTesto value={formData.lavorazioni_eseguite} onChange={(t) => setFormData((p) => ({ ...p, lavorazioni_eseguite: t }))} companyId={companyId} contesto="giornale" campo="lavorazioni" etichetta="Lavorazioni eseguite" disabled={saveEntry.isPending} />
             </div>
 
             {/* Materiali */}
@@ -773,6 +776,7 @@ export default function GiornaleLavori() {
                 rows={2}
                 className="resize-none"
               />
+              <DettaTesto value={formData.note} onChange={(t) => setFormData((p) => ({ ...p, note: t }))} companyId={companyId} contesto="giornale" campo="note" etichetta="Note aggiuntive" disabled={saveEntry.isPending} />
             </div>
 
             {/* Visibilità cliente */}

@@ -59,6 +59,7 @@ import { useCampoWorkDay } from "@/hooks/campo/useCampoWorkDay";
 import { assertReportDay, campoWorkDay, giorniIndietroValidi, giorniSceglibili, messaggioScadenzaRapportino, reportDayAllowed, shiftWorkDay, validWorkDay } from "@/lib/campo/workDay";
 import { isClientReport } from "@/lib/campo/reportKind";
 import { RapportinoVoceInput } from "@/components/campo/RapportinoVoceInput";
+import { DettaTesto } from "@/components/campo/DettaTesto";
 import { useFormDraft } from "@/hooks/campo/useFormDraft";
 import { useRapportinoProtocollo } from "@/hooks/campo/useRapportinoProtocollo";
 import type { RapportinoVocaleDraft } from "@/hooks/campo/useRapportinoVocale";
@@ -1607,6 +1608,10 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                 value={descrizione}
                 onChange={e => setDescrizione(e.target.value)}
               />
+            )}
+            {/* Detta: aggiunge in fondo testo pulito, senza fatti nuovi. «Compila parlando» resta l'estrazione dei campi. */}
+            {!soloOreAllOperaio && !bloccatoDaEsistente && (
+              <DettaTesto value={descrizione} onChange={setDescrizione} companyId={companyId} contesto="rapportino" campo="descrizione" etichetta="Descrizione dei lavori" disabled={saving || vocaleVisibile} />
             )}
             {/* Il meteo non si sceglie: si compila da solo dalle previsioni del cantiere (vedi sopra). Se uno lo scrive nella descrizione va bene. */}
             {/* Ore del solo cantiere: proposta verificabile, mai 8 ore implicite. */}

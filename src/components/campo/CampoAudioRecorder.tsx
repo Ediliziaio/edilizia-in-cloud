@@ -1,15 +1,17 @@
 /**
  * Registratore audio per rapportino vocale.
  * - MediaRecorder API, preferisce WebM/Opus (fallback MP4/AAC su iOS)
- * - Timer visibile, stop automatico a 2 minuti
+ * - Timer visibile, stop automatico a 3 minuti (stesso limite di «Compila parlando» e della dettatura)
  * - Player post-registrazione per riascoltare
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, Square, Play, Pause, RotateCcw, Check, Loader2 } from "lucide-react";
 import type { JSX } from "react";
+import { CAMPO_AUDIO_MAX_SECONDI, CAMPO_AUDIO_MIN_SECONDI } from "@/lib/campo/dettaTesto";
 
-const MAX_DURATION_SEC = 120;
-const MIN_DURATION_SEC = 3;
+// Un solo limite per registratore e server: prima il registratore si fermava a 2 minuti e il hook ne accettava 30.
+const MAX_DURATION_SEC = CAMPO_AUDIO_MAX_SECONDI;
+const MIN_DURATION_SEC = CAMPO_AUDIO_MIN_SECONDI;
 // Per la voce bastano 64 kbit/s: metà del peso di prima da caricare con la rete del cantiere.
 const BITRATE_BPS = 64_000;
 

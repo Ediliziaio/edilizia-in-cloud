@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { isOnline } from "@/lib/campo/network-status";
 import { campoWorkDay, validWorkDay } from "@/lib/campo/workDay";
 import { normalizeVoiceProposal } from "@/lib/campo/voiceProposal";
+import { CAMPO_AUDIO_MAX_SECONDI, CAMPO_AUDIO_MIN_SECONDI } from "@/lib/campo/dettaTesto";
 const BUCKET = "campo-audio";
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
 export interface MaterialeUsato {
@@ -58,8 +59,9 @@ export function useRapportinoVocale() {
     if (!user?.id || !profile?.company_id || !orderId) { setState(s => ({ ...s, error: "Scegli un cantiere assegnato e verifica la sessione." })); return null; }
     if (!isOnline()) { setState(s => ({ ...s, error: "La voce richiede internet. Scrivi il giornaliero: la bozza resta sul telefono." })); return null; }
     if (!validWorkDay(day)) { setState(s => ({ ...s, error: "Giornata non valida." })); return null; }
-    if (!blob.size || blob.size > MAX_AUDIO_BYTES || !Number.isFinite(durationSec) || durationSec < 3 || durationSec > 1800 || !/^audio\//.test(mimeType)) {
-      setState(s => ({ ...s, error: "Usa una registrazione audio da 3 secondi a 30 minuti, fino a 10 MB." })); return null;
+    if (!blob.size || blob.size > MAX_AUDIO_BYTES || !Number.isFinite(durationSec) || durationSec < CAMPO_AUDIO_MIN_SECONDI || durationSec > CAMPO_AUDIO_MAX_SECONDI || !/^audio\//.test(mimeType)) {
+      // Come il registratore: 3 minuti. Prima qui si accettavano 30 minuti che il registratore non produceva mai.
+      setState(s => ({ ...s, error: `Usa una registrazione audio da ${CAMPO_AUDIO_MIN_SECONDI} secondi a ${CAMPO_AUDIO_MAX_SECONDI / 60} minuti, fino a 10 MB.` })); return null;
     }
     busy.current = true;
     setState(s => ({ ...s, uploading: true, transcribing: false, error: null }));

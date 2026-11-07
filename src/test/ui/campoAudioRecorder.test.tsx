@@ -68,9 +68,12 @@ it('permette registrazione e riascolto ma non conferma un servizio non ancora at
   expect(screen.getByRole('button', { name: 'Trascrivi audio' })).toBeDisabled();
   fireEvent.click(screen.getByRole('button', { name: 'Trascrivi audio' })); expect(confirm).not.toHaveBeenCalled();
 });
-it("ferma automaticamente a due minuti anche se il timer avanza in un unico giro", async () => {
+it("ferma automaticamente a tre minuti, non più a due", async () => {
   render(<CampoAudioRecorder onConfirm={vi.fn()} />); await start();
+  // A 2 minuti (il limite di prima) si registra ancora.
   await act(async () => vi.advanceTimersByTime(120000));
+  expect(recorder?.stop).not.toHaveBeenCalled();
+  await act(async () => vi.advanceTimersByTime(60000));
   expect(screen.getByText("Registrazione pronta")).toBeVisible();
   expect(recorder?.stop).toHaveBeenCalledOnce();
   expect(stopTrack).toHaveBeenCalledOnce();
