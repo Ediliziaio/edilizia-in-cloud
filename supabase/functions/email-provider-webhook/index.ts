@@ -1,13 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders as baseCorsHeaders, secureHeaders } from "../_shared/headers.ts";
-import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { getPlatformSetting, leggiImpostazionePiattaformaEsito } from "../_shared/getPlatformSetting.ts";
 import {
   decideSuppression,
   normalizeEvents as normalizeEventsShared,
 } from "../_shared/webhookNormalizers.ts";
 import {
   timingSafeEqual,
-  verifyMailgunWebhookSignature,
   verifySvixWebhookSignature,
 } from "../_shared/webhookSecurity.ts";
 
@@ -21,14 +20,16 @@ const corsHeaders = {
 
 /**
  * Normalizes webhook events from different email providers into a common format.
- * Supports: SendGrid, Brevo, Elastic Email, Mailgun, Resend
+ * Supports: SendGrid, Brevo, Elastic Email, Resend
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Accept GET for Mailgun verification
+  // GET: risposta di cortesia per i pannelli che provano l'URL prima di
+  // salvarlo. NON elabora eventi: un provider che notificasse via GET con i
+  // parametri nell'indirizzo andrebbe gestito qui.
   if (req.method === "GET") {
     return new Response("OK", { status: 200, headers: corsHeaders });
   }
@@ -83,34 +84,24 @@ Deno.serve(async (req) => {
     // x-webhook-secret above remains a required coarse gate; native signatures
     // add payload integrity for providers that support it without breaking
     // existing provider setup that hasn't enabled native signing yet.
-    const mailgunSigningKey =
-      Deno.env.get("MAILGUN_WEBHOOK_SIGNING_KEY") ||
-      await getPlatformSetting("email_mailgun_webhook_signing_key");
-    const mailgunSignature = req.headers.get("x-mailgun-signature") ||
-      rawBody?.signature?.signature ||
-      rawBody?.signature;
-    const mailgunTimestamp = req.headers.get("x-mailgun-timestamp") ||
-      rawBody?.signature?.timestamp ||
-      rawBody?.timestamp;
-    const mailgunToken = req.headers.get("x-mailgun-token") ||
-      rawBody?.signature?.token ||
-      rawBody?.token;
-    if (mailgunSigningKey && (mailgunSignature || mailgunTimestamp || mailgunToken)) {
-      const ok = await verifyMailgunWebhookSignature(
-        mailgunTimestamp ? String(mailgunTimestamp) : null,
-        mailgunToken ? String(mailgunToken) : null,
-        mailgunSignature ? String(mailgunSignature) : null,
-        mailgunSigningKey,
-      );
-      if (!ok) {
-        return new Response("Invalid Mailgun signature", { status: 401, headers: corsHeaders });
-      }
-    }
-
-    const resendWebhookSecret =
-      Deno.env.get("RESEND_WEBHOOK_SECRET") ||
-      await getPlatformSetting("email_resend_webhook_secret");
+    // Per Resend una chiave vuota vuol dire «verifica della firma non attiva».
+    // Se però la chiave c'è e non si è potuta LEGGERE (un intoppo di
+    // PostgREST), non va trattata come assente: la verifica si spegnerebbe da
+    // sola. In quel caso, se la richiesta porta una firma, si risponde 503 e il
+    // provider riprova (06/11/2026, vedi _shared/getPlatformSetting.ts).
+    // Mailgun c'era fino al 07/11/2026: mai configurato, tolto.
+    const envResend = Deno.env.get("RESEND_WEBHOOK_SECRET") ?? "";
+    const esitoResend = envResend
+      ? { valore: envResend, letturaRiuscita: true, errore: null }
+      : await leggiImpostazionePiattaformaEsito("email_resend_webhook_secret");
+    const resendWebhookSecret = esitoResend.valore;
     const svixSignature = req.headers.get("svix-signature");
+    if (!resendWebhookSecret && !esitoResend.letturaRiuscita && svixSignature) {
+      console.error(`email-provider-webhook: segreto Resend non leggibile (${esitoResend.errore ?? "motivo ignoto"}): 503`);
+      return new Response("Webhook secret temporarily unreadable, retry", {
+        status: 503, headers: { ...corsHeaders, "Retry-After": "30" },
+      });
+    }
     if (resendWebhookSecret && svixSignature) {
       const ok = await verifySvixWebhookSignature(
         rawBodyText,

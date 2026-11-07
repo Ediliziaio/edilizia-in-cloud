@@ -17,6 +17,8 @@ import {
   erroreProviderPiuFresco,
   esitoCloudflare,
   esitoEmailConProve,
+  esitoPostaUscita,
+  type CodaPostaUscita,
   type EsitoSalute,
   type ProveInvii,
   type RispostaCloudflare,
@@ -192,6 +194,153 @@ describe("Versioni delle API di terzi", () => {
       const testo = readFileSync(join(ROOT, `supabase/functions/${f}/index.ts`), "utf8");
       expect(testo).not.toMatch(/googleads\.googleapis\.com\/v\d+/);
       expect(testo).toContain('Deno.env.get("GOOGLE_ADS_API_VERSION") || "v25"');
+    }
+  });
+});
+
+describe("Posta in uscita: «in errore da 110 ore» per una mail del 28/09 (06/11/2026)", () => {
+  const ADESSO = new Date("2026-11-06T12:00:00.000Z");
+  const coda = (p: Partial<CodaPostaUscita> = {}): CodaPostaUscita => ({
+    queued: 0,
+    sending: 0,
+    failed: 0,
+    failedUltime24h: 0,
+    inCodaDa: null,
+    adesso: ADESSO,
+    ...p,
+  });
+
+  it("una sola mail fallita e vecchia NON degrada l'integrazione", () => {
+    // Il caso vero: una riga in timeout il 28/09 che nessuno rimanderà.
+    // Nessuno riprova da solo: resta lì, e teneva l'avviso acceso per sempre.
+    const esito = esitoPostaUscita(coda({ failed: 1 }));
+    expect(esito.status).toBe("healthy");
+    expect(esito.error).toBeNull();
+    expect(esito.attesaMinuti).toBe(0);
+  });
+
+  it("una mail davvero in coda da più di un'ora degrada", () => {
+    const esito = esitoPostaUscita(
+      coda({ queued: 1, inCodaDa: "2026-11-06T09:30:00.000Z" }),
+    );
+    expect(esito.status).toBe("degraded");
+    expect(esito.attesaMinuti).toBe(150);
+    expect(esito.error).toContain("150 minuti");
+  });
+
+  it("una mail in coda da pochi minuti non degrada", () => {
+    const esito = esitoPostaUscita(
+      coda({ queued: 3, inCodaDa: "2026-11-06T11:45:00.000Z" }),
+    );
+    expect(esito.status).toBe("healthy");
+    expect(esito.attesaMinuti).toBe(15);
+  });
+
+  it("`sending` conta come coda: un invio appeso da due ore è un guasto", () => {
+    const esito = esitoPostaUscita(
+      coda({ sending: 1, inCodaDa: "2026-11-06T10:00:00.000Z" }),
+    );
+    expect(esito.status).toBe("degraded");
+    expect(esito.error).toContain("120 minuti");
+  });
+
+  it("cinque fallite nelle ultime 24 ore degradano: lì il guasto è vero", () => {
+    const esito = esitoPostaUscita(coda({ failed: 9, failedUltime24h: 5 }));
+    expect(esito.status).toBe("degraded");
+    expect(esito.error).toContain("5 email non partite");
+  });
+
+  it("quattro fallite recenti su un archivio di cento non degradano", () => {
+    expect(esitoPostaUscita(coda({ failed: 100, failedUltime24h: 4 })).status).toBe("healthy");
+  });
+
+  it("una coda enorme degrada anche se è appena stata riempita", () => {
+    const esito = esitoPostaUscita(
+      coda({ queued: 5001, inCodaDa: "2026-11-06T11:59:00.000Z" }),
+    );
+    expect(esito.status).toBe("degraded");
+    expect(esito.error).toContain("5001 messaggi");
+  });
+
+  it("coda vuota: sana, e l'attesa è zero perché non c'è niente da aspettare", () => {
+    const esito = esitoPostaUscita(coda());
+    expect(esito).toEqual({ status: "healthy", error: null, attesaMinuti: 0 });
+  });
+
+  it("una data illeggibile non diventa un'attesa negativa o NaN", () => {
+    const esito = esitoPostaUscita(coda({ queued: 1, inCodaDa: "non-una-data" }));
+    expect(esito.attesaMinuti).toBe(0);
+    expect(esito.status).toBe("healthy");
+  });
+});
+
+describe("Posta in uscita: il controllo non deve dire «sana» per difetto", () => {
+  const funzione = readFileSync(
+    join(ROOT, "supabase/functions/check-api-health/index.ts"),
+    "utf8",
+  );
+
+  it("non legge più `scheduled_at`, colonna che su email_outbox non esiste", () => {
+    expect(funzione).not.toContain("scheduled_at");
+    expect(funzione).toContain("scheduled_for, created_at");
+  });
+
+  it("non conta gli stati che la tabella non ha (processing, dead, suppressed)", () => {
+    for (const fantasma of ['countStatus("processing")', 'countStatus("dead")', 'countStatus("suppressed")']) {
+      expect(funzione).not.toContain(fantasma);
+    }
+  });
+
+  it("il verdetto arriva dalla funzione condivisa, non riscritto qui", () => {
+    expect(funzione).toContain("esitoPostaUscita({");
+  });
+
+  it("l'errore della query della riga più vecchia non passa inosservato", () => {
+    expect(funzione).toContain("if (oldestReady.error) throw oldestReady.error;");
+  });
+
+  it("se la coda non si legge, l'integrazione è «degraded», non «unconfigured»", () => {
+    const blocco = funzione.slice(funzione.indexOf("} catch (outboxErr)"));
+    expect(blocco.slice(0, 600)).toContain('status: "degraded"');
+    expect(blocco.slice(0, 600)).not.toContain('status: "unconfigured"');
+  });
+});
+
+describe("Posta in uscita: la radice comune, una email_outbox mai creata", () => {
+  // `20270103000002_email_enterprise_hardening.sql` fa
+  // `CREATE TABLE IF NOT EXISTS public.email_outbox` con uno schema suo
+  // (stream, campaign_id, recipient, priority, lease_until, locked_by,
+  // scheduled_at, stati processing/dead/suppressed). La tabella però esisteva
+  // già da `20260510100000_email_client_foundations`: l'IF NOT EXISTS ha reso
+  // il comando un no-op silenzioso, e tutto ciò che la migrazione costruisce
+  // dopo punta a colonne che non ci sono. Da lì vengono, a catena, il
+  // `scheduled_at` del controllo salute, gli stati fantasma del pannello e il
+  // worker `process-email-outbox`. Nessun errore al momento dell'apply: né
+  // l'IF NOT EXISTS né un corpo plpgsql segnalano la collisione.
+  const tipi = readFileSync(join(ROOT, "src/integrations/supabase/types.ts"), "utf8");
+  const colonneReali = tipi
+    .slice(tipi.indexOf("      email_outbox: {"))
+    .split("Insert: {")[0];
+
+  it("le colonne vere non contengono quelle dello schema fantasma", () => {
+    for (const fantasma of ["scheduled_at", "priority", "lease_until", "locked_by", "stream", "campaign_id", "recipient"]) {
+      expect(colonneReali).not.toContain(`${fantasma}:`);
+    }
+    expect(colonneReali).toContain("scheduled_for:");
+  });
+
+  it("il pannello admin mostra gli stati veri, non processing/dead/suppressed", () => {
+    const pannello = readFileSync(
+      join(ROOT, "src/components/admin/settings/email/EmailOutboxPanel.tsx"),
+      "utf8",
+    );
+    const elenco = pannello.slice(pannello.indexOf("const COUNT_STATUSES"));
+    const riga = elenco.slice(0, elenco.indexOf("\n"));
+    for (const fantasma of ["processing", "dead", "suppressed"]) {
+      expect(riga).not.toContain(fantasma);
+    }
+    for (const vero of ["draft", "queued", "sending", "sent", "failed", "cancelled"]) {
+      expect(riga).toContain(vero);
     }
   });
 });

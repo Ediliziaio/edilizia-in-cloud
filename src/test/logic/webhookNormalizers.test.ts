@@ -2,12 +2,14 @@
 // webhookNormalizers.test — Email Dual-Provider FASE 11
 // ============================================================================
 // Testa la normalizzazione cross-provider (SendGrid, Brevo, Elastic Email,
-// Mailgun, Resend) in `NormalizedEvent` + la decisione sullo scope della
+// Resend) in `NormalizedEvent` + la decisione sullo scope della
 // suppression (globale vs per-azienda).
 //
 // Il modulo è importato direttamente dalla sua location in supabase/functions/
 // per condividere la single-source-of-truth tra Edge Function e test.
 // ============================================================================
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect } from "vitest";
 import {
   normalizeEvents,
@@ -15,7 +17,6 @@ import {
   mapSendGridEvent,
   mapBrevoEvent,
   mapElasticEvent,
-  mapMailgunEvent,
   mapResendEvent,
 } from "../../../supabase/functions/_shared/webhookNormalizers";
 
@@ -60,16 +61,6 @@ describe("mapElasticEvent", () => {
   it("ritorna 'unknown' per status lowercase (non matchano)", () => {
     expect(mapElasticEvent("sent")).toBe("unknown");
     expect(mapElasticEvent("bounced")).toBe("unknown");
-  });
-});
-
-describe("mapMailgunEvent", () => {
-  it("mappa 'failed' a 'bounced'", () => {
-    expect(mapMailgunEvent("failed")).toBe("bounced");
-  });
-
-  it("mappa 'complained' a 'spam'", () => {
-    expect(mapMailgunEvent("complained")).toBe("spam");
   });
 });
 
@@ -190,10 +181,7 @@ describe("normalizeEvents — Resend", () => {
     expect(events[0].isHardBounce).toBeUndefined();
   });
 
-  it("Resend viene riconosciuto PRIMA di Mailgun (guard su body.type)", () => {
-    // Se Mailgun venisse checked prima, body.event sarebbe undefined qui
-    // → cadrebbe sul catch-all Mailgun con event undefined → mapMailgunEvent(undefined) = "unknown"
-    // Invece deve matchare Resend grazie al guard "email." prefix.
+  it("Resend si riconosce dal type namespaced «email.*»", () => {
     const body = {
       type: "email.complained",
       data: { email_id: "re_spam", to: ["spam@report.it"] },
@@ -301,40 +289,6 @@ describe("normalizeEvents — Elastic Email", () => {
   });
 });
 
-describe("normalizeEvents — Mailgun", () => {
-  it("Mailgun failed permanent → hard", () => {
-    const body = {
-      "event-data": {
-        event: "failed",
-        severity: "permanent",
-        recipient: "x@y.it",
-        message: { headers: { "message-id": "mg-123" } },
-        "delivery-status": { description: "Bad destination" },
-      },
-    };
-    const events = normalizeEvents(body, "transactional");
-    expect(events[0]).toMatchObject({
-      type: "bounced",
-      isHardBounce: true,
-      email: "x@y.it",
-      provider: "mailgun",
-    });
-  });
-
-  it("Mailgun failed temporary → soft", () => {
-    const body = {
-      "event-data": {
-        event: "failed",
-        severity: "temporary",
-        recipient: "x@y.it",
-        message: { headers: { "message-id": "mg-soft" } },
-      },
-    };
-    const events = normalizeEvents(body, "transactional");
-    expect(events[0].isHardBounce).toBe(false);
-  });
-});
-
 describe("normalizeEvents — edge cases", () => {
   it("body null → []", () => {
     expect(normalizeEvents(null, "marketing")).toEqual([]);
@@ -348,10 +302,13 @@ describe("normalizeEvents — edge cases", () => {
     expect(normalizeEvents([], "marketing")).toEqual([]);
   });
 
-  it("non cade su Mailgun se c'è un campo non-guard", () => {
-    // body ha .event ma NESSUN altro marker — Mailgun catch-all matcha
-    const events = normalizeEvents({ event: "delivered" }, "marketing");
-    expect(events[0]?.provider).toBe("mailgun");
+  it("un payload che non si riconosce non produce eventi (07/11/2026)", () => {
+    // Fino al 07/11 un body con il solo campo `event` cadeva sul «catch-all»
+    // Mailgun e veniva letto come un evento Mailgun. Mailgun non è mai stato
+    // configurato ed è stato tolto: un payload ignoto si scarta, perché un
+    // rimbalzo inventato sopprimerebbe un indirizzo buono.
+    expect(normalizeEvents({ event: "delivered" }, "marketing")).toEqual([]);
+    expect(normalizeEvents({ "event-data": { event: "failed", recipient: "x@y.it" } }, "marketing")).toEqual([]);
   });
 });
 
@@ -428,5 +385,24 @@ describe("decideSuppression", () => {
       );
       expect(r.shouldSuppress).toBe(false);
     }
+  });
+});
+
+// ── Mailgun tolto (07/11/2026) ──────────────────────────────────────────────
+// Mai configurato: nessuna impostazione, nessun invio, nessun log, niente nel
+// Vault. I provider in uso sono Resend (transazionali) ed Elastic Email
+// (marketing). Questi controlli impediscono che rientri da una porta laterale.
+describe("Mailgun non è più un provider", () => {
+  const leggi = (p: string) => readFileSync(join(__dirname, "../../..", p), "utf8");
+
+  it("non si sceglie nel pannello e non ha un campo per la firma", () => {
+    expect(leggi("src/components/admin/settings/email/EmailProviderConfig.tsx")).not.toMatch(/value: "mailgun"/);
+    expect(leggi("src/components/admin/settings/email/EmailWebhookConfig.tsx")).not.toMatch(/mailgun/i);
+  });
+
+  it("non ha un ramo di invio, di verifica firma o di controllo salute", () => {
+    expect(leggi("supabase/functions/_shared/emailProvider.ts")).not.toMatch(/case "mailgun"|api\.mailgun\.net/);
+    expect(leggi("supabase/functions/_shared/webhookSecurity.ts")).not.toMatch(/Mailgun/);
+    expect(leggi("supabase/functions/check-api-health/index.ts")).not.toMatch(/mailgun/i);
   });
 });

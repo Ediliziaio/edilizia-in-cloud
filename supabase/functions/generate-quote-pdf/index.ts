@@ -7,6 +7,7 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { chiamataInternaValida } from "../_shared/chiamataInterna.ts";
 import { preventivoVisibile, type ClienteDiChiChiama } from "../_shared/preventivoVisibile.ts";
 import { PDFDocument } from "https://esm.sh/pdf-lib@1.17.1";
+import { bytesToBase64 } from "../_shared/base64.ts";
 // Libreria template componibile: carica i blocchi linkati + sostituisce merge tag
 import { loadTemplateWithBlocks, attachLinkedBlocks, applyMergeTagsToTemplate, buildMergeContext, TemplateCompositionError, type ComposedTemplate } from "../_shared/quoteTemplateComposer.ts";
 import { formatoImmagine, leggiLogo, logoDiRiserva } from "../_shared/logoAzienda.ts";
@@ -439,9 +440,7 @@ Deno.serve(async (req) => {
       if (!bytes || bytes.length > 6 * 1024 * 1024) return null;
       const formato = formatoImmagine(bytes);
       if (!formato) return null;
-      let bin = "";
-      for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-      return `data:image/${formato === "png" ? "png" : "jpeg"};base64,${btoa(bin)}`;
+      return `data:image/${formato === "png" ? "png" : "jpeg"};base64,${bytesToBase64(bytes)}`;
     };
     const immagineDelLogo = async (logoPath: string | null): Promise<string | null> => {
       if (!logoPath) return null;
@@ -554,13 +553,14 @@ Deno.serve(async (req) => {
     // ─── Preview mode: return PDF directly without storage ───
     if (isPreview) {
       const pdfBytes = await pdfDoc.save();
-      const uint8 = new Uint8Array(pdfBytes);
-      // Convert to base64
-      let binary = "";
-      for (let i = 0; i < uint8.length; i++) {
-        binary += String.fromCharCode(uint8[i]);
-      }
-      const base64 = btoa(binary);
+      // `bytesToBase64` e non un ciclo byte per byte: quello costruiva la
+      // stringa un carattere alla volta, quindi milioni di concatenazioni su
+      // un PDF di pochi MB. Il 06/11/2026 generate-quote-pdf moriva su una
+      // chiamata su otto — 16 «CPU Time exceeded» e 2 «Memory limit exceeded»
+      // su 136 avvii in 24 ore — e l'anteprima dall'editor è la strada che si
+      // percorre più spesso. L'helper usa Uint8Array.toBase64 dove c'è
+      // (12 MB in circa 1 ms) e altrimenti lavora a blocchi da 32 kB.
+      const base64 = bytesToBase64(new Uint8Array(pdfBytes));
       return jsonResponse({ success: true, pdf_base64: base64 }, 200, corsH);
     }
 

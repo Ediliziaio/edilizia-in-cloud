@@ -4,6 +4,12 @@ alter table public.email_outbox add column if not exists procurement_context jso
 alter table public.supplier_rfq_suppliers add column if not exists trasporto_tipo text not null default 'da_confermare' check (trasporto_tipo in ('da_confermare','incluso','extra','ritiro'));
 alter table public.supplier_rfq_suppliers add column if not exists costo_trasporto numeric check (costo_trasporto is null or costo_trasporto >= 0);
 alter table public.supplier_rfq_suppliers add column if not exists disponibilita_note text;
+-- permesso procurement_document_events: eredita la visibilità dell'ordine
+-- d'acquisto o della RdO a cui appartiene. La policy di lettura passa da un
+-- exists su purchase_orders / supplier_rfqs, che gira con le RLS di chi legge:
+-- lì valgono azienda e permesso d'area (aziende_area con can_view_orders e
+-- simili). Solo i trigger scrivono. (Commento aggiunto il 07/11/2026: la
+-- migrazione era già applicata, il database non cambia.)
 create table if not exists public.procurement_document_events (
  id uuid primary key default gen_random_uuid(),
  company_id uuid not null references public.companies(id) on delete cascade,

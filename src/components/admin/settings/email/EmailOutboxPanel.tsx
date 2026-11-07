@@ -15,7 +15,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn } from "@/lib/utils";
 import { formatError } from "@/lib/errors";
 
-type OutboxStatus = "all" | "queued" | "processing" | "sent" | "failed" | "dead" | "suppressed";
+// Gli stati sono quelli del CHECK di `email_outbox`
+// (20260510100000_email_client_foundations): draft, queued, sending, sent,
+// failed, cancelled. Qui si mostravano invece processing, dead e suppressed,
+// che vengono dalla email_outbox mai creata della migrazione «enterprise
+// hardening»: tre filtri sempre a zero, e `sending` — l'invio in corso, il solo
+// stato in cui una mail può restare appesa — invisibile.
+type OutboxStatus = "all" | "draft" | "queued" | "sending" | "sent" | "failed" | "cancelled";
 
 interface OutboxRow {
   id: string;
@@ -32,24 +38,24 @@ interface OutboxRow {
 }
 
 const STATUS_LABELS: Record<string, string> = {
+  draft: "Bozza",
   queued: "In coda",
-  processing: "In lavorazione",
+  sending: "Invio in corso",
   sent: "Inviata",
   failed: "Fallita",
-  dead: "Dead-letter",
-  suppressed: "Soppressa",
+  cancelled: "Annullata",
 };
 
 const STATUS_STYLES: Record<string, string> = {
+  draft: "bg-slate-100 text-slate-800",
   queued: "bg-blue-100 text-blue-800",
-  processing: "bg-amber-100 text-amber-800",
+  sending: "bg-amber-100 text-amber-800",
   sent: "bg-green-100 text-green-800",
   failed: "bg-destructive/10 text-destructive",
-  dead: "bg-red-100 text-red-800",
-  suppressed: "bg-slate-100 text-slate-800",
+  cancelled: "bg-muted text-muted-foreground",
 };
 
-const COUNT_STATUSES = ["queued", "processing", "sent", "failed", "dead", "suppressed"] as const;
+const COUNT_STATUSES = ["draft", "queued", "sending", "sent", "failed", "cancelled"] as const;
 
 export function EmailOutboxPanel() {
   const qc = useQueryClient();
@@ -82,7 +88,7 @@ export function EmailOutboxPanel() {
     },
   });
 
-  const hasActiveJobs = (counts.queued ?? 0) + (counts.processing ?? 0) > 0;
+  const hasActiveJobs = (counts.queued ?? 0) + (counts.sending ?? 0) > 0;
 
   const { data: rows = [], isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ["admin-email-outbox", status],

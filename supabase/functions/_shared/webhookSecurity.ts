@@ -106,19 +106,6 @@ export async function verifyHmacSha256Base64(
 }
 
 /**
- * Mailgun firma `timestamp + token` con la webhook signing key.
- */
-export async function verifyMailgunWebhookSignature(
-  timestamp: string | null,
-  token: string | null,
-  signature: string | null,
-  signingKey: string,
-): Promise<boolean> {
-  if (!timestamp || !token || !signature || !signingKey) return false;
-  return verifyHmacSha256(`${timestamp}${token}`, signature, signingKey);
-}
-
-/**
  * Resend usa Svix: firma `svix-id.svix-timestamp.rawBody`.
  */
 export async function verifySvixWebhookSignature(

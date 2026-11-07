@@ -51,7 +51,6 @@ const PROVIDERS = [
   { value: "sendgrid", label: "SendGrid" },
   { value: "brevo", label: "Brevo (Sendinblue)" },
   { value: "resend", label: "Resend" },
-  { value: "mailgun", label: "Mailgun" },
 ];
 
 type ConnectionStatus = "configured" | "tested_ok" | "tested_fail" | "not_configured";
@@ -75,7 +74,6 @@ const PROVIDER_DOCS: Partial<Record<(typeof PROVIDERS)[number]["value"], string>
   sendgrid: "https://www.twilio.com/docs/sendgrid/api-reference/mail-send/mail-send",
   resend: "https://resend.com/docs/api-reference/emails/send-email",
   brevo: "https://developers.brevo.com/reference/sendtransacemail",
-  mailgun: "https://documentation.mailgun.com/docs/mailgun/api-reference/send/mailgun/messages/post-v3--domain-name--messages",
 };
 
 const PROVIDER_ENDPOINT_HINTS: Record<"marketing" | "transactional", Partial<Record<(typeof PROVIDERS)[number]["value"], string>>> = {
@@ -84,14 +82,12 @@ const PROVIDER_ENDPOINT_HINTS: Record<"marketing" | "transactional", Partial<Rec
     sendgrid: "POST /v3/mail/send",
     resend: "POST /emails",
     brevo: "POST /v3/smtp/email",
-    mailgun: "POST /v3/<domain>/messages",
   },
   transactional: {
     elastic_email: "POST /v4/emails/transactional",
     sendgrid: "POST /v3/mail/send",
     resend: "POST /emails",
     brevo: "POST /v3/smtp/email",
-    mailgun: "POST /v3/<domain>/messages",
   },
 };
 
@@ -230,15 +226,9 @@ export function EmailProviderConfig({ stream }: Props) {
   const streamHealth = health?.email_streams?.[stream];
   const providerDocsUrl = PROVIDER_DOCS[provider];
   const endpointHint = PROVIDER_ENDPOINT_HINTS[stream][provider];
-  // P2-7: validazione stretta dominio Mailgun lato UI.
-  // `provision-custom-domain` e l'edge function accettano solo domini con
-  // almeno un punto e caratteri validi (lowercase alnum/-/.). Il guard
-  // client-side previene save di stringhe che poi falliranno a runtime.
-  const isMailgunDomainValid =
-    provider !== "mailgun" || /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain.trim());
-  const senderReady =
-    !!fromAddress.trim() &&
-    (provider !== "mailgun" || (!!domain.trim() && isMailgunDomainValid));
+  // Il dominio serviva solo a Mailgun, tolto il 07/11/2026 (mai configurato):
+  // si continua a caricarlo e salvarlo com'è, ma non si mostra più.
+  const senderReady = !!fromAddress.trim();
 
   const statusBadge = () => {
     switch (connStatus.status) {
@@ -502,7 +492,6 @@ export function EmailProviderConfig({ stream }: Props) {
             </p>
             <p className="text-xs text-muted-foreground">
               Mittente: {fromAddress || "non impostato"}
-              {provider === "mailgun" && ` · Dominio: ${domain || "non impostato"}`}
             </p>
             {streamHealth?.failoverProviders?.length ? (
               <p className="text-xs text-muted-foreground">
@@ -545,8 +534,8 @@ export function EmailProviderConfig({ stream }: Props) {
           </div>
         </div>
 
-        {/* Row 2: From Address + From Name + Domain (Mailgun only) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Row 2: From Address + From Name */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Email Mittente</Label>
             <Input
@@ -563,23 +552,6 @@ export function EmailProviderConfig({ stream }: Props) {
               placeholder="EdiliziaCloud"
             />
           </div>
-          {provider === "mailgun" && (
-            <div className="space-y-2">
-              <Label>Dominio Mailgun</Label>
-              <Input
-                value={domain}
-                onChange={(e) => { markEdited(); setDomain(e.target.value); }}
-                placeholder="mg.tuodominio.it"
-                aria-invalid={!isMailgunDomainValid}
-              />
-              {!isMailgunDomainValid && (
-                <p className="text-xs text-destructive">
-                  Dominio non valido. Deve essere nel formato{" "}
-                  <code>sottodominio.tld</code> (es. <code>mg.tuazienda.it</code>).
-                </p>
-              )}
-            </div>
-          )}
         </div>
 
         <div className="space-y-2">
@@ -587,7 +559,7 @@ export function EmailProviderConfig({ stream }: Props) {
           <Input
             value={failoverProviders}
             onChange={(e) => { markEdited(); setFailoverProviders(e.target.value); }}
-            placeholder={stream === "marketing" ? "brevo,sendgrid" : "mailgun,sendgrid"}
+            placeholder={stream === "marketing" ? "brevo,sendgrid" : "elastic_email,sendgrid"}
           />
           <p className="text-xs text-muted-foreground">
             Lista CSV o JSON di provider alternativi usati solo su timeout, rate-limit o 5xx. Le API key fallback restano in platform settings con prefisso

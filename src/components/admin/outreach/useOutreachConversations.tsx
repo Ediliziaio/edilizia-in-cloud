@@ -378,7 +378,6 @@ export function providerLabel(provider: string): string {
     case "elastic_email": return "EE";
     case "sendgrid": return "SendGrid";
     case "brevo": return "Brevo";
-    case "mailgun": return "Mailgun";
     default: return provider.toUpperCase();
   }
 }

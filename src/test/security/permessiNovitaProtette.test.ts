@@ -72,7 +72,11 @@ describe("le novità nascono con un permesso", () => {
       for (const m of testo.matchAll(/create table (?:if not exists )?(?:public\.)?(\w+)\s*\(([\s\S]*?)\n\);/gi)) {
         if (!/\bcompany_id\b/.test(m[2])) continue;
         const dichiarata = new RegExp(`permesso\\s+${m[1]}:`, "i").test(testo);
-        const controllata = /has_permission|puo_vedere_finanza|e_amministratore_di|aziende_con_permesso/.test(testo);
+        // `puo_vedere_commessa` / `puo_modificare_commessa` sono il cancello
+        // delle tabelle agganciate a una commessa: `sal_certificati` (20/11)
+        // ci costruisce sopra insert, update e delete, e risultava «non dice
+        // chi può vederla» solo perché il cancello non era in questo elenco.
+        const controllata = /has_permission|puo_vedere_finanza|puo_vedere_commessa|puo_modificare_commessa|e_amministratore_di|aziende_con_permesso/.test(testo);
         expect(dichiarata || controllata, `${nome}: la tabella ${m[1]} non dice chi può vederla`).toBe(true);
       }
     }

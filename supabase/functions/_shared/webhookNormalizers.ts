@@ -2,7 +2,7 @@
 // webhookNormalizers — Email Dual-Provider FASE 10
 // ============================================================================
 // Normalizza payload eterogenei di webhook email provider (SendGrid, Brevo,
-// Elastic Email, Mailgun, Resend) in un evento comune `NormalizedEvent`.
+// Elastic Email, Resend) in un evento comune `NormalizedEvent`.
 //
 // File pure-TS (zero dipendenze da Deno o esm.sh) per poter essere:
 //   - importato dalle Edge Functions Deno (email-provider-webhook)
@@ -33,7 +33,7 @@ export interface NormalizedEvent {
    */
   isHardBounce?: boolean;
   /** Provider che ha emesso l'evento — salvato in email_suppressions.source_provider. */
-  provider?: "sendgrid" | "brevo" | "elastic_email" | "mailgun" | "resend";
+  provider?: "sendgrid" | "brevo" | "elastic_email" | "resend";
 }
 
 // ── Per-provider event type mappers ────────────────────────────────────────
@@ -64,14 +64,6 @@ export function mapElasticEvent(status: string): EventType {
   return map[status] ?? "unknown";
 }
 
-export function mapMailgunEvent(event: string): EventType {
-  const map: Record<string, EventType> = {
-    delivered: "delivered", opened: "opened", clicked: "clicked",
-    failed: "bounced", complained: "spam", unsubscribed: "unsubscribed",
-  };
-  return map[event] ?? "unknown";
-}
-
 export function mapResendEvent(type: string): EventType {
   const map: Record<string, EventType> = {
     "email.delivered": "delivered", "email.opened": "opened",
@@ -87,12 +79,15 @@ export function mapResendEvent(type: string): EventType {
  *
  * ORDINE DI CHECK (importante, guard contro falsi positivi):
  *   1. Array → SendGrid (spedisce batch)
- *   2. body.type="email.*" + body.data → Resend (prima di Mailgun perché
- *      anche Mailgun usa body.event/body["event-data"]; Resend ha type
- *      namespaced che è il guardrail più specifico)
+ *   2. body.type="email.*" + body.data → Resend (type namespaced: il
+ *      guardrail più specifico)
  *   3. body.event + body["message-id"] → Brevo
  *   4. body.status + body.msgID → Elastic Email
- *   5. body["event-data"] o body.event → Mailgun (catch-all residuale)
+ *   Altrimenti nessun evento. Fino al 07/11/2026 c'era un quinto caso,
+ *   Mailgun, usato come «ultima spiaggia»: qualunque payload con un campo
+ *   `event` veniva letto come un evento Mailgun. Mailgun non è mai stato
+ *   configurato, e un payload che non si riconosce è meglio scartarlo che
+ *   interpretarlo male (un rimbalzo inventato sopprime un indirizzo buono).
  */
 // Il body è opaque JSON dal provider esterno: la type-safety statica sarebbe
 // più costosa del valore (dup. logica nei type guards). Coperto al 100% da
@@ -161,23 +156,6 @@ export function normalizeEvents(body: any, _stream: string): NormalizedEvent[] {
         ? (cat.includes("hard") || cat.includes("nomailbox") || cat.includes("badaddress") ? true : undefined)
         : undefined,
       provider: "elastic_email" as const,
-    }];
-  }
-
-  // Mailgun: body["event-data"] o body.event (catch-all)
-  if (body && (body["event-data"] || body.event)) {
-    const ev = body["event-data"] || body;
-    const severity = String(ev.severity || ev["delivery-status"]?.severity || "").toLowerCase();
-    return [{
-      type: mapMailgunEvent(ev.event),
-      providerMessageId: ev.message?.headers?.["message-id"],
-      email: ev.recipient,
-      reason: ev["delivery-status"]?.description,
-      timestamp: ev.timestamp ? new Date(Number(ev.timestamp) * 1000).toISOString() : undefined,
-      isHardBounce: ev.event === "failed"
-        ? (severity === "permanent" ? true : severity === "temporary" ? false : undefined)
-        : undefined,
-      provider: "mailgun" as const,
     }];
   }
 

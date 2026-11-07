@@ -44,7 +44,7 @@ describe("chiaviTransazionali", () => {
 
   it("la chiave di un provider non finisce mai all'API di un altro", () => {
     expect(chiaviTransazionali({ generica: "SG.abc", provider: "sendgrid" })).toEqual({ resendKey: "", sgKey: "SG.abc" });
-    expect(chiaviTransazionali({ generica: "chiave-mailgun", provider: "mailgun" })).toEqual({ resendKey: "", sgKey: "" });
+    expect(chiaviTransazionali({ generica: "chiave-elastic", provider: "elastic_email" })).toEqual({ resendKey: "", sgKey: "" });
   });
 
   it("le chiavi dedicate vincono su quella generica", () => {
