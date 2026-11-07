@@ -232,3 +232,37 @@ describe("lista di blocco: la funzione e la scrittura", () => {
     expect(migrazione).toContain("grant execute on function public.email_blocchi_elastic_registra(jsonb) to service_role;");
   });
 });
+
+describe("lista di blocco: i messaggi veri visti il 07/11/2026", () => {
+  // Elastic mette «Mailbox unavailable. The server response was:» davanti a ogni rifiuto.
+  const pref = "Mailbox unavailable. The server response was: ";
+  const b = (ErrorCode: string | number | null, FriendlyErrorMessage: string | null) => ({ Email: "x@y.it", ErrorCode, FriendlyErrorMessage });
+
+  it("la frase di Elastic da sola non dimostra niente", () => {
+    expect(motivoBloccoElastic(b(550, pref + "Invalid Domain [smtp-08.iol.local; LIB_420]"))).toBeNull();
+    expect(motivoBloccoElastic(b(552, "Exceeded storage allocation. The server response was: 1 Requested mail action aborted, mailbox full"))).toBeNull();
+  });
+
+  it("indirizzo inesistente, dietro la frase di Elastic", () => {
+    expect(motivoBloccoElastic(b(550, pref + "5.1.1 The email account that you tried to reach does not exist"))).toBe("hard_bounce");
+    expect(motivoBloccoElastic(b(550, pref + "#5.1.0 Address rejected. [141.95.129.99]"))).toBe("hard_bounce");
+    expect(motivoBloccoElastic(b(550, pref + "5.5.0 Requested action not taken: mailbox unavailable"))).toBe("hard_bounce");
+  });
+
+  it("dominio senza server di posta → definitivo anche se Elastic dice 450", () => {
+    expect(motivoBloccoElastic(b(450, "DNS Error: No valid MX host libero.itt"))).toBe("hard_bounce");
+  });
+
+  it("«Abuse.» è una segnalazione di spam", () => {
+    expect(motivoBloccoElastic(b(null, "Abuse."))).toBe("spam_complaint");
+  });
+
+  it("un rifiuto del NOSTRO mittente non blocca il destinatario", () => {
+    expect(motivoBloccoElastic(b(450, pref + "4.1.8 <outreach@mkt.ediliziaincloud.com>: Sender address rejected: Domain not found"))).toBeNull();
+    expect(motivoBloccoElastic(b(550, pref + "5.1.8 <outreach@mkt.ediliziaincloud.com>: Sender address rejected: Domain not found"))).toBeNull();
+  });
+
+  it("«Unsubscribed.» resta una disiscrizione", () => {
+    expect(motivoBloccoElastic(b(null, "Unsubscribed."))).toBe("unsubscribe");
+  });
+});

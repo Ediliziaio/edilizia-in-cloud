@@ -161,11 +161,28 @@ export type MotivoBlocco = "hard_bounce" | "spam_complaint" | "unsubscribe";
 
 /** Il motivo, o null se il blocco di Elastic non va copiato (temporaneo o non chiaro). */
 export function motivoBloccoElastic(b: BloccoElastic): MotivoBlocco | null {
-  const testo = String(b.FriendlyErrorMessage ?? "").toLowerCase();
+  // Elastic mette davanti a OGNI rifiuto la stessa frase, «Mailbox
+  // unavailable. The server response was: …» (anche a «casella piena» e ai
+  // rifiuti del nostro mittente): va tolta, se no «mailbox unavailable»
+  // sembra sempre un indirizzo inesistente. Vista nell'anteprima del 07/11.
+  const testo = String(b.FriendlyErrorMessage ?? "").toLowerCase()
+    .replace(/^\s*mailbox unavailable\.?\s*(the server response was:)?\s*/, "")
+    .replace(/^\s*exceeded storage allocation\.?\s*(the server response was:)?\s*/, "casella piena: ");
   const codice = parseInt(String(b.ErrorCode ?? "").trim(), 10);
 
   if (/unsubscri|disiscri|opt.?out/.test(testo)) return "unsubscribe";
-  if (/complain|spam report|abuse report|segnalat/.test(testo)) return "spam_complaint";
+  // «Abuse.» è come Elastic scrive una segnalazione di spam del destinatario.
+  if (/complain|spam report|abuse|segnalat/.test(testo)) return "spam_complaint";
+
+  // Un rifiuto che parla del MITTENTE («Sender address rejected: Domain not
+  // found», 4.1.8 / 5.1.8) è un problema nostro, non dell'indirizzo: mai un
+  // blocco. Il 07/11 erano 6 voci, tutte su mkt.ediliziaincloud.com e
+  // mkt.marketingedile.com.
+  if (/sender|mittente|\b[45]\.1\.8\b/.test(testo)) return null;
+
+  // Un dominio senza server di posta non riceve niente (libero.itt,
+  // azienda.srl…): Elastic lo segna 450, ma non passa riprovando.
+  if (/no valid mx|no mx record|domain (not found|does not exist)|nxdomain/.test(testo)) return "hard_bounce";
 
   // Un 4xx è temporaneo per definizione (anche «450 mailbox unavailable»):
   // la casella può tornare a funzionare. Mai un blocco definitivo.
