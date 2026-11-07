@@ -1,4 +1,5 @@
 import { messaggioErrore } from "@/lib/orders/sottofasi";
+import { MODELLI_STANDARD } from "@/lib/orders/modelliStandard";
 import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -94,129 +95,24 @@ export interface PhaseMaterial {
   odaNumber: string | null;
 }
 
-// Fasi standard di una ristrutturazione (template "1 clic")
-export const RISTRUTTURAZIONE_TEMPLATE: string[] = [
-  "Demolizioni e rimozioni",
-  "Opere murarie",
-  "Impianto idraulico",
-  "Impianto elettrico",
-  "Massetti e sottofondi",
-  "Intonaci e cartongessi",
-  "Posa pavimenti e rivestimenti",
-  "Serramenti",
-  "Tinteggiature",
-  "Finiture e pulizie finali",
-];
-
 /** Modelli di fasi per tipo di lavoro edile: creano in un clic le fasi standard
- *  della lavorazione, così si può assegnare subito manodopera/subappalti. */
+ *  della lavorazione, così si può assegnare subito manodopera/subappalti.
+ *  Dal 07/11/2026 vivono in lib/orders/modelliStandard.ts con sottofasi e giorni tipici;
+ *  `phases` resta l'elenco dei nomi. */
 export interface PhaseTemplate {
   key: string;
   label: string;
   hint: string;
   phases: string[];
+  /** Fasi con sottofasi e giorni tipici. */
+  fasi?: FaseModello[];
 }
 
-export const PHASE_TEMPLATES: PhaseTemplate[] = [
-  {
-    key: "fotovoltaico",
-    label: "Fotovoltaico",
-    hint: "Dalla preparazione alla consegna dell'impianto",
-    phases: ["Sopralluogo e preparazione", "Strutture e moduli", "Collegamenti e inverter", "Verifiche, collaudo e consegna"],
-  },
-  {
-    key: "ristrutturazione_completa",
-    label: "Ristrutturazione completa",
-    hint: "Appartamento/villa a 360°",
-    phases: RISTRUTTURAZIONE_TEMPLATE,
-  },
-  {
-    key: "ristrutturazione_bagno",
-    label: "Ristrutturazione bagno",
-    hint: "Rifacimento bagno chiavi in mano",
-    phases: [
-      "Demolizioni e rimozioni",
-      "Impianto idraulico",
-      "Impianto elettrico",
-      "Massetti e impermeabilizzazione",
-      "Posa rivestimenti e pavimenti",
-      "Sanitari e accessori",
-      "Box doccia e serramenti",
-      "Silicature e finiture",
-    ],
-  },
-  {
-    key: "nuova_costruzione",
-    label: "Nuova costruzione",
-    hint: "Edificio da zero",
-    phases: [
-      "Scavi e fondazioni",
-      "Struttura portante (c.a./muratura)",
-      "Copertura e tetto",
-      "Tamponamenti e tramezzi",
-      "Impianto idraulico",
-      "Impianto elettrico",
-      "Massetti e sottofondi",
-      "Intonaci e cartongessi",
-      "Serramenti",
-      "Posa pavimenti e rivestimenti",
-      "Tinteggiature",
-      "Finiture e pulizie finali",
-    ],
-  },
-  {
-    key: "cappotto_facciata",
-    label: "Cappotto / Facciata",
-    hint: "Isolamento e rifacimento facciata",
-    phases: [
-      "Ponteggio e allestimento cantiere",
-      "Preparazione del supporto",
-      "Posa pannelli isolanti",
-      "Rasatura e rete armata",
-      "Finitura e tinteggiatura",
-      "Smontaggio ponteggio e pulizie",
-    ],
-  },
-  {
-    key: "serramenti_infissi",
-    label: "Serramenti / Infissi",
-    hint: "Sostituzione finestre e porte",
-    phases: [
-      "Rilievo misure",
-      "Rimozione vecchi serramenti",
-      "Posa nuovi serramenti",
-      "Sigillature e finiture",
-      "Oscuranti e zanzariere",
-      "Collaudo e pulizie",
-    ],
-  },
-  {
-    key: "impianti",
-    label: "Impianti",
-    hint: "Elettrico, idraulico, clima",
-    phases: [
-      "Tracce e predisposizioni",
-      "Impianto elettrico",
-      "Impianto idraulico",
-      "Climatizzazione / riscaldamento",
-      "Collaudi e certificazioni",
-    ],
-  },
-  {
-    key: "tetto_copertura",
-    label: "Tetto / Copertura",
-    hint: "Rifacimento copertura",
-    phases: [
-      "Ponteggio e sicurezza",
-      "Rimozione manto esistente",
-      "Struttura e coibentazione",
-      "Impermeabilizzazione / guaina",
-      "Posa manto di copertura",
-      "Lattoneria e pluviali",
-      "Smontaggio e pulizie",
-    ],
-  },
-];
+export const PHASE_TEMPLATES: PhaseTemplate[] = MODELLI_STANDARD.map((m) => ({ ...m, phases: m.fasi.map((f) => f.nome) }));
+
+// Fasi standard di una ristrutturazione (template "1 clic")
+export const RISTRUTTURAZIONE_TEMPLATE: string[] =
+  PHASE_TEMPLATES.find((t) => t.key === "ristrutturazione_completa")?.phases ?? [];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;

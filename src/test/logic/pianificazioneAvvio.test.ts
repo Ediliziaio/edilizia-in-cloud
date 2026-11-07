@@ -67,3 +67,10 @@ describe("fasiDaBozza con la durata scritta a mano (07/11/2026)", () => {
       .toEqual([{ nome: "A", sottofasi: [], giorni: 4 }, { nome: "B", sottofasi: [] }, { nome: "C", sottofasi: [] }]);
   });
 });
+
+describe("fasiDaBozza tiene i giorni delle sottofasi (07/11/2026)", () => {
+  it("giorni e parallelo restano; valori strani no", () => {
+    expect(fasiDaBozza([{ nome: "A", sottofasi: [{ nome: "x", peso: 1, giorni: 3 }, { nome: "y", peso: 1, giorni: 2, in_parallelo: true }, { nome: "z", peso: 1, giorni: 0 }] }]))
+      .toEqual([{ nome: "A", sottofasi: [{ nome: "x", peso: 1, giorni: 3 }, { nome: "y", peso: 1, giorni: 2, in_parallelo: true }, { nome: "z", peso: 1 }] }]);
+  });
+});

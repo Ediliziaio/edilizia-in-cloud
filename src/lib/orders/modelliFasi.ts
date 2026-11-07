@@ -37,8 +37,15 @@ export const eModelloDiPartenza = (id: string): boolean => id.startsWith(PREFISS
 export function modelloDiPartenza(t: PhaseTemplate): ModelloFasi {
   return {
     id: `${PREFISSO_PARTENZA}${t.key}`, origine: "partenza", nome: t.label, descrizione: t.hint,
-    fasi: t.phases.map((nome): FaseModello => ({ nome, sottofasi: [] })),
+    fasi: fasiDelloStandard(t),
   };
+}
+
+/** Le fasi di un modello standard: con sottofasi e giorni tipici se li ha (07/11/2026), altrimenti i soli nomi. */
+export function fasiDelloStandard(t: Pick<PhaseTemplate, "phases" | "fasi">): FaseModello[] {
+  return t.fasi?.length
+    ? t.fasi.map((f) => ({ nome: f.nome, sottofasi: f.sottofasi.map((s) => ({ ...s })) }))
+    : t.phases.map((nome): FaseModello => ({ nome, sottofasi: [] }));
 }
 
 /**
@@ -62,7 +69,7 @@ export interface ModelloPerServer { nome: string; descrizione: string; fasi: Fas
 export function modelliPerInizializzare(partenza: ReadonlyArray<PhaseTemplate>): ModelloPerServer[] {
   return partenza.map((t) => ({
     nome: t.label, descrizione: t.hint,
-    fasi: t.phases.map((nome): FaseModello => ({ nome, sottofasi: [] })),
+    fasi: fasiDelloStandard(t),
   }));
 }
 

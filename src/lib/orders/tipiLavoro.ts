@@ -82,6 +82,8 @@ const TIPO_DEL_MODELLO_DI_PARTENZA: Record<string, TipoLavoro> = {
   serramenti_infissi: "serramenti",
   impianti: "impianti",
   tetto_copertura: "tetto",
+  pavimenti: "pavimenti",
+  pittura: "pittura",
 };
 
 export function tipoDelModelloDiPartenza(chiave: string): TipoLavoro | null {

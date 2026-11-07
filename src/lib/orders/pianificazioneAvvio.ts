@@ -24,7 +24,12 @@ export function fasiDaBozza(valore: unknown): FaseModello[] | null {
     const sottofasi: FaseModello["sottofasi"] = [];
     for (const sotto of fase.sottofasi) {
       if (!sotto || typeof sotto.nome !== "string" || !Number.isFinite(sotto.peso)) return null;
-      sottofasi.push({ nome: sotto.nome.slice(0, 160), peso: Math.min(100, Math.max(1, Math.round(sotto.peso))) });
+      // Anche i giorni e il «in parallelo»: senza, ripresa la bozza, le date tornerebbero divise in parti uguali.
+      const giorniSotto = Number.isInteger(sotto.giorni) && sotto.giorni >= 1 && sotto.giorni <= 3650 ? sotto.giorni : null;
+      sottofasi.push({
+        nome: sotto.nome.slice(0, 160), peso: Math.min(100, Math.max(1, Math.round(sotto.peso))),
+        ...(giorniSotto ? { giorni: giorniSotto } : {}), ...(sotto.in_parallelo === true ? { in_parallelo: true } : {}),
+      });
     }
     const giorni = Number.isInteger(fase.giorni) && fase.giorni >= 1 && fase.giorni <= 3650 ? fase.giorni : null;
     fasi.push({ nome: fase.nome.slice(0, 160), sottofasi, ...(giorni ? { giorni } : {}) });
