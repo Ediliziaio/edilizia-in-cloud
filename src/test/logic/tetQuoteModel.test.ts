@@ -5,6 +5,12 @@ import { createFullTettiTemplate } from "@/lib/moduli-vendita/fullTettiModules";
 import { SALES_AREAS } from "@/lib/moduli-vendita/areas";
 import { quoteBuilder } from "@/lib/moduli-vendita/quoteBuilders";
 import type { TetTemplatePdf } from "@/types/tetti";
+// L'archivio «Contratti e condizioni» si legge dal database: qui un'azienda senza archivio, senza andare in rete
+// (in CI la richiesta vera non risponde e il test scade).
+vi.mock("@/lib/condizioni/archivioNelModello", () => ({
+  conArchivioDelDocumento: async <T extends object>(t: T) =>
+    ({ ...t, __condizioni_archivio: { associato: null, predefinito: null, fissate: null } }) as T,
+}));
 
 const base = { id: "online", company_id: "company-a", logo_url: "/brand.png", default_iva_pct: 22 } as TetTemplatePdf;
 describe("Tetti: identità persistente dell'intervento", () => {

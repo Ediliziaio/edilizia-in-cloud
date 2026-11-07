@@ -35,6 +35,12 @@ import type { EleTemplatePdf } from "@/types/elettrico";
 import type { IdrTemplatePdf } from "@/types/termoidraulico";
 import type { PisTemplatePdf } from "@/types/piscine";
 import type { RstTemplatePdf } from "@/types/ristrutturazione";
+// L'archivio «Contratti e condizioni» si legge dal database: qui un'azienda senza archivio, senza andare in rete
+// (in CI la richiesta vera non risponde e il test scade).
+vi.mock("@/lib/condizioni/archivioNelModello", () => ({
+  conArchivioDelDocumento: async <T extends object>(t: T) =>
+    ({ ...t, __condizioni_archivio: { associato: null, predefinito: null, fissate: null } }) as T,
+}));
 
 const AZIENDA = "5b0f7c2e-8d1a-4c3b-9e6f-1a2b3c4d5e6f";
 const ALTRA = "9c8d7e6f-5a4b-4c3d-8e2f-0a1b2c3d4e5f";

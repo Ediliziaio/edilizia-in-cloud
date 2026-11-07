@@ -4,6 +4,12 @@ import { SR_OPERATIONAL_MODELS, isSrQuoteModelId, makeSrQuoteModelSnapshot, quot
 import { modelCatalogTypes, suggestedModelTypes } from "@/lib/serramenti/modelCatalog";
 import { AREE_STANDARD } from "@/lib/listino/areeStandard";
 import type { TipologiaListino } from "@/lib/listino/lineeListino";
+// L'archivio «Contratti e condizioni» si legge dal database: qui un'azienda senza archivio, senza andare in rete
+// (in CI la richiesta vera non risponde e il test scade).
+vi.mock("@/lib/condizioni/archivioNelModello", () => ({
+  conArchivioDelDocumento: async <T extends object>(t: T) =>
+    ({ ...t, __condizioni_archivio: { associato: null, predefinito: null, fissate: null } }) as T,
+}));
 
 describe("Serramenti model → stored document", () => {
   it("real PDF resolution prefers snapshot even when the caller requests a fresh general template", async () => {
