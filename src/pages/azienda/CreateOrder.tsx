@@ -83,7 +83,10 @@ import { SedeSelect } from "@/components/sedi/SedeSelect";
 import { FasiDiPartenzaSelect } from "@/components/orders/FasiDiPartenzaSelect";
 import { useFasiDiPartenza } from "@/hooks/useFasiDiPartenza";
 import { fasiPerCommessa, type FaseModello } from "@/lib/orders/modelliFasi";
-import { fasiDaBozza, salvaFasiDiPartenza, type SettimanaLavorativa } from "@/lib/orders/pianificazioneAvvio";
+import { dataValida, fasiDaBozza, salvaFasiDiPartenza, type SettimanaLavorativa } from "@/lib/orders/pianificazioneAvvio";
+import { pianificaFasi } from "@/lib/orders/pianoFasiNuovaCommessa";
+import { calendarioCantiere } from "@/lib/orders/sottofasi";
+import { useCalendarioCantiere } from "@/hooks/useCalendarioCantiere";
 import { PianificazioneCommessa } from "@/components/orders/PianificazioneCommessa";
 import { AnteprimaFasiCommessa } from "@/components/orders/AnteprimaFasiCommessa";
 import { CreateOrderActions } from "@/components/orders/CreateOrderActions";
@@ -292,6 +295,10 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const fasiDaCreare = useMemo(() => fasiPersonalizzate ?? (fasiDiPartenza.modello ? fasiPerCommessa(fasiDiPartenza.modello) : []), [fasiPersonalizzate, fasiDiPartenza.modello]);
   const [durataLavori, setDurataLavori] = useState("");
   const [settimanaLavorativa, setSettimanaLavorativa] = useState<SettimanaLavorativa>(5);
+  // Le date delle fasi: una dopo l'altra sui giorni di lavoro della settimana scelta qui,
+  // saltando le chiusure dell'azienda (o le feste nazionali).
+  const { chiusure } = useCalendarioCantiere();
+  const lavorativoCommessa = useMemo(() => calendarioCantiere({ sabato: settimanaLavorativa === 6, chiusure }), [settimanaLavorativa, chiusure]);
   useEffect(() => {
     if (!pianoContratto || pianoContratto.profilo === "standard" || !fasiDiPartenza.offerti.length || standardApplicatoRef.current === contrattoImportato) return;
     standardApplicatoRef.current = contrattoImportato;
@@ -904,6 +911,13 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const toDateStr = (d: Date | undefined): string | null =>
     d ? format(d, "yyyy-MM-dd") : null;
 
+  const inizioLavori = dataValida(workStartDate) ? format(workStartDate, "yyyy-MM-dd") : null;
+  const fineLavori = dataValida(workEndDate) ? format(workEndDate, "yyyy-MM-dd") : null;
+  const pianoFasi = useMemo(
+    () => pianificaFasi(fasiDaCreare, { inizio: inizioLavori, fine: fineLavori, lavorativo: lavorativoCommessa }),
+    [fasiDaCreare, inizioLavori, fineLavori, lavorativoCommessa],
+  );
+
   // La nuova commessa parte dall'aliquota che l'azienda usa di più, finché nessuno la sceglie:
   // una bozza, un preventivo, un contratto o una fattura portano già la loro.
   const ivaToccataRef = useRef(false);
@@ -1223,7 +1237,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       }
       if (!selectedQuoteId && fasiDaCreare.length && result.id) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const fasiErr = await salvaFasiDiPartenza(result.id, fasiDaCreare, (nome, args) => (supabase as any).rpc(nome, args));
+        const fasiConDate = fasiDaCreare.map((f, i) => ({ ...f, data_inizio: pianoFasi.righe[i]?.dal ?? null, data_fine: pianoFasi.righe[i]?.al ?? null }));
+        const fasiErr = await salvaFasiDiPartenza(result.id, fasiConDate, (nome, args) => (supabase as any).rpc(nome, args));
         if (fasiErr) {
           console.warn("[CreateOrder] fasi di partenza non aggiunte (ordine creato comunque):", fasiErr);
           toast.error("Fasi non aggiunte", {
@@ -1865,7 +1880,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           {/* Fasi di lavoro: facoltative, di partenza quelle scelte dall'azienda nelle Impostazioni. */}
           {!selectedQuoteId && <div className="min-w-0 border-t border-slate-100 pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
             <div className="max-w-md"><FasiDiPartenzaSelect offerti={fasiDiPartenza.offerti} valore={fasiDiPartenza.scelta} onChange={(id) => { fasiDiPartenza.scegli(id); setFasiPersonalizzate(null); }} /></div>
-            <AnteprimaFasiCommessa modello={fasiDiPartenza.modello} fasi={fasiDaCreare} personalizzate={fasiPersonalizzate !== null} onChange={setFasiPersonalizzate} onRipristina={() => setFasiPersonalizzate(null)} />
+            <AnteprimaFasiCommessa modello={fasiDiPartenza.modello} fasi={fasiDaCreare} personalizzate={fasiPersonalizzate !== null} onChange={setFasiPersonalizzate} onRipristina={() => setFasiPersonalizzate(null)} piano={pianoFasi} />
           </div>}
           </div>
         </QuoteCard>

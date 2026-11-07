@@ -5,6 +5,8 @@ import { PianificazioneCommessa, type CampoDataPiano } from "@/components/orders
 import { AnteprimaFasiCommessa } from "@/components/orders/AnteprimaFasiCommessa";
 import type { SettimanaLavorativa } from "@/lib/orders/pianificazioneAvvio";
 import type { FaseModello, ModelloFasi } from "@/lib/orders/modelliFasi";
+import { pianificaFasi } from "@/lib/orders/pianoFasiNuovaCommessa";
+import { calendarioCantiere } from "@/lib/orders/sottofasi";
 
 afterEach(cleanup);
 const modello: ModelloFasi = { id: "bagno", origine: "azienda", nome: "Bagno", descrizione: "", fasi: [
@@ -112,5 +114,38 @@ describe("anteprima fasi senza alterare il modello aziendale", () => {
     expect(screen.queryByText("Fase 10")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Mostra tutte le 10 fasi" }));
     expect(screen.getByText("Fase 10")).toBeInTheDocument();
+  });
+});
+
+describe("le date delle fasi nella nuova commessa", () => {
+  const feriali = calendarioCantiere({ sabato: false, chiusure: new Set() });
+  function ConDate({ inizio, fine }: { inizio: string | null; fine: string | null }) {
+    const [fasi, setFasi] = useState<FaseModello[]>([{ nome: "Demolizioni", sottofasi: [] }, { nome: "Posa", sottofasi: [] }]);
+    return <AnteprimaFasiCommessa modello={null} fasi={fasi} personalizzate={false} onChange={setFasi} onRipristina={vi.fn()}
+      piano={pianificaFasi(fasi, { inizio, fine, lavorativo: feriali })} />;
+  }
+  it("divide i lavori fra le fasi e mostra dal/al", () => {
+    render(<ConDate inizio="2026-11-09" fine="2026-11-20" />);
+    expect(screen.getByText(/dal 09\/11 al 20\/11/)).toBeInTheDocument();
+    expect(screen.getByText(/5 gg · 09\/11 → 13\/11/)).toBeInTheDocument();
+    expect(screen.getByText(/5 gg · 16\/11 → 20\/11/)).toBeInTheDocument();
+  });
+  it("i giorni scritti a mano spostano le fasi dopo", () => {
+    render(<ConDate inizio="2026-11-09" fine="2026-11-20" />);
+    fireEvent.click(screen.getByRole("button", { name: "Adatta alla commessa" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Giorni di lavoro fase 1" }), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Fine modifica" }));
+    expect(screen.getByText(/2 gg · 09\/11 → 10\/11/)).toBeInTheDocument();
+    expect(screen.getByText(/8 gg · 11\/11 → 20\/11/)).toBeInTheDocument();
+  });
+  it("avvisa se le fasi vanno oltre la fine dei lavori", () => {
+    render(<ConDate inizio="2026-11-09" fine="2026-11-10" />);
+    fireEvent.click(screen.getByRole("button", { name: "Adatta alla commessa" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Giorni di lavoro fase 1" }), { target: { value: "4" } });
+    expect(screen.getByRole("status")).toHaveTextContent("dopo la fine dei lavori");
+  });
+  it("senza inizio dei lavori chiede la data", () => {
+    render(<ConDate inizio={null} fine={null} />);
+    expect(screen.getByText(/Metti l'inizio dei lavori/)).toBeInTheDocument();
   });
 });

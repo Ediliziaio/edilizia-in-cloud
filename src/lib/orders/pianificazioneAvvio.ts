@@ -26,15 +26,19 @@ export function fasiDaBozza(valore: unknown): FaseModello[] | null {
       if (!sotto || typeof sotto.nome !== "string" || !Number.isFinite(sotto.peso)) return null;
       sottofasi.push({ nome: sotto.nome.slice(0, 160), peso: Math.min(100, Math.max(1, Math.round(sotto.peso))) });
     }
-    fasi.push({ nome: fase.nome.slice(0, 160), sottofasi });
+    const giorni = Number.isInteger(fase.giorni) && fase.giorni >= 1 && fase.giorni <= 3650 ? fase.giorni : null;
+    fasi.push({ nome: fase.nome.slice(0, 160), sottofasi, ...(giorni ? { giorni } : {}) });
   }
   return fasi;
 }
 
-type RpcFasi = (nome: "aggiungi_fasi_commessa", args: { p_order_id: string; p_fasi: FaseModello[] }) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+/** Una fase come la vuole il server: con le date, se la pagina le ha calcolate (AAAA-MM-GG). */
+export type FasePerServer = FaseModello & { data_inizio?: string | null; data_fine?: string | null };
+
+type RpcFasi = (nome: "aggiungi_fasi_commessa", args: { p_order_id: string; p_fasi: FasePerServer[] }) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
 
 /** Un fallimento successivo alla creazione non deve indurre a ricreare la commessa. Nessun retry alla cieca. */
-export async function salvaFasiDiPartenza(orderId: string, fasi: FaseModello[], rpc: RpcFasi): Promise<string | null> {
+export async function salvaFasiDiPartenza(orderId: string, fasi: FasePerServer[], rpc: RpcFasi): Promise<string | null> {
   if (!fasi.length) return null;
   try {
     const { data, error } = await rpc("aggiungi_fasi_commessa", { p_order_id: orderId, p_fasi: fasi });

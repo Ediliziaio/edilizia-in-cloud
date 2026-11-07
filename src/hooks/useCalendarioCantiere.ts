@@ -6,6 +6,8 @@ import { calendarioCantiere, type GiornoLavorativo } from "@/lib/orders/sottofas
 
 export interface CalendarioCantiere {
   lavorativo: GiornoLavorativo;
+  /** I giorni di chiusura (feste dell'azienda o nazionali), per chi ha un suo sabato. */
+  chiusure: ReadonlySet<string>;
   sabato: boolean;
   setSabato: (sabato: boolean) => void;
 }
@@ -23,7 +25,7 @@ export function useCalendarioCantiere(): CalendarioCantiere {
   const [sabato, impostaSabato] = useState(() => {
     try { return localStorage.getItem(CHIAVE_SABATO) === "1"; } catch { return false; }
   });
-  const lavorativo = useMemo(() => {
+  const chiusure = useMemo(() => {
     const anno = new Date().getFullYear();
     const chiusure = new Set<string>();
     for (let y = anno - 1; y <= anno + 2; y++) {
@@ -33,11 +35,12 @@ export function useCalendarioCantiere(): CalendarioCantiere {
         if (p) chiusure.add(p.projectedDate);
       }
     }
-    return calendarioCantiere({ sabato, chiusure });
-  }, [festivita, sabato]);
+    return chiusure as ReadonlySet<string>;
+  }, [festivita]);
+  const lavorativo = useMemo(() => calendarioCantiere({ sabato, chiusure }), [chiusure, sabato]);
   const setSabato = (v: boolean) => {
     impostaSabato(v);
     try { localStorage.setItem(CHIAVE_SABATO, v ? "1" : "0"); } catch { /* il sabato vale solo per questa visita */ }
   };
-  return { lavorativo, sabato, setSabato };
+  return { lavorativo, chiusure, sabato, setSabato };
 }

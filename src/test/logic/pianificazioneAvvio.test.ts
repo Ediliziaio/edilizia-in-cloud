@@ -60,3 +60,10 @@ describe("fasi dalla bozza e salvataggio dopo la creazione", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 });
+
+describe("fasiDaBozza con la durata scritta a mano (07/11/2026)", () => {
+  it("tiene i giorni validi e scarta quelli strani", () => {
+    expect(fasiDaBozza([{ nome: "A", sottofasi: [], giorni: 4 }, { nome: "B", sottofasi: [], giorni: -1 }, { nome: "C", sottofasi: [], giorni: "x" }]))
+      .toEqual([{ nome: "A", sottofasi: [], giorni: 4 }, { nome: "B", sottofasi: [] }, { nome: "C", sottofasi: [] }]);
+  });
+});

@@ -8,7 +8,12 @@ import type { PhaseTemplate } from "@/hooks/useOrderWorkPhases";
 
 /** giorni e in_parallelo dal 31/10/2026: il modello porta il tempo, non le date. */
 export interface SottofaseModello { nome: string; peso: number; giorni?: number | null; in_parallelo?: boolean }
-export interface FaseModello { nome: string; sottofasi: SottofaseModello[] }
+export interface FaseModello {
+  nome: string;
+  sottofasi: SottofaseModello[];
+  /** Solo nella nuova commessa (07/11/2026): la durata scritta a mano, in giorni di lavoro. */
+  giorni?: number | null;
+}
 export type OrigineModello = "azienda" | "partenza";
 
 export interface ModelloFasi {
