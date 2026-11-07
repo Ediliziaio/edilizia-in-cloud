@@ -5,6 +5,8 @@ import { bozzaVuota, chiaveBozzaComputo } from "@/lib/computo/editorNativo";
 import ComputoPreventivo from "@/pages/azienda/marketing/ComputoPreventivo";
 import ComputiPreventivoLocali from "@/components/computo/ComputiPreventivoLocali";
 // La pagina legge il modello del computo dell'azienda: qui non c'è, e si parte coi valori di serie.
+// Le condizioni dall'archivio (07/11/2026): qui un'azienda che non ne ha.
+vi.mock("@/hooks/useCondizioniArchivio", () => ({ useCondizioniArchivio: () => ({ modelli: [] as unknown[], inCaricamento: false }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewCosts: false, canViewMargins: false }) }));
 vi.mock("@/lib/computo/modelloComputo", async (orig) => ({ ...(await orig<typeof import("@/lib/computo/modelloComputo")>()), useModelloComputo: () => ({ isLoading: false, data: undefined as undefined }) }));
 

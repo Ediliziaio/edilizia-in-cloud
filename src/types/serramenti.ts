@@ -528,6 +528,8 @@ export interface SrTemplatePdfRow {
   /** Condizioni e disclaimer legali (pagina appendice). */
   condizioni_legali_attivo: boolean;
   condizioni_legali_testo: string | null;
+  /** Il modello di «Contratti e condizioni» che usa questo preventivatore. NULL = il predefinito (07/11/2026). */
+  condizioni_modello_id?: string | null;
   /** Allega il modulo di recesso: serve se si firma con un privato a casa sua o a distanza. Spento di serie. */
   modulo_recesso_attivo?: boolean | null;
   /** Mostra il blocco "Firma e conferma online" (link pagina pubblica) nel PDF.

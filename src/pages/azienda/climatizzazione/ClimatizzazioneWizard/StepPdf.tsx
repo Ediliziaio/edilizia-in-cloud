@@ -209,6 +209,7 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
           progetto={progetto}
           onChange={onCondizioni}
           testoDelModello={(template as unknown as { condizioni_legali_testo?: string | null } | undefined)?.condizioni_legali_testo}
+          modelloAssociatoId={(template as unknown as { condizioni_modello_id?: string | null } | undefined)?.condizioni_modello_id}
           spenteNelModello={(template as unknown as { condizioni_legali_attivo?: boolean | null } | undefined)?.condizioni_legali_attivo === false}
         />
       )}

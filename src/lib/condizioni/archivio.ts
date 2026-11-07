@@ -100,6 +100,14 @@ export const testoDelModello = (modello: Pick<ModelloCondizioni, "clausole"> | n
 /** Il titolo si ripete già nella prima riga del testo? Allora non si scrive due volte. */
 export const titoloGiaNelTesto = (titolo: string, testo: string): boolean =>
   condiviso.titoloGiaNelTesto(titolo, testo);
+/** Il modello come va nel PDF: HTML con titoli e stili, con le regole che il PDF usa per rileggerlo. */
+export const htmlDelModello = (modello: Pick<ModelloCondizioni, "clausole"> | null | undefined): string =>
+  condiviso.htmlDelModello(modello as condiviso.ModelloArchivio | null);
+/** Il testo senza tag: per la causale della fattura, per l'AI, per un riassunto. */
+export const testoPiano = condiviso.testoPiano;
+/** La regola unica di cosa stampa un PDF: vedi `condizioniDelPdf` nel modulo condiviso. */
+export const condizioniDelPdf = condiviso.condizioniDelPdf;
+export type FonteCondizioniPdf = condiviso.FonteCondizioniPdf;
 
 /** Il modello che vale per un ambito: il predefinito attivo. Niente predefinito, niente modello. */
 export function modelloPredefinito(
@@ -211,3 +219,8 @@ export function raccontaOrigine(origine: OrigineCondizioni | null | undefined, f
   if (fonte === "sistema") return "Testo di sistema: l'azienda non ha ancora un modello suo per questo tipo di documento.";
   return "Nessuna condizione impostata.";
 }
+
+export type { ModelloArchivio } from "../../../supabase/functions/_shared/condizioniArchivio";
+
+/** La parte del contratto d'appalto che viene dall'archivio (dal titolo «Condizioni generali dell'impresa» in fondo). */
+export const condizioniDelContratto = (md: string | null | undefined): string => condiviso.condizioniDelContratto(md);

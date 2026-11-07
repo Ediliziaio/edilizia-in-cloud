@@ -1,4 +1,5 @@
 import type { SrProgettoRow, SrTemplatePdfRow } from "@/types/serramenti";
+import { conArchivioDelDocumento } from "@/lib/condizioni/archivioNelModello";
 
 /**
  * Gli interventi Serramenti che aprono il preventivatore col loro modello: tutti e
@@ -59,14 +60,14 @@ export function quoteModelTemplate(project: Pick<SrProgettoRow, "company_id" | "
 }
 
 export async function resolveSrDocumentTemplate(
-  project: Pick<SrProgettoRow, "company_id" | "modello_snapshot">,
+  project: Pick<SrProgettoRow, "company_id" | "modello_snapshot"> & { condizioni_origine?: unknown },
   draft: Partial<SrTemplatePdfRow> | null | undefined,
   fresh: boolean | undefined,
   loadCompanyTemplate: (companyId: string) => Promise<Partial<SrTemplatePdfRow> | null>,
 ) {
-  const snapshot = quoteModelTemplate(project);
-  if (snapshot) return snapshot;
-  return fresh ? loadCompanyTemplate(project.company_id) : draft ?? null;
+  const template = quoteModelTemplate(project) ?? (fresh ? await loadCompanyTemplate(project.company_id) : draft ?? null);
+  // Le condizioni vengono da «Contratti e condizioni» (07/11/2026), come per gli altri preventivatori.
+  return template ? conArchivioDelDocumento(template, project) : null;
 }
 
 export function srModelProjectDefaults(snapshot: SrQuoteModelSnapshot): Partial<SrProgettoRow> {

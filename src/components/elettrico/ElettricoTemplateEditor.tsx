@@ -172,7 +172,7 @@ function PlaceholderChips({
 // tabella ele_template_pdf è scritta via `(supabase as any)` nell'hook upsert).
 type FormState = Required<Pick<EleTemplatePdf,
   | "pdf_ordine_capitoli" | "pdf_pagine_libere"
-  | "condizioni_legali_testo" | "condizioni_legali_attivo" | "modulo_recesso_attivo" | "pdf_blocchi"
+  | "condizioni_legali_testo" | "condizioni_modello_id" | "condizioni_legali_attivo" | "modulo_recesso_attivo" | "pdf_blocchi"
   | "logo_url" | "color_primary" | "color_secondary" | "color_accent" | "color_text"
   | "chi_siamo" | "chi_siamo_foto_url" | "esigenze" | "soluzione" | "usp"
   | "testimonianze" | "cronoprogramma" | "cover_title" | "cover_subtitle"
@@ -231,6 +231,8 @@ function templateToForm(t: EleTemplatePdf): FormState {
     pdf_ordine_capitoli: t.pdf_ordine_capitoli ?? null,
     pdf_pagine_libere: t.pdf_pagine_libere ?? [],
     condizioni_legali_testo: t.condizioni_legali_testo ?? "",
+    // Il modello di «Contratti e condizioni» associato (07/11/2026): senza, al caricamento si perdeva.
+    condizioni_modello_id: t.condizioni_modello_id ?? null,
     condizioni_legali_attivo: t.condizioni_legali_attivo ?? true,
     modulo_recesso_attivo: t.modulo_recesso_attivo === true,
     pdf_blocchi: t.pdf_blocchi ?? {},
@@ -1136,7 +1138,9 @@ if (field === "subtitle") {
                   attivo={form.condizioni_legali_attivo !== false}
                   testo={form.condizioni_legali_testo ?? ""}
                   onAttivo={(v) => set("condizioni_legali_attivo", v)}
-                  onTesto={(v) => set("condizioni_legali_testo", v)}
+                  nomeModulo="Elettrico"
+                  modelloAssociatoId={form.condizioni_modello_id ?? null}
+                  onAssocia={(id) => set("condizioni_modello_id", id)}
                   recesso={form.modulo_recesso_attivo === true}
                   onRecesso={(v) => set("modulo_recesso_attivo", v)}
                 />

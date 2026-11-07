@@ -12,6 +12,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import type { BozzaComputo } from "./editorNativo";
+import { testoPiano, type Clausola } from "@/lib/condizioni/archivio";
 
 const colore = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 const testo = (max: number) => z.string().max(max).default("");
@@ -38,6 +39,8 @@ export const modelloComputoSchema = z.object({
   condizioniContrattuali: testo(20000),
   /** Le clausole da approvare con una seconda firma (artt. 1341-1342 c.c.), una per riga. */
   clausoleDaApprovare: testo(3000),
+  /** Il modello di «Contratti e condizioni» che usa il computo. Vuoto = il predefinito (07/11/2026). */
+  condizioniModelloId: z.string().uuid().nullable().default(null),
   /** Quanti giorni vale l'offerta: va nella pagina di accettazione e nella firma online. */
   giorniValidita: z.number().int().min(1).max(365).default(30),
   ivaModalita: z.enum(["da-definire", "applicata", "non-applicabile"]).default("da-definire"),
@@ -69,6 +72,34 @@ export const vesteDalModello = (m: ModelloComputo): VesteComputo => ({
   mostraFirma: m.mostraFirma, firmatario: m.firmatario, piePagina: m.piePagina,
   clausoleDaApprovare: m.clausoleDaApprovare, giorniValidita: m.giorniValidita,
 });
+
+/**
+ * Le condizioni del computo dall'archivio «Contratti e condizioni» (07/11/2026): il modello associato, o il
+ * predefinito dei preventivi. Il PDF del computo legge righe («#» titoli, «- » punti), quindi il testo
+ * arriva semplice, una clausola per titolo. Senza un modello nell'archivio il computo resta col suo testo:
+ * chi non usa l'archivio non vede differenze. Le clausole da approvare a parte sono quelle segnate lì.
+ */
+export function conCondizioniDellArchivio(
+  m: ModelloComputo,
+  modelliArchivio: ReadonlyArray<{ id: string; ambito: string; predefinito?: boolean | null; attivo?: boolean | null; clausole?: Clausola[] | null }>,
+): ModelloComputo {
+  const attivi = modelliArchivio.filter((x) => x.attivo !== false && x.ambito === "preventivo");
+  const scelto = attivi.find((x) => x.id === m.condizioniModelloId) ?? attivi.find((x) => x.predefinito) ?? null;
+  const clausole = (scelto?.clausole ?? []).filter((c) => testoPiano(c.testo) || (c.titolo ?? "").trim());
+  if (!scelto || !clausole.length) return m;
+  const righe = clausole.map((c) => {
+    const titolo = (c.titolo ?? "").trim();
+    const corpo = testoPiano(c.testo);
+    // Un contratto intero importato si apre già col suo titolo: non se ne aggiunge un altro.
+    const apreColTitolo = /^#{1,6}\s/.test(corpo);
+    return [titolo && !(clausole.length === 1 && apreColTitolo) ? `# ${titolo}` : "", corpo].filter(Boolean).join("\n");
+  });
+  return {
+    ...m,
+    condizioniContrattuali: righe.join("\n\n").slice(0, 20000),
+    clausoleDaApprovare: clausole.filter((c) => c.vessatoria).map((c) => (c.titolo ?? "").trim()).filter(Boolean).join("\n").slice(0, 3000),
+  };
+}
 
 /** Un computo nuovo parte col formato, le condizioni e l'IVA del modello. */
 export function bozzaDalModello(bozza: BozzaComputo, m: ModelloComputo): BozzaComputo {

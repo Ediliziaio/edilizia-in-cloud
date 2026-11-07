@@ -1,5 +1,6 @@
 import type { TetTemplatePdf } from "@/types/tetti";
 import { findTettiTemplateModule, type TettiTemplateModuleId } from "@/lib/moduli-vendita/tettiTemplateModules";
+import { conArchivioDelDocumento } from "@/lib/condizioni/archivioNelModello";
 
 export interface TetQuoteModelSnapshot {
   version: 1;
@@ -31,9 +32,11 @@ export function makeTetQuoteModel(companyId: string, modelId: TettiTemplateModul
   return snapshot;
 }
 export async function resolveTetQuoteTemplate(
-  project: { company_id: string; modello_snapshot?: unknown },
+  project: { company_id: string; modello_snapshot?: unknown; condizioni_origine?: unknown },
   draft: TetTemplatePdf | null | undefined,
   load: (companyId: string) => Promise<TetTemplatePdf>,
 ) {
-  return readTetQuoteModel(project.modello_snapshot, project.company_id)?.template ?? draft ?? load(project.company_id);
+  const template = readTetQuoteModel(project.modello_snapshot, project.company_id)?.template ?? draft ?? await load(project.company_id);
+  // Le condizioni vengono da «Contratti e condizioni» (07/11/2026), come per gli altri preventivatori.
+  return conArchivioDelDocumento(template, project);
 }

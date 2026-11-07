@@ -1049,7 +1049,9 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
 
   // L'ordine e la visibilità scelti dall'azienda (completati con quelli di serie).
   const ordine = ordineEffettivo(modello.ordineCapitoli, modello.pagineLibere);
-  const visibile = (k: string) => !dati.bozzaLocale?.soloConfigurazione && ordine.some((v) => v.chiave === k && v.visibile);
+  // L'anteprima delle condizioni stampa solo quelle: niente copertina, capitoli o chiusura.
+  const soloCondizioni = dati.soloCondizioni === true;
+  const visibile = (k: string) => !dati.bozzaLocale?.soloConfigurazione && !soloCondizioni && ordine.some((v) => v.chiave === k && v.visibile);
 
   const haChiSiamo = modello.mostraChiSiamo && Boolean(modello.chiSiamoHtml);
   const haUsp = modello.usp.length > 0;
@@ -1099,8 +1101,8 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   };
   const libere = new Map(modello.pagineLibere.map((pl) => [chiaveLibera(pl.id), pl]));
   const tecniche = new Map((dati.sezioniTecniche ?? []).map(s => [s.id, s]));
-  const capitoliVisibili = dati.bozzaLocale?.soloConfigurazione ? [] : ordine.filter((v) => v.chiave !== "apertura" && v.visibile && (libere.has(v.chiave) || presente[v.chiave]));
-  const tutteSezioni = [...capitoliVisibili, ...[...tecniche.keys()].map(chiave => ({ chiave, visibile: true }))];
+  const capitoliVisibili = dati.bozzaLocale?.soloConfigurazione || soloCondizioni ? [] : ordine.filter((v) => v.chiave !== "apertura" && v.visibile && (libere.has(v.chiave) || presente[v.chiave]));
+  const tutteSezioni = soloCondizioni ? [] : [...capitoliVisibili, ...[...tecniche.keys()].map(chiave => ({ chiave, visibile: true }))];
   const posizioni = new Map((dati.ordineDocumento ?? []).map((chiave, i) => [chiave, i]));
   const sequenza = tutteSezioni.sort((a, b) => (posizioni.get(a.chiave) ?? posizioni.size) - (posizioni.get(b.chiave) ?? posizioni.size));
   // I numeri seguono i capitoli che escono davvero, nell'ordine scelto: nessun salto da 02 a 05.
@@ -1568,7 +1570,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
       riempimento.delete(ultimi[ultimi.length - 1]);
     }
   }
-  const chiusuraInCoda = dati.mostraChiusura !== false && !dati.bozzaLocale?.soloConfigurazione && !dati.sezioniTecniche?.length && (!fotoChiusura || fotoChiusuraInCoda != null);
+  const chiusuraInCoda = dati.mostraChiusura !== false && !dati.bozzaLocale?.soloConfigurazione && !soloCondizioni && !dati.sezioniTecniche?.length && (!fotoChiusura || fotoChiusuraInCoda != null);
 
   // Il contenuto di ogni capitolo, con il suo numero nella sequenza scelta.
   const contenutoTecnico = (sezione: NonNullable<DocEdileDati["sezioniTecniche"]>[number]) => (<>
@@ -1861,7 +1863,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
       author={dati.azienda.nome}
       subject={`${modulo.etichetta} per ${dati.cliente}`}
     >
-      <Copertina tema={tema} dati={dati} />
+      {soloCondizioni ? null : <Copertina tema={tema} dati={dati} />}
 
       {/* ─── Apertura: lettera, intervento in breve, sommario ─────────────── */}
       {visibile("apertura") ? (
@@ -1986,7 +1988,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           La foto è alta quanto lasciano titolo, passi e contatti (649 punti utili,
           ~270 per il resto, con margine per un indirizzo lungo). Senza foto la
           chiusura segue l'ultimo capitolo; dopo un blocco con pagina sua, ha la sua. */}
-      {dati.mostraChiusura !== false && !dati.bozzaLocale?.soloConfigurazione && (!chiusuraInCoda || segmenti.length === 0 || segmenti[segmenti.length - 1].propria) ? (
+      {dati.mostraChiusura !== false && !dati.bozzaLocale?.soloConfigurazione && !soloCondizioni && (!chiusuraInCoda || segmenti.length === 0 || segmenti[segmenti.length - 1].propria) ? (
         <Page size="A4" style={pagina}>
           {cornice}
           {chiusura(fotoChiusura ? 330 : null)}

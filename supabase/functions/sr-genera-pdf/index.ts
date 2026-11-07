@@ -25,7 +25,7 @@ import { preventivoFirmaAttiva } from "../_shared/preventivoFirmaAttiva.ts";
 import { renderSrPdfHtml, countSrPdfPages, type SrPdfData } from "../_shared/srHtmlTemplate.ts";
 import { coloreDelDocumento } from "../_shared/temaColori.ts";
 import { condizioniStandard } from "../_shared/condizioniStandard.ts";
-import { testoCondizioniDelPdf } from "../_shared/condizioniDelPreventivo.ts";
+import { condizioniDelPreventivoDalServer } from "../_shared/condizioniArchivio.ts";
 import { buildMergeContext, substituteMergeTags } from "../_shared/quoteTemplateComposer.ts";
 import { CAMPI_IMMAGINE_SERRAMENTI, firmaImmaginiModello, firmatarioStorage } from "../_shared/immaginiModelloPdf.ts";
 
@@ -525,6 +525,11 @@ Deno.serve(async (req: Request) => {
     const anticipoEur = importoMedio * ((Number(prog.fin_anticipo_pct) || 0) / 100);
     const finanziatoEur = importoMedio - anticipoEur;
 
+    // Le condizioni: LA regola di «Contratti e condizioni» (07/11/2026), archivio compreso.
+    const testoCondizioni = await condizioniDelPreventivoDalServer(
+      supabaseAdmin, prog, tpl, condizioniStandard("serramenti"),
+    );
+
     const data: SrPdfData = {
       code: prog.code,
       data_emissione: prog.created_at,
@@ -555,9 +560,10 @@ Deno.serve(async (req: Request) => {
       // Senza condizioni scritte dall'azienda si usano quelle di base del settore:
       // un preventivo che si firma senza condizioni è un contratto muto.
       condizioni_legali_testo: (() => {
-        // Il preventivo può avere condizioni sue, scritte per questo cliente, o uscire senza la parte
-        // contrattuale: è la scelta del passo PDF. Senza testo la pagina delle condizioni non esce.
-        const testo = testoCondizioniDelPdf(prog, String(tpl?.condizioni_legali_testo ?? "").trim() || condizioniStandard("serramenti"));
+        // LA regola di «Contratti e condizioni» (07/11/2026): calcolata sopra, prima di comporre il documento.
+        // Il preventivo può avere condizioni sue o uscire senza la parte contrattuale: senza testo la pagina
+        // delle condizioni non esce.
+        const testo = testoCondizioni;
         if (!testo) return "";
         return substituteMergeTags(testo, buildMergeContext({
             quote: {

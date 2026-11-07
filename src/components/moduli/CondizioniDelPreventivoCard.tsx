@@ -9,13 +9,20 @@
  * Una regola resta ferma: il PDF che va in firma le ha sempre, perché il preventivo firmato è il contratto. Qui si
  * dice, e chi manda in firma passa dal progetto di `perLaFirma()`.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import DOMPurify from "dompurify";
 import { Link } from "react-router-dom";
-import { FileText, Lock, RotateCcw, TriangleAlert } from "lucide-react";
+import { Eye, FileText, Lock, RotateCcw, TriangleAlert } from "lucide-react";
+import { AnteprimaCondizioniDialog } from "@/components/preventivi/CondizioniContratto";
+import type { ModelloArchivio } from "@/lib/condizioni/archivio";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useCondizioniArchivio } from "@/hooks/useCondizioniArchivio";
+import { htmlDelModello, testoPiano } from "@/lib/condizioni/archivio";
+import { PAGINA_CONDIZIONI } from "@/lib/condizioni/indirizzi";
+import { htmlPerEditorContratto } from "@/lib/preventivi/contrattoEditor";
 import { cn } from "@/lib/utils";
 import {
   condizioniRiscritte, condizioniTolteDalPdf, haTesto, puoRiscrivereLeCondizioni,
@@ -25,31 +32,46 @@ import {
 interface Props {
   progetto: CondizioniDelPreventivo | null | undefined;
   onChange: (patch: Partial<CondizioniDelPreventivo>) => void;
-  /** Le condizioni del modello dell'azienda: quelle che valgono se il preventivo non ne ha di sue. */
+  /** Il testo che il modello del preventivatore aveva: vale solo se l'archivio non ha niente. */
   testoDelModello?: string | null;
+  /** Il modello di «Contratti e condizioni» associato al preventivatore (07/11/2026). */
+  modelloAssociatoId?: string | null;
   /** L'azienda ha spento le condizioni nel modello: allora non escono comunque, e qui si dice. */
   spenteNelModello?: boolean;
 }
 
-/** Il testo ricco senza tag, per mostrarlo in una casella e per la lunghezza. */
-const inTesto = (html: string | null | undefined) =>
-  String(html ?? "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>/gi, "\n\n").replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").trim();
-
-export function CondizioniDelPreventivoCard({ progetto, onChange, testoDelModello, spenteNelModello }: Props) {
+export function CondizioniDelPreventivoCard({ progetto, onChange, testoDelModello, modelloAssociatoId, spenteNelModello }: Props) {
   const permessi = usePermissions();
   const puoRiscrivere = puoRiscrivereLeCondizioni(permessi);
   const riscritte = condizioniRiscritte(progetto);
   const fuoriDalPdf = condizioniTolteDalPdf(progetto);
   const [apertoEditor, setApertoEditor] = useState(false);
   const [bozza, setBozza] = useState("");
+  // Da dove partono le condizioni di questo preventivo: la stessa regola del PDF (`condizioniDelPdf`).
+  // Il modello associato al preventivatore, poi il predefinito di «Contratti e condizioni», poi il testo vecchio.
+  const archivio = useCondizioniArchivio();
+  const perPreventivi = useMemo(() => archivio.modelli.filter((m) => m.attivo && m.ambito === "preventivo"), [archivio.modelli]);
+  const dallArchivio = perPreventivi.find((m) => m.id === modelloAssociatoId) ?? perPreventivi.find((m) => m.predefinito) ?? null;
+  const base = dallArchivio ? htmlDelModello(dallArchivio) : String(testoDelModello ?? "");
 
   const apriEditor = () => {
-    setBozza(riscritte ? inTesto(progetto?.condizioni_testo) : inTesto(testoDelModello));
+    // L'editor vero (07/11/2026): grassetti, titoli ed elenchi del modello restano, e si riscrive sopra.
+    setBozza(DOMPurify.sanitize(htmlPerEditorContratto(riscritte ? String(progetto?.condizioni_testo ?? "") : base)));
     setApertoEditor(true);
   };
+  // Per un cliente che tratta si parte spesso da un altro modello dell'archivio, non da zero.
+  const partiDa = (id: string) => {
+    const m = perPreventivi.find((x) => x.id === id);
+    if (m) setBozza(DOMPurify.sanitize(htmlPerEditorContratto(htmlDelModello(m))));
+  };
+  // L'anteprima mostra quello che esce davvero: il testo di questo preventivo, o quello del modello.
+  const [anteprima, setAnteprima] = useState(false);
+  const daMostrare: ModelloArchivio = riscritte || !dallArchivio
+    ? { id: "documento", nome: riscritte ? "Condizioni di questo preventivo" : "Condizioni", ambito: "preventivo", attivo: true, versione: 1,
+        clausole: [{ titolo: "", testo: riscritte ? String(progetto?.condizioni_testo ?? "") : base }] }
+    : dallArchivio;
   const salva = () => {
-    const pulito = bozza.trim();
-    onChange({ condizioni_testo: pulito ? pulito.split(/\n{2,}/).map((p) => `<p>${p.replace(/\n/g, "<br/>")}</p>`).join("") : null });
+    onChange({ condizioni_testo: haTesto(bozza) ? bozza : null });
     setApertoEditor(false);
   };
 
@@ -68,7 +90,9 @@ export function CondizioniDelPreventivoCard({ progetto, onChange, testoDelModell
                 ? "Questo PDF esce senza la parte contrattuale. Quando lo mandi in firma ci sono comunque."
                 : riscritte
                   ? "Nel PDF escono le condizioni scritte per questo preventivo."
-                  : "Nel PDF escono le condizioni del modello dell'azienda."}
+                  : dallArchivio
+                    ? `Nel PDF esce «${dallArchivio.nome}», da Contratti e condizioni.`
+                    : "Nel PDF escono le condizioni del modello dell'azienda."}
           </p>
         </div>
         {!spenteNelModello && (
@@ -95,13 +119,15 @@ export function CondizioniDelPreventivoCard({ progetto, onChange, testoDelModell
 
           {apertoEditor ? (
             <>
-              <Textarea
-                aria-label="Condizioni contrattuali di questo preventivo"
-                value={bozza}
-                onChange={(e) => setBozza(e.target.value)}
-                rows={10}
-                className="text-xs"
-              />
+              {perPreventivi.length > 1 && (
+                <select aria-label="Parti dalle condizioni di un altro modello" className="h-8 w-full rounded-md border bg-background px-2 text-xs"
+                  value="" onChange={(e) => e.target.value && partiDa(e.target.value)}>
+                  <option value="">Parti da un altro modello di «Contratti e condizioni»…</option>
+                  {perPreventivi.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                </select>
+              )}
+              <RichTextEditor value={bozza} onChange={setBozza} minHeight={220}
+                placeholder="Le condizioni di questo preventivo, scritte per questo cliente." />
               <div className="flex flex-wrap items-center gap-1.5">
                 <Button type="button" size="sm" onClick={salva}>Salva per questo preventivo</Button>
                 <Button type="button" size="sm" variant="ghost" onClick={() => setApertoEditor(false)}>Annulla</Button>
@@ -110,6 +136,11 @@ export function CondizioniDelPreventivoCard({ progetto, onChange, testoDelModell
             </>
           ) : (
             <div className="flex flex-wrap items-center gap-1.5">
+              {(riscritte || haTesto(base)) && (
+                <Button type="button" size="sm" variant="ghost" className="gap-1" onClick={() => setAnteprima(true)}>
+                  <Eye className="h-3.5 w-3.5" />Anteprima
+                </Button>
+              )}
               {puoRiscrivere ? (
                 <>
                   <Button type="button" size="sm" variant="outline" onClick={apriEditor}>
@@ -125,8 +156,8 @@ export function CondizioniDelPreventivoCard({ progetto, onChange, testoDelModell
                 <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                   <Lock aria-hidden="true" className="h-3 w-3" />
                   {riscritte
-                    ? "Queste condizioni sono state scritte per questo preventivo. Per cambiarle serve il permesso sui modelli."
-                    : "Per scrivere condizioni diverse serve il permesso sui modelli di preventivo."}
+                    ? "Queste condizioni sono state scritte per questo preventivo. Per cambiarle serve il permesso «Riscrivere le condizioni su un documento»."
+                    : "Per scrivere condizioni diverse serve il permesso «Riscrivere le condizioni su un documento»."}
                 </p>
               )}
             </div>
@@ -134,19 +165,21 @@ export function CondizioniDelPreventivoCard({ progetto, onChange, testoDelModell
 
           {riscritte && !apertoEditor && (
             <p className={cn("max-h-24 overflow-hidden rounded bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900")}>
-              {inTesto(progetto?.condizioni_testo).slice(0, 320)}
-              {inTesto(progetto?.condizioni_testo).length > 320 ? "…" : ""}
+              {testoPiano(progetto?.condizioni_testo).slice(0, 320)}
+              {testoPiano(progetto?.condizioni_testo).length > 320 ? "…" : ""}
             </p>
           )}
 
-          {!riscritte && !haTesto(testoDelModello) && (
+          {!riscritte && !haTesto(base) && (
             <p className="text-[11px] text-muted-foreground">
-              Nel modello non ci sono condizioni scritte: il documento usa quelle di base del tuo settore.{" "}
-              <Link to="/azienda/impostazioni/template-preventivi" className="underline">Scrivile nel modello</Link> per averle su tutti i preventivi.
+              L'azienda non ha ancora scritto le sue condizioni: il documento usa quelle di base del tuo settore.{" "}
+              <Link to={PAGINA_CONDIZIONI} className="underline">Scrivile in Contratti e condizioni</Link> per averle su tutti i preventivi.
             </p>
           )}
         </div>
       )}
+      <AnteprimaCondizioniDialog open={anteprima} onOpenChange={setAnteprima} modello={daMostrare}
+        titolo={riscritte ? "Le condizioni di questo preventivo, come escono nel PDF" : undefined} />
     </div>
   );
 }

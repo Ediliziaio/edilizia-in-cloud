@@ -16,9 +16,10 @@ describe("Serramenti model → stored document", () => {
   it("preserves draft preview and fresh company lookup for legacy projects", async () => {
     const draft = { pdf_cover_hero: "Draft unsaved" };
     const load = vi.fn(async () => ({ pdf_cover_hero: "Fresh general" }));
-    expect(await resolveSrDocumentTemplate({ company_id: "A" }, draft, false, load)).toBe(draft);
+    // La bozza, con sopra l'archivio di «Contratti e condizioni» (07/11/2026).
+    expect(await resolveSrDocumentTemplate({ company_id: "A" }, draft, false, load)).toMatchObject(draft);
     expect(load).not.toHaveBeenCalled();
-    expect(await resolveSrDocumentTemplate({ company_id: "A" }, draft, true, load)).toEqual({ pdf_cover_hero: "Fresh general" });
+    expect(await resolveSrDocumentTemplate({ company_id: "A" }, draft, true, load)).toMatchObject({ pdf_cover_hero: "Fresh general" });
     expect(load).toHaveBeenCalledExactlyOnceWith("A");
   });
   it.each(SR_OPERATIONAL_MODELS)("round-trips %s independently of later template edits", modelId => {

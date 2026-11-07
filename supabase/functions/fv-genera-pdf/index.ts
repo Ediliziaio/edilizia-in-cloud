@@ -53,7 +53,8 @@ import { eFotoDiSerie } from "../_shared/blocchiPreventivo.ts";
 import { calcolaEnergyFlows, finanziatoConAnticipo, quotaAutoconsumo, type FvProfiloAutoconsumo } from "../_shared/fvCalcoli.ts";
 import { coloreDelDocumento } from "../_shared/temaColori.ts";
 import { condizioniStandard } from "../_shared/condizioniStandard.ts";
-import { haTesto, perLaFirma, testoCondizioniDelPdf } from "../_shared/condizioniDelPreventivo.ts";
+import { haTesto, perLaFirma } from "../_shared/condizioniDelPreventivo.ts";
+import { condizioniDelPreventivoDalServer } from "../_shared/condizioniArchivio.ts";
 import { CAMPI_IMMAGINE_FOTOVOLTAICO, firmaImmaginiModello, firmatarioStorage } from "../_shared/immaginiModelloPdf.ts";
 import { logoDiRiserva } from "../_shared/logoAzienda.ts";
 import {
@@ -134,7 +135,7 @@ Deno.serve(async (req: Request) => {
     const { data: prog, error: progErr } = await supabaseAdmin
       .from("fv_progetti")
       .select(
-        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, fonte_dati_tetto, qualita_dati_tetto, imagery_date, ore_sole_annue, superficie_tetto_disponibile_mq, perdita_ombreggiamento_pct, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, con_ottimizzatori, produzione_annua_kwh, autoconsumo_pct, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva, cliente_codice_univoco, cointestatario_nome, cointestatario_cognome, cointestatario_codice_fiscale, scenario_finanziamento, finanziamento_tabella_id, finanziamento_durata_mesi, finanziamento_rata_eur, finanziamento_taeg, finanziamento_tan, finanziamento_totale_dovuto_eur, kit_bundle_id, kit_nome, kit_prezzo, prezzo_vendita_manuale, sconto_valore, modalita_pagamento, iva_aliquota, modello_snapshot, layout_overlay, condizioni_nel_pdf, condizioni_testo",
+        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, fonte_dati_tetto, qualita_dati_tetto, imagery_date, ore_sole_annue, superficie_tetto_disponibile_mq, perdita_ombreggiamento_pct, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, con_ottimizzatori, produzione_annua_kwh, autoconsumo_pct, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva, cliente_codice_univoco, cointestatario_nome, cointestatario_cognome, cointestatario_codice_fiscale, scenario_finanziamento, finanziamento_tabella_id, finanziamento_durata_mesi, finanziamento_rata_eur, finanziamento_taeg, finanziamento_tan, finanziamento_totale_dovuto_eur, kit_bundle_id, kit_nome, kit_prezzo, prezzo_vendita_manuale, sconto_valore, modalita_pagamento, iva_aliquota, modello_snapshot, layout_overlay, condizioni_nel_pdf, condizioni_testo, condizioni_origine, stato",
       )
       .eq("id", p.progetto_id)
       .maybeSingle();
@@ -738,6 +739,14 @@ Deno.serve(async (req: Request) => {
     const condizioniDelPreventivo = p.con_condizioni === true
       ? perLaFirma({ condizioni_nel_pdf: prog.condizioni_nel_pdf, condizioni_testo: prog.condizioni_testo })
       : { condizioni_nel_pdf: prog.condizioni_nel_pdf, condizioni_testo: prog.condizioni_testo };
+    // Il testo: LA regola di «Contratti e condizioni» (07/11/2026), archivio compreso. Calcolato una volta,
+    // serve sia alla pagina sia a dire se la pagina contiene le condizioni.
+    const testoCondizioni = await condizioniDelPreventivoDalServer(
+      supabaseAdmin,
+      { ...condizioniDelPreventivo, company_id: prog.company_id, stato: prog.stato, condizioni_origine: prog.condizioni_origine },
+      template,
+      condizioniStandard("fotovoltaico"),
+    );
 
     // ── Costruzione data context ──────────────────────────────────────────
     const data: FvPdfTemplateData = {
@@ -937,10 +946,7 @@ Deno.serve(async (req: Request) => {
           // Senza condizioni scritte dall'azienda valgono quelle di base del settore. Il preventivo può averne di
           // sue, scritte per questo cliente, o uscire senza la parte contrattuale (la scelta dell'ultima fase):
           // senza testo la pagina non esce. Chi prepara il documento da firmare chiede `con_condizioni`.
-          testoCondizioniDelPdf(
-            condizioniDelPreventivo,
-            String(template.condizioni_legali_testo ?? "").trim() || condizioniStandard("fotovoltaico"),
-          ),
+          testoCondizioni,
           buildMergeContext({
               quote: {
                 quote_number: (prog as { numero?: string | number | null }).numero != null ? String((prog as { numero?: string | number | null }).numero) : "",
@@ -1008,10 +1014,7 @@ Deno.serve(async (req: Request) => {
     // Il fotovoltaico non impagina al momento della firma: congela la pagina già emessa. Si registra quindi se
     // QUESTA pagina contiene le condizioni, perché fea-richiedi-firma non manda in firma un contratto muto.
     const conCondizioniDentro = template.condizioni_legali_attivo !== false
-      && haTesto(testoCondizioniDelPdf(
-        condizioniDelPreventivo,
-        String(template.condizioni_legali_testo ?? "").trim() || condizioniStandard("fotovoltaico"),
-      ));
+      && haTesto(testoCondizioni);
     const { error: updateErr } = await supabaseAdmin
       .from("fv_progetti")
       .update({

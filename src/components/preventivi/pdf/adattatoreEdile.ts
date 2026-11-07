@@ -31,7 +31,10 @@ import { descrizioneBreve, testoDelListino } from "@/lib/moduli/testoProdotto";
 import { rateDelPreventivo, sceltaFinanziariaDelPreventivo } from "@/lib/preventivi/finanziamentoLite";
 import { leggiPianoPagamento, pianoCompleto, quandoSiPaga, rateConImporti } from "@/lib/preventivi/pianoPagamento";
 import { fasiDaStampare, leggiCronoprogramma } from "@/lib/preventivi/cronoprogramma";
-import { haTesto, testoCondizioniDelPdf } from "@/lib/preventivi/condizioniDelPreventivo";
+import { condizioniTolteDalPdf, haTesto } from "@/lib/preventivi/condizioniDelPreventivo";
+import {
+  CHIAVE_ARCHIVIO, condizioniDelPdf, documentoPartito, type ArchivioDelDocumento,
+} from "../../../../supabase/functions/_shared/condizioniArchivio";
 
 /**
  * Le fasi del cantiere nel PDF: quelle scritte su QUESTO preventivo, se ci sono; altrimenti quelle del modello.
@@ -201,14 +204,22 @@ export function leggiModello(
   })();
 
   const condizioniAttive = t.condizioni_legali_attivo !== false;
-  // Un preventivo firmato è il contratto: se l'azienda non ha scritto le proprie
-  // condizioni, il documento esce con quelle di base del suo settore invece che
-  // senza niente. L'editor le mostra e le fa adattare; l'interruttore le toglie.
-  const delModello = String(t.condizioni_legali_testo ?? "").trim()
-    || condizioniStandard(contesto.settore ?? "generico");
-  // Il singolo preventivo può uscire senza la parte contrattuale (primo invio) o averne una sua, scritta per quel
-  // cliente. Chi manda in FIRMA passa il progetto da `perLaFirma()`, che rimette le condizioni: il firmato è il contratto.
-  const testoCondizioni = testoCondizioniDelPdf(contesto.progetto, delModello);
+  // Quali condizioni: LA regola di «Contratti e condizioni» (`condizioniDelPdf`). Copia del documento →
+  // versione fissata quando è partito → per le bozze il modello associato e poi il predefinito → il testo
+  // che il modulo aveva → quelle di base del settore. Chi non ha mai usato l'archivio stampa quello che
+  // stampava, al carattere. Il singolo preventivo può anche uscire senza la parte contrattuale (primo invio):
+  // chi manda in FIRMA passa da `perLaFirma()`, che la rimette, perché il firmato è il contratto.
+  const archivio = (t[CHIAVE_ARCHIVIO] ?? null) as ArchivioDelDocumento | null;
+  const progetto = contesto.progetto as ProgettoComune & { stato?: unknown; condizioni_testo?: string | null };
+  const testoCondizioni = condizioniTolteDalPdf(progetto) ? "" : condizioniDelPdf({
+    copiaDelDocumento: progetto.condizioni_testo,
+    fissate: archivio?.fissate,
+    partito: documentoPartito(progetto.stato),
+    modelloAssociato: archivio?.associato,
+    predefinito: archivio?.predefinito,
+    testoDelModulo: t.condizioni_legali_testo as string | null | undefined,
+    testoDiSistema: condizioniStandard(contesto.settore ?? "generico"),
+  }).testo;
   const condizioniLegali = !condizioniAttive || !haTesto(testoCondizioni)
     ? []
     : separaFirmeContratto(leggiTestoRiccoContratto(applicaMergeTagModulo(testoCondizioni, {

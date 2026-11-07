@@ -248,6 +248,11 @@ export interface DocEdileDati {
   }>;
   /** Opt-in only for browser-local drafts; never implies issuance or acceptance. */
   bozzaLocale?: { ivaDaDefinire: boolean; soloConfigurazione?: boolean };
+  /**
+   * Solo le pagine delle condizioni (e la firma che le approva): l'anteprima di «Contratti e condizioni»
+   * (07/11/2026). Stesso componente del PDF vero, quindi stesso carattere, colori e impaginazione.
+   */
+  soloCondizioni?: boolean;
   modulo: DocEdileModulo;
   codice: string | null;
   /** «Mario Rossi» */

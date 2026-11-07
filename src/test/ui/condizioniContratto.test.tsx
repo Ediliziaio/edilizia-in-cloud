@@ -1,99 +1,133 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { useState } from "react";
-
 /**
- * Il blocco «Condizioni generali di contratto» degli editor dei modelli
- * (20/09/2026): lo stesso negli otto moduli edili. Si prova come lo usa
- * l'azienda — vuoto, un clic su «Parti dal testo del settore», l'interruttore.
+ * Il blocco «Clausole contrattuali» negli editor dei preventivatori (07/11/2026).
+ *
+ * Florin: «le definisco in Contratti e condizioni e le associo: non le devo modificare da altre parti».
+ * Qui non si scrive più il testo: si vede cosa esce nel PDF e da dove, si sceglie quale modello
+ * dell'archivio usa il preventivatore, e chi ha ancora il testo nel modulo lo porta nell'archivio
+ * senza crearne un doppione.
  */
+import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/hooks/useQuoteTemplates", () => ({
-  useQuoteTemplates: () => ({
-    templates: [
-      { id: "b1", kind: "condizioni", name: "Le nostre condizioni 2026", is_active: true, body_html: "<h2>Art. 1 — Oggetto</h2><p>Quello che diciamo noi.</p>" },
-      { id: "b2", kind: "copertina", name: "Copertina", is_active: true },
-    ],
-  }),
+const archivio = vi.hoisted(() => ({ valore: {} as Record<string, unknown> }));
+vi.mock("@/hooks/useCondizioniArchivio", () => ({ useCondizioniArchivio: () => archivio.valore }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { name: "Edile Prova" } }) }));
+vi.mock("@/components/shared/PdfBlobLivePreviewPanel", () => ({
+  PdfBlobLivePreviewPanel: ({ depsKey }: { depsKey: string }) => <div data-testid="anteprima-pdf">{depsKey}</div>,
 }));
-// This suite checks import/toggle state, independently of the lazy TipTap bundle.
-vi.mock('@/components/ui/rich-text-editor-safe',()=>({RichTextEditorSafe:({value,onChange}:{value:string;onChange:(v:string)=>void})=><textarea value={value} onChange={e=>onChange(e.target.value)} />}));
-vi.mock('@/components/preventivi/CopiaCondizioni', () => ({ CopiaCondizioni: () => <button>Copia da…</button> }));
 
 import { CondizioniContratto } from "@/components/preventivi/CondizioniContratto";
 
-afterEach(cleanup);
+const modello = (p: Record<string, unknown> = {}) => ({
+  id: "m1", nome: "Condizioni 2026", ambito: "preventivo", predefinito: true, attivo: true, versione: 3,
+  clausole: [{ titolo: "Pagamenti", testo: "30% alla firma." }], ...p,
+});
 
-function Editor({ settore = "tetti" as const }) {
-  const [attivo, setAttivo] = useState(true);
-  const [testo, setTesto] = useState("");
-  const [recesso, setRecesso] = useState(false);
-  return (
-    <>
-      <CondizioniContratto
-        companyId="c1" settore={settore} attivo={attivo} testo={testo} onAttivo={setAttivo} onTesto={setTesto}
-        recesso={recesso} onRecesso={setRecesso}
-      />
-      <output data-testid="salvato">{JSON.stringify({ attivo, recesso, lunghezza: testo.length, inizio: testo.slice(0, 60) })}</output>
-    </>
+const salva = vi.fn(async () => ({ id: "nuovo", nome: "Bagni · condizioni", versione: 1 }));
+
+function disegna(props: Partial<Parameters<typeof CondizioniContratto>[0]> = {}) {
+  const onAssocia = vi.fn();
+  const onAttivo = vi.fn();
+  const onRecesso = vi.fn();
+  render(
+    <MemoryRouter>
+      <CondizioniContratto companyId="c" settore="bagni" nomeModulo="Bagni" attivo testo="" onAttivo={onAttivo}
+        modelloAssociatoId={null} onAssocia={onAssocia} recesso={false} onRecesso={onRecesso} {...props} />
+    </MemoryRouter>,
   );
+  return { onAssocia, onAttivo, onRecesso };
 }
 
-const salvato = () => JSON.parse(screen.getByTestId("salvato").textContent ?? "{}");
+beforeEach(() => {
+  salva.mockClear();
+  archivio.valore = { modelli: [], salvaModello: { mutateAsync: salva, isPending: false } };
+});
 
-describe("editor: condizioni generali di contratto", () => {
-  // Dal 20/09/2026 vuoto vuol dire «testo di base del settore», non «senza condizioni».
-  it("vuoto, avverte che nel documento esce il testo di base del settore", () => {
-    render(<Editor />);
-    expect(screen.getByText(/testo di base del settore/)).toBeTruthy();
-    expect(screen.queryByText(/senza condizioni/)).toBeNull();
-  });
-
-  it("«Parti dal testo del settore» riempie il campo con le condizioni del mestiere", () => {
-    render(<Editor settore="tetti" />);
-    fireEvent.click(screen.getByRole("button", { name: /Parti dal testo del settore/ }));
-    const s = salvato();
-    expect(s.lunghezza).toBeGreaterThan(3000);
-    expect(s.inizio).toContain("# Condizioni generali di contratto");
-    const area = screen.getByRole("textbox") as HTMLTextAreaElement;
-    expect(area.value).toMatch(/amianto/i);
-    // L'avviso sparisce appena c'è un testo.
-    expect(screen.queryByText(/Il campo è vuoto/)).toBeNull();
-  });
-
-  it("con un testo già scritto chiede conferma prima di sostituirlo", () => {
-    const conferma = vi.spyOn(window, "confirm").mockReturnValue(false);
-    render(<Editor />);
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Le mie condizioni" } });
-    fireEvent.click(screen.getByText('Altre opzioni: importa un file o usa un testo di base'));
-    fireEvent.click(screen.getByRole("button", { name: /Parti dal testo del settore/ }));
-    expect(conferma).toHaveBeenCalled();
-    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toContain("Le mie condizioni");
-    conferma.mockRestore();
-  });
-
-  it("mette la modifica diretta e la copia prima delle opzioni avanzate", () => {
-    render(<Editor />);
-    expect(screen.getByRole('button', { name: 'Copia da…' })).toBeTruthy();
-    expect(screen.getByRole('textbox').compareDocumentPosition(screen.getByText('Altre opzioni: importa un file o usa un testo di base')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Aggiungi in coda' })).toBeNull();
-  });
-
-  it("l'interruttore spento nasconde il campo e lo salva spento", () => {
-    render(<Editor />);
-    fireEvent.click(screen.getByRole("switch", { name: /Condizioni generali/ }));
-    expect(salvato().attivo).toBe(false);
+describe("Cosa esce nel PDF, e da dove", () => {
+  it("con un predefinito nell'archivio, dice quale e porta a modificarlo lì", () => {
+    archivio.valore = { ...archivio.valore, modelli: [modello()] };
+    disegna();
+    expect(screen.getByText(/Nel PDF esce/)).toHaveTextContent("«Condizioni 2026»");
+    expect(screen.getByText(/versione 3 · da Contratti e condizioni/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Apri e modifica/ })).toHaveAttribute("href", "/azienda/impostazioni/contratti-e-condizioni/modello/m1");
+    // Nessuna casella per scrivere il testo qui.
     expect(screen.queryByRole("textbox")).toBeNull();
   });
 
-  // 21/09/2026: il modulo di recesso lo decide l'azienda, spento di serie.
+  it("il modello associato al preventivatore vince sul predefinito, e si cambia dalla tendina", () => {
+    archivio.valore = { ...archivio.valore, modelli: [modello(), modello({ id: "m2", nome: "Condizioni bagno", predefinito: false })] };
+    const { onAssocia } = disegna({ modelloAssociatoId: "m2" });
+    expect(screen.getByText(/Nel PDF esce/)).toHaveTextContent("«Condizioni bagno»");
+    fireEvent.change(screen.getByLabelText("Modello delle condizioni per questo preventivatore"), { target: { value: "" } });
+    expect(onAssocia).toHaveBeenCalledWith(null);
+  });
+
+  it("solo i modelli dei preventivi: quello dell'appalto o della fattura non si propone", () => {
+    archivio.valore = { ...archivio.valore, modelli: [modello(), modello({ id: "a", nome: "Appalto", ambito: "appalto", predefinito: false }), modello({ id: "b", nome: "Bagno", predefinito: false })] };
+    disegna();
+    const opzioni = Array.from((screen.getByLabelText("Modello delle condizioni per questo preventivatore") as HTMLSelectElement).options).map((o) => o.text);
+    expect(opzioni).toEqual(["il predefinito («Condizioni 2026»)", "Bagno"]);
+  });
+
+  it("senza niente da nessuna parte, dice che escono quelle di base del settore", () => {
+    disegna();
+    expect(screen.getByText(/condizioni di base del settore/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Scrivi le tue/ })).toHaveAttribute("href", "/azienda/impostazioni/contratti-e-condizioni");
+  });
+});
+
+describe("L'anteprima è il PDF vero", () => {
+  it("il bottone apre il PDF del modello che esce, e lo monta solo quando serve", () => {
+    archivio.valore = { ...archivio.valore, modelli: [modello()] };
+    disegna();
+    expect(screen.queryByTestId("anteprima-pdf")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Anteprima condizioni/ }));
+    expect(screen.getByTestId("anteprima-pdf")).toHaveTextContent("m1:3");
+  });
+
+  it("c'è anche quando escono le condizioni di base del settore", () => {
+    disegna();
+    fireEvent.click(screen.getByRole("button", { name: /Anteprima condizioni/ }));
+    expect(screen.getByTestId("anteprima-pdf")).toHaveTextContent("modulo:1");
+  });
+});
+
+describe("Il testo che il modulo aveva non si perde", () => {
+  it("si dice che esce ancora quello, e si porta nell'archivio associandolo al preventivatore", async () => {
+    const { onAssocia } = disegna({ testo: "<p>Le condizioni scritte nel modulo dei bagni.</p>" });
+    expect(screen.getByText(/Nel PDF esce il testo scritto in questo preventivatore/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Porta questo testo nell'archivio" }));
+    await vi.waitFor(() => expect(onAssocia).toHaveBeenCalledWith("nuovo"));
+    expect(salva).toHaveBeenCalledWith(expect.objectContaining({
+      nome: "Bagni · condizioni", ambito: "preventivo", predefinito: false,
+      clausole: [{ titolo: "Condizioni generali", testo: "<p>Le condizioni scritte nel modulo dei bagni.</p>" }],
+    }));
+  });
+
+  it("se lo stesso testo è già nell'archivio, associa quello invece di farne un doppione", () => {
+    archivio.valore = { ...archivio.valore, modelli: [modello({ id: "gia", nome: "Importato", predefinito: false, attivo: true,
+      clausole: [{ titolo: "Condizioni generali", testo: "Le condizioni   scritte nel modulo dei bagni." }] })] };
+    // Un modello attivo ma non predefinito, non associato: il PDF esce ancora col testo del modulo.
+    const { onAssocia } = disegna({ testo: "<p>Le condizioni scritte nel modulo dei bagni.</p>" });
+    fireEvent.click(screen.getByRole("button", { name: /Usa «Importato», che è lo stesso testo/ }));
+    expect(onAssocia).toHaveBeenCalledWith("gia");
+    expect(salva).not.toHaveBeenCalled();
+  });
+});
+
+describe("Gli interruttori restano dove sono", () => {
+  it("spento, il blocco non mostra altro; il modulo di recesso si accende", () => {
+    const spento = disegna({ attivo: false });
+    expect(screen.queryByText(/Nel PDF/)).toBeNull();
+    fireEvent.click(screen.getByLabelText("Condizioni generali nel documento"));
+    expect(spento.onAttivo).toHaveBeenCalledWith(true);
+  });
+
   it("il modulo di recesso è spento di serie, dice quando serve e si accende", () => {
-    render(<Editor />);
-    const modulo = screen.getByRole("switch", { name: "Allega il modulo di recesso" });
-    expect(modulo.getAttribute("aria-checked")).toBe("false");
-    expect(screen.getByText(/a casa sua o a distanza/)).toBeTruthy();
-    expect(screen.getByText(/12 mesi/)).toBeTruthy();
-    fireEvent.click(modulo);
-    expect(salvato().recesso).toBe(true);
+    const { onRecesso } = disegna();
+    expect(screen.getByText(/a casa sua o a distanza/)).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Allega il modulo di recesso"));
+    expect(onRecesso).toHaveBeenCalledWith(true);
   });
 });

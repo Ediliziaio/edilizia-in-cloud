@@ -210,6 +210,7 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondiz
           progetto={p}
           onChange={onCondizioni}
           testoDelModello={modelloDelDocumento?.condizioni_legali_testo}
+          modelloAssociatoId={modelloDelDocumento?.condizioni_modello_id}
           spenteNelModello={modelloDelDocumento?.condizioni_legali_attivo === false}
         />
       )}

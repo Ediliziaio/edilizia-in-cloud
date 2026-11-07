@@ -74,6 +74,7 @@ import {
   testoTrattenuta,
 } from "@/lib/fatturazione/clausoleFattura";
 import { useCondizioniDocumento } from "@/hooks/useCondizioniDocumento";
+import { testoPiano } from "@/lib/condizioni/archivio";
 
 /** I metodi che un'impresa edile usa davvero; gli altri restano nell'editor. */
 const METODI_PROPOSTI = ["MP05", "MP12", "MP08", "MP02", "MP19", "MP23", "MP01"] as const;
@@ -676,7 +677,8 @@ export function CreaFatturaDialog({
     () => condizioniAzienda.clausole.map((c, i) => ({
       id: `azienda:${i}`,
       titolo: (c.titolo ?? "").trim() || "Condizione dell'azienda",
-      testo: (c.testo ?? "").trim(),
+      // Testo semplice: va nella causale dell'XML, dove l'HTML dell'editor non deve arrivare.
+      testo: testoPiano(c.testo),
     })).filter((c) => c.testo),
     [condizioniAzienda.clausole],
   );

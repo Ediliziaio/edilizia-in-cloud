@@ -188,7 +188,7 @@ type FormState = Required<Pick<RstTemplatePdf,
   | "cover_title_size" | "cover_text_align"
   | "default_iva_pct" | "default_detrazione_pct" | "default_validita_giorni"
   | "gallery_lavori"
-  | "condizioni_legali_attivo" | "condizioni_legali_testo" | "modulo_recesso_attivo" | "pdf_blocchi"
+  | "condizioni_legali_attivo" | "condizioni_legali_testo" | "condizioni_modello_id" | "modulo_recesso_attivo" | "pdf_blocchi"
 >> & RstCoverPatch & {
   /** Eyebrow + titolo/sottotitolo cover usati dal layout preset (pdf_cover_*). */
   pdf_cover_eyebrow: string | null;
@@ -258,6 +258,8 @@ function templateToForm(t: RstTemplatePdf): FormState {
     modulo_recesso_attivo: (t as { modulo_recesso_attivo?: boolean | null }).modulo_recesso_attivo === true,
     pdf_blocchi: (t as { pdf_blocchi?: Record<string, unknown> | null }).pdf_blocchi ?? {},
     condizioni_legali_testo: (t as { condizioni_legali_testo?: string | null }).condizioni_legali_testo ?? "",
+    // Il modello di «Contratti e condizioni» associato (07/11/2026): senza, al caricamento si perdeva.
+    condizioni_modello_id: (t as { condizioni_modello_id?: string | null }).condizioni_modello_id ?? null,
     show_chi_siamo: t.show_chi_siamo ?? true,
     show_cronoprogramma: t.show_cronoprogramma ?? true,
     show_margine: t.show_margine ?? false,
@@ -1101,7 +1103,9 @@ if (field === "subtitle") { set("cover_subtitle", (value ?? "")); } }}   placeho
                   attivo={form.condizioni_legali_attivo !== false}
                   testo={form.condizioni_legali_testo ?? ""}
                   onAttivo={(v) => set("condizioni_legali_attivo", v)}
-                  onTesto={(v) => set("condizioni_legali_testo", v)}
+                  nomeModulo="Ristrutturazioni"
+                  modelloAssociatoId={form.condizioni_modello_id ?? null}
+                  onAssocia={(id) => set("condizioni_modello_id", id)}
                   recesso={form.modulo_recesso_attivo === true}
                   onRecesso={(v) => set("modulo_recesso_attivo", v)}
                 />

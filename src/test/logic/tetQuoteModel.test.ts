@@ -23,12 +23,14 @@ describe("Tetti: identità persistente dell'intervento", () => {
     const snapshot = makeTetQuoteModel(base.company_id, "ripasso", createFullTettiTemplate(base, "ripasso"));
     const load = vi.fn(async () => base);
     const template = await resolveTetQuoteTemplate({ company_id: base.company_id, modello_snapshot: snapshot }, base, load);
-    expect(template).toBe(snapshot.template);
+    // Il modello congelato, con sopra l'archivio di «Contratti e condizioni» (07/11/2026).
+    expect(template).toMatchObject(snapshot.template);
+    expect(template).toHaveProperty("__condizioni_archivio");
     expect(load).not.toHaveBeenCalled();
   });
   it("mantiene il comportamento dei preventivi precedenti senza modello", async () => {
     const load = vi.fn(async () => base);
-    expect(await resolveTetQuoteTemplate({ company_id: base.company_id }, undefined, load)).toBe(base);
+    expect(await resolveTetQuoteTemplate({ company_id: base.company_id }, undefined, load)).toMatchObject(base);
     expect(load).toHaveBeenCalledWith(base.company_id);
     expect(readTetQuoteModel(null, base.company_id)).toBeNull();
   });

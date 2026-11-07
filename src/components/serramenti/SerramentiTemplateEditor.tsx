@@ -1,7 +1,6 @@
 import { TemplateSectionNavigation } from "@/components/preventivi/TemplateSectionNavigation";
 import { logoDelDocumento, logoDellaCopertina } from "@/lib/pdf/logoDelDocumento";
-import { EditorContratto } from '@/components/preventivi/EditorContratto';
-import { CopiaCondizioni } from '@/components/preventivi/CopiaCondizioni';
+import { CondizioniContratto } from '@/components/preventivi/CondizioniContratto';
 import { SerramentiCoverLayoutPicker } from "./SerramentiCoverLayoutPicker";
 import { orderedSectionExcluded } from "@/components/preventivi/templateNavigationState";
 import { TemplateCoverDesignControls, COVER_DESIGN_CHOICES } from "@/components/preventivi/TemplateCoverDesignControls";
@@ -67,20 +66,15 @@ import { serramentiModuleExclusions } from "@/lib/moduli-vendita/serramentiOffer
 import type { AiTemplateDraft } from "@/components/preventivi/AiTemplateReviewDialog";
 import { useCompanyAnagraficaForTemplate, inheritedPlaceholder, type TemplateCompanyAnagrafica } from "@/hooks/useCompanyAnagraficaForTemplate";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { ImportaCondizioniBar } from "@/components/quote-templates/ImportaCondizioniBar";
 import { fotoDellaLibreria } from "../../../supabase/functions/_shared/blocchiPreventivo";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
 import { SerramentiLivePreviewPanel } from "@/components/serramenti/SerramentiLivePreviewPanel";
 import { useTemplatePdf, useUpsertTemplatePdf } from "@/lib/serramenti/queries";
-import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
 import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
 import { MacroPagineDedicateManager } from "@/components/listino/MacroPagineDedicateManager";
 import { FileText } from "lucide-react";
 import type { SrTemplatePdfRow, SrEsigenza, SrSoluzioneItem, SrTestimonianza, SrPercorsoCliente, SrPercorsoFase, SrGaranzia } from "@/types/serramenti";
 import { SR_PERCORSO_DEFAULT, SR_GARANZIE_DEFAULT, SR_FAQ_DEFAULT, SR_PERCHE_NOI_METRICHE_DEFAULT, normalizePdfPagesOrder, type SrPercheNoiMetrica } from "@/types/serramenti";
-import { blankTemplateForKind } from "@/types/quoteTemplate";
-import type { QuoteTemplate } from "@/types/quoteTemplate";
-import type { SharedLegalTemplateKind, SharedLegalTemplateOption } from "@/components/serramenti/SerramentiConversionEditor";
 import {
   PRESET_ESIGENZE, PRESET_ESIGENZE_ALT, PRESET_ESIGENZE_FAMIGLIA,
   PRESET_SOLUZIONE, PRESET_SOLUZIONE_PREMIUM,
@@ -164,58 +158,6 @@ function PlaceholderChips({
       </div>
     </div>
   );
-}
-
-// Modello standard di condizioni contrattuali per serramentista (base editabile).
-const CONDIZIONI_STANDARD_SERRAMENTI = [
-  "1. OGGETTO — Il presente preventivo ha per oggetto la fornitura e posa in opera dei serramenti e accessori indicati, secondo quantità, materiali e finiture descritti nelle pagine precedenti.",
-  "",
-  "2. VALIDITÀ — L'offerta è valida per il periodo indicato in copertina. Trascorso tale termine, prezzi e disponibilità potranno essere riconfermati.",
-  "",
-  "3. PAGAMENTO — 30% di acconto alla firma del contratto, 60% all'avviso di merce pronta / inizio posa, saldo 10% alla consegna e collaudo. Modalità: bonifico bancario.",
-  "",
-  "4. TEMPI DI CONSEGNA — I tempi indicati sono stimati e decorrono dalla firma del contratto e dal versamento dell'acconto. Eventuali ritardi dei fornitori non imputabili all'azienda saranno comunicati tempestivamente.",
-  "",
-  "5. POSA IN OPERA — La posa è eseguita a regola d'arte secondo la norma UNI 11673. Salvo diversa indicazione sono escluse opere murarie, elettriche, da imbianchino e lo smaltimento di serramenti preesistenti oltre il primo.",
-  "",
-  "6. GARANZIA — 10 anni sul prodotto e 10 anni sulla posa. La garanzia non copre danni da uso improprio, mancata manutenzione o interventi di terzi.",
-  "",
-  "7. RECESSO — Ai sensi degli artt. 52 e segg. del D.Lgs. 206/2005 il cliente consumatore può recedere entro 14 giorni dalla conclusione del contratto, salvo le esclusioni previste per beni realizzati su misura.",
-  "",
-  "8. RESPONSABILITÀ — Misure e quote definitive sono confermate in fase di rilievo tecnico prima dell'ordine. L'azienda non risponde di difformità derivanti da misure fornite dal cliente.",
-  "",
-  "9. FORO COMPETENTE — Per ogni controversia è competente il Foro della sede legale dell'azienda, fatte salve le competenze inderogabili a tutela del consumatore.",
-].join("\n");
-
-function decodeHtmlEntities(value: string): string {
-  return value
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
-}
-
-function normalizeSharedLegalTemplateBody(template: QuoteTemplate): string {
-  const raw = String(
-    template.body_html ??
-      (template.kind === "condizioni" ? template.contractual_terms_text : template.legal_terms_text) ??
-      "",
-  );
-  if (!raw.trim()) return "";
-
-  return decodeHtmlEntities(raw)
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|div|li|h[1-6]|tr)>/gi, "\n")
-    .replace(/<li[^>]*>/gi, "- ")
-    .replace(/<h[1-6][^>]*>/gi, "\n")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\r\n/g, "\n")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .replace(/[ \t]{2,}/g, " ")
-    .trim();
 }
 
 function hasLegacyCopy(value: unknown, markers: string[]) {
@@ -466,7 +408,6 @@ interface SerramentiTemplateEditorProps {
 export function SerramentiTemplateEditor({ embedded: _embedded = false, localModule }: SerramentiTemplateEditorProps) {
   const { data: template, isLoading } = useTemplatePdf();
   const upsertMut = useUpsertTemplatePdf();
-  const { templates: quoteTemplates, upsertTemplate: upsertQuoteTemplate } = useQuoteTemplates();
   // Dati ereditati dal Profilo azienda → placeholder anagrafica (UX allineata).
   const companyAnagrafica = useCompanyAnagraficaForTemplate();
   // Usato dagli upload handler: punta all'azienda impersonata se super_admin.
@@ -507,18 +448,6 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
   }, [form, companyAnagrafica, !!localModule]);
   const qualityCriticalCount = qualityItems.filter((item) => item.level === "critical").length;
   const qualityWarningCount = qualityItems.filter((item) => item.level === "warning").length;
-  const sharedLegalTemplates = useMemo<SharedLegalTemplateOption[]>(() => {
-    return quoteTemplates
-      .filter((template) => template.is_active !== false && (template.kind === "condizioni" || template.kind === "legali"))
-      .map((template) => ({
-        id: template.id,
-        kind: template.kind as SharedLegalTemplateKind,
-        name: template.name,
-        body: normalizeSharedLegalTemplateBody(template),
-      }))
-      .filter((template) => template.body.length > 0);
-  }, [quoteTemplates]);
-
   useEffect(() => {
     if (localModule) return;
     if (template) {
@@ -589,57 +518,6 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
     if (validityDays) update("valido_giorni_default", Number(validityDays));
     if (d.footer_text) update("pdf_cta_finale_passi", [toText(d.footer_text)]);
   }, [update]);
-
-  const applySharedLegalTemplate = useCallback((templateId: string, mode: "replace" | "append") => {
-    const templateToApply = sharedLegalTemplates.find((templateOption) => templateOption.id === templateId);
-    if (!templateToApply) {
-      toast.error("Template non disponibile", {
-        description: "Il blocco scelto non è più presente nella libreria Template offerte.",
-      });
-      return;
-    }
-
-    setForm((prev) => {
-      const current = String(prev.condizioni_legali_testo ?? "").trim();
-      const nextText = mode === "append" && current
-        ? `${current}\n\n${templateToApply.body}`
-        : templateToApply.body;
-      return {
-        ...prev,
-        condizioni_legali_attivo: true,
-        condizioni_legali_testo: nextText,
-      };
-    });
-    setDirty(true);
-    toast.success(
-      mode === "append" ? "Blocco aggiunto alle condizioni serramenti" : "Condizioni serramenti aggiornate",
-      { description: templateToApply.name },
-    );
-  }, [sharedLegalTemplates]);
-
-  const saveSharedLegalTemplate = useCallback(async (kind: SharedLegalTemplateKind) => {
-    if (localModule) { toast.info("Dai modelli della libreria le condizioni non si salvano tra quelle condivise."); return; }
-    const text = String(form.condizioni_legali_testo ?? "").trim();
-    if (!text) {
-      toast.error("Inserisci prima un testo da salvare");
-      return;
-    }
-
-    const base = blankTemplateForKind(kind);
-    await upsertQuoteTemplate.mutateAsync({
-      ...base,
-      kind,
-      name: kind === "condizioni" ? "Condizioni e termini legali serramenti" : "Termini legali serramenti",
-      description: "Creato dal template preventivo serramenti.",
-      body_html: text,
-      body_format: "plain",
-      is_default: false,
-      is_active: true,
-    });
-    toast.success(kind === "condizioni" ? "Salvato nei Template offerte (Condizioni e termini legali)" : "Termini legali salvati nei Template offerte", {
-      description: "Ora il blocco è riutilizzabile anche nei preventivi standard.",
-    });
-  }, [form.condizioni_legali_testo, upsertQuoteTemplate, localModule]);
 
   // UID stabili per le bullet/object list dei renderListEditor /
   // renderBulletObjectEditor. Prima usavano key={idx} -> rimuovendo una
@@ -887,7 +765,6 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
   /** Upload foto opzionale di una recensione. Stesso pattern (bucket sr-progetti,
    *  nel modello il percorso del file). Salva in testimonianze_default[idx].foto_url. */
   const [uploadingTestFoto, setUploadingTestFoto] = useState<number | null>(null);
-  const [selectedSharedLegalId, setSelectedSharedLegalId] = useState("");
   const handleTestimonianzaFotoUpload = async (idx: number, file: File) => {
     if (localModule) {
       try { updateTestimonianza(idx, "foto_url", await readLocalTemplateImage(file)); } catch (error) { toast.error(String(error)); }
@@ -2660,132 +2537,26 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       <SectionHeader
         title="📜 Condizioni contrattuali"
         number={5}
-        description="I termini di vendita stampati come pagina dedicata in fondo al preventivo PDF. Puoi partire da un template salvato in libreria, dal modello standard o scrivere da zero."
+        description="La pagina delle condizioni in fondo al preventivo PDF. Il testo si scrive una volta sola, in Contratti e condizioni."
       />
-
-      {/* ── Libreria condivisa ─────────────────────────────────────────── */}
-      <SrCard
-        title="Libreria Template offerte"
-        description={'Riusa i blocchi "Condizioni e termini legali" già salvati (clausole + privacy, recesso, foro). Puoi applicarli direttamente qui senza passare per altri tab.'}
-        icon={<FileText className="h-4 w-4" />}
-      >
-        <div className="space-y-3">
-          <div className="grid gap-2 md:grid-cols-[1fr_auto]">
-            <select
-              value={selectedSharedLegalId}
-              onChange={(e) => setSelectedSharedLegalId(e.target.value)}
-              className="h-9 w-full rounded-md border bg-background px-2 text-xs"
-            >
-              <option value="">
-                {sharedLegalTemplates.length > 0
-                  ? "Seleziona un blocco dalla tua libreria…"
-                  : "Nessun blocco salvato ancora — scrivi le condizioni e salvale sotto"}
-              </option>
-              {sharedLegalTemplates.map((tpl) => (
-                <option key={tpl.id} value={tpl.id}>
-                  {tpl.kind === "condizioni" ? "📜 Condizioni e termini legali" : "⚖️ Termini legali (vecchio tipo)"} · {tpl.name}
-                </option>
-              ))}
-            </select>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={!selectedSharedLegalId}
-                onClick={() => {
-                  const tpl = sharedLegalTemplates.find((t) => t.id === selectedSharedLegalId);
-                  if (tpl) applySharedLegalTemplate(tpl.id, "replace");
-                }}
-              >
-                Sostituisci testo
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={!selectedSharedLegalId}
-                onClick={() => {
-                  const tpl = sharedLegalTemplates.find((t) => t.id === selectedSharedLegalId);
-                  if (tpl) applySharedLegalTemplate(tpl.id, "append");
-                }}
-              >
-                Aggiungi in coda
-              </Button>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2 border-t pt-2">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="text-xs"
-              disabled={!!localModule || !form.condizioni_legali_testo?.trim() || upsertQuoteTemplate.isPending}
-              onClick={() => saveSharedLegalTemplate("condizioni")}
-            >
-              Salva nella libreria come "Condizioni e termini legali"
-            </Button>
-          </div>
-        </div>
-      </SrCard>
 
       {/* ── Testo condizioni ───────────────────────────────────────────── */}
       <SrCard>
         <div className="space-y-3">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <Switch
-              checked={form.condizioni_legali_attivo !== false}
-              onCheckedChange={(checked) => update("condizioni_legali_attivo", checked)}
-            />
-            <span className="text-sm font-medium">Clausole contrattuali e firma nel PDF</span>
-          </label>
-          {form.condizioni_legali_attivo !== false && (
-            <>
-              <ImportaCondizioniBar
-                localOnly={!!localModule}
-                soloImport
-                compatto
-                companyId={companyId}
-                testoAttuale={String(form.condizioni_legali_testo ?? "")}
-                onTesto={(md) => update("condizioni_legali_testo", md)}
-              />
-              {!localModule && <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  const cur = String(form.condizioni_legali_testo ?? "").trim();
-                  if (cur && !window.confirm("Sovrascrivere il testo attuale con il modello standard serramentista?")) return;
-                  update("condizioni_legali_testo", CONDIZIONI_STANDARD_SERRAMENTI);
-                }}
-              >
-                <Sparkles className="h-3.5 w-3.5 mr-1" /> Inserisci modello standard serramentista
-              </Button>}
-              <CopiaCondizioni companyId={companyId} value={form.condizioni_legali_testo ?? ''} onChange={html=>update('condizioni_legali_testo',html)} />
-              <EditorContratto value={form.condizioni_legali_testo ?? ''} onChange={html=>update('condizioni_legali_testo',html)} />
-              <PlaceholderChips
-                value={form.condizioni_legali_testo ?? ""}
-                onChange={(v) => update("condizioni_legali_testo", v || null)}
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Puoi usare segnaposto come {"{cliente_nome_completo}"}.
-                Salva il testo nella libreria (sopra) per riutilizzarlo in altri template.
-              </p>
-              {/* Il modulo di recesso è una scelta dell'azienda, spenta di serie (21/09/2026). */}
-              <label className="flex items-start gap-2 cursor-pointer rounded-md border bg-background px-3 py-2">
-                <Switch
-                  checked={form.modulo_recesso_attivo === true}
-                  onCheckedChange={(checked) => update("modulo_recesso_attivo", checked)}
-                  aria-label="Allega il modulo di recesso"
-                />
-                <div>
-                  <span className="text-sm font-medium">Allega il modulo di recesso</span>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Serve quando firmi con un privato a casa sua o a distanza (online, al telefono): senza, il cliente può
-                    arrivare a recedere fino a 12 mesi dopo, anche a lavori finiti. A chi vende ad aziende o fa firmare in
-                    sede non serve.
-                  </p>
-                </div>
-              </label>
-            </>
-          )}
+          {/* Le condizioni stanno in «Contratti e condizioni» (07/11/2026): qui si vede cosa esce e si sceglie il modello. */}
+          <CondizioniContratto
+            localOnly={!!localModule}
+            companyId={companyId}
+            settore="serramenti"
+            nomeModulo="Serramenti"
+            attivo={form.condizioni_legali_attivo !== false}
+            testo={String(form.condizioni_legali_testo ?? "")}
+            onAttivo={(v) => update("condizioni_legali_attivo", v)}
+            modelloAssociatoId={form.condizioni_modello_id ?? null}
+            onAssocia={(id) => update("condizioni_modello_id", id)}
+            recesso={form.modulo_recesso_attivo === true}
+            onRecesso={(v) => update("modulo_recesso_attivo", v)}
+          />
 
           {/* Firma online — rimasto dalla vecchia sezione Conversione */}
           <div className="border-t pt-3 mt-2">

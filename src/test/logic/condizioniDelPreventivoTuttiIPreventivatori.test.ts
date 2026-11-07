@@ -54,10 +54,12 @@ describe("preventivo classico", () => {
   });
 
   it("le condizioni riscritte per il preventivo vincono su modello e blocchi collegati", () => {
-    expect(pdf).toContain("if (haTesto(quote?.condizioni_testo)) {");
+    // 07/11/2026: la regola è `condizioniDelPdf` (Contratti e condizioni); la copia del preventivo resta al primo posto.
+    expect(pdf).toContain("copiaDelDocumento: quote?.condizioni_testo,");
+    expect(pdf).toContain('if (scelte.fonte === "documento") {');
     expect(pdf).toContain("t.contractual_terms_text = String(quote.condizioni_testo);");
     // Dopo l'applicazione dei blocchi collegati, altrimenti sarebbero loro a vincere.
-    expect(pdf.indexOf("if (haTesto(quote?.condizioni_testo))"))
+    expect(pdf.indexOf('if (scelte.fonte === "documento")'))
       .toBeGreaterThan(pdf.lastIndexOf("t.legal_terms_text = t.composed_legal.body_html;"));
   });
 
@@ -76,7 +78,9 @@ describe("preventivo classico", () => {
 describe("serramenti", () => {
   it("il PDF stampa le condizioni del preventivo, se ne ha di sue", () => {
     const documento = leggi("src/components/serramenti/SerramentoPDF.tsx");
-    expect(documento).toContain("testoCondizioniDelPdf(p, String(tpl.condizioni_legali_testo ?? \"\").trim() || condizioniStandard(\"serramenti\"))");
+    // 07/11/2026: LA regola di «Contratti e condizioni», con la copia del preventivo al primo posto.
+    expect(documento).toContain('condizioniTolteDalPdf(p) ? "" : condizioniDelPdf({');
+    expect(documento).toContain("copiaDelDocumento: p.condizioni_testo,");
   });
 
   it("quello che va in firma le ha sempre", () => {
@@ -86,7 +90,7 @@ describe("serramenti", () => {
 
   it("la pagina del cliente segue la stessa scelta", () => {
     expect(leggi("supabase/functions/sr-genera-pdf/index.ts"))
-      .toContain("const testo = testoCondizioniDelPdf(prog,");
+      .toContain("condizioniDelPreventivoDalServer(\n      supabaseAdmin, prog, tpl,");
   });
 
   it("lo step PDF ha la scheda, e il wizard la salva sul preventivo", () => {
@@ -101,7 +105,8 @@ describe("fotovoltaico", () => {
   it("il documento segue la scelta del preventivo, e «con_condizioni» la scavalca", () => {
     expect(funzione).toContain("con_condizioni?: boolean;");
     expect(funzione).toContain("const condizioniDelPreventivo = p.con_condizioni === true");
-    expect(funzione).toContain("testoCondizioniDelPdf(\n            condizioniDelPreventivo,");
+    // 07/11/2026: LA regola di «Contratti e condizioni»; la scelta del preventivo (con `perLaFirma`) le passa.
+    expect(funzione).toContain("{ ...condizioniDelPreventivo, company_id: prog.company_id, stato: prog.stato, condizioni_origine: prog.condizioni_origine },");
     // Le colonne vanno lette, altrimenti la scelta non arriverebbe mai qui.
     expect(funzione).toContain("condizioni_nel_pdf, condizioni_testo");
   });

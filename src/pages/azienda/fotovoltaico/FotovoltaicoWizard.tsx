@@ -443,7 +443,7 @@ function FotovoltaicoWizard() {
   const intervento = progettoId ? interventoDelModulo("fotovoltaico", modelloSalvato.snapshot?.modelId) : modelloRichiesto;
   // Il modello del documento: quello congelato nel preventivo, se è nato da un intervento della libreria,
   // altrimenti quello aziendale di oggi — lo stesso che userà fv-genera-pdf.
-  const modelloDelDocumento = (modelloSalvato.snapshot?.template as { condizioni_legali_testo?: string | null; condizioni_legali_attivo?: boolean | null } | undefined)
+  const modelloDelDocumento = (modelloSalvato.snapshot?.template as { condizioni_legali_testo?: string | null; condizioni_legali_attivo?: boolean | null; condizioni_modello_id?: string | null } | undefined)
     ?? fvTemplate ?? null;
   const { data: manodoperaEsistente } = useManodoperaProgetto(progettoId ?? undefined);
   const { data: serviziEsistente } = useServiziProgetto(progettoId ?? undefined);
@@ -2226,6 +2226,7 @@ function FotovoltaicoWizard() {
               data={data}
               update={update}
               condizioniDelModello={typeof modelloDelDocumento?.condizioni_legali_testo === "string" ? modelloDelDocumento.condizioni_legali_testo : null}
+              modelloCondizioniId={typeof modelloDelDocumento?.condizioni_modello_id === "string" ? modelloDelDocumento.condizioni_modello_id : null}
               condizioniSpenteNelModello={modelloDelDocumento?.condizioni_legali_attivo === false}
             />
           )}
@@ -6179,6 +6180,7 @@ function Step8Genera({
   data,
   update,
   condizioniDelModello,
+  modelloCondizioniId,
   condizioniSpenteNelModello,
 }: {
   onEmetti: () => void;
@@ -6188,6 +6190,8 @@ function Step8Genera({
   update: <K extends keyof WizardData>(k: K, v: WizardData[K]) => void;
   /** Le condizioni del modello dell'azienda: quelle che valgono se il preventivo non ne ha di sue. */
   condizioniDelModello: string | null;
+  /** Il modello di «Contratti e condizioni» associato al fotovoltaico (07/11/2026). */
+  modelloCondizioniId?: string | null;
   condizioniSpenteNelModello: boolean;
 }) {
   return (
@@ -6218,6 +6222,7 @@ function Step8Genera({
               if ("condizioni_testo" in patch) update("condizioni_testo", patch.condizioni_testo ?? null);
             }}
             testoDelModello={condizioniDelModello}
+            modelloAssociatoId={modelloCondizioniId}
             spenteNelModello={condizioniSpenteNelModello}
           />
         </div>

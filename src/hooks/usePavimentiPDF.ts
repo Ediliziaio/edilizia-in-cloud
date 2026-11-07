@@ -151,7 +151,7 @@ export async function enrichPavimentiPdf(opts: PavPdfPayload): Promise<PavPdfEnr
   // 1) Template: fresco da DB se non passato (riflette l'ultimo salvataggio).
   if (opts.localOnly && !opts.template) throw new Error("Il modulo locale richiede un modello esplicito.");
   // Il modello dell'intervento congelato nel preventivo, se c'è (lib/moduli/modelloPreventivo).
-  const template = await templateDelPreventivo("pavimenti", progetto, opts.template, getPavTemplatePdf);
+  const template = await templateDelPreventivo("pavimenti", progetto, opts.template, getPavTemplatePdf, { soloLocale: opts.localOnly });
   // Fail closed before any image fetch. Local assets and uploaded data URLs only.
   if (opts.localOnly) {
     const validate = (value: unknown, imageField = false): void => {

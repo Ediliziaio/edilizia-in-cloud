@@ -176,7 +176,7 @@ export async function enrichElettricoPdf(opts: ElePdfPayload): Promise<ElePdfEnr
   // 1) Template: fresco da DB se non passato (riflette l'ultimo salvataggio).
   if (opts.localOnly && !opts.template) throw new Error("Il modello locale deve essere passato all'anteprima.");
   // Il modello dell'intervento congelato nel preventivo, se c'è (lib/moduli/modelloPreventivo).
-  const template = await templateDelPreventivo("elettrico", progetto, opts.template, getEleTemplatePdf);
+  const template = await templateDelPreventivo("elettrico", progetto, opts.template, getEleTemplatePdf, { soloLocale: opts.localOnly });
 
   // 2) Company (anagrafica per intestazione/contatti). Best-effort.
   let company: ElePdfCompany | null = opts.company ?? null;

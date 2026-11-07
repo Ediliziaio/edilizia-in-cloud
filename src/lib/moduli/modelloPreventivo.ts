@@ -14,6 +14,8 @@
  * al suo posto, senza dirlo.
  */
 import { SALES_AREAS, type SalesIntervention } from "@/lib/moduli-vendita/areas";
+import { conArchivioDelDocumento } from "@/lib/condizioni/archivioNelModello";
+import { CHIAVE_ARCHIVIO } from "../../../supabase/functions/_shared/condizioniArchivio";
 
 export const MODULI_CON_MODELLI = [
   "bagni", "climatizzazione", "elettrico", "termoidraulico", "pavimenti", "piscine", "ristrutturazione",
@@ -151,6 +153,8 @@ export function creaModelloPreventivo<T extends object>(
     throw new Error('Il modello non corrisponde all’azienda o all’intervento richiesto. Nessuna copia generica è stata creata.');
   }
   const template = structuredClone(source) as T & TemplateConBlocchi;
+  // L'archivio delle condizioni si legge dal vivo a ogni PDF: congelato qui diventerebbe vecchio per sempre.
+  delete (template as Record<string, unknown>)[CHIAVE_ARCHIVIO];
   const blocchi = { ...(template.pdf_blocchi ?? {}) };
   delete blocchi.modulo_defaults;
   delete blocchi.modulo_foto;
@@ -167,10 +171,15 @@ export function creaModelloPreventivo<T extends object>(
  */
 export async function templateDelPreventivo<T extends object>(
   modulo: ModuloConModelloPreventivo,
-  progetto: { company_id: string; modello_snapshot?: unknown },
+  progetto: { company_id: string; modello_snapshot?: unknown; condizioni_origine?: unknown },
   bozza: T | null | undefined,
   carica: (companyId: string) => Promise<T>,
+  /** `soloLocale`: un modello di prova senza database — nessuna lettura, neanche dell'archivio. */
+  opzioni: { soloLocale?: boolean } = {},
 ): Promise<T> {
-  return leggiModelloPreventivo<T>(modulo, progetto.modello_snapshot, progetto.company_id)?.template
-    ?? bozza ?? carica(progetto.company_id);
+  const template = leggiModelloPreventivo<T>(modulo, progetto.modello_snapshot, progetto.company_id)?.template
+    ?? bozza ?? await carica(progetto.company_id);
+  // Le condizioni vengono da «Contratti e condizioni» (07/11/2026): si appoggiano sul modello qui, nel
+  // punto unico da cui i preventivatori edili prendono il modello del PDF.
+  return opzioni.soloLocale ? template : conArchivioDelDocumento(template, progetto);
 }

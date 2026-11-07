@@ -1,6 +1,7 @@
 import { requireQuoteModelAccess } from "./quoteModelAccess.ts";
 import { moduloAttivo } from "./moduloAttivo.ts";
 import { validateBathroomRenderInput } from "./bathroomRenderInput.ts";
+import { caricaArchivioDelDocumento } from "./condizioniArchivio.ts";
 
 export const BATHROOM_RENDERER_VERSION = "documento-edile-bgn-v1";
 export const BATHROOM_MODELS = ["completo", "vasca-doccia", "doccia", "sanitari", "accessibilita", "rinnovo"];
@@ -29,7 +30,14 @@ export async function readBathroomDocumentState(db: any, companyId: string, proj
   if (p.updated_at !== revision || p.modello_snapshot?.modelId !== model) {
     throw new Error("Progetto o modello cambiato: verifica e richiedi nuova conferma.");
   }
-  const payload = { progetto: p, computo: rows, media, company: {
+  // Le condizioni di «Contratti e condizioni» (07/11/2026): stanno nel payload, quindi anche nell'impronta.
+  // Se l'azienda cambia il modello, il bot non riusa il PDF di prima con le condizioni vecchie.
+  const condizioni_archivio = await caricaArchivioDelDocumento(db, companyId, {
+    associatoId: typeof p.modello_snapshot?.template?.condizioni_modello_id === "string"
+      ? p.modello_snapshot.template.condizioni_modello_id : null,
+    origine: p.condizioni_origine,
+  });
+  const payload = { progetto: p, computo: rows, media, condizioni_archivio, company: {
     name: company.name, ragione_sociale: company.business_name ?? company.name,
     indirizzo: [company.legal_address, company.legal_postal_code, company.legal_city, company.legal_province].filter(Boolean).join(", "),
     telefono: company.phone, email: company.email, partita_iva: company.vat_number, website: company.website,

@@ -194,7 +194,9 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
   // da server), aggiorniamo l'editor SOLO se HTML differisce. Senza questa guard
   // ogni keystroke ri-setterebbe il content perdendo il caret.
   useEffect(() => {
-    if (!editor) return;
+    // Un editor già smontato (rimontaggio, StrictMode) non ha più la sua vista: getHTML() lì va in crash
+    // e porta giù tutta la pagina (07/11/2026, editor dei modelli di «Contratti e condizioni»).
+    if (!editor || editor.isDestroyed) return;
     const incoming = value ?? "";
     if (incoming === lastEmitRef.current) return;
     const current = editor.getHTML();

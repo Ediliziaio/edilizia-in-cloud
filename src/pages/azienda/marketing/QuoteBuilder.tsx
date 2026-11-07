@@ -94,6 +94,8 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { CondizioniDelPreventivoCard } from "@/components/moduli/CondizioniDelPreventivoCard";
 import { haTesto } from "@/lib/preventivi/condizioniDelPreventivo";
+import { useCondizioniArchivio } from "@/hooks/useCondizioniArchivio";
+import { htmlDelModello } from "@/lib/condizioni/archivio";
 import {
   Select,
   SelectContent,
@@ -596,13 +598,25 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   const selectedTemplate =
     offerTemplates.find((t) => t.id === effectiveSelectedTemplateId) ?? defaultTemplate;
   const [layoutOverride, setLayoutOverride] = useState<QuoteTemplateLayout | null>(null);
+  const archivioCondizioni = useCondizioniArchivio();
   const effectiveTemplate = resolveQuoteTemplatePreview(layoutOverride
     ? { ...selectedTemplate, layout: layoutOverride }
     : (selectedTemplate ?? {}), templates, effectiveCompany?.brand_primary_color);
   // Le condizioni che il cliente leggerà: quelle riscritte per questo preventivo, se ci sono, altrimenti quelle
   // del modello. Da qui passano l'anteprima e i campi da compilare ({{…}}), così dicono quello che dirà il PDF.
-  const condizioniEffettive = haTesto(condizioniTesto) ? condizioniTesto : effectiveTemplate.contractual_terms_text;
-  const contractFields = pdfCondizioni ? campiContratto(condizioniEffettive, effectiveTemplate.legal_terms_text) : [];
+  // Dal 07/11/2026 il PDF le prende da «Contratti e condizioni» (modello associato all'offerta, poi il
+  // predefinito): i campi da compilare ({{contratto.…}}) si leggono dallo STESSO testo, altrimenti il
+  // preventivo non chiederebbe un campo che il PDF poi pretende («Completa i dati contrattuali»).
+  const dallArchivio = useMemo(() => {
+    const perPreventivi = archivioCondizioni.modelli.filter((m) => m.attivo && m.ambito === "preventivo");
+    const modello = perPreventivi.find((m) => m.id === effectiveTemplate.condizioni_modello_id)
+      ?? perPreventivi.find((m) => m.predefinito) ?? null;
+    return modello ? htmlDelModello(modello) : null;
+  }, [archivioCondizioni.modelli, effectiveTemplate.condizioni_modello_id]);
+  const condizioniEffettive = haTesto(condizioniTesto) ? condizioniTesto : (dallArchivio ?? effectiveTemplate.contractual_terms_text);
+  // Quando vengono dall'archivio sono un testo solo: i termini legali del modello non si aggiungono (come nel PDF).
+  const legaliEffettivi = !haTesto(condizioniTesto) && dallArchivio ? null : effectiveTemplate.legal_terms_text;
+  const contractFields = pdfCondizioni ? campiContratto(condizioniEffettive, legaliEffettivi) : [];
   const contractErrors = erroriCampiContratto(contractFields, templateValues);
   const formattedContractValues = formattaValoriContratto(templateValues);
   const contractPreviewValues = Object.fromEntries(contractFields.map(f => [f.nome, formattedContractValues[f.nome] || '[Da compilare]']));
@@ -3722,6 +3736,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                     if ("condizioni_testo" in patch) setCondizioniTesto(patch.condizioni_testo ?? null);
                   }}
                   testoDelModello={effectiveTemplate.contractual_terms_text}
+                  modelloAssociatoId={effectiveTemplate.condizioni_modello_id}
                   spenteNelModello={effectiveTemplate.show_contractual_terms === false}
                 />
               </div>

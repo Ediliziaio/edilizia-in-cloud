@@ -6,7 +6,8 @@ import ComputoCloudEditor from "@/components/computo/ComputoCloudEditor";
 import { computoCloudAttivo } from "@/lib/computo/cloudComputo";
 import { chiaveBozzaComputo } from "@/lib/computo/editorNativo";
 import { consentiPreventivoConversazionale } from "@/lib/preventivi/quoteRollout";
-import { useModelloComputo } from "@/lib/computo/modelloComputo";
+import { conCondizioniDellArchivio, useModelloComputo } from "@/lib/computo/modelloComputo";
+import { useCondizioniArchivio } from "@/hooks/useCondizioniArchivio";
 import { usePermissions } from "@/hooks/usePermissions";
 
 export default function ComputoPreventivo() {
@@ -16,6 +17,8 @@ export default function ComputoPreventivo() {
   const [nuovoId] = useState(() => crypto.randomUUID());
   // Il modello del computo dell'azienda (Impostazioni → Modelli preventivi): se non risponde si parte senza.
   const modello = useModelloComputo(effectiveCompany?.id);
+  // Le condizioni vengono da «Contratti e condizioni» (07/11/2026): un computo nuovo parte da quelle.
+  const archivio = useCondizioniArchivio();
   const permessi = usePermissions();
   const richiesto = params.get("bozza");
   const fase = /^[1-5]$/.test(params.get("fase") ?? "") ? Number(params.get("fase")) - 1 : 0;
@@ -26,14 +29,15 @@ export default function ComputoPreventivo() {
   }, [id, richiesto, params, setParams]);
   if (!effectiveCompany || !user) return <p role="alert">Seleziona un’azienda per aprire il preventivo.</p>;
   if (!import.meta.env.DEV && !computoCloudAttivo(effectiveCompany.id)) return <div className="space-y-3 p-6"><p role="alert">Azienda non riconosciuta: ricarica la pagina.</p><button className="underline" onClick={() => { void navigate("/azienda/marketing/preventivi"); }}>Torna ai Preventivi</button></div>;
-  if (modello.isLoading) return <p role="status" className="p-6 text-sm text-muted-foreground">Apro il preventivo…</p>;
+  if (modello.isLoading || archivio.inCaricamento) return <p role="status" className="p-6 text-sm text-muted-foreground">Apro il preventivo…</p>;
   const key = chiaveBozzaComputo(effectiveCompany.id, user.id, `preventivo:${id}`);
   const dettagli = [effectiveCompany.legal_address, effectiveCompany.legal_city,
     effectiveCompany.vat_number && `P.IVA ${effectiveCompany.vat_number}`, effectiveCompany.email, effectiveCompany.phone].filter(Boolean).join(" | ");
   const editorProps = { storageKey: key, consentiListini: true,
     ai: consentiPreventivoConversazionale(effectiveCompany.id) ? { companyId: effectiveCompany.id, draftId: id } : undefined, azienda: effectiveCompany.business_name || effectiveCompany.name,
     dettagliAzienda: dettagli, colore: effectiveCompany.brand_primary_color ?? undefined, fase,
-    modello: modello.data?.modello, logoUrl: effectiveCompany.logo_url,
+    modello: modello.data?.modello ? conCondizioniDellArchivio(modello.data.modello, archivio.modelli) : undefined,
+    logoUrl: effectiveCompany.logo_url,
     vediMargini: permessi.canViewCosts && permessi.canViewMargins,
     // La firma online passa per il gestionale: c'è dove il computo si salva lì.
     firmaOnline: computoCloudAttivo(effectiveCompany.id) ? { companyId: effectiveCompany.id, draftId: id, userId: user.id,

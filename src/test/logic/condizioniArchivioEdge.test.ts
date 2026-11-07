@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from "vitest";
 import {
-  clausoleBuone, modelloPredefinitoDellAzienda, origineDelModello, testoDelModello, titoliVessatorie,
+  clausoleBuone, condizioniInCodaAlContratto, modelloPredefinitoDellAzienda, origineDelModello, testoDelModello, titoliVessatorie,
   type ModelloArchivio,
 } from "../../../supabase/functions/_shared/condizioniArchivio";
 
@@ -83,5 +83,31 @@ describe("Leggere il modello dell'azienda", () => {
     expect(await modelloPredefinitoDellAzienda(db, "az-1", "appalto")).toBeNull();
     const esplode = { from: () => { throw new Error("rete"); } };
     expect(await modelloPredefinitoDellAzienda(esplode, "az-1", "appalto")).toBeNull();
+  });
+});
+
+describe("Le condizioni in coda al contratto d'appalto, parola per parola", () => {
+  // Chiedere all'AI di ricopiarle allungava il contratto oltre i limiti: risposta tagliata, poi timeout
+  // (07/11/2026, prova su Demo Azienda 2). Le attacca il sistema.
+  it("titolo e testo di ogni clausola, esatti, e in fondo le clausole da approvare con la seconda firma", () => {
+    const coda = condizioniInCodaAlContratto(modello());
+    expect(coda.startsWith("## Condizioni generali dell'impresa")).toBe(true);
+    expect(coda).toContain("### Modalità di pagamento\n30% alla firma, 40% all'inizio dei lavori, saldo alla consegna.");
+    expect(coda).toContain("## Clausole da approvare specificamente (art. 1341 c.c.)");
+    expect(coda).toMatch(/- Foro competente$/);
+  });
+
+  it("l'HTML dell'editor diventa testo, e i titoli di un contratto importato scendono di livello", () => {
+    const coda = condizioniInCodaAlContratto(modello({ clausole: [
+      { titolo: "Garanzie", testo: "<p>Due <strong>anni</strong> sulle opere.</p>" },
+      { titolo: "Condizioni", testo: "# Condizioni\n## Art. 1\nOggetto." },
+    ] }));
+    expect(coda).toContain("### Garanzie\nDue anni sulle opere.");
+    expect(coda).toContain("#### Condizioni\n#### Art. 1\nOggetto.");
+    expect(coda).not.toContain("<");
+  });
+
+  it("senza clausole non si aggiunge niente", () => {
+    expect(condizioniInCodaAlContratto(modello({ clausole: [] }))).toBe("");
   });
 });

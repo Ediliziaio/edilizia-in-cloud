@@ -56,7 +56,10 @@ import { schedaPosizione, titoloConLinea } from "@/lib/serramenti/schedaPosizion
 import { inchiostroSuBianco, testoSopra } from "@/lib/pdf/contrastoColori";
 import { coloreDelDocumento, fondoPerTestoBianco, scurisci, testoSuChiaro, testoSuScuro } from "../../../supabase/functions/_shared/temaColori";
 import { clausoleDaApprovare, condizioniStandard, MODULO_RECESSO, perArticoli, righeDaStampare, righeDelleCondizioni } from "../../../supabase/functions/_shared/condizioniStandard";
-import { testoCondizioniDelPdf } from "@/lib/preventivi/condizioniDelPreventivo";
+import { condizioniTolteDalPdf } from "@/lib/preventivi/condizioniDelPreventivo";
+import {
+  CHIAVE_ARCHIVIO, condizioniDelPdf, documentoPartito, type ArchivioDelDocumento,
+} from "../../../supabase/functions/_shared/condizioniArchivio";
 import { testiPerPdf } from "../../../supabase/functions/_shared/testoPerPdf";
 import { leggiBlocco, PAGINE_BLOCCO, type ContenutoBlocco, type PaginaBlocco } from "../../../supabase/functions/_shared/blocchiPreventivo";
 import { IconaPdf } from "@/components/preventivi/pdf/IconaPdf";
@@ -2550,8 +2553,19 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   // Senza condizioni scritte dall'azienda valgono quelle di base del settore. Il preventivo può averne di sue,
   // scritte per questo cliente, o uscire senza la parte contrattuale: chi lo manda in FIRMA passa il progetto da
   // `perLaFirma()`, che le rimette, perché il preventivo firmato è il contratto.
+  // LA regola di «Contratti e condizioni» (07/11/2026), la stessa degli altri preventivatori: l'archivio
+  // l'ha appoggiato sul modello `resolveSrDocumentTemplate`.
+  const archivio = (tpl as Record<string, unknown>)[CHIAVE_ARCHIVIO] as ArchivioDelDocumento | undefined;
   const condizioniLegaliTesto = applicaMergeTagModulo(
-    testoCondizioniDelPdf(p, String(tpl.condizioni_legali_testo ?? "").trim() || condizioniStandard("serramenti")),
+    condizioniTolteDalPdf(p) ? "" : condizioniDelPdf({
+      copiaDelDocumento: p.condizioni_testo,
+      fissate: archivio?.fissate,
+      partito: documentoPartito(p.stato),
+      modelloAssociato: archivio?.associato,
+      predefinito: archivio?.predefinito,
+      testoDelModulo: tpl.condizioni_legali_testo,
+      testoDiSistema: condizioniStandard("serramenti"),
+    }).testo,
     {
     companyName,
     companyVat: tpl.partita_iva ?? company?.partita_iva ?? null,

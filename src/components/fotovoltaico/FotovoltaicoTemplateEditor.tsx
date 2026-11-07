@@ -1,6 +1,5 @@
 import { TemplateSectionNavigation } from "@/components/preventivi/TemplateSectionNavigation";
-import { EditorContratto } from '@/components/preventivi/EditorContratto';
-import { CopiaCondizioni } from '@/components/preventivi/CopiaCondizioni';
+import { CondizioniContratto } from '@/components/preventivi/CondizioniContratto';
 import { orderedSectionExcluded } from "@/components/preventivi/templateNavigationState";
 import { TemplateCoverDesignControls, COVER_DESIGN_CHOICES } from "@/components/preventivi/TemplateCoverDesignControls";
 import { TemplateImageFieldView } from "@/components/preventivi/TemplateImageFieldView";
@@ -59,8 +58,6 @@ import {
   useListinoMacrocategorie,
   type ListinoMacrocategoria,
 } from "@/hooks/useListinoMacrocategorie";
-import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
-import { blankTemplateForKind, type QuoteTemplate } from "@/types/quoteTemplate";
 import {
   useTemplatePdf as useFvTemplatePdf,
   useUpsertTemplatePdf as useFvUpsertTemplatePdf,
@@ -91,7 +88,6 @@ import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { riferimentoImmagine } from "@/lib/storage/immaginiModelloPdf";
 import type { GalleryLavoroItem } from "@/types/gallery";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { ImportaCondizioniBar } from "@/components/quote-templates/ImportaCondizioniBar";
 import { useBeforeUnload } from "@/hooks/useBeforeUnload";
 
 // ─── Types locali (no dipendenza forte da fv types globali) ─────────────────
@@ -171,6 +167,8 @@ export interface FvTemplate {
   cronoprogramma?: FvCronoprogrammaFase[] | null;
   condizioni_legali_attivo?: boolean | null;
   condizioni_legali_testo?: string | null;
+  /** Il modello di «Contratti e condizioni» che usa questo preventivatore. NULL = il predefinito (07/11/2026). */
+  condizioni_modello_id?: string | null;
   /** Allega il modulo di recesso: serve se si firma con un privato a casa sua o a distanza. Spento di serie. */
   modulo_recesso_attivo?: boolean | null;
   urgenza_attiva?: boolean | null;
@@ -236,15 +234,6 @@ interface Props {
   };
 }
 
-type SharedLegalTemplateKind = "condizioni" | "legali";
-
-interface SharedLegalTemplateOption {
-  id: string;
-  kind: SharedLegalTemplateKind;
-  name: string;
-  body: string;
-}
-
 // ─── Card wrapper (stile coerente con SrCard) ───────────────────────────────
 
 function FvSettingsCard({
@@ -274,37 +263,6 @@ function optionalNumber(value: string): number | null {
   if (value.trim() === "") return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
-}
-
-function decodeHtmlEntities(value: string): string {
-  return value
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
-}
-
-function normalizeSharedLegalTemplateBody(template: QuoteTemplate): string {
-  const raw = String(
-    template.body_html ??
-      (template.kind === "condizioni" ? template.contractual_terms_text : template.legal_terms_text) ??
-      "",
-  );
-  if (!raw.trim()) return "";
-
-  return decodeHtmlEntities(raw)
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|div|li|h[1-6]|tr)>/gi, "\n")
-    .replace(/<li[^>]*>/gi, "- ")
-    .replace(/<h[1-6][^>]*>/gi, "\n")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\r\n/g, "\n")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .replace(/[ \t]{2,}/g, " ")
-    .trim();
 }
 
 type FvEditorSection =
@@ -727,7 +685,6 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
     macrocategorie: listinoMacrocategorie,
     isLoading: isLoadingListinoMacrocategorie,
   } = useListinoMacrocategorie();
-  const { templates: quoteTemplates, upsertTemplate: upsertQuoteTemplate } = useQuoteTemplates();
   const upsertMut = useFvUpsertTemplatePdf();
   const sectionParam = searchParams.get("section");
   const initialSection: FvEditorSection = isFvEditorSection(sectionParam) ? sectionParam : "brand";
@@ -758,7 +715,6 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
   const [uploadingFotoTeam, setUploadingFotoTeam] = useState(false);
   const [uploadingRecIdx, setUploadingRecIdx] = useState<number | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [selectedSharedLegalId, setSelectedSharedLegalId] = useState("");
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const coverLogoInputRef = useRef<HTMLInputElement | null>(null);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
@@ -985,21 +941,6 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
     () => listinoMacrocategorie.filter(listinoMacroIsForFotovoltaico),
     [listinoMacrocategorie],
   );
-  const sharedLegalTemplates = useMemo<SharedLegalTemplateOption[]>(() => {
-    return quoteTemplates
-      .filter((template) => template.is_active !== false && (template.kind === "condizioni" || template.kind === "legali"))
-      .map((template) => ({
-        id: template.id,
-        kind: template.kind as SharedLegalTemplateKind,
-        name: template.name,
-        body: normalizeSharedLegalTemplateBody(template),
-      }))
-      .filter((template) => template.body.length > 0);
-  }, [quoteTemplates]);
-  const selectedSharedLegalTemplate = useMemo(
-    () => sharedLegalTemplates.find((template) => template.id === selectedSharedLegalId) ?? null,
-    [selectedSharedLegalId, sharedLegalTemplates],
-  );
   const qualityItems = useMemo(
     () =>
       localModule ? [
@@ -1168,50 +1109,6 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
   const removeCronoFase = (idx: number) => {
     update("cronoprogramma", cronoFasi.filter((_, i) => i !== idx));
   };
-
-  const applySharedLegalTemplate = useCallback((mode: "replace" | "append") => {
-    if (!selectedSharedLegalTemplate) {
-      toast.error("Seleziona prima un blocco legale");
-      return;
-    }
-    setForm((prev) => {
-      const current = String(prev.condizioni_legali_testo ?? "").trim();
-      const nextText = mode === "append" && current
-        ? `${current}\n\n${selectedSharedLegalTemplate.body}`
-        : selectedSharedLegalTemplate.body;
-      return {
-        ...prev,
-        condizioni_legali_attivo: true,
-        condizioni_legali_testo: nextText,
-      };
-    });
-    setDirty(true);
-    toast.success(mode === "append" ? "Blocco aggiunto alle condizioni FV" : "Condizioni FV aggiornate", {
-      description: selectedSharedLegalTemplate.name,
-    });
-  }, [selectedSharedLegalTemplate]);
-
-  const saveSharedLegalTemplate = useCallback(async (kind: SharedLegalTemplateKind) => {
-    if (localModule) return;
-    const text = String(form.condizioni_legali_testo ?? "").trim();
-    if (!text) {
-      toast.error("Inserisci prima un testo da salvare");
-      return;
-    }
-
-    const base = blankTemplateForKind(kind);
-    await upsertQuoteTemplate.mutateAsync({
-      ...base,
-      kind,
-      name: kind === "condizioni" ? "Condizioni e termini legali fotovoltaico" : "Termini legali fotovoltaico",
-      description: "Creato dal template preventivo fotovoltaico.",
-      body_html: text,
-      body_format: "plain",
-      is_default: false,
-      is_active: true,
-    });
-    toast.success(kind === "condizioni" ? "Salvato nei Template offerte (Condizioni e termini legali)" : "Termini legali salvati nei Template offerte");
-  }, [form.condizioni_legali_testo, upsertQuoteTemplate, localModule]);
 
   if (!localModule && isLoading) {
     return (
@@ -2488,116 +2385,22 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
           </div>
 
           <div className="grid grid-cols-12 gap-3 border-t border-slate-200 pt-4">
-            <div className="col-span-12 rounded-md border border-slate-200 bg-slate-50/70 p-3">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="text-xs font-semibold text-slate-900">Libreria condivisa Template offerte</p>
-                  <p className="mt-0.5 text-[11px] text-slate-600">
-                    Riusa condizioni contrattuali e termini legali anche nei preventivi fotovoltaici.
-                  </p>
-                </div>
-                <span className="rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">
-                  {sharedLegalTemplates.length} blocchi
-                </span>
-              </div>
-
-              <div className="mt-3 grid grid-cols-12 gap-2">
-                <div className="col-span-12 md:col-span-5">
-                  <Label className="text-xs">Blocco condiviso</Label>
-                  <select
-                    value={selectedSharedLegalId}
-                    onChange={(e) => setSelectedSharedLegalId(e.target.value)}
-                    className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs"
-                  >
-                    <option value="">
-                      {sharedLegalTemplates.length > 0
-                        ? "Seleziona un blocco..."
-                        : "Nessun blocco disponibile"}
-                    </option>
-                    {sharedLegalTemplates.map((template) => (
-                      <option key={template.id} value={template.id}>
-                        {template.kind === "condizioni" ? "📜 Condizioni e termini legali" : "⚖️ Termini legali (vecchio tipo)"} · {template.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="col-span-12 flex flex-wrap items-end gap-2 md:col-span-7">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={!selectedSharedLegalTemplate}
-                    onClick={() => applySharedLegalTemplate("replace")}
-                  >
-                    Sostituisci testo
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={!selectedSharedLegalTemplate}
-                    onClick={() => applySharedLegalTemplate("append")}
-                  >
-                    Aggiungi in fondo
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={!!localModule || !String(form.condizioni_legali_testo ?? "").trim() || upsertQuoteTemplate.isPending}
-                    onClick={() => void saveSharedLegalTemplate("condizioni")}
-                  >
-                    {upsertQuoteTemplate.isPending ? (
-                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                    ) : null}
-                    Salva nella libreria come "Condizioni e termini legali"
-                  </Button>
-                </div>
-              </div>
-            </div>
-            <label className="col-span-12 flex items-center gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                checked={form.condizioni_legali_attivo ?? false}
-                onChange={(e) => update("condizioni_legali_attivo", e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300 text-sky-700 focus:ring-sky-700"
-              />
-              <span>Mostra condizioni commerciali e legali nel PDF</span>
-            </label>
+            {/* Le condizioni stanno in «Contratti e condizioni» (07/11/2026): qui si vede cosa esce e si sceglie il modello. */}
             <div className="col-span-12">
-              <Label className="text-xs">Clausole contrattuali e firma</Label>
-              <ImportaCondizioniBar
+              <CondizioniContratto
                 localOnly={!!localModule}
-                soloImport={!!localModule}
-                compatto
                 companyId={companyId}
-                testoAttuale={String(form.condizioni_legali_testo ?? "")}
-                onTesto={(md) => update("condizioni_legali_testo", md)}
+                settore="fotovoltaico"
+                nomeModulo="Fotovoltaico"
+                attivo={form.condizioni_legali_attivo !== false}
+                testo={String(form.condizioni_legali_testo ?? "")}
+                onAttivo={(v) => update("condizioni_legali_attivo", v)}
+                modelloAssociatoId={form.condizioni_modello_id ?? null}
+                onAssocia={(id) => update("condizioni_modello_id", id)}
+                recesso={form.modulo_recesso_attivo === true}
+                onRecesso={(v) => update("modulo_recesso_attivo", v)}
               />
-              {form.condizioni_legali_attivo !== false && <>
-                <CopiaCondizioni companyId={companyId} value={form.condizioni_legali_testo ?? ''} onChange={html=>update('condizioni_legali_testo',html)} />
-                <EditorContratto value={form.condizioni_legali_testo ?? ''} onChange={html=>update('condizioni_legali_testo',html)} />
-              </>}
             </div>
-            {/* Il modulo di recesso è una scelta dell'azienda, spenta di serie (21/09/2026). */}
-            <label className="col-span-12 flex items-start gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                checked={form.modulo_recesso_attivo ?? false}
-                onChange={(e) => update("modulo_recesso_attivo", e.target.checked)}
-                disabled={!form.condizioni_legali_attivo}
-                aria-label="Allega il modulo di recesso"
-                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-sky-700 focus:ring-sky-700"
-              />
-              <span>
-                Allega il modulo di recesso
-                <span className="block text-xs text-muted-foreground">
-                  Serve quando firmi con un privato a casa sua o a distanza (online, al telefono): senza, il cliente può
-                  arrivare a recedere fino a 12 mesi dopo, anche a lavori finiti. A chi vende ad aziende o fa firmare in
-                  sede non serve.
-                </span>
-              </span>
-            </label>
             <label className="col-span-12 flex items-center gap-2 text-sm cursor-pointer">
               <input
                 type="checkbox"

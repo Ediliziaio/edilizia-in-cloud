@@ -1,5 +1,5 @@
 import { SALES_AREAS } from '@/lib/moduli-vendita/areas';
-import { NOMI_AMBITI, testoDelModello, type AmbitoCondizioni, type Clausola } from '@/lib/condizioni/archivio';
+import { NOMI_AMBITI, htmlDelModello, testoDelModello, type AmbitoCondizioni, type Clausola } from '@/lib/condizioni/archivio';
 import { htmlPerEditorContratto } from './contrattoEditor';
 
 export interface FonteCondizioni { id: string; companyId: string; nome: string; testo: string }
@@ -17,8 +17,9 @@ function dallArchivio(companyId: string, righe: unknown[], perQuestoDocumento: A
     const row = record(raw);
     if (row.company_id !== companyId || row.attivo === false) continue;
     const clausole = Array.isArray(row.clausole) ? (row.clausole as Clausola[]) : [];
-    const testo = testoDelModello({ clausole });
-    if (!testo.trim()) continue;
+    // Se c'è qualcosa da leggere, si copia l'HTML: titoli e grassetti restano quelli scritti nell'archivio.
+    if (!testoDelModello({ clausole }).trim()) continue;
+    const testo = htmlDelModello({ clausole });
     const chiave = String(row.ambito) as AmbitoCondizioni;
     const ambito = NOMI_AMBITI[chiave];
     // «Predefinito» vale solo per il documento che si sta scrivendo: il modello predefinito

@@ -114,6 +114,8 @@ export interface QuoteTemplate {
   legal_terms_text: string | null;
   show_contractual_terms: boolean;
   show_legal_terms: boolean;
+  /** Il modello di «Contratti e condizioni» che usa questa offerta. NULL = il predefinito (07/11/2026). */
+  condizioni_modello_id?: string | null;
   /** Allega il modulo di recesso: serve se si firma con un privato a casa sua o a distanza. Spento di serie. */
   modulo_recesso_attivo?: boolean;
   created_at: string;

@@ -1,11 +1,12 @@
 import React, { useId, useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
 import { QuoteTemplatePreview } from "@/components/quotes/QuoteTemplatePreview";
 import { QuotePdfLivePreview } from '@/components/quotes/QuotePdfLivePreview';
-import { CopiaCondizioni } from '@/components/preventivi/CopiaCondizioni';
+import { CondizioniContratto } from '@/components/preventivi/CondizioniContratto';
+import { PAGINA_CONDIZIONI } from '@/lib/condizioni/indirizzi';
 import { fontiCondizioni } from '@/lib/preventivi/fontiCondizioni';
 import { resolveQuoteTemplatePreview } from "@/lib/quoteTemplatePreview";
 import {
@@ -58,7 +59,6 @@ import type {
 } from "./SettingsQuoteTemplates/helpers";
 import { ModuliVenditaPanel } from "./SettingsQuoteTemplates/ModuliVenditaPanel";
 import { VariationTemplatesPanel } from "./SettingsQuoteTemplates/VariationTemplatesPanel";
-import { ImportaCondizioniBar } from "@/components/quote-templates/ImportaCondizioniBar";
 import { CONDIZIONI_STANDARD_MD } from "@/lib/condizioniStandard";
 import { markdownSempliceToHtml, sembraMarkdown } from "@/lib/markdownSemplice";
 import DOMPurify from "dompurify";
@@ -611,6 +611,15 @@ export default function SettingsQuoteTemplates() {
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<QuoteTemplate>>(DEFAULT_TEMPLATE);
+  // Il testo che questa offerta stampa oggi, blocchi collegati compresi (07/11/2026): è quello che si
+  // porta nell'archivio «Contratti e condizioni» con un clic, invece di riscriverlo.
+  const aziendaDelModello = effectiveCompany?.id ?? null;
+  const testoCondizioniDellOfferta = useMemo(() => {
+    if (!aziendaDelModello) return "";
+    const bozza = { ...form, company_id: aziendaDelModello, id: "current-draft", kind: "offerta" };
+    return fontiCondizioni(aziendaDelModello, [...templates.filter((t) => t.id !== form.id), bozza], [])
+      .find((f) => f.id === "classico:current-draft")?.testo ?? "";
+  }, [aziendaDelModello, templates, form]);
   const [editId, setEditId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -922,7 +931,6 @@ export default function SettingsQuoteTemplates() {
   const coverSubtitleRef = useRef<HTMLInputElement>(null);
   const paymentRef = useRef<HTMLTextAreaElement>(null);
   const deliveryRef = useRef<HTMLTextAreaElement>(null);
-  const contractualRef = useRef<HTMLTextAreaElement>(null);
   const footerRef = useRef<HTMLTextAreaElement>(null);
   const coverFileInputRef = useRef<HTMLInputElement>(null);
   const bodyHtmlRef = useRef<HTMLTextAreaElement>(null);
@@ -1455,20 +1463,20 @@ export default function SettingsQuoteTemplates() {
                     Il PDF va a capo pagina da solo.
                   </p>
                   {(formKind === 'condizioni' || formKind === 'legali') && (
-                    <div className="mt-3 rounded-md border border-orange-200 bg-orange-50/50 px-3 py-2 text-xs text-orange-950">
-                      Salva qui il tuo testo di base. Nei modelli usa «Copia da…», poi adattalo: ogni copia resta indipendente.
-                      Le offerte già collegate a questo blocco continuano a usarlo finché non scegli di renderle indipendenti.
+                    // 07/11/2026: le condizioni si scrivono in un posto solo. Questo blocco resta da leggere: le offerte
+                    // collegate lo stampano ancora finché l'azienda non ha un modello in Contratti e condizioni.
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-orange-200 bg-orange-50/50 px-3 py-2 text-xs text-orange-950">
+                      <span>
+                        Le condizioni ora si scrivono in <strong>Contratti e condizioni</strong>. Questo testo resta qui da
+                        leggere; dalla pagina delle condizioni lo porti nell'archivio con un clic e lo modifichi lì.
+                      </span>
+                      <Button asChild size="sm" variant="outline" className="h-7">
+                        <Link to={PAGINA_CONDIZIONI}>Apri Contratti e condizioni</Link>
+                      </Button>
                     </div>
                   )}
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {formKind === 'condizioni' && (
-                    <ImportaCondizioniBar
-                      companyId={effectiveCompany?.id}
-                      testoAttuale={form.body_html ?? ""}
-                      onTesto={(md) => updateForm({ body_html: markdownSempliceToHtml(md), body_format: 'html' })}
-                    />
-                  )}
                   {/* Carattere del blocco: nel PDF vale per questa sezione (default: quello del master) */}
                   <div className="flex flex-wrap items-center gap-2" role="group" aria-labelledby="modello-blocco-carattere">
                     <span id="modello-blocco-carattere" className="text-xs font-medium text-muted-foreground">Carattere</span>
@@ -1487,13 +1495,12 @@ export default function SettingsQuoteTemplates() {
                     ))}
                   </div>
                   <div role="group" aria-labelledby="modello-blocco-testo">
-                    {(formKind === 'condizioni' || formKind === 'legali') && <CopiaCondizioni companyId={effectiveCompany?.id} value={form.body_html ?? ''} disabled={!puoModificare} onChange={html => updateForm({ body_html: html, body_format: 'html' })} />}
                     <div className="flex items-center justify-between mb-1">
                       <Label id="modello-blocco-testo" className="text-xs text-muted-foreground">Testo (titoli, grassetto, elenchi come negli altri modelli)</Label>
                       <MergeTagInserter targetRef={bodyHtmlRef} currentValue={form.body_html ?? ""} onInsert={(v) => updateForm({ body_html: v, body_format: 'html' })} />
                     </div>
                     <RichTextEditor
-                      readOnly={!puoModificare}
+                      readOnly={!puoModificare || formKind === 'condizioni' || formKind === 'legali'}
                       documentMode={formKind === 'condizioni' || formKind === 'legali'}
                       value={sembraMarkdown(form.body_html ?? "") ? markdownSempliceToHtml(form.body_html ?? "") : (form.body_html ?? "")}
                       onChange={(html) => updateForm({ body_html: html, body_format: 'html' })}
@@ -2191,89 +2198,24 @@ export default function SettingsQuoteTemplates() {
                   Condizioni contrattuali e termini legali
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Scrivi le clausole qui, oppure copiale da condizioni generali o da un modello salvato. Poi adattale a questa offerta senza cambiare gli altri modelli.
+                  Le clausole in coda al PDF. Si scrivono una volta sola, in Contratti e condizioni: qui si sceglie quale modello usa questa offerta.
                 </p>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="flex items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50/40 px-3 py-2 max-sm:min-h-11">
-                  <Label htmlFor="modello-mostra-condizioni" className="text-sm font-medium">Mostra in PDF</Label>
-                  <Switch
-                    id="modello-mostra-condizioni"
-                    checked={!!form.show_contractual_terms}
-                    onCheckedChange={(v) => updateForm({ show_contractual_terms: v, show_legal_terms: v && !!form.legal_terms_text })}
-                  />
-                </div>
-                {form.show_contractual_terms && (
-                  <div role="group" aria-labelledby="modello-cond-testo">
-                    <div className="flex items-center justify-between mb-1">
-                      <Label id="modello-cond-testo" className="text-xs text-muted-foreground">Testo (clausole + termini legali)</Label>
-                      <MergeTagInserter
-                        targetRef={contractualRef}
-                        currentValue={form.contractual_terms_text ?? ""}
-                        onInsert={(v) => updateForm({ contractual_terms_text: v })}
-                      />
-                    </div>
-                    <CopiaCondizioni companyId={effectiveCompany?.id} value={form.contractual_terms_text || ((form.linked_terms_id || form.linked_legal_id) ? 'Condizioni collegate' : '')} disabled={!puoModificare}
-                      onChange={html => updateForm({ contractual_terms_text: html, linked_terms_id: null, linked_legal_id: null, legal_terms_text: null, show_legal_terms: false })} />
-                    {(form.linked_terms_id || form.linked_legal_id) ? <div className="rounded-lg border bg-blue-50/40 p-3 space-y-2">
-                      <p className="text-xs">Questo modello usa ancora condizioni condivise della libreria. Per modificarle solo qui, crea una copia indipendente.</p>
-                      <Button type="button" variant="outline" size="sm" disabled={!puoModificare || [form.linked_terms_id, form.linked_legal_id].filter(Boolean).some(id => !templates.some(t => t.id === id))} onClick={() => {
-                        const copied = fontiCondizioni(effectiveCompany!.id, [...templates.filter(t => t.id !== form.id), { ...form, company_id: effectiveCompany!.id, id: 'current-draft' }], []).find(s => s.id === 'classico:current-draft');
-                        if (!copied) return;
-                        updateForm({ contractual_terms_text: copied.testo, linked_terms_id: null, linked_legal_id: null, legal_terms_text: null, show_legal_terms: false });
-                      }}>Modifica una copia in questo modello</Button>
-                    </div> : <RichTextEditor
-                      documentMode
-                      value={form.contractual_terms_text ?? ''}
-                      onChange={(html) => updateForm({ contractual_terms_text: html })}
-                      placeholder="1. OGGETTO — {{azienda.ragione_sociale}} si impegna a eseguire i lavori presso {{cantiere.indirizzo}}…&#10;2. GARANZIA — 24 mesi dalla consegna…&#10;3. VARIANTI — concordate per iscritto…&#10;PRIVACY (GDPR Reg. UE 2016/679) — i dati di {{cliente.nome_completo}} sono trattati per…&#10;DIRITTO DI RECESSO — entro 14 giorni (art. 52 D.lgs 206/2005)…&#10;FORO COMPETENTE — Foro di [città azienda]."
-                      minHeight={220}
-                      readOnly={!puoModificare}
-                    />}
-                    {/* Il modulo di recesso è una scelta dell'azienda, spenta di serie (21/09/2026). */}
-                    <div className="mt-3 flex items-start justify-between gap-3 rounded-lg border px-3 py-2">
-                      <div className="min-w-0">
-                        <Label htmlFor="modello-modulo-recesso" className="text-sm font-medium">Allega il modulo di recesso</Label>
-                        <p id="modello-modulo-recesso-descrizione" className="text-xs text-muted-foreground">
-                          Serve quando firmi con un privato a casa sua o a distanza (online, al telefono): senza, il cliente
-                          può arrivare a recedere fino a 12 mesi dopo, anche a lavori finiti. A chi vende ad aziende o fa
-                          firmare in sede non serve.
-                        </p>
-                      </div>
-                      <Switch
-                        id="modello-modulo-recesso"
-                        aria-describedby="modello-modulo-recesso-descrizione"
-                        checked={form.modulo_recesso_attivo === true}
-                        onCheckedChange={(v) => updateForm({ modulo_recesso_attivo: v })}
-                        aria-label="Allega il modulo di recesso"
-                      />
-                    </div>
-                  </div>
-                )}
-                {!!form.legal_terms_text && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-xs space-y-2">
-                    <p className="text-amber-900">
-                      Questo modello ha ancora un testo "Termini legali" separato (vecchia impostazione). Nel PDF viene già stampato di seguito alle condizioni.
-                      Unendolo qui potrai modificarlo in un unico posto.
-                    </p>
-                    <div className="max-h-24 overflow-y-auto rounded border bg-white/70 p-2 text-[11px] text-slate-700 whitespace-pre-wrap">
-                      {String(form.legal_terms_text).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 400)}
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs"
-                      onClick={() => updateForm({
-                        contractual_terms_text: [form.contractual_terms_text ?? "", form.legal_terms_text ?? ""].filter(Boolean).join("\n\n"),
-                        legal_terms_text: null,
-                        show_legal_terms: false,
-                        show_contractual_terms: true,
-                      })}
-                    >
-                      Unisci qui i termini legali
-                    </Button>
-                  </div>
-                )}
+                {/* 07/11/2026: niente più testo scritto qui. La regola del PDF è `condizioniDelPdf`
+                    (generate-quote-pdf): modello associato → predefinito → il testo che l'offerta aveva. */}
+                <CondizioniContratto
+                  companyId={effectiveCompany?.id}
+                  settore="generico"
+                  nomeModulo={form.name || "Preventivo"}
+                  attivo={!!form.show_contractual_terms}
+                  testo={testoCondizioniDellOfferta}
+                  onAttivo={(v) => updateForm({ show_contractual_terms: v, show_legal_terms: v && !!form.legal_terms_text })}
+                  modelloAssociatoId={form.condizioni_modello_id ?? null}
+                  onAssocia={(id) => updateForm({ condizioni_modello_id: id })}
+                  recesso={form.modulo_recesso_attivo === true}
+                  onRecesso={(v) => updateForm({ modulo_recesso_attivo: v })}
+                />
               </CardContent>
             </Card>
             </>

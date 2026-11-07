@@ -11,6 +11,7 @@
  *   · chi è già nell'archivio non entra due volte: il confronto è su titolo + testo, a meno di spazi,
  *     maiuscole e tag.
  */
+import { testoPiano } from "../../../supabase/functions/_shared/condizioniArchivio";
 import type { AmbitoCondizioni, Clausola } from "./archivio";
 
 export interface CandidatoClausola {
@@ -42,14 +43,8 @@ export function impronta(...pezzi: Array<string | null | undefined>): string {
 
 /** Testo leggibile per l'anteprima: i tag si tolgono SOLO per mostrarlo, mai per salvarlo. */
 export function testoLeggibile(html: string | null | undefined): string {
-  return String(html ?? "")
-    .replace(/<\s*(br|\/p|\/h[1-6]|\/li|\/tr)\s*\/?>/gi, "\n")
-    .replace(/<[^>]*>/g, "")
-    .replace(/&nbsp;/gi, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-    .replace(/&(?:quot|#34);/g, '"').replace(/&(?:apos|#39);/g, "'")
-    .replace(/\n{3,}/g, "\n\n")
-    .replace(/[ \t]+\n/g, "\n")
-    .trim();
+  // Una regola sola per «il testo senza i tag»: la stessa dei PDF e delle edge function.
+  return testoPiano(html);
 }
 
 const haParole = (v: unknown): boolean => testoLeggibile(String(v ?? "")).length > 0;

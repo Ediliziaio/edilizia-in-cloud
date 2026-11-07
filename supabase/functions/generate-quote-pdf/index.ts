@@ -17,6 +17,7 @@ import { formatoImmagine, leggiLogo, logoDiRiserva } from "../_shared/logoAziend
 import { coloreDelBlocco, colorePreventivo, contattiImpresa } from "../_shared/blocchiModelloPreventivo.ts";
 import { logoDelModello, percorsoDellAzienda } from "../_shared/impaginaPreventivo.ts";
 import { haTesto } from "../_shared/condizioniDelPreventivo.ts";
+import { caricaArchivioDelDocumento, condizioniDelPdf, documentoPartito } from "../_shared/condizioniArchivio.ts";
 import { campiContratto, erroriCampiContratto, leggiValoriContratto } from '../_shared/campiContratto.ts';
 
 const DEFAULT_T = {
@@ -367,12 +368,35 @@ Deno.serve(async (req) => {
           t.show_legal_terms = true;
         }
       }
-      // Le condizioni riscritte per QUESTO preventivo (27/10/2026): vincono su quelle del modello e sui blocchi
-      // collegati, perché sono state scritte per questo cliente. Le riscrive solo chi ha il permesso dei modelli.
+      // Quali condizioni: LA regola di «Contratti e condizioni» (07/11/2026), la stessa dei preventivatori.
+      //  · le condizioni riscritte per QUESTO preventivo vincono su tutto (27/10/2026);
+      //  · poi la versione dell'archivio fissata quando il preventivo è partito;
+      //  · per le bozze, il modello dell'archivio associato a questo modello di preventivo, poi il predefinito;
+      //  · altrimenti i testi che il modello aveva, così com'erano: chi non usa l'archivio non vede differenze.
+      // Quando le condizioni vengono dall'archivio sono UN testo solo: i termini legali del modello non si
+      // aggiungono in coda, altrimenti si stamperebbe due volte quello che l'azienda ha scritto una volta.
       // L'interruttore «stampa condizioni contrattuali» resta sopra: a PDF senza condizioni non esce nulla.
-      if (haTesto(quote?.condizioni_testo)) {
+      const archivio = await caricaArchivioDelDocumento(supabaseAdmin, quote.company_id, {
+        associatoId: typeof t.condizioni_modello_id === "string" ? t.condizioni_modello_id : null,
+        origine: quote.condizioni_origine,
+      });
+      const scelte = condizioniDelPdf({
+        copiaDelDocumento: quote?.condizioni_testo,
+        fissate: archivio.fissate,
+        partito: documentoPartito(quote?.status),
+        modelloAssociato: archivio.associato,
+        predefinito: archivio.predefinito,
+        // Nessun «testo del modulo»: se la regola non trova copia né archivio, i due testi del modello
+        // restano esattamente com'erano.
+      });
+      if (scelte.fonte === "documento") {
         t.contractual_terms_text = String(quote.condizioni_testo);
         t.show_contractual_terms = true;
+      } else if (scelte.fonte === "fissate" || scelte.fonte === "associato" || scelte.fonte === "predefinito") {
+        t.contractual_terms_text = scelte.testo;
+        t.show_contractual_terms = true;
+        t.legal_terms_text = null;
+        t.show_legal_terms = false;
       }
       try {
         // Contact già prefetchato nel batch parallelo

@@ -6,7 +6,9 @@
  */
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
+
+function DoveSono() { return <span data-testid="dove-sono">{useLocation().pathname}</span>; }
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const permessi = vi.hoisted(() => ({ valore: {} as Record<string, unknown> }));
@@ -16,6 +18,11 @@ const importa = vi.hoisted(() => ({ valore: {} as Record<string, unknown> }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => permessi.valore }));
 vi.mock("@/hooks/useCondizioniArchivio", () => ({ useCondizioniArchivio: () => archivio.valore }));
 vi.mock("@/hooks/useCondizioniImporta", () => ({ useCondizioniImporta: () => importa.valore }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "c", name: "Impresa Esempio" } }) }));
+// Il PDF vero non si disegna in jsdom: basta sapere quale modello mostrerebbe.
+vi.mock("@/components/shared/PdfBlobLivePreviewPanel", () => ({
+  PdfBlobLivePreviewPanel: ({ depsKey }: { depsKey: string }) => <div data-testid="anteprima-pdf">{depsKey}</div>,
+}));
 
 import SettingsCondizioni from "@/pages/azienda/impostazioni/SettingsCondizioni";
 
@@ -35,6 +42,7 @@ const disegna = (indirizzo = "/azienda/impostazioni/contratti-e-condizioni") =>
     <MemoryRouter initialEntries={[indirizzo]}>
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <SettingsCondizioni />
+        <DoveSono />
       </QueryClientProvider>
     </MemoryRouter>,
   );
@@ -66,18 +74,18 @@ describe("Contratti e condizioni", () => {
   it("del modello predefinito dice clausole, quante vanno approvate a parte e a che versione è", () => {
     archivio.valore = { ...archivio.valore, modelli: [MODELLO_SUB] };
     disegna();
-    const riga = screen.getByText("Subappalto opere edili").closest("div")!.parentElement!;
+    const riga = screen.getByLabelText("Mostra l'anteprima di Subappalto opere edili");
     expect(within(riga).getByText(/2 clausole · 1 da approvare a parte · versione 4/)).toBeInTheDocument();
     expect(screen.getByLabelText("Predefinito")).toBeInTheDocument();
     expect(screen.queryByText(/8 tipi di documento/)).toBeNull();
     expect(screen.getByText(/7 tipi di documento escono ancora/)).toBeInTheDocument();
   });
 
-  it("l'anteprima mostra il testo come esce sul documento", () => {
+  it("un modello si apre nella sua pagina, dove c'è il PDF vero (07/11/2026: niente più popup)", () => {
     archivio.valore = { ...archivio.valore, modelli: [MODELLO_SUB] };
     disegna();
-    fireEvent.click(screen.getByLabelText("Vedi come esce Subappalto opere edili"));
-    expect(screen.getByText(/Oneri a carico dell'impresa\./)).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Modifica Subappalto opere edili"));
+    expect(screen.getByTestId("dove-sono")).toHaveTextContent("/azienda/impostazioni/contratti-e-condizioni/modello/m1");
   });
 
   it("chi non può gestire non vede i pulsanti che scrivono", () => {
@@ -86,7 +94,8 @@ describe("Contratti e condizioni", () => {
     disegna();
     expect(screen.queryByLabelText("Modifica Subappalto opere edili")).toBeNull();
     expect(screen.queryByLabelText("Archivia Subappalto opere edili")).toBeNull();
-    expect(screen.getByLabelText("Vedi come esce Subappalto opere edili")).toBeInTheDocument();
+    // Lo apre e lo legge, senza poterlo cambiare.
+    expect(screen.getByLabelText("Apri Subappalto opere edili")).toBeInTheDocument();
   });
 
   it("la libreria vuota offre le clausole di partenza, e le scrive tutte in un colpo", () => {
@@ -175,5 +184,22 @@ describe("Le schede delle firme stanno qui dentro", () => {
     disegna("/azienda/impostazioni/contratti-e-condizioni?scheda=firma");
     expect(screen.getByRole("tab", { name: "Firma del preventivo" })).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByText("Le condizioni che hai già")).toBeNull();
+  });
+});
+
+describe("L'anteprima è sempre a fianco (07/11/2026)", () => {
+  beforeEach(() => {
+    permessi.valore = { isLoading: false, isAdmin: true };
+    importa.valore = { inCerca: false, trovate: { clausole: [], modelli: [] }, importa: muta() };
+  });
+
+  it("mostra il PDF del predefinito appena si apre, e cambia modello con un clic", () => {
+    const altro = { ...MODELLO_SUB, id: "m2", nome: "Subappalto impianti", predefinito: false, versione: 1 };
+    archivio.valore = { modelli: [MODELLO_SUB, altro], clausole: [], disponibile: true, caricamento: false,
+      salvaModello: muta(), eliminaModello: muta(), salvaClausola: muta(), eliminaClausola: muta(), clausoleDiPartenza: muta() };
+    disegna();
+    expect(screen.getByTestId("anteprima-pdf")).toHaveTextContent("m1:4");
+    fireEvent.click(screen.getByLabelText("Mostra l'anteprima di Subappalto impianti"));
+    expect(screen.getByTestId("anteprima-pdf")).toHaveTextContent("m2:1");
   });
 });

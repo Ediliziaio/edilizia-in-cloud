@@ -57,9 +57,26 @@ describe("Da dove pescano le condizioni i documenti", () => {
     expect(importato.match(/Termini legali/g)).toHaveLength(1);
   });
 
-  it("un titolo diverso dalla prima riga resta al suo posto", () => {
-    const testo = testoDelModello({ clausole: [{ titolo: "Garanzie", testo: "# Condizioni generali\nDue anni sulle opere." }] });
-    expect(testo.startsWith("Garanzie\n# Condizioni generali")).toBe(true);
+  it("un contratto intero importato (una clausola sola che si apre col suo titolo) non prende un titolo in più", () => {
+    // Il caso del 07/11: «Condizioni generali» stampato sopra «Condizioni contrattuali».
+    const testo = testoDelModello({ clausole: [{ titolo: "Condizioni generali", testo: "# Condizioni contrattuali\nDue anni sulle opere." }] });
+    expect(testo.startsWith("# Condizioni contrattuali")).toBe(true);
+    expect(testo).not.toContain("Condizioni generali");
+  });
+
+  it("in un modello di più clausole il titolo di ognuna resta, anche se il testo ha i suoi sottotitoli", () => {
+    const testo = testoDelModello({ clausole: [
+      { titolo: "Pagamenti", testo: "# Acconto\n30% alla firma." },
+      { titolo: "Garanzie", testo: "Due anni sulle opere." },
+    ] });
+    expect(testo.startsWith("Pagamenti\n# Acconto")).toBe(true);
+    expect(testo).toContain("Garanzie\nDue anni");
+  });
+
+  it("le clausole scritte con l'editor (HTML) si riconoscono uguali: titolo uguale alla prima riga, non si ripete", () => {
+    const testo = testoDelModello({ clausole: [{ titolo: "Foro competente", testo: "<h2>Foro competente</h2><p>Quello di Milano.</p>" }] });
+    expect(testo.match(/Foro competente/g)).toHaveLength(1);
+    expect(testo).not.toContain("<");
   });
 });
 

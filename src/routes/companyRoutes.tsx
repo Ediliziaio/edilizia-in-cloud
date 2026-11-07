@@ -389,6 +389,7 @@ const SettingsSilvioCommesse = lazy(() => import("@/pages/azienda/impostazioni/S
 const SettingsNotifiche = lazy(() => import("@/pages/azienda/impostazioni/SettingsNotifiche"));
 const SettingsCondizioniFirma = lazy(() => import("@/pages/azienda/impostazioni/SettingsCondizioniFirma"));
 const SettingsCondizioni = lazy(() => import("@/pages/azienda/impostazioni/SettingsCondizioni"));
+const SettingsCondizioniModello = lazy(() => import("@/pages/azienda/impostazioni/SettingsCondizioniModello"));
 const MioProfilo = lazy(() => import("@/pages/azienda/impostazioni/MioProfilo"));
 const Tesoreria = lazy(() => import("@/pages/azienda/Tesoreria"));
 const FirmaElettronicaHub = lazy(() => import("@/pages/azienda/firma-elettronica/index"));
@@ -1340,6 +1341,8 @@ export default function CompanyRoutesContainer() {
           <Route path="approvazioni" element={withCompanyPermission("canViewCosts", <SettingsApprovazioni />)} />
           {/* Clausole contrattuali + testi mostrati al cliente quando firma */}
           <Route path="contratti-e-condizioni" element={withCompanyPermission("canViewCondizioni", <SettingsCondizioni />)} />
+          {/* Un modello a pagina intera (07/11/2026): al posto del popup. */}
+          <Route path="contratti-e-condizioni/modello/:id" element={withCompanyPermission("canViewCondizioni", <SettingsCondizioniModello />)} />
           {/* Le condizioni stanno in una pagina sola (07/11/2026): le vecchie pagine sono schede di quella. */}
           <Route path="condizioni-firma" element={<Navigate to="/azienda/impostazioni/contratti-e-condizioni?scheda=firma" replace />} />
           <Route path="stati-ordine" element={withCompanyPermission("canViewSettingsOrders", <SettingsOrderStatus />)} />

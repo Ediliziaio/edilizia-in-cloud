@@ -7,10 +7,19 @@
  *   3. Permette edit inline
  *   4. Salva versione finale + scarica come .md
  *
- * Permessi: super_admin / company_admin
+ * Le condizioni dell'azienda (07/11/2026) vengono da «Contratti e condizioni»: il predefinito dei contratti
+ * d'appalto, oppure — per un cliente che tratta — un altro modello. Sceglierne un altro, o cambiarle a mano
+ * nel testo, è solo di chi ha il permesso «Riscrivere le condizioni su un documento» (controllato anche nel
+ * server). Gli altri possono sistemare parti, oggetto e importi, ma non le condizioni.
  */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useCondizioniArchivio } from "@/hooks/useCondizioniArchivio";
+import { condizioniDelContratto } from "@/lib/condizioni/archivio";
+import { paginaDelModello, PAGINA_CONDIZIONI } from "@/lib/condizioni/indirizzi";
+import { puoRiscrivereLeCondizioni } from "@/lib/preventivi/condizioniDelPreventivo";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -28,7 +37,7 @@ import { toast } from "sonner";
 import { CommessaDaContratto } from "@/components/silvio-commessa/PulsantiIngressi";
 import {
   FileText, Sparkles, Download, Save, AlertTriangle,
-  CheckCircle2, Loader2, Wand2, ShieldCheck,
+  CheckCircle2, Loader2, Wand2, ShieldCheck, Lock, Scale,
 } from "lucide-react";
 
 interface Props {
@@ -43,6 +52,8 @@ interface ContrattoOpzioni {
   arbitrato: boolean;
   foro_competente: string;
   subappalto_consentito: boolean;
+  /** Vuoto: il predefinito dei contratti d'appalto. */
+  condizioni_modello_id?: string | null;
 }
 
 interface ContrattoDoc {
@@ -81,6 +92,14 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera C
   const [previewMd, setPreviewMd] = useState<string>("");
   const [aiMeta, setAiMeta] = useState<AiMeta | null>(null);
   const [contrattoId, setContrattoId] = useState<string | null>(null);
+  // Le condizioni come erano quando il testo è arrivato (generato o riaperto): chi non ha il permesso non le cambia.
+  const [condizioniOriginali, setCondizioniOriginali] = useState("");
+  const permessi = usePermissions();
+  const puoRiscrivere = puoRiscrivereLeCondizioni(permessi);
+  const archivio = useCondizioniArchivio();
+  const modelliAppalto = useMemo(() => archivio.modelli.filter((m) => m.attivo && m.ambito === "appalto"), [archivio.modelli]);
+  const predefinitoAppalto = modelliAppalto.find((m) => m.predefinito) ?? null;
+  const condizioniScelte = modelliAppalto.find((m) => m.id === opzioni.condizioni_modello_id) ?? predefinitoAppalto;
 
   // Lista contratti già esistenti per quest'ordine
   const { data: existing } = useQuery({
@@ -109,6 +128,7 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera C
     },
     onSuccess: (data) => {
       setPreviewMd(data.contratto.contenuto_md ?? "");
+      setCondizioniOriginali(condizioniDelContratto(data.contratto.contenuto_md));
       setAiMeta(data.ai_meta ?? null);
       setContrattoId(data.contratto.id ?? null);
       qc.invalidateQueries({ queryKey: ["contratti_for_order", orderId] });
@@ -155,6 +175,9 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera C
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!contrattoId) throw new Error("Nessun contratto attivo");
+      if (!puoRiscrivere && condizioniDelContratto(previewMd) !== condizioniOriginali) {
+        throw new Error("le condizioni dell'azienda non si cambiano qui senza il permesso «Riscrivere le condizioni su un documento». Puoi modificare il resto del contratto.");
+      }
       const { error } = await supabase
         .from("contratti_documents" as never)
         .update({ contenuto_md: previewMd } as never)
@@ -162,6 +185,7 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera C
       if (error) throw error;
     },
     onSuccess: () => {
+      setCondizioniOriginali(condizioniDelContratto(previewMd));
       toast.success("Modifiche salvate");
       qc.invalidateQueries({ queryKey: ["contratti_for_order", orderId] });
     },
@@ -183,6 +207,7 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera C
 
   const loadExisting = (c: ContrattoDoc) => {
     setPreviewMd(c.contenuto_md ?? "");
+    setCondizioniOriginali(condizioniDelContratto(c.contenuto_md));
     setContrattoId(c.id);
     setAiMeta(null);
   };
@@ -267,6 +292,31 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera C
                   />
                 </div>
 
+                <div className="space-y-1 border-t pt-2">
+                  <Label className="flex items-center gap-1 text-xs"><Scale className="h-3 w-3" />Condizioni dell'azienda</Label>
+                  {modelliAppalto.length === 0 ? (
+                    <p className="text-[11px] text-muted-foreground">
+                      Nessun modello per i contratti d'appalto: l'AI scrive le clausole.{" "}
+                      <Link to={PAGINA_CONDIZIONI} className="underline">Scrivile una volta</Link>
+                    </p>
+                  ) : (
+                    <>
+                      <select aria-label="Condizioni per questo contratto" className="h-8 w-full rounded-md border bg-background px-2 text-xs disabled:opacity-60"
+                        value={opzioni.condizioni_modello_id ?? ""} disabled={!puoRiscrivere}
+                        onChange={(e) => setOpzioni({ ...opzioni, condizioni_modello_id: e.target.value || null })}>
+                        <option value="">{predefinitoAppalto ? `Predefinito («${predefinitoAppalto.nome}»)` : "Nessuna: le scrive l'AI"}</option>
+                        {modelliAppalto.filter((m) => !m.predefinito).map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                      </select>
+                      <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                        {!puoRiscrivere && <Lock className="h-3 w-3 shrink-0" />}
+                        {puoRiscrivere
+                          ? <>Per questo cliente puoi sceglierne un altro.{condizioniScelte && <> <Link to={paginaDelModello(condizioniScelte.id)} className="underline">Apri</Link></>}</>
+                          : "Altre condizioni: serve il permesso «Riscrivere le condizioni su un documento»."}
+                      </p>
+                    </>
+                  )}
+                </div>
+
                 <Button
                   size="sm"
                   className="w-full gap-2 mt-3"
@@ -331,15 +381,15 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera C
           {/* RIGHT: Preview / editor */}
           <div className="lg:col-span-2 flex flex-col overflow-hidden">
             {!previewMd && !generaMutation.isPending && (
-              <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground space-y-2 p-8 border rounded">
-                <Sparkles className="h-12 w-12 text-violet-400" />
+              <div className="flex flex-col items-center justify-center text-muted-foreground space-y-2 p-6 border border-dashed rounded">
+                <Sparkles className="h-8 w-8 text-violet-400" />
                 <p className="text-sm text-center">
                   Configura le opzioni a sinistra e clicca <strong>Genera contratto</strong>.
                 </p>
                 <p className="text-xs text-center max-w-md">
                   L'AI userà i dati dell'ordine (cliente, importo, date, descrizione) e
-                  l'anagrafica della tua azienda per produrre un contratto d'appalto completo
-                  in markdown editabile.
+                  l'anagrafica della tua azienda; le condizioni le attacca il sistema, parola per parola,
+                  dal modello scelto.
                 </p>
               </div>
             )}
@@ -377,6 +427,12 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera C
                   </div>
                 )}
 
+                {!puoRiscrivere && condizioniOriginali && (
+                  <p className="flex items-center gap-1.5 rounded bg-slate-50 px-2 py-1 text-[11px] text-slate-600">
+                    <Lock className="h-3 w-3 shrink-0" />
+                    Puoi correggere parti, oggetto e importi. La sezione «Condizioni generali dell'impresa» resta quella dell'azienda.
+                  </p>
+                )}
                 <Textarea
                   value={previewMd}
                   onChange={(e) => setPreviewMd(e.target.value)}

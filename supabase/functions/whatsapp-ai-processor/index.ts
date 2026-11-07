@@ -1,4 +1,6 @@
 // MP02 — whatsapp-ai-processor refactored con tool-calling + loop agentico.
+// 07/11/2026: ripubblicata insieme a bgn-genera-pdf — l'impronta del PDF del bagno ora contiene le condizioni
+// di «Contratti e condizioni» (_shared/bathroomDocumentState.ts), e le due funzioni devono calcolarla uguale.
 // Sostituisce la pipeline a switch-case (941 righe pre-MP02).
 //
 // Flusso per ogni messaggio:

@@ -151,7 +151,7 @@ export async function enrichPiscinePdf(opts: PisPdfPayload): Promise<PisPdfEnric
   // 1) Template: fresco da DB se non passato (riflette l'ultimo salvataggio).
   if (opts.localOnly && !opts.template) throw new Error("Il modello locale deve essere fornito per generare il PDF.");
   // Il modello dell'intervento congelato nel preventivo, se c'è (lib/moduli/modelloPreventivo).
-  const template = await templateDelPreventivo("piscine", progetto, opts.template, getPisTemplatePdf);
+  const template = await templateDelPreventivo("piscine", progetto, opts.template, getPisTemplatePdf, { soloLocale: opts.localOnly });
 
   // 2) Company (anagrafica per intestazione/contatti). Best-effort.
   let company: PisPdfCompany | null = opts.company ?? null;

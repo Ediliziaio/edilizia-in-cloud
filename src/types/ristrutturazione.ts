@@ -138,6 +138,8 @@ export interface RstTemplatePdf {
   gallery_lavori: GalleryLavoroItem[] | null;
   /** Condizioni generali di contratto in markdown povero: il PDF le stampa in coda. */
   condizioni_legali_testo: string | null;
+  /** Il modello di «Contratti e condizioni» che usa questo preventivatore. NULL = il predefinito (07/11/2026). */
+  condizioni_modello_id?: string | null;
   condizioni_legali_attivo: boolean | null;
   /** Allega il modulo di recesso: serve se si firma con un privato a casa sua o a distanza. Spento di serie. */
   modulo_recesso_attivo?: boolean | null;

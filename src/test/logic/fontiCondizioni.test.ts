@@ -39,7 +39,8 @@ describe("l'archivio «Contratti e condizioni» è una fonte da copiare (07/11/2
   it('il modello dell archivio compare per primo, col suo ambito, e il testo è quello che esce sul documento', () => {
     const fonti = fontiCondizioni('c', [{ id: 'g', company_id: 'c', kind: 'condizioni', name: 'Base', body_html: '<p>Altro</p>' }], [], [modello]);
     expect(fonti[0].nome).toBe('Archivio · Condizioni standard 2026 (Preventivi e computi) · predefinito');
-    expect(fonti[0].testo).toBe('Pagamenti\n30% alla firma.\n\nGaranzie\nDue anni sulle opere.');
+    // Si copia il testo come lo legge il PDF (07/11/2026): titoli e clausole nell'ordine dell'archivio.
+    expect(fonti[0].testo).toBe("## Pagamenti\n30% alla firma.\n\n## Garanzie\nDue anni sulle opere.");
     expect(fonti).toHaveLength(2);
   });
 

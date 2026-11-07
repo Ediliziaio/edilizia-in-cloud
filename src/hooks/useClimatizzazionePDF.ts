@@ -151,7 +151,7 @@ export async function enrichClimatizzazionePdf(opts: ClmPdfPayload): Promise<Clm
   // 1) Template: fresco da DB se non passato (riflette l'ultimo salvataggio).
   if (opts.localOnly && !opts.template) throw new Error("Il modello locale deve essere passato esplicitamente.");
   // Il modello dell'intervento congelato nel preventivo, se c'è (lib/moduli/modelloPreventivo).
-  const template = await templateDelPreventivo("climatizzazione", progetto, opts.template, getClmTemplatePdf);
+  const template = await templateDelPreventivo("climatizzazione", progetto, opts.template, getClmTemplatePdf, { soloLocale: opts.localOnly });
 
   // 2) Company (anagrafica per intestazione/contatti). Best-effort.
   let company: ClmPdfCompany | null = opts.company ?? null;

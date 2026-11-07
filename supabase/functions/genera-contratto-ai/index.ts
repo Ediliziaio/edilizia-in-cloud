@@ -1,5 +1,6 @@
 /**
  * genera-contratto-ai — FASE B.1
+ * (07/11/2026: ripubblicata per il modulo condiviso _shared/condizioniArchivio.ts, cambiato.)
  *
  * Genera un contratto d'appalto in Markdown a partire da un order_id.
  * Utilizza aiRouter (task `documento_contratto`) per cost tracking.
@@ -13,11 +14,12 @@
  */
 
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { puoRiscrivereCondizioniNelServer } from "../_shared/permessoCondizioni.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import {
-  modelloPredefinitoDellAzienda, origineDelModello, testoDelModello, titoliVessatorie,
+  condizioniInCodaAlContratto, modelloDellAzienda, modelloPredefinitoDellAzienda, origineDelModello,
 } from "../_shared/condizioniArchivio.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -30,6 +32,8 @@ interface OpzioniContratto {
   arbitrato?: boolean;        // clausola arbitrale ICC/CamArb
   foro_competente?: string;   // es. "Roma"
   subappalto_consentito?: boolean;
+  /** Condizioni scelte per QUESTO cliente, al posto del predefinito: serve il permesso di riscriverle. */
+  condizioni_modello_id?: string | null;
 }
 
 const SYSTEM_PROMPT = `Sei un avvocato esperto di diritto civile italiano specializzato in contratti d'appalto edilizio.
@@ -55,12 +59,12 @@ STRUTTURA OBBLIGATORIA (sezioni numerate):
 17. CLAUSOLE FINALI E SOTTOSCRIZIONE (con indicazione luogo/data/firme)
 
 REGOLE:
-- Se il JSON contiene "condizioni_azienda", quelle clausole sono le condizioni che l'azienda ha già
-  scritto e approvato: RIPORTALE ALLA LETTERA nelle sezioni che le riguardano, senza riscriverle,
-  accorciarle o addolcirle. Non contraddirle mai: dove una clausola dell'azienda dice qualcosa
-  (garanzia, penali, pagamenti, foro), vale quella, non il valore generico delle opzioni.
-  I titoli elencati in "da_approvare_a_parte" vanno richiamati, alla fine, in un elenco di clausole
-  da approvare specificamente per iscritto ai sensi dell'art. 1341 c.c.
+- Se il JSON contiene "condizioni_azienda", l'impresa ha già le sue Condizioni generali: il sistema le
+  allega IN CODA al contratto, parola per parola, con l'elenco delle clausole da approvare a parte.
+  NON scriverle, NON riassumerle e NON fare l'elenco ex art. 1341 c.c.: nelle sezioni che trattano gli
+  stessi argomenti (vedi "titoli") scrivi solo un rinvio breve, ad esempio «Si applicano le Condizioni
+  generali dell'impresa allegate, alla voce "Garanzia sulle opere"». Non contraddirle mai: niente
+  valori diversi per garanzia, penali, pagamenti o foro.
 - USA SOLO i dati reali forniti nel JSON input (NON inventare partita IVA, indirizzi, codici fiscali mancanti)
 - Per i dati mancanti, scrivi "[DA COMPLETARE]" tra parentesi quadre
 - Calcola gg lavorativi tra data_inizio e data_fine_prevista
@@ -149,12 +153,23 @@ Deno.serve(async (req: Request) => {
       : "";
 
     // Le condizioni che l'azienda ha già scritto nell'archivio: se ci sono, comandano loro.
-    const modelloCondizioni = await modelloPredefinitoDellAzienda(supabaseAdmin, company_id, "appalto");
+    // Un altro modello per questo cliente (07/11/2026): solo per chi può riscrivere le condizioni di un documento.
+    const predefinitoAppalto = await modelloPredefinitoDellAzienda(supabaseAdmin, company_id, "appalto");
+    let modelloCondizioni = predefinitoAppalto;
+    const sceltoId = typeof opzioni?.condizioni_modello_id === "string" ? opzioni.condizioni_modello_id : null;
+    if (sceltoId && sceltoId !== predefinitoAppalto?.id) {
+      if (!(await puoRiscrivereCondizioniNelServer(supabaseAdmin, company_id, userId))) {
+        return errorResponse("Per usare condizioni diverse da quelle dell'azienda serve il permesso «Riscrivere le condizioni su un documento».", 403, cors);
+      }
+      const scelto = await modelloDellAzienda(supabaseAdmin, company_id, "appalto", sceltoId);
+      if (!scelto) return errorResponse("Il modello di condizioni scelto non c'è più o è vuoto.", 400, cors);
+      modelloCondizioni = scelto;
+    }
     const condizioniAzienda = modelloCondizioni
       ? {
           modello: modelloCondizioni.nome,
-          testo: testoDelModello(modelloCondizioni),
-          da_approvare_a_parte: titoliVessatorie(modelloCondizioni),
+          // Solo i titoli: il testo lo allega il sistema (`condizioniInCodaAlContratto`), non l'AI.
+          titoli: (modelloCondizioni.clausole ?? []).map((c) => String(c.titolo ?? "").trim()).filter(Boolean),
         }
       : null;
 
@@ -301,7 +316,10 @@ Deno.serve(async (req: Request) => {
         durata_giorni: durataGiorni ?? parsed.durata_giorni ?? null,
         penale_ritardo_eur_giorno: cantierePayload.opzioni.penale_giorno_eur,
         garanzia_anni: cantierePayload.opzioni.garanzia_anni,
-        contenuto_md: parsed.contenuto_md,
+        // Le condizioni dell'azienda in coda, parola per parola: le attacca il sistema, non l'AI.
+        contenuto_md: modelloCondizioni
+          ? `${parsed.contenuto_md.trimEnd()}\n\n${condizioniInCodaAlContratto(modelloCondizioni)}`
+          : parsed.contenuto_md,
         ...(modelloCondizioni ? { condizioni_origine: origineDelModello(modelloCondizioni) } : {}),
         ai_generated_raw: { ...parsed, idempotency_key: idempotentInsertKey },
         ai_model_used: aiResult.modelUsed,

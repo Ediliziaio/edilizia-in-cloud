@@ -135,7 +135,10 @@ describe("il PDF del preventivo", () => {
     const usato = await templateDelPreventivo("bagni", { company_id: AZIENDA, modello_snapshot: snapshot }, bozza, carica);
     expect(usato.cover_title).toBe(modello.cover_title);
     expect(carica).not.toHaveBeenCalled();
-    expect(await templateDelPreventivo("bagni", { company_id: AZIENDA, modello_snapshot: null }, bozza, carica)).toBe(bozza);
+    // La bozza, con sopra quello che serve dall'archivio «Contratti e condizioni» (07/11/2026).
+    const dallaBozza = await templateDelPreventivo("bagni", { company_id: AZIENDA, modello_snapshot: null }, bozza, carica);
+    expect(dallaBozza.cover_title).toBe("Bozza");
+    expect(dallaBozza).toHaveProperty("__condizioni_archivio");
     expect((await templateDelPreventivo("bagni", { company_id: AZIENDA }, null, carica)).cover_title).toBe("Aziendale");
   });
 
@@ -227,7 +230,8 @@ describe("Fotovoltaico: il modello nasce col progetto, dal server", () => {
     expect(creazione).toContain("...(modello ? { modello_snapshot: modello } : {}),");
     expect(creazione).not.toMatch(/logFunction\([^)]*, payload, /);
     const pdf = leggi("supabase/functions/fv-genera-pdf/index.ts");
-    expect(pdf).toContain("iva_aliquota, modello_snapshot, layout_overlay, condizioni_nel_pdf, condizioni_testo\"");
+    // 07/11/2026: anche stato e condizioni_origine, per la regola di «Contratti e condizioni».
+    expect(pdf).toContain("iva_aliquota, modello_snapshot, layout_overlay, condizioni_nel_pdf, condizioni_testo, condizioni_origine, stato\"");
     expect(pdf).toContain("modelloDelPreventivo?.template ?? templateRes.data ?? {}");
     expect(pdf).toContain("if (modelloDelPreventivo === false)");
   });

@@ -114,10 +114,12 @@ export function useCondizioniArchivio() {
         await db.from("condizioni_modelli").update({ predefinito: false })
           .eq("company_id", azienda).eq("ambito", m.ambito).neq("id", m.id ?? "00000000-0000-0000-0000-000000000000");
       }
-      const { error } = m.id
-        ? await db.from("condizioni_modelli").update(riga).eq("id", m.id)
-        : await db.from("condizioni_modelli").insert(riga);
+      // Restituisce il modello salvato: chi lo crea da un preventivatore lo associa subito.
+      const { data, error } = m.id
+        ? await db.from("condizioni_modelli").update(riga).eq("id", m.id).select("id,nome,versione").single()
+        : await db.from("condizioni_modelli").insert(riga).select("id,nome,versione").single();
       if (error) throw new Error(error.message);
+      return data as { id: string; nome: string; versione: number };
     },
     onSuccess: () => { toast.success("Modello salvato"); aggiorna(); },
     onError: errore,

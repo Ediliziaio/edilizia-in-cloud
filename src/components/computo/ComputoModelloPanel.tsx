@@ -9,13 +9,13 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Loader2, RotateCcw, Save } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PdfBlobLivePreviewPanel } from "@/components/shared/PdfBlobLivePreviewPanel";
+import { CondizioniContratto } from "@/components/preventivi/CondizioniContratto";
 import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import { ComputoFormatoSchede, ComputoOpzione } from "./ComputoPdfControls";
 import { bozzaVuota, voceVuota, vociPerAnteprima, type BozzaComputo } from "@/lib/computo/editorNativo";
@@ -50,9 +50,6 @@ export default function ComputoModelloPanel({ canEdit }: { canEdit: boolean }) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const letto = useModelloComputo(companyId);
-  // Le condizioni già scritte nelle offerte del preventivo classico: si possono riprendere qui.
-  const { templates } = useQuoteTemplates();
-  const offerteConCondizioni = (templates ?? []).filter(t => (t.contractual_terms_text ?? "").trim() || (t.legal_terms_text ?? "").trim());
   const salva = useSalvaModelloComputo(companyId);
   const [modello, setModello] = useState<ModelloComputo | null>(null);
   const salvato = letto.data?.modello;
@@ -176,13 +173,13 @@ export default function ComputoModelloPanel({ canEdit }: { canEdit: boolean }) {
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div><h3 className="text-sm font-semibold">Condizioni contrattuali e firma</h3>
               <p className="text-xs text-muted-foreground">Escono prima della pagina «Accettazione proposta». Titoli con «#», punti con «- ».</p></div>
-            {offerteConCondizioni.length > 0 && <Select value="" onValueChange={id => { const o = offerteConCondizioni.find(t => t.id === id); if (o) cambia({ condizioniContrattuali: [o.contractual_terms_text, o.legal_terms_text].filter(Boolean).join("\n\n").slice(0, 20000) }); }}>
-              <SelectTrigger aria-label="Prendi le condizioni da un'offerta" className="h-8 w-60 text-xs"><SelectValue placeholder="Prendi da un'offerta del preventivo classico" /></SelectTrigger>
-              <SelectContent>{offerteConCondizioni.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}</SelectContent>
-            </Select>}
           </div>
-          <div className="space-y-1"><Label htmlFor="modello-contrattuali" className="text-xs">Condizioni contrattuali</Label>
-            <Textarea id="modello-contrattuali" rows={8} maxLength={20000} placeholder={"# Condizioni contrattuali\n## 1. Oggetto del contratto\n- …\n## 2. Prezzi e pagamenti\n- …"} value={m.condizioniContrattuali} onChange={e => cambia({ condizioniContrattuali: e.target.value })} /></div>
+          {/* 07/11/2026: le condizioni si scrivono in Contratti e condizioni. Qui si vede cosa esce e si sceglie il
+              modello; ogni computo nuovo parte da quello, e nel singolo computo si possono ancora adattare. */}
+          <CondizioniContratto companyId={companyId} settore="generico" nomeModulo="Computo metrico"
+            testo={m.condizioniContrattuali}
+            modelloAssociatoId={m.condizioniModelloId}
+            onAssocia={(id) => cambia({ condizioniModelloId: id })} />
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem]">
             <div className="space-y-1"><Label htmlFor="modello-clausole" className="text-xs">Clausole da approvare con una seconda firma (artt. 1341-1342 c.c.), una per riga</Label>
               <Textarea id="modello-clausole" rows={3} maxLength={3000} placeholder={"Art. 5 - Varianti in corso d'opera\nArt. 9 - Foro competente"} value={m.clausoleDaApprovare} onChange={e => cambia({ clausoleDaApprovare: e.target.value })} /></div>

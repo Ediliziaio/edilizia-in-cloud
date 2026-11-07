@@ -190,7 +190,14 @@ export function PdfBlobLivePreviewPanel({
           source,
         ]);
         if (cancelled) return;
-        pdfjsLib.GlobalWorkerOptions.workerSrc = workerModule.default as string;
+        // In produzione `?url` dà l'indirizzo del worker. Il server di sviluppo, quando ha già ottimizzato
+        // pdfjs, a volte restituisce il modulo stesso e pdf.js rifiuta il valore («Invalid workerSrc type»,
+        // 07/11/2026): lì il file si prende direttamente da node_modules, che il server di sviluppo serve.
+        const indirizzoWorker = typeof workerModule.default === "string"
+          ? workerModule.default
+          : import.meta.env.DEV ? "/node_modules/pdfjs-dist/build/pdf.worker.min.mjs" : null;
+        if (!indirizzoWorker) throw new Error("Il visore dei PDF non si è caricato: ricarica la pagina.");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = indirizzoWorker;
         const doc = await pdfjsLib.getDocument({ data }).promise;
         ownedDocument = doc as PdfDocumentHandle;
 
