@@ -99,10 +99,28 @@ export function modelloPredefinito(
   return modelli.find((m) => m.ambito === ambito && m.predefinito && m.attivo) ?? null;
 }
 
+const senzaFronzoli = (v: string): string =>
+  v.replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ").replace(/^#{1,6}\s*/, "").replace(/\s+/g, " ").trim().toLowerCase();
+
+/**
+ * Il titolo si ripete nel testo? Capita coi contratti importati interi: la clausola si chiama
+ * «Termini legali» e il testo si apre con «# Termini legali». Stamparli tutti e due è una svista
+ * che il cliente vede, quindi in quel caso il titolo non si scrive.
+ */
+function titoloGiaNelTesto(titolo: string, testo: string): boolean {
+  const primaRiga = testo.split("\n").find((r) => haParole(r)) ?? "";
+  return senzaFronzoli(primaRiga) === senzaFronzoli(titolo);
+}
+
 /** Il testo stampabile di un modello: un titolo e un testo per clausola. */
 export function testoDelModello(modello: Pick<ModelloCondizioni, "clausole"> | null | undefined): string {
   return clausoleDelModello(modello)
-    .map((c) => [c.titolo?.trim(), c.testo?.trim()].filter(haParole).join("\n"))
+    .map((c) => {
+      const titolo = c.titolo?.trim() ?? "";
+      const testo = c.testo?.trim() ?? "";
+      const saltaIlTitolo = haParole(titolo) && haParole(testo) && titoloGiaNelTesto(titolo, testo);
+      return (saltaIlTitolo ? [testo] : [titolo, testo]).filter(haParole).join("\n");
+    })
     .filter(haParole)
     .join("\n\n");
 }

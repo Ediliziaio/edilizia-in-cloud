@@ -76,17 +76,12 @@ export const GRUPPI_IMPOSTAZIONI: GruppoImpostazioni[] = [
   },
   {
     id: "firma",
-    titolo: "Firma e condizioni",
-    descrizione: "Le clausole che il cliente accetta e come firma i preventivi",
+    titolo: "Contratti, condizioni e firma",
+    descrizione: "Le condizioni dell'azienda, le clausole che il cliente approva e come firma",
     schede: [
-      { sezione: "condizioni-firma", etichetta: "Condizioni", to: `${BASE}/condizioni-firma`, permesso: "canViewSettingsPricing" },
+      // Una pagina sola (07/11/2026): dentro ha le schede Modelli, Clausole, Firma del preventivo,
+      // Firma elettronica. Prima erano tre pagine sorelle e nessuno sapeva in quale guardare.
       { sezione: "contratti-e-condizioni", etichetta: "Contratti e condizioni", to: `${BASE}/contratti-e-condizioni`, permesso: "canViewCondizioni" },
-      {
-        sezione: "firma-elettronica",
-        etichetta: "Firma elettronica",
-        to: `${BASE}/firma-elettronica`,
-        permesso: "canViewSettingsIntegrations",
-      },
     ],
   },
 ];

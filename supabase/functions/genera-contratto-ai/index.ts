@@ -16,6 +16,9 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
+import {
+  modelloPredefinitoDellAzienda, origineDelModello, testoDelModello, titoliVessatorie,
+} from "../_shared/condizioniArchivio.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObj = Record<string, any>;
@@ -52,6 +55,12 @@ STRUTTURA OBBLIGATORIA (sezioni numerate):
 17. CLAUSOLE FINALI E SOTTOSCRIZIONE (con indicazione luogo/data/firme)
 
 REGOLE:
+- Se il JSON contiene "condizioni_azienda", quelle clausole sono le condizioni che l'azienda ha già
+  scritto e approvato: RIPORTALE ALLA LETTERA nelle sezioni che le riguardano, senza riscriverle,
+  accorciarle o addolcirle. Non contraddirle mai: dove una clausola dell'azienda dice qualcosa
+  (garanzia, penali, pagamenti, foro), vale quella, non il valore generico delle opzioni.
+  I titoli elencati in "da_approvare_a_parte" vanno richiamati, alla fine, in un elenco di clausole
+  da approvare specificamente per iscritto ai sensi dell'art. 1341 c.c.
 - USA SOLO i dati reali forniti nel JSON input (NON inventare partita IVA, indirizzi, codici fiscali mancanti)
 - Per i dati mancanti, scrivi "[DA COMPLETARE]" tra parentesi quadre
 - Calcola gg lavorativi tra data_inizio e data_fine_prevista
@@ -139,7 +148,18 @@ Deno.serve(async (req: Request) => {
         ].filter(Boolean).join(" ")
       : "";
 
+    // Le condizioni che l'azienda ha già scritto nell'archivio: se ci sono, comandano loro.
+    const modelloCondizioni = await modelloPredefinitoDellAzienda(supabaseAdmin, company_id, "appalto");
+    const condizioniAzienda = modelloCondizioni
+      ? {
+          modello: modelloCondizioni.nome,
+          testo: testoDelModello(modelloCondizioni),
+          da_approvare_a_parte: titoliVessatorie(modelloCondizioni),
+        }
+      : null;
+
     const cantierePayload = {
+      ...(condizioniAzienda ? { condizioni_azienda: condizioniAzienda } : {}),
       committente: {
         nome: order.client_name ?? order.client_company ?? "[DA COMPLETARE]",
         ragione_sociale: order.client_company ?? null,
@@ -282,6 +302,7 @@ Deno.serve(async (req: Request) => {
         penale_ritardo_eur_giorno: cantierePayload.opzioni.penale_giorno_eur,
         garanzia_anni: cantierePayload.opzioni.garanzia_anni,
         contenuto_md: parsed.contenuto_md,
+        ...(modelloCondizioni ? { condizioni_origine: origineDelModello(modelloCondizioni) } : {}),
         ai_generated_raw: { ...parsed, idempotency_key: idempotentInsertKey },
         ai_model_used: aiResult.modelUsed,
         generated_by: "ai",

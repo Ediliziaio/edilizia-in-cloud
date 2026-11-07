@@ -6,6 +6,7 @@
  */
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const permessi = vi.hoisted(() => ({ valore: {} as Record<string, unknown> }));
@@ -28,11 +29,14 @@ const MODELLO_SUB = {
   ],
 };
 
-const disegna = () =>
+/** La scheda aperta sta nell'indirizzo (07/11/2026): serve un router anche solo per leggerlo. */
+const disegna = (indirizzo = "/azienda/impostazioni/contratti-e-condizioni") =>
   render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <SettingsCondizioni />
-    </QueryClientProvider>,
+    <MemoryRouter initialEntries={[indirizzo]}>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <SettingsCondizioni />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 
 describe("Contratti e condizioni", () => {
@@ -137,6 +141,39 @@ describe("Contratti e condizioni", () => {
 
   it("se non c'è niente da importare il riquadro non compare", () => {
     disegna();
+    expect(screen.queryByText("Le condizioni che hai già")).toBeNull();
+  });
+});
+
+/**
+ * Una pagina sola (07/11/2026): le due pagine sorelle — le clausole che il cliente approva quando
+ * firma, e la firma elettronica — sono diventate schede di questa. Ognuna resta dietro il permesso
+ * che aveva: chi non poteva vederle non se le trova qui per sbaglio.
+ */
+describe("Le schede delle firme stanno qui dentro", () => {
+  beforeEach(() => {
+    archivio.valore = { modelli: [], clausole: [], disponibile: true, caricamento: false, salvaModello: muta(), eliminaModello: muta(), salvaClausola: muta(), eliminaClausola: muta(), clausoleDiPartenza: muta() };
+    importa.valore = { inCerca: false, trovate: { clausole: [], modelli: [] }, importa: muta() };
+  });
+
+  it("chi ha listino e integrazioni vede anche «Firma del preventivo» e «Firma elettronica»", () => {
+    permessi.valore = { isLoading: false, isAdmin: false, canManageCondizioni: true, canViewSettingsPricing: true, canViewSettingsIntegrations: true };
+    disegna();
+    const schede = screen.getAllByRole("tab").map((t) => t.textContent);
+    expect(schede).toEqual(["Modelli (0)", "Clausole (0)", "Firma del preventivo", "Firma elettronica"]);
+  });
+
+  it("senza quei permessi restano solo i modelli e le clausole", () => {
+    permessi.valore = { isLoading: false, isAdmin: false, canManageCondizioni: true };
+    disegna();
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Modelli (0)", "Clausole (0)"]);
+  });
+
+  it("il vecchio indirizzo apre la scheda giusta, e lì non si propone di importare", () => {
+    permessi.valore = { isLoading: false, isAdmin: true };
+    importa.valore = { inCerca: false, trovate: { clausole: [{ titolo: "Foro", testo: "…", categoria: null, vessatoria: true, fonte: "Condizioni della firma" }], modelli: [] }, importa: muta() };
+    disegna("/azienda/impostazioni/contratti-e-condizioni?scheda=firma");
+    expect(screen.getByRole("tab", { name: "Firma del preventivo" })).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByText("Le condizioni che hai già")).toBeNull();
   });
 });

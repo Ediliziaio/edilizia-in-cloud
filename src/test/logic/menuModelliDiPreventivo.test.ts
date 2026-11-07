@@ -18,9 +18,9 @@ function voci(permessi: Record<string, boolean>, { isAdmin = false, piano = COMP
 }
 
 describe("menu «Preventivi & Listino»", () => {
-  it("quattro voci, nell'ordine: Listino, Finanziamenti, Modelli preventivi e contratti, Firma e condizioni", () => {
+  it("quattro voci, nell'ordine: Listino, Finanziamenti, Modelli preventivi e contratti, Contratti condizioni e firma", () => {
     expect(voci({}, { isAdmin: true }).filter((v) => v.visible).map((v) => v.label)).toEqual([
-      "Listino", "Finanziamenti", "Modelli preventivi e contratti", "Firma e condizioni",
+      "Listino", "Finanziamenti", "Modelli preventivi e contratti", "Contratti, condizioni e firma",
     ]);
   });
 

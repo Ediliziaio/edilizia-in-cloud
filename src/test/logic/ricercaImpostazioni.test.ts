@@ -56,11 +56,11 @@ const DOMANDE: [string, string[]][] = [
   ["rate", ["modelli-pagamento", "finanziamenti"]],
   ["modelli di pagamento", ["modelli-pagamento"]],
   ["finanziamento", ["finanziamenti"]],
-  ["firma", ["firma-elettronica", "condizioni-firma", "margini"]],
-  ["firma digitale", ["margini", "firma-elettronica"]],
-  ["firma elettronica", ["firma-elettronica"]],
-  ["condizioni di vendita", ["condizioni-firma"]],
-  ["clausole", ["condizioni-firma"]],
+  ["firma", ["contratti-e-condizioni", "margini"]],
+  ["firma digitale", ["margini", "contratti-e-condizioni"]],
+  ["firma elettronica", ["contratti-e-condizioni"]],
+  ["condizioni di vendita", ["contratti-e-condizioni"]],
+  ["clausole", ["contratti-e-condizioni"]],
   ["pdf preventivo", ["margini", "template-preventivi"]],
   ["logo", ["branding", "profilo"]],
   ["logo azienda", ["branding", "profilo"]],
@@ -237,7 +237,8 @@ describe("il motore", () => {
   });
 
   it("la voce più precisa viene prima", () => {
-    expect(cerca("firma").slice(0, 2)).toEqual(["Firma e condizioni", "Firma e condizioni · Firma elettronica"]);
+    // 07/11/2026: una pagina sola. «firma» porta prima alla sezione che fa firmare il cliente, poi alla pagina.
+    expect(cerca("firma").slice(0, 2)).toEqual(["Firma dei preventivi", "Contratti, condizioni e firma"]);
     // «privacy»: la scheda che apre la privacy, poi la pagina intera
     expect(cerca("privacy").slice(0, 2)).toEqual(["Privacy e consensi", "Sicurezza & Privacy"]);
     expect(cerca("iban")[0]).toBe("Fatturazione · Conto corrente e IBAN");
@@ -456,8 +457,8 @@ describe("le sezioni dentro le pagine hanno la loro voce, che le apre già scors
     ["chi spunta", "Fasi e avanzamento · Chi spunta e come si calcola", "/azienda/impostazioni/modelli-fasi#regole"],
     ["rata al sal", "Modelli di pagamento · Quando matura la rata di un SAL", "/azienda/impostazioni/modelli-pagamento#sal"],
     ["account google", "Squadre e calendari lavori · Google Calendar", "/azienda/impostazioni/calendari-lavori?tab=google"],
-    ["diritto di ripensamento", "Diritto di ripensamento", "/azienda/impostazioni/firma-elettronica#ripensamento"],
-    ["firma dei preventivi", "Firma dei preventivi", "/azienda/impostazioni/firma-elettronica#firma-sul-preventivo"],
+    ["diritto di ripensamento", "Diritto di ripensamento", "/azienda/impostazioni/contratti-e-condizioni?scheda=firma-elettronica#ripensamento"],
+    ["firma dei preventivi", "Firma dei preventivi", "/azienda/impostazioni/contratti-e-condizioni?scheda=firma-elettronica#firma-sul-preventivo"],
     ["calcolatore rate", "Finanziamenti · Calcolatore rate", "/azienda/impostazioni/finanziamenti/calcolatore"],
     ["nuova tabella", "Finanziamenti · Nuova tabella", "/azienda/impostazioni/finanziamenti/nuova"],
     ["nuovo preventivo", "Quali preventivi compaiono in «Nuovo preventivo»", "/azienda/impostazioni/template-preventivi?tab=moduli-vendita"],
@@ -540,7 +541,8 @@ describe("ogni voce porta a una pagina che esiste", () => {
     "stati-ordine": ["src/components/settings/OrderStatusConfig.tsx"],
     "modelli-fasi": ["src/pages/azienda/settings/SettingsModelliFasi.tsx", "src/components/settings/NuovaCommessaConfig.tsx"],
     "modelli-pagamento": ["src/pages/azienda/settings/SettingsModelliPagamento.tsx", "src/components/settings/ModelliPagamentoConfig.tsx", "src/components/settings/SalMaturaConfig.tsx"],
-    "firma-elettronica": ["src/pages/azienda/settings/SettingsFirmaElettronica.tsx"],
+    // Una pagina sola (07/11/2026): le schede «Firma del preventivo» e «Firma elettronica» vivono dentro l'archivio.
+    "contratti-e-condizioni": ["src/pages/azienda/settings/SettingsFirmaElettronica.tsx", "src/pages/azienda/impostazioni/SettingsCondizioniFirma.tsx"],
     "numeri-telefono": ["src/pages/azienda/settings/SettingsPhoneNumbers.tsx"],
     "commesse-generali": ["src/components/settings/CommesseGeneraliConfig.tsx"],
   };

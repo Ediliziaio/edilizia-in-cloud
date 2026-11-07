@@ -49,6 +49,18 @@ describe("Da dove pescano le condizioni i documenti", () => {
   it("le clausole vuote non sporcano il testo", () => {
     expect(testoDelModello(modello({ clausole: [{ titolo: "", testo: "" }, { titolo: "<p> </p>", testo: " " }] }))).toBe("");
   });
+
+  it("il titolo non esce due volte quando il testo si apre già con quel titolo", () => {
+    // Il caso dei contratti importati interi: clausola «Termini legali», testo che comincia con «# Termini legali».
+    const importato = testoDelModello({ clausole: [{ titolo: "Termini legali", testo: "# Termini legali\n\n## Recesso\nEntro 14 giorni." }] });
+    expect(importato.startsWith("# Termini legali")).toBe(true);
+    expect(importato.match(/Termini legali/g)).toHaveLength(1);
+  });
+
+  it("un titolo diverso dalla prima riga resta al suo posto", () => {
+    const testo = testoDelModello({ clausole: [{ titolo: "Garanzie", testo: "# Condizioni generali\nDue anni sulle opere." }] });
+    expect(testo.startsWith("Garanzie\n# Condizioni generali")).toBe(true);
+  });
 });
 
 describe("Ogni ambito è spiegato, e le clausole di partenza sono vere clausole", () => {

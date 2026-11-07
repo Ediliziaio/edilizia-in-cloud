@@ -1340,7 +1340,8 @@ export default function CompanyRoutesContainer() {
           <Route path="approvazioni" element={withCompanyPermission("canViewCosts", <SettingsApprovazioni />)} />
           {/* Clausole contrattuali + testi mostrati al cliente quando firma */}
           <Route path="contratti-e-condizioni" element={withCompanyPermission("canViewCondizioni", <SettingsCondizioni />)} />
-          <Route path="condizioni-firma" element={withCompanyPermission("canViewSettingsPricing", <SettingsCondizioniFirma />)} />
+          {/* Le condizioni stanno in una pagina sola (07/11/2026): le vecchie pagine sono schede di quella. */}
+          <Route path="condizioni-firma" element={<Navigate to="/azienda/impostazioni/contratti-e-condizioni?scheda=firma" replace />} />
           <Route path="stati-ordine" element={withCompanyPermission("canViewSettingsOrders", <SettingsOrderStatus />)} />
           <Route path="cartelle-documenti" element={withCompanyPermission("canViewSettingsOrders", <SettingsCartelleDocumenti />)} />
           <Route path="fornitori" element={withCompanyPermission("canViewSettingsSuppliers", <SettingsSuppliers />)} />
@@ -1396,7 +1397,7 @@ export default function CompanyRoutesContainer() {
           <Route path="template-preventivi" element={withCompanyPermission("canViewSettingsPricing", <SettingsQuoteTemplates />)} />
           {/* AI Test Lab — gated all'interno della pagina (auto-redirect se non autorizzato) */}
           <Route path="ai-test-lab" element={withCompanyPermission("canViewMarketingAiAgent", <AITestLab />)} />
-          <Route path="firma-elettronica" element={withCompanyPermission("canViewSettingsIntegrations", <SettingsFirmaElettronica />)} />
+          <Route path="firma-elettronica" element={<Navigate to="/azienda/impostazioni/contratti-e-condizioni?scheda=firma-elettronica" replace />} />
           {/* v8.6.71 — Sopralluoghi spostato qui dentro SettingsLayout */}
           <Route path="sopralluoghi" element={withCompanyPermission("canViewSettingsCustomization", <SettingsSopralluoghi />)} />
           {/* v8.6.57 — Unico endpoint con tab interni (provider esterni + nativa).

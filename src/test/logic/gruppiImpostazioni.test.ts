@@ -28,11 +28,12 @@ describe("Impostazioni dei preventivi raggruppate", () => {
     for (const s of ["template-preventivi", "margini", "scontistica", "approvazioni"]) {
       expect(gruppoDellaSezione(s)?.titolo, s).toBe("Modelli preventivi e contratti");
     }
-    expect(gruppoDellaSezione("firma-elettronica")?.titolo).toBe("Firma e condizioni");
+    // 07/11/2026: le tre pagine sono diventate schede di una sola, «Contratti e condizioni».
+    expect(gruppoDellaSezione("contratti-e-condizioni")?.titolo).toBe("Contratti, condizioni e firma");
   });
 
   it("«Margini e sconti» non è più un gruppo a sé: le sue pagine sono schede di Modelli preventivi e contratti", () => {
-    expect(GRUPPI_IMPOSTAZIONI.map((g) => g.titolo)).toEqual(["Listino", "Modelli preventivi e contratti", "Firma e condizioni"]);
+    expect(GRUPPI_IMPOSTAZIONI.map((g) => g.titolo)).toEqual(["Listino", "Modelli preventivi e contratti", "Contratti, condizioni e firma"]);
     expect(gruppo("modelli").schede.map((s) => [s.sezione, s.etichetta])).toEqual([
       ["template-preventivi", "Modelli"],
       ["margini", "Prezzo e margini"],

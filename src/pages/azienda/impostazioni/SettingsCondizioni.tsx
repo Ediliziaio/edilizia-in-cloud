@@ -13,7 +13,8 @@
  * Cambiare un modello non tocca un documento già mandato: ogni salvataggio alza la versione e ne
  * conserva la fotografia (lo fa il database).
  */
-import { useMemo, useState } from "react";
+import { Suspense, lazy, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   FileText, Plus, Trash2, Archive, Star, Pencil, X, ChevronUp, ChevronDown, Copy, Search, Eye, Sparkles, Download,
 } from "lucide-react";
@@ -41,11 +42,33 @@ const ORDINE_CONTROPARTE = ["cliente", "fornitore", "subappaltatore", "dipendent
 
 type BozzaModello = { id?: string; nome?: string; ambito?: AmbitoCondizioni; clausole?: Clausola[]; predefinito?: boolean; versione?: number };
 
+/**
+ * Le due pagine che prima erano schede sorelle (07/11/2026). Florin: «se mettessi tutto qui, anche
+ * tutte le tab, anche quelle delle firme elettroniche». Chi cerca cosa accetta il cliente non deve
+ * più indovinare in quale delle tre pagine guardare: le condizioni stanno tutte qui dentro.
+ * Caricate a parte, così chi apre i modelli non si porta dietro anche il resto.
+ */
+const CondizioniDellaFirma = lazy(() => import("./SettingsCondizioniFirma"));
+const FirmaElettronica = lazy(() => import("@/pages/azienda/settings/SettingsFirmaElettronica"));
+
+type SchedaCondizioni = "modelli" | "clausole" | "firma" | "firma-elettronica";
+const SCHEDE: readonly SchedaCondizioni[] = ["modelli", "clausole", "firma", "firma-elettronica"];
+
 export default function SettingsCondizioni() {
   const permessi = usePermissions();
   const puoGestire = !permessi.isLoading && (!!permessi.isAdmin || !!permessi.canManageCondizioni);
+  const puoVedereFirma = !permessi.isLoading && (!!permessi.isAdmin || !!permessi.canViewSettingsPricing);
+  const puoVedereFea = !permessi.isLoading && (!!permessi.isAdmin || !!permessi.canViewSettingsIntegrations);
   const archivio = useCondizioniArchivio();
-  const [scheda, setScheda] = useState<"modelli" | "clausole">("modelli");
+  // La scheda sta nell'indirizzo: i vecchi link alle pagine separate arrivano dritti al punto giusto.
+  const [parametri, setParametri] = useSearchParams();
+  const chiesta = parametri.get("scheda") as SchedaCondizioni | null;
+  const scheda: SchedaCondizioni = chiesta && SCHEDE.includes(chiesta) ? chiesta : "modelli";
+  const setScheda = (s: SchedaCondizioni) => {
+    const p = new URLSearchParams(parametri);
+    if (s === "modelli") p.delete("scheda"); else p.set("scheda", s);
+    setParametri(p, { replace: true });
+  };
   const [clausola, setClausola] = useState<Partial<ClausolaArchivio> | null>(null);
   const [modello, setModello] = useState<BozzaModello | null>(null);
   const [anteprima, setAnteprima] = useState<ModelloCondizioni | null>(null);
@@ -86,20 +109,24 @@ export default function SettingsCondizioni() {
 
   return (
     <div className="space-y-4 p-3 sm:p-4">
-      <header className="space-y-1.5">
-        <h1 className="flex items-center gap-2 text-lg font-bold">
-          <FileText className="h-5 w-5 text-primary" aria-hidden />Contratti e condizioni
-        </h1>
-        <p className="max-w-3xl text-sm text-muted-foreground">
+      {/* Il titolo lo mette già l'intestazione del gruppo (07/11/2026): qui resta solo cosa fa la pagina. */}
+      <p className="flex max-w-3xl items-start gap-2 text-sm text-muted-foreground">
+        <FileText className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
+        <span>
           Le condizioni dell'azienda in un posto solo: da qui le prendono preventivi, contratti, subappalti, ordini ai
           fornitori e contratti di lavoro. Cambiare un modello non tocca i documenti già mandati: ognuno tiene il testo
           con cui è uscito.
-        </p>
-      </header>
+        </span>
+      </p>
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex rounded-lg border p-0.5" role="tablist" aria-label="Contratti e condizioni">
-          {([["modelli", `Modelli (${attivi.length})`], ["clausole", `Clausole (${archivio.clausole.length})`]] as const).map(([id, nome]) => (
+          {([
+            ["modelli", `Modelli (${attivi.length})`],
+            ["clausole", `Clausole (${archivio.clausole.length})`],
+            ...(puoVedereFirma ? [["firma", "Firma del preventivo"] as const] : []),
+            ...(puoVedereFea ? [["firma-elettronica", "Firma elettronica"] as const] : []),
+          ] as ReadonlyArray<readonly [SchedaCondizioni, string]>).map(([id, nome]) => (
             <button key={id} type="button" role="tab" aria-selected={scheda === id} onClick={() => setScheda(id)}
               className={cn("rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
                 scheda === id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
@@ -114,7 +141,7 @@ export default function SettingsCondizioni() {
         )}
       </div>
 
-      {quante > 0 && (
+      {quante > 0 && (scheda === "modelli" || scheda === "clausole") && (
         <section className="rounded-lg border border-sky-200 bg-sky-50/60 p-3">
           <h2 className="text-sm font-semibold text-sky-950">Le condizioni che hai già</h2>
           <p className="mt-0.5 text-xs text-sky-900">
@@ -211,11 +238,15 @@ export default function SettingsCondizioni() {
             </p>
           </aside>
         </>
-      ) : (
+      ) : scheda === "clausole" ? (
         <Libreria clausole={archivio.clausole} modelli={attivi} puoGestire={puoGestire}
           onApri={(c) => setClausola(c)}
           onElimina={(id) => archivio.eliminaClausola.mutate(id)}
           onPartenza={() => archivio.clausoleDiPartenza.mutate(CLAUSOLE_DI_PARTENZA)} />
+      ) : (
+        <Suspense fallback={<p className="p-3 text-sm text-muted-foreground" role="status">Carico…</p>}>
+          {scheda === "firma" ? <CondizioniDellaFirma dentroArchivio /> : <FirmaElettronica />}
+        </Suspense>
       )}
 
       <DialogClausola clausola={clausola} onChiudi={() => setClausola(null)}
