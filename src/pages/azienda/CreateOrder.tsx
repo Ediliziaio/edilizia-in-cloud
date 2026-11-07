@@ -1014,11 +1014,14 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         sede_id: values.sede_id || null,
       };
 
-      // Quantità non intere → 1 × il totale di riga (vedi rigaConQuantitaIntera).
+      // Le quantità restano vere (12,5 m²); solo un articolo di magazzino con
+      // decimali diventa 1 × il totale, perché il magazzino conta pezzi interi
+      // (vedi rigaConQuantitaIntera).
       const itemsPayload = orderItems.map(rigaConQuantitaIntera).map((item, index) => ({
         name: item.name,
         description: item.description || null,
         quantity: item.quantity,
+        unita_misura: item.unita_misura?.trim() || null,
         status: item.status,
         position: index,
         supplier_id: item.supplier_id || null,

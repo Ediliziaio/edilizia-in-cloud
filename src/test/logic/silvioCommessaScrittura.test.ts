@@ -82,11 +82,11 @@ describe("scritturaDalPiano", () => {
     expect(s.conflitti).toBe(0);
   });
 
-  it("le righe: senza l'id del preventivo, in ordine, la quantità non intera diventa 1 × il totale", () => {
+  it("le righe: senza l'id del preventivo, in ordine, la quantità non intera resta vera (12,5)", () => {
     const { righe } = scritturaDalPiano(fondi(pianoVuoto("az-1"), dalPreventivo()));
     expect(righe[0]).toEqual({ name: "Piatto doccia", quantity: 1, unit_price: 400, position: 0 });
-    expect(righe[1]).toMatchObject({ name: "Massetto", quantity: 1, unit_price: 250, position: 1 });
-    expect(String(righe[1].description)).toContain("Quantità 12,5");
+    // Dal 07/11/2026 order_items.quantity ha i decimali: niente più «1 × il totale».
+    expect(righe[1]).toMatchObject({ name: "Massetto", quantity: 12.5, unit_price: 20, position: 1 });
   });
 
   it("le rate: solo con un importo, eventi ammessi, etichetta di ripiego", () => {

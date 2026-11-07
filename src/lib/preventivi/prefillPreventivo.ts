@@ -21,14 +21,15 @@ import { righeCommessaDaPreventivo } from "../../../supabase/functions/_shared/r
 /**
  * Le righe del preventivo come righe di commessa: lo stesso conto della
  * conversione automatica (converti-preventivo-cantiere), che usa la stessa
- * funzione. Senza opzionali, con lo sconto di riga, e con le quantità decimali
- * portate a 1 × totale (order_items.quantity è un intero).
+ * funzione. Senza opzionali, con lo sconto di riga, e con le quantità vere e la
+ * loro unità (85,5 m² resta 85,5 m²).
  */
 export function righePreventivoPerCommessa(rows: Array<Record<string, unknown>>): OrderItem[] {
   return righeCommessaDaPreventivo(rows).map((r, idx): OrderItem => ({
     name: r.name,
     description: r.description ?? undefined,
     quantity: r.quantity,
+    unita_misura: r.unita_misura,
     status: "da_ordinare",
     position: idx,
     unit_price: r.unit_price ?? undefined,

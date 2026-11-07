@@ -10,10 +10,12 @@ import { destinazioneVoce } from "./destinazioneVocePreventivo.ts";
  *    superava il totale accettato;
  *  - lo sconto di riga viaggia con la riga: «rivedi» lo perdeva, e le righe
  *    costavano più del preventivo;
- *  - order_items.quantity è un intero (create_order_atomic fa `::integer`): una
- *    quantità decimale (85,5 m², 7,5 ore) faceva fallire la creazione di tutta
- *    la commessa. La riga diventa 1 × il suo totale, con la quantità vera nella
- *    descrizione: i conti restano esatti;
+ *  - le quantità decimali (85,5 m², 7,5 ore) restano come sono, con la loro
+ *    unità: order_items.quantity ha i decimali dalla migrazione 20281222140000 e
+ *    create_order_atomic non la converte più in intero (20281222160000), e scrive
+ *    l'unità (20281222170000). Prima la riga diventava «1 × il suo totale», con
+ *    la quantità vera solo nella descrizione: il totale tornava, ma il confronto
+ *    fra fabbisogno e ordini ai fornitori contava 1 invece di 85,5 m²;
  *  - una riga a quantità 0 non vende niente e non entra.
  *
  * Funzione pura, usata anche dai test.
@@ -23,6 +25,8 @@ export type RigaCommessa = {
   name: string;
   description: string | null;
   quantity: number;
+  /** L'unità della riga del preventivo (m², kg, ore…); null se non c'è. */
+  unita_misura: string | null;
   unit_price: number | null;
   purchase_price: number;
   vat_rate: number | null;
@@ -32,8 +36,6 @@ export type RigaCommessa = {
   misure_preventivo: { larghezza?: number; altezza?: number } | null;
   measure_status: "da_rilevare" | null;
 };
-
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export function righeCommessaDaPreventivo(righe: Array<Record<string, unknown>>): RigaCommessa[] {
   return righe
@@ -49,22 +51,18 @@ export function righeCommessaDaPreventivo(righe: Array<Record<string, unknown>>)
       const misurePreventivo = mx != null || my != null
         ? { ...(mx != null ? { larghezza: Number(mx) } : {}), ...(my != null ? { altezza: Number(my) } : {}) }
         : null;
-      const q = Number(r.quantity) || 1;
-      const intera = Number.isInteger(q);
+      // Quattro decimali, come le salva il database.
+      const q = Math.round((Number(r.quantity) || 1) * 10000) / 10000;
       const unitario = r.unit_price != null ? Number(r.unit_price) : null;
       const costo = r.prezzo_acquisto != null ? Number(r.prezzo_acquisto) : 0;
-      const um = typeof r.unit_of_measure === "string" ? r.unit_of_measure : "";
-      const euro = (n: number) => n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      const quantitaVera = intera
-        ? null
-        : `${q.toLocaleString("it-IT")}${um ? ` ${um}` : ""}${unitario != null ? ` × ${euro(unitario)} €` : ""}`;
-      const descrizione = (r.description as string | null | undefined) ?? null;
+      const um = typeof r.unit_of_measure === "string" ? r.unit_of_measure.trim() : "";
       return {
         name: String(r.name ?? ""),
-        description: quantitaVera ? [quantitaVera, descrizione].filter(Boolean).join(" — ") : descrizione,
-        quantity: intera ? q : 1,
-        unit_price: unitario == null ? null : intera ? unitario : round2(unitario * q),
-        purchase_price: intera ? costo : round2(costo * q),
+        description: (r.description as string | null | undefined) ?? null,
+        quantity: q,
+        unita_misura: um || null,
+        unit_price: unitario,
+        purchase_price: costo,
         vat_rate: r.vat_rate != null ? Number(r.vat_rate) : null,
         discount_percent: r.discount_percent != null ? Number(r.discount_percent) : null,
         family_id: suMisura ? (r.family_id as string) : null,

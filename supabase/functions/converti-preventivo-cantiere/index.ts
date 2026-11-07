@@ -2,6 +2,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { separaVoci, contrattoPreventivo } from "../_shared/destinazioneVocePreventivo.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+// Le righe portano quantità vera e unità (12,5 m² resta 12,5 m², non più «1 × totale»):
+// toccato anche qui perché il deploy guarda solo i file cambiati sotto la funzione.
 import { righeCommessaDaPreventivo } from "../_shared/righeCommessaDaPreventivo.ts";
 
 Deno.serve(async (req) => {

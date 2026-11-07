@@ -36,15 +36,17 @@ piano parte da lì: dice cosa c'è, cosa manca e in che ordine farlo.
   `insert_goods_receipt_atomic` (la ricezione merce a magazzino somma un intero a
   `quantity_received`). L'arrivo di un ODA registrato con `oda_registra_arrivo` invece accetta i
   decimali (provato con 20,25 m²).
-  **Da decidere:** creando una commessa, «12,5 m² × 34 €» diventa ancora «1 × 425 €» con la
-  quantità vera in descrizione, perché la colonna era intera. Il ripiego sta in quattro strade
-  che devono dare le stesse righe: creazione commessa e import del contratto
-  (`rigaConQuantitaIntera` in `CreateOrder`), Silvio (`silvio-commessa/scrittura.ts`), e
-  preventivo → commessa (`_shared/righeCommessaDaPreventivo.ts`, usata dalla edge function di
-  conversione e da `useQuotePrefill`; il test `righeCommessaDaPreventivo` lo vuole uguale nelle
-  due strade). Non è un errore — i totali tornano — e toglierlo cambia l'aspetto delle righe
-  delle commesse nuove, quindi va deciso e fatto in tutte e quattro insieme; per la edge
-  function va toccato anche l'`index.ts` di chi la importa, perché il deploy parta.
+  **Fatto il 07/11/2026 (migrazione `20281222170000_crea_commessa_unita_misura`):** creando una
+  commessa, «12,5 m² × 34 €» resta 12,5 m² × 34 € invece di diventare «1 × 425 €». Vale nelle
+  quattro strade insieme — Nuova Commessa e import del contratto (`CreateOrder`), Silvio,
+  preventivo → commessa (`_shared/righeCommessaDaPreventivo.ts`, edge `converti-preventivo-cantiere`
+  e `useQuotePrefill`) — e `create_order_atomic` ora scrive anche `unita_misura`, senza la quale
+  12,5 varrebbe 12,5 pezzi. Il ripiego «1 × totale» resta solo per un articolo di magazzino con
+  decimali (`rigaConQuantitaIntera`), perché il magazzino conta pezzi interi: diventa «1 a
+  corpo» con quantità e unità vere nella descrizione. Le commesse già create non cambiano.
+  Fattura, proforma, DDT e nota di credito dalla commessa scrivono l'unità della riga
+  (`unitaDocumento`) invece di «pz» fisso: altrimenti 12,5 m² sarebbe uscito «12,5 pz», anche
+  nella fattura elettronica (che tronca l'unità a 10 caratteri).
 - **Fase 2 — fatta nel database (07/11/2026)**, migrazione `20281222150000_materiali_riconciliazione`
   applicata: `materiali_riconciliazione(commessa)`, `materiali_riconciliazione_azienda(azienda, …)`
   a pagine (solo fasi validate) e il calcolo `_materiali_riconciliazione_righe`, solo service role.

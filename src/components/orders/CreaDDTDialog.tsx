@@ -91,7 +91,7 @@ export function CreaDDTDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_items")
-        .select("id, name, description, quantity, unit_price, vat_rate, discount_percent, position")
+        .select("id, name, description, quantity, unita_misura, unit_price, vat_rate, discount_percent, position")
         .eq("order_id", orderId)
         .order("position");
       if (error) throw error;

@@ -31,7 +31,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Package, Loader2, AlertTriangle, HardHat, ArrowRight, FileQuestion } from "lucide-react";
 import { useMaterialProcurement, useUnmappedPurchaseOrders } from "@/hooks/useMaterialProcurement";
 import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
-import { pendingMaterials, planMaterial, type ProcurementItem } from "@/lib/orders/materialProcurement";
+import { pendingMaterials, planMaterial, unitaMateriale, type ProcurementItem } from "@/lib/orders/materialProcurement";
 import { createMaterialPurchaseOrder, IncompletePurchaseOrderError } from "@/lib/orders/createMaterialPurchaseOrder";
 import { usePermissions } from "@/hooks/usePermissions";
 
@@ -159,15 +159,16 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
           ? i.posizioni.map((po) => ({
               descrizione: `${i.name} — ${po.descrizione}${po.misure ? ` ${po.misure}` : ""}`,
               quantita: po.quantita,
+              unita_misura: unitaMateriale(i),
             }))
-          : [{ descrizione: i.name, quantita: i.quantity }],
+          // L'unità della riga (12,5 m² arriva al fornitore come m², non come pz).
+          : [{ descrizione: i.name, quantita: i.quantity, unita_misura: unitaMateriale(i) }],
       );
       const { error: itErr } = await db.from("supplier_rfq_items").insert(
         righeRdo.map((r, idx) => ({
           rfq_id: rfq.id,
           company_id: effectiveCompany.id,
           ...r,
-          unita_misura: "pz",
           posizione: idx,
         })),
       );

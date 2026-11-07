@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { unitaDocumento } from "@/lib/orders/unitaDocumento";
 import { toast } from "sonner";
 import { Sparkles, Loader2, Info, Plus, Trash2, ListPlus, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,8 @@ export interface RigaComposerItem {
   name: string;
   description: string | null;
   quantity: number | null;
+  /** Unità della riga della commessa (m², kg…): sul documento al posto di «pz». */
+  unita_misura?: string | null;
   unit_price: number | null;
   vat_rate: number | null;
   discount_percent: number | null;
@@ -51,7 +54,7 @@ export function buildRigaFromItem(item: RigaComposerItem, defaultVat: number): R
     numero_linea: 0,
     descrizione,
     quantita: qty,
-    unita_misura: "pz",
+    unita_misura: unitaDocumento(item.unita_misura),
     prezzo_unitario: prezzoNetto,
     ...(discountPct > 0 && { sconto_percentuale: discountPct }),
     imponibile,

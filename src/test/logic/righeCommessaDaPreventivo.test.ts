@@ -3,10 +3,10 @@
  * (rivedi)») producono le STESSE righe.
  *
  * «Rivedi» (useQuotePrefill) aveva la sua copia del conto e divergeva: copiava le
- * righe opzionali (non vendute), perdeva lo sconto di riga, e lasciava passare le
- * quantità decimali (85,5 m²), che create_order_atomic (`::integer`) rifiuta: la
- * creazione di tutta la commessa falliva con «invalid input syntax for type integer».
- * Ora le due strade usano la stessa funzione (righeCommessaDaPreventivo).
+ * righe opzionali (non vendute) e perdeva lo sconto di riga. Ora le due strade
+ * usano la stessa funzione (righeCommessaDaPreventivo). Le quantità decimali
+ * (85,5 m²) dal 07/11/2026 restano vere, con la loro unità: prima diventavano
+ * «1 × il totale», perché order_items.quantity era un intero.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DbMinimo, denoFinto, type Riga } from "../helpers/edgeFinto";
@@ -41,14 +41,13 @@ describe("righeCommessaDaPreventivo", () => {
     expect(r).toMatchObject({ quantity: 4, unit_price: 850, discount_percent: 5, purchase_price: 60, vat_rate: 22 });
   });
 
-  it("quantità decimale: 1 × il totale della riga, con la quantità vera in descrizione; i conti restano esatti", () => {
+  it("quantità decimale: resta 85,5 m², con prezzo unitario e descrizione del preventivo", () => {
     const [r] = righeCommessaDaPreventivo([
       riga({ name: "Intonaco", quantity: 85.5, unit_price: 24, prezzo_acquisto: 11.5, unit_of_measure: "m²", description: "Civile" }),
     ]);
-    expect(r.quantity).toBe(1);
-    expect(r.unit_price).toBe(2052); // 85,5 × 24
-    expect(r.purchase_price).toBe(983.25); // 85,5 × 11,50
-    expect(r.description).toBe("85,5 m² × 24,00 € — Civile");
+    expect(r).toMatchObject({ quantity: 85.5, unita_misura: "m²", unit_price: 24, purchase_price: 11.5, description: "Civile" });
+    // Il totale della riga è lo stesso di prima: 85,5 × 24.
+    expect(r.quantity * r.unit_price!).toBe(2052);
   });
 
   it("quantità mancante o rotta vale 1; intera resta com'è", () => {
@@ -82,13 +81,11 @@ describe("«Crea commessa (rivedi)» e «Converti in Cantiere»: stesse righe", 
     riga({ item_category: "nota", name: "Nota interna" }),
   ];
 
-  it("la strada «rivedi» dà le righe giuste: niente opzionali, sconto di riga, decimali a 1 × totale", () => {
+  it("la strada «rivedi» dà le righe giuste: niente opzionali, sconto di riga, decimali veri con l'unità", () => {
     const items = righePreventivoPerCommessa(preventivoRighe);
     expect(items.map((i) => i.name)).toEqual(["Finestra PVC", "Intonaco"]);
     expect(items[0]).toMatchObject({ quantity: 4, unit_price: 850, discount_percent: 5, vat_rate: 10, status: "da_ordinare", position: 0, measure_status: "da_rilevare" });
-    expect(items[1]).toMatchObject({ quantity: 1, unit_price: 2052, purchase_price: 983.25 });
-    // Quello che CreateOrder manda a create_order_atomic: tutte le quantità sono intere.
-    expect(items.every((i) => Number.isInteger(i.quantity))).toBe(true);
+    expect(items[1]).toMatchObject({ quantity: 85.5, unita_misura: "m²", unit_price: 24, purchase_price: 11.5 });
   });
 
   describe("la conversione automatica", () => {
@@ -124,7 +121,7 @@ describe("«Crea commessa (rivedi)» e «Converti in Cantiere»: stesse righe", 
       const senzaOrdine = scritto.map(({ order_id: _o, ...resto }) => resto);
       expect(senzaOrdine).toEqual(righePreventivoPerCommessa(preventivoRighe).map((i) => ({
         // L'edge scrive null dove la pagina lascia il campo vuoto.
-        name: i.name, description: i.description ?? null, quantity: i.quantity, status: i.status, position: i.position,
+        name: i.name, description: i.description ?? null, quantity: i.quantity, unita_misura: i.unita_misura ?? null, status: i.status, position: i.position,
         unit_price: i.unit_price ?? null, purchase_price: i.purchase_price, vat_rate: i.vat_rate ?? null, discount_percent: i.discount_percent ?? null,
         family_id: i.family_id ?? null, axis_selections: i.axis_selections ?? null, misure_preventivo: i.misure_preventivo ?? null, measure_status: i.measure_status ?? null,
       })));

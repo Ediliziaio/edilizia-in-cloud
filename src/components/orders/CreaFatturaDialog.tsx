@@ -26,6 +26,7 @@ import { useLinkFatturaOrdine } from "@/hooks/billing/useFatturaOrdineLink";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import type { Installment } from "@/lib/orderUtils";
 import { METODI_PAGAMENTO_SDI, type ClienteSnapshot, type RigaDocumento, type ScadenzaPagamento } from "@/types/fatturazione";
+import { unitaDocumento } from "@/lib/orders/unitaDocumento";
 import { causaliConValoreBeni } from "@/lib/fatturazione/beniSignificativi";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -137,6 +138,8 @@ interface OrderItemRow {
   name: string;
   description: string | null;
   quantity: number | null;
+  /** 12,5 m² in fattura è «12,5 m²», non «12,5 pz». */
+  unita_misura?: string | null;
   unit_price: number | null;
   vat_rate: number | null;
   discount_percent: number | null;
@@ -205,7 +208,7 @@ function buildRigaFromItem(item: OrderItemRow, defaultVat: number, quota = 100):
     numero_linea: 0, // rinumerato nella composizione finale
     descrizione,
     quantita: qty,
-    unita_misura: "pz",
+    unita_misura: unitaDocumento(item.unita_misura),
     prezzo_unitario: prezzo,
     ...(discountPct > 0 && { sconto_percentuale: discountPct }),
     imponibile: 0,
@@ -418,7 +421,7 @@ export function CreaFatturaDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_items")
-        .select("id, name, description, quantity, unit_price, vat_rate, discount_percent, position")
+        .select("id, name, description, quantity, unita_misura, unit_price, vat_rate, discount_percent, position")
         .eq("order_id", orderId)
         .order("position");
       if (error) throw error;
