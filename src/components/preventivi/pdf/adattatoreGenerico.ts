@@ -7,6 +7,10 @@ import { normalizzaTestoTemplatePdf } from "../../../../supabase/functions/_shar
 import { COLORE_ACCENTO_DI_FABBRICA, coloreDelBlocco, titoliMarkdown } from "../../../../supabase/functions/_shared/blocchiModelloPreventivo";
 import { nomeLeggibile } from "../../../../supabase/functions/_shared/impaginaPreventivo";
 import { formatCurrency } from "@/lib/formatters";
+import { CAPITOLI_EDILI } from "./ordineCapitoli";
+
+/** I soli capitoli del preventivo classico: la tabella e il prezzo con le modalità di pagamento. */
+export const ORDINE_PREVENTIVO_CLASSICO = CAPITOLI_EDILI.map((c) => ({ chiave: c.chiave, visibile: c.chiave === "piano" || c.chiave === "investimento" }));
 
 type Riga = Record<string, unknown>;
 const str = (v: unknown) => typeof v === "string" ? v : "";
@@ -59,11 +63,15 @@ export function datiGenerici(input: { quote: Riga; items: Riga[]; righePerIva?: 
   dati.totali.mostraSconti = q.pdf_mostra_sconti !== false && num(q.discount_amount) >= 0.01;
   dati.titoloDocumento = `Preventivo ${str(q.quote_number)}`;
   dati.filigrana = t.show_watermark ? str(t.watermark_text) : null;
+  // Il preventivo classico è un documento semplice (07/11/2026, Florin: «copertina, la tabella con cosa compra
+  // e il prezzo finale, poi in fondo modalità di pagamento e le condizioni contrattuali: oggi è troppo lungo»).
+  // Dei capitoli del documento edile restano il piano (la tabella) e l'investimento (prezzo e pagamento); niente
+  // lettera e indice in apertura, niente presentazione, niente «prossimi passi». Il cliente sta in copertina e
+  // nella pagina delle firme: la scheda «Dati del cliente» non si ripete. Restano le condizioni con la firma.
+  dati.modello.ordineCapitoli = ORDINE_PREVENTIVO_CLASSICO;
+  dati.mostraChiusura = false;
+  dati.prezzoSottoLaTabella = true;
   dati.sezioniTecniche = [];
-  if (t.show_client_details !== false) dati.sezioniTecniche.push({ id: "anagrafica", titolo: "Dati del cliente", righe: [
-    { etichetta: "Intestatario", valore: dati.cliente },
-    ...[["Azienda", q.client_company], ["Codice fiscale", q.client_fiscal_code], ["Partita IVA", q.client_vat_number], ["Indirizzo", q.client_address], ["Email", q.client_email], ["Telefono", q.client_phone]].flatMap(([etichetta, valore]) => typeof valore === "string" && valore ? [{ etichetta: String(etichetta), valore }] : []),
-  ] });
   const condizioni = [
     t.show_notes === false ? null : { etichetta: "Note", valore: str(q.notes) },
     t.show_delivery_terms === false ? null : { etichetta: "Consegna", valore: str(q.delivery_terms || t.delivery_terms_text) },

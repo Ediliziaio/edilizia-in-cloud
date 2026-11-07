@@ -253,6 +253,12 @@ export interface DocEdileDati {
    * (07/11/2026). Stesso componente del PDF vero, quindi stesso carattere, colori e impaginazione.
    */
   soloCondizioni?: boolean;
+  /**
+   * Il prezzo continua sotto la tabella, sulla stessa pagina, se ci sta intero (07/11/2026): il preventivo
+   * classico è copertina, tabella col prezzo, pagamento, condizioni. Negli altri preventivi il prezzo ha la
+   * sua pagina, come prima.
+   */
+  prezzoSottoLaTabella?: boolean;
   modulo: DocEdileModulo;
   codice: string | null;
   /** «Mario Rossi» */

@@ -481,7 +481,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Unico motore per i preventivi: qui restano autorizzazione e dati.
+    // Unico motore per i preventivi: qui restano autorizzazione e dati. Dal 07/11/2026 il preventivo classico
+    // è semplice — copertina, tabella col prezzo e il pagamento, condizioni, firma (adattatoreGenerico).
     // L'azienda di cui si leggono i file del modello (logo, copertina, timbro), dal
     // contenitore riservato e col service role: solo dalla sua cartella.
     const aziendaDeiFile = isPreview ? aziendaAnteprima : quote?.company_id ?? null;

@@ -1127,6 +1127,8 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   // altri (computo, progetto, gallerie, prezzo…) cominciano un foglio nuovo.
   const scorreIntero = (chiave: string): boolean =>
     ["comeFunziona", "percorso", "protezione", "controlli", "compreso", "documenti", "diario", "garanzie"].includes(chiave)
+    // Il prezzo sotto la tabella, intero (preventivo classico, 07/11/2026): se non ci sta, va alla pagina dopo.
+    || (chiave === "investimento" && dati.prezzoSottoLaTabella === true)
     // Le recensioni intere solo se stanno in una pagina: tante testimonianze si spezzano a righe.
     || (chiave === "recensioni" && (stimaCapitolo("recensioni") ?? ALTEZZA_UTILE) <= ALTEZZA_UTILE - 40)
     || (chiave === "tempi" && modello.cronoprogramma.length <= 8)
