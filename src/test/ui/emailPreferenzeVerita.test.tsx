@@ -288,7 +288,9 @@ describe("testi veri e ordine", () => {
     monta();
     await screen.findByLabelText("Nome che vede il cliente");
     expect(document.body.textContent).not.toMatch(/Reply-to|per stream|Footer unsubscribe|transazional|Parte locale|Branding email/);
-    expect(screen.getByLabelText("Dominio dei messaggi di servizio")).toBeTruthy();
+    // 07/11/2026: i messaggi di servizio non hanno più la scelta del dominio.
+    expect(screen.queryByLabelText("Dominio dei messaggi di servizio")).toBeNull();
+    expect(screen.getByText(/Partono sempre da/)).toBeTruthy();
     expect(screen.getByLabelText("Dominio delle campagne")).toBeTruthy();
   });
 

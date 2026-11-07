@@ -552,32 +552,13 @@ export default function SettingsEmailPreferences({
               <h3 className="flex items-center gap-2 text-sm font-semibold">
                 <Mail className="h-4 w-4 text-muted-foreground" /> Messaggi di servizio
               </h3>
-              <p className="text-xs text-muted-foreground">Notifiche, documenti da firmare, codici di accesso.</p>
-              <Label htmlFor="transactional_domain" className="sr-only">Dominio dei messaggi di servizio</Label>
-              <Select
-                value={form.transactional_domain_id ?? "__none__"}
-                onValueChange={(v) => setCampo("transactional_domain_id", v === "__none__" ? null : v)}
-              >
-                <SelectTrigger id="transactional_domain" aria-label="Dominio dei messaggi di servizio">
-                  <SelectValue placeholder="Scegli il dominio" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">
-                    Il dominio della piattaforma ({DOMINIO_PIATTAFORMA.transactional})
-                  </SelectItem>
-                  {transactionalDomains.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.domain} <span className="text-muted-foreground">· verificato</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {transactionalDomains.length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Nessun tuo dominio è ancora verificato per questi messaggi. Registralo in{" "}
-                  <Link to={vaiAlDominio} className="text-primary underline">Dominio</Link>.
-                </p>
-              )}
+              {/* 07/11/2026: i messaggi di servizio non usano più il dominio dell'azienda
+                  (manage-email-domain non li registra su Resend): niente scelta qui. */}
+              <p className="text-xs text-muted-foreground">
+                Notifiche, documenti da firmare, codici di accesso. Partono sempre da{" "}
+                <span className="font-mono">{DOMINIO_PIATTAFORMA.transactional}</span> col solo nome della tua azienda;
+                le risposte arrivano a te. Promemoria e conferme degli appuntamenti partono dal dominio delle campagne.
+              </p>
             </div>
 
             <div className="space-y-2 px-4 py-4">
