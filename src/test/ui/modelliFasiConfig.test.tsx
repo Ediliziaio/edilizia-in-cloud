@@ -11,6 +11,10 @@ const state = vi.hoisted(() => ({
 vi.mock("sonner", () => ({ toast: { success: state.successo, error: vi.fn() } }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ role: state.puoModificare ? "company_admin" : "staff" }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canEditSettingsOrders: false }) }));
+vi.mock("@/hooks/useProfiloLavori", async () => {
+  const { PHASE_TEMPLATES } = await import("@/hooks/useOrderWorkPhases");
+  return { useProfiloLavori: () => ({ profilo: { tipi: [], origine: "nessuno" }, modelliStandard: PHASE_TEMPLATES }) };
+});
 vi.mock("@/hooks/useOrderWorkPhases", () => ({
   PHASE_TEMPLATES: [
     { key: "bagno", label: "Bagno", hint: "Rifacimento bagno", phases: ["Demolizioni", "Impianti"] },

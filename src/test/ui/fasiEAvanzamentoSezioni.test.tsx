@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ role: state.role }) }));
+vi.mock("@/components/settings/TipiLavoroConfig", () => ({ default: () => <section id="lavori"><h2>I lavori che facciamo</h2></section> }));
 vi.mock("@/hooks/usePermissions", () => ({
   usePermissions: () => ({ isLoading: state.caricamentoPermessi, canEditSettingsOrders: state.modifica }),
 }));
@@ -59,10 +60,11 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Fasi e avanzamento: l'ordine e i titoli", () => {
-  it("tre sezioni di secondo livello: prima i modelli, poi «Quando apri una commessa», poi le regole", () => {
+  it("quattro sezioni di secondo livello: i lavori, i modelli, «Quando apri una commessa», le regole", () => {
     apri();
     expect(screen.queryAllByRole("heading", { level: 1 })).toHaveLength(0);
     expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
+      "I lavori che facciamo",
       "Modelli di fasi",
       "Quando apri una commessa",
       "Regole per tutte le commesse",

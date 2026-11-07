@@ -85,6 +85,7 @@ import { useFasiDiPartenza } from "@/hooks/useFasiDiPartenza";
 import { fasiPerCommessa, type FaseModello } from "@/lib/orders/modelliFasi";
 import { dataValida, fasiDaBozza, salvaFasiDiPartenza, type SettimanaLavorativa } from "@/lib/orders/pianificazioneAvvio";
 import { pianificaFasi } from "@/lib/orders/pianoFasiNuovaCommessa";
+import { dateAlleFasiCreate } from "@/lib/orders/dateFasiCreate";
 import { calendarioCantiere } from "@/lib/orders/sottofasi";
 import { useCalendarioCantiere } from "@/hooks/useCalendarioCantiere";
 import { PianificazioneCommessa } from "@/components/orders/PianificazioneCommessa";
@@ -1140,6 +1141,18 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             duration: 12000,
           });
         }
+        // Le fasi nate dai capitoli del preventivo prendono le date dall'inizio lavori, come quelle del modello.
+        const dateErr = await dateAlleFasiCreate(result.id, { inizio: inizioLavori, fine: fineLavori, lavorativo: lavorativoCommessa }, {
+          leggiFasi: (id) => supabase.from("order_work_phases").select("id, position, start_date, end_date").eq("order_id", id),
+          // order_work_subphases non è nei tipi generati: come in useSottofasi.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          leggiSottofasi: (ids) => (supabase as any).from("order_work_subphases").select("phase_id, position, giorni, in_parallelo").in("phase_id", ids),
+          scriviDate: (id, date) => supabase.from("order_work_phases").update(date).eq("id", id),
+        });
+        if (dateErr) {
+          console.warn("[CreateOrder] date delle fasi dal preventivo non scritte:", dateErr);
+          toast.warning("Fasi senza date", { description: "La commessa è stata creata: le date delle fasi si mettono dal Cantiere.", duration: 10000 });
+        }
       }
 
       // Contratto importato con «Carica contratto (AI)»: dietro la commessa nasce il suo contratto,
@@ -1236,8 +1249,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         }
       }
       if (!selectedQuoteId && fasiDaCreare.length && result.id) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const fasiConDate = fasiDaCreare.map((f, i) => ({ ...f, data_inizio: pianoFasi.righe[i]?.dal ?? null, data_fine: pianoFasi.righe[i]?.al ?? null }));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const fasiErr = await salvaFasiDiPartenza(result.id, fasiConDate, (nome, args) => (supabase as any).rpc(nome, args));
         if (fasiErr) {
           console.warn("[CreateOrder] fasi di partenza non aggiunte (ordine creato comunque):", fasiErr);
@@ -1886,7 +1899,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         </QuoteCard>
 
         {/* Order Items */}
-        {quotePrefill && quotePrefill.workLines.length > 0 && <div className="mb-4 rounded-lg border bg-muted/20 p-4 text-sm"><strong>{quotePrefill.workLines.length} lavorazioni dal preventivo</strong><p className="mt-1 text-muted-foreground">Verranno create come fasi in Cantiere. Qui sotto trovi soltanto i materiali; il totale contrattuale resta quello del preventivo.</p><ul className="mt-2 list-inside list-disc">{quotePrefill.workLines.map((r,i)=><li key={i}>{r.name}</li>)}</ul></div>}
+        {quotePrefill && quotePrefill.workLines.length > 0 && <div className="mb-4 rounded-lg border bg-muted/20 p-4 text-sm"><strong>{quotePrefill.workLines.length} lavorazioni dal preventivo</strong><p className="mt-1 text-muted-foreground">Verranno create come fasi in Cantiere{inizioLavori ? ", una dopo l'altra dall'inizio dei lavori" : ""}. Qui sotto trovi soltanto i materiali; il totale contrattuale resta quello del preventivo.</p><ul className="mt-2 list-inside list-disc">{quotePrefill.workLines.map((r,i)=><li key={i}>{r.name}</li>)}</ul></div>}
         <OrderItemsList
           items={orderItems}
           onItemsChange={setOrderItems}

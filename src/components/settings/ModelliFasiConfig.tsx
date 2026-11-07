@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
-import { PHASE_TEMPLATES } from "@/hooks/useOrderWorkPhases";
+import { useProfiloLavori } from "@/hooks/useProfiloLavori";
 import { useModelliFasi } from "@/hooks/useModelliFasi";
 import {
   bozzaDaModello, bozzaVuota, modelliDaOffrire, modelliDiPartenzaMancanti, modelliPerInizializzare, totaleSottofasi,
@@ -38,15 +38,17 @@ export default function ModelliFasiConfig({ evidenziata = false }: { evidenziata
   // L'apertura della pagina non scrive dati: gli standard si importano esplicitamente.
   const preparaModelli = inizializza.mutate;
 
-  const elenco = modelliDaOffrire(inizializzati, modelli, PHASE_TEMPLATES);
-  const mancanti = inizializzati ? modelliDiPartenzaMancanti(PHASE_TEMPLATES, modelli) : 0;
+  // Gli standard sono quelli dei lavori che l'azienda fa; i modelli suoi si vedono tutti, qui si gestiscono.
+  const { modelliStandard } = useProfiloLavori();
+  const elenco = modelliDaOffrire(inizializzati, modelli, modelliStandard);
+  const mancanti = inizializzati ? modelliDiPartenzaMancanti(modelliStandard, modelli) : 0;
   const preparazione = disponibile && !inizializzati && puoModificare;
   const busy = salva.isPending || elimina.isPending || inizializza.isPending;
   const puoAgire = puoModificare && disponibile && !isLoading && !isError && !busy;
 
   const ripristina = () =>
     inizializza.mutate(
-      { modelli: modelliPerInizializzare(PHASE_TEMPLATES), soloMancanti: true },
+      { modelli: modelliPerInizializzare(modelliStandard), soloMancanti: true },
       { onSuccess: (n) => toast.success(n === 1 ? "1 modello rimesso" : `${n} modelli rimessi`) },
     );
 
@@ -63,7 +65,7 @@ export default function ModelliFasiConfig({ evidenziata = false }: { evidenziata
           {isLoading && <p role="status" className={AVVISO}>Caricamento modelli…</p>}
           {(isError || (!isLoading && !disponibile)) && <div role="alert" className={AVVISO}><p>Non riesco a leggere i modelli aziendali. Gli standard sotto sono solo un riferimento.</p><Button size="sm" variant="outline" onClick={() => void refetch()}>Riprova</Button></div>}
           {preparazione && !busy && (
-            <div className={`${AVVISO} space-y-2`}><p>Importa gli standard per personalizzarli. Le commesse esistenti non cambiano.</p><Button size="sm" variant="outline" onClick={() => preparaModelli({ modelli: modelliPerInizializzare(PHASE_TEMPLATES), soloMancanti: false })}>Importa modelli standard</Button></div>
+            <div className={`${AVVISO} space-y-2`}><p>Importa gli standard per personalizzarli. Le commesse esistenti non cambiano.</p><Button size="sm" variant="outline" onClick={() => preparaModelli({ modelli: modelliPerInizializzare(modelliStandard), soloMancanti: false })}>Importa modelli standard</Button></div>
           )}
           {inizializza.isPending && (
             <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Preparo i tuoi modelli…</p>
@@ -71,7 +73,7 @@ export default function ModelliFasiConfig({ evidenziata = false }: { evidenziata
           {preparazione && inizializza.isError && (
             <div className={`${AVVISO} flex items-center justify-between gap-3`}>
               <span>Non sono riuscito a preparare i modelli.</span>
-              <Button size="sm" variant="outline" onClick={() => preparaModelli({ modelli: modelliPerInizializzare(PHASE_TEMPLATES), soloMancanti: false })}>Riprova</Button>
+              <Button size="sm" variant="outline" onClick={() => preparaModelli({ modelli: modelliPerInizializzare(modelliStandard), soloMancanti: false })}>Riprova</Button>
             </div>
           )}
           {disponibile && !inizializzati && !puoModificare && (

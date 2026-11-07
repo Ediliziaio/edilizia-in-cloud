@@ -539,7 +539,7 @@ describe("ogni voce porta a una pagina che esiste", () => {
     notifiche: ["src/pages/azienda/impostazioni/SettingsNotifiche.tsx", "src/components/notifications/AvvisiPerEvento.tsx"],
     "mio-profilo": ["src/pages/azienda/impostazioni/MioProfilo.tsx", "src/components/settings/CompanySecuritySettings.tsx"],
     "stati-ordine": ["src/components/settings/OrderStatusConfig.tsx"],
-    "modelli-fasi": ["src/pages/azienda/settings/SettingsModelliFasi.tsx", "src/components/settings/NuovaCommessaConfig.tsx"],
+    "modelli-fasi": ["src/pages/azienda/settings/SettingsModelliFasi.tsx", "src/components/settings/NuovaCommessaConfig.tsx", "src/components/settings/TipiLavoroConfig.tsx"],
     "modelli-pagamento": ["src/pages/azienda/settings/SettingsModelliPagamento.tsx", "src/components/settings/ModelliPagamentoConfig.tsx", "src/components/settings/SalMaturaConfig.tsx"],
     // Una pagina sola (07/11/2026): le schede «Firma del preventivo» e «Firma elettronica» vivono dentro l'archivio.
     "contratti-e-condizioni": ["src/pages/azienda/settings/SettingsFirmaElettronica.tsx", "src/pages/azienda/impostazioni/SettingsCondizioniFirma.tsx"],

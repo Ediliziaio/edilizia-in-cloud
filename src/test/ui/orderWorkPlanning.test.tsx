@@ -32,6 +32,10 @@ vi.mock("@/hooks/useCostiDirettiFasi", () => ({
   useAssegnaFaseCosti: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: [] as unknown[] }) }));
+vi.mock("@/hooks/useProfiloLavori", async () => {
+  const { PHASE_TEMPLATES } = await import("@/hooks/useOrderWorkPhases");
+  return { useProfiloLavori: () => ({ profilo: { tipi: [], origine: "nessuno" }, modelliStandard: PHASE_TEMPLATES }) };
+});
 // Il riquadro «Tempi dal preventivo firmato» ha i suoi test (pianoDalCronoprogramma): qui non serve.
 vi.mock("@/components/orders/PianoDalPreventivo", () => ({ PianoDalPreventivo: (): null => null }));
 vi.mock("@/components/orders/AlertScostamentoSal", () => ({ AlertScostamentoSal: (): null => null }));

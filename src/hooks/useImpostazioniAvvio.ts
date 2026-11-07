@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { messaggioModello } from "@/hooks/useModelliFasi";
 import { CONTROLLI_DI_PARTENZA, controlliValidi, type ControlloAvvio } from "@/lib/orders/nuovaCommessa";
+import { tipiDalDb, type TipoLavoro } from "@/lib/orders/tipiLavoro";
 
 // Le colonne non sono ancora nei tipi generati: cast localizzato.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -15,9 +16,11 @@ export interface ImpostazioniAvvio {
   modelloFasi: string | null;
   /** Cosa controlla il riquadro «Cantiere da organizzare». */
   controlli: ControlloAvvio[];
+  /** I lavori che l'azienda ha detto di fare; null = non l'ha detto (vale il settore). */
+  tipiLavoro: TipoLavoro[] | null;
 }
 
-const diPartenza = (): ImpostazioniAvvio => ({ modelloFasi: null, controlli: [...CONTROLLI_DI_PARTENZA] });
+const diPartenza = (): ImpostazioniAvvio => ({ modelloFasi: null, controlli: [...CONTROLLI_DI_PARTENZA], tipiLavoro: null });
 
 export const chiaveImpostazioniAvvio = (companyId: string | undefined) => ["impostazioni-avvio", companyId] as const;
 
@@ -38,13 +41,14 @@ export function useImpostazioniAvvio() {
       try {
         const { data, error } = await db
           .from("company_fasi_settings")
-          .select("modello_fasi_predefinito, controlli_avvio")
+          .select("modello_fasi_predefinito, controlli_avvio, tipi_lavoro")
           .eq("company_id", companyId!)
           .maybeSingle();
         if (error) throw error;
         return {
           modelloFasi: (data?.modello_fasi_predefinito as string | null | undefined) ?? null,
           controlli: controlliValidi(data?.controlli_avvio),
+          tipiLavoro: tipiDalDb(data?.tipi_lavoro),
         };
       } catch {
         return diPartenza();
@@ -53,10 +57,11 @@ export function useImpostazioniAvvio() {
   });
 
   const salva = useMutation({
-    mutationFn: async (valori: { modelloFasi?: string | null; controlli?: ControlloAvvio[] }) => {
+    mutationFn: async (valori: { modelloFasi?: string | null; controlli?: ControlloAvvio[]; tipiLavoro?: TipoLavoro[] | null }) => {
       const p_valori: Record<string, unknown> = {};
       if (valori.modelloFasi !== undefined) p_valori.modello_fasi_predefinito = valori.modelloFasi;
       if (valori.controlli !== undefined) p_valori.controlli_avvio = valori.controlli;
+      if (valori.tipiLavoro !== undefined) p_valori.tipi_lavoro = valori.tipiLavoro;
       const { error } = await db.rpc("fasi_impostazioni_salva", { p_company_id: companyId, p_valori });
       if (error) throw error;
     },
@@ -68,5 +73,5 @@ export function useImpostazioniAvvio() {
   });
 
   const dati = query.data ?? diPartenza();
-  return { modelloFasi: dati.modelloFasi, controlli: dati.controlli, isLoading: query.isLoading, salva };
+  return { modelloFasi: dati.modelloFasi, controlli: dati.controlli, tipiLavoro: dati.tipiLavoro, isLoading: query.isLoading, salva };
 }

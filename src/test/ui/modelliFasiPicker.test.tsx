@@ -7,6 +7,10 @@ import type { ModelloFasi } from "@/lib/orders/modelliFasi";
 const state = vi.hoisted(() => ({ modelli: [] as unknown[], inizializzati: false, loading: false, error: false, settings: true, refetch: vi.fn() }));
 vi.mock("@/hooks/useModelliFasi", () => ({ useModelliFasi: () => ({ modelli: state.modelli, inizializzati: state.inizializzati, isLoading: state.loading, isError: state.error, refetch: state.refetch }) }));
 vi.mock("@/hooks/usePermissions", () => ({usePermissions: () => ({canViewSettingsOrders: state.settings})}));
+vi.mock("@/hooks/useProfiloLavori", async () => {
+  const { PHASE_TEMPLATES } = await import("@/hooks/useOrderWorkPhases");
+  return { useProfiloLavori: () => ({ profilo: { tipi: [], origine: "nessuno" }, modelliStandard: PHASE_TEMPLATES }) };
+});
 vi.mock("@/hooks/useOrderWorkPhases", () => ({
   PHASE_TEMPLATES: [
     { key: "bagno", label: "Bagno", hint: "Rifacimento bagno", phases: ["Demolizioni", "Impianti"] },

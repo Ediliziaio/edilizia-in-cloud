@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({ role: "company_admin" }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ role: state.role }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canEditSettingsOrders: false }) }));
 vi.mock("@/components/settings/ModelliFasiConfig", () => ({ default: () => <div>sezione modelli</div> }));
+vi.mock("@/components/settings/TipiLavoroConfig", () => ({ default: ({ puoModificare }: { puoModificare: boolean }) => <div>sezione lavori {String(puoModificare)}</div> }));
 vi.mock("@/components/settings/AvanzamentoCommessaConfig", () => ({ default: ({ puoModificare }: { puoModificare: boolean }) => <div>sezione avanzamento {String(puoModificare)}</div> }));
 vi.mock("@/components/settings/ChiSpuntaConfig", () => ({ default: ({ puoModificare }: { puoModificare: boolean }) => <div>sezione chi spunta {String(puoModificare)}</div> }));
 vi.mock("@/components/settings/NuovaCommessaConfig", () => ({ default: ({ puoModificare }: { puoModificare: boolean }) => <div>sezione nuova commessa {String(puoModificare)}</div> }));
@@ -24,6 +25,7 @@ describe("pagina «Fasi e avanzamento»", () => {
     expect(screen.getByText("sezione chi spunta true")).toBeInTheDocument();
     expect(screen.getByText("sezione avanzamento true")).toBeInTheDocument();
     expect(screen.getByText("sezione nuova commessa true")).toBeInTheDocument();
+    expect(screen.getByText("sezione lavori true")).toBeInTheDocument();
   });
   it("chi non è amministratore e non ha il permesso vede le schede in sola lettura", () => {
     state.role = "staff";
@@ -37,6 +39,8 @@ describe("pagina «Fasi e avanzamento»", () => {
     render(<SettingsModelliFasi />);
     const posizione = (testo: string) => screen.getByText(new RegExp(testo));
     const segue = (prima: HTMLElement, dopo: HTMLElement) => Boolean(prima.compareDocumentPosition(dopo) & Node.DOCUMENT_POSITION_FOLLOWING);
+    // I lavori prima dei modelli: decidono quali modelli standard si vedono.
+    expect(segue(posizione("sezione lavori"), posizione("sezione modelli"))).toBe(true);
     expect(segue(posizione("sezione modelli"), posizione("sezione nuova commessa"))).toBe(true);
     expect(segue(posizione("sezione nuova commessa"), posizione("sezione avanzamento"))).toBe(true);
     expect(segue(posizione("sezione avanzamento"), posizione("sezione chi spunta"))).toBe(true);

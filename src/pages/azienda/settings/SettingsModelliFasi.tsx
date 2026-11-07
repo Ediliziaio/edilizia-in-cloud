@@ -2,13 +2,14 @@
 // Gating gestito da withCompanyPermission("canViewSettingsOrders") in companyRoutes.tsx
 // Il titolo e la frase della pagina li mette già il layout delle Impostazioni.
 //
-// Tre sezioni, nell'ordine in cui servono: i modelli di fasi (la cosa principale), con quali fasi parte una commessa nuova,
+// Quattro sezioni, nell'ordine in cui servono: i lavori che l'azienda fa (decidono quali modelli standard vede), i modelli di fasi (la cosa principale), con quali fasi parte una commessa nuova,
 // le due regole che valgono per tutte le commesse (si toccano una volta). Ogni sezione ha il suo indirizzo con l'àncora
 // (`…/modelli-fasi#modelli`, `#nuova-commessa`, `#regole`): lo usano la ricerca delle impostazioni e i rimandi dalle altre pagine.
 import AvanzamentoCommessaConfig from "@/components/settings/AvanzamentoCommessaConfig";
 import ChiSpuntaConfig from "@/components/settings/ChiSpuntaConfig";
 import ModelliFasiConfig from "@/components/settings/ModelliFasiConfig";
 import NuovaCommessaConfig from "@/components/settings/NuovaCommessaConfig";
+import TipiLavoroConfig from "@/components/settings/TipiLavoroConfig";
 import { AvvisoSolaLetturaImpostazioni } from "@/components/impostazioni/AvvisoSolaLetturaImpostazioni";
 import { AmbitoImpostazione, IndiceSezioni, SezioneImpostazione, type VoceIndice } from "@/components/impostazioni/SezioneImpostazione";
 import { useAuth } from "@/contexts/AuthContext";
@@ -16,6 +17,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useVaiASezione } from "@/hooks/useVaiASezione";
 
 const SEZIONI: VoceIndice[] = [
+  { id: "lavori", etichetta: "I nostri lavori" },
   { id: "modelli", etichetta: "Modelli" },
   { id: "nuova-commessa", etichetta: "Nuova commessa" },
   { id: "regole", etichetta: "Regole" },
@@ -30,6 +32,8 @@ export default function SettingsModelliFasi() {
     <div className="max-w-3xl space-y-4">
       {!permissions.isLoading && !puoModificare && <AvvisoSolaLetturaImpostazioni permesso="Configurazione Ordini" />}
       <IndiceSezioni voci={SEZIONI} onVai={vai} />
+      {/* Prima i lavori: decidono quali modelli standard si vedono qui sotto e nelle commesse. */}
+      <TipiLavoroConfig puoModificare={puoModificare} evidenziata={evidenziata === "lavori"} />
       <ModelliFasiConfig evidenziata={evidenziata === "modelli"} />
       <NuovaCommessaConfig
         puoModificare={puoModificare}

@@ -159,9 +159,12 @@ describe("nell'app le fasi le scrivono tre file, e il cantiere solo le sue colon
     // nella stessa operazione (trigger campo_rapportino_avanzamento_approvato).
     // GeneraMaterialiDialog: ufficio, crea solo le fasi nuove proposte dai
     // capitoli del computo; il pulsante compare solo con «Ordini e Commesse».
+    // CreateOrder (07/11/2026): ufficio, mette le date alle fasi appena nate da un preventivo;
+    // chi crea una commessa ha già «Ordini e Commesse».
     expect(scrivono).toEqual([
       "src/components/orders/materiali/GeneraMaterialiDialog.tsx",
       "src/hooks/useOrderWorkPhases.ts",
+      "src/pages/azienda/CreateOrder.tsx",
       "src/pages/campo/CampoAvanzamento.tsx",
     ]);
   });
