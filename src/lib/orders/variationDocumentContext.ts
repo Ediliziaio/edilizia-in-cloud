@@ -3,6 +3,8 @@ export interface VariationContext {
   currentNet?: number; vatRate?: number; customerName?: string; orderCode?: string;
   companyName?:string; companyDetails?:string; customerAddress?:string; siteAddress?:string;
   documentHeading?:string; primaryColor?:string;
+  /** Per mandare la firma elettronica col codice OTP (06/11/2026). */
+  customerEmail?:string;
 }
 /** Explicitly cleared fields stay cleared: do not silently restore a different party on the PDF. */
 export function variationDocumentContext(draft:VariationDraft,context:VariationContext):VariationContext {

@@ -51,16 +51,13 @@ export function VariationEditor({ draft, setDraft, phases, chiPuo, context, busy
       </div>
       {pdfError && <p role="alert" className="text-sm text-destructive">{pdfError}</p>}
     </> : <fieldset disabled={busy} className="space-y-4 min-w-0">
+      <div className="grid gap-3 sm:grid-cols-[13rem_minmax(0,1fr)]">
       <div className="space-y-1.5"><Label htmlFor="variation-kind">Cosa cambia</Label>
         <select id="variation-kind" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={draft.kind} onChange={e => set("kind", e.target.value as VariationKind)}>
           {Object.entries(VARIATION_KINDS).map(([key,label]) => <option key={key} value={key}>{label}</option>)}
         </select>
       </div>
       <div className="space-y-1.5"><Label htmlFor="variation-title">Titolo *</Label><Input id="variation-title" value={draft.title} onChange={input("title")} placeholder="Es. Sostituzione pavimento cucina" /></div>
-      <div className="space-y-1.5"><Label htmlFor="variation-phase">Lavorazione di riferimento</Label>
-        <select id="variation-phase" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={draft.phaseId ?? ""} onChange={e => { const phase = phases.find(p => p.id === e.target.value); setDraft({ ...draft, phaseId: phase?.id, phase: phase?.name ?? "" }); }}>
-          <option value="">Tutta la commessa</option>{phases.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select><p className="text-xs text-muted-foreground">Il riferimento compare nel documento. Sotto scegli se, quando il cliente accetta, il lavoro va in una fase nuova o dentro questa.</p>
       </div>
       <div className="space-y-1.5"><Label htmlFor="variation-description">Descrizione dei lavori *</Label><Textarea id="variation-description" rows={3} value={draft.description} onChange={input("description")} placeholder="Cosa viene aggiunto, sostituito o eliminato?" /></div>
       <div className="space-y-1.5"><Label htmlFor="variation-pricing">Come definisci il prezzo</Label>
@@ -88,13 +85,20 @@ export function VariationEditor({ draft, setDraft, phases, chiPuo, context, busy
       {draft.kind !== "riduzione" && <fieldset className="space-y-2 rounded-lg border border-orange-200 bg-orange-50/40 p-3" aria-label="Nelle Lavorazioni">
         <legend className="px-1 text-sm font-medium">Nelle Lavorazioni, quando il cliente accetta</legend>
         <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Dove va il lavoro extra">
-          <Button type="button" size="sm" variant={(draft.destinazione ?? "nuova") === "nuova" ? "default" : "outline"} aria-pressed={(draft.destinazione ?? "nuova") === "nuova"} onClick={() => set("destinazione", "nuova")}>
-            Una fase nuova «Lavoro extra · {draft.title.trim() || "titolo"}»
+          <Button type="button" size="sm" variant={(draft.destinazione ?? "nuova") === "nuova" ? "default" : "outline"} aria-pressed={(draft.destinazione ?? "nuova") === "nuova"} onClick={() => setDraft({ ...draft, destinazione: "nuova" })}>
+            In una fase nuova
           </Button>
-          <Button type="button" size="sm" variant={draft.destinazione === "fase" ? "default" : "outline"} aria-pressed={draft.destinazione === "fase"} disabled={!draft.phaseId} onClick={() => set("destinazione", "fase")}>
-            Dentro {draft.phase ? `«${draft.phase}»` : "la lavorazione di riferimento"}
+          <Button type="button" size="sm" variant={draft.destinazione === "fase" ? "default" : "outline"} aria-pressed={draft.destinazione === "fase"} onClick={() => setDraft({ ...draft, destinazione: "fase", phaseId: draft.phaseId ?? phases[0]?.id, phase: draft.phase || phases[0]?.name || "" })}>
+            Dentro una fase che c'è già
           </Button>
         </div>
+        {draft.destinazione === "fase" ? <div className="space-y-1">
+          <Label htmlFor="variation-phase">In quale fase</Label>
+          <select id="variation-phase" className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={draft.phaseId ?? ""}
+            onChange={e => { const phase = phases.find(p => p.id === e.target.value); setDraft({ ...draft, phaseId: phase?.id, phase: phase?.name ?? "" }); }}>
+            <option value="">Scegli la fase</option>{phases.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div> : <p className="text-xs text-muted-foreground">Si chiamerà «Lavoro extra · {draft.title.trim() || "titolo"}», in fondo alle Lavorazioni.</p>}
         <p className="text-xs text-muted-foreground">{draft.pricing === "voci" ? "Ogni voce diventa una sottofase, con quantità e prezzo." : "Diventa una sottofase col titolo, a corpo."} Il contratto della commessa sale dell'importo; nessuna data viene spostata.</p>
         {chiPuo && <div className="space-y-1.5">
           <Label htmlFor="variation-chi">Chi lo farà</Label>
@@ -113,6 +117,11 @@ export function VariationEditor({ draft, setDraft, phases, chiPuo, context, busy
           <p className="text-xs text-muted-foreground">Non compare nel documento del cliente. Costi e accessi si danno poi dalla fase, come per le altre.</p>
         </div>}
       </fieldset>}
+      {draft.kind === "riduzione" && <div className="space-y-1.5"><Label htmlFor="variation-phase-rid">Lavorazione di riferimento</Label>
+        <select id="variation-phase-rid" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={draft.phaseId ?? ""} onChange={e => { const phase = phases.find(p => p.id === e.target.value); setDraft({ ...draft, phaseId: phase?.id, phase: phase?.name ?? "" }); }}>
+          <option value="">Tutta la commessa</option>{phases.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select><p className="text-xs text-muted-foreground">Compare nel documento. Una riduzione non crea lavorazioni.</p>
+      </div>}
       <details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-medium">Dati del documento e pagamento</summary><div className="mt-3 space-y-3">
         <p className="text-xs text-muted-foreground">Cliente e impresa sono precompilati quando disponibili. Verifica i dati prima di inviare il PDF; non vengono modificate le anagrafiche.</p>
         <Label htmlFor="variation-company">Impresa / ragione sociale</Label><Input id="variation-company" value={draft.documentCompanyName ?? context.companyName ?? ""} onChange={e=>set("documentCompanyName",e.target.value)} />

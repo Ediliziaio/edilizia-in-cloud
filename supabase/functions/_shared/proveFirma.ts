@@ -13,7 +13,7 @@
  */
 import { sha256Hex } from "./documentoCongelato.ts";
 
-const COLONNE_RICHIESTA = "id, company_id, tipo_documento, tipo_firmatario, categoria, livello_firma, signer_name, signer_email, signer_phone, status, created_at, created_by, expires_at, signed_at, otp_canale, otp_invii, otp_errori_totali, documento_path, documento_hash, documento_hash_firma, firma_ip, firma_user_agent, firma_lat, firma_lng, clausole_approvate, clausole_approvate_testi, clausole_approvate_ts, b2c_recesso, b2c_recesso_ts, firmatario_id, signed_pdf_path, signed_pdf_hash, codice_verifica, quote_id, order_id, sessione_id, fv_progetto_id, contratto_subappalto_id";
+const COLONNE_RICHIESTA = "id, company_id, tipo_documento, tipo_firmatario, categoria, livello_firma, signer_name, signer_email, signer_phone, status, created_at, created_by, expires_at, signed_at, otp_canale, otp_invii, otp_errori_totali, documento_path, documento_hash, documento_hash_firma, firma_ip, firma_user_agent, firma_lat, firma_lng, clausole_approvate, clausole_approvate_testi, clausole_approvate_ts, b2c_recesso, b2c_recesso_ts, firmatario_id, signed_pdf_path, signed_pdf_hash, codice_verifica, quote_id, order_id, sessione_id, fv_progetto_id, contratto_subappalto_id, odv_id";
 
 // deno-lint-ignore no-explicit-any
 async function copia(sb: any, bucket: string, da: string, a: string): Promise<string | null> {

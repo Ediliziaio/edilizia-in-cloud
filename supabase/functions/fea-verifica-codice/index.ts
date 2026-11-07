@@ -36,7 +36,7 @@ Deno.serve(async (req: Request) => {
     ]);
     const tipi: Record<string, string> = {
       quote: "Preventivo", fv: "Preventivo fotovoltaico", subappalto: "Contratto di subappalto",
-      sessione: "Modulo", order: "Verbale di commessa",
+      sessione: "Modulo", order: "Verbale di commessa", odv: "Lavori extra e varianti",
     };
     return risposta(200, {
       trovato: true,

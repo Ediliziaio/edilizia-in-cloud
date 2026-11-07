@@ -112,6 +112,8 @@ Deno.serve(async (req: Request) => {
       fv: "fv_progetti",
       // Contratto di subappalto (22/10/2026): il PDF congelato all'invio è in contratti_subappalto.pdf_path.
       subappalto: "contratti_subappalto",
+      // Lavori extra e varianti (06/11/2026): il PDF congelato è in order_variation_documents.
+      odv: "ordini_variazione",
     };
     let company_id: string | null = (profile.company_id as string | null) ?? null;
     const tabella = tabellaDocumento[tipo_documento];
@@ -148,6 +150,22 @@ Deno.serve(async (req: Request) => {
         await verificaPermessoAzienda(supabaseAdmin, userId, company_id, ["can_edit_preventivi"], "inviare il preventivo fotovoltaico per la firma");
       } catch {
         return new Response(JSON.stringify({ error: "Non hai il permesso di inviare il preventivo per la firma." }), { status: 403, headers: { ...corsH, "Content-Type": "application/json" } });
+      }
+    }
+    if (tipo_documento === "odv") {
+      // Mandare un lavoro extra in firma impegna il cliente e cambia il contratto: serve il permesso,
+      // come per il preventivo fotovoltaico (06/11/2026, revisione).
+      try {
+        await verificaPermessoAzienda(supabaseAdmin, userId, company_id, ["can_edit_orders"], "inviare il lavoro extra per la firma");
+      } catch {
+        return new Response(JSON.stringify({ error: "Non hai il permesso di mandare in firma i lavori extra." }), { status: 403, headers: { ...corsH, "Content-Type": "application/json" } });
+      }
+      // Solo un lavoro extra già pubblicato: in bozza le condizioni possono ancora cambiare e il
+      // cliente firmerebbe un documento diverso da quello che poi entra nel contratto.
+      const { data: v } = await supabaseAdmin.from("ordini_variazione")
+        .select("status").eq("id", documento_id).eq("company_id", company_id).maybeSingle();
+      if (v?.status !== "in_attesa") {
+        return new Response(JSON.stringify({ error: "Prepara il PDF e manda il lavoro extra prima di chiederne la firma." }), { status: 409, headers: { ...corsH, "Content-Type": "application/json" } });
       }
     }
 
@@ -272,8 +290,13 @@ Deno.serve(async (req: Request) => {
       insertPayload.fv_progetto_id = documento_id;
     } else if (tipo_documento === "subappalto") {
       insertPayload.contratto_subappalto_id = documento_id;
+    } else if (tipo_documento === "odv") {
+      // La variante, e la sua commessa: l'avviso al titolare passa da order_id (fea-completa-firma).
+      insertPayload.odv_id = documento_id;
+      const { data: v } = await supabaseAdmin.from("ordini_variazione")
+        .select("order_id").eq("id", documento_id).eq("company_id", company_id).maybeSingle();
+      if (v?.order_id) insertPayload.order_id = v.order_id;
     }
-    // odv: nessun ID specifico (fallback)
 
     // Inserisce in signature_requests
     const { data: inserted, error: insertErr } = await supabaseAdmin

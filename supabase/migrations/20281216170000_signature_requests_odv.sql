@@ -60,4 +60,3 @@ end;
 $$;
 revoke all on function public.odv_rifiuta_da_firma_fea(uuid) from public, anon, authenticated;
 grant execute on function public.odv_rifiuta_da_firma_fea(uuid) to service_role;
-
