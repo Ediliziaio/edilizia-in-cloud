@@ -354,10 +354,11 @@ Infissi e Living (369), Teda Infissi (320), renova solution (134).
 - **Fase 1, fatta:** `gruppo_id`, `riferimento`, costo che segue l'ordine e torna se si annulla,
   niente doppio ordine. `misure_da_ordinare`, foro/telaio e l'indice rilievo + componente si
   aggiungono con la fase 4, quando esiste chi li scrive.
-- **Fase 2, prima metà fatta:** commessa da preventivo firmato per tutti i moduli, serramenti con una
-  riga per posizione. Provata su Demo Azienda 2 su 9 moduli, con firma simulata e annullata.
-- **Fase 2, da fare:** voce «lavorazione o materiale» negli edili (oggi solo fasi), regola per tipo
-  di lavoro, sopralluogo preliminare o definitivo, contratto letto dall'AI.
+- **Fase 2, fatta:** commessa da preventivo firmato per tutti i moduli, serramenti con una riga per
+  posizione, voci con materiale proposte come righe da ordinare, regola per tipo di lavoro in
+  Impostazioni, sopralluogo definitivo che conferma le righe e si aggancia alla commessa.
+  Resta il contratto letto dall'AI, da fare dopo la fase 3 perché tocca `CreateOrder.tsx`.
+- **Fasi 3, 4, 5-6 e 7:** in corso in sessioni separate.
 
 ## 12. Rischi
 
