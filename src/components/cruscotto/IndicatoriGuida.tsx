@@ -1,12 +1,18 @@
 // ============================================================================
 // IndicatoriGuida — "I numeri che comandano" (tab Sintesi del Cruscotto)
 // ============================================================================
-// Otto indicatori-guida con soglie di allarme, tutti calcolati da dati REALI
+// Cinque indicatori-guida con soglie di allarme, tutti calcolati da dati REALI
 // già inseriti in piattaforma (vedi src/lib/indicatoriGuida.ts). Quando un
 // dato manca la card non mostra un numero finto: dice cosa inserire e porta
 // nel punto giusto dell'app con un link. DSCR e ciclo di cassa vivono nel
 // Controllo di Gestione (una fonte sola): la scheda che ci portava era solo un
 // link, e il suo posto l'ha preso «Lavoro in portafoglio».
+//
+// Erano otto fino all'08/11/2026. Tolti i tre che non parlano di soldi:
+// «Cantieri chiusi nei tempi» e «Saturazione squadra» sono numeri di cantiere
+// (la Dashboard Operativa), «Apertura → primo ordine» un ritmo d'acquisto. Il
+// Cruscotto Economico tiene solo i numeri economici. I valori li calcola
+// ancora cruscotto_indicatori: rimetterli è aggiungere una riga qui.
 //
 // UX: ogni card calcolata è cliccabile e porta nell'area che spiega il numero;
 // l'icona ⓘ racconta come si calcola; la barra laterale colorata permette di
@@ -22,8 +28,8 @@ import {
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
-  Gauge, Scale, UserRound, CalendarCheck2, HardHat, ShieldCheck,
-  Timer, ArrowRight, CircleGauge, Info, Briefcase,
+  Gauge, Scale, UserRound, ShieldCheck,
+  ArrowRight, CircleGauge, Info, Briefcase,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useIndicatoriGuida, type IndicatoriGuidaData } from "@/hooks/useIndicatoriGuida";
@@ -119,26 +125,6 @@ const DEFINIZIONI: DefIndicatore[] = [
       "Fatturato del cliente più grande ÷ fatturato totale degli ultimi 12 mesi, IVA esclusa e al netto delle note di credito (fatture emesse dall'app e importate, senza contarle due volte). Sopra il 25% non è più un cliente: è un socio senza capitale che può andarsene quando vuole.",
   },
   {
-    chiave: "neiTempi",
-    titolo: "Cantieri chiusi nei tempi",
-    icona: CalendarCheck2,
-    unita: "%",
-    soglia: `allarme < ${s.neiTempiAllarme}%`,
-    href: "/azienda/ordini",
-    comeSiCalcola:
-      "Commesse arrivate all'ultima fase entro la fine lavori prevista ÷ commesse arrivate all'ultima fase negli ultimi 12 mesi (la data è quella del passaggio di fase, non una data scritta a mano). Sotto il 70% il problema non è il singolo cantiere: è il sistema.",
-  },
-  {
-    chiave: "saturazione",
-    titolo: "Saturazione squadra (mese)",
-    icona: HardHat,
-    unita: "%",
-    soglia: `allarme < ${s.saturazioneAllarme}%`,
-    href: "/azienda/costi",
-    comeSiCalcola:
-      "Ore registrate su commessa ÷ ore contrattuali dei dipendenti attivi nei giorni lavorativi del mese già passati. Sotto il 65% stai pagando gente per aspettare.",
-  },
-  {
     chiave: "margineSicurezza",
     titolo: "Margine di sicurezza",
     icona: ShieldCheck,
@@ -147,16 +133,6 @@ const DEFINIZIONI: DefIndicatore[] = [
     href: "/azienda/costi",
     comeSiCalcola:
       "(Venduto 12 mesi − break-even annuo) ÷ venduto. Dice quanto fatturato puoi perdere prima di andare in perdita: sotto il 20%, basta un cliente perso per chiudere l'anno in rosso.",
-  },
-  {
-    chiave: "firmaOrdine",
-    titolo: "Apertura → primo ordine",
-    icona: Timer,
-    unita: " gg",
-    soglia: `sano ≤ ${s.firmaOrdineGiorniOk}`,
-    href: "/azienda/ordini",
-    comeSiCalcola:
-      "Mediana dei giorni tra l'apertura della commessa e il primo ordine ai fornitori (6 mesi). Se l'ordine parte tardi, spesso è perché l'acconto di questo cantiere sta pagando quello di ieri.",
   },
 ];
 
@@ -337,8 +313,8 @@ export function IndicatoriGuida() {
         </CardHeader>
         <CardContent className="p-3 pt-0">
           {dati.isLoading ? (
-            <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4">
-              {Array.from({ length: 8 }).map((_, i) => (
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-5">
+              {Array.from({ length: DEFINIZIONI.length }).map((_, i) => (
                 <Skeleton key={i} className="h-32 rounded-xl" />
               ))}
             </div>
@@ -349,7 +325,7 @@ export function IndicatoriGuida() {
               <p className="py-2 text-sm text-muted-foreground">Nessun indicatore in allarme.</p>
             ) : (
               <>
-                {visibili.length > 0 && <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4">
+                {visibili.length > 0 && <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-5">
                   {visibili.map((def) => (
                     <CardIndicatore key={def.chiave} def={def} indicatore={dati[def.chiave]} />
                   ))}
