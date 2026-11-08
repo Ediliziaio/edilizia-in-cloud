@@ -53,6 +53,7 @@ import {
   prossimoLimite,
   vaABlocchi,
 } from "../_shared/backupBlocchi.ts";
+import { BYTE_PER_GIRO, comprimiFile, type EsitoCompressione, type FileDaComprimere } from "../_shared/backupCompressi.ts";
 
 const BUCKET = "company-exports";
 
@@ -114,6 +115,26 @@ async function puliziaBackupScaduti(admin: any): Promise<{ cancellati: number; e
     if (nomi.length < 500) break;
   }
   return { cancellati };
+}
+
+/** Un giro di compressione dei backup già scritti: il backup non dipende mai da questo passaggio. */
+// deno-lint-ignore no-explicit-any
+async function giroDiCompressione(admin: any, azienda: string | null): Promise<EsitoCompressione> {
+  const { data, error } = await admin.rpc("admin_backup_da_comprimere", { p_byte_massimi: BYTE_PER_GIRO, p_azienda: azienda });
+  if (error) throw new Error(`elenco da comprimere: ${error.message}`);
+  const esito = await comprimiFile({
+    async scarica(percorso) {
+      const { data: blob, error: errore } = await admin.storage.from(BUCKET).download(percorso);
+      if (errore || !blob) throw new Error(`download: ${errore?.message ?? "file assente"}`);
+      return new Uint8Array(await blob.arrayBuffer());
+    },
+    async carica(percorso, byte, tipo) {
+      const { error: errore } = await admin.storage.from(BUCKET).upload(percorso, new Blob([byte as BlobPart], { type: tipo }), { upsert: true, contentType: tipo });
+      if (errore) throw new Error(`upload: ${errore.message}`);
+    },
+  }, (data ?? []) as FileDaComprimere[]);
+  if (esito.errori.length) console.error("[company-backup] compressione:", esito.errori.slice(0, 5).join(" | "));
+  return esito;
 }
 
 /**
@@ -251,6 +272,16 @@ Deno.serve(conMetriche("company-backup", async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const soloUna: string | null = body?.companyId ?? null;
+
+    // Il cron riceve subito la risposta e il lavoro continua in sottofondo; `attendi` è per le prove.
+    if (body?.comprimi === true) {
+      const lavoro = giroDiCompressione(admin, soloUna);
+      if (body?.attendi === true) {
+        return new Response(JSON.stringify(await lavoro), { headers: { ...cors, "Content-Type": "application/json" } });
+      }
+      const avviato = await inSottofondo(lavoro.catch((e) => console.error("[company-backup] compressione", (e as Error)?.message ?? e)));
+      return new Response(JSON.stringify({ avviato }), { status: avviato ? 202 : 200, headers: { ...cors, "Content-Type": "application/json" } });
+    }
 
     // Area super admin: a blocchi, in sottofondo (vedi l'intestazione).
     if (body?.piattaforma === true) {
