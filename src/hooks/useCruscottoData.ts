@@ -161,10 +161,14 @@ function throwIfSupabaseError(...errors: SupabaseQueryError[]) {
 /** Le rate da incassare con la regola della scheda commessa (`public.rate_da_incassare`). */
 async function leggiRateDaIncassare(companyId: string): Promise<InstallmentRow[]> {
   // La regola della scheda commessa calcolata dal database: piani storici compresi, mai oltre il totale.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any).rpc("cruscotto_rate_da_incassare", { p_company_id: companyId });
-  if (error) throw error;
-  return ((data ?? []) as Array<{ id: string; order_id: string; amount: number | string; expected_date: string | null; finanziamento: boolean }>)
+  // A pagine (08/11/2026): oltre mille rate PostgREST tagliava in silenzio, e gli
+  // incassi attesi e lo scaduto sarebbero risultati più bassi. Il previsionale
+  // della Tesoreria la legge già così.
+  type RigaRata = { id: string; order_id: string; amount: number | string; expected_date: string | null; finanziamento: boolean };
+  const data = await readAllOrderRows<RigaRata>((from, to) =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).rpc("cruscotto_rate_da_incassare", { p_company_id: companyId }).order("id").range(from, to));
+  return data
     .map((r) => ({ id: r.id, order_id: r.order_id, amount: safeNumber(r.amount), expected_date: r.expected_date, finanziamento: !!r.finanziamento }));
 }
 
@@ -255,9 +259,12 @@ export function useCruscottoData() {
       if (!companyId) throw new Error("Azienda non selezionata");
       // Incassato del mese dal database: il saldo pagato conta per il suo residuo, come nella scheda.
       const [incassato, undated] = await Promise.all([
-        (supabase as any).rpc("incassato_rate_periodo", { p_da: monthStart, p_a: todayDate }) as Promise<{ data: number | null; error: unknown }>,
-        supabase.from("order_installments").select("id, order:orders!inner(company_id)", { count: "exact", head: true })
-          .eq("order.company_id", companyId!).eq("is_paid", true).is("paid_date", null),
+        // 08/11/2026: l'azienda va passata. La versione senza leggeva get_my_company_id():
+        // con due schede su due aziende, l'incassato era di quella scelta per ultima.
+        (supabase as any).rpc("incassato_rate_periodo", { p_company_id: companyId, p_da: monthStart, p_a: todayDate }) as Promise<{ data: number | null; error: unknown }>,
+        // rate pagate senza data: il cestino non conta (rate_incassi lo esclude)
+        supabase.from("order_installments").select("id, order:orders!inner(company_id, deleted_at)", { count: "exact", head: true })
+          .eq("order.company_id", companyId!).is("order.deleted_at", null).eq("is_paid", true).is("paid_date", null),
       ]);
       if (incassato.error) throw incassato.error;
       if (undated.error) throw undated.error;
@@ -297,7 +304,7 @@ export function useCruscottoData() {
 
       const incassatoTra = async (da: string, a: string) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data, error } = await (supabase as any).rpc("incassato_rate_periodo", { p_da: da, p_a: a });
+        const { data, error } = await (supabase as any).rpc("incassato_rate_periodo", { p_company_id: companyId, p_da: da, p_a: a });
         if (error) throw error;
         return safeNumber(data);
       };
@@ -575,8 +582,11 @@ export function useCruscottoData() {
       ]);
       const variantiPerCommessa = new Map<string, number>();
       for (const v of variantiAnno) variantiPerCommessa.set(v.order_id, (variantiPerCommessa.get(v.order_id) ?? 0) + safeNumber(v.impatto_economico));
+      // 08/11/2026: fino a oggi. Una commessa con data di creazione futura (Ke Bei,
+      // 19/12) entrava nel venduto del mese.
+      const adesso = now.toISOString();
       const venduto = (dal: string) => ordiniAnno
-        .filter(o => o.created_at >= dal)
+        .filter(o => o.created_at >= dal && o.created_at <= adesso)
         .reduce((s, o) => s + safeNumber(o.total_amount) + (variantiPerCommessa.get(o.id) ?? 0), 0);
 
       return {

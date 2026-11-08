@@ -30,48 +30,9 @@ import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertTriangle, ArrowRight, Banknote, HardHat, Scale, TrendingDown, CheckCircle2, Info } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, Info } from "lucide-react";
+import { RiquadroNumero } from "@/components/dashboard/RiquadroNumero";
 import { margineCantieriAperti, andamentoIncassi, ordinaAttenzioni, type CantiereMargine, type VoceAttenzione } from "@/lib/comeStiamoAndando";
-
-/** Un numero grosso con la sua riga di contesto. Il contesto non è decorazione. */
-function Numero({
-  icona: Icona, etichetta, valore, contesto, tono = "neutro",
-}: {
-  icona: React.ElementType;
-  etichetta: string;
-  valore: string;
-  contesto: React.ReactNode;
-  tono?: "neutro" | "buono" | "attenzione" | "male";
-}) {
-  // Quattro scatole bianche identiche non si leggono a colpo d'occhio: bisogna
-  // arrivare al numero per capire se e' una buona o una cattiva notizia. Il
-  // colore sta sull'icona e sul filo di bordo a sinistra, cosi' lo stato si
-  // vede prima di leggere, e il numero resta la cosa piu' grande della scheda.
-  const stile = {
-    neutro: { valore: "text-slate-900", chip: "bg-slate-100 text-slate-500", filo: "bg-slate-200" },
-    buono: { valore: "text-emerald-700", chip: "bg-emerald-50 text-emerald-600", filo: "bg-emerald-400" },
-    attenzione: { valore: "text-amber-700", chip: "bg-amber-50 text-amber-600", filo: "bg-amber-400" },
-    male: { valore: "text-red-700", chip: "bg-red-50 text-red-600", filo: "bg-red-400" },
-  }[tono];
-  return (
-    <div className="relative flex min-w-0 gap-2.5 overflow-hidden rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
-      <span className={`absolute inset-y-0 left-0 w-1 ${stile.filo}`} aria-hidden />
-      {/* Mobile: niente icona (mandava l'etichetta su due righe) e niente riga
-          di contesto: a colpo d'occhio servono nome e numero. */}
-      <span className={`mt-0.5 hidden h-7 w-7 shrink-0 items-center justify-center rounded-lg sm:flex ${stile.chip}`}>
-        <Icona className="h-3.5 w-3.5" />
-      </span>
-      <div className="min-w-0 flex-1">
-        {/* L'etichetta va a capo invece di troncarsi: a 375px "Scaduto da
-            incassare" diventava "SCADUTO DA IN...", che non dice cosa sia.
-            Le schede stanno in una griglia, quindi si allineano comunque. */}
-        <p className="text-[11px] font-medium uppercase leading-3.5 tracking-wide text-slate-500">{etichetta}</p>
-        <p className={`mt-1 text-lg font-bold leading-none tabular-nums sm:text-xl md:text-2xl ${stile.valore}`}>{valore}</p>
-        <div className="mt-1 hidden text-[11px] leading-4 text-slate-500 sm:block">{contesto}</div>
-      </div>
-    </div>
-  );
-}
 
 /**
  * `comeSezione` la monta dentro il Cruscotto Aziendale invece che come pagina
@@ -89,9 +50,11 @@ export default function ComeStiamoAndando({ comeSezione = false }: { comeSezione
  * sotto i numeri vengono dalla stessa lettura e dallo stesso periodo (prima
  * useCruscottoData girava due volte, ognuna col suo filtro).
  */
-export function ComeStiamoAndandoVista({ comeSezione = false, dati }: {
+export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaIncassato }: {
   comeSezione?: boolean;
   dati: ReturnType<typeof useCruscottoData>;
+  /** Incassato degli ultimi mesi, dal più vecchio: la mini-linea del primo numero. */
+  tendenzaIncassato?: number[];
 }) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -249,16 +212,19 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati }: {
         // Quattro per riga da 1280px: a 1024 le schede erano di 170px e le
         // cifre a 26px uscivano dal riquadro («319.058,0…»).
         <div className="grid grid-cols-2 gap-2 md:gap-3 xl:grid-cols-4">
-          <Numero
-            icona={Banknote}
-            etichetta="Incassato commesse · mese"
+          <RiquadroNumero
+            etichetta="Incassato commesse"
+            periodo="Questo mese"
+            to="/azienda/tesoreria"
+            tendenza={tendenzaIncassato}
+            etichettaTendenza="Incassato degli ultimi sei mesi"
             valore={formatCurrency(incassi.incassato)}
             tono={incassi.sottoRitmo === true ? "attenzione" : incassi.sottoRitmo === false ? "buono" : "neutro"}
             contesto={
               incassi.previsione == null ? (
                 // Nessuna pagina delle impostazioni scrive la previsione (companies.monthly_revenue_target): finché non
                 // c'è un posto dove metterla, qui è solo una constatazione, senza rimando.
-                finance.collectedUndatedCount ? `${finance.collectedUndatedCount} rate pagate senza data escluse dal mese · IVA inclusa` : "Rate registrate per data pagamento · IVA inclusa"
+                finance.collectedUndatedCount ? `${finance.collectedUndatedCount} rate pagate senza data, contate alla data prevista · IVA inclusa` : "Rate registrate per data pagamento · IVA inclusa"
               ) : (
                 <>
                   <Progress value={Math.min(100, incassi.percentuale ?? 0)} className="my-1 h-1.5" />
@@ -268,9 +234,10 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati }: {
               )
             }
           />
-          <Numero
-            icona={HardHat}
+          <RiquadroNumero
             etichetta="Margine cantieri avviati"
+            periodo="Cantieri aperti, a oggi"
+            to="/azienda/ordini?tab=marginalita"
             valore={margini.marginePerc == null ? "—" : `${margini.marginePerc.toFixed(1)}%`}
             tono={
               margini.marginePerc == null ? "neutro"
@@ -284,9 +251,10 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati }: {
                 : <>{formatCurrency(margini.margineEuro)} · {margini.quantiValutabili} di {margini.quanti} cantieri valutabili</>
             }
           />
-          <Numero
-            icona={TrendingDown}
+          <RiquadroNumero
             etichetta="Scaduto da incassare"
+            periodo="A oggi"
+            to="/azienda/scadenzario"
             valore={formatCurrency(operations.overdueAmount ?? 0)}
             tono={(operations.overduePayments ?? 0) > 0 ? "male" : "buono"}
             contesto={`${operations.overduePayments ?? 0} scadenze oltre il termine`}
@@ -295,9 +263,10 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati }: {
               già due volte nella Dashboard Operativa. Al suo posto quanto resta
               fra rate da incassare e costi da pagare nel mese: non è la cassa
               (il saldo in banca non entra), ed è scritto. */}
-          <Numero
-            icona={Scale}
-            etichetta="Saldo delle scadenze · mese"
+          <RiquadroNumero
+            etichetta="Saldo delle scadenze"
+            periodo="Questo mese"
+            to="/azienda/scadenzario"
             valore={formatCurrency(finance.cashFlowNet ?? 0)}
             tono={(finance.cashFlowNet ?? 0) < 0 ? "male" : "buono"}
             contesto={`${formatCurrency(finance.thisMonthIncome ?? 0)} da incassare − ${formatCurrency(finance.thisMonthOutflow ?? 0)} da pagare · non è il saldo di cassa`}

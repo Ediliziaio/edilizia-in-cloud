@@ -27,11 +27,9 @@ import {
   HardHat,
   LayoutDashboard,
   Loader2,
-  Package,
   RefreshCw,
   Truck,
   Users,
-  Wrench,
   ChevronDown,
   ArrowUpRight,
 } from "lucide-react";
@@ -45,6 +43,7 @@ import { COMPANY_APP_HOME } from "@/lib/auth/appHome";
 import { cn } from "@/lib/utils";
 import { DashboardSelectorBar } from "@/components/dashboard/DashboardSelectorBar";
 import { DashboardQuickActions } from "@/components/dashboard/DashboardQuickActions";
+import { RiquadroNumero } from "@/components/dashboard/RiquadroNumero";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import {
   GIORNI_AGENDA,
@@ -91,45 +90,6 @@ const COLORE_EVENTO = {
   merce: "text-amber-700 bg-amber-50",
   appuntamento: "text-violet-600 bg-violet-50",
 } as const;
-
-function Numero({
-  etichetta,
-  valore,
-  icona: Icona,
-  to,
-  colore,
-}: {
-  etichetta: string;
-  valore: number;
-  icona: typeof HardHat;
-  to: string;
-  colore: string;
-}) {
-  return (
-    <Link
-      to={to}
-      className="group flex min-w-0 items-center gap-3 rounded-xl border border-slate-200/80 bg-white p-4 transition hover:border-primary/30 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-    >
-      <span
-        className={cn(
-          "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl",
-          colore,
-        )}
-      >
-        <Icona className="h-5 w-5" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-xs font-medium text-slate-500">
-          {etichetta}
-        </span>
-        <span className="mt-1 block text-3xl font-semibold leading-none tracking-tight tabular-nums text-slate-900">
-          {valore}
-        </span>
-      </span>
-      <ArrowUpRight className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:text-primary" />
-    </Link>
-  );
-}
 
 const EVENTI_ANTEPRIMA = 4;
 
@@ -312,37 +272,39 @@ function RegiaOperativa() {
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {r.isLoading ? (
             Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-[94px] rounded-xl" />
+              <Skeleton key={i} className="h-[96px] rounded-xl" />
             ))
           ) : (
             <>
-              <Numero
+              {/* 08/11/2026: lo stesso riquadro del Cruscotto Economico. Prima ogni
+                  numero aveva il suo colore (blu, ambra, viola, verde acqua), che
+                  diceva il tipo e non lo stato: un lavoro in calendario non è una
+                  buona o una cattiva notizia. Il colore resta per l'assistenza,
+                  dove un numero sopra zero è qualcuno che aspetta. */}
+              <RiquadroNumero
                 etichetta="Lavori programmati"
-                valore={r.numeri.lavori}
-                icona={HardHat}
+                valore={String(r.numeri.lavori)}
+                periodo="Prossimi 7 giorni"
                 to="/azienda/calendario"
-                colore="bg-blue-50 text-blue-600"
               />
-              <Numero
+              <RiquadroNumero
                 etichetta="Consegne in arrivo"
-                valore={r.numeri.merce}
-                icona={Package}
+                valore={String(r.numeri.merce)}
+                periodo="Prossimi 7 giorni"
                 to="/azienda/ordini-acquisto"
-                colore="bg-amber-50 text-amber-700"
               />
-              <Numero
+              <RiquadroNumero
                 etichetta="Appuntamenti"
-                valore={r.numeri.appuntamenti}
-                icona={CalendarDays}
+                valore={String(r.numeri.appuntamenti)}
+                periodo="Prossimi 7 giorni"
                 to="/azienda/calendario"
-                colore="bg-violet-50 text-violet-600"
               />
-              <Numero
+              <RiquadroNumero
                 etichetta="Assistenza aperta"
-                valore={r.numeri.ticket}
-                icona={Wrench}
+                valore={String(r.numeri.ticket)}
+                periodo="A oggi"
+                tono={r.numeri.ticket > 0 ? "attenzione" : "buono"}
                 to="/azienda/assistenza"
-                colore="bg-teal-50 text-teal-700"
               />
             </>
           )}

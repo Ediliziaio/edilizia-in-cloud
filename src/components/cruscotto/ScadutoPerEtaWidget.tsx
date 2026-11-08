@@ -23,6 +23,7 @@ export function ScadutoPerEtaWidget({ scaduto, isLoading }: { scaduto: ScadutoPe
         <CardTitle className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
           <Hourglass className="h-4 w-4 text-muted-foreground" />
           Scaduto per età
+          <span className="text-[11px] font-medium text-slate-400">a oggi</span>
           <span className="basis-full text-xs font-normal text-muted-foreground sm:ml-auto sm:basis-auto">
             {formatCurrency(scaduto.totale)} · {scaduto.rate} {scaduto.rate === 1 ? "rata" : "rate"}
             {scaduto.ritardoMedio !== null && <> · ritardo medio {scaduto.ritardoMedio} gg</>}
@@ -30,7 +31,7 @@ export function ScadutoPerEtaWidget({ scaduto, isLoading }: { scaduto: ScadutoPe
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 pt-0">
-        <div className="flex h-2 overflow-hidden rounded-full bg-slate-100">
+        <div className="flex h-3 gap-0.5 overflow-hidden rounded-full bg-slate-100">
           {scaduto.fasce.map((f, i) => f.importo > 0 && (
             <div key={f.etichetta} className={colori[i]} style={{ width: `${(f.importo / scaduto.totale) * 100}%` }} />
           ))}
