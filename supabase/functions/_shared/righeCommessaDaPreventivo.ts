@@ -49,7 +49,7 @@ export function righeCommessaDaPreventivo(righe: Array<Record<string, unknown>>)
       const mx = r.misura_x as number | null | undefined;
       const my = r.misura_y as number | null | undefined;
       const misurePreventivo = mx != null || my != null
-        ? { ...(mx != null ? { larghezza: Number(mx) } : {}), ...(my != null ? { altezza: Number(my) } : {}) }
+        ? { ...(mx != null ? { larghezza_mm: Number(mx) } : {}), ...(my != null ? { altezza_mm: Number(my) } : {}) }
         : null;
       // Quattro decimali, come le salva il database.
       const q = Math.round((Number(r.quantity) || 1) * 10000) / 10000;

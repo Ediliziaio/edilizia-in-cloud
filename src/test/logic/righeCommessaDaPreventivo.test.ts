@@ -61,7 +61,7 @@ describe("righeCommessaDaPreventivo", () => {
       riga({ family_id: "fam-1", axis_selections: { colore: "bianco" }, misura_x: 1200, misura_y: 1400 }),
       riga({ misura_x: 1200, misura_y: 1400 }),
     ]);
-    expect(su).toMatchObject({ family_id: "fam-1", axis_selections: { colore: "bianco" }, misure_preventivo: { larghezza: 1200, altezza: 1400 }, measure_status: "da_rilevare" });
+    expect(su).toMatchObject({ family_id: "fam-1", axis_selections: { colore: "bianco" }, misure_preventivo: { larghezza_mm: 1200, altezza_mm: 1400 }, measure_status: "da_rilevare" });
     expect(senza).toMatchObject({ family_id: null, axis_selections: null, misure_preventivo: null, measure_status: null });
   });
 

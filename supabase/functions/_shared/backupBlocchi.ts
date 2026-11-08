@@ -31,6 +31,14 @@ export const BLOCCO_LEGGERO = 4_000_000;
 /** Sopra questo peso il prossimo blocco si dimezza. */
 export const BLOCCO_PESANTE = 20_000_000;
 
+/**
+ * Quanto testo scrive una chiamata prima di passare la mano. Il limite vero è la CPU: l'area super admin moriva
+ * verso i 480 MB, dopo due minuti. Oltre si riparte in una chiamata nuova dal blocco a cui si era arrivati.
+ */
+export const TETTO_TESTO_PER_CHIAMATA = 100_000_000;
+/** Un backup che non finisce in tante chiamate ha qualcosa che non va: si chiude dichiarandosi incompleto. */
+export const MASSIMO_CHIAMATE = 40;
+
 const entro = (n: number) => Math.max(BLOCCO_MINIMO, Math.min(BLOCCO_MASSIMO, Math.round(n)));
 
 /** Quante righe chiedere al prossimo blocco, visto quanto pesava l'ultimo. */

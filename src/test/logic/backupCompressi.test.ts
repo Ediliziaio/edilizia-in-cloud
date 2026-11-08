@@ -90,6 +90,27 @@ describe("Il backup di ogni notte", () => {
   });
 });
 
+describe("Un backup grande in più chiamate", () => {
+  const funzione = leggi("supabase/functions/company-backup/index.ts");
+
+  it("si ferma tra un blocco e l'altro e l'indice dice da dove ripartire", () => {
+    expect(funzione).toContain("testoScritto >= TETTO_TESTO_PER_CHIAMATA");
+    expect(funzione).toContain("sospeso = { tabella: t, n, dopo, limite }");
+    expect(funzione).toContain("indice.ripresa = { ...sospeso, data, elenco: voci, chiamata: chiamata + 1 }");
+    expect(funzione).toContain("completo: !sospeso && completo");
+  });
+
+  it("la prossima azienda parte solo quando questa ha finito davvero", () => {
+    expect(funzione).toContain("await avviaBackupABlocchi(soloUna, poi, daRiprendere)");
+    expect(funzione).toContain("if (prosegue || poi.length === 0) return;");
+  });
+
+  it("anche l'area super admin riparte, e non si riparte all'infinito", () => {
+    expect(funzione).toContain("avviaBackupABlocchi(String(piattaforma.id), [], riprendi)");
+    expect(funzione).toContain("if (chiamata < MASSIMO_CHIAMATE)");
+  });
+});
+
 describe("Il giro nel server", () => {
   it("il ripristino apre i file compressi, in tutte e due le strade", () => {
     const restore = leggi("supabase/functions/company-restore/index.ts");

@@ -132,7 +132,7 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
-  const { onlyAssigned } = usePermissions();
+  const { onlyAssigned, canViewCosts } = usePermissions();
 
   const [customerId, setCustomerId] = useState("");
   const [orderCode, setOrderCode] = useState("");
@@ -740,6 +740,14 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
         balance_paid: item.balance_paid || false,
         balance_paid_date: item.balance_paid_date || null,
         balance_expected_date: item.balance_expected_date || null,
+        // Unità sulle righe nuove o che ce l'hanno; il su misura porta anche gruppo e misure.
+        ...(item.unita_misura ? { unita_misura: item.unita_misura } : {}),
+        ...(item.gruppo_id ? {
+          gruppo_id: item.gruppo_id, riferimento: item.riferimento ?? null, family_id: item.family_id ?? null,
+          axis_selections: (item.axis_selections ?? null) as unknown as Json,
+          misure_preventivo: (item.misure_preventivo ?? null) as unknown as Json,
+          measure_status: item.measure_status ?? null, specifiche: item.specifiche ?? null, prezzo_fonte: item.prezzo_fonte ?? null,
+        } : {}),
       }));
 
       // La provvigione la calcola il server, con un trigger su
@@ -1343,6 +1351,7 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
           editable={true}
           showStatusControls={false}
           vista="compatta"
+          canViewCosts={canViewCosts}
         />
 
         {/* Order Attachments */}
