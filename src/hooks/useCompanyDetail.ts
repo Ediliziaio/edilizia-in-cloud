@@ -197,7 +197,7 @@ export function useCompanyDetail(id: string | undefined) {
       const secondaryIds = (accessesRes.data || []).map(a => a.user_id).filter(uid => !primaryIds.has(uid));
       const secondaryProfiles = secondaryIds.length ? await supabase.from("profiles")
         .select("id, email, first_name, last_name, phone, created_at, last_login_at, company_id")
-        .in("id", secondaryIds).range(0, pageTo) : { data: [], error: null };
+        .in("id", secondaryIds).range(0, pageTo) : { data: [] as typeof primaryProfiles, error: null as null };
       if (secondaryProfiles.error) throw secondaryProfiles.error;
       const profiles = [...primaryProfiles, ...(secondaryProfiles.data || [])];
       const accessRoles = new Map((accessesRes.data || []).map(a => [a.user_id, a.access_role]));
