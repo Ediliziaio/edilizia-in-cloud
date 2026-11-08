@@ -233,11 +233,11 @@ export function SottofasiFase({
                   </p>
                   {puoModificare && onPianifica && !s.fatta && inPiano !== s.id ? (
                     <button type="button" onClick={() => setInPiano(s.id)} aria-label={`Date di ${s.name}`}
-                      className={cn("block rounded text-left text-[11px] tabular-nums hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", p?.oltreLaFase ? "font-medium text-amber-700" : "text-muted-foreground")}>
+                      className={cn("block rounded text-left text-[11px] tabular-nums hover:underline max-md:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", p?.oltreLaFase ? "font-medium text-amber-700" : "text-muted-foreground")}>
                       {info || "Senza date · aggiungi"}
                     </button>
                   ) : info ? <p className={cn("text-[11px] tabular-nums", p?.oltreLaFase ? "font-medium text-amber-700" : "text-muted-foreground")}>{info}</p>
-                    : onApri && !s.fatta && <p className="text-[11px] text-muted-foreground">Senza date</p>}
+                    : onApri && !s.fatta && <p className="text-[11px] text-muted-foreground max-md:hidden">Senza date</p>}
                   {reale && intervalloSottofase(s) && <p className={cn("text-[11px] tabular-nums", reale.scarto > 0 ? "text-rose-700" : "text-emerald-700")}>
                     finita il {breve(reale.finita)}{reale.scarto !== 0 ? ` (${reale.scarto > 0 ? "+" : ""}${reale.scarto} gg)` : ", in tempo"}
                   </p>}
@@ -352,7 +352,7 @@ export function SottofasiFase({
             aria-label={`Aggiungi una sottofase a ${nomeFase}`}
             className="h-8 min-w-0 flex-1 text-sm"
           />
-          <Button size="sm" variant="outline" onClick={aggiungi} disabled={!nuova.trim()}>
+          <Button size="sm" variant="outline" className={cn(!nuova.trim() && "max-md:hidden")} onClick={aggiungi} disabled={!nuova.trim()}>
             <Plus className="mr-1 h-4 w-4" />Aggiungi
           </Button>
         </div>

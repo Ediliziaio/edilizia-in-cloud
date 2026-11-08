@@ -2061,7 +2061,7 @@ function OrderDetailInner() {
                   avanzamentoPct={avanzamentoPct}
                   anchorId="esposizione-commessa"
                 />
-                <div className="mt-4">
+                <div className="mt-4 max-md:hidden">
                   <PrevisioneCassaMateriali incassato={collectedGross} materiali={costoMaterialiGross} saldoResiduo={saldoResiduoGross} saldoData={saldoDate} rate={resolvedInstallments} />
                 </div>
               </ErrorBoundary>
@@ -2070,7 +2070,7 @@ function OrderDetailInner() {
             {/* Errori e perdite: il riquadro parla dell'azienda (ultimi 12 mesi)
                 e si registra al computer. */}
             {/* Le perdite sono importi di costo: solo a chi può vedere costi o margini. */}
-            {activeEconomiaView === "margini" && (permissions.canViewCosts || permissions.canViewMargins) && <div>
+            {activeEconomiaView === "margini" && (permissions.canViewCosts || permissions.canViewMargins) && !isMobile && <div>
               <OrderErrors orderId={id!} />
             </div>}
             {activeEconomiaView === "margini" && !(permissions.canViewCosts || permissions.canViewMargins) && <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">Il tuo ruolo non permette di consultare costi e margini. Puoi aprire le altre viste consentite.</p>}

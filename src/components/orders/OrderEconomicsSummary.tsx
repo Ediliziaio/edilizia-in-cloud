@@ -618,7 +618,8 @@ export function OrderEconomicsSummary({
         {/* Conto economico per macro-voci: preventivo, consuntivo, incidenze,
             struttura e margine netto (contoEconomicoCommessa). */}
         <div className="mt-3">
-          <ContoEconomicoMacroVoci conto={conto} mostraMargini={quality.canShowMargin} />
+          {/* Da telefono bastano i tre numeri: il dettaglio per voce è da scrivania. */}
+          <div className="max-md:hidden"><ContoEconomicoMacroVoci conto={conto} mostraMargini={quality.canShowMargin} /></div>
           {quality.canShowMargin && !structure.isLoading && (structure.isError || !structure.data?.monthlyPerActiveOrder || structureImpact.months === null) && (
             <p className="mt-1.5 text-[11px] text-muted-foreground">
               {structure.isError
@@ -635,7 +636,7 @@ export function OrderEconomicsSummary({
             </p>
           )}
           {quality.canShowMargin && structure.data?.monthlyPerActiveOrder != null && structureImpact.months != null && (
-            <p className="mt-1 text-[11px] text-muted-foreground">
+            <p className="mt-1 text-[11px] text-muted-foreground max-md:hidden">
               Struttura: {formatCurrency(structure.data.monthlyStructure)}/mese su {structure.data.activeOrders} cantieri attivi = {formatCurrency(structure.data.monthlyPerActiveOrder)}/mese per commessa, {fmtMesi(structureImpact.months)} mesi maturati.
             </p>
           )}

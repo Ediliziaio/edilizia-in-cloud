@@ -114,7 +114,7 @@ const dataBreve = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
  * La barra dello stato avanzamento lavori, nello spazio libero della striscia dei numeri:
  * quanto è fatto, e la tacca di oggi fra la prima data d'inizio e l'ultima di fine delle fasi.
  */
-function BarraAndamento({ a }: { a: Andamento }) {
+export function BarraAndamento({ a }: { a: Andamento }) {
   const ritardo = a.stato === "in_ritardo";
   const colore = a.fatto >= 100 ? "bg-emerald-500" : ritardo ? "bg-amber-500" : "bg-sky-600";
   const testo = a.stato === "in_ritardo" ? `in ritardo di ${a.punti} punti`

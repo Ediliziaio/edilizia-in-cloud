@@ -116,8 +116,11 @@ describe("Lavorazioni dal telefono", () => {
     expect(riga).toHaveTextContent("Opere murarie20/09–30/09 · Mario Rossi40%");
     // in corso: aperta di serie, con stato e menu sotto la riga
     expect(riga).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByRole("combobox", { name: "Stato di Opere murarie" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Altre azioni per Opere murarie" })).toBeInTheDocument();
+    // Stato, date e squadra stanno a richiesta: aperta si vedono le sottofasi.
+    expect(screen.queryByRole("combobox", { name: "Stato di Opere murarie" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Stato, date, squadra e note" })[0]);
+    expect(screen.getByRole("combobox", { name: "Stato di Opere murarie" })).toBeInTheDocument();
     fireEvent.click(riga);
     expect(riga).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("combobox", { name: "Stato di Opere murarie" })).not.toBeInTheDocument();

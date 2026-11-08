@@ -126,7 +126,8 @@ describe("Lavorazioni e squadra", () => {
     render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" />);
     expect(screen.getByText(/Squadra della commessa/, {selector: "span"})).toBeInTheDocument();
     expect(screen.queryByText(/nessuno la fa ancora/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", {name: mobile ? /Opere murarie/ : "Opere murarie"}));
+    fireEvent.click(screen.getByRole("button", {name: mobile ? /^Opere murarie/ : "Opere murarie"}));
+    if (mobile) fireEvent.click(screen.getByRole("button", {name: "Stato, date, squadra e note"}));
     fireEvent.click(screen.getByRole("button", {name: "Vedi squadra generale per Opere murarie"}));
     expect(screen.getByRole("button", {name: "Chiudi organizzazione"})).toBeInTheDocument();
     expect(state.add).not.toHaveBeenCalled(); expect(state.update).not.toHaveBeenCalled(); expect(JSON.stringify(state.crews)).toBe(before);
@@ -138,6 +139,7 @@ describe("Lavorazioni e squadra", () => {
     // Da telefono si assegna dentro la fase: in testata resta solo «Aggiungi fasi».
     const fase = screen.getByRole("button", {name: /^Opere murarie/});
     if (fase.getAttribute("aria-expanded") === "false") fireEvent.click(fase);
+    fireEvent.click((await screen.findAllByRole("button", {name: "Stato, date, squadra e note"}))[0]);
     fireEvent.click((await screen.findAllByRole("button", {name: /^Assegna/}))[0]);
     expect(await screen.findByRole("dialog", {name: "Assegna chi lavora"})).toBeInTheDocument();
     expect(screen.getByRole("button", {name: "Persona"})).toBeInTheDocument();

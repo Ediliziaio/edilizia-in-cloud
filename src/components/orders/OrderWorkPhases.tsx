@@ -49,6 +49,8 @@ import { AlertScostamentoSal } from "./AlertScostamentoSal";
 import { useCronoprogramma } from "@/hooks/useCronoprogramma";
 import { useSottofasi } from "@/hooks/useSottofasi";
 import { DistintaCommessa } from "@/components/orders/DistintaCommessa";
+import { BarraAndamento } from "@/components/orders/DistintaLavorazioni";
+import { andamentoLavori } from "@/lib/orders/andamentoLavori";
 import { useAvanzamentoCommessa } from "@/hooks/useAvanzamentoCommessa";
 import { SottofasiFase, type PianoSottofase } from "./SottofasiFase";
 import { DitteContrattiCommessa } from "./DitteContrattiCommessa";
@@ -389,6 +391,10 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
   // riga, ricerca col bottone dei filtri (pannello dal basso), le fasi come
   // righe e le completate in fondo. Sotto i 768px, come il resto della commessa.
   const [filtriAperti, setFiltriAperti] = useState(false);
+  // Da telefono, in testa: a che punto sono i lavori, la stessa barra della tabella da computer.
+  const andamentoTelefono = telefono && phases.length > 0
+    ? andamentoLavori(Math.round(phases.reduce((t, p) => t + Number(p.percentuale ?? 0), 0) / phases.length), phases, format(new Date(), "yyyy-MM-dd"))
+    : null;
   const today = format(new Date(), "yyyy-MM-dd");
   const squadreGeneraliPerFase = useMemo(() => new Map(phases.map(p => [p.id, generalCrewsForPhase(p, squadre)])), [phases, squadre]);
   const fasiConSquadra = useMemo(() => new Set([...squadre.filter((x) => x.phase_id).map((x) => x.phase_id as string), ...phases.filter(p => (squadreGeneraliPerFase.get(p.id)?.length ?? 0) > 0).map(p => p.id)]), [squadre, phases, squadreGeneraliPerFase]);
@@ -868,6 +874,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
               />
               </>
             ) : <>
+            {andamentoTelefono && <div className="rounded-lg border bg-card px-3 py-2"><BarraAndamento a={andamentoTelefono} /></div>}
             {/* Una riga sola (06/10/2026): titolo, filtri, ricerca e completate
                 stavano su quattro righe, con tanto spazio vuoto. */}
             {telefono ? mostraFiltri && (
@@ -1165,6 +1172,8 @@ function PhaseCard({
   const { canEditOrders, canViewCosts, canViewOrderAmounts, canViewMargins, canViewMezzi } = usePermissions();
   const [eliminaAperto, setEliminaAperto] = useState(false);
   const [editingName, setEditingName] = useState(false);
+  // Da telefono la fase aperta mostra le sottofasi; date, squadra e note a richiesta.
+  const [dettagli, setDettagli] = useState(false);
   const [nameDraft, setNameDraft] = useState(phase.name);
   const [progressOpen, setProgressOpen] = useState(false);
   const [progressDraft, setProgressDraft] = useState("");
@@ -1184,6 +1193,7 @@ function PhaseCard({
     consumedTarget.current = targetSection;
   }, [open, targetSection]);
   const isMobile = useIsMobile();
+  const compatta = isMobile && !dettagli;
 
   const meta = statusMeta(phase.status);
 
@@ -1323,14 +1333,15 @@ function PhaseCard({
         // Telefono (06/10/2026): la fase è una riga — pallino, nome, date e chi
         // la fa; a destra avanzamento e ritardo. Stato e menu solo da aperta.
         <div>
+<div className="flex items-center pr-1">
           <button
             type="button"
             aria-expanded={open}
             aria-controls={`phase-body-${phase.id}`}
             onClick={() => setOpen((o) => (apertaSubito ? true : !o))}
-            className="tap-compact flex min-h-[52px] w-full items-center gap-2.5 px-3 py-2.5 text-left active:bg-muted"
+            className="tap-compact flex min-h-[52px] min-w-0 flex-1 items-center gap-2 py-2.5 pl-2.5 pr-1 text-left active:bg-muted"
           >
-            <span aria-hidden="true" className={cn("h-2.5 w-2.5 shrink-0 rounded-full", meta.dot, phase.status === "in_corso" && "animate-pulse")} />
+            <ChevronRight aria-hidden="true" className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-90")} />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13px] font-semibold leading-tight">{phase.name}</span>
               <span className="mt-0.5 block truncate text-[11px] leading-tight text-muted-foreground tabular-nums">
@@ -1345,17 +1356,20 @@ function PhaseCard({
             </span>
             <span className="shrink-0 text-right">
               <span className={cn("block text-[13px] font-semibold leading-tight tabular-nums", pctInRitardo ? "text-rose-600" : "text-slate-900")}>{actualPct}%</span>
+              <span aria-hidden="true" className="mt-1 block h-1 w-11 overflow-hidden rounded-full bg-muted">
+                <span className={cn("block h-full rounded-full", actualPct >= 100 ? "bg-emerald-500" : "bg-blue-600")} style={{ width: `${actualPct}%` }} />
+              </span>
               {(() => {
                 const r = tempi ? ritardoBreve(tempi, oggi) : null;
                 return r ? <span className={cn("mt-0.5 block text-[11px] font-medium leading-tight", r.tono === "rosso" ? "text-rose-600" : "text-amber-700")}>{r.testo}</span> : null;
               })()}
             </span>
-            <ChevronDown aria-hidden="true" className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
           </button>
-          {open && canEditOrders && (
+          {canEditOrders && menuFase("tap-compact h-9 w-9 shrink-0 text-muted-foreground")}
+          </div>
+          {open && canEditOrders && (dettagli || editingName) && (
             <div className="flex items-center gap-2 px-3 pb-1">
               {editingName ? campoNome("h-9 min-w-0 flex-1") : tendinaStato("tap-compact h-9 min-w-0 flex-1")}
-              {menuFase("tap-compact h-9 w-9 shrink-0 text-muted-foreground")}
             </div>
           )}
         </div>
@@ -1526,7 +1540,7 @@ function PhaseCard({
       )}
 
       {planningIssues.length > 0 && <div className="flex flex-wrap items-center gap-1 px-3 pb-2 sm:px-4" aria-label={`Da organizzare: ${phase.name}`}>
-        {planningIssues.map(issue => <Button key={issue.section} variant="ghost" size="sm" className="h-auto min-h-8 whitespace-normal px-2 text-xs text-amber-800 hover:bg-amber-50" aria-label={`${issue.label}: ${phase.name}`} onClick={() => { setOpen(true); setTargetSection({section: issue.section}); }}><AlertTriangle className="mr-1 h-3 w-3 shrink-0" aria-hidden="true" />{issue.label}</Button>)}
+        {planningIssues.map(issue => <Button key={issue.section} variant="ghost" size="sm" className="h-auto min-h-8 whitespace-normal px-2 text-xs text-amber-800 hover:bg-amber-50" aria-label={`${issue.label}: ${phase.name}`} onClick={() => { setOpen(true); setDettagli(true); setTargetSection({section: issue.section}); }}>{isMobile && issue.section === "people" ? "+ Assegna chi la fa" : <><AlertTriangle className="mr-1 h-3 w-3 shrink-0" aria-hidden="true" />{issue.label}</>}</Button>)}
       </div>}
 
       {/* Corpo collassabile: esecutori + materiali */}
@@ -1541,13 +1555,13 @@ function PhaseCard({
             className="overflow-hidden"
           >
             <CardContent id={`phase-body-${phase.id}`} className={cn("px-3 sm:px-4", isMobile ? "space-y-3 pb-3 pt-2" : "space-y-4 pb-4 pt-0")}>
-              {phase.notes && <details className="text-sm text-muted-foreground">
+              {phase.notes && !compatta && <details className="text-sm text-muted-foreground">
                 <summary className="cursor-pointer">Descrizione</summary>
                 <p className="mt-2 whitespace-pre-wrap leading-relaxed">{phase.notes}</p>
               </details>}
               {vedi("sottofasi") && <>
               {/* ── Quando ── */}
-              <div ref={datesRef} tabIndex={-1} aria-label={`Date di ${phase.name}`} className="flex flex-wrap items-center gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+              {!compatta && <div ref={datesRef} tabIndex={-1} aria-label={`Date di ${phase.name}`} className="flex flex-wrap items-center gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                 <span className="w-24 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:hidden">
                   Quando
                 </span>
@@ -1589,7 +1603,7 @@ function PhaseCard({
                 {squadreFase.length > 0 && (
                   <span className="text-[11px] text-muted-foreground max-sm:hidden">Le squadre della fase seguono queste date.</span>
                 )}
-              </div>
+              </div>}
 
               {/* ── Sottofasi: i passi che decidono l'avanzamento ── */}
               <SottofasiFase
@@ -1617,7 +1631,7 @@ function PhaseCard({
                 />
               )}
 
-              </>}{vedi("chi") && <>
+              </>}{vedi("chi") && !compatta && <>
               {/* ── Chi la fa: squadre, poi persone e ditte ── */}
               <div ref={peopleRef} tabIndex={-1} aria-label={`Assegnazioni di ${phase.name}`} className="flex flex-wrap items-start gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                 <span className="w-24 shrink-0 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:hidden">
@@ -1678,7 +1692,7 @@ function PhaseCard({
                 </div>
               )}
 
-              </>}{vedi("note") && <>
+              </>}{vedi("note") && !compatta && <>
               {/* ── Note per gli operai di questa fase ── */}
               <div className="flex flex-wrap items-start gap-2">
                 <span className="w-24 shrink-0 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:hidden">
@@ -1689,7 +1703,7 @@ function PhaseCard({
                 </div>
               </div>
 
-              </>}{vedi("materiali") && (!isMobile || planningIssues.some((i) => i.section === "materials")) && <>
+              </>}{vedi("materiali") && !compatta && (!isMobile || planningIssues.some((i) => i.section === "materials")) && <>
               {/* ── Materiali della fase (order_items.phase_id) ── */}
               {(canEditOrders || materials.length > 0 || unassignedMaterials.length > 0) && (
                 <div ref={materialsRef} tabIndex={-1} aria-label={`Materiali di ${phase.name}`} className="flex flex-wrap items-start gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
@@ -1821,6 +1835,7 @@ function PhaseCard({
                 </div>
               )}
               </>}
+              {isMobile && canEditOrders && <button type="button" aria-expanded={dettagli} onClick={() => setDettagli((d) => !d)} className="tap-compact min-h-9 text-xs font-medium text-primary">{dettagli ? "Nascondi i dettagli" : "Stato, date, squadra e note"}</button>}
             </CardContent>
           </motion.div>
         )}
