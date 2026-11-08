@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
       ? await supabaseAdmin.from("profiles").select("company_id").eq("id", callerId).single()
       : { data: null };
 
-    const { first_name, last_name, email, company_id, role_type, password, phone, permissions } = await req.json();
+    const { first_name, last_name = "", email, company_id, role_type, password, phone, permissions, inviaBenvenuto } = await req.json();
 
     const { data: callerRoles } = callerId
       ? await supabaseAdmin.from("user_roles").select("role").eq("user_id", callerId)
@@ -142,8 +142,8 @@ Deno.serve(async (req) => {
       return errorResponse("Only company admins can create staff users", 403);
     }
 
-    if (!first_name || !last_name || !email) {
-      return errorResponse("Nome, cognome e email sono obbligatori");
+    if (!first_name || !email) {
+      return errorResponse("Nome ed email sono obbligatori");
     }
 
     // Validate and resolve roles
@@ -348,7 +348,7 @@ Deno.serve(async (req) => {
     // un rimbalzo certo registrato sul nostro dominio di invio — 13 per l'import
     // BeMade dell'11/09/2026 — senza che nessuno le legga.
     const indirizzoSegnaposto = /@no-email\.ediliziaincloud\.local$/i.test(String(email).trim());
-    if (!indirizzoSegnaposto) runInBackground((async () => {
+    if (inviaBenvenuto !== false && !indirizzoSegnaposto) runInBackground((async () => {
     try {
       const branding = await getBrandingForCompany(supabaseAdmin, targetCompanyId);
 
