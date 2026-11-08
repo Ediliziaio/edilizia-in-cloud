@@ -141,7 +141,8 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
       }
       if (accountFilter !== "all") query = query.eq("account_id", accountFilter);
       if (typeFilter !== "all") query = query.eq("transaction_type", typeFilter);
-      if (reconFilter !== "all") query = query.eq("reconciliation_status", reconFilter);
+      if (reconFilter === "pending") query = query.in("reconciliation_status", ["pending", "parziale"]);
+      else if (reconFilter !== "all") query = query.eq("reconciliation_status", reconFilter);
       if (categoryFilter !== "all") query = query.eq("category", categoryFilter);
       if (dateFrom) query = query.gte("booking_date", dateFrom);
       if (dateTo) query = query.lte("booking_date", dateTo);
@@ -504,8 +505,10 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
-                        {tx.reconciliation_status === "pending" && (
-                          <Badge variant="outline" className="text-[10px] w-fit border-amber-300 text-amber-700">Da riconciliare</Badge>
+                        {(tx.reconciliation_status === "pending" || tx.reconciliation_status === "parziale") && (
+                          <Badge variant="outline" className="text-[10px] w-fit border-amber-300 text-amber-700">
+                            {tx.reconciliation_status === "parziale" ? "Riconciliata in parte" : "Da riconciliare"}
+                          </Badge>
                         )}
                         {tx.linked_invoice_id && invoiceMap[tx.linked_invoice_id] && (
                           <Badge variant="outline" className="text-[10px] gap-1 w-fit">

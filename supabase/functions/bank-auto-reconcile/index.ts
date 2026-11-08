@@ -262,6 +262,8 @@ Deno.serve(async (req) => {
           .eq("company_id", cId)
           .eq("transaction_type", "debit")
           .eq("status", "booked")
+          // Un movimento ripartito su più scadenze non ha linked_*: resta a mano.
+          .not("reconciliation_status", "in", "(reconciled,parziale)")
           .is("linked_scadenza_id", null)
           .is("linked_cost_id", null)
           .gte("booking_date", localDateIT(ninetyDaysAgo2))
