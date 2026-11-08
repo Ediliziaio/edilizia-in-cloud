@@ -1,3 +1,4 @@
+import { letturaSenzaPrezzi } from "@/lib/acquisti/letturaSenzaPrezzi";
 import { CampoVoceRdo } from "@/components/rdo/CampoVoceRdo";
 import { DocumentoAnteprimaDialog } from "@/components/acquisti/DocumentoAnteprimaDialog";
 import { StoricoAcquistiCard } from "@/components/acquisti/StoricoAcquistiCard";
@@ -196,7 +197,9 @@ export default function SupplierRfqDetail() {
   const modificabile = rfq.status === "bozza" ||
     (rfq.status === "inviata" && !fornitori.some((f) => f.status === "risposta"));
   // aggiudicata o annullata: si guarda, non si cambia più niente
-  const chiusa = rfq.status === "aggiudicata" || rfq.status === "annullata";
+  // Chi non vede i prezzi guarda soltanto: salverebbe offerte vuote al posto di quelle vere.
+  const senzaPrezzi = letturaSenzaPrezzi();
+  const chiusa = senzaPrezzi || rfq.status === "aggiudicata" || rfq.status === "annullata";
   const haRisposte = fornitori.some((f) => f.status === "risposta");
 
   const composeContext = (f: RfqSupplier): ComposeContext => {
@@ -364,7 +367,7 @@ export default function SupplierRfqDetail() {
           <RdoDettagliCard key={rfq.id} rfq={rfq} disabled={chiusa} onSave={patch=>updateRfq.mutateAsync(patch)} onEditingChange={editing=>setEditingRfqId(editing ? rfq.id : null)}/>
 
           {/* ── Confronto ──────────────────────────────────────────── */}
-          {fornitori.length > 0 && items.length > 0 && (
+          {!senzaPrezzi && fornitori.length > 0 && items.length > 0 && (
             <QuoteCard noHeader className="p-0 sm:p-0">
               <div className="px-5 sm:px-6 pt-5 pb-3">
                 <h3 className="text-[15px] font-bold text-slate-900 flex items-center gap-2.5">

@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import { letturaSenzaPrezzi } from "@/lib/acquisti/letturaSenzaPrezzi";
 import { ChevronDown, Package, PackageCheck, Link2, Unlink, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -150,7 +151,7 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items, riepilogo 
       if (!a.aperto || !po.expected_delivery_date) return <span className="text-muted-foreground">—</span>;
       return <span className={a.inRitardo ? "whitespace-nowrap font-medium text-amber-700 dark:text-amber-400" : "whitespace-nowrap"}>{a.inRitardo ? "In ritardo, " : ""}{dataIt(po.expected_delivery_date)}</span>;
     } },
-    { titolo: "Importo", destra: true, cella: (po) => <span className="font-medium">{formatCurrency(Number(po.total))}</span> },
+    ...(letturaSenzaPrezzi() ? [] : [{ titolo: "Importo", destra: true, cella: (po: (typeof linkedPOs)[number]) => <span className="font-medium">{formatCurrency(Number(po.total))}</span> }]),
     { titolo: "Azioni", destra: true, cella: (po) => (
       <div className="flex items-center justify-end gap-1">
         {avanzamentoOrdine(po, oggi).aperto && canEditOrders && (

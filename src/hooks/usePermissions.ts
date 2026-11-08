@@ -1,3 +1,4 @@
+import { impostaLetturaSenzaPrezzi } from "@/lib/acquisti/letturaSenzaPrezzi";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -640,6 +641,16 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
 }
 
 export function usePermissions(): Permissions {
+  const permessi = usePermessiGrezzi();
+  // Fissato durante il disegno: le query delle pagine partono subito dopo, non dopo un effetto.
+  impostaLetturaSenzaPrezzi(
+    !permessi.isLoading && !permessi.isAdmin && !permessi.canViewCosts && !permessi.canManagePurchasing
+    && (permessi.canViewOrders || permessi.canEditOrders || permessi.canViewWarehouse || permessi.canEditWarehouse),
+  );
+  return permessi;
+}
+
+function usePermessiGrezzi(): Permissions {
   const {
     role, user, isImpersonating, isImpersonationReady,
     impersonatedCompanyId, impersonationToken,

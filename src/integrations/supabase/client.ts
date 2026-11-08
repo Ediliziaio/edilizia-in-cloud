@@ -6,6 +6,7 @@ import { traduciErrorePostgrest } from "@/lib/userErrorMessage";
 import { segnalaBloccoDaRisposta } from "@/lib/creditoEsaurito";
 import { authStorage } from "./authStorage";
 import { supabaseRequestTimeout } from "./requestTimeout";
+import { letturaSenzaPrezzi, urlSenzaPrezzi } from "@/lib/acquisti/letturaSenzaPrezzi";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -74,7 +75,11 @@ function urlDi(input: RequestInfo | URL): string {
  * Un solo posto per tutti gli strumenti a consumo, anche per le chiamate
  * fuori dalle mutation di React Query. Vedi lib/creditoEsaurito.ts.
  */
-async function fetchTraducendoGliErrori(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+async function fetchTraducendoGliErrori(originale: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  // Chi non vede i costi legge ordini e offerte senza prezzi. Vedi lib/acquisti/letturaSenzaPrezzi.
+  const input = letturaSenzaPrezzi() && !(originale instanceof Request)
+    ? urlSenzaPrezzi(String(originale), init?.method)
+    : originale;
   const res = await fetchWithTimeout(input, init);
   if (res.ok) return res;
   const url = urlDi(input);

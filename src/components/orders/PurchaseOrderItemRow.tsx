@@ -19,6 +19,7 @@ type Patch = TablesUpdate<"purchase_order_items">;
 export function PurchaseOrderItemRow({
   item,
   isEditable,
+  senzaPrezzi = false,
   showReceived,
   onUpdate,
   onDelete,
@@ -27,6 +28,8 @@ export function PurchaseOrderItemRow({
 }: {
   item: PurchaseOrderItem;
   isEditable: boolean;
+  /** Chi non vede i costi: niente colonne di prezzo, invece di «0,00 €». */
+  senzaPrezzi?: boolean;
   showReceived: boolean;
   onUpdate: (patch: Patch) => Promise<unknown>;
   onDelete: () => void;
@@ -233,6 +236,7 @@ export function PurchaseOrderItemRow({
           item.unit_of_measure || "pz"
         )}
       </td>
+      {!senzaPrezzi && <>
       <td className="p-1">
         {isEditable ? (
           <div className="min-w-32">
@@ -320,6 +324,7 @@ export function PurchaseOrderItemRow({
           formatCurrency(totaleMostrato)
         )}
       </td>
+      </>}
       {isEditable && (
         <td className="p-1">
           <div className="flex items-center justify-end gap-2">

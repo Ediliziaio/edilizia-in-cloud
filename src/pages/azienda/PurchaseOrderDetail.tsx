@@ -24,6 +24,7 @@ import { it } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { letturaSenzaPrezzi } from "@/lib/acquisti/letturaSenzaPrezzi";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -232,7 +233,9 @@ export default function PurchaseOrderDetail() {
     righe:items.map(i=>({descrizione:descrizioneConMisure(i.description,i.misure_testo),nota:i.notes,unita:i.unit_of_measure || "pz",quantita:Number(i.quantity),prezzo:i.price_pending ? null : Number(i.unit_price),sconto:Number(i.discount_percent),iva:Number(i.vat_rate),importo:i.price_pending ? undefined : Number(i.line_total)})),
     totali:{imponibile:totaliRighe.imponibile,iva:totaliRighe.iva,totale:totaliRighe.totale},
   }, order.document_details);
-  const canEdit = permissions.canEditOrders && ["bozza", "inviato", "confermato", "parziale"].includes(order.status);
+  // Chi non vede i prezzi non modifica le righe: salverebbe un prezzo vuoto al posto di quello vero.
+  const senzaPrezzi = letturaSenzaPrezzi();
+  const canEdit = !senzaPrezzi && permissions.canEditOrders && ["bozza", "inviato", "confermato", "parziale"].includes(order.status);
   const isEditable = canEdit && (order.status === "bozza" || editingOrderId === order.id);
   const righeInSalvataggio = addItem.isPending || updateItem.isPending || deleteItem.isPending || update.isPending;
   const editingDetails = editingDetailsId === order.id;
@@ -450,7 +453,7 @@ export default function PurchaseOrderDetail() {
         </Suspense>
       )}
 
-      <section aria-label="Azioni rapide ordine" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:px-6">
+      {!senzaPrezzi && <section aria-label="Azioni rapide ordine" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <h2 className="text-sm font-bold text-slate-900">Documenti e invio</h2>
           <div className="flex w-full flex-wrap gap-2 sm:w-auto">
@@ -471,7 +474,7 @@ export default function PurchaseOrderDetail() {
           </div>
         </div>
         {(editingDetails || editingNotesId === order.id) && <p role="status" className="mt-3 text-xs text-amber-700">Salva o annulla le modifiche aperte prima di preparare il PDF o l’email.</p>}
-      </section>
+      </section>}
 
       <AttivitaAcquistoCard attivita={attivitaOda({status:order.status,prezziPendenti:totaliRighe.daConfermare,righe:items.length,email:documentoInvio.destinatario.email,consegna:order.expected_delivery_date,conferma:!!order.attachment_url})}/>
 
@@ -504,7 +507,7 @@ export default function PurchaseOrderDetail() {
                 </Button>
               )}
             </div>
-            <p className="px-5 pb-3 text-xs text-slate-500">Prezzi di acquisto IVA esclusa. Puoi lasciare il prezzo vuoto e indicarlo come «Da confermare» in attesa del fornitore. Su schermi stretti puoi scorrere la tabella orizzontalmente.</p>
+            {!senzaPrezzi && <p className="px-5 pb-3 text-xs text-slate-500">Prezzi di acquisto IVA esclusa. Puoi lasciare il prezzo vuoto e indicarlo come «Da confermare» in attesa del fornitore. Su schermi stretti puoi scorrere la tabella orizzontalmente.</p>}
             {totaliRighe.daConfermare > 0 && <p role="status" className="mx-5 mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">{totaliRighe.daConfermare} {totaliRighe.daConfermare === 1 ? "voce con prezzo da confermare" : "voci con prezzi da confermare"}. Gli importi visibili comprendono solo le voci già valorizzate.</p>}
             {isEditable && (
               <p className="px-5 sm:px-6 pb-3 text-xs text-muted-foreground" role="status">
@@ -524,16 +527,17 @@ export default function PurchaseOrderDetail() {
                       <th className="text-left p-2 pl-4 font-medium">Descrizione</th>
                       <th className="text-right p-2 font-medium w-20">Qtà</th>
                       <th className="text-left p-2 font-medium w-16">UM</th>
-                      <th className="text-right p-2 font-medium w-24">Prezzo acquisto</th>
-                      <th className="text-right p-2 font-medium w-16">Sc.%</th>
-                      <th className="text-right p-2 font-medium w-16">IVA%</th>
-                      <th className="text-right p-2 font-medium w-24">Totale netto</th>
+                      {!senzaPrezzi && <th className="text-right p-2 font-medium w-24">Prezzo acquisto</th>}
+                      {!senzaPrezzi && <th className="text-right p-2 font-medium w-16">Sc.%</th>}
+                      {!senzaPrezzi && <th className="text-right p-2 font-medium w-16">IVA%</th>}
+                      {!senzaPrezzi && <th className="text-right p-2 font-medium w-24">Totale netto</th>}
                       {isEditable && <th className="p-2" aria-label="Stato prezzo e azioni"></th>}
                       {!isEditable && order.status !== "annullato" && <th className="text-right p-2 font-medium w-20">Ricevuti</th>}
                     </tr></thead>
                     <tbody>
                       {items.map((item) => (
                         <PurchaseOrderItemRow
+                          senzaPrezzi={senzaPrezzi}
                           // La quantita' ricevuta cambia anche da fuori questa
                           // riga (scansione barcode, DDT, passaggio a
                           // "ricevuto"). Includendola nella key la casella
@@ -551,7 +555,7 @@ export default function PurchaseOrderDetail() {
                         />
                       ))}
                     </tbody>
-                    <tfoot>
+                    {!senzaPrezzi && <tfoot>
                       <tr className="border-t bg-muted/30">
                         <td colSpan={isEditable ? 6 : 6} className="p-2 pl-4 text-right font-medium">Imponibile:</td>
                         <td className="p-2 text-right font-medium">{importiInAttesa ? "Da confermare" : fmtEur(totaliRighe.imponibile)}</td>
@@ -567,7 +571,7 @@ export default function PurchaseOrderDetail() {
                         <td className="p-2 text-right font-bold">{importiInAttesa ? "Da confermare" : fmtEur(totaliRighe.totale)}</td>
                         {(isEditable || (!isEditable && order.status !== "annullato")) && <td></td>}
                       </tr>
-                    </tfoot>
+                    </tfoot>}
                   </table>
                 </div>
               )}
@@ -617,12 +621,12 @@ export default function PurchaseOrderDetail() {
                 {order.order_id && permissions.canEditOrders && <Button size="sm" variant="ghost" className="h-auto w-full justify-start whitespace-normal py-2 text-xs text-slate-600" disabled={update.isPending || editingDetails} onClick={()=>handleCommessaChange(null)}><Package className="mr-1.5 h-3.5 w-3.5 shrink-0" />Acquisto per magazzino / materiali di consumo</Button>}
               </div>
 
-              <div className="rounded-lg bg-gradient-to-br from-slate-50 to-white border border-slate-200 px-3 py-2 mt-2">
+              {!senzaPrezzi && <div className="rounded-lg bg-gradient-to-br from-slate-50 to-white border border-slate-200 px-3 py-2 mt-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs uppercase tracking-wider font-semibold text-slate-500">{totaliRighe.daConfermare ? "Totale parziale" : "Totale"}</span>
                   <span className="text-xl font-bold text-orange-600 tabular-nums">{importiInAttesa ? "Da confermare" : fmtEur(totaliRighe.totale)}</span>
                 </div>
-              </div>
+              </div>}
             </div>
           </QuoteCard>
 

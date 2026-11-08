@@ -89,6 +89,7 @@ import {
 import { CommessaCombobox } from "@/components/orders/CommessaCombobox";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { letturaSenzaPrezzi } from "@/lib/acquisti/letturaSenzaPrezzi";
 import { useSupplierRfqs } from "@/hooks/useSupplierRfqs";
 import { useAcquistiDaOrdinare } from "@/hooks/useAcquistiDaOrdinare";
 import {
@@ -301,7 +302,7 @@ export default function PurchaseOrdersList() {
   const puoAgire =
     !perm.solaLettura &&
     (perm.canManagePurchasing || perm.canEditOrders || perm.isAdmin);
-  const vedeCosti = perm.canViewCosts || perm.isAdmin;
+  const vedeCosti = (perm.canViewCosts || perm.isAdmin) && !letturaSenzaPrezzi();
   const odaMovement = usePipelineTransition({ kind: "oda", enabled: puoAgire });
   const rfqMovement = usePipelineTransition({ kind: "rfq", enabled: puoAgire });
   const movePurchaseDocument = (key: string, target: string) => {
