@@ -78,7 +78,7 @@ describe("Il giro nel server", () => {
   });
 
   it("la lista dei file non tocca indice, azienda e copie pre-delete, e non la chiama nessuno da fuori", () => {
-    const sql = leggi("supabase/migrations/20281231250000_backup_da_comprimere.sql").replace(/--.*$/gm, "");
+    const sql = leggi("supabase/migrations/20290107120000_backup_da_comprimere.sql").replace(/--.*$/gm, "");
     expect(sql).toContain(String.raw`(-backup\.json|/[^/]+/\d+\.json)$`);
     expect(sql).not.toContain("pre-delete");
     expect(sql).toContain("interval '1 hour'");
