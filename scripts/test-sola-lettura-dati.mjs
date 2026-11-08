@@ -18,7 +18,7 @@ insert into invoice_items values('${c}','${c}',10);
 create function scrivi_nota() returns void language sql security definer as $$insert into prima_nota_entries values('${other}','${c}','RPC')$$;
 grant usage on schema auth to authenticated; grant all on all tables in schema public to authenticated;
 `);
-const migration=readFileSync('supabase/migrations/20290108130000_sola_lettura_dati_aziendali.sql','utf8');
+const migration=readFileSync('supabase/migrations/20290108133010_sola_lettura_dati_aziendali.sql','utf8');
 await db.exec(migration); await db.exec(migration);
 await db.exec(`set role authenticated; select set_config('test.access','readonly',false)`);
 for(const sql of [
