@@ -91,6 +91,18 @@ export function useRegistraSpunte(odaId: string, orderId?: string | null) {
   });
 }
 
+/** Dopo l'invio dell'email: il pezzo risulta già reclamato. */
+export function useSegnaReclamo(odaId: string, orderId?: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (esiti: string[]) => {
+      const { error } = await (supabase.rpc as unknown as (f: string, a: object) => Promise<{ error: { message: string } | null }>)("arrivo_segna_reclamo", { p_esiti: esiti });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => aggiorna(qc, odaId, orderId),
+  });
+}
+
 export function useRiordinaPezzi(odaId: string, orderId?: string | null) {
   const qc = useQueryClient();
   return useMutation({

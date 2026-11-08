@@ -20,6 +20,8 @@ export interface ProblemaArrivo {
   foto: string[];
   nota: string | null;
   creato_il: string;
+  /** Quando è partita l'email di reclamo per questo pezzo. */
+  reclamo_inviato_il?: string | null;
   chi: string | null;
   riordino_po_id: string | null;
   riordino_numero: string | null;
@@ -208,6 +210,12 @@ export function abbinaRigheBolla(righe: RigaBolla[], posizioni: PosizioneArrivo[
     righeUsate.add(c.riga);
   }
   return esito;
+}
+
+/** Il testo del reclamo per l'editor email: a capo veri e niente HTML da chi ha scritto una nota. */
+export function reclamoInHtml(corpo: string): string {
+  const sicuro = corpo.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return sicuro.split(/\n{2,}/).map((blocco) => `<p>${blocco.replace(/\n/g, "<br>")}</p>`).join("");
 }
 
 const nomePosizione = (p: PosizioneArrivo) => [p.riferimento, p.nome].filter(Boolean).join(" — ");

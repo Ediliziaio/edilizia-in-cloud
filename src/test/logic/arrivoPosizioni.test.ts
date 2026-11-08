@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  abbinaRigheBolla, contiPosizione, descriviMisure, fraseCosaManca, misureNelTesto, statoPosizione, testoReclamo,
+  abbinaRigheBolla, contiPosizione, descriviMisure, fraseCosaManca, misureNelTesto, reclamoInHtml, statoPosizione, testoReclamo,
   type ElencoArrivo, type PosizioneArrivo, type ProblemaArrivo, type RigaBolla,
 } from "@/lib/arrivi/arrivoPosizioni";
 
@@ -128,5 +128,11 @@ describe("le regole nel database", () => {
     const correzioni = leggi("20290104130000_arrivo_correzioni.sql");
     expect(correzioni).toContain("when a_id is not null and b_id is not null then a_id = b_id");
     expect(correzioni).toContain("else a_order is not null and a_order = b_order");
+  });
+});
+
+describe("reclamo nell'editor email", () => {
+  it("mantiene paragrafi e a capo e non lascia passare HTML da una nota", () => {
+    expect(reclamoInHtml("Buongiorno,\n\n- riga <b>uno</b>\n- riga & due")).toBe("<p>Buongiorno,</p><p>- riga &lt;b&gt;uno&lt;/b&gt;<br>- riga &amp; due</p>");
   });
 });
