@@ -71,24 +71,30 @@ export function OrdineDetailHeader({
             <h1 className="text-base sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight line-clamp-2 sm:line-clamp-none max-sm:text-[15px]">
               {descrizione || "Commessa senza descrizione"}
             </h1>
-            <p className="text-xs sm:text-sm text-slate-500 mt-0.5 truncate">
-              <span className="sm:hidden font-mono font-semibold text-slate-600">{orderCode} · </span>
-              {(() => { try { return format(new Date(dataCreazione), "dd MMM yyyy", { locale: it }); } catch { return "—"; } })()} ·{" "}
-              <span className="font-medium text-slate-700">{nomeCliente}</span>
-            </p>
+            {/* Da telefono codice e cliente dividono la riga con le icone: una fila in meno. */}
+            <div className="mt-0.5 flex items-center gap-2">
+              <p className="min-w-0 flex-1 truncate text-xs text-slate-500 sm:text-sm">
+                <span className="sm:hidden font-mono font-semibold text-slate-600">{orderCode} · </span>
+                <span className="max-sm:hidden">{(() => { try { return format(new Date(dataCreazione), "dd MMM yyyy", { locale: it }); } catch { return "—"; } })()} · </span>
+                <span className="font-medium text-slate-700">{nomeCliente}</span>
+              </p>
+              {isMobile && azioniTelefono && <div className="flex shrink-0 items-center gap-1.5">{azioniTelefono}</div>}
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-wrap justify-end w-full sm:w-auto">
+        {!isMobile && <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-wrap justify-end w-full sm:w-auto">
           {/* Primary: Registra incasso — sempre visibile, porta al piano rate */}
-          <QuotePrimaryButton
-            size="sm"
-            onClick={onRegistraIncasso}
-            className="tap-compact flex-1 sm:flex-none whitespace-nowrap max-sm:h-9"
-          >
-            <Banknote className="h-3.5 w-3.5" />
-            Registra incasso
-          </QuotePrimaryButton>
-          {isMobile && azioniTelefono}
+          {/* Da telefono no: gli incassi si registrano da Economia. */}
+          {!isMobile && (
+            <QuotePrimaryButton
+              size="sm"
+              onClick={onRegistraIncasso}
+              className="tap-compact flex-1 sm:flex-none whitespace-nowrap max-sm:h-9"
+            >
+              <Banknote className="h-3.5 w-3.5" />
+              Registra incasso
+            </QuotePrimaryButton>
+          )}
           {/* Modifica — icona sola su mobile (il CTA incasso prende la larghezza),
               testo su desktop. Visibile solo se canEdit. */}
           {canEdit && !isMobile && (
@@ -103,7 +109,7 @@ export function OrdineDetailHeader({
               <span className="hidden sm:inline">Modifica</span>
             </Button>
           )}
-        </div>
+        </div>}
       </div>
     </div>
   );

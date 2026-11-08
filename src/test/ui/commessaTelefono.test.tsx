@@ -170,12 +170,12 @@ describe("Testata della commessa dal telefono", () => {
     return { modifica };
   };
 
-  it("una fila sola: «Registra incasso» e le icone delle azioni rapide; «Modifica» in «Altre azioni»", async () => {
+  it("una fila sola con le icone delle azioni rapide, senza «Registra incasso»; «Modifica» in «Altre azioni»", async () => {
     const modifica = vi.fn();
     testata(
       <OrderQuickActions inline orderId="o1" orderCode="ORD-001" companyId="c" customer={null} getPdfBlob={async () => null} onCreateTask={vi.fn()} onOpenFiles={vi.fn()} onModifica={modifica} />,
     );
-    expect(screen.getByRole("button", { name: /Registra incasso/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Registra incasso/ })).not.toBeInTheDocument();
     for (const nome of ["Nuova attività", "Documenti", "Altre azioni"]) {
       expect(screen.getByRole("button", { name: nome })).toHaveTextContent("");
     }

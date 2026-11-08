@@ -135,7 +135,10 @@ describe("Lavorazioni e squadra", () => {
     state.mobile = true;
     render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" />);
     expect(screen.queryByRole("button", {name: "Assegna squadra"})).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", {name: "Assegna"}));
+    // Da telefono si assegna dentro la fase: in testata resta solo «Aggiungi fasi».
+    const fase = screen.getByRole("button", {name: /^Opere murarie/});
+    if (fase.getAttribute("aria-expanded") === "false") fireEvent.click(fase);
+    fireEvent.click((await screen.findAllByRole("button", {name: /^Assegna/}))[0]);
     expect(await screen.findByRole("dialog", {name: "Assegna chi lavora"})).toBeInTheDocument();
     expect(screen.getByRole("button", {name: "Persona"})).toBeInTheDocument();
     expect(screen.getByRole("button", {name: "Squadra interna"})).toBeInTheDocument();

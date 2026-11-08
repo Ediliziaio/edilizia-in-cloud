@@ -165,7 +165,7 @@ export function SottofasiFase({
             </span>
           )}
           {puoModificare && onPianificaTutte && totale > 0 && (
-            <Button type="button" size="sm" variant={pianifica ? "secondary" : "outline"} className="h-7 px-2 text-xs" aria-pressed={pianifica}
+            <Button type="button" size="sm" variant={pianifica ? "secondary" : "outline"} className="h-7 px-2 text-xs max-md:hidden" aria-pressed={pianifica}
               onClick={() => setPianifica(!pianifica)}>
               <CalendarRange className="mr-1 h-3.5 w-3.5" aria-hidden="true" />{pianifica ? "Fine" : "Pianifica i giorni"}
             </Button>

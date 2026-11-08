@@ -869,22 +869,23 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
             </div>
           )}
           <div className="flex flex-wrap gap-1.5 sm:ml-auto">
-            {silvio}
+            {/* Da telefono solo «Aggiungi articolo»: computo, tavole e filtri sono lavoro da scrivania. */}
+            <span className="contents max-md:hidden">{silvio}</span>
             {puoScrivere && (
               <Button size="sm" className="tap-compact h-8 px-2.5 text-xs" onClick={() => nuovo(null)}>
                 <Plus className="mr-1 h-3.5 w-3.5" aria-hidden /> Aggiungi articolo
               </Button>
             )}
             {permessi.canEditOrders && (
-              <Button size="sm" variant={puoScrivere ? "outline" : "default"} className="tap-compact h-8 px-2.5 text-xs" onClick={() => setGenera(true)}>
+              <Button size="sm" variant={puoScrivere ? "outline" : "default"} className="tap-compact h-8 px-2.5 text-xs max-md:hidden" onClick={() => setGenera(true)}>
                 <Sparkles className="mr-1 h-3.5 w-3.5" aria-hidden /> Genera dal computo
               </Button>
             )}
-            <Button size="sm" variant="outline" className="tap-compact h-8 px-2.5 text-xs" onClick={() => setTavole(true)}>
+            <Button size="sm" variant="outline" className="tap-compact h-8 px-2.5 text-xs max-md:hidden" onClick={() => setTavole(true)}>
               <Layers className="mr-1 h-3.5 w-3.5" aria-hidden /> Tavole
             </Button>
             <Suggerimento testo="Scomposizioni: da una voce di computo ai suoi materiali">
-              <Button size="icon" variant="ghost" className="tap-compact h-8 w-8" asChild>
+              <Button size="icon" variant="ghost" className="tap-compact h-8 w-8 max-md:hidden" asChild>
                 <Link to="/azienda/scomposizioni" aria-label="Scomposizioni"><Library className="h-4 w-4" aria-hidden /></Link>
               </Button>
             </Suggerimento>
@@ -892,7 +893,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
         </div>
 
         {tutteRighe.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-2 text-xs max-md:hidden">
             <div className="inline-flex rounded-md border bg-card p-0.5" role="group" aria-label="Provenienza">
               {([["tutti", "Tutti"], ["giacenza", "Da giacenza"], ["fornitore", "Da fornitore"]] as [FiltroFonte, string][]).map(([v, l]) => (
                 <button key={v} type="button" aria-pressed={filtro === v} className={cn("tap-compact rounded px-2.5 py-1", filtro === v && "bg-foreground text-background")} onClick={() => setFiltro(v)}>{l}</button>

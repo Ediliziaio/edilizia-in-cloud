@@ -1558,12 +1558,15 @@ function OrderDetailInner() {
       <StrisciaSilvioCommessa orderId={id!} companyId={companyId} puoModificare={permissions.canEditOrders} />
       <PianoDiVoloCommessa orderId={id!} companyId={companyId} puoModificare={permissions.canEditOrders} />
       {/* Fase 2: «Completa al 34 %» e «Completa con Silvio», dietro lo stesso interruttore. */}
-      <CompletaConSilvio orderId={id!} companyId={companyId} orderCode={order.order_code} puoModificare={permissions.canEditOrders}
-        chiusa={["completato", "annullato"].includes(String(order.status)) || !!operationalIntervention} />
+      {/* Da telefono no: è lavoro da scrivania e occupava la prima schermata. */}
+      {!isMobile && <CompletaConSilvio orderId={id!} companyId={companyId} orderCode={order.order_code} puoModificare={permissions.canEditOrders}
+        chiusa={["completato", "annullato"].includes(String(order.status)) || !!operationalIntervention} />}
 
       {/* Da telefono niente px-3: <main> ha già il suo margine (prima i riquadri
           stavano a 24px dal bordo dello schermo). */}
       <div className="px-0 py-2 sm:px-6 sm:py-6 space-y-3 sm:space-y-6">
+        {/* Da telefono numeri e riepilogo stanno nella Panoramica: nelle altre schede si arriva subito al lavoro. */}
+        {(!isMobile || activeTab === "panoramica") && <>
         {inAppalto ? (
           <RiepilogoAppaltoCommessa
             totali={totaliAppalto}
@@ -1631,6 +1634,7 @@ function OrderDetailInner() {
           // Il semaforo dei tempi non dice niente su una commessa già finita.
           tempi={phaseProgress && phaseProgress.total > 0 && phaseProgress.done === phaseProgress.total ? null : <OrderScheduleBadge orderId={id!} />}
         />
+        </>}
         {contractLink.data?.workflow_kind === "contratto" && <ContractCosts key={id} contractId={id!} financeConfirmed={!contractFinancePending} />}
         {contractLink.data?.workflow_kind === "intervento" && <ContractInterventions key={id} orderId={id!} />}
         <Tabs
@@ -1713,7 +1717,7 @@ function OrderDetailInner() {
                 snapshot={{ name: order.client_name, email: order.client_email, phone: order.client_phone }}
                 indirizzoLavori={order.indirizzo_lavori || order.work_address}
               />
-              {id && <details className="rounded-lg border bg-card p-4"><summary className="cursor-pointer text-sm font-semibold">Campi aggiuntivi della commessa</summary><p className="my-2 text-xs text-muted-foreground">Dati interni, senza modificare importi, contratto o documento cliente.</p><EntityCustomFieldsSection entityType="order" entityId={id} /></details>}
+              {id && !isMobile && <details className="rounded-lg border bg-card p-4"><summary className="cursor-pointer text-sm font-semibold">Campi aggiuntivi della commessa</summary><p className="my-2 text-xs text-muted-foreground">Dati interni, senza modificare importi, contratto o documento cliente.</p><EntityCustomFieldsSection entityType="order" entityId={id} /></details>}
               </div>
               <div className="space-y-4">
                 <QuoteCard title="Lavoro previsto" icon={<HardHat className="h-4 w-4" />}>
@@ -1757,11 +1761,12 @@ function OrderDetailInner() {
                 />
                   <LinkedAppointments key={id} orderId={id!} editable={permissions.canEditOrders} defaultAddress={order.work_address || order.customer?.address} />
               </section>
-            <div id="section-documenti" className="scroll-mt-24">
+            {/* Da telefono i documenti si aprono dall'icona in testata: qui erano quasi mille pixel. */}
+            {!isMobile && <div id="section-documenti" className="scroll-mt-24">
               <OrderAttachments key={id} orderId={id!} editable={permissions.canEditOrders}
                 actions={permissions.canEditOrders && effectiveCompany?.id && id ? <ContrattoAIDialog orderId={id} companyId={effectiveCompany.id} /> : undefined}
               />
-            </div>
+            </div>}
             </OrderViewTransition>
           </TabsContent>
 
@@ -2290,7 +2295,7 @@ function OrderDetailInner() {
                 <OrderResourceStatistics key={id} orderId={id!} onManage={() => navigateTo({ tab: "cantiere", cantiereView: "lavorazioni" })} />
               </OrderDisclosure>
             </div>}
-            {vistaCantiere === "lavorazioni" && <div id="section-mezzi" className="scroll-mt-24">
+            {vistaCantiere === "lavorazioni" && !isMobile && <div id="section-mezzi" className="scroll-mt-24">
               <ErrorBoundary><PianoMezziCantiere key={id} orderId={id!} /></ErrorBoundary>
             </div>}
             {vistaCantiere === "diario" && <>

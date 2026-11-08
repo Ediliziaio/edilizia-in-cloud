@@ -457,7 +457,8 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
               </Button>
             )}
             {showTeam && (canEditOrders || puoSquadre) && <>
-              <Button size="sm" variant="outline" className="min-h-9 font-semibold" onClick={() => setAssegnaPersona(true)}><UsersRound className="mr-1 h-4 w-4" />Assegna</Button>
+              {/* Da telefono si assegna dentro la fase: qui solo «Aggiungi fasi». */}
+              {!telefono && <Button size="sm" variant="outline" className="min-h-9 font-semibold" onClick={() => setAssegnaPersona(true)}><UsersRound className="mr-1 h-4 w-4" />Assegna</Button>}
               <AddAssignmentDialog orderId={orderId}
               aperto={assegnaPersona} onAperto={setAssegnaPersona}
               phaseId={null}
@@ -470,7 +471,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
               triggerClassName={view ? "border border-slate-200 bg-white text-slate-700 shadow-none hover:bg-slate-50" : AZIONE_PIENA.persona}
               onAdd={(payload, opts) => addAssignment.mutate(payload, opts)}
             /></>}
-            {lavoriExtra}
+            {!telefono && lavoriExtra}
             {canEditOrders && <>
             <Dialog open={newPhaseOpen} onOpenChange={(o) => (o ? setNewPhaseOpen(true) : closePhaseDialog())}>
               <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
@@ -695,7 +696,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
             Capocantiere, squadre e figure di sicurezza
           </button>
         )}
-        {showTeam && <section hidden={modoFasi === "tabella" && !telefono && !responsabiliAperti} ref={organizationRef} id="section-squadra" aria-label="Responsabili e assegnazioni generali" className="space-y-3 scroll-mt-24">
+        {showTeam && <section hidden={(telefono || modoFasi === "tabella") && !responsabiliAperti} ref={organizationRef} id="section-squadra" aria-label="Responsabili e assegnazioni generali" className="space-y-3 scroll-mt-24">
           {!isLoading && !isError && <>
           <AppCantiere orderId={orderId} modificabile={puoSquadre} nomiSquadre={nomiSquadre} compact gestione organizzazione={{
             aperta: organizzazioneAperta,
@@ -869,7 +870,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
             ) : <>
             {/* Una riga sola (06/10/2026): titolo, filtri, ricerca e completate
                 stavano su quattro righe, con tanto spazio vuoto. */}
-            {telefono ? (mostraFiltri || attentionCount > 0) && (
+            {telefono ? mostraFiltri && (
               <CercaConFiltri
                 valore={search}
                 onCambia={setSearch}
@@ -1602,7 +1603,7 @@ function PhaseCard({
                 {...azioniSottofasi}
               />
 
-              </>}{vedi("economia") && <>
+              </>}{vedi("economia") && !isMobile && <>
               {/* ── Economia: venduto, costo previsto, consuntivo, margine ── */}
               {economia && (
                 <EconomiaFaseRiga
@@ -1658,7 +1659,7 @@ function PhaseCard({
                 </div>
               </div>
 
-              </>}{vedi("mezzi") && <>
+              </>}{vedi("mezzi") && !isMobile && <>
               {/* ── Mezzi e attrezzi di chi fa la fase ── */}
               {(mezziFase.length > 0 || canEditOrders || canViewMezzi) && (
                 <div className="flex flex-wrap items-start gap-2">
@@ -1688,7 +1689,7 @@ function PhaseCard({
                 </div>
               </div>
 
-              </>}{vedi("materiali") && <>
+              </>}{vedi("materiali") && (!isMobile || planningIssues.some((i) => i.section === "materials")) && <>
               {/* ── Materiali della fase (order_items.phase_id) ── */}
               {(canEditOrders || materials.length > 0 || unassignedMaterials.length > 0) && (
                 <div ref={materialsRef} tabIndex={-1} aria-label={`Materiali di ${phase.name}`} className="flex flex-wrap items-start gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
