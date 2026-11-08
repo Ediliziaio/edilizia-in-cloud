@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useControlloDocumento } from "@/hooks/useControlloDocumento";
 import { EmailComposeDialog } from "@/pages/azienda/email/components/EmailComposeDialog";
 import {
@@ -26,8 +27,8 @@ interface Riferimento {
   torna: string;
 }
 
-function Differenze({ riga }: { riga: RigaConfronto }) {
-  const campi = riga.campi.filter((c) => c.esito !== "verde");
+function Differenze({ riga, canViewCosts }: { riga: RigaConfronto; canViewCosts: boolean }) {
+  const campi = riga.campi.filter((c) => c.esito !== "verde" && (canViewCosts || c.campo !== "Prezzo"));
   if (!campi.length) return null;
   return (
     <ul className="mt-1 space-y-0.5 text-xs text-slate-600">
@@ -43,6 +44,7 @@ export default function ControlloDocumentoFornitore() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { effectiveCompany } = useAuth();
+  const { canViewCosts } = usePermissions();
   const { controllo, caricamento, decidi, accetta } = useControlloDocumento(id);
   const [accetto, setAccetto] = useState(false);
   const [motivo, setMotivo] = useState("");
@@ -139,7 +141,7 @@ export default function ControlloDocumentoFornitore() {
               <tr key={r.chiave} className="border-b align-top last:border-0">
                 <td className="p-2 pl-3"><span className="font-medium">{r.riferimento ?? r.descrizione}</span>{r.riferimento && <span className="block text-xs text-muted-foreground">{r.descrizione}</span>}</td>
                 <td className="p-2">{r.chiesto}</td>
-                <td className="p-2">{r.letto}<Differenze riga={r} />{r.da_offerta && <span className="mt-1 block text-xs text-slate-500">Uguale all'offerta già controllata</span>}</td>
+                <td className="p-2">{r.letto}<Differenze riga={r} canViewCosts={canViewCosts} />{r.da_offerta && <span className="mt-1 block text-xs text-slate-500">Uguale all'offerta già controllata</span>}</td>
                 <td className="p-2 pr-3">
                   <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${ESITO_CLASSI[r.esito]}`}>{r.deciso_da_persona ? `${ESITO_LABEL[r.esito]} (a mano)` : ESITO_LABEL[r.esito]}</span>
                   {r.esito === "da_controllare" && (

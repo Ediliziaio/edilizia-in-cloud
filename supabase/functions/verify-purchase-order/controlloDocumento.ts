@@ -119,7 +119,7 @@ async function offertaControllata(db: Db, po: { id: string; supplier_id: string 
   const versoRiga = new Map(chieste.flatMap((r) => (r.rfq_item_id ? [[r.rfq_item_id, r.chiave] as const] : [])));
   const righe = ((c.righe ?? []) as RigaConfronto[]).flatMap((o) => {
     const chiave = versoRiga.get(o.chiave);
-    return chiave ? [{ ...o, chiave, deciso_da_persona: o.deciso_da_persona || !!c.accettato_il }] : [];
+    return chiave ? [{ ...o, chiave, deciso_da_persona: o.deciso_da_persona || (!!c.accettato_il && o.esito !== "verde") }] : [];
   });
   return { righe, file_hash: c.file_hash as string, lettura: c.lettura as Lettura };
 }

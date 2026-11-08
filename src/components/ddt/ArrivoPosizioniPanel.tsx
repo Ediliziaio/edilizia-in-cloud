@@ -243,7 +243,7 @@ export function ArrivoPosizioniPanel({ odaId, ddtId, nascondiSeVuoto, inCantiere
                 <div className="space-y-2">
                   {Number(p.quantita) > 1 && (
                     <label className="flex items-center justify-between gap-2 text-sm">
-                      <span>Quanti pezzi</span>
+                      <span>Quanti{p.unita && p.unita !== "pz" ? ` ${p.unita}` : " pezzi"}</span>
                       <input inputMode="decimal" value={s.quantita} onChange={e => cambia(p.poi_id, { quantita: e.target.value })}
                         aria-label={`Quanti pezzi per ${nome}`} className="h-11 w-20 rounded-lg border bg-background px-2 text-center text-base" />
                     </label>

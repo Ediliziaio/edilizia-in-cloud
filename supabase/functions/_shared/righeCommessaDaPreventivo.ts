@@ -33,7 +33,7 @@ export type RigaCommessa = {
   discount_percent: number | null;
   family_id: string | null;
   axis_selections: Record<string, string> | null;
-  misure_preventivo: { larghezza?: number; altezza?: number } | null;
+  misure_preventivo: { larghezza_mm?: number; altezza_mm?: number } | null;
   measure_status: "da_rilevare" | null;
 };
 

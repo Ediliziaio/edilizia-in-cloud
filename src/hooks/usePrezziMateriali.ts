@@ -22,6 +22,8 @@ export interface MaterialePerPrezzo {
   article_template_id?: string | null;
   scomposizione_id?: string | null;
   natura_riga?: string | null;
+  gruppo_id?: string | null;
+  measure_status?: string | null;
 }
 
 export function usePrezziProposti(orderId: string, materiali: MaterialePerPrezzo[], abilitato: boolean) {
@@ -29,7 +31,7 @@ export function usePrezziProposti(orderId: string, materiali: MaterialePerPrezzo
   const companyId = effectiveCompany?.id;
   // Solo i materiali senza prezzo: gli altri il prezzo ce l'hanno.
   const senza = useMemo(
-    () => materiali.filter((m) => (m.natura_riga ?? "materiale") === "materiale" && !prezzoAttuale(m)),
+    () => materiali.filter((m) => (m.natura_riga ?? "materiale") === "materiale" && !m.gruppo_id && !m.measure_status && !prezzoAttuale(m)),
     [materiali],
   );
   const firma = senza.map((m) => m.id).sort().join(",");

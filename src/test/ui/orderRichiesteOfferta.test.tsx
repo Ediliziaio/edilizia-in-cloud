@@ -69,7 +69,10 @@ describe("Richieste d'offerta della commessa", () => {
     mostra();
     fireEvent.click(screen.getByRole("button", { name: "Nuova richiesta" }));
     expect(screen.getByText("Art ok")).toBeInTheDocument();
-    for (const n of ["Art gia", "Art coperto", "Art nonvalidata"]) expect(screen.queryByText(n)).toBeNull();
+    // Già chiesto a un fornitore resta sceglibile, per chiederlo anche a un altro, e lo dice.
+    expect(screen.getByText("Art gia")).toBeInTheDocument();
+    expect(screen.getByText("già chiesto")).toBeInTheDocument();
+    for (const n of ["Art coperto", "Art nonvalidata"]) expect(screen.queryByText(n)).toBeNull();
     expect(screen.getByText("Aluplast")).toBeInTheDocument();
     expect(screen.queryByText("Vecchio")).toBeNull();
   });

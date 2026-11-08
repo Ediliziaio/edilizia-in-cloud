@@ -221,7 +221,7 @@ export function testoReclamo(elenco: ElencoArrivo, problemiIds: string[]): { ogg
       if (!scelti.has(x.id)) continue;
       const misure = descriviMisure(p.misure, p.misura_tipo);
       const cosa = x.esito === "danneggiata" ? "arrivata danneggiata" : x.esito === "sbagliata" ? "arrivata sbagliata" : "non arrivata";
-      righe.push(`- ${nomePosizione(p)}${misure ? ` (${misure})` : ""}${p.sku ? `, codice ${p.sku}` : ""}: ${fmt(Number(x.quantita))} pz ${cosa}${x.nota ? `. ${x.nota}` : ""}`);
+      righe.push(`- ${nomePosizione(p)}${misure ? ` (${misure})` : ""}${p.sku ? `, codice ${p.sku}` : ""}: ${fmt(Number(x.quantita))} ${p.unita ?? "pz"} ${cosa}${x.nota ? `. ${x.nota}` : ""}`);
     }
   }
   const soloMancanti = elenco.posizioni.every(p => p.problemi.every(x => !scelti.has(x.id) || x.esito === "mancante"));

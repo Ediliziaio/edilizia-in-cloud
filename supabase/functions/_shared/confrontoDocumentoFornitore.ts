@@ -106,7 +106,7 @@ export function categoriaRiga(r: Pick<RigaChiesta, "descrizione" | "dettagli" | 
   const t = norm(`${r.descrizione} ${r.dettagli ?? ""}`);
   if (/\b(pergol|tenda|tende|bioclimatic)/.test(t)) return "pergole";
   if (/\b(piastrell|gres|rivestiment|pavimento|mosaico|parquet|laminato)/.test(t)) return "piastrelle";
-  if (/\b(serrament|finestr|portafinestr|infiss|persian|tapparell|zanzarier|cassonett|scuro|scuri|porta|porte|blindat)/.test(t)) return "serramenti";
+  if (/\b(serrament|finestr|portafinestr|infiss|persian|tapparell|zanzarier|cassonett|blindat)/.test(t) || /^scuro\b|\bscuri\b|\bporte\b|\bporta\b(?!\s*(asciugamani|sapone|salviette|rotolo|scopino|oggetti))/.test(t)) return "serramenti";
   return "generico";
 }
 
@@ -253,12 +253,13 @@ export function confrontaRiga(r: RigaChiesta, l: RigaLetta, op: OpzioniConfronto
 
   aggiungi(confrontaQuantita(r, l, categoria, minima));
 
-  if (categoria === "serramenti" || categoria === "pergole") {
+  const conMisure = r.misure?.larghezza != null || r.misure?.altezza != null || r.misure?.profondita != null;
+  if (categoria === "serramenti" || categoria === "pergole" || conMisure) {
     const m = r.misure ?? {};
     if (m.larghezza != null) aggiungi(confrontaMisura("Larghezza", m.larghezza, l.larghezza_mm, !incerta(l, "larghezza_mm", minima), toll));
     if (m.altezza != null) aggiungi(confrontaMisura("Altezza", m.altezza, l.altezza_mm, !incerta(l, "altezza_mm", minima), toll));
     if (m.profondita != null) aggiungi(confrontaMisura("Profondità", m.profondita, l.profondita_mm, !incerta(l, "profondita_mm", minima), toll));
-    if (m.larghezza == null && m.altezza == null && m.mq == null) {
+    if ((categoria === "serramenti" || categoria === "pergole") && m.larghezza == null && m.altezza == null && m.mq == null) {
       campi.push({ campo: "Misure", chiesto: null, letto: testoLetto(l), esito: "da_controllare", nota: "Nell'ordine non ci sono misure da confrontare" });
     }
   }
@@ -391,7 +392,7 @@ export function ereditaDaOfferta(conferma: RigaConfronto[], offerta: RigaConfron
   const perChiave = new Map(offerta.map((r) => [r.chiave, r]));
   return conferma.map((r) => {
     const o = perChiave.get(r.chiave);
-    if (!o || o.stato !== "abbinata" || r.stato !== "abbinata" || o.letto !== r.letto) return r;
+    if (!o || o.stato !== "abbinata" || r.stato !== "abbinata" || o.letto !== r.letto || o.chiesto !== r.chiesto) return r;
     if (r.esito === "rosso" || r.esito === "da_controllare") {
       if (!o.deciso_da_persona) return r;
     }

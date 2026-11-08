@@ -146,3 +146,27 @@ describe("letture", () => {
     expect(esitoConsegna(null, "2026-12-10")).toBeNull();
   });
 });
+
+describe("revisione del flusso su misura", () => {
+  const riga = (descrizione: string): Pick<RigaChiesta, "descrizione" | "dettagli" | "unita" | "misure"> => ({ descrizione, dettagli: null, unita: "pz", misure: null });
+
+  it("un colore scuro e un portasciugamani non sono serramenti; porte e scuri sì", () => {
+    expect(categoriaRiga(riga("Tinta grigio scuro"))).toBe("generico");
+    expect(categoriaRiga(riga("Porta asciugamani cromato"))).toBe("generico");
+    expect(categoriaRiga(riga("Porta interna laccata"))).toBe("serramenti");
+    expect(categoriaRiga(riga("Scuri in legno"))).toBe("serramenti");
+  });
+
+  it("le misure si controllano anche su una voce generica, se sono state chieste", () => {
+    const r = finestra({ descrizione: "Mobile bagno", colore: null, apertura: null, misure: { larghezza: 800, altezza: 500 } });
+    const { righe } = confrontaDocumento([r], [letta({ descrizione: "Mobile bagno", larghezza_mm: 900, altezza_mm: 500 })]);
+    expect(righe[0].esito).toBe("rosso");
+  });
+
+  it("la decisione sull'offerta non vale se nel frattempo è cambiato ciò che si è chiesto", () => {
+    const base = confrontaDocumento([finestra()], [letta({ larghezza_mm: 1300 })]).righe;
+    const decisa = base.map((x) => ({ ...x, esito: "verde" as const, deciso_da_persona: true }));
+    const conferma = base.map((x) => ({ ...x, chiesto: `${x.chiesto} (nuova misura)` }));
+    expect(ereditaDaOfferta(conferma, decisa)[0].esito).toBe("rosso");
+  });
+});
