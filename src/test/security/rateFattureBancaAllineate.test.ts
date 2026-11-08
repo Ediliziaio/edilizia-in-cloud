@@ -130,7 +130,7 @@ describe("in Tesoreria la riconciliazione di una fattura interna si scollega con
 
   it("l'abbinamento a mano passa dalla stessa RPC della notte", () => {
     expect(tesoreria).toContain('supabase.rpc("riconcilia_bonifico_fattura"');
-    expect(tesoreria).toContain("if (eFatturaInterna(inv)) return confirmMatchInterna(tx, inv, matchType);");
+    expect(tesoreria).toContain("if (eFatturaInterna(inv)) return confirmMatchInterna(tx, inv, matchType, notaScelta);");
   });
 });
 

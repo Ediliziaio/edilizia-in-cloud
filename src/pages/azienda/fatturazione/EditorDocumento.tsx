@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo, useState, useCallback } from "react";
+import { useDeferredValue, useEffect, useRef, useMemo, useState, useCallback } from "react";
 import { useParams, useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { Loader2, AlertTriangle } from "lucide-react";
 import {
@@ -36,7 +36,11 @@ import { EditorRigheSection } from "./editor/EditorRigheSection";
 import { EditorTotaliSection } from "./editor/EditorTotaliSection";
 import { EditorPagamentoSection } from "./editor/EditorPagamentoSection";
 import { EditorNoteSection } from "./editor/EditorNoteSection";
+import { APRI_FATTURAZIONE_ELETTRONICA } from "./editor/EditorFatturazioneElettronicaSection";
 import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
+import { PreviewFattura } from "@/components/fatturazione/PreviewFattura";
+import { useAuth } from "@/contexts/AuthContext";
+import { PanelRight } from "lucide-react";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { TIPI_SDI } from "@/lib/fatturazione/sdiCassetto";
 import { EditorPreviewDialog } from "./editor/EditorPreviewDialog";
@@ -363,6 +367,39 @@ export default function EditorDocumento() {
   );
   const criticalErrorCount = validationErrors.filter((e) => e.severity === "error").length;
 
+  const vaiAlCampo = useCallback((campo: string) => {
+    const sezione = campo.startsWith("righe") ? "ed-righe"
+      : campo === "cliente" ? "ed-cliente"
+      : campo === "scadenze" ? "ed-pagamento"
+      : campo === "sconto_globale" ? "ed-totali"
+      : ["cig", "esigibilita_iva", "bollo_virtuale"].includes(campo) ? "ed-fe"
+      : "ed-dati";
+    if (sezione === "ed-fe") window.dispatchEvent(new Event(APRI_FATTURAZIONE_ELETTRONICA));
+    const el = document.getElementById(sezione);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("ring-2", "ring-destructive/50", "rounded-lg");
+    window.setTimeout(() => el.classList.remove("ring-2", "ring-destructive/50", "rounded-lg"), 1800);
+  }, []);
+
+  // Il foglio accanto al modulo, sugli schermi che ne hanno lo spazio. La scelta si ricorda.
+  const [anteprimaAccanto, setAnteprimaAccanto] = useState(() => {
+    try {
+      const salvata = localStorage.getItem("editor-fattura-anteprima");
+      if (salvata !== null) return salvata === "1";
+    } catch { /* senza memoria si usa la larghezza */ }
+    return typeof window !== "undefined" && window.innerWidth >= 1536;
+  });
+  const cambiaAnteprima = useCallback(() => {
+    setAnteprimaAccanto((prima) => {
+      try { localStorage.setItem("editor-fattura-anteprima", prima ? "0" : "1"); } catch { /* facoltativo */ }
+      return !prima;
+    });
+  }, []);
+  // Il foglio segue con calma: scrivere nel modulo resta fluido.
+  const statoAnteprima = useDeferredValue(state);
+  const { effectiveCompany: aziendaAnteprima } = useAuth();
+
   if (isCreate || isLoading || !state._initialized) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -408,6 +445,7 @@ export default function EditorDocumento() {
         onFieldChange={(field, value) => dispatch({ type: "SET_FIELD", field, value })}
         validationErrorCount={criticalErrorCount}
         validationErrors={validationErrors}
+        onVaiAlCampo={vaiAlCampo}
         onPreview={() => setPreviewOpen(true)}
         onBack={handleBack}
         onInviaSDI={handleInviaSDI}
@@ -424,7 +462,14 @@ export default function EditorDocumento() {
 
       {/* Single-page scrollable form — full width, like Fatture in Cloud */}
       <div className="flex-1 overflow-auto bg-gradient-to-b from-muted/40 to-muted/20">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-5 pb-24">
+        <div className={anteprimaAccanto ? "mx-auto flex max-w-[1800px] items-start gap-4 px-4 sm:px-6" : undefined}>
+        <div className={anteprimaAccanto ? "min-w-0 flex-1 py-6 space-y-5 pb-24" : "max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-5 pb-24"}>
+          <div className="hidden justify-end xl:flex">
+            <button type="button" onClick={cambiaAnteprima} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
+              <PanelRight className="h-3.5 w-3.5" />
+              {anteprimaAccanto ? "Nascondi anteprima" : "Anteprima a lato"}
+            </button>
+          </div>
 
           {/* NC banner */}
           {state.tipo === "nota_credito" && state.documento_correlato_id && (
@@ -493,22 +538,24 @@ export default function EditorDocumento() {
           ) : (
             <>
               {/* ═══ TOP SECTION: 3-column layout (Cliente | Dati + FE + Contributi | Pagamento + Opzioni + Personalizzazione) ═══ */}
-              <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_280px] gap-4">
+              <div className={`grid grid-cols-1 gap-4 ${anteprimaAccanto ? "2xl:grid-cols-2" : "lg:grid-cols-[1fr_1fr_280px]"}`}>
                 {/* LEFT: Cliente */}
-                <EditorClienteSection state={state} dispatch={dispatch} disabled={!modificabile} />
+                <div id="ed-cliente" className="h-full [&>*]:h-full">
+                  <EditorClienteSection state={state} dispatch={dispatch} disabled={!modificabile} />
+                </div>
 
                 {/* CENTER: Dati documento + Fatturazione Elettronica + Contributi e Ritenute */}
                 <div className="space-y-4">
-                  <EditorDatiDocumento state={state} dispatch={dispatch} disabled={!modificabile} dataBloccata={scartata} />
+                  <div id="ed-dati"><EditorDatiDocumento state={state} dispatch={dispatch} disabled={!modificabile} dataBloccata={scartata} /></div>
                   {state.tipo !== "preventivo" && state.tipo !== "proforma" && (
-                    <EditorFatturazioneElettronicaSection state={state} dispatch={dispatch} disabled={!modificabile} />
+                    <div id="ed-fe"><EditorFatturazioneElettronicaSection state={state} dispatch={dispatch} disabled={!modificabile} /></div>
                   )}
                   <EditorContributiRitenuteSection state={state} dispatch={dispatch} disabled={!modificabile} />
                 </div>
 
                 {/* RIGHT: Pagamento + Opzioni avanzate + Personalizzazione */}
                 <div className="space-y-4">
-                  <EditorPagamentoSection state={state} dispatch={dispatch} disabled={!modificabile} />
+                  <div id="ed-pagamento"><EditorPagamentoSection state={state} dispatch={dispatch} disabled={!modificabile} /></div>
                   <EditorOpzioniAvanzateSection state={state} dispatch={dispatch} disabled={!modificabile} />
                   <EditorPersonalizzazioneSection state={state} dispatch={dispatch} disabled={!modificabile} />
                 </div>
@@ -523,8 +570,8 @@ export default function EditorDocumento() {
 
           {/* ═══ RIGHE + RIEPILOGO ═══ */}
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_200px] gap-4">
-            <EditorRigheSection state={state} dispatch={dispatch} disabled={!modificabile} />
-            <EditorTotaliSection state={state} dispatch={dispatch} disabled={!modificabile} />
+            <div id="ed-righe" className="min-w-0"><EditorRigheSection state={state} dispatch={dispatch} disabled={!modificabile} /></div>
+            <div id="ed-totali"><EditorTotaliSection state={state} dispatch={dispatch} disabled={!modificabile} /></div>
           </div>
 
           {/* ═══ NOTE ═══ */}
@@ -544,6 +591,14 @@ export default function EditorDocumento() {
               <p className="text-xs text-muted-foreground">Allegati: si possono aggiungere appena la bozza è salvata.</p>
             )}
           </div>
+        </div>
+        {anteprimaAccanto && (
+          <aside aria-label="Anteprima del documento" className="sticky top-4 mt-6 hidden max-h-[calc(100vh-8rem)] w-[460px] shrink-0 justify-center overflow-y-auto overflow-x-hidden rounded-lg border bg-muted/30 xl:flex">
+            <div className="shrink-0">
+              <PreviewFattura documento={statoAnteprima} azienda={aziendaAnagrafica ?? null} logoAziendale={aziendaAnteprima?.logo_url} scale={0.55} />
+            </div>
+          </aside>
+        )}
         </div>
       </div>
 

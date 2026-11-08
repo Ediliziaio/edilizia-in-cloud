@@ -16,11 +16,19 @@ interface Props {
   disabled?: boolean;
 }
 
+export const APRI_FATTURAZIONE_ELETTRONICA = "editor-apri-fatturazione-elettronica";
+
 export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled }: Props) {
-  const [open, setOpen] = useState(true);
   const { data: azienda } = useAnagraficaAzienda();
   const snap = state.cliente_snapshot;
   const isPA = snap?.tipo_cliente === "PA";
+  // Chiusa di serie: i dati arrivano dal cliente. Verso la PA servono CIG e CUP.
+  const [open, setOpen] = useState(isPA);
+  useEffect(() => {
+    const apri = () => setOpen(true);
+    window.addEventListener(APRI_FATTURAZIONE_ELETTRONICA, apri);
+    return () => window.removeEventListener(APRI_FATTURAZIONE_ELETTRONICA, apri);
+  }, []);
   const isBonifico = state.metodo_pagamento_codice === "MP05";
 
   function setField(field: string, value: unknown) {

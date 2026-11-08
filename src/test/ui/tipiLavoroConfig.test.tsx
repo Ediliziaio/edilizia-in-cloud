@@ -5,16 +5,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({
   settore: "serramenti" as string | null,
   tipiLavoro: null as string[] | null,
+  misureRegola: {} as Record<string, string>,
   salva: vi.fn(),
 }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "c1", sector: state.settore } }) }));
 vi.mock("@/hooks/useImpostazioniAvvio", () => ({
-  useImpostazioniAvvio: () => ({ tipiLavoro: state.tipiLavoro, modelloFasi: null as string | null, controlli: [] as string[], isLoading: false, salva: { mutate: state.salva, isPending: false } }),
+  useImpostazioniAvvio: () => ({ tipiLavoro: state.tipiLavoro, modelloFasi: null as string | null, controlli: [] as string[], misureRegola: state.misureRegola, isLoading: false, salva: { mutate: state.salva, isPending: false } }),
 }));
 
 import TipiLavoroConfig from "@/components/settings/TipiLavoroConfig";
 
-beforeEach(() => { vi.clearAllMocks(); Object.assign(state, { settore: "serramenti", tipiLavoro: null }); });
+beforeEach(() => { vi.clearAllMocks(); Object.assign(state, { settore: "serramenti", tipiLavoro: null, misureRegola: {} }); });
 afterEach(cleanup);
 
 describe("I lavori che facciamo", () => {
@@ -40,6 +41,13 @@ describe("I lavori che facciamo", () => {
     render(<TipiLavoroConfig puoModificare />);
     expect(screen.getByRole("checkbox", { name: "Bagni" })).not.toBeChecked();
     expect(screen.getByRole("status")).toHaveTextContent("tutti i modelli");
+  });
+  it("i serramenti aspettano il sopralluogo, e la scelta si salva per tipo di lavoro", () => {
+    render(<TipiLavoroConfig puoModificare />);
+    const regola = screen.getByRole("checkbox", { name: "Sopralluogo per Serramenti e infissi" });
+    expect(regola).toBeChecked();
+    fireEvent.click(regola);
+    expect(state.salva).toHaveBeenCalledWith({ misureRegola: { serramenti: "definitive" } });
   });
   it("chi non può modificare vede ma non cambia", () => {
     render(<TipiLavoroConfig puoModificare={false} />);

@@ -2,6 +2,7 @@ import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { formatDateIt } from "@/lib/formatters";
 import { prettyTxDesc } from "./txLabel";
+import { RipartizioneMovimento, type CandidatoRipartizione, type RigaRipartizione } from "./RipartizioneMovimento";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ import {
   fmtEur,
   coincideImporto,
   computeMatchScore,
+  fuzzyMatch,
   computePaymentReversal,
   detectReconAnomalies,
   pickBestSuggestion,
@@ -174,9 +176,24 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
       if (interneRes.error) throw interneRes.error;
       // Un accredito con una riconciliazione attiva è già consumato, anche
       // quando nessun linked_* lo dice (fattura interna senza scadenza).
-      const giaAbbinati = new Set<string>((recRes.data || []).map((r: { transaction_id: string }) => r.transaction_id));
-      setTransactions((txRes.data || []).filter((t) => !giaAbbinati.has(t.id)));
-      setDebitTxs((debRes.data || []).filter((t: any) => !(/giroconto/i.test(String(t.category || "")) || /giroconto/i.test(String(t.description || "")))));
+      // Un movimento ripartito resta in lista per quel che avanza: da qui in poi
+      // l'importo è il resto, così punteggi, totali e proposte parlano di quello.
+      const giaAbbinati = new Set<string>();
+      const ripartitoPerMovimento = new Map<string, number>();
+      for (const r of (recRes.data || []) as Array<{ transaction_id: string; matched_amount: number | string; ripartita?: boolean }>) {
+        if (r.ripartita) ripartitoPerMovimento.set(r.transaction_id, (ripartitoPerMovimento.get(r.transaction_id) ?? 0) + Number(r.matched_amount || 0));
+        else giaAbbinati.add(r.transaction_id);
+      }
+      const col_resto = <T extends { id: string; amount: number }>(righe: T[]): T[] => righe.flatMap((t) => {
+        if (giaAbbinati.has(t.id)) return [];
+        const usato = ripartitoPerMovimento.get(t.id);
+        if (usato === undefined) return [t];
+        const resto = Math.round((Math.abs(Number(t.amount)) - usato) * 100) / 100;
+        if (resto <= 0) return [];
+        return [{ ...t, amount: Math.sign(Number(t.amount)) * resto, _totale: Math.abs(Number(t.amount)), _ripartito: usato }];
+      });
+      setTransactions(col_resto(txRes.data || []));
+      setDebitTxs(col_resto(debRes.data || []).filter((t: any) => !(/giroconto/i.test(String(t.category || "")) || /giroconto/i.test(String(t.description || "")))));
       setScadenze(scadRes.data || []);
       // (i giroconti interni restano nei dati: vengono separati a valle,
       // così KPI e anomalie parlano solo di incassi veri)
@@ -301,7 +318,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
 
   // Fattura interna: il bonifico diventa il suo incasso (movimento, prima nota,
   // scadenza, stato e rata della commessa) in una sola transazione nel database.
-  async function confirmMatchInterna(tx: { id: string }, inv: CandidatoFatturaInterna, matchType: "manual" | "auto") {
+  async function confirmMatchInterna(tx: { id: string }, inv: CandidatoFatturaInterna, matchType: "manual" | "auto", notaScelta?: string) {
     if (matching) return;
     setMatching(true);
     try {
@@ -316,7 +333,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
         toast.error("Bonifico non abbinato", { description: error.message });
         return;
       }
-      const nota = matchNote.trim();
+      const nota = (notaScelta ?? matchNote).trim();
       if (nota && movimentoId) {
         // Accanto al numero, che resta anche dopo uno storno.
         const { error: notaErr } = await supabase.from("bank_reconciliations")
@@ -339,8 +356,8 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
   }
 
   // Fix 5: Sequential reconciliation — execute operations in order, stop on failure
-  async function confirmMatch(tx: any, inv: any, matchType: "manual" | "auto") {
-    if (eFatturaInterna(inv)) return confirmMatchInterna(tx, inv, matchType);
+  async function confirmMatch(tx: any, inv: any, matchType: "manual" | "auto", notaScelta?: string) {
+    if (eFatturaInterna(inv)) return confirmMatchInterna(tx, inv, matchType, notaScelta);
     if (matching) return;
     setMatching(true);
     try {
@@ -362,7 +379,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
         matched_amount: matchedAmount,
         match_type: matchType,
         matched_by: user?.id,
-        notes: matchNote || null,
+        notes: (notaScelta ?? matchNote) || null,
       } as any).select("id").single();
       if (recRes.error || !recRes.data) {
         await supabase.from("bank_transactions").update({ linked_invoice_id: null }).eq("id", tx.id).eq("company_id", companyId);
@@ -446,6 +463,64 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
     }
   }
 
+  // Più documenti, un acconto o il resto di un movimento già iniziato: tutto o
+  // niente nel database. Una fattura intera su un bonifico intero passa dal
+  // percorso di sempre.
+  async function confermaRipartizione(tx: any, righe: RigaRipartizione[], nota: string) {
+    if (matching) return;
+    const [prima] = righe;
+    const interoSuUno = righe.length === 1 && !tx._ripartito && Math.abs(prima.importo - Math.abs(Number(tx.amount))) < 0.005;
+    if (interoSuUno && prima.tipo === "scadenza") {
+      const sc = scadenze.find((x) => x.id === prima.id);
+      if (sc) return confirmScadenzaMatch(tx, sc);
+    }
+    if (interoSuUno && prima.tipo !== "scadenza") {
+      const inv = invoices.find((x) => x.id === prima.id);
+      if (inv) return confirmMatch(tx, inv, "manual", nota);
+    }
+    setMatching(true);
+    try {
+      const { data, error } = await supabase.rpc("riconcilia_movimento_su_documenti" as never, {
+        p_transazione: tx.id, p_righe: righe, p_nota: nota || null,
+      } as never);
+      if (error) {
+        toast.error("Movimento non abbinato", { description: error.message });
+        return;
+      }
+      const esito = (data ?? {}) as unknown as {
+        righe?: number; resto?: number;
+        esterne?: Array<{ invoice_id: string; numero: string; importo: number; provider: string; saldata: boolean }>;
+      };
+      const nonAggiornate: string[] = [];
+      for (const f of esito.esterne ?? []) {
+        if (f.provider !== "fattureincloud") continue;
+        try {
+          const corpo = f.saldata
+            ? { invoice_id: f.invoice_id, paid_date: tx.booking_date || undefined }
+            : { invoice_id: f.invoice_id, paid_date: tx.booking_date || undefined, azione: "incassa", importo: f.importo };
+          const { data: pr, error: pErr } = await supabase.functions.invoke("billing-payment-push", { body: corpo });
+          if (pErr || !pr?.ok) nonAggiornate.push(f.numero);
+        } catch { nonAggiornate.push(f.numero); }
+      }
+      const resto = Number(esito.resto ?? 0);
+      toast.success(`Abbinati ${esito.righe ?? righe.length} documenti`, {
+        description: resto > 0 ? `Sul movimento restano ${fmtEur(resto)} da abbinare.` : "Movimento coperto per intero.",
+      });
+      if (nonAggiornate.length > 0) {
+        toast.warning(`Da riallineare su Fatture in Cloud: ${nonAggiornate.join(", ")}`);
+      }
+      aggiornaPagineCollegate();
+      setSelectedTx(null);
+      setSelectedDebit(null);
+      setMatchNote("");
+      await loadData();
+    } catch (e) {
+      toast.error("Movimento non abbinato", { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setMatching(false);
+    }
+  }
+
   async function runAutoMatch() {
     if (autoMatching) return;
     setAutoMatching(true);
@@ -473,6 +548,31 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
       const rec = unlinkTarget;
       const txId = typeof rec.bank_transactions === "object" ? rec.bank_transactions?.id : rec.transaction_id;
       const invId = typeof rec.invoices === "object" ? rec.invoices?.id : rec.invoice_id;
+
+      // Riga di un movimento ripartito: si toglie solo lei, il resto del movimento resta.
+      if ((rec as { ripartita?: boolean }).ripartita) {
+        const { data, error } = await supabase.rpc("scollega_riga_ripartita" as never, { p_riconciliazione: rec.id } as never);
+        if (error) {
+          toast.error("Riga non scollegata", { description: error.message });
+          setUnlinking(false);
+          return;
+        }
+        const esito = (data ?? {}) as unknown as { invoice_id?: string; importo?: number; provider?: string | null; tipo?: string };
+        if (esito.provider === "fattureincloud" && esito.invoice_id) {
+          const { data: pr, error: pErr } = await supabase.functions.invoke("billing-payment-push", {
+            body: { invoice_id: esito.invoice_id, azione: "annulla", importo: Number(esito.importo || 0) },
+          }).catch((e: unknown) => ({ data: null as { ok?: boolean; skipped?: boolean } | null, error: e }));
+          if (pErr || (!pr?.ok && !pr?.skipped)) toast.warning("Riga scollegata, da riallineare su Fatture in Cloud.");
+        }
+        toast.success("Riga scollegata", {
+          description: esito.tipo === "scadenza" ? "Il pagamento registrato è conservato." : "L'importo torna da abbinare sul movimento.",
+        });
+        aggiornaPagineCollegate();
+        setUnlinkTarget(null);
+        setUnlinking(false);
+        void loadData();
+        return;
+      }
 
       // ── Incasso di una fattura interna: si storna ─────────────────────────
       // Fattura, scadenza e rata della commessa tornano da incassare, il
@@ -667,6 +767,52 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
   // dipendere da filteredTx rifaceva l'intero scoring (transazioni × fatture) a
   // ogni tasto digitato nella ricerca. Porta con sé il flag di ambiguità, così
   // l'abbinamento con un clic si offre solo quando il candidato è netto.
+  const candidatiIncasso = useMemo<CandidatoRipartizione[]>(() => {
+    if (!selectedTx) return [];
+    const controparte = String(selectedTx.debtor_name || selectedTx.creditor_name || "");
+    const punteggi = new Map(suggestions.map((s) => [s.invoice.id, s]));
+    return [...invoices]
+      .map((inv) => {
+        const s = punteggi.get(inv.id);
+        const interna = eFatturaInterna(inv);
+        return {
+          key: inv.id,
+          tipo: (interna ? "documento" : "invoice") as CandidatoRipartizione["tipo"],
+          id: inv.id,
+          titolo: `${inv.invoice_number || "—"} — ${inv.client_company_name || "—"}`,
+          sottotitolo: inv.due_date ? `Scad. ${formatDateIt(inv.due_date)}` : undefined,
+          residuo: Math.round((Number(inv.total || 0) - Number(inv.paid_amount || 0)) * 100) / 100,
+          etichetta: interna ? "Interna" : inv.external_provider ? "FIC" : "SDI",
+          motivi: s?.reasons,
+          punteggio: s?.score,
+          affine: fuzzyMatch(controparte, String(inv.client_company_name || "")),
+        };
+      })
+      .filter((c) => c.residuo > 0)
+      .sort((a, b) => (b.punteggio ?? 0) - (a.punteggio ?? 0) || Number(b.affine) - Number(a.affine));
+  }, [selectedTx, invoices, suggestions]);
+
+  const candidatiUscita = useMemo<CandidatoRipartizione[]>(() => {
+    if (!selectedDebit) return [];
+    const controparte = String(selectedDebit.creditor_name || selectedDebit.merchant_name || "");
+    const target = Math.abs(Number(selectedDebit.amount));
+    return scadenze
+      .map((sc) => {
+        const fornitore = String((sc as any).suppliers?.name || "");
+        return {
+          key: sc.id as string,
+          tipo: "scadenza" as const,
+          id: sc.id as string,
+          titolo: `${fornitore || "Fornitore"} — ${sc.description || "scadenza"}`,
+          sottotitolo: sc.due_date ? `Scad. ${formatDateIt(sc.due_date)}` : undefined,
+          residuo: Math.round((Number(sc.amount || 0) - Number(sc.paid_amount || 0)) * 100) / 100,
+          affine: fuzzyMatch(controparte, fornitore),
+        };
+      })
+      .filter((c) => c.residuo > 0)
+      .sort((a, b) => Number(b.affine) - Number(a.affine) || Math.abs(a.residuo - target) - Math.abs(b.residuo - target));
+  }, [selectedDebit, scadenze]);
+
   const bestMatchByTx = useMemo(() => {
     const map = new Map<string, BestSuggestion>();
     for (const tx of reconcilableTx) {
@@ -958,13 +1104,14 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                         {tx.bank_accounts?.display_name || tx.bank_accounts?.account_name || ""}
                       </p>
                     </div>
-                    <p className="text-sm font-semibold text-green-600 whitespace-nowrap ml-2">
-                      +{fmtEur(Math.abs(tx.amount))}
-                    </p>
+                    <div className="ml-2 text-right whitespace-nowrap">
+                      <p className="text-sm font-semibold text-green-600">+{fmtEur(Math.abs(tx.amount))}</p>
+                      {tx._ripartito && <p className="text-[10px] text-muted-foreground">resto di {fmtEur(tx._totale)}</p>}
+                    </div>
                   </div>
                   {(() => {
                     const sugg = bestMatchByTx.get(tx.id);
-                    if (!sugg || sugg.best.score < 60) return null;
+                    if (!sugg || sugg.best.score < 60 || tx._ripartito) return null;
                     const { best, ambiguous, candidates } = sugg;
                     const inv = best.invoice;
                     const label = inv.invoice_number ? `Fatt. ${inv.invoice_number}` : (inv.client_company_name || "fattura");
@@ -1105,7 +1252,10 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                         {tx.creditor_name || tx.merchant_name || "—"} · {formatDateIt(tx.booking_date)}
                       </p>
                     </div>
-                    <p className="text-sm font-bold text-red-600 ml-2">−{fmtEur(Math.abs(tx.amount))}</p>
+                    <div className="ml-2 text-right whitespace-nowrap">
+                      <p className="text-sm font-bold text-red-600">−{fmtEur(Math.abs(tx.amount))}</p>
+                      {tx._ripartito && <p className="text-[10px] text-muted-foreground">resto di {fmtEur(tx._totale)}</p>}
+                    </div>
                   </div>
                   {scadenzeUguali.has(tx.id) && (
                     <p className="mt-2 truncate rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-800">
@@ -1174,7 +1324,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                       <div className="text-xs text-muted-foreground">
                         {fmtEur(Number(rec.matched_amount))} ·{" "}
                         <Badge variant="outline" className="text-[10px] px-1">
-                          {rec.match_type === "auto" ? "Auto" : rec.match_type === "incasso_esistente" ? "Incasso già registrato" : "Manuale"}
+                          {(rec as { ripartita?: boolean }).ripartita ? "Ripartito" : rec.match_type === "auto" ? "Auto" : rec.match_type === "incasso_esistente" ? "Incasso già registrato" : "Manuale"}
                         </Badge>
                         {rec.notes && ` · ${rec.notes}`}
                       </div>
@@ -1195,7 +1345,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Riconcilia uscita</DialogTitle>
-            <DialogDescription>Abbina l'addebito a una scadenza fornitore aperta.</DialogDescription>
+            <DialogDescription>Scegli una o più scadenze. L'importo si può cambiare per un pagamento parziale.</DialogDescription>
           </DialogHeader>
           {selectedDebit && (
             <div className="space-y-3">
@@ -1206,53 +1356,14 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                 </p>
                 <p className="font-bold text-red-600 mt-1">−{fmtEur(Math.abs(selectedDebit.amount))}</p>
               </div>
-              <div className="max-h-[300px] overflow-y-auto space-y-2">
-                {scadenze.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">Nessuna scadenza fornitore aperta.</p>
-                ) : (
-                  [...scadenze]
-                    // Prima le scadenze con residuo più vicino all'importo dell'addebito
-                    .sort((a, b) => {
-                      const target = Math.abs(selectedDebit.amount);
-                      const ra = Math.abs((Number(a.amount || 0) - Number(a.paid_amount || 0)) - target);
-                      const rb = Math.abs((Number(b.amount || 0) - Number(b.paid_amount || 0)) - target);
-                      return ra - rb;
-                    })
-                    .slice(0, 30)
-                    .map((sc) => {
-                      const residuo = Number(sc.amount || 0) - Number(sc.paid_amount || 0);
-                      const compatibile = Math.abs(residuo - Math.abs(selectedDebit.amount)) < 0.01;
-                      return (
-                        <button
-                          key={sc.id}
-                          type="button"
-                          disabled={matching}
-                          onClick={() => confirmScadenzaMatch(selectedDebit, sc)}
-                          className={cn(
-                            "w-full border rounded-lg p-3 text-left transition-colors hover:bg-accent/50",
-                            compatibile && "border-emerald-300 bg-emerald-50/60",
-                          )}
-                        >
-                          <div className="flex justify-between items-start gap-2">
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium truncate">{(sc as any).suppliers?.name || "Fornitore"}</p>
-                              <p className="text-xs text-muted-foreground truncate">{sc.description || "—"} · scad. {formatDateIt(sc.due_date)}</p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-sm font-semibold">{fmtEur(residuo)}</p>
-                              {compatibile && <p className="text-[10px] text-emerald-700">importo esatto</p>}
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })
-                )}
-              </div>
-              {matching && (
-                <p className="text-xs text-muted-foreground flex items-center gap-2">
-                  <Loader2 className="h-3 w-3 animate-spin" /> Riconciliazione in corso…
-                </p>
-              )}
+              <RipartizioneMovimento
+                key={selectedDebit.id}
+                resto={Math.abs(Number(selectedDebit.amount))}
+                candidati={candidatiUscita}
+                inCorso={matching}
+                etichettaDocumenti="scadenze"
+                onConferma={(righe, nota) => confermaRipartizione(selectedDebit, righe, nota)}
+              />
             </div>
           )}
         </DialogContent>
@@ -1264,7 +1375,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
           <DialogHeader>
             <DialogTitle>Riconcilia transazione</DialogTitle>
             <DialogDescription>
-              Seleziona la fattura da collegare a questa transazione.
+              Scegli una o più fatture. L'importo si può cambiare per registrare un acconto.
             </DialogDescription>
           </DialogHeader>
           {selectedTx && (
@@ -1277,63 +1388,14 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                 <p className="font-bold text-green-600 mt-1">+{fmtEur(Math.abs(selectedTx.amount))}</p>
               </div>
 
-              {suggestions.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">Nessun suggerimento trovato. Seleziona manualmente dalla lista.</p>
-              ) : (
-                <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                  {suggestions.map((s) => (
-                    <div
-                      key={s.invoice.id}
-                      className={`border rounded-lg p-3 transition-colors ${matching ? "cursor-not-allowed opacity-60" : "hover:bg-accent/50 cursor-pointer"}`}
-                      onClick={() => confirmMatch(selectedTx, s.invoice, "manual")}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <div className="text-sm font-medium flex items-center gap-1.5">
-                            {s.invoice.invoice_number} — {s.invoice.client_company_name}
-                            <Badge variant="outline" className="text-[9px] shrink-0 font-normal text-muted-foreground">
-                              {eFatturaInterna(s.invoice) ? "Interna" : s.invoice.external_provider ? "FIC" : "SDI"}
-                            </Badge>
-                          </div>
-                          <div className="flex gap-1 mt-1 flex-wrap">
-                            {s.reasons.map((r, i) => (
-                              <Badge key={i} variant="outline" className="text-[10px]">{r}</Badge>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-semibold">{fmtEur(Number(s.invoice.total) - Number(s.invoice.paid_amount || 0))}</p>
-                          <Badge className={`text-[10px] ${s.score >= 80 ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}>
-                            {/* Numero, importo e nome insieme passano 100: è una certezza, non un 130%. */}
-                            {Math.min(s.score, 100)}%
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Manual pick from all invoices */}
-              <details className="text-sm">
-                <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Tutte le fatture non pagate ({invoices.length})</summary>
-                <div className="mt-2 space-y-1 max-h-[200px] overflow-y-auto">
-                  {invoices.map((inv) => (
-                    <div
-                      key={inv.id}
-                      className={`border rounded p-2 text-xs ${matching ? "cursor-not-allowed opacity-60" : "hover:bg-accent/50 cursor-pointer"}`}
-                      onClick={() => confirmMatch(selectedTx, inv, "manual")}
-                    >
-                      <span className="font-medium">{inv.invoice_number}</span> — {inv.client_company_name} — {fmtEur(Number(inv.total) - Number(inv.paid_amount || 0))}
-                    </div>
-                  ))}
-                </div>
-              </details>
-
-              <div>
-                <Label className="text-xs">Nota (opzionale)</Label>
-                <Textarea value={matchNote} onChange={(e) => setMatchNote(e.target.value)} rows={2} className="text-sm" />
-              </div>
+              <RipartizioneMovimento
+                key={selectedTx.id}
+                resto={Math.abs(Number(selectedTx.amount))}
+                candidati={candidatiIncasso}
+                inCorso={matching}
+                etichettaDocumenti="fatture"
+                onConferma={(righe, nota) => confermaRipartizione(selectedTx, righe, nota)}
+              />
             </div>
           )}
         </DialogContent>
@@ -1345,7 +1407,9 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
           <DialogHeader>
             <DialogTitle>Rimuovi riconciliazione</DialogTitle>
             <DialogDescription>
-              {unlinkTarget?.match_type === "incasso_esistente"
+              {(unlinkTarget as { ripartita?: boolean } | null)?.ripartita
+                ? "Si toglie solo questo documento dal movimento: il suo importo torna da abbinare, gli altri restano."
+                : unlinkTarget?.match_type === "incasso_esistente"
                 ? "Il bonifico torna da abbinare. L'incasso registrato a mano sulla fattura resta: per toglierlo, annullalo dalla fattura."
                 : unlinkTarget && eRiconciliazioneFatturaInterna(unlinkTarget)
                 ? "L'incasso registrato da questo bonifico verrà stornato: la fattura, la sua scadenza e la rata della commessa torneranno da incassare."

@@ -18,9 +18,13 @@ export interface ImpostazioniAvvio {
   controlli: ControlloAvvio[];
   /** I lavori che l'azienda ha detto di fare; null = non l'ha detto (vale il settore). */
   tipiLavoro: TipoLavoro[] | null;
+  /** Per tipo di lavoro: da dove vengono le misure definitive. Se manca, la regola di partenza. */
+  misureRegola: RegolaMisure;
 }
 
-const diPartenza = (): ImpostazioniAvvio => ({ modelloFasi: null, controlli: [...CONTROLLI_DI_PARTENZA], tipiLavoro: null });
+export type RegolaMisure = Partial<Record<TipoLavoro, "sopralluogo" | "definitive">>;
+
+const diPartenza = (): ImpostazioniAvvio => ({ modelloFasi: null, controlli: [...CONTROLLI_DI_PARTENZA], tipiLavoro: null, misureRegola: {} });
 
 export const chiaveImpostazioniAvvio = (companyId: string | undefined) => ["impostazioni-avvio", companyId] as const;
 
@@ -41,7 +45,7 @@ export function useImpostazioniAvvio() {
       try {
         const { data, error } = await db
           .from("company_fasi_settings")
-          .select("modello_fasi_predefinito, controlli_avvio, tipi_lavoro")
+          .select("modello_fasi_predefinito, controlli_avvio, tipi_lavoro, misure_regola")
           .eq("company_id", companyId!)
           .maybeSingle();
         if (error) throw error;
@@ -49,6 +53,7 @@ export function useImpostazioniAvvio() {
           modelloFasi: (data?.modello_fasi_predefinito as string | null | undefined) ?? null,
           controlli: controlliValidi(data?.controlli_avvio),
           tipiLavoro: tipiDalDb(data?.tipi_lavoro),
+          misureRegola: (data?.misure_regola as RegolaMisure | null | undefined) ?? {},
         };
       } catch {
         return diPartenza();
@@ -57,11 +62,12 @@ export function useImpostazioniAvvio() {
   });
 
   const salva = useMutation({
-    mutationFn: async (valori: { modelloFasi?: string | null; controlli?: ControlloAvvio[]; tipiLavoro?: TipoLavoro[] | null }) => {
+    mutationFn: async (valori: { modelloFasi?: string | null; controlli?: ControlloAvvio[]; tipiLavoro?: TipoLavoro[] | null; misureRegola?: RegolaMisure | null }) => {
       const p_valori: Record<string, unknown> = {};
       if (valori.modelloFasi !== undefined) p_valori.modello_fasi_predefinito = valori.modelloFasi;
       if (valori.controlli !== undefined) p_valori.controlli_avvio = valori.controlli;
       if (valori.tipiLavoro !== undefined) p_valori.tipi_lavoro = valori.tipiLavoro;
+      if (valori.misureRegola !== undefined) p_valori.misure_regola = valori.misureRegola;
       const { error } = await db.rpc("fasi_impostazioni_salva", { p_company_id: companyId, p_valori });
       if (error) throw error;
     },
@@ -73,5 +79,5 @@ export function useImpostazioniAvvio() {
   });
 
   const dati = query.data ?? diPartenza();
-  return { modelloFasi: dati.modelloFasi, controlli: dati.controlli, tipiLavoro: dati.tipiLavoro, isLoading: query.isLoading, salva };
+  return { modelloFasi: dati.modelloFasi, controlli: dati.controlli, tipiLavoro: dati.tipiLavoro, misureRegola: dati.misureRegola, isLoading: query.isLoading, salva };
 }

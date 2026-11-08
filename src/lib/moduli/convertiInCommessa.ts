@@ -18,6 +18,8 @@ export interface AnteprimaConversioneModulo {
   descrizione: string;
   /** Le rate del piano di pagamento del preventivo; vuoto = le rate di partenza dell'azienda. */
   rate?: Array<{ label: string; type: string; amount: number; trigger_evento: string }>;
+  /** Edili: le voci che possono diventare righe da ordinare; quelle proposte sono già dentro `materiali`. */
+  voci_materiale?: Array<{ id: string; nome: string; quantita: number; unita: string | null; proposta: boolean }>;
 }
 
 /** I preventivatori che diventano commessa. Le chiavi sono quelle del ponte delle firme (quoteBridge). */
@@ -64,13 +66,14 @@ export function bloccoDelContratto(contratto: Pick<ContrattoModulo, "firmato" | 
 }
 
 type Modulo = ModuloCommessa;
-async function chiamaConversione(modulo: Modulo, progettoId: string, raggruppa: boolean, impronta?: string) {
+async function chiamaConversione(modulo: Modulo, progettoId: string, raggruppa: boolean, impronta?: string, vociMateriale?: string[]) {
   const { data, error } = await supabase.rpc("converti_modulo_commessa_atomic" as never, {
     p_modulo: modulo,
     p_progetto_id: progettoId,
     p_raggruppa_capitoli: raggruppa,
     p_anteprima: !impronta,
     p_impronta: impronta ?? null,
+    p_voci_materiale: vociMateriale ?? null,
   } as never);
   if (error) throw new Error(error.message);
   if (!data) throw new Error("Il riepilogo della conversione non è disponibile. Riprova.");
@@ -81,10 +84,10 @@ export async function anteprimaConversioneModulo(modulo: Modulo, progettoId: str
   return chiamaConversione(modulo, progettoId, raggruppa);
 }
 
-async function converti(modulo: Modulo, progettoId: string, userId: string, raggruppa: boolean, impronta?: string): Promise<EsitoConversione> {
+async function converti(modulo: Modulo, progettoId: string, userId: string, raggruppa: boolean, impronta?: string, vociMateriale?: string[]): Promise<EsitoConversione> {
   if (!userId) throw new Error("Sessione scaduta: accedi di nuovo.");
   const riepilogo = impronta ? { impronta } : await anteprimaConversioneModulo(modulo, progettoId, raggruppa);
-  const esito = await chiamaConversione(modulo, progettoId, raggruppa, riepilogo.impronta);
+  const esito = await chiamaConversione(modulo, progettoId, raggruppa, riepilogo.impronta, vociMateriale);
   if (!esito.id) throw new Error("La commessa non è stata creata.");
   // La transazione principale ha già salvato fasi e rate del piano. Se il preventivo non ne aveva,
   // applica quelle di partenza dell'azienda: i modelli non toccano fasi e rate già presenti.
@@ -100,9 +103,9 @@ export function convertiFvInCommessa(progettoId: string, userId: string, impront
   return converti("fv", progettoId, userId, false, impronta);
 }
 /** Serramenti e i 7 edili (bagni, tetti, clima, elettrico, termoidraulico, pavimenti, piscine). */
-export function convertiModuloInCommessa(modulo: Exclude<ModuloCommessa, "fv" | "rst">, progettoId: string, userId: string, opzioni: { fasiDaCapitoli?: boolean; impronta?: string } = {}) {
-  return converti(modulo, progettoId, userId, !!opzioni.fasiDaCapitoli, opzioni.impronta);
+export function convertiModuloInCommessa(modulo: Exclude<ModuloCommessa, "fv" | "rst">, progettoId: string, userId: string, opzioni: { fasiDaCapitoli?: boolean; impronta?: string; vociMateriale?: string[] } = {}) {
+  return converti(modulo, progettoId, userId, !!opzioni.fasiDaCapitoli, opzioni.impronta, opzioni.vociMateriale);
 }
-export function convertiRstInCommessa(progettoId: string, userId: string, opzioni: { fasiDaCapitoli?: boolean; impronta?: string } = {}) {
-  return converti("rst", progettoId, userId, !!opzioni.fasiDaCapitoli, opzioni.impronta);
+export function convertiRstInCommessa(progettoId: string, userId: string, opzioni: { fasiDaCapitoli?: boolean; impronta?: string; vociMateriale?: string[] } = {}) {
+  return converti("rst", progettoId, userId, !!opzioni.fasiDaCapitoli, opzioni.impronta, opzioni.vociMateriale);
 }

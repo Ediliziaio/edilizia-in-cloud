@@ -37,6 +37,7 @@
  */
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { serveConMetriche } from "../_shared/withMetrics.ts";
+import { apriBackup } from "../_shared/backupCompressi.ts";
 import { isSuperAdminEmailAllowed } from "../_shared/auth.ts";
 import {
   componiEsito,
@@ -183,8 +184,9 @@ async function segnaErrore(provaId: string, passo: Passo, numero: number, pezzo:
 /** Un passo del piano: scarica il file e lo versa, intero se passa, a pezzi se no. */
 async function versaPasso(db: SupabaseClient, provaId: string, passo: Passo, numero: number, pezzoIniziale: number): Promise<DopoIlPasso> {
   const nomeCorto = passo.file.split("/").slice(-2).join("/");
-  const { data: blob, error: errFile } = await db.storage.from(BUCKET).download(passo.file);
-  if (errFile || !blob) return await segnaErrore(provaId, passo, numero, pezzoIniziale, `file mancante: ${nomeCorto}`);
+  const { data: scaricato, error: errFile } = await db.storage.from(BUCKET).download(passo.file);
+  if (errFile || !scaricato) return await segnaErrore(provaId, passo, numero, pezzoIniziale, `file mancante: ${nomeCorto}`);
+  const blob = await apriBackup(scaricato);
 
   if (pezzoIniziale === 0) {
     // Il file così com'è, senza aprirlo (vedi l'intestazione).
@@ -489,7 +491,7 @@ serveConMetriche("company-restore", async (req) => {
 
     let dump: unknown;
     try {
-      dump = JSON.parse(await blob.text());
+      dump = JSON.parse(await (await apriBackup(blob)).text());
     } catch {
       return json({ error: "Il file non è un JSON valido" }, 422);
     }
