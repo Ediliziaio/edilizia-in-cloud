@@ -15,4 +15,13 @@ await db.exec(`insert into auth.users values('${staff}'),('${oldClient}');insert
 assert.equal((await db.query('select * from profiles')).rows.length,2);
 assert.equal((await db.query('select * from user_roles')).rows.length,2);
 console.log('PASS: migration idempotent; no-auth client saved; login and staff escalation denied; deleting customer Auth preserves profile and role; deleting staff Auth preserves former cascade.');
+await db.exec(`create table customer_messages(id serial primary key,customer_id uuid references auth.users(id) on delete cascade,sender_id uuid references auth.users(id) on delete cascade);create table lifecycle_email_sends(id serial primary key,user_id uuid references auth.users(id) on delete cascade);create function admin_search_users(text,text,uuid,text,integer,integer) returns setof public.profiles language sql as 'SELECT p.* FROM public.profiles p';`);
+const directorySql=readFileSync('supabase/migrations/20281231140000_account_portale_distinti_da_anagrafiche.sql','utf8');
+await db.exec('begin;'+directorySql+'commit;');await db.exec('begin;'+directorySql+'commit;');
+const another='00000000-0000-4000-8000-000000000005';
+await db.exec(`insert into auth.users values('${another}');insert into profiles values('${another}',true,true);insert into user_roles(user_id,role)values('${another}','customer');insert into customer_messages(customer_id,sender_id)values('${another}','${another}');insert into lifecycle_email_sends(user_id)values('${another}');delete from auth.users where id='${another}';`);
+assert.equal((await db.query('select * from customer_messages')).rows.length,1);
+assert.equal((await db.query('select * from lifecycle_email_sends')).rows.length,1);
+assert.equal((await db.query('select * from admin_search_users(null,null,null,null,50,0)')).rows.length,0);
+console.log('PASS: messages and send history survive Auth removal; directory excludes non-login profiles; both migrations idempotent.');
 await db.close();
