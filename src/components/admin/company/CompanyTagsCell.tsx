@@ -33,6 +33,7 @@ export function CompanyTagsCell({ companyId, tags }: CompanyTagsCellProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.companyTags });
+      queryClient.invalidateQueries({ queryKey: ["admin-company-groups"] });
       setNewTag("");
       setOpen(false);
     },
@@ -50,7 +51,10 @@ export function CompanyTagsCell({ companyId, tags }: CompanyTagsCellProps) {
       const { error } = await supabase.from("company_tags").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.admin.companyTags }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companyTags });
+      queryClient.invalidateQueries({ queryKey: ["admin-company-groups"] });
+    },
   });
 
   return (

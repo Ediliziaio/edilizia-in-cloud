@@ -48,6 +48,7 @@ export interface AdminUsersFilters {
   search?: string;
   role?: string | null;
   companyId?: string | null;
+  group?: string | null;
   stato?: "attivi" | "bloccati" | "mai_entrati" | null;
   page?: number;
   pageSize?: number;
@@ -60,12 +61,13 @@ export function useAdminUsers(filters: AdminUsersFilters) {
   return useQuery({
     queryKey: [
       "admin-users", filters.search ?? "", filters.role ?? null,
-      filters.companyId ?? null, filters.stato ?? null, page, pageSize,
+      filters.companyId ?? null, filters.group ?? null, filters.stato ?? null, page, pageSize,
     ],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("admin_search_users" as never, {
+      const { data, error } = await supabase.rpc("admin_search_directory_users" as never, {
         p_search: filters.search?.trim() || null,
         p_role: filters.role || null,
+        p_group: filters.group || null,
         p_company_id: filters.companyId || null,
         p_stato: filters.stato || null,
         p_limit: pageSize,

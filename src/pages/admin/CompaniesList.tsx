@@ -1,3 +1,5 @@
+import { AssignCompanyGroup } from "@/components/admin/company/AssignCompanyGroup";
+import { useCompanyGroups } from "@/hooks/superadmin/useCompanyGroups";
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { getSubdomainUrl } from "@/utils/subdomainNav";
 import { safeRedirect } from "@/utils/safeRedirect";
@@ -183,7 +185,11 @@ export default function CompaniesList() {
   const isMobile = useIsMobile();
   const confirm = useConfirm();
 
+  const { data: groups = [], isLoading: groupsLoading, error: groupsError } = useCompanyGroups();
   // URL-derived filter state
+  const groupFilter = searchParams.get("group") || "all";
+  const groupIds = groupFilter === "all" ? null : (groups.find(g => g.name === groupFilter)?.companyIds ?? []);
+  const groupIdsKey = groupIds?.join(",") ?? "";
   const statusFilter = searchParams.get("status") || "all";
   const sectorFilter = searchParams.get("sector") || "all";
   const planFilter = searchParams.get("plan") || "all";
@@ -508,6 +514,7 @@ export default function CompaniesList() {
       currentPage,
       SERVER_PAGE_SIZE,
       debouncedSearch,
+      groupFilter, groupIdsKey,
       statusFilter,
       sectorFilter,
       planFilter,
@@ -527,6 +534,9 @@ export default function CompaniesList() {
       segmentFilters,
     ],
     queryFn: async () => {
+      if (groupFilter !== "all" && groupsError) throw new Error("Impossibile caricare i gruppi aziendali.");
+      const allowedGroupIds = groupIds?.filter(id => !permissions.allowed_company_ids?.length || permissions.allowed_company_ids.includes(id));
+      if (allowedGroupIds && allowedGroupIds.length === 0) return { data: [] as never[], totalCount: 0 };
       const from = (currentPage - 1) * SERVER_PAGE_SIZE;
       const to = from + SERVER_PAGE_SIZE - 1;
 
@@ -539,6 +549,8 @@ export default function CompaniesList() {
         .eq("is_platform_admin_company", false)
         // Cancellate = invisibili qui, ma ancora ripristinabili per 30 giorni.
         .is("deleted_at", null);
+
+      if (groupIds) query = query.in("id", groupIds);
 
       // Server-side text search. `.or()` is comma-separated in PostgREST:
       // sanitize pasted commas/percent signs so search cannot break the filter.
@@ -627,7 +639,7 @@ export default function CompaniesList() {
             p_search: sanitizeOrSearchTerm(debouncedSearch) || null,
             p_status: statusFilter !== "all" ? statusFilter : null,
             p_plan_id: planFilter !== "all" ? planFilter : null,
-            p_allowed_ids: permissions.allowed_company_ids ?? null,
+            p_allowed_ids: allowedGroupIds ?? permissions.allowed_company_ids ?? null,
             p_limit: SERVER_PAGE_SIZE,
             p_offset: from,
           } as never,
@@ -689,7 +701,7 @@ export default function CompaniesList() {
     },
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
-    enabled: (healthFilter === "all" || !isHealthRowsLoading) && (!inactiveFilter || !isLastAccessLoading),
+    enabled: (groupFilter === "all" || !groupsLoading) && (healthFilter === "all" || !isHealthRowsLoading) && (!inactiveFilter || !isLastAccessLoading),
   });
 
   const allCompanies = pagedResult?.data ?? [];
@@ -784,7 +796,7 @@ export default function CompaniesList() {
   // Reset to page 1 whenever server-side filter/sort params change
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, statusFilter, sectorFilter, planFilter, tipoFilter, healthFilter, noPaymentFilter, inactiveFilter, revenueFilter, sortKey, sortDir, segmentFilters]);
+  }, [debouncedSearch, groupFilter, statusFilter, sectorFilter, planFilter, tipoFilter, healthFilter, noPaymentFilter, inactiveFilter, revenueFilter, sortKey, sortDir, segmentFilters]);
 
   // Health/no-payment filters are pushed into the server query so pagination
   // and counts stay coherent across the whole dataset.
@@ -915,11 +927,11 @@ export default function CompaniesList() {
 
   const totalPages = Math.max(1, Math.ceil(serverTotalCount / SERVER_PAGE_SIZE));
 
-  const hasActiveFilters = inputSearch || statusFilter !== "all" || sectorFilter !== "all" || planFilter !== "all" || tipoFilter !== "all" || healthFilter !== "all" || noPaymentFilter || inactiveFilter || revenueFilter !== "all" || segmentActiveCount > 0;
+  const hasActiveFilters = groupFilter !== "all" || inputSearch || statusFilter !== "all" || sectorFilter !== "all" || planFilter !== "all" || tipoFilter !== "all" || healthFilter !== "all" || noPaymentFilter || inactiveFilter || revenueFilter !== "all" || segmentActiveCount > 0;
 
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [currentPage, debouncedSearch, statusFilter, sectorFilter, planFilter, tipoFilter, healthFilter, noPaymentFilter, inactiveFilter, revenueFilter, sortKey, sortDir, segmentFilters]);
+  }, [currentPage, debouncedSearch, groupFilter, groupIdsKey, statusFilter, sectorFilter, planFilter, tipoFilter, healthFilter, noPaymentFilter, inactiveFilter, revenueFilter, sortKey, sortDir, segmentFilters]);
 
   // Smart filter presets — use allCompaniesSummary so counts reflect the full dataset, not just the current page
   const filterPresets: FilterPreset[] = useMemo(() => {
@@ -1027,6 +1039,7 @@ export default function CompaniesList() {
   }, [setSearchParams]);
 
   const activeFiltersList = useMemo(() => [
+    { key: "group", label: "Gruppo", value: groupFilter, onClear: () => setFilter({ group: null }) },
     { key: "search", label: "Cerca", value: inputSearch, onClear: () => setInputSearch("") },
     { key: "status", label: "Stato", value: statusFilter === "all" ? "all" : (STATUS_LABELS_MAP[statusFilter] || statusFilter), onClear: () => setFilter({ status: null }) },
     { key: "sector", label: "Settore", value: sectorFilter === "all" ? "all" : (sectorLabels[sectorFilter] || sectorFilter), onClear: () => setFilter({ sector: null }) },
@@ -1037,7 +1050,7 @@ export default function CompaniesList() {
     { key: "inactive", label: "Inattive", value: inactiveFilter ? "14+ giorni senza accesso" : "all", onClear: () => setFilter({ inactive: null }) },
     { key: "revenue", label: "Tipo cliente", value: revenueFilter === "all" ? "all" : REVENUE_LABELS_MAP[revenueFilter], onClear: () => setFilter({ revenue: null }) },
     { key: "segments", label: "Segmenti", value: segmentActiveCount > 0 ? `${segmentActiveCount} attivi` : "all", onClear: () => setSegmentFilters(EMPTY_FILTERS) },
-  ], [inputSearch, statusFilter, sectorFilter, planFilter, tipoFilter, healthFilter, noPaymentFilter, inactiveFilter, revenueFilter, uniquePlans, setFilter, segmentActiveCount]);
+  ], [groupFilter, inputSearch, statusFilter, sectorFilter, planFilter, tipoFilter, healthFilter, noPaymentFilter, inactiveFilter, revenueFilter, uniquePlans, setFilter, segmentActiveCount]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -1310,6 +1323,9 @@ export default function CompaniesList() {
         onClearSelection={() => setSelectedIds(new Set())}
       />
 
+      {permissions.bulk_actions && <AssignCompanyGroup companyIds={[...selectedIds]} />}
+      {groupsError && <p role="alert" className="text-sm text-destructive">Impossibile caricare i gruppi aziendali.</p>}
+
       {/* Saved Views */}
       {(savedViews.length > 0 || hasActiveFilters) && (
         <div className="flex items-center gap-2 flex-wrap">
@@ -1352,6 +1368,7 @@ export default function CompaniesList() {
           activeFilterCount usato per badge sul bottone "Filtri" mobile. */}
       {(() => {
         const activeFilterCount =
+          (groupFilter !== "all" ? 1 : 0) +
           (statusFilter !== "all" ? 1 : 0) +
           (sectorFilter !== "all" ? 1 : 0) +
           (planFilter !== "all" ? 1 : 0) +
@@ -1362,6 +1379,13 @@ export default function CompaniesList() {
         // I 5 Select renderizzati identici sia in toolbar desktop che dentro lo Sheet mobile.
         const filterSelects = (
           <>
+            <Select value={groupFilter} onValueChange={v => { setFilter({ group: v }); setActivePreset(null); }}>
+              <SelectTrigger aria-label="Gruppo aziendale" className="w-full sm:w-[200px]"><SelectValue placeholder="Gruppo aziendale" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti i gruppi</SelectItem>
+                {groups.map(g => <SelectItem key={g.name} value={g.name}>{g.name} · {g.companyIds.length} aziende</SelectItem>)}
+              </SelectContent>
+            </Select>
             <Select value={statusFilter} onValueChange={(v) => { setFilter({ status: v }); setActivePreset(null); }}>
               <SelectTrigger className="w-full sm:w-[140px]"><SelectValue placeholder="Stato" /></SelectTrigger>
               <SelectContent>
@@ -1901,6 +1925,7 @@ export default function CompaniesList() {
                             <div>
                               <div className="flex items-center gap-1.5">
                                 <p className="font-medium">{company.name}</p>
+                                {groups.filter(g => g.companyIds.includes(company.id)).map(g => <button key={g.name} onClick={e => { e.stopPropagation(); setFilter({ group: g.name }); }} title={`Mostra le aziende del gruppo ${g.name}`}><Badge variant="secondary">{g.name}</Badge></button>)}
                                 {resellerIdSet.has(company.id) && <Badge variant="outline" className="h-4 shrink-0 px-1 text-[10px] border-violet-300 bg-violet-50 text-violet-700" title={`Rivenditore di ${parentNameByChild[company.id] || "—"}`}>Riv.</Badge>}
                                 {accountantIdSet.has(company.id) && <Badge variant="outline" className="h-4 shrink-0 px-1 text-[10px] border-teal-300 bg-teal-50 text-teal-700" title={`Studio: ${accountantFirmByCompany[company.id] || "—"}`}>Studio</Badge>}
                                 {producerIdSet.has(company.id) && <Badge variant="outline" className="h-4 shrink-0 px-1 text-[10px] border-violet-300 bg-violet-50 text-violet-700" title="Fabbrica white-label (accessi da produttore)">Prod.</Badge>}
