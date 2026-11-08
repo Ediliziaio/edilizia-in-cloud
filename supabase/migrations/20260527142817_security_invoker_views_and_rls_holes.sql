@@ -9,7 +9,9 @@
 ALTER VIEW public.v_my_email_inbox SET (security_invoker = on);
 ALTER VIEW public.v_my_email_threads SET (security_invoker = on);
 ALTER VIEW public.v_email_inbox_pending_count SET (security_invoker = on);
-ALTER VIEW public.v_email_thread_activity SET (security_invoker = on);
+-- La vista era stata creata fuori dallo storico SQL in produzione.
+-- Una ricostruzione da zero non la contiene: proteggila quando presente.
+ALTER VIEW IF EXISTS public.v_email_thread_activity SET (security_invoker = on);
 
 -- ============================================================
 -- FIX #2: Other sensitive views without security_invoker
