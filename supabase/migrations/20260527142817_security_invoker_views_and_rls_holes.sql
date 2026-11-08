@@ -5,25 +5,25 @@
 -- ============================================================
 -- FIX #1: Email views were running as supabase_admin → RLS bypass
 -- Switch to security_invoker so caller's RLS on email_inbox/email_threads/email_message_activity applies
+-- Alcune viste legacy furono create fuori dallo storico SQL: una ricostruzione
+-- pulita le protegge quando presenti e prosegue se non esistono.
 -- ============================================================
-ALTER VIEW public.v_my_email_inbox SET (security_invoker = on);
-ALTER VIEW public.v_my_email_threads SET (security_invoker = on);
-ALTER VIEW public.v_email_inbox_pending_count SET (security_invoker = on);
--- La vista era stata creata fuori dallo storico SQL in produzione.
--- Una ricostruzione da zero non la contiene: proteggila quando presente.
+ALTER VIEW IF EXISTS public.v_my_email_inbox SET (security_invoker = on);
+ALTER VIEW IF EXISTS public.v_my_email_threads SET (security_invoker = on);
+ALTER VIEW IF EXISTS public.v_email_inbox_pending_count SET (security_invoker = on);
 ALTER VIEW IF EXISTS public.v_email_thread_activity SET (security_invoker = on);
 
 -- ============================================================
 -- FIX #2: Other sensitive views without security_invoker
 -- (selecting from companies, render_sessions, referral data, credit ledgers)
 -- ============================================================
-ALTER VIEW public.customer_profile SET (security_invoker = on);
-ALTER VIEW public.admin_company_features SET (security_invoker = on);
-ALTER VIEW public.company_renders_recent SET (security_invoker = on);
-ALTER VIEW public.credit_transactions_unified SET (security_invoker = on);
-ALTER VIEW public.referral_leaderboard SET (security_invoker = on);
-ALTER VIEW public.unified_calendar_busy_slots SET (security_invoker = on);
-ALTER VIEW public.customer_workflow_daily_stats SET (security_invoker = on);
+ALTER VIEW IF EXISTS public.customer_profile SET (security_invoker = on);
+ALTER VIEW IF EXISTS public.admin_company_features SET (security_invoker = on);
+ALTER VIEW IF EXISTS public.company_renders_recent SET (security_invoker = on);
+ALTER VIEW IF EXISTS public.credit_transactions_unified SET (security_invoker = on);
+ALTER VIEW IF EXISTS public.referral_leaderboard SET (security_invoker = on);
+ALTER VIEW IF EXISTS public.unified_calendar_busy_slots SET (security_invoker = on);
+ALTER VIEW IF EXISTS public.customer_workflow_daily_stats SET (security_invoker = on);
 
 -- ============================================================
 -- FIX #3: platform_webhook_deliveries has RLS enabled but ZERO policies
