@@ -227,7 +227,8 @@ export function OrderQuickActions({
 
   // Sul telefono una sola riga: attività, documenti, menu. Stessi callback,
   // nessuna funzione rimossa: contatti, fattura e appuntamento stanno nel menu.
-  const primaryActions = (isMobile ? ["task", "files"] : ["task", "files", "appt", "contatta", "invoice"]).flatMap((id) => actions.filter((a) => a.id === id));
+  // Al computer tre azioni: documenti e appuntamenti hanno già i loro riquadri nella Panoramica.
+  const primaryActions = (isMobile ? ["task", "files"] : ["task", "contatta", "invoice"]).flatMap((id) => actions.filter((a) => a.id === id));
   // Nel menu solo ciò che non è già sulla barra: un gruppo vuoto non mostra il titolo.
   const nelMenu = (gruppo: QuickAction["group"]) => actions.filter((a) => a.group === gruppo && !primaryActions.some((p) => p.id === a.id));
   const comunica = nelMenu("comunica");

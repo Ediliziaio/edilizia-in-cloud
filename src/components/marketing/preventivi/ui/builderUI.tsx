@@ -78,7 +78,7 @@ export function QuotePageHeader({
         </div>
       )}
       <div className={cn("flex items-start justify-between gap-3 sm:gap-4 flex-wrap", azioniInRiga && "max-sm:flex-nowrap max-sm:items-center")}>
-        <div className={cn("flex items-start gap-2.5 sm:gap-3 min-w-0 flex-1", titoloSoloDaComputer && "max-sm:hidden")}>
+        <div className={cn("flex items-start gap-2.5 sm:gap-3 min-w-0 flex-1 sm:min-w-[18rem]", titoloSoloDaComputer && "max-sm:hidden")}>
           {icon && (
             <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
               {icon}

@@ -94,13 +94,14 @@ describe("Pianificazione nelle azioni rapide", () => {
     render(<OrderQuickActions {...base} />);
     expect(screen.queryByRole("button", { name: "Nuova attività" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Applica flusso" })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Appuntamento" })).toHaveLength(1);
+    // Al computer l'appuntamento sta nel menu, come documenti: la barra ha tre azioni.
+    expect(screen.queryByRole("button", { name: "Appuntamento" })).not.toBeInTheDocument();
   });
   it("il menu non ha il flusso aziendale né voci spente: senza telefono niente Chiama", async () => {
     render(<OrderQuickActions {...base} customer={{ name: "Mario", email: "m@x.it", phone: null }} onOpenFirma={vi.fn()} onOpenNotes={vi.fn()} onOpenOps={vi.fn()} />);
     fireEvent.keyDown(screen.getByRole("button", { name: /Altre azioni/ }), { key: "Enter" });
     const voci = (await screen.findAllByRole("menuitem")).map((v) => v.textContent);
-    expect(voci).toEqual(["Firma", "Note interne", "Responsabile"]);
+    expect(voci).toEqual(["Firma", "Note interne", "Responsabile", "Appuntamento"]);
     expect(screen.queryByText("Flusso di lavoro")).not.toBeInTheDocument();
   });
   it("«Altre azioni» è l'unico menu: registro, PDF, duplica ed elimina in fondo", async () => {
@@ -108,7 +109,7 @@ describe("Pianificazione nelle azioni rapide", () => {
     render(<OrderQuickActions {...base} onOpenRegistro={vi.fn()} onScaricaPdf={vi.fn()} onDuplica={vi.fn()} onElimina={elimina} onModifica={vi.fn()} />);
     fireEvent.keyDown(screen.getByRole("button", { name: "Altre azioni" }), { key: "Enter" });
     const voci = (await screen.findAllByRole("menuitem")).map((v) => v.textContent);
-    expect(voci).toEqual(["Registro attività", "Scarica PDF", "Duplica", "Elimina"]);
+    expect(voci).toEqual(["Appuntamento", "Registro attività", "Scarica PDF", "Duplica", "Elimina"]);
     fireEvent.click(screen.getByRole("menuitem", { name: "Elimina" }));
     expect(elimina).toHaveBeenCalledOnce();
   });

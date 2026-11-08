@@ -16,7 +16,7 @@ import {
   ODA_STATUS_LABELS as STATUS_LABELS,
   ODA_STATUS_CHIP_VARIANT as STATUS_CHIP_VARIANT,
 } from "@/lib/odaStatus";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useSearchParams, Link } from "react-router-dom";
 import { useDentroPopupDocumento, useIdDocumento, useNavigaDocumento } from "@/lib/orders/documentoPopup";
 import { useVociListinoFornitore } from "@/hooks/useListinoFornitore";
 import { format } from "date-fns";
@@ -24,11 +24,12 @@ import { it } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft, Loader2, Plus, Send, CheckCircle2, Package, XCircle, ExternalLink, FileCheck, ShieldCheck, Paperclip,
   AlertTriangle, ScanLine, ClipboardList, CalendarClock,
-  PackageCheck, Pencil, FileDown, Mail, Eye,
+  PackageCheck, Pencil, FileDown, Mail, Eye, MoreHorizontal,
 } from "lucide-react";
 import {
   QuotePageHeader,
@@ -104,7 +105,9 @@ export default function PurchaseOrderDetail() {
   // M4 — DDT ricezione (nuovo wizard procedurale)
   const [ddtDialogOpen, setDdtDialogOpen] = useState(false);
   const [receiveScanOpen, setReceiveScanOpen] = useState(false);
-  const [arrivoOpen, setArrivoOpen] = useState(false);
+  // ?arrivo=1: chi arriva dalla commessa con «Merce arrivata» trova già aperto l'arrivo.
+  const [parametri] = useSearchParams();
+  const [arrivoOpen, setArrivoOpen] = useState(parametri.get("arrivo") === "1");
 
   // Invio al fornitore: si usa il compositore email dell'app, lo stesso di
   // contatti/opportunita'/commesse, cosi' l'ordine parte dalla casella
@@ -310,6 +313,34 @@ export default function PurchaseOrderDetail() {
     });
   };
 
+  // In testata restano Modifica, Arrivata merce e il passo principale: il resto nel menu.
+  const arrivoPossibile = ["inviato", "confermato", "parziale"].includes(order.status);
+  const statiPrincipali = nextStatuses.filter((ns) => ns !== "annullato" && !(ns === "inviato" && origine === "email"));
+  const puoAnnullare = nextStatuses.includes("annullato");
+  const chiediAnnullo = async () => {
+    if (await confirm({
+      title: "Annullare l'ordine?",
+      description: `${order.oda_number} non sarà più valido e le righe tornano da ordinare.`,
+      confirmLabel: "Annulla l'ordine",
+      cancelLabel: "Tienilo",
+      variant: "destructive",
+    })) handleStatusChange("annullato");
+  };
+  const vociMenu: Array<{ id: string; etichetta: string; icona: React.ReactNode; azione: () => void }> = [
+    ...(order.status !== "bozza" && order.status !== "annullato"
+      ? [{ id: "verifica", etichetta: "Verifica AI", icona: <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />, azione: () => setVerifyDialogOpen(true) }]
+      : []),
+    ...(arrivoPossibile
+      ? [{ id: "scansione", etichetta: "Ricevi via scansione", icona: <ScanLine className="h-3.5 w-3.5" aria-hidden="true" />, azione: () => setReceiveScanOpen(true) }]
+      : []),
+    ...(nextStatuses.includes("inviato") && origine === "email"
+      ? [{ id: "voce", etichetta: "Già ordinato a voce", icona: STATUS_ICONS.inviato, azione: (): void => { void handleStatusChange("inviato"); } }]
+      : []),
+    ...(order.status !== "bozza"
+      ? statiPrincipali.map((ns) => ({ id: ns, etichetta: `Segna: ${String(STATUS_LABELS[ns] ?? ns).toLowerCase()}`, icona: STATUS_ICONS[ns], azione: (): void => { void handleStatusChange(ns); } }))
+      : []),
+  ];
+
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Back link — visible on all viewports */}
@@ -360,103 +391,73 @@ export default function PurchaseOrderDetail() {
                 {isEditable ? "Termina modifica" : "Modifica ordine"}
               </Button>
             )}
-            {order.status !== "bozza" && order.status !== "annullato" && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setVerifyDialogOpen(true)}
-              >
-                <ShieldCheck className="h-3.5 w-3.5 mr-1" />
-                Verifica AI
-              </Button>
-            )}
-            {(["inviato", "confermato", "parziale"] as Array<typeof order.status>).includes(order.status) && (
-              <Button size="sm" onClick={() => setArrivoOpen(true)}>
+            {arrivoPossibile && (
+              <Button size="sm" aria-expanded={arrivoOpen} onClick={() => setArrivoOpen((a) => !a)}>
                 <PackageCheck className="h-3.5 w-3.5 mr-1" />
                 Arrivata merce
               </Button>
             )}
-            {(["inviato", "confermato", "parziale"] as Array<typeof order.status>).includes(order.status) && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setReceiveScanOpen(true)}
-              >
-                <ScanLine className="h-3.5 w-3.5 mr-1" />
-                Ricevi via scansione
-              </Button>
-            )}
-            {nextStatuses.map((ns) =>
-              // "Inviato" non e' un cambio di stato come gli altri: l'ordine deve
-              // partire davvero al fornitore. Si apre il compositore email e lo
-              // stato avanza solo quando l'email e' uscita. Chi ordina a voce ha
-              // accanto la scorciatoia per segnarlo inviato senza mandare nulla.
-              // Vale solo per gli ordini che partono da qui: se l'ordine e' gia'
-              // stato piazzato altrove (sito, banco, documento) il pulsante dice
-              // cosa fare davvero, senza fingere un invio.
-              ns === "inviato" && origine === "email" ? (
-                <div key={ns} className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs text-muted-foreground"
-                    disabled={updateStatus.isPending}
-                    onClick={() => handleStatusChange("inviato")}
-                  >
-                    Già ordinato a voce
-                  </Button>
-                </div>
-              ) : ns === "annullato" ? (
-                <Button
-                  key={ns}
-                  variant="outline"
-                  size="sm"
-                  className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  onClick={async () => {
-                    if (await confirm({
-                      title: "Annullare l'ordine?",
-                      description: `${order.oda_number} non sarà più valido e le righe tornano da ordinare.`,
-                      confirmLabel: "Annulla l'ordine",
-                      cancelLabel: "Tienilo",
-                      variant: "destructive",
-                    })) handleStatusChange(ns);
-                  }}
-                  disabled={updateStatus.isPending}
-                >
-                  {STATUS_ICONS[ns]}
-                  Annulla ordine
-                </Button>
-              ) : (
-                <QuotePrimaryButton
-                  key={ns}
-                  size="sm"
-                  onClick={() => handleStatusChange(ns)}
-                  disabled={updateStatus.isPending}
-                >
-                  {STATUS_ICONS[ns]}
-                  {/* Dalla bozza il pulsante parla la lingua di come si e'
-                      comprato: "Registra acquisto" al banco, "Ordine
-                      confermato" online. "Confermato" e basta non direbbe a
-                      nessuno cosa sta per succedere. */}
-                  {order.status === "bozza" ? infoOrigine.azione : STATUS_LABELS[ns]}
-                </QuotePrimaryButton>
-              )
+            {order.status === "bozza" && statiPrincipali.map((ns) => (
+              <QuotePrimaryButton key={ns} size="sm" onClick={() => handleStatusChange(ns)} disabled={updateStatus.isPending}>
+                {STATUS_ICONS[ns]}
+                {/* Dalla bozza il pulsante parla la lingua di come si e'
+                    comprato: "Registra acquisto" al banco, "Ordine confermato" online. */}
+                {infoOrigine.azione}
+              </QuotePrimaryButton>
+            ))}
+            {vociMenu.length + (puoAnnullare ? 1 : 0) > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm"><MoreHorizontal className="h-3.5 w-3.5 mr-1" aria-hidden="true" />Altre azioni</Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {vociMenu.map((v) => (
+                    <DropdownMenuItem key={v.id} disabled={updateStatus.isPending} onSelect={v.azione}>{v.icona}<span className="ml-2">{v.etichetta}</span></DropdownMenuItem>
+                  ))}
+                  {puoAnnullare && vociMenu.length > 0 && <DropdownMenuSeparator />}
+                  {puoAnnullare && (
+                    <DropdownMenuItem className="text-destructive focus:text-destructive" disabled={updateStatus.isPending} onSelect={() => void chiediAnnullo()}>
+                      <XCircle className="h-3.5 w-3.5" aria-hidden="true" /><span className="ml-2">Annulla ordine</span>
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </>
         }
       />
 
+      {arrivoOpen && arrivoPossibile && (
+        <Suspense fallback={null}>
+          <OdaArrivoMerceSheet
+            inline
+            open
+            onOpenChange={setArrivoOpen}
+            odaId={order.id}
+            companyId={effectiveCompany?.id ?? ""}
+            warehouseId={order.delivery_warehouse_id ?? null}
+          />
+        </Suspense>
+      )}
+
       <section aria-label="Azioni rapide ordine" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div><h2 className="text-sm font-bold text-slate-900">Documenti e invio</h2><p className="mt-0.5 text-xs text-slate-500">Scarica anche in bozza, oppure prepara l’email da controllare prima dell’invio.</p></div>
+          <h2 className="text-sm font-bold text-slate-900">Documenti e invio</h2>
           <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-            <Button variant="outline" size="sm" disabled={documentBusy || !effectiveCompany} onClick={()=>setPreviewOpen(true)}><Eye className="mr-1.5 h-4 w-4"/>Anteprima PDF</Button>
             <Button variant="outline" size="sm" disabled={downloadingPdf || documentBusy || !effectiveCompany} onClick={downloadPdf}>
               {downloadingPdf ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <FileDown className="h-3.5 w-3.5 mr-1" />}
               {downloadingPdf ? "Preparazione PDF…" : "Scarica PDF"}
             </Button>
-            <Button size="sm" variant="outline" disabled={documentBusy} onClick={() => openSend("testo")}><Mail className="mr-1.5 h-4 w-4" />Email con testo</Button>
-            <Button size="sm" disabled={documentBusy} onClick={() => openSend("pdf")}><Paperclip className="mr-1.5 h-4 w-4" />Email con PDF</Button>
+            <Button size="sm" variant={order.status === "bozza" ? "default" : "outline"} disabled={documentBusy} onClick={() => openSend("pdf")}><Paperclip className="mr-1.5 h-4 w-4" />Email con PDF</Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="h-9 w-9" aria-label="Altri documenti"><MoreHorizontal className="h-4 w-4" aria-hidden="true" /></Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem disabled={documentBusy || !effectiveCompany} onSelect={() => setPreviewOpen(true)}><Eye className="h-3.5 w-3.5" aria-hidden="true" /><span className="ml-2">Anteprima PDF</span></DropdownMenuItem>
+                <DropdownMenuItem disabled={documentBusy} onSelect={() => openSend("testo")}><Mail className="h-3.5 w-3.5" aria-hidden="true" /><span className="ml-2">Email con testo</span></DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
         {(editingDetails || editingNotesId === order.id) && <p role="status" className="mt-3 text-xs text-amber-700">Salva o annulla le modifiche aperte prima di preparare il PDF o l’email.</p>}
@@ -707,13 +708,7 @@ export default function PurchaseOrderDetail() {
                 </div>
               )}
               {ddtList.length === 0 ? (
-                <div className="text-center py-5 space-y-2">
-                  <FileCheck className="h-8 w-8 mx-auto text-slate-300" />
-                  <p className="text-xs text-slate-500">Nessun DDT registrato</p>
-                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setDdtDialogOpen(true)}>
-                    <Plus className="h-3.5 w-3.5" /> Registra il primo DDT
-                  </Button>
-                </div>
+                <p className="py-3 text-center text-xs text-slate-500">Nessun DDT registrato</p>
               ) : (
                 <div className="space-y-1.5 mt-2 max-h-80 overflow-y-auto pr-1">
                   {(ddtList as {
@@ -860,19 +855,6 @@ export default function PurchaseOrderDetail() {
         onOpenChange={setDdtDialogOpen}
         prefillPurchaseOrderId={odaId ?? null}
       />
-
-      {/* Arrivo merce con le quantità a mano: la strada principale, senza barcode. */}
-      <Suspense fallback={null}>
-        {arrivoOpen && (
-          <OdaArrivoMerceSheet
-            open={arrivoOpen}
-            onOpenChange={setArrivoOpen}
-            odaId={order.id}
-            companyId={effectiveCompany?.id ?? ""}
-            warehouseId={order.delivery_warehouse_id ?? null}
-          />
-        )}
-      </Suspense>
 
       {/* MP2 P1a — ricezione via scansione QR/barcode (skip step 1-2 grazie a lockedOdaId) */}
       <Suspense fallback={null}>

@@ -15,11 +15,12 @@
  */
 import { useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, PackageCheck, Camera, RotateCcw, Warehouse } from "lucide-react";
+import { Loader2, PackageCheck, Camera, RotateCcw, Warehouse, X } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useElencoArrivo } from "@/hooks/useArrivoPosizioni";
+import { ArrivoPosizioniPanel } from "@/components/ddt/ArrivoPosizioniPanel";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -63,6 +64,7 @@ export function OdaArrivoMerceSheet({
   odaId,
   companyId,
   warehouseId = null,
+  inline = false,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -70,6 +72,8 @@ export function OdaArrivoMerceSheet({
   companyId: string;
   /** Se l'azienda tiene il magazzino, le righe abbinate a un articolo lo caricano. */
   warehouseId?: string | null;
+  /** Dentro la pagina dell'ordine invece del pannello laterale. */
+  inline?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [quantita, setQuantita] = useState<Record<string, string>>({});
@@ -353,27 +357,13 @@ export function OdaArrivoMerceSheet({
     onError: (e) => toast.error("Arrivo non registrato", { description: userErrorMessage(e) }),
   });
 
-  return (
-    <Sheet open={open} onOpenChange={chiudi}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-lg">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <PackageCheck className="h-5 w-5" /> Arrivata merce
-          </SheetTitle>
-          <SheetDescription>
-            {testata?.oda_number ? (
-              <span className="mb-1 block font-medium text-foreground">
-                {testata.oda_number}
-                {testata.supplier?.name && <> · {testata.supplier.name}</>}
-                {testata.commessa?.order_code && <> · commessa {testata.commessa.order_code}</>}
-                {testata.ticket_id && <> · assistenza</>}
-              </span>
-            ) : null}
-            {daRicevere.length > 0 && "Le quantità sono già quelle che mancavano. Se è arrivato tutto conferma, altrimenti correggi solo la riga che non torna."}
-          </SheetDescription>
-        </SheetHeader>
-
-        {suMisura.size > 0 && (
+  const avviso = daRicevere.length > 0
+    ? "Le quantità sono già quelle che mancavano. Se è arrivato tutto conferma, altrimenti correggi solo la riga che non torna."
+    : null;
+  const corpo = (
+    <>
+        {inline && suMisura.size > 0 && <div className="mt-3"><ArrivoPosizioniPanel odaId={odaId} compatto /></div>}
+        {!inline && suMisura.size > 0 && (
           <div className="mt-3 space-y-2 rounded-lg border p-3 text-sm">
             <p>{suMisura.size === 1 ? "1 posizione è su misura" : `${suMisura.size} posizioni sono su misura`}: va al cantiere, non in magazzino.</p>
             <Button asChild size="sm" className="w-full">
@@ -396,6 +386,7 @@ export function OdaArrivoMerceSheet({
           )
         ) : (
           <div className="mt-4 space-y-4">
+            {inline && suMisura.size > 0 && <h3 className="text-sm font-semibold">Gli altri articoli</h3>}
             <div className="flex flex-wrap gap-2">
               <Button size="sm" onClick={tuttoArrivato} className="flex-1">
                 È arrivato tutto
@@ -543,6 +534,49 @@ export function OdaArrivoMerceSheet({
             </Button>
           </div>
         )}
+    </>
+  );
+
+  if (inline) {
+    return (
+      <section aria-label="Arrivo merce" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:px-6">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="flex items-center gap-2 text-base font-bold text-slate-900">
+              <PackageCheck className="h-5 w-5 text-primary" aria-hidden="true" /> Arrivo merce
+            </h2>
+            {avviso && <p className="mt-0.5 text-xs text-muted-foreground">{avviso}</p>}
+          </div>
+          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label="Chiudi arrivo merce" onClick={() => chiudi(false)}>
+            <X className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </div>
+        {corpo}
+      </section>
+    );
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={chiudi}>
+      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-lg">
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
+            <PackageCheck className="h-5 w-5" /> Arrivata merce
+          </SheetTitle>
+          <SheetDescription>
+            {testata?.oda_number ? (
+              <span className="mb-1 block font-medium text-foreground">
+                {testata.oda_number}
+                {testata.supplier?.name && <> · {testata.supplier.name}</>}
+                {testata.commessa?.order_code && <> · commessa {testata.commessa.order_code}</>}
+                {testata.ticket_id && <> · assistenza</>}
+              </span>
+            ) : null}
+            {avviso}
+          </SheetDescription>
+        </SheetHeader>
+
+        {corpo}
       </SheetContent>
     </Sheet>
   );

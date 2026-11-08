@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { ChevronDown, Package, PackageCheck, Link2, Unlink, Plus } from "lucide-react";
@@ -35,9 +35,6 @@ import {
 const ddtArrivati = (a: { ricevuti: number; verificati: number; non_conformi: number; parziali?: number }) =>
   a.ricevuti + a.verificati + a.non_conformi + (a.parziali ?? 0);
 
-const OdaArrivoMerceSheet = lazy(() =>
-  import("@/components/warehouse/OdaArrivoMerceSheet").then((m) => ({ default: m.OdaArrivoMerceSheet })),
-);
 
 interface OrdineCollegato {
   id: string;
@@ -65,7 +62,6 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items, riepilogo 
   const companyId = effectiveCompany?.id;
   const { canEditOrders, canViewCosts } = usePermissions();
   const [odaAperto, setOdaAperto] = useState<OdaDellaFinestra | null>(null);
-  const [arrivoDi, setArrivoDi] = useState<{ id: string; warehouseId: string | null } | null>(null);
   const oggi = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
 
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
@@ -158,9 +154,11 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items, riepilogo 
     { titolo: "Azioni", destra: true, cella: (po) => (
       <div className="flex items-center justify-end gap-1">
         {avanzamentoOrdine(po, oggi).aperto && canEditOrders && (
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2 text-xs" aria-label={`Merce arrivata per l'ordine ${po.oda_number}`}
-            onClick={() => setArrivoDi({ id: po.id, warehouseId: po.delivery_warehouse_id })}>
-            <PackageCheck className="h-3.5 w-3.5" /><span className="max-sm:hidden">Merce arrivata</span>
+          <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 px-2 text-xs">
+            {/* L'arrivo si registra dentro l'ordine: si apre già pronto. */}
+            <Link to={`/azienda/ordini-acquisto/${po.id}?arrivo=1`} aria-label={`Merce arrivata per l'ordine ${po.oda_number}`}>
+              <PackageCheck className="h-3.5 w-3.5" /><span className="max-sm:hidden">Merce arrivata</span>
+            </Link>
           </Button>
         )}
         <Button variant="ghost" size="icon" className="h-8 w-8 max-sm:hidden" disabled={!canEditOrders}
@@ -201,24 +199,6 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items, riepilogo 
       {/* Clic su un ordine: le sue bolle e fatture, senza lasciare la commessa. */}
       {/* Montata solo quando serve: bolle e fatture si leggono al clic, non a ogni apertura della commessa. */}
       {odaAperto && <OdaDocumentiDialog orderId={orderId} oda={odaAperto} onClose={() => setOdaAperto(null)} mostraImporti={!!canViewCosts} />}
-
-      {arrivoDi && companyId && (
-        <Suspense fallback={null}>
-          <OdaArrivoMerceSheet
-            open
-            onOpenChange={(aperto) => {
-              if (aperto) return;
-              setArrivoDi(null);
-              refreshMaterialQueries(queryClient);
-              queryClient.invalidateQueries({ queryKey: ["linked-purchase-orders", orderId] });
-              queryClient.invalidateQueries({ queryKey: ["commessa-bolle-ddt"] });
-            }}
-            odaId={arrivoDi.id}
-            companyId={companyId}
-            warehouseId={arrivoDi.warehouseId}
-          />
-        </Suspense>
-      )}
 
       {/* Link existing PO dialog */}
       <LinkExistingPurchaseOrderDialog

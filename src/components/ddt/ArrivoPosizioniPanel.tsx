@@ -48,13 +48,15 @@ function linkFoto(path: string) {
   return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
-export function ArrivoPosizioniPanel({ odaId, ddtId, nascondiSeVuoto, inCantiere }: {
+export function ArrivoPosizioniPanel({ odaId, ddtId, nascondiSeVuoto, inCantiere, compatto }: {
   odaId: string;
   /** La bolla aperta: le spunte si agganciano a lei e le sue righe si propongono. */
   ddtId?: string | null;
   /** Dentro la pagina della bolla: se l'ordine non ha posizioni su misura non si vede niente. */
   nascondiSeVuoto?: boolean;
   inCantiere?: boolean;
+  /** Dentro la pagina dell'ordine: fornitore e numero si leggono già sopra. */
+  compatto?: boolean;
 }) {
   const { profile } = useAuth();
   const elenco = useElencoArrivo(odaId, ddtId);
@@ -162,15 +164,15 @@ export function ArrivoPosizioniPanel({ odaId, ddtId, nascondiSeVuoto, inCantiere
   };
 
   return (
-    <div className="space-y-3 pb-24">
-      <header className="rounded-xl border bg-background p-3">
-        <p className="text-base font-bold">{ordine.fornitore ?? "Fornitore"} · {ordine.numero}</p>
-        <p className="text-sm text-muted-foreground">{[ordine.commessa, ordine.cliente].filter(Boolean).join(" · ")}</p>
-        <p className="mt-1 text-sm">
+    <div className={cn("space-y-3", !compatto && "pb-24")}>
+      <div className={cn(!compatto && "rounded-xl border bg-background p-3")}>
+        {!compatto && <p className="text-base font-bold">{ordine.fornitore ?? "Fornitore"} · {ordine.numero}</p>}
+        {!compatto && <p className="text-sm text-muted-foreground">{[ordine.commessa, ordine.cliente].filter(Boolean).join(" · ")}</p>}
+        <p className={cn("text-sm", !compatto && "mt-1")}>
           {daSpuntare.length === 0 ? "È arrivato tutto." : daSpuntare.length === 1 ? "Manca 1 posizione." : `Mancano ${daSpuntare.length} posizioni.`}
           {" "}Va al cantiere: non entra in magazzino.
         </p>
-      </header>
+      </div>
 
       {!ddtId && daSpuntare.length > 0 && (
         <div className="space-y-1">
