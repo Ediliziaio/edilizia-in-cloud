@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildPergolePrompt } from "@/modules/render-pergole/lib/pergolePromptBuilder";
+import { buildPergolePrompt } from "../../../shared/render-pergole/pergolePromptBuilder.ts";
 import type { ConfigurazionePergole } from "@/modules/render-pergole/lib/types";
 
 function baseConfig(overrides: Partial<ConfigurazionePergole> = {}): ConfigurazionePergole {

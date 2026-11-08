@@ -11,61 +11,14 @@ import {
   computePaymentReversal,
   detectReconAnomalies,
 } from "@/lib/finance/reconciliationAnalysis";
-import {
-  detectCashAnomalies,
-  type ForecastResult,
-  type ForecastWeek,
-} from "@/lib/finance/cashflowAnalysis";
 
 /**
- * Test logica finanziaria estratta da BankReconciliation e SilvioCashflowForecast.
+ * Test logica finanziaria estratta da BankReconciliation.
  * Esercita il CODICE DI PRODUZIONE (import da @/lib/finance/*), così la logica
  * money-adjacent è verificabile senza login né React/Supabase.
  *
  * Tutto in sola lettura: nessuna funzione qui muove denaro o scrive su DB.
  */
-
-// ─── Helper costruttori (forecast) ──────────────────────────────────────────
-
-function makeWeek(overrides: Partial<ForecastWeek> = {}): ForecastWeek {
-  return {
-    week_index: 1,
-    week_start: "2026-06-01",
-    week_end: "2026-06-07",
-    incassi_eur: 1000,
-    uscite_eur: 500,
-    cashflow_netto_eur: 500,
-    saldo_atteso_eur: 5000,
-    status: "ok",
-    ...overrides,
-  };
-}
-
-function makeForecast(
-  weeks: ForecastWeek[],
-  delayPattern: ForecastResult["delay_pattern"] = {
-    avg_delay_days_global: 0,
-    delays_per_client: {},
-  },
-): ForecastResult {
-  return {
-    aggiornato_al: "2026-06-02T08:00:00Z",
-    saldo_oggi_eur: 5000,
-    orizzonte_settimane: weeks.length || 13,
-    delay_pattern: delayPattern,
-    costo_personale_mensile_netto_eur: 0,
-    totale_incassi_previsti_eur: 0,
-    totale_uscite_previste_eur: 0,
-    saldo_atteso_fine_periodo_eur: weeks.length
-      ? weeks[weeks.length - 1].saldo_atteso_eur
-      : 5000,
-    saldo_minimo_eur: 0,
-    settimana_critica: "",
-    critical_weeks_count: 0,
-    warning_weeks_count: 0,
-    weeks,
-  };
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // RICONCILIAZIONE — fmtEur
@@ -497,84 +450,5 @@ describe("autoMatchSummary", () => {
 
   it("nessuna transazione da riconciliare", () => {
     expect(autoMatchSummary(0, 0)).toBe("Nessuna transazione da riconciliare");
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// FORECAST — detectCashAnomalies
-// ═══════════════════════════════════════════════════════════════════════════
-
-describe("detectCashAnomalies", () => {
-  it("rileva il saldo cumulato sotto zero (critical)", () => {
-    const data = makeForecast([
-      makeWeek({ week_index: 1, saldo_atteso_eur: 1000 }),
-      makeWeek({ week_index: 3, saldo_atteso_eur: -200 }),
-    ]);
-    const neg = detectCashAnomalies(data).find((a) => a.id === "neg-balance");
-    expect(neg).toBeTruthy();
-    expect(neg!.severity).toBe("critical");
-    expect(neg!.title).toContain("S3");
-    expect(neg!.weekIndex).toBe(3); // aggancia la settimana per highlight/scroll
-  });
-
-  it("rileva il primo peggioramento di stato (ok → warning)", () => {
-    const data = makeForecast([
-      makeWeek({ week_index: 1, status: "ok" }),
-      makeWeek({ week_index: 2, status: "warning" }),
-    ]);
-    const t = detectCashAnomalies(data).find((a) => a.id === "transition-2");
-    expect(t).toBeTruthy();
-    expect(t!.severity).toBe("warning");
-    expect(t!.weekIndex).toBe(2);
-  });
-
-  it("il peggioramento verso 'critical' ha severità critical", () => {
-    const data = makeForecast([
-      makeWeek({ week_index: 1, status: "ok" }),
-      makeWeek({ week_index: 2, status: "critical" }),
-    ]);
-    expect(detectCashAnomalies(data).find((a) => a.id === "transition-2")?.severity).toBe("critical");
-  });
-
-  it("rileva la concentrazione di uscite e sceglie la settimana peggiore", () => {
-    const data = makeForecast([
-      makeWeek({ week_index: 1, status: "ok" }),
-      makeWeek({ week_index: 2, incassi_eur: 100, uscite_eur: 500, status: "warning" }),
-      makeWeek({ week_index: 3, incassi_eur: 100, uscite_eur: 900, status: "warning" }),
-    ]);
-    const spike = detectCashAnomalies(data).find((a) => a.id.startsWith("outflow-"));
-    expect(spike).toBeTruthy();
-    expect(spike!.id).toBe("outflow-3"); // 900 > 500 → settimana peggiore
-    expect(spike!.weekIndex).toBe(3);
-  });
-
-  it("segnala i clienti che superano la media dei ritardi di ≥5gg", () => {
-    const data = makeForecast([makeWeek()], {
-      avg_delay_days_global: 10,
-      delays_per_client: { "Cliente Lento": 30, "Cliente Ok": 12 },
-    });
-    const out = detectCashAnomalies(data);
-    const lento = out.find((a) => a.id === "client-Cliente Lento");
-    expect(lento).toBeTruthy();
-    expect(lento!.severity).toBe("warning"); // +20gg oltre la media → ≥15 ⇒ warning
-    expect(lento!.weekIndex).toBeUndefined(); // i ritardi cliente non puntano a una settimana
-    // 'Cliente Ok' è solo +2gg sopra la media → sotto la soglia di 5gg
-    expect(out.find((a) => a.id === "client-Cliente Ok")).toBeUndefined();
-  });
-
-  it("ritardo moderato (5gg ≤ extra < 15gg) ha severità info", () => {
-    const data = makeForecast([makeWeek()], {
-      avg_delay_days_global: 10,
-      delays_per_client: { "Cliente Medio": 17 },
-    });
-    expect(detectCashAnomalies(data).find((a) => a.id === "client-Cliente Medio")?.severity).toBe("info");
-  });
-
-  it("forecast sano → nessuna anomalia", () => {
-    const data = makeForecast([
-      makeWeek({ week_index: 1, status: "ok", saldo_atteso_eur: 5000 }),
-      makeWeek({ week_index: 2, status: "ok", saldo_atteso_eur: 6000 }),
-    ]);
-    expect(detectCashAnomalies(data)).toEqual([]);
   });
 });

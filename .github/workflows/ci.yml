@@ -345,7 +345,6 @@ jobs:
           src/test/logic/commesseListQuery.test.ts
           src/test/logic/commessePaymentFilters.test.ts
           src/test/logic/commesseIncassatoDaRate.test.ts
-          src/test/ui/ordersActiveFilters.test.tsx
           src/test/ui/ordersFilterCount.test.tsx
           src/test/ui/ordersPeriodSummary.test.tsx
           src/test/ui/ordersUnavailableCosts.test.tsx

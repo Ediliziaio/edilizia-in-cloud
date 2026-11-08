@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { DEFAULT_PISCINE_CONFIG } from "@/components/render-piscine/defaultPiscineConfig";
 import { conDimensione, conTipo, misuraDaInput } from "@/components/render-piscine/aggiornaConfigPiscina";
-import { buildPiscinePrompt } from "@/modules/render-piscine/lib/piscinePromptBuilder";
+import { buildPiscinePrompt } from "../../../shared/render-piscine/piscinePromptBuilder.ts";
 import type { ConfigurazionePiscine } from "@/modules/render-piscine/lib/types";
 import { buildPoolPrompt } from "../../../supabase/functions/generate-pool-render/poolPrompt.ts";
 import { configPerAmbito } from "../../../shared/render-piscine/piscineOperationScope.ts";

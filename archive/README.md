@@ -22,3 +22,10 @@ Tracce dei masterprompt-driven sprint passati:
 - `src/pages/_deprecated/dipendente/` (vecchio portale dipendente) è stato
   invece **eliminato** in questo commit perché le route sono coperte da redirect
   in `companyRoutes.tsx` verso `/campo/*`
+
+## `radice-2026-11/`
+
+Spostati dalla radice del repository l'08/11/2026: i prompt dell'epoca Lovable
+(`lovable_prompt_*.txt`), i resoconti dei masterprompt (`STATUS*.md`), il brief
+del motore marketing, le note di idee e il manuale dell'integrazione bancaria.
+Nessun codice, script o documento li legge.

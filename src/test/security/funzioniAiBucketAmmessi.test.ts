@@ -97,7 +97,7 @@ describe("il problema: il parser degli indirizzi sale davvero", () => {
       ["mezzi-documenti", `${AZIENDA}/${SCHEDA}/${UTENTE}-libretto.pdf`], // useMezzi
       ["silvio-uploads", `${UTENTE}/silvio_1730300000000_ab12cd.pdf`], // InternalChat
       ["silvio-uploads", `${AZIENDA}/${UTENTE}/1730300000000-fattura_di_prova.pdf`], // SilvioChatSheet
-      ["quote-template-assets", `${AZIENDA}/import-condizioni-1730300000000.pdf`], // ImportaCondizioniBar
+      ["quote-template-assets", `${AZIENDA}/import-condizioni-1730300000000.pdf`], // ai-importa-condizioni (il pannello che lo caricava è stato tolto l'08/11/2026)
       ["finanziamenti-tabelle", `${AZIENDA}/ai-staging/1730300000000-tabella_BNL.pdf`], // SettingsFinanziamentiNuova
       ["listini-tmp", `${UTENTE}/1730300000000-listino.pdf`], // ListinoAIImport
       ["whatsapp-media", `${AZIENDA}/2026-10/${UTENTE}.pdf`], // whatsapp-ai-processor
@@ -233,13 +233,6 @@ describe("valutaFile: la chiave di servizio solo per le coppie ammesse", () => {
 describe("l'elenco coincide con quello che l'app manda davvero", () => {
   const ha = (elenco: readonly BucketAmmesso[], bucket: string, cartella: "azienda" | "utente") =>
     elenco.find((b) => b.bucket === bucket)?.cartelle.includes(cartella) === true;
-
-  it("import condizioni: quote-template-assets, cartella dell'azienda", () => {
-    const s = leggi("src/components/quote-templates/ImportaCondizioniBar.tsx");
-    expect(s).toContain('const BUCKET_IMPORT = "quote-template-assets";');
-    expect(s).toContain("const path = `${companyId}/import-condizioni-");
-    expect(ha(BUCKET_IMPORT_CONDIZIONI, "quote-template-assets", "azienda")).toBe(true);
-  });
 
   it("modale «Importa documento»: documenti-smart, o computi se manca, cartella dell'azienda", () => {
     const s = leggi("src/components/documenti/SmartDocumentImportModal.tsx");

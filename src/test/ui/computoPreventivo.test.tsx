@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { bozzaVuota, chiaveBozzaComputo } from "@/lib/computo/editorNativo";
+import { chiaveBozzaComputo } from "@/lib/computo/editorNativo";
 import ComputoPreventivo from "@/pages/azienda/marketing/ComputoPreventivo";
-import ComputiPreventivoLocali from "@/components/computo/ComputiPreventivoLocali";
 // La pagina legge il modello del computo dell'azienda: qui non c'è, e si parte coi valori di serie.
 // Le condizioni dall'archivio (07/11/2026): qui un'azienda che non ne ha.
 vi.mock("@/hooks/useCondizioniArchivio", () => ({ useCondizioniArchivio: () => ({ modelli: [] as unknown[], inCaricamento: false }) }));
@@ -36,16 +35,5 @@ describe("computo nel flusso Preventivi", () => {
       expect(screen.getByRole("alert")).toHaveTextContent("Azienda non riconosciuta");
       expect(screen.queryByTestId("storage-key")).not.toBeInTheDocument();
     } finally { vi.unstubAllEnvs(); }
-  });
-  it("elenca e riprende solo le bozze dell'azienda e utente attivi", () => {
-    localStorage.setItem(chiaveBozzaComputo("c1", "u1", `preventivo:${ID}`), JSON.stringify({ ...bozzaVuota(), titolo: "Preventivo locale A" }));
-    localStorage.setItem(chiaveBozzaComputo("c2", "u1", `preventivo:${ID}`), JSON.stringify({ ...bozzaVuota(), titolo: "Riservato azienda B" }));
-    localStorage.setItem(chiaveBozzaComputo("c1", "u2", `preventivo:${ID}`), JSON.stringify({ ...bozzaVuota(), titolo: "Riservato altro utente" }));
-    const { rerender } = render(<MemoryRouter><ComputiPreventivoLocali /></MemoryRouter>);
-    expect(screen.getByRole("link", { name: /Preventivo locale A/ })).toHaveAttribute("href", `/azienda/marketing/preventivi/computo?bozza=${ID}`);
-    expect(screen.queryByText(/Riservato/)).not.toBeInTheDocument();
-    stato.company = "c2"; rerender(<MemoryRouter><ComputiPreventivoLocali /></MemoryRouter>);
-    expect(screen.queryByText("Preventivo locale A")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Riservato azienda B/ })).toBeInTheDocument();
   });
 });
