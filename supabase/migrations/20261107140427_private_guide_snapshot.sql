@@ -1,0 +1,3 @@
+-- Ricostruita dal registro (supabase_migrations.schema_migrations.statements):
+-- era applicata in produzione senza un file nel repository.
+create table if not exists public.silvio_private_guide_snapshot (id text primary key check (id = 'reviewed'), content jsonb not null check (jsonb_typeof(content) = 'array'), source_hash text not null, updated_at timestamptz not null default now()); alter table public.silvio_private_guide_snapshot enable row level security; revoke all on public.silvio_private_guide_snapshot from public, anon, authenticated; grant select on public.silvio_private_guide_snapshot to service_role;
