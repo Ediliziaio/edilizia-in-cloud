@@ -97,6 +97,7 @@ interface Props {
   onFieldChange: (field: string, value: unknown) => void;
   validationErrorCount?: number;
   validationErrors?: ValidationError[];
+  onVaiAlCampo?: (campo: string) => void;
   onPreview?: () => void;
   onBack?: () => void;
   onInviaSDI?: () => void;
@@ -115,6 +116,7 @@ interface Props {
 
 export function EditorTopBar({
   state, isSaving, lastSaved, isDirty, onEmetti, onDelete, validationErrorCount, validationErrors,
+  onVaiAlCampo,
   onPreview, onBack, onInviaSDI, onAggiornaStatoSdi, onDownloadPDF, onDownloadXML, onSendEmail, onDuplicate,
   onConvertToFattura, isInviaSDILoading, isAggiornaStatoLoading, isConvertLoading, isEmitting,
 }: Props) {
@@ -196,13 +198,13 @@ export function EditorTopBar({
                 </button>
               </PopoverTrigger>
               <PopoverContent className="w-72 p-3" align="end">
-                <p className="text-xs font-semibold text-muted-foreground mb-2">Errori di validazione</p>
+                <p className="text-xs font-semibold text-muted-foreground mb-2">Clicca per andare al campo</p>
                 <div className="space-y-1.5 max-h-48 overflow-auto">
                   {(validationErrors ?? []).map((e, i) => (
-                    <div key={i} className={`flex items-start gap-1.5 text-xs ${e.severity === "error" ? "text-destructive" : "text-amber-600"}`}>
+                    <button type="button" onClick={() => onVaiAlCampo?.(e.field)} key={i} className={`flex w-full items-start gap-1.5 text-left text-xs hover:underline ${e.severity === "error" ? "text-destructive" : "text-amber-600"}`}>
                       <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
                       <span>{e.message}</span>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </PopoverContent>

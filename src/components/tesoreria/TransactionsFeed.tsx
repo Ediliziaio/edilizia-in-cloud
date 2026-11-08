@@ -19,6 +19,8 @@ import { neutralizeCsvFormula } from "@/lib/csvExport";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CercaConFiltri, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 
+type TotaleMovimento = Parameters<typeof treasuryTransactionAmount>[0] & { currency?: string; transaction_type?: string };
+
 const CATEGORIES = [
   { value: "Stipendi", color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200" },
   { value: "Affitti", color: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200" },
@@ -57,6 +59,7 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
   const [accountFilter, setAccountFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [reconFilter, setReconFilter] = useState("all");
+  const [totali, setTotali] = useState<TotaleMovimento[] | null>(null);
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -113,6 +116,36 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function applicaFiltri(query: any) {
+    const searchFilter = buildBankTransactionSearchFilter(search);
+    if (searchFilter) query = query.or(searchFilter);
+    if (accountFilter !== "all") query = query.eq("account_id", accountFilter);
+    if (typeFilter !== "all") query = query.eq("transaction_type", typeFilter);
+    if (reconFilter === "pending") query = query.in("reconciliation_status", ["pending", "parziale"]);
+    else if (reconFilter !== "all") query = query.eq("reconciliation_status", reconFilter);
+    if (categoryFilter !== "all") query = query.eq("category", categoryFilter);
+    if (dateFrom) query = query.gte("booking_date", dateFrom);
+    if (dateTo) query = query.lte("booking_date", dateTo);
+    return query;
+  }
+
+  // Entrate e uscite di TUTTO il filtrato, non della pagina. Solo gli importi, a
+  // blocchi da mille; il filtro nuovo fa decadere il conteggio in corso.
+  async function caricaTotali(richiesta: number) {
+    const righe: TotaleMovimento[] = [];
+    for (let da = 0; da < 50000; da += 1000) {
+      const { data, error } = await applicaFiltri(
+        supabase.from("bank_transactions").select("id, amount, currency, transaction_type, metadata").eq("company_id", companyId),
+      ).order("id").range(da, da + 999);
+      if (richiesta !== requestSeqRef.current) return;
+      if (error) { setTotali(null); return; }
+      righe.push(...((data ?? []) as TotaleMovimento[]));
+      if (!data || data.length < 1000) break;
+    }
+    setTotali(righe);
+  }
+
   async function loadTransactions() {
     if (!isChronologicalDateRange(dateFrom, dateTo)) {
       setLoadError("Intervallo date non valido: la data iniziale deve precedere la data finale.");
@@ -135,17 +168,7 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
         .order("booking_date", { ascending: false })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
-      const searchFilter = buildBankTransactionSearchFilter(search);
-      if (searchFilter) {
-        query = query.or(searchFilter);
-      }
-      if (accountFilter !== "all") query = query.eq("account_id", accountFilter);
-      if (typeFilter !== "all") query = query.eq("transaction_type", typeFilter);
-      if (reconFilter === "pending") query = query.in("reconciliation_status", ["pending", "parziale"]);
-      else if (reconFilter !== "all") query = query.eq("reconciliation_status", reconFilter);
-      if (categoryFilter !== "all") query = query.eq("category", categoryFilter);
-      if (dateFrom) query = query.gte("booking_date", dateFrom);
-      if (dateTo) query = query.lte("booking_date", dateTo);
+      query = applicaFiltri(query);
 
       const { data, error, count } = await query;
       if (requestId !== requestSeqRef.current) return;
@@ -158,6 +181,7 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
         return;
       }
       setTransactions(data || []);
+      void caricaTotali(requestId);
       setTotalCount(count || 0);
 
       // Load linked invoices
@@ -326,14 +350,15 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
 
   // Summary
   const summary = useMemo(() => {
-    const groups = [...new Set(transactions.map(t => t.currency || "EUR"))].map(currency => {
-      const rows = transactions.filter(t => (t.currency || "EUR") === currency);
+    const base: TotaleMovimento[] = totali ?? transactions;
+    const groups = [...new Set(base.map(t => t.currency || "EUR"))].map(currency => {
+      const rows = base.filter(t => (t.currency || "EUR") === currency);
       const income = rows.filter(t => t.transaction_type === "credit").reduce((s, t) => s + treasuryTransactionAmount(t), 0);
       const expenses = rows.filter(t => t.transaction_type === "debit").reduce((s, t) => s + Math.abs(treasuryTransactionAmount(t)), 0);
       return { currency, income, expenses, net: income - expenses };
     });
     return { count: totalCount, groups };
-  }, [transactions, totalCount]);
+  }, [transactions, totali, totalCount]);
 
   const getCategoryBadge = (cat: string | null) => {
     const found = CATEGORIES.find((c) => c.value === cat);
@@ -549,7 +574,7 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
 
       {/* Summary. Mobile no: una riga lunga di numeri in fondo alla lista. */}
       <div className="text-sm text-muted-foreground text-center py-2 max-sm:hidden">
-        {summary.count} transazioni in tutto · qui sotto i totali di questa pagina
+        {summary.count} transazioni{totali ? " · totali di tutto il periodo filtrato" : " · totali di questa pagina"}
         {summary.groups.map(g => <div key={g.currency}>{g.currency} · Entrate: {formatTreasuryCurrency(g.income, "—", g.currency)} · Uscite: {formatTreasuryCurrency(g.expenses, "—", g.currency)} · Netto: {formatTreasuryCurrency(g.net, "—", g.currency)}</div>)}
       </div>
 
