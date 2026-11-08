@@ -142,37 +142,30 @@ describe("il PDF (generate-quote-pdf)", () => {
     expect(pdf).toContain("if (fondoCopertina && !t.pdf_cover_bg_color && !t.cover_bg_color) t.pdf_cover_bg_color = fondoCopertina;");
   });
 
-  it("schede prodotto e sezioni collegate escono nel PDF, una per capitolo", () => {
+  it("preventivo classico: i blocchi collegati (Chi siamo, schede, sezioni) non entrano nel PDF", () => {
     const dati = datiGenerici({
       quote: { quote_number: "P-1" }, items: [], company: null,
       template: {
-        composed_products: [{ id: "p1", name: "Caldaia", product_category: "Riscaldamento", product_short_description: "<p>A condensazione</p>", product_specs: [{ label: "Potenza", value: "24 kW" }], product_indicative_price: 1500, product_unit: "pz" }],
-        composed_sections: [{ id: "s1", name: "Garanzie", body_html: "<h2>Dieci anni</h2><p>Sui lavori eseguiti.</p>" }],
+        composed_products: [{ id: "p1", name: "Caldaia", product_specs: [{ label: "Potenza", value: "24 kW" }] }],
+        composed_sections: [{ id: "s1", name: "Chi siamo", body_html: "<p>Dal 1998.</p>" }],
       },
     });
-    const scheda = dati.sezioniTecniche?.find((x) => x.id === "scheda-p1");
-    expect(scheda?.titolo).toBe("Caldaia");
-    expect(scheda?.testo).toBe("A condensazione");
-    expect(scheda?.righe).toEqual(expect.arrayContaining([{ etichetta: "Categoria", valore: "Riscaldamento" }, { etichetta: "Potenza", valore: "24 kW" }]));
-    const sezione = dati.sezioniTecniche?.find((x) => x.id === "sezione-s1");
-    expect(sezione?.titolo).toBe("Garanzie");
-    expect(sezione?.testo).toContain("Dieci anni");
-    expect(sezione?.testo).toContain("Sui lavori eseguiti.");
+    expect(dati.sezioniTecniche?.some((x) => x.id === "scheda-p1" || x.id === "sezione-s1")).toBe(false);
+  });
+
+  it("l'interruttore «prezzi per riga» del preventivo arriva al PDF", () => {
+    const con = datiGenerici({ quote: { quote_number: "P-1" }, items: [], company: null, template: {} });
+    const senza = datiGenerici({ quote: { quote_number: "P-1", pdf_mostra_prezzi_per_riga: false }, items: [], company: null, template: {} });
+    expect(con.opzioniComputo?.mostraPrezzi).toBe(true);
+    expect(senza.opzioniComputo?.mostraPrezzi).toBe(false);
   });
 
   // ROSSI DI PROPOSITO (30/10/2026): il vecchio motore pdf-lib dava a condizioni, sezioni e schede
   // il colore scelto nel blocco collegato. Dal 27/10/2026 (2f5ea4316) il documento edile usa un
   // colore solo, quello del preventivo: i colori del singolo blocco non arrivano più al PDF.
-  it("condizioni e sezioni: i titoli nel colore del blocco", () => {
+  it("condizioni: i titoli nel colore del blocco", () => {
     const adattatore = leggi("src/components/preventivi/pdf/adattatoreGenerico.ts");
-    expect(adattatore).toMatch(/coloreDelBlocco\(sezione\.primary_color\)/);
     expect(adattatore).toMatch(/coloreDelBlocco\(t\.composed_terms\?\.primary_color\)/);
-  });
-
-  it("le schede prodotto nei colori della scheda", () => {
-    const adattatore = leggi("src/components/preventivi/pdf/adattatoreGenerico.ts");
-    expect(adattatore).toMatch(/coloreDelBlocco\(p\.primary_color\)/);
-    expect(adattatore).toMatch(/coloreDelBlocco\(p\.accent_color, COLORE_ACCENTO_DI_FABBRICA\)/);
   });
 });
 

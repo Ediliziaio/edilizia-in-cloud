@@ -91,7 +91,7 @@ describe("Preventivo generico: il filetto non passa sopra il testo", () => {
   const doc = leggi("src/components/preventivi/pdf/DocumentoEdilePDF.tsx");
 
   it("il filetto fra le righe sta sul confine, non sulla riga dopo", () => {
-    expect(doc).toContain('<View key={v.id} wrap={false} style={{ flexDirection: "row", paddingVertical: 6, borderTopWidth: 0.6, borderTopColor: tema.filetto }}>');
+    expect(doc).toContain('<View key={v.id} wrap={false} style={{ flexDirection: "row", paddingVertical: sobrio ? 3.5 : 6, borderTopWidth: sobrio ? 0.4 : 0.6, borderTopColor: tema.filetto }}>');
   });
 
   it("il filetto sopra i totali sta sopra le maiuscole del totale", () => {

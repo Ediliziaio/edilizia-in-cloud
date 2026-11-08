@@ -9,17 +9,19 @@ export function fontContratto(s: StileContratto, fallback='Helvetica'): string {
 }
 
 /** One renderer for all native module contracts, including editorial editions. */
-export function TestoContrattoPdf({riga:r,prima=false,font='Helvetica',colore='#334155',dimensione=10}: {
+export function TestoContrattoPdf({riga:r,prima=false,font='Helvetica',colore='#334155',dimensione=10,compatto=false}: {
   riga:RigaContratto;prima?:boolean;font?:string;colore?:string;dimensione?:number;
+  /** Il documento sobrio: testo a 8 pt, titoli appena più forti, righe strette. */
+  compatto?:boolean;
 }) {
   const heading=r.tipo==='h1'||r.tipo==='h2';
-  const base=heading?r.tipo==='h1'?14:11:dimensione;
+  const base=compatto?heading?8.5:8:heading?r.tipo==='h1'?14:11:dimensione;
   return <Text minPresenceAhead={heading?28:0} orphans={2} widows={2} style={{fontFamily:fontContratto({grassetto:heading},font),fontSize:base,color:colore,
-    textAlign:r.allineamento??'left',lineHeight:r.interlinea??1.5,marginTop:heading&&!prima?10:0,
-    marginLeft:r.tipo==='li'?10:0,marginBottom:r.spazioDopo??(heading?4:5)}}>
+    textAlign:r.allineamento??'left',lineHeight:compatto?1.35:r.interlinea??1.5,marginTop:heading&&!prima?(compatto?5:10):0,
+    marginLeft:r.tipo==='li'?10:0,marginBottom:compatto?(heading?1.5:3):r.spazioDopo??(heading?4:5)}}>
     {r.tipo==='li'&&!/^\d+\./.test(r.testo)?'• ':''}
     {(r.parti??[{testo:r.testo,stile:{}}]).map((p,i)=><Text key={i} style={{
-      fontFamily:fontContratto({...p.stile,grassetto:p.stile.grassetto??heading},font),fontSize:p.stile.dimensione??base,
+      fontFamily:fontContratto({...p.stile,grassetto:p.stile.grassetto??heading},font),fontSize:compatto?base:p.stile.dimensione??base,
       color:p.stile.colore??colore,textDecoration:p.stile.sottolineato&&p.stile.barrato?'underline line-through':p.stile.sottolineato?'underline':p.stile.barrato?'line-through':undefined,
     }}>{p.testo}</Text>)}
   </Text>;
