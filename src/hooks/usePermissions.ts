@@ -557,7 +557,8 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewBilling:     g("can_view_billing"),
     canViewScadenzario: g("can_view_scadenzario"),
     canViewPrimaNota:   g("can_view_prima_nota"),
-    canViewCosts:       g("can_view_costs"),
+    // Chi fa gli ordini vede i costi: senza non potrebbe comprare.
+    canViewCosts:       g("can_view_costs") || g("can_manage_purchasing"),
     canViewMargins:     g("can_view_margins"),
     canViewPrevisionale: g("can_view_forecast"),
     canViewTesoreria:   g("can_view_tesoreria"),
@@ -645,7 +646,8 @@ export function usePermissions(): Permissions {
   // Fissato durante il disegno: le query delle pagine partono subito dopo, non dopo un effetto.
   impostaLetturaSenzaPrezzi(
     !permessi.isLoading && !permessi.isAdmin && !permessi.canViewCosts && !permessi.canManagePurchasing
-    && (permessi.canViewOrders || permessi.canEditOrders || permessi.canViewWarehouse || permessi.canEditWarehouse),
+    // Tutti false è chi non ha ancora un'azienda (o la piattaforma): quello non è un utente limitato.
+    && Object.entries(permessi).some(([k, v]) => k.startsWith("can") && v === true),
   );
   return permessi;
 }

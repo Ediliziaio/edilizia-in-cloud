@@ -4,7 +4,7 @@
  * stesse colonne e i prezzi vuoti. Il cambio sta qui, in un punto solo, così nessuna delle
  * letture sparse nell'app può sfuggire; le scritture e le funzioni non passano da qui.
  */
-const TABELLE = ["purchase_order_items", "purchase_orders", "supplier_rfq_quotes", "supplier_rfq_suppliers"];
+const TABELLE = ["purchase_order_items", "purchase_orders", "supplier_rfq_quotes", "supplier_rfq_suppliers", "order_items"];
 const SUFFISSO = "_senza_prezzi";
 const CHIAVE_PROVA = "eic-prova-senza-prezzi";
 

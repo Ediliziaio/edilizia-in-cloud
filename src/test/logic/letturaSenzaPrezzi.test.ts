@@ -14,11 +14,17 @@ describe("lettura senza prezzi", () => {
     expect(selectSenzaPrezzi("x:purchase_order_items(id)")).toBe("x:purchase_order_items_senza_prezzi(id)");
     expect(selectSenzaPrezzi("*,a(b,purchase_order_items(id))")).toBe("*,a(b,purchase_order_items:purchase_order_items_senza_prezzi(id))");
   });
+  it("anche le righe commessa, senza confonderle con le righe d'ordine", () => {
+    expect(urlSenzaPrezzi(`${base}order_items?select=*&order_id=eq.1`, "GET")).toContain("/rest/v1/order_items_senza_prezzi?");
+    expect(selectSenzaPrezzi("*,order_items!goods_receipts_order_item_id_fkey(id)")).toBe("*,order_items:order_items_senza_prezzi!goods_receipts_order_item_id_fkey(id)");
+    expect(selectSenzaPrezzi("*,purchase_order_items(id,order_items(id))")).toBe("*,purchase_order_items:purchase_order_items_senza_prezzi(id,order_items:order_items_senza_prezzi(id))");
+  });
   it("non tocca colonne dai nomi simili, scritture, RPC e altre tabelle", () => {
     expect(selectSenzaPrezzi("purchase_order_id,purchase_orders_count")).toBe("purchase_order_id,purchase_orders_count");
     for (const m of ["POST", "PATCH", "DELETE"]) expect(urlSenzaPrezzi(`${base}purchase_orders?id=eq.1`, m)).toBe(`${base}purchase_orders?id=eq.1`);
     expect(urlSenzaPrezzi(`${base}rpc/purchase_orders`, "GET")).toBe(`${base}rpc/purchase_orders`);
     expect(urlSenzaPrezzi(`${base}orders?id=eq.1`, "GET")).toContain("/rest/v1/orders?");
+    expect(selectSenzaPrezzi("order_item_id,order_items_count")).toBe("order_item_id,order_items_count");
     expect(urlSenzaPrezzi("https://x.supabase.co/functions/v1/purchase_orders", "GET")).toBe("https://x.supabase.co/functions/v1/purchase_orders");
   });
   it("il filtro sull'embed resta valido perché il nome non cambia", () => {
