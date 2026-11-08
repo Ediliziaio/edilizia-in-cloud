@@ -30,7 +30,7 @@ export function LaborApprovalDialog({busy, onClose, onApprove, onInspect, onReje
     <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-4xl">
       {testata}
       <DialogHeader>
-        <DialogTitle>Controlla e approva il rapportino</DialogTitle>
+        <DialogTitle className="max-md:text-base">Controlla e approva il rapportino</DialogTitle>
         <DialogDescription className="max-md:hidden">Verifica persone, ore e possibili sovrapposizioni prima di registrare il consuntivo.</DialogDescription>
       </DialogHeader>
       <DettagliRapportino companyId={request.companyId} orderId={request.orderId} reportId={request.reportId} />
@@ -59,7 +59,7 @@ export function LaborApprovalDialog({busy, onClose, onApprove, onInspect, onReje
         </div>
         <AvanzamentoDaApprovare orderId={request.orderId} reportId={request.reportId} />
         {request.showCosts && <div className="rounded-xl bg-muted/50 p-3">
-          {review.budget && <dl className="mb-3 grid grid-cols-1 gap-2 border-b pb-3 text-sm sm:grid-cols-2">
+          {review.budget && <dl className="mb-3 grid grid-cols-1 gap-2 border-b pb-3 text-sm max-md:hidden sm:grid-cols-2">
             <div><dt className="text-muted-foreground">Costo previsto manodopera interna</dt><dd className="font-semibold">{review.budget.planned == null ? "Non disponibile" : eur(review.budget.planned)}</dd></div>
             <div><dt className="text-muted-foreground">Costo consuntivo già registrato</dt><dd className="font-semibold">{review.budget.registered == null ? "Non disponibile" : eur(review.budget.registered)}</dd></div>
           </dl>}
@@ -68,7 +68,7 @@ export function LaborApprovalDialog({busy, onClose, onApprove, onInspect, onReje
           {review.budget && review.budget.planned != null && review.budget.planned > 0 && review.budget.registered != null &&
             review.complete && !review.overlaps.length && review.budget.registered + review.knownCost > review.budget.planned &&
             <p className="mt-1 text-xs text-amber-800">Con questo rapporto, la stima supera il costo previsto di {eur(review.budget.registered + review.knownCost - review.budget.planned)}.</p>}
-          <p className="mt-1 text-xs text-muted-foreground">È una stima alle tariffe attuali, non il costo previsto né un pagamento. Esclude trasferte, mezzi e subappalti. Le ore extra usano la tariffa base nel percorso attuale.</p>
+          <p className="mt-1 text-xs text-muted-foreground max-md:hidden">È una stima alle tariffe attuali, non il costo previsto né un pagamento. Esclude trasferte, mezzi e subappalti. Le ore extra usano la tariffa base nel percorso attuale.</p>
           {review.rows.some(r => r.rate?.source === "calcolato") && <p className="mt-1 text-xs text-muted-foreground">La formula attuale usa lordo, aliquota INPS e ore mensili: non stima TFR, INAIL o altri oneri.</p>}
         </div>}
         {!!review.overlaps.length && <div className="rounded-xl border border-amber-300 p-3 text-sm">

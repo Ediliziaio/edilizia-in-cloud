@@ -97,7 +97,7 @@ export function DailyHoursLedger({
           />
         </div>
         <select
-          className={selectClass}
+          className={`${selectClass} max-md:hidden`}
           aria-label="Dipendente del registro"
           value={person}
           onChange={(e) => {
@@ -113,7 +113,7 @@ export function DailyHoursLedger({
           ))}
         </select>
         <select
-          className={selectClass}
+          className={`${selectClass} max-md:hidden`}
           aria-label="Cantiere del registro"
           value={order}
           onChange={(e) => {

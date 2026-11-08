@@ -210,10 +210,10 @@ function CantieriOggiWorkspace({ companyId }: { companyId?: string }) {
           <p className="text-xs font-medium capitalize text-muted-foreground">
             {dateLabel}
           </p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight max-md:text-xl">
             La giornata dei cantieri
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground max-md:hidden">
             {cantieri.isPending
               ? "Carico i cantieri monitorati…"
               : cantieri.isError && !cantieri.data
@@ -221,7 +221,7 @@ function CantieriOggiWorkspace({ companyId }: { companyId?: string }) {
                 : `${items.length} cantieri monitorati · priorità e aggiornamenti in un solo posto`}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 max-md:hidden">
           <span className="hidden text-xs text-muted-foreground sm:block">
             {cantieri.dataUpdatedAt && !cantieri.isError
               ? `Aggiornato alle ${italianTime(cantieri.dataUpdatedAt)}`
@@ -246,7 +246,7 @@ function CantieriOggiWorkspace({ companyId }: { companyId?: string }) {
       </header>
 
       <div
-        className="grid grid-cols-2 gap-3 xl:grid-cols-4"
+        className="grid grid-cols-2 gap-3 max-md:gap-2 xl:grid-cols-4"
         aria-label="Indicatori della giornata"
       >
         {cards.map((card) => (
@@ -257,7 +257,7 @@ function CantieriOggiWorkspace({ companyId }: { companyId?: string }) {
             aria-pressed={filter === card.filter}
             onClick={() => changeFilter(card.filter)}
             className={cn(
-              "rounded-2xl border bg-card p-4 text-left shadow-sm transition-colors hover:border-blue-300 disabled:cursor-wait",
+              "rounded-2xl border bg-card p-4 text-left shadow-sm max-md:rounded-xl max-md:p-2.5 transition-colors hover:border-blue-300 disabled:cursor-wait",
               filter === card.filter &&
                 "border-blue-300 ring-2 ring-blue-100 dark:ring-blue-950",
             )}
@@ -270,10 +270,10 @@ function CantieriOggiWorkspace({ companyId }: { companyId?: string }) {
                 <card.icon className="h-4 w-4" />
               </span>
             </div>
-            <strong className="mt-2 block text-3xl font-semibold tabular-nums">
+            <strong className="mt-2 block text-3xl font-semibold tabular-nums max-md:mt-0 max-md:text-xl">
               {ready && card.count !== null ? card.count : "—"}
             </strong>
-            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground max-md:hidden">
               {card.hint}
             </p>
           </button>

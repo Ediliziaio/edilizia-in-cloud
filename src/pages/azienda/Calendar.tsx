@@ -1662,7 +1662,7 @@ function CalendarInner() {
                   ? "Carico lavori"
                   : "Calendario lavori"}
           </h1>
-          <p className="mt-1 text-xs text-muted-foreground max-sm:text-[11px]">
+          <p className="mt-1 text-xs text-muted-foreground max-md:hidden">
             {calendarData.scope === "personal"
               ? planningView
                 ? "Le tue commesse e le risorse assegnate"
@@ -1995,7 +1995,7 @@ function CalendarInner() {
             }}
           >
             <SelectTrigger
-              className="h-9 w-[120px] shrink-0"
+              className="h-9 w-[120px] shrink-0 max-md:hidden"
               aria-label="Contenuti del calendario"
             >
               <SelectValue />
@@ -2065,7 +2065,7 @@ function CalendarInner() {
         <Button
           variant="outline"
           size="sm"
-          className="h-9 gap-1.5 max-sm:w-9 max-sm:px-0"
+          className="h-9 gap-1.5 max-md:hidden"
           aria-label={planningView ? "Risorse e colori" : "Fonti e risorse"}
           onClick={() =>
             isMobile ? setMobileLayerOpen(true) : setLayerPanelOpen(true)

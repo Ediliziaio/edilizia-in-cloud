@@ -352,10 +352,10 @@ export default function SopralluoghiList() {
     <div className="min-w-0 space-y-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900 max-md:text-xl">
             Sopralluoghi
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-slate-500 max-md:hidden">
             Dalla pianificazione al preventivo: cliente, tecnico e prossima
             azione sempre visibili.
           </p>
@@ -480,7 +480,7 @@ export default function SopralluoghiList() {
           >
             <SelectTrigger
               aria-label="Periodo sopralluoghi"
-              className="h-8 w-44 text-xs"
+              className="h-8 w-44 text-xs max-md:hidden"
             >
               <SelectValue />
             </SelectTrigger>
@@ -496,7 +496,7 @@ export default function SopralluoghiList() {
             value={filtri.tecnico}
             onValueChange={(v) => imposta({ tecnico: v })}
           >
-            <SelectTrigger aria-label="Tecnico" className="h-8 w-44 text-xs">
+            <SelectTrigger aria-label="Tecnico" className="h-8 w-44 text-xs max-md:hidden">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

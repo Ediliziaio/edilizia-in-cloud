@@ -1142,7 +1142,7 @@ export default function PurchaseOrdersList() {
             >
               <SelectTrigger
                 aria-label="Contenuto pipeline acquisti"
-                className="h-8 w-[145px] text-xs"
+                className="h-8 w-[145px] text-xs max-md:hidden"
               >
                 <SelectValue />
               </SelectTrigger>
@@ -1175,7 +1175,7 @@ export default function PurchaseOrdersList() {
             <SelectTrigger
               aria-label="Commessa"
               className={cn(
-                "h-8 w-auto min-w-[140px] text-xs",
+                "h-8 w-auto min-w-[140px] text-xs max-md:hidden",
                 filtri.commessa && "border-orange-300 bg-orange-50",
               )}
             >
@@ -1199,7 +1199,7 @@ export default function PurchaseOrdersList() {
             <SelectTrigger
               aria-label="Fornitore"
               className={cn(
-                "h-8 w-auto min-w-[140px] text-xs",
+                "h-8 w-auto min-w-[140px] text-xs max-md:hidden",
                 filtri.fornitore && "border-orange-300 bg-orange-50",
               )}
             >
@@ -1225,7 +1225,7 @@ export default function PurchaseOrdersList() {
               <SelectTrigger
                 aria-label="Fase"
                 className={cn(
-                  "h-8 w-auto min-w-[120px] text-xs",
+                  "h-8 w-auto min-w-[120px] text-xs max-md:hidden",
                   filtri.fase && "border-orange-300 bg-orange-50",
                 )}
               >
@@ -1246,7 +1246,7 @@ export default function PurchaseOrdersList() {
             aria-pressed={filtri.soloRitardo}
             onClick={() => imposta("ritardo", !filtri.soloRitardo)}
             className={cn(
-              "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium",
+              "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium max-md:hidden",
               filtri.soloRitardo
                 ? "border-red-300 bg-red-50 text-red-700"
                 : "border-slate-200 text-slate-600 hover:bg-slate-50",
@@ -1329,7 +1329,7 @@ export default function PurchaseOrdersList() {
                   aria-label="Emissione OdA"
                   title="Data di emissione degli ordini di acquisto"
                   className={cn(
-                    "h-8 w-auto min-w-[130px] text-xs",
+                    "h-8 w-auto min-w-[130px] text-xs max-md:hidden",
                     filterPeriodo !== "tutto" &&
                       "border-orange-300 bg-orange-50",
                   )}

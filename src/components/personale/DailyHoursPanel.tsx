@@ -149,14 +149,14 @@ export function DailyHoursView({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="font-semibold">Ore giornaliere per cantiere</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground max-md:hidden">
             Ore effettive da ufficio e rapportini, con stato di approvazione e
             costi.
           </p>
         </div>
         <div className="flex items-center gap-2">
           {embedded && (
-            <Button variant="outline" onClick={c.retry} disabled={c.loading}>
+            <Button variant="outline" className="max-md:hidden" onClick={c.retry} disabled={c.loading}>
               Aggiorna
             </Button>
           )}
@@ -194,7 +194,7 @@ export function DailyHoursView({
                 c.setMonth(e.target.value);
             }}
           />
-          <Button variant="ghost" onClick={c.retry}>
+          <Button variant="ghost" className="max-md:hidden" onClick={c.retry}>
             Aggiorna
           </Button>
         </div>

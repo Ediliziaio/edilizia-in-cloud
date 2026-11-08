@@ -9,6 +9,7 @@
  * e nella funzione SQL `analisi_acquisti`.
  */
 
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -390,6 +391,7 @@ function TabellaCommesse({ dati, compatta = false }: { dati: AnalisiAcquistiDati
 // ───────────────────────── Pagina ─────────────────────────
 
 export default function AnalisiAcquisti() {
+  const isMobile = useIsMobile();
   const [params, setParams] = useSearchParams();
   const permessi = usePermissions();
 
@@ -459,7 +461,7 @@ export default function AnalisiAcquisti() {
     <div className="space-y-4">
       <PageHeader
         title="Analisi Acquisti"
-        description="Da chi compri, per quale commessa e quanto devi pagare. Importi senza IVA."
+        description={isMobile ? undefined : "Da chi compri, per quale commessa e quanto devi pagare. Importi senza IVA."}
         badge={solaLettura ? <Badge variant="secondary" className="font-normal">Sola lettura</Badge> : undefined}
       />
 
@@ -483,6 +485,8 @@ export default function AnalisiAcquisti() {
             <Input type="date" aria-label="Al" value={periodo.al} onChange={(e) => e.target.value && imposta({ al: e.target.value })} className="h-9 flex-1 sm:w-[150px]" />
           </div>
         )}
+        {/* Da telefono solo il periodo: i filtri fini sono da scrivania. */}
+        <div className="contents max-md:hidden">
         <SceltaConRicerca
           valore={filtri.fornitoreId ?? null}
           onCambia={(v) => imposta({ fornitore: v })}
@@ -498,9 +502,10 @@ export default function AnalisiAcquisti() {
           segnaposto="Cerca commessa o cliente"
           extra={{ id: NESSUNA, label: "Senza commessa" }}
         />
+        </div>
         {categorie.length > 0 && (
           <Select value={filtri.categoria ?? "__tutte"} onValueChange={(v) => imposta({ categoria: v === "__tutte" ? null : v })}>
-            <SelectTrigger className="h-9 w-full sm:w-[170px]" aria-label="Categoria">
+            <SelectTrigger className="h-9 w-full max-md:hidden sm:w-[170px]" aria-label="Categoria">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

@@ -39,7 +39,7 @@ export function DettagliRapportino({ companyId, orderId, reportId }: { companyId
   const meteo = r.meteo ? METEO.find((m) => m.value === r.meteo)?.label ?? r.meteo : null;
   const autore = compilatoDa(r as unknown as Record<string, unknown>);
   return (
-    <div className="space-y-3 text-sm">
+    <div className="space-y-2.5 text-[13px] leading-snug">
       <div>
         {r.data_lavoro && <p className="font-semibold capitalize text-slate-900">{format(parseISO(r.data_lavoro), "EEEE d MMMM yyyy", { locale: it })}</p>}
         {autore && <p className="text-xs text-muted-foreground">{autore}</p>}

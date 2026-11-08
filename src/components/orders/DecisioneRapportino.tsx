@@ -144,15 +144,17 @@ export function RifiutaRapportinoDialog({ motivo, onMotivo, busy, onClose, onCon
 }
 
 /** Un popup solo: dettagli del rapportino, controllo delle ore, Approva e Rifiuta. */
-export function ApprovaRapportinoPopup({ orderId, reportId, originale, testata, onClose }: {
+export function ApprovaRapportinoPopup({ orderId, reportId, originale, testata, onClose, onDeciso }: {
   orderId: string; reportId: string; originale: Originale; testata?: ReactNode; onClose: () => void;
+  /** Dopo la decisione: di norma si passa al rapportino successivo da approvare. */
+  onDeciso?: () => void;
 }) {
   const qc = useQueryClient();
   const { effectiveCompany } = useAuth();
   const { canViewCosts } = usePermissions();
   const [rifiuta, setRifiuta] = useState(false);
   const [motivo, setMotivo] = useState("");
-  const chiudi = () => { void qc.invalidateQueries({ queryKey: ["commesse-rapportini"] }); onClose(); };
+  const chiudi = () => { void qc.invalidateQueries({ queryKey: ["commesse-rapportini"] }); (onDeciso ?? onClose)(); };
   const { approvaMutation, rifiutaMutation } = useDecisioneRapportino(orderId, { onApprovato: chiudi, onRifiutato: chiudi });
   const companyId = effectiveCompany?.id;
   if (!companyId) return null;

@@ -405,11 +405,15 @@ function Pagina({ companyId }: { companyId?: string }) {
         </>
       )}
 
-      <DettaglioRapportino r={selezionato as RapportinoCompleto | null} conCosti={canViewCosts} navigazione={indiceAperto >= 0 ? <div className="mb-4 flex items-center justify-between gap-2 border-b border-slate-100 pb-3 pr-6">
+      <DettaglioRapportino r={selezionato as RapportinoCompleto | null} conCosti={canViewCosts} navigazione={indiceAperto >= 0 ? <div className="mb-1 flex items-center justify-between gap-2 border-b border-slate-100 pb-3 pr-8">
         <Button variant="outline" size="sm" disabled={indiceAperto === 0} onClick={() => imposta({ rap_id: elencoNavigabile[indiceAperto - 1].id })}><ChevronLeft className="mr-1 h-4 w-4" />Precedente</Button>
         <span className="text-xs tabular-nums text-slate-500">{indiceAperto + 1} di {elencoNavigabile.length}</span>
         <Button variant="outline" size="sm" disabled={indiceAperto === elencoNavigabile.length - 1} onClick={() => imposta({ rap_id: elencoNavigabile[indiceAperto + 1].id })}>Successivo<ChevronRight className="ml-1 h-4 w-4" /></Button>
-      </div> : null} onChiudi={() => imposta({ rap_id: null }, false)} />
+      </div> : null} onChiudi={() => imposta({ rap_id: null }, false)} onDeciso={() => {
+        // Approvato o rifiutato: si passa al prossimo da approvare, senza riaprire l'elenco.
+        const prossimo = [...elencoNavigabile.slice(indiceAperto + 1), ...elencoNavigabile.slice(0, Math.max(0, indiceAperto))].find((x) => statoDi(x) === "inviato");
+        imposta({ rap_id: prossimo?.id ?? null }, false);
+      }} />
     </div>
   );
 }
@@ -608,7 +612,7 @@ function MappaDelMese({ righe, mese, oggi, onCella }: { righe: RapportinoRiga[];
   );
 }
 
-function DettaglioRapportino({ r, conCosti, navigazione, onChiudi }: { navigazione?: ReactNode; r: RapportinoCompleto | null; conCosti: boolean; onChiudi: () => void }) {
+function DettaglioRapportino({ r, conCosti, navigazione, onChiudi, onDeciso }: { navigazione?: ReactNode; r: RapportinoCompleto | null; conCosti: boolean; onChiudi: () => void; onDeciso: () => void }) {
   const { data: nomiFasi } = useNomiFasiCommessa(r?.order_id);
   const [foto, setFoto] = useState<string | null>(null);
   const stato = r ? statoDi(r) : null;
@@ -617,7 +621,7 @@ function DettaglioRapportino({ r, conCosti, navigazione, onChiudi }: { navigazio
   const { puoDecidereSu } = useDecisioneRapportino(r?.order_id ?? "");
   // Da approvare: un popup solo, con i dettagli e la decisione.
   if (r && stato === "inviato" && puoDecidereSu(r.user_id)) {
-    return <ApprovaRapportinoPopup key={r.id} orderId={r.order_id} reportId={r.id} originale={r} testata={navigazione} onClose={onChiudi} />;
+    return <ApprovaRapportinoPopup key={r.id} orderId={r.order_id} reportId={r.id} originale={r} testata={navigazione} onClose={onChiudi} onDeciso={onDeciso} />;
   }
   return (
     <>
