@@ -8,6 +8,7 @@ import { cleanup, render, screen, fireEvent, act } from "@testing-library/react"
 import { MemoryRouter, Route, Routes, Link } from "react-router-dom";
 import { SettingsLayout } from "@/components/layouts/SettingsLayout";
 
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: null as null }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ isAdmin: true, isLoading: false }) }));
 vi.mock("@/hooks/useStatoPiano", () => ({ useStatoPiano: () => ({ stato: { tuttoVisibile: true } }) }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
