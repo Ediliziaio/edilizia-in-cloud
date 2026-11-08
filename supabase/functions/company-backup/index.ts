@@ -45,7 +45,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { requireInternalSecret } from "../_shared/auth.ts";
-import { conMetriche } from "../_shared/withMetrics.ts";
+import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 import {
   BLOCCO_INIZIALE,
   BLOCCO_MASSIMO,
@@ -257,7 +257,7 @@ async function avviaBackupABlocchi(idAzienda: string, poi: string[]): Promise<vo
   await risposta.body?.cancel().catch(() => {});
 }
 
-Deno.serve(conMetriche("company-backup", async (req) => {
+serveConMetricheRapida("company-backup", async (req) => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
@@ -401,9 +401,13 @@ Deno.serve(conMetriche("company-backup", async (req) => {
 
     const falliti = esiti.filter((e) => e.errore).length;
 
-    // Il giro settimanale completo toglie anche i backup scaduti (oltre 90 giorni).
+    // Il giro completo toglie anche i backup scaduti (vedi admin_backup_scaduti). L'esito va nel log perché
+    // a pg_net la risposta arriva prima della fine del lavoro, e nessuno la leggerebbe comunque.
     const pulizia = soloUna ? null : await puliziaBackupScaduti(admin);
     if (pulizia?.errore) console.error("[company-backup] pulizia backup scaduti:", pulizia.errore);
+    if (!soloUna) {
+      console.log(JSON.stringify({ fn: "company-backup", giro: "completo", aziende: esiti.length, falliti, backup_scaduti_cancellati: pulizia?.cancellati ?? null }));
+    }
 
     return new Response(
       JSON.stringify({
@@ -428,4 +432,4 @@ Deno.serve(conMetriche("company-backup", async (req) => {
       headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
-}));
+});

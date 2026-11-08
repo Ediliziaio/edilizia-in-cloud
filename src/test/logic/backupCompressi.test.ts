@@ -70,6 +70,26 @@ describe("Comprimere un lotto", () => {
   });
 });
 
+describe("Il backup di ogni notte", () => {
+  const sql = leggi("supabase/migrations/20290108140000_backup_notturno.sql").replace(/--.*$/gm, "");
+
+  it("14 giorni per le copie della settimana, 90 per domenica, pre-delete e vecchi backup", () => {
+    expect(sql).toContain("when c.pre_delete or extract(dow from c.giorno) = 0 or c.giorno < date '2026-11-11' then interval '90 days'");
+    expect(sql).toContain("else interval '14 days'");
+  });
+
+  it("l'ultima copia di un'azienda attiva non si cancella mai", () => {
+    expect(sql).toContain("or u.giorno > c.giorno");
+    expect(sql).toContain("from public, anon, authenticated");
+  });
+
+  it("gira dal lunedì al sabato, senza tenere ferma la coda di pg_net", () => {
+    expect(sql).toContain("'30 2 * * 1-6'");
+    expect(sql).toContain("timeout_milliseconds := 15000");
+    expect(leggi("supabase/functions/company-backup/index.ts")).toContain('serveConMetricheRapida("company-backup"');
+  });
+});
+
 describe("Il giro nel server", () => {
   it("il ripristino apre i file compressi, in tutte e due le strade", () => {
     const restore = leggi("supabase/functions/company-restore/index.ts");
