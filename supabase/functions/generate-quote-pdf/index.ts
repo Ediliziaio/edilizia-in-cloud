@@ -19,6 +19,7 @@ import { logoDelModello, percorsoDellAzienda } from "../_shared/impaginaPreventi
 import { haTesto } from "../_shared/condizioniDelPreventivo.ts";
 import { caricaArchivioDelDocumento, condizioniDelPdf, documentoPartito } from "../_shared/condizioniArchivio.ts";
 import { leggiBozzaDelPreventivo, unisciBozza } from "../_shared/bozzaDelPreventivo.ts";
+import { scaricaScheda, schedeDaAllegare } from "../_shared/schedeProdotto.ts";
 import { campiContratto, erroriCampiContratto, leggiValoriContratto } from '../_shared/campiContratto.ts';
 
 const DEFAULT_T = {
@@ -598,6 +599,34 @@ Deno.serve(async (req) => {
           copiedPages.forEach((p: any) => pdfDoc.addPage(p));
         } catch (e) {
           console.warn("Failed to merge attachment:", filePath, e);
+        }
+      }
+      // Le schede tecniche dei prodotti del listino scelti nel preventivo (07/11/2026): dopo gli allegati scelti
+      // a mano, una per prodotto, senza doppioni. Solo articoli e famiglie dell'azienda del preventivo.
+      const idArticoli = [...new Set(items.map((i: any) => i.article_template_id).filter((x: unknown) => typeof x === "string"))] as string[];
+      const idFamiglie = [...new Set(items.map((i: any) => i.family_id).filter((x: unknown) => typeof x === "string"))] as string[];
+      if (idArticoli.length || idFamiglie.length) {
+        const [schedeArticoli, schedeFamiglie] = await Promise.all([
+          idArticoli.length
+            ? supabaseAdmin.from("article_templates").select("id, pdf_scheda_url").eq("company_id", quote.company_id).in("id", idArticoli)
+            : Promise.resolve({ data: [] }),
+          idFamiglie.length
+            ? supabaseAdmin.from("article_families").select("id, pdf_scheda_url").eq("company_id", quote.company_id).in("id", idFamiglie)
+            : Promise.resolve({ data: [] }),
+        ]);
+        const mappa = (righe: unknown) => new Map(((righe ?? []) as Array<{ id: string; pdf_scheda_url: string | null }>)
+          .filter((r) => r.pdf_scheda_url).map((r) => [r.id, r.pdf_scheda_url as string]));
+        const indirizzi = schedeDaAllegare(items, mappa(schedeArticoli.data), mappa(schedeFamiglie.data));
+        const scaricate = await Promise.all(indirizzi.map((url) => scaricaScheda(url)));
+        for (const [n, bytes] of scaricate.entries()) {
+          if (!bytes) { console.warn("[generate-quote-pdf] scheda tecnica non allegata:", indirizzi[n].slice(0, 120)); continue; }
+          try {
+            const scheda = await PDFDocument.load(bytes, { ignoreEncryption: true });
+            const pagine = await pdfDoc.copyPages(scheda, scheda.getPageIndices());
+            pagine.forEach((pg: any) => pdfDoc.addPage(pg));
+          } catch (e) {
+            console.warn("[generate-quote-pdf] scheda tecnica illeggibile:", indirizzi[n].slice(0, 120), e instanceof Error ? e.message : e);
+          }
         }
       }
     }

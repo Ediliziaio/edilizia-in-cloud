@@ -3719,7 +3719,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                   { k: "pdfImmagini", v: pdfImmagini, s: setPdfImmagini, l: "Includi miniature prodotti", h: "Foto 40x40 nella riga (se disponibili in listino)." },
                   { k: "pdfMisure", v: pdfMisure, s: setPdfMisure, l: "Mostra misure (L × H mm)", h: "Sotto al nome per prodotti configurati con misure." },
                   { k: "pdfAttributi", v: pdfAttributi, s: setPdfAttributi, l: "Mostra attributi / varianti", h: 'Es. "Colore: Bianco · Vetro: Doppio".' },
-                  { k: "pdfSchedeTecniche", v: pdfSchedeTecniche, s: setPdfSchedeTecniche, l: "Allega schede tecniche PDF", h: "Documenti prodotto selezionati sotto." },
+                  { k: "pdfSchedeTecniche", v: pdfSchedeTecniche, s: setPdfSchedeTecniche, l: "Allega schede tecniche PDF", h: "Le schede dei prodotti del listino scelti, e i documenti selezionati sotto." },
                 ].map(({ k, v, s, l, h }) => (
                   <div key={k} className="flex items-start justify-between gap-4 py-1.5">
                     <div className="flex-1">

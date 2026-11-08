@@ -71,6 +71,9 @@ export function datiGenerici(input: { quote: Riga; items: Riga[]; righePerIva?: 
   dati.modello.ordineCapitoli = ORDINE_PREVENTIVO_CLASSICO;
   dati.mostraChiusura = false;
   dati.prezzoSottoLaTabella = true;
+  // E sobrio (07/11/2026, Florin: «non ci sono titoli, tutto più piccolo, la tabella ordinaria come nel
+  // computo, poco spazio vuoto»): dopo la copertina, un documento da ufficio.
+  dati.stile = "sobrio";
   dati.sezioniTecniche = [];
   const condizioni = [
     t.show_notes === false ? null : { etichetta: "Note", valore: str(q.notes) },

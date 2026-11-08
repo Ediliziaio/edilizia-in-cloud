@@ -259,6 +259,12 @@ export interface DocEdileDati {
    * sua pagina, come prima.
    */
   prezzoSottoLaTabella?: boolean;
+  /**
+   * «sobrio» (07/11/2026, preventivo classico): un documento da ufficio — dopo la copertina niente titoli
+   * grandi né fasce di colore, caratteri più piccoli, la tabella come nel computo, il totale in una riga.
+   * Senza, il documento edile di sempre.
+   */
+  stile?: "sobrio";
   modulo: DocEdileModulo;
   codice: string | null;
   /** «Mario Rossi» */

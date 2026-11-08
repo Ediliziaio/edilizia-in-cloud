@@ -393,9 +393,18 @@ function PieDiPagina({ tema, dati }: { tema: TemaDocumento; dati: DocEdileDati }
 }
 
 // ─── Apertura di capitolo ────────────────────────────────────────────────────
-function Capitolo({ tema, numero, occhiello, titolo, sommario, staccoSopra = 0, sectionKey }: {
+function Capitolo({ tema, numero, occhiello, titolo, sommario, staccoSopra = 0, sectionKey, sobrio = false }: {
   tema: TemaDocumento; numero: number; occhiello: string; titolo: string; sommario?: string | null; staccoSopra?: number; sectionKey: string;
+  /** Documento sobrio: solo l'etichetta della sezione, piccola, senza numero né titolo. */
+  sobrio?: boolean;
 }) {
+  if (sobrio) {
+    return (
+      <View id={edileSectionDestination(sectionKey)} style={{ marginTop: staccoSopra }} minPresenceAhead={80} wrap={false}>
+        <TitolinoSezione tema={tema} testo={occhiello} />
+      </View>
+    );
+  }
   return (
     <View id={edileSectionDestination(sectionKey)} style={{ flexDirection: "row", marginTop: staccoSopra, marginBottom: 18 }} minPresenceAhead={130} wrap={false}>
       <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 46, color: tema.inchiostroMarca, width: 64, lineHeight: 1, letterSpacing: -1.5 }}>{dueCifre(numero)}</Text>
@@ -571,8 +580,10 @@ function Tempi({ tema, fasi }: { tema: TemaDocumento; fasi: DocEdileFase[] }) {
 }
 
 // ─── Il piano dei lavori: capitoli e voci ────────────────────────────────────
-function TabellaCapitolo({ tema, cap, indice, mostraMargine, mostraPrezzi, mostraQta, mostraSubtotali, mostraImporti = true, mostraScontiRiga = true, spazioDopo = 0 }: {
+function TabellaCapitolo({ tema, cap, indice, mostraMargine, mostraPrezzi, mostraQta, mostraSubtotali, mostraImporti = true, mostraScontiRiga = true, spazioDopo = 0, sobrio = false }: {
   tema: TemaDocumento; cap: DocEdileCapitolo; indice: number;
+  /** Documento sobrio: la tabella fitta del computo — caratteri più piccoli, righe strette, niente rientro. */
+  sobrio?: boolean;
   mostraMargine: boolean; mostraPrezzi: boolean; mostraQta: boolean; mostraSubtotali: boolean;
   /** False col prezzo scritto a mano: le righe possono essere a 0 €, e «0,00 €» su ogni riga smentirebbe il prezzo. */
   mostraImporti?: boolean;
@@ -580,11 +591,12 @@ function TabellaCapitolo({ tema, cap, indice, mostraMargine, mostraPrezzi, mostr
   /** Keep the last chapter with the following economic summary, not on an empty page. */
   spazioDopo?: number;
 }) {
-  const testa = { fontFamily: tema.caratteri.forte, fontSize: 7.5, color: tema.grigioChiaro, letterSpacing: 0.9 } as const;
-  const cella = { fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.inchiostro } as const;
+  const testa = { fontFamily: tema.caratteri.forte, fontSize: sobrio ? 7 : 7.5, color: sobrio ? tema.grigio : tema.grigioChiaro, letterSpacing: sobrio ? 0.4 : 0.9 } as const;
+  const cella = { fontFamily: tema.caratteri.testo, fontSize: sobrio ? 8.5 : 10, color: tema.inchiostro } as const;
+  const rientro = sobrio ? 0 : 28;
   const riga = (v: DocEdileCapitolo["voci"][number]) => (
-    <View key={v.id} wrap={false} style={{ flexDirection: "row", paddingVertical: 6, borderTopWidth: 0.6, borderTopColor: tema.filetto }}>
-      <View style={{ flex: 1, paddingLeft: 28, paddingRight: 8, ...(v.foto ? { flexDirection: "row" as const } : {}) }}>
+    <View key={v.id} wrap={false} style={{ flexDirection: "row", paddingVertical: sobrio ? 3.5 : 6, borderTopWidth: sobrio ? 0.4 : 0.6, borderTopColor: tema.filetto }}>
+      <View style={{ flex: 1, paddingLeft: rientro, paddingRight: 8, ...(v.foto ? { flexDirection: "row" as const } : {}) }}>
         {/* Un prodotto scelto dal listino porta la sua foto e la sua descrizione; le altre righe restano com'erano. */}
         {v.foto ? (
           <Image
@@ -607,9 +619,15 @@ function TabellaCapitolo({ tema, cap, indice, mostraMargine, mostraPrezzi, mostr
     </View>
   );
   return (
-    <View minPresenceAhead={spazioDopo} style={{ marginBottom: 16 }}>
+    <View minPresenceAhead={spazioDopo} style={{ marginBottom: sobrio ? 8 : 16 }}>
       {/* Il titolo deve viaggiare con la prima voce: una soglia fissa non basta con descrizioni lunghe. */}
       <View wrap={false}>
+        {sobrio ? (
+          <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3, backgroundColor: tema.cartaCalda, paddingHorizontal: 4 }}>
+            <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8.5, color: tema.inchiostro, flex: 1 }}>{cap.nome}</Text>
+            {mostraSubtotali ? <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8.5, color: tema.inchiostro }}>{formatCurrency(cap.subtotale)}</Text> : null}
+          </View>
+        ) : (
         <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", paddingBottom: 6, borderBottomWidth: 1.2, borderBottomColor: tema.fondo }}>
           <View style={{ flexDirection: "row", alignItems: "flex-end", flex: 1 }}>
             <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 17, color: tema.inchiostroMarca, width: 28, lineHeight: 1 }}>{dueCifre(indice)}</Text>
@@ -617,8 +635,9 @@ function TabellaCapitolo({ tema, cap, indice, mostraMargine, mostraPrezzi, mostr
           </View>
           {mostraSubtotali ? <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 11, color: tema.inchiostro }}>{formatCurrency(cap.subtotale)}</Text> : null}
         </View>
-        <View style={{ flexDirection: "row", paddingTop: 6, paddingBottom: 4 }}>
-          <Text style={[testa, { flex: 1, paddingLeft: 28 }]}>LAVORAZIONE</Text>
+        )}
+        <View style={{ flexDirection: "row", paddingTop: sobrio ? 4 : 6, paddingBottom: sobrio ? 3 : 4 }}>
+          <Text style={[testa, { flex: 1, paddingLeft: rientro }]}>{sobrio ? "DESCRIZIONE" : "LAVORAZIONE"}</Text>
           {mostraQta ? <Text style={[testa, { width: 40, textAlign: "center" }]}>U.M.</Text> : null}
           {mostraQta ? <Text style={[testa, { width: 44, textAlign: "right" }]}>Q.TÀ</Text> : null}
           {mostraPrezzi ? <Text style={[testa, { width: 66, textAlign: "right" }]}>PREZZO</Text> : null}
@@ -1051,6 +1070,8 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   const ordine = ordineEffettivo(modello.ordineCapitoli, modello.pagineLibere);
   // L'anteprima delle condizioni stampa solo quelle: niente copertina, capitoli o chiusura.
   const soloCondizioni = dati.soloCondizioni === true;
+  // Il documento sobrio del preventivo classico (07/11/2026): vedi `stile` in documentoEdileTipi.
+  const sobrio = dati.stile === "sobrio";
   const visibile = (k: string) => !dati.bozzaLocale?.soloConfigurazione && !soloCondizioni && ordine.some((v) => v.chiave === k && v.visibile);
 
   const haChiSiamo = modello.mostraChiSiamo && Boolean(modello.chiSiamoHtml);
@@ -1128,7 +1149,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   const scorreIntero = (chiave: string): boolean =>
     ["comeFunziona", "percorso", "protezione", "controlli", "compreso", "documenti", "diario", "garanzie"].includes(chiave)
     // Il prezzo sotto la tabella, intero (preventivo classico, 07/11/2026): se non ci sta, va alla pagina dopo.
-    || (chiave === "investimento" && dati.prezzoSottoLaTabella === true)
+    || (chiave === "investimento" && (dati.prezzoSottoLaTabella === true || sobrio))
     // Le recensioni intere solo se stanno in una pagina: tante testimonianze si spezzano a righe.
     || (chiave === "recensioni" && (stimaCapitolo("recensioni") ?? ALTEZZA_UTILE) <= ALTEZZA_UTILE - 40)
     || (chiave === "tempi" && modello.cronoprogramma.length <= 8)
@@ -1576,11 +1597,17 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
 
   // Il contenuto di ogni capitolo, con il suo numero nella sequenza scelta.
   const contenutoTecnico = (sezione: NonNullable<DocEdileDati["sezioniTecniche"]>[number]) => (<>
+          {sobrio ? (
+            <View id={edileSectionDestination(sezione.id)} style={{ marginTop: 10 }} minPresenceAhead={60}>
+              <TitolinoSezione tema={tema} testo={sezione.titolo} />
+            </View>
+          ) : (
           <View minPresenceAhead={72}>
             {/* Il colore del blocco collegato (scheda prodotto, sezione), se l'ha scelto. */}
             <Text id={edileSectionDestination(sezione.id)} style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: sezione.colore ?? tema.inchiostroMarca, marginBottom: 8 }}>DETTAGLIO DELLA PROPOSTA</Text>
             <TitoloAccento tema={tema} testo={sezione.titolo} corpo={23} colore={sezione.colore ?? tema.inchiostro} coloreAccento={sezione.colore ?? tema.inchiostroMarca} />
           </View>
+          )}
           {sezione.testo ? <View style={{ marginTop: 14 }}>{sezione.testo.split(/\n+/).filter(Boolean).map((testo, i) => <Text key={i} style={[corpoTesto, { marginBottom: 7 }]}>{testo}</Text>)}</View> : null}
           {sezione.grafico ? <GraficoPreventivo dati={sezione.grafico} colore={tema.inchiostroMarca} larghezza={UTILE} altezza={altezzaGraficoTecnica(sezione)} /> : null}
           {/* La foto sotto il titolo e le righe dopo: se il foglio non basta va avanti il
@@ -1595,8 +1622,8 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           ) : <Image src={sezione.immagine} style={{ width: UTILE, height: altezzaFotoTecnica(sezione), objectFit: "contain", marginTop: 18 }} /> : null}
           {sezione.righe?.map((riga, i) => (
             <View key={i} wrap={false} style={{ flexDirection: "row", paddingVertical: passoRigheTecniche(sezione), borderBottomWidth: 0.5, borderBottomColor: sezione.accento ?? tema.filetto }}>
-              <Text style={[corpoTesto, { width: "48%", paddingRight: 12 }]}>{riga.etichetta}</Text>
-              <Text style={[corpoTesto, { width: "52%", fontFamily: tema.caratteri.forte }]}>{riga.valore}</Text>
+              <Text style={[corpoTesto, sobrio ? { fontSize: 8.5 } : {}, { width: sobrio ? "30%" : "48%", paddingRight: 12 }]}>{riga.etichetta}</Text>
+              <Text style={[corpoTesto, sobrio ? { fontSize: 8.5 } : {}, { width: sobrio ? "70%" : "52%", fontFamily: tema.caratteri.forte }]}>{riga.valore}</Text>
             </View>
           ))}
           {sezione.nota ? <Text style={[corpoTesto, { fontSize: 9, marginTop: 10, color: tema.grigio }]}>{sezione.nota}</Text> : null}
@@ -1684,7 +1711,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           <Galleria tema={tema} foto={fotoCapitolo} />
 </>);
       case "piano": return (<>
-        <Capitolo sectionKey={chiave} tema={tema} numero={numero} occhiello={modulo.titoloComputo.replace(/\*/g, "")} titolo="Che cosa *faremo*, voce per voce." sommario="Le lavorazioni previste, raccolte per capitolo." />
+        <Capitolo sobrio={sobrio} sectionKey={chiave} tema={tema} numero={numero} occhiello={modulo.titoloComputo.replace(/\*/g, "")} titolo="Che cosa *faremo*, voce per voce." sommario="Le lavorazioni previste, raccolte per capitolo." />
         {oc.livello === "corpo" ? (
           <View wrap={false} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", paddingBottom: 6, borderBottomWidth: 1.2, borderBottomColor: tema.fondo }}>
             <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 11.5, color: tema.inchiostro }}>Lavorazioni a corpo</Text>
@@ -1708,18 +1735,23 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
               mostraSubtotali={oc.mostraSubtotali && !prezzoManuale} mostraImporti={!prezzoManuale}
               mostraScontiRiga={totali.mostraScontiRiga}
               spazioDopo={i === capitoli.length - 1 ? 50 : 0}
+              sobrio={sobrio}
             />
           ))
         )}
+        {/* Nel documento sobrio il totale lo dice il riepilogo subito sotto: qui non si ripete. */}
+        {sobrio ? null : (
         <View wrap={false} style={{ flexDirection: "row", justifyContent: "flex-end", alignItems: "flex-end", marginTop: 6, paddingTop: 10, borderTopWidth: 1.2, borderTopColor: tema.inchiostro }}>
           <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.grigio, letterSpacing: 1.3, marginRight: 16, marginBottom: 2 }}>TOTALE LAVORAZIONI · IVA ESCLUSA</Text>
           <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 14, color: tema.inchiostro, paddingRight: 3.5 }}>{formatCurrency(importoLordo)}</Text>
         </View>
+        )}
 </>);
       case "investimento": return (<>
-        <Capitolo sectionKey={chiave} tema={tema} numero={numero} occhiello="L'investimento" titolo="Il tuo *investimento*." sommario="Un prezzo chiaro: quanto costa e che cosa comprende, senza giri di parole." />
+        <Capitolo sobrio={sobrio} staccoSopra={sobrio ? 10 : 0} sectionKey={chiave} tema={tema} numero={numero} occhiello={sobrio ? "Totale e pagamento" : "L'investimento"} titolo="Il tuo *investimento*." sommario="Un prezzo chiaro: quanto costa e che cosa comprende, senza giri di parole." />
 
-        {oc.livello !== "corpo" && capitoli.length > 1 && !prezzoManuale ? (
+        {/* Nel documento sobrio i capitoli coi loro importi sono già nella tabella sopra. */}
+        {!sobrio && oc.livello !== "corpo" && capitoli.length > 1 && !prezzoManuale ? (
           <View style={{ marginBottom: 14 }}>
             <View style={{ flexDirection: "row", backgroundColor: tema.fondo, paddingVertical: 6, paddingHorizontal: 10 }}>
               <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7.5, color: tema.bianco, letterSpacing: 1.2, width: 30 }}>N.</Text>
@@ -1790,7 +1822,21 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           </View>
           </View>
 
-          {/* La banda a tutta pagina: il numero che il cliente cerca, nel colore dell'azienda. */}
+          {/* La banda a tutta pagina: il numero che il cliente cerca, nel colore dell'azienda. Nel documento
+              sobrio una riga del riepilogo: «Totale · IVA inclusa», in grassetto. */}
+          {sobrio ? (
+            <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 2 }}>
+              <View style={{ width: 250 }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", paddingVertical: 5, borderTopWidth: 1.2, borderTopColor: tema.inchiostro }}>
+                  <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9.5, color: tema.inchiostro }}>{dati.bozzaLocale?.ivaDaDefinire ? "Totale netto" : "Totale"}</Text>
+                  <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 12, color: tema.inchiostro, paddingRight: 2.5 }}>{formatCurrency(totali.totale)}</Text>
+                </View>
+                <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8, color: tema.grigio, textAlign: "right" }}>
+                  {dati.bozzaLocale?.ivaDaDefinire ? "IVA da definire" : `${etichettaIvaInclusa(totali)}${modello.giorniValidita && modello.giorniValidita > 0 ? ` · offerta valida ${modello.giorniValidita} giorni` : ""}`}
+                </Text>
+              </View>
+            </View>
+          ) : (
           <View style={{ marginHorizontal: -MARGINE, marginTop: 16, backgroundColor: tema.fondo, paddingHorizontal: MARGINE, paddingVertical: 22, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
             <View>
               <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8.5, color: tema.bianco, letterSpacing: 1.8 }}>{dati.bozzaLocale ? 'BOZZA - VOCI INCLUSE' : 'IL TUO INVESTIMENTO'}</Text>
@@ -1800,6 +1846,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
             </View>
             <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 32, color: tema.bianco, letterSpacing: -0.6, paddingRight: 7 }}>{formatCurrency(totali.totale)}</Text>
           </View>
+          )}
         </View>
 
         {promo && rata > 0 ? (
@@ -1858,6 +1905,94 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
       default: return null;
     }
   };
+
+  // Le condizioni e l'accettazione: due pagine nel documento edile, una sola in quello sobrio (vedi sotto).
+  const paginaCondizioni = (<>
+          {sobrio ? (
+            <View id={edileSectionDestination("condizioni")}><TitolinoSezione tema={tema} testo="Condizioni contrattuali" /></View>
+          ) : (<>
+          <Text id={edileSectionDestination("condizioni")} style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: modello.coloreCondizioni ?? tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>ALLEGATO</Text>
+          <TitoloAccento tema={tema} testo="Condizioni *contrattuali*." corpo={21} colore={tema.inchiostro} coloreAccento={modello.coloreCondizioni ?? tema.inchiostroMarca} />
+          </>)}
+          <View style={{ marginTop: 14 }}>
+            {/* Un articolo per volta: il titolo non resta mai in fondo a una pagina
+                senza il suo testo, e l'elenco delle clausole da firmare non si spezza. */}
+            {perArticoli(modello.condizioniLegali, { senzaClausoleDaFirmare: modello.clausoleDaApprovare.length > 0 }).map((gruppo, g) => (
+              <View key={g} wrap minPresenceAhead={36}>
+                {gruppo.map((r, i) => <TestoContrattoPdf key={i} riga={r} prima={g===0&&i===0} font={tema.caratteri.testo} colore={r.tipo==='h1'||r.tipo==='h2'?(modello.coloreCondizioni ?? tema.inchiostro):tema.grigio} />)}
+              </View>
+            ))}
+          </View>
+  </>);
+  const paginaAccettazione = (<>
+          {/* «ACCETTAZIONE PROPOSTA»: lo stesso titolo in tutti i PDF dei preventivi (richiesta di Renova, 05/10/2026).
+              Nel documento sobrio lo stesso titolo, piccolo. */}
+          {sobrio ? (
+            <View id={edileSectionDestination("firma")}><TitolinoSezione tema={tema} testo="Accettazione proposta" /></View>
+          ) : (<>
+          <Text id={edileSectionDestination("firma")} style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>PER ACCETTAZIONE</Text>
+          <TitoloAccento tema={tema} testo="ACCETTAZIONE PROPOSTA" corpo={21} colore={tema.inchiostro} coloreAccento={tema.inchiostroMarca} />
+          </>)}
+
+          <View style={{ marginTop: 16, backgroundColor: tema.cartaCalda, padding: 16 }}>
+            <RigaRiepilogo tema={tema} etichetta="Impresa" valore={[dati.azienda.nome, dati.azienda.partitaIva ? `P.IVA ${dati.azienda.partitaIva}` : null].filter(Boolean).join(" · ")} />
+            <RigaRiepilogo tema={tema} etichetta="Committente" valore={[dati.cliente, dati.datiFiscaliCliente].filter(Boolean).join(" · ")} />
+            <RigaRiepilogo tema={tema} etichetta="Oggetto" valore={dati.tipoIntervento || modulo.etichetta} />
+            {dati.cantiere ? <RigaRiepilogo tema={tema} etichetta="Luogo dei lavori" valore={dati.cantiere} /> : null}
+            <RigaRiepilogo tema={tema} etichetta="Documento" valore={[dati.codice ? `Preventivo ${dati.codice}` : "Preventivo", `del ${oggi()}`].join(" ")} />
+            <RigaRiepilogo tema={tema} etichetta="Importo" valore={`${formatCurrency(totali.totale)} · ${etichettaIvaInclusa(totali)}`} forte />
+            {modello.giorniValidita && modello.giorniValidita > 0 ? (
+              <RigaRiepilogo tema={tema} etichetta="Validità" valore={`${modello.giorniValidita} giorni dalla data del documento`} />
+            ) : null}
+          </View>
+
+          <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.inchiostro, lineHeight: 1.55, marginTop: 14 }}>
+            Il Committente dichiara di aver ricevuto, letto e accettato il presente documento in ogni sua parte — il piano
+            dei lavori, l'investimento e le condizioni generali di contratto che lo accompagnano — e ne sottoscrive il
+            contenuto.
+          </Text>
+
+          <View wrap={false} style={{ flexDirection: "row", marginTop: 18 }}>
+            <LineaFirma tema={tema} etichetta="LUOGO E DATA" larghezza={150} />
+            <View style={{ width: 16 }} />
+            {/* Timbro e chi firma per l'impresa, scritti nel modello (25/09/2026). */}
+            <LineaFirma tema={tema} etichetta="PER L'IMPRESA" chi={[dati.azienda.nome, dati.azienda.firmatario].map((v) => String(v ?? "").trim()).filter(Boolean).join(" — ")} timbro={dati.azienda.timbroUrl} />
+            <View style={{ width: 16 }} />
+            <LineaFirma tema={tema} etichetta="FIRMA DEL COMMITTENTE" chi={dati.cliente} />
+          </View>
+          {dati.cointestatario ? (
+            <View wrap={false} style={{ flexDirection: "row", marginTop: 14 }}>
+              <View style={{ width: 150 }} />
+              <View style={{ width: 16 }} />
+              <View style={{ flex: 1 }} />
+              <View style={{ width: 16 }} />
+              <LineaFirma tema={tema} etichetta="FIRMA DEL COINTESTATARIO" chi={dati.cointestatario} />
+            </View>
+          ) : null}
+
+          {modello.clausoleDaApprovare.length > 0 ? (
+            <View wrap={false} style={{ marginTop: 22, borderWidth: 0.8, borderColor: tema.inchiostro, padding: 14 }}>
+              <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.inchiostro, letterSpacing: 1.2, marginBottom: 6 }}>APPROVAZIONE SPECIFICA (ARTT. 1341 E 1342 C.C.)</Text>
+              <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.grigio, lineHeight: 1.5, marginBottom: 6 }}>
+                Il Committente, dopo averle rilette, approva specificamente le clausole seguenti:
+              </Text>
+              {modello.clausoleDaApprovare.map((c, i) => (
+                <Text key={i} style={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.inchiostro, lineHeight: 1.45, marginBottom: 2 }}>{`- ${c}`}</Text>
+              ))}
+              <View style={{ flexDirection: "row", marginTop: 6 }}>
+                <LineaFirma tema={tema} etichetta="LUOGO E DATA" larghezza={150} altezza={30} />
+                <View style={{ width: 16 }} />
+                <LineaFirma tema={tema} etichetta="SECONDA FIRMA DEL COMMITTENTE" altezza={30} />
+                {dati.cointestatario ? (
+                  <>
+                    <View style={{ width: 16 }} />
+                    <LineaFirma tema={tema} etichetta="SECONDA FIRMA DEL COINTESTATARIO" altezza={30} />
+                  </>
+                ) : null}
+              </View>
+            </View>
+          ) : null}
+  </>);
 
   return (
     <Document
@@ -1953,12 +2088,15 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
               portano lo stacco sopra di sé (vedi `chiusura`). */}
           {segmento.chiavi.map((chiave, i) => {
             const scorre = i > 0 && scorreIntero(chiave);
-            const segue = i > 0 && seguePrecedente(chiave) && !aCapo.has(chiave);
+            // Nel documento sobrio il prezzo segue la tabella se ci sta davvero: lo decide il motore (wrap false),
+            // non la stima, pensata per i titoli grandi e la banda del documento edile.
+            const sobrioSegue = (k: string) => sobrio && k === "investimento";
+            const segue = i > 0 && seguePrecedente(chiave) && (!aCapo.has(chiave) || sobrioSegue(chiave));
             const prossimo = segmento.chiavi[i + 1];
             const foto = riempimento.get(chiave);
             const fotoRiempimento = modello.fotoRiempimento[chiave];
             // I prossimi passi in coda portano lo stacco sopra di sé: dopo l'ultimo capitolo nessun margine.
-            const continua = !foto && Boolean(prossimo) && seguePrecedente(prossimo) && !aCapo.has(prossimo);
+            const continua = !foto && Boolean(prossimo) && seguePrecedente(prossimo) && (!aCapo.has(prossimo) || sobrioSegue(prossimo));
             return (
               <React.Fragment key={chiave}>
                 {/* `wrap` si passa solo quando è false: react-pdf guarda se la chiave c'è
@@ -1997,96 +2135,28 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
         </Page>
       ) : null}
 
-      {/* ─── Condizioni contrattuali e termini legali ─────────────────────── */}
-      {!dati.bozzaLocale && modello.condizioniLegali.length > 0 ? (
+      {/* ─── Condizioni contrattuali e termini legali, poi firma e accettazione ───
+          Il preventivo firmato è il contratto: la pagina dell'accettazione è quella che lo rende tale.
+          Riepilogo di ciò che si firma, dichiarazione, firme delle due parti e — quando le condizioni le
+          elencano — l'approvazione specifica delle clausole dell'art. 1341 c.c., con una seconda firma.
+          Nel documento sobrio (preventivo classico, 07/11/2026) stanno sulla stessa pagina: l'accettazione
+          passa al foglio dopo solo se non ci sta intera. */}
+      {!dati.bozzaLocale && modello.condizioniLegali.length > 0 ? (sobrio ? (
         <Page size="A4" style={pagina}>
           {cornice}
-          <Text id={edileSectionDestination("condizioni")} style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: modello.coloreCondizioni ?? tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>ALLEGATO</Text>
-          <TitoloAccento tema={tema} testo="Condizioni *contrattuali*." corpo={21} colore={tema.inchiostro} coloreAccento={modello.coloreCondizioni ?? tema.inchiostroMarca} />
-          <View style={{ marginTop: 14 }}>
-            {/* Un articolo per volta: il titolo non resta mai in fondo a una pagina
-                senza il suo testo, e l'elenco delle clausole da firmare non si spezza. */}
-            {perArticoli(modello.condizioniLegali, { senzaClausoleDaFirmare: modello.clausoleDaApprovare.length > 0 }).map((gruppo, g) => (
-              <View key={g} wrap minPresenceAhead={36}>
-                {gruppo.map((r, i) => <TestoContrattoPdf key={i} riga={r} prima={g===0&&i===0} font={tema.caratteri.testo} colore={r.tipo==='h1'||r.tipo==='h2'?(modello.coloreCondizioni ?? tema.inchiostro):tema.grigio} />)}
-              </View>
-            ))}
-          </View>
+          {paginaCondizioni}
+          <View wrap={false} style={{ marginTop: 22 }}>{paginaAccettazione}</View>
         </Page>
-      ) : null}
-
-      {/* ─── Firma e accettazione ──────────────────────────────────────────
-          Il preventivo firmato è il contratto: questa è la pagina che lo rende
-          tale. Riepilogo di ciò che si firma, dichiarazione, firme delle due
-          parti e — quando le condizioni le elencano — l'approvazione specifica
-          delle clausole dell'art. 1341 c.c., con una seconda firma. */}
-      {!dati.bozzaLocale && modello.condizioniLegali.length > 0 ? (
+      ) : (<>
         <Page size="A4" style={pagina}>
           {cornice}
-          <Text id={edileSectionDestination("firma")} style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>PER ACCETTAZIONE</Text>
-          {/* «ACCETTAZIONE PROPOSTA»: lo stesso titolo in tutti i PDF dei preventivi (richiesta di Renova, 05/10/2026). */}
-          <TitoloAccento tema={tema} testo="ACCETTAZIONE PROPOSTA" corpo={21} colore={tema.inchiostro} coloreAccento={tema.inchiostroMarca} />
-
-          <View style={{ marginTop: 16, backgroundColor: tema.cartaCalda, padding: 16 }}>
-            <RigaRiepilogo tema={tema} etichetta="Impresa" valore={[dati.azienda.nome, dati.azienda.partitaIva ? `P.IVA ${dati.azienda.partitaIva}` : null].filter(Boolean).join(" · ")} />
-            <RigaRiepilogo tema={tema} etichetta="Committente" valore={[dati.cliente, dati.datiFiscaliCliente].filter(Boolean).join(" · ")} />
-            <RigaRiepilogo tema={tema} etichetta="Oggetto" valore={dati.tipoIntervento || modulo.etichetta} />
-            {dati.cantiere ? <RigaRiepilogo tema={tema} etichetta="Luogo dei lavori" valore={dati.cantiere} /> : null}
-            <RigaRiepilogo tema={tema} etichetta="Documento" valore={[dati.codice ? `Preventivo ${dati.codice}` : "Preventivo", `del ${oggi()}`].join(" ")} />
-            <RigaRiepilogo tema={tema} etichetta="Importo" valore={`${formatCurrency(totali.totale)} · ${etichettaIvaInclusa(totali)}`} forte />
-            {modello.giorniValidita && modello.giorniValidita > 0 ? (
-              <RigaRiepilogo tema={tema} etichetta="Validità" valore={`${modello.giorniValidita} giorni dalla data del documento`} />
-            ) : null}
-          </View>
-
-          <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.inchiostro, lineHeight: 1.55, marginTop: 14 }}>
-            Il Committente dichiara di aver ricevuto, letto e accettato il presente documento in ogni sua parte — il piano
-            dei lavori, l'investimento e le condizioni generali di contratto che lo accompagnano — e ne sottoscrive il
-            contenuto.
-          </Text>
-
-          <View wrap={false} style={{ flexDirection: "row", marginTop: 18 }}>
-            <LineaFirma tema={tema} etichetta="LUOGO E DATA" larghezza={150} />
-            <View style={{ width: 16 }} />
-            {/* Timbro e chi firma per l'impresa, scritti nel modello (25/09/2026). */}
-            <LineaFirma tema={tema} etichetta="PER L'IMPRESA" chi={[dati.azienda.nome, dati.azienda.firmatario].map((v) => String(v ?? "").trim()).filter(Boolean).join(" — ")} timbro={dati.azienda.timbroUrl} />
-            <View style={{ width: 16 }} />
-            <LineaFirma tema={tema} etichetta="FIRMA DEL COMMITTENTE" chi={dati.cliente} />
-          </View>
-          {dati.cointestatario ? (
-            <View wrap={false} style={{ flexDirection: "row", marginTop: 14 }}>
-              <View style={{ width: 150 }} />
-              <View style={{ width: 16 }} />
-              <View style={{ flex: 1 }} />
-              <View style={{ width: 16 }} />
-              <LineaFirma tema={tema} etichetta="FIRMA DEL COINTESTATARIO" chi={dati.cointestatario} />
-            </View>
-          ) : null}
-
-          {modello.clausoleDaApprovare.length > 0 ? (
-            <View wrap={false} style={{ marginTop: 22, borderWidth: 0.8, borderColor: tema.inchiostro, padding: 14 }}>
-              <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.inchiostro, letterSpacing: 1.2, marginBottom: 6 }}>APPROVAZIONE SPECIFICA (ARTT. 1341 E 1342 C.C.)</Text>
-              <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.grigio, lineHeight: 1.5, marginBottom: 6 }}>
-                Il Committente, dopo averle rilette, approva specificamente le clausole seguenti:
-              </Text>
-              {modello.clausoleDaApprovare.map((c, i) => (
-                <Text key={i} style={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.inchiostro, lineHeight: 1.45, marginBottom: 2 }}>{`- ${c}`}</Text>
-              ))}
-              <View style={{ flexDirection: "row", marginTop: 6 }}>
-                <LineaFirma tema={tema} etichetta="LUOGO E DATA" larghezza={150} altezza={30} />
-                <View style={{ width: 16 }} />
-                <LineaFirma tema={tema} etichetta="SECONDA FIRMA DEL COMMITTENTE" altezza={30} />
-                {dati.cointestatario ? (
-                  <>
-                    <View style={{ width: 16 }} />
-                    <LineaFirma tema={tema} etichetta="SECONDA FIRMA DEL COINTESTATARIO" altezza={30} />
-                  </>
-                ) : null}
-              </View>
-            </View>
-          ) : null}
+          {paginaCondizioni}
         </Page>
-      ) : null}
+        <Page size="A4" style={pagina}>
+          {cornice}
+          {paginaAccettazione}
+        </Page>
+      </>)) : null}
 
       {/* ─── Allegato: il modulo di recesso ────────────────────────────────
           Esce quando l'azienda lo accende nel modello (spento di serie): serve
