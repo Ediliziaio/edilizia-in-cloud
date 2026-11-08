@@ -21,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Slider } from "@/components/ui/slider";
-import { NotebookPen, Plus, MapPin, Camera, Loader2, Sun, Cloud, CloudRain, Snowflake, Wind, Download, X, Trash2, Lock, PenLine, Users } from "lucide-react";
+import { NotebookPen, Plus, MapPin, Camera, Loader2, ClipboardList, Sun, Cloud, CloudRain, Snowflake, Wind, Download, X, Trash2, Lock, PenLine, Users } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -41,6 +41,10 @@ import {
 } from "@/lib/campo/preparaFoto";
 import { messaggioErroreGiornale, paginaDelGiorno, regoleGiornale } from "@/lib/campo/statoGiornale";
 import { oreLeggibili, personeDelGiorno, type RapportinoPresenze } from "@/lib/campo/presenzeGiornale";
+import { leggiBozzaGiornale, type BozzaLetta } from "@/lib/campo/leggiBozzaGiornale";
+import {
+  applicaBozza, testoGiaScritto, unisciFonti, type FontiBozza, type ModoBozza,
+} from "../../../supabase/functions/_shared/bozzaGiornale";
 
 /** Tabelle e RPC nuove (giornale_annotazioni, giornale_firma) non ancora nei tipi generati. */
 const dbSenzaTipi = supabase as unknown as SupabaseClient;
@@ -99,7 +103,22 @@ interface RigaGiornale {
   stato?: string | null;
   pm_signed_at?: string | null;
   pm_signed_by?: string | null;
+  source_rapportini_ids?: string[] | null;
+  source_ddt_ids?: string[] | null;
+  source_segnalazioni_ids?: string[] | null;
+  source_foto_ids?: string[] | null;
 }
+
+/** Esito di «Prepara dalla giornata»: vale per quel cantiere e quel giorno. */
+interface EsitoBozza {
+  orderId: string;
+  data: string;
+  fonti: FontiBozza;
+  vuota: boolean;
+  avvisi: string[];
+}
+
+const conteggio = (n: number, uno: string, molti: string) => `${n} ${n === 1 ? uno : molti}`;
 
 export default function GiornaleLavori() {
   const { effectiveCompany } = useAuth();
@@ -207,6 +226,10 @@ export default function GiornaleLavori() {
   );
   const solaLettura = !regole.puoModificare;
   const [firmaDaConfermare, setFirmaDaConfermare] = useState(false);
+  const [esitoBozza, setEsitoBozza] = useState<EsitoBozza | null>(null);
+  /** Le fonti da registrare al salvataggio: ci sono solo se la proposta è entrata nel modulo. */
+  const [fontiApplicate, setFontiApplicate] = useState<{ orderId: string; data: string; fonti: FontiBozza } | null>(null);
+  const [bozzaDaScegliere, setBozzaDaScegliere] = useState<(BozzaLetta & { orderId: string; data: string }) | null>(null);
   const [nuovaAnnotazione, setNuovaAnnotazione] = useState("");
 
   // Chi ha lavorato quel giorno su quel cantiere, dai rapportini. Il numero di operai resta la correzione a mano.
@@ -279,6 +302,12 @@ export default function GiornaleLavori() {
     enabled: idsNomi.length > 0,
   });
 
+  const azzeraBozza = () => {
+    setEsitoBozza(null);
+    setFontiApplicate(null);
+    setBozzaDaScegliere(null);
+  };
+
   const resetForm = () => {
     setFormData({
       data_lavori: format(new Date(), "yyyy-MM-dd"),
@@ -299,6 +328,7 @@ export default function GiornaleLavori() {
     setHasFirma(false);
     setVisibileCliente(true);
     setEditingEntry(null);
+    azzeraBozza();
     // Clear canvas
     if (canvasRef.current) {
       const ctx = canvasRef.current.getContext("2d");
@@ -324,7 +354,8 @@ export default function GiornaleLavori() {
   const openEdit = (entry: RigaGiornale) => {
     setFormData({
       data_lavori: entry.data_lavori ?? format(new Date(), "yyyy-MM-dd"),
-      condizioni_meteo: entry.condizioni_meteo ?? "soleggiato",
+      // Una bozza serale può non avere il meteo: non si propone «soleggiato» di ufficio.
+      condizioni_meteo: entry.condizioni_meteo ?? "",
       lavorazioni_eseguite: entry.lavorazioni_eseguite ?? "",
       materiali_utilizzati: entry.materiali_utilizzati ?? "",
       personale_presente: Number(entry.personale_presente ?? 1),
@@ -341,6 +372,7 @@ export default function GiornaleLavori() {
     setVisibileCliente(entry.visibile_cliente !== false);
     setNuovaAnnotazione("");
     setFirmaDaConfermare(false);
+    azzeraBozza();
     if (entry.order_id) setSelectedOrderId(entry.order_id);
     setEditingEntry(entry);
     setSheetOpen(true);
@@ -465,10 +497,13 @@ export default function GiornaleLavori() {
       const campi = {
         order_id: selectedOrderId,
         ...formData,
+        condizioni_meteo: formData.condizioni_meteo || null,
         personale_presente: Number(formData.personale_presente),
         avanzamento_percentuale: Number(formData.avanzamento_percentuale),
         visibile_cliente: visibileCliente,
         firmato_da: formData.firmato_da || null,
+        // Da quali rapportini, bolle e segnalazioni arriva il testo; se nel frattempo è cambiato il giorno non valgono più.
+        ...(fontiApplicate?.orderId === selectedOrderId && fontiApplicate.data === formData.data_lavori ? fontiApplicate.fonti : {}),
       };
 
       // Correzione di un report esistente: si aggiorna, non se ne crea un altro.
@@ -617,6 +652,47 @@ export default function GiornaleLavori() {
       queryClient.invalidateQueries({ queryKey: ["giornale-lavori", companyId, selectedOrderId] });
     },
     onError: (err: Error) => toast.error("Impossibile eliminare", { description: err.message }),
+  });
+
+  /** Mette la proposta nel modulo: niente arriva nel database finché non si salva. */
+  const applicaProposta = (letta: BozzaLetta & { orderId: string; data: string }, modo: ModoBozza) => {
+    const { bozza, avvisi, orderId, data } = letta;
+    setFormData((p) => applicaBozza(p, bozza, modo, { paginaNuova: !editingEntry?.id }));
+    const giaRegistrate = fontiApplicate?.orderId === orderId && fontiApplicate.data === data
+      ? fontiApplicate.fonti
+      : (editingEntry as RigaGiornale | null) ?? undefined;
+    setFontiApplicate({ orderId, data, fonti: modo === "sostituisci" ? bozza.fonti : unisciFonti(giaRegistrate, bozza.fonti) });
+    setEsitoBozza({ orderId, data, fonti: bozza.fonti, vuota: false, avvisi });
+    setBozzaDaScegliere(null);
+  };
+
+  const preparaBozza = useMutation({
+    mutationFn: async () => {
+      if (!regole.puoModificare) throw new Error("Permesso di modifica del Giornale non attivo");
+      const orderId = orderDelGiorno;
+      const data = formData.data_lavori;
+      const letta = await leggiBozzaGiornale(dbSenzaTipi, {
+        companyId: companyId!,
+        orderId,
+        data,
+        permessi: {
+          amministratore: permissions.isAdmin,
+          vedeRapportini: permissions.canViewOrders || permissions.canViewPersone || permissions.canViewCosts,
+          vedeSegnalazioni: permissions.canViewTickets,
+        },
+      });
+      return { ...letta, orderId, data };
+    },
+    onSuccess: (letta) => {
+      if (letta.bozza.vuota) {
+        setEsitoBozza({ orderId: letta.orderId, data: letta.data, fonti: letta.bozza.fonti, vuota: true, avvisi: letta.avvisi });
+        return;
+      }
+      // Sopra un testo già scritto si decide prima; senza testo non c'è niente da perdere.
+      if (testoGiaScritto(formData)) setBozzaDaScegliere(letta);
+      else applicaProposta(letta, "aggiungi");
+    },
+    onError: (err: Error) => toast.error("Non sono riuscito a preparare la pagina", { description: err.message }),
   });
 
   /** Firma: prima si salva quel che c'è nel modulo (testo e foto), poi si firma la pagina salvata. */
@@ -855,6 +931,37 @@ export default function GiornaleLavori() {
                       </li>
                     ))}
                   </ul>
+                )}
+              </div>
+            )}
+
+            {/* Proposta dai dati del giorno, senza AI: riempie il modulo, si salva solo quando lo decide chi scrive. */}
+            {regole.puoModificare && orderDelGiorno && formData.data_lavori && !paginaGiaScritta && (
+              <div className="rounded-lg border p-3 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">Riporta rapportini, bolle e segnalazioni del giorno. Controlla il testo prima di salvare.</p>
+                  <Button type="button" size="sm" variant="outline" onClick={() => preparaBozza.mutate()} disabled={preparaBozza.isPending || saveEntry.isPending}>
+                    {preparaBozza.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ClipboardList className="mr-2 h-4 w-4" aria-hidden="true" />}
+                    Prepara dalla giornata
+                  </Button>
+                </div>
+                {esitoBozza?.orderId === orderDelGiorno && esitoBozza.data === formData.data_lavori && (
+                  <div role="status" className="space-y-1 text-xs">
+                    {esitoBozza.vuota ? (
+                      <p className="font-medium">In questa giornata non c'è niente da riportare: nessun rapportino con del testo, nessuna bolla, nessuna segnalazione.</p>
+                    ) : (
+                      <p>
+                        Proposta presa da{" "}
+                        <Link to={`/azienda/ordini/${orderDelGiorno}?tab=cantiere&vista_cantiere=diario`} className="text-primary underline-offset-2 hover:underline">
+                          {conteggio(esitoBozza.fonti.source_rapportini_ids.length, "rapportino", "rapportini")}
+                        </Link>
+                        {" · "}{conteggio(esitoBozza.fonti.source_ddt_ids.length, "bolla", "bolle")}
+                        {" · "}{conteggio(esitoBozza.fonti.source_segnalazioni_ids.length, "segnalazione", "segnalazioni")}
+                        {" · "}{conteggio(esitoBozza.fonti.source_foto_ids.length, "foto", "foto")}.
+                      </p>
+                    )}
+                    {esitoBozza.avvisi.map((a) => <p key={a} className="text-amber-700 dark:text-amber-400">{a}</p>)}
+                  </div>
                 )}
               </div>
             )}
@@ -1303,6 +1410,29 @@ export default function GiornaleLavori() {
         <Plus className="h-7 w-7" aria-hidden="true" />
       </button>
       )}
+
+      <AlertDialog open={!!bozzaDaScegliere} onOpenChange={(o) => { if (!o) setBozzaDaScegliere(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>In questa pagina c'è già del testo</AlertDialogTitle>
+            <AlertDialogDescription>
+              Puoi aggiungere la proposta in fondo a quello che c'è, oppure sostituirlo. Finché non salvi non cambia niente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="border border-input bg-background text-foreground hover:bg-accent"
+              onClick={() => { if (bozzaDaScegliere) applicaProposta(bozzaDaScegliere, "sostituisci"); }}
+            >
+              Sostituisci
+            </AlertDialogAction>
+            <AlertDialogAction onClick={() => { if (bozzaDaScegliere) applicaProposta(bozzaDaScegliere, "aggiungi"); }}>
+              Aggiungi in fondo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={firmaDaConfermare} onOpenChange={(o) => { if (!o && !firmaPagina.isPending) setFirmaDaConfermare(false); }}>
         <AlertDialogContent>

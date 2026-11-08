@@ -21,6 +21,7 @@ import { useSettingsFloatingBar } from "@/hooks/useSettingsFloatingBar";
 import { RegoleCampoAnteprima } from "@/components/settings/RegoleCampoAnteprima";
 import { ChiFaCosaRiquadro } from "@/components/settings/ChiFaCosaRiquadro";
 import { ModuliCantiereConfig, type StatoModulo } from "@/components/settings/ModuliCantiereConfig";
+import { BozzaGiornaleSerale, useBozzaGiornaleSerale } from "@/components/settings/BozzaGiornaleSerale";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import {
@@ -46,6 +47,7 @@ const SEZIONI = [
   { id: "ore", etichetta: "Ore e presenze" },
   { id: "avviso", etichetta: "Controllo ore" },
   { id: "giorni", etichetta: "Giorni indietro" },
+  { id: "bozza-giornale", etichetta: "Bozza del giornale" },
   { id: "in-pratica", etichetta: "Anteprima" },
 ];
 // Si configurano da tablet e computer: da telefono queste sezioni non ci sono.
@@ -132,6 +134,7 @@ export default function RegoleCampoConfig() {
   const companyId = effectiveCompany?.id;
   const { data, isLoading, isError, refetch } = useRegoleAzienda(companyId);
   const salva = useSalvaRegoleAzienda(companyId);
+  const bozzaSerale = useBozzaGiornaleSerale(companyId);
   const { evidenziata, vai } = useVaiASezione(!!companyId && !isLoading && !isError && !!data);
   const { contenitore, barra, stile, altezza } = useSettingsFloatingBar();
 
@@ -252,6 +255,7 @@ export default function RegoleCampoConfig() {
         regole={regole}
         modificato={modificato}
         evidenziata={evidenziata === "chi-fa-cosa"}
+        bozzaSerale={bozzaSerale.data}
         linkVisibili={{
           capo: isAdmin || permissions.canViewOrders,
           ufficio: isAdmin || permissions.canViewOrders,
@@ -260,6 +264,7 @@ export default function RegoleCampoConfig() {
       />
 
       <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]" data-testid="regole-campo-colonne">
+        <div className="min-w-0 space-y-4">
         <fieldset disabled={bloccato} className="m-0 min-w-0 space-y-4 border-0 p-0">
 
 
@@ -402,6 +407,10 @@ export default function RegoleCampoConfig() {
         </SezioneImpostazione>
 
         </fieldset>
+
+        {/* Fuori dal fieldset: è una colonna dell'azienda, con un permesso diverso, e si salva subito. */}
+        <BozzaGiornaleSerale companyId={companyId} canEdit={isAdmin || permissions.canEditSettingsProfile} evidenziata={evidenziata === "bozza-giornale"} />
+        </div>
 
         <aside className="min-w-0 space-y-4" aria-label="Anteprima e collegamenti">
           <RegoleCampoAnteprima regole={regole} modificato={modificato} dettagli={inPratica(regole)} evidenziata={evidenziata === "in-pratica"} />

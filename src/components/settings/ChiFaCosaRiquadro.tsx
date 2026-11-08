@@ -17,9 +17,11 @@ const ICONE: Record<RuoloChiFaCosa, typeof UserRound> = {
 };
 
 export function ChiFaCosaRiquadro({
-  regole, modificato, evidenziata, linkVisibili = {},
+  regole, modificato, evidenziata, linkVisibili = {}, bozzaSerale,
 }: {
   regole: RegoleCampo; modificato: boolean; evidenziata?: boolean;
+  /** La bozza serale del giornale è accesa? `undefined` finché non si sa. */
+  bozzaSerale?: boolean;
   /** Il link si mostra solo a chi può aprire quella pagina: altrimenti porta a un «accesso negato». */
   linkVisibili?: Partial<Record<RuoloChiFaCosa, boolean>>;
 }) {
@@ -33,7 +35,7 @@ export function ChiFaCosaRiquadro({
         : "Con le regole attuali dell’azienda. Cambia se cambi le scelte qui sotto."}
     >
       <div className="grid gap-3 p-4 sm:grid-cols-2" data-testid="chi-fa-cosa">
-        {chiFaCosa(regole).map(({ ruolo, titolo, righe, link }) => {
+        {chiFaCosa(regole, { bozzaSerale }).map(({ ruolo, titolo, righe, link }) => {
           const Icona = ICONE[ruolo];
           return (
             <div key={ruolo} className="min-w-0 rounded-lg border bg-muted/20 p-3" aria-label={titolo} role="group">

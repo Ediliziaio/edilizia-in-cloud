@@ -60,7 +60,7 @@ export const GiornaleCard = memo(function GiornaleCard({ entry, onClick, compact
                   ? format(parseISO(entry.data_lavori), "EEEE d MMMM", { locale: it })
                   : "—"}
               </p>
-              <p className="text-xs text-muted-foreground">{meteo.label} · {entry.personale_presente} operai</p>
+              <p className="text-xs text-muted-foreground">{entry.condizioni_meteo ? meteo.label : "Meteo non indicato"} · {entry.personale_presente ?? 0} operai</p>
             </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">

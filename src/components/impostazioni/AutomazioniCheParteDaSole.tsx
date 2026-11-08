@@ -28,8 +28,8 @@ const BRIEF_SILVIO: Array<{ valore: BriefSilvio; etichetta: string }> = [
 const VOCI: Array<{ chiave: Chiave; titolo: string; descrizione: string }> = [
   {
     chiave: "giornale_auto_enabled",
-    titolo: "Giornale di cantiere scritto dall'AI",
-    descrizione: "Ogni pomeriggio, per le commesse dove quel giorno ci sono rapportini, foto o segnalazioni. Usa il credito AI.",
+    titolo: "Bozza serale del giornale dei lavori",
+    descrizione: "Prepara una bozza per i cantieri con lavoro registrato, dai rapportini, dalle bolle e dalle segnalazioni. Non usa l'AI e nessuna pagina viene firmata da sola.",
   },
   {
     chiave: "morning_briefing_enabled",
@@ -83,6 +83,7 @@ export function AutomazioniCheParteDaSole({ companyId, canEdit }: { companyId: s
       if (error) throw error;
       if (righeToccate(data) === 0) throw new MessaggioPerUtente("Il tuo utente non può cambiare le impostazioni dell'azienda: chiedi all'amministratore.");
       queryClient.setQueryData(chiaveQuery, { ...(stato ?? {}), [chiave]: acceso });
+      if (chiave === "giornale_auto_enabled") void queryClient.invalidateQueries({ queryKey: ["giornale-bozza-serale", companyId] });
       toast.success(acceso ? "Acceso" : "Spento");
     } catch (e) {
       toast.error(motivoDelRifiuto(e, "Non sono riuscito a salvare: riprova."));

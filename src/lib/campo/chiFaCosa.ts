@@ -19,7 +19,7 @@ export interface BloccoChiFaCosa {
   link?: { testo: string; to: string };
 }
 
-export function chiFaCosa(regole: RegoleCampo): BloccoChiFaCosa[] {
+export function chiFaCosa(regole: RegoleCampo, opzioni: { bozzaSerale?: boolean } = {}): BloccoChiFaCosa[] {
   // Le stesse domande che si fa l'app: un operaio in un cantiere con responsabile, e il responsabile stesso.
   const operaio = flussoPersona(regole, { esisteCapo: true });
   const capo = flussoPersona(regole, { isCapocantiere: true, esisteCapo: true });
@@ -76,6 +76,9 @@ export function chiFaCosa(regole: RegoleCampo): BloccoChiFaCosa[] {
     "Lo vede chi ha il permesso «Giornale Lavori». Lo scrive e lo corregge chi ce l'ha non in sola lettura; il titolare sempre.",
     "È il diario ufficiale del cantiere, firmato dal capocantiere.",
     "I rapportini sono la base da cui si scrive, ma non lo sostituiscono.",
+    ...(opzioni.bozzaSerale === undefined ? [] : [opzioni.bozzaSerale
+      ? "Ogni sera si prepara da sola una bozza per i cantieri con lavoro registrato: la controlla e la firma una persona."
+      : "La bozza serale è spenta: la pagina si prepara dal giornale con «Prepara dalla giornata»."]),
   ];
 
   return [

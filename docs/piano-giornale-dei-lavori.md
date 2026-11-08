@@ -43,7 +43,7 @@ Il rapportino alimenta il giornale, ma non lo sostituisce: il giornale lo confer
 
 Lotti piccoli, ognuno pubblicato e provato dal vivo su Demo Azienda 2 prima del successivo.
 
-**Lotto 1: foto e «chi fa cosa»** *(in corso)*
+**Lotto 1: foto e «chi fa cosa»** *(fatto)*
 - **Rapportino**:
   - scatti di fila, con «Scatta un'altra» che non perde quelle già fatte;
   - galleria con scelta multipla fino a 15 foto;
@@ -52,24 +52,25 @@ Lotti piccoli, ognuno pubblicato e provato dal vivo su Demo Azienda 2 prima del 
 - **Giornale**: due bottoni separati, fotocamera e galleria; stessa compressione; nomi di file sicuri; avviso se un caricamento fallisce; si può togliere una foto già salvata.
 - **Impostazioni rapportini**: riquadro «Chi fa cosa» che segue le regole vere dell'azienda: cosa fa l'operaio, cosa fa caposquadra o capocantiere, chi approva e cosa succede all'approvazione, chi vede e chi scrive il giornale.
 
-**Lotto 2: detta e ripulisci**
+**Lotto 2: detta e ripulisci** *(fatto)*
 - Bottone «Detta» nel rapportino e nel giornale: registra, trascrive e ripulisce il testo senza aggiungere fatti, poi lo mette nel campo da rivedere.
 - Una sola funzione per tutti e due, con controllo del credito *prima* della chiamata e `segnalaErroreAI` (CLAUDE.md).
 - Durata massima allineata (proposta: 3 minuti); avviso chiaro se manca il microfono o la connessione.
 - Collegare la bozza vocale (`rapportini_vocali`) al rapportino inviato.
 
-**Lotto 3: il giornale diventa un documento**
+**Lotto 3: il giornale diventa un documento** *(fatto)*
 - Stati `bozza → firmata`. Dopo la firma niente modifica né cancellazione, solo **annotazioni** con data e autore.
 - Una pagina per cantiere e per giorno.
 - Presenze per nome, prese dai rapportini.
 - Sul database, la scrittura è permessa solo a chi ha il permesso di modifica del giornale.
 - Le 11 righe di Demo 2 si portano nel nuovo formato.
 
-**Lotto 4: la bozza dalla giornata**
-- Bottone «Prepara dalla giornata», più l'interruttore per azienda e per commessa nelle impostazioni.
-- Senza AI: presenze, ore e lavorazioni dai rapportini; consegne dalle bolle del giorno; problemi dalle segnalazioni; meteo.
-- L'AI solo per unire le descrizioni in un testo leggibile, ed è facoltativa.
-- Il giro delle 18:00 scrive solo bozze e non tocca mai una pagina firmata.
+**Lotto 4: la bozza dalla giornata** *(realizzato)*
+- Una sola regola, senza AI, in `supabase/functions/_shared/bozzaGiornale.ts`: lavorazioni dai rapportini inviati o approvati (una riga per testo, senza doppioni), materiali sommati per voce e unità, consegne dalle bolle arrivate e segnalazioni dal campo nelle note, meteo, numero di presenti, percentuale più alta dichiarata e i riferimenti alle fonti. Se non c'è niente da scrivere, non nasce nessuna pagina.
+- **«Prepara dalla giornata»** nella pagina del giornale: riempie il modulo, si salva solo a mano. Sopra un testo già scritto chiede se aggiungere in fondo (scelta proposta) o sostituire. Dice da quanti rapportini, bolle, segnalazioni e foto arriva, e cosa non ha potuto leggere con i permessi di chi preme.
+- **Giro serale** (`auto-genera-giornale-cantiere`): niente più AI, stessa regola del bottone. Scrive solo bozze nuove, non visibili al cliente, e non tocca mai una pagina che c'è già.
+- **Interruttore per azienda** in Impostazioni → Rapportini (`companies.giornale_auto_enabled`, spento di base), riportato in «Chi fa cosa» e in «Cosa parte da solo».
+- **Interruttore per commessa**: la colonna `orders.giornale_auto_enabled` c'è ed è rispettata (acceso di base), ma nella scheda commessa non c'è ancora un punto dove cambiarlo.
 
 **Lotto 5: eventi, stampa, direzione lavori**
 - Eventi con un tipo: consegna (con DDT), problema o difformità (aperto / chiuso), sospensione / ripresa, istruzione, sopralluogo, sicurezza.

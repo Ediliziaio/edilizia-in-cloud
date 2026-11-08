@@ -17,6 +17,10 @@ vi.mock("@/components/settings/ModuliCantiereConfig", () => ({
     <button type="button" onClick={() => onStato?.({ modificato: true, inCorso: false, salva: state.salvaModulo, annulla: (): void => undefined })}>{`modello finto ${tipo}`}</button>
   ),
 }));
+vi.mock("@/components/settings/BozzaGiornaleSerale", () => ({
+  BozzaGiornaleSerale: (): null => null,
+  useBozzaGiornaleSerale: () => ({ data: undefined as boolean | undefined }),
+}));
 vi.mock("sonner", () => ({ toast: { success: state.successo, error: state.erroreToast } }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ role: state.role, effectiveCompany: { id: state.azienda } }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ isLoading: state.caricamentoPermessi, canEditSettingsOrders: state.modifica }) }));
