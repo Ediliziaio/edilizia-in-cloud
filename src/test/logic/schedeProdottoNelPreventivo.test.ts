@@ -35,7 +35,7 @@ describe("Quali schede", () => {
 
 describe("Lo scaricamento", () => {
   const pdf = new TextEncoder().encode("%PDF-1.7 scheda");
-  const risposta = (corpo: Uint8Array, init: ResponseInit = {}) => async () => new Response(corpo, { status: 200, ...init });
+  const risposta = (corpo: Uint8Array, init: ResponseInit = {}) => async () => new Response(corpo as BodyInit, { status: 200, ...init });
 
   it("un PDF vero arriva", async () => {
     expect(Array.from(await scaricaScheda("https://s/a.pdf", risposta(pdf)) ?? [])).toEqual(Array.from(pdf));
