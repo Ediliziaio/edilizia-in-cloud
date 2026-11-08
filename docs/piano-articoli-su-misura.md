@@ -358,7 +358,14 @@ Infissi e Living (369), Teda Infissi (320), renova solution (134).
   posizione, voci con materiale proposte come righe da ordinare, regola per tipo di lavoro in
   Impostazioni, sopralluogo definitivo che conferma le righe e si aggancia alla commessa.
   Resta il contratto letto dall'AI, da fare dopo la fase 3 perché tocca `CreateOrder.tsx`.
-- **Fasi 3, 4, 5-6 e 7:** in corso in sessioni separate.
+- **Fasi 3, 4 e 7:** in corso in sessioni separate.
+- **Fase 5, fatta:** richiesta d'offerta e ordine portano una riga per posizione con Rif., misure
+  (definitive, altrimenti rilevate o provvisorie, sempre dichiarate), tipo di misura, colore e apertura;
+  le copia il database, quindi vale per ogni punto che crea un ordine. Una riga non aggiudicata si
+  richiede a un altro fornitore; allo stesso no. Uscendo dalla bozza con righe da rilevare o da
+  confermare il database ferma l'ordine, salvo «Ordina comunque» col motivo. Offerta su misure vecchie
+  segnalata, offerta a corpo ripartita sui mq e segnata «Ripartito», aggiudicazione → costo con fonte
+  `offerta`. Provata in transazioni annullate su Demo Azienda 2.
 
 ## 12. Rischi
 

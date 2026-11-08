@@ -13,6 +13,8 @@ import { formatCurrency } from "@/lib/formatters";
 
 export interface OdaEmailRiga {
   description: string;
+  /** Rif., misure, colore e apertura della posizione, se è su misura. */
+  dettaglio?: string | null;
   quantity: number | string;
   unit_of_measure?: string | null;
   unit_price: number | string;
@@ -73,7 +75,7 @@ export function buildOdaEmailBody(d: OdaEmailDati): string {
           (r) => `<tr>
   <td style="padding:6px 8px;border-bottom:1px solid #eee;">${esc(r.description)}${
     r.sku ? ` <span style="color:#888;font-size:11px;">(cod. ${esc(r.sku)})</span>` : ""
-  }</td>
+  }${r.dettaglio ? `<br><span style="color:#555;font-size:12px;">${esc(r.dettaglio).replace(/\n/g, "<br>")}</span>` : ""}</td>
   <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;">${Number(r.quantity).toLocaleString("it-IT")} ${esc(r.unit_of_measure || "pz")}</td>
   ${Number(r.unit_price) > 0
     ? `<td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;">${eur(r.unit_price)}</td>

@@ -60,6 +60,7 @@ import { DocumentoEmailDialog } from "@/components/documentiOperativi/DocumentoE
 import { recapitiFornitore } from "@/lib/documentiOperativi/fornitore";
 import { nomeFileDocumento, type DocumentoOperativo } from "@/lib/documentiOperativi/modello";
 import { buildRdoEmailBody, buildRdoEmailSubject } from "@/lib/rdoEmail";
+import { descrizioneConMisure } from "@/lib/acquisti/misureSuDocumenti";
 import {
   RDO_STATUS_LABELS, RDO_FORNITORE_LABELS, RDO_FORNITORE_COLORS,
 } from "@/lib/rdoStatus";
@@ -81,6 +82,17 @@ export default function SupplierRfqDetail() {
     addFornitore, updateFornitore, removeFornitore, setQuote, aggiudica,
     segnaChiesta, registraOfferta, allegaOfferta,
   } = useSupplierRfqDetail(rfqId ?? null);
+  // Le misure chieste al fornitore confrontate con quelle di oggi sulla commessa.
+  const { data: misureCambiate = [] } = useQuery({
+    queryKey: ["rdo-misure-cambiate", rfqId],
+    enabled: !!rfqId,
+    queryFn: async () => {
+      const { data, error } = await (supabase.rpc as unknown as (f: string, a: object) => Promise<{ data: Array<{ rfq_item_id: string; riferimento: string | null; descrizione: string; chieste: string | null; attuali: string | null }> | null; error: { message: string } | null }>)(
+        "rdo_misure_cambiate", { p_rfq: rfqId });
+      if (error) throw new Error(error.message);
+      return data ?? [];
+    },
+  });
   const { suppliers } = useOperationalSuppliers();
 
   const supplierIds=fornitori.map(f=>f.supplier_id);
@@ -201,7 +213,7 @@ export default function SupplierRfqDetail() {
         descrizione: i.descrizione,
         quantita: i.quantita,
         unita_misura: i.unita_misura,
-        note: i.note,
+        note: [i.misure_testo, i.note].filter(Boolean).join("\n") || null,
       })),
     };
     return {
@@ -218,7 +230,7 @@ export default function SupplierRfqDetail() {
     pagamento:f.condizioni_pagamento || recapitiFornitore({...(anagrafiche.find(s=>s.id===f.supplier_id) ?? suppliers.find(s=>s.id===f.supplier_id)),id:f.supplier_id,name:f.suppliers?.name || "Fornitore"}).pagamento,
     commessa:rfq.orders?.order_code,luogo:rfq.orders?.work_address,indirizzoCantiere:rfq.orders?.work_address,destinazioneTipo:rfq.order_id ? "cantiere" : "magazzino", consegna:rfq.data_fabbisogno,scadenzaOfferta:rfq.scadenza_offerte,
     note:[rfq.descrizione,rfq.note].filter(Boolean).join("\n"),
-    righe:items.map(i=>({descrizione:[i.descrizione,i.note].filter(Boolean).join("\n"),unita:i.unita_misura || "pz",quantita:Number(i.quantita),prezzo: null as number | null})),
+    righe:items.map(i=>({descrizione:descrizioneConMisure(i.descrizione,i.misure_testo,i.note),unita:i.unita_misura || "pz",quantita:Number(i.quantita),prezzo: null as number | null})),
   });
   const downloadPdf=async(f:RfqSupplier)=>{
     if(!effectiveCompany || downloadingFor)return;
@@ -287,6 +299,18 @@ export default function SupplierRfqDetail() {
         }
       />
 
+      {misureCambiate.length > 0 && !chiusa && (
+        <div role="status" className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <div>
+            <p className="font-medium">Offerta su misure vecchie: {misureCambiate.length} {misureCambiate.length === 1 ? "posizione è cambiata" : "posizioni sono cambiate"} dopo la richiesta</p>
+            <ul className="mt-1 space-y-0.5 text-xs">
+              {misureCambiate.map((m) => <li key={m.rfq_item_id}>{m.riferimento ?? m.descrizione}: chieste {m.chieste ?? "—"}, ora {m.attuali ?? "—"}</li>)}
+            </ul>
+            <p className="mt-1 text-xs">L'ordine partirà con le misure di oggi: chiedi al fornitore di confermare il prezzo.</p>
+          </div>
+        </div>
+      )}
       <AttivitaAcquistoCard attivita={attivitaRdo({status:rfq.status,righe:items.length,scadenza:rfq.scadenza_offerte,fornitori:fornitori.map(f=>({status:f.status,nome:f.suppliers?.name??"Fornitore",email:documentoInvio(f).destinatario.email,scadenza:f.validita_offerta,copertura:totaliPerFornitore[f.id]?.righeCoperte??0,aggancio:f.aggancio_da_confermare,trasportoDefinito:confronti[f.id]?.trasportoNoto,coerente:confronti[f.id]?.coerente}))})}/>
       <div className="grid grid-cols-1 gap-6">
         <div className="min-w-0 space-y-4">
@@ -366,7 +390,7 @@ export default function SupplierRfqDetail() {
                   <tbody>
                     {items.map((it) => (
                       <tr key={it.id} className="border-b">
-                        <td className="p-2 pl-4">{it.descrizione}</td>
+                        <td className="p-2 pl-4">{it.descrizione}{it.misure_testo && <span className="mt-0.5 block whitespace-pre-line text-xs text-muted-foreground">{it.misure_testo}</span>}</td>
                         <td className="p-2 text-right text-slate-500">
                           {Number(it.quantita).toLocaleString("it-IT")} {it.unita_misura ?? "pz"}
                         </td>

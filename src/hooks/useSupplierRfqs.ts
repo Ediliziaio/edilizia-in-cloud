@@ -50,6 +50,11 @@ export interface RfqItem {
   sku: string | null;
   note: string | null;
   posizione: number;
+  order_item_id?: string | null;
+  riferimento?: string | null;
+  misure_fonte?: string | null;
+  /** Rif., misure, colore e apertura della posizione: vuoto per gli articoli normali. */
+  misure_testo?: string | null;
 }
 
 /** Come si è chiesta l'offerta: «app» è l'email partita dal compositore. */
@@ -423,13 +428,18 @@ export function useSupplierRfqDetail(rfqId: string | null) {
         p_motivazione: params.motivazione ?? null,
       });
       if (error) throw new Error(error.message);
-      const r = data as { purchase_order_id: string; oda_number: string; righe: number };
-      return { purchaseOrderId: r.purchase_order_id, odaNumber: r.oda_number, righe: r.righe };
+      const r = data as { purchase_order_id: string; oda_number: string; righe: number; saltate?: Array<{ descrizione: string; oda: string }> };
+      return { purchaseOrderId: r.purchase_order_id, odaNumber: r.oda_number, righe: r.righe, saltate: r.saltate ?? [] };
     },
     onSuccess: (r) => {
       toast.success(`Ordine ${r.odaNumber} creato`, {
         description: r.righe > 0 ? `${r.righe} righe dai prezzi offerti` : "Nessuna riga: il fornitore non aveva prezzi",
       });
+      if (r.saltate.length > 0) {
+        toast.warning(`${r.saltate.length} ${r.saltate.length === 1 ? "voce non ordinata" : "voci non ordinate"}: già coperte`, {
+          description: r.saltate.map((s) => `${s.descrizione} (${s.oda})`).join(", "),
+        });
+      }
       invalida();
       queryClient.invalidateQueries({ queryKey: rfqKeys.all });
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
