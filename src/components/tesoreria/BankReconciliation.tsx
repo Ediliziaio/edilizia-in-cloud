@@ -1,6 +1,7 @@
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { formatDateIt } from "@/lib/formatters";
+import { prettyTxDesc } from "./txLabel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import {
   fmtEur,
+  coincideImporto,
   computeMatchScore,
   computePaymentReversal,
   detectReconAnomalies,
@@ -226,7 +228,27 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
   const txDelConto = useMemo(() => transactions.filter(nelConto), [transactions, nelConto]);
   const reconcilableTx = useMemo(() => txDelConto.filter((t) => !isInternalTransfer(t)), [txDelConto]);
   const internalCount = txDelConto.length - reconcilableTx.length;
-  const debitTxsVisibili = useMemo(() => debitTxs.filter(nelConto), [debitTxs, nelConto]);
+  const debitTxsNelConto = useMemo(() => debitTxs.filter(nelConto), [debitTxs, nelConto]);
+  // Per ogni addebito, le scadenze fornitore col residuo uguale al centesimo:
+  // un aiuto a scegliere, l'abbinamento resta manuale.
+  const scadenzeUguali = useMemo(() => {
+    const perCentesimi = new Map<number, any[]>();
+    for (const sc of scadenze) {
+      const cent = Math.round((Number(sc.amount || 0) - Number(sc.paid_amount || 0)) * 100);
+      perCentesimi.set(cent, [...(perCentesimi.get(cent) ?? []), sc]);
+    }
+    const out = new Map<string, any[]>();
+    for (const tx of debitTxsNelConto) {
+      const uguali = perCentesimi.get(Math.round(Math.abs(Number(tx.amount || 0)) * 100));
+      if (uguali) out.set(tx.id, uguali);
+    }
+    return out;
+  }, [debitTxsNelConto, scadenze]);
+  // Prima quelli con una scadenza dello stesso importo: sono i più veloci da chiudere.
+  const debitTxsVisibili = useMemo(
+    () => [...debitTxsNelConto].sort((a, b) => Number(scadenzeUguali.has(b.id)) - Number(scadenzeUguali.has(a.id))),
+    [debitTxsNelConto, scadenzeUguali],
+  );
 
   // KPIs
   const kpis = useMemo(() => {
@@ -616,7 +638,8 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
       list = list.filter((t) =>
         (t.description || "").toLowerCase().includes(q) ||
         (t.creditor_name || "").toLowerCase().includes(q) ||
-        (t.debtor_name || "").toLowerCase().includes(q)
+        (t.debtor_name || "").toLowerCase().includes(q) ||
+        coincideImporto(searchTx, Math.abs(Number(t.amount || 0)))
       );
     }
     return list;
@@ -632,7 +655,8 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
       const q = searchInv.toLowerCase();
       list = list.filter((i) =>
         (i.invoice_number || "").toLowerCase().includes(q) ||
-        (i.client_company_name || "").toLowerCase().includes(q)
+        (i.client_company_name || "").toLowerCase().includes(q) ||
+        coincideImporto(searchInv, Number(i.total || 0) - Number(i.paid_amount || 0))
       );
     }
     return list;
@@ -896,11 +920,12 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Banknote className="h-4 w-4" /> Transazioni da riconciliare
+              <Badge variant="outline" className="font-normal">{filteredTx.length}</Badge>
             </CardTitle>
             <div className="relative mt-2">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Cerca transazione..."
+                placeholder="Cerca nome o importo…"
                 value={searchTx}
                 onChange={(e) => setSearchTx(e.target.value)}
                 className="pl-9 h-8 text-sm"
@@ -925,7 +950,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                 >
                   <div className="flex justify-between items-start">
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{tx.description || "—"}</p>
+                      <p className="text-sm font-medium truncate">{prettyTxDesc(tx)}</p>
                       <p className="text-xs text-muted-foreground truncate">
                         {tx.creditor_name || tx.debtor_name || "—"} · {formatDateIt(tx.booking_date)}
                       </p>
@@ -995,11 +1020,12 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <FileText className="h-4 w-4" /> Fatture da incassare
+              <Badge variant="outline" className="font-normal">{filteredInv.length}</Badge>
             </CardTitle>
             <div className="relative mt-2">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Cerca fattura..."
+                placeholder="Cerca numero, cliente o importo…"
                 value={searchInv}
                 onChange={(e) => setSearchInv(e.target.value)}
                 className="pl-9 h-8 text-sm"
@@ -1032,6 +1058,13 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                       <div className="text-right ml-2">
                         <p className="text-sm font-semibold">{fmtEur(remaining)}</p>
                         <p className="text-[10px] text-muted-foreground">di {fmtEur(Number(inv.total || 0))}</p>
+                        <button
+                          type="button"
+                          className="text-[10px] font-medium text-primary hover:underline"
+                          onClick={() => setSearchTx(remaining.toFixed(2).replace(".", ","))}
+                        >
+                          Trova movimento
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -1067,13 +1100,20 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                 >
                   <div className="flex justify-between items-start">
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{tx.description || "—"}</p>
+                      <p className="text-sm font-medium truncate">{prettyTxDesc(tx)}</p>
                       <p className="text-xs text-muted-foreground truncate">
                         {tx.creditor_name || tx.merchant_name || "—"} · {formatDateIt(tx.booking_date)}
                       </p>
                     </div>
                     <p className="text-sm font-bold text-red-600 ml-2">−{fmtEur(Math.abs(tx.amount))}</p>
                   </div>
+                  {scadenzeUguali.has(tx.id) && (
+                    <p className="mt-2 truncate rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-800">
+                      {scadenzeUguali.get(tx.id)!.length === 1
+                        ? `Stesso importo: ${scadenzeUguali.get(tx.id)![0].suppliers?.name || scadenzeUguali.get(tx.id)![0].description || "scadenza fornitore"}`
+                        : `${scadenzeUguali.get(tx.id)!.length} scadenze con lo stesso importo`}
+                    </p>
+                  )}
                 </div>
               ))
             )}
@@ -1123,7 +1163,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                   <div key={rec.id} className="flex items-center gap-3 border rounded-lg p-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 text-sm">
-                        <span className="font-medium truncate">{tx?.description || "Transazione"}</span>
+                        <span className="font-medium truncate">{tx ? prettyTxDesc(tx) : "Transazione"}</span>
                         <ArrowRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                         <span className="font-medium truncate">
                           {inv?.invoice_number
@@ -1160,7 +1200,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
           {selectedDebit && (
             <div className="space-y-3">
               <div className="border rounded-lg p-3 bg-muted/40">
-                <p className="font-medium">{selectedDebit.description || "—"}</p>
+                <p className="font-medium">{prettyTxDesc(selectedDebit)}</p>
                 <p className="text-xs text-muted-foreground">
                   {selectedDebit.creditor_name || selectedDebit.merchant_name || ""} · {formatDateIt(selectedDebit.booking_date)}
                 </p>
@@ -1230,7 +1270,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
           {selectedTx && (
             <div className="space-y-4">
               <div className="bg-accent/30 rounded-lg p-3 text-sm">
-                <p className="font-medium">{selectedTx.description || "—"}</p>
+                <p className="font-medium">{prettyTxDesc(selectedTx)}</p>
                 <p className="text-muted-foreground text-xs">
                   {selectedTx.creditor_name || selectedTx.debtor_name || ""} · {formatDateIt(selectedTx.booking_date)}
                 </p>

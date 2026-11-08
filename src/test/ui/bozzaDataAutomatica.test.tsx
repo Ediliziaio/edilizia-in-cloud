@@ -9,20 +9,20 @@ afterEach(cleanup);
 describe("La data della bozza non si confonde con quella definitiva",()=>{
   it("indica la data automatica e non offre un calendario che verrebbe ignorato",()=>{
     const dispatch=vi.fn();render(<EditorDatiDocumento state={state()} dispatch={dispatch}/>);
-    expect(screen.getByRole("button",{name:"Oggi, quando emetti"})).toBeDisabled();
+    expect(screen.getByRole("button",{name:"All'emissione"})).toBeDisabled();
     expect(screen.getByText(/non riserva numeri/)).toBeInTheDocument();
-    expect(screen.getByDisplayValue("Bozza (senza numero)")).toHaveAttribute("readonly");
+    expect(screen.getByDisplayValue("All'emissione")).toHaveAttribute("readonly");
     expect(dispatch).not.toHaveBeenCalled(); // nessuna scrittura all'apertura
   });
   it("un recupero già numerato continua a mostrare la sua data",()=>{
     render(<EditorDatiDocumento state={state({numero:"FPR 5/26"})} dispatch={vi.fn()}/>);
     expect(screen.getByRole("button",{name:"12/10/2026"})).toBeEnabled();
-    expect(screen.queryByText("Oggi, quando emetti")).not.toBeInTheDocument();
+    expect(screen.queryByText("All'emissione")).not.toBeInTheDocument();
   });
   it("una scartata resta con data bloccata e non viene spacciata per nuova emissione",()=>{
     render(<EditorDatiDocumento state={state({numero:"FPR 74/26",stato:"rifiutata"})} dispatch={vi.fn()} dataBloccata/>);
     expect(screen.getByRole("button",{name:"12/10/2026"})).toBeDisabled();
-    expect(screen.queryByText("Oggi, quando emetti")).not.toBeInTheDocument();
+    expect(screen.queryByText("All'emissione")).not.toBeInTheDocument();
   });
   it("preventivi e proforma conservano il calendario",()=>{
     render(<EditorDatiDocumento state={state({tipo:"proforma",numero:"PF-1"})} dispatch={vi.fn()}/>);

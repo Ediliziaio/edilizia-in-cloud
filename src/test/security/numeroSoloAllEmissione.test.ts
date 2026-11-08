@@ -29,6 +29,6 @@ describe("numero all'emissione", () => {
   });
   it("l'editor non assegna più il numero all'apertura della bozza", () => {
     expect(campo).not.toMatch(/assegna\(null\)/);
-    expect(campo).toContain("Bozza (senza numero)");
+    expect(campo).toContain("All'emissione");
   });
 });

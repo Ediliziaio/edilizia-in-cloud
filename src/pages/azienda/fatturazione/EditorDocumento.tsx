@@ -36,6 +36,9 @@ import { EditorRigheSection } from "./editor/EditorRigheSection";
 import { EditorTotaliSection } from "./editor/EditorTotaliSection";
 import { EditorPagamentoSection } from "./editor/EditorPagamentoSection";
 import { EditorNoteSection } from "./editor/EditorNoteSection";
+import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { TIPI_SDI } from "@/lib/fatturazione/sdiCassetto";
 import { EditorPreviewDialog } from "./editor/EditorPreviewDialog";
 import { EditorDDTOpzioniCard } from "./editor/EditorDDTOpzioniCard";
 import { EditorDDTModelloCard } from "./editor/EditorDDTModelloCard";
@@ -155,6 +158,7 @@ export default function EditorDocumento() {
   const fase = faseSdi(state)?.fase;
   const scartata = fase === "scartata";
   const modificabile = isBozza || scartata;
+  const aziendaAllegati = useEffectiveCompanyId();
   const { data: aziendaAnagrafica } = useAnagraficaAzienda();
 
   // 2026-05-27 (Form UX audit): warn su chiusura tab / Cmd+W / F5 quando ci
@@ -525,6 +529,21 @@ export default function EditorDocumento() {
 
           {/* ═══ NOTE ═══ */}
           <EditorNoteSection state={state} dispatch={dispatch} disabled={!modificabile} />
+
+          {/* Allegati: stessi del dettaglio, ora anche mentre si prepara il documento.
+              Servono l'id, quindi la bozza già salvata (il salvataggio è automatico). */}
+          <div className="rounded-xl border bg-card p-4">
+            {state.id ? (
+              <AllegatiFattura
+                companyId={aziendaAllegati}
+                madre={{ documentoFiscaleId: state.id }}
+                invioSdi={modificabile && TIPI_SDI.includes(state.tipo) && !["preventivo", "proforma"].includes(state.tipo)}
+                sola_lettura={!modificabile}
+              />
+            ) : (
+              <p className="text-xs text-muted-foreground">Allegati: si possono aggiungere appena la bozza è salvata.</p>
+            )}
+          </div>
         </div>
       </div>
 

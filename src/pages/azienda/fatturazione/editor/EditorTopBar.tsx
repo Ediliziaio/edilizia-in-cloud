@@ -157,7 +157,7 @@ export function EditorTopBar({
             {TIPO_LABELS[tipo] ?? tipo}
           </Badge>
           {TIPO_TO_TD[tipo] && (
-            <Badge variant="secondary" className="text-[10px] font-mono px-1.5 py-0 h-5 text-muted-foreground">
+            <Badge variant="outline" className="text-[10px] font-mono font-medium px-1.5 py-0 h-5 bg-muted/50 text-muted-foreground">
               {TIPO_TO_TD[tipo]}
             </Badge>
           )}

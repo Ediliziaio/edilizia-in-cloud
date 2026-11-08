@@ -109,7 +109,7 @@ export function NumeroDocumentoField({ state, dispatch, disabled }: Props) {
       ) : (
         <div className="flex gap-1">
           <Input
-            value={haSegnapostoBozza(state.numero) && numerataSullaBozza ? "Bozza (senza numero)" : state.numero ?? ""}
+            value={haSegnapostoBozza(state.numero) && numerataSullaBozza ? "All'emissione" : state.numero ?? ""}
             readOnly
             className="h-7 text-xs font-mono bg-muted/50"
           />

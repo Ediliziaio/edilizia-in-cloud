@@ -62,8 +62,8 @@ export function EditorDatiDocumento({ state, dispatch, disabled, dataBloccata }:
                 disabled={disabled || dataBloccata || dataAutomatica}
                 title={dataAutomatica ? "La data viene assegnata dal server al momento dell'emissione" : dataBloccata ? "Una fattura scartata si rimanda con la stessa data" : undefined}
               >
-                <CalendarIcon className="mr-1 h-3 w-3" />
-                {dataAutomatica ? "Oggi, quando emetti" : state.data_emissione
+                <CalendarIcon className="mr-1 h-3 w-3 shrink-0" />
+                {dataAutomatica ? "All'emissione" : state.data_emissione
                   ? format(parseISO(state.data_emissione), "dd/MM/yyyy", { locale: it })
                   : "Seleziona"}
               </Button>

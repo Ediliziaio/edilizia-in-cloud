@@ -340,3 +340,11 @@ export function detectReconAnomalies(transactions: any[], invoices: any[]): Reco
 
   return out;
 }
+
+/** La ricerca vale anche per importo: «1.234,50», «1234.50» o «1234,5 €». */
+export function coincideImporto(ricerca: string, importo: number): boolean {
+  const pulita = ricerca.replace(/[€\s]/g, "");
+  if (!/^\d[\d.,]*$/.test(pulita)) return false;
+  const n = Number(/,/.test(pulita) ? pulita.replace(/\./g, "").replace(",", ".") : pulita);
+  return Number.isFinite(n) && Math.abs(n - importo) < 0.005;
+}
