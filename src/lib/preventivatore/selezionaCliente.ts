@@ -108,16 +108,21 @@ export interface PermessiScelta {
   isAdmin?: boolean;
   canViewMarketingContacts?: boolean;
   canViewCustomers?: boolean;
+  canViewOrders?: boolean;
   onlyAssigned?: boolean;
   isLoading?: boolean;
 }
 
-/** Quali linguette ha il popup, e se i clienti vanno ristretti al venditore. */
+/**
+ * Quali linguette ha il popup, e se i clienti vanno ristretti al venditore.
+ * Il commerciale lavora sui contatti del CRM; i clienti sono di chi segue le commesse, o di chi ha la sezione
+ * Clienti sbloccata (Florin, 08/11/2026).
+ */
 export function fontiVisibili(p: PermessiScelta | null | undefined): { contatti: boolean; clienti: boolean; soloMieiClienti: boolean } {
   if (!p || p.isLoading) return { contatti: false, clienti: false, soloMieiClienti: false };
   return {
     contatti: !!p.isAdmin || !!p.canViewMarketingContacts,
-    clienti: !!p.isAdmin || !!p.canViewCustomers,
+    clienti: !!p.isAdmin || !!p.canViewOrders || !!p.canViewCustomers,
     soloMieiClienti: !p.isAdmin && !!p.onlyAssigned,
   };
 }

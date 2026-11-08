@@ -62,6 +62,7 @@ describe("Chi vede cosa", () => {
   it("le linguette seguono i permessi", () => {
     expect(fontiVisibili({ canViewMarketingContacts: true, canViewCustomers: false })).toMatchObject({ contatti: true, clienti: false });
     expect(fontiVisibili({ canViewMarketingContacts: false, canViewCustomers: true })).toMatchObject({ contatti: false, clienti: true });
+    expect(fontiVisibili({ canViewMarketingContacts: false, canViewOrders: true })).toMatchObject({ contatti: false, clienti: true });
     expect(fontiVisibili({ isAdmin: true, onlyAssigned: true })).toEqual({ contatti: true, clienti: true, soloMieiClienti: false });
     expect(fontiVisibili({ canViewCustomers: true, onlyAssigned: true }).soloMieiClienti).toBe(true);
     expect(fontiVisibili({ isLoading: true, isAdmin: true })).toMatchObject({ contatti: false, clienti: false });
