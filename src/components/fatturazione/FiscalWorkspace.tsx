@@ -117,10 +117,10 @@ export default function FiscalWorkspace({
     : defaultSection;
   return (
     <section className="space-y-4" aria-label="Area fiscale">
-      <div className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border bg-white p-5">
+      <div className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border bg-white p-5 max-md:gap-2 max-md:p-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-950">Fiscalità</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="text-xl font-bold text-slate-950 max-md:hidden">Fiscalità</h1>
+          <p className="mt-1 text-sm text-slate-500 max-md:hidden">
             Documenti, prospetti e verifiche della tua azienda. Nessun
             versamento automatico.
           </p>

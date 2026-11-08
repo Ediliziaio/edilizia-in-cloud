@@ -1,3 +1,4 @@
+import { useIsMobile } from "@/hooks/use-mobile";
 import { FornitoreCombobox } from "@/components/orders/FornitoreCombobox";
 import { useOperationalViewMemory } from "@/hooks/useOperationalViewMemory";
 import {
@@ -380,7 +381,9 @@ export default function PurchaseOrdersList() {
     },
     [setParams],
   );
-  const vistaPrincipale = filtri.vista;
+  // Da telefono la tabella non ci sta: sempre la pipeline a schede.
+  const isMobile = useIsMobile();
+  const vistaPrincipale = isMobile ? "pipeline" : filtri.vista;
   const archive = useOperationalArchive(
     "oda_ambito",
     filtri.stato || vistaPrincipale === "elenco" ? "all" : "active",
@@ -1101,6 +1104,7 @@ export default function PurchaseOrdersList() {
       {/* Vista e filtri comuni: valgono per la pipeline e per l'elenco, e stanno nell'URL. */}
       <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
+          <div className="max-md:hidden">
           <OperationalViewSwitch
             value={vistaPrincipale}
             onChange={(v) =>
@@ -1118,6 +1122,7 @@ export default function PurchaseOrdersList() {
               )
             }
           />
+          </div>
           {vistaPrincipale === "pipeline" && (
             <Select
               value={fonte}

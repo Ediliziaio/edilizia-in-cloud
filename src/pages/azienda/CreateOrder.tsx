@@ -1545,14 +1545,14 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           <div className="flex flex-wrap items-center gap-2">
             {/* Lotto 1.5: lo stesso lavoro con Silvio, che legge le fonti. Il modulo classico resta qui sotto. */}
             {!createdOrderId && (
-              <PulsanteCreaConSilvio size="sm" className="text-xs" apriSubito={!!fontiSilvio}
+              <PulsanteCreaConSilvio size="sm" className="text-xs max-md:hidden" apriSubito={!!fontiSilvio}
                 iniziale={fontiSilvio?.length ? fontiDaLink(fontiSilvio) : selectedQuoteId ? { tipo: "preventivo", id: selectedQuoteId } : null} />
             )}
             <Button
               variant="outline"
               size="sm"
               onClick={() => navigate(-1)}
-              className="text-xs"
+              className="text-xs max-md:hidden"
             >
               <ArrowLeft className="h-3.5 w-3.5 mr-1" />
               Indietro
