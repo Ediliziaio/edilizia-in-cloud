@@ -700,7 +700,7 @@ function RigaRiepilogo({ tema, etichetta, valore, forte = false }: {
 }
 
 // ─── Copertina ───────────────────────────────────────────────────────────────
-export type DatiCopertinaDocumento = Pick<DocEdileDati, "cliente" | "cantiere" | "codice" | "tipoIntervento" | "localita"> & {
+export type DatiCopertinaDocumento = Pick<DocEdileDati, "cliente" | "cantiere" | "codice" | "tipoIntervento" | "localita" | "stile"> & {
   modello: Pick<DocEdileDati["modello"], "copertina">;
   azienda: Pick<DocEdileDati["azienda"], "nome" | "logoUrl" | "logoChiaroUrl"> & { indirizzo?: string | null };
   modulo: Pick<DocEdileDati["modulo"], "titoloCopertina" | "sottotitoloCopertina">;
