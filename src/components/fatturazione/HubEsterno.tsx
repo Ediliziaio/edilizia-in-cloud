@@ -141,8 +141,15 @@ interface IncassoImportato {
 
 const METODO_LABEL: Record<string, string> = { bank_transfer: "Bonifico", bonifico: "Bonifico", cash: "Contanti", card: "Carta", check: "Assegno", riba: "RiBa", other: "Altro" };
 
-/** Registro incassi di chi importa: cosa resta da incassare e gli incassi registrati. */
-export function RegistroIncassiImportate() {
+/**
+ * Registro incassi di chi importa: cosa resta da incassare e gli incassi registrati.
+ *
+ * Con `soloSeCeNe` sta sotto il registro nativo, per chi è passato a fatturare
+ * qui: lo storico degli incassi resta nelle importate, e senza questa sezione
+ * il registro del giorno del passaggio è vuoto. Se di importate non c'è niente
+ * (azienda sempre nativa) non mostra nulla.
+ */
+export function RegistroIncassiImportate({ soloSeCeNe = false }: { soloSeCeNe?: boolean }) {
   const companyId = useEffectiveCompanyId();
   const [daSegnare, setDaSegnare] = useState<DocumentoFiscale | null>(null);
   const anno = new Date().getFullYear();
@@ -188,8 +195,19 @@ export function RegistroIncassiImportate() {
     return { residuo, scaduto, incassato };
   }, [daIncassare, incassi.data]);
 
+  // Niente sezione vuota sotto il registro nativo: si attende la risposta e, se
+  // di importate non c'è niente, non si mostra nulla.
+  if (soloSeCeNe && (aperte.isLoading || incassi.isLoading
+      || (daIncassare.length === 0 && (incassi.data ?? []).length === 0))) return null;
+
   return (
     <div className="space-y-4 max-sm:space-y-3">
+      {soloSeCeNe && (
+        <div className="border-t pt-4">
+          <h2 className="text-sm font-semibold">Fatture emesse col gestionale precedente</h2>
+          <p className="text-xs text-muted-foreground">Lo storico degli incassi: resta qui, non si mescola con quello nuovo.</p>
+        </div>
+      )}
       <div className="grid grid-cols-3 gap-3 max-sm:gap-2">
         {[
           { label: `Incassato ${anno}`, valore: kpi.incassato, tono: "text-emerald-700" },

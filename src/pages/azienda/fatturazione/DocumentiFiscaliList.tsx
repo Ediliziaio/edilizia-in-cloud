@@ -213,7 +213,12 @@ function DocumentiFiscaliHub() {
 
       {activeHubTab === "fatture" && <DocumentiFiscaliListInner />}
       {activeHubTab === "rubrica" && <AnagraficheList embedded />}
-      {activeHubTab === "incassi" && (esterna ? <RegistroIncassiImportate /> : <RegistroIncassi embedded />)}
+      {/* Chi fattura qui vede il registro nativo e, sotto, lo storico delle
+          importate: il giorno del passaggio di incassi nativi non ce n'è
+          nessuno. Chi non ha importate non vede la seconda sezione. */}
+      {activeHubTab === "incassi" && (esterna ? <RegistroIncassiImportate /> : (
+        <><RegistroIncassi embedded /><RegistroIncassiImportate soloSeCeNe /></>
+      ))}
       {activeHubTab === "sdi" && (esterna ? <CassettoSdiEsterno /> : <CassettoSDI embedded />)}
       {activeHubTab === "fiscalita" && <FiscalWorkspace />}
     </div>
