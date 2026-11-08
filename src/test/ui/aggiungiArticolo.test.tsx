@@ -11,8 +11,10 @@ const dati = vi.hoisted(() => ({
 vi.mock("@/integrations/supabase/client", () => {
   const costruttore = (tabella: string) => {
     const q: Record<string, unknown> = {};
-    const risposta = () => ({ data: tabella === "article_families" && (q as { _una?: boolean })._una ? (dati.tabelle.famiglia?.[0] ?? null) : (dati.tabelle[tabella] ?? []), error: null as null });
+    let soloAttivi = false;
+    const risposta = () => ({ data: tabella === "article_families" && (q as { _una?: boolean })._una ? (dati.tabelle.famiglia?.[0] ?? null) : (dati.tabelle[tabella] ?? []).filter(r => !soloAttivi || (r as { attivo?: boolean }).attivo !== false), error: null as null });
     for (const m of ["select", "eq", "is", "in", "order", "limit"]) q[m] = () => q;
+    q.eq = (key: string, value: unknown) => { if (tabella === "article_templates" && key === "attivo" && value === true) soloAttivi = true; return q; };
     q.maybeSingle = () => { (q as { _una?: boolean })._una = true; return Promise.resolve(risposta()); };
     q.single = () => Promise.resolve({ data: { id: "nuovo" }, error: null });
     q.insert = (riga: unknown) => { dati.inserite.push(riga); return q; };
@@ -66,6 +68,16 @@ beforeEach(() => {
 });
 
 describe("Aggiungi articolo", () => {
+  it("propone solo i materiali attivi e lascia gli inattivi fuori dalle nuove commesse", async () => {
+    dati.tabelle.article_templates = [
+      { id: "active", name: "Calcestruzzo verificato", standard_cost: 80, attivo: true },
+      { id: "inactive", name: "Calcestruzzo storico", standard_cost: 70, attivo: false },
+    ];
+    monta();
+    await screen.findByText("Calcestruzzo verificato");
+    expect(screen.queryByText("Calcestruzzo storico")).toBeNull();
+  });
+
   it("modifica prima del salvataggio: le righe senza id non si raddoppiano", async () => {
     const riga: OrderItem = { name: "Finestra PVC", quantity: 1, status: "da_ordinare", position: 0, gruppo_id: "g", riferimento: "Cucina", family_id: "f1", axis_selections: {}, misure_preventivo: { larghezza_mm: 1200, altezza_mm: 1400, mq: 1 }, measure_status: "da_rilevare", purchase_price: 450, prezzo_fonte: "listino" };
     const p = monta({ gruppoDaModificare: { righe: [riga] } });

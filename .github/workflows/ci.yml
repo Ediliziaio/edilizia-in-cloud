@@ -105,6 +105,7 @@ jobs:
           src/test/logic/preventivoCostiTariffe.test.tsx
           src/test/logic/listinoAziendaEffettiva.test.ts
           src/test/ui/staffSenzaInvioEmail.test.tsx
+          src/test/ui/aggiungiArticolo.test.tsx
           src/test/logic/companyManagementMode.test.ts
           src/test/logic/permessiDistinti.test.ts
           src/test/ui/permessiDistinti.test.tsx
