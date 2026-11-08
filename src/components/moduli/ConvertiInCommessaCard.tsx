@@ -180,7 +180,7 @@ export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMot
           <DialogDescription>Verifica cosa verrà trasferito nel cantiere.</DialogDescription></DialogHeader>
         {riepilogo && <ModuleConversionSummary riepilogo={riepilogo} vociScelte={vociScelte} onCambiaVoci={setVociScelte} />}
         {errore && <p role="alert" className="text-sm text-destructive">{errore}</p>}
-        <DialogFooter>
+        <DialogFooter className="sticky -bottom-6 -mx-6 -mb-6 border-t bg-background px-6 py-3">
           <Button variant="outline" disabled={inCorso} onClick={() => setDialog(false)}>Torna al preventivo</Button>
           {errore ? <Button disabled={inCorso} onClick={() => { void mostraRiepilogo(); }}>Aggiorna riepilogo</Button>
             : <Button disabled={inCorso || !riepilogo} onClick={() => { void converti(); }}>{inCorso ? "Creazione…" : "Conferma e crea commessa"}</Button>}
