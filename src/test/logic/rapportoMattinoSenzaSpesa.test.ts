@@ -75,3 +75,10 @@ describe("l'email lo scrive nella scheda del brand", () => {
     expect(migrazione).toContain("', m.meta_stato, m.meta_account'");
   });
 });
+
+describe("l'email del mattino parte dal provider del marketing (08/11/2026)", () => {
+  it("mattino e clienti-marketing: viaMarketingProvider, non Resend", () => {
+    const src = readFileSync("supabase/functions/ops-canarino/index.ts", "utf8");
+    expect((src.match(/viaMarketingProvider: true/g) ?? []).length).toBe(2);
+  });
+});

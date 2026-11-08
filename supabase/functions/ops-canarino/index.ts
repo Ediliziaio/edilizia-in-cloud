@@ -176,6 +176,10 @@ serveConMetricheRapida("ops-canarino", async (req) => {
         templateName: prova ? "mattino_prova" : "mattino",
         skipCredits: true,
         adminClient: supabase,
+        // 08/11/2026, deciso dal founder: le email del mattino partono dal provider del
+        // marketing (Elastic Email, mittente sul dominio marketing), non da Resend.
+        // Restano email di servizio: regole di soppressione e conteggi del transazionale.
+        viaMarketingProvider: true,
         metadata: {
           chiamate: outOk?.dati.daChiamare?.length ?? null,
           appuntamenti: app.status === "fulfilled" ? app.value.length : null,
@@ -243,6 +247,7 @@ serveConMetricheRapida("ops-canarino", async (req) => {
         templateName: "clienti_marketing_mattino",
         skipCredits: true,
         adminClient: supabase,
+        viaMarketingProvider: true, // come l'email del mattino (08/11/2026)
         metadata: { cose: r.cose, clienti: r.clienti },
       });
       if (!sendResult.ok) {
