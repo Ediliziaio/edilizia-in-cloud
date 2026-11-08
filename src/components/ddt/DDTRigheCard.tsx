@@ -34,7 +34,9 @@ import {
 } from "@/hooks/useDDTRicezione";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAbbinamentoBolla } from "@/hooks/useAbbinamentoBolla";
-import { righeOrdinePerRiga, type RigaOrdine } from "@/lib/ddt/abbinaRigheOrdine";
+import { arriviDaRegistrare, righeOrdinePerRiga, type RigaOrdine } from "@/lib/ddt/abbinaRigheOrdine";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { ArrivoPosizioniPanel } from "@/components/ddt/ArrivoPosizioniPanel";
 import { importoRiga } from "@/lib/ddt/letturaAI";
 import { cn } from "@/lib/utils";
 
@@ -110,6 +112,7 @@ function AbbinamentoRiga({ riga, ordine, piuOrdini, modificabile, inCorso, onSce
       {abbinata && <span className="inline-flex min-w-0 items-center gap-1 text-emerald-700"><Check className="h-3 w-3 shrink-0" aria-hidden="true" /><span className="truncate">{piuOrdini && abbinata.oda_number ? `${abbinata.oda_number} · ` : ""}{abbinata.description}</span></span>}
       {scarto && <span className="text-amber-700">ordinati {numero(abbinata.quantity)}, in bolla {numero(riga.quantita)}</span>}
       {esclusa && <span className="text-muted-foreground">Non è di questo ordine</span>}
+      {riga.arrivo_registrato_il && <span className="rounded-full bg-emerald-50 px-1.5 font-medium text-emerald-800">Arrivo registrato</span>}
       {!abbinata && !esclusa && <span className="font-medium text-amber-700">Non trovata nell'ordine</span>}
       {modificabile && (
         <Select value="" disabled={inCorso} onValueChange={(v) => onScegli(v === NON_DI_QUESTO_ORDINE ? null : v)}>
@@ -152,7 +155,18 @@ export function DDTRigheCard({
 }) {
   const { data: righe = [], isLoading } = useDDTRighe(ddtId);
   const { aggiungiRighe, aggiornaRiga, eliminaRiga } = useDDTRigheMutations(ddtId);
-  const { ordine, abbina, nonInBolla, ordiniToccati } = useAbbinamentoBolla(ddtId, odaId, righe, modificabile, fornitoreId);
+  const { ordine, abbina, registraArrivo, nonInBolla, ordiniToccati } = useAbbinamentoBolla(ddtId, odaId, righe, modificabile, fornitoreId);
+  const conferma = useConfirm();
+  const daRegistrare = arriviDaRegistrare(righe, ordine);
+  const chiediRegistrazione = async () => {
+    const elenco = daRegistrare.map((d) => `${d.numero ?? "ordine"}: ${d.righe === 1 ? "1 riga" : `${d.righe} righe`}`).join(" · ");
+    if (await conferma({
+      title: "Registrare l'arrivo sugli ordini?",
+      description: `${elenco}. Non si supera mai la quantità ordinata.${daScegliere > 0 ? ` ${daScegliere} ${daScegliere === 1 ? "riga non abbinata resta" : "righe non abbinate restano"} fuori.` : ""}`,
+      confirmLabel: "Registra arrivo",
+      cancelLabel: "Non ora",
+    })) registraArrivo.mutate();
+  };
   const piuOrdini = new Set(ordine.map((o) => o.purchase_order_id)).size > 1;
   const abbinate = righe.filter((r) => r.purchase_order_item_id).length;
   const daScegliere = righe.filter((r) => !r.purchase_order_item_id && r.abbinamento !== "manuale").length;
@@ -221,6 +235,7 @@ export function DDTRigheCard({
   const inCorso = aggiornaRiga.isPending || aggiungiRighe.isPending || eliminaRiga.isPending;
 
   return (
+    <>
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -564,6 +579,12 @@ export function DDTRigheCard({
             ))}
           </ul>
         )}
+        {modificabile && daRegistrare.length > 0 && (
+          <Button size="sm" className="mt-3" disabled={registraArrivo.isPending} onClick={() => void chiediRegistrazione()}>
+            {registraArrivo.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
+            Registra arrivo sugli ordini
+          </Button>
+        )}
         {ordiniToccati.length > 1 && (
           <p className="mt-2 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
             Questa bolla consegna:
@@ -579,5 +600,8 @@ export function DDTRigheCard({
         )}
       </CardContent>
     </Card>
+    {/* Le posizioni su misura degli altri ordini consegnati da questa bolla: quello collegato sta già nella pagina. */}
+    {ordiniToccati.filter((o) => o.id !== odaId).map((o) => <ArrivoPosizioniPanel key={o.id} odaId={o.id} ddtId={ddtId} nascondiSeVuoto />)}
+    </>
   );
 }

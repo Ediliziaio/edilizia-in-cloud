@@ -12,6 +12,7 @@ export interface RigaBollaDaAbbinare {
   quantita: number | null;
   purchase_order_item_id?: string | null;
   abbinamento?: "auto" | "manuale" | null;
+  arrivo_registrato_il?: string | null;
 }
 
 export interface RigaOrdine {
@@ -24,6 +25,8 @@ export interface RigaOrdine {
   /** Una bolla può consegnare più ordini: ogni riga sa di quale è. */
   purchase_order_id?: string | null;
   oda_number?: string | null;
+  /** Si spunta per posizione: non passa dalla registrazione della bolla. */
+  su_misura?: boolean;
   riferimento?: string | null;
   misure?: Record<string, number> | null;
 }
@@ -122,6 +125,21 @@ export function ordiniDellaBolla(
     if (o.purchase_order_id === ordineDellaBolla || collegate.has(o.id)) visti.set(o.purchase_order_id, o.oda_number ?? null);
   }
   return [...visti].map(([id, numero]) => ({ id, numero }));
+}
+
+/** Le righe pronte per registrare l'arrivo, ordine per ordine. */
+export function arriviDaRegistrare(righe: RigaBollaDaAbbinare[], ordine: RigaOrdine[]): Array<{ numero: string | null; righe: number }> {
+  const perId = new Map(ordine.map((o) => [o.id, o]));
+  const conti = new Map<string, { numero: string | null; righe: number }>();
+  for (const r of righe) {
+    const o = r.purchase_order_item_id ? perId.get(r.purchase_order_item_id) : undefined;
+    if (!o || o.su_misura || r.arrivo_registrato_il || !(Number(r.quantita) > 0)) continue;
+    const chiave = o.purchase_order_id ?? "";
+    const c = conti.get(chiave) ?? { numero: o.oda_number ?? null, righe: 0 };
+    c.righe += 1;
+    conti.set(chiave, c);
+  }
+  return [...conti.values()];
 }
 
 /** Le righe dell'ordine dalla più probabile: è l'ordine della tendina. */

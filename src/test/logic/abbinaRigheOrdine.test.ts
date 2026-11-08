@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { abbinamentiCerti, abbinamentiCertiPiuOrdini, ordinateNonInBolla, ordiniDellaBolla, righeOrdinePerRiga, type RigaBollaDaAbbinare, type RigaOrdine } from "@/lib/ddt/abbinaRigheOrdine";
+import { abbinamentiCerti, abbinamentiCertiPiuOrdini, arriviDaRegistrare, ordinateNonInBolla, ordiniDellaBolla, righeOrdinePerRiga, type RigaBollaDaAbbinare, type RigaOrdine } from "@/lib/ddt/abbinaRigheOrdine";
 
 const bolla = (c: Partial<RigaBollaDaAbbinare> & { id: string; descrizione: string }): RigaBollaDaAbbinare => ({ codice_articolo: null, quantita: null, ...c });
 const ordine = (c: Partial<RigaOrdine> & { id: string; description: string }): RigaOrdine => ({ sku: null, unit_of_measure: "pz", quantity: 1, quantity_received: 0, ...c });
@@ -70,5 +70,21 @@ describe("abbinamento bolla ↔ ordine", () => {
       expect(ordiniDellaBolla(righe, o, "A").map((x) => x.numero)).toEqual(["ODA-1", "ODA-2"]);
       expect(ordinateNonInBolla(righe, o, "A").map((x) => x.id)).toEqual(["2a"]);
     });
+  });
+  it("registra solo le righe abbinate, non su misura, non già registrate e con una quantità", () => {
+    const o = [
+      ordine({ id: "a1", description: "x", purchase_order_id: "A", oda_number: "ODA-1" }),
+      ordine({ id: "a2", description: "y", purchase_order_id: "A", oda_number: "ODA-1" }),
+      ordine({ id: "b1", description: "z", purchase_order_id: "B", oda_number: "ODA-2" }),
+      ordine({ id: "sm", description: "f", purchase_order_id: "B", oda_number: "ODA-2", su_misura: true }),
+    ];
+    expect(arriviDaRegistrare([
+      bolla({ id: "1", descrizione: "x", quantita: 2, purchase_order_item_id: "a1" }),
+      bolla({ id: "2", descrizione: "y", quantita: 1, purchase_order_item_id: "a2" }),
+      bolla({ id: "3", descrizione: "z", quantita: 1, purchase_order_item_id: "b1", arrivo_registrato_il: "2026-11-08" }),
+      bolla({ id: "4", descrizione: "f", quantita: 1, purchase_order_item_id: "sm" }),
+      bolla({ id: "5", descrizione: "w", quantita: null, purchase_order_item_id: "b1" }),
+      bolla({ id: "6", descrizione: "k", quantita: 3 }),
+    ], o)).toEqual([{ numero: "ODA-1", righe: 2 }]);
   });
 });

@@ -9,7 +9,9 @@ import type { DDTRiga } from "@/hooks/useDDTRicezione";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-const COLONNE = "id, purchase_order_id, description, sku, unit_of_measure, quantity, quantity_received, riferimento, misure";
+const COLONNE = "id, purchase_order_id, description, sku, unit_of_measure, quantity, quantity_received, riferimento, misure, order_items(gruppo_id, measure_status)";
+
+type RigaLetta = RigaOrdine & { order_items?: { gruppo_id: string | null; measure_status: string | null } | null };
 const STATI_APERTI = ["inviato", "confermato", "parziale"];
 
 /**
@@ -54,7 +56,9 @@ export function useAbbinamentoBolla(
       if (diOrdini.error) throw diOrdini.error;
       if (abbinate.error) throw abbinate.error;
       const perId = new Map<string, RigaOrdine>();
-      for (const r of [...(diOrdini.data ?? []), ...(abbinate.data ?? [])] as RigaOrdine[]) perId.set(r.id, r);
+      for (const { order_items: riga, ...r } of [...(diOrdini.data ?? []), ...(abbinate.data ?? [])] as RigaLetta[]) {
+        perId.set(r.id, { ...r, su_misura: !!riga?.gruppo_id || !!riga?.measure_status });
+      }
       const tutte = [...perId.values()];
       const ordini = [...new Set(tutte.map((r) => r.purchase_order_id).filter(Boolean))];
       const numeri = ordini.length ? await db.from("purchase_orders").select("id, oda_number").in("id", ordini) : { data: [], error: null };
@@ -91,9 +95,30 @@ export function useAbbinamentoBolla(
     onError: (e: Error) => toast.error("Abbinamento non salvato", { description: e.message }),
   });
 
+  /** Porta le quantità della bolla sugli ordini. Il controllo vero lo fa il database. */
+  const registraArrivo = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await db.rpc("bolla_registra_arrivo", { p_ddt: ddtId });
+      if (error) throw error;
+      return data as { ordini: number; righe: number; errori: Array<{ errore?: string }> };
+    },
+    onSuccess: (esito) => {
+      invalida();
+      for (const k of [queryKeys.ddtRicezione.all, queryKeys.purchaseOrders.all, ["ddt-righe-ordine"], ["arrivo-elenco"]]) {
+        void queryClient.invalidateQueries({ queryKey: k });
+      }
+      const problemi = esito.errori.filter((e) => e.errore !== "gia_completa").length;
+      if (problemi > 0) toast.warning(`Registrate ${esito.righe} righe, ${problemi} non registrate`);
+      else if (esito.righe === 0) toast.info("Era già tutto registrato sugli ordini");
+      else toast.success(`Arrivo registrato su ${esito.ordini === 1 ? "1 ordine" : `${esito.ordini} ordini`}`);
+    },
+    onError: (e: Error) => toast.error("Arrivo non registrato", { description: e.message }),
+  });
+
   return {
     ordine,
     abbina,
+    registraArrivo,
     nonInBolla: useMemo(() => ordinateNonInBolla(righe, ordine, odaId), [righe, ordine, odaId]),
     ordiniToccati: useMemo(() => ordiniDellaBolla(righe, ordine, odaId), [righe, ordine, odaId]),
   };
