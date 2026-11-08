@@ -1,3 +1,5 @@
+import { useBillingMode } from "@/contexts/BillingModeContext";
+import { useDashboardBillingKPI } from "@/hooks/billing/useDashboardBillingKPI";
 import { leggiModalitaCommesse } from "@/lib/finanziamenti/leggiModalitaCommesse";
 import {OrdersAnnualScope, OrdersCarryoverSummary} from "@/components/orders/OrdersAnnualScope";
 import { OrdersTrashDialog } from '@/components/orders/OrdersTrashDialog';
@@ -81,6 +83,7 @@ import {
 function OrdersListInner() {
   const { user, effectiveCompany } = useAuth();
   const orderPerms = usePermissions();
+  const { isNative } = useBillingMode();
   const { toast } = useToast();
   const { remainingOrders, currentPlan } = useSubscriptionLimits();
   const [searchParams] = useSearchParams();
@@ -274,7 +277,7 @@ function OrdersListInner() {
   const { data: globalStats, isLoading: isLoadingGlobalStats, isError: isGlobalStatsError } = useQuery({
     queryKey: ["orders-global-stats", "annual-management-v3", effectiveCompany?.id, yearFilter, currentYear, lastStatusId, supportStatusId, orderPerms.canViewTickets, generaliConfigurate],
     queryFn: async () => {
-      const EMPTY = { totalOrders: 0, totalGross: 0, collected: 0, pending: 0, countAssistenza: 0, countCompletati: 0, countDaCompletare: 0, scopeRows: [] as OrderWithDetails[], annual: orderEconomics([]), previous: orderEconomics([]), reasons: {work:0,support:0,payment:0}, previousReasons: {} as Record<string,string[]>, supportOrderIds: [] as string[], generaliIds: [] as string[] };
+      const EMPTY = { annualIds: [] as string[], totalOrders: 0, totalGross: 0, collected: 0, pending: 0, countAssistenza: 0, countCompletati: 0, countDaCompletare: 0, scopeRows: [] as OrderWithDetails[], annual: orderEconomics([]), previous: orderEconomics([]), reasons: {work:0,support:0,payment:0}, previousReasons: {} as Record<string,string[]>, supportOrderIds: [] as string[], generaliIds: [] as string[] };
       if (!effectiveCompany?.id) return EMPTY;
       let query = supabase
         .from("orders")
@@ -322,7 +325,7 @@ function OrdersListInner() {
         else if (o.current_status_id && lastStatusId && o.current_status_id === lastStatusId) countCompletati++;
       }
       const countDaCompletare = righeCheContano.length - countAssistenza - countCompletati;
-      return { totalOrders: righeCheContano.length, totalGross, collected, pending, countAssistenza, countCompletati, countDaCompletare, scopeRows: rows, annual, previous, reasons, previousReasons, supportOrderIds, generaliIds };
+      return { annualIds: annualRows.map((order) => order.id), totalOrders: righeCheContano.length, totalGross, collected, pending, countAssistenza, countCompletati, countDaCompletare, scopeRows: rows, annual, previous, reasons, previousReasons, supportOrderIds, generaliIds };
     },
     enabled: !!effectiveCompany?.id && !isLoadingStatuses && !isStatusesError && !orderPerms.isLoading,
     refetchOnMount: "always",
@@ -987,6 +990,15 @@ function OrdersListInner() {
       : 0,
   }), [globalStats]);
 
+  // Da telefono la parte blu è il riassunto dei soldi. Fatturato: il registro vendite, come nel cruscotto.
+  const { data: kpiFatturazione } = useDashboardBillingKPI(
+    effectiveCompany?.id ?? null, isMobile && isYearCorrente && isNative && orderPerms.canViewBilling);
+  const costiSostenuti = useMemo(() => {
+    if (!scopeMargins || !globalStats) return null;
+    const delPeriodo = new Set(globalStats.annualIds);
+    return scopeMargins.reduce((somma, riga) => (riga.id && delPeriodo.has(riga.id) ? somma + Number(riga.consuntivo ?? 0) : somma), 0);
+  }, [scopeMargins, globalStats]);
+
   const visibleOrders = orders;
   const visibleTotalCount = totalCount;
   const visibleShowingFrom = showingFrom;
@@ -1472,7 +1484,7 @@ function OrdersListInner() {
       <section className="order-1 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden sm:order-none">
         <div className={`grid gap-0 ${analisiAperta && orderPerms.canViewOrderAmounts && !isMobile ? "xl:grid-cols-2" : ""}`}>
           <div className="bg-eic-navy-deep p-3 text-white">
-            <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex flex-wrap items-start justify-between gap-3 max-md:hidden">
               <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
                 <div className="flex h-9 w-9 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)]">
                   <Target className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -1493,7 +1505,29 @@ function OrdersListInner() {
               </button>}
             </div>
             {(isGlobalStatsError || isStatusesError) && <div role="alert" className="mt-3 rounded-lg border border-amber-300/40 p-3 text-sm text-amber-100">Riepilogo non disponibile. <button type="button" className="underline" onClick={()=>{void retryStatuses();void queryClient.invalidateQueries({queryKey:["orders-global-stats"]});}}>Riprova</button></div>}
-            {!isGlobalStatsError && !isStatusesError && <div className={`mt-2 grid grid-cols-2 gap-2 ${analisiAperta ? "" : "xl:grid-cols-4"}`}>
+            {!isGlobalStatsError && !isStatusesError && isMobile && orderPerms.canViewOrderAmounts && (() => {
+              const anno = isYearCorrente ? ` ${currentYear}` : "";
+              const euro = (n: number | null | undefined) => n == null || isEconomicStatsLoading ? "—"
+                : n.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" });
+              const quota = stats.totalGross > 0 ? `${Math.round((stats.collected / stats.totalGross) * 100)}% del venduto` : "";
+              const voci = [
+                { nome: `Venduto${anno}`, valore: euro(stats.totalGross), nota: "IVA inclusa" },
+                ...(isYearCorrente && isNative && orderPerms.canViewBilling
+                  ? [{ nome: `Fatturato${anno}`, valore: euro(kpiFatturazione?.fatturato_ytd), nota: "imponibile, tutta l'azienda" }] : []),
+                { nome: `Incassato${anno}`, valore: euro(stats.collected), nota: quota },
+                { nome: "Da incassare", valore: euro(stats.pending), nota: `${monthlySalesAverages.pendingRatio.toLocaleString("it-IT", { maximumFractionDigits: 0 })}% del venduto` },
+                ...(orderPerms.canViewCosts ? [{ nome: `Costi sostenuti${anno}`, valore: euro(costiSostenuti), nota: "sulle commesse" }] : []),
+                { nome: `Commesse${anno}`, valore: isEconomicStatsLoading ? "—" : String(isYearCorrente ? globalStats?.annual.count ?? 0 : stats.totalOrders), nota: `media mese ${monthlySalesAverages.ordersPerMonth.toLocaleString("it-IT", { maximumFractionDigits: 1 })}` },
+              ];
+              return <dl aria-label="Riepilogo economico" className="grid grid-cols-2 gap-1.5">
+                {voci.map((v) => <div key={v.nome} className="min-w-0 rounded-lg border border-white/12 bg-white/9 px-2.5 py-1.5">
+                  <dt className="truncate text-[10px] font-semibold uppercase tracking-wide text-blue-100">{v.nome}</dt>
+                  <dd className="truncate text-base font-bold tabular-nums text-white">{v.valore}</dd>
+                  <dd className="truncate text-[11px] text-blue-50/70">{v.nota}</dd>
+                </div>)}
+              </dl>;
+            })()}
+            {!isGlobalStatsError && !isStatusesError && (!isMobile || !orderPerms.canViewOrderAmounts) && <div className={`mt-2 grid grid-cols-2 gap-2 ${analisiAperta ? "" : "xl:grid-cols-4"}`}>
               <div className="rounded-xl border border-white/12 bg-white/9 p-2 sm:p-2">
                 <div className="flex items-center gap-2 sm:gap-3">
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-orange-100">

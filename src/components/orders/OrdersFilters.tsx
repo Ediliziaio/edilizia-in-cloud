@@ -132,7 +132,7 @@ export function OrdersFilters({
         >
           <SelectTrigger
             aria-label="Stato pagamento"
-            className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[132px] sm:px-2 sm:text-xs sm:shrink-0"
+            className="max-md:hidden h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[132px] sm:px-2 sm:text-xs sm:shrink-0"
           >
             <SelectValue placeholder="Pagamenti" />
           </SelectTrigger>
@@ -166,7 +166,7 @@ export function OrdersFilters({
                 ? `${new Date().getFullYear()} + precedenti da gestire`
                 : undefined
             }
-            className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-auto sm:min-w-[84px] sm:gap-1.5 sm:px-2 sm:text-xs sm:shrink-0"
+            className="h-10 w-full border-slate-200 bg-white shadow-none max-md:hidden sm:h-8 sm:w-auto sm:min-w-[84px] sm:gap-1.5 sm:px-2 sm:text-xs sm:shrink-0"
           >
             <SelectValue placeholder="Anno">
               {yearFilter === "corrente"
@@ -193,7 +193,7 @@ export function OrdersFilters({
         <Select value={monthFilter} onValueChange={onMonthFilterChange}>
           <SelectTrigger
             aria-label="Mese commesse"
-            className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-auto sm:min-w-[84px] sm:gap-1.5 sm:px-2 sm:text-xs sm:shrink-0"
+            className="max-md:hidden h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-auto sm:min-w-[84px] sm:gap-1.5 sm:px-2 sm:text-xs sm:shrink-0"
           >
             <SelectValue placeholder="Mese" />
           </SelectTrigger>
@@ -210,7 +210,7 @@ export function OrdersFilters({
           variant={hideCompleted ? "default" : "outline"}
           size="sm"
           onClick={() => onHideCompletedChange(!hideCompleted)}
-          className="tap-compact col-span-2 h-9 shrink-0 gap-1.5 sm:h-8 sm:px-2 sm:text-xs"
+          className="tap-compact col-span-2 h-9 shrink-0 gap-1.5 max-md:hidden sm:h-8 sm:px-2 sm:text-xs"
           aria-label="Nascondi commesse con lavori completati"
           aria-pressed={hideCompleted}
           title="Nascondi commesse con lavori completati"

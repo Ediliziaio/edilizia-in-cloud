@@ -154,18 +154,18 @@ export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, i
             <span className="font-normal opacity-80">Stato fattura elettronica: </span>{titolo}
           </p>
         </div>
-        <p className="mx-auto mt-1 max-w-2xl text-sm opacity-90 max-sm:text-xs">{sottotitolo}</p>
+        <p className="mx-auto mt-1 max-w-2xl text-sm opacity-90 max-md:hidden">{sottotitolo}</p>
         {motivo && <p className="mt-1 text-sm font-medium">Motivo: {motivo}</p>}
         {erroreInvio && <p className="mt-1 text-sm font-medium">Ultimo tentativo non riuscito: {erroreInvio}</p>}
 
         <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-          <Button variant="outline" size="sm" className={btn} onClick={() => setCosaFare(true)}>
+          <Button variant="outline" size="sm" className={cn(btn, "max-sm:hidden")} onClick={() => setCosaFare(true)}>
             <HelpCircle className="h-4 w-4" /> Cosa fare
           </Button>
           <Button variant="outline" size="sm" className={cn(btn, "max-sm:hidden")} onClick={() => void apriVista()} disabled={lavoro === "vista"}>
             {lavoro === "vista" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSearch className="h-4 w-4" />} Visualizza fattura elettronica
           </Button>
-          <Button variant="outline" size="sm" className={btn} onClick={() => void apriVerifica()} disabled={lavoro === "verifica"}>
+          <Button variant="outline" size="sm" className={cn(btn, "max-sm:hidden")} onClick={() => void apriVerifica()} disabled={lavoro === "verifica"}>
             {lavoro === "verifica" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardCheck className="h-4 w-4" />} Verifica formale
           </Button>
           <Button variant="outline" size="sm" className={cn(btn, "max-sm:hidden")} onClick={onEsportaXml}>

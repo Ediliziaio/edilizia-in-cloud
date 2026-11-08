@@ -264,7 +264,7 @@ export default function DocumentoDetail() {
             </AlertDialogContent>
           </AlertDialog>
         )}
-        <Button size="sm" variant="secondary" className="gap-1.5" onClick={handleDuplica}><Copy className="h-4 w-4" />Duplica</Button>
+        <Button size="sm" variant="secondary" className="gap-1.5 max-md:hidden" onClick={handleDuplica}><Copy className="h-4 w-4" />Duplica</Button>
         <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" disabled={pdfBusy} onClick={() => void handleApriPdf()}><FileText className="h-4 w-4" />Apri PDF</Button>
         <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" disabled={pdfBusy} onClick={() => void handleStampa(true)}><Save className="h-4 w-4" />Salva PDF</Button>
         <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" disabled={pdfBusy} onClick={() => void handleStampa(false)}><Printer className="h-4 w-4" />Stampa</Button>
@@ -301,7 +301,7 @@ export default function DocumentoDetail() {
         {canCreateNC && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="outline" size="sm" disabled={ncLoading} className="gap-1.5">
+              <Button variant="outline" size="sm" disabled={ncLoading} className="gap-1.5 max-md:hidden">
                 <FileWarning className="h-4 w-4" />
                 {ncLoading ? "Creazione..." : "Emetti NC"}
               </Button>
