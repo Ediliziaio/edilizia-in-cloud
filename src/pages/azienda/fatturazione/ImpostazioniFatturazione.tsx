@@ -714,9 +714,12 @@ export default function ImpostazioniFatturazione() {
             const anno = current.anno_corrente_fattura ?? new Date().getFullYear();
             const eFattura = item.prefix === "prefisso_fattura";
             const ncSegue = item.prefix === "prefisso_nc" && !!current.nc_serie_condivisa;
+            // Il formato vale per le fatture e per le note di credito (anche su serie
+            // propria: «1/217» le fatture, «2/15» le note). Il DDT resta al predefinito.
+            const eNota = item.prefix === "prefisso_nc";
             const badge = eFattura || ncSegue
               ? renderNumero(current.formato_numero, current.prefisso_fattura ?? "FT", (current.ultimo_numero_fattura ?? 0) + 1, anno)
-              : renderNumero(null, current[item.prefix] ?? item.default, (current[item.numero] ?? 0) + 1, anno);
+              : renderNumero(eNota ? current.formato_numero : null, current[item.prefix] ?? item.default, (current[item.numero] ?? 0) + 1, eNota ? (current.anno_corrente_nc ?? anno) : anno);
             return (
             <Card key={item.tipo}>
               <CardContent className="pt-6">
@@ -753,7 +756,7 @@ export default function ImpostazioniFatturazione() {
                     <div className="space-y-2">
                       <Label className="text-xs">Formato del numero</Label>
                       <Input value={current.formato_numero ?? ""} onChange={(e) => updateField("formato_numero", e.target.value || null)} placeholder="{prefisso}-{yyyy}-{nnnn}" className="font-mono" />
-                      <p className="text-[11px] text-muted-foreground">Segnaposto: <span className="font-mono">{"{prefisso} {n} {nnnn} {yyyy} {yy}"}</span>. Vuoto = standard (<span className="font-mono">FT-2026-0001</span>).</p>
+                      <p className="text-[11px] text-muted-foreground">Segnaposto: <span className="font-mono">{"{prefisso} {n} {nnnn} {yyyy} {yy}"}</span>. Vuoto = standard (<span className="font-mono">FT-2026-0001</span>). Vale anche per le Note di Credito, col loro prefisso.</p>
                     </div>
                     <div className="flex items-center justify-between">
                       <div>
