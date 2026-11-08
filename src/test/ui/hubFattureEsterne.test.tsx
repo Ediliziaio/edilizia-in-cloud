@@ -156,12 +156,14 @@ describe("Hub fatture per chi fattura con un altro programma", () => {
     expect(screen.getAllByRole("option", { name: "Scaduta" }).length).toBeGreaterThan(0);
   });
 
-  it("chi fattura con Edilizia in Cloud continua a creare e non legge le importate", () => {
+  it("chi fattura con Edilizia in Cloud continua a creare e vede comunque lo storico importato", () => {
     s.esterna = false;
     monta();
     expect(screen.getByRole("button", { name: /Nuovo documento/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Sincronizza" })).not.toBeInTheDocument();
-    expect(s.filtri.at(-1)?.conImportate).toBe(false);
+    // Chi passa a fatturare qui non perde l'elenco: lo storico sta in `invoices`
+    // e il giorno del passaggio i documenti nativi sono zero.
+    expect(s.filtri.at(-1)?.conImportate).toBe(true);
   });
 });
 

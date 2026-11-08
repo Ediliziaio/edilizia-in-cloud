@@ -331,7 +331,12 @@ function DocumentiFiscaliListInner() {
       showDeleted: isTrash,
       ordinamento: (activeTab === "fattura" || activeTab === "nota_credito") ? "progressivo" as const : "data" as const,
       sdi: sdiFilter,
-      conImportate: esterna,
+      // Le importate si leggono sempre, non solo per chi fattura con un altro
+      // programma: chi passa a fatturare qui ha lo storico in `invoices` e
+      // nessun documento nativo, e l'elenco gli risultava vuoto il giorno del
+      // passaggio (Impresa Vulcano: 481 documenti per 7 milioni, zero nativi).
+      // Chi è sempre stato nativo non ha importate, quindi non cambia niente.
+      conImportate: true,
   };
 
   const { data, isLoading, isError, isFetching, refetch } = useDocumentiFiscali(filters);
