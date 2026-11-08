@@ -1892,7 +1892,7 @@ export function OrderItemsList({
         <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 pb-3 max-sm:p-3 max-sm:pb-2">
           <CardTitle className="flex min-w-0 items-center gap-2 text-base">
             <Package className="h-4 w-4 shrink-0" aria-hidden />
-            <span className="truncate">Materiali<span className="max-sm:hidden"> della commessa</span></span>
+            <span className="truncate">Articoli e Materiali</span>
             {items.length > 0 && <span className="text-sm font-normal text-muted-foreground tabular-nums">{items.length}</span>}
           </CardTitle>
           {editable && (
@@ -1971,7 +1971,7 @@ export function OrderItemsList({
         <div className="flex flex-row items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2 min-w-0 max-sm:text-base">
             <Package className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
-            <span className="truncate">Articoli della Commessa</span>
+            <span className="truncate">Articoli e Materiali</span>
           </CardTitle>
           {editable && (
             <Button type="button" size="sm" onClick={openAddDialog} className="tap-compact shrink-0 max-sm:h-8 max-sm:w-8 max-sm:p-0" aria-label="Aggiungi articolo">

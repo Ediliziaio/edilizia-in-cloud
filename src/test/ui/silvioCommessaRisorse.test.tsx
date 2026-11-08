@@ -205,7 +205,7 @@ describe("Popup «Crea con Silvio», fase 4", () => {
     fireEvent.click(within(fonti).getByRole("button", { name: /Leggi l'offerta/ }));
     await waitFor(() => expect(s.leggiOfferta).toHaveBeenCalledWith("r0000000-0000-4000-a000-000000000001", expect.any(File)));
 
-    const materiali = await area("Materiali e acquisti");
+    const materiali = await area("Articoli e Materiali");
     expect(await within(materiali).findByText("Termoidraulica Prova")).toBeInTheDocument();
     expect(within(materiali).getByText(/ordinare entro 2 dic/)).toBeInTheDocument();
     expect(within(fonti).getByText("offerta Termoidraulica Prova (RDO-2026-0001)")).toBeInTheDocument();

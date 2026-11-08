@@ -462,7 +462,7 @@ async function chatFasi(body: any, userId: string, admin: any, cors: Record<stri
   const messaggio = typeof body?.messaggio === "string" ? body.messaggio.trim() : "";
   if (!messaggio) return errorResponse("Scrivi qualcosa a Silvio", 400, cors);
   if (messaggio.length > MAX_MESSAGGIO_FASI) return errorResponse("Messaggio troppo lungo", 413, cors);
-  // «acquisti»: Materiali e acquisti, solo risposte; altrimenti le fasi, con le proposte.
+  // «acquisti»: Articoli e Materiali, solo risposte; altrimenti le fasi, con le proposte.
   const acquisti = body?.ambito === "acquisti";
   const contesto = body?.contesto && typeof body.contesto === "object" ? body.contesto : null;
   if (!contesto) return errorResponse(acquisti ? "Mancano i materiali" : "Mancano le fasi", 400, cors);

@@ -35,7 +35,7 @@ export const NOMI_AREE: Record<Area, string> = {
   ditte: "Ditte e subappalti",
   costi: "Costi e margine",
   mezzi: "Mezzi",
-  materiali: "Materiali e acquisti",
+  materiali: "Articoli e Materiali",
   sicurezza: "Sicurezza e documenti",
   sal_scadenze: "SAL e scadenze",
   comunicazione: "Comunicazione",

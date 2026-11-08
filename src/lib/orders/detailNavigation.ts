@@ -91,7 +91,7 @@ export function resolveCantiereView(search: string, section?: string): CantiereV
 export const ORDER_DETAIL_TABS = [
   { value: "panoramica", label: "Panoramica", shortLabel: "Panoramica" },
   { value: "cantiere", label: "Cantiere", shortLabel: "Cantiere" },
-  { value: "articoli", label: "Materiali e acquisti", shortLabel: "Materiali" },
+  { value: "articoli", label: "Articoli e Materiali", shortLabel: "Materiali" },
   { value: "costi", label: "Fatture e costi", shortLabel: "Costi" },
   { value: "finanza", label: "Economia e pagamenti", shortLabel: "Economia" },
 ] as const satisfies readonly {

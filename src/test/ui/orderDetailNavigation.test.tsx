@@ -71,12 +71,12 @@ describe("navigazione commessa reale (Radix + React Router)", () => {
     selectTab("Cantiere");
     expect(screen.getByRole("heading", { name: "Lavorazioni" })).toBeVisible();
     expect(screen.getByLabelText("URL corrente")).toHaveTextContent("?from=agenda&tab=cantiere");
-    selectTab("Materiali e acquisti");
+    selectTab("Articoli e Materiali");
     expect(screen.getByRole("heading", { name: "Materiali" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Indietro" }));
     await waitFor(() => expect(screen.getByRole("tab", { name: "Cantiere" })).toHaveAttribute("aria-selected", "true"));
     fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
-    await waitFor(() => expect(screen.getByRole("tab", { name: "Materiali e acquisti" })).toHaveAttribute("aria-selected", "true"));
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Articoli e Materiali" })).toHaveAttribute("aria-selected", "true"));
   });
 
   it.each([
@@ -132,7 +132,7 @@ describe("navigazione commessa reale (Radix + React Router)", () => {
   it("al cambio scheda non riporta la pagina in cima se la barra è al suo posto", async () => {
     mount();
     areaSchedeA(240);
-    for (const name of ["Cantiere", "Materiali e acquisti", "Economia e pagamenti", "Panoramica"]) {
+    for (const name of ["Cantiere", "Articoli e Materiali", "Economia e pagamenti", "Panoramica"]) {
       selectTab(name);
       expect(screen.getByRole("tab", { name })).toHaveAttribute("aria-selected", "true");
       await act(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
@@ -155,7 +155,7 @@ describe("navigazione commessa reale (Radix + React Router)", () => {
     expect(scrollIntoView.mock.instances.at(-1)).toBe(document.getElementById("cantiere-workspace"));
     areaSchedeA(120);
     scrollIntoView.mockClear();
-    selectTab("Materiali e acquisti");
+    selectTab("Articoli e Materiali");
     selectTab("Cantiere");
     await act(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
     expect(scrollIntoView).not.toHaveBeenCalled();
