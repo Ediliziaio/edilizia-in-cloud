@@ -407,9 +407,9 @@ function RigaMateriale({
   return (
     // Sul telefono la riga è un blocco che va a capo (nome e ⋯ in alto, poi quantità, ordine, stato,
     // importo); da lg in su è una riga di tabella con le colonne dell'intestazione.
-    <tr className="relative flex flex-wrap items-center gap-x-3 gap-y-1 border-t py-2 pl-11 pr-3 hover:bg-muted/40 max-lg:[&>td]:order-4 lg:table-row lg:p-0 lg:[&>td]:px-2 lg:[&>td]:py-1.5 lg:[&>td]:align-middle">
+    <tr className="relative flex flex-wrap items-center gap-x-3 gap-y-1 border-t py-2 pl-11 pr-3 hover:bg-muted/40 max-md:pl-3 max-lg:[&>td]:order-4 lg:table-row lg:p-0 lg:[&>td]:px-2 lg:[&>td]:py-1.5 lg:[&>td]:align-middle">
       <td className="max-lg:absolute max-lg:left-3 max-lg:top-2.5 lg:!pl-3">
-        <Checkbox checked={selezionato} onCheckedChange={(v) => onSeleziona(!!v)} aria-label={`Seleziona ${m.name}`} />
+        <Checkbox className="max-md:hidden" checked={selezionato} onCheckedChange={(v) => onSeleziona(!!v)} aria-label={`Seleziona ${m.name}`} />
       </td>
       <td className="min-w-0 flex-1 max-lg:!order-2 max-lg:basis-[calc(100%-3.75rem)]">
         {etichettaFase}
@@ -588,6 +588,7 @@ function SezioneFase({
         <th scope="colgroup" colSpan={colonne} className="block px-3 py-1.5 text-left font-normal lg:table-cell">
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
             <Checkbox
+              className="max-md:hidden"
               checked={tutti}
               onCheckedChange={(v) => {
                 const s = new Set(selezione);
@@ -640,7 +641,7 @@ function SezioneFase({
                 </DropdownMenu>
               )}
               {onAggiungi && (
-                <Button size="icon" variant="outline" className="tap-compact h-8 w-8 sm:h-7 sm:w-7" onClick={onAggiungi} aria-label={`Aggiungi un articolo in ${fase.nome}`}>
+                <Button size="icon" variant="outline" className="tap-compact h-8 w-8 max-md:hidden sm:h-7 sm:w-7" onClick={onAggiungi} aria-label={`Aggiungi un articolo in ${fase.nome}`}>
                   <Plus className="h-3.5 w-3.5" />
                 </Button>
               )}
@@ -855,7 +856,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-card px-3 py-2">
           <h3 className="text-sm font-semibold text-foreground">Articoli e materiali per fase</h3>
           {tuttiMateriali.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Filtra per stato">
+            <div className="flex flex-wrap items-center gap-1 max-md:hidden" role="group" aria-label="Filtra per stato">
               <button type="button" className={chip(filtroStato === null)} aria-pressed={filtroStato === null} onClick={() => setFiltroStato(null)}>
                 {conteggio.totale} {conteggio.totale === 1 ? "materiale" : "materiali"}
               </button>

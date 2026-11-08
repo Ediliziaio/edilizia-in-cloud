@@ -149,7 +149,8 @@ export function BarraAndamento({ a }: { a: Andamento }) {
 
 function Stat({ etichetta, children, nota }: { etichetta: string; children: ReactNode; nota?: ReactNode }) {
   return (
-    <div className="shrink-0">
+    // Da telefono i soldi stanno nella parte blu: qui resta la barra dei lavori.
+    <div className="shrink-0 max-md:hidden">
       <dt className="whitespace-nowrap text-[11px] text-muted-foreground">{etichetta}</dt>
       <dd className="whitespace-nowrap text-[13px] font-semibold tabular-nums">{children}{nota && <span className="block text-[11px] font-normal text-amber-700">{nota}</span>}</dd>
     </div>
@@ -455,16 +456,16 @@ export function DistintaLavorazioni({
         <div className="min-w-0">
           <div className="flex max-w-full items-center gap-1">
             {!faseId && (
-              <button type="button" onClick={() => apriChiudi(f.id)} aria-expanded={aperta} aria-label={`${aperta ? "Chiudi" : "Apri"} le voci di ${f.name}`} className="shrink-0 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <button type="button" onClick={() => apriChiudi(f.id)} aria-expanded={aperta} aria-label={`${aperta ? "Chiudi" : "Apri"} le voci di ${f.name}`} className="tap-compact shrink-0 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 {aperta ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />}
               </button>
             )}
-            <button type="button" onClick={() => onApriScheda(f.id)} aria-label={`Scheda di ${f.name}`} title={f.name} className="line-clamp-2 min-w-0 rounded text-left text-[13px] font-semibold leading-tight hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{f.name}</button>
+            <button type="button" onClick={() => onApriScheda(f.id)} aria-label={`Scheda di ${f.name}`} title={f.name} className="tap-compact line-clamp-2 min-w-0 rounded text-left text-[13px] font-semibold leading-tight hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{f.name}</button>
           </div>
           <div className="flex flex-wrap items-center gap-x-2">
             {puoModificare || puoSquadre ? (
               <button type="button" onClick={() => setAssegnaA([f.id])} title={nomi.join(", ") || "Assegna chi la fa"} aria-label={`Chi fa ${f.name}`}
-                className={cn("min-w-0 max-w-full truncate rounded text-left text-[11px] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", nomi.length === 0 && !finita ? "font-medium text-amber-700" : "text-muted-foreground")}>
+                className={cn("tap-compact min-w-0 max-w-full truncate rounded text-left text-[11px] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", nomi.length === 0 && !finita ? "font-medium text-amber-700" : "text-muted-foreground")}>
                 {nomi.length ? `${nomi[0]}${nomi.length > 1 ? ` +${nomi.length - 1}` : ""}` : finita ? "Nessuno" : "+ Assegna chi la fa"}
               </button>
             ) : <span className="min-w-0 truncate text-[11px] text-muted-foreground" title={nomi.join(", ")}>{nomi.join(", ") || "Nessuno"}</span>}
@@ -474,19 +475,19 @@ export function DistintaLavorazioni({
           </div>
         </div>
         <div className="whitespace-nowrap text-right text-[11px] tabular-nums text-muted-foreground max-md:hidden">{dellaFase.length} voci</div>
-        <div className="flex items-center gap-1 max-md:col-start-2" title={(sottofasiDi.get(f.id)?.length ?? 0) > 0 ? `Avanzamento ${pct}%: dalle sottofasi, pesate sull'importo` : `Avanzamento ${pct}%: scritto a mano o dai rapportini (la fase non ha sottofasi)`}>
-          <span className="h-1 w-6 overflow-hidden rounded-full bg-muted"><span className={cn("block h-full", finita ? "bg-emerald-600" : "bg-primary")} style={{ width: `${pct}%` }} /></span>
+        <div className="flex items-center justify-end gap-1 max-md:col-start-3 max-md:row-start-1" title={(sottofasiDi.get(f.id)?.length ?? 0) > 0 ? `Avanzamento ${pct}%: dalle sottofasi, pesate sull'importo` : `Avanzamento ${pct}%: scritto a mano o dai rapportini (la fase non ha sottofasi)`}>
+          <span className="h-1 w-6 overflow-hidden rounded-full bg-muted max-md:hidden"><span className={cn("block h-full", finita ? "bg-emerald-600" : "bg-primary")} style={{ width: `${pct}%` }} /></span>
           <span className="text-[11px] font-medium tabular-nums">{pct}%</span>
         </div>
         <div className="max-xl:hidden"><CellaData valore={f.start_date} etichetta={`Inizio di ${f.name}`} modificabile={puoModificare} onSalva={(v) => salvaDataFase(f, "inizio", v)} /></div>
         <div className="max-xl:hidden"><CellaData valore={f.end_date} etichetta={`Fine di ${f.name}`} modificabile={puoModificare} rossa={ritardo} onSalva={(v) => salvaDataFase(f, "fine", v)} /></div>
         <div className="text-right text-xs font-semibold tabular-nums max-md:hidden">{vedeVenduto ? importo(e?.venduto) : ""}</div>
         <div className="text-right text-xs font-semibold tabular-nums max-xl:hidden">{vedeCosti ? (e?.costoPrevisto ? formatCurrency(e.costoPrevisto) : "—") : ""}</div>
-        <div className="flex items-center justify-end max-md:col-start-3 max-md:row-start-1">
+        <div className="flex items-center justify-end max-md:col-start-4 max-md:row-start-1">
           {puoModificare && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground" aria-label={`Altro per ${f.name}`}><MoreHorizontal className="h-3.5 w-3.5" /></Button>
+                <Button type="button" variant="ghost" size="icon" className="tap-compact h-5 w-5 text-muted-foreground max-md:h-8 max-md:w-8" aria-label={`Altro per ${f.name}`}><MoreHorizontal className="h-3.5 w-3.5" /></Button>
               </DropdownMenuTrigger>
               {/* Il menu, chiudendosi, rimetterebbe il cursore su di sé: il nome scritto andava perso. */}
               <DropdownMenuContent align="end" onCloseAutoFocus={(ev) => { if (campoNuova.current) ev.preventDefault(); }}>
@@ -512,7 +513,7 @@ export function DistintaLavorazioni({
         </div>
         <div className="flex min-w-0 items-center gap-1.5 pl-3">
           {r.sottofaseId ? (
-            <button type="button" role="checkbox" aria-checked={r.fatta} disabled={!puoModificare} onClick={() => onSegna(r.sottofaseId!, !r.fatta)} aria-label={`${r.descrizione}: ${r.fatta ? "fatta" : "da fare"}`} className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default">
+            <button type="button" role="checkbox" aria-checked={r.fatta} disabled={!puoModificare} onClick={() => onSegna(r.sottofaseId!, !r.fatta)} aria-label={`${r.descrizione}: ${r.fatta ? "fatta" : "da fare"}`} className="tap-compact shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default">
               {r.fatta ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" /> : <Circle className="h-3.5 w-3.5 text-muted-foreground/50 hover:text-foreground" aria-hidden="true" />}
             </button>
           ) : <span title="Non ha ancora una sottofase" className="h-3.5 w-3.5 shrink-0" />}
@@ -526,14 +527,14 @@ export function DistintaLavorazioni({
             />
           ) : (
             <button type="button" onClick={() => setAperta(r.key)} title={r.descrizione}
-              className={cn("min-w-0 flex-1 rounded text-left text-xs leading-snug hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring line-clamp-2", r.fatta && "text-muted-foreground")}>
+              className={cn("tap-compact min-w-0 flex-1 rounded text-left text-xs leading-snug hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring line-clamp-2", r.fatta && "text-muted-foreground")}>
               {r.descrizione}
               {r.codice && <span className="ml-1 font-mono text-[10px] text-muted-foreground">{r.codice}</span>}
             {chiDellaSottofase(r.sottofaseId).length > 0 && <span className="block truncate text-[10px] text-sky-800">{chiDellaSottofase(r.sottofaseId).map((c) => c.nome).join(", ")}</span>}
             </button>
           )}
         </div>
-        <div className="whitespace-nowrap text-right text-xs tabular-nums max-md:col-start-2 max-md:text-left">{q}</div>
+        <div className="whitespace-nowrap text-right text-xs tabular-nums max-md:col-start-3 max-md:row-start-1">{q}</div>
         {rapido && r.sottofaseId && !r.fatta && puoModificare
           ? <div className="max-md:hidden"><CampoRapido riga={r} onAvanza={onAvanza} /></div>
           : <div className={cn("whitespace-nowrap text-[11px] tabular-nums max-md:hidden", stato.tono === "fatta" ? "font-medium text-emerald-700" : stato.tono === "corso" ? "font-medium text-primary" : "text-muted-foreground")}>{r.sottofaseId ? stato.testo : ""}</div>}
@@ -541,11 +542,11 @@ export function DistintaLavorazioni({
         <div className="max-xl:hidden">{r.sottofaseId ? <CellaData valore={r.fine} etichetta={`Fine di ${r.descrizione}`} modificabile={puoModificare} rossa={ritardo} onSalva={(v) => salvaDataRiga(r, "fine", v)} /> : null}</div>
         <div className="text-right text-xs tabular-nums text-muted-foreground max-md:hidden">{vedeVenduto && r.venduto ? importo(r.venduto) : ""}</div>
         <div className="text-right text-xs tabular-nums text-muted-foreground max-xl:hidden">{vedeCosti && r.previsto !== null ? formatCurrency(r.previsto) : ""}</div>
-        <div className="flex items-center justify-end max-md:col-start-3 max-md:row-start-1">
+        <div className="flex items-center justify-end max-md:col-start-4 max-md:row-start-1">
           {puoModificare && r.sottofaseId && !inModifica && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground" aria-label={`Altro per ${r.descrizione}`}><MoreHorizontal className="h-3.5 w-3.5" /></Button>
+                <Button type="button" variant="ghost" size="icon" className="tap-compact h-5 w-5 text-muted-foreground max-md:h-8 max-md:w-8" aria-label={`Altro per ${r.descrizione}`}><MoreHorizontal className="h-3.5 w-3.5" /></Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => setInModifica({ id: r.sottofaseId!, testo: r.descrizione.slice(0, 160) })}><Pencil className="mr-2 h-3.5 w-3.5" />Rinomina</DropdownMenuItem>
@@ -560,7 +561,7 @@ export function DistintaLavorazioni({
     );
   };
 
-  const griglia = cn("group grid grid-cols-[1.25rem_minmax(0,1fr)_1.5rem] items-center gap-x-2 border-b px-2", COLONNE);
+  const griglia = cn("group grid grid-cols-[1.25rem_minmax(0,1fr)_auto_1.75rem] items-center gap-x-2 border-b px-2", COLONNE);
   const mostra = (e: Elemento) => {
     if (e.tipo === "fase") return <div className={cn(griglia, "bg-muted/50 py-1")}>{rigaFase(e.fase, e.righe)}</div>;
     if (e.tipo === "riga") return <div className={cn(griglia, "py-0.5 hover:bg-muted/30")}>{rigaVoce(e.riga)}</div>;
@@ -590,7 +591,7 @@ export function DistintaLavorazioni({
   return (
     <section aria-label="Lavorazioni della commessa" className="space-y-2">
       {/* I numeri restano in vista mentre si scorre la pagina. */}
-      <div className="sticky top-0 z-20 bg-background">
+      <div className="sticky top-0 z-20 bg-background max-md:static">
       <dl className="flex min-w-0 flex-wrap items-start gap-x-6 gap-y-1.5 rounded-lg border px-3 py-1.5">
         {avanzamento !== null && <Stat etichetta="Avanzamento">{avanzamento}%</Stat>}
         {vedeVenduto && <Stat etichetta="Imponibile" nota={daRipartire > 0.5 && vendutoFasi > 0 ? `${formatCurrency(daRipartire)} da ripartire` : undefined}>{formatCurrency(venduto)}</Stat>}
@@ -601,7 +602,7 @@ export function DistintaLavorazioni({
           : `+ ${formatCurrency(consuntivoSenzaFase)} senza fase`) : undefined}>{formatCurrency(economia.consuntivo)}</Stat>}
         {vedeMargini && vedeVenduto && vedeCosti && <Stat etichetta="Margine previsto">{margine === null ? "—" : `${margine}%`}</Stat>}
         {vedeVenduto && vedeCosti && iva && daVersare && (
-          <div className="shrink-0" title={`Vendite ${formatCurrency(Math.max(iva.debito_previsto, iva.debito_fatturato))} · credito acquisti ${formatCurrency(iva.credito_fatture + iva.credito_previsto_costi + iva.credito_previsto_ditte)}${iva.reverse_charge_imponibile > 0 ? ` · reverse charge ${formatCurrency(iva.reverse_charge_imponibile)}` : ""}`}>
+          <div className="shrink-0 max-md:hidden" title={`Vendite ${formatCurrency(Math.max(iva.debito_previsto, iva.debito_fatturato))} · credito acquisti ${formatCurrency(iva.credito_fatture + iva.credito_previsto_costi + iva.credito_previsto_ditte)}${iva.reverse_charge_imponibile > 0 ? ` · reverse charge ${formatCurrency(iva.reverse_charge_imponibile)}` : ""}`}>
             <dt className="whitespace-nowrap text-[11px] text-muted-foreground">{daVersare.verso === "credito" ? "IVA a credito" : "IVA da versare"}</dt>
             <dd className="whitespace-nowrap text-[13px] font-semibold tabular-nums">{daVersare.verso === "pari" ? "—" : formatCurrency(daVersare.importo)}</dd>
           </div>
@@ -647,7 +648,7 @@ export function DistintaLavorazioni({
       </nav>
       <div className="min-w-0 space-y-1.5">
       <div className="flex flex-wrap items-center gap-1.5">
-        <div className="relative min-w-[11rem] flex-1">
+        <div className={cn("relative min-w-[11rem] flex-1", tutte.length <= 20 && "max-md:hidden")}>
           <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
           <Input value={testo} onChange={(e) => setTesto(e.target.value)} placeholder="Cerca una voce o un codice…" aria-label="Cerca nella distinta" className="h-7 pl-7 text-xs" />
         </div>
@@ -659,16 +660,16 @@ export function DistintaLavorazioni({
           ))}
         </div>
         {puoModificare && (
-          <Button type="button" size="sm" variant={rapido ? "default" : "outline"} className="h-7 px-2 text-xs" aria-pressed={rapido}
+          <Button type="button" size="sm" variant={rapido ? "default" : "outline"} className="h-7 px-2 text-xs max-md:hidden" aria-pressed={rapido}
             onClick={() => { const si = !rapido; setRapido(si); if (si && filtro === "tutte") setFiltro(conti.settimana > 0 ? "settimana" : "da_fare"); }}>
             {rapido ? "Fine aggiornamento" : "Aggiorna avanzamento"}
           </Button>
         )}
-        {!faseId && <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setAperte(tutteAperte ? new Set() : new Set(fasi.map((f) => f.id)))}>{tutteAperte ? "Chiudi tutte" : "Apri tutte"}</Button>}
+        {!faseId && <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs max-md:hidden" onClick={() => setAperte(tutteAperte ? new Set() : new Set(fasi.map((f) => f.id)))}>{tutteAperte ? "Chiudi tutte" : "Apri tutte"}</Button>}
       </div>
 
       {rapido && <p role="status" className="rounded-md bg-sky-50 px-2 py-1 text-xs text-sky-900">Scrivi nella colonna Stato quanto è fatto in totale (quantità o %), Invio passa alla riga dopo. Ogni riga si salva da sola.</p>}
-      <div ref={scrollRef} className="max-h-[78vh] overflow-y-auto rounded-lg border">
+      <div ref={scrollRef} className={cn("max-h-[78vh] overflow-y-auto rounded-lg border", !virtuale && "max-md:max-h-none")}>
         <div>
         <div className={cn("sticky top-0 z-10 hidden items-center gap-x-2 border-b bg-background px-2 py-1 text-[11px] font-medium text-muted-foreground md:grid", COLONNE)}>
           <div /><div>Voce</div><div className="text-right">Quantità</div><div>Stato</div><div className="max-xl:hidden">Dal</div><div className="max-xl:hidden">Al</div>

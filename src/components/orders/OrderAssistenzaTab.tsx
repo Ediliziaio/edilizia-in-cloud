@@ -63,9 +63,11 @@ export function OrderAssistenzaAlert({ orderId, onOpen }: { orderId: string; onO
   </div>;
   const open = (query.data ?? []).filter(t => !TICKET_STATI_CHIUSI.includes(t.status as never));
   if (!open.length) return null;
-  return <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+  return <div className="relative flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm max-md:py-2">
     <span className="inline-flex items-center gap-2"><LifeBuoy className="h-4 w-4" />{open.length} {open.length === 1 ? "assistenza aperta" : "assistenze aperte"}</span>
-    <Button type="button" variant="outline" size="sm" onClick={onOpen}>Apri assistenza</Button>
+    <Button type="button" variant="outline" size="sm" aria-label="Apri assistenza" className="max-md:after:absolute max-md:after:inset-0 max-md:border-0 max-md:bg-transparent max-md:px-0 max-md:text-amber-800 max-md:shadow-none" onClick={onOpen}>
+      <span className="max-md:hidden">Apri assistenza</span><span className="md:hidden">Apri</span>
+    </Button>
   </div>;
 }
 

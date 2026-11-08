@@ -15,7 +15,7 @@ import { useState, useMemo, useCallback, useRef, lazy, Suspense } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { AlertTriangle, BellRing, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, ArrowRight } from "lucide-react";
+import { AlertTriangle, BellRing, ChevronRight, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, ArrowRight } from "lucide-react";
 import { OrderSurveysCard } from "@/components/orders/OrderSurveysCard";
 import { OrderMaterialUsageCard } from "@/components/orders/OrderMaterialUsageCard";
 import { OrderOriginBadge } from "@/components/orders/OrderOriginBadge";
@@ -1447,6 +1447,21 @@ function OrderDetailInner() {
       .sort()
       .pop() ?? order.work_end_date ?? null;
 
+  const statoCommessa = (
+    <OrderStatusWorkflow
+              key={id}
+              orderId={id!}
+              canEdit={permissions.canEditOrders && !!effectiveCompany?.id}
+              workProgress={!phaseProgressLoading && !phaseProgressError ? phaseProgress : undefined}
+              statuses={statuses}
+              currentStatusId={order.current_status_id}
+              statusHistory={statusHistory}
+              onStatusChange={permissions.canEditOrders ? handleStatusChange : undefined}
+              ultimoAutore={ultimoAutoreStato}
+              formatoData={formatDateTime}
+            />
+  );
+
   const azioniRapide = effectiveCompany?.id ? (
     <OrderQuickActions
       inline={isMobile}
@@ -1565,8 +1580,6 @@ function OrderDetailInner() {
       {/* Da telefono niente px-3: <main> ha già il suo margine (prima i riquadri
           stavano a 24px dal bordo dello schermo). */}
       <div className="px-0 py-2 sm:px-6 sm:py-6 space-y-3 sm:space-y-6">
-        {/* Da telefono numeri e riepilogo stanno nella Panoramica: nelle altre schede si arriva subito al lavoro. */}
-        {(!isMobile || activeTab === "panoramica") && <>
         {inAppalto ? (
           <RiepilogoAppaltoCommessa
             totali={totaliAppalto}
@@ -1602,7 +1615,8 @@ function OrderDetailInner() {
           onOpenEconomics={() => navigateTo({ tab: "finanza", section: "section-conto-economico" })}
           onOpenPayments={() => vaiAllaFinanza()}
         />}
-        <OrderCommessaSummary
+        {/* Da telefono niente quattro riquadri: bastano la parte blu e le schede. */}
+        {!isMobile && <OrderCommessaSummary
           statusName={statuses.find(status => status.id === order.current_status_id)?.name}
           statusColor={statuses.find(status => status.id === order.current_status_id)?.color}
           progress={phaseProgress}
@@ -1617,24 +1631,10 @@ function OrderDetailInner() {
           onOpenWork={() => navigateTo({ tab: "cantiere", section: "section-lavorazioni" })}
           onOpenPlanning={() => navigateTo({ tab: "panoramica", section: "section-pianificazione" })}
           onOpenTasks={() => prossimaTask?.title?.startsWith("Ufficio contratto · ") ? navigateTo({tab:"cantiere",section:"section-ufficio"}) : navigate(prossimaTask?.id ? `/azienda/attivita?attivita=${prossimaTask.id}` : "/azienda/attivita")}
-          statoControllo={
-            <OrderStatusWorkflow
-              key={id}
-              orderId={id!}
-              canEdit={permissions.canEditOrders && !!effectiveCompany?.id}
-              workProgress={!phaseProgressLoading && !phaseProgressError ? phaseProgress : undefined}
-              statuses={statuses}
-              currentStatusId={order.current_status_id}
-              statusHistory={statusHistory}
-              onStatusChange={permissions.canEditOrders ? handleStatusChange : undefined}
-              ultimoAutore={ultimoAutoreStato}
-              formatoData={formatDateTime}
-            />
-          }
+          statoControllo={statoCommessa}
           // Il semaforo dei tempi non dice niente su una commessa già finita.
           tempi={phaseProgress && phaseProgress.total > 0 && phaseProgress.done === phaseProgress.total ? null : <OrderScheduleBadge orderId={id!} />}
-        />
-        </>}
+        />}
         {contractLink.data?.workflow_kind === "contratto" && <ContractCosts key={id} contractId={id!} financeConfirmed={!contractFinancePending} />}
         {contractLink.data?.workflow_kind === "intervento" && <ContractInterventions key={id} orderId={id!} />}
         <Tabs
@@ -1648,11 +1648,16 @@ function OrderDetailInner() {
           {/* Tab: Panoramica */}
           <TabsContent value="panoramica" className="order-detail-tab-panel space-y-4 mt-4">
             <OrderViewTransition viewKey="panoramica">
+            {isMobile && <div className="rounded-xl border bg-card px-3 py-2">{statoCommessa}</div>}
             {contractLink.data?.workflow_kind !== "intervento" && <ContractInterventions key={id} orderId={id!} />}
             {orderAlerts.length > 0 && <section aria-labelledby="order-attention-title" className="rounded-xl border border-orange-200 bg-white">
               <h2 id="order-attention-title" className="border-b border-orange-100 bg-orange-50 px-4 py-3 text-base font-semibold text-orange-950">Da controllare</h2>
               <div className="divide-y divide-slate-100">
-                {orderAlerts.map(alert => <div key={alert.title} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start">
+                {orderAlerts.map(alert => isMobile ? <button key={alert.title} type="button" className="flex w-full items-center gap-2 px-3 py-2.5 text-left active:bg-muted"
+                  onClick={() => navigateTo({ tab: alert.section === "section-pagamenti" ? "finanza" : "articoli", section: alert.section ?? "section-materiali" })}>
+                  <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{alert.title}</span><span className="mt-0.5 line-clamp-2 block text-xs text-slate-600">{alert.description}</span></span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                </button> : <div key={alert.title} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start">
                   <span className={cn("mt-1 hidden sm:block", alert.type === "urgent" ? "text-red-700" : "text-orange-700")}>{alert.icon}</span>
                   <div className="min-w-0 flex-1"><h3 className="text-sm font-semibold">{alert.title}</h3><p className="mt-1 text-sm text-slate-600">{alert.description}</p></div>
                   <Button variant="outline" className="min-h-11 shrink-0 border-slate-300 font-semibold text-blue-950" onClick={() => navigateTo({ tab: alert.section === "section-pagamenti" ? "finanza" : "articoli", section: alert.section ?? "section-materiali" })}>

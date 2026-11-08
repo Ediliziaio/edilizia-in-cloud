@@ -367,8 +367,8 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
   const isMobile = useIsMobile();
   const telefono = isMobile && view === "lavorazioni";
   // Dal computer le fasi si gestiscono da una tabella sola, col popup di ogni fase (05/11/2026).
-  // Sul telefono restano le righe a tutta larghezza, pensate per il dito.
-  const modoFasi: "schede" | "tabella" = telefono || modo === "schede" ? "schede" : "tabella";
+  // La stessa tabella anche da telefono (08/11/2026): un modello solo delle fasi.
+  const modoFasi: "schede" | "tabella" = modo === "schede" ? "schede" : "tabella";
   const chiLavoraDi = useMemo(() => {
     if (modoFasi !== "tabella") return new Map();
     const nomePersona = new Map(employees.map((e) => [e.id, e.label]));

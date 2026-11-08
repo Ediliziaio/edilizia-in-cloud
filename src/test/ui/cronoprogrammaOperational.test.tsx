@@ -37,13 +37,12 @@ describe("cronoprogramma utilizzabile senza alterare dati", () => {
     expect(screen.queryByRole("button", {name: "Mostra tutto il confronto"})).not.toBeInTheDocument();
     expect(screen.getByRole("button", {name: "Previsto e reale"})).toHaveAttribute("aria-pressed", "true");
   });
-  it("da telefono usa una vera agenda, senza Gantt o selettori di scala inutili", () => {
+  it("da telefono mostra il Gantt, senza selettori di scala né storico", () => {
     m.mobile = true; draw();
-    expect(screen.queryByRole("region", {name: /Grafico delle fasi/})).not.toBeInTheDocument();
+    expect(screen.getByRole("region", {name: /Grafico delle fasi/})).toBeInTheDocument();
     expect(screen.queryByRole("combobox", {name: "Scala del cronoprogramma"})).not.toBeInTheDocument();
-    expect(screen.getByText("Allestimento e demolizioni", {selector: "h3"})).toBeInTheDocument();
-    expect(screen.getByText("Chiusura 09/10/2026 · inizio non rilevato")).toBeInTheDocument();
-    expect(screen.getByText("Dettagli della fase").closest("details")).not.toHaveAttribute("open");
+    expect(screen.queryByText(/Storico e dati da verificare/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", {name: /Allestimento e demolizioni:/})).toBeInTheDocument();
   });
   it("permette tabella e cambio scala senza cambiare commessa o inviare mutation", () => {
     draw(); fireEvent.change(screen.getByRole("combobox", {name: "Scala del cronoprogramma"}), {target: {value: "settimane"}});
@@ -66,9 +65,9 @@ describe("cronoprogramma utilizzabile senza alterare dati", () => {
     m.reportError = true; draw(); expect(screen.queryByRole("region", {name: "Cronoprogramma della commessa"})).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", {name: "Riprova"})); expect(m.refetchPhases).toHaveBeenCalledOnce(); expect(m.refetchReports).toHaveBeenCalledOnce();
   });
-  it("mantiene fasi senza date in agenda e manda la pianificazione all'editor esistente", () => {
-    m.mobile = true; m.phases = [phase({start_date: null, end_date: null, completata_il: null})]; const open = vi.fn(); draw(open);
-    expect(screen.getByText("Inizio da definire → Fine da definire")).toBeInTheDocument();
+  it("segnala le fasi senza date e manda la pianificazione all'editor esistente", () => {
+    m.phases = [phase({start_date: null, end_date: null, completata_il: null})]; const open = vi.fn(); draw(open);
+    expect(screen.getByText(/Senza date previste/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", {name: "Gestisci fasi e date"})); expect(open).toHaveBeenCalledOnce();
   });
   it("un rapportino inviato porta l'inizio reale senza completare la fase", () => {
@@ -90,10 +89,9 @@ describe("cronoprogramma utilizzabile senza alterare dati", () => {
     m.phases = []; draw(); expect(screen.getByRole("button", {name: "Vai alle lavorazioni"})).toBeInTheDocument();
     expect(screen.queryByText(/Nessun ritardo/)).not.toBeInTheDocument();
   });
-  it("le date incoerenti restano visibili e non generano barre reali arbitrarie", () => {
+  it("le date incoerenti non generano barre reali arbitrarie", () => {
     m.mobile = true; m.phases = [phase({start_date: "2025-04-20"})]; draw();
-    const card = screen.getByText("Allestimento e demolizioni", {selector: "h3"}).closest("article")!;
-    expect(within(card).getByText("Verifica le date della fase.")).toBeInTheDocument();
+    expect(screen.getByRole("button", {name: /Allestimento e demolizioni:/})).toBeInTheDocument();
     expect(screen.queryByText(/Scostamento storico: \+/)).not.toBeInTheDocument();
   });
 });
