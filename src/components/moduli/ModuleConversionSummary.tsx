@@ -20,7 +20,7 @@ export function ModuleConversionSummary({ riepilogo, vociScelte, onCambiaVoci }:
     </div>
     <section aria-label="Lavorazioni da eseguire">
       <h3 className="font-semibold">Lavorazioni · {riepilogo.fasi.length}</h3>
-      <p className="text-xs text-muted-foreground">Diventano fasi di cantiere. Nessun articolo da ordinare e nessun costo consuntivo automatico.</p>
+      <p className="text-xs text-muted-foreground">Diventano fasi di cantiere. Nessun costo consuntivo automatico.</p>
       {riepilogo.fasi.length ? <ul className="mt-2 space-y-2">{riepilogo.fasi.map((f, i) => <li key={i} className="rounded-md border p-2">
         <p className="font-medium">{f.name}</p><p className="whitespace-pre-line text-xs text-muted-foreground">{f.notes}</p>
         {!!f.sottofasi?.length && <ul className="mt-2 list-inside list-disc text-xs text-muted-foreground">{f.sottofasi.map((s,n) => <li key={n}>{s.name}</li>)}</ul>}
