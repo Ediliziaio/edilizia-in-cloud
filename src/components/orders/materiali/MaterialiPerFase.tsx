@@ -326,23 +326,29 @@ function PillolaStato({ info, m, spiegazione, onCambia }: {
 }
 
 /** Un bene su misura: una voce sola, che si apre sulle sue posizioni. */
-function GruppoPosizioni({ voce, canViewCosts, riga }: {
+function GruppoPosizioni({ voce, canViewCosts, riga, colonne }: {
   voce: Extract<VoceElenco<MaterialeFase>, { tipo: "gruppo" }>;
   canViewCosts: boolean;
   riga: (m: MaterialeFase) => ReactNode;
+  /** Sta dentro la tabella: la testata prende tutta la larghezza, le posizioni sono righe vere. */
+  colonne: number;
 }) {
   const [aperto, setAperto] = useState(false);
   return (
-    <div>
-      <button type="button" aria-expanded={aperto} onClick={() => setAperto((a) => !a)}
-        className="flex w-full items-center gap-2 border-t px-3 py-2 text-left hover:bg-muted/30">
-        <ChevronRight className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", aperto && "rotate-90")} aria-hidden />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">{voce.nome} · {voce.pezzi} pz</span>
-        <span className="shrink-0 text-xs text-muted-foreground">{voce.righe.length} {voce.righe.length === 1 ? "posizione" : "posizioni"}</span>
-        {canViewCosts && <span className="shrink-0 text-sm tabular-nums">{voce.costo > 0 ? formatCurrency(voce.costo) : <span className="text-xs text-muted-foreground">da definire</span>}</span>}
-      </button>
-      {aperto && <div className="border-l-2 border-muted pl-2">{voce.righe.map(({ riga: m }) => riga(m))}</div>}
-    </div>
+    <>
+      <tr className="block lg:table-row">
+        <td colSpan={colonne} className="block p-0 lg:table-cell">
+          <button type="button" aria-expanded={aperto} onClick={() => setAperto((a) => !a)}
+            className="flex w-full items-center gap-2 border-t px-3 py-2 text-left hover:bg-muted/30">
+            <ChevronRight className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", aperto && "rotate-90")} aria-hidden />
+            <span className="min-w-0 flex-1 truncate text-sm font-medium">{voce.nome} · {voce.pezzi} pz</span>
+            <span className="shrink-0 text-xs text-muted-foreground">{voce.righe.length} {voce.righe.length === 1 ? "posizione" : "posizioni"}</span>
+            {canViewCosts && <span className="shrink-0 text-sm tabular-nums">{voce.costo > 0 ? formatCurrency(voce.costo) : <span className="text-xs text-muted-foreground">da definire</span>}</span>}
+          </button>
+        </td>
+      </tr>
+      {aperto && voce.righe.map(({ riga: m }) => riga(m))}
+    </>
   );
 }
 
@@ -409,7 +415,7 @@ function RigaMateriale({
         {etichettaFase}
         {/* Due linee per riga: il nome, poi fornitore e dettagli su una riga sola (il resto al
             passaggio). Sul telefono il nome può andare a capo. */}
-        <p className="line-clamp-2 break-words text-sm font-medium text-foreground lg:truncate lg:break-normal" title={titolo ?? m.name}>
+        <p className={cn("line-clamp-2 break-words text-sm font-medium text-foreground", !titolo && "lg:truncate lg:break-normal")} title={titolo ?? m.name}>
           {titolo ?? m.name}
           {!materiale && <span className="ml-2 rounded bg-muted px-1.5 text-[11px] font-normal text-muted-foreground">{ETICHETTA_NATURA[m.natura_riga ?? ""] ?? m.natura_riga}</span>}
         </p>
@@ -648,8 +654,8 @@ function SezioneFase({
         </th>
       </tr>
       {aperta && (righe.length ? raggruppaRighe(righe).map((voce) => voce.tipo === "riga" ? riga(voce.riga) : (
-        <GruppoPosizioni key={voce.gruppoId} voce={voce} canViewCosts={canViewCosts}
-          riga={(m) => riga(m, undefined, [m.riferimento, misureLeggibili(m.misure_preventivo)].filter(Boolean).join(" · ") || m.name)} />
+        <GruppoPosizioni key={voce.gruppoId} voce={voce} canViewCosts={canViewCosts} colonne={colonne}
+          riga={(m) => riga(m, undefined, [m.riferimento, misureLeggibili(m.misure_da_ordinare ?? m.misure_preventivo)].filter(Boolean).join(" · ") || m.name)} />
       )) : (
         <tr className="block border-t lg:table-row">
           <td colSpan={colonne} className="block px-3 py-2 text-sm text-muted-foreground lg:table-cell">

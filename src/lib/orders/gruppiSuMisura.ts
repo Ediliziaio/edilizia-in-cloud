@@ -115,6 +115,16 @@ export function posizioneIntatta(p: PosizioneBozza): boolean {
   return !p.id && !p.larghezza.trim() && !p.altezza.trim() && !p.costo.trim() && /^P\d+$/i.test(p.riferimento.trim());
 }
 
+/**
+ * Le posizioni che diventano righe. Quelle intatte restano fuori (la riga in più dopo Invio),
+ * tranne quando sono tutte intatte e le misure sono da rilevare: «P1, P2, P3» è già la risposta
+ * di chi sa quante finestre sono e non le ha ancora misurate.
+ */
+export function posizioniDaSalvare(posizioni: PosizioneBozza[], statoMisure: StatoMisure): PosizioneBozza[] {
+  const toccate = posizioni.filter((p) => !posizioneIntatta(p));
+  return toccate.length === 0 && statoMisure === "da_rilevare" ? posizioni : toccate;
+}
+
 /** Che cosa manca a una posizione, in italiano; null se va bene. */
 export function erroreDiPosizione(p: PosizioneBozza): string | null {
   const nome = p.riferimento.trim() || "Una posizione";
@@ -161,12 +171,10 @@ export function costoDiListino(
 }
 
 /** Il pezzo di testo che arriva a chi ordina finché l'ordine non legge le misure da solo. */
-export function specifichePosizione(riferimento: string, l: number | null, h: number | null, scelte: string[]): string {
-  return [
-    riferimento.trim() ? `Rif. ${riferimento.trim()}` : null,
-    l != null && h != null ? `L ${l} × H ${h} mm` : null,
-    ...scelte,
-  ].filter(Boolean).join(" · ");
+export function specifichePosizione(scelte: string[]): string {
+  // Solo le scelte: riferimento e misure hanno i loro campi. Scritte qui resterebbero ferme
+  // alle provvisorie e arriverebbero al fornitore accanto a quelle definitive.
+  return scelte.filter(Boolean).join(" · ");
 }
 
 /** Misure provvisorie della riga, con le stesse chiavi del preventivo. */

@@ -16,6 +16,7 @@ export interface LegacyWorkRow {
   stock_item_id?: string | null;
   purchase_price?: number | null;
   status: string;
+  gruppo_id?: string | null;
 }
 export function LegacyWorkReviewForm({
   items,
@@ -33,7 +34,9 @@ export function LegacyWorkReviewForm({
   const rows = items.filter(
     (i) =>
       (i.natura_riga && i.natura_riga !== "materiale") ||
-      (!i.supplier_id &&
+      // Un bene su misura nasce senza fornitore né costo: non è una riga storica da classificare.
+      (!i.gruppo_id &&
+        !i.supplier_id &&
         !i.stock_item_id &&
         !Number(i.purchase_price) &&
         i.status === "da_ordinare"),

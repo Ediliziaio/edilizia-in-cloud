@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { calcolaPrezzoFamiglia } from "@/hooks/useFamilyPricing";
 import {
-  costoDiListino, erroreDiPosizione, misureDaBozza, posizioneIntatta, prodottoSuMisura, raggruppaRighe, specifichePosizione,
+  costoDiListino, erroreDiPosizione, misureDaBozza, posizioneIntatta, posizioniDaSalvare, prodottoSuMisura, raggruppaRighe, specifichePosizione,
   type PosizioneBozza,
 } from "@/lib/orders/gruppiSuMisura";
-import { cercaArticoli, righeUsateDistinte } from "@/lib/orders/ricercaArticoli";
+import { cercaArticoli, giacenzaDi, righeUsateDistinte } from "@/lib/orders/ricercaArticoli";
 import { trovaDoppione } from "@/lib/distinta/elencoArticoli";
 import type { FamilyWithAxes } from "@/types/articleFamily";
 
@@ -50,6 +50,14 @@ describe("una posizione", () => {
     expect(posizioneIntatta(pos({ riferimento: "P2", larghezza: "", altezza: "" }))).toBe(true);
     expect(posizioneIntatta(pos({ riferimento: "Cucina", larghezza: "", altezza: "" }))).toBe(false);
   });
+  it("da rilevare: P1 e P2 senza misure sono due posizioni, ma la riga in più dopo Invio no", () => {
+    const p1 = pos({ riferimento: "P1", larghezza: "", altezza: "", pezzi: "1" });
+    const p2 = pos({ chiave: "b", riferimento: "P2", larghezza: "", altezza: "", pezzi: "1" });
+    expect(posizioniDaSalvare([p1, p2], "da_rilevare")).toHaveLength(2);
+    expect(posizioniDaSalvare([p1, p2], "confermato")).toHaveLength(0);
+    const misurata = pos({ riferimento: "P1", pezzi: "1" });
+    expect(posizioniDaSalvare([misurata, p2], "da_rilevare")).toEqual([misurata]);
+  });
   it("si può inserire senza misure, ma non con una sola", () => {
     expect(erroreDiPosizione(pos({ larghezza: "", altezza: "" }))).toBeNull();
     expect(erroreDiPosizione(pos({ altezza: "" }))).toMatch(/sia L sia H/);
@@ -64,7 +72,7 @@ describe("una posizione", () => {
   it("le misure hanno le chiavi del preventivo, le specifiche arrivano a chi ordina", () => {
     expect(misureDaBozza(1200, 1400)).toEqual({ larghezza_mm: 1200, altezza_mm: 1400, mq: 1.68 });
     expect(misureDaBozza(null, null)).toBeNull();
-    expect(specifichePosizione("Cucina", 1200, 1400, ["Colore bianco"])).toBe("Rif. Cucina · L 1200 × H 1400 mm · Colore bianco");
+    expect(specifichePosizione(["Colore bianco", "Ante 2"])).toBe("Colore bianco · Ante 2");
   });
 });
 
@@ -98,6 +106,23 @@ describe("la ricerca", () => {
     expect(r.magazzino.voci).toHaveLength(1);
     expect(r.listino.voci.map((v) => v.id)).toEqual(["l2"]);
     expect(cercaArticoli("", magazzino, listino, recenti).recenti.voci.map((v) => v.name)).toEqual(["Viti 4x40"]);
+  });
+  it("cerca parola per parola, in qualsiasi ordine", () => {
+    const scaffale = [{ id: "c", name: "Cemento 32.5 - sacco 25 kg", quantity: 3 }];
+    expect(cercaArticoli("sacco cemento", scaffale, [], []).magazzino.voci).toHaveLength(1);
+    expect(cercaArticoli("sacco gesso", scaffale, [], []).magazzino.voci).toHaveLength(0);
+  });
+  it("riconosce lo stesso articolo a scaffale per nome o codice, solo se ce n'è", () => {
+    const scaffale = [
+      { id: "a", name: "Silicone bianco", internal_code: "SIL-1", quantity: 4 },
+      { id: "b", name: "silicone BIANCO ", quantity: 9 },
+      { id: "z", name: "Stucco", quantity: 0 },
+    ];
+    expect(giacenzaDi("Silicone bianco", null, scaffale)?.id).toBe("b");
+    expect(giacenzaDi("Altro nome", "sil-1", scaffale)?.id).toBe("a");
+    expect(giacenzaDi("Stucco", null, scaffale)).toBeNull();
+    expect(giacenzaDi("Silicone", null, scaffale)).toBeNull();
+    expect(giacenzaDi("", "", scaffale)).toBeNull();
   });
   it("propone il nuovo solo se il nome non esiste tale e quale", () => {
     expect(cercaArticoli("Tassello 8", magazzino, listino, recenti).nuovo).toBe("Tassello 8");

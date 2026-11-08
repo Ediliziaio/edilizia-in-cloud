@@ -22,7 +22,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { conAssiVisibili, defaultSelections, normalizzaSelezione } from "@/lib/serramenti/assiCondizionati";
 import { cn } from "@/lib/utils";
 import {
-  costoDiListino, costoScritto, erroreDiPosizione, misureDaBozza, numeroDaCampo, posizioneIntatta, specifichePosizione,
+  costoDiListino, costoScritto, erroreDiPosizione, misureDaBozza, numeroDaCampo, posizioniDaSalvare, specifichePosizione,
   type EsitoCosto, type PosizioneBozza, type StatoMisure,
 } from "@/lib/orders/gruppiSuMisura";
 import { riferimentoSuccessivo } from "@/lib/preventivo/posizioni";
@@ -221,7 +221,7 @@ function Tabella({
     return calcola(numeroDaCampo(p.larghezza), numeroDaCampo(p.altezza));
   };
 
-  const valide = posizioni.filter((p) => !posizioneIntatta(p));
+  const valide = posizioniDaSalvare(posizioni, statoMisure);
   const totali = valide.reduce((t, p) => {
     const pezzi = numeroDaCampo(p.pezzi) ?? 0;
     const costo = costoScritto(p.costo) ?? esitoDi(p).costo;
@@ -256,7 +256,7 @@ function Tabella({
         misure_preventivo: misureDaBozza(l, h),
         // Senza misure non si può dire confermata.
         measure_status: l == null || h == null ? "da_rilevare" : statoMisure,
-        specifiche: specifichePosizione(p.riferimento, l, h, scelte) || null,
+        specifiche: specifichePosizione(scelte) || null,
         purchase_price: prezzo,
         standard_cost: esito.costo ?? 0,
         prezzo_fonte: scritto != null ? "manuale" : esito.costo != null ? "listino" : null,

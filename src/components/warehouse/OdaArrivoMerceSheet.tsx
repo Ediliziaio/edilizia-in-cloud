@@ -369,16 +369,17 @@ export function OdaArrivoMerceSheet({
                 {testata.ticket_id && <> · assistenza</>}
               </span>
             ) : null}
-            Le quantità sono già quelle che mancavano. Se è arrivato tutto conferma, altrimenti correggi solo
-            la riga che non torna.
+            {daRicevere.length > 0 && "Le quantità sono già quelle che mancavano. Se è arrivato tutto conferma, altrimenti correggi solo la riga che non torna."}
           </SheetDescription>
         </SheetHeader>
 
         {suMisura.size > 0 && (
-          <p className="mt-3 rounded-lg border p-3 text-sm">
-            {suMisura.size === 1 ? "1 posizione è su misura" : `${suMisura.size} posizioni sono su misura`}: va al cantiere, non in magazzino.{" "}
-            <Link className="font-semibold text-primary underline" to={`/azienda/ordini-acquisto/${odaId}/arrivo`}>Spunta per posizione</Link>
-          </p>
+          <div className="mt-3 space-y-2 rounded-lg border p-3 text-sm">
+            <p>{suMisura.size === 1 ? "1 posizione è su misura" : `${suMisura.size} posizioni sono su misura`}: va al cantiere, non in magazzino.</p>
+            <Button asChild size="sm" className="w-full">
+              <Link to={`/azienda/ordini-acquisto/${odaId}/arrivo`}>Spunta per posizione</Link>
+            </Button>
+          </div>
         )}
 
         {isLoading ? (
@@ -386,13 +387,13 @@ export function OdaArrivoMerceSheet({
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : daRicevere.length === 0 ? (
-          <p className="py-10 text-center text-sm text-muted-foreground">
-            {righe.length === 0
-              ? "Questo ordine non ha righe: aggiungile dall'ordine per poter registrare l'arrivo."
-              : suMisura.size > 0
-                ? "Non ci sono altri articoli da registrare qui."
+          suMisura.size > 0 ? null : (
+            <p className="py-10 text-center text-sm text-muted-foreground">
+              {righe.length === 0
+                ? "Questo ordine non ha righe: aggiungile dall'ordine per poter registrare l'arrivo."
                 : "Su questo ordine è già arrivato tutto."}
-          </p>
+            </p>
+          )
         ) : (
           <div className="mt-4 space-y-4">
             <div className="flex flex-wrap gap-2">

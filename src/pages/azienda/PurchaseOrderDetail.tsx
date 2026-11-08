@@ -23,6 +23,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft, Loader2, Plus, Send, CheckCircle2, Package, XCircle, ExternalLink, FileCheck, ShieldCheck, Paperclip,
@@ -128,6 +129,7 @@ export default function PurchaseOrderDetail() {
   // Incidenza acquisti/vendita = dato di margine; costi e fatture = dato di
   // costo. Chi lavora solo sugli ordini (magazzino) non deve vederli.
   const permissions = usePermissions();
+  const confirm = useConfirm();
 
   const { data: ddtList = [] } = useQuery({
     queryKey: ["ddt-ricezione", odaId],
@@ -407,13 +409,22 @@ export default function PurchaseOrderDetail() {
               ) : ns === "annullato" ? (
                 <Button
                   key={ns}
-                  variant="destructive"
+                  variant="outline"
                   size="sm"
-                  onClick={() => handleStatusChange(ns)}
+                  className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={async () => {
+                    if (await confirm({
+                      title: "Annullare l'ordine?",
+                      description: `${order.oda_number} non sarà più valido e le righe tornano da ordinare.`,
+                      confirmLabel: "Annulla l'ordine",
+                      cancelLabel: "Tienilo",
+                      variant: "destructive",
+                    })) handleStatusChange(ns);
+                  }}
                   disabled={updateStatus.isPending}
                 >
                   {STATUS_ICONS[ns]}
-                  {STATUS_LABELS[ns]}
+                  Annulla ordine
                 </Button>
               ) : (
                 <QuotePrimaryButton
@@ -552,9 +563,9 @@ export default function PurchaseOrderDetail() {
             </div>
           </QuoteCard>
 
-          <OdaDettagliCard key={order.id} documento={documentoInvio} orderId={order.order_id} internalNotes={order.internal_notes} condizioniFornitore={condizioniFornitore} paymentMethod={order.payment_method || supplier?.payment_method} canEdit={permissions.canEditOrders} onEditingChange={editing=>setEditingDetailsId(editing ? order.id : null)} onSave={patch=>update.mutateAsync({id:order.id,updates:patch})} />
+          <OdaDettagliCard key={`dettagli-${order.id}`} documento={documentoInvio} orderId={order.order_id} internalNotes={order.internal_notes} condizioniFornitore={condizioniFornitore} paymentMethod={order.payment_method || supplier?.payment_method} canEdit={permissions.canEditOrders} onEditingChange={editing=>setEditingDetailsId(editing ? order.id : null)} onSave={patch=>update.mutateAsync({id:order.id,updates:patch})} />
 
-          <OdaNoteCard key={order.id} onEditingChange={editing=>setEditingNotesId(editing ? order.id : null)} notes={order.notes} onSave={notes => update.mutateAsync({id:order.id,updates:{notes}})} />
+          <OdaNoteCard key={`note-${order.id}`} onEditingChange={editing=>setEditingNotesId(editing ? order.id : null)} notes={order.notes} onSave={notes => update.mutateAsync({id:order.id,updates:{notes}})} />
         </div>
 
         {/* Right: Preview / Info */}

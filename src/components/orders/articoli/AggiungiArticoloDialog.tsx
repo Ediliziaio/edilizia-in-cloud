@@ -20,7 +20,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatCurrency } from "@/lib/formatters";
 import { caricaVociListino } from "@/lib/listino/vociListino";
-import { cercaArticoli, righeUsateDistinte } from "@/lib/orders/ricercaArticoli";
+import { cercaArticoli, giacenzaDi, righeUsateDistinte } from "@/lib/orders/ricercaArticoli";
 import { quantitaDaCampo } from "@/lib/orders/quantitaDaCampo";
 import { costoScritto } from "@/lib/orders/gruppiSuMisura";
 import { VAT_RATES } from "@/lib/vatUtils";
@@ -355,6 +355,10 @@ export function AggiungiArticoloDialog({
     </div>
   );
 
+  // Lo stesso articolo a scaffale: prima di ordinarlo, lo si dice. Segue il nome mentre lo si corregge.
+  const giacenza = scelta?.tipo === "normale"
+    ? giacenzaDi(nome, scelta.template?.sku ?? scelta.recente?.product_code, magazzino)
+    : null;
   const titolo = gruppoDaModificare ? "Modifica le posizioni" : "Aggiungi articolo";
   const inGruppo = gruppoDaModificare?.righe[0];
 
@@ -409,6 +413,10 @@ export function AggiungiArticoloDialog({
                       <CommandItem key={`${v.source}:${v.id}`} value={`lis:${v.source}:${v.id}`} onSelect={() => scegliListino(v)} className="gap-2">
                         {v.su_misura ? <Ruler className="h-4 w-4 shrink-0 text-blue-600" aria-hidden /> : <Package className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />}
                         <span className="min-w-0 flex-1 truncate">{v.name}{v.sku ? <span className="ml-1 text-[10px] text-muted-foreground">({v.sku})</span> : null}</span>
+                        {!v.su_misura && (() => {
+                          const aScaffale = giacenzaDi(v.name, v.sku, magazzino);
+                          return aScaffale ? <Badge variant="outline" className="h-5 shrink-0 border-amber-300 px-1.5 text-[10px] text-amber-800">{aScaffale.quantity} in magazzino</Badge> : null;
+                        })()}
                         {v.su_misura
                           ? <Badge variant="outline" className="h-5 shrink-0 border-blue-300 px-1.5 text-[10px] text-blue-700">Su misura</Badge>
                           : canViewCosts && v.standard_cost > 0 && <span className="shrink-0 text-xs text-muted-foreground">{formatCurrency(v.standard_cost)} / {v.unit_of_measure || "pz"}</span>}
@@ -504,6 +512,14 @@ export function AggiungiArticoloDialog({
 
             {scelta.tipo === "normale" && (
               <div className="space-y-3">
+                {giacenza && (
+                  <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                    <span>Ce l'hai già in magazzino: {giacenza.quantity} disponibili{giacenza.warehouse?.name ? ` in ${giacenza.warehouse.name}` : ""}.</span>
+                    <Button type="button" size="sm" variant="outline" className="h-7 gap-1.5 bg-background" onClick={() => scegliMagazzino(giacenza)}>
+                      <Warehouse className="h-3.5 w-3.5" aria-hidden />Prendi dal magazzino
+                    </Button>
+                  </div>
+                )}
                 <div className="grid grid-cols-[1fr_5.5rem] gap-2 sm:grid-cols-[minmax(0,1fr)_5rem_5.5rem_7rem]">
                   <div className="col-span-2 space-y-1 sm:col-span-1">
                     <Label htmlFor="nome-articolo" className="text-xs">Nome</Label>

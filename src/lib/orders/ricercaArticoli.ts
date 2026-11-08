@@ -20,6 +20,19 @@ export interface RisultatiRicerca<M, L, R> {
 
 const taglia = <T,>(voci: T[], max = PER_GRUPPO) => ({ voci: voci.slice(0, max), altri: Math.max(0, voci.length - max) });
 
+/**
+ * Lo stesso articolo a scaffale, se c'è: stesso nome o stesso codice, con pezzi disponibili.
+ * Se sta in più magazzini, quello che ne ha di più.
+ */
+export function giacenzaDi<M extends VoceMagazzino>(nome: string | null | undefined, codice: string | null | undefined, magazzino: M[]): M | null {
+  const n = norm(nome);
+  const c = norm(codice);
+  if (!n && !c) return null;
+  const stessi = magazzino.filter((s) => s.quantity > 0
+    && ((!!n && norm(s.name) === n) || (!!c && (norm(s.internal_code) === c || norm(s.barcode) === c))));
+  return stessi.reduce<M | null>((meglio, s) => (!meglio || s.quantity > meglio.quantity ? s : meglio), null);
+}
+
 export function cercaArticoli<M extends VoceMagazzino, L extends VoceListino, R extends VoceRecente>(
   testo: string,
   magazzino: M[],
@@ -27,7 +40,12 @@ export function cercaArticoli<M extends VoceMagazzino, L extends VoceListino, R 
   recenti: R[],
 ): RisultatiRicerca<M, L, R> {
   const q = norm(testo);
-  const hit = (...campi: (string | null | undefined)[]) => !q || campi.some((c) => norm(c).includes(q));
+  // Parola per parola, in qualsiasi ordine: «cemento sacco» trova «Cemento 32.5 - sacco 25 kg».
+  const parole = q.split(/\s+/).filter(Boolean);
+  const hit = (...campi: (string | null | undefined)[]) => {
+    const testi = campi.map(norm);
+    return parole.every((p) => testi.some((c) => c.includes(p)));
+  };
 
   const inMagazzino = magazzino.filter((s) => hit(s.name, s.internal_code, s.barcode));
   const dalListino = listino.filter((l) => hit(l.name, l.sku, l.description, l.category));

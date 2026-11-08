@@ -120,6 +120,21 @@ describe("Aggiungi articolo", () => {
     await waitFor(() => expect(cerca()).toBeTruthy());
   });
 
+  it("se l'articolo c'è già a scaffale lo dice e porta al prelievo, senza ordinarlo", async () => {
+    const p = monta();
+    await screen.findByText("Silicone bianco");
+    scrivi(cerca(), "Silicone");
+    fireEvent.click(await screen.findByText(/Aggiungi «Silicone»$/));
+    const nome = await screen.findByLabelText("Nome");
+    expect(screen.queryByText(/Ce l'hai già in magazzino/)).toBeNull();
+    scrivi(nome, "silicone bianco");
+    expect(await screen.findByText(/Ce l'hai già in magazzino: 4 disponibili in Sede/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Prendi dal magazzino" }));
+    expect(await screen.findByLabelText("Quantità")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Preleva" })).toBeTruthy();
+    expect(p.onAggiungiRiga).not.toHaveBeenCalled();
+  });
+
   it("«Salva nel catalogo» entra nel catalogo solo se lo si sceglie", async () => {
     const p = monta();
     await screen.findByText("Silicone bianco");
