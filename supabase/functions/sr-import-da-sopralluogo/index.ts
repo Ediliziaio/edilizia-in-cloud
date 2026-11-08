@@ -14,6 +14,7 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { canImportSurvey } from "../_shared/surveyImportAccess.ts";
+import { misureDelRilievo } from "../_shared/misureSopralluogo.ts";
 
 interface Payload {
   progetto_id: string;
@@ -69,7 +70,7 @@ Deno.serve(async (req: Request) => {
     if (progErr || !prog) return errorResponse("Progetto non trovato", 404, corsHeaders);
 
     const { data: survey, error: surveyErr } = await caller
-      .from("surveys").select("id, company_id").eq("id", p.sopralluogo_id).maybeSingle();
+      .from("surveys").select("id, company_id, template_schema_snapshot").eq("id", p.sopralluogo_id).maybeSingle();
     if (surveyErr || !survey) return errorResponse("Sopralluogo non trovato", 404, corsHeaders);
     if (survey.company_id !== prog.company_id) {
       return errorResponse("Sopralluogo e progetto appartengono a aziende diverse", 403, corsHeaders);
@@ -146,8 +147,7 @@ Deno.serve(async (req: Request) => {
       const colore_esterno = (values.colore_esterno_infissi as string | undefined) ?? null;
 
       // Misure (sezione misure_foro)
-      const larghezza_mm = parseIntSafe(values.larghezza_mm) ?? parseIntSafe(values.larghezza) ?? null;
-      const altezza_mm = parseIntSafe(values.altezza_mm) ?? parseIntSafe(values.altezza) ?? null;
+      const { larghezza_mm, altezza_mm } = misureDelRilievo(values, survey.template_schema_snapshot);
 
       const ambiente = el.area_id ? areaName[el.area_id] : null;
 
@@ -249,12 +249,6 @@ Deno.serve(async (req: Request) => {
     return errorResponse(msg, 500, corsHeaders);
   }
 });
-
-function parseIntSafe(v: unknown): number | null {
-  if (v == null) return null;
-  const n = parseInt(String(v), 10);
-  return isNaN(n) ? null : n;
-}
 
 function tipologiaLabel(tipo: string): string {
   const map: Record<string, string> = {
