@@ -12,7 +12,7 @@
  * restano senza durata e senza date, e le altre continuano in fila.
  */
 import { fineDaGiorni, fineLavorativa, primoLavorativo, type GiornoLavorativo } from "./sottofasi";
-import type { FaseModello } from "./modelliFasi";
+import type { FaseModello, SottofaseModello } from "./modelliFasi";
 
 export type OrigineGiorni = "mano" | "sottofasi" | "divisi" | null;
 
@@ -49,6 +49,54 @@ export function giorniDaSottofasi(f: Pick<FaseModello, "sottofasi">): number | n
   return totale > 0 ? Math.min(totale, MAX_GIORNI) : null;
 }
 
+/**
+ * Una fase a cui si cambia la durata a mano: le sottofasi la seguono, altrimenti
+ * nella commessa una fase di 10 giorni conterrebbe 21 giorni di lavoro. La
+ * differenza la assorbe la sottofase più lunga (l'attesa della merce, non il
+ * rilievo); nessuna scende sotto un giorno.
+ */
+export function sottofasiSullaDurata<T extends SottofaseModello>(sottofasi: ReadonlyArray<T>, giorni: number | null | undefined): T[] {
+  const copia = sottofasi.map((s) => ({ ...s }));
+  if (!giorni || giorni < 1 || giorniDaSottofasi({ sottofasi: copia }) === giorni) return copia;
+  const inFila = copia.filter((s, i) => (!s.in_parallelo || i === 0) && s.giorni && s.giorni > 0);
+  const attuali = inFila.reduce((n, s) => n + (s.giorni as number), 0);
+  if (!attuali) return copia;
+  const piuLunghe = [...inFila].sort((a, b) => (b.giorni as number) - (a.giorni as number));
+  if (giorni > attuali) {
+    piuLunghe[0].giorni = (piuLunghe[0].giorni as number) + giorni - attuali;
+  } else {
+    let daTogliere = attuali - giorni;
+    for (const s of piuLunghe) {
+      const via = Math.min(daTogliere, (s.giorni as number) - 1);
+      s.giorni = (s.giorni as number) - via;
+      daTogliere -= via;
+    }
+  }
+  // Una parallela non può durare più della sottofase accanto a cui corre.
+  let corrente = 0;
+  for (const s of copia) {
+    if (s.in_parallelo && corrente > 0) {
+      if (s.giorni && s.giorni > corrente) s.giorni = corrente;
+    } else {
+      corrente = s.giorni && s.giorni > 0 ? s.giorni : 0;
+    }
+  }
+  return copia;
+}
+
+/** Le fasi da spedire al server: con le date del piano e le sottofasi coerenti con la durata. */
+export function fasiColPiano<T extends FaseModello>(fasi: ReadonlyArray<T>, piano: PianoFasi) {
+  return fasi.map((f, i) => {
+    const riga = piano.righe[i];
+    return {
+      ...f,
+      sottofasi: riga?.origine === "mano" ? sottofasiSullaDurata(f.sottofasi, riga.giorni) : f.sottofasi,
+      data_inizio: riga?.dal ?? null,
+      data_fine: riga?.al ?? null,
+    };
+  });
+}
+
 /** I giorni di lavoro da `da` ad `a`, estremi compresi. */
 export function contaLavorativi(da: string, a: string, lavorativo: GiornoLavorativo): number {
   if (a < da) return 0;
@@ -65,7 +113,7 @@ export function pianificaFasi(
   fasi: ReadonlyArray<Pick<FaseModello, "sottofasi"> & { giorni?: number | null }>,
   { inizio, fine, lavorativo }: { inizio: string | null; fine: string | null; lavorativo: GiornoLavorativo },
 ): PianoFasi {
-  const righe: FasePianificata[] = fasi.map((f) => {
+  const righe = fasi.map((f): FasePianificata => {
     if (f.giorni && f.giorni > 0) return { giorni: Math.min(Math.round(f.giorni), MAX_GIORNI), origine: "mano", dal: null, al: null };
     const g = giorniDaSottofasi(f);
     return g ? { giorni: g, origine: "sottofasi", dal: null, al: null } : { giorni: null, origine: null, dal: null, al: null };

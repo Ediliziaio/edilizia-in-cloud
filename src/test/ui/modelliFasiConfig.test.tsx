@@ -13,7 +13,7 @@ vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ role: state.puoModi
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canEditSettingsOrders: false }) }));
 vi.mock("@/hooks/useProfiloLavori", async () => {
   const { PHASE_TEMPLATES } = await import("@/hooks/useOrderWorkPhases");
-  return { useProfiloLavori: () => ({ profilo: { tipi: [], origine: "nessuno" }, modelliStandard: PHASE_TEMPLATES }) };
+  return { useProfiloLavori: () => ({ profilo: { tipi: [] as string[], origine: "nessuno" }, modelliStandard: PHASE_TEMPLATES }) };
 });
 vi.mock("@/hooks/useOrderWorkPhases", () => ({
   PHASE_TEMPLATES: [

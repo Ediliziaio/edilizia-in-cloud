@@ -84,7 +84,7 @@ import { FasiDiPartenzaSelect } from "@/components/orders/FasiDiPartenzaSelect";
 import { useFasiDiPartenza } from "@/hooks/useFasiDiPartenza";
 import { fasiPerCommessa, type FaseModello } from "@/lib/orders/modelliFasi";
 import { dataValida, fasiDaBozza, salvaFasiDiPartenza, type SettimanaLavorativa } from "@/lib/orders/pianificazioneAvvio";
-import { pianificaFasi } from "@/lib/orders/pianoFasiNuovaCommessa";
+import { fasiColPiano, pianificaFasi } from "@/lib/orders/pianoFasiNuovaCommessa";
 import { dateAlleFasiCreate } from "@/lib/orders/dateFasiCreate";
 import { calendarioCantiere } from "@/lib/orders/sottofasi";
 import { useCalendarioCantiere } from "@/hooks/useCalendarioCantiere";
@@ -115,7 +115,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const { user, effectiveCompany } = useAuth();
   const { vertical } = useVertical();
   const queryClient = useQueryClient();
-  const { onlyAssigned } = usePermissions();
+  const { onlyAssigned, canViewCosts } = usePermissions();
   const { canCreateOrder, isScopriPlan, currentPlan, remainingOrders } = useSubscriptionLimits();
   const track = useTrack();
 
@@ -1252,7 +1252,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         }
       }
       if (fasiDalModello && fasiDaCreare.length && result.id) {
-        const fasiConDate = fasiDaCreare.map((f, i) => ({ ...f, data_inizio: pianoFasi.righe[i]?.dal ?? null, data_fine: pianoFasi.righe[i]?.al ?? null }));
+        const fasiConDate = fasiColPiano(fasiDaCreare, pianoFasi);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const fasiErr = await salvaFasiDiPartenza(result.id, fasiConDate, (nome, args) => (supabase as any).rpc(nome, args));
         if (fasiErr) {
@@ -1909,6 +1909,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           editable={!createdOrderId}
           showStatusControls={false}
           vista="compatta"
+          canViewCosts={canViewCosts}
         />
 
         </fieldset>

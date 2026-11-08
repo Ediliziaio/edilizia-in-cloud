@@ -192,7 +192,7 @@ describe("SottofasiFase", () => {
     const setSabato = vi.fn();
     const lavorativo = (d: string) => ![0, 6].includes(new Date(`${d}T12:00:00Z`).getUTCDay());
     render(<SottofasiFase nomeFase="Allestimento" dateFase={{ start_date: "2025-09-15", end_date: "2025-09-26" }} puoModificare puoSegnare
-      {...azioni()} onPianificaTutte={vi.fn()} calendario={{ lavorativo, sabato: false, setSabato }}
+      {...azioni()} onPianificaTutte={vi.fn()} calendario={{ lavorativo, sabato: false, setSabato, chiusure: new Set<string>() }}
       sottofasi={[riga({ id: "s1", name: "Esecuzione", giorni: 5 }), riga({ id: "s2", name: "Verifica", giorni: 2 })]} />);
     pianifica();
     expect(screen.getByText("22/09 → 23/09 · 2 gg")).toBeInTheDocument();

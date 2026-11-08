@@ -9,7 +9,7 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "c1", sector: state.settore } }) }));
 vi.mock("@/hooks/useImpostazioniAvvio", () => ({
-  useImpostazioniAvvio: () => ({ tipiLavoro: state.tipiLavoro, modelloFasi: null, controlli: [], isLoading: false, salva: { mutate: state.salva, isPending: false } }),
+  useImpostazioniAvvio: () => ({ tipiLavoro: state.tipiLavoro, modelloFasi: null as string | null, controlli: [] as string[], isLoading: false, salva: { mutate: state.salva, isPending: false } }),
 }));
 
 import TipiLavoroConfig from "@/components/settings/TipiLavoroConfig";

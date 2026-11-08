@@ -7,7 +7,7 @@ const feriali = calendarioCantiere({ sabato: false, chiusure: new Set() });
 function dbFinto(fasi: Array<{ id: string; position: number; start_date?: string | null }>, sottofasi: Array<{ phase_id: string; position: number; giorni: number | null; in_parallelo?: boolean }> = [], erroreScrittura = false) {
   const scritte: Array<[string, { start_date: string; end_date: string }]> = [];
   const db: DbDateFasi = {
-    leggiFasi: async () => ({ data: fasi.map((f) => ({ start_date: null, end_date: null, ...f })), error: null }),
+    leggiFasi: async () => ({ data: fasi.map((f) => ({ start_date: null as string | null, end_date: null as string | null, ...f })), error: null }),
     leggiSottofasi: async () => ({ data: sottofasi.map((s) => ({ in_parallelo: false, ...s })), error: null }),
     scriviDate: async (id, date) => { scritte.push([id, date]); return { error: erroreScrittura ? { message: "negato" } : null }; },
   };

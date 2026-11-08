@@ -35,7 +35,7 @@ describe("modelli proposti", () => {
     expect(nomi(offerti)).toEqual(["Serramenti / Infissi"]);
   });
   it("i modelli che l'azienda ha già restano tutti, anche di altri lavori (simulazione 07/11 su Innovasol e renova)", () => {
-    const suoi: ModelloFasi[] = ["FOTOVOLTAICO", "Impianti", "IMPIANTO IDRICO-SANITARIO"].map((nome, i) => ({ id: `m${i}`, origine: "azienda", nome, descrizione: "", fasi: [] }));
+    const suoi: ModelloFasi[] = ["FOTOVOLTAICO", "Impianti", "IMPIANTO IDRICO-SANITARIO"].map((nome, i) => ({ id: `m${i}`, origine: "azienda", nome, descrizione: "", fasi: [] as ModelloFasi["fasi"] }));
     const profilo = profiloLavori(null, "fotovoltaico");
     expect(nomi(modelliDaOffrire(true, suoi, modelliDiPartenzaDelProfilo(PHASE_TEMPLATES, profilo)))).toEqual(["FOTOVOLTAICO", "Impianti", "IMPIANTO IDRICO-SANITARIO"]);
   });

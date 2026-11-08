@@ -15,7 +15,7 @@ describe("fasi di partenza nel modulo di nuova commessa", () => {
     const rpc = SORGENTE.indexOf('await salvaFasiDiPartenza(');
     expect(rpc).toBeGreaterThan(SORGENTE.indexOf('createOrderAtomic("create_order_atomic"'));
     // Le fasi del modulo, con le date calcolate da inizio e fine lavori (07/11/2026).
-    expect(SORGENTE).toContain("fasiDaCreare.map((f, i) => ({ ...f, data_inizio: pianoFasi.righe[i]?.dal ?? null, data_fine: pianoFasi.righe[i]?.al ?? null }))");
+    expect(SORGENTE).toContain("fasiColPiano(fasiDaCreare, pianoFasi)");
     expect(SORGENTE).toContain("salvaFasiDiPartenza(result.id, fasiConDate");
     expect(SORGENTE).toContain("createdOrderIdRef.current = result.id");
     expect(SORGENTE).toContain("createOrderMutation.isPending || createdOrderIdRef.current");

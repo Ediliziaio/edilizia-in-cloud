@@ -9,7 +9,7 @@ vi.mock("@/hooks/useModelliFasi", () => ({ useModelliFasi: () => ({ modelli: sta
 vi.mock("@/hooks/usePermissions", () => ({usePermissions: () => ({canViewSettingsOrders: state.settings})}));
 vi.mock("@/hooks/useProfiloLavori", async () => {
   const { PHASE_TEMPLATES } = await import("@/hooks/useOrderWorkPhases");
-  return { useProfiloLavori: () => ({ profilo: { tipi: [], origine: "nessuno" }, modelliStandard: PHASE_TEMPLATES }) };
+  return { useProfiloLavori: () => ({ profilo: { tipi: [] as string[], origine: "nessuno" }, modelliStandard: PHASE_TEMPLATES }) };
 });
 vi.mock("@/hooks/useOrderWorkPhases", () => ({
   PHASE_TEMPLATES: [

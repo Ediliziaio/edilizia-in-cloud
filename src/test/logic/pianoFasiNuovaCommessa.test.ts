@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contaLavorativi, giorniDaSottofasi, pianificaFasi } from "@/lib/orders/pianoFasiNuovaCommessa";
+import { contaLavorativi, fasiColPiano, giorniDaSottofasi, pianificaFasi, sottofasiSullaDurata } from "@/lib/orders/pianoFasiNuovaCommessa";
 import { calendarioCantiere } from "@/lib/orders/sottofasi";
 
 // Lunedì 9 novembre 2026; nessuna chiusura, sabato a casa.
@@ -53,5 +53,43 @@ describe("conti dei giorni", () => {
   it("giorniDaSottofasi: le parallele non allungano, se non durano di più", () => {
     expect(giorniDaSottofasi(fase(null, [{ giorni: 3 }, { giorni: 5, in_parallelo: true }, { giorni: 2 }]))).toBe(7);
     expect(giorniDaSottofasi(fase(null, [{}]))).toBeNull();
+  });
+});
+
+describe("sottofasi che seguono la durata scritta a mano", () => {
+  const giorni = (l: Array<{ giorni?: number | null }>) => l.map((s) => s.giorni);
+  const sotto = (...v: Array<{ giorni?: number; in_parallelo?: boolean }>) => v.map((s, i) => ({ nome: `s${i}`, peso: 1, ...s }));
+
+  it("accorciando, la differenza la assorbe la sottofase più lunga", () => {
+    // Trovato provando la pagina: Produzione portata da 21 a 10 giorni teneva 20 giorni d'attesa.
+    const r = sottofasiSullaDurata(sotto({ giorni: 20 }, { giorni: 1 }), 10);
+    expect(giorni(r)).toEqual([9, 1]);
+    expect(giorniDaSottofasi({ sottofasi: r })).toBe(10);
+  });
+  it("allungando, i giorni in più vanno alla più lunga", () => {
+    expect(giorni(sottofasiSullaDurata(sotto({ giorni: 2 }, { giorni: 5 }), 10))).toEqual([2, 8]);
+  });
+  it("nessuna scende sotto un giorno", () => {
+    expect(giorni(sottofasiSullaDurata(sotto({ giorni: 4 }, { giorni: 3 }), 1))).toEqual([1, 1]);
+  });
+  it("una parallela non resta più lunga della sottofase accanto", () => {
+    const r = sottofasiSullaDurata(sotto({ giorni: 6 }, { giorni: 6, in_parallelo: true }, { giorni: 1 }), 3);
+    expect(giorni(r)).toEqual([2, 2, 1]);
+    expect(giorniDaSottofasi({ sottofasi: r })).toBe(3);
+  });
+  it("sottofasi senza giorni restano come sono, e l'originale non cambia", () => {
+    const orig = sotto({}, {});
+    expect(giorni(sottofasiSullaDurata(orig, 5))).toEqual([undefined, undefined]);
+    const piene = sotto({ giorni: 8 });
+    sottofasiSullaDurata(piene, 2);
+    expect(piene[0].giorni).toBe(8);
+  });
+  it("fasiColPiano tocca solo le fasi con la durata scritta a mano", () => {
+    const fasi = [{ nome: "a", sottofasi: sotto({ giorni: 20 }, { giorni: 1 }), giorni: 10 }, { nome: "b", sottofasi: sotto({ giorni: 3 }) }];
+    const p = pianificaFasi(fasi, { inizio: "2026-11-09", fine: null, lavorativo: feriali });
+    const r = fasiColPiano(fasi, p);
+    expect(giorni(r[0].sottofasi)).toEqual([9, 1]);
+    expect(giorni(r[1].sottofasi)).toEqual([3]);
+    expect([r[0].data_inizio, r[0].data_fine]).toEqual(["2026-11-09", "2026-11-20"]);
   });
 });
