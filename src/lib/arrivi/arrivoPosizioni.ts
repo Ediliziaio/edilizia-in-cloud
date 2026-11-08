@@ -153,7 +153,7 @@ export function statoPosizione(p: PosizioneArrivo): { testo: string; tono: "ok" 
   return { testo: "Da spuntare", tono: "neutro" };
 }
 
-const parole = (t: string | null | undefined) =>
+export const parole = (t: string | null | undefined) =>
   new Set((t ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").split(/[^a-z0-9]+/).filter(p => p.length >= 3));
 
 /** «1200 x 1400», «120x140» e «L 1200 H 1400»: la coppia di misure in millimetri, se c'è. */

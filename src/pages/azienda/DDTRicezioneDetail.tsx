@@ -799,6 +799,8 @@ export default function DDTRicezioneDetail() {
               evita di contare la stessa merce due volte. */}
           <DDTRigheCard
             ddtId={ddtId}
+            odaId={ddt?.purchase_order_id}
+            fornitoreId={ddt?.supplier_id}
             aiConfidenza={ddt?.ai_confidenza}
             aiAvvisi={ddt?.ai_avvisi}
             ricezioni={receipts.length}

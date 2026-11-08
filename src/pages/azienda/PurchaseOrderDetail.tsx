@@ -139,7 +139,17 @@ export default function PurchaseOrderDetail() {
     queryFn: async () => {
       const { data, error } = await supabase.from("ddt_ricezione").select("*").eq("purchase_order_id", odaId!).order("data_ricezione", { ascending: false });
       if (error) throw error;
-      return data || [];
+      // Una bolla può consegnare più ordini: conta anche quella collegata a un altro ordine
+      // che ha righe di questo. Si legge dalle righe della bolla.
+      const { data: legate, error: errLegate } = await (supabase as unknown as { from: (t: string) => { select: (c: string) => { eq: (k: string, v: string) => Promise<{ data: Array<{ ddt_ricezione_id: string }> | null; error: Error | null }> } } })
+        .from("ddt_righe").select("ddt_ricezione_id, purchase_order_items!inner(purchase_order_id)").eq("purchase_order_items.purchase_order_id", odaId!);
+      if (errLegate) throw errLegate;
+      const note = new Set((data ?? []).map((d) => d.id));
+      const altre = [...new Set((legate ?? []).map((r) => r.ddt_ricezione_id))].filter((id) => !note.has(id));
+      if (altre.length === 0) return data || [];
+      const { data: extra, error: errExtra } = await supabase.from("ddt_ricezione").select("*").in("id", altre);
+      if (errExtra) throw errExtra;
+      return [...(data ?? []), ...(extra ?? [])].sort((a, b) => String(b.data_ricezione).localeCompare(String(a.data_ricezione)));
     },
     enabled: !!odaId,
   });

@@ -159,6 +159,9 @@ export interface DDTRiga {
   importo: number | null;
   iva_percentuale: number | null;
   order_item_id: string | null;
+  /** La riga dell'ordine che questa riga consegna. La scrive il sistema o una persona. */
+  purchase_order_item_id?: string | null;
+  abbinamento?: "auto" | "manuale" | null;
   origine: "ai" | "manuale";
   ai_originale?: Record<string, unknown> | null;
   testo_grezzo: string | null;

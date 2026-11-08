@@ -26,7 +26,7 @@ export function OrderScheduleBadge({ orderId, className }: OrderScheduleBadgePro
   let label: string;
   let tone: string;
   if (health.stato === "in_ritardo") {
-    label = `Avanzamento sotto il previsto${health.fase_critica ? ` — ${health.fase_critica}` : ""}`;
+    label = `Sotto il previsto${health.fase_critica ? ` — ${health.fase_critica}` : ""}`;
     tone = "border-red-300 bg-red-50 text-red-700";
   } else if (health.stato === "in_anticipo") {
     label = `In anticipo (+${giorni}gg)`;
@@ -37,7 +37,8 @@ export function OrderScheduleBadge({ orderId, className }: OrderScheduleBadgePro
   }
 
   const badge = (
-    <Badge variant="outline" className={cn("gap-1 whitespace-nowrap", tone, className)}>
+    // Sta in una colonna stretta: il testo va a capo, non esce sopra quella accanto.
+    <Badge variant="outline" className={cn("max-w-full gap-1 whitespace-normal rounded-md text-left leading-snug", tone, className)}>
       {label}
     </Badge>
   );

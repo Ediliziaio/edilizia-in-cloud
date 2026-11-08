@@ -18,6 +18,7 @@
 // ============================================================================
 
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,9 @@ import {
   type DDTRiga,
   type DDTRigaNuova,
 } from "@/hooks/useDDTRicezione";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAbbinamentoBolla } from "@/hooks/useAbbinamentoBolla";
+import { righeOrdinePerRiga, type RigaOrdine } from "@/lib/ddt/abbinaRigheOrdine";
 import { importoRiga } from "@/lib/ddt/letturaAI";
 import { cn } from "@/lib/utils";
 
@@ -83,6 +87,45 @@ function lettoDallAI(r: DDTRiga): string | null {
   return pezzi.length > 0 ? pezzi.join(" ") : null;
 }
 
+const NON_DI_QUESTO_ORDINE = "__nessuna";
+
+const etichettaOrdine = (o: RigaOrdine, conNumero: boolean) =>
+  `${conNumero && o.oda_number ? `${o.oda_number} · ` : ""}${o.description || "Riga senza descrizione"} · ${numero(o.quantity)} ${o.unit_of_measure || "pz"}`;
+
+/** Sotto la descrizione: con che riga dell'ordine è abbinata, o la scelta da fare. */
+function AbbinamentoRiga({ riga, ordine, piuOrdini, modificabile, inCorso, onScegli }: {
+  piuOrdini: boolean;
+  riga: DDTRiga;
+  ordine: RigaOrdine[];
+  modificabile: boolean;
+  inCorso: boolean;
+  onScegli: (poi: string | null) => void;
+}) {
+  const abbinata = ordine.find((o) => o.id === riga.purchase_order_item_id);
+  const esclusa = !abbinata && riga.abbinamento === "manuale";
+  const scarto = abbinata && riga.quantita != null && Number(riga.quantita) !== Number(abbinata.quantity);
+  const opzioni = righeOrdinePerRiga(riga, ordine);
+  return (
+    <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+      {abbinata && <span className="inline-flex min-w-0 items-center gap-1 text-emerald-700"><Check className="h-3 w-3 shrink-0" aria-hidden="true" /><span className="truncate">{piuOrdini && abbinata.oda_number ? `${abbinata.oda_number} · ` : ""}{abbinata.description}</span></span>}
+      {scarto && <span className="text-amber-700">ordinati {numero(abbinata.quantity)}, in bolla {numero(riga.quantita)}</span>}
+      {esclusa && <span className="text-muted-foreground">Non è di questo ordine</span>}
+      {!abbinata && !esclusa && <span className="font-medium text-amber-700">Non trovata nell'ordine</span>}
+      {modificabile && (
+        <Select value="" disabled={inCorso} onValueChange={(v) => onScegli(v === NON_DI_QUESTO_ORDINE ? null : v)}>
+          <SelectTrigger aria-label={`Abbina ${riga.descrizione} a una riga dell'ordine`} className="h-6 w-auto gap-1 border-dashed px-2 text-[11px]">
+            <SelectValue placeholder={abbinata || esclusa ? "Cambia" : "Abbina…"} />
+          </SelectTrigger>
+          <SelectContent>
+            {opzioni.map((o) => <SelectItem key={o.id} value={o.id}>{etichettaOrdine(o, piuOrdini)}</SelectItem>)}
+            <SelectItem value={NON_DI_QUESTO_ORDINE}>Non è di questo ordine</SelectItem>
+          </SelectContent>
+        </Select>
+      )}
+    </span>
+  );
+}
+
 export function DDTRigheCard({
   ddtId,
   aiConfidenza,
@@ -92,6 +135,8 @@ export function DDTRigheCard({
   ricezioni = 0,
   /** Sola lettura per chi non può modificare la bolla. */
   modificabile = true,
+  odaId,
+  fornitoreId,
 }: {
   ddtId: string | null | undefined;
   aiConfidenza?: number | null;
@@ -100,9 +145,17 @@ export function DDTRigheCard({
   /** Articoli già registrati all'arrivo su questa bolla. */
   ricezioni?: number;
   modificabile?: boolean;
+  /** L'ordine a cui è collegata la bolla: la sua merce si abbina riga per riga. */
+  odaId?: string | null;
+  /** Una bolla può consegnare più ordini: si guardano anche gli altri aperti del fornitore. */
+  fornitoreId?: string | null;
 }) {
   const { data: righe = [], isLoading } = useDDTRighe(ddtId);
   const { aggiungiRighe, aggiornaRiga, eliminaRiga } = useDDTRigheMutations(ddtId);
+  const { ordine, abbina, nonInBolla, ordiniToccati } = useAbbinamentoBolla(ddtId, odaId, righe, modificabile, fornitoreId);
+  const piuOrdini = new Set(ordine.map((o) => o.purchase_order_id)).size > 1;
+  const abbinate = righe.filter((r) => r.purchase_order_item_id).length;
+  const daScegliere = righe.filter((r) => !r.purchase_order_item_id && r.abbinamento !== "manuale").length;
 
   const [inModifica, setInModifica] = useState<string | null>(null);
   const [bozza, setBozza] = useState<Bozza>(BOZZA_VUOTA);
@@ -181,6 +234,11 @@ export function DDTRigheCard({
               <Badge variant="outline" className="text-[10px] font-normal gap-1">
                 <Sparkles className="h-3 w-3" />
                 letta dall'AI · {Math.round(aiConfidenza * 100)}%
+              </Badge>
+            )}
+            {ordine.length > 0 && righe.length > 0 && (
+              <Badge variant="outline" className={cn("text-[10px] font-normal", daScegliere > 0 ? "border-amber-300 text-amber-800" : "border-emerald-300 text-emerald-800")}>
+                {abbinate} di {righe.length} abbinate{ordiniToccati.length > 1 ? ` · ${ordiniToccati.length} ordini` : " all'ordine"}
               </Badge>
             )}
           </CardTitle>
@@ -339,6 +397,10 @@ export function DDTRigheCard({
                           <span className="block truncate text-[10px] text-muted-foreground">
                             l'AI aveva letto: {lettoDallAI(r)}
                           </span>
+                        )}
+                        {ordine.length > 0 && (
+                          <AbbinamentoRiga riga={r} ordine={ordine} piuOrdini={piuOrdini} modificabile={modificabile} inCorso={abbina.isPending}
+                            onScegli={(poi) => abbina.mutate({ riga: r.id, poi })} />
                         )}
                       </td>
                       <td className="text-right tabular-nums">{numero(r.quantita)}</td>
@@ -501,6 +563,19 @@ export function DDTRigheCard({
               </li>
             ))}
           </ul>
+        )}
+        {ordiniToccati.length > 1 && (
+          <p className="mt-2 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+            Questa bolla consegna:
+            {ordiniToccati.map((o) => (
+              <Link key={o.id} to={`/azienda/ordini-acquisto/${o.id}`} className="font-medium text-primary underline">{o.numero ?? "ordine"}</Link>
+            ))}
+          </p>
+        )}
+        {righe.length > 0 && nonInBolla.length > 0 && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Nell'ordine ma non su questa bolla: {nonInBolla.map((o) => o.description || "riga senza descrizione").join(" · ")}
+          </p>
         )}
       </CardContent>
     </Card>
