@@ -16,7 +16,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Building2, Check, Loader2, Search, UserRound, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -77,7 +76,6 @@ export function SelezionaClienteDialog({ aperto, onAperto, collegatoId, onScegli
 }) {
   const permessi = usePermissions();
   const fonti = fontiVisibili(permessi);
-  const { user } = useAuth();
   const companyId = useEffectiveCompanyId();
   const [fonte, setFonte] = useState<OrigineScelta>("contatto");
   const [cerca, setCerca] = useState("");
@@ -105,27 +103,15 @@ export function SelezionaClienteDialog({ aperto, onAperto, collegatoId, onScegli
     },
   });
 
-  // Il venditore di chi ha «Solo i propri»: vede solo i clienti di cui è il venditore.
-  const mioVenditore = useQuery({
-    queryKey: ["seleziona-cliente", "venditore", companyId, user?.id],
-    enabled: aperto && fonti.clienti && fonti.soloMieiClienti && !!companyId && !!user?.id,
-    staleTime: 5 * 60_000,
-    queryFn: async (): Promise<string | null> => {
-      const { data } = await supabase.from("salespeople").select("id").eq("company_id", companyId!).eq("user_id", user!.id).maybeSingle();
-      return (data as { id: string } | null)?.id ?? null;
-    },
-  });
-  const senzaClientiMiei = fonti.soloMieiClienti && mioVenditore.isFetched && !mioVenditore.data;
-
+  // Il permesso e «Solo i propri» li applica il database (`get_customers_paginated`).
   const clienti = useQuery({
-    queryKey: ["seleziona-cliente", "clienti", companyId, ricerca, fonti.soloMieiClienti, mioVenditore.data ?? null],
-    enabled: aperto && fonte === "cliente" && fonti.clienti && !!companyId && (!fonti.soloMieiClienti || !!mioVenditore.data),
+    queryKey: ["seleziona-cliente", "clienti", companyId, ricerca],
+    enabled: aperto && fonte === "cliente" && fonti.clienti && !!companyId,
     staleTime: 30_000,
     queryFn: async (): Promise<ClienteScelto[]> => {
       const { data, error } = await supabase.rpc("get_customers_paginated" as never, {
         p_company_id: companyId, p_search: ricerca || null, p_limit: QUANTI, p_offset: 0,
         p_sort_field: ricerca ? "name" : "created_at", p_sort_dir: ricerca ? "asc" : "desc",
-        p_salesperson_id: fonti.soloMieiClienti ? mioVenditore.data : null,
       } as never);
       if (error) throw error;
       return (((data as { rows?: RigaClienteAnagrafica[] } | null)?.rows) ?? []).map(daCliente);
@@ -169,18 +155,16 @@ export function SelezionaClienteDialog({ aperto, onAperto, collegatoId, onScegli
               </div>
             </div>
             {fonte === "cliente" && fonti.soloMieiClienti && (
-              <p className="text-[11px] text-muted-foreground">Vedi solo i clienti di cui sei il venditore.</p>
+              <p className="text-[11px] text-muted-foreground">Vedi solo i clienti assegnati a te e quelli delle tue commesse.</p>
             )}
 
             <div className="min-h-[12rem] flex-1 overflow-y-auto rounded-md border" aria-busy={elenco.isFetching}>
-              {fonte === "cliente" && senzaClientiMiei ? (
-                <p className="p-4 text-sm text-muted-foreground">Non risulti venditore di nessun cliente: chiedi all'amministratore di assegnartene, o usa i contatti del CRM.</p>
-              ) : elenco.isLoading ? (
+              {elenco.isLoading ? (
                 <p className="flex items-center gap-2 p-4 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Cerco…</p>
               ) : elenco.isError ? (
                 <p role="alert" className="p-4 text-sm text-red-700">Non riesco a leggere {fonte === "contatto" ? "i contatti" : "i clienti"}: riprova.</p>
               ) : righe.length === 0 ? (
-                <p className="p-4 text-sm text-muted-foreground">{ricerca ? `Nessun risultato per «${ricerca}».` : "Nessuno da mostrare."}</p>
+                <p className="p-4 text-sm text-muted-foreground">{ricerca ? `Nessun risultato per «${ricerca}».` : fonte === "cliente" && fonti.soloMieiClienti ? "Non hai clienti assegnati: usa i contatti del CRM o chiedi all'amministratore." : "Nessuno da mostrare."}</p>
               ) : (
                 <div role="table" aria-label={fonte === "contatto" ? "Contatti del CRM" : "Clienti"} className="text-sm">
                   {/* Una riga per persona, coi dati principali in colonna (07/11/2026): «—» dove il dato manca. */}
