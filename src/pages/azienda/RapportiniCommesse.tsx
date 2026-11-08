@@ -19,9 +19,9 @@ import { OfficeSelect } from "@/components/orders/OfficeSelect";
 import { RapportinoBlocchi } from "@/components/campo/RapportinoBlocchi";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ApprovaRapportinoPopup, useDecisioneRapportino } from "@/components/orders/DecisioneRapportino";
 import { Input } from "@/components/ui/input";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/formatters";
 import { campoWorkDay } from "@/lib/campo/workDay";
@@ -385,7 +385,7 @@ function Pagina({ companyId }: { companyId?: string }) {
                           <div className="min-w-0 flex-1"><RigaRapportino r={r} onApri={() => imposta({ rap_id: r.id }, false)} /></div>
                           <button type="button" onClick={() => pdf.scarica(r as RapportinoCompleto)} disabled={pdf.inCorso === r.id}
                             aria-label={`Scarica il PDF: ${nomeCantiere(r)}, ${giornoLungo(r.data_lavoro)}`} title="Scarica PDF"
-                            className="flex w-10 shrink-0 items-center justify-center text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:opacity-60">
+                            className="flex w-10 shrink-0 items-center justify-center text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:opacity-60 max-md:hidden">
                             {pdf.inCorso === r.id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
                           </button>
                         </li>
@@ -405,7 +405,7 @@ function Pagina({ companyId }: { companyId?: string }) {
         </>
       )}
 
-      <DettaglioRapportino r={selezionato as RapportinoCompleto | null} conCosti={canViewCosts} pdf={pdf} navigazione={indiceAperto >= 0 ? <div className="mb-4 flex items-center justify-between gap-2 border-b border-slate-100 pb-3 pr-6">
+      <DettaglioRapportino r={selezionato as RapportinoCompleto | null} conCosti={canViewCosts} navigazione={indiceAperto >= 0 ? <div className="mb-4 flex items-center justify-between gap-2 border-b border-slate-100 pb-3 pr-6">
         <Button variant="outline" size="sm" disabled={indiceAperto === 0} onClick={() => imposta({ rap_id: elencoNavigabile[indiceAperto - 1].id })}><ChevronLeft className="mr-1 h-4 w-4" />Precedente</Button>
         <span className="text-xs tabular-nums text-slate-500">{indiceAperto + 1} di {elencoNavigabile.length}</span>
         <Button variant="outline" size="sm" disabled={indiceAperto === elencoNavigabile.length - 1} onClick={() => imposta({ rap_id: elencoNavigabile[indiceAperto + 1].id })}>Successivo<ChevronRight className="ml-1 h-4 w-4" /></Button>
@@ -608,21 +608,26 @@ function MappaDelMese({ righe, mese, oggi, onCella }: { righe: RapportinoRiga[];
   );
 }
 
-function DettaglioRapportino({ r, conCosti, pdf, navigazione, onChiudi }: { navigazione?: ReactNode; r: RapportinoCompleto | null; conCosti: boolean; pdf: ReturnType<typeof useScaricaPdf>; onChiudi: () => void }) {
+function DettaglioRapportino({ r, conCosti, navigazione, onChiudi }: { navigazione?: ReactNode; r: RapportinoCompleto | null; conCosti: boolean; onChiudi: () => void }) {
   const { data: nomiFasi } = useNomiFasiCommessa(r?.order_id);
   const [foto, setFoto] = useState<string | null>(null);
   const stato = r ? statoDi(r) : null;
   const mezzi = r && Array.isArray(r.mezzi_usati) ? (r.mezzi_usati as Array<{ nome?: string; ore?: number }>).filter((m) => m?.nome) : [];
   const meteo = r?.meteo ? METEO.find((m) => m.value === r.meteo)?.label ?? r.meteo : null;
+  const { puoDecidereSu } = useDecisioneRapportino(r?.order_id ?? "");
+  // Da approvare: un popup solo, con i dettagli e la decisione.
+  if (r && stato === "inviato" && puoDecidereSu(r.user_id)) {
+    return <ApprovaRapportinoPopup key={r.id} orderId={r.order_id} reportId={r.id} originale={r} testata={navigazione} onClose={onChiudi} />;
+  }
   return (
     <>
-      <Sheet open={!!r} onOpenChange={(o) => { if (!o) onChiudi(); }}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
+      <Dialog open={!!r} onOpenChange={(o) => { if (!o) onChiudi(); }}>
+        <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-4xl">
           {r && stato && (
             <>
               {navigazione}
-              <SheetHeader className="space-y-1 pr-6 text-left">
-                <SheetTitle className="text-lg leading-tight">{nomeCantiere(r)}</SheetTitle>
+              <DialogHeader className="space-y-1 pr-6 text-left">
+                <DialogTitle className="text-lg leading-tight">{nomeCantiere(r)}</DialogTitle>
                 <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
                   <span>{giornoLungo(r.data_lavoro)}</span>
                   <StatoBadge stato={stato} />
@@ -630,7 +635,7 @@ function DettaglioRapportino({ r, conCosti, pdf, navigazione, onChiudi }: { navi
                 {(r.order?.order_code || r.order?.work_address) && (
                   <p className="text-xs text-slate-500">{[r.order?.order_code, r.order?.work_address].filter(Boolean).join(" · ")}</p>
                 )}
-              </SheetHeader>
+              </DialogHeader>
 
               <div className="mt-4 space-y-4 text-sm">
                 {stato === "rifiutato" && (
@@ -667,21 +672,17 @@ function DettaglioRapportino({ r, conCosti, pdf, navigazione, onChiudi }: { navi
                     {conCosti && r.costo_manodopera != null && <div className="flex gap-2"><dt className="text-slate-500">Costo manodopera</dt><dd className="tabular-nums">{formatCurrency(Number(r.costo_manodopera))}</dd></div>}
                   </dl>
                 )}
-                <Button variant="outline" className="w-full" disabled={pdf.inCorso === r.id} onClick={() => pdf.scarica(r)}>
-                  {pdf.inCorso === r.id ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="mr-1.5 h-4 w-4" aria-hidden="true" />}
-                  Scarica PDF
-                </Button>
-                <Button asChild variant={stato === "inviato" ? "default" : "outline"} className="w-full">
+                <Button asChild variant="outline" className="w-full">
                   <Link to={`/azienda/ordini/${r.order_id}?tab=cantiere&vista_cantiere=diario`}>
-                    {stato === "inviato" ? "Approva dalla commessa" : "Apri la commessa"}
+                    Apri la commessa
                     <ArrowUpRight className="ml-1.5 h-4 w-4" />
                   </Link>
                 </Button>
               </div>
             </>
           )}
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
       <Dialog open={!!foto} onOpenChange={(o) => { if (!o) setFoto(null); }}>
         <DialogContent className="max-w-3xl p-2">
           <DialogTitle className="sr-only">Foto del rapportino</DialogTitle>

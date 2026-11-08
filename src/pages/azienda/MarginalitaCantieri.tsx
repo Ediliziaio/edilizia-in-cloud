@@ -964,7 +964,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-100">Marginalità commesse</p>
                   <h2 className="mt-1 text-lg font-semibold">Cosa è già eroso e cosa puoi ancora correggere</h2>
-                  <p className="mt-1 max-w-2xl text-sm text-blue-100/85">
+                  <p className="mt-1 max-w-2xl text-sm text-blue-100/85 max-md:hidden">
                     {/* Finché i dati non ci sono non si può dire che le commesse sono sopra il target. */}
                     {isLoading
                       ? "Sto caricando le commesse..."
@@ -976,7 +976,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
                   </p>
                 </div>
               </div>
-              <Badge className="w-fit border border-white/20 bg-white/10 text-white hover:bg-white/10">
+              <Badge className="w-fit border border-white/20 bg-white/10 text-white hover:bg-white/10 max-md:hidden">
                 Target dopo struttura {targetMarginPct.toFixed(1)}%
               </Badge>
             </div>
@@ -1007,13 +1007,13 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
                 <p className="text-xs text-red-100/75">{kpi.incompleteCount} con dati incompleti</p>
               </div>
             </div>
-            <p className="text-xs text-blue-100/70">
+            <p className="text-xs text-blue-100/70 max-md:hidden">
               Le stime di struttura e mezzi restano separate dal consuntivo. Apri una commessa prioritaria per completare i controlli e intervenire sui costi.
             </p>
           </CardContent>
         </Card>
 
-        <Card className="min-w-0 border-orange-100 bg-orange-50/50 shadow-sm">
+        <Card className="min-w-0 border-orange-100 bg-orange-50/50 shadow-sm max-md:hidden">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base text-orange-950">
               <Lightbulb className="h-4 w-4 text-orange-600" />
@@ -1437,55 +1437,32 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
           </div>
         ) : (
           filtered.map((row) => {
-            const preventivoTotale = safeNumber(row.preventivo_totale);
-            const consuntivo = safeNumber(row.consuntivo);
             const margine = safeNumber(row.margine);
             const marginePerc = safeNumber(row.margine_perc);
             const adjusted = getAdjustedMargin(row);
-            const decision = getMarginDecision(row);
             const reliable = hasReliableMargin(row);
             return (
-            <Card key={row.id}>
-              <CardContent className="pt-4 pb-3 space-y-2">
+            // Da telefono la scheda è stretta: si tocca e si apre il dettaglio dei costi.
+            <Card key={row.id} role="button" tabIndex={0} onClick={() => setDrillRow(row)}
+              onKeyDown={(e) => { if (e.key === "Enter") setDrillRow(row); }} aria-label={`Dettaglio costi ${row.order_code ?? ""}`}>
+              <CardContent className="space-y-1.5 px-3 py-2.5">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <Link
                       to={`/azienda/ordini/${row.id}`}
-                      className="font-medium text-sm hover:text-primary flex items-center gap-1"
+                      onClick={(e) => e.stopPropagation()}
+                      className="tap-compact font-medium text-sm hover:text-primary flex items-center gap-1"
                     >
                       {row.order_code ? `#${row.order_code}` : "–"}
                       <ArrowUpRight className="h-3 w-3" />
                     </Link>
                     <p className="text-xs text-muted-foreground truncate">{row.description}</p>
-                    {row.cliente_nome && (
-                      <p className="text-xs text-muted-foreground">{row.cliente_nome}</p>
-                    )}
                   </div>
                   {reliable
                     ? <MargineBadge perc={marginePerc} />
                     : <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">Dati incompleti</Badge>}
                 </div>
-                {reliable && <MarginHealthBadge perc={adjusted.adjustedMarginPct} target={targetMarginPct} />}
-                {reliable && notaAvanzamento(avanzamentoPerCommessa.get(row.id)) && (
-                  <p className="text-xs text-muted-foreground">
-                    {notaAvanzamento(avanzamentoPerCommessa.get(row.id))}
-                  </p>
-                )}
-                {decision.tone !== "green" && (
-                  <div className="rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-xs text-orange-800">
-                    <span className="font-semibold">{decision.label}:</span> {decision.detail}
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-                  <div>
-                    <p className="text-muted-foreground">Preventivo</p>
-                    <p className="font-medium">{formatCurrency(preventivoTotale)}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Consuntivo</p>
-                    <p className="font-medium">{formatCurrency(consuntivo)}</p>
-                  </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
                     <p className="text-muted-foreground">Margine diretto</p>
                     <p className={cn("font-semibold", MargineColorClass(marginePerc))}>
@@ -1500,14 +1477,6 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
                   </div>
                 </div>
 
-                {reliable && <Progress
-                  value={clampPercentage(marginePerc)}
-                  className="h-1.5"
-                  indicatorClassName={MargineProgressClass(marginePerc)}
-                />}
-                <Button variant="outline" size="sm" className="w-full" onClick={() => setDrillRow(row)}>
-                  Vedi dettaglio costi
-                </Button>
               </CardContent>
             </Card>
             );

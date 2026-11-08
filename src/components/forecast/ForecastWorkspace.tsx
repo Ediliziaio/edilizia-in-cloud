@@ -732,7 +732,7 @@ export function ForecastWorkspace({
             />
             {refreshing ? "Aggiornamento" : "Aggiorna"}
           </Button>
-          <Button size="sm" onClick={exportPlan}>
+          <Button size="sm" onClick={exportPlan} className="max-md:hidden">
             <Download className="mr-2 h-4 w-4" />
             Esporta piano
           </Button>
@@ -772,7 +772,7 @@ export function ForecastWorkspace({
               ))}
             </div>
           </div>
-          <label className="flex flex-col gap-1">
+          <label className="flex flex-col gap-1 max-md:hidden">
             <span className={filtroEtichetta}>Incassi</span>
             <select
               aria-label="Scenario incassi"
@@ -795,7 +795,7 @@ export function ForecastWorkspace({
               <option value="30">Incassi +30 giorni</option>
             </select>
           </label>
-          <label className="flex flex-col gap-1">
+          <label className="flex flex-col gap-1 max-md:hidden">
             <span className={filtroEtichetta}>Soglia di sicurezza</span>
             <div className="relative">
               <Input
@@ -823,6 +823,7 @@ export function ForecastWorkspace({
             aria-expanded={advanced}
             aria-controls="forecast-advanced"
             onClick={() => setAdvanced((v) => !v)}
+            className="max-md:hidden"
           >
             Filtri avanzati
             {filtered
@@ -833,7 +834,7 @@ export function ForecastWorkspace({
             variant="ghost"
             size="sm"
             onClick={resetFilters}
-            className="ml-auto h-9 text-muted-foreground"
+            className="ml-auto h-9 text-muted-foreground max-md:hidden"
           >
             <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
             Azzera filtri
@@ -951,7 +952,8 @@ export function ForecastWorkspace({
       <aside
         aria-label="Qualità della previsione"
         className={cn(
-          "rounded-xl border px-4 py-3",
+          // Da telefono resta l'avviso, senza il conto delle fonti.
+          "rounded-xl border px-4 py-3 max-md:[&>*:not(:first-child)]:hidden",
           incomplete ||
             data.opening.cents === null ||
             projection.undated.length ||

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RapportinoCompleto } from "@/hooks/useRapportiniMese";
 
 const stato = vi.hoisted(() => ({
+  ruolo: undefined as string | undefined,
   canViewCosts: true,
   isMobile: false,
   isLoading: false,
@@ -18,8 +19,8 @@ const stato = vi.hoisted(() => ({
   esporta: vi.fn(),
 }));
 
-vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "c1" } }) }));
-vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewCosts: stato.canViewCosts }) }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "c1" }, role: stato.ruolo, user: { id: "ufficio" } }) }));
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewCosts: stato.canViewCosts, canEditOrders: !!stato.ruolo }) }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => stato.isMobile }));
 vi.mock("@/lib/campo/workDay", async (orig) => ({ ...(await orig<object>()), campoWorkDay: () => "2026-09-30" }));
 vi.mock("@/hooks/useRapportiniMese", () => ({
@@ -32,6 +33,7 @@ vi.mock("@/hooks/useRapportiniMese", () => ({
 vi.mock("@/lib/campo/rapportinoPdf", () => ({ openRapportinoPdf: stato.pdf }));
 vi.mock("@/lib/csvExport", () => ({ exportToCSV: stato.esporta }));
 vi.mock("sonner", () => ({ toast: { error: stato.toastErrore } }));
+vi.mock("@/components/orders/LaborApprovalDialog", () => ({ LaborApprovalDialog: (p: { reportId: string; onReject?: () => void }) => <div role="dialog">Controllo di {p.reportId}<button onClick={p.onReject}>Rifiuta</button></div> }));
 vi.mock("@/components/campo/RapportinoBlocchi", () => ({ RapportinoBlocchi: () => <div>Blocchi del rapportino</div> }));
 
 import RapportiniCommesse from "@/pages/azienda/RapportiniCommesse";
@@ -53,6 +55,7 @@ const riga = (r: Partial<RapportinoCompleto> & { id: string }): RapportinoComple
 });
 
 beforeEach(() => {
+  stato.ruolo = undefined;
   stato.canViewCosts = true;
   stato.isMobile = false;
   stato.isLoading = false;
@@ -154,14 +157,25 @@ describe("Commesse → Rapportini", () => {
     expect(indirizzo()).not.toContain("rap_stato");
   });
 
-  it("il dettaglio mostra il lavoro e chi c'era, e manda alla commessa per approvare", () => {
+  it("senza il permesso di approvare il popup mostra il lavoro e porta alla commessa", () => {
     apri();
     fireEvent.click(screen.getByText("Getto soletta").closest("button")!);
     const scheda = screen.getByRole("dialog");
     expect(within(scheda).getByText("Bruno Neri")).toBeInTheDocument();
     expect(within(scheda).getByText("Blocchi del rapportino")).toBeInTheDocument();
-    expect(within(scheda).getByRole("link", { name: /Approva dalla commessa/ }))
+    expect(within(scheda).getByRole("link", { name: /Apri la commessa/ }))
       .toHaveAttribute("href", "/azienda/ordini/o2?tab=cantiere&vista_cantiere=diario");
+  });
+
+  it("chi approva apre un popup solo, con il controllo e il rifiuto", () => {
+    stato.ruolo = "company_admin";
+    apri();
+    fireEvent.click(screen.getByText("Getto soletta").closest("button")!);
+    expect(screen.getByRole("dialog")).toHaveTextContent("Controllo di");
+    expect(screen.queryByRole("link", { name: /Apri la commessa/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Rifiuta" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Rifiuta rapportino");
+    stato.ruolo = undefined;
   });
 
   it("il rifiutato mostra il motivo; un rapportino già approvato non invita ad approvare", () => {
@@ -181,12 +195,11 @@ describe("Commesse → Rapportini", () => {
     expect(indirizzo()).not.toContain("rap_id");
   });
 
-  it("il PDF si scarica anche dal dettaglio; se fallisce lo dice", async () => {
+  it("se il PDF non si genera lo dice", async () => {
     stato.pdf.mockRejectedValue(new Error("PDF non generato"));
-    apri("?tab=rapportini&rap_id=r2");
-    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Scarica PDF" }));
+    apri("?tab=rapportini");
+    fireEvent.click(screen.getAllByRole("button", { name: /Scarica il PDF: Verdi/ })[0]);
     await waitFor(() => expect(stato.toastErrore).toHaveBeenCalledWith("PDF non generato"));
-    expect(stato.pdf.mock.calls[0][0]).toMatchObject({ id: "r2" });
   });
 
   it("esporta quello che vedi, e il costo solo a chi può vederlo", () => {

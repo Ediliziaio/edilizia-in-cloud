@@ -1351,7 +1351,7 @@ function OrdersListInner() {
           </div>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap justify-start sm:justify-end">
-          {canDeleteOrders && <Button variant="outline" size="sm" onClick={()=>setTrashOpen(true)}>Cestino</Button>}
+          {canDeleteOrders && <Button variant="outline" size="sm" className="max-md:hidden" onClick={()=>setTrashOpen(true)}>Cestino</Button>}
           {/* Qui c'era anche il selettore dell'anno: lo stesso della riga dei
               filtri sotto (dove ora ha anche «{anno} + precedenti da gestire»). */}
           {/* Filtri avanzati */}
@@ -1601,15 +1601,16 @@ function OrdersListInner() {
               </div>
               </>)}
             </div>}
-            {isYearCorrente && globalStats && !isGlobalStatsError && !isStatusesError && <OrdersCarryoverSummary
+            {/* Da telefono restano i numeri: pregresso, spiegazioni ed esposizione sono da scrivania. */}
+            {isYearCorrente && globalStats && !isGlobalStatsError && !isStatusesError && !isMobile && <OrdersCarryoverSummary
               previous={globalStats.previous} reasons={globalStats.reasons} showAmounts={orderPerms.canViewOrderAmounts} />}
-            <details className="mt-2 text-xs text-blue-100">
+            <details className="mt-2 text-xs text-blue-100 max-md:hidden">
               <summary className="cursor-pointer rounded py-1 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-300">Come vengono calcolati?</summary>
               <p className="mt-2 max-w-3xl leading-relaxed">L’anno della commessa è quello di creazione. Il riepilogo annuale include anche le completate e rimane indipendente dai filtri dell’elenco. Gli importi sono IVA inclusa. “Incassato” indica quanto riscosso su quelle commesse, non i movimenti di cassa avvenuti nell’anno. I motivi del pregresso possono sovrapporsi senza duplicare le commesse.</p>
             </details>
             {/* Cantieri finanziati dall'azienda: appare solo quando esiste il
                 problema (saldo cassa negativo su commesse aperte). */}
-            {orderPerms.canViewOrderAmounts && orderPerms.canViewCosts && (
+            {orderPerms.canViewOrderAmounts && orderPerms.canViewCosts && !isMobile && (
               <EsposizioneFlotta
                 companyId={effectiveCompany?.id}
                 excludeStatusIds={[lastStatusId]}

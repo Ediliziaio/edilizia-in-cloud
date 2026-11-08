@@ -906,10 +906,10 @@ export default function Warehouse() {
 
       {/* Prelievi dal cantiere: impostazione (libero/conferma) + coda da confermare. */}
       <div className="space-y-3 print:hidden">
-        <ImpostazionePrelievoCampo />
+        <div className="max-md:hidden"><ImpostazionePrelievoCampo /></div>
         <PrelieviCampoCard />
         <AcquistiCampoCard />
-        <RigheDaAbbinareCard />
+        <div className="max-md:hidden"><RigheDaAbbinareCard /></div>
       </div>
 
       <div className="space-y-3 print:hidden">

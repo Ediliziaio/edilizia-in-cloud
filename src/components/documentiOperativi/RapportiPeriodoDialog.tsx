@@ -58,7 +58,8 @@ export function RapportiPeriodoDialog({
   };
   return (
     <>
-      <div className="flex flex-wrap gap-2">
+      {/* Documenti da stampare o spedire: da scrivania. */}
+      <div className="flex flex-wrap gap-2 max-md:hidden">
         <Button size="sm" variant="outline" onClick={() => avvia("economia")}>
           <FileText className="mr-1.5 h-4 w-4" />
           Rapporto in economia

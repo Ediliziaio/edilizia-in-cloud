@@ -1248,8 +1248,11 @@ export default function FattureRicevutePage() {
         </Card>
       )}
 
-      {companyId && <CompletezzaFatture companyId={companyId} />}
-      {companyId && permessiCosti.canViewCosts && <UsciteSenzaFattura companyId={companyId} puoModificare={!permessiCosti.solaLettura} />}
+      {/* Controlli da ufficio: da telefono si parte dall'elenco. */}
+      <div className="space-y-4 max-md:hidden">
+        {companyId && <CompletezzaFatture companyId={companyId} />}
+        {companyId && permessiCosti.canViewCosts && <UsciteSenzaFattura companyId={companyId} puoModificare={!permessiCosti.solaLettura} />}
+      </div>
 
       {report && (
         <Card className="border-l-4 border-l-primary">
@@ -1358,7 +1361,6 @@ export default function FattureRicevutePage() {
             onClick: () => setPagamentoFilter((p) => (p === "da_pagare" ? "all" : "da_pagare")),
             attivo: pagamentoFilter === "da_pagare",
           },
-          { label: annoFilter === "all" ? "Importo totale" : `Importo ${annoFilter}`, valore: formatCurrency(kpi.importoTotale) },
         ]}
       />
 

@@ -1,18 +1,23 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { loadLaborReview, type LaborReviewRequest } from "@/lib/campo/loadLaborReview";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { AvanzamentoDaApprovare } from "@/components/orders/AvanzamentoDaApprovare";
+import { DettagliRapportino } from "@/components/orders/DettagliRapportino";
 
 const eur = (n: number) => n.toLocaleString("it-IT", {style:"currency",currency:"EUR",useGrouping:true});
 interface Props extends LaborReviewRequest {
   busy: boolean; onClose: () => void;
   onInspect?: (reportId: string) => void;
   onApprove: (fingerprint: string, acknowledged: boolean) => void;
+  /** Rifiuta dallo stesso popup, dopo aver letto i dettagli. */
+  onReject?: () => void;
+  /** Precedente/Successivo quando il popup scorre un elenco. */
+  testata?: ReactNode;
 }
-export function LaborApprovalDialog({busy, onClose, onApprove, onInspect, ...request}: Props) {
+export function LaborApprovalDialog({busy, onClose, onApprove, onInspect, onReject, testata, ...request}: Props) {
   const [acknowledgedFingerprint, setAcknowledgedFingerprint] = useState<string | null>(null);
   const query = useQuery({
     queryKey: ["campo-labor-review", request.companyId, request.orderId, request.reportId, request.showCosts],
@@ -22,11 +27,13 @@ export function LaborApprovalDialog({busy, onClose, onApprove, onInspect, ...req
   const acknowledged = !!review && acknowledgedFingerprint === review.fingerprint;
   const ready = !!review && !query.isFetching && !query.isError && !review.blockers.length && (!review.warnings.length || acknowledged);
   return <Dialog open onOpenChange={open => { if (!open && !busy) onClose(); }}>
-    <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
+    <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-4xl">
+      {testata}
       <DialogHeader>
         <DialogTitle>Controlla e approva il rapportino</DialogTitle>
-        <DialogDescription>Verifica persone, ore e possibili sovrapposizioni prima di registrare il consuntivo.</DialogDescription>
+        <DialogDescription className="max-md:hidden">Verifica persone, ore e possibili sovrapposizioni prima di registrare il consuntivo.</DialogDescription>
       </DialogHeader>
+      <DettagliRapportino companyId={request.companyId} orderId={request.orderId} reportId={request.reportId} />
       {query.isPending && <p role="status" className="flex items-center gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin"/>Controllo della giornata…</p>}
       {query.isError && <p role="alert" className="rounded-lg border border-destructive/30 p-3 text-sm">
         Controllo non disponibile. Nessuna approvazione è stata eseguita.
@@ -83,8 +90,9 @@ export function LaborApprovalDialog({busy, onClose, onApprove, onInspect, ...req
         </div>}
       </div>}
       <DialogFooter className="flex-wrap gap-2">
-        <Button variant="outline" disabled={busy || query.isFetching} onClick={() => { setAcknowledgedFingerprint(null); void query.refetch(); }}>Aggiorna controllo</Button>
-        <Button variant="outline" disabled={busy} onClick={onClose}>Annulla</Button>
+        <Button variant="outline" className="max-md:hidden" disabled={busy || query.isFetching} onClick={() => { setAcknowledgedFingerprint(null); void query.refetch(); }}>Aggiorna controllo</Button>
+        <Button variant="outline" className={onReject ? "hidden" : undefined} disabled={busy} onClick={onClose}>Annulla</Button>
+        {onReject && <Button variant="destructive" disabled={busy} onClick={onReject}>Rifiuta</Button>}
         <Button disabled={!ready || busy} onClick={() => review && onApprove(review.fingerprint, acknowledged)}>
           {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}Conferma approvazione
         </Button>

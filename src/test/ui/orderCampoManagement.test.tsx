@@ -140,7 +140,7 @@ describe("Rapportini: permessi e aggiornamento del consuntivo", () => {
     const phases = builder([]);
     state.from.mockImplementation(table => table === "campo_rapportini" ? target : phases);
     render(<OrdineRapportiniCampo orderId="order" />);
-    fireEvent.click(screen.getByText(/Mario Rossi/)); fireEvent.click(screen.getByRole("button", { name: /Approva/ }));
+    fireEvent.click(screen.getByText(/Mario Rossi/));
     fireEvent.click(screen.getByRole("button", { name: "Conferma approvazione" }));
     await waitFor(() => expect(state.error).toHaveBeenCalledWith(expect.stringContaining("non appartiene")));
     expect(target.update).not.toHaveBeenCalled(); expect(phases.update).not.toHaveBeenCalled();
@@ -152,7 +152,7 @@ describe("Rapportini: permessi e aggiornamento del consuntivo", () => {
     const phases = builder([{ id: "p", order_id: "order", company_id: "company", percentuale: 30, status: "in_corso", updated_at: "fase-v2" }]);
     state.from.mockImplementation(table => table === "campo_rapportini" ? target : phases);
     render(<OrdineRapportiniCampo orderId="order" />);
-    fireEvent.click(screen.getByText(/Mario Rossi/)); fireEvent.click(screen.getByRole("button", { name: /Approva/ }));
+    fireEvent.click(screen.getByText(/Mario Rossi/));
     fireEvent.click(screen.getByRole("button", { name: "Conferma approvazione" }));
     await waitFor(() => expect(state.success).toHaveBeenCalledWith("Rapportino approvato: ore e avanzamento aggiornati"));
     expect(phases.update).not.toHaveBeenCalled();
@@ -166,7 +166,6 @@ describe("Rapportini: permessi e aggiornamento del consuntivo", () => {
   it("aggiorna costi e semaforo dopo approvazione", async () => {
     state.reports = [report]; state.from.mockReturnValue(builder({ id: "r", fasi_lavorate: [] })); render(<OrdineRapportiniCampo orderId="order" />);
     fireEvent.click(screen.getByText(/Mario Rossi/));
-    fireEvent.click(screen.getByRole("button", { name: /Approva/ }));
     expect(state.from).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", {name:"Conferma approvazione"}));
     await waitFor(() => expect(state.invalidate).toHaveBeenCalledWith({ queryKey: ["oes-employees", "order"] }));
@@ -180,7 +179,7 @@ describe("Rapportini: permessi e aggiornamento del consuntivo", () => {
   });
   it("non comunica approvazione se il database non ha aggiornato righe", async () => {
     state.reports = [report]; render(<OrdineRapportiniCampo orderId="order" />);
-    fireEvent.click(screen.getByText(/Mario Rossi/)); fireEvent.click(screen.getByRole("button", { name: /Approva/ }));
+    fireEvent.click(screen.getByText(/Mario Rossi/));
     fireEvent.click(screen.getByRole("button", {name:"Conferma approvazione"}));
     await waitFor(() => expect(state.error).toHaveBeenCalled()); expect(state.success).not.toHaveBeenCalled(); expect(state.invalidate).not.toHaveBeenCalled();
     expect(state.notifyPdf).not.toHaveBeenCalled();
@@ -188,7 +187,7 @@ describe("Rapportini: permessi e aggiornamento del consuntivo", () => {
   it("non scrive se il controllo fresco rileva altri dati o tariffe", async () => {
     state.reports=[report]; state.recheck.mockRejectedValue(new Error("Ore, tariffe o altri rapportini sono cambiati"));
     render(<OrdineRapportiniCampo orderId="order"/>);
-    fireEvent.click(screen.getByText(/Mario Rossi/)); fireEvent.click(screen.getByRole("button",{name:/Approva/}));
+    fireEvent.click(screen.getByText(/Mario Rossi/));
     fireEvent.click(screen.getByRole("button",{name:"Conferma approvazione"}));
     await waitFor(()=>expect(state.error).toHaveBeenCalledWith(expect.stringContaining("sono cambiati")));
     expect(state.from).not.toHaveBeenCalled();expect(state.success).not.toHaveBeenCalled();
@@ -196,13 +195,13 @@ describe("Rapportini: permessi e aggiornamento del consuntivo", () => {
   it("limita l'approvazione alla versione e all'azienda controllate", async () => {
     state.reports=[report];const q=builder({id:"r",fasi_lavorate:[]});state.from.mockReturnValue(q);
     render(<OrdineRapportiniCampo orderId="order"/>);
-    fireEvent.click(screen.getByText(/Mario Rossi/));fireEvent.click(screen.getByRole("button",{name:/Approva/}));
+    fireEvent.click(screen.getByText(/Mario Rossi/));
     fireEvent.click(screen.getByRole("button",{name:"Conferma approvazione"}));
     await waitFor(()=>expect(q.update).toHaveBeenCalled());
     expect(q.eq).toHaveBeenCalledWith("company_id","company");expect(q.eq).toHaveBeenCalledWith("updated_at","version");expect(q.eq).toHaveBeenCalledWith("stato","inviato");
   });
   it("nel dettaglio mostra le lavorazioni con i loro materiali e le loro foto", () => {
-    state.reports = [{ ...report,
+    state.reports = [{ ...report, stato: "approvato",
       fasi_lavorate: [{ phase_id: "p1", percentuale: 60, nome: "Posa serramenti", foto: ["f0"] }],
       materiali_usati: [{ nome: "Schiuma", quantita: 2, unita: "pz", fase_id: "p1" }, { nome: "Viti", quantita: 50, unita: "pz" }],
       foto_urls: ["f0", "f1"] }];
@@ -216,7 +215,7 @@ describe("Rapportini: permessi e aggiornamento del consuntivo", () => {
     expect(screen.getByText("Altre foto del cantiere (1)")).toBeInTheDocument();
   });
   it("un rapportino vecchio, con la fase scritta solo come id, nel dettaglio prende il nome dalla fase della commessa", () => {
-    state.reports = [{ ...report, fasi_lavorate: [{ phase_id: "p1", ore: 8 }] }];
+    state.reports = [{ ...report, stato: "approvato", fasi_lavorate: [{ phase_id: "p1", ore: 8 }] }];
     state.fasiNomi = new Map([["p1", "Posa serramenti"]]);
     render(<OrdineRapportiniCampo orderId="order" />);
     fireEvent.click(screen.getByText(/Mario Rossi/));

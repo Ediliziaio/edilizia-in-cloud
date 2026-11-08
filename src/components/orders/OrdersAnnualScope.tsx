@@ -12,7 +12,7 @@ export function OrdersAnnualScope({year,annualCount,previousCount,selected,onCha
         className="orders-stat-chip" onClick={()=>onChange(group.value)}>
         {group.label} <strong className="tabular-nums">{failed?"—":loading?"…":group.count}</strong>
       </button>)}
-    <span className="text-xs text-muted-foreground">Conteggi prima degli altri filtri, che restano attivi.</span>
+    <span className="text-xs text-muted-foreground max-md:hidden">Conteggi prima degli altri filtri, che restano attivi.</span>
   </section>;
 }
 const money = (amount: number) => amount.toLocaleString("it-IT", {style:"currency",currency:"EUR",maximumFractionDigits:0});

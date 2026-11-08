@@ -93,7 +93,7 @@ export function FattureDaAssegnare({ companyId, puoModificare }: { companyId: st
 
   // Di norma chiuso: è un promemoria, non deve spingere la tabella fuori dallo schermo.
   return (
-    <section className="space-y-2 rounded-xl border border-amber-200 bg-amber-50/50 px-3 py-2 dark:border-amber-900/50 dark:bg-amber-950/20">
+    <section className="space-y-2 rounded-xl border border-amber-200 bg-amber-50/50 px-3 py-2 max-md:hidden dark:border-amber-900/50 dark:bg-amber-950/20">
       <button type="button" aria-expanded={aperto} onClick={() => setAperto((v) => !v)} className="flex w-full flex-wrap items-center gap-x-2 gap-y-0.5 text-left">
         <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${aperto ? "" : "-rotate-90"}`} aria-hidden="true" />
         <span className="text-sm font-semibold">

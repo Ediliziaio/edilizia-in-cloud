@@ -209,7 +209,7 @@ export function DaApprovareCantieri() {
           </ul>
         )}
       <Dialog open={!!commessaPopup} onOpenChange={(aperto) => { if (!aperto) chiudiPopup(); }}>
-        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+        <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Approva · {commessaPopup?.titolo}</DialogTitle>
           </DialogHeader>
