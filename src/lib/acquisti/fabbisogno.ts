@@ -25,6 +25,8 @@ export interface RigaFabbisogno {
   unita_diversa: boolean;
   stato: string;
   data_serve: string | null;
+  /** La data scritta a mano; senza, il materiale segue l'inizio della fase (data_serve). */
+  data_scritta?: string | null;
   giorni_consegna: number | null;
   ordina_entro: string | null;
 }

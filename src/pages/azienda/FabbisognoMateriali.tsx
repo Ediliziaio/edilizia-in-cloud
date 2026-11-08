@@ -242,7 +242,7 @@ function Riga({ r, oggi, puoDatare, scelta }: {
         <p>Ordina entro <strong>{data(r.ordina_entro)}</strong></p>
         <p className="text-muted-foreground">{testoLimite(r.ordina_entro, oggi)}{r.giorni_consegna != null ? ` · consegna ${r.giorni_consegna} gg` : ""}</p>
         {/* La chiave fa ripartire il campo quando la data cambia dal server. */}
-        <DataServe key={r.data_serve ?? ""} r={r} puoDatare={puoDatare} />
+        <DataServe key={r.data_scritta ?? ""} r={r} puoDatare={puoDatare} />
       </div>
       <div className="flex items-center gap-2 sm:justify-end">
         <Badge variant="secondary" className="whitespace-nowrap font-normal">{stato}</Badge>
@@ -255,27 +255,33 @@ function Riga({ r, oggi, puoDatare, scelta }: {
 }
 
 /**
- * «Serve il»: la data in cui il materiale serve in cantiere. Vuota = l'inizio
- * della fase. Si salva quando si esce dal campo, non a ogni tasto.
+ * «Serve il»: la data in cui il materiale serve in cantiere. Il campo mostra
+ * solo la data scritta a mano: vuoto vuol dire che il materiale segue l'inizio
+ * della fase, e lo dice accanto. Si salva quando si esce dal campo, non a ogni
+ * tasto.
  */
 function DataServe({ r, puoDatare }: { r: RigaFabbisogno; puoDatare: boolean }) {
   const imposta = useImpostaDataFabbisogno();
-  const [valore, setValore] = useState(r.data_serve ?? "");
+  const scritta = r.data_scritta ?? null;
+  const [valore, setValore] = useState(scritta ?? "");
   if (!puoDatare) return <p className="text-muted-foreground">Serve il {data(r.data_serve)}</p>;
   const salva = () => {
     const nuova = valore || null;
-    if (nuova === (r.data_serve ?? null)) return;
+    if (nuova === scritta) return;
     imposta.mutate({ ids: [r.order_item_id], data: nuova }, {
       onSuccess: () => toast.success(nuova ? `${r.name}: serve il ${data(nuova)}` : `${r.name}: serve all'inizio della fase`),
-      onError: (e) => { setValore(r.data_serve ?? ""); toast.error("Data non salvata", { description: e instanceof Error ? e.message : String(e) }); },
+      onError: (e) => { setValore(scritta ?? ""); toast.error("Data non salvata", { description: e instanceof Error ? e.message : String(e) }); },
     });
   };
   return (
-    <label className="mt-1 flex items-center gap-1 text-muted-foreground sm:justify-end">
-      Serve il
-      <Input type="date" value={valore} onChange={(e) => setValore(e.target.value)} onBlur={salva}
-        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-        disabled={imposta.isPending} className="h-7 w-[8.5rem] px-1 text-xs" aria-label={`Quando serve ${r.name} in cantiere`} />
-    </label>
+    <div className="mt-1 text-muted-foreground sm:text-right">
+      <label className="flex items-center gap-1 sm:justify-end">
+        Serve il
+        <Input type="date" value={valore} onChange={(e) => setValore(e.target.value)} onBlur={salva}
+          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+          disabled={imposta.isPending} className="h-7 w-[8.5rem] px-1 text-xs" aria-label={`Quando serve ${r.name} in cantiere`} />
+      </label>
+      {!scritta && r.data_serve && <p className="text-[11px]">Segue l'inizio fase: {data(r.data_serve)}</p>}
+    </div>
   );
 }

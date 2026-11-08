@@ -19,7 +19,7 @@ const riga = (p: Partial<RigaFabbisogno>): RigaFabbisogno => ({
   residuo: 100, eccedenza: 0, unita_diversa: false, stato: "da_ordinare", data_serve: fra(20), giorni_consegna: 7, ordina_entro: fra(3), ...p,
 });
 const righe = [
-  riga({ order_item_id: "a" }),
+  riga({ order_item_id: "a", data_scritta: fra(20) }),
   riga({ order_item_id: "b", order_id: "o2", commessa: "C-002", name: "Rasante" }),
   riga({ order_item_id: "c", name: "Tasselli", supplier_id: null, fornitore: null }),
 ];
@@ -64,6 +64,22 @@ describe("fabbisogno: ordinare e datare", () => {
     fireEvent.change(campo, { target: { value: "" } });
     fireEvent.blur(campo);
     expect(imposta.mock.calls[1][0]).toEqual({ ids: ["a"], data: null });
+  });
+
+  it("senza data scritta il campo è vuoto e dice che segue la fase; scegliere proprio quella data si salva", () => {
+    pagina();
+    const campo = screen.getByLabelText("Quando serve Rasante in cantiere") as HTMLInputElement;
+    expect(campo.value).toBe("");
+    expect(screen.getAllByText(/Segue l'inizio fase/).length).toBe(2);
+    fireEvent.change(campo, { target: { value: fra(20) } });
+    fireEvent.blur(campo);
+    expect(imposta.mock.calls[0][0]).toEqual({ ids: ["b"], data: fra(20) });
+  });
+
+  it("una data scritta non cambiata non si salva di nuovo", () => {
+    pagina();
+    fireEvent.blur(screen.getByLabelText("Quando serve EPS 10 cm in cantiere"));
+    expect(imposta).not.toHaveBeenCalled();
   });
 
   it("senza permesso acquisti: niente selezione; senza nessuno dei due, la data si legge e basta", () => {
