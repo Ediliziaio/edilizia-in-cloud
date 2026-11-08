@@ -31,15 +31,17 @@ describe("clienti dalle fatture importate", () => {
 
   it("riconosce prima, crea solo se manca, e lega l'anagrafica fiscale dopo", () => {
     const prima = MODULO.indexOf("riconcilia(supabase, companyId, fattura.id)");
-    const crea = MODULO.indexOf("auth.admin.createUser");
+    const crea = MODULO.indexOf('from("profiles").insert');
     expect(prima).toBeGreaterThan(0);
     expect(crea).toBeGreaterThan(prima);
     expect(MODULO.indexOf("riconcilia(supabase, companyId, fattura.id)", crea)).toBeGreaterThan(crea);
   });
 
-  it("l'account ha l'email tecnica deterministica: due giri non fanno due clienti", () => {
+  it("l'anagrafica ha un UUID deterministico senza account: due giri non fanno due clienti", () => {
     expect(MODULO).toContain("emailTecnicaClienteImportato(");
-    expect(MODULO).toContain("email_exists");
+    expect(MODULO).toContain("idAnagraficaCliente(emailAccesso)");
+    expect(MODULO).toContain('errProfilo.code === "23505"');
+    expect(MODULO).not.toContain("auth.admin.createUser");
   });
 
   it("un errore non timbra la fattura: si riprova al giro dopo", () => {

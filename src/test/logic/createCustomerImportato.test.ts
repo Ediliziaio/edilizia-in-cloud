@@ -30,12 +30,13 @@ async function crea(extra:Riga={}) {
   return {status:response.status,data:await response.json()};
 }
 describe("Creazione cliente importato: gestore server reale",()=>{
-  it("blocca portale/email anche se il client li richiede, usa Auth tecnica ma conserva email e indirizzo reali",async()=>{
+  it("blocca portale/email anche se il client li richiede e salva anagrafica senza Auth",async()=>{
     const r=await crea();expect(r.status).toBe(200);expect(r.data.portal_account_created).toBe(false);expect(r.data.password).toBeNull();
     expect(runtime.email).not.toHaveBeenCalled();
-    expect(runtime.create.mock.calls[0][0].email).toMatch(/@no-email\.ediliziaincloud\.local$/);
-    expect(runtime.db.tabelle.profiles.find(p=>p.id==="c")).toMatchObject({email:"mario@example.invalid",address:"Via Demo 1",city:"Roma",postal_code:"00100",site_address:null,portal_disabled:true,is_blocked:true});
-    expect(runtime.db.tabelle.user_roles).toContainEqual(expect.objectContaining({user_id:"c",role:"customer"}));
+    expect(runtime.create).not.toHaveBeenCalled();
+    const id=runtime.db.tabelle.profiles.find(p=>p.id!=="actor")!.id;
+    expect(runtime.db.tabelle.profiles.find(p=>p.id===id)).toMatchObject({email:"mario@example.invalid",address:"Via Demo 1",city:"Roma",postal_code:"00100",site_address:null,portal_disabled:true,is_blocked:true});
+    expect(runtime.db.tabelle.user_roles).toContainEqual(expect.objectContaining({user_id:id,role:"customer"}));
   });
   it("riusa un cliente esistente senza modifiche, account o email",async()=>{
     runtime.db.tabelle.profiles.push({id:"existing",company_id:"a",deleted_at:null,first_name:"Mario",last_name:"Rossi",email:"conservata@example.invalid"});
@@ -56,9 +57,18 @@ describe("Creazione cliente importato: gestore server reale",()=>{
   it("azienda non autorizzata: blocca prima della verifica fattura",async()=>{
     runtime.access=false;expect((await crea()).status).toBe(403);expect(runtime.create).not.toHaveBeenCalled();expect(runtime.db.rpcChiamate).toHaveLength(0);
   });
-  it("account shadow concorrente già registrato: niente seconda anagrafica",async()=>{
-    runtime.create.mockResolvedValue({data:{user:null},error:{message:"already been registered",code:"email_exists"}});
-    const r=await crea();expect(r.status).toBe(400);expect(r.data.error).toContain("collegamenti");expect(runtime.db.scritture).toHaveLength(0);
+  it("lo stesso intestatario importato ha un UUID stabile senza dipendere da Auth",async()=>{
+    await crea();const id=runtime.db.tabelle.profiles.find(p=>p.id!=="actor")!.id;
+    runtime.db.tabelle.profiles=runtime.db.tabelle.profiles.filter(p=>p.id==="actor");
+    await crea();expect(runtime.db.tabelle.profiles.find(p=>p.id!=="actor")!.id).toBe(id);
+    expect(runtime.create).not.toHaveBeenCalled();
+  });
+  it("creazione ordinaria col portale spento non genera account o password",async()=>{
+    runtime.db.tabelle.companies[0].customer_portal_enabled=false;
+    const r=await crea({imported_invoice_id:null});expect(r.status).toBe(200);
+    expect(r.data.password).toBeNull();expect(r.data.portal_account_created).toBe(false);
+    expect(runtime.create).not.toHaveBeenCalled();expect(runtime.email).not.toHaveBeenCalled();
+    expect(runtime.db.tabelle.profiles.find(p=>p.id!=="actor")).toMatchObject({portal_disabled:true,is_blocked:true,email:"mario@example.invalid"});
   });
   it("creazione ordinaria senza fattura conserva il flusso portale esistente",async()=>{
     const r=await crea({imported_invoice_id:null});expect(r.status).toBe(200);expect(r.data.portal_account_created).toBe(true);

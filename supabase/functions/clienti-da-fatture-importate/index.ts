@@ -8,7 +8,7 @@
  * il cliente con portale spento (_shared/clienteOperativoDaFattura.ts) e si
  * timbra l'esito, così nessuna fattura si riguarda due volte.
  *
- * A lotti: ogni cliente nuovo è un account auth da creare, una chiamata HTTP.
+ * A lotti: i nuovi clienti sono solo anagrafiche, senza account Auth.
  * FATTURE_PER_GIRO tiene il giro dentro pochi secondi di CPU; lo storico si
  * smaltisce in qualche ora, le fatture nuove al giro dopo l'import.
  * Risponde subito a pg_net e finisce in background (CLAUDE.md, «la coda è una sola»).

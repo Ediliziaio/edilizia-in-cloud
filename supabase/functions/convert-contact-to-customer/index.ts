@@ -96,28 +96,17 @@ Deno.serve(async (req) => {
     if (existing)
       return errorResponse(`Esiste già un cliente con email ${trimEmail}.`, 409);
 
-    // Step A — Crea auth user
-    const password = generateSecurePassword(portaleAttivo ? 12 : 32);
-    const { data: authUser, error: authErr } = await supabaseAdmin
-      .auth.admin.createUser({
-        email: trimEmail,
-        password,
-        email_confirm: true,
+    // Senza portale basta l'anagrafica: nessun account Auth né password.
+    let newUserId = crypto.randomUUID();
+    const password = portaleAttivo ? generateSecurePassword(12) : undefined;
+    if (portaleAttivo) {
+      const { data: authUser, error: authErr } = await supabaseAdmin.auth.admin.createUser({
+        email: trimEmail, password, email_confirm: true,
         user_metadata: { first_name: trimFirst, last_name: trimLast },
       });
-
-    if (authErr) {
-      const isdup =
-        authErr.message?.includes("already been registered") ||
-        (authErr as { code?: string }).code === "email_exists";
-      return errorResponse(
-        isdup
-          ? `Email ${trimEmail} già registrata nel sistema.`
-          : authErr.message,
-      );
+      if (authErr) return errorResponse("Impossibile creare l'accesso al portale: " + authErr.message);
+      newUserId = authUser.user.id;
     }
-
-    const newUserId = authUser.user.id;
 
     // Step B — Crea profile con marketing_contact_id
     // Insert con TUTTI i campi profili compatibili. Quelli non passati
@@ -153,7 +142,7 @@ Deno.serve(async (req) => {
       });
 
     if (profileErr) {
-      await supabaseAdmin.auth.admin.deleteUser(newUserId);
+      if (portaleAttivo) await supabaseAdmin.auth.admin.deleteUser(newUserId);
       return errorResponse("Errore creazione profilo: " + profileErr.message, 500);
     }
 
@@ -164,7 +153,7 @@ Deno.serve(async (req) => {
 
     if (roleErr) {
       await supabaseAdmin.from("profiles").delete().eq("id", newUserId);
-      await supabaseAdmin.auth.admin.deleteUser(newUserId);
+      if (portaleAttivo) await supabaseAdmin.auth.admin.deleteUser(newUserId);
       return errorResponse("Errore ruolo: " + roleErr.message, 500);
     }
 

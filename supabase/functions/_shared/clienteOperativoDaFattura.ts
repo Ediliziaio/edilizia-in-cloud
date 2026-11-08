@@ -8,15 +8,15 @@
 //   1. riconcilia_cliente_emessa_importata(apply) crea o completa l'anagrafica
 //      fiscale e dice se il cliente esiste già (per P.IVA/CF, contando TUTTI i
 //      candidati: con più di uno risponde «da_verificare» e qui ci si ferma);
-//   2. se manca, si crea il cliente con portale spento e account bloccato.
-//      L'email di accesso è tecnica e deterministica (azienda + P.IVA/CF): due
-//      giri sovrapposti finiscono su «email già registrata», non su un doppione;
+//   2. se manca, si crea solo l’anagrafica con portale spento, senza account Auth.
+//      La chiave di import è tecnica e deterministica (azienda + P.IVA/CF): due
+//      giri sovrapposti finiscono sulla stessa chiave primaria, non su un doppione;
 //   3. di nuovo la riconciliazione, che lega l'anagrafica fiscale al cliente.
 // Nessuna email, nessun invito, nessun contatto CRM.
 
 // deno-lint-ignore-file no-explicit-any
 import { sanitizeCustomerInput } from "./customerDataSanitizer.ts";
-import { generateSecurePassword } from "./securePassword.ts";
+import { idAnagraficaCliente } from "./idAnagraficaCliente.ts";
 import { emailTecnicaClienteImportato } from "./clienteDaEmessaImportata.ts";
 
 export type EsitoClienteDaFattura =
@@ -127,22 +127,9 @@ export async function clienteDaFatturaImportata(
     const cognome = azienda ? intestatario.slice(0, 200) : (pulito.last_name || "—");
     const emailVera = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pulito.email || "") ? pulito.email : null;
 
-    const { data: utente, error: errUtente } = await supabase.auth.admin.createUser({
-      email: emailAccesso,
-      password: generateSecurePassword(32),
-      email_confirm: true,
-      user_metadata: { first_name: nome, last_name: cognome },
-    });
-    if (errUtente) {
-      // Un altro giro l'ha appena creato: si ricollega invece di fallire.
-      const giaCreato = errUtente.message?.includes("already been registered") || (errUtente as any).code === "email_exists";
-      if (!giaCreato) return { esito: "errore", motivo: `Account: ${errUtente.message}` };
-      const dopo = await riconcilia(supabase, companyId, fattura.id);
-      return dopo.status === "ok" && dopo.customer_id
-        ? { esito: "collegato", customer_id: dopo.customer_id, creato: false }
-        : { esito: "da_verificare", motivo: dopo.motivo || "Cliente già in creazione" };
-    }
-    const id = utente.user.id as string;
+    // UUID deterministico: due import concorrenti collidono sulla PK dell'anagrafica,
+    // senza creare un utente, una password o un'identità di autenticazione.
+    const id = await idAnagraficaCliente(emailAccesso);
 
     const testo = (v: string | null | undefined, max: number) => {
       const s = (v ?? "").replace(/\s+/g, " ").trim().slice(0, max);
@@ -152,7 +139,7 @@ export async function clienteDaFatturaImportata(
       id,
       first_name: nome,
       last_name: cognome,
-      // L'email vera della fattura, se c'è, è quella da mostrare; quella tecnica serve solo all'account.
+      // L'email vera della fattura, se c'è, è quella da mostrare; quella tecnica identifica solo l'anagrafica senza email.
       email: emailVera || emailAccesso,
       phone: pulito.phone,
       address: pulito.address,
@@ -173,7 +160,12 @@ export async function clienteDaFatturaImportata(
       is_blocked: true,
     });
     if (errProfilo) {
-      await supabase.auth.admin.deleteUser(id);
+      if (errProfilo.code === "23505") {
+        const dopo = await riconcilia(supabase, companyId, fattura.id);
+        return dopo.status === "ok" && dopo.customer_id
+          ? { esito: "collegato", customer_id: dopo.customer_id, creato: false }
+          : { esito: "da_verificare", motivo: "Cliente già in creazione" };
+      }
       // Un dato fiscale che il database rifiuta («Codice fiscale non valido»,
       // «Partita IVA non valida») non cambia riprovando: la fattura si segna
       // da verificare. Come «errore» veniva ripresa ogni 5 minuti, per sempre,
@@ -186,7 +178,6 @@ export async function clienteDaFatturaImportata(
     const { error: errRuolo } = await supabase.from("user_roles").insert({ user_id: id, role: "customer" });
     if (errRuolo) {
       await supabase.from("profiles").delete().eq("id", id);
-      await supabase.auth.admin.deleteUser(id);
       return { esito: "errore", motivo: `Ruolo: ${errRuolo.message}` };
     }
 

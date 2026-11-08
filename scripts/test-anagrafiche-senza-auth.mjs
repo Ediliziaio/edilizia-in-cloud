@@ -1,0 +1,18 @@
+import { PGlite } from '@electric-sql/pglite';
+import {readFileSync} from 'node:fs';
+import assert from 'node:assert/strict';
+const db=new PGlite();
+await db.exec(`create role anon;create role authenticated;create schema auth;create table auth.users(id uuid primary key);create table public.profiles(id uuid primary key references auth.users(id) on delete cascade,is_blocked boolean,portal_disabled boolean);create table public.user_roles(id serial primary key,user_id uuid references auth.users(id) on delete cascade,role text,unique(user_id,role));`);
+const sql=readFileSync('supabase/migrations/20281231130000_anagrafiche_clienti_senza_auth.sql','utf8');
+await db.exec('begin;'+sql+'commit;');
+await db.exec('begin;'+sql+'commit;');
+const client='00000000-0000-4000-8000-000000000001',staff='00000000-0000-4000-8000-000000000002',oldClient='00000000-0000-4000-8000-000000000003';
+await db.exec(`insert into profiles values('${client}',true,true);insert into user_roles(user_id,role)values('${client}','customer');`);
+await assert.rejects(db.exec(`update profiles set is_blocked=false where id='${client}'`));
+await assert.rejects(db.exec(`insert into user_roles(user_id,role)values('${client}','company_admin')`));
+await assert.rejects(db.exec(`insert into profiles values('00000000-0000-4000-8000-000000000004',false,false)`));
+await db.exec(`insert into auth.users values('${staff}'),('${oldClient}');insert into profiles values('${staff}',false,false),('${oldClient}',true,true);insert into user_roles(user_id,role)values('${staff}','company_admin'),('${oldClient}','customer');delete from auth.users where id in('${staff}','${oldClient}');`);
+assert.equal((await db.query('select * from profiles')).rows.length,2);
+assert.equal((await db.query('select * from user_roles')).rows.length,2);
+console.log('PASS: migration idempotent; no-auth client saved; login and staff escalation denied; deleting customer Auth preserves profile and role; deleting staff Auth preserves former cascade.');
+await db.close();

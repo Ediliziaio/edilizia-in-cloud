@@ -1,3 +1,4 @@
+import { idAnagraficaCliente } from "../_shared/idAnagraficaCliente.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { requireAuth, isSuperAdminEmailAllowed, resolveUserEmail, aziendaAccessibile } from "../_shared/auth.ts";
@@ -236,29 +237,19 @@ Deno.serve(async (req) => {
     }
     const trimmedEmail = rawEmail || importedAuthEmail || `cliente-${crypto.randomUUID()}@${INTERNAL_NO_EMAIL_DOMAIN}`;
 
-    // --- Password generation ---
-    // Anche quando il portale è disabilitato creiamo un account auth shadow
-    // (profiles.id ha FK a auth.users). La password è random non recuperabile
-    // e l'account sarà immediatamente bloccato.
-    const password = generateSecurePassword(shouldCreatePortal ? 12 : 32);
-
-    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: importedAuthEmail || trimmedEmail,
-      password,
-      email_confirm: true,
-      user_metadata: { first_name: safeFirstName, last_name: safeLastName },
-    });
-
-    if (authError) {
-      const isEmailExists = authError.message?.includes("already been registered") ||
-                            (authError as { code?: string }).code === "email_exists";
-      const errorMessage = isEmailExists
-        ? importedInvoiceId ? "Questo cliente è già in creazione o esiste: riapri i collegamenti della fattura prima di riprovare." : "Esiste già un utente con questo indirizzo email. Usa un'email diversa."
-        : messaggioErroreAuth(authError);
-      return errorResponse(errorMessage);
+    // L'anagrafica non è un account: Auth si usa solo per un portale esplicitamente attivo.
+    let newUserId = importedAuthEmail
+      ? await idAnagraficaCliente(importedAuthEmail)
+      : crypto.randomUUID();
+    const password = shouldCreatePortal ? generateSecurePassword(12) : undefined;
+    if (shouldCreatePortal) {
+      const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: trimmedEmail, password, email_confirm: true,
+        user_metadata: { first_name: safeFirstName, last_name: safeLastName },
+      });
+      if (authError) return errorResponse(messaggioErroreAuth(authError));
+      newUserId = authUser.user.id;
     }
-
-    const newUserId = authUser.user.id;
 
     const { error: profileError } = await supabaseAdmin.from("profiles").insert({
       id: newUserId,
@@ -285,12 +276,15 @@ Deno.serve(async (req) => {
       site_province: cleanTxt(site_province, 10)?.toUpperCase() ?? null,
       // Flag anagrafica-only: cliente creato senza accesso al portale
       portal_disabled: !shouldCreatePortal,
-      // Se portal disabilitato, blocchiamo subito l'account auth per chiarezza
+      // L'anagrafica senza portale resta priva di accesso.
       is_blocked: !shouldCreatePortal,
     } as never);
 
     if (profileError) {
-      await supabaseAdmin.auth.admin.deleteUser(newUserId);
+      if (!shouldCreatePortal && profileError.code === "23505") {
+        return errorResponse("Cliente già in creazione o esistente: riapri i collegamenti prima di riprovare.", 409);
+      }
+      if (shouldCreatePortal) await supabaseAdmin.auth.admin.deleteUser(newUserId);
       return errorResponse(`Creazione profilo fallita: ${profileError.message}`, 500);
     }
 
@@ -301,7 +295,7 @@ Deno.serve(async (req) => {
 
     if (roleError) {
       await supabaseAdmin.from("profiles").delete().eq("id", newUserId);
-      await supabaseAdmin.auth.admin.deleteUser(newUserId);
+      if (shouldCreatePortal) await supabaseAdmin.auth.admin.deleteUser(newUserId);
       return errorResponse("Failed to assign role", 500);
     }
 
