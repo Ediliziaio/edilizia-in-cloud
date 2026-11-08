@@ -17,8 +17,8 @@
 //
 // Modulo puro: nessun import da React/Supabase, così è testabile a secco.
 // ============================================================================
-import { arrotondaCentesimi } from "@/lib/numberUtils";
-import { DETRAZIONI_EDILIZIE, type DetrazionePreset } from "@/lib/fatturazione/detrazioniEdilizie";
+import { arrotondaCentesimi } from "../numberUtils.ts";
+import { DETRAZIONI_EDILIZIE, type DetrazionePreset } from "../../../supabase/functions/_shared/detrazioniEdilizie.ts";
 
 /**
  * Ritenuta d'acconto trattenuta dalla banca sui bonifici parlanti.

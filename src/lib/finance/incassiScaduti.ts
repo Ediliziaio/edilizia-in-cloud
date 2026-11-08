@@ -15,7 +15,7 @@
  * scaduti da sollecitare», e la divisione per età che usa il Cruscotto: tutti
  * e due leggono da qui, così il numero è lo stesso per costruzione.
  */
-import type { ForecastMovement } from "@/lib/finance/forecastLedger";
+import type { ForecastMovement } from "./forecastLedger.ts";
 
 /** Gli incassi con una data già passata, esclusi i possibili doppioni. */
 export function incassiScaduti(movements: ForecastMovement[], today: string): ForecastMovement[] {

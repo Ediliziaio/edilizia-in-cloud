@@ -58,3 +58,31 @@ describe("le pagine leggono la stessa funzione", () => {
     expect(inCima).toContain("valore={formatCurrency(scadutoEuro)}");
   });
 });
+
+describe("Silvio e il brief del mattino usano la stessa regola (08/11/2026)", () => {
+  it("lo strumento dello scaduto passa dal Previsionale, non dalle sole rate", () => {
+    const tools = leggi("supabase/functions/_shared/silvioTools.ts");
+    expect(tools).toContain('import { scadutoPrevisionale } from "./scadutoPrevisionale.ts";');
+    expect(tools).toContain("executor: async (_args, ctx) => scadutoPrevisionale(ctx.supabase, ctx.companyId)");
+    expect(tools).toContain("safe(scadutoPrevisionale(ctx.supabase, c))");
+    const condiviso = leggi("supabase/functions/_shared/scadutoPrevisionale.ts");
+    expect(condiviso).toContain('from "../../../src/lib/finance/caricaPrevisionale.ts"');
+    expect(condiviso).toContain('from "../../../src/lib/finance/incassiScaduti.ts"');
+  });
+
+  it("il caricamento condiviso si importa da Deno: percorsi relativi con l'estensione", () => {
+    for (const f of ["src/lib/finance/caricaPrevisionale.ts", "src/lib/finance/incassiScaduti.ts", "src/lib/orders/bonusFiscali.ts"]) {
+      const imports = [...leggi(f).matchAll(/from\s+"([^"]+)"/g)].map((m) => m[1]);
+      for (const i of imports) {
+        expect(i, `${f} → ${i}`).toMatch(/^\.{1,2}\/.*\.ts$/);
+      }
+    }
+  });
+
+  it("le rate del Previsionale rispondono anche al servizio (20290108150000)", () => {
+    const sql = leggi("supabase/migrations/20290108150000_rate_previsionale_dal_servizio.sql");
+    expect((sql.match(/if not public\.ai_is_service_role\(\)/g) ?? []).length).toBe(2);
+    expect(sql).toContain("revoke all on function public.cruscotto_rate_da_incassare(uuid) from public, anon;");
+    expect(sql).toContain("revoke all on function public.cruscotto_rate_incassi(uuid) from public, anon;");
+  });
+});
