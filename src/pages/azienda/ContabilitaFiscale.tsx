@@ -5,6 +5,7 @@ import { useLiquidazioneIVA } from "@/hooks/useLiquidazioneIVA";
 import { useFiscalPeriod } from "@/hooks/useFiscalPeriod";
 import { F24Generator } from "@/components/contabilita/F24Generator";
 import { LiquidazioneIVA } from "@/components/contabilita/LiquidazioneIVA";
+import { ImpostazioniIVA } from "@/components/contabilita/ImpostazioniIVA";
 import {
   FiscalLegacyRedirect,
   FiscalStandaloneWorkspace,
@@ -39,7 +40,9 @@ function Content() {
     iva = useLiquidazioneIVA();
   const requestedView = p.params.get("vista");
   const view =
-    requestedView === "iva" || requestedView === "ritenute_bancarie"
+    requestedView === "iva" ||
+    requestedView === "ritenute_bancarie" ||
+    requestedView === "impostazioni_iva"
       ? requestedView
       : "f24";
   const { selected: periodEntries, unassigned } = partitionFiscalMonths(
@@ -78,6 +81,12 @@ function Content() {
         >
           Ritenute bancarie
         </Button>
+        <Button
+          variant={view === "impostazioni_iva" ? "default" : "outline"}
+          onClick={() => p.set({ vista: "impostazioni_iva" })}
+        >
+          Impostazioni IVA
+        </Button>
       </div>
       {p.tipo === "mensile" && (
         <FiscalPeriodControl
@@ -93,6 +102,8 @@ function Content() {
         >
           <RitenuteBonificiPanel />
         </Suspense>
+      ) : view === "impostazioni_iva" ? (
+        <ImpostazioniIVA anno={p.anno} />
       ) : view === "iva" ? (
         <LiquidazioneIVA {...iva} />
       ) : (

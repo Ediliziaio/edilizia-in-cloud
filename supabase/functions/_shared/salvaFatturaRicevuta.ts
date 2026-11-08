@@ -57,26 +57,26 @@ type Client = any;
 
 async function cercaDoppione(supabase: Client, f: FatturaDaSalvare, idSdi: string | null) {
   if (f.openapiId) {
-    const { data } = await supabase.from("fatture_ricevute").select("id, openapi_id, xml_raw, note")
+    const { data } = await supabase.from("fatture_ricevute").select("id, openapi_id, xml_raw, note, data_ricezione_sdi")
       .eq("company_id", f.companyId).eq("openapi_id", f.openapiId).limit(1).maybeSingle();
-    if (data?.id) return data as { id: string; openapi_id: string | null; xml_raw: string | null; note: string | null };
+    if (data?.id) return data as { id: string; openapi_id: string | null; xml_raw: string | null; note: string | null; data_ricezione_sdi: string | null };
   }
   if (idSdi) {
-    let query = supabase.from("fatture_ricevute").select("id, openapi_id, xml_raw, note")
+    let query = supabase.from("fatture_ricevute").select("id, openapi_id, xml_raw, note, data_ricezione_sdi")
       .eq("company_id", f.companyId).eq("sdi_id_trasmissione", idSdi);
     if (f.indiceCorpo !== undefined) query = query.eq("numero_fattura", f.letta.numero_fattura).eq("data_fattura", f.letta.data_fattura);
     const { data } = await query.limit(1).maybeSingle();
-    if (data?.id) return data as { id: string; openapi_id: string | null; xml_raw: string | null; note: string | null };
+    if (data?.id) return data as { id: string; openapi_id: string | null; xml_raw: string | null; note: string | null; data_ricezione_sdi: string | null };
   }
   const l = f.letta;
   if (l.cedente_piva && l.numero_fattura && l.data_fattura) {
-    const { data } = await supabase.from("fatture_ricevute").select("id, openapi_id, xml_raw, note")
+    const { data } = await supabase.from("fatture_ricevute").select("id, openapi_id, xml_raw, note, data_ricezione_sdi")
       .eq("company_id", f.companyId)
       .eq("cedente_piva", l.cedente_piva)
       .eq("numero_fattura", l.numero_fattura)
       .eq("data_fattura", l.data_fattura)
       .limit(1).maybeSingle();
-    if (data?.id) return data as { id: string; openapi_id: string | null; xml_raw: string | null; note: string | null };
+    if (data?.id) return data as { id: string; openapi_id: string | null; xml_raw: string | null; note: string | null; data_ricezione_sdi: string | null };
   }
   return null;
 }
@@ -118,6 +118,15 @@ export async function salvaFatturaRicevuta(supabase: Client, f: FatturaDaSalvare
     // riscrive (il contenuto di una fattura ricevuta non si modifica).
     if (f.openapiId && !doppione.openapi_id) {
       await supabase.from("fatture_ricevute").update({ openapi_id: f.openapiId }).eq("id", doppione.id);
+    }
+    // Entrata prima da un gestionale o da un caricamento, senza data di consegna,
+    // e ora arrivata dallo SDI: la data dello SDI decide il periodo IVA, si prende.
+    // Se sposta l'IVA da un mese già chiuso il database la rifiuta: resta quella
+    // di prima, con un avviso nei log.
+    if (f.ricevutaIl && !doppione.data_ricezione_sdi) {
+      const { error: erroreData } = await supabase.from("fatture_ricevute")
+        .update({ data_ricezione_sdi: f.ricevutaIl }).eq("id", doppione.id).is("data_ricezione_sdi", null);
+      if (erroreData) console.warn(`[salvaFatturaRicevuta] data SDI ${doppione.id}: ${erroreData.message}`);
     }
     // Eccezione: una fattura caricata coi soli dati (senza xml_raw: il database
     // permette di scriverlo una volta sola, mai di cambiarlo) si completa col file

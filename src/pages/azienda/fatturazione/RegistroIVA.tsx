@@ -10,6 +10,7 @@ import {
   fiscalTotals,
   fiscalDocumentIssues,
   SALES_TYPES,
+  fiscalReceivedLabel,
   type FiscalDocument,
 } from "@/lib/fatturazione/fiscalWorkspace";
 import { formatCurrency } from "@/lib/formatters";
@@ -24,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useLiquidazioneIVA } from "@/hooks/useLiquidazioneIVA";
 import { LiquidazioneIVA } from "@/components/contabilita/LiquidazioneIVA";
+import { RicezioneAcquisti } from "@/components/fatturazione/RicezioneAcquisti";
 import { fiscalDate, fiscalVatGroups } from "@/lib/fatturazione/fiscalInsights";
 
 export default function RegistroIVA({
@@ -78,7 +80,7 @@ function RegistroContent() {
         supabase
           .from("fatture_ricevute_periodo_iva" as never)
           .select(
-            "id,numero_fattura,data_fattura,data_ricezione_sdi,data_detrazione,tipo_documento,cedente_ragione_sociale,imponibile_totale,iva_totale,totale_documento,riepilogo_iva,aliquota_reverse_charge",
+            "id,numero_fattura,data_fattura,data_ricezione_sdi,data_detrazione,tipo_documento,cedente_ragione_sociale,imponibile_totale,iva_totale,totale_documento,riepilogo_iva,aliquota_reverse_charge,ricezione_dichiarata_il,ricezione_origine,integrazione",
           )
           .eq("company_id", company!)
           .gte("data_detrazione", p.dal)
@@ -140,7 +142,8 @@ function RegistroContent() {
       [
         "Data documento",
         "Data periodo",
-        "Ricezione SDI",
+        "Ricezione",
+        "Origine ricezione",
         "Numero",
         "Controparte",
         "Imponibile",
@@ -153,7 +156,8 @@ function RegistroContent() {
       ...filtered.map((r) => [
         r.date,
         r.periodDate,
-        r.received || "",
+        r.received?.slice(0, 10) || "",
+        r.receivedOrigin || "",
         r.number,
         r.counterparty,
         r.base === null ? "" : (r.base / 100).toFixed(2).replace(".", ","),
@@ -362,6 +366,9 @@ function RegistroContent() {
           )}
         </div>
       </details>
+      {side !== "vendite" && (
+        <RicezioneAcquisti company={company} acquisti={purchases.data || []} />
+      )}
       <div className="overflow-x-auto rounded-xl border bg-white">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50">
@@ -402,7 +409,7 @@ function RegistroContent() {
                   )}
                   {r.side === "acquisti" && (
                     <p className="text-xs text-muted-foreground">
-                      Ricezione {fiscalDate(r.received, "non documentata")}
+                      {fiscalReceivedLabel(r)}
                     </p>
                   )}
                 </td>
@@ -416,7 +423,9 @@ function RegistroContent() {
                   </p>
                 </td>
                 <td className="max-w-xs p-3 text-xs text-muted-foreground">
-                  {r.synthetic
+                  {r.synthetic && r.id.startsWith("int-v:")
+                    ? "Integrazione ricevuta · la stessa IVA è anche a debito (conteggiata nel prospetto)"
+                    : r.synthetic
                     ? "Proiezione RC · non contabilizzata"
                     : r.issues.length
                       ? r.issues.join(" · ")

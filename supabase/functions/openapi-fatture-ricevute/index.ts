@@ -198,6 +198,8 @@ async function importaUna(acc: Accesso, cfg: Config, id: string, giaLetta?: unkn
   const idSdi = identificativoSdi(fattura);
   // Tutte le fatture del file (lotti, 01/11/2026): prima entrava solo la prima.
   const xmlLetto = xml;
+  // ricevutaIl: anche sui doppioni già entrati da un gestionale senza data, la
+  // data SDI viene presa (salvaFatturaRicevuta, 07/11/2026): decide il periodo IVA.
   const salvata = await salvaFattureDelFile(supabase, {
     companyId: cfg.company_id,
     xml,

@@ -217,6 +217,12 @@ export interface FiscalDocument {
   data_fattura?: string;
   data_detrazione?: string;
   data_ricezione_sdi?: string | null;
+  /** Data dichiarata da chi tiene la contabilità, per le importate senza data SDI. */
+  ricezione_dichiarata_il?: string | null;
+  /** Da dove viene la data di ricezione: vista fatture_ricevute_periodo_iva. */
+  ricezione_origine?: RicezioneOrigine | null;
+  /** Integrazione o autofattura ricevuta (TD16-TD19, self_invoice): IVA anche a debito. */
+  integrazione?: boolean | null;
   cliente_snapshot?: {
     ragione_sociale?: string;
     nome?: string;
@@ -231,12 +237,14 @@ export interface FiscalDocument {
   sdi_stato?: string | null;
   aliquota_reverse_charge?: unknown;
 }
+export type RicezioneOrigine = "sdi" | "dichiarata" | "presunta" | "da_verificare";
 export interface FiscalRow extends FiscalBucket {
   id: string;
   documentId: string;
   date: string;
   periodDate: string;
   received: string | null;
+  receivedOrigin: RicezioneOrigine | null;
   number: string;
   counterparty: string;
   side: "vendite" | "acquisti";
@@ -269,8 +277,20 @@ export function fiscalRows(
       side === "vendite"
         ? doc.tipo === "nota_credito"
         : /^(TD04)$|CREDIT/i.test(doc.tipo_documento || "");
+    // Come il prospetto del server: ogni riga tiene il suo segno (uno sconto resta
+    // negativo); la nota di credito salvata in positivo si inverte, quella già
+    // salvata in negativo resta com'è. Senza totale, come prima: sempre negativa.
+    const total = fiscalNumber(doc.totale_documento);
     const sign = (n: number | null) =>
-      n === null ? null : credit ? -Math.abs(n) : n;
+      n === null
+        ? null
+        : !credit
+          ? n
+          : total === null
+            ? -Math.abs(n)
+            : total > 0
+              ? -n
+              : n;
     const name =
       side === "vendite"
         ? doc.cliente_snapshot?.ragione_sociale ||
@@ -284,7 +304,8 @@ export function fiscalRows(
       documentId: doc.id,
       date,
       periodDate: side === "acquisti" ? doc.data_detrazione || date : date,
-      received: doc.data_ricezione_sdi || null,
+      received: doc.data_ricezione_sdi || doc.ricezione_dichiarata_il || null,
+      receivedOrigin: side === "acquisti" ? (doc.ricezione_origine ?? null) : null,
       number: doc.numero || doc.numero_fattura || "Numero non disponibile",
       counterparty: name || "Controparte da verificare",
       side,
@@ -307,8 +328,15 @@ export function fiscalRows(
         ];
     buckets.forEach((b, i) => {
       const issues = [...b.issues];
-      if (side === "acquisti" && !common.received)
-        issues.push("Ricezione SDI non documentata: periodo da verificare");
+      // Senza data SDI la si presume uguale a quella della fattura: vale quasi
+      // sempre (consegna entro il 15 del mese dopo). Fa eccezione fine dicembre,
+      // che può slittare all'anno dopo: quella è da verificare.
+      if (side === "acquisti" && !common.received) {
+        if (common.receivedOrigin === "da_verificare")
+          issues.push("Ricezione da verificare: fattura di fine dicembre, se arrivata a gennaio va nell'anno dopo");
+        else if (common.receivedOrigin !== "presunta")
+          issues.push("Ricezione SDI non documentata: periodo da verificare");
+      }
       if (
         side === "vendite" &&
         doc.sdi_stato &&
@@ -326,6 +354,19 @@ export function fiscalRows(
         id: `${side}:${doc.id}:${i}`,
       };
       out.push(row);
+      // Integrazione o autofattura ricevuta: la stessa IVA è anche a debito. Il
+      // prospetto del server la conta così; qui è una proiezione sul registro vendite.
+      if (side === "acquisti" && doc.integrazione) {
+        out.push({
+          ...row,
+          side: "vendite",
+          base: 0,
+          synthetic: true,
+          nature: `${b.nature ? b.nature + " · " : ""}integrazione: IVA anche a debito`,
+          id: `int-v:${doc.id}:${i}`,
+        });
+        return;
+      }
       if (side === "acquisti" && b.nature.toUpperCase().startsWith("N6")) {
         const rate = fiscalNumber(doc.aliquota_reverse_charge);
         if (rate === null || rate <= 0 || rate > 100 || b.base === null) {
@@ -369,4 +410,21 @@ export function fiscalTotals(rows: FiscalRow[]) {
     issues: rows.flatMap((r) => r.issues),
     count: new Set(documents.map((r) => r.documentId)).size,
   };
+}
+
+/** Come dire all'utente da dove viene la data di ricezione di un acquisto. */
+export function fiscalReceivedLabel(row: Pick<FiscalRow, "received" | "receivedOrigin">): string {
+  const d = row.received ? row.received.slice(0, 10).split("-").reverse().join("/") : "";
+  switch (row.receivedOrigin) {
+    case "sdi":
+      return `Ricezione ${d} · dallo SDI`;
+    case "dichiarata":
+      return `Ricezione ${d} · dichiarata`;
+    case "da_verificare":
+      return "Ricezione da verificare: fine dicembre, potrebbe andare nell'anno dopo";
+    case "presunta":
+      return "Ricezione non nota · presunta alla data della fattura";
+    default:
+      return d ? `Ricezione ${d}` : "Ricezione non documentata";
+  }
 }

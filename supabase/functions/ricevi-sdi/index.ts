@@ -110,7 +110,10 @@ Deno.serve(async (req) => {
       }
 
       // Doppione (id SDI o fornitore + numero + data), file, riga: una strada sola.
-      const esito = await salvaFattureDelFile(supabase, { companyId: azienda.company_id, xml: xmlBody }, parsed,
+      // Il webhook arriva quando lo SDI consegna: quell'istante è la data di
+      // ricezione che decide il periodo di detrazione dell'IVA. Il caricamento a
+      // mano, più sotto, non la conosce e la lascia vuota.
+      const esito = await salvaFattureDelFile(supabase, { companyId: azienda.company_id, xml: xmlBody, ricevutaIl: new Date().toISOString() }, parsed,
         (i) => leggiFatturaRicevuta(xmlBody, lettore(), i));
       if (esito.errore) throw new Error(esito.errore);
       if (esito.doppione) {
