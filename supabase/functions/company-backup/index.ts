@@ -50,7 +50,9 @@ import {
   BLOCCO_INIZIALE,
   BLOCCO_MASSIMO,
   limiteDopoErrore,
+  MASSIMO_CHIAMATE,
   prossimoLimite,
+  TETTO_TESTO_PER_CHIAMATA,
   vaABlocchi,
 } from "../_shared/backupBlocchi.ts";
 import { BYTE_PER_GIRO, comprimiFile, type EsitoCompressione, type FileDaComprimere } from "../_shared/backupCompressi.ts";
@@ -141,14 +143,31 @@ async function giroDiCompressione(admin: any, azienda: string | null): Promise<E
  * Il backup di un'azienda a blocchi: l'area super admin, e dal 20/09 ogni
  * azienda troppo grande per il dump unico. Scrive sempre l'indice, anche se si
  * ferma a metà.
+ *
+ * Una chiamata scrive al massimo TETTO_TESTO_PER_CHIAMATA: dal 27/09 al 08/11 l'area super admin (480 MB) finiva
+ * la CPU dopo due minuti, senza arrivare all'indice. Ora a metà strada l'indice dice dov'è arrivato (`ripresa`,
+ * `in_corso`) e la chiamata dopo riparte da lì; se una chiamata muore, resta un indice con `completo: false`.
  */
-async function backupABlocchi(admin: Admin, azienda: Record<string, unknown>): Promise<Record<string, unknown>> {
+async function backupABlocchi(admin: Admin, azienda: Record<string, unknown>, riprendi: string | null = null): Promise<Record<string, unknown>> {
   const inizio = Date.now();
   const id = String(azienda.id);
-  const data = new Date().toISOString().slice(0, 10);
+  const data = riprendi ?? new Date().toISOString().slice(0, 10);
   const base = `${id}/${data}`;
-  const tabelle: Array<{ tabella: string; righe_attese: number; righe_salvate: number; file: string[]; errore?: string }> = [];
+  type RigaTabella = { tabella: string; righe_attese: number; righe_salvate: number; file: string[]; errore?: string };
+  type Voce = { tabella: string; righe: number };
+  type Ripresa = { data: string; elenco: Voce[]; tabella: number; n: number; dopo: string | null; limite: number; chiamata: number };
+  let precedente: { tabelle: RigaTabella[]; durata_s: number; ripresa: Ripresa } | null = null;
+  if (riprendi) {
+    const { data: file, error: errIndice } = await admin.storage.from(BUCKET).download(`${base}/indice.json`);
+    if (errIndice || !file) throw new Error(`ripresa ${base}: indice non trovato`);
+    precedente = JSON.parse(await file.text());
+    if (!precedente?.ripresa) throw new Error(`ripresa ${base}: backup già chiuso`);
+  }
+  const tabelle: RigaTabella[] = precedente?.tabelle ?? [];
+  const chiamata = precedente?.ripresa.chiamata ?? 1;
   let completo = true;
+  let testoScritto = 0;
+  let sospeso: Omit<Ripresa, "data" | "elenco" | "chiamata"> | null = null;
 
   const url = Deno.env.get("SUPABASE_URL")!;
   const chiave = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -163,21 +182,35 @@ async function backupABlocchi(admin: Admin, azienda: Record<string, unknown>): P
   };
   const carica = (percorso: string, contenuto: unknown) => caricaTesto(percorso, JSON.stringify(contenuto));
 
-  await carica(`${base}/azienda.json`, azienda);
+  let voci: Voce[];
+  if (precedente) {
+    voci = precedente.ripresa.elenco;
+  } else {
+    await carica(`${base}/azienda.json`, azienda);
+    const { data: elenco, error: errElenco } = await admin.rpc("admin_tabelle_con_dati", { p_company_id: id });
+    if (errElenco) throw new Error(`elenco tabelle: ${errElenco.message}`);
+    voci = (elenco ?? []) as Voce[];
+  }
 
-  const { data: elenco, error: errElenco } = await admin.rpc("admin_tabelle_con_dati", { p_company_id: id });
-  if (errElenco) throw new Error(`elenco tabelle: ${errElenco.message}`);
-
-  for (const voce of (elenco ?? []) as Array<{ tabella: string; righe: number }>) {
-    const riga = { tabella: voce.tabella, righe_attese: Number(voce.righe), righe_salvate: 0, file: [] as string[] } as
-      { tabella: string; righe_attese: number; righe_salvate: number; file: string[]; errore?: string };
-    tabelle.push(riga);
-    let dopo: string | null = null;
+  const primaTabella = precedente?.ripresa.tabella ?? 0;
+  for (let t = primaTabella; t < voci.length; t++) {
+    const voce = voci[t];
+    // La tabella su cui ci si era fermati riparte dal blocco giusto, con la sua riga dell'indice.
+    const daRiprendere = precedente !== null && t === primaTabella;
+    let riga = daRiprendere ? tabelle.find((x) => x.tabella === voce.tabella) : undefined;
+    if (!riga) {
+      riga = { tabella: voce.tabella, righe_attese: Number(voce.righe), righe_salvate: 0, file: [] };
+      tabelle.push(riga);
+    }
+    let dopo: string | null = daRiprendere ? precedente!.ripresa.dopo : null;
     // Si parte bassi e ci si regola sul peso dell'ultimo blocco.
-    let limite = BLOCCO_INIZIALE;
+    let limite = daRiprendere ? precedente!.ripresa.limite : BLOCCO_INIZIALE;
     try {
-      for (let n = 1; ; n++) {
-        if (Date.now() - inizio > TETTO_MS) { completo = false; riga.errore = "tempo finito"; break; }
+      for (let n = daRiprendere ? precedente!.ripresa.n : 1; ; n++) {
+        if (Date.now() - inizio > TETTO_MS || testoScritto >= TETTO_TESTO_PER_CHIAMATA) {
+          if (chiamata < MASSIMO_CHIAMATE) { sospeso = { tabella: t, n, dopo, limite }; break; }
+          completo = false; riga.errore = "tempo finito"; break;
+        }
         let b: Awaited<ReturnType<typeof bloccoComeTesto>>;
         try {
           b = await bloccoComeTesto(url, chiave, {
@@ -198,6 +231,7 @@ async function backupABlocchi(admin: Admin, azienda: Record<string, unknown>): P
           await caricaTesto(nome, b.testo);
           riga.file.push(nome);
           riga.righe_salvate += b.n;
+          testoScritto += b.testo.length;
         }
         if (b.finito || !b.ultimo) break;
         dopo = b.ultimo;
@@ -207,21 +241,30 @@ async function backupABlocchi(admin: Admin, azienda: Record<string, unknown>): P
       completo = false;
       riga.errore = (e as Error)?.message ?? "errore sconosciuto";
     }
-    if (riga.errore === "tempo finito") break;
+    if (sospeso || riga.errore === "tempo finito") break;
   }
 
-  const indice = {
+  const indice: Record<string, unknown> = {
     esportato_il: new Date().toISOString(),
     azienda: { id, name: azienda.name },
     a_blocchi: true,
     // I blocchi hanno misure diverse (si regolano sul peso): questo è il tetto.
     righe_per_blocco: BLOCCO_MASSIMO,
-    completo: completo && tabelle.every((t) => !t.errore && t.righe_salvate === t.righe_attese),
-    durata_s: Math.round((Date.now() - inizio) / 1000),
+    completo: !sospeso && completo && tabelle.every((t) => !t.errore && t.righe_salvate === t.righe_attese),
+    durata_s: (precedente?.durata_s ?? 0) + Math.round((Date.now() - inizio) / 1000),
     tabelle,
   };
+  if (sospeso) {
+    indice.in_corso = true;
+    indice.ripresa = { ...sospeso, data, elenco: voci, chiamata: chiamata + 1 } satisfies Ripresa;
+  }
   await carica(`${base}/indice.json`, indice);
   return indice;
+}
+
+/** La data del backup da far ripartire, se la chiamata si è fermata a metà strada. */
+function dataDaRiprendere(indice: Record<string, unknown>): string | null {
+  return indice.in_corso === true ? String((indice.ripresa as { data: string }).data) : null;
 }
 
 /** Fa partire il lavoro in sottofondo, se il runtime lo permette; altrimenti lo aspetta. */
@@ -242,13 +285,13 @@ async function inSottofondo(lavoro: Promise<unknown>): Promise<boolean> {
  * chiamata sua. `poi` sono le aziende che vengono dopo: ognuna fa partire la
  * successiva quando ha finito, così il database ne serve una per volta.
  */
-async function avviaBackupABlocchi(idAzienda: string, poi: string[]): Promise<void> {
+async function avviaBackupABlocchi(idAzienda: string, poi: string[], riprendi: string | null = null): Promise<void> {
   const segreto = Deno.env.get("INTERNAL_CRON_SECRET");
   if (!segreto) throw new Error("INTERNAL_CRON_SECRET non configurato: impossibile avviare il backup a blocchi");
   const risposta = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/company-backup`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-internal-cron-secret": segreto },
-    body: JSON.stringify({ companyId: idAzienda, aBlocchi: true, poi }),
+    body: JSON.stringify({ companyId: idAzienda, aBlocchi: true, poi, riprendi }),
     signal: AbortSignal.timeout(20_000),
   });
   if (!risposta.ok) {
@@ -299,7 +342,11 @@ serveConMetricheRapida("company-backup", async (req) => {
         });
       }
       const lavoro = backupABlocchi(admin, piattaforma as Record<string, unknown>)
-        .then((indice) => console.log(JSON.stringify({ fn: "company-backup", piattaforma: true, completo: indice.completo, durata_s: indice.durata_s })))
+        .then(async (indice) => {
+          const riprendi = dataDaRiprendere(indice);
+          if (riprendi) return await avviaBackupABlocchi(String(piattaforma.id), [], riprendi);
+          console.log(JSON.stringify({ fn: "company-backup", piattaforma: true, completo: indice.completo, durata_s: indice.durata_s }));
+        })
         .catch((e) => console.error("[company-backup] piattaforma", (e as Error)?.message ?? e));
       const avviato = await inSottofondo(lavoro);
       return new Response(JSON.stringify(avviato ? { avviato: true, azienda: piattaforma.name } : { fatto: true, azienda: piattaforma.name }), {
@@ -324,11 +371,22 @@ serveConMetricheRapida("company-backup", async (req) => {
         });
       }
       const poi: string[] = Array.isArray(body?.poi) ? body.poi.filter((v: unknown) => typeof v === "string") : [];
-      const lavoro = backupABlocchi(admin, azienda as Record<string, unknown>)
-        .then((indice) => console.log(JSON.stringify({ fn: "company-backup", a_blocchi: true, azienda: azienda.name, completo: indice.completo, durata_s: indice.durata_s })))
+      const riprendi = typeof body?.riprendi === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.riprendi) ? body.riprendi : null;
+      // Se questa azienda continua in un'altra chiamata, la prossima dell'elenco la farà partire quella.
+      let prosegue = false;
+      const lavoro = backupABlocchi(admin, azienda as Record<string, unknown>, riprendi)
+        .then(async (indice) => {
+          const daRiprendere = dataDaRiprendere(indice);
+          if (daRiprendere) {
+            await avviaBackupABlocchi(soloUna, poi, daRiprendere);
+            prosegue = true;
+            return;
+          }
+          console.log(JSON.stringify({ fn: "company-backup", a_blocchi: true, azienda: azienda.name, completo: indice.completo, durata_s: indice.durata_s }));
+        })
         .catch((e) => console.error(`[company-backup] a blocchi ${azienda.name}:`, (e as Error)?.message ?? e))
         .then(async () => {
-          if (poi.length === 0) return;
+          if (prosegue || poi.length === 0) return;
           await avviaBackupABlocchi(poi[0], poi.slice(1))
             .catch((e) => console.error("[company-backup] la prossima azienda a blocchi non è partita:", (e as Error)?.message ?? e));
         });
