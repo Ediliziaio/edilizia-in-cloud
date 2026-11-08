@@ -781,6 +781,7 @@ export function usePreventivoCosti(companyId: string | undefined) {
           "id, name, description, unit_price, standard_cost, unit_of_measure, vat_rate, sku, marca, immagine_url, categoria_id, modalita_prezzo, prezzo_vendita, prezzo_acquisto_netto, ha_montaggio, montaggio_tipo, montaggio_tariffa_id"
         )
         .eq("company_id", companyId!)
+        .eq("attivo", true)
         .order("name");
       if (error) throw error;
       if (!data) return [] as ArticlePro[];
