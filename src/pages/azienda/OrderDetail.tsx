@@ -76,6 +76,7 @@ const OrderLaborEconomics = lazy(() => import("@/components/orders/OrderLaborEco
 const OrderDitteEconomics = lazy(() => import("@/components/orders/OrderLaborEconomics").then((m) => ({ default: m.OrderDitteEconomics })));
 const OrderResourceStatistics = lazy(() => import("@/components/orders/OrderResourceStatistics").then((m) => ({ default: m.OrderResourceStatistics })));
 const TimelineCantiere = lazy(() => import("@/components/orders/TimelineCantiere").then((m) => ({ default: m.TimelineCantiere })));
+const ProblemiApertiGiornale = lazy(() => import("@/components/orders/ProblemiApertiGiornale").then((m) => ({ default: m.ProblemiApertiGiornale })));
 const vistaInCaricamento = (
   <div className="space-y-3" aria-busy="true">
     <Skeleton className="h-10 w-full" />
@@ -2317,6 +2318,7 @@ function OrderDetailInner() {
                 <WhatsAppActivityFeed cantiereId={id!} />
               </OrderDisclosure>
             </div>
+            {effectiveCompany?.id && <ProblemiApertiGiornale orderId={id!} companyId={effectiveCompany.id} />}
             {effectiveCompany?.id && (
               <OrderDisclosure id="section-diario" title="Storico della commessa · stati, varianti e SAL">
                 <TimelineCantiere orderId={id!} companyId={effectiveCompany.id} adminView={true} />

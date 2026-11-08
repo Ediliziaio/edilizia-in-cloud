@@ -63,7 +63,7 @@ describe("fix impaginazione stampa/PDF (audit)", () => {
     });
 
     it("generate-giornale-pdf contiene print-color-adjust", () => {
-      const source = read("supabase/functions/generate-giornale-pdf/index.ts");
+      const source = read("supabase/functions/_shared/documentoGiornale.ts");
       expect(source).toContain("print-color-adjust: exact");
     });
 

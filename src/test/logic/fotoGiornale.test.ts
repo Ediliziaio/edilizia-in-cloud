@@ -62,11 +62,11 @@ describe("foto del giornale nel bucket privato foto-cantiere", () => {
 });
 
 describe("foto del giornale per il cliente esterno", () => {
-  it("salta le foto dei bucket riservati (non le può leggere) e quelle senza URL", async () => {
-    const { fotoLeggibileDalCliente } = await import("@/lib/campo/fotoGiornaleCliente");
-    expect(fotoLeggibileDalCliente({ url: "foto-cantiere/a/b/giornale/x.jpg", storage_path: "a/b/giornale/x.jpg" })).toBe(false);
-    expect(fotoLeggibileDalCliente({ url: "https://x.supabase.co/storage/v1/object/public/foto-cantiere/a.jpg" })).toBe(false);
-    expect(fotoLeggibileDalCliente({ url: "", storage_path: "" })).toBe(false);
-    expect(fotoLeggibileDalCliente({ url: "https://cdn.esempio.it/a.jpg" })).toBe(true);
+  it("arrivano dall'edge con firma lato server, non dal bucket", () => {
+    const c = readFileSync("src/components/cliente/FotoCantiereCliente.tsx", "utf8");
+    expect(c).toContain('invoke("giornale-foto-cliente"');
+    expect(c).toContain('.eq("stato", "firmata")');
+    expect(c).not.toContain("fotoLeggibileDalCliente");
+    expect(c).not.toMatch(/storage\s*\.from/);
   });
 });

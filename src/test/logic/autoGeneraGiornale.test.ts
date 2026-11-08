@@ -72,10 +72,21 @@ describe("auto-genera-giornale-cantiere", () => {
       company_id: "az", order_id: "o1", data_lavori: OGGI, stato: "bozza", generation_method: "imported", visibile_cliente: false, created_by: "tit",
       lavorazioni_eseguite: "Posa guaina",
       materiali_utilizzati: "Colla: 2 kg",
-      note: "Consegne: DDT 77 di Edilmat.\nSegnalazioni dal campo: Perdita.",
+      note: "",
       condizioni_meteo: "pioggia", personale_presente: 1, avanzamento_percentuale: 30,
       source_rapportini_ids: ["r1"], source_ddt_ids: ["d1"], source_segnalazioni_ids: ["t1"], source_foto_ids: ["f1"],
     });
+    expect(db.tabelle.giornale_eventi).toEqual(expect.arrayContaining([
+      expect.objectContaining({ company_id: "az", giornale_id: db.tabelle.giornale_lavori[0].id, tipo: "consegna", ddt_id: "d1", testo: "DDT 77 di Edilmat" }),
+      expect.objectContaining({ company_id: "az", giornale_id: db.tabelle.giornale_lavori[0].id, tipo: "problema", ticket_id: "t1", testo: "Perdita" }),
+    ]));
+    expect(db.tabelle.giornale_eventi).toHaveLength(2);
+  });
+
+  it("su una pagina che c'era già non scrive eventi", async () => {
+    const db = database({ giornale_lavori: [{ id: "g1", company_id: "az", order_id: "o1", data_lavori: OGGI, stato: "bozza", lavorazioni_eseguite: "Scritto a mano" }] });
+    await gira(db);
+    expect(db.tabelle.giornale_eventi ?? []).toHaveLength(0);
   });
 
   it("non chiama l'AI, e il sorgente non la importa più", async () => {

@@ -1,5 +1,5 @@
 import type { TablesUpdate } from "@/integrations/supabase/types";
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -45,6 +45,11 @@ import { leggiBozzaGiornale, type BozzaLetta } from "@/lib/campo/leggiBozzaGiorn
 import {
   applicaBozza, testoGiaScritto, unisciFonti, type FontiBozza, type ModoBozza,
 } from "../../../supabase/functions/_shared/bozzaGiornale";
+import {
+  righeEventiProposti, unisciEventiProposti, type EventoGiornale, type EventoProposto,
+} from "../../../supabase/functions/_shared/eventiGiornale";
+import { EventiGiornale, chiaveEventi } from "@/components/giornale/EventiGiornale";
+import { InviaDirezioneLavori } from "@/components/giornale/InviaDirezioneLavori";
 
 /** Tabelle e RPC nuove (giornale_annotazioni, giornale_firma) non ancora nei tipi generati. */
 const dbSenzaTipi = supabase as unknown as SupabaseClient;
@@ -103,6 +108,7 @@ interface RigaGiornale {
   stato?: string | null;
   pm_signed_at?: string | null;
   pm_signed_by?: string | null;
+  dl_notified_at?: string | null;
   source_rapportini_ids?: string[] | null;
   source_ddt_ids?: string[] | null;
   source_segnalazioni_ids?: string[] | null;
@@ -231,6 +237,8 @@ export default function GiornaleLavori() {
   const [fontiApplicate, setFontiApplicate] = useState<{ orderId: string; data: string; fonti: FontiBozza } | null>(null);
   const [bozzaDaScegliere, setBozzaDaScegliere] = useState<(BozzaLetta & { orderId: string; data: string }) | null>(null);
   const [nuovaAnnotazione, setNuovaAnnotazione] = useState("");
+  /** Consegne e segnalazioni proposte: si scrivono come eventi al salvataggio della pagina. */
+  const [eventiProposti, setEventiProposti] = useState<{ orderId: string; data: string; eventi: EventoProposto[] } | null>(null);
 
   // Chi ha lavorato quel giorno su quel cantiere, dai rapportini. Il numero di operai resta la correzione a mano.
   const orderDelGiorno: string = editingEntry?.order_id ?? selectedOrderId;
@@ -289,8 +297,23 @@ export default function GiornaleLavori() {
     enabled: sheetOpen && !!editingId && regole.stato === "firmata",
   });
 
-  // Nomi di chi ha firmato e di chi ha annotato.
-  const idsNomi = [...new Set([editingEntry?.pm_signed_by, ...annotazioni.map((a) => a.autore_id)]
+  const { data: eventiPagina = [] } = useQuery({
+    queryKey: chiaveEventi(editingId),
+    queryFn: async () => {
+      const { data, error } = await dbSenzaTipi
+        .from("giornale_eventi")
+        .select("id, tipo, testo, ora, stato, chiuso_il, chiuso_da, nota_chiusura, autore_id, ddt_id, ticket_id, fase_id, created_at")
+        .eq("giornale_id", editingId!);
+      if (error) throw new Error(messaggioErroreGiornale(error));
+      return (data ?? []) as EventoGiornale[];
+    },
+    enabled: sheetOpen && !!editingId,
+  });
+  // Validi solo per il cantiere e il giorno per cui sono stati preparati.
+  const propostiValidi = eventiProposti?.orderId === orderDelGiorno && eventiProposti.data === formData.data_lavori ? eventiProposti.eventi : [];
+
+  // Nomi di chi ha firmato, di chi ha annotato e di chi ha scritto o chiuso un evento.
+  const idsNomi = [...new Set([editingEntry?.pm_signed_by, ...annotazioni.map((a) => a.autore_id), ...eventiPagina.flatMap((e) => [e.autore_id, e.chiuso_da])]
     .filter((x): x is string => !!x))].sort();
   const { data: nomi = {} } = useQuery({
     queryKey: ["giornale-nomi", idsNomi.join(",")],
@@ -306,6 +329,7 @@ export default function GiornaleLavori() {
     setEsitoBozza(null);
     setFontiApplicate(null);
     setBozzaDaScegliere(null);
+    setEventiProposti(null);
   };
 
   const resetForm = () => {
@@ -377,6 +401,18 @@ export default function GiornaleLavori() {
     setEditingEntry(entry);
     setSheetOpen(true);
   };
+
+  // Dalla commessa: ?pagina=<id> apre direttamente quella pagina, una volta sola.
+  const paginaDaAprire = searchParams.get("pagina");
+  const paginaGiaAperta = useRef(false);
+  useEffect(() => {
+    if (!paginaDaAprire || paginaGiaAperta.current) return;
+    const riga = (entries as RigaGiornale[]).find((e) => e.id === paginaDaAprire);
+    if (!riga) return;
+    paginaGiaAperta.current = true;
+    openEdit(riga);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paginaDaAprire, entries]);
 
   // Canvas drawing for firma — with HiDPI scaling so coordinates match on Retina/mobile screens
   const getCanvasPos = (
@@ -589,6 +625,22 @@ export default function GiornaleLavori() {
       if (avvisoFoto) toast.error(avvisoFoto);
       queryClient.invalidateQueries({ queryKey: ["giornale-foto-salvate", entry.id] });
 
+      // Gli eventi proposti: l'upsert ignora quelli già scritti, un secondo salvataggio non li raddoppia.
+      if (propostiValidi.length) {
+        const { conDdt, conTicket } = righeEventiProposti(propostiValidi, companyId!, entry.id);
+        for (const [righe, chiave] of [[conDdt, "giornale_id,ddt_id"], [conTicket, "giornale_id,ticket_id"]] as const) {
+          if (!righe.length) continue;
+          const { error } = await dbSenzaTipi.from("giornale_eventi").upsert(righe, { onConflict: chiave, ignoreDuplicates: true });
+          if (error) {
+            // La pagina c'è già: il prossimo salvataggio deve aggiornarla, non crearne un'altra.
+            setEditingEntry(entry);
+            throw new Error(`Pagina salvata, ma gli eventi proposti no: ${messaggioErroreGiornale(error)}`);
+          }
+        }
+        setEventiProposti(null);
+      }
+      queryClient.invalidateQueries({ queryKey: chiaveEventi(entry.id) });
+
       return entry;
     },
     onSuccess: (entry) => {
@@ -662,6 +714,11 @@ export default function GiornaleLavori() {
       ? fontiApplicate.fonti
       : (editingEntry as RigaGiornale | null) ?? undefined;
     setFontiApplicate({ orderId, data, fonti: modo === "sostituisci" ? bozza.fonti : unisciFonti(giaRegistrate, bozza.fonti) });
+    setEventiProposti((p) => ({
+      orderId,
+      data,
+      eventi: unisciEventiProposti(p?.orderId === orderId && p.data === data ? p.eventi : [], bozza.eventi, eventiPagina),
+    }));
     setEsitoBozza({ orderId, data, fonti: bozza.fonti, vuota: false, avvisi });
     setBozzaDaScegliere(null);
   };
@@ -1259,6 +1316,21 @@ export default function GiornaleLavori() {
 
             </fieldset>
 
+            {/* Fuori dal fieldset: su una pagina firmata un problema si chiude e si riapre lo stesso. */}
+            {companyId && orderDelGiorno && !paginaGiaScritta && (
+              <EventiGiornale
+                companyId={companyId}
+                orderId={orderDelGiorno}
+                giornaleId={editingId}
+                statoPagina={regole.stato}
+                haPermesso={canEditGiornale}
+                eventi={eventiPagina}
+                nomi={nomi}
+                proposti={propostiValidi}
+                onTogliProposto={(via) => setEventiProposti((p) => (p ? { ...p, eventi: p.eventi.filter((x) => x !== via) } : p))}
+              />
+            )}
+
             {/* Annotazioni: l'unica cosa che si aggiunge a una pagina firmata */}
             {regole.stato === "firmata" && editingEntry?.id && (
               <div className="space-y-3 rounded-lg border p-3">
@@ -1354,6 +1426,17 @@ export default function GiornaleLavori() {
                   <Lock className="mr-2 h-4 w-4" aria-hidden="true" />
                   Firma il giornale
                 </Button>
+              )}
+              {regole.stato === "firmata" && editingEntry?.id && canEditGiornale && orderDelGiorno && (
+                <InviaDirezioneLavori
+                  giornaleId={editingEntry.id}
+                  orderId={orderDelGiorno}
+                  dlNotifiedAt={editingEntry.dl_notified_at}
+                  onInviato={(iso) => {
+                    setEditingEntry((e: RigaGiornale | null) => (e ? { ...e, dl_notified_at: iso } : e));
+                    queryClient.invalidateQueries({ queryKey: ["giornale-lavori", companyId, selectedOrderId] });
+                  }}
+                />
               )}
               {editingEntry?.id && (
                 /* Chiudi riempie la riga, Elimina è l'azione secondaria e

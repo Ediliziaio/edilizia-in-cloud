@@ -9,12 +9,13 @@
  * Raggruppate per giornata, che nel giornale lavori è l'unità reale di
  * avanzamento: una giornata = una fase di lavoro documentata.
  *
- * SOLO i rapportini marcati visibili, e solo quelli del cantiere che si sta
- * guardando. Il filtro è qui, ma non deve restare solo qui: vedi la nota sulla
- * RLS nel commento della query.
+ * SOLO le pagine firmate e marcate visibili del cantiere che si sta guardando:
+ * lo impone la policy. Il bucket resta chiuso al cliente: gli indirizzi li firma
+ * l'edge giornale-foto-cliente dopo aver controllato che la commessa sia sua.
  */
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,8 +23,6 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Camera, ImageOff } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
-// Il cliente esterno non legge foto-cantiere: si saltano le foto senza un indirizzo leggibile (vedi il modulo).
-import { fotoLeggibileDalCliente } from "@/lib/campo/fotoGiornaleCliente";
 
 interface FotoRiga {
   id: string;
@@ -48,26 +47,26 @@ export function FotoCantiereCliente({ orderId }: { orderId: string }) {
     enabled: !!orderId,
     staleTime: 60_000,
     queryFn: async () => {
-      // Doppio filtro: l'ordine che si sta guardando E solo i rapportini che
-      // l'impresa ha marcato visibili al cliente.
-      //
-      // ATTENZIONE: oggi la RLS di `giornale_lavori`/`giornale_foto` è
-      // `company_id = get_my_company_id()`, e il profilo di un cliente porta il
-      // company_id DELL'IMPRESA: significa che il filtro qui sotto è l'unica
-      // cosa che limita quello che il cliente vede, e un filtro
-      // nell'interfaccia non è una protezione. Serve una policy per cliente
-      // come quella già usata su `orders` (`customer_id = auth.uid()` via
-      // join): richiesta girata all'altra traccia.
-      const { data, error } = await supabase
+      // `stato` non è ancora nei tipi generati.
+      const { data, error } = await (supabase as unknown as SupabaseClient)
         .from("giornale_lavori")
         .select("id, data_lavori, lavorazioni_eseguite, avanzamento_percentuale, visibile_cliente, giornale_foto(id, url, storage_path, caption)")
         .eq("order_id", orderId)
         .eq("visibile_cliente", true)
+        .eq("stato", "firmata")
         .order("data_lavori", { ascending: false })
         .limit(60);
       if (error) throw error;
-      return ((data ?? []) as unknown as Array<GiornataConFoto & { giornale_foto: FotoRiga[] }>)
-        .map((r) => ({ ...r, foto: (r.giornale_foto ?? []).filter(fotoLeggibileDalCliente) }))
+      const pagine = (data ?? []) as unknown as Array<GiornataConFoto & { giornale_foto: FotoRiga[] }>;
+      if (!pagine.some((r) => r.giornale_foto?.length)) return [];
+
+      const { data: firmate, error: errFirma } = await supabase.functions.invoke("giornale-foto-cliente", { body: { order_id: orderId } });
+      if (errFirma) throw errFirma;
+      const link = ((firmate as { link?: Record<string, string> } | null)?.link ?? {});
+
+      // Senza indirizzo firmato la foto si salta: meglio nessuna foto che un'immagine rotta.
+      return pagine
+        .map((r) => ({ ...r, foto: (r.giornale_foto ?? []).filter((f) => link[f.id]).map((f) => ({ ...f, url: link[f.id] })) }))
         .filter((r) => r.foto.length > 0);
     },
   });

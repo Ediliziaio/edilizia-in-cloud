@@ -14,6 +14,7 @@ import {
   COLONNE_DDT_BOZZA, STATI_DDT_NON_ARRIVATO, STATI_RAPPORTINO_BOZZA, commessaDelDdt, componiBozzaGiornale,
   intervalloGiornoRoma, type DdtPerBozza, type GiornataPerBozza, type RapportinoPerBozza, type SegnalazionePerBozza,
 } from "../_shared/bozzaGiornale.ts";
+import { righeEventiProposti } from "../_shared/eventiGiornale.ts";
 
 interface CantiereLite {
   id: string;
@@ -154,6 +155,18 @@ serveConMetricheRapida("auto-genera-giornale-cantiere", async (req) => {
           if (!scritte || scritte.length === 0) { summary.skipped++; continue; }
 
           summary.giornali_generated++;
+
+          // Solo sulla pagina nata da questo giro: su una pagina altrui `scritte` è vuoto e si esce sopra.
+          if (bozza.eventi.length) {
+            const { conDdt, conTicket } = righeEventiProposti(bozza.eventi, c.id, scritte[0].id as string);
+            for (const [righe, chiave] of [[conDdt, "giornale_id,ddt_id"], [conTicket, "giornale_id,ticket_id"]] as const) {
+              if (!righe.length) continue;
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const { error: errEventi } = await (supabase as any).from("giornale_eventi")
+                .upsert(righe, { onConflict: chiave, ignoreDuplicates: true });
+              if (errEventi) throw new Error(`eventi non scritti: ${errEventi.message}`);
+            }
+          }
         } catch (e) {
           summary.errors++;
           summary.errors_detail.push({

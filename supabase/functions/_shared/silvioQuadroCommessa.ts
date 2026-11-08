@@ -15,6 +15,7 @@
  * report_commessa, con le sue regole di affidabilità.
  */
 import type { ToolContext } from "./silvioTools.ts";
+import { giorniAperto } from "./eventiGiornale.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const oggiRoma = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
@@ -42,7 +43,7 @@ export async function silvioQuadroCommessa(args: Record<string, unknown>, ctx: T
   const o = trovate[0];
   const oggi = oggiRoma();
 
-  const [fasi, persone, ditte, contratti, piani, presenze, rapportini, articoli] = await Promise.all([
+  const [fasi, persone, ditte, contratti, piani, presenze, rapportini, articoli, problemiGiornale] = await Promise.all([
     ctx.supabase.from("order_work_phases")
       .select("id, name, position, status, start_date, end_date, percentuale, completata_il, sottofasi:order_work_subphases(name, position, fatta, data_inizio, data_fine, giorni)")
       .eq("order_id", o.id).eq("company_id", ctx.companyId).order("position"),
@@ -56,6 +57,8 @@ export async function silvioQuadroCommessa(args: Record<string, unknown>, ctx: T
     ctx.supabase.from("campo_rapportini").select("data_lavoro, stato").eq("order_id", o.id).eq("company_id", ctx.companyId)
       .gte("data_lavoro", piuGiorni(oggi, -30)),
     ctx.supabase.from("order_items").select("name, quantity, phase_id, supplier_id, purchase_price").eq("order_id", o.id).limit(500),
+    ctx.supabase.from("giornale_eventi").select("testo, giornale:giornale_lavori!inner(id, data_lavori, order_id)")
+      .eq("company_id", ctx.companyId).eq("tipo", "problema").eq("stato", "aperto").eq("giornale.order_id", o.id).limit(50),
   ]);
   if (fasi.error) return { error: "Non riesco a leggere le fasi della commessa. Riprova." };
 
@@ -127,6 +130,12 @@ export async function silvioQuadroCommessa(args: Record<string, unknown>, ctx: T
   const senzaFornitore = art.filter((a) => !a.supplier_id).length;
   if (senzaFornitore) daSistemare.push(`${senzaFornitore} materiali senza fornitore.`);
 
+  // deno-lint-ignore no-explicit-any
+  const problemi = ((problemiGiornale.data ?? []) as any[])
+    .map((p) => ({ testo: p.testo as string, dal: p.giornale?.data_lavori as string, giorni_aperto: giorniAperto(p.giornale?.data_lavori ?? oggi, oggi), link: `/azienda/giornale-lavori?ordine=${o.id}&pagina=${p.giornale?.id}` }))
+    .sort((a, b) => b.giorni_aperto - a.giorni_aperto);
+  if (problemi.length) daSistemare.push(`${problemi.length} problemi aperti nel giornale dei lavori.`);
+
   return {
     commessa: {
       codice: o.order_code, descrizione: o.description, lavori: o.work_description,
@@ -144,6 +153,7 @@ export async function silvioQuadroCommessa(args: Record<string, unknown>, ctx: T
       // deno-lint-ignore no-explicit-any
       sul_cantiere: ((presenze.data ?? []) as any[]).map((p) => p.mezzo?.nome ?? "Mezzo"),
     },
+    problemi_aperti_giornale: problemi,
     rapportini_ultimi_30_giorni: { totale: rap.length, da_approvare: daApprovare, giorni_senza_rapportino_14gg: mancanti },
     materiali: { righe: art.length, senza_fornitore: senzaFornitore, senza_prezzo: art.filter((a) => !(Number(a.purchase_price) > 0)).length },
     da_sistemare: daSistemare,

@@ -1452,3 +1452,5 @@ async function postToSilvioChat(
 
 // 19/10/2026: ripubblicata con approva_rapportini allineato all'approvazione in commessa (_shared/silvioTools.ts).
 // 07/11/2026: ripubblicata perché le email di servizio partono col solo nome dell'azienda, senza «via EdiliziaInCloud» (_shared/resolveSender.ts).
+
+// 08/11/2026: ripubblicata per i problemi aperti del giornale nel quadro della commessa (_shared/silvioQuadroCommessa.ts).

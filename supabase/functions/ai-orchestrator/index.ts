@@ -808,3 +808,5 @@ serve(async (req: Request) => {
 });
 
 // 19/10/2026: ripubblicata con approva_rapportini allineato all'approvazione in commessa (_shared/silvioTools.ts).
+
+// 08/11/2026: ripubblicata per i problemi aperti del giornale nel quadro della commessa (_shared/silvioQuadroCommessa.ts).

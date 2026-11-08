@@ -6,6 +6,7 @@
  * («Prepara dalla giornata») e il giro serale `auto-genera-giornale-cantiere`.
  */
 import { personeDelGiorno, type RapportinoPresenze } from "./presenzeGiornale.ts";
+import type { EventoProposto } from "./eventiGiornale.ts";
 
 export type MeteoGiornale = "soleggiato" | "nuvoloso" | "pioggia" | "neve" | "vento forte";
 
@@ -54,6 +55,8 @@ export interface BozzaGiornale {
   /** Niente da scrivere: non si crea una pagina vuota. */
   vuota: boolean;
   campi: CampiBozza;
+  /** Consegne e segnalazioni del giorno, una per bolla e una per ticket. */
+  eventi: EventoProposto[];
   fonti: FontiBozza;
 }
 
@@ -137,19 +140,23 @@ function righeMateriali(rapportini: RapportinoPerBozza[]): string[] {
   });
 }
 
-function rigaConsegne(ddt: DdtPerBozza[]): string {
-  const pezzi = ddt.map((d) => {
+function eventiConsegne(ddt: DdtPerBozza[]): EventoProposto[] {
+  const visti = new Set<string>();
+  const eventi: EventoProposto[] = [];
+  for (const d of ddt) {
+    if (visti.has(d.id)) continue;
+    visti.add(d.id);
     const numero = pulito(d.numero_ddt);
     const fornitore = pulito(d.fornitore?.name);
     const note = [d.destinazione === "magazzino" ? "a magazzino" : "", d.has_damages ? "danni segnalati" : ""].filter(Boolean).join(", ");
-    return `${numero ? `DDT ${numero}` : "DDT senza numero"}${fornitore ? ` di ${fornitore}` : ""}${note ? ` (${note})` : ""}`;
-  });
-  return pezzi.length ? `Consegne: ${pezzi.join("; ")}.` : "";
+    eventi.push({ tipo: "consegna", ddt_id: d.id, testo: `${numero ? `DDT ${numero}` : "DDT senza numero"}${fornitore ? ` di ${fornitore}` : ""}${note ? ` (${note})` : ""}` });
+  }
+  return eventi;
 }
 
-function rigaSegnalazioni(segnalazioni: SegnalazionePerBozza[]): string {
+function eventiSegnalazioni(segnalazioni: SegnalazionePerBozza[]): EventoProposto[] {
   const viste = new Set<string>();
-  const pezzi: string[] = [];
+  const eventi: EventoProposto[] = [];
   for (const s of segnalazioni) {
     const titolo = pulito(s.titolo) || pulito(s.subject);
     const descrizione = pulito(s.descrizione).slice(0, 200);
@@ -157,9 +164,9 @@ function rigaSegnalazioni(segnalazioni: SegnalazionePerBozza[]): string {
     const chiave = chiaveTesto(testo);
     if (!testo || viste.has(chiave)) continue;
     viste.add(chiave);
-    pezzi.push(testo);
+    eventi.push({ tipo: "problema", ticket_id: s.id, testo });
   }
-  return pezzi.length ? `Segnalazioni dal campo: ${pezzi.join("; ")}.` : "";
+  return eventi;
 }
 
 export function componiBozzaGiornale(g: GiornataPerBozza): BozzaGiornale {
@@ -170,17 +177,19 @@ export function componiBozzaGiornale(g: GiornataPerBozza): BozzaGiornale {
 
   const lavorazioni = righeLavorazioni(rapportini, nomi).join("\n");
   const materiali = righeMateriali(rapportini).join("\n");
-  const note = [rigaConsegne(ddt), rigaSegnalazioni(segnalazioni)].filter(Boolean).join("\n");
+  const eventi = [...eventiConsegne(ddt), ...eventiSegnalazioni(segnalazioni)];
   const persone = personeDelGiorno(rapportini, nomi).length;
   // Lo 0 è il valore di base della colonna, non una percentuale dichiarata.
   const percentuali = rapportini.map((r) => Number(r.percentuale_avanzamento)).filter((n) => Number.isFinite(n) && n > 0);
 
   return {
-    vuota: !lavorazioni && !materiali && !note,
+    vuota: !lavorazioni && !materiali && eventi.length === 0,
+    eventi,
     campi: {
       lavorazioni_eseguite: lavorazioni,
       materiali_utilizzati: materiali,
-      note,
+      // Consegne e segnalazioni ora sono eventi: nelle note resta quel che scrive chi compila.
+      note: "",
       condizioni_meteo: rapportini.map((r) => meteoGiornale(r.meteo)).find(Boolean) ?? null,
       personale_presente: persone > 0 ? persone : null,
       avanzamento_percentuale: percentuali.length ? Math.min(100, Math.round(Math.max(...percentuali))) : null,

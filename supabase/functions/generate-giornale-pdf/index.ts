@@ -3,237 +3,12 @@ import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { leggiAziendaDocumento } from "../_shared/aziendaDocumento.ts";
-import { BUCKET_FOTO_GIORNALE, indirizziFotoGiornale } from "../_shared/fotoGiornale.ts";
-
-/** Le foto del giornale stanno nel bucket privato foto-cantiere: link firmati validi un giorno, per stampare con calma. */
-const SCADENZA_FOTO_SECONDI = 24 * 60 * 60;
-/** Oltre, il documento diventa un album: il giornale le conta e ne mostra le prime. */
-const MAX_FOTO_PER_GIORNATA = 12;
-
-function escHtml(s: string | null | undefined): string {
-  if (!s) return "";
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-function fmtDate(d: string | null | undefined): string {
-  if (!d) return "—";
-  const parts = d.split("-");
-  if (parts.length !== 3) return d;
-  const [y, m, day] = parts;
-  return `${day}/${m}/${y}`;
-}
-
-interface GiornaleEntry {
-  id: string;
-  data_lavori: string;
-  condizioni_meteo: string | null;
-  lavorazioni_eseguite: string | null;
-  materiali_utilizzati: string | null;
-  personale_presente: number | null;
-  note: string | null;
-  avanzamento_percentuale: number | null;
-  temperatura: string | null;
-  firmato_da: string | null;
-  firmato_il: string | null;
-  giornale_foto: { id: string; url: string; storage_path?: string | null }[];
-  /** Indirizzi firmati, nello stesso ordine di giornale_foto ("" = non leggibile, si salta). */
-  foto_link?: string[];
-}
+import { buildGiornaleHtml } from "../_shared/documentoGiornale.ts";
+import { leggiGiornateDocumento } from "../_shared/datiDocumentoGiornale.ts";
 
 interface Order {
   description: string;
   order_code: string | null;
-}
-
-interface Azienda {
-  ragione_sociale: string;
-  partita_iva: string | null;
-  colore_primario: string | null;
-  logo_url: string | null;
-  indirizzo?: string | null;
-  citta?: string | null;
-  cap?: string | null;
-  telefono?: string | null;
-  email?: string | null;
-}
-
-const METEO_LABEL: Record<string, string> = {
-  soleggiato: "☀️ Soleggiato",
-  nuvoloso: "🌤 Nuvoloso",
-  pioggia: "🌧 Pioggia",
-  neve: "❄️ Neve",
-  "vento forte": "💨 Vento forte",
-};
-
-function buildGiornaleHtml(
-  entries: GiornaleEntry[],
-  order: Order | null,
-  azienda: Azienda,
-  companyId: string,
-  brandFooter?: string,
-): string {
-  const colore = azienda.colore_primario || "#0ea5e9";
-  const title = order
-    ? `Giornale dei Lavori — ${order.order_code ? `#${escHtml(order.order_code)} ` : ""}${escHtml(order.description)}`
-    : "Giornale dei Lavori";
-
-  const entriesHtml = entries
-    .map(
-      (e, i) => `
-    <div style="margin-bottom:24px;page-break-inside:avoid;">
-      <!-- Entry header -->
-      <div style="background:${i % 2 === 0 ? "#f8fafc" : "#fff"};border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;">
-        <div style="background:${colore};color:white;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;">
-          <span style="font-weight:700;font-size:10pt;">${fmtDate(e.data_lavori)}</span>
-          <span style="font-size:9pt;">${e.avanzamento_percentuale != null ? `Avanzamento: ${e.avanzamento_percentuale}%` : ""}</span>
-        </div>
-        <div style="padding:12px;">
-          <!-- Meta row -->
-          <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:10px;font-size:8.5pt;color:#475569;">
-            ${e.condizioni_meteo ? `<span>${METEO_LABEL[e.condizioni_meteo] || escHtml(e.condizioni_meteo)}</span>` : ""}
-            ${e.temperatura ? `<span>🌡 ${escHtml(e.temperatura)}</span>` : ""}
-            ${e.personale_presente != null ? `<span>👷 ${e.personale_presente} operai</span>` : ""}
-          </div>
-
-          <!-- Lavorazioni -->
-          ${
-            e.lavorazioni_eseguite
-              ? `<div style="margin-bottom:8px;">
-            <div style="font-size:8pt;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;">Lavorazioni eseguite</div>
-            <div style="font-size:9.5pt;color:#1e293b;white-space:pre-wrap;line-height:1.5;">${escHtml(e.lavorazioni_eseguite)}</div>
-          </div>`
-              : ""
-          }
-
-          <!-- Materiali -->
-          ${
-            e.materiali_utilizzati
-              ? `<div style="margin-bottom:8px;">
-            <div style="font-size:8pt;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;">Materiali utilizzati</div>
-            <div style="font-size:9.5pt;color:#1e293b;white-space:pre-wrap;">${escHtml(e.materiali_utilizzati)}</div>
-          </div>`
-              : ""
-          }
-
-          <!-- Note -->
-          ${
-            e.note
-              ? `<div style="margin-bottom:8px;">
-            <div style="font-size:8pt;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;">Note</div>
-            <div style="font-size:9pt;color:#475569;font-style:italic;white-space:pre-wrap;">${escHtml(e.note)}</div>
-          </div>`
-              : ""
-          }
-
-          <!-- Foto -->
-          ${(() => {
-            const link = (e.foto_link ?? []).filter(Boolean);
-            if (!link.length) return "";
-            const altre = link.length - MAX_FOTO_PER_GIORNATA;
-            return `<div style="margin-bottom:8px;">
-            <div style="font-size:8pt;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;">Foto (${link.length})</div>
-            <div style="display:flex;flex-wrap:wrap;gap:6px;">
-              ${link.slice(0, MAX_FOTO_PER_GIORNATA).map((u) => `<img src="${escHtml(u).replace(/"/g, "&quot;")}" alt="Foto del cantiere" style="width:110px;height:110px;object-fit:cover;border-radius:4px;border:1px solid #e2e8f0;" />`).join("")}
-              ${altre > 0 ? `<span style="font-size:8.5pt;color:#64748b;align-self:center;">+${altre} nel gestionale</span>` : ""}
-            </div>
-          </div>`;
-          })()}
-
-          <!-- Firma -->
-          ${
-            e.firmato_da
-              ? `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed #e2e8f0;font-size:8.5pt;color:#475569;">
-            ✍️ Firmato da: <strong>${escHtml(e.firmato_da)}</strong>${e.firmato_il ? ` — ${fmtDate(e.firmato_il.split("T")[0])}` : ""}
-          </div>`
-              : ""
-          }
-        </div>
-      </div>
-    </div>
-  `,
-    )
-    .join("");
-
-  const indirizzo = [azienda.indirizzo, azienda.cap, azienda.citta]
-    .filter(Boolean)
-    .join(", ");
-
-  return `<!DOCTYPE html>
-<html lang="it">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${escHtml(title)}</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    body { font-family: Arial, sans-serif; font-size: 10pt; color: #1e293b; background: white; }
-    @media print {
-      body { margin: 0; }
-      @page { margin: 1.5cm; size: A4; }
-    }
-    .page { max-width: 794px; margin: 0 auto; padding: 32px; }
-  </style>
-</head>
-<body>
-<div class="page">
-  <!-- Company header -->
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid ${colore};">
-    <div>
-      <div style="font-size:14pt;font-weight:700;color:${colore};">${escHtml(azienda.ragione_sociale)}</div>
-      ${azienda.partita_iva ? `<div style="font-size:8pt;color:#64748b;">P.IVA ${escHtml(azienda.partita_iva)}</div>` : ""}
-      ${indirizzo ? `<div style="font-size:8pt;color:#64748b;">${escHtml(indirizzo)}</div>` : ""}
-      ${azienda.telefono ? `<div style="font-size:8pt;color:#64748b;">Tel. ${escHtml(azienda.telefono)}</div>` : ""}
-      ${azienda.email ? `<div style="font-size:8pt;color:#64748b;">${escHtml(azienda.email)}</div>` : ""}
-    </div>
-    ${
-      azienda.logo_url
-        ? `<img src="${escHtml(azienda.logo_url)}" alt="Logo azienda" style="max-height:60px;max-width:180px;object-fit:contain;" />`
-        : ""
-    }
-  </div>
-
-  <!-- Document title -->
-  <div style="text-align:center;margin-bottom:24px;">
-    <div style="font-size:16pt;font-weight:700;color:#0f172a;letter-spacing:-0.5px;">GIORNALE DEI LAVORI</div>
-    ${
-      order
-        ? `<div style="font-size:10pt;color:#475569;margin-top:4px;">${order.order_code ? `Cantiere #${escHtml(order.order_code)} — ` : ""}${escHtml(order.description)}</div>`
-        : '<div style="font-size:10pt;color:#475569;margin-top:4px;">Tutti i cantieri</div>'
-    }
-    <div style="font-size:8pt;color:#94a3b8;margin-top:4px;">
-      ${entries.length} ${entries.length === 1 ? "report" : "report"} —
-      Generato il ${new Date().toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })}
-    </div>
-  </div>
-
-  <!-- Summary bar -->
-  ${
-    entries.length > 0
-      ? `<div style="background:#f1f5f9;border-radius:6px;padding:10px 14px;margin-bottom:20px;display:flex;gap:24px;font-size:8.5pt;color:#475569;">
-    <span>📅 Dal <strong>${fmtDate(entries[entries.length - 1].data_lavori)}</strong> al <strong>${fmtDate(entries[0].data_lavori)}</strong></span>
-    <span>👷 Tot. operai: <strong>${entries.reduce((s, e) => s + (e.personale_presente ?? 0), 0)}</strong> giornate</span>
-    ${entries[0].avanzamento_percentuale != null ? `<span>📊 Ultimo avanzamento: <strong>${entries[0].avanzamento_percentuale}%</strong></span>` : ""}
-  </div>`
-      : ""
-  }
-
-  <!-- Entries -->
-  ${entriesHtml}
-
-  ${
-    entries.length === 0
-      ? `<div style="text-align:center;padding:40px;color:#94a3b8;font-size:10pt;">Nessun report disponibile per i parametri selezionati.</div>`
-      : ""
-  }
-
-  <!-- Footer -->
-  <div style="margin-top:40px;padding-top:12px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:7pt;color:#94a3b8;">
-    <div>${escHtml(azienda.ragione_sociale)} — P.IVA ${escHtml(azienda.partita_iva)}</div>
-    <div style="color:${colore};">${brandFooter || "Edilizia in Cloud"}</div>
-  </div>
-</div>
-</body>
-</html>`;
 }
 
 Deno.serve(async (req) => {
@@ -281,19 +56,21 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Fetch giornale entries
-    let query = supabase
-      .from("giornale_lavori")
-      .select("id, data_lavori, condizioni_meteo, lavorazioni_eseguite, materiali_utilizzati, personale_presente, note, avanzamento_percentuale, temperatura, firmato_da, firmato_il, giornale_foto(id, url, storage_path)")
-      .eq("company_id", company_id)
-      .order("data_lavori", { ascending: false });
-
-    if (order_id) {
-      query = query.eq("order_id", order_id);
+    // Il cliente del portale ha il company_id dell'impresa: qui vedrebbe bozze e annotazioni.
+    const { data: ruoli } = await supabase.from("user_roles").select("role").eq("user_id", userId);
+    const elencoRuoli = ((ruoli ?? []) as Array<{ role: string }>).map((r) => r.role);
+    if (elencoRuoli.includes("customer") && elencoRuoli.every((r) => r === "customer")) {
+      return new Response(JSON.stringify({ error: "Non autorizzato: accesso negato" }), {
+        status: 403,
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+      });
     }
 
-    const { data: entries, error: entriesErr } = await query;
-    if (entriesErr) {
+    // Fetch giornale entries
+    let giornate;
+    try {
+      giornate = await leggiGiornateDocumento(supabase, { companyId: company_id, orderId: order_id });
+    } catch {
       return new Response(JSON.stringify({ error: "Errore nel caricamento dei dati" }), {
         status: 500,
         headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
@@ -321,28 +98,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    const safeEntries: GiornaleEntry[] = (entries || []).map((e: any) => ({
-      ...e,
-      giornale_foto: Array.isArray(e.giornale_foto) ? e.giornale_foto : [],
-    }));
-
-    // Una sola firma per tutte le foto del documento (service role: l'accesso all'azienda è già verificato sopra).
-    const tutteLeFoto = safeEntries.flatMap((e) => e.giornale_foto);
-    const linkFoto = await indirizziFotoGiornale(tutteLeFoto, async (paths) => {
-      const { data, error } = await supabase.storage.from(BUCKET_FOTO_GIORNALE).createSignedUrls(paths, SCADENZA_FOTO_SECONDI);
-      if (error || !data) return paths.map((): null => null);
-      return paths.map((_, i) => data[i]?.signedUrl ?? null);
-    });
-    let k = 0;
-    for (const e of safeEntries) e.foto_link = e.giornale_foto.map(() => linkFoto[k++] ?? "");
-
     // Branding dinamico
     const branding = await getBrandingForCompany(supabase, company_id);
     const brandFooter = branding.hidePoweredBy
       ? branding.platformName
       : `${branding.platformName} — ${branding.siteUrl.replace("https://", "")}`;
 
-    const html = buildGiornaleHtml(safeEntries, order, azienda, company_id, brandFooter);
+    const html = buildGiornaleHtml(giornate, order, azienda, brandFooter);
 
     // Build filename
     const today = new Date().toISOString().split("T")[0].replace(/-/g, "");

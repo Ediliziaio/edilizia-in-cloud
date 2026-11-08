@@ -188,6 +188,7 @@ const FirmaAvanzataInfo = lazy(() => import("@/pages/public/FirmaAvanzataInfo"))
 const VerificaFirma = lazy(() => import("@/pages/public/VerificaFirma"));
 const VerificaPos = lazy(() => import("@/pages/public/VerificaPos"));
 const FirmaSal = lazy(() => import("@/pages/public/FirmaSal"));
+const GiornaleDirezioneLavori = lazy(() => import("@/pages/public/GiornaleDirezioneLavori"));
 const SerramentiStimaPubblica = lazy(() => import("@/pages/public/SerramentiStimaPubblica"));
 const TalentProfilePublic = lazy(() => import("@/pages/public/TalentProfilePublic"));
 const CandidaturaPubblica = lazy(() => import("@/pages/public/CandidaturaPubblica"));
@@ -774,6 +775,7 @@ const App = () => (
               {/* Firma committente del verbale SAL: il PDF linkava già qui,
                   ma la rotta non esisteva — 404 per il cliente. */}
               <Route path="/firma-sal/:token" element={<FirmaSal />} />
+              <Route path="/giornale-dl/:token" element={<GiornaleDirezioneLavori />} />
               <Route path="/talent-profile/:token" element={<TalentProfilePublic />} />
               <Route path="/candidatura/:token" element={<CandidaturaPubblica />} />
               <Route path="/admin/accept-invite" element={<AcceptInvite />} />

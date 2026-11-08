@@ -1026,6 +1026,9 @@ verify_jwt = false
 [functions.fea-documento-pubblico]
 verify_jwt = false
 
+[functions.giornale-dl-documento]
+verify_jwt = false
+
 [functions.fea-verifica-codice]
 verify_jwt = false
 

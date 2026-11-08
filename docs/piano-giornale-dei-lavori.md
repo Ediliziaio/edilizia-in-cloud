@@ -72,13 +72,17 @@ Lotti piccoli, ognuno pubblicato e provato dal vivo su Demo Azienda 2 prima del 
 - **Interruttore per azienda** in Impostazioni → Rapportini (`companies.giornale_auto_enabled`, spento di base), riportato in «Chi fa cosa» e in «Cosa parte da solo».
 - **Interruttore per commessa**: la colonna `orders.giornale_auto_enabled` c'è ed è rispettata (acceso di base), ma nella scheda commessa non c'è ancora un punto dove cambiarlo.
 
-**Lotto 5: eventi, stampa, direzione lavori**
-- Eventi con un tipo: consegna (con DDT), problema o difformità (aperto / chiuso), sospensione / ripresa, istruzione, sopralluogo, sicurezza.
-- PDF con pagine numerate e annotazioni in coda.
-- Invio al direttore lavori; vista per il cliente solo delle pagine firmate.
-- Problemi aperti mostrati nella commessa e da Silvio.
+**Lotto 5: eventi, stampa, direzione lavori** *(realizzato, migrazione `20281231120000_giornale_eventi` da applicare)*
+- **Eventi con un tipo** (`giornale_eventi`): consegna, problema, sospensione, ripresa, istruzione, sopralluogo, sicurezza, nota, con ora e collegamento facoltativo a bolla, ticket o fase. In bozza si aggiungono e si tolgono. Su una pagina firmata niente cambia, tranne chiudere o riaprire un problema (con una nota). Lo impone il trigger `trg_giornale_eventi_guardia`.
+- **Impronta**: entrano id, tipo, ora e testo degli eventi. Non lo stato del problema né i collegamenti. Una pagina senza eventi ha la stessa impronta di prima.
+- **«Prepara dalla giornata»** e giro serale: consegne e segnalazioni ora sono eventi, non note, senza doppioni (indici unici per pagina e bolla o ticket). Il giro serale li scrive solo sulla pagina creata da lui.
+- **Commessa**: riquadro «Problemi aperti dal giornale», con i giorni e il link alla pagina. Silvio li legge nel `quadro_commessa`.
+- **Documento** (`_shared/documentoGiornale.ts`, `generate-giornale-pdf`): «Pagina N di M» dalla stampa del browser, Bozza o Firmata con data, autore e impronta, eventi per tipo, presenti per nome, annotazioni in coda. Chiuso al cliente del portale, che prima lo poteva scaricare.
+- **Direzione lavori**: «Invia alla direzione lavori» su una pagina firmata, solo col clic e la conferma dell'indirizzo (`orders.dl_notification_email`, oppure scritto al momento). L'email porta un link `/giornale-dl/:token` che vale 30 giorni e non chiede accesso (`giornale_invii_dl`, nel database solo l'impronta del token).
+- **Cliente nel portale**: solo le pagine firmate e visibili; le foto arrivano firmate dall'edge `giornale-foto-cliente`, che controlla che la commessa sia sua. Niente annotazioni né eventi.
+- **Non fatto**: l'archiviazione del documento in `archived_storage_path`. Oggi il documento è HTML, e HTML su Storage si apre come testo: serve un PDF vero costruito sul server.
 
 ## Da decidere (Florin)
 1. **Chi firma** il giornale. Proposta: un permesso assegnabile, con il titolare sempre abilitato.
 2. **Bozza dalla giornata accesa di default** sulle commesse nuove, o solo su richiesta.
-3. **Opere pubbliche** (D.M. 49/2018: vidimazione, firma della direzione lavori): dentro il lotto 5, o per ora solo il giornale d'impresa.
+3. ~~**Opere pubbliche**~~: deciso, per ora solo il giornale d'impresa, senza regole speciali D.M. 49/2018.

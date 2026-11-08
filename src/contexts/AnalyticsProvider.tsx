@@ -61,7 +61,7 @@ const PAGINE_SERVIZIO = [
   "/admin-login", "/clienti-login", "/commercialista-login", "/lavori-login",
   "/produttore-login", "/referral-login",
   // pagine raggiunte da un link personale, non dal sito
-  "/firma", "/firma-fea", "/firma-odv", "/firma-sal", "/preventivo", "/accetta-preventivo",
+  "/firma", "/firma-fea", "/firma-odv", "/firma-sal", "/giornale-dl", "/preventivo", "/accetta-preventivo",
   "/entra", "/stima", "/candidatura", "/talent-profile", "/qr", "/review", "/feedback",
   // rientri da accessi esterni
   "/oauth-done", "/meta-oauth-done",

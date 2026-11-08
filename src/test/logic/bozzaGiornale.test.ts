@@ -58,7 +58,7 @@ describe("componiBozzaGiornale", () => {
     expect(b.fonti.source_foto_ids).toEqual(["f1"]);
   });
 
-  it("consegne e segnalazioni vanno nelle note, e una bolla attesa non è una consegna", () => {
+  it("consegne e segnalazioni diventano eventi, non note, e una bolla attesa non è una consegna", () => {
     const b = componiBozzaGiornale({
       rapportini: [],
       ddt: [
@@ -73,7 +73,13 @@ describe("componiBozzaGiornale", () => {
     });
     expect(b.vuota).toBe(false);
     expect(b.campi.lavorazioni_eseguite).toBe("");
-    expect(b.campi.note).toBe("Consegne: DDT 12 di Edilmat; DDT 13 (a magazzino, danni segnalati).\nSegnalazioni dal campo: Perdita (Al piano 2); perdita.");
+    expect(b.campi.note).toBe("");
+    expect(b.eventi).toEqual([
+      { tipo: "consegna", ddt_id: "d1", testo: "DDT 12 di Edilmat" },
+      { tipo: "consegna", ddt_id: "d2", testo: "DDT 13 (a magazzino, danni segnalati)" },
+      { tipo: "problema", ticket_id: "s1", testo: "Perdita (Al piano 2)" },
+      { tipo: "problema", ticket_id: "s2", testo: "perdita" },
+    ]);
     expect(b.fonti.source_ddt_ids).toEqual(["d1", "d2"]);
     expect(b.fonti.source_segnalazioni_ids).toEqual(["s1", "s2"]);
   });
