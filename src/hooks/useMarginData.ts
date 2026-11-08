@@ -92,7 +92,7 @@ export function useMarginData(): MarginData {
       const cutoff = new Date();
       cutoff.setMonth(cutoff.getMonth() - 24);
       const archivedIds = await loadArchivedOrderIds(companyId!);
-      // 08/11/2026: tutte le commesse dei 24 mesi, a pagine. Prima `.limit(500)`
+      // 08/11/2026: tutte le commesse dei 24 mesi, a pagine. Prima il limite di 500 righe
       // si fermava alle ultime 500 e il margine medio del pareggio era il loro.
       return readAllOrderRows<MarginViewRow>((from, to) => excludeArchivedOrders((supabase as any)
         .from("v_ordine_marginalita")
