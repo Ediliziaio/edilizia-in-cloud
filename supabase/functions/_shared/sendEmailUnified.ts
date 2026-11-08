@@ -319,6 +319,22 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
     usingCustomDomain  = Boolean(args.senderOverride.usingCustomDomain);
     senderSource       = args.senderOverride.source ?? "override";
     effectiveReplyTo   = args.senderOverride.replyTo ?? effectiveReplyTo;
+  } else if (!args.companyId && args.viaMarketingProvider) {
+    // Email di piattaforma (nessuna azienda) dal provider del marketing
+    // (08/11/2026): il mittente va risolto sul canale marketing, sul suo dominio
+    // di riserva verificato su Elastic (email_marketing_fallback_subdomain,
+    // mkt.eic-mail.com). Prima restava settings.fromDefault, cioè
+    // «noreply@ediliziaincloud.it», che Elastic rifiuta («From email address …
+    // not allowed»): la prova dell'email del mattino è fallita così.
+    try {
+      const resolved = await resolveSender(null, "marketing", admin, { senzaSuffisso: true });
+      fromAddress = resolved.from;
+      providerDomain = resolved.domain;
+      senderSource = resolved.source;
+      effectiveReplyTo = effectiveReplyTo ?? resolved.replyTo;
+    } catch {
+      /* best-effort: resta il mittente di sempre */
+    }
   } else if (args.companyId && !args.platformSender) {
     try {
       // Dal provider del marketing il mittente deve stare su un dominio
