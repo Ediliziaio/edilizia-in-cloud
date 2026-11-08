@@ -62,21 +62,17 @@ describe("nella pagina", () => {
     expect(leggi("src/hooks/useMarginData.ts")).toContain("orders.filter(o => o.totalAmount > 0 && o.totalVariableCosts > 0)");
   });
 
-  it("un periodo solo: il Focus segue il filtro, il blocco in cima usa gli stessi dati", () => {
+  it("un periodo solo: il blocco in cima usa gli stessi dati della pagina", () => {
     const dati = leggi("src/hooks/useCruscottoData.ts");
     expect(dati).not.toContain("todayDateFrom");
     expect(dati).not.toContain("get_cruscotto_invoice_stats");
     expect(dati).not.toMatch(/T00:00:00`/);
-    expect(leggi("src/components/cruscotto/TodayFocus.tsx")).not.toContain("FOCUS_PRESETS");
     const pagina = leggi("src/pages/azienda/CruscottoAziendale.tsx");
     expect(pagina).toContain("<ComeStiamoAndandoVista comeSezione dati={cruscotto} />");
     expect(pagina).toContain('label: "Incassato periodo (IVA incl.)"');
     expect(pagina).not.toContain('label: "Saldo scadenze mese"');
   });
 
-  it("le opportunità ferme si contano con la soglia della fase", () => {
-    expect(leggi("src/components/cruscotto/AlertPanel.tsx")).not.toContain("7+ giorni");
-  });
 });
 
 describe("saturazione sui giorni passati", () => {
@@ -123,20 +119,37 @@ describe("scaduto per età", () => {
   });
 });
 
-describe("schede del cruscotto", () => {
+describe("schede del cruscotto (08/11/2026)", () => {
   const pagina = leggi("src/pages/azienda/CruscottoAziendale.tsx");
+  const inCima = leggi("src/pages/azienda/ComeStiamoAndando.tsx");
 
-  it("quattro schede; sul telefono due, e una scheda salvata che non c'è più torna a Sintesi", () => {
-    expect(pagina).not.toContain('value="team"');
-    expect(pagina).toContain('<TabsTrigger value="operations" className="rounded-lg max-sm:hidden"');
-    expect(pagina).toContain('<TabsTrigger value="vendite" className="rounded-lg max-sm:hidden"');
-    expect(pagina).toContain('!["sintesi", "finanza", "operations", "vendite"].includes(cruscottoTab)');
+  it("due schede, solo di soldi; una scheda salvata che non c'è più torna a «Incassi e cassa»", () => {
+    expect(pagina).toContain('<TabsTrigger value="incassi"');
+    expect(pagina).toContain('<TabsTrigger value="commesse"');
+    for (const vecchia of ['value="sintesi"', 'value="finanza"', 'value="operations"', 'value="vendite"', 'value="team"']) {
+      expect(pagina).not.toContain(vecchia);
+    }
+    expect(pagina).toContain('["incassi", "commesse"].includes(cruscottoTab) ? cruscottoTab : "incassi"');
   });
 
-  it("le vendite sono un riassunto della dashboard marketing, non una sua copia", () => {
-    expect(pagina).toContain("<VenditeInBreve kpi={marketing?.kpi}");
-    for (const copia of ["SalesControl", "PipelineForecast", "MarketingControl", "HRPerformance", "CruscottoTrend"]) {
+  it("niente doppioni della Dashboard Operativa e della Dashboard Marketing", () => {
+    for (const copia of ["TodayFocus", "OperationsDelivery", "VenditeInBreve", "AlertPanel", "SilvioCustomerLTVPanel",
+      "BillingKPIWidget", "PrimaNotaScadenzarioWidget", "ClienteSituazioneWidget", "SedeIncidenceChart",
+      "SalesControl", "PipelineForecast", "MarketingControl", "HRPerformance", "CruscottoTrend"]) {
       expect(pagina).not.toContain(copia);
     }
+    // in cima solo soldi: ritardi e ticket stanno nella Dashboard Operativa
+    expect(inCima).not.toContain('etichetta="Cantieri in ritardo"');
+    expect(inCima).not.toContain('id: "cantieri-ritardo"');
+    expect(inCima).not.toContain('id: "ticket"');
+    expect(inCima).toContain('etichetta="Saldo delle scadenze · mese"');
+    expect(inCima).toContain("non è il saldo di cassa");
+  });
+
+  it("si chiamano Cruscotto Economico e Dashboard Operativa, anche nel selettore", () => {
+    const selettore = leggi("src/components/dashboard/DashboardSelectorBar.tsx");
+    expect(selettore).toContain('label: "Cruscotto Economico"');
+    expect(selettore).toContain('label: "Dashboard Operativa"');
+    expect(pagina).toContain('title="Cruscotto Economico"');
   });
 });

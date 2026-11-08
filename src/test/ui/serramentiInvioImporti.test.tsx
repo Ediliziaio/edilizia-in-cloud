@@ -14,6 +14,12 @@ vi.setConfig({ testTimeout: 30_000 });
 
 const ricevuti = vi.hoisted(() => ({ props: null as null | Record<string, unknown> }));
 
+// La scheda commessa (contratto firmato, riepilogo) ha i suoi test: qui conta solo che la lista di controllo la blocchi.
+vi.mock("@/components/moduli/ConvertiInCommessaCard", () => ({
+  ConvertiInCommessaCard: ({ bloccoMotivo }: { bloccoMotivo?: string | null }) => (
+    <button type="button" disabled={!!bloccoMotivo}>Crea commessa da questo preventivo</button>
+  ),
+}));
 vi.mock("@/components/moduli/InviaFirmaCard", () => ({
   InviaFirmaCard: (props: Record<string, unknown>): null => { ricevuti.props = props; return null; },
 }));
@@ -24,7 +30,6 @@ vi.mock("@/hooks/useSerramentoPDF", () => ({
 }));
 vi.mock("@/lib/serramenti/queries", () => ({
   useGeneraPdf: () => ({ mutate: vi.fn(), isPending: false }),
-  useConvertiInOrdine: () => ({ mutate: vi.fn(), isPending: false }),
   useTemplatePdf: () => ({ data: null as null }),
   useAziendaPerPdf: () => ({ data: null as null }),
 }));

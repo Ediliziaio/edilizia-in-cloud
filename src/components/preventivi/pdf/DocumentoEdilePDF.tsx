@@ -340,6 +340,7 @@ function TavolaDiProgetto({ colore, conSegni }: { colore: string; conSegni: bool
 // ─── Intestazione e piè di pagina delle pagine interne ───────────────────────
 function Intestazione({ tema, dati }: { tema: TemaDocumento; dati: DocEdileDati }) {
   const { azienda, modulo, codice } = dati;
+  const sobrio = dati.stile === "sobrio";
   return (
     <View fixed style={{ position: "absolute", top: 30, left: MARGINE, right: MARGINE }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", height: 26 }}>
@@ -354,13 +355,17 @@ function Intestazione({ tema, dati }: { tema: TemaDocumento; dati: DocEdileDati 
           <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10, color: tema.inchiostro, letterSpacing: 0.6, maxWidth: UTILE - 200, maxLines: 1, textOverflow: "ellipsis" }}>{azienda.nome.toUpperCase()}</Text>
         )}
         <View style={{ alignItems: "flex-end" }}>
+          {sobrio ? null : (
           <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7.5, color: tema.inchiostroMarca, letterSpacing: 1.3 }}>
             {`PIANO DEI LAVORI · ${modulo.etichetta.toUpperCase()}`}
           </Text>
+          )}
           {codice ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, marginTop: 2 }}>{`PREVENTIVO N. ${codice} · ${oggi()}`}</Text> : null}
         </View>
       </View>
-      <View style={{ marginTop: 8 }}><BarraSegmenti colore={tema.fondo} larghezza={UTILE} /></View>
+      {sobrio
+        ? <View style={{ marginTop: 6, height: 0.8, backgroundColor: tema.inchiostro }} />
+        : <View style={{ marginTop: 8 }}><BarraSegmenti colore={tema.fondo} larghezza={UTILE} /></View>}
     </View>
   );
 }
@@ -580,10 +585,12 @@ function Tempi({ tema, fasi }: { tema: TemaDocumento; fasi: DocEdileFase[] }) {
 }
 
 // ─── Il piano dei lavori: capitoli e voci ────────────────────────────────────
-function TabellaCapitolo({ tema, cap, indice, mostraMargine, mostraPrezzi, mostraQta, mostraSubtotali, mostraImporti = true, mostraScontiRiga = true, spazioDopo = 0, sobrio = false }: {
+function TabellaCapitolo({ tema, cap, indice, mostraMargine, mostraPrezzi, mostraQta, mostraSubtotali, mostraImporti = true, mostraScontiRiga = true, spazioDopo = 0, senzaFascia = false, sobrio = false }: {
   tema: TemaDocumento; cap: DocEdileCapitolo; indice: number;
   /** Documento sobrio: la tabella fitta del computo — caratteri più piccoli, righe strette, niente rientro. */
   sobrio?: boolean;
+  /** Una categoria sola: la fascia col suo nome e il subtotale ripeterebbe il titolo e il totale. */
+  senzaFascia?: boolean;
   mostraMargine: boolean; mostraPrezzi: boolean; mostraQta: boolean; mostraSubtotali: boolean;
   /** False col prezzo scritto a mano: le righe possono essere a 0 €, e «0,00 €» su ogni riga smentirebbe il prezzo. */
   mostraImporti?: boolean;
@@ -622,7 +629,7 @@ function TabellaCapitolo({ tema, cap, indice, mostraMargine, mostraPrezzi, mostr
     <View minPresenceAhead={spazioDopo} style={{ marginBottom: sobrio ? 8 : 16 }}>
       {/* Il titolo deve viaggiare con la prima voce: una soglia fissa non basta con descrizioni lunghe. */}
       <View wrap={false}>
-        {sobrio ? (
+        {senzaFascia ? null : sobrio ? (
           <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3, backgroundColor: tema.cartaCalda, paddingHorizontal: 4 }}>
             <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8.5, color: tema.inchiostro, flex: 1 }}>{cap.nome}</Text>
             {mostraSubtotali ? <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8.5, color: tema.inchiostro }}>{formatCurrency(cap.subtotale)}</Text> : null}
@@ -693,7 +700,7 @@ function RigaRiepilogo({ tema, etichetta, valore, forte = false }: {
 }
 
 // ─── Copertina ───────────────────────────────────────────────────────────────
-export type DatiCopertinaDocumento = Pick<DocEdileDati, "cliente" | "cantiere" | "codice" | "tipoIntervento" | "localita"> & {
+export type DatiCopertinaDocumento = Pick<DocEdileDati, "cliente" | "cantiere" | "codice" | "tipoIntervento" | "localita" | "stile"> & {
   modello: Pick<DocEdileDati["modello"], "copertina">;
   azienda: Pick<DocEdileDati["azienda"], "nome" | "logoUrl" | "logoChiaroUrl"> & { indirizzo?: string | null };
   modulo: Pick<DocEdileDati["modulo"], "titoloCopertina" | "sottotitoloCopertina">;
@@ -719,6 +726,8 @@ export function CopertinaDocumento({ tema, dati, bookmark, data, nota, avviso, c
   const coloreAppoggio = inTinta ? fondo : "#000000";
   const titolo = c.titolo || dati.modulo.titoloCopertina;
   const sottotitolo = c.sottotitolo || [dati.tipoIntervento, dati.localita].filter(Boolean).join(" · ") || dati.modulo.sottotitoloCopertina;
+  // Il documento sobrio non ripete sotto il titolo lo stesso titolo (il preventivo classico li prende dallo stesso campo).
+  const sottotitoloDaStampare = dati.stile === "sobrio" && sottotitolo.replace(/\*/g, "").trim() === titolo.replace(/\*/g, "").trim() ? "" : sottotitolo;
   const occhiello = c.occhiello || "Piano dei lavori";
   const corpoTitolo = Math.max(26, Math.min(54, c.corpoTitolo ?? 42));
   const corpoOcchiello = Math.max(7, Math.min(12, c.corpoOcchiello ?? 8.5));
@@ -825,7 +834,7 @@ export function CopertinaDocumento({ tema, dati, bookmark, data, nota, avviso, c
           <View style={{ maxWidth: 480 }}>
             <TitoloAccento tema={tema} testo={titolo} corpo={corpoTitolo} colore={colori?.titolo || testo} coloreAccento={evidenza} allineamento={c.allineamento} interlinea={1.2} />
           </View>
-          <Text style={{ fontFamily: tema.caratteri.testo, fontSize: corpoSottotitolo, color: colori?.sottotitolo || testo, opacity: 0.86, marginTop: 14, lineHeight: 1.4, maxWidth: 400, textAlign: c.allineamento }}>{sottotitolo}</Text>
+          <Text style={{ fontFamily: tema.caratteri.testo, fontSize: corpoSottotitolo, color: colori?.sottotitolo || testo, opacity: 0.86, marginTop: 14, lineHeight: 1.4, maxWidth: 400, textAlign: c.allineamento }}>{sottotitoloDaStampare}</Text>
           {avviso ? <Text style={{ fontSize: 10, color: testo, lineHeight: 1.4, marginTop: 16, maxWidth: 400 }}>{avviso}</Text> : null}
         </View>
 
@@ -1595,10 +1604,15 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   }
   const chiusuraInCoda = dati.mostraChiusura !== false && !dati.bozzaLocale?.soloConfigurazione && !soloCondizioni && !dati.sezioniTecniche?.length && (!fotoChiusura || fotoChiusuraInCoda != null);
 
+  // Il documento sobrio è un foglio solo che scorre (08/11/2026, Florin: «poco spazio vuoto»): tabella, totale,
+  // accordi, condizioni e firma uno sotto l'altro; si va a pagina nuova solo quando la pagina è piena.
+  const unFlussoSolo = sobrio && segmenti.length > 0;
+  const segmentiStampati = unFlussoSolo ? [{ propria: false, chiavi: segmenti.flatMap((g) => g.chiavi) }] : segmenti;
+
   // Il contenuto di ogni capitolo, con il suo numero nella sequenza scelta.
   const contenutoTecnico = (sezione: NonNullable<DocEdileDati["sezioniTecniche"]>[number]) => (<>
           {sobrio ? (
-            <View id={edileSectionDestination(sezione.id)} style={{ marginTop: 10 }} minPresenceAhead={60}>
+            <View id={edileSectionDestination(sezione.id)} minPresenceAhead={60}>
               <TitolinoSezione tema={tema} testo={sezione.titolo} />
             </View>
           ) : (
@@ -1608,7 +1622,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
             <TitoloAccento tema={tema} testo={sezione.titolo} corpo={23} colore={sezione.colore ?? tema.inchiostro} coloreAccento={sezione.colore ?? tema.inchiostroMarca} />
           </View>
           )}
-          {sezione.testo ? <View style={{ marginTop: 14 }}>{sezione.testo.split(/\n+/).filter(Boolean).map((testo, i) => <Text key={i} style={[corpoTesto, { marginBottom: 7 }]}>{testo}</Text>)}</View> : null}
+          {sezione.testo ? <View style={{ marginTop: sobrio ? 0 : 14 }}>{sezione.testo.split(/\n+/).filter(Boolean).map((testo, i) => <Text key={i} style={[corpoTesto, sobrio ? { fontSize: 8.5, marginBottom: 3 } : { marginBottom: 7 }]}>{testo}</Text>)}</View> : null}
           {sezione.grafico ? <GraficoPreventivo dati={sezione.grafico} colore={tema.inchiostroMarca} larghezza={UTILE} altezza={altezzaGraficoTecnica(sezione)} /> : null}
           {/* La foto sotto il titolo e le righe dopo: se il foglio non basta va avanti il
               testo, non la foto da sola su un foglio altrimenti vuoto. */}
@@ -1621,12 +1635,12 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
             </View>
           ) : <Image src={sezione.immagine} style={{ width: UTILE, height: altezzaFotoTecnica(sezione), objectFit: "contain", marginTop: 18 }} /> : null}
           {sezione.righe?.map((riga, i) => (
-            <View key={i} wrap={false} style={{ flexDirection: "row", paddingVertical: passoRigheTecniche(sezione), borderBottomWidth: 0.5, borderBottomColor: sezione.accento ?? tema.filetto }}>
+            <View key={i} wrap={false} style={{ flexDirection: "row", paddingVertical: sobrio ? 3 : passoRigheTecniche(sezione), borderBottomWidth: sobrio ? 0.4 : 0.5, borderBottomColor: sezione.accento ?? tema.filetto }}>
               <Text style={[corpoTesto, sobrio ? { fontSize: 8.5 } : {}, { width: sobrio ? "30%" : "48%", paddingRight: 12 }]}>{riga.etichetta}</Text>
               <Text style={[corpoTesto, sobrio ? { fontSize: 8.5 } : {}, { width: sobrio ? "70%" : "52%", fontFamily: tema.caratteri.forte }]}>{riga.valore}</Text>
             </View>
           ))}
-          {sezione.nota ? <Text style={[corpoTesto, { fontSize: 9, marginTop: 10, color: tema.grigio }]}>{sezione.nota}</Text> : null}
+          {sezione.nota ? <Text style={[corpoTesto, { fontSize: sobrio ? 8 : 9, marginTop: sobrio ? 4 : 10, color: tema.grigio }]}>{sezione.nota}</Text> : null}
   </>);
 
   const contenutoCapitolo = (chiave: string, numero: number, riempi = false, altezzaFoto?: number): React.ReactNode => {
@@ -1732,10 +1746,11 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
             <TabellaCapitolo
               key={cap.nome} tema={tema} cap={cap} indice={i + 1}
               mostraMargine={modello.mostraMargine} mostraPrezzi={oc.mostraPrezzi && !prezzoManuale} mostraQta={oc.mostraQta}
-              mostraSubtotali={oc.mostraSubtotali && !prezzoManuale} mostraImporti={!prezzoManuale}
+              mostraSubtotali={oc.mostraSubtotali && !prezzoManuale && (!sobrio || oc.mostraPrezzi)} mostraImporti={!prezzoManuale && (!sobrio || oc.mostraPrezzi)}
               mostraScontiRiga={totali.mostraScontiRiga}
               spazioDopo={i === capitoli.length - 1 ? 50 : 0}
               sobrio={sobrio}
+              senzaFascia={sobrio && capitoli.length === 1}
             />
           ))
         )}
@@ -1795,7 +1810,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
             ) : modello.pagamentoHtml ? (
               <>
                 <TitolinoSezione tema={tema} testo="Modalità di pagamento" />
-                <TestoRicco tema={tema} html={modello.pagamentoHtml} stile={{ fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.inchiostro, lineHeight: 1.45 }} />
+                <TestoRicco tema={tema} html={modello.pagamentoHtml} stile={{ fontFamily: tema.caratteri.testo, fontSize: sobrio ? 8.5 : 10, color: tema.inchiostro, lineHeight: 1.45 }} />
               </>
             ) : null}
           </View>
@@ -1814,9 +1829,9 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
                 { e: `IVA ${percento(totali.ivaPct)}`, v: formatCurrency(totali.iva) },
               ]),
             ].map((r, i) => (
-              <View key={i} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, borderBottomWidth: 0.6, borderBottomColor: tema.filetto }}>
-                <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.grigio }}>{r.e}</Text>
-                <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10, color: tema.inchiostro, paddingRight: 2.5 }}>{r.v}</Text>
+              <View key={i} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: sobrio ? 3 : 5, borderBottomWidth: sobrio ? 0.4 : 0.6, borderBottomColor: tema.filetto }}>
+                <Text style={{ fontFamily: tema.caratteri.testo, fontSize: sobrio ? 8.5 : 10, color: tema.grigio }}>{r.e}</Text>
+                <Text style={{ fontFamily: tema.caratteri.forte, fontSize: sobrio ? 8.5 : 10, color: tema.inchiostro, paddingRight: 2.5 }}>{r.v}</Text>
               </View>
             ))}
           </View>
@@ -1914,12 +1929,12 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           <Text id={edileSectionDestination("condizioni")} style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: modello.coloreCondizioni ?? tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>ALLEGATO</Text>
           <TitoloAccento tema={tema} testo="Condizioni *contrattuali*." corpo={21} colore={tema.inchiostro} coloreAccento={modello.coloreCondizioni ?? tema.inchiostroMarca} />
           </>)}
-          <View style={{ marginTop: 14 }}>
+          <View style={{ marginTop: sobrio ? 0 : 14 }}>
             {/* Un articolo per volta: il titolo non resta mai in fondo a una pagina
                 senza il suo testo, e l'elenco delle clausole da firmare non si spezza. */}
             {perArticoli(modello.condizioniLegali, { senzaClausoleDaFirmare: modello.clausoleDaApprovare.length > 0 }).map((gruppo, g) => (
               <View key={g} wrap minPresenceAhead={36}>
-                {gruppo.map((r, i) => <TestoContrattoPdf key={i} riga={r} prima={g===0&&i===0} font={tema.caratteri.testo} colore={r.tipo==='h1'||r.tipo==='h2'?(modello.coloreCondizioni ?? tema.inchiostro):tema.grigio} />)}
+                {gruppo.map((r, i) => <TestoContrattoPdf key={i} riga={r} prima={g===0&&i===0} font={tema.caratteri.testo} colore={r.tipo==='h1'||r.tipo==='h2'?(modello.coloreCondizioni ?? tema.inchiostro):sobrio?tema.inchiostro:tema.grigio} compatto={sobrio} />)}
               </View>
             ))}
           </View>
@@ -1934,6 +1949,24 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           <TitoloAccento tema={tema} testo="ACCETTAZIONE PROPOSTA" corpo={21} colore={tema.inchiostro} coloreAccento={tema.inchiostroMarca} />
           </>)}
 
+          {sobrio ? (
+            <>
+              {[
+                ["Impresa", [dati.azienda.nome, dati.azienda.partitaIva ? `P.IVA ${dati.azienda.partitaIva}` : null].filter(Boolean).join(" · ")],
+                ["Committente", [dati.cliente, dati.datiFiscaliCliente].filter(Boolean).join(" · ")],
+                ["Oggetto", [dati.tipoIntervento || modulo.etichetta, dati.cantiere].filter(Boolean).join(" · ")],
+                ["Importo", `${formatCurrency(totali.totale)} · ${etichettaIvaInclusa(totali)}${modello.giorniValidita && modello.giorniValidita > 0 ? ` · offerta valida ${modello.giorniValidita} giorni` : ""}`],
+              ].map(([etichetta, valore]) => (
+                <View key={etichetta} style={{ flexDirection: "row", paddingVertical: 2.5, borderBottomWidth: 0.4, borderBottomColor: tema.filetto }}>
+                  <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, width: 80 }}>{etichetta}</Text>
+                  <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8.5, color: tema.inchiostro, flex: 1 }}>{valore}</Text>
+                </View>
+              ))}
+              <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.inchiostro, lineHeight: 1.4, marginTop: 7 }}>
+                {`Il Committente dichiara di aver ricevuto, letto e accettato il presente preventivo${dati.codice ? ` n. ${dati.codice}` : ""} e le condizioni contrattuali che lo accompagnano, e ne sottoscrive il contenuto.`}
+              </Text>
+            </>
+          ) : (<>
           <View style={{ marginTop: 16, backgroundColor: tema.cartaCalda, padding: 16 }}>
             <RigaRiepilogo tema={tema} etichetta="Impresa" valore={[dati.azienda.nome, dati.azienda.partitaIva ? `P.IVA ${dati.azienda.partitaIva}` : null].filter(Boolean).join(" · ")} />
             <RigaRiepilogo tema={tema} etichetta="Committente" valore={[dati.cliente, dati.datiFiscaliCliente].filter(Boolean).join(" · ")} />
@@ -1951,8 +1984,9 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
             dei lavori, l'investimento e le condizioni generali di contratto che lo accompagnano — e ne sottoscrive il
             contenuto.
           </Text>
+          </>)}
 
-          <View wrap={false} style={{ flexDirection: "row", marginTop: 18 }}>
+          <View wrap={false} style={{ flexDirection: "row", marginTop: sobrio ? 4 : 18 }}>
             <LineaFirma tema={tema} etichetta="LUOGO E DATA" larghezza={150} />
             <View style={{ width: 16 }} />
             {/* Timbro e chi firma per l'impresa, scritti nel modello (25/09/2026). */}
@@ -2067,7 +2101,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           pagina finiva con 7-12 cm bianchi. Una foto che si allarga (flexGrow)
           dentro un foglio che scorre sposta i calcoli di tutto il foglio, e il testo
           si sovrappone: per questo i blocchi con le foto stanno su pagine proprie. */}
-      {segmenti.map((segmento, s) => segmento.propria ? (
+      {segmentiStampati.map((segmento, s) => segmento.propria ? (
         <Page key={`blocco-${segmento.chiavi[segmento.chiavi.length - 1]}`} size="A4" style={pagina}>
           {cornice}
           {/* I capitoli corti saliti sulla pagina del blocco, interi, e poi il blocco con la foto accorciata. */}
@@ -2087,23 +2121,23 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
               pagina, sbordava da solo su un foglio bianco. I prossimi passi in coda
               portano lo stacco sopra di sé (vedi `chiusura`). */}
           {segmento.chiavi.map((chiave, i) => {
-            const scorre = i > 0 && scorreIntero(chiave);
+            const scorre = i > 0 && (scorreIntero(chiave) || (sobrio && chiave !== "piano"));
             // Nel documento sobrio il prezzo segue la tabella se ci sta davvero: lo decide il motore (wrap false),
             // non la stima, pensata per i titoli grandi e la banda del documento edile.
             const sobrioSegue = (k: string) => sobrio && k === "investimento";
-            const segue = i > 0 && seguePrecedente(chiave) && (!aCapo.has(chiave) || sobrioSegue(chiave));
+            const segue = i > 0 && (sobrio || (seguePrecedente(chiave) && (!aCapo.has(chiave) || sobrioSegue(chiave))));
             const prossimo = segmento.chiavi[i + 1];
             const foto = riempimento.get(chiave);
             const fotoRiempimento = modello.fotoRiempimento[chiave];
             // I prossimi passi in coda portano lo stacco sopra di sé: dopo l'ultimo capitolo nessun margine.
-            const continua = !foto && Boolean(prossimo) && seguePrecedente(prossimo) && (!aCapo.has(prossimo) || sobrioSegue(prossimo));
+            const continua = !foto && Boolean(prossimo) && (sobrio || (seguePrecedente(prossimo) && (!aCapo.has(prossimo) || sobrioSegue(prossimo))));
             return (
               <React.Fragment key={chiave}>
                 {/* `wrap` si passa solo quando è false: react-pdf guarda se la chiave c'è
                     («'wrap' in props»), e `wrap={undefined}` vale «non spezzare». Così fino al
                     22/09/2026 un computo più lungo di un foglio finiva schiacciato in uno solo,
                     con le righe una sopra l'altra. */}
-                <View break={i > 0 && !segue} {...(scorre ? { wrap: false } : {})} style={continua ? { marginBottom: 30 } : undefined}>
+                <View break={i > 0 && !segue} {...(scorre ? { wrap: false } : {})} style={continua ? { marginBottom: sobrio ? 12 : 30 } : undefined}>
                   {contenutoCapitolo(chiave, numeroDi.get(chiave) ?? i + 1)}
                 </View>
                 {/* Fuori dal capitolo: se la stima sbagliasse, la foto passerebbe alla pagina
@@ -2120,6 +2154,10 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           })()}
           {/* Senza foto, o con la foto accorciata, i prossimi passi seguono l'ultimo capitolo. */}
           {s === segmenti.length - 1 && chiusuraInCoda ? chiusura(fotoChiusuraInCoda, true) : null}
+          {unFlussoSolo && !dati.bozzaLocale && modello.condizioniLegali.length > 0 ? (<>
+            <View style={{ marginTop: 12 }}>{paginaCondizioni}</View>
+            <View wrap={false} style={{ marginTop: 12 }}>{paginaAccettazione}</View>
+          </>) : null}
         </Page>
       ))}
 
@@ -2141,7 +2179,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           elencano — l'approvazione specifica delle clausole dell'art. 1341 c.c., con una seconda firma.
           Nel documento sobrio (preventivo classico, 07/11/2026) stanno sulla stessa pagina: l'accettazione
           passa al foglio dopo solo se non ci sta intera. */}
-      {!dati.bozzaLocale && modello.condizioniLegali.length > 0 ? (sobrio ? (
+      {!dati.bozzaLocale && modello.condizioniLegali.length > 0 && !unFlussoSolo ? (sobrio ? (
         <Page size="A4" style={pagina}>
           {cornice}
           {paginaCondizioni}

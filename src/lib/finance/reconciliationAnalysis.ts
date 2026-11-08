@@ -340,3 +340,53 @@ export function detectReconAnomalies(transactions: any[], invoices: any[]): Reco
 
   return out;
 }
+
+/** La ricerca vale anche per importo: «1.234,50», «1234.50» o «1234,5 €». */
+export function coincideImporto(ricerca: string, importo: number): boolean {
+  const n = leggiImporto(ricerca);
+  return n !== null && Math.abs(n - importo) < 0.005;
+}
+
+/** «1.234,50», «1234.5», «1234,5 €» → 1234.5; null se non è un importo. */
+export function leggiImporto(testo: string): number | null {
+  const pulito = testo.replace(/[€\s]/g, "");
+  if (!/^\d[\d.,]*$/.test(pulito)) return null;
+  const n = Number(/,/.test(pulito) ? pulito.replace(/\./g, "").replace(",", ".") : pulito);
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
+}
+
+export interface CandidatoCombinazione {
+  key: string;
+  residuo: number;
+  /** Stesso cliente o fornitore del movimento: si prova per primo. */
+  affine?: boolean;
+}
+
+/**
+ * Due o più documenti i cui residui fanno esattamente l'importo. Prima solo tra
+ * quelli della stessa controparte, poi tra tutti; al massimo 6 documenti e 20
+ * candidati, così non blocca la pagina. È un suggerimento: conferma l'utente.
+ */
+export function combinazioneEsatta(importo: number, candidati: CandidatoCombinazione[]): string[] | null {
+  const obiettivo = Math.round(importo * 100);
+  const prova = (lista: CandidatoCombinazione[]): string[] | null => {
+    const voci = lista
+      .map((c) => ({ key: c.key, cent: Math.round(c.residuo * 100) }))
+      .filter((c) => c.cent > 0 && c.cent <= obiettivo)
+      .sort((a, b) => b.cent - a.cent)
+      .slice(0, 20);
+    const cerca = (da: number, resto: number, scelti: string[]): string[] | null => {
+      if (resto === 0) return scelti.length >= 2 ? scelti : null;
+      if (scelti.length === 6) return null;
+      for (let i = da; i < voci.length; i++) {
+        if (voci[i].cent > resto) continue;
+        const trovata = cerca(i + 1, resto - voci[i].cent, [...scelti, voci[i].key]);
+        if (trovata) return trovata;
+      }
+      return null;
+    };
+    return cerca(0, obiettivo, []);
+  };
+  const affini = candidati.filter((c) => c.affine);
+  return (affini.length >= 2 ? prova(affini) : null) ?? prova(candidati);
+}

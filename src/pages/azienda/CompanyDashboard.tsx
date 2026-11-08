@@ -1,5 +1,7 @@
 /**
- * Dashboard Gestione (/azienda da computer) — la regia operativa.
+ * Dashboard Operativa (/azienda da computer) — la regia operativa.
+ * Si chiamava «Dashboard Gestione» fino all'08/11/2026: si confondeva col
+ * Controllo di Gestione, che parla di soldi.
  *
  * Risponde a una domanda sola: cosa succede in cantiere e in magazzino oggi e
  * nei prossimi giorni, e cosa è fermo. Niente soldi: venduto, incassi e costi
@@ -257,8 +259,8 @@ function RegiaOperativa() {
         <div className="min-w-0">
           <div className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-500">
             <LayoutDashboard className="h-3.5 w-3.5" />
-            <span>Dashboard Gestione</span>
-            <DashboardSelectorBar title="Dashboard Gestione" soloSelettore />
+            <span>Dashboard Operativa</span>
+            <DashboardSelectorBar title="Dashboard Operativa" soloSelettore />
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
             Panoramica operativa
@@ -303,7 +305,7 @@ function RegiaOperativa() {
               to="/azienda/cruscotto/aziendale"
               className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-primary"
             >
-              Cruscotto economico <ArrowUpRight className="h-3.5 w-3.5" />
+              Cruscotto Economico <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
           )}
         </div>

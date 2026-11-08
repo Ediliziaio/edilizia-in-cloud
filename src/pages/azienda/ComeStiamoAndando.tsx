@@ -6,12 +6,15 @@
  * insieme rispondono male: numeri uguali con nomi diversi, e nessun posto dove
  * si legga "cosa devo guardare oggi".
  *
- * Qui: incassi contro previsione, margine dei cantieri aperti, scaduto,
- * cantieri in ritardo, e un solo elenco di cose che richiedono attenzione.
+ * Qui: incassi contro previsione, margine dei cantieri aperti, scaduto, saldo
+ * delle scadenze del mese, e un solo elenco di cose che richiedono attenzione.
+ *
+ * Solo soldi (08/11/2026). Cantieri in ritardo e richieste di assistenza
+ * stavano anche qui, ma sono il mestiere della Dashboard Operativa (/azienda),
+ * che li mostra due volte: qui li ripetevano una terza e una quarta.
  * I numeri arrivano da `useCruscottoData`, che c'era già: questa pagina non
  * rifà le query, le mette in fila.
  */
-import { isLateWork } from "@/lib/cruscottoMetrics";
 import { readAllOrderRows } from "@/lib/orders/listScope";
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
@@ -20,12 +23,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
 import { useCruscottoData } from "@/hooks/useCruscottoData";
+import { useDashboardBillingKPI } from "@/hooks/billing/useDashboardBillingKPI";
+import { useBillingMode } from "@/contexts/BillingModeContext";
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertTriangle, ArrowRight, Banknote, HardHat, Clock, TrendingDown, CheckCircle2, Info } from "lucide-react";
+import { AlertTriangle, ArrowRight, Banknote, HardHat, Scale, TrendingDown, CheckCircle2, Info } from "lucide-react";
 import { margineCantieriAperti, andamentoIncassi, ordinaAttenzioni, type CantiereMargine, type VoceAttenzione } from "@/lib/comeStiamoAndando";
 
 /** Un numero grosso con la sua riga di contesto. Il contesto non è decorazione. */
@@ -91,6 +96,8 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati }: {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const { operations, finance, todayData, companyTargets, workOrders, isLoading, error } = dati;
+  const { isNative } = useBillingMode();
+  const { data: fatturazione } = useDashboardBillingKPI(companyId ?? null, isNative);
 
   // Marginalità dei cantieri: la vista esiste già ed è quella che alimenta
   // Marginalità cantieri. Qui serve solo per i cantieri APERTI.
@@ -112,7 +119,6 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati }: {
     return cantieriRaw.map(c => ({ ...c, work_state: byId.get(c.id ?? "")?.work_state ?? "unknown" }));
   }, [cantieriRaw, workOrders]);
   const margini = useMemo(() => margineCantieriAperti(cantieri), [cantieri]);
-  const inRitardo = useMemo(() => workOrders.filter((c) => isLateWork(c)), [workOrders]);
 
   const incassi = useMemo(
     () => andamentoIncassi(
@@ -136,17 +142,6 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati }: {
         dettaglio: `${formatCurrency(scadutoEuro)} che i clienti dovevano già averti pagato.`,
         url: "/azienda/scadenzario",
         importo: scadutoEuro,
-      });
-    }
-
-    if (inRitardo.length > 0) {
-      voci.push({
-        id: "cantieri-ritardo",
-        gravita: "urgente",
-        titolo: `${inRitardo.length} ${inRitardo.length === 1 ? "cantiere ha" : "cantieri hanno"} superato la data di fine`,
-        dettaglio: inRitardo.slice(0, 3).map((c) => c.order_code || c.description || "senza codice").join(", ")
-          + (inRitardo.length > 3 ? ` e altri ${inRitardo.length - 3}` : ""),
-        url: "/azienda/ordini",
       });
     }
 
@@ -186,15 +181,22 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati }: {
       });
     }
 
-    const ticket = operations.openTickets ?? 0;
-    const sogliaTicket = companyTargets?.alert_open_tickets_threshold ?? 0;
-    if (sogliaTicket > 0 && ticket > sogliaTicket) {
+    // Fatture da emettere: lavoro fatto che non è ancora un credito. Stava
+    // nel pannello degli avvisi più in basso, tolto perché il resto era
+    // commerciale (lead, appuntamenti, pipeline) e vive nella Dashboard Marketing.
+    const bozze = fatturazione?.fatture_in_bozza ?? 0;
+    const proforma = fatturazione?.proforma_aperti ?? 0;
+    if (bozze + proforma > 0) {
       voci.push({
-        id: "ticket",
+        id: "fatture-da-emettere",
         gravita: "attenzione",
-        titolo: `${ticket} richieste di assistenza aperte`,
-        dettaglio: `Sopra la soglia che hai impostato (${sogliaTicket}).`,
-        url: "/azienda/assistenza",
+        titolo: bozze > 0
+          ? `${bozze} ${bozze === 1 ? "fattura in bozza" : "fatture in bozza"} da emettere`
+          : `${proforma} ${proforma === 1 ? "proforma da convertire" : "proforma da convertire"} in fattura`,
+        dettaglio: bozze > 0 && proforma > 0
+          ? `E ${proforma} ${proforma === 1 ? "proforma da convertire" : "proforma da convertire"}. Finché non le emetti, il cliente non deve niente.`
+          : "Finché non le emetti, il cliente non deve niente.",
+        url: bozze > 0 ? "/azienda/documenti?stato=bozza" : "/azienda/documenti",
       });
     }
 
@@ -210,7 +212,7 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati }: {
     }
 
     return ordinaAttenzioni(voci);
-  }, [todayData, operations, inRitardo, margini.peggiori, margini.quanti, margini.quantiValutabili, companyTargets, finance.supplierDebt, incassi]);
+  }, [todayData, operations, margini.peggiori, margini.quanti, margini.quantiValutabili, companyTargets, finance.supplierDebt, incassi, fatturazione]);
 
   if (error) {
     return (
@@ -289,17 +291,16 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati }: {
             tono={(operations.overduePayments ?? 0) > 0 ? "male" : "buono"}
             contesto={`${operations.overduePayments ?? 0} scadenze oltre il termine`}
           />
+          {/* Qui stava «Cantieri in ritardo»: un numero di cantiere, non di soldi,
+              già due volte nella Dashboard Operativa. Al suo posto quanto resta
+              fra rate da incassare e costi da pagare nel mese: non è la cassa
+              (il saldo in banca non entra), ed è scritto. */}
           <Numero
-            icona={Clock}
-            etichetta="Cantieri in ritardo"
-            valore={String(inRitardo.length)}
-            tono={inRitardo.length > 0 ? "attenzione" : "buono"}
-            contesto={
-              cantieriError ? "Dato non disponibile"
-                : inRitardo.length === 0 ? "Nessuno oltre la data di fine"
-                // Su telefono la spiegazione di cosa vuol dire «in ritardo» no.
-                : <span className="hidden sm:inline">Oltre la data di fine pianificata</span>
-            }
+            icona={Scale}
+            etichetta="Saldo delle scadenze · mese"
+            valore={formatCurrency(finance.cashFlowNet ?? 0)}
+            tono={(finance.cashFlowNet ?? 0) < 0 ? "male" : "buono"}
+            contesto={`${formatCurrency(finance.thisMonthIncome ?? 0)} da incassare − ${formatCurrency(finance.thisMonthOutflow ?? 0)} da pagare · non è il saldo di cassa`}
           />
         </div>
       )}
@@ -331,7 +332,7 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati }: {
         ) : attenzioni.length === 0 ? (
           <div className="flex items-center gap-2 px-4 py-4 text-sm text-slate-600">
             <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
-            Niente che richieda attenzione: nessuno scaduto, nessun cantiere oltre la data.
+            Niente che richieda attenzione: nessuno scaduto, nessun fornitore in scadenza.
           </div>
         ) : (
           <ul className={comeSezione ? "grid grid-cols-1 divide-y divide-slate-100 lg:grid-cols-2 lg:divide-y-0" : "divide-y divide-slate-100"}>

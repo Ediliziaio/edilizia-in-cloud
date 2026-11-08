@@ -187,6 +187,22 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
         />
       )}
 
+      {/* Il preventivo firmato è il contratto: da qui nasce la commessa, col computo già dentro. */}
+      {progetto.id && (
+        <div className="max-md:order-last">
+          <ConvertiInCommessaCard
+            modulo="rst"
+            progettoId={progetto.id}
+            ordineId={(progetto as { ordine_id?: string | null }).ordine_id ?? null}
+            bloccoMotivo={computoVuoto ? "Aggiungi voci al computo prima di creare la commessa." : null}
+            capitoli={numCapitoli}
+            fasiPianificate={Array.isArray(progetto.fasi_previste) ? progetto.fasi_previste.length : 0}
+            codice={progetto.code}
+            clientName={[progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ") || null}
+          />
+        </div>
+      )}
+
       {/* Anteprima del preventivo — mini-documento brandizzato (sul telefono senza la cornice). Da 1280 px in su
           non serve: a destra c'è il PDF vero (07/11/2026). */}
       <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none xl:hidden">

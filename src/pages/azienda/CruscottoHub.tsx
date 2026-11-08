@@ -359,16 +359,16 @@ function CreationOverlay({
 const STANDARD_DASHBOARDS = [
   {
     id: "std-aziendale",
-    title: "Cruscotto Aziendale",
-    description: "KPI strategici, cash flow, marketing e operazioni. La dashboard completa per il management.",
+    title: "Cruscotto Economico",
+    description: "Incassi, scaduto, cassa e margini delle commesse. I numeri economici, per il titolare e l'amministrazione.",
     url: "/azienda/cruscotto/aziendale",
     bg: "from-blue-500 via-blue-600 to-indigo-700",
     icon: LayoutGrid,
   },
   {
     id: "std-gestione",
-    title: "Dashboard Gestione",
-    description: "Ordini, cantieri, magazzino e scadenze operative. Il pannello operativo quotidiano.",
+    title: "Dashboard Operativa",
+    description: "Lavori, consegne, appuntamenti e cosa è fermo, oggi e nei prossimi giorni. Il pannello operativo quotidiano.",
     url: "/azienda",
     bg: "from-orange-400 via-amber-500 to-orange-600",
     icon: HardHat,

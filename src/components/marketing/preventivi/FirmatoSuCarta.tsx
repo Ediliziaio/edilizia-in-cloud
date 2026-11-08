@@ -7,6 +7,9 @@
  * quote-pdfs/<azienda>/contratti-carta/<preventivo>/ e non si sovrascrive né
  * si cancella.
  *
+ * Dal 31/10/2026 anche per i preventivatori (`modulo`): la scansione va in
+ * contratti-carta/<chiave>-<progetto>/ e la registra modulo_firmato_su_carta.
+ *
  * ContrattoFirmatoCard: come è stato firmato e il documento, da aprire.
  */
 import { useState } from "react";
@@ -31,10 +34,14 @@ const db = supabase as any;
 // Il giorno di qui (il database confronta col giorno di Roma).
 const oggi = () => new Date().toLocaleDateString("en-CA");
 
-export function FirmatoSuCartaDialog({ open, onOpenChange, quote }: {
+export function FirmatoSuCartaDialog({ open, onOpenChange, quote, modulo, onFirmato }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Per un preventivatore `id` è il progetto e `quote_number` il suo codice. */
   quote: { id: string; company_id: string; client_name?: string | null; quote_number?: string | null };
+  /** La chiave del preventivatore (rst, bagni, sr, fv…): assente per il preventivo classico. */
+  modulo?: string;
+  onFirmato?: () => void;
 }) {
   const queryClient = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
@@ -54,25 +61,24 @@ export function FirmatoSuCartaDialog({ open, onOpenChange, quote }: {
     try {
       // Prima il controllo (stato, permesso, data, firmatario), poi il file: una scansione caricata
       // non si cancella più, e non deve restare orfana se la firma viene rifiutata.
-      const { error: verifica } = await db.rpc("preventivo_firmato_su_carta", {
-        p_quote: quote.id, p_path: null, p_nome: null, p_mime: null,
-        p_firmato_il: giorno, p_firmatario: firmatario.trim(), p_solo_verifica: true,
-      });
+      const firma = (dati: { p_path: string | null; p_nome: string | null; p_mime: string | null; p_solo_verifica?: boolean }) =>
+        modulo
+          ? db.rpc("modulo_firmato_su_carta", { p_modulo: modulo, p_progetto_id: quote.id, ...dati, p_firmato_il: giorno, p_firmatario: firmatario.trim() })
+          : db.rpc("preventivo_firmato_su_carta", { p_quote: quote.id, ...dati, p_firmato_il: giorno, p_firmatario: firmatario.trim() });
+      const { error: verifica } = await firma({ p_path: null, p_nome: null, p_mime: null, p_solo_verifica: true });
       if (verifica) throw verifica;
-      const path = percorsoContrattoCarta(quote.company_id, quote.id, file.name);
+      const path = percorsoContrattoCarta(quote.company_id, modulo ? `${modulo}-${quote.id}` : quote.id, file.name);
       const { error: caricamento } = await supabase.storage.from("quote-pdfs")
         .upload(path, file, { contentType: file.type || undefined, upsert: false });
       if (caricamento) throw caricamento;
-      const { error } = await db.rpc("preventivo_firmato_su_carta", {
-        p_quote: quote.id, p_path: path, p_nome: file.name, p_mime: file.type || null,
-        p_firmato_il: giorno, p_firmatario: firmatario.trim(),
-      });
+      const { error } = await firma({ p_path: path, p_nome: file.name, p_mime: file.type || null });
       if (error) throw error;
       toast.success(`${quote.quote_number ?? "Il preventivo"} è firmato: ora è il contratto.`, {
         description: "Puoi creare la commessa.",
       });
       void queryClient.invalidateQueries({ queryKey: queryKeys.quotes.detail(quote.id) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.quotes.all });
+      onFirmato?.();
       onOpenChange(false);
     } catch (e) {
       setErrore(e instanceof Error ? e.message : "Firma non registrata: riprova.");

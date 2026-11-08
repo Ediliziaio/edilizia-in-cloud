@@ -1379,18 +1379,6 @@ export async function generaPdf(
   };
 }
 
-export async function convertiInOrdine(progetto_id: string): Promise<string> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any).rpc("sr_converti_in_ordine", {
-    p_progetto_id: progetto_id,
-  });
-  if (error) {
-    console.error("[serramenti] convertiInOrdine failed", error);
-    throw new Error(error.message || "Conversione in commessa fallita");
-  }
-  return data as string; // ordine_id
-}
-
 export async function importDaSopralluogo(input: {
   progetto_id: string;
   sopralluogo_id: string;

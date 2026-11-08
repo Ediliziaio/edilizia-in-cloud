@@ -671,7 +671,7 @@ export default function CreatePlatformUserDialog({ open, onOpenChange }: Props) 
                   </p>
                   <div className="space-y-2">
                     <PermGroup
-                      label="Cruscotto Aziendale"
+                      label="Cruscotto Economico"
                       icon={Building2}
                       iconColor="text-indigo-600"
                       sections={STANDALONE_SECTIONS}

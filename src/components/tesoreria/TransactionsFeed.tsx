@@ -8,15 +8,18 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Download, Search, X, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, Link2, Loader2, Sparkles } from "lucide-react";
+import { Download, Search, X, ChevronLeft, ChevronRight, Link2, Loader2, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { buildBankTransactionSearchFilter, formatTreasuryCurrency, isChronologicalDateRange, treasuryTransactionAmount } from "@/lib/treasury";
 import { neutralizeCsvFormula } from "@/lib/csvExport";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CercaConFiltri, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
+
+type TotaleMovimento = Parameters<typeof treasuryTransactionAmount>[0] & { currency?: string; transaction_type?: string };
 
 const CATEGORIES = [
   { value: "Stipendi", color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200" },
@@ -55,6 +58,8 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
   const [search, setSearch] = useState("");
   const [accountFilter, setAccountFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [reconFilter, setReconFilter] = useState("all");
+  const [totali, setTotali] = useState<TotaleMovimento[] | null>(null);
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -90,7 +95,7 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
     }, 250);
 
     return () => window.clearTimeout(timeout);
-  }, [companyId, refreshKey, page, search, accountFilter, typeFilter, categoryFilter, dateFrom, dateTo]);
+  }, [companyId, refreshKey, page, search, accountFilter, typeFilter, reconFilter, categoryFilter, dateFrom, dateTo]);
 
   async function loadAccounts() {
     try {
@@ -109,6 +114,36 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
       console.error('[TransactionsFeed] Errore imprevisto caricamento conti:', err);
       toast.error('Errore imprevisto. Riprova tra qualche secondo.');
     }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function applicaFiltri(query: any) {
+    const searchFilter = buildBankTransactionSearchFilter(search);
+    if (searchFilter) query = query.or(searchFilter);
+    if (accountFilter !== "all") query = query.eq("account_id", accountFilter);
+    if (typeFilter !== "all") query = query.eq("transaction_type", typeFilter);
+    if (reconFilter === "pending") query = query.in("reconciliation_status", ["pending", "parziale"]);
+    else if (reconFilter !== "all") query = query.eq("reconciliation_status", reconFilter);
+    if (categoryFilter !== "all") query = query.eq("category", categoryFilter);
+    if (dateFrom) query = query.gte("booking_date", dateFrom);
+    if (dateTo) query = query.lte("booking_date", dateTo);
+    return query;
+  }
+
+  // Entrate e uscite di TUTTO il filtrato, non della pagina. Solo gli importi, a
+  // blocchi da mille; il filtro nuovo fa decadere il conteggio in corso.
+  async function caricaTotali(richiesta: number) {
+    const righe: TotaleMovimento[] = [];
+    for (let da = 0; da < 50000; da += 1000) {
+      const { data, error } = await applicaFiltri(
+        supabase.from("bank_transactions").select("id, amount, currency, transaction_type, metadata").eq("company_id", companyId),
+      ).order("id").range(da, da + 999);
+      if (richiesta !== requestSeqRef.current) return;
+      if (error) { setTotali(null); return; }
+      righe.push(...((data ?? []) as TotaleMovimento[]));
+      if (!data || data.length < 1000) break;
+    }
+    setTotali(righe);
   }
 
   async function loadTransactions() {
@@ -133,15 +168,7 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
         .order("booking_date", { ascending: false })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
-      const searchFilter = buildBankTransactionSearchFilter(search);
-      if (searchFilter) {
-        query = query.or(searchFilter);
-      }
-      if (accountFilter !== "all") query = query.eq("account_id", accountFilter);
-      if (typeFilter !== "all") query = query.eq("transaction_type", typeFilter);
-      if (categoryFilter !== "all") query = query.eq("category", categoryFilter);
-      if (dateFrom) query = query.gte("booking_date", dateFrom);
-      if (dateTo) query = query.lte("booking_date", dateTo);
+      query = applicaFiltri(query);
 
       const { data, error, count } = await query;
       if (requestId !== requestSeqRef.current) return;
@@ -154,6 +181,7 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
         return;
       }
       setTransactions(data || []);
+      void caricaTotali(requestId);
       setTotalCount(count || 0);
 
       // Load linked invoices
@@ -184,7 +212,7 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
   }
 
   function resetFilters() {
-    setSearch(""); setAccountFilter("all"); setTypeFilter("all");
+    setSearch(""); setAccountFilter("all"); setTypeFilter("all"); setReconFilter("all");
     setCategoryFilter("all"); setDateFrom(""); setDateTo("");
     setPage(0);
   }
@@ -322,14 +350,15 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
 
   // Summary
   const summary = useMemo(() => {
-    const groups = [...new Set(transactions.map(t => t.currency || "EUR"))].map(currency => {
-      const rows = transactions.filter(t => (t.currency || "EUR") === currency);
+    const base: TotaleMovimento[] = totali ?? transactions;
+    const groups = [...new Set(base.map(t => t.currency || "EUR"))].map(currency => {
+      const rows = base.filter(t => (t.currency || "EUR") === currency);
       const income = rows.filter(t => t.transaction_type === "credit").reduce((s, t) => s + treasuryTransactionAmount(t), 0);
       const expenses = rows.filter(t => t.transaction_type === "debit").reduce((s, t) => s + Math.abs(treasuryTransactionAmount(t)), 0);
       return { currency, income, expenses, net: income - expenses };
     });
     return { count: totalCount, groups };
-  }, [transactions, totalCount]);
+  }, [transactions, totali, totalCount]);
 
   const getCategoryBadge = (cat: string | null) => {
     const found = CATEGORIES.find((c) => c.value === cat);
@@ -338,7 +367,7 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
-  const nFiltriMobile = [accountFilter !== "all", typeFilter !== "all", categoryFilter !== "all", !!dateFrom || !!dateTo].filter(Boolean).length;
+  const nFiltriMobile = [accountFilter !== "all", typeFilter !== "all", reconFilter !== "all", categoryFilter !== "all", !!dateFrom || !!dateTo].filter(Boolean).length;
 
   return (
     <div className="space-y-4 max-sm:space-y-3">
@@ -372,6 +401,14 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
                 <SelectItem value="debit">Uscite</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={reconFilter} onValueChange={(v) => { setReconFilter(v); setPage(0); }}>
+              <SelectTrigger className="w-[160px]" aria-label="Riconciliazione"><SelectValue placeholder="Riconciliazione" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Riconciliate e no</SelectItem>
+                <SelectItem value="pending">Da riconciliare</SelectItem>
+                <SelectItem value="reconciled">Riconciliate</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setPage(0); }}>
               <SelectTrigger className="w-[180px]"><SelectValue placeholder="Categoria" /></SelectTrigger>
               <SelectContent>
@@ -379,14 +416,21 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
                 {CATEGORIES.map((c) => <SelectItem key={c.value} value={c.value}>{c.value}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(0); }} className="w-[150px]" />
-            <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(0); }} className="w-[150px]" />
+            <Input type="date" aria-label="Dal" title="Dal" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(0); }} className="w-[150px]" />
+            <Input type="date" aria-label="Al" title="Al" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(0); }} className="w-[150px]" />
             <Button variant="ghost" size="sm" onClick={resetFilters}><X className="h-4 w-4 mr-1" /> Reset</Button>
             <Button variant="outline" size="sm" onClick={categorizeAll} disabled={categorizing} title="Applica le regole e categorizza con AI i movimenti senza categoria">
               {categorizing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />} Categorizza
             </Button>
-            <Button variant="outline" size="sm" onClick={exportCSV}><Download className="h-4 w-4 mr-1" /> CSV</Button>
-            <Button variant="outline" size="sm" onClick={exportXLSX}><Download className="h-4 w-4 mr-1" /> XLSX</Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm"><Download className="h-4 w-4 mr-1" /> Esporta</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={exportCSV}>CSV</DropdownMenuItem>
+                <DropdownMenuItem onClick={exportXLSX}>Excel</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </CardContent>
       </Card>
@@ -447,12 +491,11 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="text-left p-3 font-medium">Data</th>
-                  <th className="text-left p-3 font-medium">Descrizione</th>
-                  <th className="text-left p-3 font-medium">Conto</th>
-                  <th className="text-left p-3 font-medium">Categoria</th>
-                  <th className="text-left p-3 font-medium">Tipo</th>
-                  <th className="text-right p-3 font-medium">Importo</th>
+                  <th className="text-left px-3 py-2 font-medium">Data</th>
+                  <th className="text-left px-3 py-2 font-medium">Descrizione</th>
+                  <th className="text-left px-3 py-2 font-medium">Conto</th>
+                  <th className="text-left px-3 py-2 font-medium">Categoria</th>
+                  <th className="text-right px-3 py-2 font-medium">Importo</th>
                 </tr>
               </thead>
               <tbody>
@@ -466,8 +509,8 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
                       setEditNote(tx.note || "");
                     }}
                   >
-                    <td className="p-3 whitespace-nowrap">{formatDateIt(tx.booking_date)}</td>
-                    <td className="p-3">
+                    <td className="px-3 py-2 whitespace-nowrap">{formatDateIt(tx.booking_date)}</td>
+                    <td className="px-3 py-2">
                       <p className="truncate max-w-[300px]">{prettyTxDesc(tx)}</p>
                       {(tx.creditor_name || tx.debtor_name) && (
                         <p className="text-xs text-muted-foreground truncate max-w-[300px]">
@@ -475,10 +518,10 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
                         </p>
                       )}
                     </td>
-                    <td className="p-3 text-xs">
+                    <td className="px-3 py-2 text-xs">
                       {tx.bank_accounts?.display_name || tx.bank_accounts?.account_name || "—"}
                     </td>
-                    <td className="p-3">
+                    <td className="px-3 py-2">
                       <div className="flex flex-col gap-1 items-start">
                         {tx.category ? (
                           <Badge className={getCategoryBadge(tx.category)} variant="secondary">
@@ -486,6 +529,11 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
                           </Badge>
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                        {(tx.reconciliation_status === "pending" || tx.reconciliation_status === "parziale") && (
+                          <Badge variant="outline" className="text-[10px] w-fit border-amber-300 text-amber-700">
+                            {tx.reconciliation_status === "parziale" ? "Riconciliata in parte" : "Da riconciliare"}
+                          </Badge>
                         )}
                         {tx.linked_invoice_id && invoiceMap[tx.linked_invoice_id] && (
                           <Badge variant="outline" className="text-[10px] gap-1 w-fit">
@@ -495,18 +543,7 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
                         )}
                       </div>
                     </td>
-                    <td className="p-3">
-                      {tx.transaction_type === "credit" ? (
-                        <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" variant="secondary">
-                          <TrendingUp className="h-3 w-3 mr-1" /> Entrata
-                        </Badge>
-                      ) : (
-                        <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" variant="secondary">
-                          <TrendingDown className="h-3 w-3 mr-1" /> Uscita
-                        </Badge>
-                      )}
-                    </td>
-                    <td className={`p-3 text-right font-semibold ${tx.transaction_type === "credit" ? "text-green-600" : "text-red-600"}`}>
+                    <td className={`px-3 py-2 text-right font-semibold ${tx.transaction_type === "credit" ? "text-green-600" : "text-red-600"}`}>
                       {tx.transaction_type === "credit" ? "+" : ""}{formatTreasuryCurrency(treasuryTransactionAmount(tx), "—", tx.currency)}
                     </td>
                   </tr>
@@ -537,7 +574,7 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
 
       {/* Summary. Mobile no: una riga lunga di numeri in fondo alla lista. */}
       <div className="text-sm text-muted-foreground text-center py-2 max-sm:hidden">
-        Risultati: {summary.count} transazioni · Riepilogo pagina
+        {summary.count} transazioni{totali ? " · totali di tutto il periodo filtrato" : " · totali di questa pagina"}
         {summary.groups.map(g => <div key={g.currency}>{g.currency} · Entrate: {formatTreasuryCurrency(g.income, "—", g.currency)} · Uscite: {formatTreasuryCurrency(g.expenses, "—", g.currency)} · Netto: {formatTreasuryCurrency(g.net, "—", g.currency)}</div>)}
       </div>
 
@@ -561,7 +598,7 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
                     {formatTreasuryCurrency(treasuryTransactionAmount(selectedTx), "—", selectedTx.currency)}
                   </p>
                 </div>
-                <div className="max-sm:hidden"><Label className="text-muted-foreground">Stato</Label><p>{selectedTx.status}</p></div>
+                <div className="max-sm:hidden"><Label className="text-muted-foreground">Stato</Label><p>{selectedTx.status === "booked" ? "Contabilizzata" : selectedTx.status === "pending" ? "In attesa" : selectedTx.status}</p></div>
                 <div className="col-span-2"><Label className="text-muted-foreground">Descrizione</Label><p>{selectedTx.description || "—"}</p></div>
                 <div className={!selectedTx.creditor_name ? "max-sm:hidden" : undefined}><Label className="text-muted-foreground">Creditore</Label><p>{selectedTx.creditor_name || "—"}</p></div>
                 <div className={!selectedTx.debtor_name ? "max-sm:hidden" : undefined}><Label className="text-muted-foreground">Debitore</Label><p>{selectedTx.debtor_name || "—"}</p></div>
@@ -621,6 +658,16 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
             { value: "all", label: "Tutti" },
             { value: "credit", label: "Entrate" },
             { value: "debit", label: "Uscite" },
+          ]}
+        />
+        <PilloleFiltro
+          titolo="Riconciliazione"
+          valore={reconFilter}
+          onScegli={(v) => { setReconFilter(v); setPage(0); }}
+          scelte={[
+            { value: "all", label: "Tutte" },
+            { value: "pending", label: "Da fare" },
+            { value: "reconciled", label: "Fatte" },
           ]}
         />
         {accounts.length > 1 && (

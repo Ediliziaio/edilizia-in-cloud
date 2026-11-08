@@ -43,10 +43,10 @@ vi.mock("@/hooks/useSerramentoPDF", () => ({
 vi.mock("@/lib/serramenti/queries", () => ({
   useTariffeManodopera: () => ({ data: [] as unknown[] }),
   useGeneraPdf: () => ({ mutate: vi.fn(), isPending: false }),
-  useConvertiInOrdine: () => ({ mutate: vi.fn(), isPending: false }),
   useTemplatePdf: () => ({ data: null as null }),
   useAziendaPerPdf: () => ({ data: null as null }),
 }));
+vi.mock("@/components/moduli/ConvertiInCommessaCard", () => ({ ConvertiInCommessaCard: (): null => null }));
 vi.mock("@/components/moduli/InviaFirmaCard", () => ({
   InviaFirmaCard: (props: { disabled: boolean; disabledReason: string }): null => { stato.invio = props; return null; },
 }));

@@ -39,6 +39,7 @@ import {
   renderElePreviewBlobUrl } from "@/hooks/useElettricoPDF";
 import type { EleProgetto, EleComputoVoce, EleProgettoMedia } from "@/types/elettrico";
 import { InviaFirmaCard } from "@/components/moduli/InviaFirmaCard";
+import { ConvertiInCommessaCard } from "@/components/moduli/ConvertiInCommessaCard";
 import { CondizioniDelPreventivoCard } from "@/components/moduli/CondizioniDelPreventivoCard";
 
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -182,6 +183,21 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
           modelloAssociatoId={(template as unknown as { condizioni_modello_id?: string | null } | undefined)?.condizioni_modello_id}
           spenteNelModello={(template as unknown as { condizioni_legali_attivo?: boolean | null } | undefined)?.condizioni_legali_attivo === false}
         />
+      )}
+
+      {/* Il preventivo firmato è il contratto: da qui nasce la commessa, col computo già dentro. */}
+      {progetto.id && (
+        <div className="max-md:order-last">
+          <ConvertiInCommessaCard
+            modulo="ele"
+            progettoId={progetto.id}
+            ordineId={(progetto as { ordine_id?: string | null }).ordine_id ?? null}
+            bloccoMotivo={computoVuoto ? "Aggiungi voci al computo prima di creare la commessa." : null}
+            capitoli={numCapitoli}
+            codice={progetto.code}
+            clientName={[progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ") || null}
+          />
+        </div>
       )}
 
       {/* Anteprima del preventivo — mini-documento brandizzato (sul telefono senza la cornice). Da 1280 px in su

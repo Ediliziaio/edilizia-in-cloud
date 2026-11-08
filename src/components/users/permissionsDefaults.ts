@@ -170,7 +170,7 @@ export function applyEditFollowsView(perms: StaffPermissions): StaffPermissions 
 // ─── 7 macro-aree allineate alla sidebar ───────────────────────────────────
 
 export const CRUSCOTTO_SECTIONS: PermissionSectionDef[] = [
-  { label: "Cruscotto Aziendale",    viewKey: "can_view_cruscotto",            editKey: null, description: "Centro di controllo executive unificato" },
+  { label: "Cruscotto Economico",    viewKey: "can_view_cruscotto",            editKey: null, description: "Incassi, scaduto, cassa e margini delle commesse" },
   { label: "Controllo di Gestione",  viewKey: "can_view_controllo_gestione",   editKey: null, description: "Conto economico, KPI e tesoreria. Si apre anche a chi ha Cruscotto, Fatturazione o Costi: spegnere solo questo non basta." },
 ];
 

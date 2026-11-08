@@ -20,6 +20,12 @@ const { firma } = vi.hoisted(() => ({ firma: { props: null as null | Record<stri
 
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { info: vi.fn(), success: vi.fn(), error: vi.fn(), warning: vi.fn(), dismiss: vi.fn() }) }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
+// La scheda commessa (contratto firmato, riepilogo) ha i suoi test: qui conta solo che la lista di controllo la blocchi.
+vi.mock("@/components/moduli/ConvertiInCommessaCard", () => ({
+  ConvertiInCommessaCard: ({ bloccoMotivo }: { bloccoMotivo?: string | null }) => (
+    <button type="button" disabled={!!bloccoMotivo}>Crea commessa da questo preventivo</button>
+  ),
+}));
 vi.mock("@/components/moduli/InviaFirmaCard", () => ({
   InviaFirmaCard: (props: Record<string, unknown>): null => {
     firma.props = props;
@@ -28,7 +34,6 @@ vi.mock("@/components/moduli/InviaFirmaCard", () => ({
 }));
 vi.mock("@/lib/serramenti/queries", () => ({
   useGeneraPdf: () => ({ mutate: vi.fn(), isPending: false }),
-  useConvertiInOrdine: () => ({ mutate: vi.fn(), isPending: false }),
   useTemplatePdf: () => ({ data: null as unknown }),
   useAziendaPerPdf: () => ({ data: null as unknown }),
 }));

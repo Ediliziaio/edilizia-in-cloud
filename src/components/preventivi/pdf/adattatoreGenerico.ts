@@ -3,8 +3,7 @@ import type { DocEdileDati } from "./documentoEdileTipi";
 import { righeRiepilogoIva } from "../../../../supabase/functions/_shared/riepilogoIvaPreventivo";
 import { agevolazioniPreventivo } from "../../../../supabase/functions/_shared/prezziPreventivo";
 import { testiPerPdf } from "../../../../supabase/functions/_shared/testoPerPdf";
-import { normalizzaTestoTemplatePdf } from "../../../../supabase/functions/_shared/testoTemplatePdf";
-import { COLORE_ACCENTO_DI_FABBRICA, coloreDelBlocco, titoliMarkdown } from "../../../../supabase/functions/_shared/blocchiModelloPreventivo";
+import { coloreDelBlocco } from "../../../../supabase/functions/_shared/blocchiModelloPreventivo";
 import { nomeLeggibile } from "../../../../supabase/functions/_shared/impaginaPreventivo";
 import { formatCurrency } from "@/lib/formatters";
 import { CAPITOLI_EDILI } from "./ordineCapitoli";
@@ -56,7 +55,7 @@ export function datiGenerici(input: { quote: Riga; items: Riga[]; righePerIva?: 
     capitoli: [...capitoli].map(([nome, righe]) => ({ nome, fuoriTotale: righe.every(r => r.is_optional === true), subtotale: righe.reduce((s, r) => s + num(r.line_total), 0), voci: righe.map((r, i) => ({ id: str(r.id) || `riga-${i}`, descrizione: str(r.name), descrizione_estesa: str(r.description), quantita: num(r.quantity), unita_misura: str(r.unit_of_measure), prezzo_unitario: num(r.unit_price), sconto_pct: num(r.discount_percent), importo: num(r.line_total), immagine_url: str(r.image_url) })) })),
     totali: { imponibileLordo: iva.subTotShown, scontoEur: iva.scontoShown, scontoPct: num(q.discount_percent), imponibile, iva: iva.ivaToShow, ivaPct: iva.righeIva[0]?.aliquota ?? 0, aliquoteIva: iva.righeIva, totale, detrazionePct: 0, detrazioneEur: 0, costoTot: 0, margineEur: null, marginePct: null, prezzoManuale: num(q.prezzo_manuale) > 0 },
     // «Solo il totale» (sul preventivo o nelle impostazioni dell'azienda): il computo a corpo, senza le righe.
-    media: [], opzioniComputo: { livello: q.pdf_mostra_solo_totale === true ? "corpo" : "dettagliato", mostraPrezzi: q.pdf_mostra_prezzi !== false, mostraQta: q.pdf_mostra_quantita !== false },
+    media: [], opzioniComputo: { livello: q.pdf_mostra_solo_totale === true ? "corpo" : "dettagliato", mostraPrezzi: q.pdf_mostra_prezzi_per_riga !== false, mostraQta: q.pdf_mostra_quantita !== false },
   });
   // Lo sconto si mostra solo se è vero: non i centesimi dell'IVA che righeRiepilogoIva assorbe nello sconto.
   dati.totali.mostraScontiRiga = q.pdf_mostra_sconti !== false;
@@ -74,6 +73,7 @@ export function datiGenerici(input: { quote: Riga; items: Riga[]; righePerIva?: 
   // E sobrio (07/11/2026, Florin: «non ci sono titoli, tutto più piccolo, la tabella ordinaria come nel
   // computo, poco spazio vuoto»): dopo la copertina, un documento da ufficio.
   dati.stile = "sobrio";
+  dati.modello.copertina.occhiello = dati.modello.copertina.occhiello || "Preventivo";
   dati.sezioniTecniche = [];
   const condizioni = [
     t.show_notes === false ? null : { etichetta: "Note", valore: str(q.notes) },
@@ -81,32 +81,9 @@ export function datiGenerici(input: { quote: Riga; items: Riga[]; righePerIva?: 
     { etichetta: "Coordinate bancarie", valore: str(t.bank_details) },
   ].filter((r): r is { etichetta: string; valore: string } => !!r?.valore);
   if (condizioni.length) dati.sezioniTecniche.push({ id: "accordi", titolo: "Accordi e riferimenti", righe: condizioni });
-  // Le schede prodotto e le sezioni collegate al modello (blocchi della libreria): erano
-  // pagine del vecchio motore pdf-lib e col motore unico (27/10/2026) non uscivano più.
-  // Ognuna diventa un capitolo del dettaglio, coi colori scelti nel suo blocco (il
-  // vecchio motore li usava; dal 27/10/2026 al 30/10 erano spariti).
-  const blocchi = (v: unknown): Riga[] => Array.isArray(v) ? v.filter((b): b is Riga => !!b && typeof b === "object") : [];
-  for (const [i, p] of blocchi(t.composed_products).entries()) {
-    const prezzo = p.product_indicative_price != null && p.product_indicative_price !== ""
-      ? `${formatCurrency(num(p.product_indicative_price))}${str(p.product_unit) ? `/${str(p.product_unit)}` : ""}` : "";
-    const caratteristiche = blocchi(p.product_specs)
-      .filter((sp) => str(sp.label) || str(sp.value))
-      .map((sp) => ({ etichetta: str(sp.label) || "Caratteristica", valore: str(sp.value) || "—" }));
-    dati.sezioniTecniche.push({
-      id: `scheda-${str(p.id) || i}`,
-      titolo: str(p.name) || "Scheda prodotto",
-      colore: coloreDelBlocco(p.primary_color),
-      accento: coloreDelBlocco(p.accent_color, COLORE_ACCENTO_DI_FABBRICA),
-      testo: normalizzaTestoTemplatePdf(p.product_short_description || p.product_long_description) || null,
-      righe: [...(str(p.product_category) ? [{ etichetta: "Categoria", valore: str(p.product_category) }] : []), ...caratteristiche,
-        ...(prezzo ? [{ etichetta: "Prezzo indicativo", valore: prezzo }] : [])],
-    });
-  }
-  for (const [i, sezione] of blocchi(t.composed_sections).entries()) {
-    const testo = normalizzaTestoTemplatePdf(titoliMarkdown(sezione.body_html)).replace(/^#+\s*/gm, "");
-    if (!testo.trim()) continue;
-    dati.sezioniTecniche.push({ id: `sezione-${str(sezione.id) || i}`, titolo: str(sezione.name) || "Sezione", testo, colore: coloreDelBlocco(sezione.primary_color) });
-  }
+  // Niente «Chi siamo», schede prodotto o sezioni libere dei blocchi collegati al modello (08/11/2026, Florin):
+  // il classico dice cosa si compra, quanto costa, come si paga, a quali condizioni. Le schede dei prodotti scelti
+  // sono i PDF allegati in fondo (`schedeProdotto`).
   // Le condizioni col colore del loro blocco, se l'ha scelto.
   dati.modello.coloreCondizioni = coloreDelBlocco(t.composed_terms?.primary_color);
   if (t.show_logo === false) { dati.azienda.logoUrl = null; dati.azienda.logoChiaroUrl = null; dati.modello.copertina.logoUrl = null; dati.modello.copertina.posizioneLogo = "hidden"; }
