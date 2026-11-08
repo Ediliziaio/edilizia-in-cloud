@@ -1,5 +1,5 @@
-import { useState, useMemo, useRef, useEffect } from "react";
-import { Plus, Trash2, Pencil, Package, Warehouse, CheckCircle, Clock, Copy, Link2, Tag, Truck, Wallet, Paperclip, Upload, FileText, X, ChevronsUpDown, Check, PackageCheck, ExternalLink, AlertTriangle, ChevronUp, ChevronDown, MoreHorizontal,
+import { useState, useMemo, useRef, useEffect, type ReactNode } from "react";
+import { Plus, Trash2, Pencil, Package, Warehouse, CheckCircle, Clock, Copy, Link2, Tag, Truck, Wallet, Paperclip, Upload, FileText, X, ChevronRight, ExternalLink, AlertTriangle, ChevronUp, ChevronDown, MoreHorizontal,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
@@ -16,7 +16,6 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -45,14 +44,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
@@ -62,6 +53,9 @@ import { quantitaDaCampo } from "@/lib/orders/quantitaDaCampo";
 import { quantitaSommabili, trovaDoppione } from "@/lib/distinta/elencoArticoli";
 import { ETICHETTA_STATO_MATERIALE, quantitaLeggibile, statoMateriale } from "@/lib/distinta/statoMateriale";
 import { COLORE_STATO } from "./materiali/coloriStato";
+import { AggiungiArticoloDialog, type GruppoDaModificare } from "./articoli/AggiungiArticoloDialog";
+import type { EsitoSuMisura } from "./articoli/FormSuMisura";
+import { ETICHETTA_STATO_MISURE, misureLeggibili, raggruppaRighe, type StatoMisure } from "@/lib/orders/gruppiSuMisura";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 /** Una riga della distinta/abaco dentro l'articolo (es. "2 ante · 1000x1000 · x1"). */
@@ -130,6 +124,12 @@ export interface OrderItem {
   misure_preventivo?: Record<string, number> | null;
   misure_rilevate?: Record<string, number> | null;
   measure_status?: 'da_rilevare' | 'rilevato' | 'confermato' | null;
+  /** Posizioni dello stesso bene su misura: a schermo una voce sola. */
+  gruppo_id?: string | null;
+  /** Come si chiama la posizione in cantiere: Cucina, P3. */
+  riferimento?: string | null;
+  /** Da dove viene il costo: listino, manuale, offerta, ordine. */
+  prezzo_fonte?: string | null;
   measure_variance?: Record<string, { prev: number; def: number; delta: number }> | null;
   survey_id?: string | null;
   survey_element_id?: string | null;
@@ -201,6 +201,8 @@ interface OrderItemsListProps {
    * non ci sono ancora. «schede» è l'elenco di prima, con tutti i controlli.
    */
   vista?: "schede" | "compatta";
+  /** Altre strade per i materiali (computo, Silvio), in fondo al popup di inserimento. */
+  altreFonti?: ReactNode;
 }
 
 export const STATUS_CONFIG: Record<OrderItemStatus, { label: string; badgeColor: string; borderColor: string }> = {
@@ -287,6 +289,7 @@ export function OrderItemsList({
   soloFinestra = false,
   richiesta = null,
   vista = "schede",
+  altreFonti,
 }: OrderItemsListProps) {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -298,7 +301,11 @@ export function OrderItemsList({
       all'inserimento. In modifica si apre da sola: i valori esistenti devono
       restare visibili. */
   const [showAltriDettagli, setShowAltriDettagli] = useState(false);
-  const [dialogTab, setDialogTab] = useState<"new" | "stock">("new");
+  /** Il popup per inserire (ricerca unica e su misura). La finestra sotto resta per modificare. */
+  const [popupNuovo, setPopupNuovo] = useState(false);
+  const [azzeraPopup, setAzzeraPopup] = useState(0);
+  const [gruppoInModifica, setGruppoInModifica] = useState<GruppoDaModificare | null>(null);
+  const [gruppiAperti, setGruppiAperti] = useState<Set<string>>(new Set());
   const [itemName, setItemName] = useState("");
   const [itemDescription, setItemDescription] = useState("");
   const [itemQuantity, setItemQuantity] = useState("1");
@@ -357,9 +364,6 @@ export function OrderItemsList({
    * l'upload. Per articoli in edit mode l'upload è immediato.
    */
   const pendingUploadsRef = useRef<Map<string, File>>(new Map());
-  // Stock picking state
-  const [selectedStockItem, setSelectedStockItem] = useState<string>("");
-  const [stockPickQuantity, setStockPickQuantity] = useState("1");
   const [dialogError, setDialogError] = useState<string | null>(null);
 
   const [sourceFilter, setSourceFilter] = useState<"all" | "stock" | "supplier">("all");
@@ -391,60 +395,6 @@ export function OrderItemsList({
     },
     enabled: !!companyId,
   });
-
-  // Fetch warehouse stock for picking — lazy (solo se dialog aperto +
-  // tab "Da Magazzino" selezionata). Select solo le colonne usate, limit
-  // 500 per scalare con cataloghi grossi (utente cerca via search per
-  // trovare oltre i 500 più frequenti).
-  const { data: stockItems = [] } = useQuery({
-    queryKey: ["warehouse-stock-with-wh", companyId],
-    enabled: !!companyId && dialogOpen,
-    staleTime: 2 * 60 * 1000,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("warehouse_stock")
-        .select("id, name, quantity, unit_cost, tracking_mode, internal_code, barcode, description, warehouse:warehouse_id(id, name)")
-        .eq("company_id", companyId!)
-        .order("quantity", { ascending: false })
-        .order("name")
-        .limit(500);
-      if (error) throw error;
-      return data as Array<StockItem & { warehouse?: { id: string; name: string } | null }>;
-    },
-  });
-
-  // Search testuale debounced
-  const [stockSearch, setStockSearch] = useState("");
-  const [stockSearchDebounced, setStockSearchDebounced] = useState("");
-  useEffect(() => {
-    const t = setTimeout(() => setStockSearchDebounced(stockSearch.trim().toLowerCase()), 200);
-    return () => clearTimeout(t);
-  }, [stockSearch]);
-
-  // Filter + group per warehouse
-  const stockItemsFiltered = useMemo(() => {
-    let list = stockItems;
-    if (stockSearchDebounced) {
-      list = list.filter((s) =>
-        s.name.toLowerCase().includes(stockSearchDebounced) ||
-        (s.internal_code && s.internal_code.toLowerCase().includes(stockSearchDebounced)) ||
-        (s.barcode && s.barcode.toLowerCase().includes(stockSearchDebounced))
-      );
-    }
-    return list;
-  }, [stockItems, stockSearchDebounced]);
-
-  const stockGroups = useMemo(() => {
-    const map = new Map<string, typeof stockItemsFiltered>();
-    for (const s of stockItemsFiltered) {
-      const whName = s.warehouse?.name ?? "Senza magazzino";
-      const existing = map.get(whName);
-      if (existing) existing.push(s);
-      else map.set(whName, [s]);
-    }
-    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [stockItemsFiltered]);
-  const [stockPickerOpen, setStockPickerOpen] = useState(false);
 
   // v8.6.35 — Fetch ODA (purchase_orders) esistenti per questa company,
   // opzionalmente filtrabile per fornitore selezionato nel dialog.
@@ -591,20 +541,27 @@ export function OrderItemsList({
     setItemLinkedPoId(undefined);
     setPendingAttachment(null);
     setEditingIndex(null);
-    setSelectedStockItem("");
-    setStockPickQuantity("1");
-    setDialogTab("new");
     setDialogError(null);
     copiaDiRef.current = null;
   };
 
   const openAddDialog = () => {
-    resetForm();
+    setGruppoInModifica(null);
     setFaseNuovo(undefined);
-    setDialogOpen(true);
+    setPopupNuovo(true);
   };
 
   const openEditDialog = (index: number, comeCopia = false) => {
+    // Una posizione su misura si corregge insieme alle altre del suo gruppo.
+    const dalGruppo = items[index];
+    if (dalGruppo?.gruppo_id) {
+      setGruppoInModifica({
+        righe: items.filter((i) => i.gruppo_id === dalGruppo.gruppo_id),
+        copiaDi: comeCopia ? dalGruppo : null,
+      });
+      setPopupNuovo(true);
+      return;
+    }
     // In modifica i dettagli si aprono: descrizione, pagamento, arrivo o OdA
     // potrebbero avere valori, e non devono sparire dietro il ripiegabile.
     setShowAltriDettagli(true);
@@ -673,6 +630,49 @@ export function OrderItemsList({
     setPendingAttachment(null); // file deferred non si "pre-popola" in edit
     setEditingIndex(index);
     setDialogOpen(true);
+  };
+
+  // L'avviso «c'è già» non guarda mai le righe su misura: due finestre uguali sono due finestre.
+  const righeNormali = useMemo(() => items.filter((i) => !i.gruppo_id), [items]);
+
+  const dalPopupAggiungiRiga = (riga: OrderItem): boolean => {
+    const conPosto = { ...riga, position: items.length };
+    const esistente = trovaDoppione(conPosto, righeNormali);
+    if (esistente) {
+      setDoppione({ nuovo: conPosto, esistente });
+      return false;
+    }
+    onItemsChange([...items, conPosto]);
+    return true;
+  };
+
+  const dalPopupMagazzino = (voce: { id: string; name: string; description?: string | null; supplier_id?: string | null; unit_cost: number; vat_rate?: number | null }, quantita: number) => {
+    onItemsChange([...items, {
+      name: voce.name,
+      description: voce.description || undefined,
+      quantity: quantita,
+      status: "in_magazzino",
+      position: items.length,
+      supplier_id: voce.supplier_id || undefined,
+      purchase_price: voce.unit_cost,
+      vat_rate: voce.vat_rate ?? 22,
+      stock_item_id: voce.id,
+      ...(faseNuovo !== undefined ? { phase_id: faseNuovo } : {}),
+    }]);
+    onStockPick?.(voce.id, quantita);
+  };
+
+  const dalPopupSuMisura = ({ nuove, aggiornate, tolte }: EsitoSuMisura) => {
+    // Nel dettaglio commessa ogni riga si salva da sola; nei moduli vive nello stato.
+    const salvaSubito = !!onItemUpdate && allowEdit;
+    if (salvaSubito) aggiornate.forEach(({ dopo }) => onItemUpdate(dopo));
+    const stessa = (a: OrderItem, b: OrderItem) => a === b || (!!a.id && a.id === b.id);
+    const dopo = items
+      .map((i) => (salvaSubito ? i : aggiornate.find((a) => stessa(a.prima, i))?.dopo ?? i))
+      .filter((i) => !tolte.some((t) => stessa(t, i)));
+    if (nuove.length > 0 || tolte.length > 0 || !salvaSubito) {
+      onItemsChange([...dopo, ...nuove.map((r, n) => ({ ...r, position: dopo.length + n }))]);
+    }
   };
 
   const handleSaveItem = (): boolean => {
@@ -792,7 +792,7 @@ export function OrderItemsList({
       };
       // Lo stesso materiale c'è già (stessa fase, stesso nome o articolo del
       // listino): prima di creare una seconda riga si chiede cosa fare.
-      const esistente = trovaDoppione(newItem, items);
+      const esistente = trovaDoppione(newItem, righeNormali);
       if (esistente) {
         setDoppione({ nuovo: newItem, esistente });
         return false;
@@ -858,6 +858,7 @@ export function OrderItemsList({
     setDoppione(null);
     setDialogOpen(false);
     resetForm();
+    setAzzeraPopup((n) => n + 1);
   };
 
   // v8.6.35 — Helper link ODA esistente: crea (o sposta) la riga in
@@ -1025,9 +1026,9 @@ export function OrderItemsList({
     if (richiesta.tipo === "nuovo") {
       // La richiesta arriva da fuori (vista per fase): aprire la finestra è l'effetto voluto.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      resetForm();
+      setGruppoInModifica(null);
       setFaseNuovo(richiesta.phaseId);
-      setDialogOpen(true);
+      setPopupNuovo(true);
       return;
     }
     const indice = items.findIndex((i) => i.id === richiesta.id);
@@ -1057,46 +1058,6 @@ export function OrderItemsList({
     }
   };
 
-  const handlePickFromStock = () => {
-    setDialogError(null);
-    if (stockPickBlockedReason) { setDialogError(stockPickBlockedReason); return; }
-    const stock = stockItems.find((s) => s.id === selectedStockItem);
-    if (!stock) {
-      setDialogError("Seleziona un articolo da magazzino.");
-      return;
-    }
-    if (stock.tracking_mode === "serialized") {
-      setDialogError("Per gli articoli serializzati usa Magazzino → Uscita merce, seleziona la commessa e le matricole da consegnare.");
-      return;
-    }
-    const qty = Number(stockPickQuantity);
-    if (!Number.isInteger(qty) || qty <= 0) {
-      setDialogError("La quantità da prelevare deve essere un numero intero maggiore di zero.");
-      return;
-    }
-    if (qty > stock.quantity) {
-      setDialogError("La quantità richiesta supera la disponibilità di magazzino.");
-      return;
-    }
-
-    const newItem: OrderItem = {
-      name: stock.name,
-      description: stock.description || undefined,
-      quantity: qty,
-      status: "in_magazzino",
-      position: items.length,
-      supplier_id: stock.supplier_id || undefined,
-      purchase_price: stock.unit_cost,
-      vat_rate: stock.vat_rate ?? 22,
-      stock_item_id: stock.id,
-      ...(faseNuovo !== undefined ? { phase_id: faseNuovo } : {}),
-    };
-    onItemsChange([...items, newItem]);
-    onStockPick?.(stock.id, qty);
-    setDialogOpen(false);
-    resetForm();
-  };
-
   const renderNewArticleForm = () => (
     <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
       {/* ── Section 1: Articolo ─────────────────────────── */}
@@ -1106,7 +1067,7 @@ export function OrderItemsList({
         </h4>
         <div className="space-y-2">
           <Label>Nome Articolo *</Label>
-          <ArticleCombobox value={itemName} onValueChange={handleArticleSelect} placeholder="Cerca articolo dal listino o digita…" fallbackCompanyId={fallbackCompanyId} includeListino />
+          <ArticleCombobox value={itemName} onValueChange={handleArticleSelect} placeholder="Cerca articolo dal listino o digita…" fallbackCompanyId={fallbackCompanyId} includeListino salvaNuoviNelCatalogo={false} />
           {((itemStandardCost != null && itemStandardCost > 0) || itemImageUrl || (itemManodoperaCosto != null && itemManodoperaCosto > 0)) && (
             <div className="flex items-start gap-2.5 rounded-md bg-blue-50 border border-blue-100 p-2.5">
               {itemImageUrl ? (
@@ -1605,6 +1566,7 @@ export function OrderItemsList({
   // La finestra «Nuovo / Modifica articolo»: nell'elenco e, da sola, nella
   // vista per fase della commessa (soloFinestra).
   const finestra = (
+    <>
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -1623,201 +1585,7 @@ export function OrderItemsList({
             </div>
           )}
 
-          {editingIndex === null && stockItems.length > 0 ? (
-            <Tabs value={dialogTab} onValueChange={(v) => setDialogTab(v as "new" | "stock")}>
-              <TabsList className="w-full">
-                <TabsTrigger value="new" className="flex-1 gap-1">
-                  <Plus className="h-3 w-3" />
-                  Nuovo Articolo
-                </TabsTrigger>
-                <TabsTrigger value="stock" className="flex-1 gap-1">
-                  <Warehouse className="h-3 w-3" />
-                  Da Magazzino
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="new">
-                {renderNewArticleForm()}
-                {/* Footer: ordine logico per scan-pattern italiano (sinistra→destra):
-                    [Annulla] [Aggiungi e continua] [Aggiungi]
-                    "Aggiungi" è la primary action (destra). "Aggiungi e continua"
-                    è secondary (per inserimenti rapidi). Tooltip su "continua"
-                    per chiarire la differenza alla prima visita. */}
-                <DialogFooter className="mt-4 flex-col sm:flex-row gap-2 max-sm:flex-row">
-                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="sm:order-1 max-sm:hidden">
-                    Annulla
-                  </Button>
-                  <TooltipProvider delayDuration={300}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={handleSaveAndContinue}
-                          disabled={!itemName.trim()}
-                          className="sm:order-2 gap-1.5"
-                          aria-label="Aggiungi e continua"
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                          <span aria-hidden="true" className="max-sm:hidden">Aggiungi e continua</span>
-                          <span aria-hidden="true" className="sm:hidden">Salva e un altro</span>
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-xs">
-                        Salva l'articolo e riapre subito il form col fornitore, IVA e stato già compilati. Utile per inserire più articoli simili in fila.
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  <Button type="button" onClick={handleSaveItem} disabled={!itemName.trim()} className="sm:order-3 max-sm:flex-1">
-                    Aggiungi
-                  </Button>
-                </DialogFooter>
-              </TabsContent>
-
-              <TabsContent value="stock">
-                {stockPickBlockedReason && <div className="mb-3 space-y-2">
-                  <p role="alert" className="text-sm text-amber-800">{stockPickBlockedReason}</p>
-                  {onOpenWarehouseExit && <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); onOpenWarehouseExit(); }}>Apri uscita merce per questa commessa</Button>}
-                </div>}
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Articolo da Magazzino *</Label>
-                    <Popover open={stockPickerOpen} onOpenChange={setStockPickerOpen}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          className="w-full justify-between text-left font-normal h-9"
-                        >
-                          {selectedStockItem ? (() => {
-                            const s = stockItems.find((it) => it.id === selectedStockItem);
-                            if (!s) return "Seleziona articolo…";
-                            return (
-                              <span className="truncate">
-                                {s.name}
-                                <span className="text-muted-foreground text-xs ml-2">· {s.warehouse?.name ?? "—"} · {s.quantity} pz</span>
-                              </span>
-                            );
-                          })() : (
-                            <span className="text-muted-foreground">Seleziona articolo… (cerca per nome o codice)</span>
-                          )}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent
-                        className="w-[var(--radix-popover-trigger-width)] p-0"
-                        align="start"
-                        side="bottom"
-                        sideOffset={4}
-                        avoidCollisions={false}
-                      >
-                        <Command shouldFilter={false}>
-                          <CommandInput
-                            placeholder="Filtra per nome, codice o barcode…"
-                            value={stockSearch}
-                            onValueChange={setStockSearch}
-                          />
-                          <CommandList
-                            className="!max-h-[320px] overscroll-contain"
-                            onWheel={(e) => { e.currentTarget.scrollTop += e.deltaY; }}
-                          >
-                            {stockGroups.length === 0 ? (
-                              <CommandEmpty className="py-6 text-center text-xs text-muted-foreground">
-                                {stockSearchDebounced
-                                  ? `Nessun articolo trovato per "${stockSearchDebounced}"`
-                                  : "Nessun articolo in magazzino"}
-                              </CommandEmpty>
-                            ) : (
-                              stockGroups.map(([whName, items]) => (
-                                <CommandGroup key={whName} heading={`📦 ${whName} (${items.length})`}>
-                                  {items.map((s) => {
-                                    const noStock = s.quantity <= 0;
-                                    return (
-                                      <CommandItem
-                                        key={s.id}
-                                        value={s.id}
-                                        onSelect={() => {
-                                          setSelectedStockItem(s.id);
-                                          setStockPickerOpen(false);
-                                        }}
-                                        className="flex flex-col items-start gap-0.5 py-2 cursor-pointer"
-                                      >
-                                        <div className="flex items-center gap-2 w-full">
-                                          <Check className={cn("h-3.5 w-3.5 shrink-0", selectedStockItem === s.id ? "opacity-100" : "opacity-0")} />
-                                          <span className={cn("font-medium text-sm truncate", noStock && "text-muted-foreground")}>{s.name}</span>
-                                          {s.internal_code && (
-                                            <Badge variant="outline" className="text-[10px] h-4 shrink-0 ml-auto">{s.internal_code}</Badge>
-                                          )}
-                                        </div>
-                                        <div className="flex items-center gap-2 pl-5 text-[11px]">
-                                          <PackageCheck className={cn("h-2.5 w-2.5", noStock ? "text-destructive" : "text-emerald-600")} />
-                                          <span className={noStock ? "text-destructive" : "text-muted-foreground"}>
-                                            Disp: <span className="font-semibold tabular-nums">{s.quantity}</span> pz
-                                          </span>
-                                          {canViewCosts && <span className="text-muted-foreground">· {formatCurrency(s.unit_cost)}/pz</span>}
-                                          {s.tracking_mode === "serialized" && (
-                                            <Badge variant="secondary" className="text-[9px] h-4" title="Articolo serializzato — ogni unità ha un codice univoco">SN</Badge>
-                                          )}
-                                          {noStock && <Badge variant="destructive" className="text-[9px] h-4">esaurito</Badge>}
-                                        </div>
-                                      </CommandItem>
-                                    );
-                                  })}
-                                </CommandGroup>
-                              ))
-                            )}
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  {selectedStockItem && (() => {
-                    const stock = stockItems.find((s) => s.id === selectedStockItem);
-                    if (!stock) return null;
-                    return (
-                      <div className="space-y-3">
-                        <div className="p-3 rounded-lg bg-muted/50 text-sm space-y-1">
-                          {canViewCosts && <div className="flex justify-between"><span>Costo unitario:</span><span className="font-medium">{formatCurrency(stock.unit_cost)}</span></div>}
-                          <div className="flex justify-between"><span>Disponibili:</span><span className="font-medium">{stock.quantity}</span></div>
-                          {stock.description && <p className="text-muted-foreground">{stock.description}</p>}
-                        </div>
-                        <div className="space-y-2">
-                          {(!stockPickBlockedReason && stock.tracking_mode === "serialized") && (
-                            <p role="alert" className="text-sm text-amber-800">
-                              {stockPickBlockedReason || "Per gli articoli serializzati usa Magazzino → Uscita merce, seleziona la commessa e le matricole da consegnare."}
-                            </p>
-                          )}
-                          <Label>Quantità da prelevare</Label>
-                          <Input type="number" min="1" max={stock.quantity} value={stockPickQuantity} onChange={(e) => setStockPickQuantity(e.target.value)} />
-                          {parseInt(stockPickQuantity) > stock.quantity && (
-                            <p className="text-xs text-destructive">Quantità superiore alla disponibilità</p>
-                          )}
-                        </div>
-                        {canViewCosts && <div className="p-3 rounded-lg bg-muted/50 text-sm">
-                          <div className="flex justify-between font-medium">
-                            <span>Costo totale:</span>
-                            <span>{formatCurrency(stock.unit_cost * (parseInt(stockPickQuantity) || 0))}</span>
-                          </div>
-                        </div>}
-                      </div>
-                    );
-                  })()}
-                </div>
-                <DialogFooter className="mt-4 max-sm:flex-row">
-                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="max-sm:hidden">Annulla</Button>
-                  <Button
-                    type="button"
-                    className="max-sm:flex-1"
-                    onClick={handlePickFromStock}
-                    disabled={!!stockPickBlockedReason || stockItems.find((s) => s.id === selectedStockItem)?.tracking_mode === "serialized" || !selectedStockItem || !parseInt(stockPickQuantity) || parseInt(stockPickQuantity) > (stockItems.find((s) => s.id === selectedStockItem)?.quantity || 0)}
-                  >
-                    <Warehouse className="h-4 w-4 mr-2" />
-                    Preleva
-                  </Button>
-                </DialogFooter>
-              </TabsContent>
-            </Tabs>
-          ) : (
+          {(
             <>
               {renderNewArticleForm()}
               <DialogFooter className="mt-4 flex-col sm:flex-row gap-2 max-sm:flex-row">
@@ -1855,7 +1623,8 @@ export function OrderItemsList({
             </>
           )}
         </DialogContent>
-        <Dialog open={!!doppione} onOpenChange={(o) => !o && setDoppione(null)}>
+      </Dialog>
+      <Dialog open={!!doppione} onOpenChange={(o) => !o && setDoppione(null)}>
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>«{doppione?.esistente.name}» c'è già</DialogTitle>
@@ -1871,7 +1640,7 @@ export function OrderItemsList({
                 </>}
               </DialogDescription>
             </DialogHeader>
-            <DialogFooter className="gap-2">
+            <DialogFooter className="flex-wrap gap-2">
               <Button type="button" variant="ghost" onClick={() => setDoppione(null)}>Annulla</Button>
               <Button type="button" variant="outline" onClick={() => risolviDoppione("separata")}>Aggiungi come riga a parte</Button>
               {sommabile && (
@@ -1880,7 +1649,24 @@ export function OrderItemsList({
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </Dialog>
+      <AggiungiArticoloDialog
+        open={popupNuovo}
+        onOpenChange={(aperto) => { setPopupNuovo(aperto); if (!aperto) setGruppoInModifica(null); }}
+        companyId={companyId}
+        canViewCosts={canViewCosts}
+        phaseId={faseNuovo}
+        onAggiungiRiga={dalPopupAggiungiRiga}
+        onPrendiDaMagazzino={dalPopupMagazzino}
+        onEsitoSuMisura={dalPopupSuMisura}
+        azzera={azzeraPopup}
+        gruppoDaModificare={gruppoInModifica}
+        puoTogliereSalvate={editable && allowDelete && !(onItemUpdate && allowEdit)}
+        stockBloccato={stockPickBlockedReason}
+        onOpenWarehouseExit={onOpenWarehouseExit}
+        onAddLabor={onAddLabor}
+        altreFonti={altreFonti}
+      />
+    </>
   );
 
   if (soloFinestra) return finestra;
@@ -1893,7 +1679,7 @@ export function OrderItemsList({
           <CardTitle className="flex min-w-0 items-center gap-2 text-base">
             <Package className="h-4 w-4 shrink-0" aria-hidden />
             <span className="truncate">Articoli e Materiali</span>
-            {items.length > 0 && <span className="text-sm font-normal text-muted-foreground tabular-nums">{items.length}</span>}
+            {items.length > 0 && <span className="text-sm font-normal text-muted-foreground tabular-nums">{raggruppaRighe(items).length}</span>}
           </CardTitle>
           {editable && (
             <Button type="button" size="sm" onClick={openAddDialog} className="tap-compact shrink-0">
@@ -1908,7 +1694,65 @@ export function OrderItemsList({
             </p>
           ) : (
             <ul className="divide-y border-t">
-              {items.map((item, index) => {
+              {raggruppaRighe(items).map((voce) => {
+                if (voce.tipo === "gruppo") {
+                  const aperto = gruppiAperti.has(voce.gruppoId);
+                  const prima = voce.righe[0];
+                  const titoloPezzi = `${voce.pezzi} pz`;
+                  return (
+                    <li key={voce.gruppoId}>
+                      <div className="flex items-center gap-3 px-4 py-2 max-sm:px-3">
+                        <button type="button" aria-expanded={aperto} className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                          onClick={() => setGruppiAperti((prec) => { const s = new Set(prec); if (s.has(voce.gruppoId)) s.delete(voce.gruppoId); else s.add(voce.gruppoId); return s; })}>
+                          <ChevronRight className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", aperto && "rotate-90")} aria-hidden />
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-medium">{voce.nome}</span>
+                            <span className="block truncate text-xs text-muted-foreground">Su misura · {voce.righe.length} {voce.righe.length === 1 ? "posizione" : "posizioni"}</span>
+                          </span>
+                        </button>
+                        <span className="shrink-0 whitespace-nowrap text-right text-sm tabular-nums">{titoloPezzi}</span>
+                        {canViewCosts && (
+                          <span className="w-24 shrink-0 text-right text-sm tabular-nums max-sm:hidden">
+                            {voce.costo > 0 ? formatCurrency(voce.costo) : <span className="text-xs text-muted-foreground">da definire</span>}
+                          </span>
+                        )}
+                        {(editable || allowEdit) && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button type="button" variant="ghost" size="icon" className="tap-compact h-7 w-7 shrink-0" aria-label={`Azioni su ${voce.nome}`}>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onSelect={() => openEditDialog(prima.indice)}><Pencil className="mr-2 h-4 w-4" />Modifica le posizioni</DropdownMenuItem>
+                              {editable && allowDelete && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem className="text-red-700" onSelect={() => onItemsChange(items.filter((i) => i.gruppo_id !== voce.gruppoId).map((i, n) => ({ ...i, position: n })))}><Trash2 className="mr-2 h-4 w-4" />Togli tutte</DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                      {aperto && (
+                        <ul className="border-t bg-muted/20 text-sm">
+                          {voce.righe.map(({ riga }) => (
+                            <li key={riga.id ?? riga.riferimento ?? riga.position} className="flex items-center gap-3 py-1.5 pl-10 pr-4 max-sm:pl-9 max-sm:pr-3">
+                              <span className="min-w-0 flex-1 truncate">{riga.riferimento || "—"}</span>
+                              <span className="shrink-0 tabular-nums text-muted-foreground">{misureLeggibili(riga.misure_preventivo) ?? "misure da scrivere"}</span>
+                              <span className="w-10 shrink-0 text-right tabular-nums">{riga.quantity} pz</span>
+                              {canViewCosts && <span className="w-24 shrink-0 text-right tabular-nums max-sm:hidden">{riga.purchase_price ? formatCurrency(riga.purchase_price * riga.quantity) : <span className="text-xs text-muted-foreground">da definire</span>}</span>}
+                              {riga.measure_status && <span className="shrink-0 text-xs text-muted-foreground max-sm:hidden">{ETICHETTA_STATO_MISURE[riga.measure_status as StatoMisure]}</span>}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  );
+                }
+                const item = voce.riga;
+                const index = voce.indice;
                 const stato = statoMateriale({ quantity: item.quantity, status: item.status, unita_misura: item.unita_misura }, []).stato;
                 const qta = quantitaLeggibile(item.quantity, item.unita_misura);
                 const fornitore = item.supplier_name || getSupplierName(item.supplier_id);

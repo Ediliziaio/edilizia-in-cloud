@@ -105,3 +105,14 @@ export function normalizzaSelezione(
   for (const [codice, voce] of Object.entries(voci ?? {})) if (ok.has(codice)) vociOk[codice] = voce;
   return { valori: prossimi, voci: vociOk };
 }
+
+/** La scelta di partenza di ogni asse: il valore predefinito, altrimenti il primo attivo. */
+export function defaultSelections(family: { axes: ReadonlyArray<{ codice: string; values: ReadonlyArray<{ id: string; is_default?: boolean | null; attivo?: boolean | null }> }> }): Record<string, string> {
+  const sel: Record<string, string> = {};
+  for (const ax of family.axes) {
+    const def = ax.values.find((v) => v.is_default && v.attivo);
+    if (def) sel[ax.codice] = def.id;
+    else if (ax.values.length > 0 && ax.values[0].attivo) sel[ax.codice] = ax.values[0].id;
+  }
+  return sel;
+}

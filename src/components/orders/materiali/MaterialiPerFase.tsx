@@ -18,7 +18,7 @@
  */
 import { RevisioneTecnico } from "./RevisioneTecnico";
 import { revisioneTecnico } from "@/lib/distinta/revisioneTecnico";
-import { lazy, Suspense, useMemo, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -40,6 +40,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useOperationalSuppliers } from "@/hooks/useOperationalSuppliers";
 import { useAzioniMateriali, useMaterialiPerFase, type FaseMateriali, type MaterialeFase } from "@/hooks/useMaterialiPerFase";
 import { useApplicaPrezziProposti, usePrezziProposti } from "@/hooks/usePrezziMateriali";
+import { misureLeggibili, raggruppaRighe, type VoceElenco } from "@/lib/orders/gruppiSuMisura";
 import {
   acquistabile, azionePrincipaleFase, ETICHETTA_AZIONE_PRINCIPALE, ETICHETTA_PILLOLA, pillolaValidazione, puoModificareMateriali,
   spiegazioneFase, type AzioneFase, type AzionePrincipale, type PermessiMateriali, type PillolaValidazione,
@@ -324,9 +325,32 @@ function PillolaStato({ info, m, spiegazione, onCambia }: {
   );
 }
 
+/** Un bene su misura: una voce sola, che si apre sulle sue posizioni. */
+function GruppoPosizioni({ voce, canViewCosts, riga }: {
+  voce: Extract<VoceElenco<MaterialeFase>, { tipo: "gruppo" }>;
+  canViewCosts: boolean;
+  riga: (m: MaterialeFase) => ReactNode;
+}) {
+  const [aperto, setAperto] = useState(false);
+  return (
+    <div>
+      <button type="button" aria-expanded={aperto} onClick={() => setAperto((a) => !a)}
+        className="flex w-full items-center gap-2 border-t px-3 py-2 text-left hover:bg-muted/30">
+        <ChevronRight className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", aperto && "rotate-90")} aria-hidden />
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">{voce.nome} · {voce.pezzi} pz</span>
+        <span className="shrink-0 text-xs text-muted-foreground">{voce.righe.length} {voce.righe.length === 1 ? "posizione" : "posizioni"}</span>
+        {canViewCosts && <span className="shrink-0 text-sm tabular-nums">{voce.costo > 0 ? formatCurrency(voce.costo) : <span className="text-xs text-muted-foreground">da definire</span>}</span>}
+      </button>
+      {aperto && <div className="border-l-2 border-muted pl-2">{voce.righe.map(({ riga: m }) => riga(m))}</div>}
+    </div>
+  );
+}
+
 function RigaMateriale({
-  m, selezionato, onSeleziona, modificabile, tecnico, nomeFornitore, onQuantita, canViewCosts, proposto, azioni, oda, onCambiaStato, etichettaFase, posa,
+  m, selezionato, onSeleziona, modificabile, tecnico, nomeFornitore, onQuantita, canViewCosts, proposto, azioni, oda, onCambiaStato, etichettaFase, posa, titolo,
 }: {
+  /** Al posto del nome: dentro un gruppo su misura contano riferimento e misure. */
+  titolo?: string;
   /** Con questo la pillola dello stato si clicca e propone i passi scegliibili. */
   onCambiaStato?: (status: string) => void;
   /** La fase scritta sopra il nome, quando la fase ha solo questa riga e non ha un'intestazione. */
@@ -385,8 +409,8 @@ function RigaMateriale({
         {etichettaFase}
         {/* Due linee per riga: il nome, poi fornitore e dettagli su una riga sola (il resto al
             passaggio). Sul telefono il nome può andare a capo. */}
-        <p className="line-clamp-2 break-words text-sm font-medium text-foreground lg:truncate lg:break-normal" title={m.name}>
-          {m.name}
+        <p className="line-clamp-2 break-words text-sm font-medium text-foreground lg:truncate lg:break-normal" title={titolo ?? m.name}>
+          {titolo ?? m.name}
           {!materiale && <span className="ml-2 rounded bg-muted px-1.5 text-[11px] font-normal text-muted-foreground">{ETICHETTA_NATURA[m.natura_riga ?? ""] ?? m.natura_riga}</span>}
         </p>
         <div className="flex min-w-0 items-center gap-x-2 overflow-hidden whitespace-nowrap text-xs text-muted-foreground [&>*]:shrink-0">
@@ -510,10 +534,11 @@ function SezioneFase({
     if (v) s.add(id); else s.delete(id);
     setSelezione(s);
   };
-  const riga = (m: MaterialeFase, etichettaFase?: ReactNode) => (
+  const riga = (m: MaterialeFase, etichettaFase?: ReactNode, titolo?: string) => (
     <RigaMateriale
       key={m.id}
       m={m}
+      titolo={titolo}
       selezionato={selezione.has(m.id)}
       onSeleziona={(v) => seleziona(m.id, v)}
       modificabile={modificabile && infoStato(m).stato === "da_ordinare" && eMateriale(m)}
@@ -622,7 +647,10 @@ function SezioneFase({
           )}
         </th>
       </tr>
-      {aperta && (righe.length ? righe.map((m) => riga(m)) : (
+      {aperta && (righe.length ? raggruppaRighe(righe).map((voce) => voce.tipo === "riga" ? riga(voce.riga) : (
+        <GruppoPosizioni key={voce.gruppoId} voce={voce} canViewCosts={canViewCosts}
+          riga={(m) => riga(m, undefined, [m.riferimento, misureLeggibili(m.misure_preventivo)].filter(Boolean).join(" · ") || m.name)} />
+      )) : (
         <tr className="block border-t lg:table-row">
           <td colSpan={colonne} className="block px-3 py-2 text-sm text-muted-foreground lg:table-cell">
             {fase.materiali.length ? "Nessuna riga con questo filtro." : "Nessuna riga in questa fase."}
@@ -659,6 +687,15 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
   const [titoloOfferta, setTitoloOfferta] = useState("");
   const [fornitoriOfferta, setFornitoriOfferta] = useState<Set<string>>(new Set());
   const [genera, setGenera] = useState(false);
+  // Dalla Nuova Commessa con «Dal computo»: appena creata si apre l'anteprima, una volta sola.
+  useEffect(() => {
+    const u = new URL(window.location.href);
+    if (u.searchParams.get("genera") !== "1") return;
+    u.searchParams.delete("genera");
+    window.history.replaceState(window.history.state, "", u);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setGenera(true);
+  }, []);
   const [tavole, setTavole] = useState(false);
   const [filtro, setFiltro] = useState<FiltroFonte>("tutti");
   const [ordine, setOrdine] = useState<Ordinamento>("posizione");
@@ -677,7 +714,9 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
   const bloccati = sceltiMateriali.length - sceltiAcquistabili.length;
   const conteggio = contaStati(tuttiMateriali.map((m) => infoStato(m).stato));
   const puoComprare = permessi.canEditOrders || permessi.canManagePurchasing;
-  const { proposte } = usePrezziProposti(orderId, tuttiMateriali, canViewCosts);
+  // Il su misura non prende l'«ultimo prezzo con lo stesso nome»: ogni finestra ha le sue misure.
+  const tuttiNormali = useMemo(() => tuttiMateriali.filter((m) => !m.gruppo_id), [tuttiMateriali]);
+  const { proposte } = usePrezziProposti(orderId, tuttiNormali, canViewCosts);
   const applicaPrezzi = useApplicaPrezziProposti(orderId);
   const stima = totaleStimato(tuttiMateriali, proposte);
   const consumi = useConsumiMateriali(orderId);
@@ -1131,7 +1170,6 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
         {editor && (
           <OrderItemsList
             soloFinestra
-            stockPickBlockedReason="Il prelievo va registrato con Uscita merce: scegli magazzino, quantità e matricole. La riga della commessa da sola non scarica la giacenza."
             onOpenWarehouseExit={perm.canViewWarehouse && perm.canEditWarehouse ? () => setUscitaMerce(true) : undefined}
             richiesta={richiesta}
             items={editor.items}

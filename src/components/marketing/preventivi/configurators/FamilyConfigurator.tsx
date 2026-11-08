@@ -11,7 +11,7 @@
  *
  * Al conferma restituisce 1-2 `ConfiguredItem` (prodotto + posa opzionale).
  */
-import { conAssiVisibili, normalizzaSelezione } from "@/lib/serramenti/assiCondizionati";
+import { conAssiVisibili, defaultSelections, normalizzaSelezione } from "@/lib/serramenti/assiCondizionati";
 import { descrizioneCommerciale } from "@/lib/preventivi/configurazioneSemplice";
 import { haManodoperaConfigurata } from "@/lib/preventivi/avvisiInserimento";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -73,17 +73,6 @@ function ordineAsse(codice: string): number {
   if (codice.startsWith("colore")) return 1;
   if (codice.includes("vetro")) return 2;
   return 3;
-}
-
-function defaultSelections(family: FamilyWithAxes): AxisSelection {
-  const sel: AxisSelection = {};
-  for (const ax of family.axes) {
-    const def = ax.values.find((v) => v.is_default && v.attivo);
-    if (def) sel[ax.codice] = def.id;
-    else if (ax.values.length > 0 && ax.values[0].attivo)
-      sel[ax.codice] = ax.values[0].id;
-  }
-  return sel;
 }
 
 function needsMisureXY(family: FamilyWithAxes): boolean {

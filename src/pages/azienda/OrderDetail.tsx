@@ -950,6 +950,13 @@ function OrderDetailInner() {
         // il confronto con il costo reale nel controllo di gestione.
         article_template_id: item.article_template_id || null,
         posizioni: (item.posizioni ?? null) as unknown as Json,
+        // Una posizione su misura si corregge con le sue misure e la fonte del costo.
+        // `riferimento` c'è nel database ma non ancora nei tipi generati: da qui il cast.
+        ...((item.gruppo_id ? {
+          riferimento: item.riferimento ?? null, axis_selections: (item.axis_selections ?? null) as unknown as Json,
+          misure_preventivo: (item.misure_preventivo ?? null) as unknown as Json, measure_status: item.measure_status ?? null,
+          specifiche: item.specifiche ?? null, prezzo_fonte: item.prezzo_fonte ?? null,
+        } : {}) as object),
         product_code: item.product_code || null,
         categoria: item.categoria || null,
         standard_cost: item.standard_cost ?? 0,
@@ -984,37 +991,11 @@ function OrderDetailInner() {
   const addLaborMutation = useAggiungiPosaManodopera(id!);
 
   // Add new item mutation
+  // Una o più righe, tutte o nessuna: il prelievo dal magazzino scarica la giacenza lì dentro.
   const addItemMutation = useMutation({
-    mutationFn: async (item: OrderItem) => {
-      const { error } = await supabase.from("order_items").insert({
-        order_id: id!, name: item.name, description: item.description || null,
-        quantity: item.quantity, status: item.status, position: item.position,
-        supplier_id: item.supplier_id || null, purchase_price: item.purchase_price ?? 0,
-        vat_rate: item.vat_rate ?? 22,
-        is_paid: item.is_paid ?? false, paid_date: item.paid_date || null,
-        payment_method: item.payment_method || null,
-        deposit_amount: item.deposit_amount ?? 0, deposit_paid: item.deposit_paid ?? false,
-        deposit_paid_date: item.deposit_paid_date || null,
-        balance_amount: item.balance_amount ?? 0, balance_paid: item.balance_paid ?? false,
-        balance_paid_date: item.balance_paid_date || null,
-        balance_expected_date: item.balance_expected_date || null,
-        deposit_expected_date: item.deposit_expected_date || null,
-        // v8.6.35 — Tracking & ODA
-        delivery_date: item.delivery_date || null,
-        // Magazzino: persiste il legame con la giacenza (vedi updateSingleItemMutation).
-        stock_item_id: item.stock_item_id || null,
-        // Aggancio listino (vedi updateSingleItemMutation).
-        article_template_id: item.article_template_id || null,
-        product_code: item.product_code || null,
-        categoria: item.categoria || null,
-        standard_cost: item.standard_cost ?? 0,
-        // Distinta/abaco (posizioni multiple dentro l'articolo)
-        posizioni: (item.posizioni ?? null) as unknown as Json,
-        // Vista per fase: la fase da cui è stato aggiunto; unità e specifiche dei duplicati.
-        phase_id: item.phase_id ?? null,
-        unita_misura: item.unita_misura ?? null,
-        specifiche: item.specifiche ?? null,
-      });
+    mutationFn: async (nuove: OrderItem[]) => {
+      const { error } = await (supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ error: { message: string } | null }> })
+        .rpc("commessa_aggiungi_voci", { p_commessa: id!, p_voci: nuove });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -1127,6 +1108,11 @@ function OrderDetailInner() {
     phase_id: (item as { phase_id?: string | null }).phase_id ?? null,
     unita_misura: (item as { unita_misura?: string | null }).unita_misura ?? null,
     specifiche: (item as { specifiche?: string | null }).specifiche ?? null,
+    ...(item.gruppo_id ? {
+      gruppo_id: item.gruppo_id, riferimento: item.riferimento ?? null, family_id: item.family_id ?? null,
+      axis_selections: item.axis_selections ?? null, misure_preventivo: item.misure_preventivo ?? null,
+      measure_status: item.measure_status ?? null, prezzo_fonte: item.prezzo_fonte ?? null,
+    } : {}),
     attachments: attachments.filter(att => att.order_item_id === item.id).map(att => ({
       id: att.id, file_name: att.file_name, file_url: att.file_url, file_type: att.file_type, file_size: att.file_size,
     })),
@@ -1804,8 +1790,8 @@ function OrderDetailInner() {
                     items: displayItems,
                     companyId: effectiveCompany?.id || "",
                     onItemsChange: (newItems) => {
-                      const newItem = newItems.find((ni) => !ni.id);
-                      if (newItem) addItemMutation.mutate(newItem);
+                      const nuove = newItems.filter((ni) => !ni.id);
+                      if (nuove.length > 0) addItemMutation.mutate(nuove);
                     },
                     onItemUpdate: handleItemUpdate,
                     onAttachmentsRefresh: handleAttachmentsRefresh,

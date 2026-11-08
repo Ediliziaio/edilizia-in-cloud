@@ -323,6 +323,15 @@ export interface OrderCustomer {
 }
 
 export interface OrderItemData {
+  gruppo_id?: string | null;
+  riferimento?: string | null;
+  family_id?: string | null;
+  axis_selections?: Record<string, string> | null;
+  misure_preventivo?: Record<string, number> | null;
+  measure_status?: "da_rilevare" | "rilevato" | "confermato" | null;
+  prezzo_fonte?: string | null;
+  unita_misura?: string | null;
+  specifiche?: string | null;
   delivery_date?: Tables<"order_items">["delivery_date"];
   natura_riga?: "materiale" | "lavorazione" | "descrizione";
   id: string;
@@ -380,6 +389,14 @@ export function mapDbItemToOrderItem(item: OrderItemData): OrderItem {
     // Arrivo previsto e distinta tornano nel modulo: chi salva li rimanda uguali.
     delivery_date: item.delivery_date || undefined,
     posizioni: distintaDellaRiga(item),
+    unita_misura: item.unita_misura ?? null,
+    specifiche: item.specifiche ?? null,
+    // Le posizioni su misura tornano nel modulo con gruppo, misure e costo.
+    ...(item.gruppo_id ? {
+      gruppo_id: item.gruppo_id, riferimento: item.riferimento ?? null, family_id: item.family_id ?? null,
+      axis_selections: item.axis_selections ?? null, misure_preventivo: item.misure_preventivo ?? null,
+      measure_status: item.measure_status ?? null, prezzo_fonte: item.prezzo_fonte ?? null,
+    } : {}),
     is_paid: item.is_paid || false,
     paid_date: item.paid_date || undefined,
     payment_method: item.payment_method || undefined,

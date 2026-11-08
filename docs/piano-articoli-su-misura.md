@@ -358,7 +358,13 @@ Infissi e Living (369), Teda Infissi (320), renova solution (134).
   posizione, voci con materiale proposte come righe da ordinare, regola per tipo di lavoro in
   Impostazioni, sopralluogo definitivo che conferma le righe e si aggancia alla commessa.
   Resta il contratto letto dall'AI, da fare dopo la fase 3 perché tocca `CreateOrder.tsx`.
-- **Fasi 3 e 7:** in corso in sessioni separate.
+- **Fase 3, fatta:** popup «Aggiungi articolo» con una ricerca sola a gruppi (magazzino, listino con
+  etichetta Su misura, usati di recente, nuovo), articolo normale su una riga, su misura con una riga
+  per posizione e costo dal motore del preventivo, interruttore «Non ho il listino», nome nuovo fuori
+  dal catalogo se non lo si sceglie. Voce unica che si apre nella Nuova e Modifica Commessa e nella
+  vista per fase; dal dettaglio le righe entrano con `commessa_aggiungi_voci` (tutte o nessuna, con
+  lo scarico del magazzino). **Da fare:** Silvio non riempie ancora le righe del popup (da lì apre
+  «Crea con Silvio»); il computo si collega alla commessa e l'anteprima si apre appena creata.
 - **Fase 5, fatta:** richiesta d'offerta e ordine portano una riga per posizione con Rif., misure
   (definitive, altrimenti rilevate o provvisorie, sempre dichiarate), tipo di misura, colore e apertura;
   le copia il database, quindi vale per ogni punto che crea un ordine. Una riga non aggiudicata si

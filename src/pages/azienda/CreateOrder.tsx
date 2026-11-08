@@ -54,6 +54,7 @@ import { fontiDaLink } from "@/components/silvio-commessa/useBozzaSilvio";
 import { fontiDalLink } from "../../../shared/silvio-commessa/ingressi.ts";
 import { GeneraleNellaNuovaCommessa } from "@/components/orders/generali/GeneraleNellaNuovaCommessa";
 import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
+import { PulsanteDalComputo, type ComputoDaCollegare } from "@/components/orders/articoli/AltreFontiMateriali";
 import { FinancialSummary, PaymentType } from "@/components/orders/FinancialSummary";
 import { ScegliPianoPagamento } from "@/components/orders/ScegliPianoPagamento";
 import {SalPlanInfo} from "@/components/orders/SalPlanInfo";
@@ -196,6 +197,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const [installments, setInstallments] = useState<Installment[]>(() => rateDiPartenza(modelloIniziale));
   const [numInstallments, setNumInstallments] = useState(modelloIniziale?.righe.length ?? 2);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [computoDaCollegare, setComputoDaCollegare] = useState<ComputoDaCollegare | null>(null);
   const [contrattoImportato, setContrattoImportato] = useState<ContractExtract | null>(null);
   const [contractSource, setContractSource] = useState<StoredContractFile | null>(null);
   // Ripartizione della commessa su più bonus edilizi (pratiche distinte).
@@ -1072,6 +1074,11 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         axis_selections: item.axis_selections ?? null,
         misure_preventivo: item.misure_preventivo ?? null,
         measure_status: item.measure_status || null,
+        // Le posizioni su misura: gli articoli normali non mandano queste chiavi.
+        ...(item.gruppo_id ? {
+          gruppo_id: item.gruppo_id, riferimento: item.riferimento ?? null,
+          specifiche: item.specifiche ?? null, prezzo_fonte: item.prezzo_fonte ?? null,
+        } : {}),
       }));
 
       const salespersonPayload = (values.salesperson_id && values.salesperson_data)
@@ -1374,6 +1381,15 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       }
 
       // Auto-navigate to the new order detail
+      if (computoDaCollegare) {
+        // Il computo si aggancia alla commessa appena nata e si apre l'anteprima dei materiali.
+        if (computoDaCollegare.id) {
+          const { error: erroreComputo } = await supabase.from("computo_uploads").update({ order_id: order.id }).eq("id", computoDaCollegare.id).is("order_id", null);
+          if (erroreComputo) toast.warning("Commessa creata, ma il computo non si è collegato", { description: "Lo ricarichi dal dettaglio della commessa." });
+        }
+        navigate(`/azienda/ordini/${order.id}?tab=articoli&genera=1`);
+        return;
+      }
       navigate(`/azienda/ordini/${order.id}${"fasiDaVerificare" in order && order.fasiDaVerificare ? "?tab=cantiere&vista_cantiere=lavorazioni" : ""}`);
     },
     onError: (error) => {
@@ -1903,6 +1919,12 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
         {/* Order Items */}
         {quotePrefill && quotePrefill.workLines.length > 0 && <div className="mb-4 rounded-lg border bg-muted/20 p-4 text-sm"><strong>{quotePrefill.workLines.length} lavorazioni dal preventivo</strong><p className="mt-1 text-muted-foreground">Verranno create come fasi in Cantiere{inizioLavori ? ", una dopo l'altra dall'inizio dei lavori" : ""}. Qui sotto trovi soltanto i materiali; il totale contrattuale resta quello del preventivo.</p><ul className="mt-2 list-inside list-disc">{quotePrefill.workLines.map((r,i)=><li key={i}>{r.name}</li>)}</ul></div>}
+        {computoDaCollegare && (
+          <p className="mb-3 flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+            <span className="min-w-0">Materiali dal computo ({computoDaCollegare.nome}): l'anteprima si apre appena la commessa è creata.</span>
+            <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={() => setComputoDaCollegare(null)}>Togli</Button>
+          </p>
+        )}
         <OrderItemsList
           items={orderItems}
           onItemsChange={setOrderItems}
@@ -1910,6 +1932,13 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           showStatusControls={false}
           vista="compatta"
           canViewCosts={canViewCosts}
+          altreFonti={
+            <>
+              <span className="text-xs text-muted-foreground">Oppure</span>
+              <PulsanteDalComputo companyId={effectiveCompany?.id} onScegli={setComputoDaCollegare} />
+              <PulsanteCreaConSilvio size="sm" variant="outline" etichetta="Chiedi a Silvio" iniziale={selectedQuoteId ? { tipo: "preventivo", id: selectedQuoteId } : null} />
+            </>
+          }
         />
 
         </fieldset>

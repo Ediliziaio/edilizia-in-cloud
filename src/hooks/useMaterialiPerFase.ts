@@ -20,6 +20,11 @@ import type { OrigineRiga } from "@/lib/distinta/generaDistinta";
 
 export interface MaterialeFase {
   id: string;
+  /** Posizioni dello stesso bene su misura: nell'elenco una voce sola che si apre. */
+  gruppo_id?: string | null;
+  riferimento?: string | null;
+  misure_preventivo?: Record<string, number> | null;
+  measure_status?: string | null;
   order_id: string;
   name: string;
   description: string | null;
@@ -84,7 +89,7 @@ export interface FaseMateriali {
 
 const COLONNE_MATERIALE =
   "id, order_id, name, description, quantity, status, supplier_id, purchase_price, vat_rate, phase_id, unita_misura, specifiche, origine_materiale, quantita_calcolata, origini, locale, supplier_rfq_item_id, stock_item_id, posizioni, position, " +
-  "natura_riga, article_template_id, scomposizione_id, prezzo_fonte, standard_cost, delivery_date, is_paid, deposit_paid, balance_paid, payment_method, " +
+  "gruppo_id, riferimento, misure_preventivo, measure_status, natura_riga, article_template_id, scomposizione_id, prezzo_fonte, standard_cost, delivery_date, is_paid, deposit_paid, balance_paid, payment_method, " +
   "deposit_amount, balance_amount, balance_expected_date";
 
 export const chiaviMateriali = {
