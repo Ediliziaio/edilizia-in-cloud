@@ -61,7 +61,9 @@ import {
   Zap, Wrench, CheckCircle2, Eye,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { FvContactPicker } from "@/components/fotovoltaico/FvContactPicker";
+import { SelezionaCliente } from "@/components/preventivatore/SelezionaCliente";
+import { tipoDaScelta } from "@/lib/preventivatore/selezionaCliente";
+import { useAggiornaContattoDalPreventivo } from "@/lib/preventivatore/aggiornaContatto";
 import {
   useProgetto,
   useAggiornaProgetto,
@@ -2305,6 +2307,13 @@ function Step1Cliente({
   data: WizardData;
   update: <K extends keyof WizardData>(k: K, v: WizardData[K]) => void;
 }) {
+  // I dati cambiati qui tornano al contatto collegato (07/11/2026). L'indirizzo del FV è quello dell'impianto,
+  // non del cliente: al contatto non si manda.
+  useAggiornaContattoDalPreventivo(data.cliente_id, {
+    nome: data.cliente_nome, cognome: data.cliente_cognome, email: data.cliente_email, telefono: data.cliente_telefono,
+    codiceFiscale: data.cliente_codice_fiscale, partitaIva: data.cliente_partita_iva, ragioneSociale: data.cliente_ragione_sociale,
+  });
+
   return (
     <>
       <FvPanelTitle
@@ -2319,25 +2328,34 @@ function Step1Cliente({
         }
       />
 
-      <FvContactPicker
-        clienteId={data.cliente_id}
-        onSelect={(c) => {
-          update("cliente_id", c.id);
-          update("cliente_nome", c.first_name ?? "");
-          update("cliente_cognome", c.last_name ?? "");
+      {/* Contatti del CRM e, per chi ha la sezione, clienti: un popup coi dati principali (07/11/2026). */}
+      <SelezionaCliente
+        className="mb-3"
+        collegatoId={data.cliente_id}
+        onScegli={(c) => {
+          // Un contatto si collega al preventivo; un cliente ne compila i dati senza collegarlo.
+          update("cliente_id", c.origine === "contatto" ? c.id : null);
+          update("cliente_nome", c.nome ?? "");
+          update("cliente_cognome", c.cognome ?? "");
           update("cliente_email", c.email ?? "");
-          update("cliente_telefono", c.phone ?? "");
-          // Privato o azienda e i dati fiscali, dal contatto (30/10/2026).
-          update("cliente_tipo", c.company_name?.trim() || c.vat_number?.trim() ? "azienda" : "privato");
-          update("cliente_ragione_sociale", c.company_name?.trim() ?? "");
-          update("cliente_codice_fiscale", c.fiscal_code?.trim() ?? "");
-          update("cliente_partita_iva", c.vat_number?.trim() ?? "");
+          update("cliente_telefono", c.telefono ?? "");
+          const tipo = tipoDaScelta(c);
+          update("cliente_tipo", tipo);
+          if (tipo === "azienda" && data.archetipo !== "pmi") update("archetipo", "pmi");
+          update("cliente_ragione_sociale", c.ragioneSociale ?? "");
+          update("cliente_codice_fiscale", c.codiceFiscale ?? "");
+          update("cliente_partita_iva", c.partitaIva ?? "");
         }}
-        onClear={() => update("cliente_id", null)}
+        onScollega={() => update("cliente_id", null)}
       />
 
       {/* Prima privato, azienda o Pubblica Amministrazione, poi nome e cognome (30/10/2026). */}
-      <SceltaTipoCliente valore={data.cliente_tipo} onChange={(t) => update("cliente_tipo", t)} />
+      <SceltaTipoCliente valore={data.cliente_tipo} onChange={(t) => {
+        update("cliente_tipo", t);
+        // La tipologia segue il tipo di cliente (07/11/2026): un'azienda o un ente non è «Privato — prima casa».
+        if (t !== "privato" && data.archetipo !== "pmi") update("archetipo", "pmi");
+        if (t === "privato" && data.archetipo === "pmi") update("archetipo", "privato_prima");
+      }} />
       {/* Anagrafica e contatti affiancati, il cointestato sotto su tutta la riga (07/11/2026). */}
       <div className="grid items-start gap-4 lg:grid-cols-2">
         <FvCard title="Anagrafica">

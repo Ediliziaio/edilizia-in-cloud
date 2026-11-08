@@ -89,7 +89,7 @@ vi.mock("@/lib/fotovoltaico/queries", async () => {
     useDuplicaProgetto: () => mutazione,
   };
 });
-vi.mock("@/components/fotovoltaico/FvContactPicker", () => ({ FvContactPicker: () => <p>scelta del contatto</p> }));
+vi.mock("@/components/preventivatore/SelezionaCliente", () => ({ SelezionaCliente: () => <p>scelta del contatto</p>, SelezionaClienteDialog: (): null => null }));
 vi.mock("@/components/fotovoltaico/CassaCumulataChart", () => ({ CassaCumulataChart: (): null => null }));
 vi.mock("@/components/fotovoltaico/FvConfrontoVarianti", () => ({ FvConfrontoVarianti: (p: { ctx: unknown }): null => { vista.confronto = p.ctx; return null; } }));
 vi.mock("@/components/fotovoltaico/FvLayoutTetto", () => ({ FvLayoutTetto: (): null => null }));

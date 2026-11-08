@@ -69,9 +69,10 @@ import { StepConsulenza } from "@/components/serramenti/StepConsulenza";
 import { StepPdf } from "@/components/serramenti/StepPdf";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { StepContenuti } from "@/components/serramenti/StepContenuti";
-import { ContactPickerDialog } from "@/components/serramenti/ContactPickerDialog";
+import { SelezionaClienteDialog } from "@/components/preventivatore/SelezionaCliente";
+import { tipoDaScelta, type ClienteScelto } from "@/lib/preventivatore/selezionaCliente";
+import { useAggiornaContattoDalPreventivo } from "@/lib/preventivatore/aggiornaContatto";
 import { AiSerramentiDraftLauncher } from "@/components/serramenti/AiSerramentiDraftLauncher";
-import type { CrmContactMinimal } from "@/lib/serramenti/api";
 import { conLeModificheDelModulo, confermaSalvate, modificheDaSalvare, segnaModifica, type ModificheInSospeso } from "@/lib/serramenti/modificheInSospeso";
 import { detrazioneCambiata, detrazioneDelPreventivo, totaliCambiati, totaliDelPreventivo } from "@/lib/serramenti/righePreventivo";
 import { useSerramentiModelSupport } from "@/hooks/useSerramentiModelSupport";
@@ -1209,14 +1210,26 @@ function StepCliente({
     ? ({ ...detail, progetto: { ...detail.progetto, ...form, id:detail.progetto.id, company_id:detail.progetto.company_id,created_at:detail.progetto.created_at,updated_at:detail.progetto.updated_at } as SrProgettoRow })
     : undefined;
 
-  const handleSelectContact = (c: CrmContactMinimal) => {
-    // Popola tutti i campi dal contatto CRM, salva il riferimento via cliente_id
-    onChange("cliente_id", c.id);
-    onChange("cliente_nome", c.first_name);
-    onChange("cliente_cognome", c.last_name);
+  // I dati cambiati qui tornano al contatto collegato, indirizzo del cliente compreso (07/11/2026).
+  useAggiornaContattoDalPreventivo(form.cliente_id, {
+    nome: form.cliente_nome, cognome: form.cliente_cognome, email: form.cliente_email, telefono: form.cliente_telefono,
+    codiceFiscale: form.cliente_codice_fiscale, partitaIva: form.cliente_partita_iva, ragioneSociale: form.cliente_ragione_sociale,
+    indirizzo: form.cliente_indirizzo, citta: form.cliente_citta, cap: form.cliente_cap, provincia: form.cliente_provincia,
+  });
+
+  // Dal popup «Seleziona cliente» (07/11/2026): un contatto si collega (cliente_id), un cliente compila i dati
+  // senza collegarsi. Arrivano anche tipo di cliente e dati fiscali, che prima restavano da riscrivere.
+  const handleSelectContact = (c: ClienteScelto) => {
+    onChange("cliente_id", c.origine === "contatto" ? c.id : null);
+    onChange("cliente_nome", c.nome);
+    onChange("cliente_cognome", c.cognome);
     onChange("cliente_email", c.email);
-    onChange("cliente_telefono", c.phone);
-    indirizzo.impostaCliente({ indirizzo: c.address, citta: c.city, cap: c.postal_code, provincia: c.province });
+    onChange("cliente_telefono", c.telefono);
+    onChange("cliente_tipo", tipoDaScelta(c));
+    onChange("cliente_ragione_sociale", c.ragioneSociale);
+    onChange("cliente_codice_fiscale", c.codiceFiscale);
+    onChange("cliente_partita_iva", c.partitaIva);
+    indirizzo.impostaCliente({ indirizzo: c.indirizzo, citta: c.citta, cap: c.cap, provincia: c.provincia });
   };
 
   return (
@@ -1289,16 +1302,17 @@ function StepCliente({
               className="tap-compact h-8 gap-1.5 border-slate-200 px-3 text-xs text-slate-700 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 max-md:flex-1"
             >
               <Users className="h-3.5 w-3.5" />
-              {form.cliente_id ? "Cambia" : "Seleziona da CRM"}
+              {form.cliente_id ? "Cambia" : "Seleziona cliente"}
             </Button>
           </div>
         </div>
       </div>
 
-      <ContactPickerDialog
-        open={pickerOpen}
-        onOpenChange={setPickerOpen}
-        onSelect={handleSelectContact}
+      <SelezionaClienteDialog
+        aperto={pickerOpen}
+        onAperto={setPickerOpen}
+        collegatoId={form.cliente_id}
+        onScegli={(c) => { handleSelectContact(c); setPickerOpen(false); }}
       />
 
       {progettoId && detailForAi && (

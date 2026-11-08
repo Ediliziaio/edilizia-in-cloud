@@ -66,7 +66,7 @@ vi.mock("@/lib/fotovoltaico/queries", () => {
   };
 });
 // Grafici, mappe e simulatori hanno i loro test: qui basta che non pesino.
-vi.mock("@/components/fotovoltaico/FvContactPicker", () => ({ FvContactPicker: () => <p>scelta del contatto</p> }));
+vi.mock("@/components/preventivatore/SelezionaCliente", () => ({ SelezionaCliente: () => <p>scelta del contatto</p>, SelezionaClienteDialog: (): null => null }));
 vi.mock("@/components/fotovoltaico/CassaCumulataChart", () => ({ CassaCumulataChart: (): null => null }));
 vi.mock("@/components/fotovoltaico/FvConfrontoVarianti", () => ({ FvConfrontoVarianti: (): null => null }));
 vi.mock("@/components/fotovoltaico/FvLayoutTetto", () => ({ FvLayoutTetto: (): null => null }));

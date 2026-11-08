@@ -51,9 +51,9 @@ export function DatiFiscaliCliente({ form, onChange, className }: Props) {
   const tipo = tipoCliente(form.cliente_tipo);
   const avvisi = avvisiDatiFiscali({ tipo, codiceFiscale: form.cliente_codice_fiscale, partitaIva: form.cliente_partita_iva, codiceSdi: form.cliente_codice_univoco });
   const etichetta = "flex h-4 items-center gap-1 text-xs";
-  const campo = (chiave: CampoFiscaleCliente, nome: string, Icona: typeof User, attributi: { placeholder: string; maxLength: number; mono?: boolean; numeri?: boolean; maiuscolo?: boolean }, avviso?: string) => (
-    <div className="min-w-0 space-y-1">
-      <Label htmlFor={`${id}-${chiave}`} className={etichetta}><Icona className="h-3 w-3 text-slate-500" />{nome}</Label>
+  const campo = (chiave: CampoFiscaleCliente, nome: string, Icona: typeof User, attributi: { placeholder: string; maxLength: number; mono?: boolean; numeri?: boolean; maiuscolo?: boolean; largo?: boolean }, avviso?: string) => (
+    <div className={cn("min-w-0 space-y-1", attributi.largo && "sm:col-span-2")}>
+      <Label htmlFor={`${id}-${chiave}`} className={cn(etichetta, "truncate")} title={nome}><Icona className="h-3 w-3 shrink-0 text-slate-500" />{nome}</Label>
       <Input id={`${id}-${chiave}`} className={cn("h-9", attributi.mono && "font-mono", attributi.maiuscolo && "[&:not(:placeholder-shown)]:uppercase")}
         maxLength={attributi.maxLength} placeholder={attributi.placeholder} inputMode={attributi.numeri ? "numeric" : undefined}
         value={form[chiave] ?? ""} onChange={e => onChange(chiave, e.target.value || null)} />
@@ -61,12 +61,14 @@ export function DatiFiscaliCliente({ form, onChange, className }: Props) {
     </div>
   );
   return (
-    <div className={cn("grid items-start gap-3 max-sm:gap-2", tipo === "privato" ? "sm:grid-cols-2" : tipo === "pa" ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3", className)}>
-      {tipo === "azienda" && campo("cliente_ragione_sociale", "Ragione sociale", Building2, { placeholder: "Rossi Costruzioni S.r.l.", maxLength: 200 })}
-      {tipo === "pa" && campo("cliente_ragione_sociale", "Ente", Landmark, { placeholder: "Comune di …", maxLength: 200 })}
+    // Due colonne al massimo, la ragione sociale o l'ente su tutta la riga (07/11/2026): in una scheda stretta
+    // tre o quattro colonne tagliavano etichette e suggerimenti («Codice fiscale (se diverso)» andava a capo).
+    <div className={cn("grid items-start gap-3 max-sm:gap-2 sm:grid-cols-2", className)}>
+      {tipo === "azienda" && campo("cliente_ragione_sociale", "Ragione sociale", Building2, { placeholder: "Rossi Costruzioni S.r.l.", maxLength: 200, largo: true })}
+      {tipo === "pa" && campo("cliente_ragione_sociale", "Ente", Landmark, { placeholder: "Comune di …", maxLength: 200, largo: true })}
       {tipo === "azienda" && campo("cliente_partita_iva", "Partita IVA", FileBadge, { placeholder: "11 cifre", maxLength: 20, mono: true, numeri: true }, avvisi.partitaIva)}
-      {campo("cliente_codice_fiscale", tipo === "azienda" ? "Codice fiscale (se diverso)" : "Codice fiscale", FileBadge,
-        { placeholder: tipo === "azienda" ? "Di solito uguale alla partita IVA" : tipo === "pa" ? "11 cifre dell'ente" : "16 caratteri", maxLength: 20, mono: true, maiuscolo: true }, avvisi.codiceFiscale)}
+      {campo("cliente_codice_fiscale", tipo === "azienda" ? "C.F. (se diverso)" : "Codice fiscale", FileBadge,
+        { placeholder: tipo === "azienda" ? "Vuoto = P.IVA" : tipo === "pa" ? "11 cifre dell'ente" : "16 caratteri", maxLength: 20, mono: true, maiuscolo: true }, avvisi.codiceFiscale)}
       {tipo === "pa" && campo("cliente_partita_iva", "Partita IVA (se c'è)", FileBadge, { placeholder: "11 cifre", maxLength: 20, mono: true, numeri: true }, avvisi.partitaIva)}
       {tipo === "pa" && campo("cliente_codice_univoco", "Codice univoco ufficio", FileBadge, { placeholder: "6 caratteri (IPA)", maxLength: 10, mono: true, maiuscolo: true }, avvisi.codiceSdi)}
     </div>

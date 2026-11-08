@@ -35,7 +35,9 @@ describe.each(MODULI)("$slug: indirizzo dei lavori nel passo Cliente", ({ slug, 
     const cliente = leggi(slug, cart, "StepCliente.tsx");
     expect(cliente).toContain("<IndirizzoDeiLavori");
     expect(cliente).toContain("useIndirizzoLavoriEdile(form,");
-    expect(cliente).toContain('.select("id, first_name, last_name, email, phone, address, city, province, postal_code, company_name, fiscal_code, vat_number")');
+    // Dal 07/11/2026 i contatti li legge il popup comune «Seleziona cliente», indirizzo compreso.
+    expect(cliente).toContain("<SelezionaCliente");
+    expect(cliente).toContain("address: c.indirizzo, city: c.citta, province: c.provincia, postal_code: c.cap");
     expect(cliente).toContain("indirizzo.dalContatto(c.id,");
   });
 
@@ -56,4 +58,9 @@ describe.each(MODULI)("$slug: indirizzo dei lavori nel passo Cliente", ({ slug, 
     expect(completezza({ immobile_tipo: "appartamento" }).immobile).toBe(true);
     expect(completezza({ tipo_intervento: "rifacimento_completo" }).immobile).toBe(true);
   });
+});
+
+it("il popup «Seleziona cliente» legge dal CRM anche l'indirizzo", () => {
+  const popup = readFileSync(resolve(process.cwd(), "src/components/preventivatore/SelezionaCliente.tsx"), "utf8");
+  expect(popup).toContain('.select("id, first_name, last_name, email, phone, address, city, province, postal_code, company_name, fiscal_code, vat_number")');
 });

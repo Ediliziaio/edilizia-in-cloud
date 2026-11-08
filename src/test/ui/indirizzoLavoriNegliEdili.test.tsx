@@ -18,6 +18,9 @@ const { db, ctl } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "c1" }));
+// Il popup «Seleziona cliente» (07/11/2026): chi prova può vedere i contatti del CRM.
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ isAdmin: true, isLoading: false }) }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1" } }) }));
 vi.mock("@/integrations/supabase/client", () => {
   const catena = (tabella: string): unknown => {
     let id: string | null = null;
@@ -175,7 +178,7 @@ describe.each(MODULI)("$slug: indirizzo dei lavori nel passo Cliente", ({ passo 
   it("scegliendo un contatto dal CRM, i lavori vuoti seguono l'indirizzo del contatto; poi un altro contatto li cambia", async () => {
     await monta({});
     expect(senzaSpunta()).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /Seleziona da CRM/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Seleziona cliente/ }));
     fireEvent.click(await screen.findByText("Giulia Ferrari"));
     expect((await spunta()).getAttribute("aria-checked")).toBe("true");
     expect(cantiere()).toEqual(["Via Marco Polo 18", "Monza", "20900", "MB"]);
@@ -188,7 +191,7 @@ describe.each(MODULI)("$slug: indirizzo dei lavori nel passo Cliente", ({ passo 
 
   it("scegliendo un contatto quando i lavori sono già scritti a mano, i lavori restano come sono", async () => {
     await monta({ ...ALTROVE });
-    fireEvent.click(screen.getByRole("button", { name: /Seleziona da CRM/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Seleziona cliente/ }));
     fireEvent.click(await screen.findByText("Giulia Ferrari"));
     const casella = await spunta();
     expect(casella.getAttribute("aria-checked")).toBe("false");

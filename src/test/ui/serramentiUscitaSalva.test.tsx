@@ -72,7 +72,7 @@ vi.mock("@/components/serramenti/StepEconomia", () => ({ StepEconomia: (): null 
 vi.mock("@/components/serramenti/StepConsulenza", () => ({ StepConsulenza: (): null => null }));
 vi.mock("@/components/serramenti/StepPdf", () => ({ StepPdf: (): null => null }));
 vi.mock("@/components/serramenti/StepContenuti", () => ({ StepContenuti: (): null => null }));
-vi.mock("@/components/serramenti/ContactPickerDialog", () => ({ ContactPickerDialog: (): null => null }));
+vi.mock("@/components/preventivatore/SelezionaCliente", () => ({ SelezionaCliente: (): null => null, SelezionaClienteDialog: (): null => null }));
 vi.mock("@/components/serramenti/AiSerramentiDraftLauncher", () => ({ AiSerramentiDraftLauncher: (): null => null }));
 vi.mock("@/components/serramenti/AnteprimaPdfLive", () => ({ AnteprimaPdfLive: (): null => null }));
 

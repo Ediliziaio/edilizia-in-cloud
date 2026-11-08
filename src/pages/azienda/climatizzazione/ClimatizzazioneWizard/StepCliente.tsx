@@ -11,7 +11,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { filtriRicercaContatti, filtriRicercaParole } from "@/lib/ricerca/ricercaContatti";
+import { filtriRicercaParole } from "@/lib/ricerca/ricercaContatti";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,12 +24,15 @@ import {
 import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from "@/components/ui/command";
-import { User, Users, Mail, Phone, X, Check, Briefcase } from "lucide-react";
+import { User, Mail, Phone, X, Check, Briefcase } from "lucide-react";
 import type { ClmProgetto } from "@/types/climatizzazione";
 import type { ClmFormPatch } from "./types";
 import { IndirizzoDeiLavori } from "@/components/preventivatore/IndirizzoDeiLavori";
 import { Cointestatario } from "@/components/preventivatore/Cointestatario";
 import { DatiFiscaliCliente, SceltaTipoCliente } from "@/components/preventivatore/DatiFiscaliCliente";
+import { SelezionaCliente } from "@/components/preventivatore/SelezionaCliente";
+import type { ClienteScelto } from "@/lib/preventivatore/selezionaCliente";
+import { useAggiornaContattoDalPreventivo } from "@/lib/preventivatore/aggiornaContatto";
 import { useIndirizzoLavoriEdile } from "@/lib/preventivatore/useIndirizzoLavoriEdile";
 
 interface ContactLite {
@@ -58,34 +61,14 @@ interface Props {
   onChange: <K extends keyof ClmFormPatch>(key: K, value: ClmFormPatch[K]) => void;
 }
 
-const contactLabel = (c: { first_name: string | null; last_name: string | null; email: string | null }) =>
-  `${c.first_name || ""} ${c.last_name || ""}`.trim() || c.email || "Senza nome";
 
 export default function StepCliente({ form, onChange }: Props) {
   const companyId = useEffectiveCompanyId();
-  const [contactPickerOpen, setContactPickerOpen] = useState(false);
   const [oppPickerOpen, setOppPickerOpen] = useState(false);
-  const [contactSearch, setContactSearch] = useState("");
   const [oppSearch, setOppSearch] = useState("");
   // Dove si fanno i lavori: se il contatto del CRM ha un indirizzo, di serie lo stesso. Sta qui e non più in «Immobile».
   const indirizzo = useIndirizzoLavoriEdile(form, (chiave, valore) => onChange(chiave, valore), { contattoId: form.cliente_id, nuovo: !form.id });
 
-  const { data: contacts = [] } = useQuery({
-    queryKey: ["clm-contact-picker", companyId, contactSearch],
-    enabled: !!companyId && contactPickerOpen,
-    queryFn: async (): Promise<ContactLite[]> => {
-      let query = supabase
-        .from("marketing_contacts")
-        .select("id, first_name, last_name, email, phone, address, city, province, postal_code, company_name, fiscal_code, vat_number")
-        .eq("company_id", companyId!)
-        .is("deleted_at", null)
-        .limit(20);
-      for (const filtro of filtriRicercaContatti(contactSearch)) query = query.or(filtro);
-      const { data, error } = await query.order("first_name");
-      if (error) throw error;
-      return (data ?? []) as ContactLite[];
-    },
-  });
 
   const { data: opportunities = [] } = useQuery({
     queryKey: ["clm-opp-picker", companyId, oppSearch],
@@ -117,7 +100,23 @@ export default function StepCliente({ form, onChange }: Props) {
     onChange("cliente_codice_fiscale", c.fiscal_code?.trim() || null);
     onChange("cliente_partita_iva", c.vat_number?.trim() || null);
     indirizzo.dalContatto(c.id, { indirizzo: c.address, citta: c.city, cap: c.postal_code, provincia: c.province });
-    setContactPickerOpen(false);
+  };
+  // I dati cambiati qui tornano al contatto collegato (07/11/2026). L'indirizzo è quello dei lavori: arriva al
+  // contatto solo se il contatto un indirizzo non ce l'ha.
+  useAggiornaContattoDalPreventivo(form.cliente_id, {
+    nome: form.cliente_nome, cognome: form.cliente_cognome, email: form.cliente_email, telefono: form.cliente_telefono,
+    codiceFiscale: form.cliente_codice_fiscale, partitaIva: form.cliente_partita_iva, ragioneSociale: form.cliente_ragione_sociale,
+    indirizzo: form.cantiere_indirizzo, citta: form.cantiere_citta, cap: form.cantiere_cap, provincia: form.cantiere_provincia,
+  }, { indirizzoSoloSeVuoto: true, contattoHaIndirizzo: !!indirizzo.riassunto });
+
+  // Un contatto si collega al preventivo; un cliente ne compila i dati senza collegarlo.
+  const scegliCliente = (c: ClienteScelto) => {
+    handleSelectContact({
+      id: c.id, first_name: c.nome, last_name: c.cognome, email: c.email, phone: c.telefono,
+      address: c.indirizzo, city: c.citta, province: c.provincia, postal_code: c.cap,
+      company_name: c.ragioneSociale, fiscal_code: c.codiceFiscale, vat_number: c.partitaIva,
+    });
+    if (c.origine === "cliente") onChange("cliente_id", null);
   };
 
   return (
@@ -139,71 +138,9 @@ export default function StepCliente({ form, onChange }: Props) {
           </div>
         </div>
 
-        {/* Collegamento contatto CRM */}
-        <div className="rounded-md border border-slate-200 bg-white px-3 py-2.5 max-sm:order-1 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between">
-            <div className="min-w-0 max-sm:hidden">
-              <p className="text-xs font-semibold text-slate-900">
-                {form.cliente_id ? <>Contatto CRM<span className="max-sm:hidden"> collegato</span></> : "Contatto CRM"}
-              </p>
-              <p className="truncate text-[11px] text-slate-500 max-sm:hidden">
-                {form.cliente_id
-                  ? "Dati sincronizzati nel progetto."
-                  : "Collega un contatto per compilare anagrafica e recapiti."}
-              </p>
-            </div>
-            <div className="flex shrink-0 gap-2 max-sm:w-full max-sm:gap-1">
-              {form.cliente_id && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onChange("cliente_id", null)}
-                  className="tap-compact h-8 px-2 text-xs text-slate-600 hover:bg-slate-100"
-                >
-                  Scollega
-                </Button>
-              )}
-              <Popover open={contactPickerOpen} onOpenChange={setContactPickerOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="tap-compact h-8 gap-1.5 border-slate-200 px-3 text-xs text-slate-700 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 max-sm:min-w-0 max-sm:flex-1 max-sm:px-2"
-                  >
-                    <Users className="h-3.5 w-3.5" />
-                    {form.cliente_id ? "Cambia" : "Seleziona da CRM"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-72 p-0" align="end">
-                  <Command shouldFilter={false}>
-                    <CommandInput
-                      placeholder="Cerca contatto..."
-                      value={contactSearch}
-                      onValueChange={setContactSearch}
-                    />
-                    <CommandList>
-                      <CommandEmpty>Nessun contatto trovato</CommandEmpty>
-                      <CommandGroup>
-                        {contacts.map((c) => (
-                          <CommandItem
-                            key={c.id}
-                            value={c.id}
-                            onSelect={() => handleSelectContact(c)}
-                          >
-                            <Check
-                              className={`mr-2 h-4 w-4 ${form.cliente_id === c.id ? "opacity-100" : "opacity-0"}`}
-                            />
-                            <span className="truncate">{contactLabel(c)}</span>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-          </div>
-        </div>
+        {/* Da chi prendo i dati: un popup con contatti del CRM e, per chi ha la sezione, clienti (07/11/2026). */}
+        <SelezionaCliente className="max-sm:order-1 max-sm:col-span-2" collegatoId={form.cliente_id}
+          onScegli={scegliCliente} onScollega={() => onChange("cliente_id", null)} />
 
         {/* Anagrafica: prima privato, azienda o Pubblica Amministrazione, poi nome e cognome (30/10/2026). */}
         <SceltaTipoCliente className="max-sm:order-3 max-sm:col-span-2" valore={form.cliente_tipo} onChange={(t) => onChange("cliente_tipo", t)} />
