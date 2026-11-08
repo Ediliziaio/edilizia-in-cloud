@@ -98,3 +98,10 @@ export function modelliDiPartenzaDelProfilo<T extends { key: string }>(modelli: 
     return !tipo || profilo.tipi.includes(tipo);
   });
 }
+
+/** I lavori in cui ha senso chiedersi se le misure del preventivo sono definitive. */
+export const TIPI_CON_MISURE: TipoLavoro[] = ["serramenti", "bagno", "ristrutturazione", "tetto", "cappotto", "pavimenti", "piscine"];
+
+/** Stessa regola del database (`misure_regola_azienda`): di partenza serramenti e bagni aspettano il sopralluogo. */
+export const regolaDiPartenzaMisure = (t: TipoLavoro): "sopralluogo" | "definitive" =>
+  t === "serramenti" || t === "bagno" ? "sopralluogo" : "definitive";

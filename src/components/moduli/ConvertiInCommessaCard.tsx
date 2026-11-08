@@ -61,6 +61,8 @@ export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMot
   const [inCorso, setInCorso] = useState(false);
   const [riepilogo, setRiepilogo] = useState<AnteprimaConversioneModulo | null>(null);
   const [dialog, setDialog] = useState(false);
+  // Le voci del computo da ordinare: di partenza quelle che il sistema propone.
+  const [vociScelte, setVociScelte] = useState<Set<string>>(new Set());
   const [errore, setErrore] = useState("");
   // Di partenza sì: i capitoli del computo sono già il modo in cui il lavoro è diviso.
   const [fasiCapitoli, setFasiCapitoli] = useState(true);
@@ -70,7 +72,9 @@ export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMot
   const mostraRiepilogo = async () => {
     setInCorso(true); setErrore("");
     try {
-      setRiepilogo(await anteprimaConversioneModulo(modulo, progettoId, offriFasi && fasiCapitoli));
+      const anteprima = await anteprimaConversioneModulo(modulo, progettoId, offriFasi && fasiCapitoli);
+      setRiepilogo(anteprima);
+      setVociScelte(new Set((anteprima.voci_materiale ?? []).filter((v) => v.proposta).map((v) => v.id)));
       setDialog(true);
     } catch (e) {
       toast.error("Riepilogo non disponibile", { description: e instanceof Error ? e.message : "Riprova." });
@@ -82,7 +86,11 @@ export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMot
     if (!user?.id) { toast.error("Sessione scaduta: accedi di nuovo"); return; }
     setInCorso(true);
     try {
-      const opzioni = { fasiDaCapitoli: offriFasi && fasiCapitoli, impronta: riepilogo.impronta };
+      const opzioni = {
+        fasiDaCapitoli: offriFasi && fasiCapitoli,
+        impronta: riepilogo.impronta,
+        vociMateriale: riepilogo.voci_materiale ? [...vociScelte] : undefined,
+      };
       const esito = modulo === "fv"
         ? await convertiFvInCommessa(progettoId, user.id, riepilogo.impronta)
         : modulo === "rst"
@@ -170,7 +178,7 @@ export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMot
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader><DialogTitle>Dal preventivo alla commessa</DialogTitle>
           <DialogDescription>Verifica cosa verrà trasferito nel cantiere.</DialogDescription></DialogHeader>
-        {riepilogo && <ModuleConversionSummary riepilogo={riepilogo} />}
+        {riepilogo && <ModuleConversionSummary riepilogo={riepilogo} vociScelte={vociScelte} onCambiaVoci={setVociScelte} />}
         {errore && <p role="alert" className="text-sm text-destructive">{errore}</p>}
         <DialogFooter>
           <Button variant="outline" disabled={inCorso} onClick={() => setDialog(false)}>Torna al preventivo</Button>
