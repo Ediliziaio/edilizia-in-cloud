@@ -98,6 +98,7 @@ jobs:
           src/test/ui/materialiListino.test.tsx
           src/test/logic/preventivoCostiTariffe.test.tsx
           src/test/logic/listinoAziendaEffettiva.test.ts
+          src/test/ui/staffSenzaInvioEmail.test.tsx
 
       - name: Run definitive conflict and database memory regressions
         run: >-

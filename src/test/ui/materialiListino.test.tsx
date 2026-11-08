@@ -5,14 +5,14 @@ import { MemoryRouter } from "react-router-dom";
 import SettingsCatalog from "@/pages/azienda/settings/SettingsCatalog";
 import type { MaterialeListino } from "@/hooks/useMaterialiListino";
 
-const state = vi.hoisted(() => ({ company: "a", edit: true, rows: [] as Record<string, unknown>[], updates: [] as Array<{ values: Record<string, unknown>; filters: Record<string, unknown> }>, error: vi.fn() }));
+const state = vi.hoisted(() => ({ company: "a", edit: true, rows: [] as MaterialeListino[], updates: [] as Array<{ values: Record<string, unknown>; filters: Record<string, unknown> }>, error: vi.fn() }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ role: "company_staff", effectiveCompany: { id: state.company } }) }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => state.company }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewSettingsPricing: true, canEditSettingsPricing: state.edit }) }));
-vi.mock("@/hooks/useFamilies", () => ({ useFamilies: () => ({ families: [], isLoading: false }) }));
+vi.mock("@/hooks/useFamilies", () => ({ useFamilies: () => ({ families: [] as unknown[], isLoading: false }) }));
 vi.mock("@/components/listino/FamilyCatalog", () => ({ FamilyCatalog: () => <p>Prodotti con varianti</p> }));
-vi.mock("@/components/listino/MacroCategorieManager", () => ({ MacroCategorieManager: () => null }));
-vi.mock("@/components/listino/ListinoGuide", () => ({ ListinoGuide: () => null }));
+vi.mock("@/components/listino/MacroCategorieManager", () => ({ MacroCategorieManager: (): null => null }));
+vi.mock("@/components/listino/ListinoGuide", () => ({ ListinoGuide: (): null => null }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: state.error } }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => {
   const filters: Record<string, unknown> = {}; let start = 0, end = Infinity; let values: Record<string, unknown> | null = null;
@@ -22,7 +22,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => {
     range: (from: number, to: number) => { start = from; end = to; return q; },
     update: (data: Record<string, unknown>) => { values = data; return q; },
     single: async () => { state.updates.push({ values: values!, filters }); return { data: { id: filters.id }, error: null }; },
-    then: (resolve: (r: unknown) => unknown) => Promise.resolve({ data: state.rows.filter(r => Object.entries(filters).every(([key, value]) => r[key] === value)).slice(start, end + 1), error: null }).then(resolve),
+    then: (resolve: (r: unknown) => unknown) => Promise.resolve({ data: state.rows.filter(r => Object.entries(filters).every(([key, value]) => (r as unknown as Record<string, unknown>)[key] === value)).slice(start, end + 1), error: null as null }).then(resolve),
   }; return q;
 } } }));
 

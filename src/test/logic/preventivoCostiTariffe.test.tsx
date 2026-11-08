@@ -34,7 +34,7 @@ vi.mock("@/integrations/supabase/client", () => ({
         order: () => q,
         range: (from: number, to: number) => { intervallo = [from, to]; return q; },
         maybeSingle: () => Promise.resolve({ data: null, error: null }),
-        then: (ok: (r: unknown) => unknown) => { const tutte = (stato.righe[tabella] ?? []).filter(r => filtri.every(([colonna, valore]) => !(colonna in r) || r[colonna] === valore)); return Promise.resolve({ data: intervallo ? tutte.slice(intervallo[0], intervallo[1] + 1) : tutte, error: null }).then(ok); },
+        then: (ok: (r: unknown) => unknown) => { const tutte = (stato.righe[tabella] ?? []).filter(r => { if (typeof r !== "object" || r === null) return false; const row = r as Record<string, unknown>; return filtri.every(([colonna, valore]) => !(colonna in row) || row[colonna] === valore); }); return Promise.resolve({ data: intervallo ? tutte.slice(intervallo[0], intervallo[1] + 1) : tutte, error: null }).then(ok); },
       };
       return q;
     },
