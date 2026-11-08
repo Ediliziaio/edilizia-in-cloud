@@ -4,6 +4,8 @@
  * dell'azienda, i permessi, il telefono e il modo di fatturare (vedi indiceImpostazioni.ts).
  */
 import { useMemo } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { isCompanyPathAvailable } from "@/lib/companyManagementMode";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useStatoPiano } from "@/hooks/useStatoPiano";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -20,6 +22,8 @@ export function useVociImpostazioni(attivo = true): {
   isMobile: boolean;
 } {
   const permissions = usePermissions();
+  const { effectiveCompany } = useAuth();
+  const managementMode = effectiveCompany?.management_mode;
   const { stato: piano } = useStatoPiano();
   const isMobile = useIsMobile();
   // Dove il provider non c'è (le prove) si fa come se la fatturazione non fosse nativa.
@@ -27,12 +31,12 @@ export function useVociImpostazioni(attivo = true): {
   // `attivo` = la ricerca è aperta o ha del testo: finché serve a niente, l'elenco non si costruisce (la palette
   // dell'app e il ⌘K stanno montati in ogni pagina, chiusi).
   const voci = useMemo(
-    () => (attivo ? vociRicercabili(permissions, piano, isMobile, { fatturazioneNativa }) : VUOTO),
-    [attivo, permissions, piano, isMobile, fatturazioneNativa],
+    () => (attivo ? vociRicercabili(permissions, piano, isMobile, { fatturazioneNativa }).filter(v => isCompanyPathAvailable(managementMode, v.url)) : VUOTO),
+    [attivo, permissions, piano, isMobile, fatturazioneNativa, managementMode],
   );
   const vociDaComputer = useMemo(
-    () => (!attivo ? VUOTO : isMobile ? vociRicercabili(permissions, piano, false, { fatturazioneNativa }) : voci),
-    [attivo, permissions, piano, isMobile, fatturazioneNativa, voci],
+    () => (!attivo ? VUOTO : isMobile ? vociRicercabili(permissions, piano, false, { fatturazioneNativa }).filter(v => isCompanyPathAvailable(managementMode, v.url)) : voci),
+    [attivo, permissions, piano, isMobile, fatturazioneNativa, voci, managementMode],
   );
   return { voci, vociDaComputer, isMobile };
 }

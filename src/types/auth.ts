@@ -218,6 +218,7 @@ export interface Profile {
 }
 
 export interface Company {
+  management_mode?: "complete" | "accounting";
   brand_logo_dark_url?: string | null;
   id: string;
   name: string;

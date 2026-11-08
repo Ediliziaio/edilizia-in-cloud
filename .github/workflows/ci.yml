@@ -105,11 +105,15 @@ jobs:
           src/test/logic/preventivoCostiTariffe.test.tsx
           src/test/logic/listinoAziendaEffettiva.test.ts
           src/test/ui/staffSenzaInvioEmail.test.tsx
+          src/test/ui/aggiungiArticolo.test.tsx
+          src/test/logic/companyManagementMode.test.ts
           src/test/logic/permessiDistinti.test.ts
           src/test/ui/permessiDistinti.test.tsx
 
       - name: Verify distinct permissions with PostgreSQL row security
-        run: node scripts/test-permessi-dettagliati.mjs
+        run: |
+          node scripts/test-permessi-dettagliati.mjs
+          node scripts/test-sola-lettura-dati.mjs
 
       - name: Run definitive conflict and database memory regressions
         run: >-

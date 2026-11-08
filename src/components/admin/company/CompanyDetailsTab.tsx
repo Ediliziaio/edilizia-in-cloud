@@ -337,6 +337,20 @@ export function CompanyDetailsTab({
                     <FormMessage />
                   </FormItem>
                 )} />
+                <FormField control={form.control} name="management_mode" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Profilo di gestione</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || "complete"}>
+                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="complete">Completo · cantieri, personale e contabilità</SelectItem>
+                        <SelectItem value="accounting">Contabile · fatturazione e finanza</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">Semplifica menu e pagine della società. I permessi delle persone e il piano di abbonamento restano distinti.</p>
+                    <FormMessage />
+                  </FormItem>
+                )} />
                 {company.logo_url && (
                   <div>
                     <p className="text-sm font-medium mb-2">Logo attuale</p>

@@ -7,6 +7,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { MemoryRouter } from "react-router-dom";
 import { SettingsSearch } from "@/components/layouts/SettingsSearch";
 
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: null as null }) }));
 const state = vi.hoisted(() => ({
   navigate: vi.fn(),
   permessi: { isAdmin: true, isLoading: false } as Record<string, unknown>,

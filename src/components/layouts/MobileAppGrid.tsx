@@ -9,6 +9,7 @@
  *   3) Badge notifiche su icone (chat/email/attività non letti)
  *   4) Layout compatto: meno padding verticale → +30% info a colpo d'occhio
  */
+import { isCompanyPathAvailable } from "@/lib/companyManagementMode";
 import { useMemo, useEffect, useState, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { X, Search, Clock, Settings as SettingsIcon } from "lucide-react";
@@ -293,7 +294,8 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
     return (items: NavItem[]) => {
       if (permissions.isLoading) {
         return items.filter((item) => {
-          if (MOBILE_HIDDEN_URLS.has(item.url)) return false;
+          if (!isCompanyPathAvailable(effectiveCompany?.management_mode, item.url)) return false;
+          if (MOBILE_HIDDEN_URLS.has(item.url) && !(effectiveCompany?.management_mode === "accounting" && item.url === "/azienda/prima-nota")) return false;
           if (item.url === "/azienda/contenuti-multimediali") return true;
           if (item.demoCompanyOnly && !isDemoBaseline) return false;
           if (item.featureKey === "billing_external" && billingMode !== "external") return false;
@@ -303,7 +305,8 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
         });
       }
       return items.filter((item) => {
-        if (MOBILE_HIDDEN_URLS.has(item.url)) return false;
+        if (!isCompanyPathAvailable(effectiveCompany?.management_mode, item.url)) return false;
+          if (MOBILE_HIDDEN_URLS.has(item.url) && !(effectiveCompany?.management_mode === "accounting" && item.url === "/azienda/prima-nota")) return false;
         if (item.url === "/azienda/contenuti-multimediali" && !canAccessMediaLibrary(permissions)) return false;
         if (item.demoCompanyOnly && !isDemoBaseline) return false;
         if (item.url === "/azienda/cruscotto") {
@@ -320,7 +323,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
         return true;
       });
     };
-  }, [permissions, isModuleEnabled, billingMode, isFeatureEnabled, isDemoBaseline]);
+  }, [permissions, isModuleEnabled, billingMode, isFeatureEnabled, isDemoBaseline, effectiveCompany?.management_mode]);
 
   const filteredAreas = useMemo(() => {
     const aree = macroAreas

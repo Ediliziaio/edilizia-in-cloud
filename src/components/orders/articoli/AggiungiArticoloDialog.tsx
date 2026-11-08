@@ -170,6 +170,7 @@ export function AggiungiArticoloDialog({
         .from("article_templates")
         .select("id, name, sku, category, unit_price, standard_cost, unit_of_measure, vat_rate, supplier_id, description, immagine_url, pdf_scheda_url")
         .eq("company_id", companyId!)
+        .eq("attivo", true)
         .order("name");
       if (error) throw error;
       return data as ArticleTemplateData[];
