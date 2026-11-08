@@ -9,6 +9,7 @@
  *
  * Chat e App sono sempre presenti.
  */
+import { accountingHome } from "@/lib/companyManagementMode";
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -144,7 +145,7 @@ export function MobileBottomNav() {
   const location = useLocation();
   const { unreadCount } = useNotifications();
   const permissions = usePermissions();
-  const { role } = useAuth();
+  const { role, effectiveCompany } = useAuth();
   const isMobile = useIsMobile();
   const [appGridOpen, setAppGridOpen] = useState(false);
   // Hide-on-scroll stile Instagram: la pillola scivola via scrollando GIÙ e
@@ -247,6 +248,11 @@ export function MobileBottomNav() {
   // Rileva la sezione corrente e seleziona gli item contestuali
   const section = detectSection(location.pathname);
   const dynamicItems = (() => {
+    if (effectiveCompany?.management_mode === "accounting") return filterAccessible([
+      { label: "Prima Nota", icon: NotebookPen, href: "/azienda/prima-nota", permissionKey: "canViewPrimaNota" },
+      { label: "Finanza", icon: Euro, href: "/azienda/documenti", permissionKey: "canViewBilling" },
+      { label: "Tesoreria", icon: Euro, href: "/azienda/tesoreria", permissionKey: "canViewTesoreria" },
+    ], permissions, 2);
     if (permissions.isLoading) return CRUSCOTTO_GENERIC.slice(0, 2);
 
     switch (section) {
@@ -266,7 +272,7 @@ export function MobileBottomNav() {
   // La dashboard marketing vuole il suo permesso: senza (tipico del call
   // center) la Home porta ad Attività invece che a una pagina negata.
   const homeMarketing = permissions.isAdmin || permissions.canViewMarketingDashboard;
-  const homeHref = section === "marketing"
+  const homeHref = effectiveCompany?.management_mode === "accounting" ? accountingHome(permissions) : section === "marketing"
     ? (homeMarketing ? "/azienda/marketing" : permissions.canViewCallcenterDashboard ? "/azienda/call-center" : "/azienda/attivita")
     : section === "cruscotto"
       ? (permissions.isLoading ? "/azienda/cruscotto" : getSmartCruscottoPath(permissions, role))
@@ -295,7 +301,7 @@ export function MobileBottomNav() {
   > = [
     { type: "link", label: "Home", icon: LayoutDashboard, href: homeHref, active: isHomeActive },
     ...(dynamicItems[0] ? [{ type: "link" as const, label: dynamicItems[0].label, icon: dynamicItems[0].icon, href: dynamicItems[0].href }] : []),
-    { type: "silvio" },
+    ...(effectiveCompany?.management_mode === "accounting" ? [] : [{ type: "silvio" as const }]),
     ...(dynamicItems[1] ? [{ type: "link" as const, label: dynamicItems[1].label, icon: dynamicItems[1].icon, href: dynamicItems[1].href }] : []),
     { type: "app" },
   ];

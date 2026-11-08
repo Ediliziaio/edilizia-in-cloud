@@ -16,6 +16,7 @@ import { salvaPermessiUtente } from "@/lib/permessi/salvaPermessiUtente";
 import type { EmployeeFormData } from "@/components/employees/EmployeeDialog";
 
 const formSchema = z.object({
+  management_mode: z.enum(["complete", "accounting"]),
   name: z.string().min(2, "Il nome deve avere almeno 2 caratteri"),
   business_name: z.string().optional().or(z.literal("")),
   email: z.string().email("Email non valida"),
@@ -78,7 +79,7 @@ export function useCompanyDetail(id: string | undefined) {
       vat_number: "", fiscal_code: "", pec: "", sdi_code: "", website: "",
       legal_address: "", legal_city: "", legal_province: "", legal_postal_code: "",
       operational_address: "", operational_city: "", operational_province: "", operational_postal_code: "",
-      notes: "",
+      notes: "", management_mode: "complete",
     },
   });
 
@@ -157,7 +158,7 @@ export function useCompanyDetail(id: string | undefined) {
       legal_province: c.legal_province || "", legal_postal_code: c.legal_postal_code || "",
       operational_address: c.operational_address || "", operational_city: c.operational_city || "",
       operational_province: c.operational_province || "", operational_postal_code: c.operational_postal_code || "",
-      notes: c.notes || "",
+      notes: c.notes || "", management_mode: c.management_mode || "complete",
     });
   }, [form]);
 
@@ -174,7 +175,7 @@ export function useCompanyDetail(id: string | undefined) {
     queryFn: async () => {
       if (!id) return null;
       const pageTo = 4999;
-      const [profilesRes, permissionsRes, salespeopleRes, employeesRes] = await Promise.all([
+      const [profilesRes, permissionsRes, salespeopleRes, employeesRes, accessesRes] = await Promise.all([
         supabase
           .from("profiles")
           .select("id, email, first_name, last_name, phone, created_at, last_login_at, company_id")
@@ -184,12 +185,22 @@ export function useCompanyDetail(id: string | undefined) {
         supabase.from("staff_permissions").select("*").eq("company_id", id).range(0, pageTo),
         supabase.from("salespeople").select("*").eq("company_id", id).order("created_at", { ascending: true }).range(0, pageTo),
         supabase.from("employees").select("*").eq("company_id", id).order("created_at", { ascending: true }).range(0, pageTo),
+        supabase.from("multi_company_access").select("user_id, access_role").eq("company_id", id).eq("status", "active").or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`).range(0, pageTo),
       ]);
       if (profilesRes.error) throw profilesRes.error;
       if (permissionsRes.error) throw permissionsRes.error;
       if (salespeopleRes.error) throw salespeopleRes.error;
       if (employeesRes.error) throw employeesRes.error;
-      const profiles = profilesRes.data || [];
+      if (accessesRes.error) throw accessesRes.error;
+      const primaryProfiles = profilesRes.data || [];
+      const primaryIds = new Set(primaryProfiles.map(p => p.id));
+      const secondaryIds = (accessesRes.data || []).map(a => a.user_id).filter(uid => !primaryIds.has(uid));
+      const secondaryProfiles = secondaryIds.length ? await supabase.from("profiles")
+        .select("id, email, first_name, last_name, phone, created_at, last_login_at, company_id")
+        .in("id", secondaryIds).range(0, pageTo) : { data: [], error: null };
+      if (secondaryProfiles.error) throw secondaryProfiles.error;
+      const profiles = [...primaryProfiles, ...(secondaryProfiles.data || [])];
+      const accessRoles = new Map((accessesRes.data || []).map(a => [a.user_id, a.access_role]));
       const profileIds = profiles.map((p) => p.id);
       let roles: { user_id: string; role: string }[] = [];
       if (profileIds.length > 0) {
@@ -207,6 +218,12 @@ export function useCompanyDetail(id: string | undefined) {
         current.add(row.role);
         rolesByUser.set(row.user_id, current);
       });
+      // Nell'azienda secondaria vale il ruolo assegnato per quell'accesso,
+      // non un ruolo amministratore posseduto nell'azienda principale.
+      for (const p of secondaryProfiles.data || []) {
+        const accessRole = accessRoles.get(p.id);
+        if (accessRole) rolesByUser.set(p.id, new Set([accessRole]));
+      }
       const hasRole = (userId: string, roleName: string) => rolesByUser.get(userId)?.has(roleName) ?? false;
       const linkedOperationalUserIds = new Set<string>(
         [
@@ -682,6 +699,7 @@ export function useCompanyDetail(id: string | undefined) {
       // form — coincide con i campi validati da `formSchema` più i 4 campi
       // operativi duplicati dal toggle "sameAsLegal".
       interface CompanyUpdatePayload {
+        management_mode: "complete" | "accounting";
         name: string;
         email: string;
         sector: CompanySector;
@@ -703,6 +721,7 @@ export function useCompanyDetail(id: string | undefined) {
         operational_postal_code: string | null;
       }
       const updateData: CompanyUpdatePayload = {
+        management_mode: data.management_mode,
         name: data.name,
         email: data.email,
         sector: data.sector as CompanySector,

@@ -23,6 +23,8 @@ import {
   type StatoPiano,
 } from "@/lib/impostazioni/pianoImpostazioni";
 
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: null }) }));
+
 const radice = resolve(__dirname, "../../..");
 const leggi = (percorso: string) => readFileSync(resolve(radice, percorso), "utf8");
 

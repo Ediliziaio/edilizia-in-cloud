@@ -1,4 +1,4 @@
-import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
+import { Link, Navigate, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { SoftphoneProvider } from "@/components/telephony/SoftphoneProvider";
 import { navigateToSubdomain } from "@/utils/subdomainNav";
 // Apple Guideline 3.1.1 — su iOS nativo nascondiamo voci che linkano a checkout Stripe
@@ -112,6 +112,7 @@ import { SilvioFAB } from "@/components/silvio/SilvioFAB";
 import { useAuditAccountantPageView } from "@/hooks/accountant/useAccountantAudit";
 import { useAccountantRevocationWatch } from "@/hooks/accountant/useAccountantRevocationWatch";
 import { COMPANY_APP_HOME } from "@/lib/auth/appHome";
+import { accountingHome, isCompanyPathAvailable } from "@/lib/companyManagementMode";
 
 const CompanyBrandHeader = memo(function CompanyBrandHeader({
   isCollapsed,
@@ -778,6 +779,8 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
   const { stato: piano } = useStatoPiano();
   const isMobile = useIsMobile();
 
+  const { effectiveCompany } = useAuth();
+  const managementMode = effectiveCompany?.management_mode;
   const allGroups = useMemo(
     () => buildSettingsGroups(isAdmin, permissions, piano, isMobile),
     [isAdmin, permissions, piano, isMobile]
@@ -791,11 +794,11 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
   const filteredGroups = useMemo<SettingsNavGroup[]>(() => {
     const visibleGroups = allGroups.map(g => ({
       ...g,
-      items: g.items.filter(item => item.visible),
+      items: g.items.filter(item => item.visible && isCompanyPathAvailable(managementMode, item.to)),
     })).filter(g => g.items.length > 0);
 
     return filtraGruppiDelMenu(visibleGroups, voci, query);
-  }, [allGroups, query, voci]);
+  }, [allGroups, query, voci, managementMode]);
 
   const navLinkClass =
     "flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent";
@@ -1062,8 +1065,9 @@ const CompanySidebar = memo(function CompanySidebar() {
     };
 
     const applyCommercialistaScope = (visibleItems: NavItem[]) => {
-      if (!isCommercialistaMode) return visibleItems;
-      return visibleItems.filter((item) => COMMERCIALISTA_ALLOWED_URLS.has(item.url));
+      const scoped = visibleItems.filter(item => isCompanyPathAvailable(effectiveCompany?.management_mode, item.url));
+      if (!isCommercialistaMode) return scoped;
+      return scoped.filter((item) => COMMERCIALISTA_ALLOWED_URLS.has(item.url));
     };
 
     if (permissions.isLoading || gatingLoading) {
@@ -1148,7 +1152,7 @@ const CompanySidebar = memo(function CompanySidebar() {
       }
       return true;
     }));
-  }, [permissions, gatingLoading, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan, isDemoBaseline, limitsLoading, currentPlan, isCommercialistaMode, hasMultipleCompanies, schedeManodopera]);
+  }, [permissions, gatingLoading, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan, isDemoBaseline, limitsLoading, currentPlan, isCommercialistaMode, hasMultipleCompanies, schedeManodopera, effectiveCompany?.management_mode]);
 
   useEffect(() => {
     if (!gatingLoading) {
@@ -1816,7 +1820,9 @@ export function CompanyLayout() {
                 </div>
               }>
                 <SoftphoneProvider>
-                  <Outlet />
+                  {effectiveCompany?.management_mode === "accounting" && !isCompanyPathAvailable("accounting", location.pathname)
+                    ? <Navigate to={accountingHome(permissions)} replace />
+                    : <Outlet />}
                 </SoftphoneProvider>
               </Suspense>
             </ErrorBoundary>

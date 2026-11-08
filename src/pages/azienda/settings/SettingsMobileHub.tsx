@@ -13,6 +13,7 @@
  *   - Su tablet/desktop presenta la stessa navigazione in una griglia più ampia
  */
 import { Link } from "react-router-dom";
+import { isCompanyPathAvailable } from "@/lib/companyManagementMode";
 import { useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStatoPiano } from "@/hooks/useStatoPiano";
@@ -70,7 +71,7 @@ const HIDDEN_ON_MOBILE = new Set<string>([
 const nascostaDaTelefono = (voce: SettingsNavItem): boolean => (voce.indirizzi ?? [voce.to]).some((a) => HIDDEN_ON_MOBILE.has(a));
 
 export default function SettingsMobileHub() {
-  const { signOut, user, profile } = useAuth();
+  const { signOut, user, profile, effectiveCompany } = useAuth();
   const permissions = usePermissions();
   const isMobile = useIsMobile();
   const [logoutOpen, setLogoutOpen] = useState(false);
@@ -84,9 +85,9 @@ export default function SettingsMobileHub() {
   const sezioni = useMemo(
     () => buildSettingsGroups(permissions.isAdmin, permissions, piano, isMobile).map((section) => ({
       ...section,
-      items: section.items.filter((i) => i.visible && !(isMobile && nascostaDaTelefono(i))),
+      items: section.items.filter((i) => i.visible && isCompanyPathAvailable(effectiveCompany?.management_mode, i.to) && !(isMobile && nascostaDaTelefono(i))),
     })).filter((s) => s.items.length > 0),
-    [permissions, piano, isMobile],
+    [permissions, piano, isMobile, effectiveCompany?.management_mode],
   );
 
   // Cosa si vede nei risultati: le voci che il telefono mostra, con l'icona della loro voce del menu.

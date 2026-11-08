@@ -19703,6 +19703,7 @@ export type Database = {
       }
       companies: {
         Row: {
+          management_mode: string
           aedix_brain_opt_in: boolean | null
           aedix_brain_opt_in_at: string | null
           aedix_brain_opt_in_version: string | null
@@ -19871,6 +19872,7 @@ export type Database = {
           winback_require_hitl: boolean
         }
         Insert: {
+          management_mode?: string
           aedix_brain_opt_in?: boolean | null
           aedix_brain_opt_in_at?: string | null
           aedix_brain_opt_in_version?: string | null
@@ -20039,6 +20041,7 @@ export type Database = {
           winback_require_hitl?: boolean
         }
         Update: {
+          management_mode?: string
           aedix_brain_opt_in?: boolean | null
           aedix_brain_opt_in_at?: string | null
           aedix_brain_opt_in_version?: string | null
