@@ -60,6 +60,7 @@ export interface StaffUserFormData {
   /** Password temporanea definita dall'admin. Se assente, l'edge function ne genera una. */
   password?: string;
   permissions?: StaffPermissions;
+  inviaBenvenuto?: boolean;
 }
 
 
@@ -116,6 +117,7 @@ export function StaffUserDialog({
   const [copied, setCopied] = useState(false);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [inviaBenvenuto, setInviaBenvenuto] = useState(true);
 
   const handleTogglePermission = (key: keyof StaffPermissions, value: boolean) => {
     setPermissions((prev) => {
@@ -156,8 +158,8 @@ export function StaffUserDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firstName.trim() || !lastName.trim() || !email.trim()) {
-      toast({ title: "Errore", description: "Tutti i campi sono obbligatori", variant: "destructive" });
+    if (!firstName.trim() || !email.trim()) {
+      toast({ title: "Errore", description: "Nome ed email sono obbligatori", variant: "destructive" });
       return;
     }
     const pwd = password.trim();
@@ -172,6 +174,7 @@ export function StaffUserDialog({
         email: email.trim().toLowerCase(),
         role_type: roleType,
         password: pwd || undefined,
+        inviaBenvenuto,
         permissions: ROLES_WITH_PERMISSIONS.includes(roleType) ? syncLegacyMarketingFlags(permissions) : undefined,
       });
       if (result.temporaryPassword) {
@@ -197,6 +200,7 @@ export function StaffUserDialog({
     setPermissions(permessiDelRuolo(defaultRoleType ?? "company_staff"));
     setTemporaryPassword(null); setCopied(false);
     setPassword(""); setShowPassword(false);
+    setInviaBenvenuto(true);
     onOpenChange(false);
   };
 
@@ -322,7 +326,7 @@ export function StaffUserDialog({
                 <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Mario" disabled={isLoading} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="lastName">Cognome *</Label>
+                <Label htmlFor="lastName">Cognome</Label>
                 <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Rossi" disabled={isLoading} />
               </div>
             </div>
@@ -361,6 +365,10 @@ export function StaffUserDialog({
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">Minimo 8 caratteri. Se vuota, il sistema ne genera una sicura. Verrà mostrata dopo la creazione.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="inviaBenvenuto" checked={inviaBenvenuto} onCheckedChange={value => setInviaBenvenuto(value === true)} disabled={isLoading} />
+              <Label htmlFor="inviaBenvenuto">Invia le credenziali per email</Label>
             </div>
           </div>
 

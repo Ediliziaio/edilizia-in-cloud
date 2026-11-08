@@ -56,7 +56,21 @@ USING (has_role((SELECT auth.uid()), 'super_admin'::app_role))
 WITH CHECK (has_role((SELECT auth.uid()), 'super_admin'::app_role));
 
 -- ── Indici FK utili (non-CONCURRENTLY perché siamo in migration transazione)
-CREATE INDEX IF NOT EXISTS idx_orders_assigned_to ON public.orders(assigned_to) WHERE assigned_to IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_orders_created_by ON public.orders(created_by) WHERE created_by IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_companies_referred_by ON public.companies(referred_by) WHERE referred_by IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_companies_sr_default_consulente_id ON public.companies(sr_default_consulente_id) WHERE sr_default_consulente_id IS NOT NULL;
+-- Le colonne opzionali esistevano nel database storico ma non in tutti
+-- i punti della sua ricostruzione. Crea gli indici solo sulle colonne presenti.
+DO $$
+DECLARE i record;
+BEGIN
+ FOR i IN SELECT * FROM (VALUES
+   ('orders', 'assigned_to', 'idx_orders_assigned_to'),
+   ('orders', 'created_by', 'idx_orders_created_by'),
+   ('companies', 'referred_by', 'idx_companies_referred_by'),
+   ('companies', 'sr_default_consulente_id', 'idx_companies_sr_default_consulente_id')
+ ) AS indici(tabella, colonna, nome) LOOP
+   IF EXISTS (SELECT 1 FROM information_schema.columns
+     WHERE table_schema='public' AND table_name=i.tabella AND column_name=i.colonna) THEN
+     EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON public.%I(%I) WHERE %I IS NOT NULL',
+       i.nome, i.tabella, i.colonna, i.colonna);
+   END IF;
+ END LOOP;
+END $$;

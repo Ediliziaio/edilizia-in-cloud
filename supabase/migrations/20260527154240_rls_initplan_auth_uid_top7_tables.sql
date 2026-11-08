@@ -97,6 +97,12 @@ CREATE POLICY "hr_richieste_super_admin" ON public.hr_richieste
   USING (has_role((SELECT auth.uid()), 'super_admin'::app_role))
   WITH CHECK (has_role((SELECT auth.uid()), 'super_admin'::app_role));
 
+-- user_id viene introdotto dalla migrazione 20260916000016.
+-- Le policy basate su profilo_id restano attive durante il replay precedente.
+DO $$
+BEGIN
+ IF EXISTS (SELECT 1 FROM information_schema.columns
+   WHERE table_schema='public' AND table_name='hr_richieste' AND column_name='user_id') THEN
 DROP POLICY IF EXISTS "richieste_campo_insert" ON public.hr_richieste;
 CREATE POLICY "richieste_campo_insert" ON public.hr_richieste
   FOR INSERT TO authenticated
@@ -106,6 +112,8 @@ DROP POLICY IF EXISTS "richieste_campo_select" ON public.hr_richieste;
 CREATE POLICY "richieste_campo_select" ON public.hr_richieste
   FOR SELECT TO authenticated
   USING ((SELECT auth.uid()) = user_id);
+ END IF;
+END $$;
 
 -- ── orders ──────────────────────────────────────────────────
 DROP POLICY IF EXISTS "Campo users can view assigned orders" ON public.orders;
@@ -262,7 +270,16 @@ CREATE POLICY "Super admins can manage all tickets" ON public.tickets
   FOR ALL TO authenticated
   USING (has_role((SELECT auth.uid()), 'super_admin'::app_role));
 
-DROP POLICY IF EXISTS "tickets_campo_insert" ON public.tickets;
-CREATE POLICY "tickets_campo_insert" ON public.tickets
-  FOR INSERT TO authenticated
-  WITH CHECK (created_by = (SELECT auth.uid()) OR customer_id = (SELECT auth.uid()));
+-- created_by viene aggiunto da 20260916000014. Durante un replay da zero
+-- restano le policy precedenti, fino alla creazione della colonna e della
+-- policy Campo nella stessa migrazione di settembre.
+DO $$
+BEGIN
+ IF EXISTS (SELECT 1 FROM information_schema.columns
+   WHERE table_schema='public' AND table_name='tickets' AND column_name='created_by') THEN
+  DROP POLICY IF EXISTS "tickets_campo_insert" ON public.tickets;
+  CREATE POLICY "tickets_campo_insert" ON public.tickets
+    FOR INSERT TO authenticated
+    WITH CHECK (created_by = (SELECT auth.uid()) OR customer_id = (SELECT auth.uid()));
+ END IF;
+END $$;

@@ -4,8 +4,14 @@
 
 -- ERR Postgres: "cannot refresh materialized view mv_analytics_sede concurrently"
 -- → manca UNIQUE INDEX (requisito PG). MV vuota, sicuro crearlo ora.
-CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_analytics_sede_unique
-  ON public.mv_analytics_sede (sede_id, mese);
-
-COMMENT ON INDEX public.idx_mv_analytics_sede_unique IS
-  'Required for REFRESH MATERIALIZED VIEW CONCURRENTLY — sede_id+mese univoco per analytics mensili';
+-- Su un replay nuovo la vista nasce solo con 20260701000000 ed è ricreata
+-- nel 20270517110000; 20270527110000 aggiunge nuovamente questo indice.
+DO $$
+BEGIN
+ IF to_regclass('public.mv_analytics_sede') IS NOT NULL THEN
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_analytics_sede_unique
+    ON public.mv_analytics_sede (sede_id, mese);
+  COMMENT ON INDEX public.idx_mv_analytics_sede_unique IS
+    'Required for REFRESH MATERIALIZED VIEW CONCURRENTLY — sede_id+mese univoco per analytics mensili';
+ END IF;
+END $$;

@@ -318,6 +318,7 @@ export default function SettingsBundle() {
         .from("article_templates")
         .select("id, name, unit_of_measure, unit_price, prezzo_vendita, immagine_url")
         .eq("company_id", companyId!)
+        .eq("attivo", true)
         .order("name")
         .limit(500);
       if (error) throw error;

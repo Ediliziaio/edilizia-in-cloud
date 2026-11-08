@@ -1,4 +1,5 @@
-import { nomeRuolo } from "@/lib/permessi/ruoliUtente";
+import { useAccountsOverview, useCompanyGroups } from "@/hooks/superadmin/useCompanyGroups";
+import { nomeRuolo as nomeRuoloAzienda } from "@/lib/permessi/ruoliUtente";
 import { useState } from "react";
 import { formatDistanceToNow, format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -29,6 +30,13 @@ import {
 } from "@/hooks/superadmin/useAdminUsers";
 
 const PAGE_SIZE = 50;
+const RUOLI_PIATTAFORMA: Record<string, string> = {
+  super_admin: "Superadmin", customer: "Cliente portale", accountant: "Commercialista",
+  multi_company_user: "Accesso a più aziende", referrer: "Segnalatore",
+  platform_callcenter: "Call Center piattaforma", platform_sales: "Venditore piattaforma",
+  platform_support: "Assistenza piattaforma", platform_admin: "Amministratore piattaforma",
+};
+function nomeRuolo(role: string) { return RUOLI_PIATTAFORMA[role] ?? nomeRuoloAzienda(role); }
 
 const FILTRI_STATO = [
   { valore: null as null, etichetta: "Tutti" },
@@ -198,13 +206,18 @@ function SchedaUtente({
 export default function UsersList() {
   const [ricerca, setRicerca] = useState("");
   const [stato, setStato] = useState<"attivi" | "bloccati" | "mai_entrati" | null>(null);
+  const [companyId, setCompanyId] = useState("");
+  const [role, setRole] = useState("");
+  const [group, setGroup] = useState("");
+  const { data: overview, error: overviewError } = useAccountsOverview();
+  const { data: groups = [], error: groupsError } = useCompanyGroups();
   const [pagina, setPagina] = useState(0);
   const [selezionato, setSelezionato] = useState<AdminUserRow | null>(null);
   const ricercaDebounced = useDebounce(ricerca, 350);
   const isMobile = useIsMobile();
 
   const { data, isLoading, error } = useAdminUsers({
-    search: ricercaDebounced, stato, page: pagina, pageSize: PAGE_SIZE,
+    search: ricercaDebounced, stato, companyId, role, group, page: pagina, pageSize: PAGE_SIZE,
   });
 
   const righe = data?.rows ?? [];
@@ -218,16 +231,36 @@ export default function UsersList() {
         <div>
           <h1 className="text-xl font-semibold">Utenti</h1>
           <p className="text-sm text-muted-foreground">
-            Tutte le persone della piattaforma, con accessi, dispositivi e stato dell'account
+            Account di accesso, azienda principale, ruoli e sessioni
           </p>
         </div>
       </div>
 
+      {overview && <Card><CardContent className="p-4 space-y-3">
+        <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm" aria-label="Riepilogo account">
+          <span><strong>{overview.accounts}</strong> account totali</span>
+          <span><strong>{overview.with_profile}</strong> con profilo in elenco</span>
+          <span><strong>{overview.without_profile}</strong> senza profilo</span>
+          <span><strong>{overview.portal}</strong> account portale clienti</span>
+        </div>
+        <details>
+          <summary className="cursor-pointer text-sm font-medium">Ripartizione per azienda principale</summary>
+          <p className="text-xs text-muted-foreground my-2">Ogni account è contato una volta. Gli accessi condivisi sono inclusi nel filtro azienda, senza duplicare il totale. Gli account senza profilo non compaiono nella directory.</p>
+          <div className="max-h-72 overflow-auto"><Table>
+            <TableHeader><TableRow><TableHead>Azienda principale</TableHead><TableHead>Account</TableHead><TableHead>Di cui portale</TableHead></TableRow></TableHeader>
+            <TableBody>{overview.companies.filter(c => c.accounts > 0).map(c => <TableRow key={c.id ?? "none"}>
+              <TableCell><button className="text-primary hover:underline text-left" onClick={() => { setCompanyId(c.id ?? "00000000-0000-0000-0000-000000000000"); setGroup(""); setPagina(0); }}>{c.name}</button></TableCell>
+              <TableCell>{c.accounts}</TableCell><TableCell>{c.portal}</TableCell>
+            </TableRow>)}</TableBody>
+          </Table></div>
+        </details>
+      </CardContent></Card>}
+      {(overviewError || groupsError) && <p role="alert" className="text-sm text-destructive">Impossibile caricare il riepilogo o i gruppi. Riprova aggiornando la pagina.</p>}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <CardTitle className="text-base">
-              {isLoading ? "Caricamento…" : `${totale.toLocaleString("it-IT")} utenti`}
+              {isLoading ? "Caricamento…" : `${totale.toLocaleString("it-IT")} account con profilo`}
             </CardTitle>
             <div className="relative flex-1 md:max-w-sm">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -238,6 +271,28 @@ export default function UsersList() {
                 className="pl-8"
               />
             </div>
+          </div>
+          <div className="flex flex-wrap gap-3 pt-2">
+            <label className="text-xs space-y-1 flex flex-col">Azienda accessibile
+              <select aria-label="Azienda accessibile" className="h-9 max-w-full md:max-w-72 rounded-md border bg-background px-2 text-sm" value={companyId} onChange={e => { setCompanyId(e.target.value); setPagina(0); }}>
+                <option value="">Tutte le aziende</option>
+                <option value="00000000-0000-0000-0000-000000000000">Senza azienda principale</option>
+                {overview?.companies.filter(c => c.id).sort((a,b) => a.name.localeCompare(b.name, "it")).map(c => <option key={c.id!} value={c.id!}>{c.name}</option>)}
+              </select>
+            </label>
+            <label className="text-xs space-y-1 flex flex-col">Ruolo
+              <select aria-label="Ruolo" className="h-9 rounded-md border bg-background px-2 text-sm" value={role} onChange={e => { setRole(e.target.value); setPagina(0); }}>
+                <option value="">Tutti i ruoli</option>
+                {overview?.roles.map(r => <option key={r} value={r}>{nomeRuolo(r)}</option>)}
+              </select>
+            </label>
+            <label className="text-xs space-y-1 flex flex-col">Gruppo aziendale
+              <select aria-label="Gruppo aziendale" className="h-9 rounded-md border bg-background px-2 text-sm" value={group} onChange={e => { setGroup(e.target.value); setCompanyId(""); setPagina(0); }}>
+                <option value="">Tutti i gruppi</option>
+                {groups.map(g => <option key={g.name} value={g.name}>{g.name} · {g.companyIds.length} aziende</option>)}
+              </select>
+            </label>
+            {(companyId || role || group || ricerca || stato) && <Button variant="ghost" size="sm" className="self-end" onClick={() => { setCompanyId(""); setRole(""); setGroup(""); setRicerca(""); setStato(null); setPagina(0); }}>Azzera filtri</Button>}
           </div>
           <div className="flex flex-wrap gap-1.5 pt-2">
             {FILTRI_STATO.map((f) => (
@@ -265,7 +320,7 @@ export default function UsersList() {
             <TableHeader>
               <TableRow>
                 <TableHead>Persona</TableHead>
-                <TableHead>Azienda</TableHead>
+                <TableHead>Azienda principale</TableHead>
                 <TableHead>Ruoli</TableHead>
                 <TableHead>Ultimo accesso</TableHead>
                 <TableHead>Stato</TableHead>

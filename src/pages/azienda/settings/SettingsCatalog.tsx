@@ -12,7 +12,13 @@
  */
 
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { FamilyCatalog } from "@/components/listino/FamilyCatalog";
+import { MaterialiListino } from "@/components/listino/MaterialiListino";
+import { useMaterialiListino } from "@/hooks/useMaterialiListino";
+import { useFamilies } from "@/hooks/useFamilies";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { MacroCategorieManager } from "@/components/listino/MacroCategorieManager";
 import { ListinoGuide } from "@/components/listino/ListinoGuide";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -30,12 +36,17 @@ import { usePermissions } from "@/hooks/usePermissions";
 
 export default function SettingsCatalog() {
   const [showCategorieDialog, setShowCategorieDialog] = useState(false);
-  const { role } = useAuth();
+  const [parametri, setParametri] = useSearchParams();
+  const { role, effectiveCompany } = useAuth();
   const permissions = usePermissions();
   // 13/7/2026: la pagina rispetta il permesso Impostazioni dedicato (prima solo ruolo admin,
   // e il toggle dato dall'admin non apriva nulla). Modifica ⇒ tutte le azioni; Visualizza ⇒ accesso.
   const isAdmin = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsPricing;
   const canView = isAdmin || permissions.canViewSettingsPricing;
+  const materiali = useMaterialiListino(!!canView);
+  const { families, isLoading: caricamentoProdotti } = useFamilies({ includeInactive: true });
+  const tab = parametri.get("tab") === "materiali" ? "materiali"
+    : !parametri.has("tab") && !parametri.has("area") && !caricamentoProdotti && families.length === 0 && !!materiali.data?.length ? "materiali" : "prodotti";
   // Crea e cancella tipologie solo l'amministratore: è la regola del database, e
   // con il solo permesso sui prezzi i bottoni del dialog davano un errore.
   const gestoreTipologie = role === "company_admin" || role === "super_admin";
@@ -64,10 +75,17 @@ export default function SettingsCatalog() {
   return (
     <div className="space-y-3">
       <ErrorBoundary title="Errore nel listino">
-        <FamilyCatalog
-          onGestisciTipologie={gestoreTipologie ? () => setShowCategorieDialog(true) : undefined}
-          guida={<ListinoGuide />}
-        />
+        <Tabs value={tab} onValueChange={value => setParametri(prima => { const dopo = new URLSearchParams(prima); dopo.set("tab", value); return dopo; }, { replace: true })}>
+          <TabsList><TabsTrigger value="prodotti">Prodotti e varianti</TabsTrigger><TabsTrigger value="materiali">Materiali e servizi{materiali.data ? ` (${materiali.data.length})` : ""}</TabsTrigger></TabsList>
+          <TabsContent value="prodotti"><FamilyCatalog
+            onGestisciTipologie={gestoreTipologie ? () => setShowCategorieDialog(true) : undefined}
+            guida={<ListinoGuide />}
+          /></TabsContent>
+          <TabsContent value="materiali">
+            {materiali.isLoading ? <p className="py-8 text-sm">Caricamento materiali…</p> : materiali.isError ? <div role="alert" className="space-y-3 py-6"><p>Non è stato possibile caricare i materiali.</p><Button variant="outline" onClick={() => void materiali.refetch()}>Riprova</Button></div>
+              : <MaterialiListino key={effectiveCompany?.id} righe={materiali.data ?? []} puoModificare={!!isAdmin} />}
+          </TabsContent>
+        </Tabs>
       </ErrorBoundary>
 
       <Dialog open={showCategorieDialog} onOpenChange={setShowCategorieDialog}>

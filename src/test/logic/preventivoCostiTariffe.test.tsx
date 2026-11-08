@@ -27,13 +27,14 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: (tabella: string) => {
       let intervallo: [number, number] | null = null;
+      const filtri: Array<[string, unknown]> = [];
       const q = {
         select: (colonne: string) => { stato.select[tabella] = colonne; return q; },
-        eq: () => q,
+        eq: (colonna: string, valore: unknown) => { filtri.push([colonna, valore]); return q; },
         order: () => q,
         range: (from: number, to: number) => { intervallo = [from, to]; return q; },
         maybeSingle: () => Promise.resolve({ data: null, error: null }),
-        then: (ok: (r: unknown) => unknown) => { const tutte = stato.righe[tabella] ?? []; return Promise.resolve({ data: intervallo ? tutte.slice(intervallo[0], intervallo[1] + 1) : tutte, error: null }).then(ok); },
+        then: (ok: (r: unknown) => unknown) => { const tutte = (stato.righe[tabella] ?? []).filter(r => { if (typeof r !== "object" || r === null) return false; const row = r as Record<string, unknown>; return filtri.every(([colonna, valore]) => !(colonna in row) || row[colonna] === valore); }); return Promise.resolve({ data: intervallo ? tutte.slice(intervallo[0], intervallo[1] + 1) : tutte, error: null }).then(ok); },
       };
       return q;
     },
@@ -107,6 +108,16 @@ describe("Tariffe: costo e unità con la regola unica", () => {
 });
 
 describe("Articoli e bundle", () => {
+  it("non propone prezzi di listini disattivati o appartenenti ad altre aziende", async () => {
+    stato.righe.article_templates = [
+      { id: "corrente", company_id: "az-1", attivo: true, prezzo_acquisto_netto: 112 },
+      { id: "scaduto", company_id: "az-1", attivo: false, prezzo_acquisto_netto: 98 },
+      { id: "altra-azienda", company_id: "az-2", attivo: true, prezzo_acquisto_netto: 105 },
+    ];
+    renderHook(() => usePreventivoCosti("az-1"));
+    const articoli = (await stato.opzioni["article-templates-pro"].queryFn()) as Array<{ id: string }>;
+    expect(articoli.map(a => a.id)).toEqual(["corrente"]);
+  });
   it("il costo dell'articolo: prezzo_acquisto_netto, e se è lo 0 di default standard_cost", async () => {
     stato.righe.article_templates = [
       { id: "a1", name: "Finestra", unit_price: 500, prezzo_vendita: 500, prezzo_acquisto_netto: 0, standard_cost: 280, vat_rate: 10, modalita_prezzo: "pz" },

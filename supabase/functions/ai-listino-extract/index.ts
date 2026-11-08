@@ -24,6 +24,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { resolveEffectiveCompanyId as resolveCompanyId } from "../_shared/effectiveCompany.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { percorsoStorageSicuro } from "../_shared/storageAmmesso.ts";
@@ -201,10 +202,8 @@ async function logAiUsage(
   }
 }
 
-async function resolveCompanyId(supabaseAdmin: any, userId: string): Promise<string | null> {
-  const { data } = await supabaseAdmin.from("profiles").select("company_id").eq("id", userId).maybeSingle();
-  return (data as { company_id: string | null } | null)?.company_id ?? null;
-}
+// La società selezionata vale anche per superadmin senza azienda primaria
+// e per gli utenti multi-azienda; l'accesso viene verificato prima dell'AI.
 
 // ─────────────────────────────────────────────────────────────────────────────
 

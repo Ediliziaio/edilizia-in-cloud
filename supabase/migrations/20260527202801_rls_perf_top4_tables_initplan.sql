@@ -10,6 +10,93 @@
 --   - internal_chat_messages (8.5k reads)
 -- Semantica IDENTICA, solo InitPlan optimization.
 
+-- Il registro storico anticipa queste policy rispetto al file che introduce
+-- gli helper (20270524090000). Su un database nuovo si creano prima le sole
+-- dipendenze mancanti; helper già presenti e relativi permessi restano intatti.
+DO $chat_dependencies$
+BEGIN
+ IF to_regprocedure('public.internal_chat_company_allowed(uuid)') IS NULL THEN
+CREATE OR REPLACE FUNCTION public.internal_chat_company_allowed(p_company_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    p_company_id = public.get_my_company_id()
+    OR (
+      public.is_silvio_superadmin()
+      AND p_company_id = public.get_platform_admin_company_id()
+    );
+$$;
+REVOKE ALL ON FUNCTION public.internal_chat_company_allowed(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.internal_chat_company_allowed(uuid) TO authenticated, service_role;
+ END IF;
+ IF to_regprocedure('public.internal_chat_membership_allowed(uuid,uuid,uuid)') IS NULL THEN
+CREATE OR REPLACE FUNCTION public.internal_chat_membership_allowed(
+  p_channel_id UUID,
+  p_company_id UUID,
+  p_user_id UUID DEFAULT auth.uid()
+)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    p_user_id IS NOT NULL
+    AND public.internal_chat_company_allowed(p_company_id)
+    AND EXISTS (
+      SELECT 1
+      FROM public.internal_chat_members m
+      WHERE m.channel_id = p_channel_id
+        AND m.company_id = p_company_id
+        AND m.user_id = p_user_id
+    );
+$$;
+REVOKE ALL ON FUNCTION public.internal_chat_membership_allowed(uuid,uuid,uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.internal_chat_membership_allowed(uuid,uuid,uuid) TO authenticated, service_role;
+ END IF;
+ IF to_regprocedure('public.internal_chat_can_manage_members(uuid,uuid,uuid)') IS NULL THEN
+CREATE OR REPLACE FUNCTION public.internal_chat_can_manage_members(
+  p_channel_id UUID,
+  p_company_id UUID,
+  p_user_id UUID DEFAULT auth.uid()
+)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    p_user_id IS NOT NULL
+    AND public.internal_chat_company_allowed(p_company_id)
+    AND (
+      EXISTS (
+        SELECT 1
+        FROM public.internal_chat_channels c
+        WHERE c.id = p_channel_id
+          AND c.company_id = p_company_id
+          AND c.created_by = p_user_id
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM public.internal_chat_members m
+        WHERE m.channel_id = p_channel_id
+          AND m.company_id = p_company_id
+          AND m.user_id = p_user_id
+          AND m.role IN ('admin', 'owner')
+      )
+    );
+$$;
+REVOKE ALL ON FUNCTION public.internal_chat_can_manage_members(uuid,uuid,uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.internal_chat_can_manage_members(uuid,uuid,uuid) TO authenticated, service_role;
+ END IF;
+END $chat_dependencies$;
+
 -- ─── company_branding ──────────────────────────────────────────────────
 DROP POLICY IF EXISTS "company_admin_manage_branding" ON public.company_branding;
 CREATE POLICY "company_admin_manage_branding"
