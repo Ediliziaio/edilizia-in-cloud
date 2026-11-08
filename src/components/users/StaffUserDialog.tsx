@@ -23,6 +23,7 @@ import {
   CRUSCOTTO_SECTIONS, CANTIERI_SECTIONS, FINANZA_SECTIONS, PERSONE_SECTIONS,
   MARKETING_SECTIONS, AUTOMAZIONI_SECTIONS, IMPOSTAZIONI_SECTIONS,
   isBlockedBySolaLettura, syncLegacyMarketingFlags, SOLA_LETTURA_BLOCKED_NOTE,
+  sezioniConPermessiDistinti,
 } from "@/components/users/permissionsDefaults";
 
 /** I permessi con cui nasce un utente di quel ruolo: il preset del ruolo, lo
@@ -38,6 +39,7 @@ const SEZIONI_MODULI = ALL_PERMISSION_SECTIONS.filter(
   (s) => !TEAM_VISIBILITY_SECTIONS.some((t) => t.viewKey === s.viewKey),
 );
 import { SolaLetturaToggle } from "@/components/users/SolaLetturaToggle";
+import { PermessiDistintiToggle } from "@/components/users/PermessiDistintiToggle";
 
 interface StaffUserDialogProps {
   open: boolean;
@@ -132,8 +134,8 @@ export function StaffUserDialog({
 
   const handleSelectAll = () => {
     setPermissions((prev) => {
-      const allTrue: any = { ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, sola_lettura: prev.sola_lettura };
-      SEZIONI_MODULI.forEach(s => {
+      const allTrue: any = { ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, sola_lettura: prev.sola_lettura, permessi_dettagliati: prev.permessi_dettagliati };
+      sezioniConPermessiDistinti(SEZIONI_MODULI, prev).forEach(s => {
         allTrue[s.viewKey] = true;
         if (s.editKey) allTrue[s.editKey] = true;
       });
@@ -145,7 +147,7 @@ export function StaffUserDialog({
   };
 
   const handleDeselectAll = () => {
-    setPermissions((prev) => ({ ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, sola_lettura: prev.sola_lettura }));
+    setPermissions((prev) => ({ ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, sola_lettura: prev.sola_lettura, permessi_dettagliati: prev.permessi_dettagliati }));
   };
 
   const handleGeneratePassword = () => {
@@ -405,7 +407,7 @@ export function StaffUserDialog({
                           </button>
                         </CollapsibleTrigger>
                         <CollapsibleContent className="px-2.5 pt-2 pb-1 space-y-2">
-                          {g.sections.map(renderSection)}
+                          {sezioniConPermessiDistinti(g.sections, permissions).map(renderSection)}
                         </CollapsibleContent>
                       </Collapsible>
                     );
@@ -419,6 +421,7 @@ export function StaffUserDialog({
                     disabled={isLoading}
                     onCheckedChange={(checked) => setPermissions((prev) => syncLegacyMarketingFlags({ ...prev, sola_lettura: checked }))}
                   />
+                  <PermessiDistintiToggle id="create-permessi-distinti" checked={!!permissions.permessi_dettagliati} disabled={isLoading} onCheckedChange={checked => setPermissions(prev => syncLegacyMarketingFlags({ ...prev, permessi_dettagliati: checked }))} />
 
                   <div className="space-y-1.5">
                     <div className="flex items-center space-x-2">

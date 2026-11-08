@@ -79,6 +79,7 @@ export const STAFF_PERMISSION_DEFAULTS: Record<string, boolean | string[]> = {
   // Vede ma non scrive. Le can_edit_* operative le ricalcola comunque il
   // trigger permessi_modifica_segue_visibilita dalla visibilità.
   sola_lettura: false,
+  permessi_dettagliati: false,
   visible_areas: [],
   // Pipeline che l'utente vede (vuoto = tutte). La regola la applica il
   // database con policy RESTRICTIVE; qui serve perché l'utente nasca già con

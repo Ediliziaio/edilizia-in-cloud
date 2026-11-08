@@ -272,6 +272,7 @@ export const STAFF_PERMISSIONS_SELECT_KEYS = [
   "only_assigned",
   "only_my_warehouse",
   "sola_lettura",
+  "permessi_dettagliati",
   "visible_areas",
   "pipeline_visibili",
 ];
@@ -615,7 +616,7 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewFinancialReports:  g("can_view_financial_reports"),
     // Modulo CG: deriva da permessi finanziari esistenti (cruscotto / billing)
     // più feature flag controllo_gestione_v1 lato UI (utility separata).
-    canViewControlloGestione: g("can_view_cruscotto") || g("can_view_billing") || g("can_view_costs") || g("can_view_controllo_gestione"),
+    canViewControlloGestione: g("can_view_controllo_gestione") || (!g("permessi_dettagliati") && (g("can_view_cruscotto") || g("can_view_billing") || g("can_view_costs"))),
     isAdmin: false,
     isLoading: false,
     onlyAssigned:  r["only_assigned"] === true,
