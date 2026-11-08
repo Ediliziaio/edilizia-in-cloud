@@ -13,20 +13,17 @@ const stato = vi.hoisted(() => ({
   permessi: {} as Record<string, unknown>,
   contatti: [] as unknown[],
   clienti: [] as unknown[],
-  venditore: null as string | null,
   chiamateClienti: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => stato.permessi }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "az-1" }));
 vi.mock("@/hooks/useDebounce", () => ({ useDebounce: (v: string) => v }));
-vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "utente-1" } }) }));
 vi.mock("@/integrations/supabase/client", () => {
   const catena = (dati: () => unknown) => {
     const c: Record<string, unknown> = {};
     for (const m of ["select", "eq", "is", "limit", "or"]) c[m] = () => c;
     c.order = async () => ({ data: dati(), error: null as unknown });
-    c.maybeSingle = async () => ({ data: stato.venditore ? { id: stato.venditore } : null, error: null as unknown });
     return c;
   };
   return {
@@ -55,7 +52,7 @@ function apri(onScegli = vi.fn()) {
 
 beforeEach(() => {
   stato.permessi = { isAdmin: false, canViewMarketingContacts: true, canViewCustomers: true, onlyAssigned: false };
-  stato.contatti = [contatto]; stato.clienti = [cliente]; stato.venditore = null; stato.chiamateClienti = [];
+  stato.contatti = [contatto]; stato.clienti = [cliente]; stato.chiamateClienti = [];
 });
 
 describe("Chi vede cosa", () => {
@@ -75,23 +72,22 @@ describe("Chi vede cosa", () => {
     expect(await screen.findByText("Mario Rossi")).toBeInTheDocument();
   });
 
-  it("con «solo i propri» i clienti sono soltanto quelli di cui si è il venditore", async () => {
-    stato.permessi = { canViewMarketingContacts: true, canViewCustomers: true, onlyAssigned: true };
-    stato.venditore = "venditore-7";
+  it("con «solo i propri» il limite lo applica il database, e il popup lo dice", async () => {
+    stato.permessi = { canViewMarketingContacts: true, canViewOrders: true, onlyAssigned: true };
     apri();
     fireEvent.click(screen.getByRole("tab", { name: /Clienti/ }));
     expect(await screen.findByText("Laura Bianchi")).toBeInTheDocument();
-    expect(stato.chiamateClienti.at(-1)).toMatchObject({ p_company_id: "az-1", p_salesperson_id: "venditore-7" });
-    expect(screen.getByText(/Vedi solo i clienti di cui sei il venditore/)).toBeInTheDocument();
+    expect(stato.chiamateClienti.at(-1)).toMatchObject({ p_company_id: "az-1" });
+    expect(stato.chiamateClienti.at(-1)).not.toHaveProperty("p_salesperson_id");
+    expect(screen.getByText(/Vedi solo i clienti assegnati a te/)).toBeInTheDocument();
   });
 
-  it("con «solo i propri» e nessun cliente assegnato non si vede nessun cliente, e lo dice", async () => {
+  it("con «solo i propri» e nessun cliente assegnato lo dice", async () => {
     stato.permessi = { canViewMarketingContacts: true, canViewCustomers: true, onlyAssigned: true };
-    stato.venditore = null;
+    stato.clienti = [];
     apri();
     fireEvent.click(screen.getByRole("tab", { name: /Clienti/ }));
-    expect(await screen.findByText(/Non risulti venditore di nessun cliente/)).toBeInTheDocument();
-    expect(stato.chiamateClienti).toHaveLength(0);
+    expect(await screen.findByText(/Non hai clienti assegnati/)).toBeInTheDocument();
   });
 });
 

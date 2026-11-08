@@ -11,6 +11,7 @@ import { requireCompanyAccess } from "../_shared/auth.ts";
 import { chargeAndLogDirect, estimateWhisperCostUsd } from "../_shared/ai-provider/directApi.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
+import { creditDecisionResponse, precheckCreditoAudio } from "../_shared/quoteCreditGuard.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -222,6 +223,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // Senza, un'azienda senza carta faceva spendere OpenAI alla piattaforma.
   const pagamento = await gateAiPayment(supabaseAdmin, companyId, corsHeaders);
   if (pagamento) return pagamento;
+  // 08/11/2026: anche il saldo, prima di scaricare l'audio e di chiamare Whisper:
+  // con il credito a zero il costo di OpenAI restava alla piattaforma.
+  const credito = await precheckCreditoAudio(supabaseAdmin, companyId);
+  if (!credito.ok) return creditDecisionResponse(credito, corsHeaders);
 
   // Rate limiting: conta rapportini oggi
   const todayStart = new Date();
