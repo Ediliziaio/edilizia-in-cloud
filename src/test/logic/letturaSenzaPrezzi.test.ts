@@ -19,6 +19,10 @@ describe("lettura senza prezzi", () => {
     expect(selectSenzaPrezzi("*,order_items!goods_receipts_order_item_id_fkey(id)")).toBe("*,order_items:order_items_senza_prezzi!goods_receipts_order_item_id_fkey(id)");
     expect(selectSenzaPrezzi("*,purchase_order_items(id,order_items(id))")).toBe("*,purchase_order_items:purchase_order_items_senza_prezzi(id,order_items:order_items_senza_prezzi(id))");
   });
+  it("anche personale e ditte esterne della commessa", () => {
+    expect(urlSenzaPrezzi(`${base}order_employees?select=*`, "GET")).toContain("order_employees_senza_prezzi");
+    expect(selectSenzaPrezzi("*,order_external_teams(id,external_teams(name))")).toBe("*,order_external_teams:order_external_teams_senza_prezzi(id,external_teams(name))");
+  });
   it("non tocca colonne dai nomi simili, scritture, RPC e altre tabelle", () => {
     expect(selectSenzaPrezzi("purchase_order_id,purchase_orders_count")).toBe("purchase_order_id,purchase_orders_count");
     for (const m of ["POST", "PATCH", "DELETE"]) expect(urlSenzaPrezzi(`${base}purchase_orders?id=eq.1`, m)).toBe(`${base}purchase_orders?id=eq.1`);
