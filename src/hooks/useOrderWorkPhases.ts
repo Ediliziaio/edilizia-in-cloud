@@ -134,6 +134,7 @@ export const CAMPI_CHE_SEGUONO_LA_DIVISIONE = [
   "article_template_id", "product_code", "categoria", "standard_cost",
   "family_id", "axis_selections", "measure_status", "misure_preventivo", "misure_rilevate",
   "measure_variance", "survey_id", "survey_element_id", "installation_id",
+  "gruppo_id", "riferimento",
 ] as const;
 
 /** Le quantità si confrontano a quattro decimali, come le salva il database. */
