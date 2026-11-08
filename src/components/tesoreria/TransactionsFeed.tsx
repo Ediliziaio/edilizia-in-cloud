@@ -530,6 +530,9 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
+                        {tx.chiuso_senza_documento && (
+                          <Badge variant="outline" className="text-[10px] w-fit">Senza fattura</Badge>
+                        )}
                         {(tx.reconciliation_status === "pending" || tx.reconciliation_status === "parziale") && (
                           <Badge variant="outline" className="text-[10px] w-fit border-amber-300 text-amber-700">
                             {tx.reconciliation_status === "parziale" ? "Riconciliata in parte" : "Da riconciliare"}

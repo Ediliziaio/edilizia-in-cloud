@@ -2,6 +2,7 @@ import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { formatDateIt } from "@/lib/formatters";
 import { prettyTxDesc } from "./txLabel";
+import { MovimentoSenzaFattura } from "./MovimentoSenzaFattura";
 import { RipartizioneMovimento, type CandidatoRipartizione, type RigaRipartizione } from "./RipartizioneMovimento";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -94,6 +95,9 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
   const [debitTxs, setDebitTxs] = useState<any[]>([]);
   const [scadenze, setScadenze] = useState<any[]>([]);
   const [selectedDebit, setSelectedDebit] = useState<any>(null);
+  const [senzaFattura, setSenzaFattura] = useState(false);
+  const [chiusiSenzaFattura, setChiusiSenzaFattura] = useState<any[]>([]);
+  const [riapertura, setRiapertura] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     if (!companyId) {
@@ -106,7 +110,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
 
     setLoading(true);
     try {
-      const [txRes, invRes, recRes, debRes, scadRes, interneRes] = await Promise.all([
+      const [txRes, invRes, recRes, debRes, scadRes, interneRes, chiusiRes] = await Promise.all([
         supabase
           .from("bank_transactions")
           .select("*, bank_accounts(display_name, account_name)")
@@ -167,6 +171,14 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
           .in("stato", [...STATI_INCASSABILI_DA_BANCA])
           .order("data_scadenza", { ascending: true })
           .limit(1000),
+        // Chiusi senza fattura: restano visibili per poterli riaprire.
+        (supabase as any)
+          .from("bank_transactions")
+          .select("id, amount, booking_date, description, category, creditor_name, debtor_name, chiuso_senza_documento")
+          .eq("company_id", companyId)
+          .not("chiuso_senza_documento", "is", null)
+          .order("booking_date", { ascending: false })
+          .limit(200),
       ]);
       if (txRes.error) throw txRes.error;
       if (invRes.error) throw invRes.error;
@@ -185,7 +197,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
         else giaAbbinati.add(r.transaction_id);
       }
       const col_resto = <T extends { id: string; amount: number }>(righe: T[]): T[] => righe.flatMap((t) => {
-        if (giaAbbinati.has(t.id)) return [];
+        if (giaAbbinati.has(t.id) || (t as { chiuso_senza_documento?: string | null }).chiuso_senza_documento) return [];
         const usato = ripartitoPerMovimento.get(t.id);
         if (usato === undefined) return [t];
         const resto = Math.round((Math.abs(Number(t.amount)) - usato) * 100) / 100;
@@ -202,6 +214,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
         ...fattureInterneDaIncassare((interneRes.data || []) as unknown as FatturaInternaDaIncassare[]),
       ]);
       setReconciliations(recRes.data || []);
+      setChiusiSenzaFattura((chiusiRes?.data || []).filter((t: { chiuso_senza_documento?: string | null }) => t.chiuso_senza_documento));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[BankReconciliation] Errore caricamento dati:', msg);
@@ -297,6 +310,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
 
   // Open match dialog
   function openMatch(tx: any) {
+    setSenzaFattura(false);
     setSelectedTx(tx);
     setMatchNote("");
     // Stesso ranking del suggerimento inline e dell'auto-match: un solo criterio
@@ -518,6 +532,24 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
       toast.error("Movimento non abbinato", { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setMatching(false);
+    }
+  }
+
+  async function riapriSenzaFattura(id: string) {
+    setRiapertura(id);
+    try {
+      const { data, error } = await (supabase as any).rpc("riapri_movimento_senza_fattura", { p_transazione: id });
+      if (error) {
+        toast.error("Movimento non riaperto", { description: error.message });
+        return;
+      }
+      toast.success("Movimento riaperto", {
+        description: data?.costo_tolto ? "La spesa creata è stata tolta dai costi." : undefined,
+      });
+      aggiornaPagineCollegate();
+      await loadData();
+    } finally {
+      setRiapertura(null);
     }
   }
 
@@ -1242,7 +1274,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
               debitTxsVisibili.map((tx) => (
                 <div
                   key={tx.id}
-                  onClick={() => { setSelectedDebit(tx); setMatchNote(""); }}
+                  onClick={() => { setSenzaFattura(false); setSelectedDebit(tx); setMatchNote(""); }}
                   className="border rounded-lg p-3 cursor-pointer hover:bg-accent/50 transition-colors"
                 >
                   <div className="flex justify-between items-start">
@@ -1267,6 +1299,32 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                 </div>
               ))
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Movimenti chiusi senza fattura */}
+      {chiusiSenzaFattura.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileText className="h-4 w-4" /> Chiusi senza fattura
+              <Badge variant="outline" className="font-normal">{chiusiSenzaFattura.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="max-h-[320px] overflow-y-auto space-y-1.5">
+            {chiusiSenzaFattura.map((t) => (
+              <div key={t.id} className="flex items-center gap-3 rounded-md border px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{prettyTxDesc(t)}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {t.category || "—"} · {formatDateIt(t.booking_date)} · {t.chiuso_senza_documento === "spesa" ? "costo registrato" : "nessun costo"}
+                  </p>
+                </div>
+                <p className={cn("text-sm font-semibold whitespace-nowrap", Number(t.amount) < 0 ? "text-red-600" : "text-green-600")}>{fmtEur(Math.abs(Number(t.amount)))}</p>
+                <Button variant="ghost" size="sm" className="h-7 text-xs" disabled={riapertura === t.id} onClick={() => riapriSenzaFattura(t.id)}>Riapri</Button>
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}
@@ -1356,6 +1414,15 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                 </p>
                 <p className="font-bold text-red-600 mt-1">−{fmtEur(Math.abs(selectedDebit.amount))}</p>
               </div>
+              {!selectedDebit._ripartito && (
+                <div className="inline-flex rounded-md border p-0.5 text-xs">
+                  <button type="button" onClick={() => setSenzaFattura(false)} aria-pressed={!senzaFattura} className={cn("rounded px-3 py-1", !senzaFattura && "bg-primary text-primary-foreground")}>Ha una fattura</button>
+                  <button type="button" onClick={() => setSenzaFattura(true)} aria-pressed={senzaFattura} className={cn("rounded px-3 py-1", senzaFattura && "bg-primary text-primary-foreground")}>Senza fattura</button>
+                </div>
+              )}
+              {senzaFattura && !selectedDebit._ripartito ? (
+                <MovimentoSenzaFattura tx={selectedDebit} companyId={companyId} onFatto={() => { setSelectedTx(null); setSelectedDebit(null); aggiornaPagineCollegate(); void loadData(); }} />
+              ) : (
               <RipartizioneMovimento
                 key={selectedDebit.id}
                 resto={Math.abs(Number(selectedDebit.amount))}
@@ -1364,6 +1431,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                 etichettaDocumenti="scadenze"
                 onConferma={(righe, nota) => confermaRipartizione(selectedDebit, righe, nota)}
               />
+              )}
             </div>
           )}
         </DialogContent>
@@ -1388,6 +1456,15 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                 <p className="font-bold text-green-600 mt-1">+{fmtEur(Math.abs(selectedTx.amount))}</p>
               </div>
 
+              {!selectedTx._ripartito && (
+                <div className="inline-flex rounded-md border p-0.5 text-xs">
+                  <button type="button" onClick={() => setSenzaFattura(false)} aria-pressed={!senzaFattura} className={cn("rounded px-3 py-1", !senzaFattura && "bg-primary text-primary-foreground")}>Ha una fattura</button>
+                  <button type="button" onClick={() => setSenzaFattura(true)} aria-pressed={senzaFattura} className={cn("rounded px-3 py-1", senzaFattura && "bg-primary text-primary-foreground")}>Senza fattura</button>
+                </div>
+              )}
+              {senzaFattura && !selectedTx._ripartito ? (
+                <MovimentoSenzaFattura tx={selectedTx} companyId={companyId} onFatto={() => { setSelectedTx(null); setSelectedDebit(null); aggiornaPagineCollegate(); void loadData(); }} />
+              ) : (
               <RipartizioneMovimento
                 key={selectedTx.id}
                 resto={Math.abs(Number(selectedTx.amount))}
@@ -1396,6 +1473,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                 etichettaDocumenti="fatture"
                 onConferma={(righe, nota) => confermaRipartizione(selectedTx, righe, nota)}
               />
+              )}
             </div>
           )}
         </DialogContent>
