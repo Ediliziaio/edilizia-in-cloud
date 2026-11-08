@@ -421,6 +421,7 @@ const TimbraturaKiosk = lazy(() => import("@/pages/azienda/personale/TimbraturaK
 // PurchaseOrdersList now rendered as tab inside OrdersList — lazy import removed
 const PurchaseOrderDetail = lazy(() => import("@/pages/azienda/PurchaseOrderDetail"));
 const ControlloDocumentoFornitore = lazy(() => import("@/pages/azienda/ControlloDocumentoFornitore"));
+const ArrivoPosizioniPage = lazy(() => import("@/pages/azienda/ArrivoPosizioniPage"));
 const SupplierRfqDetail = lazy(() => import("@/pages/azienda/SupplierRfqDetail"));
 const ScomposizioniVoce = lazy(() => import("@/pages/azienda/ScomposizioniVoce"));
 const DDTRicezioneDetail = lazy(() => import("@/pages/azienda/DDTRicezioneDetail"));
@@ -840,6 +841,7 @@ export default function CompanyRoutesContainer() {
         <Route path="ordini-acquisto" element={<Navigate to="/azienda/ordini?tab=acquisto" replace />} />
         <Route path="controllo-documento/:id" element={withCompanyPermissionOrCommercialista("canViewOrders", <ControlloDocumentoFornitore />, vedeOrdiniOAcquisti)} />
         <Route path="ordini-acquisto/:odaId" element={withCompanyPermissionOrCommercialista("canViewOrders", <PurchaseOrderDetail />, vedeOrdiniOAcquisti)} />
+        <Route path="ordini-acquisto/:odaId/arrivo" element={withCompanyPermissionOrCommercialista("canViewOrders", <ArrivoPosizioniPage />, vedeOrdiniOAcquisti)} />
         <Route path="fabbisogno-materiali" element={withCompanyPermissionOrCommercialista("canViewOrders", <ErrorBoundary title="Errore nel fabbisogno materiali"><FabbisognoMateriali /></ErrorBoundary>, vedeOrdiniOAcquisti)} />
         {/* Le richieste d'offerta stanno prima degli ordini nello stesso flusso:
             chi puo' vedere gli ordini d'acquisto puo' vedere anche da dove nascono. */}

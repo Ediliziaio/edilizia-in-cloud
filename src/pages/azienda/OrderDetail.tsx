@@ -113,6 +113,7 @@ import { OrdineAppaltatoreLavoroCard } from "@/components/orders/OrdineAppaltato
 import { OrdineFirma } from "@/components/orders/OrdineFirma";
 import { OrdineNote } from "@/components/orders/OrdineNote";
 import { LinkedPurchaseOrdersCard } from "@/components/orders/LinkedPurchaseOrdersCard";
+import { ArrivoCommessaCard } from "@/components/ddt/ArrivoCommessaCard";
 import { OrderRichiesteOfferta } from "@/components/orders/OrderRichiesteOfferta";
 import { DocumentiInPopup } from "@/components/orders/DocumentiInPopup";
 import { useConteggioRichiesteCommessa } from "@/hooks/useSupplierRfqs";
@@ -1883,6 +1884,7 @@ function OrderDetailInner() {
               <OrderRichiesteOfferta orderId={id!} orderCode={order.order_code} />
             </div>}
             {activeMaterialiView === "acquisti" && <div id="section-acquisti" className="space-y-4 scroll-mt-24">
+              <ArrivoCommessaCard orderId={id!} />
               <OrderProcurementTools orderId={id!} orderCode={order.order_code} items={displayItems} ordini={(riepilogo) => permissions.canViewCosts ? (
               <LinkedPurchaseOrdersCard
                 riepilogo={riepilogo}

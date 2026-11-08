@@ -172,7 +172,9 @@ export function usePurchaseOrders() {
           // qualche riga non è entrata: l'ordine resta «parziale» e va detto,
           // non lasciato credere ricevuto
           toast.warning("Ordine non ancora completo", {
-            description: `${esito.errori.length || "Alcune"} ${esito.errori.length === 1 ? "riga non registrata" : "righe non registrate"}: controlla le righe dell'ordine.`,
+            description: esito.suMisura
+              ? "Le posizioni su misura si spuntano una per una da «Arrivo merce per posizione»."
+              : `${esito.errori.length || "Alcune"} ${esito.errori.length === 1 ? "riga non registrata" : "righe non registrate"}: controlla le righe dell'ordine.`,
           });
           return { completo: false };
         }

@@ -86,6 +86,25 @@ export async function registraMerceDaWhatsApp(ctx: ToolCtx, merce: MerceDaRegist
   return okResult({ id: data, foto: !!foto });
 }
 
+/** Quante posizioni su misura già ordinate aspettano ancora la spunta. Zero se la lettura non riesce. */
+export async function posizioniDaSpuntare(ctx: ToolCtx, orderId: string): Promise<number> {
+  try {
+    const { data: ordini } = await ctx.supabase.from("purchase_orders").select("id")
+      .eq("company_id", ctx.company_id).eq("order_id", orderId).in("status", ["inviato", "confermato", "parziale"]);
+    if (!ordini?.length) return 0;
+    const { data: righe } = await ctx.supabase.from("purchase_order_items").select("order_item_id, quantity, quantity_received")
+      .in("purchase_order_id", ordini.map((o: { id: string }) => o.id)).not("order_item_id", "is", null);
+    const aperte = (righe ?? []).filter((r: { quantity: number; quantity_received: number | null }) => Number(r.quantity) > Number(r.quantity_received ?? 0))
+      .map((r: { order_item_id: string }) => r.order_item_id);
+    if (aperte.length === 0) return 0;
+    const { count } = await ctx.supabase.from("order_items").select("id", { count: "exact", head: true })
+      .in("id", aperte).or("gruppo_id.not.is.null,measure_status.not.is.null");
+    return count ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 /** Il nome breve del cantiere, per la risposta all'operaio. */
 export async function nomeDelCantiere(ctx: ToolCtx, orderId: string): Promise<string> {
   const { data } = await ctx.supabase.from("orders").select("order_code, description, client_name").eq("company_id", ctx.company_id).eq("id", orderId).maybeSingle();

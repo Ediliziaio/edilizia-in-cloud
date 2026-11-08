@@ -8,6 +8,7 @@
  *      (sku esatto, poi descrizione). Scostamenti EVIDENZIATI, mai nascosti.
  *   3) Salva una BOZZA di carico (stato 'bozza'). La giacenza NON si tocca:
  *      l'aggiornamento è azione umana successiva (mai movimento cieco).
+ *   4) Il su misura va al cantiere: la riga lo dice e la conferma non lo carica.
  *
  * Endpoint POST: { documento_estratto_id: uuid }  · Auth: Bearer (staff interno).
  */

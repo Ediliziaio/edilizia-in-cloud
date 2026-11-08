@@ -9,7 +9,7 @@
  * Niente costo e niente rimborso finché l'ufficio non dice sì: qui si segna, non si registra.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Camera, Check, Loader2, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,6 +19,7 @@ import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
 import { useCampoDayTime } from "@/hooks/campo/useCampoDayTime";
 import { useAnnullaAcquisto, useMieiAcquisti, useRegistraAcquisto } from "@/hooks/campo/useCampoAcquisti";
+import { useOrdiniDaSpuntare } from "@/hooks/useArrivoPosizioni";
 import { elaboraFotoDocumento, type FotoDocumento } from "@/lib/campo/leggiDocumentoAcquisto";
 import {
   MODALITA, cambiaQuantita, descriviStato, euro, numeroDocumento, tipoDocumentoDa, totaleRighe,
@@ -47,6 +48,7 @@ function CampoMerceEditor() {
   const registra = useRegistraAcquisto();
   const annulla = useAnnullaAcquisto();
   const miei = useMieiAcquisti();
+  const daSpuntare = useOrdiniDaSpuntare();
   const fileInput = useRef<HTMLInputElement>(null);
   const cameraInput = useRef<HTMLInputElement>(null);
   const fotoTask = useRef(0);
@@ -413,6 +415,21 @@ function CampoMerceEditor() {
         Invia all’ufficio
       </button>
       </fieldset>
+
+      {(daSpuntare.data?.length ?? 0) > 0 && (
+        <section className="space-y-2" aria-label="Merce su misura da spuntare">
+          <h2 className="text-sm font-bold">Merce su misura da spuntare</h2>
+          {daSpuntare.data!.map(o => (
+            <Link key={o.id} to={`/campo/merce/arrivo/${o.id}`} className="flex min-h-14 items-center justify-between gap-2 rounded-xl border bg-background p-3 text-sm">
+              <span className="min-w-0">
+                <span className="block font-semibold">{o.fornitore ?? "Fornitore"} · {o.numero}</span>
+                <span className="block text-muted-foreground">{[o.commessa, o.cliente].filter(Boolean).join(" · ")}</span>
+              </span>
+              <span className="shrink-0 font-semibold text-primary">{o.posizioni === 1 ? "1 posizione" : `${o.posizioni} posizioni`}</span>
+            </Link>
+          ))}
+        </section>
+      )}
 
       {/* Le ultime inviate */}
       {(miei.data?.length ?? 0) > 0 && (

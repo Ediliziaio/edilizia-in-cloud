@@ -24,6 +24,8 @@ export interface EsitoRicezioneResiduo {
   senzaRighe: boolean;
   /** dopo l'arrivo tutte le righe sono coperte (l'ordine è «ricevuto») */
   completo: boolean;
+  /** posizioni su misura lasciate fuori: si registrano dalla spunta per posizione */
+  suMisura?: number;
   /** righe che la funzione non ha potuto registrare, col motivo */
   errori: Array<{ item_id?: string; errore?: string }>;
 }
@@ -64,13 +66,27 @@ export async function riceviResiduoOda(params: {
 
   const { data: items, error: itemsErr } = await supabase
     .from("purchase_order_items")
-    .select("id, description, sku, quantity, quantity_received, unit_price, vat_rate")
+    .select("id, description, sku, quantity, quantity_received, unit_price, vat_rate, order_item_id")
     .eq("purchase_order_id", odaId);
   if (itemsErr) throw itemsErr;
   if (!items || items.length === 0) return { righe: 0, senzaRighe: true, completo: false, errori: [] };
 
+  // Il su misura si spunta posizione per posizione: «è arrivato tutto» non vale per lui,
+  // altrimenti un pezzo segnato rotto tornerebbe buono.
+  const collegate = items.map((i) => i.order_item_id).filter((v): v is string => !!v);
+  const suMisura = new Set<string>();
+  if (collegate.length > 0) {
+    const { data: righeCommessa, error: righeErr } = await supabase
+      .from("order_items").select("id, gruppo_id, measure_status").in("id", collegate);
+    if (righeErr) throw righeErr;
+    for (const r of (righeCommessa ?? []) as unknown as Array<{ id: string; gruppo_id: string | null; measure_status: string | null }>) {
+      if (r.gruppo_id != null || r.measure_status != null) suMisura.add(r.id);
+    }
+  }
+
   const warehouseId = consegnaInCantiere ? null : params.warehouseId ?? odaData?.delivery_warehouse_id ?? null;
   const righe: Array<{ item_id: string; quantity: number; stock_item_id: string | null }> = [];
+  let suMisuraSaltate = 0;
   // L'articolo si cerca nel magazzino d'arrivo: il movimento si registra lì, e
   // un articolo preso da un altro magazzino ne alzava la giacenza (movimento su
   // A, merce su B). Se lì non c'è, nasce lì.
@@ -81,6 +97,11 @@ export async function riceviResiduoOda(params: {
     // piena raddoppierebbe la giacenza.
     const qtyToLoad = Number(item.quantity) - (Number(item.quantity_received) || 0);
     if (qtyToLoad <= 0) continue;
+
+    if (item.order_item_id && suMisura.has(item.order_item_id)) {
+      suMisuraSaltate += 1;
+      continue;
+    }
 
     if (consegnaInCantiere) {
       righe.push({ item_id: item.id, quantity: qtyToLoad, stock_item_id: null });
@@ -143,7 +164,7 @@ export async function riceviResiduoOda(params: {
   }
 
   // tutto già arrivato: niente da registrare (e nessuna bolla in più)
-  if (righe.length === 0) return { righe: 0, senzaRighe: false, completo: true, errori: [] };
+  if (righe.length === 0) return { righe: 0, senzaRighe: false, completo: suMisuraSaltate === 0, suMisura: suMisuraSaltate, errori: [] };
 
   const { data, error } = await supabase.rpc("oda_registra_arrivo", {
     p_oda_id: odaId,
@@ -161,6 +182,7 @@ export async function riceviResiduoOda(params: {
     righe: righe.length,
     senzaRighe: false,
     completo: !!esito?.oda_completo,
+    suMisura: suMisuraSaltate,
     errori: esito?.errori ?? [],
   };
 }

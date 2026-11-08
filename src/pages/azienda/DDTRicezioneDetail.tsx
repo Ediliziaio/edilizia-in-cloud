@@ -32,6 +32,7 @@ import { it } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DDTRigheCard } from "@/components/ddt/DDTRigheCard";
 import { DDTCaricoMagazzinoCard } from "@/components/ddt/DDTCaricoMagazzinoCard";
+import { ArrivoPosizioniPanel } from "@/components/ddt/ArrivoPosizioniPanel";
 import { usePermissions } from "@/hooks/usePermissions";
 import { importoRiga } from "@/lib/ddt/letturaAI";
 import { Badge } from "@/components/ui/badge";
@@ -805,6 +806,9 @@ export default function DDTRicezioneDetail() {
               ddt?.quantita_ricevuta != null ? Number(ddt.quantita_ricevuta) : null
             }
           />
+
+          {/* Le posizioni su misura dell'ordine: la bolla propone, chi riceve conferma. */}
+          {ddt?.purchase_order_id && <ArrivoPosizioniPanel odaId={ddt.purchase_order_id} ddtId={ddtId} nascondiSeVuoto />}
 
           {/* Senza ordine d'acquisto la merce entra in giacenza da qui. In cantiere non entra: il costo arriva dalla fattura. */}
           {ddt && !ddt.purchase_order_id && ddt.destinazione !== "cantiere" && (

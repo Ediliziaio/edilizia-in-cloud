@@ -1,7 +1,7 @@
 # Piano: articoli su misura, dal preventivo alla posa
 
 8 novembre 2026. Vale per serramenti, persiane, tapparelle, cassonetti e per ogni bene
-che si ordina su misura. Nessuna riga di questo piano è ancora costruita.
+che si ordina su misura. Stato di avanzamento nella sezione «Stato» del punto 11.
 
 ## 1. Il percorso
 
@@ -390,6 +390,20 @@ Infissi e Living (369), Teda Infissi (320), renova solution (134).
   Aggancio del sopralluogo fatto prima della commessa: automatico se c'è la stessa opportunità
   (trigger su `orders`, nessun bisogno di toccare `converti_modulo_commessa_atomic`), proposto nella
   scheda se c'è solo lo stesso cliente o contatto.
+
+- **Fase 7, fatta (8/11):** tre migrazioni `20290104…`. Una riga per spunta in `arrivi_posizione`
+  (arrivata, danneggiata, sbagliata, mancante, con foto), dal telefono in `/campo/merce`, dall'ufficio in
+  `/azienda/ordini-acquisto/:id/arrivo` e dentro la bolla. La bolla propone l'abbinamento, chi riceve
+  conferma (`ddt_righe.order_item_id`). Reclamo col testo pronto, lo invia l'utente; riordino in bozza
+  di solo quei pezzi con `riordino_motivo`, gratis a prezzo zero: il costo resta uno. Il su misura non
+  entra in giacenza su nessuna delle sei strade; una sola porta per le quantità del su misura:
+  `insert_goods_receipt_atomic` ora lo rifiuta e manda alla spunta. Controllo unico delle bolle fra
+  cantiere e ufficio, nel database, sotto lucchetto. In commessa, sezione Acquisti: «Si possono posare
+  5 posizioni su 8 · 3 posizioni non arrivate».
+- **Fase 7, resta per la fase 10:** programmare la posa posizione per posizione. Oggi `order_items.fulfillment_status`
+  diventa `delivered` solo se il pezzo è arrivato giusto: il dato c'è, manca la schermata che lo usa.
+  Gli articoli normali di un ordine misto si registrano ancora dal foglio «Arrivata merce».
+  La bolla dell'operaio in «Merce presa» non porta le sue righe nella spunta: la conferma delle righe vale per le bolle dell'ufficio.
 
 ## 12. Rischi
 
