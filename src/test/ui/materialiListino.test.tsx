@@ -21,7 +21,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => {
     is: () => q, order: () => q, abortSignal: () => q,
     range: (from: number, to: number) => { start = from; end = to; return q; },
     update: (data: Record<string, unknown>) => { values = data; return q; },
-    single: async () => { state.updates.push({ values: values!, filters }); return { data: { id: filters.id }, error: null }; },
+    single: async () => { state.updates.push({ values: values!, filters }); return { data: { id: filters.id }, error: null as null }; },
     then: (resolve: (r: unknown) => unknown) => Promise.resolve({ data: state.rows.filter(r => Object.entries(filters).every(([key, value]) => (r as unknown as Record<string, unknown>)[key] === value)).slice(start, end + 1), error: null as null }).then(resolve),
   }; return q;
 } } }));
