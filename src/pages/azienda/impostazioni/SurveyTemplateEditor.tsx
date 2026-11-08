@@ -58,6 +58,8 @@ const CATEGORIES: { value: SurveyCategory; label: string; emoji: string }[] = [
   { value: "pavimentazioni",   label: "Pavimentazioni",   emoji: "🪜" },
   { value: "porte_interne",    label: "Porte interne",    emoji: "🚪" },
   { value: "climatizzazione",  label: "Climatizzazione",  emoji: "❄️" },
+  { value: "pergole",          label: "Pergole e tende",  emoji: "⛱️" },
+  { value: "piscine",          label: "Piscine",          emoji: "🏊" },
   { value: "custom",           label: "Altro",            emoji: "📋" },
 ];
 

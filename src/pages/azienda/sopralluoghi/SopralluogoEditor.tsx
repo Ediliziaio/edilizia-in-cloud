@@ -55,6 +55,8 @@ import {usePermissions} from "@/hooks/usePermissions";
 import {useSurveyDetail,useSurveyReferences} from "@/hooks/useSurveyDetail";
 import {surveyAddress} from "@/lib/surveys/report";
 import {SurveyWorkspace} from "@/components/sopralluoghi/SurveyWorkspace";
+import { PosizioniCommessaPanel } from "@/components/sopralluoghi/PosizioniCommessaPanel";
+import type { TemplateSchema } from "@/types/surveys";
 import {SurveyPdfTools} from "@/components/sopralluoghi/SurveyPdfTools";
 import {SurveyElementEditDialog} from "@/components/sopralluoghi/SurveyElementEditDialog";
 import { useSurveyAccess } from "@/contexts/SurveyAccessContext";
@@ -534,6 +536,14 @@ function SurveyEditorForm({id,onBack}:{id:string;onBack:()=>void}) {
             onChange={(k, v) => setHeaderData((prev) => ({ ...prev, [k]: v }))}
           />
         ))}
+
+        {survey.order_id && (
+          <PosizioniCommessaPanel
+            surveyId={survey.id}
+            schema={((survey as { template_schema_snapshot?: TemplateSchema | null }).template_schema_snapshot ?? template.schema) as TemplateSchema}
+            canEdit
+          />
+        )}
 
         {/* Aree */}
         <div className="space-y-2">

@@ -219,6 +219,8 @@ export type SurveyCategory =
   | 'pavimentazioni'
   | 'porte_interne'
   | 'climatizzazione'
+  | 'pergole'
+  | 'piscine'
   | 'custom';
 
 export type SurveyMode = 'structured' | 'express';
@@ -299,6 +301,8 @@ export interface SurveyRow {
   updated_at: string;
   created_by: string | null;
   deleted_at: string | null;
+  /** preliminare = misure di massima; definitivo = si ordina da qui. Vuoto = non detto. */
+  ruolo_misure?: 'preliminare' | 'definitivo' | null;
 }
 
 export interface SurveyAreaRow {

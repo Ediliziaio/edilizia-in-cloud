@@ -358,7 +358,7 @@ Infissi e Living (369), Teda Infissi (320), renova solution (134).
   posizione, voci con materiale proposte come righe da ordinare, regola per tipo di lavoro in
   Impostazioni, sopralluogo definitivo che conferma le righe e si aggancia alla commessa.
   Resta il contratto letto dall'AI, da fare dopo la fase 3 perché tocca `CreateOrder.tsx`.
-- **Fasi 3, 4 e 7:** in corso in sessioni separate.
+- **Fasi 3 e 7:** in corso in sessioni separate.
 - **Fase 5, fatta:** richiesta d'offerta e ordine portano una riga per posizione con Rif., misure
   (definitive, altrimenti rilevate o provvisorie, sempre dichiarate), tipo di misura, colore e apertura;
   le copia il database, quindi vale per ogni punto che crea un ordine. Una riga non aggiudicata si
@@ -374,6 +374,22 @@ Infissi e Living (369), Teda Infissi (320), renova solution (134).
   giornaliero (`oda_promemoria_conferma`) sugli ordini su misura. Stesso file riconosciuto dall'impronta;
   conferma uguale all'offerta già controllata non rifà il lavoro.
   **Da provare su documenti veri:** la lettura AI è collaudata solo con risposte simulate.
+- **Fase 4, fatta:** il sopralluogo si segna preliminare o definitivo; aperto dalla commessa mostra
+  le posizioni con Rif. e misure provvisorie, il tecnico scrive solo le definitive (anche da telefono,
+  con la bozza che resta se manca la rete). L'abbinamento è proposto e lo conferma una persona; una
+  commessa senza articoli li crea da un'anteprima. Un rilievo e un componente, una riga: indice unico,
+  con le parti di una riga divisa escluse (`diviso_da`). Conferma una per una o tutte, per chi può
+  validare i materiali. Gioco di posa e soglia per azienda, visibili sopra l'elenco. Scarto evidenziato,
+  costo stimato ricalcolato in proporzione alla superficie solo senza ordine e mai su un costo scritto
+  a mano; il prezzo al cliente non cambia (se il rilievo o lo sfrido cambiano la quantità, si adegua il
+  prezzo unitario e l'importo della riga resta quello) e si propone la variante. Secondo sopralluogo con le
+  differenze e la scelta, storico in `order_item_misure_storico`. Modelli pergole e tende, piscine.
+  **Da sapere per le fasi dopo:** `misure_da_ordinare` ha le chiavi `larghezza_mm`, `altezza_mm`,
+  `profondita_mm` oppure `quantita`; il gioco applicato sta in `gioco_posa_mm`, il foro/telaio in
+  `misura_tipo`. Le parti divise (`diviso_da` valorizzato) seguono la riga di partenza.
+  Aggancio del sopralluogo fatto prima della commessa: automatico se c'è la stessa opportunità
+  (trigger su `orders`, nessun bisogno di toccare `converti_modulo_commessa_atomic`), proposto nella
+  scheda se c'è solo lo stesso cliente o contatto.
 
 ## 12. Rischi
 

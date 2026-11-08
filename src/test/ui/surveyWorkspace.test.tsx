@@ -75,6 +75,7 @@ vi.mock("@/components/sopralluoghi/SurveyPdfTools", () => ({
 }));
 vi.mock("@tanstack/react-query", () => ({
   useQuery: () => ({ data: state.list, isLoading: false, isError: false }),
+  useMutation: () => ({ mutate: vi.fn(), isPending: false }),
   useQueryClient: () => ({
     setQueriesData: state.cache,
     invalidateQueries: state.refresh,
@@ -84,7 +85,14 @@ vi.mock("@/lib/surveys/saveElement", () => ({ saveSurveyElement: state.save }));
 vi.mock("@/lib/surveys/duplicateElement", () => ({
   duplicateSurveyElement: state.duplicate,
 }));
-vi.mock("@/lib/api/surveys", () => ({ listSurveysByOrder: vi.fn() }));
+vi.mock("@/lib/api/surveys", () => ({
+  listSurveysByOrder: vi.fn(),
+  sopralluoghiDaAgganciare: vi.fn().mockResolvedValue([]),
+  agganciaSopralluogo: vi.fn(),
+  updateSurvey: vi.fn(),
+  posizioniDellaCommessa: vi.fn().mockResolvedValue({ righe: [] }),
+  applicaMisure: vi.fn(),
+}));
 beforeEach(() => {
   vi.stubGlobal(
     "ResizeObserver",

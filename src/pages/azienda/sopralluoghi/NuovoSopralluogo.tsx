@@ -78,6 +78,8 @@ const CATEGORY_ICON: Record<string, string> = {
   pavimentazioni: "🪜",
   porte_interne: "🚪",
   climatizzazione: "❄️",
+  pergole: "⛱️",
+  piscine: "🏊",
   custom: "📋",
 };
 
@@ -103,6 +105,10 @@ function SurveyCreateForm({
   );
   const [clientId, setClientId] = useState<string | null>(
     params.get("client") ?? null,
+  );
+  /* Dalla commessa si va a prendere le misure per ordinare; prima del contratto sono di massima. */
+  const [ruoloMisure, setRuoloMisure] = useState<"preliminare" | "definitivo">(
+    params.get("order") ? "definitivo" : "preliminare",
   );
   const [technicianId, setTechnicianId] = useState<string | null>(null);
   const [address, setAddress] = useState(params.get("address") ?? "");
@@ -496,6 +502,7 @@ function SurveyCreateForm({
           city: city.trim() || null,
           zip: zip.trim() || null,
           notes: notes.trim() || null,
+          ruolo_misure: ruoloMisure,
         },
         companyId,
       );
@@ -1084,6 +1091,40 @@ function SurveyCreateForm({
             )}
             {step === 3 && (
               <div className="space-y-4">
+                <section
+                  aria-label="A cosa servono le misure"
+                  className="space-y-3 rounded-2xl border bg-white p-4 sm:p-5"
+                >
+                  <div>
+                    <h3 className="font-semibold">A cosa servono le misure?</h3>
+                    <p className="text-xs text-slate-500">
+                      Si ordina solo dalle misure definitive.
+                    </p>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Tipo di misure">
+                    {([
+                      ["preliminare", "Preliminare", "Misure di massima, per fare il preventivo."],
+                      ["definitivo", "Definitivo", "Misure da mandare al fornitore."],
+                    ] as const).map(([valore, titolo, testo]) => (
+                      <button
+                        key={valore}
+                        type="button"
+                        role="radio"
+                        aria-checked={ruoloMisure === valore}
+                        onClick={() => setRuoloMisure(valore)}
+                        className={cn(
+                          "min-h-11 rounded-xl border p-3 text-left",
+                          ruoloMisure === valore
+                            ? "border-blue-500 bg-blue-50/60 ring-1 ring-blue-500"
+                            : "border-slate-200 hover:bg-slate-50",
+                        )}
+                      >
+                        <span className="block text-sm font-medium">{titolo}</span>
+                        <span className="block text-xs text-slate-500">{testo}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
                 <section
                   aria-label="Luogo del sopralluogo"
                   className="space-y-4 rounded-2xl border bg-white p-4 sm:p-5"

@@ -1816,7 +1816,7 @@ function OrderDetailInner() {
             <div id="section-materiali" className="scroll-mt-24">
               {/* Controllo misure: solo se ci sono articoli su misura (altrimenti null) */}
               <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">Controllo misure non disponibile. Ricarica la pagina per riprovare.</p>}>
-                <OrderMeasureControl orderId={id!} />
+                <OrderMeasureControl orderId={id!} onProponiVariante={() => navigateTo({ tab: "finanza", economiaView: "varianti" })} />
               </ErrorBoundary>
             </div>
             {/* Riepilogo del tab: quanto vale in tutto quello che si compra.
