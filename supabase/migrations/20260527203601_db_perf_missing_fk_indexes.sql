@@ -20,6 +20,11 @@ DO $$ BEGIN
  END IF;
 END $$;
 
+-- Le ACL email del 29 maggio usano il nome storico worker, che è presente
+-- in produzione ma nel replay sarebbe aggiunto solo il 15 agosto.
+-- Va introdotto in una transazione precedente al primo utilizzo nell'ACL.
+ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'worker' BEFORE 'accountant';
+
 -- company_activity_log (4k rows) — 2 FK
 DO $$ BEGIN
  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='company_activity_log' AND column_name='brain_doc_id') THEN
