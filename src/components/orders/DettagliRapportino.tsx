@@ -9,6 +9,7 @@ import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { RapportinoBlocchi } from "@/components/campo/RapportinoBlocchi";
+import { PulsantePdfRapportino } from "@/components/orders/PulsantePdfRapportino";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useNomiFasiCommessa } from "@/hooks/useRapportiniMese";
 import { linkFileRiservato } from "@/lib/storage/fileRiservati";
@@ -40,9 +41,12 @@ export function DettagliRapportino({ companyId, orderId, reportId }: { companyId
   const autore = compilatoDa(r as unknown as Record<string, unknown>);
   return (
     <div className="space-y-2.5 text-[13px] leading-snug">
-      <div>
-        {r.data_lavoro && <p className="font-semibold capitalize text-slate-900">{format(parseISO(r.data_lavoro), "EEEE d MMMM yyyy", { locale: it })}</p>}
-        {autore && <p className="text-xs text-muted-foreground">{autore}</p>}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          {r.data_lavoro && <p className="font-semibold capitalize text-slate-900">{format(parseISO(r.data_lavoro), "EEEE d MMMM yyyy", { locale: it })}</p>}
+          {autore && <p className="text-xs text-muted-foreground">{autore}</p>}
+        </div>
+        <PulsantePdfRapportino report={r} orderId={orderId} className="shrink-0" />
       </div>
       <section>
         <p className={ETICHETTA}>Cosa si è fatto</p>

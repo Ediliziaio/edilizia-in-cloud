@@ -32,6 +32,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { RapportinoStato } from "@/types/rapportino";
 import { SourceBadge } from "@/components/whatsapp/SourceBadge";
 import { LaborApprovalDialog } from "@/components/orders/LaborApprovalDialog";
+import { PulsantePdfRapportino } from "@/components/orders/PulsantePdfRapportino";
 import { RifiutaRapportinoDialog, useDecisioneRapportino } from "@/components/orders/DecisioneRapportino";
 import { orePersoneRapportino } from "@/lib/campo/orePersone";
 
@@ -459,6 +460,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
 
                             {/* Azioni admin */}
                             <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+                              <PulsantePdfRapportino report={r} orderId={orderId} />
                               {/* Le ore annullate dall'ufficio non si riapprovano: si reinseriscono da «Ore e persone». */}
                               {puoDecidereSu(r.user_id) && stato === "rifiutato" && !(r as { ufficio_employee_id?: string | null }).ufficio_employee_id && (
                                 <Button

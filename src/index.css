@@ -45,10 +45,11 @@
     touch-action: manipulation;
   }
 
-  /* Minimum tap target size (WCAG 2.5.5) */
+  /* Area minima di tocco. Era 44px e faceva tutti i bottoni enormi: 08/11/2026,
+     richiesta del titolare. Chi deve restare alto lo dichiara (max-md:h-11). */
   button, [role="button"], a {
-    min-height: 44px;
-    min-width: 44px;
+    min-height: 32px;
+    min-width: 32px;
   }
 
   /* v8.6.72 — Escludere checkbox/radio/switch dal min 44×44.
@@ -968,4 +969,21 @@ html .react-flow .react-flow__edges svg {
   .testata-pagina h1 + p {
     display: none !important;
   }
+}
+
+/* Da telefono i bottoni standard scendono di una misura (08/11/2026). Fuori da
+   @layer perché deve vincere su h-10/h-9 del componente Button; chi dichiara
+   un'altezza propria per il telefono resta com'è. */
+@media (max-width: 767px) {
+  button.inline-flex.h-11:not([class*="max-md:h-"]):not([class*="max-sm:h-"]),
+  a.inline-flex.h-11:not([class*="max-md:h-"]):not([class*="max-sm:h-"]) { height: 2.5rem; }
+  button.inline-flex.h-10:not([class*="max-md:h-"]):not([class*="max-sm:h-"]),
+  a.inline-flex.h-10:not([class*="max-md:h-"]):not([class*="max-sm:h-"]) { height: 2.25rem; }
+  button.inline-flex.h-9:not([class*="max-md:h-"]):not([class*="max-sm:h-"]),
+  a.inline-flex.h-9:not([class*="max-md:h-"]):not([class*="max-sm:h-"]) { height: 2rem; }
+  button.inline-flex.w-10:not([class*="max-md:w-"]):not([class*="max-sm:w-"]) { width: 2.25rem; }
+  button.inline-flex.w-9:not([class*="max-md:w-"]):not([class*="max-sm:w-"]) { width: 2rem; }
+  button.inline-flex.text-sm.font-medium, a.inline-flex.text-sm.font-medium { font-size: 0.8125rem; }
+  button.inline-flex.h-10.px-4:not([class*="max-md:px-"]), a.inline-flex.h-10.px-4:not([class*="max-md:px-"]) { padding-left: 0.75rem; padding-right: 0.75rem; }
+  button.inline-flex.h-11.px-8:not([class*="max-md:px-"]), a.inline-flex.h-11.px-8:not([class*="max-md:px-"]) { padding-left: 1rem; padding-right: 1rem; }
 }
