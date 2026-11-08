@@ -32,6 +32,7 @@ import {
   type ForecastScenario,
 } from "@/lib/finance/forecastLedger";
 import type { ForecastDataset } from "@/hooks/useForecastLedger";
+import { incassiScaduti } from "@/lib/finance/incassiScaduti";
 import { cn } from "@/lib/utils";
 import {
   compareForecastScenarios,
@@ -503,17 +504,18 @@ export function ForecastWorkspace({
   }, [data.movements]);
 
   // Scaduti: contati sui movimenti, a prescindere dagli interruttori (che decidono solo il piano).
-  const [overdueIncome, overdueExpense] = useMemo(() => {
-    const overdue = (direction: "in" | "out") =>
-      movements.filter(
-        (m) =>
-          m.direction === direction &&
-          !m.possibleDuplicate &&
-          !!m.date &&
-          m.date < data.today,
-      );
-    return [overdue("in"), overdue("out")];
-  }, [movements, data.today]);
+  // Gli incassi scaduti con la regola comune (incassiScaduti): il Cruscotto Economico legge
+  // lo stesso numero dalla stessa funzione.
+  const [overdueIncome, overdueExpense] = useMemo(() => [
+    incassiScaduti(movements, data.today),
+    movements.filter(
+      (m) =>
+        m.direction === "out" &&
+        !m.possibleDuplicate &&
+        !!m.date &&
+        m.date < data.today,
+    ),
+  ], [movements, data.today]);
   const estimatesIncluded = projection.included.filter((m) => m.estimated);
   // Vecchio = il conto aggiornato meno di recente, tra quelli che hanno una data, è fermo a
   // prima di ieri. I conti senza data si segnalano a parte: non spengono e non accendono l'avviso.

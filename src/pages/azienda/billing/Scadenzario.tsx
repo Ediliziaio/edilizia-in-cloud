@@ -256,7 +256,8 @@ export default function Scadenzario() {
           className="sm:hidden"
           voci={[
             {
-              label: "Scaduto da incassare",
+              // filtra l'elenco sulle scadute: il numero è quello delle scadenze qui sotto
+              label: "Scadenze scadute",
               valore: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true }).format(summary.scadute_entrata_amount ?? summary.scadute_amount ?? 0),
               tono: (summary.scadute_entrata_amount ?? summary.scadute_amount ?? 0) > 0 ? "text-rose-600" : undefined,
               onClick: () => { setTab((t) => (t === "scadute" ? "tutte" : "scadute")); setPage(1); },

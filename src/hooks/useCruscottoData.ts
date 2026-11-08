@@ -10,6 +10,7 @@ import { subDays, format, addDays, differenceInCalendarDays, startOfDay } from "
 import type { DashboardStats } from "@/hooks/useMarketingDashboard";
 import { getDateRange } from "@/lib/dateRangeUtils";
 import { safeNumber } from "@/lib/numberUtils";
+import type { ScadutoPerEta } from "@/lib/finance/incassiScaduti";
 import { queryKeys } from "@/lib/queryKeys";
 import { copertura, idABlocchi, margineCommesseNelPeriodo, type RigaMargineCommessa } from "@/lib/cruscottoMargine";
 
@@ -29,13 +30,7 @@ export interface CruscottoFiltersState {
 }
 
 /** Scaduto verso i clienti per età (rate della finanziaria escluse), IVA inclusa. */
-export interface ScadutoPerEta {
-  fasce: Array<{ etichetta: string; importo: number; rate: number }>;
-  totale: number;
-  rate: number;
-  /** giorni medi di ritardo, pesati sull'importo */
-  ritardoMedio: number | null;
-}
+export type { ScadutoPerEta };
 
 export function scadutoPerEta(rate: Array<{ amount: number; expected_date: string | null; finanziamento: boolean }>, oggi: string): ScadutoPerEta {
   const fasce = [
