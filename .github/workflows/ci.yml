@@ -20,6 +20,12 @@ on:
         required: false
         type: string
 
+# Una nuova revisione della stessa PR sostituisce le verifiche precedenti.
+# I deploy su main, invece, non vengono interrotti.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 # ── Shared env ───────────────────────────────────────────────────────────────
 env:
   SUPABASE_PROJECT_ID: rsbrguhkodgnqfomrevo
