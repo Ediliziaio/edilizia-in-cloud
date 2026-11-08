@@ -61,6 +61,7 @@ import { recapitiFornitore } from "@/lib/documentiOperativi/fornitore";
 import { nomeFileDocumento, type DocumentoOperativo } from "@/lib/documentiOperativi/modello";
 import { buildRdoEmailBody, buildRdoEmailSubject } from "@/lib/rdoEmail";
 import { descrizioneConMisure } from "@/lib/acquisti/misureSuDocumenti";
+import { ControlloDocumentoCard } from "@/components/orders/ControlloDocumentoCard";
 import {
   RDO_STATUS_LABELS, RDO_FORNITORE_LABELS, RDO_FORNITORE_COLORS,
 } from "@/lib/rdoStatus";
@@ -715,6 +716,7 @@ export default function SupplierRfqDetail() {
                     >
                       <Sparkles className="h-3.5 w-3.5" />
                     </Button>}
+                    {!chiusa && f.status === "risposta" && <ControlloDocumentoCard obiettivo={{ rfqSupplierId: f.id }} tipo="offerta" compatto />}
                     {/* Il preventivo arrivato su WhatsApp o su carta: si allega
                         anche senza farlo leggere all'AI, e i prezzi si scrivono a mano. */}
                     {!chiusa && f.status === "risposta" && !f.allegato_url && (

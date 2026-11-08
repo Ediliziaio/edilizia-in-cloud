@@ -10,19 +10,32 @@ import { RigaImpostazione, RigaInterruttore, SezioneImpostazione } from "@/compo
 import { useImpostazioniAcquisti, useQuantiValidatori, type ImpostazioniAcquisti } from "@/hooks/useImpostazioniAcquisti";
 
 export default function AcquistiMaterialiConfig({ puoModificare }: { puoModificare: boolean }) {
-  const { impostazioni, isLoading, salva } = useImpostazioniAcquisti();
+  const { impostazioni, isLoading, salva, salvaConferma } = useImpostazioniAcquisti();
   // Il modulo riparte dai valori salvati quando arrivano (o cambiano da un'altra scheda).
-  const chiave = `${impostazioni.validazione_obbligatoria}-${impostazioni.giorni_consegna_predefiniti}-${impostazioni.promemoria_attivo}`;
-  return <Modulo key={chiave} iniziali={impostazioni} isLoading={isLoading} salva={salva} puoModificare={puoModificare} />;
+  const chiave = `${impostazioni.validazione_obbligatoria}-${impostazioni.giorni_consegna_predefiniti}-${impostazioni.promemoria_attivo}-${impostazioni.conferma_giorni_promemoria}-${impostazioni.conferma_tolleranza_mm}`;
+  return <Modulo key={chiave} iniziali={impostazioni} isLoading={isLoading} salva={salva} salvaConferma={salvaConferma} puoModificare={puoModificare} />;
 }
 
-function Modulo({ iniziali, isLoading, salva, puoModificare }: {
+function Modulo({ iniziali, isLoading, salva, salvaConferma, puoModificare }: {
   iniziali: ImpostazioniAcquisti;
   isLoading: boolean;
   salva: ReturnType<typeof useImpostazioniAcquisti>["salva"];
+  salvaConferma: ReturnType<typeof useImpostazioniAcquisti>["salvaConferma"];
   puoModificare: boolean;
 }) {
   const validatori = useQuantiValidatori();
+  const [giorniConferma, setGiorniConferma] = useState(String(iniziali.conferma_giorni_promemoria ?? 3));
+  const [tolleranza, setTolleranza] = useState(String(iniziali.conferma_tolleranza_mm ?? 5));
+  const salvaControllo = () => {
+    const g = Number(giorniConferma);
+    const t = Number(tolleranza.replace(",", "."));
+    if (!Number.isInteger(g) || g < 1 || g > 60 || !Number.isFinite(t) || t < 0 || t > 50) {
+      setGiorniConferma(String(iniziali.conferma_giorni_promemoria ?? 3));
+      setTolleranza(String(iniziali.conferma_tolleranza_mm ?? 5));
+      return;
+    }
+    if (g !== iniziali.conferma_giorni_promemoria || t !== iniziali.conferma_tolleranza_mm) salvaConferma.mutate({ giorni: g, tolleranza: t });
+  };
   const [bozza, setBozza] = useState<ImpostazioniAcquisti>(iniziali);
   const [giorni, setGiorni] = useState(String(iniziali.giorni_consegna_predefiniti));
 
@@ -102,6 +115,37 @@ function Modulo({ iniziali, isLoading, salva, puoModificare }: {
           checked={bozza.promemoria_attivo}
           disabled={bloccato}
           onCheckedChange={(v) => scrivi({ ...bozza, promemoria_attivo: v })}
+        />
+      </SezioneImpostazione>
+
+      <SezioneImpostazione
+        id="controllo-conferma"
+        titolo="Conferma del fornitore"
+        descrizione="Per i beni su misura: quanto può scostarsi una misura e quanto aspettare la conferma."
+      >
+        <RigaImpostazione
+          titolo="Tolleranza sulle misure"
+          descrizione="Fino a questo scarto la differenza è gialla, oltre è un errore."
+          htmlFor="conferma-tolleranza"
+          comando={
+            <div className="flex items-center gap-1.5">
+              <Input id="conferma-tolleranza" inputMode="decimal" className="h-8 w-16 text-right tabular-nums" value={tolleranza} disabled={bloccato}
+                onChange={(e) => setTolleranza(e.target.value)} onBlur={salvaControllo} />
+              <span className="text-xs text-muted-foreground">mm</span>
+            </div>
+          }
+        />
+        <RigaImpostazione
+          titolo="Promemoria se la conferma non arriva"
+          descrizione="Dopo quanti giorni dall'invio dell'ordine, se nessuna conferma è stata controllata."
+          htmlFor="conferma-giorni"
+          comando={
+            <div className="flex items-center gap-1.5">
+              <Input id="conferma-giorni" inputMode="numeric" className="h-8 w-16 text-right tabular-nums" value={giorniConferma} disabled={bloccato}
+                onChange={(e) => setGiorniConferma(e.target.value)} onBlur={salvaControllo} />
+              <span className="text-xs text-muted-foreground">giorni</span>
+            </div>
+          }
         />
       </SezioneImpostazione>
 

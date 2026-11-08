@@ -12,6 +12,7 @@
 
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { controllaDocumento, type RichiestaControllo } from "./controlloDocumento.ts";
 import { chargeAndLogDirect, estimateTokenCostUsd } from "../_shared/ai-provider/directApi.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { claudeMessages, hasClaudeProvider, type ClaudeMessagesBody } from "../_shared/claudeProxy.ts";
@@ -242,7 +243,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   try {
     const { userId, supabaseAdmin } = await requireAuth(req, corsH);
-    const body: VerifyRequest = await req.json();
+    const body: VerifyRequest & RichiestaControllo & { azione?: string } = await req.json();
+    // Il controllo di offerte e conferme (fase 6): stessa funzione, il progetto è al tetto di 500.
+    if (body.azione === "controllo_documento") {
+      return await controllaDocumento(body, userId, supabaseAdmin, corsH);
+    }
     const { purchase_order_id, order_id, supplier_document_url, supplier_document_base64, verification_mode } = body;
 
     if (!purchase_order_id) {

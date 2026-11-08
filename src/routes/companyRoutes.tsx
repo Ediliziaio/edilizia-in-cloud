@@ -420,6 +420,7 @@ const FormazioneDipendente = lazy(() => import("@/pages/azienda/formazione/Forma
 const TimbraturaKiosk = lazy(() => import("@/pages/azienda/personale/TimbraturaKiosk"));
 // PurchaseOrdersList now rendered as tab inside OrdersList — lazy import removed
 const PurchaseOrderDetail = lazy(() => import("@/pages/azienda/PurchaseOrderDetail"));
+const ControlloDocumentoFornitore = lazy(() => import("@/pages/azienda/ControlloDocumentoFornitore"));
 const SupplierRfqDetail = lazy(() => import("@/pages/azienda/SupplierRfqDetail"));
 const ScomposizioniVoce = lazy(() => import("@/pages/azienda/ScomposizioniVoce"));
 const DDTRicezioneDetail = lazy(() => import("@/pages/azienda/DDTRicezioneDetail"));
@@ -837,6 +838,7 @@ export default function CompanyRoutesContainer() {
         {/* Stessa guardia della lista (OrCommercialista): prima il commercialista
             vedeva il tab ODA ma prendeva 403 aprendo un dettaglio. */}
         <Route path="ordini-acquisto" element={<Navigate to="/azienda/ordini?tab=acquisto" replace />} />
+        <Route path="controllo-documento/:id" element={withCompanyPermissionOrCommercialista("canViewOrders", <ControlloDocumentoFornitore />, vedeOrdiniOAcquisti)} />
         <Route path="ordini-acquisto/:odaId" element={withCompanyPermissionOrCommercialista("canViewOrders", <PurchaseOrderDetail />, vedeOrdiniOAcquisti)} />
         <Route path="fabbisogno-materiali" element={withCompanyPermissionOrCommercialista("canViewOrders", <ErrorBoundary title="Errore nel fabbisogno materiali"><FabbisognoMateriali /></ErrorBoundary>, vedeOrdiniOAcquisti)} />
         {/* Le richieste d'offerta stanno prima degli ordini nello stesso flusso:

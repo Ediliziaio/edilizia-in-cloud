@@ -9,6 +9,7 @@ import { OdaNoteCard } from "@/components/orders/OdaNoteCard";
 import { PurchaseOrderItemRow } from "@/components/orders/PurchaseOrderItemRow";
 import { totaliRigheOda } from "@/lib/orders/articoloAcquisto";
 import { OrdinaComunqueDialog } from "@/components/orders/OrdinaComunqueDialog";
+import { ControlloDocumentoCard } from "@/components/orders/ControlloDocumentoCard";
 import { descrizioneConMisure, type MisuraAperta } from "@/lib/acquisti/misureSuDocumenti";
 import { useState, lazy, Suspense } from "react";
 import {
@@ -796,6 +797,7 @@ export default function PurchaseOrderDetail() {
 
       </section>
       <StoricoAcquistiCard tipo="oda" id={order.id} revisionKey={JSON.stringify([order.updated_at,items,order.attachment_url])}/>
+      {order.status !== "bozza" && order.status !== "annullato" && <ControlloDocumentoCard obiettivo={{ purchaseOrderId: order.id }} tipo="conferma" />}
       <VerificationHistoryCard purchaseOrderId={order.id} />
       {previewOpen&&<DocumentoAnteprimaDialog documento={documentoInvio} onClose={()=>setPreviewOpen(false)}/>}
 

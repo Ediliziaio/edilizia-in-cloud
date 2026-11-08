@@ -366,6 +366,14 @@ Infissi e Living (369), Teda Infissi (320), renova solution (134).
   confermare il database ferma l'ordine, salvo «Ordina comunque» col motivo. Offerta su misure vecchie
   segnalata, offerta a corpo ripartita sui mq e segnata «Ripartito», aggiudicazione → costo con fonte
   `offerta`. Provata in transazioni annullate su Demo Azienda 2.
+- **Fase 6, fatta:** il documento del fornitore (offerta o conferma, caricato o allegato all'email col
+  codice) lo legge l'AI, che non vede cosa abbiamo chiesto; il confronto lo fa il codice con regole per
+  categoria (`_shared/confrontoDocumentoFornitore.ts`). Pagina con una riga per posizione, verde giallo
+  rosso e «da controllare». Con errori o letture incerte l'ordine non diventa «confermato» senza
+  «Accetto» e motivo (vincolo nel database). Email di correzione preparata, la manda l'utente. Promemoria
+  giornaliero (`oda_promemoria_conferma`) sugli ordini su misura. Stesso file riconosciuto dall'impronta;
+  conferma uguale all'offerta già controllata non rifà il lavoro.
+  **Da provare su documenti veri:** la lettura AI è collaudata solo con risposte simulate.
 
 ## 12. Rischi
 
