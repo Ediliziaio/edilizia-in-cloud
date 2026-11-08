@@ -44,9 +44,11 @@ import {
   CRUSCOTTO_SECTIONS, CANTIERI_SECTIONS, FINANZA_SECTIONS, PERSONE_SECTIONS,
   MARKETING_SECTIONS, AUTOMAZIONI_SECTIONS, IMPOSTAZIONI_SECTIONS, TEAM_VISIBILITY_SECTIONS,
   isBlockedBySolaLettura, SOLA_LETTURA_BLOCKED_NOTE, conservaPermessiNascosti,
+  OPERATIONAL_EDIT_PAIRS,
   type BooleanPermissionKey, type PermissionSectionDef,
 } from "@/components/users/permissionsDefaults";
 import { SolaLetturaToggle } from "@/components/users/SolaLetturaToggle";
+import { PermessiDistintiToggle } from "@/components/users/PermessiDistintiToggle";
 import { usePipelines } from "@/hooks/useOpportunitiesData";
 import { aggiuntiviDisponibili, NOME_RUOLO, TESTI_RUOLO_AGGIUNTIVO, type RuoloAggiuntivo } from "@/lib/permessi/ruoliUtente";
 
@@ -246,6 +248,10 @@ export function UserRolesPermissionsTab({
   onDirtyChange,
 }: UserRolesPermissionsTabProps) {
   const [permissions, setPermissions] = useState<StaffPermissions>(user.permissions || DEFAULT_PERMISSIONS);
+  const categorieVisibili = useMemo(() => VISIBLE_CATEGORIES.map(c => ({ ...c, modules: c.modules.map(m => {
+    const distinta = permissions.permessi_dettagliati && OPERATIONAL_EDIT_PAIRS.find(([view]) => view === m.viewKey)?.[1];
+    return { ...m, editKey: distinta || m.editKey, description: distinta ? "Può consultare quest’area. Per creare o modificare, attiva anche «Modifica»." : m.description };
+  }) })), [permissions.permessi_dettagliati]);
   const [searchQuery, setSearchQuery] = useState("");
   // Gruppi chiusi all'apertura (25/09/2026): aperti tutti erano una pagina
   // di ~90 interruttori; il conteggio sul gruppo basta, la ricerca li apre.
@@ -324,7 +330,7 @@ export function UserRolesPermissionsTab({
             ...DEFAULT_PERMISSIONS,
             only_assigned: permissions.only_assigned,
             only_my_warehouse: permissions.only_my_warehouse,
-            sola_lettura: permissions.sola_lettura,
+            sola_lettura: permissions.sola_lettura, permessi_dettagliati: permissions.permessi_dettagliati,
             pipeline_visibili: permissions.pipeline_visibili,
             ...preset,
           }
@@ -367,9 +373,9 @@ export function UserRolesPermissionsTab({
   };
 
   const filteredCategories = useMemo(() => {
-    if (!searchQuery) return VISIBLE_CATEGORIES;
+    if (!searchQuery) return categorieVisibili;
     const q = searchQuery.toLowerCase();
-    return VISIBLE_CATEGORIES.map((cat) => ({
+    return categorieVisibili.map((cat) => ({
       ...cat,
       modules: cat.modules.filter(
         (m) =>
@@ -378,7 +384,7 @@ export function UserRolesPermissionsTab({
           m.includes?.some((inc) => inc.toLowerCase().includes(q))
       ),
     })).filter((cat) => cat.modules.length > 0);
-  }, [searchQuery]);
+  }, [searchQuery, categorieVisibili]);
 
   const getCategoryPermCount = (cat: PermissionCategory) => {
     const uniqueKeys = new Set(cat.modules.map((m) => m.viewKey));
@@ -390,7 +396,7 @@ export function UserRolesPermissionsTab({
 
   const totalPermissionsCount = useMemo(() => {
     const allKeys = new Set<keyof StaffPermissions>();
-    VISIBLE_CATEGORIES.forEach((c) =>
+    categorieVisibili.forEach((c) =>
       c.modules.forEach((m) => {
         allKeys.add(m.viewKey);
       })
@@ -401,13 +407,13 @@ export function UserRolesPermissionsTab({
       if (permissions[k]) active++;
     });
     return { total, active };
-  }, [permissions]);
+  }, [permissions, categorieVisibili]);
 
   const handleSelectAll = () => {
     setPermissions((prev) => {
       // Le restrizioni e le aree visibili non sono moduli: «Tutti» non le tocca.
-      const allTrue: StaffPermissions = { ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, only_my_warehouse: prev.only_my_warehouse, sola_lettura: prev.sola_lettura, pipeline_visibili: prev.pipeline_visibili, visible_areas: prev.visible_areas };
-      const allModules = PERMISSION_CATEGORIES.flatMap((c) => c.modules);
+      const allTrue: StaffPermissions = { ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, only_my_warehouse: prev.only_my_warehouse, sola_lettura: prev.sola_lettura, permessi_dettagliati: prev.permessi_dettagliati, pipeline_visibili: prev.pipeline_visibili, visible_areas: prev.visible_areas };
+      const allModules = categorieVisibili.flatMap((c) => c.modules);
       const bloccato = (k: BooleanPermissionKey) => !!prev.sola_lettura && isBlockedBySolaLettura(k);
       allModules.forEach((mod) => {
         if (!bloccato(mod.viewKey)) allTrue[mod.viewKey] = true;
@@ -420,7 +426,7 @@ export function UserRolesPermissionsTab({
   };
 
   const handleDeselectAll = () => {
-    setPermissions((prev) => conservaPermessiNascosti(prev, { ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, only_my_warehouse: prev.only_my_warehouse, sola_lettura: prev.sola_lettura, pipeline_visibili: prev.pipeline_visibili, visible_areas: prev.visible_areas }));
+    setPermissions((prev) => conservaPermessiNascosti(prev, { ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, only_my_warehouse: prev.only_my_warehouse, sola_lettura: prev.sola_lettura, permessi_dettagliati: prev.permessi_dettagliati, pipeline_visibili: prev.pipeline_visibili, visible_areas: prev.visible_areas }));
   };
 
   const handleApplyRolePreset = () => {
@@ -430,7 +436,7 @@ export function UserRolesPermissionsTab({
       ...DEFAULT_PERMISSIONS,
       only_assigned: prev.only_assigned,
       only_my_warehouse: prev.only_my_warehouse,
-      sola_lettura: prev.sola_lettura,
+      sola_lettura: prev.sola_lettura, permessi_dettagliati: prev.permessi_dettagliati,
       pipeline_visibili: prev.pipeline_visibili,
       ...preset,
     }));
@@ -734,6 +740,7 @@ export function UserRolesPermissionsTab({
                   })
                 }
               />
+              <PermessiDistintiToggle id="tab-permessi-distinti" checked={!!permissions.permessi_dettagliati} disabled={readOnly} onCheckedChange={checked => setPermissions(prev => ({ ...prev, permessi_dettagliati: checked }))} />
 
               {/* Pipeline visibili — come «Aree visibili»: nessuna spuntata =
                   tutte. La applica il database (policy pipeline_visibili_utente),

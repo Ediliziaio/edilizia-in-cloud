@@ -68,6 +68,7 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   only_assigned: false,
   only_my_warehouse: false,
   sola_lettura: false,
+  permessi_dettagliati: false,
   visible_areas: [],
   pipeline_visibili: [],
 };
@@ -109,7 +110,7 @@ export function detectEconomicLevel(p: StaffPermissions): EconomicLevelId | "cus
  *  Usarla per viewKey/editKey/toggle evita gli errori `boolean & string[]`
  *  quando si scrive permissions[key] = true/false. */
 export type BooleanPermissionKey = {
-  [K in keyof StaffPermissions]: StaffPermissions[K] extends boolean ? K : never;
+  [K in keyof StaffPermissions]-?: NonNullable<StaffPermissions[K]> extends boolean ? K : never;
 }[keyof StaffPermissions];
 
 // ─── Modifica che segue la visibilità (16/09/2026) ─────────────────────────
@@ -131,6 +132,14 @@ export const OPERATIONAL_EDIT_PAIRS: readonly (readonly [BooleanPermissionKey, B
   ["can_view_preventivi", "can_edit_preventivi"],
 ];
 
+export function sezioniConPermessiDistinti(sezioni: PermissionSectionDef[], permessi: StaffPermissions): PermissionSectionDef[] {
+  if (!permessi.permessi_dettagliati) return sezioni;
+  return sezioni.map(s => {
+    const editKey = OPERATIONAL_EDIT_PAIRS.find(([view]) => view === s.viewKey)?.[1] ?? s.editKey;
+    return { ...s, editKey, description: editKey && !s.editKey ? "Può consultare quest’area. Per creare o modificare, attiva anche «Modifica»." : s.description };
+  });
+}
+
 /** Interruttori che danno potere sull'azienda: restano a sé, ma la sola
  *  lettura li spegne tutti (stesso elenco del trigger). */
 export const SOLA_LETTURA_BLOCKED_KEYS: readonly BooleanPermissionKey[] = [
@@ -142,6 +151,8 @@ export const SOLA_LETTURA_BLOCKED_KEYS: readonly BooleanPermissionKey[] = [
   "can_manage_payments", "can_manage_suppliers", "can_manage_warehouse_items", "can_manage_portal",
   "can_approve_orders", "can_approve_variations", "can_approve_discounts", "can_delete_orders",
   "can_validate_bom", "can_manage_purchasing",
+  "can_manage_condizioni", "can_riscrivere_condizioni",
+  ...OPERATIONAL_EDIT_PAIRS.map(([, edit]) => edit),
 ];
 
 export function isBlockedBySolaLettura(key: BooleanPermissionKey): boolean {
@@ -159,7 +170,7 @@ export function applyEditFollowsView(perms: StaffPermissions): StaffPermissions 
   const scrive = !perms.sola_lettura;
   const next = { ...perms };
   for (const [viewKey, editKey] of OPERATIONAL_EDIT_PAIRS) {
-    next[editKey] = !!perms[viewKey] && scrive;
+    next[editKey] = !!perms[viewKey] && scrive && (!perms.permessi_dettagliati || !!perms[editKey]);
   }
   if (!scrive) {
     for (const key of SOLA_LETTURA_BLOCKED_KEYS) next[key] = false;

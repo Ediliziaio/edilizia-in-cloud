@@ -85221,6 +85221,7 @@ export type Database = {
       }
       staff_permissions: {
         Row: {
+          permessi_dettagliati: boolean
           can_approve_discounts: boolean
           can_approve_orders: boolean
           can_approve_variations: boolean
@@ -85334,6 +85335,7 @@ export type Database = {
           visible_areas: string[]
         }
         Insert: {
+          permessi_dettagliati?: boolean
           can_approve_discounts?: boolean
           can_approve_orders?: boolean
           can_approve_variations?: boolean
@@ -85447,6 +85449,7 @@ export type Database = {
           visible_areas?: string[]
         }
         Update: {
+          permessi_dettagliati?: boolean
           can_approve_discounts?: boolean
           can_approve_orders?: boolean
           can_approve_variations?: boolean

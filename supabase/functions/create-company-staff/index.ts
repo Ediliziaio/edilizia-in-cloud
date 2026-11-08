@@ -5,6 +5,7 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { emailCredenziali } from "../_shared/emailCredenziali.ts";
 import { buildStaffPermissionsRecord } from "../_shared/staffPermissionsDefaults.ts";
+// Il record iniziale conserva anche la scelta di distinguere vista e modifica.
 import { messaggioErroreAuth } from "../_shared/authErrorMessage.ts";
 
 // Esegue un task in background DOPO la risposta, senza bloccarla. Evita che un

@@ -15,9 +15,11 @@ import {
   PERSONE_SECTIONS, MARKETING_SECTIONS, AUTOMAZIONI_SECTIONS, IMPOSTAZIONI_SECTIONS,
   ALL_PERMISSION_SECTIONS, ROLE_PRESETS, syncLegacyMarketingFlags, syncLegacySettingsFlags,
   DEFAULT_PERMISSIONS, isBlockedBySolaLettura, SOLA_LETTURA_BLOCKED_NOTE, TEAM_VISIBILITY_SECTIONS,
+  sezioniConPermessiDistinti,
   type PermissionSectionDef, type StaffRoleType, type BooleanPermissionKey,
 } from "@/components/users/permissionsDefaults";
 import { SolaLetturaToggle } from "@/components/users/SolaLetturaToggle";
+import { PermessiDistintiToggle } from "@/components/users/PermessiDistintiToggle";
 
 export interface StaffPermissions {
   // ── Cruscotto ──────────────────────────────────────────
@@ -138,6 +140,8 @@ export interface StaffPermissions {
   /** Vede le sue aree ma non crea e non modifica nulla. Le can_edit_* operative
    *  seguono la visibilità (trigger permessi_modifica_segue_visibilita). */
   sola_lettura: boolean;
+  /** Consente di limitare la modifica per ciascuna area operativa. */
+  permessi_dettagliati?: boolean;
   /** Aree visibili: se vuoto = tutte le aree. Valori: cantiere, commerciale, amministrazione, tecnico */
   visible_areas: string[];
   /** Pipeline che vede (id): se vuoto = tutte. La applica il database
@@ -166,7 +170,8 @@ interface PermGroupProps {
   onToggle: (key: BooleanPermissionKey, value: boolean) => void;
 }
 
-function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onToggle }: PermGroupProps) {
+function PermGroup({ label, icon: Icon, iconColor, sections: originali, permissions, onToggle }: PermGroupProps) {
+  const sections = sezioniConPermessiDistinti(originali, permissions);
   const [open, setOpen] = useState(true);
 
   const activeCount = sections.reduce((count, s) => {
@@ -282,7 +287,7 @@ export function PermissionsDialog({
 
   const handleSelectAll = () => {
     const allTrue: Partial<StaffPermissions> = {};
-    ALL_PERMISSION_SECTIONS.forEach(s => {
+    sezioniConPermessiDistinti(ALL_PERMISSION_SECTIONS, permissions).forEach(s => {
       allTrue[s.viewKey] = true;
       if (s.editKey) allTrue[s.editKey] = true;
     });
@@ -314,13 +319,13 @@ export function PermissionsDialog({
       ...DEFAULT_PERMISSIONS,
       only_assigned: prev.only_assigned,
       only_my_warehouse: prev.only_my_warehouse,
-      sola_lettura: prev.sola_lettura,
+      sola_lettura: prev.sola_lettura, permessi_dettagliati: prev.permessi_dettagliati,
       ...preset,
     }));
   };
 
   const totalActive = useMemo(() => {
-    const excluded = new Set(["only_assigned", "only_my_warehouse", "sola_lettura", "can_view_marketing", "can_edit_marketing"]);
+    const excluded = new Set(["only_assigned", "only_my_warehouse", "sola_lettura", "permessi_dettagliati", "can_view_marketing", "can_edit_marketing"]);
     return Object.entries(permissions).filter(([k, v]) => v === true && !excluded.has(k)).length;
   }, [permissions]);
 
@@ -414,6 +419,7 @@ export function PermissionsDialog({
             checked={permissions.sola_lettura || false}
             onCheckedChange={(checked) => setPermissions(prev => syncLegacyMarketingFlags({ ...prev, sola_lettura: checked }))}
           />
+          <PermessiDistintiToggle id="permessi-distinti" checked={!!permissions.permessi_dettagliati} onCheckedChange={checked => setPermissions(prev => syncLegacyMarketingFlags({ ...prev, permessi_dettagliati: checked }))} />
 
           {/* Terza modalità, per chi manda avanti una filiale: tutte le commesse
               del suo magazzino, comprese quelle dei colleghi di quel magazzino,

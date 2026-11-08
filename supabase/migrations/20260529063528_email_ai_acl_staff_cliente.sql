@@ -8,7 +8,11 @@ RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
   SELECT public.is_super_admin(auth.uid())
       OR public.has_role(auth.uid(), 'company_admin'::public.app_role)
-      OR public.has_role(auth.uid(), 'worker'::public.app_role);
+      -- Nel replay il valore storico worker arriva soltanto il 15 agosto.
+      -- Il confronto testuale mantiene la stessa ACL senza richiedere già
+      -- il valore nell'enum; nessun ruolo nuovo viene concesso.
+      OR EXISTS (SELECT 1 FROM public.user_roles r
+                 WHERE r.user_id=auth.uid() AND r.role::text='worker');
 $$;
 GRANT EXECUTE ON FUNCTION public.is_email_staff_interno() TO authenticated, service_role;
 
