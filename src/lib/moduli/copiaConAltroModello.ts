@@ -54,7 +54,8 @@ export async function copiaConAltroModello(opts: {
   if (eC || typeof code !== "string") throw new Error(eC?.message || "Numero del preventivo non disponibile: riprova.");
 
   const { data: nuovo, error: eN } = await db.from(tabella)
-    .insert({ ...toglie(origine, NON_SI_COPIA), company_id: companyId, code, stato: "bozza", tipo_intervento: tipo, modello_snapshot: snapshot })
+    // `copia_di`: se l'originale diventa commessa, la copia ne è una variante (un contratto, una commessa).
+    .insert({ ...toglie(origine, NON_SI_COPIA), company_id: companyId, code, stato: "bozza", tipo_intervento: tipo, modello_snapshot: snapshot, copia_di: sourceId })
     .select("id, code").single();
   if (eN) throw new Error(eN.message);
 

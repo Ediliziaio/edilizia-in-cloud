@@ -400,6 +400,8 @@ export default function FotovoltaicoDettaglio() {
                   : null
             }
             onConvertito={() => queryClient.invalidateQueries({ queryKey: ["fv", "progetto", progetto.company_id, progetto.id] })}
+            codice={progetto.numero}
+            clientName={[progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ") || null}
           />
         )}
       </div>

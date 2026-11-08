@@ -18,10 +18,16 @@ export function ModuleConversionSummary({ riepilogo }: { riepilogo: AnteprimaCon
     <section aria-label="Materiali da ordinare">
       <h3 className="font-semibold">Materiali e acquisti · {riepilogo.materiali.length}</h3>
       {riepilogo.materiali.length ? <ul className="mt-2 space-y-2">{riepilogo.materiali.map((m, i) => <li key={i} className="rounded-md border p-2">
-        <p className="font-medium">{m.name} · {m.quantity} unità</p><p className="text-xs text-muted-foreground">{m.description}</p>
+        <p className="font-medium">{m.name}{m.misure_testo ? ` ${m.misure_testo}` : ""} · {m.quantity} unità</p><p className="text-xs text-muted-foreground">{m.description}</p>
       </li>)}</ul> : <p className="mt-2 text-muted-foreground">Nessun materiale da ordinare. I costi materiali stimati nelle lavorazioni non generano acquisti.</p>}
     </section>
-    {riepilogo.esclusi > 0 && <p className="text-xs text-muted-foreground">{riepilogo.esclusi} voci con quantità nulla o negativa escluse dalla pianificazione. Il contratto resta invariato.</p>}
+    <section aria-label="Rate">
+      <h3 className="font-semibold">Rate · {riepilogo.rate?.length ?? 0}</h3>
+      {riepilogo.rate?.length ? <ul className="mt-2 space-y-1">{riepilogo.rate.map((r, i) => <li key={i} className="flex justify-between gap-3 rounded-md border px-2 py-1.5">
+        <span>{r.label}</span><span className="tabular-nums">{formatCurrency(r.amount)}</span>
+      </li>)}</ul> : <p className="mt-2 text-xs text-muted-foreground">Il preventivo non ha un piano di pagamento completo: la commessa prende le rate di partenza dell'azienda, se le ha scelte.</p>}
+    </section>
+    {riepilogo.esclusi > 0 && <p className="text-xs text-muted-foreground">{riepilogo.esclusi} voci con quantità nulla o negativa, o opzionali, escluse dalla pianificazione. Il contratto resta invariato.</p>}
     <p className="text-xs text-muted-foreground">Sconti e prezzo a corpo restano nel valore del contratto. I costi effettivi si registrano in seguito.</p>
   </div>;
 }

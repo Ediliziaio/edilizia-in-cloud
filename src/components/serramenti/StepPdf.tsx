@@ -8,7 +8,7 @@
  * basso la barra con il PDF (da mandare o guardare) e «Invia per firma», che
  * rigenera la pagina e ne manda il link col foglio di condivisione.
  */
-import { FileText, Loader2, Check, AlertCircle, AlertTriangle, ArrowRight, ExternalLink, Link2, Copy, Download, Eye } from "lucide-react";
+import { FileText, Loader2, Check, AlertCircle, AlertTriangle, ExternalLink, Link2, Copy, Download, Eye } from "lucide-react";
 import { nomeCointestatario } from "@/lib/preventivatore/cointestatario";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -16,13 +16,13 @@ import type { SrPagamentoMilestone, SrPianoFinanziamento, SrProgettoDetail, SrWi
 import { SR_SCHEMI_PAGAMENTO } from "@/types/serramenti";
 import { SrCard, SrCallout, SrKpi } from "@/lib/serramenti/wizardUI";
 import { formatEuro, formatEuroRangeOrSingle, formatNumero } from "@/lib/serramenti/format";
-import { useGeneraPdf, useConvertiInOrdine, useTemplatePdf, useAziendaPerPdf } from "@/lib/serramenti/queries";
-import { ClipboardList } from "lucide-react";
+import { useGeneraPdf, useTemplatePdf, useAziendaPerPdf } from "@/lib/serramenti/queries";
 import { renderSerramentoBlob, useSerramentoPDF } from "@/hooks/useSerramentoPDF";
 import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
 import { importiDelPreventivo } from "@/lib/serramenti/righePreventivo";
 import { motivoPreventivoDeciso, type MotivoDeciso } from "@/lib/serramenti/preventivoDeciso";
 import { InviaFirmaCard } from "@/components/moduli/InviaFirmaCard";
+import { ConvertiInCommessaCard } from "@/components/moduli/ConvertiInCommessaCard";
 import { CondizioniDelPreventivoCard } from "@/components/moduli/CondizioniDelPreventivoCard";
 import { perLaFirma } from "@/lib/preventivi/condizioniDelPreventivo";
 import { quoteModelTemplate } from "@/lib/serramenti/quoteModel";
@@ -57,7 +57,6 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondiz
   const isMobile = useIsMobile();
   const p = detail.progetto;
   const generaPdfMut = useGeneraPdf(progettoId);
-  const convertiMut = useConvertiInOrdine(progettoId);
   const numSerramenti = detail.serramenti.reduce((acc, s) => acc + (s.quantita ?? 1), 0);
   // Sintesi intervento: ora generata SEMPRE dinamicamente dal BOM + tipo
   // intervento. Il campo persistito `p.intervento_sintesi` rimane come
@@ -462,74 +461,15 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondiz
         </SrCallout>
       </SrCard>
 
-      {/* Conversione in commessa */}
-      <SrCard
-        title="Cliente accettato? Crea la commessa"
-        description="Quando il cliente firma o conferma, converti il preventivo in commessa per gestire produzione, posa e fatturazione."
-        icon={<ClipboardList className="h-4 w-4" />}
-        variant={p.ordine_id ? "muted" : "highlight"}
-        className="max-md:hidden"
-      >
-        {p.ordine_id ? (
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div>
-              <p className="text-sm font-semibold flex items-center gap-1.5 text-orange-600">
-                <Check className="h-4 w-4" /> Già convertita in commessa
-              </p>
-              <p className="text-[11px] text-muted-foreground">Stato progetto: <strong>{p.stato}</strong></p>
-            </div>
-            <Button asChild variant="outline" size="sm">
-              <a href={`/azienda/ordini/${p.ordine_id}`} className="gap-1">
-                <ExternalLink className="h-3.5 w-3.5" /> Apri commessa
-              </a>
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <p className="text-xs text-muted-foreground">
-              La nuova commessa erediterà cliente, importo e anticipo. Il preventivo resterà collegato per riferimento.
-            </p>
-            <Button
-              onClick={() => convertiMut.mutate()}
-              disabled={convertiMut.isPending || !ready}
-              className="w-full bg-orange-500 hover:bg-orange-600 gap-2"
-            >
-              {convertiMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
-              Crea commessa da questo preventivo
-            </Button>
-            {!ready && (
-              <p className="text-[11px] text-amber-700">
-                ⚠️ Completa prima la checklist sopra per creare la commessa.
-              </p>
-            )}
-          </div>
-        )}
-      </SrCard>
-
-      {/* Telefono: la commessa in una riga, come negli altri preventivatori. */}
-      {isMobile && (p.ordine_id ? (
-        <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 py-2">
-          <p className="min-w-0 flex-1 truncate text-[13px] font-semibold text-emerald-900">Commessa già aperta</p>
-          <Button asChild variant="outline" size="sm" className="tap-compact h-8 shrink-0 gap-1 text-xs">
-            <a href={`/azienda/ordini/${p.ordine_id}`}>
-              Apri <ArrowRight className="h-3.5 w-3.5" />
-            </a>
-          </Button>
-        </div>
-      ) : ready && (
-        <div className="flex items-center gap-2 rounded-xl border border-orange-200 bg-orange-50/60 px-3 py-2">
-          <p className="min-w-0 flex-1 truncate text-[13px] font-semibold text-orange-900">Il cliente ha accettato?</p>
-          <Button
-            size="sm"
-            className="tap-compact h-8 shrink-0 gap-1.5 bg-orange-500 text-xs text-white hover:bg-orange-600"
-            disabled={convertiMut.isPending}
-            onClick={() => convertiMut.mutate()}
-          >
-            {convertiMut.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Crea commessa
-          </Button>
-        </div>
-      ))}
+      {/* Il preventivo firmato è il contratto: da qui nasce la commessa con serramenti, accessori, servizi e rate. */}
+      <ConvertiInCommessaCard
+        modulo="sr"
+        progettoId={progettoId}
+        ordineId={p.ordine_id ?? null}
+        bloccoMotivo={!ready ? "Completa prima la checklist sopra per creare la commessa." : null}
+        codice={p.code}
+        clientName={[p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ") || null}
+      />
 
     </div>
   );

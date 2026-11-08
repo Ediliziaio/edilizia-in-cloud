@@ -10,7 +10,7 @@ import {
   addSerramento, updateSerramento, deleteSerramento,
   addAccessori, updateAccessorio, deleteAccessorio,
   getTemplatePdf, upsertTemplatePdf,
-  generaPdf, importDaSopralluogo, convertiInOrdine,
+  generaPdf, importDaSopralluogo,
   uploadMedia, deleteMedia,
   listRenderSessions, importRender,
   listCrmContacts,
@@ -524,24 +524,6 @@ export function useGeneraPdf(progettoId: string | undefined) {
       }
     },
     onError: (e) => toast.error("Generazione PDF fallita", { description: String(e) }),
-  });
-}
-
-export function useConvertiInOrdine(progettoId: string | undefined) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => {
-      if (!progettoId) throw new Error("Progetto id mancante");
-      return convertiInOrdine(progettoId);
-    },
-    onSuccess: (ordineId) => {
-      if (progettoId) qc.invalidateQueries({ queryKey: SR_QK.progetto(progettoId) });
-      qc.invalidateQueries({ queryKey: ["sr-progetti"] });
-      toast.success("Commessa creata", { description: "Stato progetto: Accettato." });
-      // Naviga alla pagina della nuova commessa
-      window.location.href = `/azienda/ordini/${ordineId}`;
-    },
-    onError: (e) => toast.error("Conversione in commessa fallita", { description: String(e) }),
   });
 }
 
