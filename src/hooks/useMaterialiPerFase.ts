@@ -183,6 +183,27 @@ export function useAzioniMateriali(orderId: string, orderCode?: string | null) {
     onError: (e) => toast.error(messaggio(e)),
   });
 
+  /**
+   * «Valida tutte»: più fasi in verifica una dopo l'altra, con la stessa funzione
+   * del pulsante della fase. Una che non passa non ferma le altre: si dice quale.
+   */
+  const validaFasi = useMutation({
+    mutationFn: async (fasi: Array<{ phaseId: string; nome: string }>) => {
+      const ferme: Array<{ nome: string; errore: string }> = [];
+      for (const f of fasi) {
+        const { error } = await supabase.rpc("materiali_fase_cambia_stato", { p_phase: f.phaseId, p_azione: "valida" });
+        if (error) ferme.push({ nome: f.nome, errore: messaggio(error) });
+      }
+      return { validate: fasi.length - ferme.length, ferme };
+    },
+    onSuccess: ({ validate, ferme }) => {
+      if (validate) toast.success(validate === 1 ? "1 fase validata: ora la vede l'ufficio acquisti" : `${validate} fasi validate: ora le vede l'ufficio acquisti`);
+      for (const f of ferme) toast.error(`${f.nome}: non validata`, { description: f.errore });
+    },
+    onError: (e) => toast.error(messaggio(e)),
+    onSettled: aggiorna,
+  });
+
   /** In bozza scrive chi modifica le commesse; in verifica il tecnico passa dalla sua funzione. */
   const aggiornaMateriale = useMutation({
     mutationFn: async (p: { id: string; tecnico: boolean; modifica: { quantity?: number; specifiche?: string | null; unita_misura?: string | null; name?: string } }) => {
@@ -305,5 +326,5 @@ export function useAzioniMateriali(orderId: string, orderCode?: string | null) {
     onError: (e) => toast.error(messaggio(e)),
   });
 
-  return { cambiaStato, aggiornaMateriale, spostaInFase, assegnaFornitore, richiediOfferta, creaOrdini, elimina, allineaUnita };
+  return { cambiaStato, validaFasi, aggiornaMateriale, spostaInFase, assegnaFornitore, richiediOfferta, creaOrdini, elimina, allineaUnita };
 }

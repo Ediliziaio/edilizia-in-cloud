@@ -25,14 +25,14 @@ describe("libreria standard delle scomposizioni", () => {
         expect(c.quantita_per_unita, `${s.nome} · ${c.descrizione}`).toBeGreaterThan(0);
         expect(c.sfrido_percentuale).toBeGreaterThanOrEqual(0);
         expect(c.sfrido_percentuale).toBeLessThanOrEqual(30);
-        expect(["pz", "m", "mq", "kg", "l", "conf"]).toContain(c.unita_misura);
+        expect(["pz", "m", "mq", "mc", "kg", "l", "conf"]).toContain(c.unita_misura);
       }
     }
   });
 
-  it("copre i quattro ambiti", () => {
+  it("copre i cinque ambiti, opere edili comprese", () => {
     const ambiti = new Set(SCOMPOSIZIONI_STANDARD.map((s) => s.ambito));
-    expect([...ambiti].sort()).toEqual(["antincendio", "climatizzazione", "elettrico", "fotovoltaico"]);
+    expect([...ambiti].sort()).toEqual(["antincendio", "climatizzazione", "edile", "elettrico", "fotovoltaico"]);
     expect(vociPerImport(["fotovoltaico"]).every((v) => v.categoria === "Fotovoltaico")).toBe(true);
     expect(vociPerImport()[0].note).toContain("libreria standard");
   });
@@ -58,6 +58,20 @@ describe("libreria standard delle scomposizioni", () => {
     expect(riconosce("Cavo FTE29OHM16 2x1,5 mmq", "m")).toBe("AI-CAVO-FTE29OHM16");
     expect(riconosce("Linea frigorifera in rame preisolato", "m")).toBe("CL-LINEA-FRIGORIFERA");
     expect(riconosce("Modulo fotovoltaico monocristallino 430 Wp")).toBe("FV-MODULO");
+    // Opere edili (07/11/2026): le voci tipiche di un computo di ristrutturazione.
+    expect(riconosce("Isolamento termico a cappotto con pannelli EPS sp. 10 cm", "m²")).toBe("ED-CAPPOTTO-POSA");
+    expect(riconosce("Rasatura armata su cappotto con rete in fibra di vetro", "m²")).toBe("ED-CAPPOTTO-RASATURA");
+    expect(riconosce("Finitura a intonachino silossanico", "m²")).toBe("ED-FINITURA-INTONACHINO");
+    expect(riconosce("Massetto in sabbia e cemento sp. 5 cm", "m²")).toBe("ED-MASSETTO-SABBIA-CEMENTO");
+    expect(riconosce("Impianto radiante a pavimento", "m²")).toBe("ED-RADIANTE-PAVIMENTO");
+    expect(riconosce("Intonaco premiscelato civile per interni", "m²")).toBe("ED-INTONACO-PREMISCELATO");
+    expect(riconosce("Parete divisoria in cartongesso", "m²")).toBe("ED-CARTONGESSO-PARETE");
+    expect(riconosce("Controsoffitto in cartongesso a orditura metallica", "m²")).toBe("ED-CARTONGESSO-CONTROSOFFITTO");
+    expect(riconosce("Impermeabilizzazione di copertura con guaina bituminosa", "m²")).toBe("ED-IMPERMEABILIZZAZIONE-GUAINA");
+    expect(riconosce("Tinteggiatura con idropittura traspirante", "m²")).toBe("ED-TINTEGGIATURA-INTERNA");
+    expect(riconosce("Pavimento in gres porcellanato 60x60", "m²")).toBe("ED-PAVIMENTO-GRES");
+    // A metri o a pezzi non sono superfici: le voci edili non le prendono.
+    expect(riconosce("Massetto in sabbia e cemento", "m")).not.toBe("ED-MASSETTO-SABBIA-CEMENTO");
     expect(riconosce("Cavo solare H1Z2Z2-K 1x6", "m")).toBe("FV-CAVO-SOLARE");
     expect(riconosce("Lampada di emergenza autonomia 1 h")).toBe("EL-LAMPADA-EMERGENZA");
   });

@@ -10,10 +10,26 @@ export class IncompletePurchaseOrderError extends Error {
 }
 const inFlight = new Set<string>();
 
+/**
+ * Quanto ordinare adesso di un articolo: tutto il residuo (`item.quantity`, già
+ * ridotto da pendingMaterials) o una parte. Mai di più, mai zero; un articolo
+ * con la distinta delle posizioni si ordina intero, perché le righe d'ordine
+ * sono le sue posizioni.
+ */
+export function quantitaDaOrdinare(item: ProcurementItem, scelta: number | undefined): ProcurementItem {
+  if (scelta == null || item.posizioni?.length) return item;
+  const residuo = Number(item.quantity);
+  if (!Number.isFinite(scelta) || scelta <= 0) throw new Error(`«${item.name}»: la quantità da ordinare deve essere maggiore di zero.`);
+  if (scelta > residuo + 1e-9) throw new Error(`«${item.name}»: se ne possono ordinare al massimo ${residuo.toLocaleString("it-IT", { maximumFractionDigits: 4 })}, cioè quanti ne mancano.`);
+  return { ...item, quantity: Math.round(scelta * 10000) / 10000 };
+}
+
 /** Preflight condiviso dai due ingressi; testata e righe si salvano nella stessa transazione server. */
 export async function createMaterialPurchaseOrder(input: {
   companyId: string; orderId: string; orderCode?: string | null;
   supplierId: string; userId?: string; items: ProcurementItem[];
+  /** Ordine parziale: quanto ordinare adesso per articolo (mai oltre il residuo). Senza, tutto il residuo. */
+  quantita?: Record<string, number>;
 }) {
   const { companyId, orderId, supplierId } = input;
   if (!companyId || !supplierId || !orderId) throw new Error("Azienda, commessa o fornitore mancanti");
@@ -40,7 +56,8 @@ export async function createMaterialPurchaseOrder(input: {
     if (candidates.length !== ids.length || candidates.some(i => snapshot(i) !== snapshot(input.items.find(p => p.id === i.id)!))) {
       throw new Error("Articoli o quantità già coperte sono cambiati. Aggiorna e verifica la selezione prima di creare l’OdA.");
     }
-    const lines = procurementLines(candidates);
+    const daOrdinare = candidates.map((i) => quantitaDaOrdinare(i, input.quantita?.[i.id!]));
+    const lines = procurementLines(daOrdinare);
     const { data, error } = await supabase.rpc("crea_oda_materiali_atomica" as never, {
       p_company_id: companyId, p_order_id: orderId, p_supplier_id: supplierId, p_righe: lines,
     } as never);
@@ -63,7 +80,7 @@ export async function createMaterialPurchaseOrder(input: {
       } as never);
       if (diaryError) logger.error("[createMaterialPurchaseOrder] Evento diario non salvato", diaryError);
     } catch (error) { logger.error("[createMaterialPurchaseOrder] Diario non disponibile", error); }
-    return { poId: po.id, n: candidates.length };
+    return { poId: po.id, n: daOrdinare.length };
   } finally {
     inFlight.delete(key);
   }

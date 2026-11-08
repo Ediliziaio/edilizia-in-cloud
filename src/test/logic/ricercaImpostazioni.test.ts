@@ -545,6 +545,7 @@ describe("ogni voce porta a una pagina che esiste", () => {
     "contratti-e-condizioni": ["src/pages/azienda/settings/SettingsFirmaElettronica.tsx", "src/pages/azienda/impostazioni/SettingsCondizioniFirma.tsx"],
     "numeri-telefono": ["src/pages/azienda/settings/SettingsPhoneNumbers.tsx"],
     "commesse-generali": ["src/components/settings/CommesseGeneraliConfig.tsx"],
+    "acquisti-materiali": ["src/components/settings/AcquistiMaterialiConfig.tsx"],
   };
   const leggiSeC = (file: string) => (existsSync(resolve(radice, file)) ? leggi(file) : "");
 

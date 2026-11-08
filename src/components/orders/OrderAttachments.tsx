@@ -6,6 +6,7 @@
  * Si caricano tanti file insieme, da pulsante o trascinandoli sulla card
  * o direttamente su una cartella nella vista di esplorazione.
  */
+import { EtichettaRevisione, RevisioneDocumentoDialog } from "@/components/orders/RevisioneDocumento";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -49,6 +50,7 @@ import {
   LayoutGrid,
   List,
   X,
+  FileCheck2,
 } from "lucide-react";
 import { FileThumb } from "./filePreview";
 import { useUrlMiniature, toStoragePath, fmtBytes, fileKind, KIND_LABEL, KIND_TINT,
@@ -83,6 +85,11 @@ interface OrderAttachment {
   thumb_path?: string | null;
   /** Documento personale del cliente (carta d'identità, CF…): sta sul cliente, qui solo si consulta. */
   daCliente?: { tipo: string };
+  /** Revisione (20281222220000): tavola A-01 rev. B, approvata o superata. */
+  tipo_documento?: string | null;
+  codice_elaborato?: string | null;
+  revisione?: string | null;
+  stato_revisione?: string | null;
 }
 
 interface OrderAttachmentsProps {
@@ -602,6 +609,7 @@ function AzioniDocumento({
   const daCliente = attachment.daCliente;
   const [confermaElimina, setConfermaElimina] = useState(false);
   const [confermaVisibilita, setConfermaVisibilita] = useState(false);
+  const [revisioneAperta, setRevisioneAperta] = useState(false);
   return (
     <div className={`flex items-center gap-1 shrink-0 ${compatta ? "" : "col-span-2 justify-end sm:col-span-1"}`}>
       {!daCliente && !compatta && (editable ? <Button type="button" variant="ghost" size="sm"
@@ -640,6 +648,9 @@ function AzioniDocumento({
                 {attachment.visible_to_customer ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
                 {attachment.visible_to_customer ? "Nascondi al cliente" : "Mostra al cliente"}
               </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setRevisioneAperta(true)}>
+                <FileCheck2 className="h-4 w-4 mr-2" /> Revisione…
+              </DropdownMenuItem>
               <DropdownMenuLabel className="flex items-center gap-2 text-xs text-muted-foreground font-normal">
                 <FolderInput className="h-3.5 w-3.5" /> Sposta in…
               </DropdownMenuLabel>
@@ -659,6 +670,7 @@ function AzioniDocumento({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          {revisioneAperta && <RevisioneDocumentoDialog open={revisioneAperta} onOpenChange={setRevisioneAperta} doc={attachment} />}
           <AlertDialog open={confermaVisibilita} onOpenChange={setConfermaVisibilita}>
             <AlertDialogContent>
               <AlertDialogHeader>
@@ -736,6 +748,7 @@ function AttachmentItem(props: AttachmentItemProps) {
               {nomeCartella ? `${nomeCartella} · ` : ""}{peso ? `${peso} · ` : ""}{data}
             </span>
             {!daCliente && <span className="block text-[11px] text-muted-foreground">{attachment.visible_to_customer ? "Condiviso con cliente" : "Interno"}</span>}
+            <EtichettaRevisione doc={attachment} />
           </button>
           <AzioniDocumento {...props} compatta />
         </div>
@@ -763,6 +776,7 @@ function AttachmentItem(props: AttachmentItemProps) {
         >
           {attachment.file_name}
         </button>
+        <EtichettaRevisione doc={attachment} />
         <span className="text-xs text-muted-foreground flex flex-wrap gap-x-1.5">
           {nomeCartella && (
             <span className="inline-flex items-center gap-1 text-foreground/70">

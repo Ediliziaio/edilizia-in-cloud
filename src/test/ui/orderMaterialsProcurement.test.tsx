@@ -61,9 +61,25 @@ describe("Materiali e acquisti: percorso guidato", () => {
   it("anteprima e creazione usano solo il residuo", async () => {
     state.data = [row("confermato", 4)]; draw(<OrdinaPerFornitorePanel orderId="order" items={[item]} />);
     fireEvent.click(screen.getByRole("button", { name: "Prepara acquisto…" }));
-    expect(screen.getByRole("dialog")).toHaveTextContent("Pavimento ×6"); expect(screen.getByRole("dialog")).toHaveTextContent("Nessun invio automatico");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Pavimento"); expect(screen.getByLabelText("Quanti Pavimento ordinare adesso")).toHaveValue("6");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Nessun invio automatico");
     fireEvent.click(screen.getByRole("button", { name: "Crea bozza OdA" }));
     await waitFor(() => expect(state.create).toHaveBeenCalledWith(expect.objectContaining({ items: [expect.objectContaining({ quantity: 6 })] })));
+  });
+  it("ordine parziale: se ne ordina una parte adesso, il resto resta da ordinare", async () => {
+    state.data = [row("confermato", 4)]; draw(<OrdinaPerFornitorePanel orderId="order" items={[item]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Prepara acquisto…" }));
+    fireEvent.change(screen.getByLabelText("Quanti Pavimento ordinare adesso"), { target: { value: "2,5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Crea bozza OdA" }));
+    await waitFor(() => expect(state.create).toHaveBeenCalledWith(expect.objectContaining({ quantita: { [item.id]: 2.5 } })));
+  });
+  it("riaprendo la finestra la quantità riparte dal residuo, non da quella scritta prima", () => {
+    state.data = [row("confermato", 4)]; draw(<OrdinaPerFornitorePanel orderId="order" items={[item]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Prepara acquisto…" }));
+    fireEvent.change(screen.getByLabelText("Quanti Pavimento ordinare adesso"), { target: { value: "2" } });
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Prepara acquisto…" }));
+    expect(screen.getByLabelText("Quanti Pavimento ordinare adesso")).toHaveValue("6");
   });
   it("può deselezionare gli articoli e non crea una bozza vuota", () => {
     draw(<OrdinaPerFornitorePanel orderId="order" items={[item]} />); fireEvent.click(screen.getByRole("button", { name: "Prepara acquisto…" })); fireEvent.click(screen.getByRole("checkbox"));

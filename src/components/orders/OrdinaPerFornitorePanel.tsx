@@ -26,6 +26,8 @@ import { useOperationalSuppliers } from "@/hooks/useOperationalSuppliers";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Package, Loader2, AlertTriangle, HardHat, ArrowRight, FileQuestion } from "lucide-react";
@@ -62,6 +64,8 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
       preventivo per) SOLO una parte del gruppo — le finestre subito, le
       zanzariere piu' avanti. Default: tutto selezionato. */
   const [selezione, setSelezione] = useState<Record<string, boolean>>({});
+  /** Ordine parziale: quanto ordinare adesso per articolo (vuoto = tutto il residuo). */
+  const [quantitaScelte, setQuantitaScelte] = useState<Record<string, string>>({});
   const [rdoBusy, setRdoBusy] = useState(false);
 
   const supplierName = (id: string) => suppliers.find((s) => s.id === id)?.name ?? "Fornitore";
@@ -95,7 +99,14 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
       }
       if (gruppo.length === 0) throw new Error("Nessun articolo selezionato");
 
-      return createMaterialPurchaseOrder({ companyId: effectiveCompany.id, orderId, orderCode, supplierId, userId: user?.id, items: gruppo });
+      // Solo dal dialog si sceglie la quantità: «Crea tutti» ordina sempre tutto il residuo.
+      const quantita = soloSelezionati
+        ? Object.fromEntries(gruppo.flatMap((i) => {
+            const scritta = quantitaScelte[i.id!];
+            return scritta == null || scritta.trim() === "" ? [] : [[i.id!, parseDecimalIT(scritta)]];
+          }))
+        : undefined;
+      return createMaterialPurchaseOrder({ companyId: effectiveCompany.id, orderId, orderCode, supplierId, userId: user?.id, items: gruppo, quantita });
     },
     onSuccess: ({ poId, n }, { supplierId }) => {
       queryClient.invalidateQueries({ queryKey: ["order-items", orderId] });
@@ -271,6 +282,8 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
                 onClick={() => {
                   const g = gruppi.find(([x]) => x === sid)?.[1] ?? [];
                   setSelezione(Object.fromEntries(g.map((i) => [i.id!, true])));
+                  // Le quantità ripartono dal residuo di adesso: dopo un ordine parziale è cambiato.
+                  setQuantitaScelte({});
                   setSceltaPer(sid);
                 }}
               >
@@ -314,13 +327,18 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
           {sceltaPer && (() => {
             const gruppo = gruppi.find(([sid]) => sid === sceltaPer)?.[1] ?? [];
             const scelti = gruppo.filter((i) => selezione[i.id!] !== false);
-            const tot = scelti.reduce((s2, i) => s2 + (Number(i.purchase_price) || 0) * (Number(i.quantity) || 0), 0);
+            const qAdesso = (i: PanelItem) => {
+              const scritta = quantitaScelte[i.id!];
+              const n = scritta == null || scritta.trim() === "" ? Number(i.quantity) : parseDecimalIT(scritta);
+              return Number.isFinite(n) ? n : 0;
+            };
+            const tot = scelti.reduce((s2, i) => s2 + (Number(i.purchase_price) || 0) * qAdesso(i), 0);
             return (
               <>
                 <DialogHeader>
                   <DialogTitle>{supplierName(sceltaPer)}</DialogTitle>
                   <DialogDescription>
-                    {scelti.length} di {gruppo.length} {gruppo.length === 1 ? "articolo" : "articoli"} · {eur.format(tot)} + IVA. Solo le quantità ancora da acquistare; le bozze esistenti sono già considerate. Nessun invio automatico al fornitore.
+                    {scelti.length} di {gruppo.length} {gruppo.length === 1 ? "articolo" : "articoli"} · {eur.format(tot)} + IVA. Le quantità sono quelle ancora da acquistare: puoi ordinarne una parte adesso, il resto resta da ordinare. Nessun invio automatico al fornitore.
                   </DialogDescription>
                 </DialogHeader>
                 {/* Spunte per articolo: si puo' ordinare solo una parte del
@@ -337,10 +355,26 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
                               checked={on}
                               onCheckedChange={(v) => setSelezione((prev) => ({ ...prev, [i.id!]: v === true }))}
                             />
-                            <span className="min-w-0 truncate">{i.name}{i.quantity > 1 ? ` ×${i.quantity}` : ""}</span>
+                            <span className="min-w-0 truncate">{i.name}</span>
                           </span>
+                          {/* Ordine parziale: una parte adesso, il resto resta qui per il giro dopo. */}
+                          {!i.posizioni?.length ? (
+                            <span className="flex shrink-0 items-center gap-1" onClick={(e) => e.preventDefault()}>
+                              <Input
+                                inputMode="decimal"
+                                aria-label={`Quanti ${i.name} ordinare adesso`}
+                                className="h-7 w-20 px-1.5 text-right tabular-nums"
+                                value={quantitaScelte[i.id!] ?? String(Number(i.quantity)).replace(".", ",")}
+                                disabled={!on}
+                                onChange={(e) => setQuantitaScelte((prev) => ({ ...prev, [i.id!]: e.target.value }))}
+                              />
+                              <span className="text-xs text-muted-foreground">{unitaMateriale(i)}</span>
+                            </span>
+                          ) : (
+                            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">×{i.quantity}</span>
+                          )}
                           <span className="shrink-0 tabular-nums text-muted-foreground">
-                            {eur.format((Number(i.purchase_price) || 0) * (Number(i.quantity) || 0))}
+                            {eur.format((Number(i.purchase_price) || 0) * qAdesso(i))}
                           </span>
                         </label>
                       </li>

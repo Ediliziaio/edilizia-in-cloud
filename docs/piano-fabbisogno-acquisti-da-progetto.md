@@ -55,7 +55,76 @@ piano parte da lì: dice cosa c'è, cosa manca e in che ordine farlo.
   le due definizioni sono tenute uguali da `src/test/logic/riconciliazioneMateriali.test.ts`, con
   cinque casi fatti girare anche nel database. Nessuna pagina la usa ancora: la useranno
   cruscotto e promemoria (fase 5).
-- Fasi 3–6: da fare.
+- **Fatto il 07/11/2026, secondo giro** (migrazioni `20281222180000`–`20281222230000`, tutte provate
+  in transazioni annullate sulla Demo 2 e applicate):
+  - **Validazione del tecnico per azienda** (Impostazioni → Acquisti e materiali, spenta di
+    base). Sempre: nessun ordine né richiesta d'offerta su una fase in verifica o rimandata dal
+    tecnico (prima l'ordine passava). Accesa: solo fasi validate. La regola sta in un trigger su
+    `purchase_order_items`, quindi vale per ogni strada che crea un ordine.
+  - **Fase 3 — varianti**: all'approvazione di una perizia, `materiali_variazioni` propone
+    prima → dopo per ogni materiale (proporzione sulla parte che viene da ogni voce: 412,35 → 450
+    m² porta l'EPS da 432,97 a 472,50) e segnala le voci nuove; il tecnico applica o scarta dal
+    riquadro nella scheda materiali. Le quantità non cambiano da sole.
+  - **Fase 5 — date e promemoria**: «entro quando ordinare» = data in cui serve (o inizio della
+    fase) − giorni di consegna del fornitore (`lead_time_days`, altrimenti quelli dell'azienda);
+    pagina `/azienda/fabbisogno-materiali` (in ritardo, 7 giorni, 30 giorni…); promemoria in
+    campanella ogni mattina alle 06:30 UTC, uno al giorno per azienda.
+  - **Ordini parziali**: una parte adesso, il resto dopo, mai oltre il residuo (quantità
+    modificabile nel pannello «Ordina ai fornitori»).
+  - **Fase 4 — documenti con revisioni**: tipo, codice elaborato, revisione, stato; approvando
+    una revisione, quella approvata prima con lo stesso codice diventa «superata».
+  - **Computo dall'AI, controllo sui dati veri** (22 computi in 120 giorni, 12 falliti): un
+    Excel con più fogli era rifiutato (4 casi) e ora si leggono tutti i fogli con le voci
+    (`_shared/computoExcel.ts`); una lettura interrotta restava «in corso» per sempre e ora dopo
+    30 minuti diventa fallita con un messaggio (cron `computo-letture-interrotte`). Restano: 5
+    fallimenti perché l'azienda non ha una carta di pagamento (l'AI è chiusa a chi non l'ha:
+    regola di prodotto), 3 «Module not found» del lettore PDF fino al 01/11 (dal 04/11 le letture
+    riescono).
+- **Terzo giro (piano del 07/11/2026)**, in quest'ordine:
+  1. *Analisi edili pronte*: la libreria standard copre solo impianti. Si aggiungono cappotto
+     (posa, rasatura, finitura), massetto, radiante, intonaco, cartongesso (parete e
+     controsoffitto), impermeabilizzazione, tinteggiatura, pavimento: consumi indicativi da
+     schede tecniche, che il tecnico importa e corregge prima di usarli.
+  2. *Ordine annullato*: una notifica all'ufficio acquisti quando un ordine con materiali di
+     commessa viene annullato, perché quei materiali tornano da ordinare.
+  3. *Riepilogo PDF della commessa*: quantità con la loro unità; nel totale non si sommano unità
+     diverse.
+  4. *Computo dall'AI senza carta*: il messaggio dice anche che PriMus (XPWE) ed Excel si leggono
+     senza AI. Regalare la prima lettura resta una scelta commerciale, non fatta.
+  5. *«Serve in cantiere» modificabile* dal fabbisogno (chi fa gli acquisti o modifica le
+     commesse), con una funzione che controlla il permesso.
+  6. *Ordinare dal fabbisogno*: si scelgono le righe di più commesse e si creano le bozze
+     d'ordine, una per commessa e fornitore, con gli stessi controlli del pannello.
+  7. *Controllo del tecnico in una schermata*: le fasi in verifica di una commessa, con i
+     materiali da guardare (quantità cambiate a mano, sfrido alto, voci senza scomposizione), e
+     «Valida tutte».
+  8. *Revisione del computo → variante*: approvando un documento di tipo computo, la finestra
+     propone di aprire la perizia di variante.
+  Ogni punto si prova nel database (transazioni annullate) e con i test prima del successivo.
+
+  **Stato al 07/11/2026 sera — fatti tutti e otto, non ancora su main:**
+  1. 11 analisi edili in `lib/distinta/scomposizioniStandard.ts` (ambito «edile»), importate
+     inattive: il tecnico le attiva dopo averle controllate.
+  2. Trigger `purchase_order_annullato_avvisa` (20281222250000): avvisa chi ha
+     `can_manage_purchasing`, tranne chi annulla; un ODA senza righe di commessa non avvisa.
+  3. PDF della commessa: `quantitaConUnita` / `totaleQuantita` in `lib/orders/unitaDocumento.ts`;
+     con unità diverse il totale è «—».
+  4. `_shared/computoErroreLettura.ts`: carta mancante o crediti dell'azienda finiti →
+     motivo + «PriMus ed Excel si leggono senza AI»; credito della piattaforma (OpenRouter 402)
+     → niente JSON del provider, «riprova più tardi».
+  5. `materiali_data_fabbisogno_imposta(uuid[], date)` (20281222260000): solo materiali, solo
+     commesse visibili, `can_manage_purchasing` o `can_edit_orders`; un id sbagliato ferma tutto.
+  6. `lib/acquisti/ordinaDalFabbisogno.ts`: una bozza per commessa e fornitore, residuo riletto
+     al momento, una bozza ferma non ferma le altre. Ordina solo `can_manage_purchasing`.
+  7. `RevisioneTecnico` sopra i materiali: righe con quantità cambiata a mano (oltre l'1% dal
+     calcolo), aggiunte a mano (origine «manuale»), senza quantità; «Valida tutte» solo per le
+     fasi senza righe a quantità zero. **Lo sfrido alto e le voci senza scomposizione non ci
+     sono**: la riga non conserva lo sfrido né la voce non scomposta. Le 1.347 righe senza
+     origine (dal preventivo) non si segnalano.
+  8. Approvando una nuova revisione di computo o tavola, la finestra resta aperta: «Apri una
+     variante» (Economia → Varianti) o «Vedi i materiali». Le quantità della commessa non si
+     aggiornano da sole se non con una variante del computo (`computo_approva_variante`, solo
+     nella contabilità dei lavori pubblici).
 
 ## Il miglioramento che conta
 

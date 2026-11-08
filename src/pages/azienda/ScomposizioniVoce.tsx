@@ -62,7 +62,7 @@ export default function ScomposizioniVoce() {
   const [cerca, setCerca] = useState("");
   const [modifica, setModifica] = useState<Scomp | null>(null);
   const [libreria, setLibreria] = useState(false);
-  const [ambiti, setAmbiti] = useState<Set<AmbitoStandard>>(new Set(["elettrico", "antincendio", "climatizzazione", "fotovoltaico"]));
+  const [ambiti, setAmbiti] = useState<Set<AmbitoStandard>>(new Set(["elettrico", "antincendio", "climatizzazione", "fotovoltaico", "edile"]));
 
   const elenco = useQuery({
     queryKey: ["scomposizioni", companyId],

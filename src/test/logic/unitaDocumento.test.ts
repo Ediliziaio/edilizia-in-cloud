@@ -5,7 +5,7 @@
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { unitaDocumento } from "@/lib/orders/unitaDocumento";
+import { quantitaConUnita, totaleQuantita, unitaDocumento } from "@/lib/orders/unitaDocumento";
 import { buildRigaFromItem, type RigaComposerItem } from "@/components/orders/RigheComposer";
 
 const voce: RigaComposerItem = { id: "i1", name: "Intonaco", description: null, quantity: 12.5, unit_price: 34, vat_rate: 10, discount_percent: 0, position: 0 };
@@ -38,5 +38,23 @@ describe("unità sui documenti della commessa", () => {
     const src = readFileSync("src/components/orders/OrdinaPerFornitorePanel.tsx", "utf8");
     expect(src).toContain("unita_misura: unitaMateriale(i)");
     expect(src).not.toMatch(/unita_misura: "pz"/);
+  });
+});
+
+describe("PDF della commessa: quantità con l'unità", () => {
+  it("mostra l'unità accanto alla quantità, non per i pezzi", () => {
+    expect(quantitaConUnita(12.5, "m²")).toBe("12,5 m²");
+    expect(quantitaConUnita(3, "pz")).toBe("3");
+    expect(quantitaConUnita(3, null)).toBe("3");
+  });
+  it("somma le quantità solo se l'unità è la stessa", () => {
+    expect(totaleQuantita([{ quantity: 12.5, unita_misura: "m²" }, { quantity: 7.5, unita_misura: "m²" }])).toBe("20 m²");
+    expect(totaleQuantita([{ quantity: 2, unita_misura: null }, { quantity: 3, unita_misura: "pz" }])).toBe("5");
+    expect(totaleQuantita([{ quantity: 12.5, unita_misura: "m²" }, { quantity: 3, unita_misura: null }])).toBe("—");
+  });
+  it("il PDF usa le due funzioni", () => {
+    const src = readFileSync("src/components/orders/OrdinePDF.tsx", "utf8");
+    expect(src).toContain("quantitaConUnita(qty, item.unita_misura)");
+    expect(src).toContain("totaleQuantita(items)");
   });
 });

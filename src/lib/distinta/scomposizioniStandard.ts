@@ -1,7 +1,8 @@
 /**
  * Libreria standard delle scomposizioni: il punto di partenza per impianti
- * elettrici (civile e terziario), rivelazione incendi, climatizzazione e
- * fotovoltaico. Ogni voce dice quali materiali servono per UNA unità (un
+ * elettrici (civile e terziario), rivelazione incendi, climatizzazione,
+ * fotovoltaico e, dal 07/11/2026, opere edili (cappotto, massetto, radiante,
+ * intonaco, cartongesso, impermeabilizzazione, tinteggiatura, pavimento). Ogni voce dice quali materiali servono per UNA unità (un
  * punto, un metro, un apparecchio), con quantità, unità, sfrido e specifiche
  * da capitolato.
  *
@@ -21,12 +22,12 @@
  */
 import type { ComponenteScomposizione, Scomposizione } from "./generaDistinta";
 
-export type AmbitoStandard = "elettrico" | "antincendio" | "climatizzazione" | "fotovoltaico";
+export type AmbitoStandard = "elettrico" | "antincendio" | "climatizzazione" | "fotovoltaico" | "edile";
 
 export interface ComponenteStandard {
   descrizione: string;
   specifiche: string | null;
-  unita_misura: "pz" | "m" | "mq" | "kg" | "l" | "conf";
+  unita_misura: "pz" | "m" | "mq" | "mc" | "kg" | "l" | "conf";
   quantita_per_unita: number;
   sfrido_percentuale: number;
   categoria: string;
@@ -36,8 +37,8 @@ export interface ScomposizioneStandard {
   codice_standard: string;
   ambito: AmbitoStandard;
   nome: string;
-  /** Unità della voce di computo: null = qualsiasi (cad, n., pz). */
-  unita_misura: "m" | null;
+  /** Unità della voce di computo: null = qualsiasi (cad, n., pz); «mq» per le opere edili a superficie. */
+  unita_misura: "m" | "mq" | null;
   parole_chiave: string[];
   /** Come compare di solito nella legenda delle tavole (per chi controlla i conteggi). */
   simboli: string[];
@@ -50,6 +51,7 @@ const CATEGORIA: Record<AmbitoStandard, string> = {
   antincendio: "Rivelazione incendi",
   climatizzazione: "Climatizzazione",
   fotovoltaico: "Fotovoltaico",
+  edile: "Opere edili",
 };
 
 function c(ambito: AmbitoStandard) {
@@ -61,6 +63,7 @@ const el = c("elettrico");
 const ai = c("antincendio");
 const cl = c("climatizzazione");
 const fv = c("fotovoltaico");
+const ed = c("edile");
 
 // Parti comuni dei punti elettrici.
 const CORRUGATO_20 = "Tubo corrugato flessibile Ø20 mm, autoestinguente, CEI EN 61386";
@@ -483,6 +486,120 @@ export const SCOMPOSIZIONI_STANDARD: ScomposizioneStandard[] = [
       fv("Tubo corrugato o canale per esterno", "Ø25 mm, resistente ai raggi UV", "m", 0.5, 10),
     ],
     note: "Per 1 m di linea (un conduttore): il polo positivo e il negativo sono due metri.",
+  },
+  // ─── Opere edili (07/11/2026) ──────────────────────────────────────────
+  // Consumi per 1 m² di lavorazione, medie da schede tecniche dei prodotti più
+  // comuni: dipendono dal prodotto scelto e vanno confermati dal tecnico prima
+  // di approvare la scomposizione. Niente marche.
+  {
+    codice_standard: "ED-CAPPOTTO-POSA", ambito: "edile", nome: "Isolamento a cappotto (posa pannelli)", unita_misura: "mq",
+    parole_chiave: ["cappott"], simboli: [],
+    componenti: [
+      ed("Pannello isolante per cappotto", "EPS o lana minerale, spessore da progetto", "mq", 1, 5),
+      ed("Collante per pannelli isolanti", "Per incollaggio a cordolo e punti", "kg", 4, 5),
+      ed("Tassello per cappotto", "Lunghezza = spessore pannello + 40 mm di ancoraggio", "pz", 6, 3),
+    ],
+    note: "Rasatura e finitura sono voci a parte (Rasatura armata, Finitura a intonachino).",
+  },
+  {
+    codice_standard: "ED-CAPPOTTO-RASATURA", ambito: "edile", nome: "Rasatura armata su cappotto", unita_misura: "mq",
+    parole_chiave: ["rasatur", "cappott"], simboli: [],
+    componenti: [
+      ed("Rasante per cappotto", "In due mani, spessore 3-4 mm", "kg", 3, 5),
+      ed("Rete in fibra di vetro alcali-resistente", "160 g/m², sormonti 10 cm", "mq", 1.1, 0),
+    ],
+    note: null,
+  },
+  {
+    codice_standard: "ED-FINITURA-INTONACHINO", ambito: "edile", nome: "Finitura a intonachino", unita_misura: "mq",
+    parole_chiave: ["intonachin"], simboli: [],
+    componenti: [
+      ed("Fondo di aggancio pigmentato", null, "l", 0.2, 5),
+      ed("Intonachino di finitura", "Granulometria 1,2-1,5 mm", "kg", 2.5, 5),
+    ],
+    note: null,
+  },
+  {
+    codice_standard: "ED-MASSETTO-SABBIA-CEMENTO", ambito: "edile", nome: "Massetto sabbia e cemento (5 cm)", unita_misura: "mq",
+    parole_chiave: ["massett"], simboli: [],
+    componenti: [
+      ed("Sabbia per massetti", "Lavata, granulometria 0-4 mm", "mc", 0.055, 5),
+      ed("Cemento", "Tipo CEM II 32,5 R, in sacchi", "kg", 15, 5),
+    ],
+    note: "Per uno spessore di 5 cm: per spessori diversi le quantità vanno in proporzione.",
+  },
+  {
+    codice_standard: "ED-RADIANTE-PAVIMENTO", ambito: "edile", nome: "Impianto radiante a pavimento", unita_misura: "mq",
+    parole_chiave: ["radiant"], simboli: [],
+    componenti: [
+      ed("Tubo per impianto radiante", "PE-Xa o PE-RT 17×2 mm, passo 15 cm", "m", 6.7, 5),
+      ed("Pannello isolante bugnato", "Con film di protezione, spessore da progetto", "mq", 1, 3),
+      ed("Striscia isolante perimetrale", null, "m", 0.45, 0),
+      ed("Additivo per massetto radiante", null, "kg", 0.2, 0),
+    ],
+    note: "Collettori e testine sono a parte (scomposizione Collettore di distribuzione).",
+  },
+  {
+    codice_standard: "ED-INTONACO-PREMISCELATO", ambito: "edile", nome: "Intonaco premiscelato (1,5 cm)", unita_misura: "mq",
+    parole_chiave: ["intonac"], simboli: [],
+    componenti: [
+      ed("Intonaco premiscelato di fondo", "Base calce-cemento", "kg", 15, 5),
+      ed("Paraspigolo", "In lamiera zincata, quota per m²", "m", 0.15, 5),
+    ],
+    note: "Per uno spessore di 1,5 cm.",
+  },
+  {
+    codice_standard: "ED-CARTONGESSO-PARETE", ambito: "edile", nome: "Parete in cartongesso (una lastra per lato)", unita_misura: "mq",
+    parole_chiave: ["cartongess"], simboli: [],
+    componenti: [
+      ed("Lastra in cartongesso", "Spessore 12,5 mm, tipo da progetto", "mq", 2.1, 5),
+      ed("Montante a C", "50 mm, interasse 60 cm", "m", 2, 5),
+      ed("Guida a U", "50 mm, a pavimento e soffitto", "m", 0.8, 5),
+      ed("Viti autoperforanti per cartongesso", null, "pz", 30, 5),
+      ed("Stucco per giunti", null, "kg", 0.6, 5),
+      ed("Nastro per giunti", null, "m", 1.5, 5),
+    ],
+    note: "L'isolante nell'intercapedine è a parte, se previsto.",
+  },
+  {
+    codice_standard: "ED-CARTONGESSO-CONTROSOFFITTO", ambito: "edile", nome: "Controsoffitto in cartongesso", unita_misura: "mq",
+    parole_chiave: ["cartongess", "controsoffitt"], simboli: [],
+    componenti: [
+      ed("Lastra in cartongesso", "Spessore 12,5 mm", "mq", 1.05, 5),
+      ed("Profilo a C per controsoffitto", null, "m", 3, 5),
+      ed("Pendino con gancio", null, "pz", 1.5, 0),
+      ed("Viti autoperforanti per cartongesso", null, "pz", 15, 5),
+      ed("Stucco per giunti", null, "kg", 0.4, 5),
+    ],
+    note: null,
+  },
+  {
+    codice_standard: "ED-IMPERMEABILIZZAZIONE-GUAINA", ambito: "edile", nome: "Impermeabilizzazione con guaina (due strati)", unita_misura: "mq",
+    parole_chiave: ["impermeabilizz"], simboli: [],
+    componenti: [
+      ed("Primer bituminoso", null, "l", 0.3, 5),
+      ed("Membrana bituminosa", "4 mm, due strati incrociati, sormonti 10 cm", "mq", 2.3, 0),
+    ],
+    note: null,
+  },
+  {
+    codice_standard: "ED-TINTEGGIATURA-INTERNA", ambito: "edile", nome: "Tinteggiatura interna (due mani)", unita_misura: "mq",
+    parole_chiave: ["tinteggiatur"], simboli: [],
+    componenti: [
+      ed("Fissativo", null, "l", 0.1, 5),
+      ed("Idropittura per interni", "Due mani", "l", 0.25, 5),
+    ],
+    note: null,
+  },
+  {
+    codice_standard: "ED-PAVIMENTO-GRES", ambito: "edile", nome: "Pavimento in gres porcellanato", unita_misura: "mq",
+    parole_chiave: ["paviment", "gres"], simboli: [],
+    componenti: [
+      ed("Piastrelle in gres porcellanato", "Formato da progetto", "mq", 1, 10),
+      ed("Adesivo cementizio per piastrelle", "Classe C2", "kg", 4, 5),
+      ed("Stucco per fughe", null, "kg", 0.5, 5),
+    ],
+    note: "Sfrido 10% per tagli e posa; per posa in diagonale o grandi formati va aumentato.",
   },
 ];
 

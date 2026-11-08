@@ -45,7 +45,7 @@ vi.mock("@/hooks/useMaterialiPerFase", () => {
   return {
     useMaterialiPerFase: () => ({ fasi: stato.fasi, isLoading: false, isError: false, refetch: vi.fn() }),
     useAzioniMateriali: () => ({
-      cambiaStato: muta(stato.cambia), aggiornaMateriale: muta(stato.quantita), spostaInFase: muta(), assegnaFornitore: muta(),
+      cambiaStato: muta(stato.cambia), validaFasi: muta(), aggiornaMateriale: muta(stato.quantita), spostaInFase: muta(), assegnaFornitore: muta(),
       richiediOfferta: muta(), creaOrdini: muta(stato.creaOrdini), elimina: muta(), allineaUnita: muta(stato.allinea),
     }),
     chiaviMateriali: { commessa: (id: string) => ["materiali-per-fase", id] },

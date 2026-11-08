@@ -41,6 +41,7 @@ export const TITOLI_IMPOSTAZIONI: Record<string, TitoloImpostazione> = {
   "rapportini-cantiere":  { title: "Rapportini e presenze",    description: "Come lavorano i tuoi cantieri: chi compila, cosa si compila e i verbali di collaudo" },
   "modelli-fasi":         { title: "Fasi e avanzamento",       description: "I modelli di fasi, con quali fasi parte una commessa nuova, chi spunta le sottofasi e come si calcola l'avanzamento" },
   "commesse-generali":    { title: "Commesse generali",        description: "Appalti con tanti ordini di lavoro, complessi con tante unità, immobili da rivendere: una commessa che ne raccoglie altre" },
+  "acquisti-materiali":   { title: "Acquisti e materiali",     description: "Se i materiali si comprano solo dopo la validazione del tecnico, i giorni di consegna e il promemoria all'ufficio acquisti" },
   "modelli-pagamento":    { title: "Modelli di pagamento",     description: "Le rate con cui si incassa una commessa, e quando matura la rata di un SAL" },
   fornitori:              { title: "Fornitori",                description: "Fornitori, ordini d'acquisto, pagamenti e acquisti in un posto solo" },
   "categorie-costi":      { title: "Categorie costi",          description: "Le categorie con cui dividi i costi: affitto, utenze, marketing…" },

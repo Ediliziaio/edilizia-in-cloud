@@ -6,9 +6,11 @@ import { avanzamentoSal, type DatiRiepilogo, type GruppoRiepilogo } from "@/lib/
 import { ancoraDi, etichetta, graficoSal, sezioneAgenda, sezioneCantiere, sezioneCompletezza, sezioneCronoprogramma, sezioneFatture, sezioneFoto, sezioneGrafici, sezioneGraficiCosti, sezioneIndice, sezioneProgramma, sezioneSubappalti, type KitPdf } from "./RiepilogoCommessaSezioni";
 import { Document, Image, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { format } from "date-fns";
+import { quantitaConUnita, totaleQuantita } from "@/lib/orders/unitaDocumento";
 import { it } from "date-fns/locale";
 
 /* ── Palette ─────────────────────────────────────────────── */
+
 const C = {
   navy: "#1E3A5F",
   orange: "#F97316",
@@ -665,7 +667,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
                       ) : null}
                     </View>
                     {!perCliente && <Text style={[styles.tableCell, { flex: 1.5, fontSize: 7 }]}>{supplier}</Text>}
-                    <Text style={[styles.tableCell, { flex: 0.5, textAlign: "center" }]}>{qty}</Text>
+                    <Text style={[styles.tableCell, { flex: 0.5, textAlign: "center" }]}>{quantitaConUnita(qty, item.unita_misura)}</Text>
                     <Text style={[styles.tableCell, { flex: 1, textAlign: "right" }]}>{fmt(unitPrice)}</Text>
                     <Text style={[styles.tableCell, { flex: 0.5, textAlign: "center" }]}>{discount > 0 ? `${discount}%` : "—"}</Text>
                     {showCosts && <Text style={[styles.tableCell, { flex: 1, textAlign: "right" }]}>{fmt(purchasePrice)}</Text>}
@@ -688,7 +690,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
                 <Text style={[styles.tableCell, { flex: 2.5, fontFamily: "Helvetica-Bold" }]}>TOTALE</Text>
                 {!perCliente && <Text style={{ flex: 1.5 }} />}
                 <Text style={[styles.tableCell, { flex: 0.5, textAlign: "center", fontFamily: "Helvetica-Bold" }]}>
-                  {items.reduce((s: number, i: any) => s + (i.quantity ?? 1), 0)}
+                  {totaleQuantita(items)}
                 </Text>
                 <Text style={{ flex: 1 }} />
                 <Text style={{ flex: 0.5 }} />

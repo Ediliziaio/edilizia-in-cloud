@@ -67,6 +67,7 @@ import {
   AlertTriangle,
   Send,
   Check,
+  CalendarClock,
 } from "lucide-react";
 import {
   usePurchaseOrders,
@@ -981,6 +982,13 @@ export default function PurchaseOrdersList() {
         titoloSoloDaComputer
         actions={
           <>
+            {/* Cosa manca da ordinare ed entro quando, in tutte le commesse. */}
+            <Button asChild variant="outline" size="sm">
+              <Link to="/azienda/fabbisogno-materiali">
+                <CalendarClock className="h-4 w-4 mr-1.5" />
+                Fabbisogno
+              </Link>
+            </Button>
             {/* Telefono no: niente esportazioni. */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

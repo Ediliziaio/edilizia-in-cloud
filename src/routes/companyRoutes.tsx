@@ -182,6 +182,7 @@ const SettingsRapportiniCantiere = lazy(() => import("@/pages/azienda/settings/S
 const SettingsModelliFasi = lazy(() => import("@/pages/azienda/settings/SettingsModelliFasi"));
 const SettingsModelliPagamento = lazy(() => import("@/pages/azienda/settings/SettingsModelliPagamento"));
 const SettingsCommesseGenerali = lazy(() => import("@/pages/azienda/settings/SettingsCommesseGenerali"));
+const SettingsAcquistiMateriali = lazy(() => import("@/pages/azienda/settings/SettingsAcquistiMateriali"));
 const SettingsIntegrations = lazy(() => import("@/pages/azienda/settings/SettingsIntegrations"));
 const SettingsWhatsAppBot = lazy(() => import("@/pages/azienda/settings/SettingsWhatsAppBot"));
 const SettingsCostCategories = lazy(() => import("@/pages/azienda/settings/SettingsCostCategories"));
@@ -281,6 +282,7 @@ const MezzoDetail = lazy(() => import("@/pages/azienda/MezzoDetail"));
 const MezziInventario = lazy(() => import("@/pages/azienda/MezziInventario"));
 const CompanyCosts = lazy(() => import("@/pages/azienda/CompanyCosts"));
 const AnalisiAcquisti = lazy(() => import("@/pages/azienda/AnalisiAcquisti"));
+const FabbisognoMateriali = lazy(() => import("@/pages/azienda/FabbisognoMateriali"));
 const Calendar = lazy(() => import("@/pages/azienda/Calendar"));
 const UnifiedTasks = lazy(() => import("@/pages/azienda/UnifiedTasks"));
 const AttivitaStaff = lazy(() => import("@/pages/azienda/AttivitaStaff"));
@@ -836,6 +838,7 @@ export default function CompanyRoutesContainer() {
             vedeva il tab ODA ma prendeva 403 aprendo un dettaglio. */}
         <Route path="ordini-acquisto" element={<Navigate to="/azienda/ordini?tab=acquisto" replace />} />
         <Route path="ordini-acquisto/:odaId" element={withCompanyPermissionOrCommercialista("canViewOrders", <PurchaseOrderDetail />, vedeOrdiniOAcquisti)} />
+        <Route path="fabbisogno-materiali" element={withCompanyPermissionOrCommercialista("canViewOrders", <ErrorBoundary title="Errore nel fabbisogno materiali"><FabbisognoMateriali /></ErrorBoundary>, vedeOrdiniOAcquisti)} />
         {/* Le richieste d'offerta stanno prima degli ordini nello stesso flusso:
             chi puo' vedere gli ordini d'acquisto puo' vedere anche da dove nascono. */}
         <Route path="richieste-offerta" element={<Navigate to="/azienda/ordini?tab=offerte" replace />} />
@@ -1361,6 +1364,7 @@ export default function CompanyRoutesContainer() {
           <Route path="modelli-fasi" element={withCompanyPermission("canViewSettingsOrders", <SettingsModelliFasi />)} />
           <Route path="modelli-pagamento" element={withCompanyPermission("canViewSettingsOrders", <SettingsModelliPagamento />)} />
           <Route path="commesse-generali" element={withCompanyPermission("canViewSettingsOrders", <SettingsCommesseGenerali />)} />
+          <Route path="acquisti-materiali" element={withCompanyPermission("canViewSettingsOrders", <SettingsAcquistiMateriali />)} />
           {/* IMP3: Persone & Accessi — pagina unica con 4 tab */}
           <Route path="persone" element={withCompanyPermission("canViewSettingsPeople", <SettingsPeople />)} />
           {/* Redirect delle 4 route precedenti → pagina unificata con tab corretto */}

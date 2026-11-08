@@ -16,6 +16,8 @@
  * modificarlo, duplicarlo, cambiarne lo stato, gli allegati, toglierlo. La
  * finestra dell'articolo è quella di OrderItemsList (soloFinestra).
  */
+import { RevisioneTecnico } from "./RevisioneTecnico";
+import { revisioneTecnico } from "@/lib/distinta/revisioneTecnico";
 import { lazy, Suspense, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -48,6 +50,7 @@ import {
 } from "@/lib/distinta/statoMateriale";
 import { ETICHETTA_FONTE_PREZZO, prezzoAttuale, totaleStimato, type FontePrezzo, type PrezzoProposto } from "@/lib/distinta/prezziMateriali";
 import { siCompraAPezzi } from "@/lib/distinta/generaDistinta";
+import { VariazioniVariante } from "./VariazioniVariante";
 import {
   allegatoOda, dettaglioAccontoSaldo, eliminabile, eMateriale, ETICHETTA_ORDINAMENTO, filtraPerFonte, ordinaRighe, type FiltroFonte, type Ordinamento,
 } from "@/lib/distinta/elencoArticoli";
@@ -803,6 +806,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
   return (
     <TooltipProvider delayDuration={250}>
       <div className="space-y-2" id="materiali-per-fase">
+        <VariazioniVariante orderId={orderId} puoDecidere={permessi.canValidateBom} />
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-card px-3 py-2">
           <h3 className="text-sm font-semibold text-foreground">Articoli e materiali per fase</h3>
           {tuttiMateriali.length > 0 && (
@@ -961,6 +965,22 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
             )}
             <Button size="sm" variant="ghost" className="h-8" onClick={() => setSelezione(new Set())}>Annulla</Button>
           </div>
+        )}
+
+        {permessi.canValidateBom && (
+          <RevisioneTecnico
+            revisione={revisioneTecnico(fasi.map((f) => ({ ...f, materiali: f.materiali.filter(eMateriale) })))}
+            inCorso={azioni.validaFasi.isPending}
+            onValida={(daValidare) => azioni.validaFasi.mutate(daValidare)}
+            onApriFase={(phaseId) => {
+              const f = fasi.find((x) => x.id === phaseId);
+              if (!f) return;
+              setFiltro("tutti");
+              setFiltroStato(null);
+              setAperte(new Map(aperte).set(phaseId, true));
+              requestAnimationFrame(() => document.querySelector(`tbody[aria-label="${CSS.escape(`Fase ${f.nome}`)}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+            }}
+          />
         )}
 
         {fasi.length === 0 ? (

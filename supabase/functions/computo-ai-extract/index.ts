@@ -10,12 +10,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { messaggioErroreLettura } from "../_shared/computoErroreLettura.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { generateEmbedding } from "../_shared/brainEmbed.ts";
 import { extractPdfWithCoverage, splitPdfTextAtRows } from "../_shared/pdfExtraction.ts";
 // 18/10/2026: il lettore PDF condiviso ora carica le librerie in modo che il deploy le includa.
 import { arrayBufferToBase64 } from "../_shared/base64.ts";
-import { checkComputoExtraction, commitComputoExtraction, computoNumber, computoSummaryRow } from "../_shared/computoExtractionQuality.ts";
+import { checkComputoExtraction, commitComputoExtraction, computoNumber } from "../_shared/computoExtractionQuality.ts";
+import { fogliDelComputo, vociDelFoglio, type IntestazioneComputo } from "../_shared/computoExcel.ts";
 import { eComputoPrimus, leggiComputoPrimus } from "../_shared/computoPrimusPdf.ts";
 import { leggiComputoXpwe } from "../_shared/computoXpwe.ts";
 import { computoComeEstrazione } from "../_shared/computoStrutturato.ts";
@@ -545,37 +547,33 @@ async function extractFromExcel(
 ): Promise<ExtractionResult> {
   const XLSX = (await import("npm:xlsx@0.18.5")).default;
   const workbook = XLSX.read(buffer, { type: "array" });
-  const nonEmptySheets = workbook.SheetNames.filter(name => XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1 }).length > 0);
-  if (nonEmptySheets.length !== 1) throw new Error("Excel con più fogli o senza dati: esporta il foglio del computo separatamente. Non importo soltanto il primo foglio ignorando gli altri.");
-  const sheet = workbook.Sheets[nonEmptySheets[0]];
-  const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+  // Tutti i fogli con l'intestazione di un computo; copertina e riepilogo si saltano e si dicono
+  // (_shared/computoExcel.ts). Prima un Excel con più fogli era rifiutato.
+  const fogli = workbook.SheetNames.map((nome: string) => ({
+    nome,
+    righe: XLSX.utils.sheet_to_json(workbook.Sheets[nome], { header: 1 }) as any[][],
+  }));
+  const { daLeggere, saltati } = fogliDelComputo(fogli);
+  const pieni = fogli.filter((f: { righe: any[][] }) => f.righe.length > 0);
+  if (pieni.length === 0) throw new Error("Excel senza dati: nessun foglio ha righe da leggere.");
 
-  const headerKeywords = ["codice", "descrizione", "u.m", "quantit", "prezzo", "importo"];
-  let headerRowIdx = -1;
-  let columnMapping: Record<string, number> = {};
+  const voci: VoceEstratta[] = [];
+  let declaredDocumentTotal: number | null = null;
 
-  for (let i = 0; i < Math.min(rows.length, 15); i++) {
-    const row = rows[i];
-    if (!row) continue;
-    const rowStr = row.map((c: any) => String(c || "").toLowerCase()).join("|");
-    const matches = headerKeywords.filter((k) => rowStr.includes(k));
-    if (matches.length >= 3) {
-      headerRowIdx = i;
-      for (let j = 0; j < row.length; j++) {
-        const cell = String(row[j] || "").toLowerCase();
-        if (cell.includes("codice") && columnMapping.codice === undefined) columnMapping.codice = j;
-        if (cell.includes("descrizione") && columnMapping.descrizione === undefined) columnMapping.descrizione = j;
-        if ((cell.includes("u.m") || cell.includes("unità") || cell.includes("unita")) && columnMapping.um === undefined) columnMapping.um = j;
-        if ((cell.includes("quantit") || cell.includes("q.tà") || cell.includes("q.ta")) && columnMapping.quantita === undefined) columnMapping.quantita = j;
-        if (cell.includes("prezzo") && !cell.includes("importo") && columnMapping.prezzo === undefined) columnMapping.prezzo = j;
-        if ((cell.includes("importo") || (cell.includes("totale") && !cell.includes("sub"))) && columnMapping.importo === undefined) columnMapping.importo = j;
-      }
-      break;
+  if (daLeggere.length > 0) {
+    let numero = 1;
+    for (const f of daLeggere) {
+      const capitolo = daLeggere.length > 1 ? f.nome : "Generale";
+      const letto = vociDelFoglio(f.righe, f.intestazione, capitolo, numero);
+      voci.push(...(letto.voci as VoceEstratta[]));
+      numero = letto.ultimoNumero + 1;
+      if (letto.totaleDichiarato !== null) declaredDocumentTotal = (declaredDocumentTotal ?? 0) + letto.totaleDichiarato;
     }
-  }
-
-  if (headerRowIdx === -1) {
-    const sampleRows = rows.slice(0, 10).map((r) => (r || []).join(" | ")).join("\n");
+  } else if (pieni.length === 1) {
+    // Un foglio solo senza intestazione riconosciuta: le colonne le indica l'AI, come prima.
+    const rows = pieni[0].righe;
+    const sampleRows = rows.slice(0, 10).map((r: any[]) => (r || []).join(" | ")).join("\n");
+    let intestazione: IntestazioneComputo = { riga: 0, colonne: { codice: 0, descrizione: 1, um: 2, quantita: 3, prezzo: 4, importo: 5 } };
     try {
       const aiResult = (await callOpenAI([
         {
@@ -588,61 +586,15 @@ async function extractFromExcel(
         "xlsx_header_mapping",
         sampleRows,
       ])) as any;
-      if (aiResult.descrizione !== undefined) columnMapping = aiResult;
-      headerRowIdx = aiResult.header_row || 0;
+      if (aiResult.descrizione !== undefined) intestazione = { riga: aiResult.header_row || 0, colonne: aiResult };
     } catch {
       // AI classification failed - try simple heuristic
-      headerRowIdx = 0;
-      columnMapping = { codice: 0, descrizione: 1, um: 2, quantita: 3, prezzo: 4, importo: 5 };
     }
-  }
-
-  const voci: VoceEstratta[] = [];
-  let currentCap = "Generale";
-  let capNum = 1;
-  let declaredDocumentTotal: number | null = null;
-
-  for (let i = headerRowIdx + 1; i < rows.length; i++) {
-    const row = rows[i];
-    if (!row || row.every((c: any) => !c && c !== 0)) continue;
-
-    const desc = String(row[columnMapping.descrizione] || "").trim();
-    if (!desc) continue;
-
-    const qta = computoNumber(row[columnMapping.quantita], "italian");
-    const prezzo = computoNumber(row[columnMapping.prezzo], "italian");
-    const importo = computoNumber(row[columnMapping.importo], "italian");
-    const summary = computoSummaryRow(desc, qta, prezzo);
-    if (summary) {
-      if (summary === "document_total") declaredDocumentTotal = importo;
-      continue;
-    }
-
-    // Detect chapter rows
-    if (!qta && !prezzo && !importo && desc.length > 3) {
-      if (desc === desc.toUpperCase() || desc.startsWith("CAP")) {
-        currentCap = desc;
-        capNum++;
-        continue;
-      }
-    }
-
-    if (qta || prezzo || importo) {
-      voci.push({
-        capitolo_numero: capNum,
-        capitolo_nome: currentCap,
-        codice_voce: String(row[columnMapping.codice] || "").trim(),
-        codice_prezzario: "",
-        descrizione_breve: desc.substring(0, 100),
-        descrizione_estesa: desc,
-        unita_misura: String(row[columnMapping.um] || "").trim(),
-        quantita: qta,
-        prezzo_unitario: prezzo,
-        importo,
-        confidence: 0.9,
-        warnings: [],
-      });
-    }
+    const letto = vociDelFoglio(rows, intestazione, "Generale", 1);
+    voci.push(...(letto.voci as VoceEstratta[]));
+    declaredDocumentTotal = letto.totaleDichiarato;
+  } else {
+    throw new Error(`Nessuno dei ${pieni.length} fogli ha le intestazioni di un computo (codice, descrizione, u.m., quantità, prezzo, importo): controlla che il foglio delle voci abbia la riga d'intestazione.`);
   }
 
   // Group by capitolo
@@ -661,7 +613,11 @@ async function extractFromExcel(
   }));
 
   return {
-    metadata: { oggetto_lavori: nonEmptySheets[0], ...(declaredDocumentTotal !== null ? { totale_computo: declaredDocumentTotal } : {}) },
+    metadata: { oggetto_lavori: (daLeggere[0] ?? pieni[0]).nome, ...(declaredDocumentTotal !== null ? { totale_computo: declaredDocumentTotal } : {}) },
+    // Quali fogli sono stati letti e quali saltati (copertina, riepilogo): il controllo li mostra.
+    // complete: true — l'Excel si legge per intero (il controllo di qualità rifiuta una lettura
+    // incompleta); i fogli saltati sono copertine e riepiloghi, non voci perse.
+    document_coverage: { complete: true, fogli_letti: daLeggere.map((f) => f.nome), fogli_saltati: saltati },
     capitoli: capitoli.length > 0 ? capitoli : [{ numero: 1, nome: "Generale", totale: voci.reduce((s, v) => s + (v.importo ?? 0), 0), voci }],
   };
 }
@@ -1089,7 +1045,7 @@ serve(async (req) => {
       }
     } catch (err: any) {
       await updateStatus(computoUploadId, "failed", {
-        extraction_error: `Extraction error: ${err.message}`,
+        extraction_error: messaggioErroreLettura(String(err?.message ?? err), String(upload.file_type ?? "")),
       });
       return errorResponse(err.message, 500, cors);
     }

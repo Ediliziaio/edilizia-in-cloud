@@ -43,6 +43,7 @@ export const REQUISITI_IMPOSTAZIONI: Record<string, RequisitoPiano> = {
   "modelli-pdf": { moduli: ["orders"] },
   "modelli-pagamento": { moduli: ["orders"] },
   "commesse-generali": { moduli: ["orders"] },
+  "acquisti-materiali": { moduli: ["orders"] },
   sopralluoghi: { funzioni: ["surveys_module"] },
   // Magazzino, acquisti, costi
   "qr-codici": { moduli: ["warehouse"] },
