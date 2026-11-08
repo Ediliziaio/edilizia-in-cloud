@@ -1,3 +1,4 @@
+// Allinea il bundle condiviso alle misure in millimetri del preventivo.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { separaVoci, contrattoPreventivo } from "../_shared/destinazioneVocePreventivo.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
