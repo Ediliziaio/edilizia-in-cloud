@@ -43,7 +43,6 @@ export const FinanzaCashFlow = memo(function FinanzaCashFlow({ finance, isLoadin
               <Metric label="Differenza prevista" value={fmtCur(finance.cashFlowNet)} tone={finance.cashFlowNet < 0 ? "text-destructive" : "text-emerald-600"} />
             </div>
             {!!finance.costsMissingVatCount && <p className="text-xs text-amber-700">{finance.costsMissingVatCount} costi aperti senza aliquota IVA: è incluso l’importo registrato, da verificare.</p>}
-            {!!finance.collectedUndatedCount && <p className="text-xs text-amber-700">{finance.collectedUndatedCount} rate segnate come pagate senza data: non sono attribuite al mese.</p>}
           </>}
         </CardContent>
       </Card>

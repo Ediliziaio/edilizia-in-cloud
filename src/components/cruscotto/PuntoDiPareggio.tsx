@@ -1,10 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
-import {
-  Target, TrendingUp, TrendingDown, AlertTriangle,
-  CalendarDays, Banknote, BarChart3,
+import { TrendingUp, AlertTriangle, BarChart3,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -26,97 +23,6 @@ const MONTH_SHORT = [
 function monthLabel(m: number): string {
   if (m <= 0 || m > 12) return "—";
   return MONTH_NAMES[m - 1];
-}
-
-function CalendarioAnno({
-  breakEvenMonth,
-  monthlyContribution,
-  fixedCostsAnnual,
-}: {
-  breakEvenMonth: number;
-  monthlyContribution: number;
-  fixedCostsAnnual: number;
-}) {
-  const notReached = breakEvenMonth > 12;
-
-  return (
-    <div>
-      <p className="text-xs text-muted-foreground mb-3">
-        {notReached
-          ? "Con il ritmo attuale il punto di pareggio non viene raggiunto nell'anno."
-          : `I primi ${breakEvenMonth} mesi coprono i costi fissi. Da ${monthLabel(breakEvenMonth + 1 <= 12 ? breakEvenMonth + 1 : 12)} inizi a guadagnare per te.`}
-      </p>
-      <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-12">
-        {MONTH_SHORT.map((name, idx) => {
-          const monthNum = idx + 1;
-          const cumulative = monthlyContribution * monthNum;
-          const coveragePercent = fixedCostsAnnual > 0
-            ? Math.min(Math.round((cumulative / fixedCostsAnnual) * 100), 999)
-            : 0;
-          const isPaying = notReached || monthNum <= breakEvenMonth;
-          const isBreakEvenMonth = !notReached && monthNum === breakEvenMonth;
-
-          return (
-            <div
-              key={name}
-              className={`
-                flex flex-col items-center justify-center rounded-lg p-1.5 text-center
-                transition-all
-                ${isBreakEvenMonth
-                  ? "ring-2 ring-primary ring-offset-1 bg-primary/10 font-bold scale-105"
-                  : isPaying
-                  ? "bg-red-100 dark:bg-red-950/40"
-                  : "bg-emerald-100 dark:bg-emerald-950/40"}
-              `}
-            >
-              <span className={`text-[10px] font-medium ${
-                isPaying && !isBreakEvenMonth
-                  ? "text-red-700 dark:text-red-400"
-                  : isBreakEvenMonth
-                  ? "text-primary"
-                  : "text-emerald-700 dark:text-emerald-400"
-              }`}>
-                {name}
-              </span>
-              <span className={`mt-0.5 text-[11px] font-semibold ${
-                isBreakEvenMonth
-                  ? "text-primary"
-                  : isPaying
-                  ? "text-red-800 dark:text-red-300"
-                  : "text-emerald-800 dark:text-emerald-300"
-              }`}>
-                {formatCurrencyCompact(cumulative)}
-              </span>
-              <span className={`text-[9px] ${
-                isPaying && !isBreakEvenMonth
-                  ? "text-red-600 dark:text-red-400"
-                  : isBreakEvenMonth
-                  ? "text-primary/80"
-                  : "text-emerald-600 dark:text-emerald-400"
-              }`}>
-                {coveragePercent}%
-              </span>
-            </div>
-          );
-        })}
-      </div>
-      <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground flex-wrap">
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-3 h-3 rounded-sm bg-red-200 dark:bg-red-950 border border-red-300" />
-          Coprono i costi fissi
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-3 h-3 rounded-sm bg-primary/20 border border-primary" />
-          Mese di pareggio
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-3 h-3 rounded-sm bg-emerald-200 dark:bg-emerald-950 border border-emerald-300" />
-          Guadagni per te
-        </span>
-        <span className="text-[11px]">Valori = contributo cumulato al margine · % = copertura costi fissi annuali</span>
-      </div>
-    </div>
-  );
 }
 
 // ─── BreakdownCostiFissi ──────────────────────────────────────────────────────
@@ -270,17 +176,12 @@ export function PuntoDiPareggio() {
     : `${formatCurrency(Math.abs(breakEvenDelta))} sotto il break-even`;
 
   const profitFromMonth = breakEvenMonthOfYear < 12 ? breakEvenMonthOfYear + 1 : null;
+  const coperturaPct = breakEvenRevenue > 0 ? Math.round((currentMonthlyRevenue / breakEvenRevenue) * 100) : 0;
 
   if (isLoading) {
     return (
       <div className="space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-28 rounded-xl" />
-          ))}
-        </div>
         <Skeleton className="h-40 rounded-xl" />
-        <Skeleton className="h-48 rounded-xl" />
       </div>
     );
   }
@@ -290,117 +191,55 @@ export function PuntoDiPareggio() {
   return (
     <div className="space-y-3">
 
-      {/* ── Sezione A: KPI Cards ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-
-        {/* Card 1: Break-even mensile */}
-        <Card className={`border ${isAboveBreakEven ? "border-emerald-200 dark:border-emerald-900" : "border-red-200 dark:border-red-900"}`}>
-          <CardHeader className="p-3 pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
-              <Banknote className="h-4 w-4" />
-              Punto di Pareggio Mensile
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 pt-0 space-y-1">
-            <div className="text-2xl font-bold">
-              {noData ? "—" : formatCurrency(breakEvenRevenue)}
-            </div>
-            <p className="text-xs text-muted-foreground">da fatturare ogni mese</p>
-            {!noData && (
-              <Badge
-                variant={isAboveBreakEven ? "default" : "destructive"}
-                className="text-xs mt-1"
-              >
-                {isAboveBreakEven
-                  ? <TrendingUp className="h-3 w-3 mr-1 inline" />
-                  : <TrendingDown className="h-3 w-3 mr-1 inline" />}
-                {deltaLabel}
-              </Badge>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Card 2: Break-even annuale */}
-        <Card>
-          <CardHeader className="p-3 pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
-              <Target className="h-4 w-4" />
-              Punto di Pareggio Annuale
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 pt-0 space-y-1">
-            <div className="text-2xl font-bold">
-              {noData ? "—" : formatCurrency(breakEvenAnnual)}
-            </div>
-            <p className="text-xs text-muted-foreground">da fatturare in un anno</p>
-            {!noData && (
-              <p className="text-xs text-muted-foreground mt-1">
-                Fatturato mensile attuale:{" "}
-                <strong>{formatCurrency(currentMonthlyRevenue)}/mese</strong>
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Card 3: Mese di pareggio */}
-        <Card className={`${
-          breakEvenMonthOfYear > 12
-            ? "border-orange-200 dark:border-orange-900 bg-orange-50/30 dark:bg-orange-950/20"
-            : breakEvenMonthOfYear <= 6
-            ? "border-emerald-200 dark:border-emerald-900 bg-emerald-50/30 dark:bg-emerald-950/20"
-            : "border-amber-200 dark:border-amber-900 bg-amber-50/30 dark:bg-amber-950/20"
-        }`}>
-          <CardHeader className="p-3 pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
-              <CalendarDays className="h-4 w-4" />
-              Mese di Pareggio
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 pt-0 space-y-1">
-            {noData ? (
-              <div className="text-muted-foreground text-sm">Dati insufficienti</div>
-            ) : breakEvenMonthOfYear > 12 ? (
-              <>
-                <div className="text-xl font-bold text-orange-600 dark:text-orange-400">
-                  Non raggiunto
+      {/* 08/11/2026: tre schede (pareggio mensile, annuale — lo stesso numero
+          per dodici —, mese di pareggio) e un calendario dell'anno che ripeteva
+          il mese di pareggio diventano un riquadro solo: quanto devi fatturare al
+          mese, quanto fatturi, e una barra che dice a che punto sei. */}
+      <Card className={noData ? "" : isAboveBreakEven ? "border-emerald-200" : "border-red-200"}>
+        <CardHeader className="p-4 pb-2">
+          <CardTitle className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm font-semibold">
+            <span>Punto di pareggio</span>
+            <span className="text-[11px] font-medium text-slate-400">Al mese · media degli ultimi 12 mesi</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 p-4 pt-0">
+          {noData ? (
+            <p className="text-sm text-muted-foreground">Dati insufficienti.</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Da fatturare per coprire i costi fissi</p>
+                  <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{formatCurrency(breakEvenRevenue)}</p>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Con il ritmo attuale i costi fissi non vengono coperti nell'anno
+                <div>
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Fatturato medio</p>
+                  <p className={`mt-1 text-2xl font-bold tabular-nums ${isAboveBreakEven ? "text-emerald-700" : "text-red-700"}`}>{formatCurrency(currentMonthlyRevenue)}</p>
+                </div>
+              </div>
+              <div>
+                <div className="relative h-3 overflow-hidden rounded-full bg-slate-100" role="img" aria-label={`Costi fissi coperti al ${coperturaPct}%`}>
+                  <div
+                    className={`h-full rounded-full ${isAboveBreakEven ? "bg-emerald-500" : "bg-red-500"}`}
+                    style={{ width: `${Math.min(100, coperturaPct)}%` }}
+                  />
+                </div>
+                <p className="mt-1.5 flex flex-wrap justify-between gap-x-3 text-xs text-slate-600">
+                  <span>Costi fissi coperti al <strong className="tabular-nums">{coperturaPct}%</strong></span>
+                  <span className={isAboveBreakEven ? "text-emerald-700" : "text-red-700"}>{deltaLabel}</span>
                 </p>
-                <div className="flex items-center gap-1 mt-1">
-                  <AlertTriangle className="h-3.5 w-3.5 text-orange-500" />
-                  <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">
-                    Aumenta il fatturato o riduci i costi fissi
-                  </span>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="text-2xl font-bold">
-                  {monthLabel(breakEvenMonthOfYear)}
-                </div>
-                {profitFromMonth ? (
-                  <p className="text-xs text-muted-foreground">
-                    Da <strong className="text-emerald-600 dark:text-emerald-400">
-                      {monthLabel(profitFromMonth)}
-                    </strong> guadagni per te
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Raggiungi il pareggio a Dicembre
-                  </p>
-                )}
-                <Badge
-                  variant="outline"
-                  className={`text-xs mt-1 ${breakEvenMonthOfYear <= 6 ? "border-emerald-400 text-emerald-700" : "border-amber-400 text-amber-700"}`}
-                >
-                  Mese {breakEvenMonthOfYear} su 12
-                </Badge>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+              </div>
+              <p className="text-xs text-slate-500">
+                {breakEvenMonthOfYear > 12
+                  ? "Con questo ritmo i costi fissi dell'anno non vengono coperti."
+                  : profitFromMonth
+                    ? <>Pareggio a {monthLabel(breakEvenMonthOfYear).toLowerCase()}: da {monthLabel(profitFromMonth).toLowerCase()} si guadagna.</>
+                    : "Pareggio a dicembre."}
+              </p>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {noData && (
         <Card className="border-dashed border-amber-300 bg-amber-50/30 dark:bg-amber-950/20">
@@ -415,25 +254,8 @@ export function PuntoDiPareggio() {
 
       {!noData && (
         <>
-          {/* ── Sezione B: Calendario dell'Anno ──────────────────────────── */}
-          <Card>
-            <CardHeader className="p-3 pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <CalendarDays className="h-4 w-4 text-primary" />
-                Calendario dell'Anno — Quando inizi a guadagnare per te
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-3 pt-0">
-              <CalendarioAnno
-                breakEvenMonth={breakEvenMonthOfYear}
-                monthlyContribution={currentMonthlyRevenue * (avgMarginPercent / 100)}
-                fixedCostsAnnual={totalFixedCostsMonthly * 12}
-              />
-            </CardContent>
-          </Card>
-
           <details className="rounded-lg border bg-background">
-            <summary className="cursor-pointer px-3 py-3 text-sm font-medium">Costi fissi e calcolo del pareggio · {formatCurrency(totalFixedCostsMonthly)}/mese</summary>
+            <summary className="cursor-pointer px-3 py-3 text-sm font-medium">Costi fissi, calcolo e storico degli anni · {formatCurrency(totalFixedCostsMonthly)}/mese di costi fissi</summary>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* ── Sezione C: Breakdown Costi Fissi ──────────────────────── */}
             <Card>
@@ -494,10 +316,8 @@ export function PuntoDiPareggio() {
               </CardContent>
             </Card>
           </div>
-          </details>
-
           {/* ── Sezione D: Storico Anni ──────────────────────────────────── */}
-          <Card>
+          <Card className="mt-3">
             <CardHeader className="p-3 pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-primary" />
@@ -515,6 +335,8 @@ export function PuntoDiPareggio() {
               )}
             </CardContent>
           </Card>
+          </details>
+
         </>
       )}
     </div>

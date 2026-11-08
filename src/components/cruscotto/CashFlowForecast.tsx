@@ -39,7 +39,7 @@ export function CashFlowForecast({ cashFlowForecast, isLoading }: Props) {
   return (
     <Card>
       <CardHeader className="p-3 pb-2 flex flex-row items-center justify-between">
-        <CardTitle className="text-sm font-semibold">Incassi attesi</CardTitle>
+        <CardTitle className="flex items-baseline gap-2 text-sm font-semibold">Incassi attesi <span className="text-[11px] font-medium text-slate-400">prossimi 90 giorni · IVA inclusa</span></CardTitle>
         <button
           onClick={() => navigate("/azienda/scadenzario")}
           className="text-xs text-primary hover:text-primary/80 transition-colors"
@@ -50,7 +50,7 @@ export function CashFlowForecast({ cashFlowForecast, isLoading }: Props) {
       <CardContent className="p-3 pt-0 space-y-3">
         {/* Forecast bars */}
         <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">Rate di pagamento programmate</p>
+          <p className="text-xs text-muted-foreground">Rate di pagamento programmate, cumulate: «entro 60» comprende «entro 30»</p>
           {forecast.incoming90 > 0 ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {[

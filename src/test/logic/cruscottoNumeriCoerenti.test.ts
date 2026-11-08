@@ -68,7 +68,7 @@ describe("nella pagina", () => {
     expect(dati).not.toContain("get_cruscotto_invoice_stats");
     expect(dati).not.toMatch(/T00:00:00`/);
     const pagina = leggi("src/pages/azienda/CruscottoAziendale.tsx");
-    expect(pagina).toContain("<ComeStiamoAndandoVista comeSezione dati={cruscotto} />");
+    expect(pagina).toContain("<ComeStiamoAndandoVista comeSezione dati={cruscotto} ");
     expect(pagina).toContain('label: "Incassato periodo (IVA incl.)"');
     expect(pagina).not.toContain('label: "Saldo scadenze mese"');
   });
@@ -142,7 +142,7 @@ describe("schede del cruscotto (08/11/2026)", () => {
     expect(inCima).not.toContain('etichetta="Cantieri in ritardo"');
     expect(inCima).not.toContain('id: "cantieri-ritardo"');
     expect(inCima).not.toContain('id: "ticket"');
-    expect(inCima).toContain('etichetta="Saldo delle scadenze · mese"');
+    expect(inCima).toContain('etichetta="Saldo delle scadenze"');
     expect(inCima).toContain("non è il saldo di cassa");
   });
 
@@ -151,5 +151,35 @@ describe("schede del cruscotto (08/11/2026)", () => {
     expect(selettore).toContain('label: "Cruscotto Economico"');
     expect(selettore).toContain('label: "Dashboard Operativa"');
     expect(pagina).toContain('title="Cruscotto Economico"');
+  });
+});
+
+describe("numeri corretti dopo il confronto coi dati veri (20290108100000)", () => {
+  const sqlNuovo = leggi("supabase/migrations/20290108100000_cruscotto_numeri_corretti.sql").replace(/^\s*--.*$/gm, "");
+  const dati = leggi("src/hooks/useCruscottoData.ts");
+
+  it("acconti e saldi a 90 giorni sono gli incassi veri, anche delle commesse senza righe di rata", () => {
+    expect(sqlNuovo).toContain("from public.rate_incassi(p_company_id) i");
+    expect(sqlNuovo).toContain("join public.rate_importi(p_company_id) ri on ri.installment_id = i.installment_id");
+    expect(sqlNuovo).not.toMatch(/rate_90 as \(\s*select oi\.type/);
+  });
+
+  it("il venduto non conta le commesse con data futura", () => {
+    expect(sqlNuovo).toContain("created_at > now() - interval '12 months' and created_at <= now()");
+    expect(dati).toContain("o.created_at >= dal && o.created_at <= adesso");
+  });
+
+  it("l'incassato è dell'azienda sullo schermo, non di quella scelta per ultima", () => {
+    expect(sqlNuovo).toContain("create or replace function public.incassato_rate_periodo(p_company_id uuid, p_da date, p_a date)");
+    expect(sqlNuovo).toContain("revoke all on function public.incassato_rate_periodo(uuid, date, date) from public, anon;");
+    expect(dati).not.toMatch(/rpc\("incassato_rate_periodo", \{ p_da/);
+    expect((dati.match(/rpc\("incassato_rate_periodo", \{ p_company_id: companyId,/g) ?? []).length).toBe(2);
+  });
+
+  it("niente letture che si fermano a mille o cinquecento righe", () => {
+    expect(dati).toContain('rpc("cruscotto_rate_da_incassare", { p_company_id: companyId }).order("id").range(from, to)');
+    const margini = leggi("src/hooks/useMarginData.ts");
+    expect(margini).not.toContain(".limit(500)");
+    expect(margini).toContain("readAllOrderRows<MarginViewRow>");
   });
 });

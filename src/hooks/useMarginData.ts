@@ -10,6 +10,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
+import { readAllOrderRows } from "@/lib/orders/listScope";
 import { useAuth } from "@/contexts/AuthContext";
 import { recurrenceMultiplier } from "@/lib/forecastTypes";
 import { queryKeys } from "@/lib/queryKeys";
@@ -91,15 +92,16 @@ export function useMarginData(): MarginData {
       const cutoff = new Date();
       cutoff.setMonth(cutoff.getMonth() - 24);
       const archivedIds = await loadArchivedOrderIds(companyId!);
-      const { data, error } = await excludeArchivedOrders((supabase as any)
+      // 08/11/2026: tutte le commesse dei 24 mesi, a pagine. Prima il limite di 500 righe
+      // si fermava alle ultime 500 e il margine medio del pareggio era il loro.
+      return readAllOrderRows<MarginViewRow>((from, to) => excludeArchivedOrders((supabase as any)
         .from("v_ordine_marginalita")
         .select("id, order_code, description, cliente_nome, created_at, preventivo_totale, consuntivo, costo_acquisti, costo_materiali_magazzino, costo_errori, costo_manodopera, costo_provvigioni, costo_diretto, margine, margine_perc")
         .eq("company_id", companyId!)
         .gte("created_at", cutoff.toISOString())
         .order("created_at", { ascending: false })
-        .limit(500), archivedIds) as { data: MarginViewRow[] | null; error: Error | null };
-      if (error) throw error;
-      return (data || []) as MarginViewRow[];
+        .order("id")
+        .range(from, to), archivedIds));
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
@@ -109,18 +111,19 @@ export function useMarginData(): MarginData {
   const { data: fixedCostsRaw, isLoading: loadingFixedCosts, isError: errFixedCosts } = useQuery({
     queryKey: queryKeys.margin.fixedCosts(companyId),
     queryFn: async () => {
-      const { data, error } = await supabase
+      // A pagine (08/11/2026): oltre mille costi fissi PostgREST tagliava in silenzio.
+      return readAllOrderRows((from, to) => supabase
         .from("company_costs")
-        .select("amount, category, recurrence, recurrence_end_date, allocations, quota_magazzino")
+        .select("id, amount, category, recurrence, recurrence_end_date, allocations, quota_magazzino")
         .eq("company_id", companyId!)
         .eq("cost_type", "fixed")
         // Un costo con order_id è già nel consuntivo diretto della commessa:
         // ripeterlo nel break-even/struttura lo conterebbe due volte. Lo stesso
         // vale per la quota ripartita sulle commesse (quotaNonRipartita).
         .is("order_id", null)
-        .or(`recurrence_end_date.is.null,recurrence_end_date.gte.${new Date().toLocaleDateString("en-CA")}`);
-      if (error) throw error;
-      return data;
+        .or(`recurrence_end_date.is.null,recurrence_end_date.gte.${new Date().toLocaleDateString("en-CA")}`)
+        .order("id")
+        .range(from, to));
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
