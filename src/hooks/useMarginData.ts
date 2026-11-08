@@ -11,6 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
 import { readAllOrderRows } from "@/lib/orders/listScope";
+import { dataVendita, fatturatoMedioMensile } from "@/lib/dataVendita";
 import { useAuth } from "@/contexts/AuthContext";
 import { recurrenceMultiplier } from "@/lib/forecastTypes";
 import { queryKeys } from "@/lib/queryKeys";
@@ -102,6 +103,32 @@ export function useMarginData(): MarginData {
         .order("created_at", { ascending: false })
         .order("id")
         .range(from, to), archivedIds));
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // 1b. In che mese è stata venduta ogni commessa (08/11/2026): la data più antica che porta
+  // con sé, non solo created_at. Chi importa lo storico crea tutto in un giorno (vedi dataVendita).
+  const { data: giorniVendita } = useQuery({
+    queryKey: [...queryKeys.margin.orders(companyId), "giorni-vendita"],
+    queryFn: async (): Promise<Map<string, string | null>> => {
+      type Ordine = { id: string; created_at: string | null; work_start_date: string | null; deposit_expected_date: string | null; deposit_paid_date: string | null };
+      type Rata = { id: string; order_id: string; expected_date: string | null; paid_date: string | null };
+      const [ordini, rate] = await Promise.all([
+        readAllOrderRows<Ordine>((from, to) => supabase.from("orders")
+          .select("id, created_at, work_start_date, deposit_expected_date, deposit_paid_date")
+          .eq("company_id", companyId!).is("deleted_at", null).order("id").range(from, to)),
+        readAllOrderRows<Rata>((from, to) => supabase.from("order_installments")
+          .select("id, order_id, expected_date, paid_date, order:orders!inner(company_id)")
+          .eq("order.company_id", companyId!).order("id").range(from, to) as unknown as PromiseLike<{ data: Rata[] | null; error: unknown }>),
+      ]);
+      const dateRate = new Map<string, string[]>();
+      for (const r of rate) {
+        const d = [r.expected_date, r.paid_date].filter((x): x is string => !!x);
+        dateRate.set(r.order_id, [...(dateRate.get(r.order_id) ?? []), ...d]);
+      }
+      return new Map(ordini.map((o) => [o.id, dataVendita(o, dateRate.get(o.id))]));
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
@@ -236,28 +263,15 @@ export function useMarginData(): MarginData {
     ? totalFixedCostsMonthly / (avgMarginPercent / 100)
     : 0;
 
-  // Current monthly revenue (rolling 12-month window for accuracy)
-  const now = new Date();
-  const twelveMonthsAgo = new Date();
-  twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
-
-  const recentRows = (ordersRaw || []).filter(r => r.created_at && new Date(r.created_at) >= twelveMonthsAgo);
-
-  let currentMonthlyRevenue: number;
-  if (recentRows.length > 0) {
-    const recentRevenue = recentRows.reduce((s, r) => s + (Number(r.preventivo_totale) || 0), 0);
-    const oldestRecentTs = Math.min(...recentRows.map(r => new Date(r.created_at!).getTime()));
-    const monthsInWindow = Math.max(1, (now.getTime() - oldestRecentTs) / (1000 * 60 * 60 * 24 * 30));
-    currentMonthlyRevenue = recentRevenue / monthsInWindow;
-  } else {
-    // Fallback: storico completo
-    const totalRevenue = orders.reduce((s, o) => s + o.totalAmount, 0);
-    const oldestOrderDate = ordersRaw && ordersRaw.length > 0
-      ? new Date(Math.min(...ordersRaw.map(o => new Date(o.created_at ?? now).getTime())))
-      : now;
-    const monthsActive = Math.max(1, (now.getTime() - oldestOrderDate.getTime()) / (1000 * 60 * 60 * 24 * 30));
-    currentMonthlyRevenue = totalRevenue / monthsActive;
-  }
+  // Fatturato medio mensile degli ultimi 12 mesi (08/11/2026). Prima: created_at, e una
+  // finestra che partiva dalla commessa più vecchia, minimo un mese. Chi aveva importato un
+  // anno intero in un giorno risultava fatturare in un mese quello che aveva fatto in dodici.
+  // Ora ogni commessa ha il suo mese di vendita (dataVendita) e la finestra è di 12 mesi pieni
+  // se ci sono commesse più vecchie; più corta solo per un'azienda nata da meno di un anno.
+  const importoPerCommessa = new Map((ordersRaw || []).map((r) => [r.id, Number(r.preventivo_totale) || 0]));
+  const currentMonthlyRevenue = giorniVendita
+    ? fatturatoMedioMensile([...giorniVendita.entries()].map(([id, giorno]) => ({ giorno, importo: importoPerCommessa.get(id) ?? 0 })))
+    : fatturatoMedioMensile((ordersRaw || []).map((r) => ({ giorno: r.created_at ? r.created_at.slice(0, 10) : null, importo: Number(r.preventivo_totale) || 0 })));
 
   const breakEvenDelta = currentMonthlyRevenue - breakEvenRevenue;
 

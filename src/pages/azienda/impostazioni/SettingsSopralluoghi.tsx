@@ -66,6 +66,8 @@ const CATEGORY_ICON: Record<string, string> = {
   pavimentazioni: "🪜",
   porte_interne: "🚪",
   climatizzazione: "❄️",
+  pergole: "⛱️",
+  piscine: "🏊",
   custom: "📋",
 };
 
@@ -851,6 +853,8 @@ function NewTemplateDialog({
                       ["pavimentazioni", "🪜 Pavimentazioni"],
                       ["porte_interne", "🚪 Porte interne"],
                       ["climatizzazione", "❄️ Climatizzazione"],
+                      ["pergole", "⛱️ Pergole e tende"],
+                      ["piscine", "🏊 Piscine"],
                     ].map(([v, l]) => (
                       <SelectItem key={v} value={v}>{l}</SelectItem>
                     ))}

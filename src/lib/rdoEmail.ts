@@ -56,7 +56,7 @@ export function buildRdoEmailBody(d: RdoEmailDati): string {
         .map(
           (r) => `<tr>
   <td style="padding:6px 8px;border-bottom:1px solid #eee;">${esc(r.descrizione)}${
-    r.note ? `<br><span style="color:#888;font-size:11px;">${esc(r.note)}</span>` : ""
+    r.note ? `<br><span style="color:#888;font-size:11px;">${esc(r.note).replace(/\n/g, "<br>")}</span>` : ""
   }</td>
   <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;white-space:nowrap;">${Number(r.quantita).toLocaleString("it-IT")} ${esc(r.unita_misura || "pz")}</td>
   <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;color:#bbb;">………</td>

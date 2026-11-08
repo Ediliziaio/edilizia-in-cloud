@@ -1,7 +1,7 @@
 # Piano: articoli su misura, dal preventivo alla posa
 
 8 novembre 2026. Vale per serramenti, persiane, tapparelle, cassonetti e per ogni bene
-che si ordina su misura. Nessuna riga di questo piano è ancora costruita.
+che si ordina su misura. Stato di avanzamento nella sezione «Stato» del punto 11.
 
 ## 1. Il percorso
 
@@ -358,7 +358,52 @@ Infissi e Living (369), Teda Infissi (320), renova solution (134).
   posizione, voci con materiale proposte come righe da ordinare, regola per tipo di lavoro in
   Impostazioni, sopralluogo definitivo che conferma le righe e si aggancia alla commessa.
   Resta il contratto letto dall'AI, da fare dopo la fase 3 perché tocca `CreateOrder.tsx`.
-- **Fasi 3, 4, 5-6 e 7:** in corso in sessioni separate.
+- **Fasi 3 e 7:** in corso in sessioni separate.
+- **Fase 5, fatta:** richiesta d'offerta e ordine portano una riga per posizione con Rif., misure
+  (definitive, altrimenti rilevate o provvisorie, sempre dichiarate), tipo di misura, colore e apertura;
+  le copia il database, quindi vale per ogni punto che crea un ordine. Una riga non aggiudicata si
+  richiede a un altro fornitore; allo stesso no. Uscendo dalla bozza con righe da rilevare o da
+  confermare il database ferma l'ordine, salvo «Ordina comunque» col motivo. Offerta su misure vecchie
+  segnalata, offerta a corpo ripartita sui mq e segnata «Ripartito», aggiudicazione → costo con fonte
+  `offerta`. Provata in transazioni annullate su Demo Azienda 2.
+- **Fase 6, fatta:** il documento del fornitore (offerta o conferma, caricato o allegato all'email col
+  codice) lo legge l'AI, che non vede cosa abbiamo chiesto; il confronto lo fa il codice con regole per
+  categoria (`_shared/confrontoDocumentoFornitore.ts`). Pagina con una riga per posizione, verde giallo
+  rosso e «da controllare». Con errori o letture incerte l'ordine non diventa «confermato» senza
+  «Accetto» e motivo (vincolo nel database). Email di correzione preparata, la manda l'utente. Promemoria
+  giornaliero (`oda_promemoria_conferma`) sugli ordini su misura. Stesso file riconosciuto dall'impronta;
+  conferma uguale all'offerta già controllata non rifà il lavoro.
+  **Da provare su documenti veri:** la lettura AI è collaudata solo con risposte simulate.
+- **Fase 4, fatta:** il sopralluogo si segna preliminare o definitivo; aperto dalla commessa mostra
+  le posizioni con Rif. e misure provvisorie, il tecnico scrive solo le definitive (anche da telefono,
+  con la bozza che resta se manca la rete). L'abbinamento è proposto e lo conferma una persona; una
+  commessa senza articoli li crea da un'anteprima. Un rilievo e un componente, una riga: indice unico,
+  con le parti di una riga divisa escluse (`diviso_da`). Conferma una per una o tutte, per chi può
+  validare i materiali. Gioco di posa e soglia per azienda, visibili sopra l'elenco. Scarto evidenziato,
+  costo stimato ricalcolato in proporzione alla superficie solo senza ordine e mai su un costo scritto
+  a mano; il prezzo al cliente non cambia (se il rilievo o lo sfrido cambiano la quantità, si adegua il
+  prezzo unitario e l'importo della riga resta quello) e si propone la variante. Secondo sopralluogo con le
+  differenze e la scelta, storico in `order_item_misure_storico`. Modelli pergole e tende, piscine.
+  **Da sapere per le fasi dopo:** `misure_da_ordinare` ha le chiavi `larghezza_mm`, `altezza_mm`,
+  `profondita_mm` oppure `quantita`; il gioco applicato sta in `gioco_posa_mm`, il foro/telaio in
+  `misura_tipo`. Le parti divise (`diviso_da` valorizzato) seguono la riga di partenza.
+  Aggancio del sopralluogo fatto prima della commessa: automatico se c'è la stessa opportunità
+  (trigger su `orders`, nessun bisogno di toccare `converti_modulo_commessa_atomic`), proposto nella
+  scheda se c'è solo lo stesso cliente o contatto.
+
+- **Fase 7, fatta (8/11):** tre migrazioni `20290104…`. Una riga per spunta in `arrivi_posizione`
+  (arrivata, danneggiata, sbagliata, mancante, con foto), dal telefono in `/campo/merce`, dall'ufficio in
+  `/azienda/ordini-acquisto/:id/arrivo` e dentro la bolla. La bolla propone l'abbinamento, chi riceve
+  conferma (`ddt_righe.order_item_id`). Reclamo col testo pronto, lo invia l'utente; riordino in bozza
+  di solo quei pezzi con `riordino_motivo`, gratis a prezzo zero: il costo resta uno. Il su misura non
+  entra in giacenza su nessuna delle sei strade; una sola porta per le quantità del su misura:
+  `insert_goods_receipt_atomic` ora lo rifiuta e manda alla spunta. Controllo unico delle bolle fra
+  cantiere e ufficio, nel database, sotto lucchetto. In commessa, sezione Acquisti: «Si possono posare
+  5 posizioni su 8 · 3 posizioni non arrivate».
+- **Fase 7, resta per la fase 10:** programmare la posa posizione per posizione. Oggi `order_items.fulfillment_status`
+  diventa `delivered` solo se il pezzo è arrivato giusto: il dato c'è, manca la schermata che lo usa.
+  Gli articoli normali di un ordine misto si registrano ancora dal foglio «Arrivata merce».
+  La bolla dell'operaio in «Merce presa» non porta le sue righe nella spunta: la conferma delle righe vale per le bolle dell'ufficio.
 
 ## 12. Rischi
 

@@ -85,6 +85,7 @@ export interface CreateSurveyInput {
   province?: string | null;
   notes?: string | null;
   mode?: "structured" | "express";
+  ruolo_misure?: "preliminare" | "definitivo" | null;
 }
 
 export async function createSurvey(
@@ -127,6 +128,7 @@ export async function createSurvey(
       notes: input.notes ?? null,
       mode: input.mode ?? "structured",
       status: "draft",
+      ruolo_misure: input.ruolo_misure ?? null,
     })
     .select("*")
     .single();
@@ -291,7 +293,7 @@ export async function listSurveysByOrder(orderId: string, companyId: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from("surveys")
-    .select("id, code, status, scheduled_at, completed_at, address, city, client_id, contact_id, opportunity_id, order_id, estimate_id, technician_id, template_id, created_at, updated_at")
+    .select("id, code, status, scheduled_at, completed_at, address, city, client_id, contact_id, opportunity_id, order_id, estimate_id, technician_id, template_id, created_at, updated_at, ruolo_misure")
     .eq("order_id", orderId)
     .eq("company_id", companyId)
     .is("deleted_at", null)
@@ -768,3 +770,102 @@ export async function listAssignees(surveyId: string) {
   if (error) throw new Error("Errore caricamento assegnatari");
   return data ?? [];
 }
+
+// ─── Misure definitive: dal sopralluogo alle righe della commessa ─────────────
+// Le scritture sono atomiche nel database: doppio clic e due schede non fanno doppioni.
+
+export interface PosizioneCommessa {
+  id: string;
+  name: string;
+  riferimento: string | null;
+  componente: string | null;
+  quantity: number | null;
+  unita_misura: string | null;
+  misure_preventivo: Record<string, number> | null;
+  misure_rilevate: Record<string, number> | null;
+  measure_status: "da_rilevare" | "rilevato" | "confermato" | null;
+  misura_tipo: "foro" | "telaio" | "finita" | null;
+  misura_forma: "LxH" | "LxPxH" | "mq" | "ml" | "m" | "pz" | null;
+  survey_id: string | null;
+  survey_element_id: string | null;
+  gruppo_id: string | null;
+}
+
+export interface PosizioniCommessa {
+  order_id: string | null;
+  ruolo_misure: "preliminare" | "definitivo" | null;
+  gioco_posa_mm: number;
+  soglia_scarto_mm: number;
+  righe: PosizioneCommessa[];
+}
+
+export interface VoceMisure {
+  order_item_id?: string;
+  survey_element_id?: string;
+  componente?: string;
+  misure: Record<string, number>;
+  misura_tipo?: string | null;
+  misura_forma?: string | null;
+  unita?: string | null;
+  scelta?: "tieni_nuovo" | "tieni_precedente";
+  crea?: { name: string; quantity?: number; unita_misura?: string | null; riferimento?: string | null };
+  elemento?: { area?: string; element_type: string; element_label?: string | null; values: Record<string, unknown>; quantity?: number };
+}
+
+export interface EsitoMisure {
+  applicate: number;
+  create: number;
+  invariate: number;
+  tenute: number;
+  con_ordine: string[];
+}
+
+export interface EsitoConferma {
+  confermate: number;
+  gia_confermate: number;
+  saltate: number;
+  scarti: Array<{ id: string; name: string; scarto_mm: number; costo_prima: number; costo_dopo: number; con_ordine: boolean }>;
+}
+
+async function rpcMisure<T>(nome: string, args: Record<string, unknown>): Promise<T> {
+  // Funzioni nuove, non ancora nei tipi generati.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any).rpc(nome, args);
+  if (error) throw new Error(error.message || "Operazione non riuscita");
+  return data as T;
+}
+
+export const posizioniDellaCommessa = (surveyId: string) =>
+  rpcMisure<PosizioniCommessa>("sopralluogo_posizioni_commessa", { p_survey: surveyId });
+
+export const applicaMisure = (surveyId: string, voci: VoceMisure[]) =>
+  rpcMisure<EsitoMisure>("sopralluogo_applica_misure", { p_survey: surveyId, p_voci: voci });
+
+export const confermaMisure = (orderId: string, righe: string[] | null) =>
+  rpcMisure<EsitoConferma>("misure_conferma", { p_order: orderId, p_righe: righe });
+
+export const salvaMisureRiga = (itemId: string, misure: Record<string, number>, tipo?: string | null, forma?: string | null) =>
+  rpcMisure<boolean>("riga_misure_salva", { p_item: itemId, p_misure: misure, p_tipo: tipo ?? null, p_forma: forma ?? null });
+
+export const impostaSfridoRiga = (itemId: string, sfrido: number) =>
+  rpcMisure<void>("riga_imposta_sfrido", { p_item: itemId, p_sfrido: sfrido });
+
+export const salvaImpostazioniMisure = (companyId: string, giocoMm: number, sogliaMm: number) =>
+  rpcMisure<void>("misure_impostazioni_salva", { p_company: companyId, p_gioco_mm: giocoMm, p_soglia_mm: sogliaMm });
+
+export interface SopralluogoDaAgganciare {
+  id: string;
+  code: string | null;
+  status: string;
+  ruolo_misure: "preliminare" | "definitivo" | null;
+  created_at: string;
+  completed_at: string | null;
+  address: string | null;
+  city: string | null;
+}
+
+export const sopralluoghiDaAgganciare = (orderId: string) =>
+  rpcMisure<SopralluogoDaAgganciare[]>("sopralluoghi_da_agganciare", { p_order: orderId });
+
+export const agganciaSopralluogo = (surveyId: string, orderId: string) =>
+  rpcMisure<void>("sopralluogo_aggancia_commessa", { p_survey: surveyId, p_order: orderId });

@@ -68,7 +68,7 @@ describe("nella pagina", () => {
     expect(dati).not.toContain("get_cruscotto_invoice_stats");
     expect(dati).not.toMatch(/T00:00:00`/);
     const pagina = leggi("src/pages/azienda/CruscottoAziendale.tsx");
-    expect(pagina).toContain("<ComeStiamoAndandoVista comeSezione dati={cruscotto} ");
+    expect(pagina).toMatch(/<ComeStiamoAndandoVista\s+comeSezione\s+dati=\{cruscotto\}/);
     expect(pagina).toContain('label: "Incassato periodo (IVA incl.)"');
     expect(pagina).not.toContain('label: "Saldo scadenze mese"');
   });

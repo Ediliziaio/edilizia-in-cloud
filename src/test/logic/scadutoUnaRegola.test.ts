@@ -1,0 +1,88 @@
+/**
+ * Lo scaduto da incassare è uno solo (08/11/2026): quello del Previsionale.
+ * Prima tre pagine dicevano tre cifre (Demo Azienda 2: 990.543 € nel Cruscotto,
+ * 1.027.032 € nello Scadenzario, 1.503.771 € nel Previsionale).
+ */
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
+import type { ForecastMovement } from "@/lib/finance/forecastLedger";
+import { incassiScaduti, scadutoPerEtaDaIncassi } from "@/lib/finance/incassiScaduti";
+
+const leggi = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
+const m = (over: Partial<ForecastMovement>): ForecastMovement => ({
+  id: Math.random().toString(36), description: "", counterparty: "", category: "clienti",
+  direction: "in", cents: 10_000, date: "2026-11-01", source: "Rate", href: "", estimated: false, ...over,
+});
+
+describe("incassi scaduti, la regola del Previsionale", () => {
+  const oggi = "2026-11-08";
+
+  it("conta gli incassi con la data passata, non le uscite, non i possibili doppioni, non quelli senza data", () => {
+    const voci = [
+      m({ id: "a" }),
+      m({ id: "oggi", date: oggi }),
+      m({ id: "uscita", direction: "out" }),
+      m({ id: "doppione", possibleDuplicate: true } as Partial<ForecastMovement>),
+      m({ id: "senza-data", date: null }),
+      m({ id: "futuro", date: "2026-12-01" }),
+    ];
+    expect(incassiScaduti(voci, oggi).map((v) => v.id)).toEqual(["a"]);
+  });
+
+  it("divide per età in euro, con il ritardo medio pesato sull'importo", () => {
+    const r = scadutoPerEtaDaIncassi([
+      m({ cents: 10_000, date: "2026-10-29" }),   // 10 giorni
+      m({ cents: 30_000, date: "2026-07-31" }),   // 100 giorni
+    ], oggi);
+    expect(r.totale).toBe(400);
+    expect(r.rate).toBe(2);
+    expect(r.fasce[0]).toEqual({ etichetta: "fino a 30 giorni", importo: 100, rate: 1 });
+    expect(r.fasce[3]).toEqual({ etichetta: "oltre 90 giorni", importo: 300, rate: 1 });
+    expect(r.ritardoMedio).toBe(Math.round((10 * 100 + 100 * 300) / 400));
+  });
+});
+
+describe("le pagine leggono la stessa funzione", () => {
+  it("Previsionale, Cruscotto e Scadenzario usano incassiScaduti", () => {
+    expect(leggi("src/components/forecast/ForecastWorkspace.tsx")).toContain("incassiScaduti(movements, data.today)");
+    expect(leggi("src/pages/azienda/CruscottoAziendale.tsx")).toContain("scadutoPerEtaDaIncassi(incassiScaduti(d.movements, d.today), d.today)");
+    expect(leggi("src/components/scadenzario/ScadenzarioKPIs.tsx")).toContain("incassiScaduti(previsionale.data.movements, previsionale.data.today)");
+  });
+
+  it("nel Cruscotto lo scaduto non è più quello delle sole rate", () => {
+    const pagina = leggi("src/pages/azienda/CruscottoAziendale.tsx");
+    expect(pagina).not.toContain("<ScadutoPerEtaWidget scaduto={scaduto}");
+    expect(pagina).toContain("scaduto={{");
+    const inCima = leggi("src/pages/azienda/ComeStiamoAndando.tsx");
+    expect(inCima).toContain("valore={formatCurrency(scadutoEuro)}");
+  });
+});
+
+describe("Silvio e il brief del mattino usano la stessa regola (08/11/2026)", () => {
+  it("lo strumento dello scaduto passa dal Previsionale, non dalle sole rate", () => {
+    const tools = leggi("supabase/functions/_shared/silvioTools.ts");
+    expect(tools).toContain('import { scadutoPrevisionale } from "./scadutoPrevisionale.ts";');
+    expect(tools).toContain("executor: async (_args, ctx) => scadutoPrevisionale(ctx.supabase, ctx.companyId)");
+    expect(tools).toContain("safe(scadutoPrevisionale(ctx.supabase, c))");
+    const condiviso = leggi("supabase/functions/_shared/scadutoPrevisionale.ts");
+    expect(condiviso).toContain('from "../../../src/lib/finance/caricaPrevisionale.ts"');
+    expect(condiviso).toContain('from "../../../src/lib/finance/incassiScaduti.ts"');
+  });
+
+  it("il caricamento condiviso si importa da Deno: percorsi relativi con l'estensione", () => {
+    for (const f of ["src/lib/finance/caricaPrevisionale.ts", "src/lib/finance/incassiScaduti.ts", "src/lib/orders/bonusFiscali.ts"]) {
+      const imports = [...leggi(f).matchAll(/from\s+"([^"]+)"/g)].map((m) => m[1]);
+      for (const i of imports) {
+        expect(i, `${f} → ${i}`).toMatch(/^\.{1,2}\/.*\.ts$/);
+      }
+    }
+  });
+
+  it("le rate del Previsionale rispondono anche al servizio (20290108150000)", () => {
+    const sql = leggi("supabase/migrations/20290108150000_rate_previsionale_dal_servizio.sql");
+    expect((sql.match(/if not public\.ai_is_service_role\(\)/g) ?? []).length).toBe(2);
+    expect(sql).toContain("revoke all on function public.cruscotto_rate_da_incassare(uuid) from public, anon;");
+    expect(sql).toContain("revoke all on function public.cruscotto_rate_incassi(uuid) from public, anon;");
+  });
+});

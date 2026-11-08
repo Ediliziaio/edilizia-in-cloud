@@ -8,6 +8,9 @@ import { applicaDettagliOda } from "@/lib/orders/dettagliDocumentoOda";
 import { OdaNoteCard } from "@/components/orders/OdaNoteCard";
 import { PurchaseOrderItemRow } from "@/components/orders/PurchaseOrderItemRow";
 import { totaliRigheOda } from "@/lib/orders/articoloAcquisto";
+import { OrdinaComunqueDialog } from "@/components/orders/OrdinaComunqueDialog";
+import { ControlloDocumentoCard } from "@/components/orders/ControlloDocumentoCard";
+import { descrizioneConMisure, type MisuraAperta } from "@/lib/acquisti/misureSuDocumenti";
 import { useState, lazy, Suspense } from "react";
 import {
   ODA_STATUS_LABELS as STATUS_LABELS,
@@ -110,7 +113,17 @@ export default function PurchaseOrderDetail() {
   const [sendMode, setSendMode] = useState<"testo" | "pdf">("testo");
   const [editingNotesId,setEditingNotesId]=useState<string|null>(null);
   const [editingDetailsId, setEditingDetailsId] = useState<string | null>(null);
-  const openSend = (mode: "testo" | "pdf") => {setSendMode(mode);setSendOpen(true);};
+  const [misureAperte, setMisureAperte] = useState<{ righe: MisuraAperta[]; poi: () => void } | null>(null);
+  // Prima di mandare un ordine: l'email parte prima del cambio di stato, quindi il blocco va guardato prima dell'invio.
+  const controllaMisure = async (poi: () => void) => {
+    if (order?.status !== "bozza") { poi(); return; }
+    const { data, error } = await (supabase.rpc as unknown as (f: string, a: object) => Promise<{ data: MisuraAperta[] | null; error: { message: string } | null }>)(
+      "oda_misure_da_confermare", { p_po: order.id });
+    if (error) { toast.error("Non riesco a controllare le misure", { description: error.message }); return; }
+    if (data?.length) setMisureAperte({ righe: data, poi });
+    else poi();
+  };
+  const openSend = (mode: "testo" | "pdf") => { void controllaMisure(() => {setSendMode(mode);setSendOpen(true);}); };
   const queryClient = useQueryClient();
   // Incidenza acquisti/vendita = dato di margine; costi e fatture = dato di
   // costo. Chi lavora solo sugli ordini (magazzino) non deve vederli.
@@ -179,6 +192,7 @@ export default function PurchaseOrderDetail() {
     total: Number(order.total),
     righe: items.map((i) => ({
       description: i.description,
+      dettaglio: i.misure_testo ?? null,
       quantity: i.quantity,
       unit_of_measure: i.unit_of_measure,
       unit_price: i.unit_price,
@@ -200,7 +214,7 @@ export default function PurchaseOrderDetail() {
     commessa:order.orders?.order_code, codiceCliente:supplier?.codice_cliente, luogo:order.delivery_address || order.orders?.work_address,
     indirizzoCantiere:order.orders?.work_address, magazzinoId:order.delivery_warehouse_id, destinazioneTipo:order.delivery_warehouse_id ? "magazzino" : order.order_id ? "cantiere" : order.delivery_address ? "altro" : "magazzino", riferimento:order.supplier_reference,
     consegna:order.expected_delivery_date,pagamento:order.payment_terms || recapitiFornitore({...supplier,id:order.supplier_id,name:supplier?.name || "Fornitore"}).pagamento,note:order.notes,
-    righe:items.map(i=>({descrizione:i.description,nota:i.notes,unita:i.unit_of_measure || "pz",quantita:Number(i.quantity),prezzo:i.price_pending ? null : Number(i.unit_price),sconto:Number(i.discount_percent),iva:Number(i.vat_rate),importo:i.price_pending ? undefined : Number(i.line_total)})),
+    righe:items.map(i=>({descrizione:descrizioneConMisure(i.description,i.misure_testo),nota:i.notes,unita:i.unit_of_measure || "pz",quantita:Number(i.quantity),prezzo:i.price_pending ? null : Number(i.unit_price),sconto:Number(i.discount_percent),iva:Number(i.vat_rate),importo:i.price_pending ? undefined : Number(i.line_total)})),
     totali:{imponibile:totaliRighe.imponibile,iva:totaliRighe.iva,totale:totaliRighe.totale},
   }, order.document_details);
   const canEdit = permissions.canEditOrders && ["bozza", "inviato", "confermato", "parziale"].includes(order.status);
@@ -261,6 +275,13 @@ export default function PurchaseOrderDetail() {
   };
 
   const handleStatusChange = async (ns: string) => {
+    if (order.status === "bozza" && ns !== "annullato") {
+      await controllaMisure(() => cambiaStato(ns));
+      return;
+    }
+    cambiaStato(ns);
+  };
+  const cambiaStato = (ns: string) => {
     updateStatus.mutate({
       id: order.id,
       status: ns,
@@ -776,10 +797,19 @@ export default function PurchaseOrderDetail() {
 
       </section>
       <StoricoAcquistiCard tipo="oda" id={order.id} revisionKey={JSON.stringify([order.updated_at,items,order.attachment_url])}/>
+      {order.status !== "bozza" && order.status !== "annullato" && <ControlloDocumentoCard obiettivo={{ purchaseOrderId: order.id }} tipo="conferma" />}
       <VerificationHistoryCard purchaseOrderId={order.id} />
       {previewOpen&&<DocumentoAnteprimaDialog documento={documentoInvio} onClose={()=>setPreviewOpen(false)}/>}
 
       {/* Verify Purchase Order Dialog */}
+      {misureAperte && (
+        <OrdinaComunqueDialog
+          odaId={order.id}
+          righe={misureAperte.righe}
+          onChiudi={() => setMisureAperte(null)}
+          onFatto={() => { const poi = misureAperte.poi; setMisureAperte(null); queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(order.id) }); poi(); }}
+        />
+      )}
       <VerifyPurchaseOrderDialog
         open={verifyDialogOpen}
         onOpenChange={setVerifyDialogOpen}

@@ -7,6 +7,9 @@ import { formatCurrency } from "@/lib/formatters";
 import type { ScadutoPerEta } from "@/hooks/useCruscottoData";
 
 /**
+ * Dal 08/11/2026 le voci sono quelle del Previsionale (rate, scadenze e fatture,
+ * una volta sola): lo stesso numero della sua pagina, «Incassi scaduti».
+ *
  * Lo scaduto da incassare (lo stesso numero in cima alla pagina) diviso per
  * età. 325.000 € scaduti da una settimana e scaduti da sei mesi sono due
  * problemi diversi: il primo è un sollecito, il secondo un credito a rischio.
@@ -25,7 +28,7 @@ export function ScadutoPerEtaWidget({ scaduto, isLoading }: { scaduto: ScadutoPe
           Scaduto per età
           <span className="text-[11px] font-medium text-slate-400">a oggi</span>
           <span className="basis-full text-xs font-normal text-muted-foreground sm:ml-auto sm:basis-auto">
-            {formatCurrency(scaduto.totale)} · {scaduto.rate} {scaduto.rate === 1 ? "rata" : "rate"}
+            {formatCurrency(scaduto.totale)} · {scaduto.rate} {scaduto.rate === 1 ? "incasso" : "incassi"}
             {scaduto.ritardoMedio !== null && <> · ritardo medio {scaduto.ritardoMedio} gg</>}
           </span>
         </CardTitle>
@@ -44,13 +47,13 @@ export function ScadutoPerEtaWidget({ scaduto, isLoading }: { scaduto: ScadutoPe
                 {f.etichetta}
               </div>
               <div className="text-sm font-bold tabular-nums text-slate-900">{formatCurrency(f.importo)}</div>
-              <div className="text-[11px] text-muted-foreground">{f.rate} {f.rate === 1 ? "rata" : "rate"}</div>
+              <div className="text-[11px] text-muted-foreground">{f.rate} {f.rate === 1 ? "incasso" : "incassi"}</div>
             </div>
           ))}
         </div>
-        <button type="button" onClick={() => navigate("/azienda/scadenzario")}
+        <button type="button" onClick={() => navigate("/azienda/previsionale")}
           className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-          Apri lo scadenzario <ArrowRight className="h-3 w-3" />
+          Apri gli incassi scaduti nel Previsionale <ArrowRight className="h-3 w-3" />
         </button>
       </CardContent>
     </Card>

@@ -2,6 +2,8 @@ import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCruscottoData } from "@/hooks/useCruscottoData";
+import { useForecastLedger } from "@/hooks/useForecastLedger";
+import { incassiScaduti, scadutoPerEtaDaIncassi } from "@/lib/finance/incassiScaduti";
 import { ComeStiamoAndandoVista } from "@/pages/azienda/ComeStiamoAndando";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -78,7 +80,7 @@ export default function CruscottoAziendale() {
   const queryClient = useQueryClient();
   const cruscotto = useCruscottoData();
   const {
-    marketing, scaduto, finance, workOrders, companyTargets, cashFlowForecast,
+    marketing, finance, workOrders, companyTargets, cashFlowForecast,
     isLoading, error, financeError, filters, updateFilters,
   } = cruscotto;
   const [drilldown, setDrilldown] = useState<DrilldownType>(null);
@@ -140,6 +142,15 @@ export default function CruscottoAziendale() {
   });
 
   const navigate = useNavigate();
+
+  // Lo scaduto da incassare con la regola del Previsionale (08/11/2026): stessa funzione
+  // della sua pagina, quindi stesso numero. In cima, in «Da guardare oggi» e per età.
+  const previsionale = useForecastLedger();
+  const scadutoTesoreria = useMemo(() => {
+    const d = previsionale.data;
+    if (!d) return null;
+    return scadutoPerEtaDaIncassi(incassiScaduti(d.movements, d.today), d.today);
+  }, [previsionale.data]);
 
   const trendIsEmpty = useMemo(
     () =>
@@ -253,7 +264,19 @@ export default function CruscottoAziendale() {
           erano gli stessi che si leggono piu' sotto, e due schermate che dicono
           la stessa cosa insegnano a non fidarsi di nessuna delle due. Qui sopra
           cosa guardare oggi, sotto l'approfondimento per periodo. */}
-      <ComeStiamoAndandoVista comeSezione dati={cruscotto} tendenzaIncassato={ultimiSei.map((m) => m.incassato)} />
+      <ComeStiamoAndandoVista
+        comeSezione
+        dati={cruscotto}
+        tendenzaIncassato={ultimiSei.map((m) => m.incassato)}
+        scaduto={{
+          totale: scadutoTesoreria?.totale ?? 0,
+          quanti: scadutoTesoreria?.rate ?? 0,
+          caricando: previsionale.isLoading,
+          fontiMancanti: previsionale.data?.issues ?? [],
+          // il Previsionale ha il suo permesso: senza, il numero resta ma non porta da nessuna parte
+          url: perms.isAdmin || perms.canViewForecast ? "/azienda/previsionale" : undefined,
+        }}
+      />
 
       {/* Error banner */}
       {error && (
@@ -417,7 +440,7 @@ export default function CruscottoAziendale() {
                 <SectionErrorBoundary sectionName="Incassi e cassa">
                   <div className="space-y-3">
                     <CashFlowForecast cashFlowForecast={cashFlowForecast} isLoading={isLoading} />
-                    <ScadutoPerEtaWidget scaduto={scaduto} isLoading={isLoading} />
+                    <ScadutoPerEtaWidget scaduto={scadutoTesoreria ?? { fasce: [], totale: 0, rate: 0, ritardoMedio: null }} isLoading={previsionale.isLoading} />
                     <FinanzaCashFlow finance={finance} isLoading={isLoading} dataError={financeError} />
                   </div>
                 </SectionErrorBoundary>

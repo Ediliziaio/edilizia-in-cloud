@@ -21,7 +21,7 @@ import type { ToolCtx, ToolResult, ToolDef } from "../shared/types.ts";
 import { errResult, okResult } from "../shared/types.ts";
 import { resolveCantiere } from "../shared/resolve_cantiere.ts";
 import { buildDdtCarico } from "../../../_shared/ddtCarico.ts";
-import { nomeDelCantiere, registraMerceDaWhatsApp } from "./merceDaWhatsApp.ts";
+import { nomeDelCantiere, posizioniDaSpuntare, registraMerceDaWhatsApp } from "./merceDaWhatsApp.ts";
 
 export const caricaDDTDef: Omit<ToolDef, "handler"> = {
   name: "carica_ddt",
@@ -131,9 +131,11 @@ export async function caricaDDT(
     });
     if (!esito.ok) return esito;
     const cantiere = await nomeDelCantiere(ctx, args.order_id);
+    const daSpuntare = await posizioniDaSpuntare(ctx, args.order_id);
     return okResult({ campo_acquisto_id: esito.data.id, order_id: args.order_id },
       `📄 Bolla${numero ? ` n. ${numero}` : ""} di ${fornitore} messa su ${cantiere}${esito.data.foto ? "" : " (la foto non è passata: se serve, caricala dall'app)"}. ` +
-      "L'ufficio la verifica e diventa costo della commessa.");
+      "L'ufficio la verifica e diventa costo della commessa." +
+      (daSpuntare > 0 ? ` Su questo cantiere ${daSpuntare === 1 ? "c'è 1 posizione su misura" : `ci sono ${daSpuntare} posizioni su misura`} da spuntare: fallo dall'app, in «Merce presa», segnando anche i pezzi rotti o sbagliati.` : ""));
   }
 
   // La foto del DDT è quella arrivata con il messaggio (o poco prima): il

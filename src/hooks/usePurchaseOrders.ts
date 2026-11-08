@@ -53,6 +53,12 @@ export interface PurchaseOrderItem {
   company_id: string;
   purchase_order_id: string;
   description: string;
+  /** Rif., misure, colore e apertura: li scrive il database, solo per le righe su misura. */
+  misure_testo?: string | null;
+  riferimento?: string | null;
+  misure_fonte?: string | null;
+  /** Prezzo ricavato da un'offerta a corpo, ripartita sui mq. */
+  ripartito?: boolean;
   sku: string | null;
   unit_of_measure: string | null;
   quantity: number;
@@ -166,7 +172,9 @@ export function usePurchaseOrders() {
           // qualche riga non è entrata: l'ordine resta «parziale» e va detto,
           // non lasciato credere ricevuto
           toast.warning("Ordine non ancora completo", {
-            description: `${esito.errori.length || "Alcune"} ${esito.errori.length === 1 ? "riga non registrata" : "righe non registrate"}: controlla le righe dell'ordine.`,
+            description: esito.suMisura
+              ? "Le posizioni su misura si spuntano una per una da «Arrivo merce per posizione»."
+              : `${esito.errori.length || "Alcune"} ${esito.errori.length === 1 ? "riga non registrata" : "righe non registrate"}: controlla le righe dell'ordine.`,
           });
           return { completo: false };
         }
@@ -200,7 +208,7 @@ export function usePurchaseOrders() {
         queryClient.invalidateQueries({ queryKey: ["magazzino-live"] });
       }
     },
-    onError: (e) => toast.error("Errore", { description: String(e) }),
+    onError: (e) => toast.error("Errore", { description: (e as { message?: string } | null)?.message ?? String(e) }),
   });
 
   const updateMutation = useMutation({

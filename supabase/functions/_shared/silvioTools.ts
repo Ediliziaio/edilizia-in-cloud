@@ -32,6 +32,7 @@ import { isCalendarDate, legacyQuoteDraftInput, quoteDraftIssue, workHoursIssue 
 import { giornalieroDelGiorno } from "./rapportoGiornaliero.ts";
 import { linkCreaCommessa, type FonteDaLink } from "../../../shared/silvio-commessa/ingressi.ts";
 import { creaConSilvioAcceso } from "./creaConSilvio.ts";
+import { scadutoPrevisionale } from "./scadutoPrevisionale.ts";
 
 /**
  * MP-AIE-01 v2 — canali AI supportati. Ogni tool dichiara su quali può essere
@@ -662,13 +663,12 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       type: "function",
       function: {
         name: "get_overdue_payments",
-        description: "Ritorna le rate (acconto, acconto2, saldo, finanziamento) SCADUTE e non pagate. Output normalizzato: total_overdue_eur, count, data_quality e priorita_recupero con azione_suggerita. Usa per domande 'chi mi deve pagare', 'quali clienti devo sollecitare prima', 'rate in ritardo', 'crediti scaduti'.",
+        description: "Ritorna gli incassi SCADUTI e non pagati: rate delle commesse, scadenze e fatture, contate una volta sola, con la stessa regola del Previsionale e del Cruscotto (lo stesso numero che l'utente vede nell'app). Output normalizzato: total_overdue_eur, count, data_quality e priorita_recupero con azione_suggerita e fonte. Usa per domande 'chi mi deve pagare', 'quali clienti devo sollecitare prima', 'rate in ritardo', 'crediti scaduti'.",
         parameters: { type: "object", properties: {}, required: [] },
       },
     },
-    executor: async (_args, ctx) => callRpc(ctx.supabase, "silvio_tool_overdue_payments", {
-      p_company_id: ctx.companyId,
-    }),
+    // 08/11/2026: la regola del Previsionale (scadutoPrevisionale.ts), non più le sole rate.
+    executor: async (_args, ctx) => scadutoPrevisionale(ctx.supabase, ctx.companyId),
     allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "cfo", "controller", "amministrazione", "*"],
     allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice"],
@@ -2030,7 +2030,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       };
       const [scadenze, pagamenti, cantieri, preventivi, posta, richieste] = await Promise.all([
         safe(callRpc(ctx.supabase, "silvio_tool_lista_scadenze", { p_company_id: c, p_user_id: u, p_days_ahead: 14 })),
-        safe(callRpc(ctx.supabase, "silvio_tool_overdue_payments", { p_company_id: c })),
+        safe(scadutoPrevisionale(ctx.supabase, c)),
         safe(callRpc(ctx.supabase, "silvio_tool_lista_cantieri_a_rischio", { p_company_id: c, p_risk_level_min: "high" })),
         safe(callRpc(ctx.supabase, "silvio_tool_identifica_quotes_da_followup", { p_company_id: c, p_priority_threshold: 60 })),
         safe(callRpc(ctx.supabase, "silvio_tool_posta_da_lavorare", { p_company_id: c, p_user_id: u, p_days_back: 3, p_limit: 20 })),

@@ -113,6 +113,7 @@ import { OrdineAppaltatoreLavoroCard } from "@/components/orders/OrdineAppaltato
 import { OrdineFirma } from "@/components/orders/OrdineFirma";
 import { OrdineNote } from "@/components/orders/OrdineNote";
 import { LinkedPurchaseOrdersCard } from "@/components/orders/LinkedPurchaseOrdersCard";
+import { ArrivoCommessaCard } from "@/components/ddt/ArrivoCommessaCard";
 import { OrderRichiesteOfferta } from "@/components/orders/OrderRichiesteOfferta";
 import { DocumentiInPopup } from "@/components/orders/DocumentiInPopup";
 import { useConteggioRichiesteCommessa } from "@/hooks/useSupplierRfqs";
@@ -1816,7 +1817,7 @@ function OrderDetailInner() {
             <div id="section-materiali" className="scroll-mt-24">
               {/* Controllo misure: solo se ci sono articoli su misura (altrimenti null) */}
               <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">Controllo misure non disponibile. Ricarica la pagina per riprovare.</p>}>
-                <OrderMeasureControl orderId={id!} />
+                <OrderMeasureControl orderId={id!} onProponiVariante={() => navigateTo({ tab: "finanza", economiaView: "varianti" })} />
               </ErrorBoundary>
             </div>
             {/* Riepilogo del tab: quanto vale in tutto quello che si compra.
@@ -1883,6 +1884,7 @@ function OrderDetailInner() {
               <OrderRichiesteOfferta orderId={id!} orderCode={order.order_code} />
             </div>}
             {activeMaterialiView === "acquisti" && <div id="section-acquisti" className="space-y-4 scroll-mt-24">
+              <ArrivoCommessaCard orderId={id!} />
               <OrderProcurementTools orderId={id!} orderCode={order.order_code} items={displayItems} ordini={(riepilogo) => permissions.canViewCosts ? (
               <LinkedPurchaseOrdersCard
                 riepilogo={riepilogo}

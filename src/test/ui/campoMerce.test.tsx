@@ -17,6 +17,7 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "worker" }, profile: { company_id: "company" } }) }));
 vi.mock("sonner", () => ({ toast: { success: state.success, error: state.error, warning: state.warning } }));
+vi.mock("@/hooks/useArrivoPosizioni", () => ({ useOrdiniDaSpuntare: () => ({ data: [] as unknown[] }) }));
 vi.mock("@/hooks/campo/useCampoAssignments", () => ({ useCampoAssignments: () => ({
   data: state.assignedIds.map(id => ({ order_id: id, order: { order_code: `ORD-${id}`, description: `Cantiere ${id}`, indirizzo_lavori: null as string | null } })),
   isError: false, refetch: vi.fn(),

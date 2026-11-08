@@ -7,6 +7,8 @@ import {
 } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import { PosizioniCommessaPanel } from "@/components/sopralluoghi/PosizioniCommessaPanel";
+import type { TemplateSchema } from "@/types/surveys";
 import {
   ArrowLeft,
   Calendar,
@@ -637,6 +639,13 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
               )}
               <TabsContent value="rilievo" className="mt-0 space-y-4">
                 <SurveyOfficeReview detail={detail}/>
+                {survey.order_id && (
+                  <PosizioniCommessaPanel
+                    surveyId={survey.id}
+                    schema={((survey as { template_schema_snapshot?: TemplateSchema | null }).template_schema_snapshot ?? detail.template.schema) as TemplateSchema}
+                    canEdit={!solaLettura}
+                  />
+                )}
                 {(!access.field || selected || area) && <details className="rounded-xl border bg-white lg:hidden">
                   <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
                     Vai a un ambiente o elemento

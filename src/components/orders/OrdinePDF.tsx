@@ -1,3 +1,4 @@
+import { misureRigaCommessa } from "@/lib/acquisti/misureSuDocumenti";
 import React from "react";
 import type { DossierEconomico } from "@/lib/orders/dossierEconomico";
 import { CATEGORIE, STATO_USCITA, documentoUscita } from "@/lib/orders/quadroPagamenti";
@@ -662,6 +663,9 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
                   <View key={idx} style={rowStyle} wrap={false}>
                     <View style={{ flex: 2.5 }}>
                       <Text style={[styles.tableCell, { fontFamily: "Helvetica-Bold" }]}>{item.name ?? "—"}</Text>
+                      {misureRigaCommessa(item) ? (
+                        <Text style={{ fontSize: 6, color: C.gray700, marginTop: 1 }}>{misureRigaCommessa(item)}</Text>
+                      ) : null}
                       {item.description ? (
                         <Text style={{ fontSize: 6, color: C.gray500, marginTop: 1, maxLines: 1, textOverflow: "ellipsis" }}>{item.description}</Text>
                       ) : null}

@@ -50,11 +50,24 @@ export default function ComeStiamoAndando({ comeSezione = false }: { comeSezione
  * sotto i numeri vengono dalla stessa lettura e dallo stesso periodo (prima
  * useCruscottoData girava due volte, ognuna col suo filtro).
  */
-export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaIncassato }: {
+/** Lo scaduto con la regola del Previsionale di cassa (vedi lib/finance/incassiScaduti). */
+export interface ScadutoPrevisionale {
+  totale: number;
+  quanti: number;
+  caricando: boolean;
+  /** Le fonti che il Previsionale non è riuscito a leggere: lo scaduto può essere più alto. */
+  fontiMancanti: string[];
+  /** Dove si vedono le voci: il Previsionale, se lo si può aprire. */
+  url?: string;
+}
+
+export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaIncassato, scaduto }: {
   comeSezione?: boolean;
   dati: ReturnType<typeof useCruscottoData>;
   /** Incassato degli ultimi mesi, dal più vecchio: la mini-linea del primo numero. */
   tendenzaIncassato?: number[];
+  /** Dal 08/11/2026 lo scaduto è quello del Previsionale. Senza, si ripiega sulle sole rate. */
+  scaduto?: ScadutoPrevisionale;
 }) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -91,19 +104,23 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
     [finance.collectedThisMonth],
   );
 
+  // Lo scaduto: quello del Previsionale (rate, scadenze e fatture, una volta sola). Prima qui
+  // c'erano le sole rate delle commesse, e lo Scadenzario a cui rimandava diceva un'altra cifra.
+  const scadutoEuro = scaduto ? scaduto.totale : (operations.overdueAmount ?? 0);
+  const scadutoQuanti = scaduto ? scaduto.quanti : (operations.overduePayments ?? 0);
+  const scadutoUrl = scaduto ? scaduto.url : "/azienda/scadenzario";
+
   /** L'unico elenco: cosa richiede attenzione oggi, e dove si va a rimediare. */
   const attenzioni = useMemo(() => {
     const voci: VoceAttenzione[] = [];
 
-    const scadutoEuro = operations.overdueAmount ?? 0;
-    const scadutoQuanti = operations.overduePayments ?? 0;
     if (scadutoQuanti > 0) {
       voci.push({
         id: "scaduto",
         gravita: "urgente",
-        titolo: `${scadutoQuanti} ${scadutoQuanti === 1 ? "pagamento scaduto" : "pagamenti scaduti"}`,
+        titolo: `${scadutoQuanti} ${scadutoQuanti === 1 ? "incasso scaduto" : "incassi scaduti"} da sollecitare`,
         dettaglio: `${formatCurrency(scadutoEuro)} che i clienti dovevano già averti pagato.`,
-        url: "/azienda/scadenzario",
+        url: scadutoUrl ?? "/azienda/cruscotto/aziendale",
         importo: scadutoEuro,
       });
     }
@@ -175,7 +192,7 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
     }
 
     return ordinaAttenzioni(voci);
-  }, [todayData, operations, margini.peggiori, margini.quanti, margini.quantiValutabili, companyTargets, finance.supplierDebt, incassi, fatturazione]);
+  }, [todayData, scadutoEuro, scadutoQuanti, scadutoUrl, margini.peggiori, margini.quanti, margini.quantiValutabili, companyTargets, finance.supplierDebt, incassi, fatturazione]);
 
   if (error) {
     return (
@@ -191,7 +208,7 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
     );
   }
 
-  const caricando = isLoading || cantieriLoading;
+  const caricando = isLoading || cantieriLoading || !!scaduto?.caricando;
 
   return (
     <div className={comeSezione ? "space-y-3" : "space-y-4 p-3 md:p-6"}>
@@ -254,10 +271,14 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
           <RiquadroNumero
             etichetta="Scaduto da incassare"
             periodo="A oggi"
-            to="/azienda/scadenzario"
-            valore={formatCurrency(operations.overdueAmount ?? 0)}
-            tono={(operations.overduePayments ?? 0) > 0 ? "male" : "buono"}
-            contesto={`${operations.overduePayments ?? 0} scadenze oltre il termine`}
+            to={scadutoUrl}
+            valore={formatCurrency(scadutoEuro)}
+            tono={scadutoQuanti > 0 ? "male" : "buono"}
+            contesto={
+              scaduto?.fontiMancanti.length
+                ? `${scadutoQuanti} incassi oltre la scadenza · non letti: ${scaduto.fontiMancanti.join(", ")}`
+                : `${scadutoQuanti} ${scadutoQuanti === 1 ? "incasso" : "incassi"} oltre la scadenza · rate, scadenze e fatture`
+            }
           />
           {/* Qui stava «Cantieri in ritardo»: un numero di cantiere, non di soldi,
               già due volte nella Dashboard Operativa. Al suo posto quanto resta

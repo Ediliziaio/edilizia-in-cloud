@@ -119,9 +119,17 @@ export async function buildDdtCarico(
   if (po) {
     const { data: items } = await supabase
       .from("purchase_order_items")
-      .select("id, description, sku, quantity, quantity_received, unit_of_measure")
+      .select("id, description, sku, quantity, quantity_received, unit_of_measure, order_item_id")
       .eq("purchase_order_id", po.id);
     poItems = items || [];
+  }
+
+  // Il su misura va al cantiere: la conferma non lo carica, e lo si dice subito sulla riga.
+  const suMisura = new Set<string>();
+  const collegate = poItems.map((it) => it.order_item_id).filter(Boolean);
+  if (collegate.length > 0) {
+    const { data: rc } = await supabase.from("order_items").select("id, gruppo_id, measure_status").in("id", collegate);
+    for (const r of rc || []) if (r.gruppo_id != null || r.measure_status != null) suMisura.add(r.id);
   }
 
   const usedItem = new Set<string>();
@@ -142,6 +150,9 @@ export async function buildDdtCarico(
     let note: string | null = null;
     if (qtaOrdine == null) note = "Articolo non presente nell'ordine";
     else if (scostamento && scostamento !== 0) note = scostamento > 0 ? "Consegnato più dell'ordinato" : "Consegnato meno dell'ordinato";
+    if (match?.order_item_id && suMisura.has(match.order_item_id)) {
+      note = [note, "Su misura: va al cantiere, si spunta posizione per posizione"].filter(Boolean).join(". ");
+    }
     return { descrizione: descr, codice: codice || null, qta_bolla: qtaBolla, qta_ordine: qtaOrdine, scostamento, po_item_id: match?.id ?? null, note };
   });
 

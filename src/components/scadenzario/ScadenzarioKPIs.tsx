@@ -7,6 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
 import { domenicaDi } from "@/lib/finance/incassiSettimanali";
+import { useForecastLedger } from "@/hooks/useForecastLedger";
+import { incassiScaduti } from "@/lib/finance/incassiScaduti";
 
 // Nei KPI di testata niente centesimi: piu' leggibili, mai troncati
 // (stessa scelta del riepilogo Commesse e dei Costi).
@@ -48,6 +50,15 @@ export default function ScadenzarioKPIs({ summary, isLoading, className }: Props
   const scadutoUscita = summary?.scadute_uscita_amount ?? 0;
   const entrataCount = summary?.scadute_entrata_count ?? summary?.scadute_count ?? 0;
 
+  // Lo scaduto da incassare è uno solo in tutta l'app (08/11/2026): quello del Previsionale,
+  // che mette insieme rate delle commesse, scadenze e fatture una volta sola. Questa pagina
+  // elenca solo le scadenze dell'anno scelto: il loro scaduto resta scritto sotto, «di cui».
+  // Prima qui c'era solo quello, e per Ke Bei Serramenti diceva 0 € contro 1,2 milioni.
+  const previsionale = useForecastLedger();
+  const scadutoTotale = previsionale.data
+    ? incassiScaduti(previsionale.data.movements, previsionale.data.today).reduce((t, m) => t + m.cents, 0) / 100
+    : null;
+
   if (isLoading || !summary) {
     return (
       <div className={cn("overflow-hidden rounded-2xl border border-slate-200 shadow-sm", className)}>
@@ -78,11 +89,12 @@ export default function ScadenzarioKPIs({ summary, isLoading, className }: Props
               debito scaduto sta nella riga sotto, dichiarato. */}
           <NavyStatCard
             label="Scaduto da incassare"
-            value={fmtEur(scadutoEntrata)}
+            value={fmtEur(scadutoTotale ?? scadutoEntrata)}
             sub={
-              scadutoUscita > 0
-                ? `${entrataCount} scadenz${entrataCount === 1 ? "a" : "e"} · e ${fmtEur(scadutoUscita)} da pagare`
-                : `${entrataCount} scadenz${entrataCount === 1 ? "a" : "e"}`
+              (scadutoTotale != null
+                ? `di cui ${fmtEur(scadutoEntrata)} in ${entrataCount} scadenz${entrataCount === 1 ? "a" : "e"} di questo elenco`
+                : `${entrataCount} scadenz${entrataCount === 1 ? "a" : "e"}`)
+              + (scadutoUscita > 0 ? ` · e ${fmtEur(scadutoUscita)} da pagare` : "")
             }
             icon={AlertTriangle}
             tone={entrataCount > 0 ? "text-orange-300" : "text-emerald-200"}

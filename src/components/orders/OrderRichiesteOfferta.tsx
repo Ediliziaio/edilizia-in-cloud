@@ -109,9 +109,10 @@ function NuovaRichiesta({ orderId, orderCode, onChiudi }: { orderId: string; ord
   const [cercaFornitore, setCercaFornitore] = useState("");
   const attivi = suppliers.filter((s: { is_active?: boolean | null }) => s.is_active !== false) as Array<{ id: string; name: string }>;
 
-  // Solo ciò che si può davvero chiedere: materiali ancora da comprare, di fasi validate, non già in un'altra richiesta.
+  // Solo ciò che si può davvero chiedere: materiali ancora da comprare, di fasi validate.
+  // Una riga già chiesta a un fornitore si può chiedere a un altro: il doppione sullo stesso fornitore lo ferma il database.
   const daChiedere = useMemo(() => fasi.flatMap(f => acquistabile(f.validazione?.stato ?? null)
-    ? f.materiali.filter(m => m.ordinabile && !m.supplier_rfq_item_id) : []), [fasi]);
+    ? f.materiali.filter(m => m.ordinabile) : []), [fasi]);
 
   const inverti = (set: Set<string>, id: string) => { const n = new Set(set); if (n.has(id)) n.delete(id); else n.add(id); return n; };
   const crea = async () => {
@@ -169,7 +170,7 @@ function NuovaRichiesta({ orderId, orderCode, onChiudi }: { orderId: string; ord
               : daChiedere.map(m => (
                 <label key={m.id} className="flex items-center gap-2 text-sm">
                   <Checkbox checked={articoli.has(m.id)} onCheckedChange={() => setArticoli(inverti(articoli, m.id))} />
-                  <span className="min-w-0 flex-1 truncate">{m.name}</span>
+                  <span className="min-w-0 flex-1 truncate">{m.name}{m.supplier_rfq_item_id ? <span className="ml-1 text-xs text-amber-700">già chiesto</span> : null}</span>
                   <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{m.quantity} {m.unita_misura || "pz"}</span>
                 </label>
               ))}

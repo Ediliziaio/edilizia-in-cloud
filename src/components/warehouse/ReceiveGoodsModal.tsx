@@ -10,6 +10,9 @@
 // ============================================================================
 
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
   DialogContent,
@@ -67,6 +70,22 @@ export function ReceiveGoodsModal({
 }: ReceiveGoodsModalProps) {
   const { createGoodsReceipt, isCreating, uploadProgress } = useGoodsReceipt();
   const { warehouses, defaultWarehouse } = useWarehouses(true);
+
+  // Il su misura va al cantiere: da qui non si riceve, si manda alla spunta per posizione.
+  const { data: suMisura } = useQuery({
+    queryKey: ["riga-su-misura", orderItemId],
+    enabled: open && !!orderItemId,
+    queryFn: async () => {
+      const { data: riga, error } = await supabase.from("order_items")
+        .select("gruppo_id, measure_status").eq("id", orderItemId).maybeSingle();
+      if (error) throw error;
+      const colonne = riga as unknown as { gruppo_id: string | null; measure_status: string | null } | null;
+      if (!colonne || (colonne.gruppo_id == null && colonne.measure_status == null)) return null;
+      const { data: ordini } = await supabase.from("purchase_order_items")
+        .select("purchase_order_id").eq("order_item_id", orderItemId).limit(1);
+      return { odaId: ordini?.[0]?.purchase_order_id ?? null };
+    },
+  });
 
   // ── Form state ────────────────────────────────────────────────────
   const [quantityReceived, setQuantityReceived] = useState("");
@@ -175,6 +194,20 @@ export function ReceiveGoodsModal({
     setLastSubmittedPhoto(null);
     onOpenChange(false);
   };
+
+  if (suMisura) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>{orderItemName}</DialogTitle></DialogHeader>
+          <p className="text-sm">È su misura: va al cantiere, non in magazzino. L'arrivo si spunta posizione per posizione.</p>
+          {suMisura.odaId
+            ? <Button asChild className="min-h-11"><Link to={`/azienda/ordini-acquisto/${suMisura.odaId}/arrivo`}>Apri l'arrivo per posizione</Link></Button>
+            : <p className="text-sm text-muted-foreground">Questa posizione non è ancora in un ordine al fornitore.</p>}
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <>

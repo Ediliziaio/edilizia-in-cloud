@@ -12,12 +12,16 @@ export interface ImpostazioniAcquisti {
   validazione_obbligatoria: boolean;
   giorni_consegna_predefiniti: number;
   promemoria_attivo: boolean;
+  conferma_giorni_promemoria?: number;
+  conferma_tolleranza_mm?: number;
 }
 
 export const IMPOSTAZIONI_ACQUISTI_PREDEFINITE: ImpostazioniAcquisti = {
   validazione_obbligatoria: false,
   giorni_consegna_predefiniti: 7,
   promemoria_attivo: true,
+  conferma_giorni_promemoria: 3,
+  conferma_tolleranza_mm: 5,
 };
 
 // La tabella è nuova e non è ancora nei tipi generati.
@@ -38,7 +42,7 @@ export function useImpostazioniAcquisti() {
     queryFn: async (): Promise<ImpostazioniAcquisti> => {
       const { data, error } = await db
         .from("company_acquisti_impostazioni")
-        .select("validazione_obbligatoria, giorni_consegna_predefiniti, promemoria_attivo")
+        .select("validazione_obbligatoria, giorni_consegna_predefiniti, promemoria_attivo, conferma_giorni_promemoria, conferma_tolleranza_mm")
         .eq("company_id", companyId)
         .maybeSingle();
       if (error) throw error;
@@ -66,10 +70,27 @@ export function useImpostazioniAcquisti() {
     },
   });
 
+  const salvaConferma = useMutation({
+    mutationFn: async (nuove: { giorni: number; tolleranza: number }) => {
+      const { error } = await db.rpc("acquisti_conferma_impostazioni_salva", {
+        p_company: companyId, p_giorni: nuove.giorni, p_tolleranza: nuove.tolleranza,
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: chiaveImpostazioniAcquisti(companyId) });
+      toast.success("Impostazioni degli acquisti salvate");
+    },
+    onError: (e: unknown) => {
+      toast.error("Non riesco a salvare", { description: e instanceof Error ? e.message : String(e) });
+    },
+  });
+
   return {
     impostazioni: query.data ?? IMPOSTAZIONI_ACQUISTI_PREDEFINITE,
     isLoading: query.isLoading,
     salva,
+    salvaConferma,
   };
 }
 

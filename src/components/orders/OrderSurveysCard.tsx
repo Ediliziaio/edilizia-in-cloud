@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { lazy, Suspense, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
@@ -6,7 +7,7 @@ import { it } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { listSurveysByOrder } from "@/lib/api/surveys";
+import { agganciaSopralluogo, listSurveysByOrder, sopralluoghiDaAgganciare, updateSurvey } from "@/lib/api/surveys";
 import { surveyAddress } from "@/lib/surveys/report";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,6 +19,8 @@ import {
   ChevronRight,
   Ruler,
   Loader2,
+  ArrowRightLeft,
+  Link2,
 } from "lucide-react";
 
 /**
@@ -63,6 +66,11 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
     color: "bg-slate-100 text-slate-700 border-slate-300",
   },
 };
+const PortaRilievoDialog = lazy(() =>
+  import("@/components/orders/PortaRilievoDialog").then((m) => ({
+    default: m.PortaRilievoDialog,
+  })),
+);
 const SurveyDetailDialog = lazy(() =>
   import("@/components/sopralluoghi/SurveyDetailDialog").then((m) => ({
     default: m.SurveyDetailDialog,
@@ -76,8 +84,10 @@ interface OrderSurveysCardProps {
 export function OrderSurveysCard({ orderId }: OrderSurveysCardProps) {
   const navigate = useNavigate();
   // La rotta di creazione rimanda indietro chi è in sola lettura: meglio spegnere il bottone.
-  const { solaLettura, canViewSopralluoghi } = usePermissions();
+  const { solaLettura, canViewSopralluoghi, canViewOrders, canEditOrders } = usePermissions();
   const [selected, setSelected] = useState<string | null>(null);
+  const [daPortare, setDaPortare] = useState<string | null>(null);
+  const qc = useQueryClient();
   const { effectiveCompany } = useAuth();
   const {
     data: surveys,
@@ -88,6 +98,31 @@ export function OrderSurveysCard({ orderId }: OrderSurveysCardProps) {
     queryFn: () => listSurveysByOrder(orderId, effectiveCompany!.id),
     enabled: !!orderId && !!effectiveCompany?.id && canViewSopralluoghi,
     staleTime: 30_000,
+  });
+
+  // Sopralluoghi fatti prima della commessa, sullo stesso cliente o contatto.
+  const { data: daAgganciare } = useQuery({
+    queryKey: ["order-surveys-da-agganciare", orderId, effectiveCompany?.id],
+    queryFn: () => sopralluoghiDaAgganciare(orderId),
+    enabled: !!orderId && !!effectiveCompany?.id && canViewSopralluoghi && canViewOrders && canEditOrders && !solaLettura,
+    staleTime: 30_000,
+  });
+  const aggiorna = () => {
+    qc.invalidateQueries({ queryKey: ["order-surveys", orderId] });
+    qc.invalidateQueries({ queryKey: ["order-surveys-da-agganciare", orderId] });
+  };
+  const aggancia = useMutation({
+    mutationFn: (surveyId: string) => agganciaSopralluogo(surveyId, orderId),
+    onSuccess: () => {
+      aggiorna();
+      toast.success("Sopralluogo collegato alla commessa");
+    },
+    onError: (e) => toast.error((e as Error).message || "Sopralluogo non collegato"),
+  });
+  const cambiaRuolo = useMutation({
+    mutationFn: (p: { id: string; ruolo: "preliminare" | "definitivo" | null }) => updateSurvey(p.id, { ruolo_misure: p.ruolo }),
+    onSuccess: aggiorna,
+    onError: () => toast.error("Non sono riuscito a cambiare il tipo di misure"),
   });
 
   const goNew = () => navigate(`/azienda/sopralluoghi/nuovo?order=${orderId}`);
@@ -156,7 +191,7 @@ export function OrderSurveysCard({ orderId }: OrderSurveysCardProps) {
               const when = s.completed_at ?? s.scheduled_at ?? s.created_at;
               const place = surveyAddress(s);
               return (
-                <li key={s.id}>
+                <li key={s.id} className="py-1">
                   <button
                     type="button"
                     onClick={() => setSelected(s.id)}
@@ -192,12 +227,59 @@ export function OrderSurveysCard({ orderId }: OrderSurveysCardProps) {
                     </div>
                     <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
                   </button>
+                  <div className="flex flex-wrap items-center gap-2 pb-2">
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      Misure
+                      <select
+                        className="h-9 rounded-md border bg-white px-2 text-xs text-foreground disabled:opacity-60"
+                        aria-label={`Tipo di misure del sopralluogo ${s.code || ""}`.trim()}
+                        disabled={solaLettura || cambiaRuolo.isPending}
+                        value={s.ruolo_misure ?? ""}
+                        onChange={(e) => cambiaRuolo.mutate({ id: s.id, ruolo: (e.target.value || null) as "preliminare" | "definitivo" | null })}
+                      >
+                        <option value="">Non indicato</option>
+                        <option value="preliminare">Preliminari</option>
+                        <option value="definitivo">Definitive</option>
+                      </select>
+                    </label>
+                    {canEditOrders && !solaLettura && (
+                      <Button size="sm" variant="outline" className="min-h-9 text-xs" onClick={() => setDaPortare(s.id)}>
+                        <ArrowRightLeft className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                        Porta le misure in commessa
+                      </Button>
+                    )}
+                  </div>
                 </li>
               );
             })}
           </ul>
         )}
+
+        {canEditOrders && !solaLettura && daAgganciare && daAgganciare.length > 0 && (
+          <div className="mt-3 space-y-2 rounded-lg border border-dashed p-3">
+            <p className="text-xs font-medium">Sopralluoghi dello stesso cliente, non ancora collegati</p>
+            {daAgganciare.map((s) => (
+              <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <span className="min-w-0 truncate">
+                  {s.code || "Sopralluogo"}
+                  <span className="ml-2 text-xs text-muted-foreground">
+                    {format(new Date(s.completed_at ?? s.created_at), "d MMM yy", { locale: it })}
+                    {s.city ? ` · ${s.city}` : ""}
+                  </span>
+                </span>
+                <Button size="sm" variant="outline" className="min-h-9 text-xs" disabled={aggancia.isPending} onClick={() => aggancia.mutate(s.id)}>
+                  <Link2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" /> Collega
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
+      {daPortare && (
+        <Suspense fallback={<p role="status" className="px-4 pb-4 text-sm text-muted-foreground">Apro il rilievo…</p>}>
+          <PortaRilievoDialog surveyId={daPortare} orderId={orderId} onClose={() => setDaPortare(null)} />
+        </Suspense>
+      )}
       {selected && (
         <Suspense
           fallback={

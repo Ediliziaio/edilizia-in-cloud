@@ -735,7 +735,7 @@ export function useDDTRicezioneMutations(poId?: string | null) {
             await supabase.from("ddt_ricezione").update({ stato: "verificato" } as never).eq("id", ddtId);
           }
           if (!esito.senzaRighe && !esito.completo) {
-            toast.warning("DDT registrato, ma l'ordine non è completo: alcune righe non sono entrate.");
+            toast.warning(esito.suMisura ? "DDT registrato. Le posizioni su misura si spuntano una per una qui sotto." : "DDT registrato, ma l'ordine non è completo: alcune righe non sono entrate.");
           }
         } catch (e) {
           toast.warning("DDT registrato come «atteso»: l'arrivo non si è registrato", {
@@ -799,7 +799,7 @@ export function useDDTRicezioneMutations(poId?: string | null) {
         if (error) throw error;
       }
       if (!esito.senzaRighe && !esito.completo) {
-        toast.warning("L'ordine non è completo: alcune righe non sono entrate.");
+        toast.warning(esito.suMisura ? "Le posizioni su misura si spuntano una per una qui sotto." : "L'ordine non è completo: alcune righe non sono entrate.");
       }
     },
     onSuccess: () => {

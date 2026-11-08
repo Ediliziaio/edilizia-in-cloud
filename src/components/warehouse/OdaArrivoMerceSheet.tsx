@@ -17,7 +17,9 @@ import { useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, PackageCheck, Camera, RotateCcw, Warehouse } from "lucide-react";
 import { toast } from "sonner";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useElencoArrivo } from "@/hooks/useArrivoPosizioni";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -163,7 +165,10 @@ export function OdaArrivoMerceSheet({
     return m;
   }, [righe]);
 
-  const daRicevere = useMemo(() => righe.filter((r) => (residuo[r.id] ?? 0) > 0), [righe, residuo]);
+  // Il su misura non passa da questo foglio: si spunta posizione per posizione.
+  const elencoSuMisura = useElencoArrivo(open ? odaId : null);
+  const suMisura = useMemo(() => new Set((elencoSuMisura.data?.posizioni ?? []).map((p) => p.poi_id)), [elencoSuMisura.data]);
+  const daRicevere = useMemo(() => righe.filter((r) => (residuo[r.id] ?? 0) > 0 && !suMisura.has(r.id)), [righe, residuo, suMisura]);
 
   // Abbinamento per codice (interno o barcode) e, in seconda battuta, per nome
   // esatto: nessuna somiglianza approssimativa, un carico sull'articolo
@@ -369,6 +374,13 @@ export function OdaArrivoMerceSheet({
           </SheetDescription>
         </SheetHeader>
 
+        {suMisura.size > 0 && (
+          <p className="mt-3 rounded-lg border p-3 text-sm">
+            {suMisura.size === 1 ? "1 posizione è su misura" : `${suMisura.size} posizioni sono su misura`}: va al cantiere, non in magazzino.{" "}
+            <Link className="font-semibold text-primary underline" to={`/azienda/ordini-acquisto/${odaId}/arrivo`}>Spunta per posizione</Link>
+          </p>
+        )}
+
         {isLoading ? (
           <div className="flex justify-center py-10">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -377,7 +389,9 @@ export function OdaArrivoMerceSheet({
           <p className="py-10 text-center text-sm text-muted-foreground">
             {righe.length === 0
               ? "Questo ordine non ha righe: aggiungile dall'ordine per poter registrare l'arrivo."
-              : "Su questo ordine è già arrivato tutto."}
+              : suMisura.size > 0
+                ? "Non ci sono altri articoli da registrare qui."
+                : "Su questo ordine è già arrivato tutto."}
           </p>
         ) : (
           <div className="mt-4 space-y-4">

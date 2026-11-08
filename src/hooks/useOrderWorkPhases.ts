@@ -135,6 +135,7 @@ export const CAMPI_CHE_SEGUONO_LA_DIVISIONE = [
   "family_id", "axis_selections", "measure_status", "misure_preventivo", "misure_rilevate",
   "measure_variance", "survey_id", "survey_element_id", "installation_id",
   "gruppo_id", "riferimento",
+  "misure_da_ordinare", "misura_tipo", "misura_forma", "componente", "gioco_posa_mm", "sfrido",
 ] as const;
 
 /** Le quantità si confrontano a quattro decimali, come le salva il database. */
@@ -176,6 +177,11 @@ export function parteDivisa(
   }
   riga.quantity = parte.quantity;
   riga.phase_id = parte.phaseId;
+  // Una riga legata a un rilievo: la parte porta le stesse misure, ma l'indice «un rilievo,
+  // un componente, una riga» vale solo per la riga di partenza. Gli articoli normali non cambiano.
+  if (original.survey_element_id || original.measure_status) {
+    riga.diviso_da = original.diviso_da ?? original.id;
+  }
   return riga;
 }
 
@@ -644,7 +650,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
       // Rileggo la riga fresca dal DB: la cache potrebbe essere stantia
       const { data: original, error } = await db
         .from("order_items")
-        .select(["id", "quantity", "phase_id", ...CAMPI_CHE_SEGUONO_LA_DIVISIONE].join(", "))
+        .select(["id", "quantity", "phase_id", "diviso_da", ...CAMPI_CHE_SEGUONO_LA_DIVISIONE].join(", "))
         .filter("natura_riga", "eq", "materiale")
         .eq("id", itemId)
         .single();

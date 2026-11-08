@@ -178,6 +178,14 @@ export function PurchaseOrderItemRow({
         ) : (
           <span className="block p-2">{item.description}</span>
         )}
+        {item.misure_testo && (
+          <span className="block whitespace-pre-line px-2 pb-1 text-xs text-slate-600">{item.misure_testo}</span>
+        )}
+        {item.ripartito && (
+          <span className="ml-2 inline-block rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-800" title="Prezzo ricavato da un'offerta a corpo, ripartita sui mq delle posizioni">
+            Ripartito
+          </span>
+        )}
         {saving && (
           <span
             role="status"
