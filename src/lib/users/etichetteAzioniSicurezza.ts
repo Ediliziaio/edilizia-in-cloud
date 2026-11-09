@@ -24,6 +24,7 @@ export const ETICHETTE_AZIONI_SICUREZZA: Record<string, string> = {
   user_locked: "Accesso bloccato",
   user_unlocked: "Accesso ripristinato",
   account_locked: "Bloccato per password sbagliate",
+  account_unlocked: "Sbloccato da un amministratore",
   company_access_revoked: "Accesso da un'altra azienda revocato",
   session_revoked: "Sessione chiusa",
   all_sessions_revoked: "Tutte le sessioni chiuse",
@@ -36,7 +37,6 @@ export const ETICHETTE_AZIONI_SICUREZZA: Record<string, string> = {
   login: "Accesso",
   logout: "Uscita",
   password_changed: "Password cambiata",
-  account_unlocked: "Sbloccato",
   access_blocked: "Accesso bloccato",
   access_unblocked: "Accesso ripristinato",
 };
@@ -115,6 +115,12 @@ export function descriviDettagliSicurezza(azione: string | null | undefined, det
     case "account_locked": {
       const n = numero(d.failed_count);
       return n ? `Dopo ${n} password sbagliate di fila` : "Dopo troppe password sbagliate";
+    }
+    case "account_unlocked": {
+      // Il blocco è per (email, indirizzo): senza l'indirizzo non si capisce
+      // quale computer è stato rimesso dentro.
+      const dove = testo(d.ip_address);
+      return dove ? `Riaperto l'accesso dall'indirizzo ${dove}` : null;
     }
     case "session_revoked":
       return d.tutti_i_dispositivi === true ? "Disconnesso da tutti i dispositivi" : null;

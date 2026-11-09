@@ -55,13 +55,12 @@ Deno.serve(conMetriche("get-security-report", async (req) => {
             .eq("company_id", companyId)
         ).data?.map((p: any) => p.id) || []);
 
-      // Locked accounts
-      const { data: lockedUsers } = await supabaseAdmin
-        .from("profiles")
-        .select("id, first_name, last_name, locked_until")
-        .eq("company_id", companyId)
-        .not("locked_until", "is", null)
-        .gt("locked_until", new Date().toISOString());
+      // Gli accessi bloccati NON si contano più qui: stavano su
+      // `profiles.locked_until`, che l'anti-forza-bruta non scrive più dal run-2
+      // dell'audit (il blocco vive in `login_attempts`, per coppia email+IP).
+      // Il riepilogo diceva quindi sempre «0 bloccati» anche con gente chiusa
+      // fuori davvero. Adesso la pagina li chiede a `accessi_bloccati()`, che
+      // guarda dove il blocco sta per davvero.
 
       // Users without 2FA when company enforces it
       const { data: company } = await supabaseAdmin
@@ -95,8 +94,6 @@ Deno.serve(conMetriche("get-security-report", async (req) => {
       result.overview = {
         active_sessions: activeSessions || 0,
         failed_attempts_24h: failedAttempts24h || 0,
-        locked_accounts: lockedUsers || [],
-        locked_count: lockedUsers?.length || 0,
         total_users: totalUsers || 0,
         expired_passwords: expiredPasswordCount,
         company_settings: company,

@@ -1,3 +1,26 @@
+-- Sblocco degli accessi da parte dell'amministratore.
+--
+-- Il blocco anti-forza-bruta vive in `login_attempts`: `check-login-security`
+-- conta i fallimenti VERI per (email, IP di provenienza) dentro una finestra e,
+-- superata la soglia dell'azienda, respinge il tentativo PRIMA di provare la
+-- password. Finora quel blocco si scioglieva in due soli modi: un accesso
+-- riuscito dalla STESSA coppia (email, IP), oppure il passare della finestra.
+--
+-- Nelle impostazioni, però, «Quanto resta bloccato» offre lo 0 con la dicitura
+-- «L'account resta bloccato finché non lo sblocca un amministratore»: uno
+-- sblocco che in nessuna pagina dell'app esisteva. Con quella scelta la finestra
+-- diventa di 24 ore e l'unica via d'uscita era aspettare un giorno.
+-- Il 09/11/2026 ha tenuto fuori un venditore di Innovasol srl (3 tentativi,
+-- durata 0) dal PC dell'ufficio: cambiare la password non serviva, entrare da
+-- un altro computer nemmeno, e il titolare non aveva alcun bottone da premere.
+--
+-- Qui nasce lo sblocco vero. Non cancella lo storico dei tentativi e non inventa
+-- un accesso riuscito che non c'è stato: segna un PUNTO DI RIPARTENZA per quella
+-- coppia (email, IP), e il conteggio riparte da lì.
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Il punto di ripartenza
+-- ─────────────────────────────────────────────────────────────────────────────
 create table if not exists public.login_lock_resets (
   id          uuid primary key default gen_random_uuid(),
   company_id  uuid not null references public.companies(id) on delete cascade,
@@ -16,10 +39,20 @@ create index if not exists login_lock_resets_coppia_idx
 create index if not exists login_lock_resets_azienda_idx
   on public.login_lock_resets (company_id, reset_at desc);
 
+-- Nessuno legge o scrive questa tabella dal browser: ci arrivano solo il service
+-- role e le funzioni SECURITY DEFINER qui sotto. RLS accesa senza policy = chiusa.
 alter table public.login_lock_resets enable row level security;
 
 revoke all on public.login_lock_resets from public, anon, authenticated;
 
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Il conteggio, in un posto solo
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Prima questa logica stava scritta in TypeScript dentro `check-login-security`
+-- e da nessun'altra parte: la pagina degli accessi non poteva sapere chi fosse
+-- bloccato davvero (leggeva `profiles.locked_until`, che l'anti-forza-bruta non
+-- scrive più dal run-2 dell'audit, quindi mostrava sempre zero).
+-- Adesso il calcolo è qui, e lo usano sia il controllo del login sia la pagina.
 create or replace function public.stato_blocco_accesso(p_email text, p_ip inet)
 returns table (
   bloccato        boolean,
@@ -63,9 +96,13 @@ begin
     from public.companies c
    where c.id = v_azienda;
 
+  -- 0 = «sblocca solo un amministratore»: per origine lo trattiamo come una
+  -- finestra lunga (24h), non come un blocco perenne che un estraneo potrebbe
+  -- innescare dal proprio IP.
   v_finestra := make_interval(mins => case when v_minuti > 0 then v_minuti else 24 * 60 end);
   v_inizio   := now() - v_finestra;
 
+  -- Un accesso riuscito da questa stessa origine azzera gli strike.
   select max(la.created_at) into v_ultimo_ok
     from public.login_attempts la
    where la.email = p_email
@@ -73,6 +110,7 @@ begin
      and la.success
      and la.created_at > v_inizio;
 
+  -- E così lo sblocco fatto da un amministratore.
   select max(r.reset_at) into v_ultimo_reset
     from public.login_lock_resets r
    where r.email = p_email
@@ -89,6 +127,9 @@ begin
      and la.failure_reason = 'invalid_credentials'
      and la.created_at > v_inizio;
 
+  -- Quando si riapre: il blocco cade appena il tentativo che fa da soglia esce
+  -- dalla finestra, cioè il MAX-esimo più recente. Prima qui si rispondeva
+  -- «adesso + finestra», che allungava l'attesa dichiarata all'utente di ore.
   if v_conteggio >= v_max then
     select la.created_at + v_finestra into v_scadenza
       from public.login_attempts la
@@ -113,15 +154,18 @@ comment on function public.stato_blocco_accesso(text, inet) is
 revoke all on function public.stato_blocco_accesso(text, inet) from public, anon, authenticated;
 grant execute on function public.stato_blocco_accesso(text, inet) to service_role;
 
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Chi è bloccato adesso, per la pagina degli accessi
+-- ─────────────────────────────────────────────────────────────────────────────
 create or replace function public.accessi_bloccati()
 returns table (
-  email            text,
-  ip_address       text,
-  nome             text,
-  user_id          uuid,
-  tentativi        integer,
-  max_tentativi    integer,
-  sbloccato_il     timestamptz,
+  email           text,
+  ip_address      text,
+  nome            text,
+  user_id         uuid,
+  tentativi       integer,
+  max_tentativi   integer,
+  sbloccato_il    timestamptz,
   ultimo_tentativo timestamptz
 )
 language plpgsql
@@ -179,6 +223,9 @@ comment on function public.accessi_bloccati() is
 revoke all on function public.accessi_bloccati() from public, anon;
 grant execute on function public.accessi_bloccati() to authenticated, service_role;
 
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Lo sblocco
+-- ─────────────────────────────────────────────────────────────────────────────
 create or replace function public.sblocca_accesso(p_email text, p_ip text)
 returns boolean
 language plpgsql
@@ -220,6 +267,7 @@ begin
    where pr.email = p_email
    limit 1;
 
+  -- Il confine fra aziende: un amministratore sblocca solo la propria gente.
   if v_sua_azienda is null or v_sua_azienda <> v_mia_azienda then
     raise exception 'Questo accesso non e di un utente della tua azienda.';
   end if;

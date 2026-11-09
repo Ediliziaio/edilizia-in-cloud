@@ -155,7 +155,9 @@ describe("Accessi e sessioni: intestazione e numeri", () => {
     expect(minuti).toBeLessThan(10.5);
     // Gli altri numeri hanno parole da titolare.
     expect(screen.getByText("Accessi falliti nelle ultime 24 ore")).toBeInTheDocument();
-    expect(screen.getByText("Accessi bloccati")).toBeInTheDocument();
+    // «adesso»: il numero è chi è chiuso fuori in questo momento, non un
+    // conteggio delle ultime 24 ore come quello accanto.
+    expect(screen.getByText("Accessi bloccati adesso")).toBeInTheDocument();
     expect(screen.getByText("Persone")).toBeInTheDocument();
     expect(screen.queryByText(/Sessioni attive|Tentativi falliti \(24h\)|Utenti totali|Account bloccati/)).toBeNull();
   });

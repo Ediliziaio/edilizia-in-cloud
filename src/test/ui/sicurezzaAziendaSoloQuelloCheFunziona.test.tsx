@@ -102,12 +102,18 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Regole di sicurezza: restano solo quelle che qualcuno legge", () => {
-  it("la pagina nomina soltanto le tre colonne che check-login-security legge davvero", () => {
+  it("la pagina nomina soltanto le tre colonne che il controllo dell'accesso legge davvero", () => {
     const pagina = leggi("src/components/settings/CompanySecuritySettings.tsx");
+    // Dal 09/11/2026 la soglia e la durata del blocco non si leggono più nella
+    // edge function ma in `stato_blocco_accesso`, che fa il conteggio per tutti
+    // (login e pagina degli accessi): la catena da controllare è quella, non un
+    // file solo. L'allowlist degli indirizzi resta nella edge function.
     const funzione = leggi("supabase/functions/check-login-security/index.ts");
+    const conteggio = leggi("supabase/migrations/20290131120000_sblocco_accessi_amministratore.sql");
+    const catenaAccesso = `${funzione}\n${conteggio}`;
     for (const colonna of ["allowed_ips", "max_failed_attempts", "lockout_duration_minutes"]) {
       expect(pagina, colonna).toContain(colonna);
-      expect(funzione, `${colonna} letta dalla funzione di accesso`).toContain(colonna);
+      expect(catenaAccesso, `${colonna} letta da chi decide l'accesso`).toContain(colonna);
     }
     // Se qualcuno riaggiunge un comando senza lettore, questo test si rompe.
     for (const morta of [
@@ -116,9 +122,9 @@ describe("Regole di sicurezza: restano solo quelle che qualcuno legge", () => {
     ]) {
       expect(pagina, `${morta} non ha un lettore`).not.toContain(morta);
     }
-    // Nemmeno la funzione di accesso le legge: è questa la prova che erano promesse a vuoto.
+    // Nemmeno chi decide l'accesso le legge: è questa la prova che erano promesse a vuoto.
     for (const morta of ["enforce_2fa", "password_expiry_days", "password_min_length", "security_notifications"]) {
-      expect(funzione, morta).not.toContain(morta);
+      expect(catenaAccesso, morta).not.toContain(morta);
     }
   });
 

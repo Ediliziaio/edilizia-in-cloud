@@ -135,11 +135,13 @@ Deno.serve(conMetriche("check-login-security", async (req) => {
     }
 
     // Check IP allowlist if company has one configured
-    let company: { allowed_ips: string[] | null; max_failed_attempts: number | null; lockout_duration_minutes: number | null } | null = null;
+    // Soglia e durata del blocco non si leggono più qui: le applica
+    // `stato_blocco_accesso` nel database, insieme al conteggio.
+    let company: { allowed_ips: string[] | null } | null = null;
     if (profile.company_id && ip_address) {
       const { data: companyRow } = await supabaseAdmin
         .from("companies")
-        .select("allowed_ips, max_failed_attempts, lockout_duration_minutes")
+        .select("allowed_ips")
         .eq("id", profile.company_id)
         .single();
       company = companyRow as typeof company;
@@ -179,45 +181,24 @@ Deno.serve(conMetriche("check-login-security", async (req) => {
     // ha superato la soglia di fallimenti VERI nella finestra di blocco. Così
     // chi entra dal proprio IP non può essere bloccato dai tentativi di un
     // altro: il DoS di login residuo del run-1.
+    //
+    // Il conteggio NON sta più qui: lo fa `stato_blocco_accesso` nel database,
+    // perché serve identico anche alla pagina degli accessi (che prima leggeva
+    // `profiles.locked_until` — mai più scritto dal run-2 — e mostrava sempre
+    // zero bloccati). Un posto solo, così le due viste non divergono.
     if (profile.company_id && ip_address) {
-      const maxAttempts = company?.max_failed_attempts || 5;
-      // lockout_duration_minutes è «quanto resta bloccato» e qui vale anche da
-      // finestra di conteggio. 0 = «sblocca solo un amministratore»: per
-      // origine lo trattiamo come una finestra lunga (24h), non come un blocco
-      // globale perenne che un estraneo potrebbe innescare.
-      const lockoutMinutes = company?.lockout_duration_minutes ?? 30;
-      const windowMs = (lockoutMinutes > 0 ? lockoutMinutes : 24 * 60) * 60 * 1000;
-      let windowStart = new Date(Date.now() - windowMs).toISOString();
+      const { data: statoRighe } = await supabaseAdmin.rpc("stato_blocco_accesso", {
+        p_email: email,
+        p_ip: ip_address,
+      });
+      const stato = Array.isArray(statoRighe) ? statoRighe[0] : statoRighe;
 
-      // Un accesso riuscito da questa stessa origine azzera gli strike: contiamo
-      // i fallimenti solo da lì in poi.
-      const { data: ultimoOk } = await supabaseAdmin
-        .from("login_attempts")
-        .select("created_at")
-        .eq("email", email)
-        .eq("ip_address", ip_address)
-        .eq("success", true)
-        .gte("created_at", windowStart)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (ultimoOk?.created_at && ultimoOk.created_at > windowStart) {
-        windowStart = ultimoOk.created_at;
-      }
-
-      const { count: fallimenti } = await supabaseAdmin
-        .from("login_attempts")
-        .select("*", { count: "exact", head: true })
-        .eq("email", email)
-        .eq("ip_address", ip_address)
-        .eq("success", false)
-        .eq("failure_reason", "invalid_credentials")
-        .gt("created_at", windowStart);
-
-      if ((fallimenti || 0) >= maxAttempts) {
-        // locked_until è il momento in cui questa origine potrà riprovare, solo
-        // per il messaggio all'utente: NON lo persistiamo su `profiles`.
-        const lockUntil = new Date(Date.now() + windowMs).toISOString();
+      if (stato?.bloccato) {
+        // Quando questa origine potrà riprovare. Lo dice il database guardando
+        // quando scade il tentativo che fa da soglia: prima qui si rispondeva
+        // «adesso + finestra», che allungava l'attesa dichiarata di ore.
+        const lockUntil = stato.sbloccato_il ?? null;
+        const fallimenti = stato.tentativi ?? 0;
 
         // Log audit event
         await supabaseAdmin.from("user_audit_log").insert([{
@@ -277,3 +258,4 @@ Deno.serve(conMetriche("check-login-security", async (req) => {
   }
 }));
 // 07/11/2026: ripubblicata perché le email di servizio partono col solo nome dell'azienda, senza «via EdiliziaInCloud» (_shared/resolveSender.ts).
+// 09/11/2026: il conteggio del blocco passa a `stato_blocco_accesso` nel database e lo sblocco dell'amministratore (`login_lock_resets`) azzera gli strike.

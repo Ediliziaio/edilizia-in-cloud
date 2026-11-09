@@ -9,7 +9,7 @@ import { it } from "date-fns/locale";
 import {
   Shield, Wifi, AlertTriangle, Lock, Users, Eye,
   Activity, Loader2, XCircle, MonitorSmartphone, Globe,
-  RefreshCw, ChevronDown,
+  RefreshCw, ChevronDown, LockOpen,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -28,6 +28,7 @@ import {
   Collapsible, CollapsibleContent, CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { userErrorMessage } from "@/lib/userErrorMessage";
+import { leggiAccessiBloccati, sbloccaAccesso, quandoSiRiapre, type AccessoBloccato } from "@/lib/sicurezza/accessiBloccati";
 import { descriviDettagliSicurezza, etichettaAzioneSicurezza } from "@/lib/users/etichetteAzioniSicurezza";
 import { FINESTRA_COLLEGATO_MINUTI, personeCollegate, sogliaCollegato } from "@/lib/users/collegamento";
 
@@ -151,6 +152,34 @@ export default function SettingsSecurityDashboard() {
     staleTime: 60_000,
   });
 
+  // --- Chi è bloccato adesso dall'anti-forza-bruta ---
+  // Il conteggio sta in `login_attempts`, per coppia (email, indirizzo): il
+  // riepilogo lo chiedeva a `profiles.locked_until`, che dal run-2 dell'audit
+  // non viene più scritto, e mostrava sempre zero bloccati anche con gente
+  // chiusa fuori davvero.
+  const { data: bloccati = [], isError: erroreBloccati } = useQuery({
+    queryKey: ["security-bloccati", companyId],
+    queryFn: leggiAccessiBloccati,
+    enabled: !!companyId && isAdmin,
+    staleTime: 30_000,
+  });
+
+  const sbloccaMutation = useMutation({
+    mutationFn: (riga: AccessoBloccato) => sbloccaAccesso(riga.email, riga.ip_address),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["security-bloccati"] });
+      queryClient.invalidateQueries({ queryKey: ["security-audit"] });
+      toast.success("Accesso sbloccato", {
+        description: "Può riprovare subito da quel computer.",
+      });
+    },
+    onError: (err: unknown) => {
+      toast.error("Non sono riuscito a sbloccare", {
+        description: userErrorMessage(err, "Riprova tra un attimo."),
+      });
+    },
+  });
+
   // --- Chi è collegato adesso: sessioni aperte E viste attive da poco ---
   // (non il numero delle sessioni «attive»: una sessione resta aperta finché
   // qualcuno non esce, anche per mesi). Le persone, non le sessioni.
@@ -216,6 +245,7 @@ export default function SettingsSecurityDashboard() {
     queryClient.invalidateQueries({ queryKey: ["security-audit"] });
     queryClient.invalidateQueries({ queryKey: ["security-login-attempts"] });
     queryClient.invalidateQueries({ queryKey: ["security-collegati"] });
+    queryClient.invalidateQueries({ queryKey: ["security-bloccati"] });
   };
 
   if (!isAdmin) {
@@ -228,7 +258,7 @@ export default function SettingsSecurityDashboard() {
   }
 
   const activeSessions = sessions.filter((s: any) => s.is_active);
-  const qualcosaNonCaricato = erroreOverview || erroreSessioni || erroreAudit || erroreTentativi;
+  const qualcosaNonCaricato = erroreOverview || erroreSessioni || erroreAudit || erroreTentativi || erroreBloccati;
 
   return (
     <div className="space-y-6">
@@ -283,9 +313,10 @@ export default function SettingsSecurityDashboard() {
           />
           <SecurityKpi
             icon={Lock}
-            label="Accessi bloccati"
-            value={overview.locked_count}
-            variant={overview.locked_count > 0 ? "danger" : "default"}
+            label="Accessi bloccati adesso"
+            nota={bloccati.length > 0 ? "per troppe password sbagliate" : undefined}
+            value={bloccati.length}
+            variant={bloccati.length > 0 ? "danger" : "default"}
           />
           <SecurityKpi
             icon={Users}
@@ -295,21 +326,52 @@ export default function SettingsSecurityDashboard() {
         </div>
       ) : null}
 
-      {/* Locked accounts alert */}
-      {overview?.locked_count > 0 && (
+      {/* Chi è bloccato adesso, con il bottone per rimetterlo dentro */}
+      {bloccati.length > 0 && (
         <Card className="border-destructive/30 bg-destructive/5">
           <CardContent className="pt-4">
             <div className="flex items-start gap-3">
-              <Lock className="h-5 w-5 text-destructive mt-0.5" />
-              <div>
-                <p className="font-medium text-destructive">Accessi bloccati per password sbagliate</p>
-                <div className="mt-1 space-y-1">
-                  {(overview.locked_accounts ?? []).map((u: any) => (
-                    <p key={u.id} className="text-sm text-muted-foreground">
-                      {u.first_name} {u.last_name} — bloccato fino a{" "}
-                      {new Date(u.locked_until).toLocaleString("it-IT")}
-                    </p>
-                  ))}
+              <Lock className="h-5 w-5 shrink-0 text-destructive mt-0.5" aria-hidden="true" />
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-destructive">
+                  {bloccati.length === 1 ? "Un accesso è bloccato" : `${bloccati.length} accessi sono bloccati`} per troppe password sbagliate
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Il blocco è sul computer, non sulla persona: da un'altra rete — il telefono, per dire — si entra lo stesso.
+                  Cambiare la password non lo toglie.
+                </p>
+                <div className="mt-3 space-y-2">
+                  {bloccati.map((b) => {
+                    const riapre = quandoSiRiapre(b.sbloccato_il);
+                    const inCorso = sbloccaMutation.isPending && sbloccaMutation.variables?.email === b.email
+                      && sbloccaMutation.variables?.ip_address === b.ip_address;
+                    return (
+                      <div
+                        key={`${b.email}|${b.ip_address}`}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-destructive/20 bg-background/60 px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{b.nome || b.email}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {b.nome ? <>{b.email} · </> : null}
+                            dall'indirizzo <span className="font-mono">{b.ip_address}</span> · {b.tentativi} password sbagliate
+                            {riapre ? <> · si riapre da solo il {riapre}</> : null}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={sbloccaMutation.isPending}
+                          onClick={() => sbloccaMutation.mutate(b)}
+                        >
+                          {inCorso
+                            ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" aria-hidden="true" />
+                            : <LockOpen className="h-3.5 w-3.5 mr-1.5" aria-hidden="true" />}
+                          Sblocca
+                        </Button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>

@@ -18,6 +18,7 @@ import { useLocation } from "react-router-dom";
 import { areaDaPercorso, ruoloEffettivoPerArea, areeDisponibili as calcolaAree, haEntrambeLeAree } from "@/lib/auth/aree";
 import type { AppArea } from "@/lib/auth/aree";
 import { userErrorMessage } from "@/lib/userErrorMessage";
+import { quandoSiRiapre } from "@/lib/sicurezza/accessiBloccati";
 import { erroreImpersonazione } from "@/lib/auth/erroreImpersonazione";
 import { avvisaAltreSchede } from "@/lib/auth/aziendaServer";
 
@@ -1347,16 +1348,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const security = await checkLoginSecurity(email);
       if (security && security.allowed === false) {
         if (security.reason === "account_locked") {
-          const fino = security.locked_until
-            ? new Date(security.locked_until).toLocaleString("it-IT", {
-                day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
-              })
-            : null;
+          // Il blocco è sulla coppia (email, rete di provenienza), non
+          // sull'account: va detto, altrimenti la gente passa ore a cercare la
+          // password giusta mentre basterebbe il telefono. Il 09/11/2026 è
+          // costato mezza giornata a un'azienda.
+          const fino = quandoSiRiapre(security.locked_until);
           return {
             error: new Error(
-              fino
-                ? `Account bloccato per troppi tentativi falliti. Riprova dopo le ${fino} o contatta l'assistenza.`
-                : "Account bloccato per troppi tentativi falliti. Contatta l'assistenza.",
+              [
+                "Troppe password sbagliate da questo computer.",
+                fino
+                  ? `Non è la password: è l'accesso da questa rete a essere bloccato, fino al ${fino}.`
+                  : "Non è la password: è l'accesso da questa rete a essere bloccato.",
+                "Dal telefono con la rete dati entri subito, oppure chiedi a un amministratore di sbloccarlo da Impostazioni → Accessi e sessioni.",
+              ].join(" "),
             ),
           };
         }
