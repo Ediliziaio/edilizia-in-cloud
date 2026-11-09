@@ -51,6 +51,14 @@ export function residuoDaIncassare(doc: { totale_da_pagare?: number | null; impo
   return Math.round(((doc.totale_da_pagare ?? 0) - (doc.importo_pagato ?? 0) - (doc.stornato ?? 0)) * 100) / 100;
 }
 
+/**
+ * Il credito del cliente: incassato più di quanto resta dovuto dopo le note di credito.
+ * La fattura resta «pagata», ma questi soldi vanno rimborsati o compensati.
+ */
+export function creditoCliente(doc: { totale_da_pagare?: number | null; importo_pagato?: number | null; stornato?: number | null }): number {
+  return Math.max(0, -residuoDaIncassare(doc));
+}
+
 export interface FatturaDaIncassare {
   id: string;
   numero: string;

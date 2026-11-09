@@ -18,7 +18,7 @@ import type { EditorState } from "./editor/useEditorState";
 import { FaseSdiBadge } from "@/components/fatturazione/FaseSdiBadge";
 import { SegnaPagataDialog } from "@/components/fatturazione/SegnaPagataDialog";
 import { IncassiFattura } from "@/components/fatturazione/IncassiFattura";
-import { residuoDaIncassare } from "@/lib/fatturazione/incassi";
+import { creditoCliente, residuoDaIncassare } from "@/lib/fatturazione/incassi";
 import { useRataDellaFattura } from "@/hooks/useRataDellaFattura";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -105,8 +105,11 @@ export default function DocumentoDetail() {
   const canCreateNC = NC_ALLOWED_STATES.includes(doc.stato) && ["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria"].includes(doc.tipo);
   const stato = STATO_LABELS[doc.stato] ?? { label: doc.stato, variant: "secondary" as const };
   const tipoLabel = TIPO_LABELS[doc.tipo] ?? doc.tipo;
-  const residuo = doc.totale_da_pagare - doc.importo_pagato;
-  const paymentProgress = doc.totale_da_pagare > 0 ? (doc.importo_pagato / doc.totale_da_pagare) * 100 : 0;
+  // Al netto delle note di credito, come l'incasso sul database.
+  const residuo = residuoDaIncassare(doc);
+  const credito = creditoCliente(doc);
+  const dovuto = doc.totale_da_pagare - (doc.stornato ?? 0);
+  const paymentProgress = dovuto > 0 ? Math.min(100, (doc.importo_pagato / dovuto) * 100) : 0;
   const modificabile = doc.stato === "bozza" || fase === "scartata";
   const isProforma = doc.tipo === "proforma";
   const isPreventivo = doc.tipo === "preventivo";
@@ -357,6 +360,7 @@ export default function DocumentoDetail() {
             voci={[
               { label: "Totale", valore: formatCurrency(doc.totale_documento) },
               { label: "Da incassare", valore: formatCurrency(Math.max(0, residuo)), tono: residuo > 0.005 ? "text-rose-600" : undefined },
+              ...(credito > 0.005 ? [{ label: "Credito del cliente", valore: formatCurrency(credito), tono: "text-amber-600" }] : []),
             ]}
           />
         )}
@@ -425,6 +429,9 @@ export default function DocumentoDetail() {
                   <div><p className="text-xs text-muted-foreground">Incassato</p><p className="font-semibold text-emerald-600">{formatCurrency(doc.importo_pagato)}</p></div>
                   <div><p className="text-xs text-muted-foreground">Residuo</p><p className={`font-semibold ${residuo > 0 ? "text-destructive" : ""}`}>{formatCurrency(residuo)}</p></div>
                 </div>
+                {credito > 0.005 && (
+                  <p className="text-xs text-amber-700">Il cliente ha pagato {formatCurrency(credito)} in più dopo la nota di credito: va rimborsato o compensato.</p>
+                )}
                 <Progress value={paymentProgress} className="h-2" />
                 <p className="text-xs text-muted-foreground text-center">{Math.round(paymentProgress)}% incassato</p>
                 {/* Storico, annulla incasso, segna pagata, abbina al bonifico (30/10/2026). */}
