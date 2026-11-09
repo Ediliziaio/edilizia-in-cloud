@@ -180,7 +180,7 @@ function FormRegole({ companyId, salvate, mioIndirizzo }: { companyId: string; s
       evidenziata={evidenziata === "regole-azienda"}
     >
       <fieldset disabled={salva.isPending} className="m-0 min-w-0 divide-y border-0 p-0">
-        <div className="settings-save-bar">
+        <div className="settings-save-bar flex flex-wrap items-center justify-between gap-2 px-4 py-3">
           <StatoSalvataggio modificato={dirty} inCorso={salva.isPending} />
           <Button size="sm" onClick={avviaSalvataggio} disabled={!dirty || salva.isPending || nonValidi.length > 0}>
             {salva.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
