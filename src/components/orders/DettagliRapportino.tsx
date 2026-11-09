@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { RapportinoBlocchi } from "@/components/campo/RapportinoBlocchi";
 import { PulsantePdfRapportino } from "@/components/orders/PulsantePdfRapportino";
+import { CorreggiRapportino, StoricoRapportino } from "@/components/orders/CorreggiRapportino";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useNomiFasiCommessa } from "@/hooks/useRapportiniMese";
 import { linkFileRiservato } from "@/lib/storage/fileRiservati";
@@ -46,7 +47,10 @@ export function DettagliRapportino({ companyId, orderId, reportId }: { companyId
           {r.data_lavoro && <p className="font-semibold capitalize text-slate-900">{format(parseISO(r.data_lavoro), "EEEE d MMMM yyyy", { locale: it })}</p>}
           {autore && <p className="text-xs text-muted-foreground">{autore}</p>}
         </div>
-        <PulsantePdfRapportino report={r} orderId={orderId} className="shrink-0" />
+        <div className="flex shrink-0 gap-1.5">
+          <CorreggiRapportino rapportinoId={reportId} orderId={orderId} />
+          <PulsantePdfRapportino report={r} orderId={orderId} />
+        </div>
       </div>
       <section>
         <p className={ETICHETTA}>Cosa si è fatto</p>
@@ -74,6 +78,7 @@ export function DettagliRapportino({ companyId, orderId, reportId }: { companyId
           </div>
         </section>
       )}
+      <StoricoRapportino rapportinoId={reportId} />
       <Dialog open={!!foto} onOpenChange={(o) => { if (!o) setFoto(null); }}>
         <DialogContent className="max-w-3xl p-2">
           <DialogTitle className="sr-only">Foto del rapportino</DialogTitle>

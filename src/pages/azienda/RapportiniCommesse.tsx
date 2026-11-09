@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ApprovaRapportinoPopup, useDecisioneRapportino } from "@/components/orders/DecisioneRapportino";
 import { PulsantePdfRapportino } from "@/components/orders/PulsantePdfRapportino";
+import { CorreggiRapportino, StoricoRapportino } from "@/components/orders/CorreggiRapportino";
 import { QuadroEconomicoRapportino } from "@/components/orders/QuadroEconomicoRapportino";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -680,6 +681,8 @@ function DettaglioRapportino({ r, conCosti, navigazione, onChiudi, onDeciso }: {
                   </dl>
                 )}
                 {conCosti && <QuadroEconomicoRapportino rapportinoId={r.id} puoModificare={puoModificare} />}
+                <StoricoRapportino rapportinoId={r.id} />
+                {puoDecidereSu(r.user_id) && stato !== "rifiutato" && <CorreggiRapportino rapportinoId={r.id} orderId={r.order_id} />}
                 <PulsantePdfRapportino report={r} orderId={r.order_id} className="w-full" />
                 <Button asChild variant="outline" className="w-full">
                   <Link to={`/azienda/ordini/${r.order_id}?tab=cantiere&vista_cantiere=diario`}>

@@ -60,7 +60,7 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
     },
     retry: false,
   });
-  if (!data || (!data.persone?.length && !data.voci?.length && !puoModificare)) return null;
+  if (!data || !Array.isArray(data.persone) || (!data.persone.length && !data.voci?.length && !puoModificare)) return null;
 
   const voci = data.voci ?? [];
   const conVendita = (data.appalto && !data.a_corpo) || voci.some((v) => Number(v.vendita_unitaria ?? 0) > 0);
