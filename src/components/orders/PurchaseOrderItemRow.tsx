@@ -15,6 +15,25 @@ import {
   type VoceListinoFornitore,
 } from "@/lib/listino/listinoFornitore";
 import { useInputDraft } from "@/hooks/useInputDraft";
+import { OfficeSelect } from "./OfficeSelect";
+import {
+  aliquotaNormalizzata,
+  opzioniAliquota,
+  opzioniUnita,
+  unitaNormalizzata,
+  type OpzioneRiga,
+} from "@/lib/orders/rigaAcquisto";
+
+/** La sigla si legge nella casella, la spiegazione solo a menu aperto. */
+const voceMenu = (o: OpzioneRiga) => ({
+  value: o.value,
+  label: (
+    <>
+      {o.breve}
+      {o.nota && <span className="spiega"> — {o.nota}</span>}
+    </>
+  ),
+});
 type Patch = TablesUpdate<"purchase_order_items">;
 export function PurchaseOrderItemRow({
   item,
@@ -41,7 +60,7 @@ export function PurchaseOrderItemRow({
 }) {
   const [desc, setDesc] = useInputDraft(item.description);
   const [qty, setQty] = useInputDraft(String(item.quantity));
-  const [um, setUm] = useInputDraft(item.unit_of_measure || "pz");
+  const [um, setUm] = useInputDraft(unitaNormalizzata(item.unit_of_measure) || "pz");
   const [pendingText, setPendingText] = useInputDraft(
     item.price_pending ? "yes" : "no",
   );
@@ -51,7 +70,7 @@ export function PurchaseOrderItemRow({
     item.price_pending ? "" : String(item.unit_price),
   );
   const [disc, setDisc] = useInputDraft(String(item.discount_percent));
-  const [vat, setVat] = useInputDraft(String(item.vat_rate));
+  const [vat, setVat] = useInputDraft(aliquotaNormalizzata(item.vat_rate));
   const [received, setReceived] = useInputDraft(String(item.quantity_received));
   const [savingCount, setSavingCount] = useState(0);
   const saving = savingCount > 0;
@@ -136,7 +155,7 @@ export function PurchaseOrderItemRow({
         rollbackPrezzo();
         setDisc(String(item.discount_percent));
         setUm(item.unit_of_measure || "pz");
-        setVat(String(item.vat_rate));
+        setVat(aliquotaNormalizzata(item.vat_rate));
       },
     );
   };
@@ -220,20 +239,19 @@ export function PurchaseOrderItemRow({
       </td>
       <td className="p-1">
         {isEditable ? (
-          <Input
-            aria-label="Unità di misura"
+          <OfficeSelect
+            label="Unità di misura"
             disabled={item.quantity_received > 0}
             value={um}
-            onChange={(e) => setUm(e.target.value)}
-            onBlur={() => {
-              const v = um.trim() || "pz";
+            onValueChange={(v) => {
               setUm(v);
               if (v !== (item.unit_of_measure || "pz"))
                 void save({ unit_of_measure: v }, () =>
-                  setUm(item.unit_of_measure || "pz"),
+                  setUm(unitaNormalizzata(item.unit_of_measure) || "pz"),
                 );
             }}
-            className="h-8 w-14 text-sm"
+            className="h-8 w-24 px-2 text-sm [&_.spiega]:hidden"
+            options={opzioniUnita(um).map(voceMenu)}
           />
         ) : (
           item.unit_of_measure || "pz"
@@ -306,15 +324,18 @@ export function PurchaseOrderItemRow({
         {inversioneContabile ? (
           <span className="text-xs text-slate-600">Inv. cont.</span>
         ) : isEditable ? (
-          <Input
-            aria-label="IVA percentuale"
-            type="number"
-            min="0"
-            max="100"
+          <OfficeSelect
+            label="IVA percentuale"
             value={vat}
-            onChange={(e) => setVat(e.target.value)}
-            onBlur={() => salvaNumero("vat_rate", vat, setVat, 0, 100)}
-            className="h-8 w-14 text-right text-sm"
+            onValueChange={(v) => {
+              setVat(v);
+              if (Number(v) !== Number(item.vat_rate))
+                void save({ vat_rate: Number(v) }, () =>
+                  setVat(aliquotaNormalizzata(item.vat_rate)),
+                );
+            }}
+            className="h-8 w-20 px-2 text-sm [&_.spiega]:hidden"
+            options={opzioniAliquota(vat).map(voceMenu)}
           />
         ) : (
           `${item.vat_rate}%`

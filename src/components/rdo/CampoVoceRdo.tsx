@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { OfficeSelect } from "@/components/orders/OfficeSelect";
+import { opzioniUnita, unitaNormalizzata } from "@/lib/orders/rigaAcquisto";
 
 type Props = {
   campo: "descrizione" | "quantita" | "unita_misura";
@@ -19,6 +21,36 @@ function Cella({ campo, valore, disabled, onSave }: Props) {
   const saving = useRef(false);
   const numerico = campo === "quantita";
   const label = numerico ? "Quantità richiesta" : campo === "descrizione" ? "Descrizione voce richiesta" : "Unità di misura richiesta";
+
+  // L'unità si sceglie, non si scrive: a mano erano usciti «ml» e «ML» nello
+  // stesso archivio, e il fornitore legge due cose diverse (09/11/2026).
+  if (campo === "unita_misura") {
+    const scelta = unitaNormalizzata(String(valore)) || "pz";
+    return <OfficeSelect
+      label={label}
+      value={scelta}
+      disabled={disabled || busy}
+      className="h-10 w-24 px-2 [&_.spiega]:hidden"
+      options={opzioniUnita(scelta).map((o) => ({
+        value: o.value,
+        label: <>{o.breve}{o.nota && <span className="spiega"> — {o.nota}</span>}</>,
+      }))}
+      onValueChange={async (v) => {
+        if (saving.current || disabled || v === scelta) return;
+        saving.current = true;
+        setBusy(true);
+        try {
+          await onSave(v);
+        } catch {
+          toast.error("Voce non salvata. Ho ripristinato il valore precedente: riprova.");
+        } finally {
+          saving.current = false;
+          setBusy(false);
+        }
+      }}
+    />;
+  }
+
   return <Input
     aria-label={label}
     aria-busy={busy}

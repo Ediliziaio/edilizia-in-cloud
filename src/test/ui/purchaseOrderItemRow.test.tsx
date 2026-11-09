@@ -20,6 +20,8 @@ vi.mock("@/components/orders/ArticleCombobox", () => ({
   ),
 }));
 import { PurchaseOrderItemRow } from "@/components/orders/PurchaseOrderItemRow";
+import { setupRadixMenus, scegliNelMenu } from "@/test/helpers/radixMenus";
+setupRadixMenus();
 const item = {
   id: "i",
   description: "Materiale",
@@ -173,5 +175,53 @@ describe("Modifica di un ordine parzialmente ricevuto", () => {
     expect(screen.queryByRole("button", {name: "Scrivi nuovo articolo"})).not.toBeInTheDocument();
     expect(screen.getByLabelText("Unità di misura")).toBeDisabled();
     expect(screen.getByRole("button", {name: "Rimuovi Materiale"})).toBeDisabled();
+  });
+});
+
+describe("Unità e IVA si scelgono, non si scrivono (09/11/2026)", () => {
+  it("l'unità è un menu con le unità vere, e salva la sigla", async () => {
+    const salva = apri();
+    await scegliNelMenu("Unità di misura", /^mq/);
+    await waitFor(() =>
+      expect(salva).toHaveBeenCalledWith({ unit_of_measure: "mq" }),
+    );
+  });
+
+  it("l'IVA è un menu: lo zero dice perché, ed è l'inversione contabile", async () => {
+    const salva = apri();
+    const menu = screen.getByRole("combobox", { name: "IVA percentuale" });
+    // La casella mostra la sola aliquota: nella colonna non c'è spazio.
+    expect(menu).toHaveTextContent("10%");
+    await scegliNelMenu("IVA percentuale", /inversione contabile/);
+    await waitFor(() => expect(salva).toHaveBeenCalledWith({ vat_rate: 0 }));
+  });
+
+  it("«22,00» salvata prima si legge «22%», senza voci doppie nel menu", async () => {
+    apri({ ...item, vat_rate: 22 } as PurchaseOrderItem);
+    expect(screen.getByRole("combobox", { name: "IVA percentuale" }))
+      .toHaveTextContent("22%");
+    fireEvent.keyDown(screen.getByRole("combobox", { name: "IVA percentuale" }), { key: "ArrowDown" });
+    expect(await screen.findAllByRole("option", { name: /^22%/ })).toHaveLength(1);
+  });
+
+  it("un'unità vecchia fuori elenco non si perde e non cambia da sola", async () => {
+    const salva = apri({ ...item, unit_of_measure: "bancale" } as PurchaseOrderItem);
+    const menu = screen.getByRole("combobox", { name: "Unità di misura" });
+    expect(menu).toHaveTextContent("bancale");
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    expect(await screen.findByRole("option", { name: /bancale/ })).toBeInTheDocument();
+    expect(salva).not.toHaveBeenCalled();
+  });
+
+  it("«ML» scritto male si legge «ml», e non si riscrive da sé", () => {
+    const salva = apri({ ...item, unit_of_measure: "ML" } as PurchaseOrderItem);
+    expect(screen.getByRole("combobox", { name: "Unità di misura" }))
+      .toHaveTextContent("ml");
+    expect(salva).not.toHaveBeenCalled();
+  });
+
+  it("la riga già ricevuta non lascia cambiare l'unità", () => {
+    apri({ ...item, quantity_received: 5 } as PurchaseOrderItem);
+    expect(screen.getByRole("combobox", { name: "Unità di misura" })).toBeDisabled();
   });
 });
