@@ -12,9 +12,9 @@ vi.mock("@/components/integrations/steps/PageSelectionStep", () => ({ PageSelect
 vi.mock("@/components/integrations/steps/ConnectionConfirmStep", () => ({ ConnectionConfirmStep: () => <p>Riepilogo risorse</p> }));
 vi.mock("@/components/integrations/steps/FormListStep", () => ({ FormListStep: () => <p>Moduli lead</p> }));
 vi.mock("@/components/integrations/steps/ActivationStep", () => ({ ActivationStep: () => <p>Attivazione completata</p> }));
-vi.mock("@/components/integrations/steps/OAuthStep", () => ({ OAuthStep: () => null }));
-vi.mock("@/components/integrations/steps/FieldMappingStep", () => ({ FieldMappingStep: () => null }));
-vi.mock("@/components/integrations/IntegrationLogsPanel", () => ({ IntegrationLogsPanel: () => null }));
+vi.mock("@/components/integrations/steps/OAuthStep", () => ({ OAuthStep: (): null => null }));
+vi.mock("@/components/integrations/steps/FieldMappingStep", () => ({ FieldMappingStep: (): null => null }));
+vi.mock("@/components/integrations/IntegrationLogsPanel", () => ({ IntegrationLogsPanel: (): null => null }));
 import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
 afterEach(() => { cleanup(); state.selected = false; state.purge.mockClear(); });
 function setup() {
