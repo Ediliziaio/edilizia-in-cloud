@@ -16,6 +16,7 @@
  * modificarlo, duplicarlo, cambiarne lo stato, gli allegati, toglierlo. La
  * finestra dell'articolo è quella di OrderItemsList (soloFinestra).
  */
+import { MaterialiDaRegolarizzare } from "@/components/orders/materiali/MaterialiDaRegolarizzare";
 import { RevisioneTecnico } from "./RevisioneTecnico";
 import { revisioneTecnico } from "@/lib/distinta/revisioneTecnico";
 import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
@@ -853,6 +854,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
     <TooltipProvider delayDuration={250}>
       <div className="space-y-2" id="materiali-per-fase">
         <VariazioniVariante orderId={orderId} puoDecidere={permessi.canValidateBom} />
+        <MaterialiDaRegolarizzare orderId={orderId} />
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-card px-3 py-2">
           <h3 className="text-sm font-semibold text-foreground">Articoli e materiali per fase</h3>
           {tuttiMateriali.length > 0 && (

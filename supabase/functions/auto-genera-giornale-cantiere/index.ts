@@ -210,7 +210,7 @@ async function giornataAzienda(
 ): Promise<Map<string, GiornataPerBozza>> {
   const [raps, fotos, segs, bolle] = await Promise.all([
     supabase.from("campo_rapportini")
-      .select("id, order_id, user_id, stato, ore_lavorate, ore_straordinario, descrizione_lavori, materiali_usati, meteo, presenze, percentuale_avanzamento")
+      .select("id, order_id, user_id, stato, ore_lavorate, ore_straordinario, descrizione_lavori, materiali_usati, mezzi_usati, meteo, presenze, percentuale_avanzamento")
       .eq("company_id", companyId).eq("data_lavoro", data).in("stato", [...STATI_RAPPORTINO_BOZZA]).not("order_id", "is", null),
     supabase.from("foto_cantiere").select("id, order_id")
       .eq("company_id", companyId).gte("taken_at", inizio).lte("taken_at", fine).not("order_id", "is", null),

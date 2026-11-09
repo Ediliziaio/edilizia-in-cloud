@@ -447,7 +447,7 @@ export function RendicontoAppaltoPDF({
               <View key={r.id} style={styles.tr} wrap={false}>
                 <Text style={[styles.td, styles.cData]}>{giornoIT(r.data)}</Text>
                 <View style={styles.cDesc}>
-                  <Text style={styles.td}>{r.descrizione}</Text>
+                  <Text style={styles.td}>{r.note ? `${r.descrizione} · ${r.note}` : r.descrizione}</Text>
                   {r.extra_contratto ? <Text style={styles.extra}>Fuori contratto</Text> : null}
                   {r.note ? <Text style={[styles.infoLine, { fontSize: 7 }]}>{r.note}</Text> : null}
                 </View>

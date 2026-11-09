@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useNomiFasiCommessa } from "@/hooks/useRapportiniMese";
 import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
 
 type Voce = Record<string, unknown>;
@@ -27,6 +28,7 @@ const db = supabase as unknown as {
   from: (t: string) => { select: (c: string) => { eq: (a: string, b: string) => { maybeSingle: () => Promise<{ data: Voce | null; error: Error | null }>; order: (c: string, o: object) => Promise<{ data: Voce[] | null; error: Error | null }> } } };
   rpc: (f: string, a: object) => Promise<{ error: Error | null }>;
 };
+const NUOVO_MATERIALE = { nome: "", quantita: "1", unita: "", provenienza: "acquistato", fase_id: "" };
 const titolo = "text-[11px] font-semibold uppercase tracking-wide text-slate-500";
 
 // Fuori dal componente: dentro, ogni tasto ricreerebbe il campo e toglierebbe il cursore.
@@ -43,6 +45,8 @@ export function CorreggiRapportino({ rapportinoId, orderId, onCorretto }: { rapp
   const qc = useQueryClient();
   const [aperto, setAperto] = useState(false);
   const [b, setB] = useState<Bozza | null>(null);
+  const [nuovo, setNuovo] = useState(NUOVO_MATERIALE);
+  const { data: nomiFasi } = useNomiFasiCommessa(aperto ? orderId : null);
   const riga = useQuery({
     queryKey: ["rapportino-da-correggere", rapportinoId],
     enabled: aperto,
@@ -120,9 +124,30 @@ export function CorreggiRapportino({ rapportinoId, orderId, onCorretto }: { rapp
                 {b.fasi.length > 0 && <div><p className={titolo}>Fasi</p><ul className="divide-y">
                   {b.fasi.map((f, i) => <Riga key={i} nome={String(f.nome ?? `Fase ${i + 1}`)} valore={f.percentuale} unita="%" onValore={(v) => modifica("fasi", i, "percentuale", v)} />)}
                 </ul></div>}
-                {b.materiali.length > 0 && <div><p className={titolo}>Materiali</p><ul className="divide-y">
+                <div><p className={titolo}>Materiali</p>{b.materiali.length > 0 && <ul className="divide-y">
                   {b.materiali.map((m, i) => <Riga key={i} nome={String(m.nome ?? m.descrizione ?? "Materiale")} valore={m.quantita} unita={String(m.unita ?? m.unita_misura ?? "")} onValore={(v) => modifica("materiali", i, "quantita", v)} onTogli={() => togli("materiali", i)} />)}
-                </ul></div>}
+                </ul>}
+                  <div className="mt-1 grid grid-cols-6 gap-1.5">
+                    <Input aria-label="Materiale non previsto" placeholder="Aggiungi materiale" className="col-span-6 h-8 text-[13px]" value={nuovo.nome} onChange={(e) => setNuovo({ ...nuovo, nome: e.target.value })} />
+                    {nuovo.nome.trim() && <>
+                      <Input aria-label="Quantità" inputMode="decimal" placeholder="Q.tà" className="col-span-1 h-8 px-1.5 text-[13px]" value={nuovo.quantita} onChange={(e) => setNuovo({ ...nuovo, quantita: e.target.value })} />
+                      <Input aria-label="Unità" placeholder="Unità" className="col-span-1 h-8 px-1.5 text-[13px]" value={nuovo.unita} onChange={(e) => setNuovo({ ...nuovo, unita: e.target.value })} />
+                      <select aria-label="Da dove viene" className="col-span-2 h-8 rounded-md border bg-background px-1 text-[13px]" value={nuovo.provenienza} onChange={(e) => setNuovo({ ...nuovo, provenienza: e.target.value })}>
+                        <option value="acquistato">Comprato</option>
+                        <option value="magazzino">Da magazzino</option>
+                        <option value="consumo">Consumo minuto</option>
+                      </select>
+                      <select aria-label="Lavorazione" className="col-span-2 h-8 rounded-md border bg-background px-1 text-[13px]" value={nuovo.fase_id} onChange={(e) => setNuovo({ ...nuovo, fase_id: e.target.value })}>
+                        <option value="">Lavorazione</option>
+                        {[...(nomiFasi ?? new Map<string, string>()).entries()].map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
+                      </select>
+                      <Button type="button" size="sm" variant="outline" className="col-span-6 h-7" onClick={() => {
+                        setB({ ...b, materiali: [...b.materiali, { nome: nuovo.nome.trim(), quantita: nuovo.quantita, unita: nuovo.unita.trim(), provenienza: nuovo.provenienza, ...(nuovo.fase_id ? { fase_id: nuovo.fase_id } : {}) }] });
+                        setNuovo(NUOVO_MATERIALE);
+                      }}>Aggiungi al rapportino</Button>
+                    </>}
+                  </div>
+                </div>
                 {b.mezzi.length > 0 && <div><p className={titolo}>Mezzi</p><ul className="divide-y">
                   {b.mezzi.map((m, i) => <Riga key={i} nome={String(m.nome ?? "Mezzo")} valore={m.ore} unita="ore" onValore={(v) => modifica("mezzi", i, "ore", v)} onTogli={() => togli("mezzi", i)} />)}
                 </ul></div>}

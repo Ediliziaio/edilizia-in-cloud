@@ -39,7 +39,7 @@ export async function leggiBozzaGiornale(
 
   const [raps, bolle, segnalazioni, foto] = await Promise.all([
     db.from("campo_rapportini")
-      .select("id, user_id, stato, ore_lavorate, ore_straordinario, presenze, descrizione_lavori, materiali_usati, meteo, percentuale_avanzamento, autore:profiles!campo_rapportini_user_id_fkey(first_name, last_name)")
+      .select("id, user_id, stato, ore_lavorate, ore_straordinario, presenze, descrizione_lavori, materiali_usati, mezzi_usati, meteo, percentuale_avanzamento, autore:profiles!campo_rapportini_user_id_fkey(first_name, last_name)")
       .eq("company_id", companyId).eq("order_id", orderId).eq("data_lavoro", data).in("stato", [...STATI_RAPPORTINO_BOZZA]),
     db.from("ddt_ricezione").select(COLONNE_DDT_BOZZA)
       .eq("company_id", companyId).eq("data_ricezione", data)

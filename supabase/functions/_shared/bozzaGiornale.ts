@@ -13,6 +13,7 @@ export type MeteoGiornale = "soleggiato" | "nuvoloso" | "pioggia" | "neve" | "ve
 export interface RapportinoPerBozza extends RapportinoPresenze {
   descrizione_lavori?: string | null;
   materiali_usati?: unknown;
+  mezzi_usati?: unknown;
   meteo?: string | null;
   percentuale_avanzamento?: unknown;
 }
@@ -140,6 +141,22 @@ function righeMateriali(rapportini: RapportinoPerBozza[]): string[] {
   });
 }
 
+/** I mezzi del giorno, sommati: «DAF: 3 h». */
+function righeMezzi(rapportini: RapportinoPerBozza[]): string {
+  const ore = new Map<string, number>();
+  for (const r of rapportini) {
+    for (const m of Array.isArray(r.mezzi_usati) ? r.mezzi_usati : []) {
+      const o = (m ?? {}) as Record<string, unknown>;
+      const nome = pulito(o.nome);
+      if (!nome) continue;
+      const n = Number(o.ore);
+      ore.set(nome, (ore.get(nome) ?? 0) + (Number.isFinite(n) ? n : 0));
+    }
+  }
+  const elenco = [...ore.entries()].map(([nome, h]) => (h > 0 ? `${nome}: ${h.toLocaleString("it-IT")} h` : nome));
+  return elenco.length ? `Mezzi usati: ${elenco.join(", ")}` : "";
+}
+
 function eventiConsegne(ddt: DdtPerBozza[]): EventoProposto[] {
   const visti = new Set<string>();
   const eventi: EventoProposto[] = [];
@@ -189,7 +206,7 @@ export function componiBozzaGiornale(g: GiornataPerBozza): BozzaGiornale {
       lavorazioni_eseguite: lavorazioni,
       materiali_utilizzati: materiali,
       // Consegne e segnalazioni ora sono eventi: nelle note resta quel che scrive chi compila.
-      note: "",
+      note: righeMezzi(rapportini),
       condizioni_meteo: rapportini.map((r) => meteoGiornale(r.meteo)).find(Boolean) ?? null,
       personale_presente: persone > 0 ? persone : null,
       avanzamento_percentuale: percentuali.length ? Math.min(100, Math.round(Math.max(...percentuali))) : null,
