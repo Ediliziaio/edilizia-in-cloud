@@ -53,6 +53,7 @@ const SEZIONI = [
 ];
 // Si configurano da tablet e computer: da telefono queste sezioni non ci sono.
 const SEZIONI_MODULI = [
+  { id: "voci-rapportino", etichetta: "Voci e costi" },
   { id: "parti", etichetta: "Parti" },
   { id: "campi-propri", etichetta: "Campi propri" },
   { id: "verbali", etichetta: "Verbali" },

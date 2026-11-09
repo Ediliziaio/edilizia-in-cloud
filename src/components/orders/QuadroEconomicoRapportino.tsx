@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { formatCurrency } from "@/lib/formatters";
 
 interface Riga {
@@ -50,6 +51,24 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
     onSuccess: aggiorna,
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Voce non tolta"),
   });
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const { data: catalogo } = useQuery({
+    queryKey: ["rapportino-voci-modello", companyId, "attive"],
+    enabled: !!companyId && puoModificare,
+    retry: false,
+    queryFn: async () => {
+      const q = supabase as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+      const [a, b] = await Promise.all([
+        q.from("rapportino_voci_modello").select("id, nome, unita, costo_unitario, vendita_unitaria").eq("company_id", companyId).eq("attivo", true).order("ordine"),
+        q.from("rapportino_voci_impostazioni").select("a_mano").eq("company_id", companyId).maybeSingle(),
+      ]);
+      return { voci: (a.data ?? []) as Array<{ id: string; nome: string; unita: string; costo_unitario: number | null; vendita_unitaria: number | null }>, aMano: (b.data?.a_mano ?? true) as boolean };
+    },
+  });
+  const vociPronte = Array.isArray(catalogo?.voci) ? catalogo!.voci : [];
+  const aMano = catalogo?.aMano ?? true;
+  const puoAggiungere = puoModificare && (vociPronte.length > 0 || aMano);
   const { data } = useQuery({
     queryKey: chiave,
     queryFn: async () => {
@@ -112,9 +131,16 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
           </li>
         ))}
       </ul>
-      {puoModificare && (nuova ? (
+      {puoAggiungere && (nuova ? (
         <form className="grid grid-cols-6 gap-1.5 border-t p-2" onSubmit={(e) => { e.preventDefault(); if (nuova.descrizione.trim()) aggiungi.mutate(nuova); }}>
-          <Input autoFocus aria-label="Descrizione voce" placeholder="Voce (es. trasporto, nolo)" className="col-span-6 h-8 text-[13px]" value={nuova.descrizione} onChange={(e) => setNuova({ ...nuova, descrizione: e.target.value })} />
+          {vociPronte.length > 0 && (
+            <select aria-label="Scegli la voce" className="col-span-6 h-8 rounded-md border bg-background px-2 text-[13px]" value={vociPronte.find((v) => v.nome === nuova.descrizione)?.id ?? ""}
+              onChange={(e) => { const v = vociPronte.find((x) => x.id === e.target.value); setNuova(v ? { ...nuova, descrizione: v.nome, unita: v.unita, costo: v.costo_unitario?.toString() ?? "", vendita: v.vendita_unitaria?.toString() ?? "" } : { ...nuova, descrizione: "" }); }}>
+              <option value="">{aMano ? "Scegli una voce o scrivila sotto" : "Scegli una voce"}</option>
+              {vociPronte.map((v) => <option key={v.id} value={v.id}>{v.nome}</option>)}
+            </select>
+          )}
+          {aMano && <Input aria-label="Descrizione voce" placeholder="Voce (es. trasporto, nolo)" className="col-span-6 h-8 text-[13px]" value={nuova.descrizione} onChange={(e) => setNuova({ ...nuova, descrizione: e.target.value })} />}
           <Input aria-label="Quantità" inputMode="decimal" placeholder="Q.tà" className="col-span-1 h-8 px-1.5 text-[13px]" value={nuova.quantita} onChange={(e) => setNuova({ ...nuova, quantita: e.target.value })} />
           <Input aria-label="Unità" placeholder="Unità" className="col-span-1 h-8 px-1.5 text-[13px]" value={nuova.unita} onChange={(e) => setNuova({ ...nuova, unita: e.target.value })} />
           <Input aria-label="Costo unitario" inputMode="decimal" placeholder="Costo €" className="col-span-2 h-8 text-[13px]" value={nuova.costo} onChange={(e) => setNuova({ ...nuova, costo: e.target.value })} />
@@ -126,7 +152,7 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
         </form>
       ) : (
         <button type="button" onClick={() => setNuova({ ...VUOTA })} className="tap-compact flex w-full items-center gap-1 border-t px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-muted/40">
-          <Plus className="h-3.5 w-3.5" /> Aggiungi voce libera
+          <Plus className="h-3.5 w-3.5" /> Aggiungi voce
         </button>
       ))}
       <dl className={`grid gap-2 border-t bg-muted/40 px-3 py-1.5 tabular-nums ${conVendita ? "grid-cols-4" : "grid-cols-2"}`}>
