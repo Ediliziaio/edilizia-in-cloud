@@ -42,6 +42,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useState } from "react";
+import { NuovoContrattoClienteDialog } from "@/components/clients/NuovoContrattoClienteDialog";
 import { ChiediASilvio } from "@/components/silvio/ChiediASilvio";
 import { CustomerProfileCard } from "@/components/clients/CustomerProfileCard";
 import DistanceFromBase from "@/components/customers/DistanceFromBase";
@@ -128,6 +129,7 @@ export default function CompanyCustomerDetail() {
   // potessi inviare email anche da qui"). Apre con destinatario pre-popolato
   // a customer.email.
   const [composeOpen, setComposeOpen] = useState(false);
+  const [nuovoContratto, setNuovoContratto] = useState(false);
   const [composeContext, setComposeContext] = useState<ComposeContext>({ mode: "new" });
   // 2026-05-27 (layout 3-col): tab pannello laterale destro.
   // null = chiuso, "ordini" | "preventivi" | "assistenza" | "interventi" |
@@ -658,6 +660,7 @@ export default function CompanyCustomerDetail() {
               <CalendarDays className="h-3.5 w-3.5" /> Appuntamento
             </Button>
 
+            <NuovoContrattoClienteDialog aperto={nuovoContratto} onChiudi={() => setNuovoContratto(false)} clienteId={customer.id} nomeCliente={fullName} />
             {/* Dropdown "..." con crea entità + elimina (stile marketing) */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -671,6 +674,13 @@ export default function CompanyCustomerDetail() {
                 </DropdownMenuLabel>
                 <DropdownMenuItem onClick={() => navigate(`/azienda/ordini/nuovo?customer_id=${customer.id}&customer_name=${encodeURIComponent(fullName)}`)}>
                   <ClipboardList className="h-3.5 w-3.5 mr-2" /> Nuovo ordine
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => {
+                  // Un committente ha nella sua scheda l'accordo col listino; un cliente parte da una commessa.
+                  if ((customer as { customer_type?: string | null }).customer_type === "appaltatore") navigate(`/azienda/committenti/${customer.id}`);
+                  else setNuovoContratto(true);
+                }}>
+                  <FileSignature className="h-3.5 w-3.5 mr-2" /> Nuovo contratto
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate(`/azienda/marketing/preventivi/nuovo?customer_id=${customer.id}&customer_name=${encodeURIComponent(fullName)}`)}>
                   <FileSignature className="h-3.5 w-3.5 mr-2" /> Nuovo preventivo

@@ -101,3 +101,104 @@ export function datiReaMancanti(a: AziendaRea): string[] {
   }
   return mancanti;
 }
+
+// ─── I dati dell'azienda nel piè di pagina dei documenti (09/11/2026) ──────
+
+/**
+ * Florin: «nel footer i dati dell'azienda: ragione sociale, P.IVA, capitale sociale… solo i dati».
+ * Stanno in due tabelle: `companies` (tutte le aziende) e `anagrafica_azienda` (solo chi ha compilato i dati
+ * fiscali, ed è l'unica ad avere capitale e ufficio REA). Per i dati legali vale l'anagrafica, come in fattura;
+ * quello che manca si salta: nel piè non deve mai comparire un «REA —».
+ */
+export interface DatiSocietari extends AziendaRea {
+  ragioneSociale: string;
+  sede?: string | null;
+  partitaIva?: string | null;
+  codiceFiscale?: string | null;
+  pec?: string | null;
+}
+
+// deno-lint-ignore no-explicit-any
+type Riga = Record<string, any> | null | undefined;
+const pulito = (v: unknown): string => String(v ?? "").trim();
+const primo = (...v: unknown[]): string => v.map(pulito).find(Boolean) ?? "";
+
+function indirizzoDi(via: unknown, cap: unknown, citta: unknown, provincia: unknown): string {
+  const luogo = [pulito(cap), pulito(citta)].filter(Boolean).join(" ");
+  const pr = pulito(provincia);
+  return [pulito(via), [luogo, pr ? `(${pr})` : ""].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+}
+
+/** Le due righe del database, in una: non legge niente, così si prova da sola. */
+export function datiSocietariDa(azienda: Riga, anagrafica: Riga): DatiSocietari {
+  const c = azienda ?? {};
+  const a = anagrafica ?? {};
+  const viaAnagrafica = [pulito(a.indirizzo_via), pulito(a.indirizzo_numero_civico)].filter(Boolean).join(" ");
+  return {
+    ragioneSociale: primo(c.business_name, a.ragione_sociale, c.name),
+    sede: indirizzoDi(c.legal_address, c.legal_postal_code, c.legal_city, c.legal_province)
+      || indirizzoDi(viaAnagrafica, a.indirizzo_cap, a.indirizzo_comune, a.indirizzo_provincia) || null,
+    partitaIva: primo(c.vat_number, a.partita_iva) || null,
+    codiceFiscale: primo(c.fiscal_code, a.codice_fiscale) || null,
+    pec: primo(a.pec, c.pec) || null,
+    forma_giuridica: a.forma_giuridica ?? null,
+    codice_rea: primo(a.codice_rea, c.numero_rea) || null,
+    rea_ufficio: a.rea_ufficio ?? null,
+    indirizzo_provincia: primo(a.indirizzo_provincia, c.legal_province) || null,
+    capitale_sociale: a.capitale_sociale ?? null,
+    socio_unico: a.socio_unico ?? null,
+    stato_liquidazione: a.stato_liquidazione ?? null,
+  };
+}
+
+const euroPie = (n: number): string =>
+  `€ ${n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: "always" } as Intl.NumberFormatOptions)}`;
+
+/** Il piè di pagina, in due righe: chi è e dove sta; i numeri che la legge chiede. Vuoto se non si sa niente. */
+export function righeSocietarie(d: DatiSocietari | null | undefined): string[] {
+  if (!d) return [];
+  const chi = [pulito(d.ragioneSociale), d.sede ? `Sede legale ${pulito(d.sede)}` : ""].filter(Boolean).join(" · ");
+  const rea = iscrizioneRea(d);
+  const numeroRea = rea ? `${rea.ufficio}-${rea.numero}` : pulito(d.codice_rea);
+  const capitale = Number(d.capitale_sociale);
+  const partitaIva = pulito(d.partitaIva);
+  const codiceFiscale = pulito(d.codiceFiscale);
+  const legali = [
+    partitaIva ? `P.IVA ${partitaIva}` : "",
+    codiceFiscale && codiceFiscale !== partitaIva ? `C.F. ${codiceFiscale}` : "",
+    numeroRea ? `REA ${numeroRea}` : "",
+    Number.isFinite(capitale) && capitale > 0 ? `Capitale sociale versato ${euroPie(capitale)}` : "",
+    d.socio_unico && eSocietaDiCapitali(d.forma_giuridica) ? "Socio unico" : "",
+    d.stato_liquidazione === "LS" ? "In liquidazione" : "",
+    pulito(d.pec) ? `PEC ${pulito(d.pec)}` : "",
+  ].filter(Boolean).join(" · ");
+  return [chi, legali].filter(Boolean);
+}
+
+/**
+ * Legge i dati societari di un'azienda. Stessa lettura per il browser e per il server. Se l'anagrafica non si
+ * può leggere (chi non è d'ufficio) restano quelli di `companies`; se non si legge niente, null: il documento
+ * esce lo stesso.
+ */
+export async function caricaDatiSocietari(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  companyId: string | null | undefined,
+): Promise<DatiSocietari | null> {
+  if (!companyId) return null;
+  try {
+    const [azienda, anagrafica] = await Promise.all([
+      supabase.from("companies")
+        .select("name,business_name,legal_address,legal_city,legal_postal_code,legal_province,vat_number,fiscal_code,pec,numero_rea")
+        .eq("id", companyId).maybeSingle(),
+      supabase.from("anagrafica_azienda")
+        .select("ragione_sociale,partita_iva,codice_fiscale,forma_giuridica,indirizzo_via,indirizzo_numero_civico,indirizzo_cap,indirizzo_comune,indirizzo_provincia,pec,codice_rea,rea_ufficio,capitale_sociale,socio_unico,stato_liquidazione")
+        .eq("company_id", companyId).maybeSingle(),
+    ]);
+    const c = azienda?.error ? null : azienda?.data;
+    const a = anagrafica?.error ? null : anagrafica?.data;
+    return c || a ? datiSocietariDa(c, a) : null;
+  } catch {
+    return null;
+  }
+}

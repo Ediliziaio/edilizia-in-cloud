@@ -2,7 +2,7 @@ import type { prepareVariation, VariationDocumentParts } from "./variationDraft"
 import { CONDIZIONI_STANDARD_VARIANTE, variationImpact } from "./variationDraft";
 import { variationEventDate } from "./pendingVariationDocument";
 type PublicVariation=Pick<ReturnType<typeof prepareVariation>,"titolo"|"descrizione"|"motivazione"|"richiesto_da"|"impatto_economico"> & {impatto_giorni?:number};
-export interface VariationPdfContext {orderCode?:string;customerName?:string;currentNet?:number;vatRate?:number;companyName?:string;companyDetails?:string;customerAddress?:string;siteAddress?:string;proposalNumber?:number;proposalRegisteredAt?:string;documentHeading?:string;primaryColor?:string;archivedOriginal?:boolean;parti?:VariationDocumentParts;logo?:string}
+export interface VariationPdfContext {orderCode?:string;customerName?:string;currentNet?:number;vatRate?:number;companyName?:string;companyDetails?:string;customerAddress?:string;siteAddress?:string;proposalNumber?:number;proposalRegisteredAt?:string;documentHeading?:string;primaryColor?:string;archivedOriginal?:boolean;parti?:VariationDocumentParts;logo?:string;societarie?:string[]}
 export function variationPdfFilename(orderCode:string|undefined,title:string){
   const part=(value:string)=>value.normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,65);
   return `variante-${part(orderCode||"commessa")}-${part(title)||"lavori-extra"}.pdf`;
@@ -168,7 +168,8 @@ async function buildVariationPdf(variation:PublicVariation,context:VariationPdfC
   // ── Le condizioni: quelle di ogni variante, poi quelle scritte per questa
   section("Condizioni contrattuali");
   const conditions=[...CONDIZIONI_STANDARD_VARIANTE as readonly string[],
-    ...(parts?.condizioni ? [parts.condizioni] : []),
+    // Un paragrafo, un punto: le clausole dell'azienda arrivano separate da una riga vuota.
+    ...(parts?.condizioni ? parts.condizioni.split(/\n\s*\n/).map(t=>t.trim()).filter(Boolean) : []),
     ...(parts?.pagamento ? [`Pagamento dei lavori extra: ${parts.pagamento}`] : []),
     ...(parts ? [parts.tempi] : [])];
   conditions.forEach((text,i)=>{
@@ -197,8 +198,18 @@ async function buildVariationPdf(variation:PublicVariation,context:VariationPdfC
   const count = doc.getNumberOfPages();
   for (let page=1;page<=count;page++) {
     doc.setPage(page); doc.setDrawColor(...LINE); doc.line(LEFT,280,RIGHT,280);
-    font(7.5,false,GREY);doc.text(clean(`${context.companyName ? `${context.companyName} - ` : ""}${mode==="proposta" ? "Proposta non firmata" : "Anteprima non firmata"}`),LEFT,284);
-    doc.text(`Pagina ${page} di ${count}`,RIGHT,284,{align:"right"});
+    const stato=mode==="proposta" ? "Proposta non firmata" : "Anteprima non firmata";
+    const societarie=context.societarie?.length ? context.societarie : null;
+    if(societarie){
+      // In fondo i dati societari, centrati, e sotto pagina e stato (09/11/2026).
+      font(6.5,false,GREY);
+      const righe=societarie.flatMap(r=>lines(r,WIDTH)).slice(0,3);
+      righe.forEach((r,i)=>doc.text(r,105,283.5+i*3,{align:"center"}));
+      doc.text(`Pagina ${page} di ${count} - ${stato}`,105,284+righe.length*3,{align:"center"});
+    }else{
+      font(7.5,false,GREY);doc.text(clean(`${context.companyName ? `${context.companyName} - ` : ""}${stato}`),LEFT,284);
+      doc.text(`Pagina ${page} di ${count}`,RIGHT,284,{align:"right"});
+    }
   }
   return doc;
 }

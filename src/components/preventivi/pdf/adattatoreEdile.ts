@@ -58,6 +58,7 @@ function pianoDelDocumento(raw: unknown, totale: number) {
     note: piano!.note,
   };
 }
+import { datiSocietariDa, righeSocietarie } from "../../../../supabase/functions/_shared/datiSocietari";
 import { nomeCointestatario } from "@/lib/preventivatore/cointestatario";
 import type {
   DocEdileCapitolo, DocEdileDati, DocEdileFoto, DocEdileModello, DocEdileModulo,
@@ -503,6 +504,8 @@ export function costruisciDatiEdile(input: {
     tipoIntervento: stringa(p.tipo_intervento),
     scheda: [...schedaComune(p), ...schedaModulo],
     azienda: {
+      righeSocietarie: righeSocietarie((t[CHIAVE_ARCHIVIO] as ArchivioDelDocumento | undefined)?.societari
+        ?? datiSocietariDa({ business_name: nomeAzienda, legal_address: stringa(t.indirizzo_completo) || azienda?.indirizzo, vat_number: stringa(t.partita_iva) || azienda?.partita_iva }, null)),
       nome: nomeAzienda,
       indirizzo: stringa(t.indirizzo_completo) || azienda?.indirizzo || null,
       telefono: stringa(t.telefono) || azienda?.telefono || null,

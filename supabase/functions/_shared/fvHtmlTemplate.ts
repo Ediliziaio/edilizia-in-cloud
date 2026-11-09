@@ -159,6 +159,8 @@ export interface FvPdfTemplateData {
     email?: string | null;
     website?: string | null;
     vat_number?: string | null;
+    /** Ragione sociale, sede, P.IVA, REA, capitale: il piè di pagina (09/11/2026). */
+    righe_societarie?: string[];
   };
   cliente: {
     nome: string;
@@ -484,6 +486,7 @@ h1, h2, h3, h4 { font-family: 'Outfit', -apple-system, sans-serif; letter-spacin
   border-top: 1.2px solid #CBD5E1;
 }
 .page-footer .pnum { font-weight: 700; color: #1E3A5F; }
+.page-footer.societario { display: block; text-align: center; padding: 2.5mm 16mm 3mm; font-size: 7.5pt; line-height: 1.35; }
 /* padding-top staccato dall'header (~18mm alto) così la linea non taglia l'eyebrow */
 .content { padding: 23mm 16mm 21mm; height: 100%; display: flex; flex-direction: column; }
 /* Un blocco non si accorcia mai per far posto agli altri: nella colonna flessibile
@@ -813,8 +816,19 @@ function header(numero: string, brand: string): string {
   </div>`;
 }
 
-function footer(brand: string, contatti: string, pageN: number, total: number): string {
-  return `<div class="page-footer"><span>${escHtml(brand)} · ${escHtml(contatti)}</span><span class="pnum">${pageN} / ${total}</span></div>`;
+/** Il piè delle pagine di firma: i dati societari come nel resto del documento; senza, il riferimento di prima. */
+function footerDocumento(d: FvPdfTemplateData, riferimento: string, pageN: number, total: number): string {
+  if (d.azienda.righe_societarie?.length) return footer(d, pageN, total);
+  return `<div class="page-footer"><span>${escHtml(riferimento)}</span><span class="pnum">${pageN} / ${total}</span></div>`;
+}
+
+function footer(d: FvPdfTemplateData, pageN: number, total: number): string {
+  // I dati societari, centrati, e sotto il numero di pagina (09/11/2026): uguale in tutti i documenti.
+  if (d.azienda.righe_societarie?.length) {
+    return `<div class="page-footer societario">${d.azienda.righe_societarie.map((r) => `<div>${escHtml(r)}</div>`).join("")}<div class="pnum">${pageN} / ${total}</div></div>`;
+  }
+  const contatti = [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · ");
+  return `<div class="page-footer"><span>${escHtml(d.azienda.name)} · ${escHtml(contatti)}</span><span class="pnum">${pageN} / ${total}</span></div>`;
 }
 
 function safeRichText(value: string | null | undefined): string {
@@ -1329,7 +1343,7 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
         </table>${noteP}`;
       })()}
     </div>
-    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+    ${footer(d, pageN, total)}
   </div>`;
 }
 
@@ -1365,7 +1379,7 @@ function pageAnteprima(d: FvPdfTemplateData, pageN: number, total: number): stri
         <div><strong>Nota anteprima impianto</strong>${escHtml(renderDisclaimer)}</div>
       </div>` : ""}
     </div>
-    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+    ${footer(d, pageN, total)}
   </div>`;
 }
 
@@ -1407,7 +1421,7 @@ function pagePianoTetto(d: FvPdfTemplateData, pageN: number, total: number): str
         Moduli da ${misureTesto(misureDelPiano(pt.piano))}${misureDelPiano(pt.piano).stimato ? ", misure stimate dalla potenza" : ""}. Il posizionamento definitivo, con ombre, ostacoli e distanze di sicurezza, si conferma nel sopralluogo e nello studio di fattibilità.</div>
       </div>
     </div>
-    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+    ${footer(d, pageN, total)}
   </div>`;
 }
 
@@ -1438,7 +1452,7 @@ function pageBundleKit(d: FvPdfTemplateData, pageN: number, total: number): stri
       ${chips ? `<div class="product-specs" style="margin:3mm 0;">${chips}</div>` : ""}
       ${voceRows ? `<div style="margin-top:4mm;"><p style="font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#F97316;margin-bottom:2mm;">Componenti inclusi</p>${voceRows}</div>` : ""}
     </div>
-    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+    ${footer(d, pageN, total)}
   </div>`;
 }
 
@@ -1494,7 +1508,7 @@ function pageComponenti(d: FvPdfTemplateData, pageN: number, total: number, comp
       ${cards || "<p>Nessun componente configurato.</p>"}
       ${fasciaFotoPagina(d, "componenti", "center 45%", true)}
     </div>
-    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+    ${footer(d, pageN, total)}
   </div>`;
 }
 
@@ -1603,7 +1617,7 @@ function pageComposizioneFornitura(d: FvPdfTemplateData, pageN: number, total: n
         <div class="forn-tot-v">${fmtEur(d.costi.prezzo_vendita_iva_inclusa)}</div>
       </div>` : ""}
     </div>
-    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+    ${footer(d, pageN, total)}
   </div>`;
 }
 
@@ -1649,7 +1663,7 @@ function pageMacroCategoriaDedicata(
         <div><strong>Contenuto collegato al listino.</strong> Foto, nome e descrizione non sono duplicati nel template PDF: vengono letti dalla macrocategoria prodotto.</div>
       </div>
     </div>
-    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+    ${footer(d, pageN, total)}
   </div>`;
 }
 
@@ -1676,7 +1690,7 @@ function pageProduzione(d: FvPdfTemplateData, pageN: number, total: number): str
       ${fasciaFotoPagina(d, "produzione", "center 45%")}
       ${d.progetto.has_accumulo ? calloutAccumulo(d) : ""}
     </div>
-    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+    ${footer(d, pageN, total)}
   </div>`;
 }
 
@@ -1722,7 +1736,7 @@ function pageFlussi(d: FvPdfTemplateData, pageN: number, total: number): string 
         <div class="kpi-big"><div class="kbig-label">Autosufficienza</div><div class="kbig-value">${fmtPct(d.flows.autosufficienza_pct, 0)}</div><div class="kbig-sub">del consumo casa arriva dal tuo sole, non dalla rete.</div></div>
       </div>
     </div>
-    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+    ${footer(d, pageN, total)}
   </div>`;
 }
 
@@ -1758,7 +1772,7 @@ function pageRisparmio(d: FvPdfTemplateData, pageN: number, total: number): stri
         La stima usa il prezzo che paghi oggi, ${escHtml(fmtNum(d.progetto.costo_kwh_attuale, 2))} € per kWh: se l'energia rincara, ogni kWh prodotto in casa vale di più; se cala, vale un po' meno.</div>
       </div>
     </div>
-    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+    ${footer(d, pageN, total)}
   </div>`;
 }
 
@@ -1790,7 +1804,7 @@ function pageCostiFuturi(d: FvPdfTemplateData, pageN: number, total: number): st
       </div>
       ${fasciaFotoPagina(d, "costi", "center 42%", true)}
     </div>
-    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+    ${footer(d, pageN, total)}
   </div>`;
 }
 
@@ -1832,7 +1846,7 @@ function pagePiano(d: FvPdfTemplateData, fin: FvFinanziamentoPdf, pageN: number,
       </table>
       ${fasciaFotoPagina(d, "piano", "center 45%", true)}
     </div>
-    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+    ${footer(d, pageN, total)}
   </div>`;
 }
 
@@ -1866,7 +1880,7 @@ function pageBollette240(d: FvPdfTemplateData, pageN: number, total: number): st
         Con il fotovoltaico, solo la parte che prendi ancora dalla rete. L'energia che produci sul tuo tetto non segue i rincari del mercato.</div>
       </div>
     </div>
-    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+    ${footer(d, pageN, total)}
   </div>`;
 }
 
@@ -1905,7 +1919,7 @@ function pageCassa25(d: FvPdfTemplateData, pageN: number, total: number): string
       </table>
       ${fasciaFotoPagina(d, "cassa", "center 55%", true)}
     </div>
-    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+    ${footer(d, pageN, total)}
   </div>`;
 }
 
@@ -1977,7 +1991,7 @@ function pageCO2(d: FvPdfTemplateData, pageN: number, total: number): string {
         Ogni kWh che autoconsumi è energia che non prelevi dalla rete.</div>
       </div>
     </div>
-    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+    ${footer(d, pageN, total)}
   </div>`;
 }
 
@@ -2036,7 +2050,7 @@ function pageBlocco(d: FvPdfTemplateData, id: PaginaBlocco, pageN: number, total
       </div>
       <div class="blocco-voci${tre ? " tre" : ""}">${blocco.voci.map(voce).join("")}</div>
     </div>
-    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+    ${footer(d, pageN, total)}
   </div>`;
   }
   return `<div class="page">
@@ -2051,7 +2065,7 @@ function pageBlocco(d: FvPdfTemplateData, id: PaginaBlocco, pageN: number, total
         ${blocco.voci.map(voce).join("")}
       </div>
     </div>
-    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+    ${footer(d, pageN, total)}
   </div>`;
 }
 
@@ -2149,7 +2163,7 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
         </div>` : ""}
       ${fasciaFotoPagina(d, "garanzie", "center 60%", true)}
     </div>
-    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+    ${footer(d, pageN, total)}
   </div>`;
 }
 
@@ -2201,7 +2215,7 @@ function pageIter(d: FvPdfTemplateData, pageN: number, total: number): string {
         <div>${isFvLocalIntervention(d.template) ? "<strong>Prima si conferma il perimetro.</strong> Tempi, attività e documentazione si concordano sul caso concreto. Servizi e funzioni aggiuntive devono essere esplicitamente inclusi." : "<strong>Tu firmi una volta sola.</strong> Le pratiche comprese nella proposta le seguiamo noi. I tempi dipendono anche dal Comune e dal distributore di rete."}</div>
       </div>
     </div>
-    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+    ${footer(d, pageN, total)}
   </div>`;
 }
 
@@ -2302,7 +2316,7 @@ function pageRecensioni(d: FvPdfTemplateData, pageN: number, total: number): str
         </div></div>`
         : fasciaFotoPagina(d, "recensioni", "center 55%", true)}
     </div>
-    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+    ${footer(d, pageN, total)}
   </div>`;
 }
 
@@ -2319,7 +2333,7 @@ function pageFAQ(d: FvPdfTemplateData, pageN: number, total: number, faqs = faqD
       </div>
       ${fasciaFotoPagina(d, "faq", "center 40%", true)}
     </div>
-    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+    ${footer(d, pageN, total)}
   </div>`;
 }
 
@@ -2434,7 +2448,7 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
         <div><strong>Come si firma</strong>Online, con il link ricevuto via email. Oppure su carta, nella pagina «Accettazione proposta»${haPaginaCondizioni(d) ? ", dopo le condizioni generali" : " che segue"}: c'è il riepilogo di quello che si firma, e lo spazio per le firme.</div>
       </div>
     </div>
-    <div class="page-footer"><span>${escHtml(docMeta)}</span><span class="pnum">${pageN} / ${total}</span></div>
+    ${footerDocumento(d, docMeta, pageN, total)}
   </div>`;
 }
 
@@ -2498,7 +2512,7 @@ function pageFirmaContratto(d: FvPdfTemplateData, pageN: number, total: number):
         dichiarazione esplicita inviata a ${escHtml(d.azienda.email ?? d.azienda.name)}: non serve motivarla.
       </p>` : ""}
     </div>
-    <div class="page-footer"><span>${escHtml(docMeta)}</span><span class="pnum">${pageN} / ${total}</span></div>
+    ${footerDocumento(d, docMeta, pageN, total)}
   </div>`;
 }
 
@@ -2607,7 +2621,7 @@ function pagineCondizioni(d: FvPdfTemplateData, primoNumero: number, total: numb
       <div class="cond-testo">${gruppo.join("")}</div>
       ${ultima ? `<p style="font-size:7.5pt;color:#94A3B8;margin-top:3mm;">Segue la pagina della firma${clausole.length > 0 ? ", con l'approvazione specifica delle clausole" : ""}.</p>` : ""}
     </div>
-    <div class="page-footer"><span>${escHtml(docMeta)}</span><span class="pnum">${pageN} / ${total}</span></div>
+    ${footerDocumento(d, docMeta, pageN, total)}
   </div>`;
   });
 }
@@ -2637,7 +2651,7 @@ function pageModuloRecesso(d: FvPdfTemplateData, pageN: number, total: number): 
         </div>
       </div>
     </div>
-    <div class="page-footer"><span>${escHtml(docMeta)}</span><span class="pnum">${pageN} / ${total}</span></div>
+    ${footerDocumento(d, docMeta, pageN, total)}
   </div>`;
 }
 

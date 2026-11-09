@@ -29,8 +29,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 import { parseDecimalIT } from "@/lib/parseDecimalIT";
-import { articoliContratto, clausoleFirmaSubappalto, costruisciContrattoSubappaltoHtml, costruisciElencoCantiereHtml, unisciArticoliPersonalizzati, type DatiContrattoSubappalto, type RigaElencoLavori } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
+import { CHIAVE_CLAUSOLE_FISSATE, clausoleArchivioDelContratto, articoliContratto, clausoleFirmaSubappalto, costruisciContrattoSubappaltoHtml, costruisciElencoCantiereHtml, unisciArticoliPersonalizzati, type DatiContrattoSubappalto, type RigaElencoLavori } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
 import { generaPdfContrattoSubappalto, generaPdfElencoCantiere } from "./ContrattoSubappaltoPDF";
+import { modelloPredefinitoDellAzienda } from "../../../supabase/functions/_shared/condizioniArchivio";
+import { caricaDatiSocietari, righeSocietarie } from "../../../supabase/functions/_shared/datiSocietari";
 import { CondizioniContrattoDialog } from "./CondizioniContrattoDialog";
 import { vesteContratto } from "@/lib/subappaltatori/vesteContratto";
 import { clienteCommessa } from "@/lib/subappaltatori/clienteCommessa";
@@ -326,6 +328,18 @@ export function ContrattiSubappalto({
     },
     enabled: !!companyId && contratti.length > 0, staleTime: 5 * 60_000,
   });
+  // Le clausole di «Contratti e condizioni» e i dati societari del piè di pagina (09/11/2026).
+  const { data: extraContratto } = useQuery({
+    queryKey: ["contratto-sub-archivio", companyId],
+    queryFn: async () => {
+      const [modello, societari] = await Promise.all([
+        modelloPredefinitoDellAzienda(supabase, companyId, "subappalto"),
+        caricaDatiSocietari(supabase, companyId),
+      ]);
+      return { modello, societarie: righeSocietarie(societari) };
+    },
+    enabled: !!companyId && contratti.length > 0, staleTime: 60_000,
+  });
   const { data: ivaDitta = 0, isLoading: caricoIva } = useQuery({
     queryKey: ["contratto-sub-iva-ditta", companyId, sub.campo_subappaltatore_id ?? null],
     queryFn: async () => {
@@ -498,7 +512,7 @@ export function ContrattiSubappalto({
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const datiContratto = (c: ContrattoCompleto): DatiContrattoSubappalto => {
+  const datiContratto = (c: ContrattoCompleto, opzioni: { rileggi?: boolean } = {}): DatiContrattoSubappalto => {
     const a = azienda;
     const indirizzo = a ? [[a.indirizzo_via, a.indirizzo_numero_civico].filter(Boolean).join(" "), [a.indirizzo_cap, a.indirizzo_comune, a.indirizzo_provincia ? `(${a.indirizzo_provincia})` : ""].filter(Boolean).join(" ")].filter(Boolean).join(", ") : "";
     return {
@@ -515,6 +529,8 @@ export function ContrattiSubappalto({
         penali: c.penali, garanzie: c.garanzie, durataGaranziaMesi: c.durata_garanzia_mesi, note: c.note,
         elencoLavori: Array.isArray(c.elenco_lavori) ? c.elenco_lavori : [],
         articoliPersonalizzati: unisciArticoliPersonalizzati(modelloArticoli, c.articoli_personalizzati),
+        clausoleArchivio: clausoleArchivioDelContratto(c, extraContratto?.modello, opzioni),
+        societarie: extraContratto?.societarie,
     };
   };
 
@@ -562,11 +578,13 @@ export function ContrattiSubappalto({
       if (!nome.trim()) throw new Error("Scrivi il nome di chi firma per il subappaltatore");
       if (!/^\S+@\S+\.\S+$/.test(email.trim())) throw new Error("Serve un'email valida: il link per firmare arriva lì");
       if (!azienda) throw new Error("Mancano i dati della tua azienda: completa l'anagrafica aziendale");
-      const blob = await generaPdfContrattoSubappalto(datiContratto(c));
+      // Si manda il testo del modello di oggi, e resta fissato sul contratto: il modello può cambiare, questo no.
+      const datiInvio = datiContratto(c, { rileggi: true });
+      const blob = await generaPdfContrattoSubappalto(datiInvio);
       const percorso = `${companyId}/subappalti/${c.id}/${Date.now()}.pdf`;
       const { error: errFile } = await supabase.storage.from("quote-pdfs").upload(percorso, blob, { contentType: "application/pdf" });
       if (errFile) throw new Error("Non riesco a salvare il PDF del contratto. Riprova tra poco.");
-      const { error: errC } = await supabase.from("contratti_subappalto" as never).update({ pdf_path: percorso } as never).eq("id", c.id);
+      const { error: errC } = await supabase.from("contratti_subappalto" as never).update({ pdf_path: percorso, articoli_personalizzati: { ...(c.articoli_personalizzati as Record<string, unknown> | null ?? {}), [CHIAVE_CLAUSOLE_FISSATE]: JSON.stringify(datiInvio.clausoleArchivio ?? []) } } as never).eq("id", c.id);
       if (errC) throw new Error("Non riesco a collegare il PDF al contratto. Riprova tra poco.");
       // Il reinvio sostituisce la richiesta vecchia: altrimenti restano due link validi, e quella vecchia
       // blocca anche il caricamento della copia firmata su carta.
@@ -578,7 +596,7 @@ export function ContrattiSubappalto({
           tipo_documento: "subappalto", documento_id: c.id, tipo_firmatario: "b2b",
           signer_name: nome.trim(), signer_email: email.trim(), signer_phone: telefono.trim() || undefined,
           // Gli articoli da approvare a parte, col testo di QUESTO contratto (anche quelli riscritti dall'azienda).
-          clausole_da_approvare: clausoleFirmaSubappalto(articoliContratto(datiContratto(c))),
+          clausole_da_approvare: clausoleFirmaSubappalto(articoliContratto(datiInvio)),
           expires_giorni: 30, note: `Contratto di subappalto ${c.numero_contratto ?? ""} · ${c.commessa?.order_code ?? ""}`.trim(),
         },
       });
@@ -764,7 +782,7 @@ export function ContrattiSubappalto({
           key={condizioni.id}
           companyId={companyId}
           contrattoId={condizioni.id}
-          dati={{ ...datiContratto(condizioni), articoliPersonalizzati: {} }}
+          dati={{ ...datiContratto(condizioni), articoliPersonalizzati: {}, clausoleArchivio: [] }}
           modello={modelloArticoli}
           personalizzati={unisciArticoliPersonalizzati({}, condizioni.articoli_personalizzati)}
           bloccato={condizioni.firmato_il

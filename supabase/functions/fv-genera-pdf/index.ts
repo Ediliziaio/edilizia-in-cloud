@@ -33,6 +33,7 @@
  * 26/10/2026: foto più leggere nel documento (viste satellitari in JPEG, foto del deposito ridimensionate).
  */
 
+import { caricaDatiSocietari, righeSocietarie } from "../_shared/datiSocietari.ts";
 import { modelloFotovoltaico } from "../_shared/modelloFotovoltaico.ts";
 import { PIANO_ALTEZZA, PIANO_LARGHEZZA, PIANO_ZOOM, leggiPiano } from "../_shared/fvPianoTetto.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
@@ -764,6 +765,7 @@ Deno.serve(async (req: Request) => {
         phone: template.contatto_telefono ?? company.phone,
         email: template.contatto_email ?? company.email,
         website: template.url_sito ?? company.website,
+        righe_societarie: righeSocietarie(await caricaDatiSocietari(supabaseAdmin, prog.company_id)),
       },
       cliente: {
         nome: clienteNome,

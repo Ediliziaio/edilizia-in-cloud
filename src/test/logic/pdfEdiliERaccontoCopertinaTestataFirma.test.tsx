@@ -113,7 +113,10 @@ describe("preventivo edile: copertina, testata e pagina della firma", () => {
 
   it("testata di ogni pagina: il tipo di piano e il numero, mai il nome del cliente", async () => {
     const pagine = await pdfEdile({ logo: true });
-    const interne = pagine.slice(1);
+    // Il foglio delle condizioni e quello della firma non hanno intestazione, per scelta (09/11/2026).
+    const tutte = pagine.slice(1);
+    const foglio = tutte.findIndex((p) => !piatto(p.testata).includes("pianodeilavori"));
+    const interne = foglio < 0 ? tutte : tutte.slice(0, foglio);
     expect(interne.length).toBeGreaterThan(3);
     for (const [i, p] of interne.entries()) {
       expect(piatto(p.testata).includes("pianodeilavori"), `testata della pagina ${i + 2}: «${p.testata}»`).toBe(true);

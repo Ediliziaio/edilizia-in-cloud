@@ -716,7 +716,7 @@ export function creaPdfOperativo(
       { maxWidth: 86 },
     );
   }
-  const foot = footerAzienda(a);
+  const foot = a.righeSocietarie?.length ? a.righeSocietarie : footerAzienda(a);
   for (let page = 1; page <= pdf.getNumberOfPages(); page++) {
     pdf.setPage(page);
     pdf.setDrawColor(210, 219, 231);
@@ -731,7 +731,7 @@ export function creaPdfOperativo(
     font(7, false, true);
     if (modello.notaPagina) {
       const note = safe(modello.notaPagina);
-      const max = width - (modello.numerazione ? 35 : 0);
+      const max = width / 2 - (modello.numerazione ? 18 : 0);
       pdf.setFontSize(
         Math.min(7, (7 * max) / Math.max(1, pdf.getTextWidth(note))),
       );
@@ -741,10 +741,10 @@ export function creaPdfOperativo(
     if (modello.numerazione)
       pdf.text(
         `Pagina ${page} di ${pdf.getNumberOfPages()}`,
-        left + width,
+        105,
         291,
         {
-          align: "right",
+          align: "center",
         },
       );
   }
@@ -784,5 +784,8 @@ export async function generaPdfOperativo(
       image.close();
     }
   }
-  return creaPdfOperativo(d, a, logo, modello).output("blob");
+  // Il piè di pagina: i dati societari veri, uguali in tutti i documenti (09/11/2026).
+  const [{ supabase }, societari] = await Promise.all([import("@/integrations/supabase/client"), import("../../../supabase/functions/_shared/datiSocietari")]);
+  const righeSocietarie = societari.righeSocietarie(await societari.caricaDatiSocietari(supabase, a.id));
+  return creaPdfOperativo(d, { ...a, righeSocietarie }, logo, modello).output("blob");
 }

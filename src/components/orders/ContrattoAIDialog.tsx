@@ -13,13 +13,16 @@
  * server). Gli altri possono sistemare parti, oggetto e importi, ma non le condizioni.
  */
 
-import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useCondizioniArchivio } from "@/hooks/useCondizioniArchivio";
 import { condizioniDelContratto } from "@/lib/condizioni/archivio";
 import { paginaDelModello, PAGINA_CONDIZIONI } from "@/lib/condizioni/indirizzi";
 import { puoRiscrivereLeCondizioni } from "@/lib/preventivi/condizioniDelPreventivo";
+import { contrattoDaCompletare } from "@/lib/orders/contrattoCommittentePdf";
+import { datiDaCommessa } from "@/lib/contratti/contrattoCliente";
+import { caricaDatiSocietari } from "../../../supabase/functions/_shared/datiSocietari";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -87,7 +90,15 @@ const DEFAULT_OPZIONI: ContrattoOpzioni = {
 
 export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera Contratto AI" }: Props) {
   const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
+  // «Nuovo contratto» dalla scheda del cliente arriva qui con ?contratto=1: si apre da solo.
+  const [parametri, setParametri] = useSearchParams();
+  const [open, setOpen] = useState(() => parametri.get("contratto") === "1");
+  useEffect(() => {
+    if (parametri.get("contratto") !== "1") return;
+    const senza = new URLSearchParams(parametri);
+    senza.delete("contratto");
+    setParametri(senza, { replace: true });
+  }, [parametri, setParametri]);
   const [opzioni, setOpzioni] = useState<ContrattoOpzioni>(DEFAULT_OPZIONI);
   const [previewMd, setPreviewMd] = useState<string>("");
   const [aiMeta, setAiMeta] = useState<AiMeta | null>(null);
@@ -204,6 +215,39 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera C
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  // Il PDF vero (09/11/2026): stesso foglio delle condizioni, coi dati societari in fondo e le firme.
+  const pdfMutation = useMutation({
+    mutationFn: async () => {
+      // Stessa impostazione del contratto di subappalto: parti, cantiere, importi, articoli e l'elenco dei lavori.
+      const contratto = existing?.find((c) => c.id === contrattoId);
+      const [{ contrattoClienteBlob }, societari, ordine, voci] = await Promise.all([
+        import("@/components/contratti/ContrattoClientePDF"),
+        caricaDatiSocietari(supabase, companyId),
+        supabase.from("orders")
+          .select("order_code, description, work_address, client_name, client_company, client_email, client_phone, client_address, total_amount, deposit_amount, deposit_2_amount, balance_amount, vat_rate, work_start_date, expected_date, customer:profiles!orders_customer_id_fkey(first_name, last_name, business_name, fiscal_code, vat_number, address, city, postal_code, province, email, phone)")
+          .eq("id", orderId).single(),
+        supabase.from("order_items").select("name, description, quantity, unit_price, discount_percent, unita_misura, categoria").eq("order_id", orderId).order("position", { ascending: true }),
+      ]);
+      if (ordine.error) throw ordine.error;
+      if (voci.error) throw voci.error;
+      const numero = contratto?.numero_contratto ?? orderId.slice(0, 8);
+      const blob = await contrattoClienteBlob(datiDaCommessa({
+        contratto: { numero_contratto: contratto?.numero_contratto, created_at: contratto?.created_at },
+        md: previewMd, ordine: ordine.data as Record<string, unknown>, voci: voci.data ?? [], societari,
+      }));
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Contratto ${numero}.pdf`.replace(/[\\/:*?"<>|]/g, "-");
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    },
+    onSuccess: () => {
+      if (contrattoDaCompletare(previewMd)) toast.warning("Nel contratto ci sono ancora campi «[DA COMPLETARE]»: completali prima di mandarlo.");
+    },
+    onError: (err) => toast.error(`PDF non generato: ${err instanceof Error ? err.message : String(err)}`),
+  });
 
   const loadExisting = (c: ContrattoDoc) => {
     setPreviewMd(c.contenuto_md ?? "");
@@ -549,13 +593,17 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera C
                   Verifica AI
                 </Button>
               )}
+              <Button size="sm" onClick={() => pdfMutation.mutate()} disabled={pdfMutation.isPending} className="gap-1">
+                {pdfMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Scarica PDF
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleDownload}
                 className="gap-1"
               >
-                <Download className="h-4 w-4" /> Scarica .md
+                <Download className="h-4 w-4" /> .md
               </Button>
               {contrattoId && (
                 <Button

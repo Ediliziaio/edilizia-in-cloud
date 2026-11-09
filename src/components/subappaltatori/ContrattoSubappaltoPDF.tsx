@@ -9,6 +9,7 @@
  * (IVA o reverse charge, ritenuta, netto ai SAL) prima degli articoli, e
  * l'elenco completo dei lavori in Allegato A come nell'ordine.
  */
+import { PieSocietario } from "@/components/preventivi/pdf/FoglioCondizioniPDF";
 import { Document, Font, Image, Page, StyleSheet, Text, View, pdf } from "@react-pdf/renderer";
 import {
   articoliContratto, articoliDaApprovare, dataContratto, elencoPerFase, euroContratto, quantitaContratto,
@@ -18,16 +19,16 @@ import {
 Font.registerHyphenationCallback((word) => [word]);
 
 /** Un blu uguale per tutte le aziende (31/10/2026): il colore del marchio non sempre si legge su un contratto. */
-const BLU = "#2b6cb0";
+export const BLU = "#2b6cb0";
 /** Il colore mescolato col bianco: fondi chiari per righe e riquadri. */
-function chiaro(hex: string, quanto: number): string {
+export function chiaro(hex: string, quanto: number): string {
   const n = parseInt(hex.slice(1), 16);
   const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => Math.round(v + (255 - v) * quanto));
   return `#${c.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
 }
 
-const s = StyleSheet.create({
-  pagina: { paddingTop: 92, paddingBottom: 54, paddingHorizontal: 44, fontSize: 9.2, fontFamily: "Helvetica", lineHeight: 1.45, color: "#1f2937" },
+export const stiliContratto = StyleSheet.create({
+  pagina: { paddingTop: 92, paddingBottom: 66, paddingHorizontal: 44, fontSize: 9.2, fontFamily: "Helvetica", lineHeight: 1.45, color: "#1f2937" },
   testata: { position: "absolute", top: 24, left: 44, right: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingBottom: 8, borderBottomWidth: 1.5 },
   logo: { maxHeight: 40, maxWidth: 150, objectFit: "contain" },
   nomeTestata: { fontSize: 13, fontFamily: "Helvetica-Bold" },
@@ -68,7 +69,9 @@ const s = StyleSheet.create({
   cImp: { width: 72, paddingHorizontal: 4, textAlign: "right" },
 });
 
-function RigaEco({ label, valore, forte, colore }: { label: string; valore: string; forte?: boolean; colore?: string }) {
+const s = stiliContratto;
+
+export function RigaEco({ label, valore, forte, colore }: { label: string; valore: string; forte?: boolean; colore?: string }) {
   return (
     <View style={s.ecoRiga}>
       <Text style={forte ? s.bold : {}}>{label}</Text>
@@ -91,6 +94,13 @@ export function ContrattoSubappaltoPDF({ d }: { d: DatiContrattoSubappalto }) {
   return (
     <Document title={`Contratto di subappalto ${d.numero ?? ""}`.trim()} author={a.ragioneSociale} producer="Edilizia in Cloud">
       <Page size="A4" style={s.pagina}>
+        {/* Il piè sta per primo: dopo un contenuto su più fogli react-pdf lo disegnava fuori pagina. */}
+        {d.societarie?.length ? <PieSocietario righe={d.societarie} margine={44} /> : (
+          <View style={s.piede} fixed>
+            <Text>{`${a.ragioneSociale} · Contratto di subappalto${d.numero ? ` ${d.numero}` : ""} · ${d.commessa.codice}`}</Text>
+            <Text render={({ pageNumber, totalPages }) => `Pagina ${pageNumber} di ${totalPages}`} />
+          </View>
+        )}
         {/* Testata su ogni pagina: logo (o nome) e dati dell'impresa. */}
         <View style={[s.testata, { borderBottomColor: c }]} fixed>
           {d.veste?.logoUrl ? <Image src={d.veste.logoUrl} style={s.logo} /> : <Text style={[s.nomeTestata, { color: c }]}>{a.ragioneSociale}</Text>}
@@ -163,8 +173,12 @@ export function ContrattoSubappaltoPDF({ d }: { d: DatiContrattoSubappalto }) {
 
         {articoli.map((art, i) => (
           <View key={art.titolo} wrap>
-            <Text style={[s.art, { color: c }]} minPresenceAhead={40}>Art. {i + 1} – {art.titolo}</Text>
-            {art.paragrafi.map((p, j) => <Text key={j} style={s.para}>{p}</Text>)}
+            {/* Il titolo sta col suo primo paragrafo: mai da solo in fondo al foglio. */}
+            <View wrap={false}>
+              <Text style={[s.art, { color: c }]}>Art. {i + 1} – {art.titolo}</Text>
+              <Text style={s.para}>{art.paragrafi[0]}</Text>
+            </View>
+            {art.paragrafi.slice(1).map((p, j) => <Text key={j} style={s.para}>{p}</Text>)}
           </View>
         ))}
 
@@ -228,11 +242,6 @@ export function ContrattoSubappaltoPDF({ d }: { d: DatiContrattoSubappalto }) {
           </View>
         )}
 
-        {/* Piè di pagina su ogni pagina (la firma aggiunge poi il timbro su ognuna). */}
-        <View style={s.piede} fixed>
-          <Text>{`${a.ragioneSociale} · Contratto di subappalto${d.numero ? ` ${d.numero}` : ""} · ${d.commessa.codice}`}</Text>
-          <Text render={({ pageNumber, totalPages }) => `Pagina ${pageNumber} di ${totalPages}`} />
-        </View>
       </Page>
     </Document>
   );

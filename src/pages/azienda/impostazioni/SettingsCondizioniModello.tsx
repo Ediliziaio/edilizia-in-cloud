@@ -152,7 +152,7 @@ export default function SettingsCondizioniModello() {
         {modificato && <span role="status" className="text-xs font-medium text-amber-700">Modifiche non salvate</span>}
       </div>
       <p className="text-xs text-muted-foreground">
-        {DOVE_SI_USA[attiva.ambito]}. {salvato ? `Versione ${salvato.versione}: salvando diventa la ${salvato.versione + 1}, e i documenti già partiti tengono la loro.` : "Nuovo: nasce alla versione 1."}
+        {DOVE_SI_USA[attiva.ambito]}. I documenti già partiti non cambiano.
       </p>
 
       <div className="grid gap-3 lg:grid-cols-[15rem_minmax(0,1fr)_minmax(0,26rem)]">
@@ -210,7 +210,7 @@ export default function SettingsCondizioniModello() {
                 )}
               </div>
               {/* `key`: cambiando clausola l'editor riparte dal suo testo, senza portarsi dietro il cursore dell'altra. */}
-              <RichTextEditor key={scelta} value={corrente.testo} readOnly={!puoGestire} minHeight={420}
+              <RichTextEditor key={scelta} senzaFont value={corrente.testo} readOnly={!puoGestire} minHeight={420}
                 placeholder="Il testo della clausola, come lo vuoi sul documento."
                 onChange={(html) => cambiaClausola(scelta, { testo: html })} />
               <label className="flex items-center gap-2 text-sm">
@@ -227,7 +227,7 @@ export default function SettingsCondizioniModello() {
 
         {/* ── Il PDF vero ── */}
         <aside aria-label="Come esce sul documento" className="min-w-0 lg:sticky lg:top-4 lg:self-start">
-          <p className="mb-1 text-xs text-muted-foreground">Come esce sul documento, con i colori dell'azienda e dati d'esempio.</p>
+          <p className="mb-1 text-xs text-muted-foreground">Come esce, con dati d'esempio.</p>
           <div className="h-[70dvh] min-h-[420px]">
             <PdfBlobLivePreviewPanel renderBlobUrl={anteprima} depsKey={chiaveAnteprima} debounceMs={700}
               enabled={dentro.length > 0} downloadFileName={`${(attiva.nome || "condizioni").replace(/[^\w-]+/g, "-")}.pdf`} headerLabel="Anteprima" />

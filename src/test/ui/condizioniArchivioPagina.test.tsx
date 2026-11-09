@@ -57,9 +57,10 @@ describe("Contratti e condizioni", () => {
     importa.valore = { inCerca: false, trovate: { clausole: [], modelli: [] }, importa: muta() };
   });
 
-  it("con l'archivio vuoto dice quanti documenti escono ancora col testo di sistema", () => {
+  it("su ogni tipo dice se esce davvero: nessun modello, o non ancora collegato", () => {
     disegna();
-    expect(screen.getByText(/8 tipi di documento escono ancora col testo di sistema/)).toBeInTheDocument();
+    expect(screen.getAllByText("Nessun modello")).toHaveLength(5);
+    expect(screen.getAllByText("Non ancora collegato")).toHaveLength(3);
   });
 
   it("raggruppa per destinatario e dice dove finiscono le condizioni di ogni tipo", () => {
@@ -67,8 +68,8 @@ describe("Contratti e condizioni", () => {
     for (const gruppo of ["Al cliente", "Al fornitore", "Al subappaltatore", "Al dipendente"]) {
       expect(screen.getByText(gruppo)).toBeInTheDocument();
     }
-    expect(screen.getByText("Nel contratto che fai firmare al subappaltatore")).toBeInTheDocument();
-    expect(screen.getByText("Negli ordini e nelle richieste d'offerta ai fornitori")).toBeInTheDocument();
+    expect(screen.getByTitle("Nel contratto che fai firmare al subappaltatore")).toBeInTheDocument();
+    expect(screen.getByTitle("Negli ordini e nelle richieste d'offerta ai fornitori")).toBeInTheDocument();
   });
 
   it("del modello predefinito dice clausole, quante vanno approvate a parte e a che versione è", () => {
@@ -77,8 +78,8 @@ describe("Contratti e condizioni", () => {
     const riga = screen.getByLabelText("Mostra l'anteprima di Subappalto opere edili");
     expect(within(riga).getByText(/2 clausole · 1 da approvare a parte · versione 4/)).toBeInTheDocument();
     expect(screen.getByLabelText("Predefinito")).toBeInTheDocument();
-    expect(screen.queryByText(/8 tipi di documento/)).toBeNull();
-    expect(screen.getByText(/7 tipi di documento escono ancora/)).toBeInTheDocument();
+    expect(screen.getByText("In uso sui documenti")).toBeInTheDocument();
+    expect(screen.getAllByText("Nessun modello")).toHaveLength(4);
   });
 
   it("un modello si apre nella sua pagina, dove c'è il PDF vero (07/11/2026: niente più popup)", () => {

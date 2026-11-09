@@ -4,16 +4,20 @@
  * Florin: «l'anteprima non rispecchia l'anteprima reale: un modello in PDF che esce deve rispettare quello
  * reale». Quindi niente HTML disegnato a parte: si costruisce un documento con `costruisciDatiEdile`, il
  * modello passa per la stessa regola dei preventivi (`condizioniDelPdf`, dall'archivio appoggiato sul
- * modello) e lo disegna `DocumentoEdilePDF` con `soloCondizioni`: le pagine delle condizioni e la firma che
- * le approva, coi colori dell'azienda. Quello che si vede qui è quello che riceve il cliente.
+ * modello), quella che legge davvero i preventivi.
+ *
+ * Dal 09/11/2026 il foglio è quello semplice, uguale per ogni tipo di documento (`FoglioCondizioniPDF`):
+ * niente «Piano dei lavori · Preventivo», logo o titolo grande, e in fondo i dati societari veri.
  *
  * I campi automatici ({{cliente.nome_completo}}, {{cantiere.indirizzo}}…) si riempiono con dati di esempio,
  * dichiarati come tali nella pagina, così si legge la frase com'è davvero.
  */
 import { pdf } from "@react-pdf/renderer";
-import { DocumentoEdilePDF } from "@/components/preventivi/pdf/DocumentoEdilePDF";
+import { FoglioCondizioniPDF } from "@/components/preventivi/pdf/FoglioCondizioniPDF";
 import { costruisciDatiEdile } from "@/components/preventivi/pdf/adattatoreEdile";
 import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
+import { supabase } from "@/integrations/supabase/client";
+import { caricaDatiSocietari, datiSocietariDa, righeSocietarie, type DatiSocietari } from "../../../supabase/functions/_shared/datiSocietari";
 import { CHIAVE_ARCHIVIO, type ModelloArchivio } from "../../../supabase/functions/_shared/condizioniArchivio";
 
 export const DATI_DI_ESEMPIO = {
@@ -24,6 +28,8 @@ export const DATI_DI_ESEMPIO = {
 } as const;
 
 export interface AziendaPerAnteprima {
+  /** Per leggere i dati societari veri, nel piè di pagina. */
+  id?: string | null;
   nome: string;
   colore?: string | null;
   partitaIva?: string | null;
@@ -34,11 +40,11 @@ export interface AziendaPerAnteprima {
 
 /** L'azienda che si sta guardando, nei campi che servono all'anteprima. Un posto solo per tutte le pagine. */
 export function aziendaPerAnteprima(c: {
-  business_name?: string | null; name?: string | null; brand_primary_color?: string | null; vat_number?: string | null;
+  id?: string | null; business_name?: string | null; name?: string | null; brand_primary_color?: string | null; vat_number?: string | null;
   email?: string | null; phone?: string | null; legal_address?: string | null;
 } | null | undefined): AziendaPerAnteprima {
   return {
-    nome: c?.business_name || c?.name || "La tua azienda",
+    id: c?.id ?? null, nome: c?.business_name || c?.name || "La tua azienda",
     colore: c?.brand_primary_color ?? null, partitaIva: c?.vat_number ?? null,
     email: c?.email ?? null, telefono: c?.phone ?? null, indirizzo: c?.legal_address ?? null,
   };
@@ -74,11 +80,32 @@ export function datiAnteprimaCondizioni(modello: ModelloArchivio, azienda: Azien
     },
     media: [],
   });
-  return { ...dati, soloCondizioni: true, titoloDocumento: `Anteprima · ${modello.nome}` };
+  return { ...dati, titoloDocumento: `Anteprima · ${modello.nome}` };
+}
+
+/** I dati societari letti da poco: l'anteprima si rifà a ogni tasto, il database no. */
+const LETTI = new Map<string, { quando: number; dati: Promise<DatiSocietari | null> }>();
+function datiSocietariDi(id: string): Promise<DatiSocietari | null> {
+  const letto = LETTI.get(id);
+  if (letto && Date.now() - letto.quando < 60_000) return letto.dati;
+  const dati = caricaDatiSocietari(supabase, id);
+  LETTI.set(id, { quando: Date.now(), dati });
+  return dati;
+}
+
+/** Il foglio dell'anteprima: le clausole del modello e i dati societari, nient'altro. */
+export function foglioAnteprima(modello: ModelloArchivio, azienda: AziendaPerAnteprima, societari: DatiSocietari | null) {
+  const dati = datiAnteprimaCondizioni(modello, azienda);
+  const riserva = datiSocietariDa({ business_name: azienda.nome, legal_address: azienda.indirizzo, vat_number: azienda.partitaIva }, null);
+  return (
+    <FoglioCondizioniPDF titolo={dati.titoloDocumento ?? modello.nome} autore={azienda.nome}
+      righe={dati.modello.condizioniLegali} societarie={righeSocietarie(societari ?? riserva)} />
+  );
 }
 
 /** Il PDF, pronto per il pannello dell'anteprima. */
 export async function anteprimaCondizioniUrl(modello: ModelloArchivio, azienda: AziendaPerAnteprima): Promise<string> {
-  const blob = await pdf(<DocumentoEdilePDF dati={datiAnteprimaCondizioni(modello, azienda)} />).toBlob();
+  const societari = azienda.id ? await datiSocietariDi(azienda.id) : null;
+  const blob = await pdf(foglioAnteprima(modello, azienda, societari)).toBlob();
   return createPdfPreviewUrl(blob);
 }

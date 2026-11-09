@@ -10,6 +10,7 @@
 
 import { contrattoInHtml, leggiTestoRiccoContratto } from "./testoRiccoContratto.ts";
 import { condizioniTolteDalPdf } from "./condizioniDelPreventivo.ts";
+import { caricaDatiSocietari, type DatiSocietari } from "./datiSocietari.ts";
 
 export type AmbitoCondizioni =
   | "preventivo" | "appalto" | "commessa" | "subappalto"
@@ -130,6 +131,9 @@ function markdownInHtmlFedele(testo: string): string {
     })
     .join("");
 }
+
+/** Il titolo con cui il PDF riconosce le clausole da approvare con la seconda firma. */
+export const TITOLO_CLAUSOLE_1341 = "Clausole da approvare specificamente (art. 1341 c.c.)";
 
 const PARAGRAFO_1341 = /(^|\n)\s*#{1,4}\s[^\n]*(1341|approvare specificamente)|<h[1-6][^>]*>[^<]*(1341|approvare specificamente)/i;
 
@@ -337,6 +341,8 @@ export interface ArchivioDelDocumento {
   associato: ModelloArchivio | null;
   predefinito: ModelloArchivio | null;
   fissate: ModelloArchivio | null;
+  /** Ragione sociale, P.IVA, REA, capitale…: il piè di pagina delle condizioni. */
+  societari?: DatiSocietari | null;
 }
 
 const NIENTE: ArchivioDelDocumento = { associato: null, predefinito: null, fissate: null };
@@ -356,7 +362,7 @@ export async function caricaArchivioDelDocumento(
   const ambito = quale.ambito ?? "preventivo";
   try {
     const fissata = versioneFissata(quale.origine);
-    const [modelli, versione] = await Promise.all([
+    const [modelli, versione, societari] = await Promise.all([
       // Tutti, anche gli archiviati: un documento partito con un modello poi archiviato deve
       // continuare a stamparlo. Per associato e predefinito contano solo gli attivi.
       supabase.from("condizioni_modelli")
@@ -367,6 +373,7 @@ export async function caricaArchivioDelDocumento(
           .select("modello_id,versione,nome,clausole")
           .eq("modello_id", fissata.modello_id).eq("versione", fissata.versione).maybeSingle()
         : Promise.resolve({ data: null, error: null }),
+      caricaDatiSocietari(supabase, companyId),
     ]);
     const tutti = (modelli?.error ? [] : (modelli?.data ?? [])) as ModelloArchivio[];
     const attivi = tutti.filter((m) => m.attivo !== false);
@@ -379,6 +386,7 @@ export async function caricaArchivioDelDocumento(
       fissate: v && suaDellAzienda
         ? { id: v.modello_id, nome: v.nome, ambito, versione: v.versione, attivo: true, clausole: v.clausole }
         : null,
+      societari,
     };
   } catch {
     return NIENTE;

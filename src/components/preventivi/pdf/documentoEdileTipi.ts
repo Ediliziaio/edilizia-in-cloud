@@ -75,6 +75,8 @@ export interface DocEdileOpzioniComputo {
 }
 
 export interface DocEdileAzienda {
+  /** Ragione sociale, sede, P.IVA, REA, capitale: il piè di pagina delle condizioni (09/11/2026). */
+  righeSocietarie?: string[];
   nome: string;
   indirizzo: string | null;
   telefono: string | null;
@@ -248,11 +250,6 @@ export interface DocEdileDati {
   }>;
   /** Opt-in only for browser-local drafts; never implies issuance or acceptance. */
   bozzaLocale?: { ivaDaDefinire: boolean; soloConfigurazione?: boolean };
-  /**
-   * Solo le pagine delle condizioni (e la firma che le approva): l'anteprima di «Contratti e condizioni»
-   * (07/11/2026). Stesso componente del PDF vero, quindi stesso carattere, colori e impaginazione.
-   */
-  soloCondizioni?: boolean;
   /**
    * Il prezzo continua sotto la tabella, sulla stessa pagina, se ci sta intero (07/11/2026): il preventivo
    * classico è copertina, tabella col prezzo, pagamento, condizioni. Negli altri preventivi il prezzo ha la

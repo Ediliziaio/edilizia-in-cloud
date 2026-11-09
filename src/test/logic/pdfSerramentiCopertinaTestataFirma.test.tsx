@@ -102,7 +102,10 @@ describe("il resto del documento (con tutte le pagine)", () => {
 
   it("testata: azienda e numero del preventivo in ogni pagina, mai il nome del cliente", async () => {
     const pagine = await pagineDelPdf({ logo: true, tuttePagine: true, progetto: lavoriAltrove });
-    const interne = pagine.slice(1);
+    // Il foglio delle condizioni non ha intestazione, per scelta (09/11/2026): si apre subito con gli articoli.
+    const tutte = pagine.slice(1);
+    const primaCondizioni = tutte.findIndex((p) => /^\s*Art\. 1\b/.test(p.testata));
+    const interne = tutte.filter((p, i) => i < primaCondizioni || /ACCETTAZIONE PROPOSTA/.test(p.testo));
     expect(interne.length).toBeGreaterThan(5);
     for (const [i, p] of interne.entries()) {
       expect(p.testata.includes(AZIENDA) && p.testata.includes("PREVENTIVO N.") && p.testata.includes("SF-DEMO-0001"), `testata della pagina ${i + 2}: «${p.testata}»`).toBe(true);

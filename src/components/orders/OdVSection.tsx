@@ -15,6 +15,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { type VariationContext } from "./VariationEditor";
 import { variationEventDate } from "@/lib/orders/pendingVariationDocument";
 import { dettagliImpresa } from "@/lib/orders/variationDocumentContext";
+import { caricaDatiSocietari, righeSocietarie } from "../../../supabase/functions/_shared/datiSocietari";
 import { useCompanyAnagraficaForTemplate } from "@/hooks/useCompanyAnagraficaForTemplate";
 import { PendingVariationPdf } from "./PendingVariationPdf";
 import { VariationLifecycleDialog } from "./VariationLifecycleDialog";
@@ -38,7 +39,11 @@ const STATUS_CONFIG: Record<string, { label: string; tono: TonoStato }> = {
 export function OdVSection({ orderId, companyId, context: contestoCommessa = {}, onOpenDocuments }: OdVSectionProps) {
   // Senza i dati dell'impresa il riquadro nel PDF restava col solo nome.
   const anagrafica = useCompanyAnagraficaForTemplate();
-  const context: VariationContext = { ...contestoCommessa, companyDetails: contestoCommessa.companyDetails ?? dettagliImpresa(anagrafica) };
+  const { data: societarie } = useQuery({
+    queryKey: ["dati-societari", companyId], staleTime: 5 * 60_000, enabled: !!companyId,
+    queryFn: async () => righeSocietarie(await caricaDatiSocietari(supabase, companyId)),
+  });
+  const context: VariationContext = { ...contestoCommessa, societarie, companyDetails: contestoCommessa.companyDetails ?? dettagliImpresa(anagrafica) };
   const permissions = usePermissions();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<{id:string;existing:boolean}|null>(null);

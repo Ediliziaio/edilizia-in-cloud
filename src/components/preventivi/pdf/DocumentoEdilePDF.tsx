@@ -42,6 +42,7 @@ import { MODULO_RECESSO } from "../../../../supabase/functions/_shared/condizion
 import type { PaginaConTestata } from "../../../../supabase/functions/_shared/testatePagine";
 import { giorniDellaDurata, perArticoli, senzaNumeroDavanti, spezzaAccento } from "./testoDocumento";
 import { TestoContrattoPdf } from './TestoContrattoPdf';
+import { PieSocietario } from './FoglioCondizioniPDF';
 import { clausoleStampateEdile, segnaClausoleDelDocumento } from '@/lib/fea/clausoleDelDocumento';
 import { altezzaTesto, righeDiTesto, testoDaHtml, type FamigliaPdf } from "./misuraTesto";
 import type {
@@ -371,6 +372,8 @@ function Intestazione({ tema, dati }: { tema: TemaDocumento; dati: DocEdileDati 
 }
 
 function PieDiPagina({ tema, dati }: { tema: TemaDocumento; dati: DocEdileDati }) {
+  // I dati societari, su ogni foglio e per tutti (Florin, 09/11/2026).
+  if (dati.azienda.righeSocietarie?.length) return <PieSocietario righe={dati.azienda.righeSocietarie} font={tema.caratteri.testo} margine={MARGINE} />;
   const { azienda, modello, codice } = dati;
   const recapiti = [azienda.indirizzo, azienda.telefono, azienda.email].filter(Boolean).join("  ·  ");
   const fiscali = [azienda.partitaIva ? `P.IVA ${azienda.partitaIva}` : null, azienda.sito].filter(Boolean).join("  ·  ");
@@ -1078,10 +1081,9 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   // L'ordine e la visibilità scelti dall'azienda (completati con quelli di serie).
   const ordine = ordineEffettivo(modello.ordineCapitoli, modello.pagineLibere);
   // L'anteprima delle condizioni stampa solo quelle: niente copertina, capitoli o chiusura.
-  const soloCondizioni = dati.soloCondizioni === true;
   // Il documento sobrio del preventivo classico (07/11/2026): vedi `stile` in documentoEdileTipi.
   const sobrio = dati.stile === "sobrio";
-  const visibile = (k: string) => !dati.bozzaLocale?.soloConfigurazione && !soloCondizioni && ordine.some((v) => v.chiave === k && v.visibile);
+  const visibile = (k: string) => !dati.bozzaLocale?.soloConfigurazione && ordine.some((v) => v.chiave === k && v.visibile);
 
   const haChiSiamo = modello.mostraChiSiamo && Boolean(modello.chiSiamoHtml);
   const haUsp = modello.usp.length > 0;
@@ -1131,8 +1133,8 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   };
   const libere = new Map(modello.pagineLibere.map((pl) => [chiaveLibera(pl.id), pl]));
   const tecniche = new Map((dati.sezioniTecniche ?? []).map(s => [s.id, s]));
-  const capitoliVisibili = dati.bozzaLocale?.soloConfigurazione || soloCondizioni ? [] : ordine.filter((v) => v.chiave !== "apertura" && v.visibile && (libere.has(v.chiave) || presente[v.chiave]));
-  const tutteSezioni = soloCondizioni ? [] : [...capitoliVisibili, ...[...tecniche.keys()].map(chiave => ({ chiave, visibile: true }))];
+  const capitoliVisibili = dati.bozzaLocale?.soloConfigurazione ? [] : ordine.filter((v) => v.chiave !== "apertura" && v.visibile && (libere.has(v.chiave) || presente[v.chiave]));
+  const tutteSezioni = [...capitoliVisibili, ...[...tecniche.keys()].map(chiave => ({ chiave, visibile: true }))];
   const posizioni = new Map((dati.ordineDocumento ?? []).map((chiave, i) => [chiave, i]));
   const sequenza = tutteSezioni.sort((a, b) => (posizioni.get(a.chiave) ?? posizioni.size) - (posizioni.get(b.chiave) ?? posizioni.size));
   // I numeri seguono i capitoli che escono davvero, nell'ordine scelto: nessun salto da 02 a 05.
@@ -1282,6 +1284,10 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   // fiscali, testo libero, versione). Sotto i 90 punti il testo gli finiva sopra.
   const pagina = { paddingTop: 96, paddingBottom: 96, paddingHorizontal: MARGINE, fontFamily: tema.caratteri.testo, backgroundColor: tema.carta } as const;
   const cornice = (<>{dati.filigrana ? <Text fixed style={{ position: "absolute", top: 380, left: MARGINE, width: UTILE, textAlign: "center", fontSize: 48, color: tema.grigioChiaro, opacity: 0.12, transform: "rotate(-35deg)" }}>{dati.filigrana}</Text> : null}<Intestazione tema={tema} dati={dati} /><PieDiPagina tema={tema} dati={dati} /></>);
+
+  // Il foglio delle condizioni e della firma: niente intestazione (né logo, né «Piano dei lavori»), in fondo i dati societari.
+  const paginaFoglio = { ...pagina, paddingTop: 48, paddingBottom: 72 } as const;
+  const corniceFoglio = (<>{dati.filigrana ? <Text fixed style={{ position: "absolute", top: 380, left: MARGINE, width: UTILE, textAlign: "center", fontSize: 48, color: tema.grigioChiaro, opacity: 0.12, transform: "rotate(-35deg)" }}>{dati.filigrana}</Text> : null}<PieSocietario righe={dati.azienda.righeSocietarie ?? []} font={tema.caratteri.testo} margine={MARGINE} /></>);
 
   // Dopo il capitolo precedente, sulla stessa pagina: quelli di altezza limitata
   // (se ci stanno interi) e il piano dei lavori, che si spezza da sé. Il computo
@@ -1602,7 +1608,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
       riempimento.delete(ultimi[ultimi.length - 1]);
     }
   }
-  const chiusuraInCoda = dati.mostraChiusura !== false && !dati.bozzaLocale?.soloConfigurazione && !soloCondizioni && !dati.sezioniTecniche?.length && (!fotoChiusura || fotoChiusuraInCoda != null);
+  const chiusuraInCoda = dati.mostraChiusura !== false && !dati.bozzaLocale?.soloConfigurazione && !dati.sezioniTecniche?.length && (!fotoChiusura || fotoChiusuraInCoda != null);
 
   // Il documento sobrio è un foglio solo che scorre (08/11/2026, Florin: «poco spazio vuoto»): tabella, totale,
   // accordi, condizioni e firma uno sotto l'altro; si va a pagina nuova solo quando la pagina è piena.
@@ -1622,7 +1628,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
             <TitoloAccento tema={tema} testo={sezione.titolo} corpo={23} colore={sezione.colore ?? tema.inchiostro} coloreAccento={sezione.colore ?? tema.inchiostroMarca} />
           </View>
           )}
-          {sezione.testo ? <View style={{ marginTop: sobrio ? 0 : 14 }}>{sezione.testo.split(/\n+/).filter(Boolean).map((testo, i) => <Text key={i} style={[corpoTesto, sobrio ? { fontSize: 8.5, marginBottom: 3 } : { marginBottom: 7 }]}>{testo}</Text>)}</View> : null}
+          {sezione.testo ? <View>{sezione.testo.split(/\n+/).filter(Boolean).map((testo, i) => <Text key={i} style={[corpoTesto, sobrio ? { fontSize: 8.5, marginBottom: 3 } : { marginBottom: 7 }]}>{testo}</Text>)}</View> : null}
           {sezione.grafico ? <GraficoPreventivo dati={sezione.grafico} colore={tema.inchiostroMarca} larghezza={UTILE} altezza={altezzaGraficoTecnica(sezione)} /> : null}
           {/* La foto sotto il titolo e le righe dopo: se il foglio non basta va avanti il
               testo, non la foto da sola su un foglio altrimenti vuoto. */}
@@ -1923,12 +1929,10 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
 
   // Le condizioni e l'accettazione: due pagine nel documento edile, una sola in quello sobrio (vedi sotto).
   const paginaCondizioni = (<>
+          {/* Il foglio delle condizioni è semplice e uguale per tutti (09/11/2026): niente «Allegato» né titolo grande. */}
           {sobrio ? (
             <View id={edileSectionDestination("condizioni")}><TitolinoSezione tema={tema} testo="Condizioni contrattuali" /></View>
-          ) : (<>
-          <Text id={edileSectionDestination("condizioni")} style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: modello.coloreCondizioni ?? tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>ALLEGATO</Text>
-          <TitoloAccento tema={tema} testo="Condizioni *contrattuali*." corpo={21} colore={tema.inchiostro} coloreAccento={modello.coloreCondizioni ?? tema.inchiostroMarca} />
-          </>)}
+          ) : <View id={edileSectionDestination("condizioni")} />}
           <View style={{ marginTop: sobrio ? 0 : 14 }}>
             {/* Un articolo per volta: il titolo non resta mai in fondo a una pagina
                 senza il suo testo, e l'elenco delle clausole da firmare non si spezza. */}
@@ -2034,7 +2038,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
       author={dati.azienda.nome}
       subject={`${modulo.etichetta} per ${dati.cliente}`}
     >
-      {soloCondizioni ? null : <Copertina tema={tema} dati={dati} />}
+      <Copertina tema={tema} dati={dati} />
 
       {/* ─── Apertura: lettera, intervento in breve, sommario ─────────────── */}
       {visibile("apertura") ? (
@@ -2166,7 +2170,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           La foto è alta quanto lasciano titolo, passi e contatti (649 punti utili,
           ~270 per il resto, con margine per un indirizzo lungo). Senza foto la
           chiusura segue l'ultimo capitolo; dopo un blocco con pagina sua, ha la sua. */}
-      {dati.mostraChiusura !== false && !dati.bozzaLocale?.soloConfigurazione && !soloCondizioni && (!chiusuraInCoda || segmenti.length === 0 || segmenti[segmenti.length - 1].propria) ? (
+      {dati.mostraChiusura !== false && !dati.bozzaLocale?.soloConfigurazione && (!chiusuraInCoda || segmenti.length === 0 || segmenti[segmenti.length - 1].propria) ? (
         <Page size="A4" style={pagina}>
           {cornice}
           {chiusura(fotoChiusura ? 330 : null)}
@@ -2186,12 +2190,12 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           <View wrap={false} style={{ marginTop: 22 }}>{paginaAccettazione}</View>
         </Page>
       ) : (<>
-        <Page size="A4" style={pagina}>
-          {cornice}
+        <Page size="A4" style={paginaFoglio}>
+          {corniceFoglio}
           {paginaCondizioni}
         </Page>
-        <Page size="A4" style={pagina}>
-          {cornice}
+        <Page size="A4" style={paginaFoglio}>
+          {corniceFoglio}
           {paginaAccettazione}
         </Page>
       </>)) : null}

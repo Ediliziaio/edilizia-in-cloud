@@ -17,11 +17,14 @@
  * L'override di tariffa per singolo cantiere e la rendicontazione arrivano con
  * le fasi successive, insieme alle pagine che li leggono.
  */
+import { useCondizioniDocumento } from "@/hooks/useCondizioniDocumento";
+import { datiDaAccordo } from "@/lib/contratti/contrattoCliente";
+import { caricaDatiSocietari } from "../../../supabase/functions/_shared/datiSocietari";
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, Building2, FileSignature, HardHat, Loader2, Pencil, Plus,
+  ArrowLeft, Building2, Download, FileSignature, HardHat, Loader2, Pencil, Plus,
   Trash2, Euro, AlertTriangle, ClipboardList, Lock,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -139,6 +142,7 @@ export default function CommittenteDetail() {
   const puoModificare = permessi.isAdmin || permessi.canEditCustomers;
   const vedeImporti = permessi.canViewOrderAmounts;
 
+  const condizioniAzienda = useCondizioniDocumento("appalto");
   const [contrattoSelId, setContrattoSelId] = useState<string | null>(null);
   const [contrattoForm, setContrattoForm] = useState<Partial<Contratto> | null>(null);
   const [tariffaForm, setTariffaForm] = useState<Partial<Tariffa> | null>(null);
@@ -220,6 +224,27 @@ export default function CommittenteDetail() {
   });
 
   /* ── Scritture ── */
+
+  // Il PDF dell'accordo (09/11/2026): come il contratto di subappalto, col listino in Allegato A.
+  const pdfAccordo = useMutation({
+    mutationFn: async () => {
+      if (!contrattoAttivo || !committente.data) return;
+      const [{ contrattoClienteBlob }, societari, listino] = await Promise.all([
+        import("@/components/contratti/ContrattoClientePDF"),
+        caricaDatiSocietari(supabase, companyId),
+        (supabase as any).from("appalto_tariffe").select("*").eq("contratto_id", contrattoAttivo.id).order("ordine", { ascending: true }),
+      ]);
+      if (listino.error) throw listino.error;
+      const blob = await contrattoClienteBlob(datiDaAccordo({ accordo: contrattoAttivo, committente: committente.data, tariffe: listino.data ?? [], societari, vessatorie: condizioniAzienda.clausole.filter((x) => x.vessatoria).map((x) => x.titolo.trim()) }));
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Contratto ${contrattoAttivo.nome}.pdf`.replace(/[\\/:*?"<>|]/g, "-");
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    },
+    onError: (e) => toast({ title: "PDF non generato", description: e instanceof Error ? e.message : "Riprova", variant: "destructive" }),
+  });
 
   const salvaContratto = useMutation({
     mutationFn: async (f: Partial<Contratto>) => {
@@ -385,7 +410,7 @@ export default function CommittenteDetail() {
             {puoModificare && (
               <Button
                 size="sm"
-                onClick={() => setContrattoForm({ nome: `Accordo ${new Date().getFullYear()}`, valido_dal: oggiISO(), giorni_pagamento: 30, modo_fatturazione: "per_commessa", regime_iva: "ordinaria", attivo: true })}
+                onClick={() => setContrattoForm({ condizioni: condizioniAzienda.disponibile ? condizioniAzienda.testo : "", nome: `Accordo ${new Date().getFullYear()}`, valido_dal: oggiISO(), giorni_pagamento: 30, modo_fatturazione: "per_commessa", regime_iva: "ordinaria", attivo: true })}
               >
                 <Plus className="mr-1.5 h-3.5 w-3.5" /> Nuovo contratto
               </Button>
@@ -428,6 +453,9 @@ export default function CommittenteDetail() {
                         {contrattoAttivo.valido_al ? ` al ${giornoIT(contrattoAttivo.valido_al)}` : " — senza scadenza"}
                       </p>
                     </div>
+                    <Button variant="outline" size="sm" className="shrink-0 gap-1" disabled={pdfAccordo.isPending} onClick={() => pdfAccordo.mutate()}>
+                      {pdfAccordo.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} PDF
+                    </Button>
                     {puoModificare && (
                       <div className="flex shrink-0 gap-1">
                         <Button variant="ghost" size="icon" aria-label="Modifica contratto" onClick={() => setContrattoForm(contrattoAttivo)}>
@@ -686,7 +714,10 @@ export default function CommittenteDetail() {
               </div>
               <div className="sm:col-span-2">
                 <Label>Condizioni concordate</Label>
-                <Textarea rows={3} value={contrattoForm.condizioni ?? ""}
+                {!contrattoForm.id && condizioniAzienda.disponibile && (
+                  <p className="text-xs text-muted-foreground">Partono da «{condizioniAzienda.modello?.nome}» di Contratti e condizioni: qui puoi cambiarle per questo committente.</p>
+                )}
+                <Textarea rows={8} value={contrattoForm.condizioni ?? ""}
                   onChange={(e) => setContrattoForm({ ...contrattoForm, condizioni: e.target.value })} />
               </div>
               <div className="flex items-center justify-between rounded-lg border p-3 sm:col-span-2">

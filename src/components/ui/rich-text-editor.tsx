@@ -59,6 +59,8 @@ export interface RichTextEditorProps {
   /** Modalità readonly (anteprima). */
   readOnly?: boolean;
   documentMode?: boolean;
+  /** Niente scelta di dimensione e carattere: il documento li decide da solo, uguali per tutti. */
+  senzaFont?: boolean;
 }
 
 /** API imperativa esposta via ref (per inserire variabili al cursore, ecc.). */
@@ -137,7 +139,7 @@ function sanitize(html: string): string {
 }
 
 export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(function RichTextEditor({
-  value, onChange, placeholder, minHeight = 120, className, readOnly = false, documentMode = false,
+  value, onChange, placeholder, minHeight = 120, className, readOnly = false, documentMode = false, senzaFont = false,
 }, ref) {
   const [linkUrl, setLinkUrl] = useState("");
   // Record the sanitized emission before the parent echoes it back. Merge-field
@@ -224,7 +226,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
     <TooltipProvider delayDuration={300}>
       <div className={cn("rounded-md border border-slate-200 bg-white overflow-hidden", documentMode&&'max-h-[65vh] overflow-y-auto', className)}>
         {!readOnly && (
-          <Toolbar editor={editor} linkUrl={linkUrl} setLinkUrl={setLinkUrl} documentMode={documentMode} />
+          <Toolbar editor={editor} linkUrl={linkUrl} setLinkUrl={setLinkUrl} documentMode={documentMode} senzaFont={senzaFont} />
         )}
         <EditorContent editor={editor} />
       </div>
@@ -235,8 +237,8 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
 /* ─── Toolbar ─────────────────────────────────────────────────────────────── */
 
 function Toolbar({
-  editor, linkUrl, setLinkUrl, documentMode = false,
-}: { editor: Editor; linkUrl: string; setLinkUrl: (v: string) => void; documentMode?: boolean }) {
+  editor, linkUrl, setLinkUrl, documentMode = false, senzaFont = false,
+}: { editor: Editor; linkUrl: string; setLinkUrl: (v: string) => void; documentMode?: boolean; senzaFont?: boolean }) {
   const currentSize = editor.getAttributes("textStyle").fontSize ?? (documentMode?'10pt':'11pt');
   const currentFamily = editor.getAttributes("textStyle").fontFamily ?? FONT_FAMILIES[0].value;
 
@@ -277,6 +279,7 @@ function Toolbar({
         <select aria-label="Spazio dopo il paragrafo" className="h-8 rounded border bg-white px-2 text-xs" value="" onChange={e=>{if(e.target.value)editor.chain().focus().updateAttributes(editor.isActive('heading')?'heading':'paragraph',{spaceAfter:e.target.value}).run();}}><option value="">Spaziatura</option>{['0pt','4pt','8pt','12pt','18pt'].map(v=><option key={v} value={v}>{v}</option>)}</select>
         <select aria-label="Inserisci campo automatico" className="h-8 max-w-44 rounded border bg-white px-2 text-xs" value="" onChange={e=>{if(e.target.value)editor.chain().focus().insertContent({type:'mergeField',attrs:{value:`{{${e.target.value}}}`}}).run();}}><option value="">Inserisci campo…</option>{['cliente.nome_completo','azienda.ragione_sociale','preventivo.numero','preventivo.data','preventivo.totale','preventivo.piano_pagamenti','cantiere.indirizzo'].map(v=><option key={v} value={v}>{v}</option>)}</select>
       </>}
+      {!senzaFont && <>
       {/* Font size */}
       <Select value={currentSize} onValueChange={setFontSize}>
         <SelectTrigger className="h-7 w-[150px] text-[11px] gap-1">
@@ -307,6 +310,7 @@ function Toolbar({
       </Select>
 
       <Divider />
+      </>}
 
       {/* Bold / Italic / Underline / Strike */}
       <ToolButton tip="Grassetto (Ctrl+B)" active={editor.isActive("bold")}

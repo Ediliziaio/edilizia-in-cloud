@@ -13,6 +13,7 @@
  * idoneità tecnico-professionale, POS), art. 27 D.Lgs. 81/2008 (patente a crediti),
  * DURC, art. 17 c. 6 lett. a-ter DPR 633/1972 (reverse charge in edilizia).
  */
+import { testoPiano } from "../../../supabase/functions/_shared/condizioniArchivio";
 
 /**
  * Una riga dell'elenco dei lavori (Allegato A, 31/10/2026): la voce del computo
@@ -66,6 +67,39 @@ export interface DatiContrattoSubappalto {
    * `unisciArticoliPersonalizzati`). Il testo sostituisce i paragrafi dell'articolo; il titolo resta.
    */
   articoliPersonalizzati?: Record<string, string>;
+  /** Le clausole di «Contratti e condizioni» per i subappalti (09/11/2026). */
+  clausoleArchivio?: ClausolaDelContratto[];
+  /** I dati societari dell'impresa, per il piè di pagina. */
+  societarie?: string[];
+}
+
+export interface ClausolaDelContratto { titolo: string; testo: string; vessatoria?: boolean }
+
+/** Dove resta scritto, sul contratto, il testo delle clausole mandato in firma. */
+export const CHIAVE_CLAUSOLE_FISSATE = "__clausole_archivio";
+
+/** Le clausole del modello in testo semplice: quello che si stampa e che si fissa. */
+export function clausoleDelModelloSubappalto(modello: { clausole?: Array<{ titolo?: string | null; testo?: string | null; vessatoria?: boolean | null }> | null } | null | undefined): ClausolaDelContratto[] {
+  return (modello?.clausole ?? [])
+    .map((c) => ({ titolo: (c.titolo ?? "").trim(), testo: testoPiano(c.testo), vessatoria: c.vessatoria === true }))
+    .filter((c) => c.titolo && c.testo);
+}
+
+/**
+ * Quali clausole dell'archivio stampa un contratto. Una volta mandato in firma restano quelle fissate allora:
+ * cambiare il modello non tocca un contratto già partito. Un contratto firmato prima dell'archivio non ne ha, e
+ * resta com'era. `rileggi`: il reinvio in firma, che riparte dal modello di oggi.
+ */
+export function clausoleArchivioDelContratto(
+  c: { firmato_il?: string | null; articoli_personalizzati?: unknown },
+  modello: Parameters<typeof clausoleDelModelloSubappalto>[0],
+  { rileggi = false } = {},
+): ClausolaDelContratto[] {
+  const fissate = (c.articoli_personalizzati as Record<string, unknown> | null | undefined)?.[CHIAVE_CLAUSOLE_FISSATE];
+  if (!rileggi && typeof fissate === "string") {
+    try { return JSON.parse(fissate) as ClausolaDelContratto[]; } catch { return []; }
+  }
+  return c.firmato_il ? [] : clausoleDelModelloSubappalto(modello);
 }
 
 /** Testo personalizzato → paragrafi: una riga vuota separa i paragrafi. */
@@ -137,6 +171,8 @@ export interface ArticoloContratto {
   titolo: string;
   /** Paragrafi di testo semplice (senza HTML). */
   paragrafi: string[];
+  /** Clausola dell'archivio che il subappaltatore approva a parte (art. 1341 c.c.). */
+  daApprovare?: boolean;
 }
 
 // useGrouping "always": in italiano 3052,50 € senza punto è il default per le quattro cifre (31/10/2026).
@@ -286,6 +322,17 @@ export function articoliContratto(d: DatiContrattoSubappalto): ArticoloContratto
       if (par.length) a.paragrafi = [...par, ...(inCoda[a.titolo] ?? [])];
     }
   }
+  // Le clausole dell'azienda (09/11/2026): stesso titolo di un articolo → ne prende il posto, altrimenti si
+  // aggiunge. Il testo scritto per QUESTO contratto resta il primo: vince sul modello.
+  for (const c of d.clausoleArchivio ?? []) {
+    const paragrafi = paragrafiDaTesto(c.testo);
+    if (!paragrafi.length) continue;
+    const uguale = art.find((a) => a.titolo.toLowerCase() === c.titolo.toLowerCase());
+    if (uguale) {
+      uguale.daApprovare = c.vessatoria || undefined;
+      if (typeof d.articoliPersonalizzati?.[uguale.titolo] !== "string") uguale.paragrafi = [...paragrafi, ...(inCoda[uguale.titolo] ?? [])];
+    } else art.push({ titolo: c.titolo, paragrafi, daApprovare: c.vessatoria || undefined });
+  }
   art.push({ titolo: "Allegati", paragrafi: [
     `Sono allegati al contratto: ${d.elencoLavori?.length ? "Allegato A – Elenco dei lavori" : "elenco dei lavori"} e modalità di pagamento; visura camerale, DURC e certificato assicurativo del Subappaltatore; cronoprogramma; disegni tecnici di cantiere; schede tecniche di materiali e componenti.`,
   ] });
@@ -294,9 +341,15 @@ export function articoliContratto(d: DatiContrattoSubappalto): ArticoloContratto
 
 /** «Art. 5 (Pagamenti), Art. 7 (…)»: gli articoli da approvare a parte, col numero che hanno in questo contratto. */
 export function articoliDaApprovare(articoli: ArticoloContratto[]): string {
-  return ARTICOLI_APPROVAZIONE_SPECIFICA
+  return titoliDaApprovare(articoli)
     .map((titolo) => { const i = articoli.findIndex((a) => a.titolo === titolo); return i >= 0 ? `Art. ${i + 1} (${titolo})` : titolo; })
     .join(", ");
+}
+
+/** Gli articoli che chiede la legge, più le clausole dell'archivio segnate «da approvare a parte». */
+function titoliDaApprovare(articoli: ArticoloContratto[]): string[] {
+  const fissi: readonly string[] = ARTICOLI_APPROVAZIONE_SPECIFICA;
+  return [...fissi, ...articoli.filter((a) => a.daApprovare && !fissi.includes(a.titolo)).map((a) => a.titolo)];
 }
 
 /**
@@ -305,7 +358,7 @@ export function articoliDaApprovare(articoli: ArticoloContratto[]): string {
  * riassunto fisso (penali da 200 €, foro dell'Affidataria…) anche quando l'azienda aveva riscritto l'articolo.
  */
 export function clausoleFirmaSubappalto(articoli: ArticoloContratto[]): Array<{ id: string; testo: string }> {
-  return ARTICOLI_APPROVAZIONE_SPECIFICA.map((titolo, k) => {
+  return titoliDaApprovare(articoli).map((titolo, k) => {
     const i = articoli.findIndex((a) => a.titolo === titolo);
     const testo = i >= 0 ? `Art. ${i + 1} – ${titolo}: ${articoli[i].paragrafi.join(" ")}` : titolo;
     return { id: `sub-art-${k + 1}`, testo };

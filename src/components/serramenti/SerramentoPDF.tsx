@@ -25,6 +25,8 @@ import * as React from "react";
 import { logoDelDocumento, logoDellaCopertina } from "@/lib/pdf/logoDelDocumento";
 import { nomeCointestatario } from "@/lib/preventivatore/cointestatario";
 import { TestoContrattoPdf } from '../preventivi/pdf/TestoContrattoPdf';
+import { PieSocietario } from '../preventivi/pdf/FoglioCondizioniPDF';
+import { righeSocietarie } from '../../../supabase/functions/_shared/datiSocietari';
 import { FinitureSceltePdf, PresentazioneProdottoPdf, type FinituraPreventivoPdf } from "./PresentazioneProdottoPdf";
 import { PianoLavoriEditorialePdf } from "./PianoLavoriEditorialePdf";
 import { InfograficaFascicoloPdf } from "./InfograficaSistemaPdf";
@@ -1920,10 +1922,12 @@ function SezioneBlocco({ blocco, foto, C, styles, moduloLocale = false, fotoTecn
 }
 
 function PageFooter({
-  companyName, indirizzo, telefono, email, vat, website, styles,
+  societarie, companyName, indirizzo, telefono, email, vat, website, styles,
   quoteCode, revisionNumber, showRevisionFooter,
   capitaleSociale, numeroRea, pec, showLegalFooter,
 }: {
+  /** I dati societari: se ci sono, il piè è solo quello, uguale in tutti i documenti (09/11/2026). */
+  societarie?: string[];
   companyName: string;
   indirizzo?: string | null; telefono?: string | null; email?: string | null;
   vat?: string | null; website?: string | null;
@@ -1940,6 +1944,7 @@ function PageFooter({
   pec?: string | null;
   showLegalFooter?: boolean;
 }) {
+  if (societarie?.length) return <PieSocietario righe={societarie} font={FF} margine={44} />;
   const line1 = [indirizzo, telefono, email].filter(Boolean).join(" · ");
   const line2 = [vat ? `P.IVA ${vat}` : null, website].filter(Boolean).join(" · ");
   // Milestone 3 · footer legale esteso (REA + capitale + PEC) — opt-in.
@@ -2556,6 +2561,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   // LA regola di «Contratti e condizioni» (07/11/2026), la stessa degli altri preventivatori: l'archivio
   // l'ha appoggiato sul modello `resolveSrDocumentTemplate`.
   const archivio = (tpl as Record<string, unknown>)[CHIAVE_ARCHIVIO] as ArchivioDelDocumento | undefined;
+  const righeSocietarieFoglio = righeSocietarie(archivio?.societari);
   const condizioniLegaliTesto = applicaMergeTagModulo(
     condizioniTolteDalPdf(p) ? "" : condizioniDelPdf({
       copiaDelDocumento: p.condizioni_testo,
@@ -3385,7 +3391,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                     ))}
                   </View>
                 )}
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+                <PageFooter societarie={righeSocietarieFoglio} companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
             )}
             </>
@@ -3565,7 +3571,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
               }
               {fotoProposta ? <FotoInFondo src={fotoProposta} mostra={(fogli) => spazioInFondo(pezziDellaProposta, fogli) >= FOTO_IN_FONDO_MINIMA} /> : null}
 
-              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+              <PageFooter societarie={righeSocietarieFoglio} companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
             </Page>
             </>
           ),
@@ -3944,7 +3950,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                 <FotoInFondo src={fotoAllegato} mostra={(fogli) => spazioInFondo(pezziAllegato(righeAllegato, accessoriAllegato), fogli) >= FOTO_IN_FONDO_MINIMA} />
               ) : null}
 
-              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+              <PageFooter societarie={righeSocietarieFoglio} companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
             </Page>
             </>
           ),
@@ -3994,7 +4000,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                     })}
                   </View>
                 </View>
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+                <PageFooter societarie={righeSocietarieFoglio} companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
             ))}
             </>
@@ -4040,7 +4046,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                     {[...finitureScelte.values()].map((finitura, i) => <FinitureSceltePdf key={i} finitura={finitura} colore={C.ink} />)}
                   </View>}
                 </View>
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+                <PageFooter societarie={righeSocietarieFoglio} companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
             ))}
             </>
@@ -4124,7 +4130,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                     </View>
                   )}
 
-                  <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+                  <PageFooter societarie={righeSocietarieFoglio} companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
                 </Page>
               );
             })}
@@ -4330,7 +4336,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   (il preventivo di Renova: 58% di foglio vuoto dopo il prezzo). */}
               {fotoInvestimento ? <FotoInFondo src={fotoInvestimento} mostra={(fogli) => spazioInFondo(pezziDellInvestimento, fogli) >= FOTO_IN_FONDO_MINIMA} /> : null}
 
-              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+              <PageFooter societarie={righeSocietarieFoglio} companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
             </Page>
 
             {hasInvestmentDetails && (
@@ -4548,7 +4554,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
 
                 {fotoDettagli ? <FotoInFondo src={fotoDettagli} mostra={(fogli) => spazioInFondo(pezziDeiDettagli, fogli) >= FOTO_IN_FONDO_MINIMA} /> : null}
 
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+                <PageFooter societarie={righeSocietarieFoglio} companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
             )}
             </>
@@ -4653,7 +4659,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   <Image src={fotoPercorso} style={{ width: "100%", height: altezzaFotoPercorso, objectFit: "cover", borderRadius: 6, marginTop: 18 }} />
                 ) : null}
 
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+                <PageFooter societarie={righeSocietarieFoglio} companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
             )}
             </>
@@ -4939,7 +4945,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   e con le note o più di una recensione non usciva. */}
               {fotoCta ? <FotoInFondo src={fotoCta} posizioneY={isLocalModule && tpl.pdf_blocchi?.modulo_intervento === "avvolgibili" ? "0%" : "50%"} mostra={(fogli) => spazioInFondo(pezziDellaCta, fogli) >= FOTO_IN_FONDO_MINIMA} /> : null}
 
-              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+              <PageFooter societarie={righeSocietarieFoglio} companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
             </Page>
             </>
           ),
@@ -4950,7 +4956,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
               <Page size="A4" style={styles.page}>
                 <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 {scorrevoli.garanzie}
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+                <PageFooter societarie={righeSocietarieFoglio} companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
             ) : null}
             </>
@@ -4965,7 +4971,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
               <Page size="A4" style={styles.page}>
                 <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 {scorrevoli.confronto}
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+                <PageFooter societarie={righeSocietarieFoglio} companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
             ) : null}
             </>
@@ -4977,7 +4983,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
               <Page size="A4" style={styles.page}>
                 <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 {scorrevoli.faq}
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+                <PageFooter societarie={righeSocietarieFoglio} companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
             ) : null}
             </>
@@ -4989,13 +4995,8 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
           condizioni: (
             <>
             {condizioniLegaliAttivo && condizioniLegaliTesto && (
-              <Page size="A4" style={styles.page}>
-                <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
-                <Text style={styles.pageEyebrow}>Appendice legale</Text>
-                <Text style={[styles.pageTitle, { fontSize: 22 }]}>Condizioni e disclaimer</Text>
-                <Text style={styles.pageSubtitle}>
-                  Termini contrattuali e disclaimer applicabili a questo preventivo.
-                </Text>
+              <Page size="A4" style={[styles.page, { paddingTop: 48, paddingBottom: 72 }]}>
+                <PageFooter societarie={righeSocietarieFoglio} companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
                 {/* Le condizioni si leggono riga per riga: prima il testo si stampava
                     com'era, e il cliente vedeva «## Art. 1 — Oggetto». Un articolo per
                     volta, con il suo titolo; le clausole da approvare vanno nel riquadro
@@ -5010,7 +5011,6 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                 {brandFooterAttivo && brandFooterTesto && (
                   <Text style={styles.brandFooter}>{brandFooterTesto}</Text>
                 )}
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
             )}
 
@@ -5074,7 +5074,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                     </View>
                   </View>
                 ) : null}
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+                <PageFooter societarie={righeSocietarieFoglio} companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
             )}
 
@@ -5109,7 +5109,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                     </View>
                   </View>
                 </View>
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+                <PageFooter societarie={righeSocietarieFoglio} companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
             )}
             </>
@@ -5121,7 +5121,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
               <Page size="A4" style={styles.page}>
                 <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 {scorrevoli[id]}
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+                <PageFooter societarie={righeSocietarieFoglio} companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
             ) : null}
             </>
@@ -5133,7 +5133,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
               <Page size="A4" style={styles.page}>
                 <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 {scorrevoli.gallery_lavori}
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+                <PageFooter societarie={righeSocietarieFoglio} companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
             ) : null}
             </>
@@ -5145,7 +5145,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
               <Page size="A4" style={styles.page}>
                 <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 {scorrevoli.recensioni}
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+                <PageFooter societarie={righeSocietarieFoglio} companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
             ) : null}
             </>
@@ -5179,7 +5179,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
               {ids.map((id, i) => (
                 <ViewConSegnalibro key={id} bookmark={srSectionAnchor(id)} wrap={id === "gallery_lavori" || id === "recensioni" || id === "faq"} style={i > 0 ? { marginTop: 30 } : undefined}>{scorrevoli[id]}</ViewConSegnalibro>
               ))}
-              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+              <PageFooter societarie={righeSocietarieFoglio} companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
             </Page>
           ) : (
             <React.Fragment key={ids[0]}>{withSrSectionAnchor(pageEls[ids[0]], ids[0])}</React.Fragment>

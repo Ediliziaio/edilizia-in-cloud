@@ -19,7 +19,8 @@ export function PendingVariationPdf({ variation, orderId, companyId, context, on
   const [ready, setReady] = useState<{ url: string; filename: string; snapshot: string } | null>(null);
   const lock = useRef(false);
   const alive = useRef(true);
-  const snapshot = JSON.stringify([orderId, companyId, context, variation.id, variation.status,
+  // I dati societari del piè arrivano dopo: non sono una modifica alla proposta.
+  const snapshot = JSON.stringify([orderId, companyId, { ...context, societarie: undefined }, variation.id, variation.status,
     variation.numero_odv, variation.titolo, variation.descrizione, variation.motivazione,
     variation.impatto_economico, variation.impatto_giorni, variation.richiesto_da, variation.created_at]);
   const currentSnapshot = useRef(snapshot);

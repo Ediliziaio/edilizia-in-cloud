@@ -45,6 +45,9 @@ export const DOVE_SI_USA: Record<AmbitoCondizioni, string> = {
   lavoro: "Nelle lettere di assunzione e nei contratti del personale",
 };
 
+/** I tipi che i documenti leggono davvero. Gli altri li si può già scrivere, ma non escono ancora su niente. */
+export const AMBITI_COLLEGATI: ReadonlySet<AmbitoCondizioni> = new Set(["preventivo", "appalto", "commessa", "subappalto", "fattura"]);
+
 /** A chi va il documento: serve a raggruppare gli ambiti nella schermata. */
 export const CONTROPARTE: Record<AmbitoCondizioni, "cliente" | "fornitore" | "subappaltatore" | "dipendente"> = {
   preventivo: "cliente", appalto: "cliente", commessa: "cliente", fattura: "cliente", manutenzione: "cliente",

@@ -69,7 +69,10 @@ export interface DocumentoOperativo {
   righe: RigaDocumentoOperativo[];
   totali?: { imponibile: number; iva: number; totale: number };
 }
-export type AziendaDocumento = Pick<Company, "id" | "name"> & Partial<Company>;
+export type AziendaDocumento = Pick<Company, "id" | "name"> & Partial<Company> & {
+  /** I dati societari, per il piè di pagina: li carica `generaPdfOperativo`. */
+  righeSocietarie?: string[];
+};
 export const testo = (v: unknown) => String(v ?? "").trim();
 export const esc = (v: unknown) =>
   testo(v)

@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import { useQuery } from "@tanstack/react-query";
+import { useCondizioniDocumento } from "@/hooks/useCondizioniDocumento";
 import { toast } from "sonner";
 import { Check, Copy, Loader2, Mail, PenLine, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -56,6 +57,20 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
   const [emailCliente, setEmailCliente] = useState(context.customerEmail ?? "");
   const [nomeCliente, setNomeCliente] = useState(context.customerName ?? "");
   const lock = useRef(false), alive = useRef(true);
+  // Una variante nuova parte con le condizioni di «Contratti e condizioni» (09/11/2026). È una COPIA sul documento:
+  // si può correggere qui, e cambiare il modello domani non tocca le varianti già fatte.
+  const condizioniAzienda = useCondizioniDocumento("commessa");
+  const condizioniCopiate = useRef(false);
+  useEffect(() => {
+    if (existing || condizioniCopiate.current || !condizioniAzienda.disponibile || condizioniAzienda.testo.length > 10_000) return;
+    condizioniCopiate.current = true;
+    setForm((f) => {
+      if (f.additionalTerms?.trim()) return f;
+      const con = { ...f, additionalTerms: condizioniAzienda.testo };
+      setSaved((s) => (s === JSON.stringify(f) ? JSON.stringify(con) : s));
+      return con;
+    });
+  }, [existing, condizioniAzienda.disponibile, condizioniAzienda.testo]);
   const dirty = JSON.stringify(form) !== saved;
   const editable = canEdit && (!receipt || receipt.variation.status === "bozza");
   const stato = receipt?.variation.status;

@@ -5,7 +5,7 @@
  * condizioni sia per i preventivi, per i contratti, subappaltatori, committenti — tutto».
  *
  * La pagina risponde a tre domande, in quest'ordine:
- *   1. quali documenti escono ancora senza condizioni mie?   → la riga in cima, e le schede scoperte
+ *   1. quali documenti escono ancora senza condizioni mie?   → lo stato su ogni riga (09/11/2026)
  *   2. cosa esce su ciascun documento?                        → il modello predefinito, con l'anteprima
  *   3. cosa posso riusare?                                    → la libreria delle clausole
  *
@@ -17,8 +17,11 @@ import { Suspense, lazy, useCallback, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { PAGINA_CONDIZIONI, paginaDelModello } from "@/lib/condizioni/indirizzi";
 import {
-  FileText, Plus, Trash2, Archive, Star, Pencil, Search, Sparkles, Download, UserCheck
+  Plus, Trash2, Archive, Star, Pencil, Search, Sparkles, Download
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { caricaDatiSocietari, eSocieta, eSocietaDiCapitali } from "../../../../supabase/functions/_shared/datiSocietari";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/contexts/AuthContext";
 import { anteprimaCondizioniUrl, aziendaPerAnteprima } from "@/lib/condizioni/anteprimaPdf";
@@ -27,7 +30,7 @@ import { useCondizioniArchivio, type ClausolaArchivio } from "@/hooks/useCondizi
 import { useCondizioniImporta } from "@/hooks/useCondizioniImporta";
 import { testoLeggibile } from "@/lib/condizioni/importa";
 import {
-  AMBITI_CONDIZIONI, CLAUSOLE_DI_PARTENZA, CONTROPARTE, DOVE_SI_USA, NOMI_AMBITI,
+  AMBITI_COLLEGATI, AMBITI_CONDIZIONI, CLAUSOLE_DI_PARTENZA, CONTROPARTE, DOVE_SI_USA, NOMI_AMBITI,
   type AmbitoCondizioni, type ModelloCondizioni,
 } from "@/lib/condizioni/archivio";
 import { Button } from "@/components/ui/button";
@@ -86,10 +89,15 @@ export default function SettingsCondizioni() {
   const [clausola, setClausola] = useState<Partial<ClausolaArchivio> | null>(null);
 
   const attivi = useMemo(() => archivio.modelli.filter((m) => m.attivo), [archivio.modelli]);
-  const scoperti = useMemo(
-    () => AMBITI_CONDIZIONI.filter((a) => !attivi.some((m) => m.ambito === a && m.predefinito)),
-    [attivi],
-  );
+  const { data: datiMancanti = [] } = useQuery({
+    queryKey: ["dati-societari-mancanti", effectiveCompany?.id], enabled: !!effectiveCompany?.id, staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const d = await caricaDatiSocietari(supabase, effectiveCompany?.id);
+      if (!d || !eSocieta(d.forma_giuridica)) return [] as string[];
+      const capitale = Number(d.capitale_sociale);
+      return [!d.codice_rea && "il numero REA", eSocietaDiCapitali(d.forma_giuridica) && !(capitale > 0) && "il capitale sociale"].filter(Boolean) as string[];
+    },
+  });
   const gruppi = useMemo(() => ORDINE_CONTROPARTE.map((chi) => ({
     chi, nome: NOMI_CONTROPARTE[chi],
     ambiti: AMBITI_CONDIZIONI.filter((a) => CONTROPARTE[a] === chi).map((ambito) => ({
@@ -149,25 +157,6 @@ export default function SettingsCondizioni() {
         )}
       </div>
 
-      {/* Tutto quello che serve sapere, in due righe (07/11/2026): cos'è un modello, cos'è una clausola, e chi
-          può cambiarle per un cliente solo. Florin: «pochi spazi vuoti». */}
-      {(scheda === "modelli" || scheda === "clausole") && (
-        <div className="space-y-0.5 text-xs text-muted-foreground">
-          <p>
-            <FileText className="mr-1 inline h-3.5 w-3.5 align-[-2px] text-primary" aria-hidden />
-            <strong className="text-foreground">Modello</strong> = le clausole, in ordine, che escono su un tipo di documento ·{" "}
-            <strong className="text-foreground">Clausola</strong> = un pezzo che riusi («Foro competente»). Cambiare un modello
-            non tocca i documenti già mandati.
-          </p>
-          <p>
-            <UserCheck className="mr-1 inline h-3.5 w-3.5 align-[-2px] text-primary" aria-hidden />
-            Per <strong className="text-foreground">un cliente solo</strong>, chi ha il permesso «Riscrivere le condizioni su un
-            documento» le cambia nel preventivo o nel contratto, anche partendo da un altro modello: l'archivio non cambia.{" "}
-            <Link to="/azienda/impostazioni/persone" className="underline">Chi ce l'ha</Link>
-          </p>
-        </div>
-      )}
-
       {quante > 0 && (scheda === "modelli" || scheda === "clausole") && (
         <section className="rounded-lg border border-sky-200 bg-sky-50/60 p-3">
           <h2 className="text-sm font-semibold text-sky-950">Le condizioni che hai già</h2>
@@ -204,39 +193,49 @@ export default function SettingsCondizioni() {
         // quello scelto: si sceglie con un clic, si apre con «Modifica».
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,30rem)]">
           <div className="min-w-0 space-y-4">
-            <p className={cn("rounded-lg border px-3 py-2 text-sm",
-              scoperti.length === 0 ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-200 bg-amber-50 text-amber-900")}>
-              {scoperti.length === 0
-                ? "Ogni tipo di documento ha il suo modello: escono tutti con le condizioni dell'azienda."
-                : `${scoperti.length} ${scoperti.length === 1 ? "tipo di documento esce" : "tipi di documento escono"} ancora col testo di sistema: ${scoperti.map((a) => NOMI_AMBITI[a].toLowerCase()).join(", ")}.`}
-            </p>
+            {datiMancanti.length > 0 && (
+              <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                Nel piè di pagina mancano {datiMancanti.join(" e ")}.{" "}
+                <Link to="/azienda/impostazioni/fatturazione" className="underline">Completa i dati fiscali</Link>
+              </p>
+            )}
 
             {gruppi.map((g) => (
               <section key={g.chi} className="space-y-1.5">
                 <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{g.nome}</h2>
                 <div className="divide-y rounded-lg border">
                   {g.ambiti.map(({ ambito, predefinito, altri }) => (
-                    <article key={ambito} className="space-y-1.5 p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <h3 className="text-sm font-semibold">{NOMI_AMBITI[ambito]}</h3>
-                          <p className="text-xs text-muted-foreground">{DOVE_SI_USA[ambito]}</p>
+                    <article key={ambito} className="space-y-1.5 px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="min-w-0 truncate text-sm font-semibold" title={DOVE_SI_USA[ambito]}>{NOMI_AMBITI[ambito]}</h3>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          <StatoTipo ambito={ambito} haModello={!!predefinito} />
+                          {puoGestire && (
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => nuovo(ambito)}>
+                              <Plus className="mr-1 h-3.5 w-3.5" />Modello
+                            </Button>
+                          )}
                         </div>
-                        {puoGestire && (
-                          <Button variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-xs" onClick={() => nuovo(ambito)}>
-                            <Plus className="mr-1 h-3.5 w-3.5" />Modello
-                          </Button>
-                        )}
                       </div>
-                      {[...(predefinito ? [predefinito] : []), ...altri].map((m) => (
-                        <RigaModello key={m.id} m={m} puoGestire={puoGestire} predefinito={m.predefinito}
-                          scelto={m.id === mostrato?.id}
-                          onScegli={() => setScelto(m.id)}
-                          onApri={() => apriModello(m)}
-                          onArchivia={() => archivio.eliminaModello.mutate(m.id)} />
-                      ))}
-                      {!predefinito && altri.length === 0 && (
-                        <p className="text-xs text-muted-foreground">Nessun modello: il documento esce col testo di sistema.</p>
+                      {predefinito && (
+                        <RigaModello m={predefinito} puoGestire={puoGestire} predefinito scelto={predefinito.id === mostrato?.id}
+                          onScegli={() => setScelto(predefinito.id)} onApri={() => apriModello(predefinito)}
+                          onArchivia={() => archivio.eliminaModello.mutate(predefinito.id)} />
+                      )}
+                      {altri.length > 0 && (
+                        <details className="group">
+                          <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
+                            {altri.length === 1 ? "1 altro modello" : `${altri.length} altri modelli`}
+                          </summary>
+                          <div className="mt-1 space-y-1.5">
+                            {altri.map((m) => (
+                              <RigaModello key={m.id} m={m} puoGestire={puoGestire} scelto={m.id === mostrato?.id}
+                                onScegli={() => setScelto(m.id)} onApri={() => apriModello(m)}
+                                onArchivia={() => archivio.eliminaModello.mutate(m.id)}
+                                onUsa={() => archivio.salvaModello.mutate({ id: m.id, nome: m.nome, ambito: m.ambito, clausole: m.clausole, predefinito: true })} />
+                            ))}
+                          </div>
+                        </details>
                       )}
                     </article>
                   ))}
@@ -287,9 +286,20 @@ export default function SettingsCondizioni() {
   );
 }
 
-function RigaModello({ m, puoGestire, predefinito, scelto, onScegli, onApri, onArchivia }: {
+/** Una riga, senza spiegazioni: serve sapere se questo tipo di documento esce davvero col modello. */
+function StatoTipo({ ambito, haModello }: { ambito: AmbitoCondizioni; haModello: boolean }) {
+  const [testo, classe] = !AMBITI_COLLEGATI.has(ambito)
+    ? ["Non ancora collegato", "border-slate-200 bg-slate-50 text-slate-600"]
+    : haModello ? ["In uso sui documenti", "border-emerald-200 bg-emerald-50 text-emerald-800"]
+      : ["Nessun modello", "border-amber-200 bg-amber-50 text-amber-900"];
+  return <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium", classe)}>{testo}</span>;
+}
+
+function RigaModello({ m, puoGestire, predefinito, scelto, onScegli, onApri, onArchivia, onUsa }: {
   m: ModelloCondizioni; puoGestire: boolean; predefinito?: boolean; scelto?: boolean;
   onScegli: () => void; onApri: () => void; onArchivia: () => void;
+  /** Lo fa diventare il modello in uso per questo tipo di documento. */
+  onUsa?: () => void;
 }) {
   const vessatorie = m.clausole.filter((c) => c.vessatoria).length;
   return (
@@ -309,6 +319,7 @@ function RigaModello({ m, puoGestire, predefinito, scelto, onScegli, onApri, onA
         </span>
       </button>
       <div className="flex shrink-0 items-center gap-0.5">
+        {puoGestire && onUsa && <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" aria-label={`Usa ${m.nome}`} onClick={onUsa}>Usa</Button>}
         <Button variant="ghost" size="sm" className="h-7 px-2" aria-label={`${puoGestire ? "Modifica" : "Apri"} ${m.nome}`} onClick={onApri}><Pencil className="h-3.5 w-3.5" /></Button>
         {puoGestire && <Button variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground" aria-label={`Archivia ${m.nome}`} onClick={onArchivia}><Archive className="h-3.5 w-3.5" /></Button>}
       </div>

@@ -5,6 +5,8 @@ export interface VariationContext {
   documentHeading?:string; primaryColor?:string;
   /** Per mandare la firma elettronica col codice OTP (06/11/2026). */
   customerEmail?:string;
+  /** I dati societari dell'impresa, per il piè di pagina (09/11/2026). */
+  societarie?:string[];
 }
 /** Explicitly cleared fields stay cleared: do not silently restore a different party on the PDF. */
 export function variationDocumentContext(draft:VariationDraft,context:VariationContext):VariationContext {
