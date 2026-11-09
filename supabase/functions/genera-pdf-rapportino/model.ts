@@ -126,9 +126,10 @@ export interface FaseBlocco {
 const originiMateriale = (m: RecordData) => m.da_furgone === true ? "Dal furgone" : m.order_item_id ? "Articolo commessa" : "Dichiarato";
 function materiale(m: RecordData): MaterialeBlocco {
   return {
-    nome: text(m.nome) || "Non specificato",
+    // I rapportini da WhatsApp salvano `descrizione` e `unita_misura`.
+    nome: text(m.nome) || text(m.descrizione) || "Non specificato",
     quantita: number(m.quantita)?.toLocaleString("it-IT") ?? "-",
-    unita: text(m.unita) || "-",
+    unita: text(m.unita) || text(m.unita_misura) || "-",
     origine: originiMateriale(m),
   };
 }
