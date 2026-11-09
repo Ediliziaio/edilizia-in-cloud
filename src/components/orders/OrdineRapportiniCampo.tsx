@@ -492,7 +492,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
 
                             {/* Azioni admin */}
                             <div className="flex flex-wrap items-center gap-2 border-t pt-3">
-                              {canViewCosts && <div className="w-full"><QuadroEconomicoRapportino rapportinoId={r.id} /></div>}
+                              {canViewCosts && <div className="w-full"><QuadroEconomicoRapportino rapportinoId={r.id} puoModificare={stato !== "rifiutato" && canEditOrders} /></div>}
                               <PulsantePdfRapportino report={r} orderId={orderId} />
                               {/* Le ore annullate dall'ufficio non si riapprovano: si reinseriscono da «Ore e persone». */}
                               {canApprove && !r.annullato_at && (

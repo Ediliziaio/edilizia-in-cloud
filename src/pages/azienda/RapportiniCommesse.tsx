@@ -620,7 +620,7 @@ function DettaglioRapportino({ r, conCosti, navigazione, onChiudi, onDeciso }: {
   const stato = r ? statoDi(r) : null;
   const mezzi = r && Array.isArray(r.mezzi_usati) ? (r.mezzi_usati as Array<{ nome?: string; ore?: number }>).filter((m) => m?.nome) : [];
   const meteo = r?.meteo ? METEO.find((m) => m.value === r.meteo)?.label ?? r.meteo : null;
-  const { puoDecidereSu } = useDecisioneRapportino(r?.order_id ?? "");
+  const { puoDecidereSu, canApprove: puoModificare } = useDecisioneRapportino(r?.order_id ?? "");
   // Da approvare: un popup solo, con i dettagli e la decisione.
   if (r && stato === "inviato" && puoDecidereSu(r.user_id)) {
     return <ApprovaRapportinoPopup key={r.id} orderId={r.order_id} reportId={r.id} originale={r} testata={navigazione} onClose={onChiudi} onDeciso={onDeciso} />;
@@ -679,7 +679,7 @@ function DettaglioRapportino({ r, conCosti, navigazione, onChiudi, onDeciso }: {
                     {conCosti && r.costo_manodopera != null && <div className="flex gap-2"><dt className="text-slate-500">Costo manodopera</dt><dd className="tabular-nums">{formatCurrency(Number(r.costo_manodopera))}</dd></div>}
                   </dl>
                 )}
-                {conCosti && <QuadroEconomicoRapportino rapportinoId={r.id} />}
+                {conCosti && <QuadroEconomicoRapportino rapportinoId={r.id} puoModificare={puoModificare} />}
                 <PulsantePdfRapportino report={r} orderId={r.order_id} className="w-full" />
                 <Button asChild variant="outline" className="w-full">
                   <Link to={`/azienda/ordini/${r.order_id}?tab=cantiere&vista_cantiere=diario`}>
