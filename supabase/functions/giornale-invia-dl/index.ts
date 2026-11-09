@@ -10,7 +10,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { leggiAziendaDocumento } from "../_shared/aziendaDocumento.ts";
 import { escHtml, fmtData, fmtDataOra } from "../_shared/documentoGiornale.ts";
-import { GIORNI_VALIDITA_LINK_DL, emailDlValida, improntaTokenDl, nuovoTokenDl, scadenzaLinkDl } from "../_shared/linkGiornaleDl.ts";
+import { GIORNI_VALIDITA_LINK_DL, emailDlValida, improntaTokenDl, nuovoTokenDl, ruoloInvioValido, scadenzaLinkDl } from "../_shared/linkGiornaleDl.ts";
 
 /** Il doppio clic non spedisce due volte. */
 const PAUSA_TRA_INVII_MS = 2 * 60 * 1000;
@@ -34,6 +34,9 @@ Deno.serve(async (req) => {
     const giornaleId = body?.giornale_id;
     const email = typeof body?.email === "string" ? body.email.trim() : "";
     if (!giornaleId || typeof giornaleId !== "string") return json({ error: "giornale_id obbligatorio" }, 400);
+    // Chi non lo manda (app non ancora aggiornata) sta inviando alla direzione lavori, come prima.
+    const ruolo = body?.ruolo ?? "direzione_lavori";
+    if (!ruoloInvioValido(ruolo)) return json({ error: "Destinatario non valido" }, 400);
 
     const { data: pagina, error: errPagina } = await supabase.from("giornale_lavori")
       .select("id, company_id, order_id, data_lavori, stato, pm_signed_at, pm_signature_hash")
@@ -70,6 +73,7 @@ Deno.serve(async (req) => {
       company_id: pagina.company_id,
       giornale_id: pagina.id,
       email,
+      ruolo,
       token_hash: await improntaTokenDl(token),
       scade_il: scadenzaLinkDl(),
       inviato_da: user.id,
@@ -97,7 +101,7 @@ Deno.serve(async (req) => {
       html,
       templateName: "giornale_direzione_lavori",
       adminClient: supabase,
-      metadata: { giornale_id: pagina.id, ...extra },
+      metadata: { giornale_id: pagina.id, ruolo, ...extra },
     });
     let esito = await invia("transactional");
     if (!esito.ok && String((esito.body as { error?: unknown })?.error ?? "").toLowerCase().includes("no provider configured")) {
@@ -112,9 +116,12 @@ Deno.serve(async (req) => {
     }
 
     const adesso = new Date().toISOString();
-    const { error: errRegistra } = await supabase.from("giornale_lavori")
-      .update({ dl_notified_at: adesso, dl_notification_method: "email" }).eq("id", pagina.id);
-    if (errRegistra) console.error("giornale-invia-dl: invio non registrato sulla pagina", errRegistra.message);
+    // «Notificato alla DL» resta vero solo per la direzione lavori: lo dice il registro legale della pagina.
+    if (ruolo === "direzione_lavori") {
+      const { error: errRegistra } = await supabase.from("giornale_lavori")
+        .update({ dl_notified_at: adesso, dl_notification_method: "email" }).eq("id", pagina.id);
+      if (errRegistra) console.error("giornale-invia-dl: invio non registrato sulla pagina", errRegistra.message);
+    }
 
     return json({ success: true, dl_notified_at: adesso, email });
   } catch (e) {

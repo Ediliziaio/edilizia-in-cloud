@@ -19,6 +19,7 @@ type Patch = TablesUpdate<"purchase_order_items">;
 export function PurchaseOrderItemRow({
   item,
   isEditable,
+  inversioneContabile = false,
   senzaPrezzi = false,
   showReceived,
   onUpdate,
@@ -28,6 +29,8 @@ export function PurchaseOrderItemRow({
 }: {
   item: PurchaseOrderItem;
   isEditable: boolean;
+  /** Ordine in reverse charge: l'aliquota è zero per tutte le righe e non si tocca qui. */
+  inversioneContabile?: boolean;
   /** Chi non vede i costi: niente colonne di prezzo, invece di «0,00 €». */
   senzaPrezzi?: boolean;
   showReceived: boolean;
@@ -300,7 +303,9 @@ export function PurchaseOrderItemRow({
         )}
       </td>
       <td className="p-1">
-        {isEditable ? (
+        {inversioneContabile ? (
+          <span className="text-xs text-slate-600">Inv. cont.</span>
+        ) : isEditable ? (
           <Input
             aria-label="IVA percentuale"
             type="number"

@@ -295,6 +295,8 @@ const COMMERCIALISTA_ALLOWED_URLS = new Set([
   "/azienda/controllo-gestione",
   // Cantieri & Lavori
   "/azienda/ordini",
+  "/azienda/ordini-acquisto",
+  "/azienda/ddt",
   "/azienda/magazzino",
   "/azienda/clienti",
   "/azienda/subappaltatori",

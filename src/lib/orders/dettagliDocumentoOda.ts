@@ -14,6 +14,8 @@ export function applicaDettagliOda(base: DocumentoOperativo, json?: Json | null)
     referente:testo("referente",base.referente),referenteEmail:testo("referenteEmail",base.referenteEmail),referenteTelefono:testo("referenteTelefono",base.referenteTelefono),
     referenteConsegna:testo("referenteConsegna",base.referenteConsegna),noteConsegna:testo("noteConsegna",base.noteConsegna),condizioni:testo("condizioni",base.condizioni),codiceCliente:testo("codiceCliente",base.codiceCliente),
     noteNelMessaggio:typeof json.noteNelMessaggio === "boolean" ? json.noteNelMessaggio : base.noteNelMessaggio,
+    inversioneContabile:typeof json.inversioneContabile === "boolean" ? json.inversioneContabile : base.inversioneContabile,
+    clausolaInversione:json.clausolaInversione === "a" || json.clausolaInversione === "a-ter" ? json.clausolaInversione : base.clausolaInversione,
   };
 }
 
@@ -25,6 +27,6 @@ export function aggiornamentoDettagliOda(d: DocumentoOperativo, internalNotes: s
     payment_terms:d.pagamento?.trim() || null, notes:d.note?.trim() || null, internal_notes:internalNotes.trim() || null,
     document_details:{tipo:d.tipo,destinatarioNome:d.destinatario.nome,destinatarioEmail:d.destinatario.email ?? null,destinatarioIndirizzo:d.destinatario.indirizzo ?? null,destinatarioPartitaIva:d.destinatario.partitaIva ?? null,
       referente:d.referente ?? null,referenteEmail:d.referenteEmail ?? null,referenteTelefono:d.referenteTelefono ?? null,
-      destinazioneTipo:d.destinazioneTipo ?? null,referenteConsegna:d.referenteConsegna ?? null,noteConsegna:d.noteConsegna ?? null,condizioni:d.condizioni ?? null,codiceCliente:d.codiceCliente ?? null,noteNelMessaggio:!!d.noteNelMessaggio},
+      destinazioneTipo:d.destinazioneTipo ?? null,referenteConsegna:d.referenteConsegna ?? null,noteConsegna:d.noteConsegna ?? null,condizioni:d.condizioni ?? null,codiceCliente:d.codiceCliente ?? null,noteNelMessaggio:!!d.noteNelMessaggio,inversioneContabile:!!d.inversioneContabile,clausolaInversione:d.inversioneContabile ? d.clausolaInversione ?? null : null},
   };
 }

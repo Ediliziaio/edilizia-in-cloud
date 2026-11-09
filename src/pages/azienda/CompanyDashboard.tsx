@@ -172,7 +172,7 @@ function RegiaOperativa() {
             `${v.suppliers?.name || v.oda_number || "Fornitore"} (dal ${format(parseISO(v.expected_delivery_date), "d MMM", { locale: it })})`,
         )
         .join(" · "),
-      to: "/azienda/ordini?tab=acquisto",
+      to: "/azienda/ordini-acquisto",
       // con il permesso, ogni ordine ha la sua riga e la sua data da spostare
       voci: puoModificare ? r.merceInRitardo.voci : undefined,
     });

@@ -59,7 +59,7 @@ export function OdaFornitoreCard({supplier}: {supplier?: Supplier | null}) {
         {dato("Sconto concordato",supplier.sconto_percentuale != null ? `${supplier.sconto_percentuale}%` : null)}
         {dato("Tempi di consegna",supplier.lead_time_days != null ? `${supplier.lead_time_days} giorni` : null)}
         {dato("Indirizzo di ritiro",recapiti.ritiroIndirizzo)}{dato("Indicazioni di ritiro",supplier.ritiro_note)}
-        {dato("IVA predefinita",supplier.vat_rate != null ? `${supplier.vat_rate}%` : null)}
+        {dato("IVA predefinita",supplier.inversione_contabile ? "Reverse charge" : supplier.vat_rate != null ? `${supplier.vat_rate}%` : null)}
         {dato("Ordine minimo",supplier.min_order_amount != null ? formatCurrency(supplier.min_order_amount) : null)}
         {dato("Plafond",supplier.credit_limit != null ? formatCurrency(supplier.credit_limit) : null)}
         {dato("Valutazione",supplier.rating != null ? `${supplier.rating}/5` : null)}

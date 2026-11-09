@@ -116,6 +116,7 @@ export function RapportiniSospesi() {
         .eq("user_id", user!.id)
         .eq("company_id", companyId!)
         .in("stato", ["bozza", "rifiutato"])
+        .is("annullato_at", null)
         .lt("data_lavoro", today)
         .order("data_lavoro", { ascending: false });
       if (error) throw error;

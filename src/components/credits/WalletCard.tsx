@@ -133,10 +133,11 @@ export function WalletCard({
                 {formatEur(freeBalance)} di {formatEur(freeGranted)}
               </span>
             </div>
+            <p className="text-[11px] text-muted-foreground">Si usano per primi e il 1° del mese tornano alla quota del piano: quelli avanzati non si accumulano.</p>
             <div className="flex items-center justify-between gap-2">
               <span className="flex items-center gap-1 text-muted-foreground">
                 <ArrowUpRight className="h-3 w-3 text-emerald-600" />
-                Ricaricati da te
+                Ricariche e bonus (restano)
               </span>
               <span className="tabular-nums font-medium">{formatEur(wallet.balance)}</span>
             </div>

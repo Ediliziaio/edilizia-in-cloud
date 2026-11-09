@@ -89,7 +89,7 @@ export default function PurchaseOrderDetail() {
   const navigate = useNavigaDocumento();
   const inPopup = useDentroPopupDocumento();
   const { effectiveCompany } = useAuth();
-  const { order, isLoading, items, isItemsLoading, addItem, updateItem, deleteItem } = usePurchaseOrderDetail(odaId || null);
+  const { order, isLoading, items, isItemsLoading, addItem, updateItem, deleteItem, impostaIvaRighe } = usePurchaseOrderDetail(odaId || null);
   // Prezzi d'acquisto del fornitore: alimentano il suggerimento sulle righe.
   const { voci: vociFornitore } = useVociListinoFornitore(
     (order as { supplier_id?: string | null } | undefined)?.supplier_id ?? null,
@@ -176,7 +176,7 @@ export default function PurchaseOrderDetail() {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground mb-4">Ordine non trovato</p>
-        <Button variant="outline" onClick={() => navigate("/azienda/ordini?tab=acquisto")}>Torna alla lista</Button>
+        <Button variant="outline" onClick={() => navigate("/azienda/ordini-acquisto")}>Torna alla lista</Button>
       </div>
     );
   }
@@ -205,6 +205,7 @@ export default function PurchaseOrderDetail() {
     note: order.notes,
     subtotal: Number(order.subtotal),
     vatTotal: Number(order.vat_total),
+    inversioneContabile: (order.document_details as { inversioneContabile?: unknown } | null)?.inversioneContabile === true,
     total: Number(order.total),
     righe: items.map((i) => ({
       description: i.description,
@@ -361,7 +362,7 @@ export default function PurchaseOrderDetail() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate("/azienda/ordini?tab=acquisto")}
+          onClick={() => navigate("/azienda/ordini-acquisto")}
           aria-label="Torna alla lista Ordini d'Acquisto"
         >
           <ArrowLeft className="h-4 w-4 mr-1" />
@@ -500,7 +501,7 @@ export default function PurchaseOrderDetail() {
                     quantity: 1,
                     unit_price: 0,
                     price_pending: true,
-                    vat_rate: 22,
+                    vat_rate: documentoInvio.inversioneContabile ? 0 : 22,
                   })}
                 >
                   <Plus className="h-3.5 w-3.5 mr-1" /> Aggiungi
@@ -549,6 +550,7 @@ export default function PurchaseOrderDetail() {
                           supplierId={order.supplier_id}
                           item={item}
                           isEditable={isEditable}
+                          inversioneContabile={!!documentoInvio.inversioneContabile}
                           showReceived={!isEditable && order.status !== "annullato"}
                           onUpdate={(updates) => updateItem.mutateAsync({ id: item.id, updates })}
                           onDelete={() => deleteItem.mutate(item.id)}
@@ -563,7 +565,7 @@ export default function PurchaseOrderDetail() {
                       </tr>
                       <tr className="bg-muted/30">
                         <td colSpan={isEditable ? 6 : 6} className="p-2 pl-4 text-right text-muted-foreground">IVA:</td>
-                        <td className="p-2 text-right text-muted-foreground">{importiInAttesa ? "Da confermare" : fmtEur(totaliRighe.iva)}</td>
+                        <td className="p-2 text-right text-muted-foreground">{documentoInvio.inversioneContabile ? "Inversione contabile" : importiInAttesa ? "Da confermare" : fmtEur(totaliRighe.iva)}</td>
                         {(isEditable || (!isEditable && order.status !== "annullato")) && <td></td>}
                       </tr>
                       <tr className="bg-muted/30 border-t">
@@ -578,7 +580,7 @@ export default function PurchaseOrderDetail() {
             </div>
           </QuoteCard>
 
-          <OdaDettagliCard key={`dettagli-${order.id}`} documento={documentoInvio} orderId={order.order_id} internalNotes={order.internal_notes} condizioniFornitore={condizioniFornitore} paymentMethod={order.payment_method || supplier?.payment_method} canEdit={permissions.canEditOrders} onEditingChange={editing=>setEditingDetailsId(editing ? order.id : null)} onSave={patch=>update.mutateAsync({id:order.id,updates:patch})} />
+          <OdaDettagliCard key={`dettagli-${order.id}`} documento={documentoInvio} orderId={order.order_id} internalNotes={order.internal_notes} condizioniFornitore={condizioniFornitore} paymentMethod={order.payment_method || supplier?.payment_method} canEdit={permissions.canEditOrders} aliquotaFornitore={supplier?.vat_rate} onImpostaIvaRighe={aliquota=>impostaIvaRighe.mutateAsync(aliquota)} onEditingChange={editing=>setEditingDetailsId(editing ? order.id : null)} onSave={patch=>update.mutateAsync({id:order.id,updates:patch})} />
 
           <OdaNoteCard key={`note-${order.id}`} onEditingChange={editing=>setEditingNotesId(editing ? order.id : null)} notes={order.notes} onSave={notes => update.mutateAsync({id:order.id,updates:{notes}})} />
         </div>

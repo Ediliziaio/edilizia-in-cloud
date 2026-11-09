@@ -372,6 +372,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
         .eq("user_id", user!.id)
         .eq("company_id", companyId!)
         .eq("data_lavoro", workDay)
+        .is("annullato_at", null)
         .order("created_at", { ascending: false })
         .limit(tipiSeparati ? 2 : 1);
       if (error) throw error;

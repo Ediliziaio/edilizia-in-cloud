@@ -35,6 +35,8 @@ export interface OdaEmailDati {
   note?: string | null;
   subtotal: number;
   vatTotal: number;
+  /** Reverse charge: al posto dell'importo IVA, la dicitura. */
+  inversioneContabile?: boolean;
   total: number;
   righe: OdaEmailRiga[];
 }
@@ -110,7 +112,7 @@ export function buildOdaEmailBody(d: OdaEmailDati): string {
   <tbody>${righe}</tbody>
   <tfoot>
     <tr><td colspan="3" style="padding:5px 8px;text-align:right;color:#555;">Imponibile</td><td style="padding:5px 8px;text-align:right;">${eur(d.subtotal)}</td></tr>
-    <tr><td colspan="3" style="padding:5px 8px;text-align:right;color:#555;">IVA</td><td style="padding:5px 8px;text-align:right;">${eur(d.vatTotal)}</td></tr>
+    <tr><td colspan="3" style="padding:5px 8px;text-align:right;color:#555;">IVA</td><td style="padding:5px 8px;text-align:right;">${d.inversioneContabile ? "Inversione contabile" : eur(d.vatTotal)}</td></tr>
     <tr><td colspan="3" style="padding:7px 8px;text-align:right;"><strong>Totale ordine</strong></td><td style="padding:7px 8px;text-align:right;"><strong>${eur(d.total)}</strong></td></tr>
   </tfoot>
 </table>

@@ -46,6 +46,7 @@ import {
   Star,
   Calculator,
   ShoppingCart,
+  FileCheck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
@@ -148,13 +149,13 @@ export const macroAreas: MacroArea[] = [
       // ognuna ha il suo permesso, e la voce si vede se almeno una è
       // disponibile (regola in lib/manodopera/schede, applicata da CompanyLayout).
       { title: "Manodopera e Mezzi", url: "/azienda/manodopera", icon: HardHat },
-      // Gli ODA vivono in un tab «acquisto» dentro Commesse, non è più una voce
-      // di menu (doppia porta = menu più lungo e basta).
       { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse", moduleKey: "warehouse" },
-      // Gli acquisti (materiali da ordinare, offerte, ordini, consegne) sono la
-      // scheda «Acquisti» di Commesse (23/10/2026). Questa voce serve solo a chi
-      // ha l'«Ufficio acquisti» senza vedere le Commesse: gli altri ci arrivano da lì.
-      { title: "Acquisti", url: "/azienda/ordini?tab=acquisto&vista=pipeline", icon: ShoppingCart, permissionKey: "canManagePurchasing", hideIfPermissionKey: "canViewOrders" },
+      // Ordini e DDT hanno una voce loro (09/11/2026, richiesta di un cliente); il collegamento
+      // alla commessa resta su ogni documento. «Acquisti» è la stessa pagina per chi ha
+      // l'«Ufficio acquisti» senza vedere le Commesse.
+      { title: "Ordini", url: "/azienda/ordini-acquisto", icon: ShoppingCart, permissionKey: "canViewOrders", moduleKey: "orders" },
+      { title: "DDT", url: "/azienda/ddt", icon: FileCheck, permissionKey: "canViewOrders", moduleKey: "orders" },
+      { title: "Acquisti", url: "/azienda/ordini-acquisto?vista=pipeline", icon: ShoppingCart, permissionKey: "canManagePurchasing", hideIfPermissionKey: "canViewOrders" },
       { title: "Firma Elettronica", url: "/azienda/firma-elettronica", icon: FileSignature, permissionKey: "canViewFirmaElettronica", featureKey: "firma_fea" },
       // Assistenza aggrega richieste (ticket + interventi), Manutenzione (impianti,
       // contratti, scadenze) e la vista in calendario: una porta sola, a schede

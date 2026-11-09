@@ -499,7 +499,7 @@ function DocumentoInvioContent({
                 )}
               </div>
             )}
-            {d.tipo === "servizi" && !senzaPrezzi(d) && (
+            {(d.tipo === "servizi" || d.tipo === "materiali") && !senzaPrezzi(d) && (
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"

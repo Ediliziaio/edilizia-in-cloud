@@ -33,9 +33,7 @@ const OrderCommissionsOverview = lazy(() =>
   }))
 );
 import { OrdersFilterSidebar, INITIAL_FILTER_STATE, countActiveFilters, type OrdersFilterState } from "@/components/orders/OrdersFilterSidebar";
-import PurchaseOrdersList from "@/pages/azienda/PurchaseOrdersList";
 import SupplierRfqsList from "@/pages/azienda/SupplierRfqsList";
-import DDTRicezioneList from "@/pages/azienda/DDTRicezioneList";
 import GlobalErrors from "@/pages/azienda/GlobalErrors";
 import MarginalitaCantieri from "@/pages/azienda/MarginalitaCantieri";
 import { format } from "date-fns";
@@ -2024,17 +2022,22 @@ export default function OrdersList() {
     { id: "sopralluoghi", label: "Sopralluoghi", icon: MapIcon, show: surveysEnabled },
     // Prima degli ordini perche' e' il passo prima: si chiede il prezzo, poi si ordina.
     { id: "offerte", label: "Richieste d'offerta", icon: FileQuestion, show: permissions.canViewOrders && !isMobile },
-    // Il centro degli acquisti (23/10/2026): materiali da ordinare, offerte,
-    // ordini e consegne in una pipeline. Ha preso il posto di «Acquisti da fare».
-    { id: "acquisto", label: "Acquisti", icon: ShoppingCart, show: permissions.canViewOrders || permissions.canManagePurchasing },
-    { id: "ddt", label: "DDT", icon: FileCheck, show: permissions.canViewOrders },
+    // Ordini e DDT hanno ora una pagina e una voce di menu loro: i vecchi link ci arrivano da soli.
     { id: "anomalie", label: "Anomalie", icon: AlertTriangle, show: permissions.canViewCosts && !isMobile },
     { id: "marginalita", label: "Marginalità", icon: PieChart, show: permissions.canViewCosts },
     { id: "provvigioni", label: "Provvigioni", icon: Euro, show: permissions.canViewCosts && !isMobile },
   ].filter((t) => t.show);
-  const activeTab = tabs.some((tab) => tab.id === requestedTab) ? requestedTab : (soloAcquisti ? "acquisto" : "ordini");
+  const activeTab = tabs.some((tab) => tab.id === requestedTab) ? requestedTab : "ordini";
 
   useEffect(() => {
+    // Chi ha solo l'«Ufficio acquisti» non vede le commesse: qualunque scheda chieda, va agli ordini.
+    const pagina = requestedTab === "acquisto" || soloAcquisti ? "/azienda/ordini-acquisto" : requestedTab === "ddt" ? "/azienda/ddt" : null;
+    if (pagina) {
+      const resto = new URLSearchParams(searchParams);
+      resto.delete("tab");
+      navigate(`${pagina}${resto.size ? `?${resto}` : ""}`, { replace: true });
+      return;
+    }
     // La vecchia scheda «Quanto lavora Silvio»: i link salvati arrivano dove sta adesso.
     if (requestedTab === "silvio_lavora") {
       navigate("/azienda/impostazioni/silvio-commesse", { replace: true });
@@ -2047,7 +2050,10 @@ export default function OrdersList() {
         return next;
       }, { replace: true });
     }
-  }, [activeTab, navigate, requestedTab, setSearchParams]);
+  }, [activeTab, navigate, requestedTab, searchParams, setSearchParams, soloAcquisti]);
+
+  // Sta per andare alla pagina degli ordini o dei DDT: niente commesse nel frattempo.
+  if (soloAcquisti || requestedTab === "acquisto" || requestedTab === "ddt") return null;
 
   return (
     <div className="space-y-3 overflow-x-hidden">
@@ -2130,20 +2136,6 @@ export default function OrdersList() {
       {activeTab === "offerte" && (
         <ErrorBoundary title="Errore nel caricamento richieste d'offerta">
           <SupplierRfqsList />
-        </ErrorBoundary>
-      )}
-
-      {activeTab === "acquisto" && (
-        /* Bug fix: rimosso wrapper [&>div:first-child>div:first-child]:hidden
-           che nascondeva il nuovo header h-10 w-10 + Esporta/Filtri/Nuovo OdA
-           che abbiamo aggiunto a PurchaseOrdersList. Era un hack per nascondere
-           il vecchio header ridondante, non più necessario. */
-        <PurchaseOrdersList />
-      )}
-
-      {activeTab === "ddt" && (
-        <ErrorBoundary title="Errore nel caricamento DDT">
-          <DDTRicezioneList />
         </ErrorBoundary>
       )}
 

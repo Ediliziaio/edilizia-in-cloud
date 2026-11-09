@@ -7,22 +7,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DestinazioneDocumento } from "@/components/documentiOperativi/DestinazioneDocumento";
-import { type DocumentoOperativo, dataIt } from "@/lib/documentiOperativi/modello";
+import { CLAUSOLE_INVERSIONE, type ClausolaInversione, type DocumentoOperativo, dataIt, testoInversioneContabile } from "@/lib/documentiOperativi/modello";
 import { TERMINI_PRESET } from "@/lib/terminiPagamento";
 import { isValidEmail } from "@/lib/email/preferencesValidators";
 import type { TablesUpdate } from "@/integrations/supabase/types";
 import { aggiornamentoDettagliOda } from "@/lib/orders/dettagliDocumentoOda";
 import { OfficeSelect } from "./OfficeSelect";
 
-export function OdaDettagliCard({documento,orderId,internalNotes,condizioniFornitore,paymentMethod,canEdit,onSave,onEditingChange}: {
+export function OdaDettagliCard({documento,orderId,internalNotes,condizioniFornitore,paymentMethod,canEdit,aliquotaFornitore,onImpostaIvaRighe,onSave,onEditingChange}: {
   documento:DocumentoOperativo; orderId:string | null; internalNotes:string | null; condizioniFornitore:string;
-  paymentMethod?:string | null; canEdit:boolean; onSave:(patch:TablesUpdate<"purchase_orders">)=>Promise<unknown>; onEditingChange?:(editing:boolean)=>void;
+  paymentMethod?:string | null; canEdit:boolean; aliquotaFornitore?:number | null; onImpostaIvaRighe?:(aliquota:number)=>Promise<unknown>; onSave:(patch:TablesUpdate<"purchase_orders">)=>Promise<unknown>; onEditingChange?:(editing:boolean)=>void;
 }) {
   const [editing,setEditing] = useState(false);
   const cambiaEditing = (v:boolean) => {setEditing(v);onEditingChange?.(v);};
   const dato = (label:string,value?:ReactNode) => <div><dt className="text-xs text-slate-500">{label}</dt><dd className="mt-1 whitespace-pre-wrap break-words text-sm font-medium text-slate-800">{value || <span className="font-normal text-slate-400">Non indicato</span>}</dd></div>;
   return <QuoteCard title="Dettagli ordine e pagamento" icon={<CreditCard className="h-4 w-4" />} action={canEdit && !editing && <Button size="sm" variant="outline" onClick={()=>cambiaEditing(true)}><Pencil className="mr-1.5 h-3.5 w-3.5" />Modifica dettagli</Button>}>
-    {editing ? <DettagliForm documento={documento} orderId={orderId} internalNotes={internalNotes} condizioniFornitore={condizioniFornitore} paymentMethod={paymentMethod} onSave={async patch=>{await onSave(patch);cambiaEditing(false);}} onCancel={()=>cambiaEditing(false)} /> : <>
+    {editing ? <DettagliForm documento={documento} orderId={orderId} internalNotes={internalNotes} condizioniFornitore={condizioniFornitore} paymentMethod={paymentMethod} aliquotaFornitore={aliquotaFornitore} onImpostaIvaRighe={onImpostaIvaRighe} onSave={async patch=>{await onSave(patch);cambiaEditing(false);}} onCancel={()=>cambiaEditing(false)} /> : <>
       <div className="mb-5 rounded-xl border border-orange-100 bg-orange-50/60 p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Condizioni di pagamento dell’ordine</p>
         <p className="mt-1 whitespace-pre-wrap text-sm font-semibold text-slate-900">{documento.pagamento || condizioniFornitore}</p>
@@ -31,6 +31,7 @@ export function OdaDettagliCard({documento,orderId,internalNotes,condizioniForni
       <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
         {dato("Metodo di pagamento",etichettaPagamentoFornitore(paymentMethod ?? null))}
         {dato("Tipo documento",documento.tipo === "servizi" ? "Ordine di servizi e lavori" : "Ordine materiali")}
+        {documento.inversioneContabile && dato("IVA",testoInversioneContabile(documento))}
         {dato("Data emissione",dataIt(documento.data))}{dato("Consegna prevista",dataIt(documento.consegna))}
         {dato("Destinatario",documento.destinatario.nome)}{dato("Email destinatario",documento.destinatario.email)}{dato("Nostro codice cliente",documento.codiceCliente)}
         {dato("Referente fornitore",[documento.referente,documento.referenteEmail,documento.referenteTelefono].filter(Boolean).join("\n"))}
@@ -43,13 +44,15 @@ export function OdaDettagliCard({documento,orderId,internalNotes,condizioniForni
   </QuoteCard>;
 }
 
-function DettagliForm({documento,orderId,internalNotes,condizioniFornitore,paymentMethod,onSave,onCancel}: {
- documento:DocumentoOperativo;orderId:string | null;internalNotes:string | null;condizioniFornitore:string;paymentMethod?:string | null;
+function DettagliForm({documento,orderId,internalNotes,condizioniFornitore,paymentMethod,aliquotaFornitore,onImpostaIvaRighe,onSave,onCancel}: {
+ documento:DocumentoOperativo;orderId:string | null;internalNotes:string | null;condizioniFornitore:string;paymentMethod?:string | null;aliquotaFornitore?:number | null;onImpostaIvaRighe?:(aliquota:number)=>Promise<unknown>;
  onSave:(patch:TablesUpdate<"purchase_orders">)=>Promise<unknown>;onCancel:()=>void;
 }) {
  const [d,setD]=useState(documento);
  const [metodo,setMetodo]=useState(paymentMethod || "");
  const [noteInterne,setNoteInterne]=useState(internalNotes || "");
+ const [aliquotaRipristino,setAliquotaRipristino]=useState(String(aliquotaFornitore || 22));
+ const inversioneCambiata=!!d.inversioneContabile !== !!documento.inversioneContabile;
  const [saving,setSaving]=useState(false);
  const [error,setError]=useState<string | null>(null);
  const cambia=<K extends keyof DocumentoOperativo>(key:K,value:DocumentoOperativo[K])=>setD(prev=>({...prev,[key]:value}));
@@ -57,8 +60,11 @@ function DettagliForm({documento,orderId,internalNotes,condizioniFornitore,payme
   e.preventDefault();if(saving)return;
   if(!d.destinatario.nome.trim() || !d.data) {setError("Inserisci il destinatario e la data di emissione.");return;}
   if([d.destinatario.email,d.referenteEmail].some(email=>email?.trim() && !isValidEmail(email.trim()))) {setError("Controlla gli indirizzi email del destinatario e del referente.");return;}
+  const aliquota=d.inversioneContabile ? 0 : Number(aliquotaRipristino);
+  if(inversioneCambiata && (!Number.isFinite(aliquota) || aliquota<0 || aliquota>100)) {setError("Indica un’aliquota IVA tra 0 e 100.");return;}
   setSaving(true);setError(null);
-  try {await onSave(aggiornamentoDettagliOda(d,noteInterne,metodo));}
+  // Prima le righe: se il secondo passo fallisce, le modifiche restano qui e si riprova.
+  try {if(inversioneCambiata) await onImpostaIvaRighe?.(aliquota);await onSave(aggiornamentoDettagliOda(d,noteInterne,metodo));}
   catch {setError("Dettagli non salvati. Le modifiche sono ancora qui: riprova.");setSaving(false);}
  };
  const campo=(label:string,key:"data"|"consegna"|"riferimento"|"codiceCliente"|"referente"|"referenteEmail"|"referenteTelefono",type="text")=><div><Label htmlFor={`oda-${key}`}>{label}</Label><Input id={`oda-${key}`} type={type} maxLength={1000} value={d[key] || ""} onChange={e=>cambia(key,e.target.value)} /></div>;
@@ -85,6 +91,12 @@ function DettagliForm({documento,orderId,internalNotes,condizioniFornitore,payme
     <div><Label htmlFor="oda-destinatario-iva">Partita IVA destinatario</Label><Input id="oda-destinatario-iva" value={d.destinatario.partitaIva || ""} onChange={e=>cambia("destinatario",{...d.destinatario,partitaIva:e.target.value})} /></div>
     {campo("Nome referente fornitore","referente")}{campo("Email referente fornitore","referenteEmail","email")}{campo("Telefono referente fornitore","referenteTelefono","tel")}
     {campo("Riferimento preventivo / documento","riferimento")}
+   </div>
+   <div className="rounded-xl border border-slate-200 p-4">
+    <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={!!d.inversioneContabile} onChange={e=>cambia("inversioneContabile",e.target.checked)} />Reverse charge (inversione contabile)</label>
+    <p className="mt-1 text-xs text-slate-500">Tutte le righe dell’ordine passano a IVA zero e la dicitura compare a video, sul PDF e nell’email. Di norma vale per le prestazioni, non per la semplice fornitura di materiali: nel dubbio chiedi al commercialista.</p>
+    {d.inversioneContabile && <div className="mt-3 max-w-md"><Label htmlFor="oda-clausola">Norma citata sul documento</Label><OfficeSelect id="oda-clausola" label="Norma citata sul documento" value={d.clausolaInversione ?? ""} onValueChange={v=>cambia("clausolaInversione",(v || null) as ClausolaInversione | null)} options={[{value:"",label:"Art. 17 c. 6, senza indicare la lettera"},...CLAUSOLE_INVERSIONE.map(c=>({value:c.value,label:c.label}))]} /></div>}
+    {inversioneCambiata && !d.inversioneContabile && <div className="mt-3 max-w-[12rem]"><Label htmlFor="oda-aliquota-ripristino">Aliquota IVA da rimettere</Label><Input id="oda-aliquota-ripristino" type="number" min="0" max="100" value={aliquotaRipristino} onChange={e=>setAliquotaRipristino(e.target.value)} /></div>}
    </div>
    <DestinazioneDocumento documento={d} commessaId={orderId} onChange={patch=>setD(prev=>({...prev,...patch}))} />
    <div className="grid gap-4 sm:grid-cols-2">

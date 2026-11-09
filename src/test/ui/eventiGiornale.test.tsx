@@ -65,6 +65,6 @@ describe("ProblemiApertiGiornale", () => {
     avvolgi(<ProblemiApertiGiornale orderId="o1" companyId="az" />);
     expect(await screen.findByText("Infiltrazione")).toBeInTheDocument();
     expect(screen.getByText(/da \d+ giorni/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Apri la pagina" })).toHaveAttribute("href", "/azienda/giornale-lavori?ordine=o1&pagina=g1");
+    expect(screen.getByRole("link", { name: "Apri la pagina" })).toHaveAttribute("href", "/azienda/ordini/o1?tab=cantiere&vista_cantiere=giornale&pagina=g1");
   });
 });

@@ -15683,6 +15683,8 @@ export type Database = {
       }
       campo_rapportini: {
         Row: {
+          annullato_at: string | null
+          annullato_da: string | null
           campi_extra: Json
           approvato: boolean | null
           approvato_at: string | null
@@ -15723,6 +15725,8 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          annullato_at?: string | null
+          annullato_da?: string | null
           campi_extra?: Json
           approvato?: boolean | null
           approvato_at?: string | null
@@ -15763,6 +15767,8 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          annullato_at?: string | null
+          annullato_da?: string | null
           campi_extra?: Json
           approvato?: boolean | null
           approvato_at?: string | null
@@ -87683,6 +87689,7 @@ export type Database = {
           rating: number | null
           updated_at: string
           uses_gs1: boolean
+          inversione_contabile: boolean
           vat_number: string | null
           vat_rate: number | null
           website: string | null
@@ -87732,6 +87739,7 @@ export type Database = {
           rating?: number | null
           updated_at?: string
           uses_gs1?: boolean
+          inversione_contabile?: boolean
           vat_number?: string | null
           vat_rate?: number | null
           website?: string | null
@@ -87781,6 +87789,7 @@ export type Database = {
           rating?: number | null
           updated_at?: string
           uses_gs1?: boolean
+          inversione_contabile?: boolean
           vat_number?: string | null
           vat_rate?: number | null
           website?: string | null

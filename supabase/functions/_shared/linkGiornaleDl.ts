@@ -3,6 +3,17 @@
  * che vale 30 giorni. Nel database solo la sua impronta. Modulo puro.
  */
 export const GIORNI_VALIDITA_LINK_DL = 30;
+
+/** A chi si manda una pagina firmata: il ruolo resta registrato sull'invio. */
+export const RUOLI_INVIO_GIORNALE = [
+  { value: "direzione_lavori", label: "Direzione lavori" },
+  { value: "cse", label: "Coordinatore sicurezza (CSE)" },
+  { value: "committente", label: "Committente" },
+  { value: "altro", label: "Altro" },
+] as const;
+export type RuoloInvioGiornale = (typeof RUOLI_INVIO_GIORNALE)[number]["value"];
+export const ruoloInvioValido = (v: unknown): v is RuoloInvioGiornale =>
+  RUOLI_INVIO_GIORNALE.some((r) => r.value === v);
 const FORMATO_TOKEN = /^[A-Za-z0-9_-]{43}$/;
 
 export const tokenDlBenFormato = (t: unknown): t is string => typeof t === "string" && FORMATO_TOKEN.test(t);

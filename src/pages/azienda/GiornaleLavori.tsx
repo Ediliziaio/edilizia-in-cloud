@@ -126,7 +126,11 @@ interface EsitoBozza {
 
 const conteggio = (n: number, uno: string, molti: string) => `${n} ${n === 1 ? uno : molti}`;
 
-export default function GiornaleLavori() {
+/**
+ * Il giornale: dal menu su tutte le commesse, dentro la commessa (`orderIdFisso`)
+ * solo sulle sue pagine e senza i selettori della commessa.
+ */
+export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: string }) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
@@ -139,7 +143,7 @@ export default function GiornaleLavori() {
   const [searchParams] = useSearchParams();
   const { lat: gpsLat, lng: gpsLng, status: gpsStatus, requestPosition } = useGPS(companyId || null);
 
-  const [selectedOrderId, setSelectedOrderId] = useState(searchParams.get("ordine") || "");
+  const [selectedOrderId, setSelectedOrderId] = useState(orderIdFisso || searchParams.get("ordine") || "");
   const [isExporting, setIsExporting] = useState(false);
   const [printHtml, setPrintHtml] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -816,6 +820,8 @@ export default function GiornaleLavori() {
 
   if (isScopriPlan) return <UpgradeScopriWall type="generic" inline />;
 
+  const Titolo = orderIdFisso ? "h2" : "h1";
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -826,8 +832,8 @@ export default function GiornaleLavori() {
               <NotebookPen className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="truncate text-xl font-bold text-slate-950 sm:text-2xl">Giornale dei Lavori</h1>
-              <p className="text-xs text-slate-600 sm:text-sm">Diario ufficiale del cantiere</p>
+              <Titolo className="truncate text-xl font-bold text-slate-950 sm:text-2xl">Giornale dei Lavori</Titolo>
+              <p className="text-xs text-slate-600 sm:text-sm">{orderIdFisso ? "Una pagina per ogni giorno di questa commessa" : "Diario ufficiale del cantiere"}</p>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -854,8 +860,8 @@ export default function GiornaleLavori() {
       </div>
 
       {/* Order selector */}
-      <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row">
-        <Select
+      {(!orderIdFisso || gpsStatus === "success") && <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row">
+        {!orderIdFisso && <Select
           value={selectedOrderId || "__all__"}
           onValueChange={(v) => setSelectedOrderId(v === "__all__" ? "" : v)}
         >
@@ -870,14 +876,14 @@ export default function GiornaleLavori() {
               </SelectItem>
             ))}
           </SelectContent>
-        </Select>
+        </Select>}
         {gpsStatus === "success" && (
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <MapPin className="h-3 w-3 text-green-500" />
             <span>GPS attivo</span>
           </div>
         )}
-      </div>
+      </div>}
 
       {/* Errore di caricamento — non mascherare con l'empty-state "Nessun report" */}
       {(entriesError || ordersError) && (
@@ -1567,4 +1573,8 @@ export default function GiornaleLavori() {
       </AlertDialog>
     </div>
   );
+}
+
+export default function GiornaleLavori() {
+  return <GiornaleLavoriContenuto />;
 }

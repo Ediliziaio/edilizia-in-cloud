@@ -8,6 +8,7 @@ export const CANTIERE_VIEWS = [
   { value: "squadra", label: "Ore e persone", description: "Chi ha lavorato, quante ore, se tornano con le timbrature. L’ufficio inserisce le ore qui." },
   // «Diario» si chiama Rapportini (31/10/2026): è lì che si leggono, si approvano e si scrivono.
   { value: "diario", label: "Rapportini", description: "Rapportini, foto e aggiornamenti dal cantiere; anche scritti dall'ufficio." },
+  { value: "giornale", label: "Giornale lavori", description: "Il giornale di questa commessa, una pagina per ogni giorno, da preparare, firmare e condividere." },
   { value: "collaudo", label: "Consegna e assistenza", description: "Collaudi, verbali, riserve e interventi di assistenza." },
   { value: "sicurezza", label: "Sicurezza", description: "POS, PSC, notifica, PiMUS, DURC: cosa serve in questo cantiere e cosa manca." },
 ] as const;

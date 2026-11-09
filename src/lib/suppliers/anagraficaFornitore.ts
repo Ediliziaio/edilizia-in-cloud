@@ -37,6 +37,7 @@ export function etichettaRuoloReferente(ruolo: string | null | undefined): strin
 }
 
 export interface Supplier {
+  inversione_contabile?: boolean | null;
   id: string;
   name: string;
   vat_rate: number | null;
@@ -89,6 +90,8 @@ export interface Supplier {
 }
 
 export interface SupplierFormData {
+  /** I suoi ordini nascono in reverse charge. */
+  inversione_contabile: boolean;
   name: string;
   vat_rate: number;
   is_foreign: boolean;
@@ -133,6 +136,7 @@ export interface SupplierFormData {
 }
 
 export const emptyForm: SupplierFormData = {
+  inversione_contabile: false,
   name: "",
   vat_rate: 22,
   is_foreign: false,
@@ -215,6 +219,7 @@ export function supplierToForm(s: Supplier): SupplierFormData {
   return {
     name: s.name,
     vat_rate: s.vat_rate ?? 22,
+    inversione_contabile: !!s.inversione_contabile,
     is_foreign: s.is_foreign,
     address: s.address || "",
     city: s.city || "",
@@ -362,6 +367,7 @@ export function payloadFornitore(data: SupplierFormData) {
   return {
     name: normalizeSupplierName(data.name),
     vat_rate: data.vat_rate,
+    inversione_contabile: data.inversione_contabile,
     is_foreign: data.is_foreign,
     address: normalizeOptional(data.address),
     city: normalizeOptional(data.city),

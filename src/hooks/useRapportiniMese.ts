@@ -53,6 +53,7 @@ export async function leggiRapportiniMese(companyId: string, mese: string, conCo
       .from("campo_rapportini")
       .select(campi)
       .eq("company_id", companyId)
+      .is("annullato_at", null)
       .gte("data_lavoro", giorni[0])
       .lte("data_lavoro", giorni[giorni.length - 1])
       .order("data_lavoro", { ascending: false })

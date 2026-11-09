@@ -47,7 +47,7 @@ export function ProblemiApertiGiornale({ orderId, companyId }: { orderId: string
             <span className="min-w-0 break-words">{p.testo}</span>
             <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
               {testoGiorniAperto(giorniAperto(p.giornale?.data_lavori ?? oggi, oggi))}
-              <Link to={`/azienda/giornale-lavori?ordine=${orderId}&pagina=${p.giornale?.id}`} className="text-primary underline-offset-2 hover:underline">Apri la pagina</Link>
+              <Link to={`/azienda/ordini/${orderId}?tab=cantiere&vista_cantiere=giornale&pagina=${p.giornale?.id}`} className="text-primary underline-offset-2 hover:underline">Apri la pagina</Link>
             </span>
           </li>
         ))}

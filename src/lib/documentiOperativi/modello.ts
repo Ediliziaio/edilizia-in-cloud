@@ -66,8 +66,20 @@ export interface DocumentoOperativo {
   noteNelMessaggio?: boolean;
   condizioni?: string | null;
   inversioneContabile?: boolean;
+  /** Quale lettera dell'art. 17 c. 6 cita il documento; senza, la dicitura generica. */
+  clausolaInversione?: ClausolaInversione | null;
   righe: RigaDocumentoOperativo[];
   totali?: { imponibile: number; iva: number; totale: number };
+}
+export type ClausolaInversione = "a" | "a-ter";
+export const CLAUSOLE_INVERSIONE: { value: ClausolaInversione; label: string; norma: string }[] = [
+  { value: "a", label: "Subappalto edile (lett. a)", norma: "art. 17 c. 6 lett. a DPR 633/72" },
+  { value: "a-ter", label: "Pulizia, demolizione, impianti, completamento (lett. a-ter)", norma: "art. 17 c. 6 lett. a-ter DPR 633/72" },
+];
+/** La frase stampata su PDF: una sola, per PDF e anteprime. */
+export function testoInversioneContabile(d: Pick<DocumentoOperativo, "clausolaInversione">): string {
+  const norma = CLAUSOLE_INVERSIONE.find((c) => c.value === d.clausolaInversione)?.norma ?? "art. 17 c. 6 DPR 633/72";
+  return `Inversione contabile, ${norma}: fattura senza IVA.`;
 }
 export type AziendaDocumento = Pick<Company, "id" | "name"> & Partial<Company> & {
   /** I dati societari, per il piè di pagina: li carica `generaPdfOperativo`. */

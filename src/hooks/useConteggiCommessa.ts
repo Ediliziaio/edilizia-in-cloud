@@ -5,6 +5,7 @@ import { withHeavyDatabaseRead } from "@/lib/limitHeavyReads";
 export interface ConteggiCommessa {
   lavorazioni: number | null;
   rapportini: number | null;
+  giornale: number | null;
   verbali: number | null;
   ordiniAcquisto: number | null;
 }
@@ -39,6 +40,7 @@ export function useConteggiCommessa(orderId: string | undefined, companyId: stri
       return {
         lavorazioni: numero(r.lavorazioni),
         rapportini: numero(r.rapportini),
+        giornale: numero(r.giornale),
         verbali: numero(r.verbali),
         ordiniAcquisto: numero(r.ordini_acquisto),
       };

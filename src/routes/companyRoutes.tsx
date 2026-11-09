@@ -419,7 +419,8 @@ const PersonalePage = lazy(() => import("@/pages/azienda/personale/PersonalePage
 const PortalePage = lazy(() => import("@/pages/azienda/personale/PortalePage"));
 const FormazioneDipendente = lazy(() => import("@/pages/azienda/formazione/FormazioneDipendente"));
 const TimbraturaKiosk = lazy(() => import("@/pages/azienda/personale/TimbraturaKiosk"));
-// PurchaseOrdersList now rendered as tab inside OrdersList — lazy import removed
+const PurchaseOrdersList = lazy(() => import("@/pages/azienda/PurchaseOrdersList"));
+const DDTRicezioneList = lazy(() => import("@/pages/azienda/DDTRicezioneList"));
 const PurchaseOrderDetail = lazy(() => import("@/pages/azienda/PurchaseOrderDetail"));
 const ControlloDocumentoFornitore = lazy(() => import("@/pages/azienda/ControlloDocumentoFornitore"));
 const ArrivoPosizioniPage = lazy(() => import("@/pages/azienda/ArrivoPosizioniPage"));
@@ -840,7 +841,7 @@ export default function CompanyRoutesContainer() {
         <Route path="prima-nota" element={withCompanyPermission("canViewPrimaNota", <ErrorBoundary title="Errore nel caricamento prima nota"><FeatureRoute featureKey="tesoreria"><PrimaNota /></FeatureRoute></ErrorBoundary>)} />
         {/* Stessa guardia della lista (OrCommercialista): prima il commercialista
             vedeva il tab ODA ma prendeva 403 aprendo un dettaglio. */}
-        <Route path="ordini-acquisto" element={<Navigate to="/azienda/ordini?tab=acquisto" replace />} />
+        <Route path="ordini-acquisto" element={withCompanyPermissionOrCommercialista("canViewOrders", <ErrorBoundary title="Errore nel caricamento ordini"><PurchaseOrdersList /></ErrorBoundary>, vedeOrdiniOAcquisti)} />
         <Route path="controllo-documento/:id" element={withCompanyPermissionOrCommercialista("canViewOrders", <ControlloDocumentoFornitore />, vedeOrdiniOAcquisti)} />
         <Route path="ordini-acquisto/:odaId" element={withCompanyPermissionOrCommercialista("canViewOrders", <PurchaseOrderDetail />, vedeOrdiniOAcquisti)} />
         <Route path="ordini-acquisto/:odaId/arrivo" element={withCompanyPermissionOrCommercialista("canViewOrders", <ArrivoPosizioniPage />, vedeOrdiniOAcquisti)} />
@@ -853,7 +854,7 @@ export default function CompanyRoutesContainer() {
             (23/10/2026); la vecchia pagina resta come indirizzo per le notifiche già inviate. */}
         <Route path="acquisti-da-fare" element={<AcquistiDaFareRedirect />} />
         <Route path="scomposizioni" element={withCompanyPermission("canViewOrders", <ErrorBoundary title="Errore nelle scomposizioni"><ScomposizioniVoce /></ErrorBoundary>)} />
-        <Route path="ddt" element={<Navigate to="/azienda/ordini?tab=ddt" replace />} />
+        <Route path="ddt" element={withCompanyPermissionOrCommercialista("canViewOrders", <ErrorBoundary title="Errore nel caricamento DDT"><DDTRicezioneList /></ErrorBoundary>)} />
         <Route path="ddt/:ddtId" element={withCompanyPermissionOrCommercialista("canViewOrders", <ErrorBoundary title="Errore nel dettaglio DDT"><DDTRicezioneDetail /></ErrorBoundary>)} />
         {/* Cantieri avanzati — gated: cantieri_avanzati (core, default su tutti i piani) */}
         <Route path="sicurezza-cantiere" element={withCompanyPermission("canViewSicurezzaCantiere", <FeatureRoute featureKey="cantieri_avanzati"><SicurezzaCantiere /></FeatureRoute>)} />

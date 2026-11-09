@@ -33,7 +33,7 @@ import type { RapportinoStato } from "@/types/rapportino";
 import { SourceBadge } from "@/components/whatsapp/SourceBadge";
 import { LaborApprovalDialog } from "@/components/orders/LaborApprovalDialog";
 import { PulsantePdfRapportino } from "@/components/orders/PulsantePdfRapportino";
-import { RifiutaRapportinoDialog, useDecisioneRapportino } from "@/components/orders/DecisioneRapportino";
+import { AnnullaRapportinoDialog, RifiutaRapportinoDialog, useDecisioneRapportino } from "@/components/orders/DecisioneRapportino";
 import { orePersoneRapportino } from "@/lib/campo/orePersone";
 
 interface Props { orderId: string; /** Bottoni Approva/Rifiuta/PDF direttamente sulla riga (per il popup di Attività). */ azioniInRiga?: boolean; soloDaApprovare?: boolean; }
@@ -60,6 +60,14 @@ function StatoBadge({ stato }: { stato: RapportinoStato }) {
     </Badge>
   );
 }
+
+/** Il nome sta nelle presenze del rapportino; il registro del costo ha solo l'id. */
+function nomePresenza(presenze: unknown, employeeId?: string): string {
+  const trovata = Array.isArray(presenze) ? (presenze as Array<{ employee_id?: string; nome?: string }>).find((p) => p.employee_id === employeeId) : undefined;
+  return trovata?.nome || "Persona";
+}
+
+const BadgeAnnullato = () => <Badge variant="outline" className="text-[10px] py-0 border-slate-300 bg-slate-100 text-slate-600">Annullato</Badge>;
 
 const ETICHETTA_SEZIONE = "text-[11px] font-semibold uppercase tracking-wide text-slate-500";
 
@@ -122,7 +130,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
   const [rifiutaId, setRifiutaId] = useState<string | null>(null);
   const [motivoRifiuto, setMotivoRifiuto] = useState("");
 
-  const { data: rapportini = [], isLoading, isError, refetch } = useQuery({
+  const { data: tuttiRapportini = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["order-campo-rapportini", orderId, companyId, ...(soloDaApprovare ? ["da-approvare"] : [])],
     refetchOnWindowFocus: true,
     queryFn: async () => {
@@ -142,6 +150,13 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
     enabled: !!orderId && !!companyId,
   });
 
+  // Gli annullati non contano e non si vedono, salvo chiederli.
+  const [mostraAnnullati, setMostraAnnullati] = useState(false);
+  const [annulla, setAnnulla] = useState<{ id: string; updatedAt: string } | null>(null);
+  const [motivoAnnulla, setMotivoAnnulla] = useState("");
+  const quantiAnnullati = useMemo(() => tuttiRapportini.filter((r) => r.annullato_at).length, [tuttiRapportini]);
+  const rapportini = useMemo(() => (mostraAnnullati ? tuttiRapportini : tuttiRapportini.filter((r) => !r.annullato_at)), [mostraAnnullati, tuttiRapportini]);
+
   // phase_id → nome della fase: i rapportini scritti prima che il nome entrasse nella voce hanno solo l'id.
   const { data: nomiFasi } = useQuery({
     queryKey: ["order-campo-fasi-nomi", orderId, companyId],
@@ -156,9 +171,10 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
     staleTime: 60_000,
   });
 
-  const { canApprove, puoDecidereSu, approvaMutation, rifiutaMutation } = useDecisioneRapportino(orderId, {
+  const { canApprove, puoDecidereSu, approvaMutation, rifiutaMutation, annullaMutation } = useDecisioneRapportino(orderId, {
     onApprovato: () => setApprovalId(null),
     onRifiutato: () => { setRifiutaId(null); setMotivoRifiuto(""); },
+    onAnnullato: () => { setAnnulla(null); setMotivoAnnulla(""); setExpandedId(null); },
   });
 
   const handleRifiuta = () => {
@@ -212,6 +228,11 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
         </CardTitle>
         {/* Colpo d'occhio: quante ore, cosa aspetta l'ufficio, a che punto sono i lavori.
             Nel popup di Attività (azioniInRiga) si nasconde: lì serve solo approvare. */}
+        {!azioniInRiga && quantiAnnullati > 0 && (
+          <Button variant="ghost" size="sm" className="w-fit px-0 text-xs" onClick={() => setMostraAnnullati((v) => !v)}>
+            {mostraAnnullati ? "Nascondi annullati" : `Mostra annullati (${quantiAnnullati})`}
+          </Button>
+        )}
         {!azioniInRiga && !isLoading && !isError && rapportini.length > 0 && (
           <dl className="flex flex-wrap gap-x-8 gap-y-3">
             <div>
@@ -282,7 +303,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                               <span className="text-sm font-semibold text-slate-900">{autore}</span>
                               {/* sul telefono lo stato sta accanto al nome: la colonna di destra si libera */}
-                              <span className="sm:hidden"><StatoBadge stato={stato} /></span>
+                              <span className="sm:hidden">{r.annullato_at ? <BadgeAnnullato /> : <StatoBadge stato={stato} />}</span>
                               {r.lavoro_completato && (
                                 <Badge variant="outline" className="border-emerald-600 bg-emerald-600 py-0 text-[10px] text-white">
                                   Fine lavori
@@ -333,7 +354,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                             </div>
                           </div>
                           <div className="flex shrink-0 flex-col items-end gap-2">
-                            <span className="max-sm:hidden"><StatoBadge stato={stato} /></span>
+                            <span className="max-sm:hidden">{r.annullato_at ? <BadgeAnnullato /> : <StatoBadge stato={stato} />}</span>
                             <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", aperto && "rotate-180")} aria-hidden="true" />
                           </div>
                         </button>
@@ -368,7 +389,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                             {/* Motivo rifiuto */}
                             {stato === "rifiutato" && r.motivo_rifiuto && (
                               <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                                <p className="text-xs font-medium text-red-700">Motivo rifiuto</p>
+                                <p className="text-xs font-medium text-red-700">{r.annullato_at ? "Motivo annullamento" : "Motivo rifiuto"}</p>
                                 <p className="text-xs text-red-600 mt-0.5">{r.motivo_rifiuto}</p>
                               </div>
                             )}
@@ -454,6 +475,16 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                               <div className="rounded-md bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">
                                 Costo manodopera registrato:{" "}
                                 {r.costo_manodopera == null ? "Non disponibile" : Number(r.costo_manodopera).toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: true })}
+                                {Array.isArray(r.presenze_registrate) && r.presenze_registrate.length > 0 && (
+                                  <ul className="mt-1.5 space-y-0.5 font-normal">
+                                    {(r.presenze_registrate as Array<{ employee_id?: string; ore?: number; costo?: number }>).map((p, i) => (
+                                      <li key={i} className="flex justify-between gap-3">
+                                        <span>{nomePresenza(r.presenze, p.employee_id)} · {Number(p.ore ?? 0)} h</span>
+                                        <span className="tabular-nums">{Number(p.costo ?? 0).toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: true })}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
                                 {Number(r.costo_manodopera) === 0 && r.costo_manodopera != null && <span className="mt-1 block font-normal text-amber-700">Zero registrato: può dipendere da tariffa mancante o presenze esterne. Non indica automaticamente lavoro senza costo.</span>}
                               </div>
                             )}
@@ -462,7 +493,12 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                             <div className="flex flex-wrap items-center gap-2 border-t pt-3">
                               <PulsantePdfRapportino report={r} orderId={orderId} />
                               {/* Le ore annullate dall'ufficio non si riapprovano: si reinseriscono da «Ore e persone». */}
-                              {puoDecidereSu(r.user_id) && stato === "rifiutato" && !(r as { ufficio_employee_id?: string | null }).ufficio_employee_id && (
+                              {canApprove && !r.annullato_at && (
+                                <Button size="sm" variant="outline" className="text-red-700" onClick={() => setAnnulla({ id: r.id, updatedAt: r.updated_at })}>
+                                  Annulla rapportino
+                                </Button>
+                              )}
+                              {puoDecidereSu(r.user_id) && stato === "rifiutato" && !r.annullato_at && !(r as { ufficio_employee_id?: string | null }).ufficio_employee_id && (
                                 <Button
                                   size="sm"
                                   onClick={() => setApprovalId(r.id)}
@@ -530,6 +566,8 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
         </DialogContent>
       </Dialog>
 
+      {annulla && <AnnullaRapportinoDialog motivo={motivoAnnulla} onMotivo={setMotivoAnnulla} busy={annullaMutation.isPending}
+        onClose={() => { setAnnulla(null); setMotivoAnnulla(""); }} onConferma={() => annullaMutation.mutate({ ...annulla, motivo: motivoAnnulla })} />}
       {rifiutaId && <RifiutaRapportinoDialog motivo={motivoRifiuto} onMotivo={setMotivoRifiuto} busy={rifiutaMutation.isPending}
         onClose={() => { setRifiutaId(null); setMotivoRifiuto(""); }} onConferma={handleRifiuta} />}
     </Card>

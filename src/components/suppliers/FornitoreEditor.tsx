@@ -718,6 +718,18 @@ function FornitoreDialogAperta({
                     </Select>
                   </div>
                 </div>
+                <label className="mt-4 flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={formData.inversione_contabile}
+                    onChange={(e) => updateField("inversione_contabile", e.target.checked)}
+                  />
+                  <span>
+                    <span className="font-medium">Reverse charge</span>
+                    <span className="block text-xs text-muted-foreground">I nuovi ordini a questo fornitore nascono con inversione contabile e IVA a zero.</span>
+                  </span>
+                </label>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="pec">PEC</Label>

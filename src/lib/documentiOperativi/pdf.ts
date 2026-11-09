@@ -10,6 +10,7 @@ import {
   type DocumentoOperativo,
   type RigaDocumentoOperativo,
   TITOLI,
+  testoInversioneContabile,
   senzaPrezzi,
   footerAzienda,
   condizioniDocumento,
@@ -573,10 +574,8 @@ export function creaPdfOperativo(
   const pay = [
     d.tipo === "richiesta" ? "Condizione concordata con voi:" : "",
     d.pagamento || "Da definire con il fornitore",
-    d.tipo === "servizi" && d.inversioneContabile ? "Fatturazione" : null,
-    d.tipo === "servizi" && d.inversioneContabile
-      ? "Inversione contabile, art. 17 c. 6 DPR 633/72: fattura senza IVA."
-      : null,
+    d.inversioneContabile ? "Fatturazione" : null,
+    d.inversioneContabile ? testoInversioneContabile(d) : null,
     d.banca,
     d.iban,
   ].filter(Boolean) as string[];

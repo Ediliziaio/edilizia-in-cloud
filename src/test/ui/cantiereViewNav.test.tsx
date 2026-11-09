@@ -31,6 +31,14 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 describe("viste del cantiere", () => {
+  it("la vista Giornale lavori si apre dall'indirizzo e sparisce a chi non può vederla", () => {
+    mount("?tab=cantiere&vista_cantiere=giornale");
+    expect(screen.getByRole("heading")).toHaveTextContent("Contenuto giornale");
+    expect(screen.getByRole("button", { name: /Giornale lavori/ })).toBeInTheDocument();
+    cleanup();
+    render(<MemoryRouter><CantiereViewNav value="diario" onChange={() => undefined} nascoste={new Set(["giornale"])} /></MemoryRouter>);
+    expect(screen.queryByRole("button", { name: /Giornale lavori/ })).not.toBeInTheDocument();
+  });
   it.each([false, true])("apre Rilievi e sopralluoghi nella posizione corretta, anche con link vecchi, mobile=%s", mobile => {
     device.mobile = mobile;
     mount("?tab=cantiere&vista_cantiere=ufficio#section-sopralluoghi");

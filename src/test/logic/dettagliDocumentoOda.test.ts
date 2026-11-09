@@ -17,3 +17,20 @@ describe("Dettagli persistenti dell’ordine",()=>{
  });
  it("conserva la scelta di svuotare un recapito senza riesumare quello dell’anagrafica",()=>{expect(applicaDettagliOda(base,{destinatarioEmail:""}).destinatario.email).toBe("");});
 });
+
+describe("reverse charge sull'ordine", () => {
+  const baseRc = { tipo: "materiali", numero: "1", destinatario: { nome: "F" }, righe: [] } as unknown as Parameters<typeof applicaDettagliOda>[0];
+  it("resta salvato con la sua clausola quando si riapre l'ordine", () => {
+    const patch = aggiornamentoDettagliOda({ ...baseRc, data: "2026-11-09", inversioneContabile: true, clausolaInversione: "a-ter" }, "");
+    const riletto = applicaDettagliOda(baseRc, patch.document_details);
+    expect(riletto.inversioneContabile).toBe(true);
+    expect(riletto.clausolaInversione).toBe("a-ter");
+  });
+  it("spento non si porta dietro la clausola", () => {
+    const patch = aggiornamentoDettagliOda({ ...baseRc, data: "2026-11-09", inversioneContabile: false, clausolaInversione: "a" }, "");
+    expect(applicaDettagliOda(baseRc, patch.document_details).clausolaInversione ?? null).toBeNull();
+  });
+  it("il fornitore predefinito basta da solo: un dettaglio con la sola scelta si legge", () => {
+    expect(applicaDettagliOda(baseRc, { inversioneContabile: true }).inversioneContabile).toBe(true);
+  });
+});

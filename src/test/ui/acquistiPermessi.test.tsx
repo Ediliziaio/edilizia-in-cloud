@@ -4,9 +4,9 @@
  * Commesse trova la scheda «Acquisti» accanto alle altre.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 
 const stato = vi.hoisted(() => ({ permessi: {} as Record<string, boolean> }));
 
@@ -23,35 +23,52 @@ vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: {
 
 import OrdersList from "@/pages/azienda/OrdersList";
 
+function Dove() {
+  const l = useLocation();
+  return <output aria-label="indirizzo">{l.pathname}{l.search}</output>;
+}
+
 function disegna(percorso = "/azienda/ordini") {
   return render(
     <QueryClientProvider client={new QueryClient()}>
-      <MemoryRouter initialEntries={[percorso]}><OrdersList /></MemoryRouter>
+      <MemoryRouter initialEntries={[percorso]}><OrdersList /><Dove /></MemoryRouter>
     </QueryClientProvider>,
   );
 }
+const indirizzo = () => screen.getByLabelText("indirizzo").textContent;
 
-describe("Commesse › Acquisti: chi entra", () => {
+describe("Commesse: ordini e DDT hanno la loro pagina", () => {
   beforeEach(() => {
     stato.permessi = { canViewOrders: false, canManagePurchasing: true, canViewCosts: false };
   });
 
-  it("con il solo «Ufficio acquisti» si apre la scheda Acquisti, senza Commesse", () => {
+  it("con il solo «Ufficio acquisti» si va agli ordini, senza Commesse", async () => {
     disegna();
-    expect(screen.getByText("pagina acquisti")).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Acquisti/ })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(indirizzo()).toBe("/azienda/ordini-acquisto"));
     expect(screen.queryByRole("tab", { name: /Commesse/ })).not.toBeInTheDocument();
   });
 
-  it("anche chiedendo la scheda delle commesse resta sugli acquisti", () => {
+  it("anche chiedendo la scheda delle commesse resta sugli ordini", async () => {
     disegna("/azienda/ordini?tab=ordini");
-    expect(screen.getByText("pagina acquisti")).toBeInTheDocument();
+    await waitFor(() => expect(indirizzo()).toBe("/azienda/ordini-acquisto"));
   });
 
-  it("chi vede le commesse trova la scheda «Acquisti» fra le altre", () => {
+  it("i vecchi link alle schede portano alle pagine e tengono i filtri", async () => {
     stato.permessi = { canViewOrders: true, canManagePurchasing: false, canViewCosts: false };
-    disegna("/azienda/ordini?tab=acquisto");
-    expect(screen.getByRole("tab", { name: /Commesse/ })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Acquisti/ })).toHaveAttribute("aria-selected", "true");
+    disegna("/azienda/ordini?tab=acquisto&vista=elenco");
+    await waitFor(() => expect(indirizzo()).toBe("/azienda/ordini-acquisto?vista=elenco"));
+  });
+
+  it("il vecchio link ai DDT porta alla pagina DDT", async () => {
+    stato.permessi = { canViewOrders: true, canManagePurchasing: false, canViewCosts: false };
+    disegna("/azienda/ordini?tab=ddt");
+    await waitFor(() => expect(indirizzo()).toBe("/azienda/ddt"));
+  });
+
+  it("Commesse non ha più le schede Acquisti e DDT", () => {
+    stato.permessi = { canViewOrders: true, canManagePurchasing: false, canViewCosts: false };
+    disegna("/azienda/ordini?tab=oggi");
+    expect(screen.queryByRole("tab", { name: /Acquisti/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /^DDT/ })).not.toBeInTheDocument();
   });
 });

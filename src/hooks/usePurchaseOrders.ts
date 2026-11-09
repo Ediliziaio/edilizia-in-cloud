@@ -302,6 +302,21 @@ export function usePurchaseOrderDetail(poId: string | null) {
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
 
+  /** Tutte le righe dell'ordine alla stessa aliquota: un solo UPDATE, per il reverse charge. */
+  const impostaIvaRigheMutation = useMutation({
+    mutationFn: async (aliquota: number) => {
+      const { error } = await supabase.from("purchase_order_items").update({ vat_rate: aliquota }).eq("purchase_order_id", poId!);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      refreshMaterialQueries(queryClient);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.items(poId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(poId) }),
+      ]);
+    },
+  });
+
   const updateItemMutation = useMutation({
     mutationFn: async (params: { id: string; updates: TablesUpdate<"purchase_order_items"> }) => {
       const updates = {...params.updates,...(params.updates.unit_price != null && params.updates.price_pending === undefined ? {price_pending:false} : {})};
@@ -341,6 +356,7 @@ export function usePurchaseOrderDetail(poId: string | null) {
     isItemsFetching: itemsQuery.isFetching,
     addItem: addItemMutation,
     updateItem: updateItemMutation,
+    impostaIvaRighe: impostaIvaRigheMutation,
     deleteItem: deleteItemMutation,
   };
 }

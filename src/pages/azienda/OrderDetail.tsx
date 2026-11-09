@@ -76,6 +76,7 @@ const OrderLaborEconomics = lazy(() => import("@/components/orders/OrderLaborEco
 const OrderDitteEconomics = lazy(() => import("@/components/orders/OrderLaborEconomics").then((m) => ({ default: m.OrderDitteEconomics })));
 const OrderResourceStatistics = lazy(() => import("@/components/orders/OrderResourceStatistics").then((m) => ({ default: m.OrderResourceStatistics })));
 const TimelineCantiere = lazy(() => import("@/components/orders/TimelineCantiere").then((m) => ({ default: m.TimelineCantiere })));
+const GiornaleLavoriContenuto = lazy(() => import("@/pages/azienda/GiornaleLavori").then((m) => ({ default: m.GiornaleLavoriContenuto })));
 const ProblemiApertiGiornale = lazy(() => import("@/components/orders/ProblemiApertiGiornale").then((m) => ({ default: m.ProblemiApertiGiornale })));
 const vistaInCaricamento = (
   <div className="space-y-3" aria-busy="true">
@@ -94,7 +95,8 @@ import { useOrderDetailNavigation } from "@/hooks/useOrderDetailNavigation";
 import { CantiereViewNav, VISTE_SOLO_SCHERMO_GRANDE } from "@/components/orders/CantiereViewNav";
 import { OrderWorkspaceNav } from "@/components/orders/OrderWorkspaceNav";
 import { OrderDisclosure } from "@/components/orders/OrderDisclosure";
-import { ECONOMIA_VIEWS, MATERIALI_VIEWS, COSTI_VIEWS, isOrderDetailTab, type OrderDetailSection } from "@/lib/orders/detailNavigation";
+import { ECONOMIA_VIEWS, MATERIALI_VIEWS, COSTI_VIEWS, isOrderDetailTab, type CantiereView, type OrderDetailSection } from "@/lib/orders/detailNavigation";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { OrderAssistenzaTab, OrderAssistenzaAlert } from "@/components/orders/OrderAssistenzaTab";
 // ── New sub-components ──────────────────────────────────────────
 import { OrdineDetailHeader } from "@/components/orders/OrdineDetailHeader";
@@ -530,7 +532,12 @@ function OrderDetailInner() {
   const { data: bolleCommessa } = useBolleCommessa(id ?? "", activeTab === "articoli");
   const { data: fattureCommessa } = useFattureFornitoriCommessa(id ?? "", activeTab === "costi" && !!permissions.canViewCosts);
   // Keep any desktop-only view fallback; Cronoprogramma also has a mobile agenda.
-  const vistaCantiere = isMobile && VISTE_SOLO_SCHERMO_GRANDE.has(activeCantiereView) ? "lavorazioni" : activeCantiereView;
+  // Il giornale ha il suo permesso e il suo piano, come la pagina generale. Mentre il piano si
+  // sta ancora leggendo la vista resta: i dati li protegge comunque il database.
+  const accessoCantieriAvanzati = useFeatureAccess("cantieri_avanzati");
+  const vedeGiornale = permissions.canViewGiornaleLavori && (accessoCantieriAvanzati.isLoading || accessoCantieriAvanzati.isEnabled || accessoCantieriAvanzati.isPreview);
+  const visteNascoste = useMemo<ReadonlySet<CantiereView>>(() => new Set(vedeGiornale ? [] : ["giornale" as const]), [vedeGiornale]);
+  const vistaCantiere = (isMobile && VISTE_SOLO_SCHERMO_GRANDE.has(activeCantiereView)) || visteNascoste.has(activeCantiereView) ? "lavorazioni" : activeCantiereView;
   const agreedAmount = agreedContractValue(order?.total_amount ?? 0, variations.data ?? []);
   const variantiDatate = useMemo(() => variantiApprovateDatate(variations.data ?? []), [variations.data]);
 
@@ -2258,7 +2265,8 @@ function OrderDetailInner() {
               <CantiereViewNav
                 value={vistaCantiere}
                 onChange={cantiereView => navigateTo({ tab: "cantiere", cantiereView })}
-                counts={{ lavorazioni: conteggiViste?.lavorazioni, diario: conteggiViste?.rapportini }}
+                counts={{ lavorazioni: conteggiViste?.lavorazioni, diario: conteggiViste?.rapportini, giornale: conteggiViste?.giornale }}
+                nascoste={visteNascoste}
               />
             </div>
             <OrderViewTransition viewKey={vistaCantiere}>
@@ -2303,6 +2311,7 @@ function OrderDetailInner() {
             {vistaCantiere === "lavorazioni" && !isMobile && <div id="section-mezzi" className="scroll-mt-24">
               <ErrorBoundary><PianoMezziCantiere key={id} orderId={id!} /></ErrorBoundary>
             </div>}
+            {vistaCantiere === "giornale" && <div id="section-giornale" className="scroll-mt-24"><GiornaleLavoriContenuto key={id} orderIdFisso={id!} /></div>}
             {vistaCantiere === "diario" && <>
             <div id="section-rapportini" className="scroll-mt-24 space-y-4">
               {permissions.canEditOrders && <div className="flex justify-end"><RapportiniUfficio orderId={id!} className="border" aperta={scriviRapportini} onApertaChange={setScriviRapportini} /></div>}

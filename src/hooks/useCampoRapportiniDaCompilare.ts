@@ -79,7 +79,7 @@ export function useCampoRapportiniDaCompilare(userId: string | undefined) {
       if (!ids.length) return [];
       const [reports, orders] = await Promise.all([
         supabase.from("campo_rapportini").select("order_id, data_lavoro, stato")
-          .eq("user_id", userId!).eq("company_id", companyId!).in("data_lavoro", [yesterday, today]),
+          .eq("user_id", userId!).eq("company_id", companyId!).is("annullato_at", null).in("data_lavoro", [yesterday, today]),
         supabase.from("orders").select("id, order_code, description, indirizzo_lavori")
           .eq("company_id", companyId!).in("id", ids),
       ]);

@@ -21,7 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 type Originale = { stato?: string | null; approvato?: boolean | null; updated_at?: string | null };
 
-export function useDecisioneRapportino(orderId: string, opzioni: { onApprovato?: () => void; onRifiutato?: () => void } = {}) {
+export function useDecisioneRapportino(orderId: string, opzioni: { onApprovato?: () => void; onRifiutato?: () => void; onAnnullato?: () => void } = {}) {
   const qc = useQueryClient();
   const { role, effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -108,7 +108,52 @@ export function useDecisioneRapportino(orderId: string, opzioni: { onApprovato?:
     onError: () => toast.error("Errore durante il rifiuto"),
   });
 
-  return { canApprove, puoDecidereSu, approvaMutation, rifiutaMutation };
+  const annullaMutation = useMutation({
+    mutationFn: async ({ id, updatedAt, motivo }: { id: string; updatedAt: string; motivo: string }) => {
+      if (!canApprove) throw new Error("Non hai il permesso di annullare rapportini");
+      // La funzione non è ancora nei tipi generati.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).rpc("campo_rapportino_annulla", { p_id: id, p_updated_at: updatedAt, p_motivo: motivo.trim() });
+      if (error) throw error;
+    },
+    onSuccess: (_r, { id }) => {
+      toast.success("Rapportino annullato: ore e costo sono tornati indietro");
+      refreshWorkQueries(qc, orderId, companyId);
+      void notifyRapportinoPdf(id, orderId, qc);
+      opzioni.onAnnullato?.();
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Annullamento non riuscito"),
+  });
+
+  return { canApprove, puoDecidereSu, approvaMutation, rifiutaMutation, annullaMutation };
+}
+
+/** Annullare è definitivo: il motivo è obbligatorio e resta sul rapportino. */
+export function AnnullaRapportinoDialog({ motivo, onMotivo, busy, onClose, onConferma }: {
+  motivo: string; onMotivo: (v: string) => void; busy: boolean; onClose: () => void; onConferma: () => void;
+}) {
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Annulla rapportino</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <p className="text-sm text-muted-foreground">
+            Ore, costo e avanzamento tornano indietro e il rapportino sparisce dagli elenchi. Resta consultabile con «Mostra annullati», ma non si può riaprire. Non si può annullare se è già in una pagina di giornale firmata o in un rendiconto non più in bozza.
+          </p>
+          <Textarea placeholder="Perché lo annulli? Es: inserito sulla commessa sbagliata" value={motivo} onChange={(e) => onMotivo(e.target.value)} rows={3} />
+        </div>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onClose}>Non annullare</Button>
+          <Button variant="destructive" onClick={onConferma} disabled={busy || !motivo.trim()}>
+            {busy ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <X className="h-3 w-3 mr-1" />}
+            Annulla rapportino
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export function RifiutaRapportinoDialog({ motivo, onMotivo, busy, onClose, onConferma }: {

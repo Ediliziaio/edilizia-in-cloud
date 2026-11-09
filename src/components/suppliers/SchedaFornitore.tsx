@@ -181,6 +181,7 @@ export function SchedaFornitore({
             nome="Aliquota IVA"
             valore={s.vat_rate == null ? undefined : `${s.vat_rate}%`}
           />
+          {s.inversione_contabile && <Dato nome="Reverse charge" valore="Sì, sui nuovi ordini" />}
         </dl>
       </Pannello>
       <div className="xl:col-span-2">
