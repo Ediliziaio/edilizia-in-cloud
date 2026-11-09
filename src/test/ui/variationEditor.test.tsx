@@ -167,3 +167,48 @@ describe("Lavoro extra in tre passi (06/11/2026)",()=>{
     expect(mock.invoke).not.toHaveBeenCalled();
   });
 });
+
+describe("Le voci della variante, riordinate (09/11/2026)", () => {
+  function Editor() {
+    const [draft, setDraft] = useState(emptyVariationDraft);
+    return <VariationEditor draft={draft} setDraft={setDraft} phases={[]} context={{}} busy={false} review={false} onBack={() => {}} />;
+  }
+  const conUnaVoce = async () => {
+    render(<Editor />);
+    await scegliNelMenu("Come definisci il prezzo", "Dettaglio delle voci");
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi voce" }));
+  };
+
+  it("l'unità si sceglie da un menu, non si scrive", async () => {
+    await conUnaVoce();
+    const menu = screen.getByRole("combobox", { name: "U.M." });
+    expect(menu).toHaveTextContent("mq");
+    await scegliNelMenu("U.M.", /^ml/);
+    expect(screen.getByRole("combobox", { name: "U.M." })).toHaveTextContent("ml");
+  });
+
+  it("il totale delle voci si vede mentre si scrive", async () => {
+    await conUnaVoce();
+    fireEvent.change(screen.getByLabelText("Quantità"), { target: { value: "4" } });
+    fireEvent.change(screen.getByLabelText("Prezzo unitario €"), { target: { value: "25" } });
+    expect(screen.getByLabelText("Importo voce 1")).toHaveTextContent("100,00");
+    expect(screen.getByLabelText("Totale delle voci")).toHaveTextContent("100,00");
+  });
+
+  it("si toglie una voce anche col pulsante stretto", async () => {
+    await conUnaVoce();
+    expect(screen.getByLabelText("Quantità")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Rimuovi voce 1" }));
+    expect(screen.queryByLabelText("Quantità")).not.toBeInTheDocument();
+    // Niente voci, niente totale: non resta una riga vuota con «0,00».
+    expect(screen.queryByLabelText("Totale delle voci")).not.toBeInTheDocument();
+  });
+
+  it("ogni campo resta leggibile da chi usa il lettore di schermo", async () => {
+    await conUnaVoce();
+    for (const nome of ["Voce 1", "Quantità", "Prezzo unitario €"]) {
+      expect(screen.getByLabelText(nome)).toBeInTheDocument();
+    }
+    expect(screen.getByRole("combobox", { name: "U.M." })).toBeInTheDocument();
+  });
+});

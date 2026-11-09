@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +9,7 @@ import { CONDIZIONI_STANDARD_VARIANTE, prepareVariation, variationDocumentParts,
 
 import type {VariationContext} from "@/lib/orders/variationDocumentContext";
 import { OfficeSelect } from "./OfficeSelect";
+import { opzioniUnita, unitaNormalizzata } from "@/lib/orders/rigaAcquisto";
 export type {VariationContext} from "@/lib/orders/variationDocumentContext";
 export function VariationEditor({ draft, setDraft, phases, chiPuo, context, busy, review, onBack, error,showPdfPreview=true,persistentDraft=false }: {
   draft: VariationDraft; setDraft: (draft: VariationDraft) => void; phases: {id: string; name: string; end_date?: string | null}[];
@@ -21,6 +23,12 @@ export function VariationEditor({ draft, setDraft, phases, chiPuo, context, busy
   let prepared: ReturnType<typeof prepareVariation> | null = null;
   try { prepared = prepareVariation(draft); } catch { /* Validation appears on review, not on each keystroke. */ }
   const impact = prepared ? variationImpact(context.currentNet, prepared.impatto_economico, context.vatRate) : null;
+  // Quanto fa la tabella mentre la si scrive: l'impatto economico sotto appare
+  // solo quando la bozza è completa, e intanto non si sa a che punto si è.
+  const totaleVoci = draft.lines.reduce((s, l) => {
+    const q = variationDecimal(l.quantity), p = variationDecimal(l.price);
+    return q !== null && p !== null ? s + Math.round(q * p * 100) / 100 : s;
+  }, 0);
   const cost = draft.estimatedCost?.trim() ? variationDecimal(draft.estimatedCost) : null;
   const phaseEnd = (draft.phaseId ? phases.find(p => p.id === draft.phaseId) : phases.filter(p => p.name === draft.phase).length === 1 ? phases.find(p => p.name === draft.phase) : undefined)?.end_date;
   const projectedEnd = variationDatePreview(phaseEnd,draft.days,draft.dayUnit);
@@ -69,19 +77,37 @@ export function VariationEditor({ draft, setDraft, phases, chiPuo, context, busy
         <p className="text-xs text-muted-foreground">{draft.kind === "riduzione" ? "Scrivi un valore positivo: sarà sottratto dal contratto." : draft.kind === "modifica" ? "Indica solo la differenza rispetto al contratto. Il segno meno riduce il prezzo." : "Si aggiunge al contratto solo dopo l'approvazione."}</p>
       </div> : <div className="space-y-2">
         <p className="text-xs text-muted-foreground">Le voci diventano la tabella del PDF. Prezzi IVA esclusa.</p>
+        {/* Le intestazioni stanno in cima una volta sola: ripetute su ogni riga
+            mandavano «Prezzo unitario €» a capo e allungavano il popup. */}
+        {draft.lines.length > 0 && <div className="hidden gap-2 px-2.5 text-xs text-muted-foreground sm:grid sm:grid-cols-[minmax(0,1fr)_4.5rem_6rem_7.5rem_6.5rem_2.25rem]" aria-hidden="true">
+          <span>Voce</span><span>Quantità</span><span>U.M.</span><span>Prezzo unitario €</span><span className="text-right">Importo</span><span />
+        </div>}
         {draft.lines.map((line,i) => {
           const quantita = variationDecimal(line.quantity), prezzo = variationDecimal(line.price);
           const setLine = (patch: Partial<typeof line>) => set("lines",draft.lines.map(l => l.id === line.id ? {...l,...patch} : l));
-          return <div key={line.id} className="grid grid-cols-2 items-end gap-2 rounded-lg border p-2.5 sm:grid-cols-[minmax(0,1fr)_5rem_5rem_7rem_6.5rem_auto]">
-            <div className="col-span-2 sm:col-span-1"><Label htmlFor={`variation-line-${i}`} className="text-xs">Voce {i+1}</Label><Input id={`variation-line-${i}`} value={line.description} placeholder="Materiale, manodopera o lavorazione" onChange={e => setLine({description:e.target.value})} /></div>
-            <div><Label htmlFor={`variation-quantity-${i}`} className="text-xs">Quantità</Label><Input id={`variation-quantity-${i}`} inputMode="decimal" value={line.quantity} onChange={e => setLine({quantity:e.target.value})} /></div>
-            <div><Label htmlFor={`variation-unit-${i}`} className="text-xs">U.M.</Label><Input id={`variation-unit-${i}`} maxLength={20} value={line.unit ?? ""} placeholder="mq" onChange={e => setLine({unit:e.target.value})} /></div>
-            <div><Label htmlFor={`variation-price-${i}`} className="text-xs">Prezzo unitario netto (€)</Label><Input id={`variation-price-${i}`} inputMode="decimal" value={line.price} onChange={e => setLine({price:e.target.value})} /></div>
-            <p className="pb-2 text-right text-sm font-medium tabular-nums" aria-label={`Importo voce ${i+1}`}>{quantita !== null && prezzo !== null ? formatCurrency(Math.round(quantita*prezzo*100)/100) : "—"}</p>
-            <Button size="sm" variant="ghost" className="col-span-2 sm:col-span-1" onClick={() => set("lines",draft.lines.filter(l => l.id !== line.id))}>Rimuovi voce {i+1}</Button>
+          // Sul telefono ogni campo tiene la sua etichetta; sullo schermo grande
+          // la dice la colonna, e l'etichetta resta per chi usa il lettore.
+          const etichetta = "text-xs sm:sr-only";
+          return <div key={line.id} className="grid grid-cols-2 items-center gap-2 rounded-lg border p-2.5 sm:grid-cols-[minmax(0,1fr)_4.5rem_6rem_7.5rem_6.5rem_2.25rem]">
+            <div className="col-span-2 space-y-1 sm:col-span-1 sm:space-y-0"><Label htmlFor={`variation-line-${i}`} className={etichetta}>Voce {i+1}</Label><Input id={`variation-line-${i}`} value={line.description} placeholder="Materiale, manodopera o lavorazione" onChange={e => setLine({description:e.target.value})} /></div>
+            <div className="space-y-1 sm:space-y-0"><Label htmlFor={`variation-quantity-${i}`} className={etichetta}>Quantità</Label><Input id={`variation-quantity-${i}`} inputMode="decimal" className="text-right tabular-nums" value={line.quantity} onChange={e => setLine({quantity:e.target.value})} /></div>
+            <div className="space-y-1 sm:space-y-0"><Label htmlFor={`variation-unit-${i}`} className={etichetta}>U.M.</Label>
+              <OfficeSelect id={`variation-unit-${i}`} label={`Unità di misura voce ${i+1}`} value={unitaNormalizzata(line.unit) || "mq"}
+                className="h-10 px-2 [&_.spiega]:hidden"
+                options={opzioniUnita(line.unit || "mq").map(o => ({ value: o.value, label: <>{o.breve}{o.nota && <span className="spiega"> — {o.nota}</span>}</> }))}
+                onValueChange={v => setLine({unit:v})} />
+            </div>
+            <div className="space-y-1 sm:space-y-0"><Label htmlFor={`variation-price-${i}`} className={etichetta}>Prezzo unitario €</Label><Input id={`variation-price-${i}`} inputMode="decimal" className="text-right tabular-nums" value={line.price} onChange={e => setLine({price:e.target.value})} /></div>
+            <p className="col-span-2 text-right text-sm font-medium tabular-nums sm:col-span-1" aria-label={`Importo voce ${i+1}`}>{quantita !== null && prezzo !== null ? formatCurrency(Math.round(quantita*prezzo*100)/100) : "—"}</p>
+            <Button size="icon" variant="ghost" aria-label={`Rimuovi voce ${i+1}`} title={`Rimuovi voce ${i+1}`} className="col-span-2 h-9 w-full text-muted-foreground hover:text-destructive sm:col-span-1 sm:w-9" onClick={() => set("lines",draft.lines.filter(l => l.id !== line.id))}>
+              <Trash2 className="h-4 w-4" aria-hidden="true" /><span className="ml-2 sm:hidden">Rimuovi voce {i+1}</span>
+            </Button>
           </div>;
         })}
-        <Button size="sm" variant="outline" onClick={() => set("lines",[...draft.lines,{id:crypto.randomUUID(),description:"",quantity:"1",price:""}])}>Aggiungi voce</Button>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Button size="sm" variant="outline" onClick={() => set("lines",[...draft.lines,{id:crypto.randomUUID(),description:"",quantity:"1",price:""}])}>Aggiungi voce</Button>
+          {draft.lines.length > 0 && <p className="text-sm tabular-nums" aria-label="Totale delle voci">Totale voci: <strong>{formatCurrency(totaleVoci)}</strong></p>}
+        </div>
       </div>}
       {draft.kind !== "riduzione" && <fieldset className="space-y-2 rounded-lg border border-orange-200 bg-orange-50/40 p-3" aria-label="Nelle Lavorazioni">
         <legend className="px-1 text-sm font-medium">Nelle Lavorazioni, quando il cliente accetta</legend>
