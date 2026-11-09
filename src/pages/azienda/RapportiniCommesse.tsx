@@ -653,7 +653,8 @@ function DettaglioRapportino({ r, conCosti, navigazione, onChiudi, onDeciso }: {
                   <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Cosa si è fatto</h3>
                   <p className="whitespace-pre-wrap text-slate-900">{r.descrizione_lavori?.trim() || "Nessuna descrizione."}</p>
                 </section>
-                <section>
+                {/* Con i costi le stesse persone stanno nel riquadro qui sotto. */}
+                <section className={conCosti ? "hidden" : undefined}>
                   <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Chi ha lavorato · {ore(oreDi(r))}</h3>
                   <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
                     {personeDi(r).map((p, i) => (

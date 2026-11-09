@@ -473,7 +473,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                                 costo orario del dipendente. 0 = subappaltatore
                                 (costa a contratto/SAL) o dipendente senza tariffa. */}
                             {canViewCosts && stato === "approvato" && (
-                              <div className="rounded-md bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">
+                              <div className="hidden">
                                 Costo manodopera registrato:{" "}
                                 {r.costo_manodopera == null ? "Non disponibile" : Number(r.costo_manodopera).toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: true })}
                                 {Array.isArray(r.presenze_registrate) && r.presenze_registrate.length > 0 && (
