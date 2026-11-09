@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ApprovaRapportinoPopup, useDecisioneRapportino } from "@/components/orders/DecisioneRapportino";
 import { PulsantePdfRapportino } from "@/components/orders/PulsantePdfRapportino";
+import { QuadroEconomicoRapportino } from "@/components/orders/QuadroEconomicoRapportino";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/formatters";
@@ -652,7 +653,8 @@ function DettaglioRapportino({ r, conCosti, navigazione, onChiudi, onDeciso }: {
                   <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Cosa si è fatto</h3>
                   <p className="whitespace-pre-wrap text-slate-900">{r.descrizione_lavori?.trim() || "Nessuna descrizione."}</p>
                 </section>
-                <section>
+                {/* Con i costi le stesse persone stanno nel riquadro qui sotto. */}
+                <section className={conCosti ? "hidden" : undefined}>
                   <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Chi ha lavorato · {ore(oreDi(r))}</h3>
                   <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
                     {personeDi(r).map((p, i) => (
@@ -677,6 +679,7 @@ function DettaglioRapportino({ r, conCosti, navigazione, onChiudi, onDeciso }: {
                     {conCosti && r.costo_manodopera != null && <div className="flex gap-2"><dt className="text-slate-500">Costo manodopera</dt><dd className="tabular-nums">{formatCurrency(Number(r.costo_manodopera))}</dd></div>}
                   </dl>
                 )}
+                {conCosti && <QuadroEconomicoRapportino rapportinoId={r.id} />}
                 <PulsantePdfRapportino report={r} orderId={r.order_id} className="w-full" />
                 <Button asChild variant="outline" className="w-full">
                   <Link to={`/azienda/ordini/${r.order_id}?tab=cantiere&vista_cantiere=diario`}>

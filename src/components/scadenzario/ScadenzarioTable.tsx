@@ -18,6 +18,8 @@ const TIPO_LABELS: Record<string, { label: string; color: string }> = {
   scadenza_fiscale: { label: "Fiscale", color: "bg-purple-100 text-purple-800" },
 };
 
+import { NotaRiga } from "@/components/shared/NotaRiga";
+
 interface Props {
   scadenze: Scadenza[];
   onMarkPaid: (s: Scadenza) => void;
@@ -27,6 +29,8 @@ interface Props {
   onAdd?: () => void;
   /** Click su una riga (es. apri la fattura/commessa collegata). */
   onRowClick?: (s: Scadenza) => void;
+  /** Scrive la nota della riga: vale anche sulle scadenze nate da una fattura. */
+  onNota?: (s: Scadenza, nota: string | null) => Promise<unknown>;
 }
 
 const monthLabel = (d: Date) => {
@@ -34,7 +38,7 @@ const monthLabel = (d: Date) => {
   return s.charAt(0).toUpperCase() + s.slice(1);
 };
 
-export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnnullaIncasso, onAdd, onRowClick }: Props) {
+export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnnullaIncasso, onAdd, onRowClick, onNota }: Props) {
   if (scadenze.length === 0) {
     return (
       // Mobile: una riga di testo, senza icona, spiegazione e bottone (c'è «Nuova» in testata).
@@ -257,6 +261,15 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                 </td>
                 <td className="p-3">
                   <div className="flex flex-col items-start gap-1">
+                    {onNota && (
+                      <span onClick={(e) => e.stopPropagation()}>
+                        <NotaRiga
+                          nota={s.notes}
+                          titolo={`${format(new Date(s.due_date), "dd/MM/yyyy", { locale: it })} · ${s.description}`}
+                          onSalva={(nota) => onNota(s, nota)}
+                        />
+                      </span>
+                    )}
                     {!isPaid && !isCancelled && (
                       <Button
                         variant="ghost"

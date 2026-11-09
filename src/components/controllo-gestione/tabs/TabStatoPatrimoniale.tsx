@@ -18,6 +18,11 @@ import { indiziQuadratura, vociSenzaFonte } from "@/lib/controlloGestione/statoP
 import { cn } from "@/lib/utils";
 import { ExportButton } from "@/components/controllo-gestione/ui/ExportButton";
 import { exportXlsx } from "@/lib/controlloGestione/exportXlsx";
+import { Button } from "@/components/ui/button";
+import { Printer } from "lucide-react";
+import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
+import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
+import { htmlStatoPatrimoniale, vociAttivo, vociPassivo } from "@/lib/contabilita/stampaBilancio";
 
 interface TabStatoPatrimonialeProps {
   anno: number;
@@ -48,7 +53,10 @@ export function TabStatoPatrimoniale({ anno }: TabStatoPatrimonialeProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         {ViewSwitcher}
-        <SPExportButton anno={anno} />
+        <div className="flex items-center gap-2">
+          <SPStampaButton anno={anno} />
+          <SPExportButton anno={anno} />
+        </div>
       </div>
       {vista === "anno" ? (
         <SPSingleAnnoView anno={anno} />
@@ -56,6 +64,61 @@ export function TabStatoPatrimoniale({ anno }: TabStatoPatrimonialeProps) {
         <SPConfrontoView anno={anno} />
       )}
     </div>
+  );
+}
+
+/**
+ * Stampa lo stato patrimoniale su A4 (09/11/2026). Prima si poteva solo
+ * scaricarlo in Excel o dentro il «Pacchetto banca», che è un documento per
+ * la banca: chi voleva portarlo al commercialista non aveva un foglio.
+ */
+function SPStampaButton({ anno }: { anno: number }) {
+  const sp = useStatoPatrimoniale(anno);
+  const anagrafica = useAnagraficaAzienda();
+  const [html, setHtml] = useState<string | null>(null);
+  if (!sp.data) return null;
+  const a = anagrafica.data;
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() =>
+          setHtml(
+            htmlStatoPatrimoniale({
+              azienda: {
+                ragione_sociale: a?.ragione_sociale ?? "",
+                partita_iva: a?.partita_iva ?? null,
+                codice_fiscale: a?.codice_fiscale ?? null,
+                indirizzo_via: a?.indirizzo_via ?? null,
+                indirizzo_numero_civico: a?.indirizzo_numero_civico ?? null,
+                indirizzo_cap: a?.indirizzo_cap ?? null,
+                indirizzo_comune: a?.indirizzo_comune ?? null,
+                indirizzo_provincia: a?.indirizzo_provincia ?? null,
+                logo_url: a?.logo_url ?? null,
+              },
+              attivo: vociAttivo(sp.data!.attivo as unknown as Record<string, number>),
+              passivo: vociPassivo(sp.data!.passivo as unknown as Record<string, number>),
+              anno,
+              dataRiferimento: sp.data!.meta?.data_riferimento ?? null,
+              quadratura: sp.data!.quadratura,
+            }),
+          )
+        }
+      >
+        <Printer className="mr-2 h-4 w-4" />Stampa
+      </Button>
+      {html && (
+        <PrintPreviewModal
+          open
+          onOpenChange={(v) => { if (!v) setHtml(null); }}
+          htmlContent={html}
+          title="Stato patrimoniale — anteprima di stampa"
+          fileName={`stato-patrimoniale-${anno}`}
+          soloPdf
+        />
+      )}
+    </>
   );
 }
 

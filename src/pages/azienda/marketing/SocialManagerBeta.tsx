@@ -2150,7 +2150,9 @@ function ContentStudioTab({
   const onSchedulePost = async () => {
     if (isSubmitting) return; // anti doppio-submit
     setTentato(true);
-    const schedule: ReturnType<typeof parseSocialSchedule> = publishNow ? { scheduledAt: new Date().toISOString() } : parseSocialSchedule(scheduledDate, scheduledTime, { required: true, future: true });
+    const schedule: ReturnType<typeof parseSocialSchedule> = publishNow
+      ? { scheduledAt: new Date().toISOString() }
+      : parseSocialSchedule(scheduledDate, scheduledTime, { required: true, future: true });
     if (schedule.error) { setPublishNow(false); setScheduleError(schedule.error); toast.error(schedule.error); return; }
     setScheduleError(null);
     if (!draftValidation.canPublishLive) {
