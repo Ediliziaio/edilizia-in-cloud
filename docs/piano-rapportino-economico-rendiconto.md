@@ -165,7 +165,7 @@ Vista per persona fatta il 09/11: popup con le giornate del mese e «Segna la gi
 Rendiconto accettato il 09/11: «Segna accettato» (chi, quando, come, copia firmata) o «Manda da firmare» (firma elettronica, si approva da solo).
 Costi (E11): letture a colonne esplicite e `rapportini_costi` online; manca il GRANT per colonna.
 
-**Lotto 3. Materiali** — Fatti il 09/11: aggiunta fuori commessa, «Materiali da regolarizzare», bolla di entrata. Restano: scarico automatico da magazzino, costo orario dei mezzi. I quattro casi: residuo sui previsti, aggiunta fuori commessa con
+**Lotto 3. Materiali** — Fatti il 09/11: aggiunta fuori commessa, «Materiali da regolarizzare», bolla di entrata. Fatto il 09/11: scarico da magazzino confermato dall’ufficio in «Materiali da regolarizzare» (D4), con rientro se il rapportino si annulla o si corregge. Resta: costo orario dei mezzi. I quattro casi: residuo sui previsti, aggiunta fuori commessa con
 lavorazione e provenienza, scarico da magazzino, «Materiali da regolarizzare» e DDT di entrata.
 Mezzi con costo orario.
 

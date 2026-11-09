@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { OfficeSelect } from "@/components/orders/OfficeSelect";
+import { ScegliInElenco } from "@/components/orders/ScegliInElenco";
 import { useDailyHours } from "@/hooks/useDailyHours";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -76,49 +77,6 @@ export function GiornatePersonaPopup({ persona, righe, puoScrivere, onChiudi, on
 interface Riga { chiave: string; requestId: string; orderId: string; ore: string; nota: string }
 const nuovaRiga = (): Riga => ({ chiave: crypto.randomUUID(), requestId: crypto.randomUUID(), orderId: "", ore: "", nota: "" });
 const rigaVuota = (r: Riga): boolean => !r.orderId && !r.ore.trim() && !r.nota.trim();
-
-/** Ricerca nell'elenco, senza menu a comparsa: dentro un popup quelli danno problemi di scorrimento. */
-function ScegliCantiere({ valore, opzioni, recenti, onScegli }: {
-  valore: string;
-  opzioni: ReadonlyArray<{ id: string; name: string }>;
-  recenti: readonly string[];
-  onScegli: (id: string) => void;
-}): ReactElement {
-  const [testo, setTesto] = useState("");
-  const [aperto, setAperto] = useState(false);
-  const scelto = opzioni.find((o) => o.id === valore);
-  const risultati = useMemo(() => {
-    const parole = testo.toLowerCase().split(/\s+/).filter(Boolean);
-    const trovati = opzioni.filter((o) => parole.every((p) => o.name.toLowerCase().includes(p)));
-    const peso = (id: string): number => { const i = recenti.indexOf(id); return i < 0 ? recenti.length : i; };
-    return [...trovati].sort((a, b) => peso(a.id) - peso(b.id)).slice(0, 8);
-  }, [opzioni, recenti, testo]);
-  if (scelto) {
-    return (
-      <div className="flex h-9 min-w-0 items-center justify-between gap-2 rounded-md border bg-muted/30 pl-3 pr-1">
-        <span className="truncate text-sm">{scelto.name}</span>
-        <button type="button" aria-label="Cambia cantiere" className="tap-compact rounded p-1 text-muted-foreground hover:text-foreground" onClick={() => { onScegli(""); setTesto(""); }}><X className="h-3.5 w-3.5" /></button>
-      </div>
-    );
-  }
-  return (
-    <div className="min-w-0">
-      <Input className="h-9" placeholder="Cerca il cantiere" aria-label="Cerca il cantiere" value={testo}
-        onChange={(e) => setTesto(e.target.value)} onFocus={() => setAperto(true)} onBlur={() => setAperto(false)} />
-      {aperto && (
-        <ul className="mt-1 max-h-48 overflow-y-auto rounded-md border bg-popover text-sm">
-          {risultati.map((o) => (
-            <li key={o.id}>
-              <button type="button" className="tap-compact block w-full truncate px-3 py-1.5 text-left hover:bg-muted"
-                onMouseDown={(e) => e.preventDefault()} onClick={() => { onScegli(o.id); setAperto(false); }}>{o.name}</button>
-            </li>
-          ))}
-          {risultati.length === 0 && <li className="px-3 py-2 text-muted-foreground">Nessun cantiere trovato</li>}
-        </ul>
-      )}
-    </div>
-  );
-}
 
 /** Le ore timbrate da una persona in un giorno, su tutti i cantieri. Null se non ha timbrato. */
 function useTimbrateDelGiorno(userId: string | null | undefined, giorno: string): number | null {
@@ -240,7 +198,7 @@ export function SegnaGiornataPersona({ employeeId, onChiudi }: { employeeId?: st
                 return (
                   <div key={r.chiave} className="space-y-1">
                     <div className="grid items-start gap-2 sm:grid-cols-[minmax(0,1.3fr)_5rem_minmax(0,1fr)_2rem]">
-                      <ScegliCantiere valore={r.orderId} opzioni={dati?.orders ?? []} recenti={recenti} onScegli={(id) => cambia(r.chiave, { orderId: id })} />
+                      <ScegliInElenco valore={r.orderId} opzioni={dati?.orders ?? []} recenti={recenti} etichetta="Cerca il cantiere" onScegli={(id) => cambia(r.chiave, { orderId: id })} />
                       <Input className="h-9" inputMode="decimal" placeholder="Ore" aria-label={`Ore della riga ${i + 1}`} value={r.ore} onChange={(e) => cambia(r.chiave, { ore: e.target.value })} />
                       <Input className="h-9" placeholder="Cosa ha fatto (facoltativo)" aria-label={`Cosa ha fatto, riga ${i + 1}`} value={r.nota} onChange={(e) => cambia(r.chiave, { nota: e.target.value })} />
                       <Button type="button" variant="ghost" size="icon" className="h-9 w-9 max-sm:justify-self-end" aria-label={`Togli la riga ${i + 1}`} disabled={righe.length === 1} onClick={() => setRighe((p) => p.filter((x) => x.chiave !== r.chiave))}><X className="h-4 w-4" /></Button>
