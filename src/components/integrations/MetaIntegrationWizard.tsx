@@ -317,7 +317,7 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
           <AlertDialogHeader>
             <AlertDialogTitle>Disconnettere Meta?</AlertDialogTitle>
             <AlertDialogDescription>
-              Questa azione revoca le credenziali salvate, ferma il sync dei moduli Lead Ads e disattiva i moduli collegati. I lead già importati rimangono nel CRM.
+              Questa azione cancella le credenziali salvate per questa azienda, ferma il sync dei moduli Lead Ads e disattiva i moduli collegati. I lead già importati rimangono nel CRM.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

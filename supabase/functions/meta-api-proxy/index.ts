@@ -683,14 +683,9 @@ Deno.serve(async (req) => {
       }
 
       case "disconnect": {
-        try {
-          await fetch(`https://graph.facebook.com/${apiVersion}/me/permissions?access_token=${accessToken}`, {
-            method: "DELETE",
-          });
-        } catch (e) {
-          console.warn("Token revocation failed (may already be expired):", e);
-        }
-
+        // Si scollega solo questa azienda: niente DELETE /me/permissions. Quella
+        // chiamata toglie l'app all'intero profilo Facebook e invalida i token di
+        // tutte le aziende collegate con lo stesso profilo (successo il 09/11/2026).
         await adminClient
           .from("integrations")
           .update({
