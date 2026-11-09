@@ -73,7 +73,8 @@ import {
   CODICE_ASSE_COLORE, MISURA_DI_CONFRONTO_MM, PREZZO_DI_CONFRONTO, cambiaLato, fasceDeiLati, leggiColori, sceltaPerIlPrezzo, type LatoColore,
 } from "@/lib/serramenti/coloriDentroFuori";
 import { Checkbox } from "@/components/ui/checkbox";
-import { misuraDaTesto, quantitaDaTesto } from "@/lib/serramenti/righePreventivo";
+import { misuraDaTesto } from "@/lib/serramenti/righePreventivo";
+import { CampoQuantitaRiga } from "@/components/serramenti/CampoQuantitaRiga";
 import { salvaPoiSincronizza } from "@/lib/serramenti/salvataggioSequenziale";
 import { preferenzeDaRiga } from "@/lib/serramenti/pickerListino";
 import { conAssiVisibili, normalizzaSelezione } from "@/lib/serramenti/assiCondizionati";
@@ -1868,17 +1869,10 @@ export function SerramentoRow({
               </div>
               <div className="order-1 col-span-12 sm:col-span-4 md:col-span-2">
                 <Label className="flex h-5 items-center text-xs">Quantità</Label>
-                <Input
-                  type="number"
-                  min={1}
+                <CampoQuantitaRiga
                   key={`Q-${s.id}`}
-                  defaultValue={s.quantita}
-                  onBlur={(e) => {
-                    const pezzi = quantitaDaTesto(e.target.value) ?? s.quantita;
-                    e.target.value = String(pezzi);
-                    if (pezzi !== s.quantita) handleMisurePatch({ quantita: pezzi });
-                  }}
-                  className="h-9 text-xs"
+                  quantita={s.quantita}
+                  onCambia={(pezzi) => handleMisurePatch({ quantita: pezzi })}
                 />
               </div>
             </>
