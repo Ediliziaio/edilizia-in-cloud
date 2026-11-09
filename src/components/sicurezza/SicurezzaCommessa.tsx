@@ -50,6 +50,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScadenzeCommessa } from "./ScadenzeCommessa";
 import { useCreaPos, usePosElenco } from "@/hooks/usePos";
 import { useDocumentiSicurezza } from "@/hooks/useDocumentiSicurezza";
 import {
@@ -485,6 +486,7 @@ export function SicurezzaCommessa({
           completezza.
         </p>
       )}
+      <ScadenzeCommessa companyId={companyId} orderId={orderId} />
       <Card className="border-primary/20 bg-primary/[0.025]">
         <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
           <div className="flex items-start gap-3">

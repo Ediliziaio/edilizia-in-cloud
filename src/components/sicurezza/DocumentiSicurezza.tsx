@@ -55,6 +55,7 @@ import {
   type DocumentoSicurezza,
   type TipoDocumentoSicurezza,
 } from "@/lib/sicurezza/documentiSicurezza";
+import { extractDurcExpiryFromPdf } from "@/lib/sicurezza/durcExpiry";
 
 const AZIENDA = "__azienda__";
 const NESSUNA = "__nessuna__";
@@ -140,6 +141,8 @@ export function CaricaDocumentoSicurezzaDialog({
   const [dataDoc, setDataDoc] = useState("");
   const [scadenza, setScadenza] = useState("");
   const [note, setNote] = useState("");
+  // Il DURC dice la sua scadenza dentro il PDF: letta lì, non ribattuta a mano.
+  const [scadenzaLetta, setScadenzaLetta] = useState("");
 
   // La finestra si riapre coi dati del punto da cui la si apre (es. «Carica il PSC»).
   const [ultimoPreset, setUltimoPreset] = useState<string>("");
@@ -153,6 +156,7 @@ export function CaricaDocumentoSicurezzaDialog({
     setSub(preset?.subappaltatoreId ?? NESSUNA);
     setDataDoc("");
     setScadenza("");
+    setScadenzaLetta("");
     setNote("");
   }
 
@@ -171,6 +175,16 @@ export function CaricaDocumentoSicurezzaDialog({
           titolo: x.name.replace(/\.[^.]+$/, ""),
         })),
       ]);
+      // Un DURC porta scritta dentro la sua scadenza: si legge e si propone,
+      // restando modificabile. Senza, bisognava ribatterla a mano e quasi
+      // nessuno lo faceva: il documento finiva senza data e non scadeva mai.
+      if (tipo === "durc" && accettati.length === 1) {
+        void extractDurcExpiryFromPdf(accettati[0]).then((iso) => {
+          if (!iso) return;
+          setScadenzaLetta(iso);
+          setScadenza((attuale) => attuale || iso);
+        }).catch(() => {/* il PDF non si legge: resta la data a mano */});
+      }
     },
   });
 
@@ -380,6 +394,11 @@ export function CaricaDocumentoSicurezzaDialog({
                 value={scadenza}
                 onChange={(e) => setScadenza(e.target.value)}
               />
+              {scadenzaLetta && scadenza === scadenzaLetta && (
+                <p className="text-xs text-muted-foreground">
+                  Letta dal DURC. Correggila se non corrisponde.
+                </p>
+              )}
             </div>
           </div>
           <div className="space-y-1">

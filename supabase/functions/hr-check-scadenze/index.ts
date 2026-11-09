@@ -20,6 +20,12 @@
 // sul singolo documento (alert_destinatari) e, se non ha scelto nessuno, gli
 // admin: campanella `documento_azienda` + email.
 //
+// Sicurezza del cantiere (dal 09/11/2026) — DURC delle ditte, evidenze del
+// fascicolo, documenti del cantiere e adempimenti da fare, letti da
+// sicurezza_scadenze. Finora scadevano in silenzio: li vedeva solo chi apriva
+// la pagina. Avvisa gli admin e chi ha il permesso «Sicurezza cantiere»:
+// campanella `sicurezza_scadenza` + email.
+//
 // Anti-doppione: niente nuova notifica per lo stesso documento/utente se già
 // inviata negli ultimi 7 giorni. Di scaduto si avvisa solo il recente (30
 // giorni): gli arretrati vecchi si guardano in elenco, non a suon di notifiche.
@@ -467,6 +473,164 @@ async function controllaDocumentiAzienda(admin: SupabaseClient, provider: Provid
   return { companies, notified, emails };
 }
 
+// ── Sicurezza del cantiere ───────────────────────────────────────────────────
+
+type ScadenzaSicurezza = {
+  company_id: string; order_id: string | null; order_code: string | null; client_name: string | null;
+  origine: "documento" | "fascicolo" | "adempimento" | "durc_ditta";
+  riferimento_id: string; tipo: string | null; titolo: string | null;
+  subappaltatore_id: string | null; subappaltatore: string | null;
+  data_scadenza: string; giorni_mancanti: number | null; stato: "scaduto" | "in_scadenza";
+};
+
+const CAT_SICUREZZA: Record<string, string> = {
+  psc: "PSC", pss: "PSS", pos: "POS", pos_impresa: "POS dell'impresa",
+  notifica_preliminare: "Notifica preliminare", fascicolo_opera: "Fascicolo dell'opera",
+  pimus: "PiMUS", verbale_coordinamento: "Verbale di coordinamento",
+  nomina_coordinatori: "Nomina dei coordinatori", nomina: "Nomina",
+  durc: "DURC", idoneita_tecnica: "Idoneità tecnico-professionale",
+  idoneita_mansione: "Idoneità alla mansione", dvr: "DVR",
+  patente_crediti: "Patente a crediti", piano_emergenza: "Piano di emergenza",
+  schede_sicurezza: "Schede di sicurezza", sds: "Scheda di sicurezza",
+  valutazione_rumore: "Valutazione del rumore", libretti_macchine: "Libretti delle macchine",
+  verifiche_attrezzature: "Verifica di attrezzature", attrezzatura: "Attrezzatura",
+  formazione: "Formazione", consegna_dpi: "Consegna DPI", dpi: "DPI",
+  visura: "Visura", qualificazione: "Qualificazione", verbale: "Verbale",
+  autorizzazione: "Autorizzazione", corso_formazione: "Corso di formazione",
+  visita_medica: "Visita medica", manutenzione_dpi: "Manutenzione DPI",
+  rinnovo_certificato: "Rinnovo di certificato",
+  cila_scia: "Titolo edilizio", cartello_cantiere: "Cartello di cantiere",
+  suolo_pubblico: "Occupazione di suolo pubblico", altro: "Documento",
+};
+
+/** «DURC di Edil Rossi», «PiMUS», «Corso di formazione». */
+function cosaSicurezza(s: ScadenzaSicurezza): string {
+  const base = s.titolo || CAT_SICUREZZA[s.tipo ?? ""] || "Documento";
+  return s.subappaltatore ? `${base} · ${s.subappaltatore}` : base;
+}
+
+/** «cantiere ORD-12 · Rossi», oppure «di tutta l'azienda» quando non ha commessa. */
+function doveSicurezza(s: ScadenzaSicurezza): string {
+  if (!s.order_id) return "non legato a un cantiere";
+  const parti = [s.order_code, s.client_name].filter(Boolean);
+  return parti.length ? `cantiere ${parti.join(" · ")}` : "cantiere";
+}
+
+function quandoSicurezza(s: ScadenzaSicurezza): string {
+  if (s.stato === "scaduto") return `scaduto il ${fmtDate(s.data_scadenza)}`;
+  const g = s.giorni_mancanti ?? 0;
+  if (g <= 0) return `scade oggi, ${fmtDate(s.data_scadenza)}`;
+  return `scade ${g === 1 ? "domani" : `fra ${g} giorni`}, il ${fmtDate(s.data_scadenza)}`;
+}
+
+async function controllaSicurezza(admin: SupabaseClient, provider: Provider): Promise<Esito> {
+  const { data, error } = await admin
+    .from("sicurezza_scadenze")
+    .select("company_id, order_id, order_code, client_name, origine, riferimento_id, tipo, titolo, subappaltatore_id, subappaltatore, data_scadenza, giorni_mancanti, stato")
+    .in("stato", ["scaduto", "in_scadenza"]);
+  if (error) {
+    console.error("[hr-check-scadenze] sicurezza_scadenze:", error.message);
+    return NESSUNO;
+  }
+
+  // Come per le carte della ditta: lo scaduto di mesi fa non fa suonare niente,
+  // si vede rosso in elenco. Senza questo il primo giro manderebbe una valanga
+  // di avvisi su cantieri chiusi da un pezzo.
+  const scadenze = ((data ?? []) as ScadenzaSicurezza[])
+    .filter((s) => s.stato === "in_scadenza" || (s.giorni_mancanti ?? 0) >= -30);
+  if (!scadenze.length) return NESSUNO;
+
+  const companyIds = [...new Set(scadenze.map((s) => s.company_id))];
+
+  // Destinatari: admin dell'azienda e chi ha il permesso «Sicurezza cantiere».
+  const { data: roleRows } = await admin.from("user_roles").select("user_id").in("role", ["company_admin", "super_admin"]);
+  const adminUserIds = new Set<string>(((roleRows ?? []) as Array<{ user_id: string }>).map((r) => r.user_id));
+  const { data: profs } = await admin.from("profiles").select("id, email, company_id").in("company_id", companyIds);
+  const { data: staffRows } = await admin
+    .from("staff_permissions").select("user_id, company_id")
+    .in("company_id", companyIds).eq("can_view_sicurezza_cantiere", true);
+
+  const profili = (profs ?? []) as Array<{ id: string; email: string | null; company_id: string }>;
+  const emailDi = new Map<string, string | null>(profili.map((p) => [p.id, p.email]));
+  const staffIds = ((staffRows ?? []) as Array<{ user_id: string }>).map((r) => r.user_id).filter((id) => !emailDi.has(id));
+  if (staffIds.length) {
+    // Chi lavora su più aziende ha il profilo su un'altra company.
+    const { data: altri } = await admin.from("profiles").select("id, email").in("id", staffIds);
+    for (const p of (altri ?? []) as Array<{ id: string; email: string | null }>) emailDi.set(p.id, p.email);
+  }
+  const destinatari = new Map<string, Set<string>>();
+  for (const cid of companyIds) destinatari.set(cid, new Set());
+  for (const p of profili) if (adminUserIds.has(p.id)) destinatari.get(p.company_id)?.add(p.id);
+  for (const r of (staffRows ?? []) as Array<{ user_id: string; company_id: string }>) destinatari.get(r.company_id)?.add(r.user_id);
+
+  const since = new Date(Date.now() - 7 * 864e5).toISOString();
+  const { data: recenti } = await admin
+    .from("notifications").select("user_id, entity_id")
+    .eq("type", "sicurezza_scadenza").gte("created_at", since)
+    .in("entity_id", scadenze.map((s) => s.riferimento_id));
+  const giaInviate = new Set(((recenti ?? []) as Array<{ user_id: string; entity_id: string }>).map((n) => `${n.user_id}|${n.entity_id}`));
+
+  let notified = 0, companies = 0, emails = 0;
+
+  for (const cid of companyIds) {
+    const utenti = [...(destinatari.get(cid) ?? [])];
+    if (!utenti.length) continue;
+    const sue = scadenze.filter((s) => s.company_id === cid);
+    const righe: Record<string, unknown>[] = [];
+    const nuovePerUtente = new Map<string, ScadenzaSicurezza[]>();
+
+    for (const s of sue) {
+      const title = `${s.stato === "scaduto" ? "Scaduto" : "In scadenza"}: ${cosaSicurezza(s)}`;
+      const body = `${doveSicurezza(s)} — ${quandoSicurezza(s)}`;
+      // Dal cantiere si arriva alla sua Sicurezza; senza cantiere, allo scadenzario.
+      const url = s.order_id
+        ? `/azienda/ordini/${s.order_id}?tab=cantiere&vista_cantiere=sicurezza`
+        : "/azienda/sicurezza-cantiere?tab=scadenze";
+      for (const u of utenti) {
+        if (giaInviate.has(`${u}|${s.riferimento_id}`)) continue;
+        righe.push({
+          company_id: cid, user_id: u, type: "sicurezza_scadenza", title, body,
+          entity_type: "sicurezza_scadenza", entity_id: s.riferimento_id, action_url: url,
+        });
+        (nuovePerUtente.get(u) ?? nuovePerUtente.set(u, []).get(u)!).push(s);
+      }
+    }
+
+    if (!righe.length) continue;
+    companies++;
+    const { error: insErr } = await admin.from("notifications").insert(righe);
+    if (!insErr) notified += righe.length;
+    else console.error("[hr-check-scadenze] notifiche sicurezza:", insErr.message);
+
+    if (!provider?.apiKey) continue;
+    for (const [u, nuove] of nuovePerUtente) {
+      const email = emailDi.get(u);
+      if (!email || !nuove.length) continue;
+      const tabella = nuove.map((s) => {
+        const colore = s.stato === "scaduto" ? "#b91c1c" : "#b45309";
+        return `<tr><td style="padding:6px 10px;border-bottom:1px solid #eee">${escHtml(cosaSicurezza(s))}</td><td style="padding:6px 10px;border-bottom:1px solid #eee">${escHtml(doveSicurezza(s))}</td><td style="padding:6px 10px;border-bottom:1px solid #eee;color:${colore}">${escHtml(quandoSicurezza(s))}</td></tr>`;
+      }).join("");
+      const html = `<div style="font-family:system-ui,Arial,sans-serif;max-width:560px">
+        <h2 style="color:#b45309;margin:0 0 4px">Sicurezza dei cantieri</h2>
+        <p style="color:#444;margin:0 0 12px">${nuove.length === 1 ? "C'è una scadenza da sistemare" : `Ci sono ${nuove.length} scadenze da sistemare`}:</p>
+        <table style="border-collapse:collapse;width:100%;font-size:14px"><thead><tr style="text-align:left;color:#888;font-size:12px">
+          <th style="padding:6px 10px">Cosa</th><th style="padding:6px 10px">Dove</th><th style="padding:6px 10px">Quando</th></tr></thead>
+          <tbody>${tabella}</tbody></table>
+        <p style="margin:16px 0 0"><a href="https://app.ediliziaincloud.com/azienda/sicurezza-cantiere?tab=scadenze" style="background:#b45309;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;display:inline-block">Apri la sicurezza</a></p>
+      </div>`;
+      try {
+        const r = await sendViaProviderWithFailover("transactional", provider, {
+          from: provider.fromDefault, to: [email],
+          subject: `Sicurezza cantieri: ${nuove.length} da sistemare`, html,
+        });
+        if (r.ok) emails++;
+      } catch (e) { console.error("[hr-check-scadenze] email sicurezza:", e instanceof Error ? e.message : String(e)); }
+    }
+  }
+
+  return { companies, notified, emails };
+}
+
 serveConMetricheRapida("hr-check-scadenze", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204 });
   if (!cronSecretValido(req)) {
@@ -476,7 +640,7 @@ serveConMetricheRapida("hr-check-scadenze", async (req) => {
   const provider: Provider = await loadProviderSettings("transactional").catch(() => null);
 
   // Un guasto sui mezzi non deve fermare gli avvisi del personale, e viceversa.
-  const [personale, mezzi, ditta] = await Promise.all([
+  const [personale, mezzi, ditta, sicurezza] = await Promise.all([
     controllaPersonale(admin, provider).catch((e) => {
       console.error("[hr-check-scadenze] personale:", e instanceof Error ? e.message : String(e));
       return NESSUNO;
@@ -489,12 +653,16 @@ serveConMetricheRapida("hr-check-scadenze", async (req) => {
       console.error("[hr-check-scadenze] documenti azienda:", e instanceof Error ? e.message : String(e));
       return NESSUNO;
     }),
+    controllaSicurezza(admin, provider).catch((e) => {
+      console.error("[hr-check-scadenze] sicurezza:", e instanceof Error ? e.message : String(e));
+      return NESSUNO;
+    }),
   ]);
 
-  console.log(`[hr-check-scadenze] personale companies=${personale.companies} notified=${personale.notified} emails=${personale.emails} · mezzi companies=${mezzi.companies} notified=${mezzi.notified} emails=${mezzi.emails} · ditta companies=${ditta.companies} notified=${ditta.notified} emails=${ditta.emails}`);
+  console.log(`[hr-check-scadenze] personale companies=${personale.companies} notified=${personale.notified} emails=${personale.emails} · mezzi companies=${mezzi.companies} notified=${mezzi.notified} emails=${mezzi.emails} · ditta companies=${ditta.companies} notified=${ditta.notified} emails=${ditta.emails} · sicurezza companies=${sicurezza.companies} notified=${sicurezza.notified} emails=${sicurezza.emails}`);
   // Le chiavi di prima restano quelle del personale: chi legge la risposta non cambia.
   return new Response(
-    JSON.stringify({ ok: true, companies: personale.companies, notified: personale.notified, emails: personale.emails, mezzi, ditta }),
+    JSON.stringify({ ok: true, companies: personale.companies, notified: personale.notified, emails: personale.emails, mezzi, ditta, sicurezza }),
     { headers: { "Content-Type": "application/json" } },
   );
 });
