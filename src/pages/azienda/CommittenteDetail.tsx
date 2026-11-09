@@ -26,7 +26,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarDays, ChevronDown, CreditCard, Download, ExternalLink, FileSignature, FileText, HardHat,
-  Loader2, Mail, MapPin, Pencil, Phone, Plus, Trash2, Euro, AlertTriangle, ClipboardList, Lock, Receipt,
+  Loader2, Mail, MapPin, Pencil, Phone, Plus, Trash2, Upload, Euro, AlertTriangle, ClipboardList, Lock, Receipt,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -60,6 +60,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SalAppalto } from "@/components/orders/SalAppalto";
+import { CaricaListinoDialog } from "@/components/committenti/CaricaListinoDialog";
+import { DocumentiContratto } from "@/components/committenti/DocumentiContratto";
 import { ChiediASilvio } from "@/components/silvio/ChiediASilvio";
 import { CustomerProfileCard } from "@/components/clients/CustomerProfileCard";
 import { CustomerActivityTimeline } from "@/components/clients/CustomerActivityTimeline";
@@ -200,6 +202,8 @@ export default function CommittenteDetail() {
   const [composeContext, setComposeContext] = useState<ComposeContext>({ mode: "new" });
   const [appuntamentoOpen, setAppuntamentoOpen] = useState(false);
   const [chiamataAi, setChiamataAi] = useState(false);
+  const [caricaListino, setCaricaListino] = useState(false);
+  const [vediFuoriUso, setVediFuoriUso] = useState(false);
 
   /* ── Dati ── */
 
@@ -450,9 +454,11 @@ export default function CommittenteDetail() {
       )}
     </>
   );
+  const tariffeInUso = (tariffe.data ?? []).filter((t) => t.attivo);
+  const tariffeFuoriUso = (tariffe.data ?? []).filter((t) => !t.attivo);
   const conteggi: Record<string, number | undefined> = {
     contratti: elencoContratti.length,
-    listino: vedeImporti ? tariffe.data?.length ?? 0 : undefined,
+    listino: vedeImporti ? tariffeInUso.length : undefined,
     commesse: elencoLavori.length,
     documenti: scheda?.fatture.length ?? 0,
     appuntamenti: scheda?.appuntamenti.length ?? 0,
@@ -555,6 +561,9 @@ export default function CommittenteDetail() {
                   <Voce t="Loro riferimento" v={contrattoAttivo.riferimento_committente} />
                 )}
               </dl>
+              {vedeImporti && companyId && (
+                <DocumentiContratto contrattoId={contrattoAttivo.id} committenteId={c.id} companyId={companyId} puoModificare={puoModificare} />
+              )}
               {contrattoAttivo.condizioni && (
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Condizioni</p>
@@ -582,22 +591,28 @@ export default function CommittenteDetail() {
           <div className="flex items-center justify-between gap-2">
             <p className="min-w-0 truncate text-xs text-slate-500">{contrattoAttivo.nome}</p>
             {puoModificare && (
-              <Button size="sm" variant="outline" className="shrink-0"
+              <div className="flex shrink-0 gap-1">
+              <Button size="sm" variant="outline" onClick={() => setCaricaListino(true)}>
+                <Upload className="mr-1.5 h-3.5 w-3.5" /> Carica
+              </Button>
+              <Button size="sm" variant="outline"
                 onClick={() => { setTariffaForm({ tipo: "manodopera", unita_misura: "ora", attivo: true, ordine: (tariffe.data?.length ?? 0) }); setPrezzoGrezzo(""); }}>
                 <Plus className="mr-1.5 h-3.5 w-3.5" /> Tariffa
               </Button>
+              </div>
             )}
           </div>
           {tariffe.isLoading ? (
             <Skeleton className="h-32 w-full" />
-          ) : (tariffe.data ?? []).length === 0 ? (
+          ) : tariffeInUso.length === 0 && tariffeFuoriUso.length === 0 ? (
             <p className="text-sm text-slate-500">
               Listino vuoto. Aggiungi quello che a questo committente fatturi davvero: la giornata
-              uomo, il viaggio, il metro quadro di posa.
+              uomo, il viaggio, il metro quadro di posa. Se ce l'hai in Excel, caricalo.
             </p>
           ) : (
+            <>
             <ul className="divide-y">
-              {(tariffe.data ?? []).map((t) => (
+              {(vediFuoriUso ? [...tariffeInUso, ...tariffeFuoriUso] : tariffeInUso).map((t) => (
                 <li key={t.id} className={cn("flex items-center gap-2 py-2", !t.attivo && "opacity-50")}>
                   <div className="min-w-0 flex-1">
                     <p className="break-words text-sm font-medium text-slate-900">{t.descrizione}</p>
@@ -621,6 +636,12 @@ export default function CommittenteDetail() {
                 </li>
               ))}
             </ul>
+            {tariffeFuoriUso.length > 0 && (
+              <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setVediFuoriUso(!vediFuoriUso)}>
+                {vediFuoriUso ? "Nascondi le voci fuori uso" : `Mostra ${tariffeFuoriUso.length} ${tariffeFuoriUso.length === 1 ? "voce fuori uso" : "voci fuori uso"}`}
+              </Button>
+            )}
+            </>
           )}
         </>
       )}
@@ -697,8 +718,8 @@ export default function CommittenteDetail() {
     },
     {
       label: "Listino", icon: Euro, iconColor: "text-violet-500",
-      value: !vedeImporti ? "—" : tariffe.data?.length ?? 0,
-      sub: !vedeImporti ? "Prezzi riservati" : (tariffe.data?.length ?? 0) === 1 ? "voce concordata" : "voci concordate",
+      value: !vedeImporti ? "—" : tariffeInUso.length,
+      sub: !vedeImporti ? "Prezzi riservati" : tariffeInUso.length === 1 ? "voce concordata" : "voci concordate",
       onClick: () => apriSezione("listino"),
     },
   ];
@@ -969,6 +990,16 @@ export default function CommittenteDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {caricaListino && contrattoAttivo && (
+        <CaricaListinoDialog
+          aperto={caricaListino}
+          onChiudi={() => setCaricaListino(false)}
+          contratto={{ id: contrattoAttivo.id, nome: contrattoAttivo.nome }}
+          altriContratti={elencoContratti.filter((k) => k.id !== contrattoAttivo.id).map((k) => ({ id: k.id, nome: k.nome }))}
+          esistenti={tariffe.data ?? []}
+        />
+      )}
 
       {composeOpen && (
         <Suspense fallback={null}>

@@ -65,11 +65,13 @@ export async function caricaDocumentiCliente(opts: {
   companyId: string;
   customerId: string;
   userId: string;
-  file: FileDocumentiCliente;
+  file: Partial<Record<TipoDocumentoCliente | "contract", File[]>>;
+  /** Il contratto col committente a cui appartengono i file. */
+  appaltoContrattoId?: string;
 }): Promise<{ caricati: number; falliti: string[] }> {
   let caricati = 0;
   const falliti: string[] = [];
-  const voci = (Object.entries(opts.file) as [TipoDocumentoCliente, File[] | undefined][])
+  const voci = (Object.entries(opts.file) as [string, File[] | undefined][])
     .flatMap(([tipo, lista]) => (lista ?? []).map((f) => ({ tipo, f })));
 
   for (const { tipo, f } of voci) {
@@ -91,6 +93,7 @@ export async function caricaDocumentiCliente(opts: {
         file_size: file.size,
         uploaded_by: opts.userId,
         thumb_path: miniatura,
+        ...(opts.appaltoContrattoId ? { appalto_contratto_id: opts.appaltoContrattoId } : {}),
       } as never);
       if (errRiga) {
         await supabase.storage.from(BUCKET_DOCUMENTI_CLIENTE).remove(miniatura ? [percorso, miniatura] : [percorso]);

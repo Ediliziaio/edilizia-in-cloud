@@ -843,7 +843,8 @@ export function RendicontoAppalto({
                 <Select value={overrideForm.tariffa_id} onValueChange={(v) => setOverrideForm({ ...overrideForm, tariffa_id: v })}>
                   <SelectTrigger id="o-tariffa"><SelectValue placeholder="Scegli la tariffa" /></SelectTrigger>
                   <SelectContent>
-                    {(listino.data ?? []).map((t) => (
+                    {/* Solo le voci in uso: dopo una sostituzione del listino i nomi comparirebbero doppi. */}
+                    {(listino.data ?? []).filter((t) => t.attivo).map((t) => (
                       <SelectItem key={t.id} value={t.id}>
                         {t.descrizione} · listino {euro(t.prezzo_unitario, true)}
                       </SelectItem>

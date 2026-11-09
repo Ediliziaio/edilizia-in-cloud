@@ -138,7 +138,7 @@ export function FascicoloCliente({
                   </>
                 )}
               </div>
-              {storico && (
+              {storico && !perCommittente && (
                 <p className="text-[11px] text-amber-700 dark:text-amber-400">
                   Il contratto va nei documenti della commessa: caricalo lì.
                 </p>

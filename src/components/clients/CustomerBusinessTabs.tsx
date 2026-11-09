@@ -107,6 +107,7 @@ interface CustomerDocumentRow {
   file_size: number | null;
   created_at: string;
   thumb_path?: string | null;
+  appalto_contratto_id?: string | null;
 }
 
 interface CustomerEmailConversationRow {
@@ -542,7 +543,7 @@ function DocumentiTab({
         </div>
       )}
 
-      <FascicoloCliente customerId={customerId} companyId={companyId} documenti={customerDocuments} perCommittente={perCommittente} />
+      <FascicoloCliente customerId={customerId} companyId={companyId} documenti={perCommittente ? customerDocuments.filter((d) => !d.appalto_contratto_id) : customerDocuments} perCommittente={perCommittente} />
 
       <DocumentiCommesseCliente customerId={customerId} commesse={commesse} perCommittente={perCommittente} />
     </div>
@@ -866,7 +867,7 @@ export function CustomerBusinessTabs({
       const customerDocumentsClient = supabase as unknown as CustomerDocumentsQueryClient;
       const { data, error } = await customerDocumentsClient
         .from("customer_documents")
-        .select("id, document_type, file_name, file_path, file_type, file_size, created_at, thumb_path")
+        .select("id, document_type, file_name, file_path, file_type, file_size, created_at, thumb_path, appalto_contratto_id")
         .eq("customer_id", customerId)
         .order("created_at", { ascending: false });
       if (error) throw error;

@@ -225,3 +225,29 @@ it("senza il permesso sugli importi il testo delle email non si legge: un sollec
   expect(screen.getByText("Inviata")).toBeInTheDocument();
   expect(screen.queryByText(/1\.200/)).not.toBeInTheDocument();
 });
+
+it("il listino si carica da un popup e il contratto firmato si allega al suo contratto", async () => {
+  mostra();
+  expect(await screen.findByText("Contratto firmato")).toBeVisible();
+  await apri("Listino concordato");
+  fireEvent.click(await screen.findByRole("button", { name: "Carica" }));
+  expect(await screen.findByText("Da un foglio Excel")).toBeVisible();
+  expect(screen.getByText("Da un altro contratto")).toBeVisible();
+});
+
+it("senza il permesso sugli importi il contratto firmato non si apre", async () => {
+  stato.importi = false;
+  mostra();
+  expect((await screen.findAllByText("60 gg")).length).toBeGreaterThan(0);
+  expect(screen.queryByText("Contratto firmato")).not.toBeInTheDocument();
+});
+
+it("le voci spente dalla sostituzione non contano e si vedono solo a richiesta", async () => {
+  stato.tabelle.appalto_tariffe = [tariffa, { ...tariffa, id: "r2", descrizione: "Voce vecchia", attivo: false }];
+  mostra();
+  await apri("Listino concordato");
+  expect(await screen.findByText("Giornata uomo")).toBeVisible();
+  expect(screen.queryByText("Voce vecchia")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Mostra 1 voce fuori uso" }));
+  expect(screen.getByText("Voce vecchia")).toBeVisible();
+});
