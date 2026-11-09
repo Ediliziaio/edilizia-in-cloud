@@ -25,6 +25,7 @@ import { credenzialiGmail } from "../_shared/gmailOAuthCredentials.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { smtpSend, buildRFC822, imapAppend, type SmtpAttachment } from "../_shared/imapSmtpClient.ts";
 import { getMsOAuthCredentials } from "../_shared/msOAuth.ts";
+import { messageIdGmail } from "../_shared/messageIdGmail.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -525,6 +526,7 @@ serveConMetriche("email-send", async (req) => {
     const accessToken = await refreshTokenIfNeeded(supabase, tokens, outbox.user_id);
 
     let providerMessageId = "";
+    let rfcMessageId: string | null = null;
     if (tokens.provider === "gmail") {
       const rfc = buildRFC822({
         from: tokens.email_address,
@@ -542,6 +544,8 @@ serveConMetriche("email-send", async (req) => {
       });
       const sent = await sendViaGmail(accessToken, rfc, providerThreadId);
       providerMessageId = sent.id;
+      // Chi risponde cita il Message-ID, non l'id di Gmail: serve per riconoscere le risposte.
+      rfcMessageId = await messageIdGmail(accessToken, sent.id);
     } else if (tokens.provider === "outlook") {
       const sent = await sendViaOutlook(accessToken, {
         subject: outbox.subject,
@@ -565,6 +569,7 @@ serveConMetriche("email-send", async (req) => {
         status: "sent",
         sent_at: new Date().toISOString(),
         provider_message_id: providerMessageId,
+        rfc_message_id: rfcMessageId,
       })
       .eq("id", outbox.id);
 
