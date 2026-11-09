@@ -88,16 +88,51 @@ export function nomeDaIntestatario(intestatario: string, codiceFiscale?: string 
   return { last_name: parti.slice(0, lunghezza).join(" "), first_name: parti.slice(lunghezza).join(" ") };
 }
 
-async function riconcilia(supabase: any, companyId: string, invoiceId: string) {
+type Riconciliazione = { status: string; motivo?: string; customer_id?: string | null; cliente_operativo_mancante?: boolean };
+type Riconcilia = (supabase: any, companyId: string, id: string) => Promise<Riconciliazione>;
+
+async function riconciliaImportata(supabase: any, companyId: string, invoiceId: string): Promise<Riconciliazione> {
   const { data, error } = await supabase.rpc("riconcilia_cliente_emessa_importata", {
     p_company_id: companyId, p_invoice_id: invoiceId, p_apply: true,
   });
   if (error) throw new Error(`Riconciliazione: ${error.message}`);
-  return data as { status: string; motivo?: string; customer_id?: string | null; cliente_operativo_mancante?: boolean };
+  return data as Riconciliazione;
+}
+
+/** La fattura emessa da qui: stessa strada, ma il cliente sta nella sua fotografia. */
+async function riconciliaDocumento(supabase: any, companyId: string, documentoId: string): Promise<Riconciliazione> {
+  const { data, error } = await supabase.rpc("riconcilia_cliente_documento_emesso", {
+    p_company_id: companyId, p_documento_id: documentoId, p_apply: true,
+  });
+  if (error) throw new Error(`Riconciliazione: ${error.message}`);
+  return data as Riconciliazione;
+}
+
+/** Il cliente della fattura nativa, negli stessi campi di una fattura importata. */
+export function fatturaDaDocumento(doc: { id: string; cliente_snapshot: Record<string, string | null | undefined> | null }): Fattura {
+  const s = doc.cliente_snapshot ?? {};
+  const persona = [s.nome, s.cognome].map((v) => (v ?? "").trim()).filter(Boolean).join(" ");
+  return {
+    id: doc.id,
+    client_company_name: (s.ragione_sociale ?? "").trim() || persona || null,
+    client_email: null,
+    client_fiscal_code: s.codice_fiscale ?? null,
+    client_vat_number: s.partita_iva ?? null,
+    client_address: s.indirizzo_via ?? null,
+    client_city: s.indirizzo_comune ?? null,
+    client_zip: s.indirizzo_cap ?? null,
+    client_country: s.indirizzo_nazione ?? null,
+  };
+}
+
+export function clienteDaDocumentoEmesso(supabase: any, companyId: string, fattura: Fattura): Promise<EsitoClienteDaFattura> {
+  return clienteDaFatturaImportata(supabase, companyId, fattura, riconciliaDocumento, "Cliente creato dalle fatture emesse.");
 }
 
 export async function clienteDaFatturaImportata(
   supabase: any, companyId: string, fattura: Fattura,
+  riconcilia: Riconcilia = riconciliaImportata,
+  notaCliente = "Cliente creato dalle fatture importate.",
 ): Promise<EsitoClienteDaFattura> {
   try {
     const prima = await riconcilia(supabase, companyId, fattura.id);
@@ -155,7 +190,7 @@ export async function clienteDaFatturaImportata(
       city: testo(fattura.client_city, 100),
       postal_code: testo(fattura.client_zip, 10),
       country: (testo(fattura.client_country, 2) || "IT").toUpperCase(),
-      notes: "Cliente creato dalle fatture importate.",
+      notes: notaCliente,
       portal_disabled: true,
       is_blocked: true,
     });

@@ -9,6 +9,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { generateFatturaPAXML } from "@/lib/fatturazione/generateXML";
 import type { AnagraficaAzienda, DocumentoFiscale } from "@/types/fatturazione";
 
+/** Come fa l'invio: nota di credito e integrazione dichiarano la fattura che rettificano. */
+async function conFatturaCollegata(doc: DocumentoFiscale): Promise<DocumentoFiscale> {
+  const legge = async (tabella: string, id: string, numero: string, data: string) => {
+    const { data: r } = await supabase.from(tabella as never).select(`${numero}, ${data}` as never).eq("id", id).maybeSingle();
+    const riga = r as Record<string, string> | null;
+    return riga?.[numero] ? { ...doc, fattura_collegata: { numero: riga[numero], data: riga[data] } } as DocumentoFiscale : doc;
+  };
+  if (doc.fattura_ricevuta_id) return legge("fatture_ricevute", doc.fattura_ricevuta_id, "numero_fattura", "data_fattura");
+  if (["nota_credito", "nota_debito"].includes(doc.tipo) && doc.documento_correlato_id) {
+    return legge("documenti_fiscali", doc.documento_correlato_id, "numero", "data_emissione");
+  }
+  return doc;
+}
+
 export async function scaricaXmlFattura(
   doc: DocumentoFiscale,
   azienda: AnagraficaAzienda | null | undefined,
@@ -22,7 +36,7 @@ export async function scaricaXmlFattura(
     nome = doc.sdi_file_xml_url.split("/").pop() || "fattura.xml";
   } else {
     if (!azienda) throw new Error("Dati dell'azienda non ancora caricati: riprova tra un attimo.");
-    file = new Blob([generateFatturaPAXML(doc, azienda)], { type: "application/xml" });
+    file = new Blob([generateFatturaPAXML(await conFatturaCollegata(doc), azienda)], { type: "application/xml" });
     nome = `${(doc.numero || "fattura").replace(/[^a-zA-Z0-9-]/g, "_")}.xml`;
   }
   const url = URL.createObjectURL(file);
@@ -47,5 +61,5 @@ export async function leggiXmlFattura(
     return { xml: await data.text(), partito: true };
   }
   if (!azienda) throw new Error("Dati dell'azienda non ancora caricati: riprova tra un attimo.");
-  return { xml: generateFatturaPAXML(doc, azienda), partito: false };
+  return { xml: generateFatturaPAXML(await conFatturaCollegata(doc), azienda), partito: false };
 }

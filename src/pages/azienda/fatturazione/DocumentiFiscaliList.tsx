@@ -99,7 +99,7 @@ const TIPO_TABS: {
   emptyTitle: string;
   emptyDescription: string;
 }[] = [
-  { id: "fattura", label: "Fatture", tipos: ["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria", "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue", "autofattura", "nota_debito", "fattura_riepilogativa"], icon: FileText, countKey: "fatture", emptyTitle: "Nessuna fattura trovata", emptyDescription: "Crea la tua prima fattura per iniziare." },
+  { id: "fattura", label: "Fatture", tipos: ["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria", "reverse_charge_interno", "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue", "autofattura", "nota_debito", "fattura_riepilogativa"], icon: FileText, countKey: "fatture", emptyTitle: "Nessuna fattura trovata", emptyDescription: "Crea la tua prima fattura per iniziare." },
   { id: "proforma", label: "Pro forma", tipos: ["proforma"], icon: Clock, countKey: "proforma", emptyTitle: "Nessun proforma trovato", emptyDescription: "Crea un proforma da inviare al cliente prima della fattura definitiva." },
   { id: "nota_credito", label: "Note di Credito", tipos: ["nota_credito"], icon: FileWarning, countKey: "nota_credito", emptyTitle: "Nessuna nota di credito", emptyDescription: "Le note di credito emesse per stornare fatture appariranno qui." },
   { id: "ddt", label: "DDT", tipos: ["ddt"], icon: Truck, countKey: "ddt", emptyTitle: "Nessun DDT trovato", emptyDescription: "I documenti di trasporto emessi appariranno qui." },
@@ -670,6 +670,11 @@ function DocumentiFiscaliListInner() {
                     <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=nota_debito")}>Nota di Debito</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=proforma")}>Pro-Forma</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=ddt")}>DDT</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=reverse_charge_interno")}>Integrazione reverse charge (TD16)</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=integrazione_servizi_estero")}>Autofattura servizi esteri (TD17)</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=integrazione_beni_ue")}>Integrazione beni UE (TD18)</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=integrazione_beni_extra_ue")}>Integrazione art. 17 c.2 (TD19)</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=autofattura")}>Autofattura (TD20)</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
                 )}
@@ -982,7 +987,7 @@ function DocumentiFiscaliListInner() {
                       {showColTipo && (
                         <TableCell>
                           <Badge variant="outline" className="text-[10px] font-normal">
-                            {{ fattura: "Fattura", fattura_pa: "Fattura PA", proforma: "Proforma", nota_credito: "NC", ddt: "DDT", preventivo: "Preventivo", nota_debito: "Nota Debito", autofattura: "Autofattura", fattura_riepilogativa: "Riepilogativa", parcella: "Parcella", fattura_accompagnatoria: "F. Accomp.", integrazione_servizi_estero: "TD17", integrazione_beni_ue: "TD18", integrazione_beni_extra_ue: "TD19", acconto_fattura: "Acconto fattura", acconto_parcella: "Acconto parcella", autoconsumo: "Autoconsumo", autofattura_splafonamento: "TD21", fattura_differita_b: "TD25", reverse_charge_interno: "TD16" }[doc.tipo] ?? doc.tipo}
+                            {{ reverse_charge_interno: "TD16", integrazione_servizi_estero: "TD17", integrazione_beni_ue: "TD18", integrazione_beni_extra_ue: "TD19", autofattura: "Autofattura", fattura: "Fattura", fattura_pa: "Fattura PA", proforma: "Proforma", nota_credito: "NC", ddt: "DDT", preventivo: "Preventivo", nota_debito: "Nota Debito", autofattura: "Autofattura", fattura_riepilogativa: "Riepilogativa", parcella: "Parcella", fattura_accompagnatoria: "F. Accomp.", integrazione_servizi_estero: "TD17", integrazione_beni_ue: "TD18", integrazione_beni_extra_ue: "TD19", acconto_fattura: "Acconto fattura", acconto_parcella: "Acconto parcella", autoconsumo: "Autoconsumo", autofattura_splafonamento: "TD21", fattura_differita_b: "TD25", reverse_charge_interno: "TD16" }[doc.tipo] ?? doc.tipo}
                           </Badge>
                         </TableCell>
                       )}

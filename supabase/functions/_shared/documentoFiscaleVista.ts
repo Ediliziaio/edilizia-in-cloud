@@ -51,6 +51,7 @@ export const ETICHETTA_TIPO_DOCUMENTO: Record<string, string> = {
   ddt: "DOCUMENTO DI TRASPORTO",
   parcella: "PARCELLA",
   fattura_accompagnatoria: "FATTURA ACCOMPAGNATORIA",
+  reverse_charge_interno: "INTEGRAZIONE TD16",
   integrazione_servizi_estero: "AUTOFATTURA TD17",
   integrazione_beni_ue: "INTEGRAZIONE TD18",
   integrazione_beni_extra_ue: "INTEGRAZIONE TD19",

@@ -168,6 +168,9 @@ export const TIPO_TO_TD: Record<string, string> = {
  * ricevuta, per esempio da un subappaltatore) e TD20 (autofattura per
  * regolarizzazione) erano trattati come fatture nostre verso il cliente.
  */
+/** Non vanno allo SDI: proforma e preventivi non sono fatture, il DDT non è un documento fiscale elettronico. */
+export const TIPI_SENZA_SDI = ["proforma", "preventivo", "ddt"];
+
 export const TIPI_INVERSIONE = ["TD16", "TD17", "TD18", "TD19", "TD20"];
 /** Fornitore estero: regime RF18, e IdCodice di riserva se non ha partita IVA. */
 const TIPI_FORNITORE_ESTERO = ["TD17", "TD18", "TD19"];
@@ -441,7 +444,7 @@ export function generateXML(
     : (doc.cig || doc.cup) ? `<DatiOrdineAcquisto><IdDocumento>0</IdDocumento>${cigCup}</DatiOrdineAcquisto>` : "";
 
   // Nota di credito o di debito: la fattura che rettifica (art. 26 DPR 633/72).
-  const collegata: Dati | null = (tipoDoc === "TD04" || tipoDoc === "TD05") && doc.fattura_collegata?.numero ? doc.fattura_collegata : null;
+  const collegata: Dati | null = (tipoDoc === "TD04" || tipoDoc === "TD05" || TIPI_INVERSIONE.includes(tipoDoc)) && doc.fattura_collegata?.numero ? doc.fattura_collegata : null;
   const dataCollegata = collegata ? fmtDate(String(collegata.data ?? "")) : "";
   const collegataXml = collegata
     ? `<DatiFattureCollegate><IdDocumento>${x(collegata.numero, 20)}</IdDocumento>${/^\d{4}-\d{2}-\d{2}$/.test(dataCollegata) ? `<Data>${dataCollegata}</Data>` : ""}</DatiFattureCollegate>`

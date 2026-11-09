@@ -1,6 +1,7 @@
 /** Tipi che nascono senza numero nel motore nativo (documento_crea). */
 export const TIPI_BOZZA_SENZA_NUMERO = [
   "fattura", "fattura_pa", "nota_credito", "nota_debito", "autofattura", "fattura_riepilogativa",
+  "reverse_charge_interno", "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue",
 ];
 
 export const haSegnapostoBozza = (numero?: string | null) => (numero ?? "").startsWith("Bozza ");

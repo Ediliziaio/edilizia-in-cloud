@@ -353,6 +353,8 @@ export interface DocumentoFiscale {
   ddt_aspetto_beni?: string;
   ddt_vettore?: unknown;
   ddt_fatturato?: boolean;
+  /** La fattura ricevuta che questa integrazione regolarizza. */
+  fattura_ricevuta_id?: string;
   /** Quanto hanno già stornato le note di credito emesse: si legge a parte, non è una colonna. */
   stornato?: number;
   ddt_fattura_id?: string;

@@ -64,7 +64,7 @@ const TIPO_LABELS: Record<string, string> = {
   nota_debito: "Nota di Debito", ddt: "DDT", proforma: "Proforma", preventivo: "Preventivo",
   parcella: "Parcella", fattura_accompagnatoria: "Fattura Accompagnatoria",
   autofattura: "Autofattura", fattura_riepilogativa: "Fatt. Riepilogativa",
-  integrazione_servizi_estero: "TD17 — Servizi Estero", integrazione_beni_ue: "TD18 — Beni UE", integrazione_beni_extra_ue: "TD19 — Beni Extra-UE",
+  reverse_charge_interno: "TD16 — Reverse Charge", integrazione_servizi_estero: "TD17 — Servizi Estero", integrazione_beni_ue: "TD18 — Beni UE", integrazione_beni_extra_ue: "TD19 — Beni Extra-UE",
 };
 
 export default function DocumentoDetail() {

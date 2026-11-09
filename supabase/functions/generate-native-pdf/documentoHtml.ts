@@ -32,7 +32,7 @@ import {
 } from "../_shared/documentoFiscaleVista.ts";
 
 /** Documenti che vanno allo SDI: il PDF ne è solo la copia di cortesia. */
-export const TIPI_FISCALI = ["fattura", "fattura_pa", "nota_credito", "nota_debito", "autofattura", "fattura_riepilogativa"];
+export const TIPI_FISCALI = ["fattura", "fattura_pa", "nota_credito", "nota_debito", "autofattura", "fattura_riepilogativa", "reverse_charge_interno", "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue"];
 
 /**
  * Le clausole scritte in Causale (bonifico parlante, IVA agevolata, garanzia,

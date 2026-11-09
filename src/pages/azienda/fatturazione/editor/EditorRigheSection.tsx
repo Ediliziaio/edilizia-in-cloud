@@ -596,11 +596,6 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
 
   function addBlankRow() {
     const riga = createEmptyRiga(righe.length + 1);
-    // TD16 Reverse Charge Interno: default N6.3 (subappalto edile)
-    if (state.tipo === 'reverse_charge_interno') {
-      riga.aliquota_iva = "0";
-      riga.natura_iva = "N6_3";
-    }
     dispatch({ type: "ADD_RIGA", riga });
     setAperte((prima) => new Set(prima).add(riga.id));
   }
@@ -609,11 +604,6 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
     const riga = createEmptyRiga(righe.length + 1);
     riga.quantita = 0;
     riga.prezzo_unitario = 0;
-    // TD16 Reverse Charge Interno: default N6.3 (subappalto edile)
-    if (state.tipo === 'reverse_charge_interno') {
-      riga.aliquota_iva = "0";
-      riga.natura_iva = "N6_3";
-    }
     dispatch({ type: "ADD_RIGA", riga });
     setAperte((prima) => new Set(prima).add(riga.id));
   }

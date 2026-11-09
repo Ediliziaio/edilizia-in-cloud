@@ -115,3 +115,26 @@ describe("codice fiscale scritto come partita IVA con il prefisso IT", () => {
     expect(profilo).toContain('esito: "errore"');
   });
 });
+
+describe("clienti dalle fatture emesse da qui", () => {
+  it("il giro guarda anche i documenti fiscali emessi e timbra solo a esito certo", () => {
+    expect(FUNZIONE).toContain('from("documenti_fiscali")');
+    expect(FUNZIONE).toContain('.not("stato", "in", "(bozza,annullata)")');
+    const blocco = FUNZIONE.slice(FUNZIONE.indexOf("clienteDaDocumentoEmesso(supabase"));
+    expect(blocco.indexOf("continue;")).toBeLessThan(blocco.indexOf("cliente_collegato_at:"));
+  });
+
+  it("la fotografia della fattura diventa i campi del cliente, anche per un privato", async () => {
+    const { fatturaDaDocumento } = await import("../../../supabase/functions/_shared/clienteOperativoDaFattura.ts");
+    const f = fatturaDaDocumento({ id: "d", cliente_snapshot: { nome: "Anna", cognome: "Verdi", codice_fiscale: "VRDNNA80A41H501X", indirizzo_comune: "Roma", ragione_sociale: "" } });
+    expect(f.client_company_name).toBe("Anna Verdi");
+    expect(f.client_fiscal_code).toBe("VRDNNA80A41H501X");
+    expect(f.client_city).toBe("Roma");
+  });
+
+  it("il collegamento è solo del giro automatico", () => {
+    const sql = readFileSync(join(radice, "supabase/migrations/20290117110000_clienti_da_fatture_emesse.sql"), "utf8");
+    expect(sql).toMatch(/revoke all on function public\.riconcilia_cliente_documento_emesso\(uuid, uuid, boolean\) from public, anon, authenticated/);
+    expect(sql).toContain("'cliente_collegato_at', 'cliente_collegato_esito'");
+  });
+});

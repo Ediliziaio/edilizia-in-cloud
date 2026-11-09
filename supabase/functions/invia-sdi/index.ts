@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { leggiImpostazionePiattaforma } from "../_shared/getPlatformSetting.ts";
-import { generateXML } from "../_shared/generateXML.ts";
+import { TIPI_SENZA_SDI, generateXML } from "../_shared/generateXML.ts";
 import { allegatiPerInvioSdi } from "../_shared/allegatiSdi.ts";
 import { datiReaMancanti } from "../_shared/datiSocietari.ts";
 import { utf8ToBase64 } from "../_shared/base64.ts";
@@ -115,6 +115,10 @@ Deno.serve(async (req) => {
     // invio è il claim atomico più sotto. Accetta 'emessa' (primo invio) e
     // 'rifiutata'/'scartata' (reinvio dopo scarto SDI — bug #2), bloccando le
     // fatture già prese in carico/accettate dallo SDI.
+    if (TIPI_SENZA_SDI.includes(doc.tipo)) {
+      return new Response(JSON.stringify({ error: "Questo documento non si invia allo SDI." }), { status: 400, headers: getCorsHeaders(req) });
+    }
+
     const preInvio = valutaPreInvio(doc);
     if (!preInvio.ok) {
       return new Response(
@@ -303,6 +307,13 @@ Deno.serve(async (req) => {
       const { data: originale } = await supabase.from("documenti_fiscali")
         .select("numero, data_emissione").eq("id", doc.documento_correlato_id).maybeSingle();
       if (originale?.numero) docXml = { ...doc, fattura_collegata: { numero: originale.numero, data: originale.data_emissione } };
+    }
+
+    // Integrazione o autofattura: la fattura ricevuta che regolarizza.
+    if (doc.fattura_ricevuta_id) {
+      const { data: ricevuta } = await supabase.from("fatture_ricevute")
+        .select("numero_fattura, data_fattura").eq("id", doc.fattura_ricevuta_id).maybeSingle();
+      if (ricevuta?.numero_fattura) docXml = { ...docXml, fattura_collegata: { numero: ricevuta.numero_fattura, data: ricevuta.data_fattura } };
     }
 
     if (allegatiInvio.allegati.length) docXml = { ...docXml, allegati: allegatiInvio.allegati };

@@ -532,6 +532,18 @@ function EditorDelDocumento() {
             </div>
           )}
 
+          {state.tipo === "reverse_charge_interno" && (
+            <div className="flex items-start gap-3 p-3 rounded-md bg-blue-50 border border-blue-200 text-sm">
+              <AlertTriangle className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium text-blue-800">Integrazione TD16 — Reverse charge interno</p>
+                <p className="text-blue-700 text-xs mt-0.5">
+                  Il <strong>Fornitore</strong> è il cedente della fattura ricevuta senza IVA. Il destinatario sei tu: qui si aggiunge l'IVA che quella fattura non ha.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Autofattura estera (TD17/18/19) banner */}
           {["integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue"].includes(state.tipo) && (
             <div className="flex items-start gap-3 p-3 rounded-md bg-blue-50 border border-blue-200 text-sm">

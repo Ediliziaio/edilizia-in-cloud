@@ -23,6 +23,9 @@ import { formatCurrency, formatDateShort, formatDateTime } from "@/lib/formatter
 import { CollegaOrdineFatturaDialog } from "@/components/fatturazione/CollegaOrdineFatturaDialog";
 import { CollegaFatturaCommesseDialog } from "@/components/fatturazione/CollegaFatturaCommesseDialog";
 import { CollegaNotaCreditoDialog } from "@/components/fatturazione/CollegaNotaCreditoDialog";
+import { IntegrazioneRicevutaDialog } from "@/components/fatturazione/IntegrazioneRicevutaDialog";
+import { CaricaRicevutaPdfDialog } from "@/components/fatturazione/CaricaRicevutaPdfDialog";
+import { serveIntegrazione } from "@/lib/fatturazione/integrazioneRicevuta";
 import { useStorniNoteCredito } from "@/hooks/useStorniNoteCredito";
 import { VerificaFatturaPill } from "@/components/fatturazione/VerificaFatturaPill";
 import { StatoPill } from "@/components/orders/TabellaCommessa";
@@ -140,6 +143,14 @@ function DataFattura({ f }: { f: { data_fattura: string; data_ricezione_sdi: str
 
 interface FatturaRicevuta {
   id: string;
+  riepilogo_iva?: unknown;
+  aliquota_reverse_charge?: number | null;
+  cedente_indirizzo?: string | null;
+  cedente_cap?: string | null;
+  cedente_comune?: string | null;
+  cedente_provincia?: string | null;
+  pdf_storage_bucket?: string | null;
+  pdf_storage_path?: string | null;
   company_id: string;
   sdi_id_trasmissione: string | null;
   cedente_piva: string;
@@ -284,6 +295,25 @@ export default function FattureRicevutePage() {
   const pagataIl = useCallback((id: string) => pagate?.get(id) ?? null, [pagate]);
   const { data: parziali } = usePagamentiParzialiRicevute(companyId);
   const queryClient = useQueryClient();
+  const [daIntegrare, setDaIntegrare] = useState<FatturaRicevuta | null>(null);
+  const [pdfInCoda, setPdfInCoda] = useState<File[]>([]);
+  // Quali ricevute hanno già l'integrazione: poche righe, anche con migliaia di fatture.
+  const { data: integrazioni } = useQuery({
+    queryKey: ["integrazioni-ricevute", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("documenti_fiscali" as never)
+        .select("id, numero, stato, fattura_ricevuta_id").eq("company_id", companyId!)
+        .not("fattura_ricevuta_id", "is", null).is("deleted_at", null).neq("stato", "annullata");
+      if (error) throw error;
+      return new Map(((data ?? []) as unknown as { id: string; numero: string; stato: string; fattura_ricevuta_id: string }[]).map((d) => [d.fattura_ricevuta_id, d]));
+    },
+  });
+  const apriPdfRicevuta = async (f: FatturaRicevuta) => {
+    const { data, error } = await supabase.storage.from(f.pdf_storage_bucket!).createSignedUrl(f.pdf_storage_path!, 300);
+    if (error || !data) { toast.error("PDF non disponibile", { description: error?.message }); return; }
+    window.open(data.signedUrl, "_blank", "noopener");
+  };
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Dai Tipi dei fornitori si arriva qui con le fatture di quel fornitore già cercate.
@@ -398,7 +428,7 @@ export default function FattureRicevutePage() {
       let q = supabase
         .from("fatture_ricevute" as never)
         .select(
-          "id, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, ritenuta_importo, xml_url, stato, note, created_at, purchase_order_id, company_cost_id, aggancio_oda_manuale, categoria_ai, sottocategoria_ai, categoria_confidenza, storico_esterno, fornitore_id, note_interne, piano_pagamento, netto_a_pagare, rettifica_motivo" as never,
+          "id, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, ritenuta_importo, xml_url, stato, note, created_at, purchase_order_id, company_cost_id, aggancio_oda_manuale, categoria_ai, sottocategoria_ai, categoria_confidenza, storico_esterno, fornitore_id, note_interne, piano_pagamento, netto_a_pagare, rettifica_motivo, riepilogo_iva, aliquota_reverse_charge, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, pdf_storage_bucket, pdf_storage_path" as never,
         )
         .eq("company_id", companyId!)
         .order("data_fattura", { ascending: false })
@@ -873,8 +903,12 @@ export default function FattureRicevutePage() {
   // deve poter fallire per conto suo senza trascinarsi dietro le altre: su un
   // carico di trecento file sapere QUALI non sono passate, e perche', e' tutto.
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
+    const tutti = Array.from(e.target.files ?? []);
     if (fileInputRef.current) fileInputRef.current.value = "";
+    // Un PDF non è una fattura elettronica: i suoi dati li scrive chi lo carica.
+    const pdf = tutti.filter((f) => /\.pdf$/i.test(f.name));
+    if (pdf.length > 0) setPdfInCoda((coda) => [...coda, ...pdf]);
+    const files = tutti.filter((f) => !/\.pdf$/i.test(f.name));
     if (files.length === 0) return;
 
     setReport(null);
@@ -1024,6 +1058,7 @@ export default function FattureRicevutePage() {
     if (f.stato === "non_letta") {
       updateStatoMutation.mutate({ id: f.id, stato: "letta" });
     }
+    if (f.pdf_storage_path && f.pdf_storage_bucket) { await apriPdfRicevuta(f); return; }
     const { data, error } = await supabase
       .from("fatture_ricevute" as never)
       .select("xml_raw" as never)
@@ -1054,6 +1089,7 @@ export default function FattureRicevutePage() {
   // Il file originale nell'archivio se c'è; altrimenti l'XML salvato con la fattura
   // (le fatture importate a mano non sempre hanno la copia in archivio).
   const handleScaricaOriginale = async (f: FatturaRicevuta) => {
+    if (f.pdf_storage_path && f.pdf_storage_bucket) { await apriPdfRicevuta(f); return; }
     try {
       let data: Blob | null = null;
       if (f.xml_url) {
@@ -1132,7 +1168,7 @@ export default function FattureRicevutePage() {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".xml,.p7m,.zip"
+            accept=".xml,.p7m,.zip,.pdf"
             multiple
             className="hidden"
             onChange={handleFileUpload}
@@ -1189,7 +1225,7 @@ export default function FattureRicevutePage() {
               ? progress.totale > 0
                 ? `Importazione ${progress.fatte} di ${progress.totale}${progress.inizio && tempoRimanente(progress.fatte, progress.totale, Date.now() - progress.inizio) ? ` · ${tempoRimanente(progress.fatte, progress.totale, Date.now() - progress.inizio)}` : "…"}`
                 : "Lettura file…"
-              : "Importa XML"}
+              : "Importa XML o PDF"}
           </Button>
         </div>
       </div>
@@ -1631,6 +1667,13 @@ export default function FattureRicevutePage() {
                   <TableCell>
                     <div className="flex items-center gap-1.5">
                       <span className="block max-w-[190px] truncate font-mono text-sm" title={f.numero_fattura}>{f.numero_fattura}</span>
+                      {integrazioni?.get(f.id) ? (
+                        <Link to={`/azienda/documenti/${integrazioni.get(f.id)!.id}`} className="whitespace-nowrap text-xs text-emerald-700 underline-offset-2 hover:underline" title={`Integrazione ${integrazioni.get(f.id)!.numero}`}>Integrata</Link>
+                      ) : serveIntegrazione(f) && (
+                        <button type="button" onClick={() => setDaIntegrare(f)} className={`whitespace-nowrap text-xs underline-offset-2 hover:underline ${f.pdf_storage_path ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}>
+                          {f.pdf_storage_path ? "Da regolarizzare" : "Integra"}
+                        </button>
+                      )}
                       {etichettaTipoRicevuta(f.tipo_documento) !== "Fattura" && <span className="whitespace-nowrap text-xs text-muted-foreground">{etichettaTipoRicevuta(f.tipo_documento)}</span>}
                     </div>
                   </TableCell>
@@ -2012,6 +2055,16 @@ export default function FattureRicevutePage() {
         }}
       />
 
+      <IntegrazioneRicevutaDialog fattura={daIntegrare} onClose={() => setDaIntegrare(null)} />
+      <CaricaRicevutaPdfDialog
+        file={pdfInCoda[0] ?? null}
+        companyId={companyId}
+        onClose={() => setPdfInCoda((coda) => coda.slice(1))}
+        onCaricata={() => {
+          setPdfInCoda((coda) => coda.slice(1));
+          void queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
+        }}
+      />
       {/* La fattura leggibile + stampa / PDF */}
       <Dialog open={!!fatturaVista} onOpenChange={(o) => { if (!o) setFatturaVista(null); }}>
         <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 gap-0">

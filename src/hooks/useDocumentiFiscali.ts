@@ -128,6 +128,7 @@ function mapRow(row: Record<string, unknown>): DocumentoFiscale {
     testo_conclusivo: row.testo_conclusivo as string | undefined,
     // DDT
     ddt_fattura_id: row.ddt_fattura_id as string | undefined,
+    fattura_ricevuta_id: row.fattura_ricevuta_id as string | undefined,
     ddt_fatturato: row.ddt_fatturato as boolean | undefined,
     ddt_causale_trasporto: row.ddt_causale_trasporto as string | undefined,
     ddt_aspetto_beni: row.ddt_aspetto_beni as string | undefined,
@@ -503,7 +504,7 @@ export function useDeleteDocumento() {
       // la fattura dopo salta un numero. Lo fa il database (documento_elimina_bozza):
       // la bozza va nel cestino con un segnaposto al posto del numero e il
       // contatore torna al più alto ancora in uso.
-      if (stato === "bozza" && tipo && ["fattura", "fattura_pa", "nota_credito", "nota_debito", "autofattura", "fattura_riepilogativa"].includes(tipo)) {
+      if (stato === "bozza" && tipo && ["fattura", "fattura_pa", "nota_credito", "nota_debito", "autofattura", "fattura_riepilogativa", "reverse_charge_interno", "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue"].includes(tipo)) {
         const { error: rpcErr } = await (supabase.rpc.bind(supabase) as unknown as (
           fn: string,
           args: Record<string, unknown>,

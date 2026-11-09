@@ -18,7 +18,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
-import { clienteDaFatturaImportata } from "../_shared/clienteOperativoDaFattura.ts";
+import { clienteDaDocumentoEmesso, clienteDaFatturaImportata, fatturaDaDocumento } from "../_shared/clienteOperativoDaFattura.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -76,6 +76,40 @@ serveConMetricheRapida("clienti-da-fatture-importate", async (req) => {
     if (errTimbro && errori.length < 5) errori.push(`${f.id} (timbro): ${errTimbro.message}`);
   }
 
-  console.log("[clienti-da-fatture-importate]", JSON.stringify({ guardate: fatture?.length ?? 0, ...conti }));
-  return json({ ok: true, guardate: fatture?.length ?? 0, ...conti, dettaglio_errori: errori });
+  // Le fatture emesse da qui: stessa strada. Chi è fatturato compare in Clienti.
+  let qEmesse = supabase.from("documenti_fiscali")
+    .select("id, company_id, cliente_snapshot")
+    .in("tipo", ["fattura", "fattura_pa", "fattura_riepilogativa", "nota_debito"])
+    .not("stato", "in", "(bozza,annullata)")
+    .is("cliente_collegato_at", null).is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(limite);
+  if (soloAzienda) qEmesse = qEmesse.eq("company_id", soloAzienda);
+  const { data: emesse, error: errEmesse } = await qEmesse;
+  if (errEmesse && errori.length < 5) errori.push(`Lettura fatture emesse: ${errEmesse.message}`);
+
+  for (const d of (emesse ?? []) as any[]) {
+    const fattura = fatturaDaDocumento(d);
+    const haIdentita = !!((fattura.client_vat_number || "").trim() || (fattura.client_fiscal_code || "").trim());
+    const r = haIdentita
+      ? await clienteDaDocumentoEmesso(supabase, d.company_id, fattura)
+      : { esito: "da_verificare" as const, motivo: "Fattura senza P.IVA né codice fiscale" };
+    if (r.esito === "errore") {
+      conti.errori++;
+      if (errori.length < 5) errori.push(`${d.id}: ${r.motivo}`);
+      continue;
+    }
+    if (r.esito === "collegato") { conti.collegate++; if (r.creato) conti.clienti_creati++; }
+    else if (haIdentita) conti.da_verificare++;
+    else conti.senza_dati++;
+    const { error: errTimbro } = await supabase.from("documenti_fiscali").update({
+      cliente_collegato_at: new Date().toISOString(),
+      cliente_collegato_esito: r.esito === "collegato" ? "collegato" : `da_verificare: ${r.motivo}`.slice(0, 300),
+    }).eq("id", d.id);
+    if (errTimbro && errori.length < 5) errori.push(`${d.id} (timbro): ${errTimbro.message}`);
+  }
+
+  const guardate = (fatture?.length ?? 0) + (emesse?.length ?? 0);
+  console.log("[clienti-da-fatture-importate]", JSON.stringify({ guardate, ...conti }));
+  return json({ ok: true, guardate, ...conti, dettaglio_errori: errori });
 });
