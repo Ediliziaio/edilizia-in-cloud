@@ -158,7 +158,7 @@ function personalizzazioneDocumento(companyId) {
   return companyId === IMPRESA_VULCANO ? VESTE_VULCANO : SENZA_PERSONALIZZAZIONE;
 }
 var puntiInMm = (punti) => punti * 25.4 / 72;
-var PERCORSO_FONT_PIEDE = "/fonts/EBGaramond-Regular.ttf";
+var PERCORSO_FONT_PIEDE = "/fonts/EBGaramond-Regular.ttf?v=2";
 function urlFontPiede() {
   try {
     const origine = globalThis.location?.origin;

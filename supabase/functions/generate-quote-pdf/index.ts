@@ -683,3 +683,5 @@ Deno.serve(async (req) => {
     return errorResponse("Errore interno", 500, corsH);
   }
 });
+
+// 09/11/2026: indirizzo del carattere del piè con la versione (_shared/personalizzazioneDocumenti.ts).

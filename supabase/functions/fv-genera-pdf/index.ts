@@ -1086,3 +1086,5 @@ Deno.serve(async (req: Request) => {
 });
 
 // Cointestatario (24/10/2026): ripubblicata col preventivo cointestato.
+
+// 09/11/2026: indirizzo del carattere del piè con la versione (_shared/personalizzazioneDocumenti.ts).

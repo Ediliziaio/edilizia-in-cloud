@@ -47,7 +47,8 @@ export function personalizzazioneDocumento(companyId: string | null | undefined)
 /** Punti PDF in millimetri, per i documenti disegnati con jsPDF. */
 export const puntiInMm = (punti: number): number => (punti * 25.4) / 72;
 
-export const PERCORSO_FONT_PIEDE = "/fonts/EBGaramond-Regular.ttf";
+// «?v=2»: alcuni nodi di Cloudflare tengono in cache, per un anno, la risposta avuta prima che il file esistesse.
+export const PERCORSO_FONT_PIEDE = "/fonts/EBGaramond-Regular.ttf?v=2";
 
 /** Nel browser il file dello stesso sito (vale anche sulle anteprime); sul server l'indirizzo pubblico. */
 export function urlFontPiede(): string {
