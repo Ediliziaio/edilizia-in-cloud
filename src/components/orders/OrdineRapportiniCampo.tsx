@@ -33,6 +33,7 @@ import type { RapportinoStato } from "@/types/rapportino";
 import { SourceBadge } from "@/components/whatsapp/SourceBadge";
 import { LaborApprovalDialog } from "@/components/orders/LaborApprovalDialog";
 import { PulsantePdfRapportino } from "@/components/orders/PulsantePdfRapportino";
+import { QuadroEconomicoRapportino } from "@/components/orders/QuadroEconomicoRapportino";
 import { AnnullaRapportinoDialog, RifiutaRapportinoDialog, useDecisioneRapportino } from "@/components/orders/DecisioneRapportino";
 import { orePersoneRapportino } from "@/lib/campo/orePersone";
 
@@ -491,6 +492,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
 
                             {/* Azioni admin */}
                             <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+                              {canViewCosts && <div className="w-full"><QuadroEconomicoRapportino rapportinoId={r.id} /></div>}
                               <PulsantePdfRapportino report={r} orderId={orderId} />
                               {/* Le ore annullate dall'ufficio non si riapprovano: si reinseriscono da «Ore e persone». */}
                               {canApprove && !r.annullato_at && (

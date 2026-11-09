@@ -6,6 +6,7 @@ const state=vi.hoisted(()=>({data:undefined as unknown,isError:false,isFetching:
 vi.mock("@/lib/campo/loadLaborReview",()=>({loadLaborReview:vi.fn()}));
 vi.mock("@/components/orders/AvanzamentoDaApprovare", () => ({ AvanzamentoDaApprovare: (): null => null }));
 vi.mock("@/components/orders/DettagliRapportino", () => ({ DettagliRapportino: (): null => null }));
+vi.mock("@/components/orders/QuadroEconomicoRapportino", () => ({ QuadroEconomicoRapportino: (): null => null }));
 vi.mock("@tanstack/react-query",()=>({useQuery:()=>({data:state.data,isError:state.isError,isFetching:state.isFetching,isPending:!state.data&&!state.isError,refetch:state.refetch,error:new Error("Lettura fallita")})}));
 const target:LaborReport={id:"r",company_id:"c",order_id:"A",user_id:"u",data_lavoro:"2026-09-24",stato:"inviato",updated_at:"v",ore_lavorate:4};
 const employee:LaborEmployee={id:"e",user_id:"u",first_name:"Mario",last_name:"Rossi",costo_orario:25};

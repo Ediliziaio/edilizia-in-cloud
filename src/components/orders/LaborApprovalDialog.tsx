@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { AvanzamentoDaApprovare } from "@/components/orders/AvanzamentoDaApprovare";
 import { DettagliRapportino } from "@/components/orders/DettagliRapportino";
+import { QuadroEconomicoRapportino } from "@/components/orders/QuadroEconomicoRapportino";
 
 const eur = (n: number) => n.toLocaleString("it-IT", {style:"currency",currency:"EUR",useGrouping:true});
 interface Props extends LaborReviewRequest {
@@ -34,6 +35,7 @@ export function LaborApprovalDialog({busy, onClose, onApprove, onInspect, onReje
         <DialogDescription className="max-md:hidden">Verifica persone, ore e possibili sovrapposizioni prima di registrare il consuntivo.</DialogDescription>
       </DialogHeader>
       <DettagliRapportino companyId={request.companyId} orderId={request.orderId} reportId={request.reportId} />
+      {request.showCosts && <QuadroEconomicoRapportino rapportinoId={request.reportId} />}
       {query.isPending && <p role="status" className="flex items-center gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin"/>Controllo della giornata…</p>}
       {query.isError && <p role="alert" className="rounded-lg border border-destructive/30 p-3 text-sm">
         Controllo non disponibile. Nessuna approvazione è stata eseguita.
@@ -51,7 +53,8 @@ export function LaborApprovalDialog({busy, onClose, onApprove, onInspect, onReje
               <span className="shrink-0 font-semibold">{row.hours == null ? "Ore da verificare" : row.hours.toLocaleString("it-IT")+" h"}</span>
             </div>
             {row.otherHours > 0 && <p className="mt-1 text-xs text-muted-foreground">Altri rapportini della giornata: {row.otherHours.toLocaleString("it-IT")} h</p>}
-            {request.showCosts && row.kind === "employee" && <div className="mt-2 border-t pt-2 text-xs">
+            {/* Con la tariffa nota i numeri stanno nel riquadro dei costi: qui resta solo se manca. */}
+            {request.showCosts && row.kind === "employee" && <div className={row.rate?.amount != null ? "hidden" : "mt-2 border-t pt-2 text-xs"}>
               <p>{row.rate?.amount != null ? eur(row.rate.amount)+"/h" : "Tariffa da completare"} · {row.rate?.note}</p>
               <p className="mt-1 font-medium">Costo stimato: {row.cost == null ? "Non determinabile" : eur(row.cost)}</p>
             </div>}
