@@ -79,6 +79,65 @@ da provare quando si correggono.
 | E17 | Materiali da WhatsApp: nel PDF risultano «Non specificato» |
 | E18 | Materiali da ufficio: nella scheda materiali l'usato resta 0 |
 
+## Le quattro cose da tenere insieme
+
+### 1. Chi modifica il rapportino
+
+Oggi l'ufficio può approvare, rifiutare o annullare e riscrivere, e completare i campi
+mancanti. Non può correggere un rapportino in modo normale.
+
+| Momento | Chi corregge | Cosa succede |
+|---|---|---|
+| Inviato, non approvato | Ufficio, direttamente | Si salva; resta scritto chi ha cambiato cosa |
+| Approvato | Ufficio con permesso, con **Correggi** | In un colpo solo: toglie ore, costi, fasi e righe vecchie, rimette le nuove |
+| Riga già in un SAL inviato, o giornale firmato | Nessuno | Bloccato col motivo: prima si riapre il SAL, sul giornale si annota |
+
+Ogni correzione lascia un registro: prima, dopo, chi, quando.
+
+### 2. Chi vede cosa
+
+Non si decide pagina per pagina, ma per **livello di informazione**:
+
+| Livello | Operaio | Capocantiere | Ufficio senza costi | Ufficio con costi | Titolare |
+|---|---|---|---|---|---|
+| Ore proprie, lavoro svolto | Sì | Sì | Sì | Sì | Sì |
+| Ore della squadra, fasi | No | Sì | Sì | Sì | Sì |
+| Quantità materiali, mezzi | No, o solo i suoi | Sì | Sì | Sì | Sì |
+| Costo orario e costi | No | No | No | Sì | Sì |
+| Vendita, ricavo, margine | No | No | No | Sì (D2) | Sì |
+
+I livelli costi e vendita si applicano nel database, come nel blocco costi dell'08/11, non solo a schermo.
+
+### 3. Una persona su più cantieri
+
+Oggi c'è già un rapportino per cantiere con le ore di ognuno, e il costo si divide da solo
+in base alle ore. Mancano:
+- **Vista per persona** in ufficio: «Luciano, oggi: A 2 h, B 3 h, C 3 h», si scrive su una
+  riga e nascono i rapportini dei tre cantieri.
+- **Controllo della giornata:** totale della persona contro timbrature e orario normale.
+  Un avviso, non un blocco.
+- **Unità giornata:** con 2 ore in un cantiere si fattura la frazione, non la giornata (D3).
+
+### 4. Materiali: una sola fonte di costo
+
+Il rapportino dice **quanto si è usato e per quale lavorazione**. Il costo arriva da un posto
+solo, così non si conta mai due volte.
+
+| Caso | Esempio | Nel rapportino | Da dove viene il costo |
+|---|---|---|---|
+| A. Previsto in commessa | 30 sacchi previsti, oggi 20 | Sceglie dalla lista: restano 10; avviso se si supera 30 | Ordine o magazzino già registrati |
+| B. Non previsto, dal magazzino | 5 sacchi presi in sede | Lo aggiunge, indica la lavorazione | Scarico di magazzino all'approvazione |
+| C. Non previsto, comprato o portato in cantiere | 10 sacchi dal rivenditore | Lo aggiunge, indica la lavorazione e il fornitore se lo sa | **DDT di entrata**, poi fattura |
+| D. Consumo minuto | Viti, silicone | Scrive la voce | Voce libera, o nessun costo |
+
+**DDT di entrata (caso C).** L'ufficio trova «Materiali da regolarizzare» per cantiere: con un
+tocco raccoglie quelle righe in una bolla di entrata, sulla stessa struttura delle bolle che
+già esistono senza ordine (`ddt_ricezione`, `ddt_righe`). Arrivata la fattura, si abbina e il
+costo diventa definitivo. Fino ad allora è stimato e segnato come tale.
+
+Oggi dal cantiere si può già scrivere un materiale libero, ma non genera nulla; dall'ufficio
+solo articoli della commessa.
+
 ## Lavori, in ordine
 
 **Lotto 0. Numeri giusti** — E1–E6, E9–E11, E15–E18. Prima di tutto il resto: senza, ogni
@@ -95,8 +154,12 @@ Sotto: fasi con ore e costo (risolve E8), materiali e mezzi con valore, totale g
 **Lotto 2. Voci libere** — Righe nel rapportino: descrizione, quantità, unità, costo unitario,
 vendita unitaria (trasporto, nolo, smaltimento). Entrano in costi e rendiconto una volta sola.
 
-**Lotto 3. Materiali e mezzi con valore** — Valore da ordine, magazzino o listino. Regola
-anti-doppione in D4.
+**Lotto 2b. Correggi e livelli** — Correzione dell'ufficio con registro, livelli di
+visibilità nel database, vista per persona su più cantieri.
+
+**Lotto 3. Materiali** — I quattro casi: residuo sui previsti, aggiunta fuori commessa con
+lavorazione e provenienza, scarico da magazzino, «Materiali da regolarizzare» e DDT di entrata.
+Mezzi con costo orario.
 
 **Lotto 4. Giornale automatico** — Una pagina per cantiere e giorno con tutti i rapportini:
 persone con nome, lavori, materiali, mezzi. Si aggiorna finché non è firmata. Mai importi.
@@ -118,7 +181,9 @@ Prova su una commessa vera, per una settimana, confrontando con i loro conti.
 | D1 | Lo straordinario costa di più? | Sì: maggiorazione impostabile, 0 di partenza |
 | D2 | Chi vede la vendita nel rapportino? | Chi vede i costi |
 | D3 | Unità «giornata»: 2 ore cosa valgono? | Mezza giornata fino a 4 ore, impostabile sul contratto |
-| D4 | I materiali del rapportino entrano nei costi? | Solo se non già pagati con ordine o magazzino; altrimenti si mostrano e basta |
+| D4 | Chi indica la provenienza dei materiali fuori commessa (casi B e C)? | Il capocantiere la propone, l'ufficio conferma |
 | D5 | I mezzi entrano nei costi? | Sì, con un costo orario sul mezzo (oggi manca) |
 | D6 | Il giornale prende anche i rapportini non approvati? | Solo approvati; gli altri segnati «in attesa» |
 | D7 | A corpo le ore si rendicontano? | Solo come documento, importo 0; si fatturano solo gli extra |
+| D8 | Chi può correggere un rapportino già approvato? | Chi può approvare; mai il proprio, salvo il titolare |
+| D9 | Il capocantiere vede le ore degli altri? | Sì, sono la sua squadra |
