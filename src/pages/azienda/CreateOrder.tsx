@@ -1,3 +1,4 @@
+import { COLONNE_RIGHE_LAVORO, righeDaLavoroPrecedente, totaleDelleRighe } from "@/lib/orders/righeDaLavoroPrecedente";
 import { verificaCostoSuPiano, modalitaCostoFinanziaria, costoDaSottrarreAlSaldo, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 import { verificaSupportoModalitaFinanziaria } from "@/lib/finanziamenti/verificaSupportoModalita";
 import { ContractOfficeAssignments } from "@/components/orders/ContractOfficeAssignments";
@@ -760,6 +761,29 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     if (!getValues("internal_notes")?.trim()) setValue("internal_notes",prefill.internal_notes);
     // Non copia importo, incassi, date lavori, avanzamento o articoli da ordinare.
   }, [invoiceSource.data,effectiveCompany?.id,invoiceId,getValues,setValue]);
+
+  // Nuovo lavoro per un cliente che c'è già: si riparte dalle righe di un suo lavoro precedente (09/11/2026).
+  const copiaDa = searchParams.get("copia_da");
+  const righeCopiate = useQuery({
+    queryKey: ["righe-lavoro-precedente", copiaDa], enabled: !!copiaDa && !!effectiveCompany?.id, staleTime: Infinity,
+    queryFn: async () => {
+      const { data: origine, error: e } = await supabase.from("orders").select("id").eq("id", copiaDa!).eq("company_id", effectiveCompany!.id).maybeSingle();
+      if (e || !origine) throw new Error("Lavoro non trovato");
+      const { data, error } = await supabase.from("order_items").select(COLONNE_RIGHE_LAVORO).eq("order_id", copiaDa!).order("position", { ascending: true });
+      if (error) throw error;
+      return righeDaLavoroPrecedente(data ?? []);
+    },
+  });
+  const righeCopiateRef = useRef(false);
+  useEffect(() => {
+    if (!righeCopiate.data || righeCopiateRef.current) return;
+    righeCopiateRef.current = true;
+    if (righeCopiate.data.length === 0) return;
+    setOrderItems(righeCopiate.data);
+    const totale = totaleDelleRighe(righeCopiate.data);
+    if (totale > 0 && !parseDecimalIT(getValues("total_amount") ?? "")) setValue("total_amount", formatDecimalIT(totale));
+    toast.success(`${righeCopiate.data.length} righe riprese dal lavoro precedente`, { description: "Correggi quantità e prezzi se serve." });
+  }, [righeCopiate.data, getValues, setValue]);
 
   // Clienti appena creati dal dialog inline. La query `useCompanyCustomers` viene
   // invalidata/rifetchata dopo la creazione; se quel refetch dovesse per qualsiasi

@@ -21,17 +21,24 @@ const disegna = () => render(
 );
 
 describe("nuovo contratto dal cliente", () => {
-  it("scegliendo la commessa si apre il contratto su quella commessa", async () => {
-    righe.valore = [{ id: "o1", order_code: "SIM-COMMITTENTE", description: "Ristrutturazione" }];
-    disegna();
-    fireEvent.click(await screen.findByText("SIM-COMMITTENTE"));
-    expect(screen.getByTestId("dove")).toHaveTextContent("/azienda/ordini/o1?contratto=1");
-  });
-  it("senza commesse lo dice e porta a crearne una, col cliente già scelto", async () => {
+  it("nuovo lavoro: si apre la commessa col cliente e il contratto da preparare", async () => {
     righe.valore = [];
     disegna();
-    expect(await screen.findByText(/non ha ancora commesse/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Nuova commessa/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Nuovo lavoro/ }));
     expect(screen.getByTestId("dove")).toHaveTextContent("/azienda/ordini/nuovo?customer_id=c1&customer_name=Giulia%20Ferrari&contratto=1");
+  });
+  it("si possono riprendere le righe di un lavoro precedente", async () => {
+    righe.valore = [{ id: "o1", order_code: "SIM-1", description: "Bagno" }];
+    disegna();
+    fireEvent.change(await screen.findByLabelText("Righe del nuovo lavoro"), { target: { value: "o1" } });
+    fireEvent.click(screen.getByRole("button", { name: /Nuovo lavoro/ }));
+    expect(screen.getByTestId("dove")).toHaveTextContent("contratto=1&copia_da=o1");
+  });
+  it("oppure il contratto su un lavoro che c'è già", async () => {
+    righe.valore = [{ id: "o1", order_code: "SIM-1", description: "Bagno" }];
+    disegna();
+    await screen.findByLabelText("Righe del nuovo lavoro");
+    fireEvent.click(screen.getByRole("button", { name: /^SIM-1/ }));
+    expect(screen.getByTestId("dove")).toHaveTextContent("/azienda/ordini/o1?contratto=1");
   });
 });

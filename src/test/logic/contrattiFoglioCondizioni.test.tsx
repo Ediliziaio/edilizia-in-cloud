@@ -203,3 +203,15 @@ ${condizioniInCodaAlContratto(MODELLO)}`;
     expect(t).toContain("approva specificamente: Foro");
   });
 });
+
+import { righeDaLavoroPrecedente, totaleDelleRighe } from "@/lib/orders/righeDaLavoroPrecedente";
+
+describe("nuovo lavoro per un cliente che c'è già", () => {
+  it("riprende cosa si fa e il prezzo, non fornitori e pagamenti", () => {
+    const [r] = righeDaLavoroPrecedente([{ name: "Posa", quantity: 2, unit_price: 100, discount_percent: 10, unita_misura: "mq", categoria: "Opere", supplier_id: "s", is_paid: true, deposit_amount: 50 }]);
+    expect(r).toMatchObject({ name: "Posa", quantity: 2, unit_price: 100, unita_misura: "mq", categoria: "Opere", position: 0 });
+    expect(r).not.toHaveProperty("supplier_id");
+    expect(r).not.toHaveProperty("is_paid");
+    expect(totaleDelleRighe([r])).toBe(180);
+  });
+});

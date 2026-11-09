@@ -10,7 +10,7 @@
  * server). Gli altri possono sistemare parti, oggetto e importi, ma non le condizioni.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useCondizioniArchivio } from "@/hooks/useCondizioniArchivio";
@@ -92,6 +92,7 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
   const qc = useQueryClient();
   // «Nuovo contratto» dalla scheda del cliente arriva qui con ?contratto=1: si apre da solo.
   const [parametri, setParametri] = useSearchParams();
+  const daCreare = useRef(parametri.get("contratto") === "1");
   const [open, setOpen] = useState(() => parametri.get("contratto") === "1");
   useEffect(() => {
     if (parametri.get("contratto") !== "1") return;
@@ -150,6 +151,16 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
       toast.error(err instanceof Error ? err.message : String(err));
     },
   });
+
+  // Arrivati dalla scheda del cliente per un lavoro nuovo: il contratto standard si prepara da solo, senza un altro
+  // clic. Solo se la commessa non ne ha già uno e le condizioni dell'azienda ci sono.
+  useEffect(() => {
+    if (!daCreare.current || !existing || archivio.inCaricamento) return;
+    daCreare.current = false;
+    if (existing.length > 0 || !predefinitoAppalto) return;
+    generaMutation.mutate("standard");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existing, archivio.inCaricamento, predefinitoAppalto]);
 
   // AI compliance review
   const [reviewResult, setReviewResult] = useState<{
