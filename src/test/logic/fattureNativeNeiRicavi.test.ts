@@ -69,6 +69,22 @@ describe("La vista unica delle fatture emesse", () => {
   });
 });
 
+describe("La stessa fattura con lo stesso id", () => {
+  const seconda = readFileSync(
+    join(__dirname, "../../..", "supabase/migrations/20290126140100_fatture_emesse_gemelle_stesso_id.sql"),
+    "utf8",
+  );
+
+  it("si riconosce anche quando il numero è diverso", () => {
+    expect(seconda).toContain("g.id = d.id");
+    expect(seconda).toContain("g.invoice_number = d.numero");
+  });
+
+  it("la vista resta con i permessi di chi chiede", () => {
+    expect(seconda).toContain("alter view public.v_cg_fatture_emesse set (security_invoker = on)");
+  });
+});
+
 describe("Chi la legge", () => {
   it("ricavi e fatturato delle commesse passano dalla vista", () => {
     const ricavi = sql.slice(sql.indexOf("create or replace view public.v_cg_ricavi_classificati"));
