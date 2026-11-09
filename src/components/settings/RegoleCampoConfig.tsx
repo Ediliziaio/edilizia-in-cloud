@@ -8,17 +8,16 @@ import { StatoSalvataggio } from "@/components/impostazioni/StatoSalvataggio";
  * e dai collegamenti alle risorse operative; senza scelte l'app funziona come sempre.
  *
  * Il titolo della pagina lo mette il layout delle Impostazioni. Le scelte si salvano insieme, con «Salva modifiche»
- * (la barra resta in vista mentre si scorre), e uscire con una scelta cambiata chiede conferma.
+ * (il salvataggio compare in basso solo quando c’è qualcosa da salvare), e uscire con una scelta cambiata chiede conferma.
  */
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { ArrowUpRight, Info, Loader2, Save, Users, CalendarDays, ListChecks, ClipboardCheck } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useRegoleAzienda, useSalvaRegoleAzienda } from "@/hooks/useRegoleCampo";
 import { useVaiASezione } from "@/hooks/useVaiASezione";
-import { useSettingsFloatingBar } from "@/hooks/useSettingsFloatingBar";
 import { RegoleCampoAnteprima } from "@/components/settings/RegoleCampoAnteprima";
 import { ChiFaCosaRiquadro } from "@/components/settings/ChiFaCosaRiquadro";
 import { ModuliCantiereConfig, type StatoModulo } from "@/components/settings/ModuliCantiereConfig";
@@ -31,33 +30,31 @@ import {
 } from "@/lib/campo/regoleCampo";
 import { giorniIndietroValidi } from "@/lib/campo/workDay";
 import { AvvisoSolaLetturaImpostazioni } from "@/components/impostazioni/AvvisoSolaLetturaImpostazioni";
-import { IndiceSezioni, SezioneImpostazione } from "@/components/impostazioni/SezioneImpostazione";
+import { SezioneImpostazione } from "@/components/impostazioni/SezioneImpostazione";
+import VociRapportinoConfig from "@/components/settings/VociRapportinoConfig";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
-const SEZIONI = [
-  { id: "chi-fa-cosa", etichetta: "Chi fa cosa" },
-  { id: "chi-scrive", etichetta: "Chi compila" },
-  { id: "ore", etichetta: "Ore e presenze" },
-  { id: "avviso", etichetta: "Controllo ore" },
-  { id: "giorni", etichetta: "Giorni indietro" },
-  { id: "bozza-giornale", etichetta: "Bozza del giornale" },
-  { id: "in-pratica", etichetta: "Anteprima" },
+// Una scheda per argomento. Le àncore vecchie (#ore, #giorni…) continuano a portare alla scheda giusta.
+type Scheda = "compila" | "ore" | "moduli" | "voci" | "verbali" | "giornale";
+const SCHEDE: Array<{ id: Scheda; etichetta: string; soloScrivania?: boolean }> = [
+  { id: "compila", etichetta: "Chi compila" },
+  { id: "ore", etichetta: "Ore" },
+  { id: "moduli", etichetta: "Cosa si scrive", soloScrivania: true },
+  { id: "voci", etichetta: "Voci e costi", soloScrivania: true },
+  { id: "verbali", etichetta: "Verbali", soloScrivania: true },
+  { id: "giornale", etichetta: "Giornale" },
 ];
-// Si configurano da tablet e computer: da telefono queste sezioni non ci sono.
-const SEZIONI_MODULI = [
-  { id: "voci-rapportino", etichetta: "Voci e costi" },
-  { id: "parti", etichetta: "Parti" },
-  { id: "campi-propri", etichetta: "Campi propri" },
-  { id: "verbali", etichetta: "Verbali" },
-];
+const SCHEDA_DI_ANCORA: Record<string, Scheda> = {
+  "chi-fa-cosa": "compila", "chi-scrive": "compila", "in-pratica": "compila", ore: "ore", avviso: "ore", giorni: "ore",
+  parti: "moduli", "campi-propri": "moduli", "voci-rapportino": "voci", verbali: "verbali", "bozza-giornale": "giornale",
+};
 
 function Opzione({
   value, titolo, descrizione, scelta, disabilitata,
@@ -137,8 +134,11 @@ export default function RegoleCampoConfig() {
   const { data, isLoading, isError, refetch } = useRegoleAzienda(companyId);
   const salva = useSalvaRegoleAzienda(companyId);
   const bozzaSerale = useBozzaGiornaleSerale(companyId);
-  const { evidenziata, vai } = useVaiASezione(!!companyId && !isLoading && !isError && !!data);
-  const { contenitore, barra, stile, altezza } = useSettingsFloatingBar();
+  const { evidenziata } = useVaiASezione(!!companyId && !isLoading && !isError && !!data);
+  const { hash } = useLocation();
+  const [scheda, setScheda] = useState<Scheda>(() => SCHEDA_DI_ANCORA[hash.slice(1)] ?? "compila");
+  useEffect(() => { const s = SCHEDA_DI_ANCORA[hash.slice(1)]; if (s) setScheda(s); }, [hash]);
+  const pannello = (id: Scheda) => (scheda === id ? "space-y-4" : "hidden");
 
   // Le modifiche non ancora salvate: si parte da ciò che c'è, si salva a richiesta. La bozza è di UN'azienda: se si cambia
   // azienda (super amministratore) quella dell'altra non si vede.
@@ -208,11 +208,6 @@ export default function RegoleCampoConfig() {
 
   return (
     <div className="w-full min-w-0 space-y-4 [&_section]:scroll-mt-44 sm:[&_section]:scroll-mt-32" data-testid="regole-campo-pagina">
-      <p className="text-sm text-muted-foreground">
-        Scegli chi compila il giornaliero, come raccogliere le ore e quando segnalare una differenza.
-        Le regole valgono per tutti i cantieri dell’azienda; persone e responsabili si assegnano nelle commesse.
-      </p>
-
       {!data?.sceltaFatta && (
         <Alert>
           <Info className="h-4 w-4" />
@@ -223,30 +218,69 @@ export default function RegoleCampoConfig() {
       )}
       {!permissions.isLoading && !puoModificare && <AvvisoSolaLetturaImpostazioni permesso="Configurazione Ordini" />}
 
-      <div ref={contenitore} className="sticky top-2 z-20" style={{ height: altezza }}>
-      <div ref={barra} style={stile} className="settings-save-bar z-20 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card/95 p-2 shadow-sm backdrop-blur">
-        <IndiceSezioni voci={mobile ? SEZIONI : [...SEZIONI, ...SEZIONI_MODULI]} onVai={vai} />
-        {puoModificare && (
-          <div className="flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:w-auto">
-            <StatoSalvataggio modificato={daSalvare} inCorso={inCorso} />
-            {daSalvare && (
-              <Button size="sm" variant="ghost" aria-label="Annulla le modifiche" onClick={annulla} disabled={inCorso}>
-                <span className="hidden sm:inline" aria-hidden="true">Annulla le modifiche</span><span className="sm:hidden" aria-hidden="true">Annulla</span>
-              </Button>
-            )}
-            <Button size="sm" onClick={conferma} disabled={!daSalvare || inCorso}>
-              {inCorso ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-              Salva modifiche
-            </Button>
-          </div>
-        )}
-      </div>
+      <div role="tablist" aria-label="Argomenti" className="flex min-w-0 max-w-full gap-1 overflow-x-auto border-b">
+        {SCHEDE.filter((x) => !(mobile && x.soloScrivania)).map((x) => (
+          <button key={x.id} type="button" role="tab" aria-selected={scheda === x.id} onClick={() => setScheda(x.id)}
+            className={cn("tap-compact -mb-px shrink-0 border-b-2 px-3 py-2 text-sm font-medium transition-colors", scheda === x.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>
+            {x.etichetta}
+          </button>
+        ))}
       </div>
 
-      {/* In cima: prima di scegliere, il titolare vede chi fa cosa con le regole che ha davanti (anche non salvate). */}
-      <details className="rounded-xl border bg-card">
-      <summary className="cursor-pointer px-4 py-3 text-sm font-medium">Chi fa cosa con queste regole</summary>
-      <div className="border-t p-3">
+      {/* Compare solo con qualcosa da salvare; su telefono sta sopra la barra di navigazione. */}
+      {puoModificare && (
+        <div className={cn("fixed inset-x-4 bottom-24 z-40 flex items-center justify-between gap-3 rounded-lg border bg-card p-2 pl-3 shadow-lg md:inset-x-auto md:bottom-6 md:left-1/2 md:-translate-x-1/2", !daSalvare && "hidden")}>
+          <StatoSalvataggio modificato={daSalvare} inCorso={inCorso} />
+          <div className="flex shrink-0 items-center gap-1">
+            <Button size="sm" variant="ghost" aria-label="Annulla le modifiche" onClick={annulla} disabled={inCorso}>Annulla</Button>
+            <Button size="sm" aria-label="Salva modifiche" onClick={conferma} disabled={!daSalvare || inCorso}>
+              {inCorso && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Salva
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <div className="min-w-0 space-y-4" data-testid="regole-campo-colonne">
+        <fieldset disabled={bloccato} className="m-0 min-w-0 border-0 p-0">
+        <div className={pannello("compila")}>
+
+
+        <SezioneImpostazione
+          id="chi-scrive"
+          evidenziata={evidenziata === "chi-scrive"}
+          titolo="Chi scrive il rapportino?"
+          descrizione="Vale per tutti i cantieri. Dove manca il capocantiere, ognuno scrive il suo."
+        >
+          <div className="px-4 py-4">
+            <RadioGroup
+              aria-labelledby="chi-scrive-titolo"
+              value={regole.chiCompila}
+              onValueChange={(v) => cambia({ chiCompila: v as ChiCompila })}
+              className="grid gap-3"
+            >
+              <Opzione
+                value="ognuno" titolo="Ogni operaio scrive il suo"
+                descrizione="Ognuno scrive ore, lavori e foto della sua giornata."
+                scelta={regole.chiCompila === "ognuno"} disabilitata={bloccato}
+              />
+              <Opzione
+                value="capo" titolo="Scrive tutto il capocantiere"
+                descrizione="Il capocantiere scrive il rapportino della squadra, con le ore di ognuno. Gli operai timbrano e basta."
+                scelta={regole.chiCompila === "capo"} disabilitata={bloccato}
+              />
+              <Opzione
+                value="ore_proprie" titolo="Il capocantiere scrive i lavori, ognuno le sue ore"
+                descrizione="Il capocantiere racconta cosa si è fatto, con foto e avanzamento. Ogni operaio manda solo le sue ore."
+                scelta={regole.chiCompila === "ore_proprie"} disabilitata={bloccato}
+              />
+            </RadioGroup>
+          </div>
+        </SezioneImpostazione>
+
+        <details className="group">
+          <summary className="cursor-pointer px-1 text-sm font-medium text-primary">Vedi cosa fa ognuno con questa scelta</summary>
+          <div className="mt-3 space-y-4">
       <ChiFaCosaRiquadro
         regole={regole}
         modificato={modificato}
@@ -259,54 +293,20 @@ export default function RegoleCampoConfig() {
         }}
       />
 
-      </div>
-      </details>
-
-      <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]" data-testid="regole-campo-colonne">
-        <div className="min-w-0 space-y-4">
-        <fieldset disabled={bloccato} className="m-0 min-w-0 space-y-4 border-0 p-0">
-
-
-        <SezioneImpostazione
-          id="chi-scrive"
-          evidenziata={evidenziata === "chi-scrive"}
-          titolo="Chi scrive il rapportino del cantiere?"
-          descrizione="Il racconto della giornata: cosa si è fatto, foto, materiali, avanzamento."
-        >
-          <div className="px-4 py-4">
-            <RadioGroup
-              aria-labelledby="chi-scrive-titolo"
-              value={regole.chiCompila}
-              onValueChange={(v) => cambia({ chiCompila: v as ChiCompila })}
-              className="grid gap-3"
-            >
-              <Opzione
-                value="ognuno" titolo="Ognuno il suo"
-                descrizione="Ogni operaio scrive il rapportino della propria giornata. Il capocantiere può aggiungere la squadra."
-                scelta={regole.chiCompila === "ognuno"} disabilitata={bloccato}
-              />
-              <Opzione
-                value="capo" titolo="Lo scrive il capocantiere"
-                descrizione="Il capocantiere invia il giornaliero del cantiere; i capisquadra possono rendicontare la propria squadra. Gli operai timbrano entrata e uscita. Senza un responsabile assegnato, ciascuno compila il proprio giornaliero."
-                scelta={regole.chiCompila === "capo"} disabilitata={bloccato}
-              />
-              <Opzione
-                value="ore_proprie" titolo="Il racconto al capo, le ore a ognuno"
-                descrizione="Lavori, foto e avanzamento li racconta il responsabile. Ogni persona, incluso il responsabile, conferma solo le proprie ore: niente presenze degli altri nello stesso rapportino. Senza un responsabile assegnato, ciascuno compila il proprio giornaliero."
-                scelta={regole.chiCompila === "ore_proprie"} disabilitata={bloccato}
-              />
-            </RadioGroup>
+            <RegoleCampoAnteprima regole={regole} modificato={modificato} dettagli={inPratica(regole)} evidenziata={evidenziata === "in-pratica"} />
           </div>
-        </SezioneImpostazione>
+        </details>
+        </div>
 
+        <div className={pannello("ore")}>
+        {flussoMisto && <p role="status" className="rounded-lg border bg-muted/30 px-4 py-3 text-sm">Ogni persona manda le proprie ore: il capocantiere non le scrive per gli altri, quindi non c’è altro da impostare qui oltre ai giorni indietro.</p>}
+        <div className={flussoMisto ? "hidden" : "space-y-4"}>
         <SezioneImpostazione
           id="ore"
           evidenziata={evidenziata === "ore"}
-          titolo="Da dove vengono le ore di ognuno?"
-          descrizione="Vale per il rapportino di squadra, quello in cui il capo segna chi ha lavorato."
+          titolo="Il capocantiere come segna le ore della squadra?"
         >
           <div className="px-4 py-4">
-            {regole.chiCompila === "ore_proprie" && <p role="status" className="mb-3 text-sm text-muted-foreground">Nel flusso misto ognuno conferma le proprie ore. Questa preferenza viene conservata per quando scegli un flusso con presenze di squadra.</p>}
             <RadioGroup
               aria-labelledby="ore-titolo"
               value={regole.oreDalle}
@@ -314,13 +314,13 @@ export default function RegoleCampoConfig() {
               className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2"
             >
               <Opzione
-                value="capo" titolo="Le scrive il capo"
-                descrizione="Il capo scrive a mano le ore di ogni persona che era in cantiere."
+                value="capo" titolo="Le scrive a mano"
+                descrizione="Per ogni persona che era in cantiere."
                 scelta={regole.oreDalle === "capo"} disabilitata={bloccato || flussoMisto}
               />
               <Opzione
-                value="timbrature" titolo="Dalle timbrature"
-                descrizione="Le ore partono da quelle timbrate in cantiere. Il capo le controlla, aggiunge chi non ha timbrato (ditte, chi non ha l’app, chi ha dimenticato) e può correggere."
+                value="timbrature" titolo="Partono dalle timbrature"
+                descrizione="Le controlla, corregge e aggiunge chi non ha timbrato."
                 scelta={regole.oreDalle === "timbrature"} disabilitata={bloccato || flussoMisto}
               />
             </RadioGroup>
@@ -330,12 +330,9 @@ export default function RegoleCampoConfig() {
         <SezioneImpostazione
           id="avviso"
           evidenziata={evidenziata === "avviso"}
-          titolo="Avviso se le ore non tornano"
-          descrizione="Confronta le presenze inserite dal responsabile con le timbrature disponibili. È un avviso, non un blocco all’invio."
-          ambito={flussoMisto ? <Badge variant="outline">Preferenza conservata</Badge> : undefined}
+          titolo="Avviso se le ore non tornano con le timbrature"
         >
           <div className="space-y-3 px-4 py-4">
-            {flussoMisto && <p className="text-sm text-muted-foreground">Nel flusso misto non si inseriscono presenze di squadra: il controllo si riattiva scegliendo uno degli altri flussi.</p>}
             <div className="flex items-center gap-3">
               <Switch
                 id="avviso-scostamento"
@@ -378,11 +375,12 @@ export default function RegoleCampoConfig() {
           </div>
         </SezioneImpostazione>
 
+        </div>
         <SezioneImpostazione
           id="giorni"
           evidenziata={evidenziata === "giorni"}
-          titolo="Fino a quanti giorni indietro dall’app?"
-          descrizione="Vale per il rapportino e per la richiesta di correzione di una timbratura dimenticata. Le giornate più vecchie le sistema l’ufficio."
+          titolo="Fino a quanti giorni indietro dal cantiere?"
+          descrizione="Oltre, sistema l’ufficio."
         >
           <div className="flex flex-wrap items-center gap-2 px-4 py-4 text-sm">
             <span className="text-muted-foreground">Si può mandare</span>
@@ -405,14 +403,17 @@ export default function RegoleCampoConfig() {
           </div>
         </SezioneImpostazione>
 
+        </div>
         </fieldset>
 
         {/* Fuori dal fieldset: è una colonna dell'azienda, con un permesso diverso, e si salva subito. */}
-        <BozzaGiornaleSerale companyId={companyId} canEdit={isAdmin || permissions.canEditSettingsProfile} evidenziata={evidenziata === "bozza-giornale"} />
+        <div className={pannello("giornale")}>
+          <BozzaGiornaleSerale companyId={companyId} canEdit={isAdmin || permissions.canEditSettingsProfile} evidenziata={evidenziata === "bozza-giornale"} />
         </div>
 
-        <aside className="min-w-0 space-y-4" aria-label="Anteprima e collegamenti">
-          <RegoleCampoAnteprima regole={regole} modificato={modificato} dettagli={inPratica(regole)} evidenziata={evidenziata === "in-pratica"} />
+        <details className={scheda === "compila" ? "group" : "hidden"} aria-label="Collegamenti">
+          <summary className="cursor-pointer px-1 text-sm font-medium text-muted-foreground">Persone, squadre e incarichi</summary>
+          <div className="mt-3 space-y-4">
           {collegamenti.length > 0 && <section className="rounded-lg border bg-card" aria-labelledby="collegamenti-campo-titolo">
             <header className="border-b px-4 py-3">
               <h2 id="collegamenti-campo-titolo" className="text-base font-semibold">Completa l’organizzazione del cantiere</h2>
@@ -430,11 +431,13 @@ export default function RegoleCampoConfig() {
           </section>}
           <p className="px-1 text-xs text-muted-foreground">Le ore approvate alimentano la manodopera della commessa secondo i costi delle persone e degli incarichi. Le tariffe di vendita del listino servono invece a preparare i preventivi.</p>
           {(isAdmin || permissions.canViewSettingsOrders) && <p className="px-1 text-xs text-muted-foreground">Altre regole dell’app: <Link to="/azienda/impostazioni/modelli-fasi#regole" className="font-medium text-primary underline">chi può spuntare le sottofasi</Link>.</p>}
-        </aside>
+          </div>
+        </details>
       </div>
 
-      <ModuliCantiereConfig tipo="rapportino" onStato={setStatoRapportino} evidenziate={{ parti: evidenziata === "parti", "campi-propri": evidenziata === "campi-propri" }} />
-      <ModuliCantiereConfig tipo="verbale" onStato={setStatoVerbale} evidenziate={{ verbali: evidenziata === "verbali" }} />
+      <div className={pannello("moduli")}><ModuliCantiereConfig tipo="rapportino" onStato={setStatoRapportino} evidenziate={{ parti: evidenziata === "parti", "campi-propri": evidenziata === "campi-propri" }} /></div>
+      <div className={pannello("voci")}><div id="voci-rapportino"><VociRapportinoConfig /></div></div>
+      <div className={pannello("verbali")}><ModuliCantiereConfig tipo="verbale" onStato={setStatoVerbale} evidenziate={{ verbali: evidenziata === "verbali" }} /></div>
     </div>
   );
 }

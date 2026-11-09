@@ -21,6 +21,7 @@ vi.mock("@/components/settings/BozzaGiornaleSerale", () => ({
   BozzaGiornaleSerale: (): null => null,
   useBozzaGiornaleSerale: () => ({ data: undefined as boolean | undefined }),
 }));
+vi.mock("@/components/settings/VociRapportinoConfig", () => ({ default: (): null => null }));
 vi.mock("sonner", () => ({ toast: { success: state.successo, error: state.erroreToast } }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ role: state.role, effectiveCompany: { id: state.azienda } }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ isLoading: state.caricamentoPermessi, canEditSettingsOrders: state.modifica }) }));
@@ -52,12 +53,12 @@ describe("Rapportini e presenze: i riquadri", () => {
     apri();
     expect(screen.queryAllByRole("heading", { level: 1 })).toHaveLength(0);
     expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
+      "Chi scrive il rapportino?",
       "Chi fa cosa",
-      "Chi scrive il rapportino del cantiere?",
-      "Da dove vengono le ore di ognuno?",
-      "Avviso se le ore non tornano",
-      "Fino a quanti giorni indietro dall’app?",
       "In pratica, con queste scelte",
+      "Il capocantiere come segna le ore della squadra?",
+      "Avviso se le ore non tornano con le timbrature",
+      "Fino a quanti giorni indietro dal cantiere?",
       "Completa l’organizzazione del cantiere",
     ]);
   });
@@ -78,15 +79,15 @@ describe("Rapportini e presenze: i riquadri", () => {
     apri();
     const riquadro = screen.getByTestId("chi-fa-cosa");
     expect(within(riquadro).getByRole("group", { name: "Operaio" })).toHaveTextContent("Scrive il suo rapportino");
-    fireEvent.click(screen.getByRole("radio", { name: /Lo scrive il capocantiere/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Scrive tutto il capocantiere/ }));
     expect(within(riquadro).getByRole("group", { name: "Operaio" })).toHaveTextContent("Timbra entrata e uscita");
     expect(screen.getByText("Con le scelte non ancora salvate: diventa vero quando salvi.")).toBeInTheDocument();
   });
 
   it("i gruppi di scelte hanno un nome per chi usa il lettore di schermo", () => {
     apri();
-    expect(screen.getByRole("radiogroup", { name: "Chi scrive il rapportino del cantiere?" })).toBeInTheDocument();
-    expect(screen.getByRole("radiogroup", { name: "Da dove vengono le ore di ognuno?" })).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: "Chi scrive il rapportino?" })).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: "Il capocantiere come segna le ore della squadra?" })).toBeInTheDocument();
   });
 
   it("rimanda all'altra regola dell'app di cantiere, che sta in un'altra pagina", () => {
@@ -106,13 +107,14 @@ describe("Rapportini e presenze: i riquadri", () => {
 });
 
 describe("Rapportini e presenze: salvare senza perdere le scelte", () => {
-  it("il pulsante di salvataggio sta in una barra che resta in vista, in cima, e si accende solo con una modifica", () => {
+  it("il pulsante di salvataggio sta in una barra in basso che compare solo con una modifica", () => {
     apri();
     const salva = screen.getByRole("button", { name: "Salva modifiche" });
-    expect(salva.closest(".sticky")).not.toBeNull();
+    expect(salva.closest(".fixed")).toHaveClass("hidden");
     expect(salva).toBeDisabled();
-    fireEvent.click(screen.getByRole("radio", { name: /Lo scrive il capocantiere/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Scrive tutto il capocantiere/ }));
     expect(salva).toBeEnabled();
+    expect(salva.closest(".fixed")).not.toHaveClass("hidden");
     expect(screen.getByText("Modifiche non salvate")).toBeInTheDocument();
   });
 
@@ -138,7 +140,7 @@ describe("Rapportini e presenze: salvare senza perdere le scelte", () => {
   it("«Salva modifiche» manda le tre scelte e dice «Impostazioni salvate»", () => {
     state.mutate.mockImplementation((_regole: RegoleCampo, opzioni: { onSuccess: () => void }) => opzioni.onSuccess());
     apri();
-    fireEvent.click(screen.getByRole("radio", { name: /Dalle timbrature/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Partono dalle timbrature/ }));
     fireEvent.click(screen.getByRole("switch", { name: /Avvisa il capo quando le ore scritte sono diverse/ }));
     fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
     expect(state.mutate).toHaveBeenCalledWith(
@@ -151,10 +153,10 @@ describe("Rapportini e presenze: salvare senza perdere le scelte", () => {
 
   it("«Annulla le modifiche» riporta le scelte com'erano", () => {
     apri();
-    fireEvent.click(screen.getByRole("radio", { name: /Lo scrive il capocantiere/ }));
-    expect(screen.getByRole("radio", { name: /Lo scrive il capocantiere/ })).toBeChecked();
+    fireEvent.click(screen.getByRole("radio", { name: /Scrive tutto il capocantiere/ }));
+    expect(screen.getByRole("radio", { name: /Scrive tutto il capocantiere/ })).toBeChecked();
     fireEvent.click(screen.getByRole("button", { name: "Annulla le modifiche" }));
-    expect(screen.getByRole("radio", { name: /Ognuno il suo/ })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /Ogni operaio scrive il suo/ })).toBeChecked();
     expect(screen.getByRole("button", { name: "Salva modifiche" })).toBeDisabled();
   });
 
@@ -163,7 +165,7 @@ describe("Rapportini e presenze: salvare senza perdere le scelte", () => {
     apri();
     expect(confermaNavigazioneImpostazioni()).toBe(true);
     expect(conferma).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("radio", { name: /Lo scrive il capocantiere/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Scrive tutto il capocantiere/ }));
     expect(confermaNavigazioneImpostazioni()).toBe(false);
     expect(conferma).toHaveBeenCalledTimes(1);
   });
@@ -171,17 +173,17 @@ describe("Rapportini e presenze: salvare senza perdere le scelte", () => {
   it("un rifiuto per permesso arriva in italiano, con il nome del permesso che serve", () => {
     state.mutate.mockImplementation((_r: RegoleCampo, opzioni: { onError: (e: unknown) => void }) => opzioni.onError({ code: "42501", message: "Non puoi cambiare queste impostazioni." }));
     apri();
-    fireEvent.click(screen.getByRole("radio", { name: /Lo scrive il capocantiere/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Scrive tutto il capocantiere/ }));
     fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
     expect(state.erroreToast).toHaveBeenCalledWith("Non hai il permesso di cambiare queste scelte: le cambia chi ha «Configurazione Ordini» in modifica.");
     // le scelte restano com'erano state cambiate: non si perdono
-    expect(screen.getByRole("radio", { name: /Lo scrive il capocantiere/ })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /Scrive tutto il capocantiere/ })).toBeChecked();
   });
 
   it("una scelta non valida mostra la frase del database (è già in italiano); un errore qualunque no", () => {
     state.mutate.mockImplementationOnce((_r: RegoleCampo, opzioni: { onError: (e: unknown) => void }) => opzioni.onError({ code: "22023", message: "Lo scostamento va da 5 minuti a 8 ore." }));
     apri();
-    fireEvent.click(screen.getByRole("radio", { name: /Lo scrive il capocantiere/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Scrive tutto il capocantiere/ }));
     fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
     expect(state.erroreToast).toHaveBeenLastCalledWith("Lo scostamento va da 5 minuti a 8 ore.");
     state.mutate.mockImplementationOnce((_r: RegoleCampo, opzioni: { onError: (e: unknown) => void }) => opzioni.onError({ code: "XX000", message: "connection reset by peer" }));
@@ -191,11 +193,11 @@ describe("Rapportini e presenze: salvare senza perdere le scelte", () => {
 
   it("la bozza è di una sola azienda: cambiando azienda (super amministratore) quella dell'altra non si vede", () => {
     const { rerender } = apri();
-    fireEvent.click(screen.getByRole("radio", { name: /Lo scrive il capocantiere/ }));
-    expect(screen.getByRole("radio", { name: /Lo scrive il capocantiere/ })).toBeChecked();
+    fireEvent.click(screen.getByRole("radio", { name: /Scrive tutto il capocantiere/ }));
+    expect(screen.getByRole("radio", { name: /Scrive tutto il capocantiere/ })).toBeChecked();
     state.azienda = "azienda-2";
     rerender(<MemoryRouter><RegoleCampoConfig /></MemoryRouter>);
-    expect(screen.getByRole("radio", { name: /Ognuno il suo/ })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /Ogni operaio scrive il suo/ })).toBeChecked();
     expect(screen.getByRole("button", { name: "Salva modifiche" })).toBeDisabled();
   });
 
@@ -223,7 +225,7 @@ describe("Rapportini e presenze: sola lettura onesta", () => {
     state.modifica = true;
     apri();
     expect(screen.queryByText(/Stai consultando queste impostazioni/)).toBeNull();
-    expect(screen.getByRole("radio", { name: /Lo scrive il capocantiere/ })).toBeEnabled();
+    expect(screen.getByRole("radio", { name: /Scrive tutto il capocantiere/ })).toBeEnabled();
   });
 
   it("mentre i permessi si caricano non dice niente", () => {
@@ -257,7 +259,7 @@ describe("Rapportini: anteprima fedele e preferenze conservate", () => {
   });
   it("la bozza aggiorna subito la prova e annullare la ripristina", () => {
     apri();
-    fireEvent.click(screen.getByRole("radio", { name: /Lo scrive il capocantiere/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Scrive tutto il capocantiere/ }));
     expect(screen.getByText("Anteprima della bozza")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Cosa fa l’operaio" })).toHaveTextContent("Timbra entrata e uscita");
     fireEvent.click(screen.getByRole("button", { name: "Annulla le modifiche" }));
@@ -266,15 +268,15 @@ describe("Rapportini: anteprima fedele e preferenze conservate", () => {
   it("il flusso misto conserva ore e soglia, ma non presenta come attivi i controlli di squadra", () => {
     state.regole = { chiCompila: "capo", oreDalle: "timbrature", avvisoScostamentoMinuti: 45 };
     apri();
-    fireEvent.click(screen.getByRole("radio", { name: /Il racconto al capo, le ore a ognuno/ }));
-    expect(screen.getByRole("radio", { name: /Dalle timbrature/ })).toBeChecked();
-    expect(screen.getByRole("radio", { name: /Dalle timbrature/ })).toBeDisabled();
+    fireEvent.click(screen.getByRole("radio", { name: /Il capocantiere scrive i lavori, ognuno le sue ore/ }));
+    expect(screen.getByRole("radio", { name: /Partono dalle timbrature/ })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /Partono dalle timbrature/ })).toBeDisabled();
     expect(screen.getByRole("switch")).toBeChecked();
     expect(screen.getByRole("switch")).toBeDisabled();
     expect(screen.getByRole("combobox", { name: "Differenza che fa scattare l’avviso" })).toBeDisabled();
     expect(screen.queryByRole("region", { name: "Esempio del controllo ore" })).toBeNull();
     expect(screen.getByRole("region", { name: "Cosa fa il responsabile" })).toHaveTextContent("Conferma solo le proprie ore");
-    fireEvent.click(screen.getByRole("radio", { name: /Lo scrive il capocantiere/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Scrive tutto il capocantiere/ }));
     expect(screen.getByRole("combobox", { name: "Differenza che fa scattare l’avviso" })).toHaveTextContent("45 min");
     expect(screen.getByRole("switch")).toBeEnabled();
     expect(screen.getByRole("button", { name: "Salva modifiche" })).toBeDisabled();

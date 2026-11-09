@@ -50,7 +50,7 @@ export default function VociRapportinoConfig() {
       return { voci: a.data ?? [], aMano: b.data?.a_mano ?? true };
     },
   });
-  const aggiorna = () => void qc.invalidateQueries({ queryKey: chiave });
+  const aggiorna = (): void => { void qc.invalidateQueries({ queryKey: chiave }); };
   const errore = (e: unknown) => toast.error(e instanceof Error ? e.message : "Non salvato");
   const salva = useMutation({ mutationFn: async ({ id, campi }: { id: string; campi: Partial<Voce> }) => { const { error } = await db.from("rapportino_voci_modello").update(campi).eq("id", id); if (error) throw error; }, onSuccess: aggiorna, onError: errore });
   const togli = useMutation({ mutationFn: async (id: string) => { const { error } = await db.from("rapportino_voci_modello").delete().eq("id", id); if (error) throw error; }, onSuccess: aggiorna, onError: errore });
