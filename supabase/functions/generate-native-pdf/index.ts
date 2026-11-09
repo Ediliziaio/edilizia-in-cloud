@@ -1,3 +1,4 @@
+import { puoGestireDocumento, puoLeggereDocumento } from "../_shared/permessoDocumentoFiscale.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
@@ -48,6 +49,12 @@ Deno.serve(async (req) => {
       await verifyCompanyAccess(supabase, userId, doc.company_id);
     } catch {
       return new Response(JSON.stringify({ error: "Non autorizzato: accesso negato a questo documento" }), { status: 403, headers: getCorsHeaders(req) });
+    }
+
+    // Il PDF segue le regole di lettura; salvarlo nell'archivio chiede «Fatturazione».
+    const permesso = upload ? await puoGestireDocumento(token, doc.company_id, doc.tipo) : await puoLeggereDocumento(token, documento_id);
+    if (!permesso) {
+      return new Response(JSON.stringify({ error: "Non autorizzato: serve il permesso per vedere i documenti fiscali" }), { status: 403, headers: getCorsHeaders(req) });
     }
 
     // Load azienda

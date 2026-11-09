@@ -6,13 +6,14 @@ import { calcolaRiepilogoIVA, calcolaTotaliDocumento } from "./calcoli";
 export async function stornatoDellaFattura(fatturaId: string): Promise<number> {
   const { data, error } = await supabase
     .from("documenti_fiscali" as never)
-    .select("totale_da_pagare, totale_documento")
+    .select("totale_da_pagare, totale_documento, sdi_stato")
     .eq("documento_correlato_id", fatturaId)
     .eq("tipo", "nota_credito")
-    .not("stato", "in", "(bozza,annullata)")
+    .not("stato", "in", "(bozza,annullata,rifiutata)")
     .is("deleted_at", null);
   if (error) throw error;
-  const note = (data ?? []) as unknown as { totale_da_pagare: number | null; totale_documento: number | null }[];
+  const note = ((data ?? []) as unknown as { totale_da_pagare: number | null; totale_documento: number | null; sdi_stato?: string | null }[])
+    .filter((n) => String(n.sdi_stato ?? "").toUpperCase() !== "NS");
   return note.reduce((somma, n) => somma + Math.abs(Number(n.totale_da_pagare ?? n.totale_documento ?? 0)), 0);
 }
 

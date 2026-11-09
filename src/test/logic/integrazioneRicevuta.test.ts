@@ -79,7 +79,7 @@ describe("il percorso è completo", () => {
 });
 
 describe("fattura ricevuta da PDF", () => {
-  const form = { fornitore: "Fournisseur SA", partitaIva: "FR123", paese: "fr", numero: "9", data: "2026-11-01", totale: "1.234,50", reverseCharge: false };
+  const form = { fornitore: "Fournisseur SA", partitaIva: "FR123", paese: "fr", numero: "9", data: "2026-11-01", totale: "1.234,50", indirizzo: "Rue A 1", cap: "75001", comune: "Paris" };
   it("legge l'importo scritto all'italiana", () => {
     expect(importoDaTesto("1.234,50")).toBe(1234.5);
     expect(importoDaTesto("1234.5")).toBe(1234.5);
@@ -92,12 +92,14 @@ describe("fattura ricevuta da PDF", () => {
     expect(r.cedente_paese).toBe("FR");
     expect(r.riepilogo_iva).toEqual([]);
   });
-  it("in reverse charge diventa integrabile", () => {
-    const r = righeRicevutaPdf({ ...form, paese: "IT", reverseCharge: true });
-    expect(serveIntegrazione({ ...base, ...r, id: "x" } as RicevutaDaIntegrare)).toBe(true);
+  it("anche italiana si integra, senza finire in liquidazione: nessuna natura N6", () => {
+    const r = righeRicevutaPdf({ ...form, paese: "IT" });
+    expect(r.riepilogo_iva).toEqual([]);
+    expect(serveIntegrazione({ ...base, ...r, id: "x", pdf_storage_path: "a/b.pdf" } as RicevutaDaIntegrare)).toBe(true);
+    expect(r.cedente_indirizzo).toBe("Rue A 1");
   });
   it("dice cosa manca", () => {
-    expect(problemiRicevutaPdf({ ...form, fornitore: "", totale: "0" })).toEqual(["il fornitore", "l'importo"]);
+    expect(problemiRicevutaPdf({ ...form, fornitore: "", totale: "0", comune: "" })).toEqual(["il fornitore", "il comune", "l'importo"]);
     expect(problemiRicevutaPdf(form)).toEqual([]);
   });
 });

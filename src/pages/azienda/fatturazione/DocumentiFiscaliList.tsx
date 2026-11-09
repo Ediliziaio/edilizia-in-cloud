@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { documentoDaConservare } from "@/lib/fatturazione/conservazione";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useDocumentiFiscali, useDeleteDocumento, useUpdateDocumento, useRipristinaDocumento, rileggiDocumentoFiscale } from "@/hooks/useDocumentiFiscali";
-import { datiCopiaDocumento } from "@/lib/fatturazione/duplicaDocumento";
+import { datiCopiaDocumento, siPuoDuplicare } from "@/lib/fatturazione/duplicaDocumento";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
@@ -1189,7 +1189,7 @@ function DocumentiFiscaliListInner() {
                                     <Pencil className="h-4 w-4 mr-2" /> Modifica
                                   </DropdownMenuItem>
                                 )}
-                                {puoCreare && (
+                                {puoCreare && siPuoDuplicare(doc.tipo) && (
                                   <DropdownMenuItem onClick={() => handleAction("duplicate", doc)}>
                                     <Copy className="h-4 w-4 mr-2" /> Duplica
                                   </DropdownMenuItem>

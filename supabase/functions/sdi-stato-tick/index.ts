@@ -148,7 +148,7 @@ serveConMetricheRapida("sdi-stato-tick", async (req) => {
       }
 
       const ok = httpStatus >= 200 && httpStatus < 300;
-      const esito = ok ? leggiEsitoOpenapi(grezzo) : null;
+      const esito = ok ? leggiEsitoOpenapi(grezzo, doc.tipo_cliente === "PA") : null;
 
       // La risposta grezza si conserva solo quando dice qualcosa: un errore, un
       // esito nuovo o uno che non sappiamo leggere. Prima si scriveva a ogni

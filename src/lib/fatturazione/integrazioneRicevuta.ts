@@ -31,6 +31,7 @@ export interface RicevutaDaIntegrare {
   imponibile_totale?: number | null;
   aliquota_reverse_charge?: number | null;
   riepilogo_iva?: unknown;
+  pdf_storage_path?: string | null;
 }
 
 type RigaRiepilogo = { natura?: string | null; imponibile?: number | string | null };
@@ -42,7 +43,7 @@ const estera = (f: RicevutaDaIntegrare) => !!f.cedente_paese && f.cedente_paese.
 /** Note di credito e autofatture ricevute non si integrano da qui. */
 export function serveIntegrazione(f: RicevutaDaIntegrare): boolean {
   if (["TD04", "TD08", "TD16", "TD17", "TD18", "TD19", "TD20", "TD28"].includes(f.tipo_documento)) return false;
-  return estera(f) || righeRiepilogo(f).some(inReverseCharge);
+  return estera(f) || !!f.pdf_storage_path || righeRiepilogo(f).some(inReverseCharge);
 }
 
 export function tipoProposto(f: RicevutaDaIntegrare): TipoIntegrazione {

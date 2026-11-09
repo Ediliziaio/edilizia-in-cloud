@@ -94,9 +94,13 @@ const PAROLE: Array<[RegExp, string]> = [
  * Traduce quello che openapi dice sullo stato di una fattura.
  * Ritorna null se non si riconosce: chi chiama non cambia niente e lo annota.
  */
-export function leggiEsitoOpenapi(grezzo: unknown): EsitoSdi | null {
+export function leggiEsitoOpenapi(grezzo: unknown, versoPa = false): EsitoSdi | null {
   const testo = estraiStato(grezzo);
   if (!testo) return null;
+
+  // Solo un ente pubblico può rifiutare una fattura consegnata: è l'esito del committente
+  // (si storna con una nota di credito), non uno scarto SDI da correggere e rimandare.
+  if (versoPa && testo.trim().toUpperCase() === "REJECTED") return ESITI.EC02;
 
   const openapi = STATI_OPENAPI[testo.trim().toUpperCase()];
   if (openapi) {

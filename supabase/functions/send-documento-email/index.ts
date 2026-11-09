@@ -1,3 +1,4 @@
+import { puoGestireDocumento } from "../_shared/permessoDocumentoFiscale.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
@@ -25,7 +26,9 @@ const TIPO_LABELS: Record<string, string> = {
   nota_credito: "Nota di Credito", nota_debito: "Nota di Debito",
   ddt: "DDT", parcella: "Parcella", preventivo: "Preventivo",
   fattura_accompagnatoria: "Fattura Accompagnatoria",
-  fattura_riepilogativa: "Fattura Riepilogativa",
+  fattura_riepilogativa: "Fattura Riepilogativa", autofattura: "Autofattura",
+  reverse_charge_interno: "Integrazione TD16", integrazione_servizi_estero: "Autofattura TD17",
+  integrazione_beni_ue: "Integrazione TD18", integrazione_beni_extra_ue: "Integrazione TD19",
 };
 
 interface RigaDoc {
@@ -44,9 +47,9 @@ function buildEmailHtml(
   const tipo = doc.tipo as string;
   const docLabel = TIPO_LABELS[tipo] || "Documento";
   const cliente = doc.cliente_snapshot as Record<string, any> | null;
-  const clienteName = cliente?.ragione_sociale || cliente?.nome
-    ? `${cliente.nome || ""} ${cliente.cognome || ""}`.trim()
-    : "Cliente";
+  const clienteName = String(cliente?.ragione_sociale ?? "").trim()
+    || `${cliente?.nome ?? ""} ${cliente?.cognome ?? ""}`.trim()
+    || "Cliente";
   const righe = (doc.righe || []) as RigaDoc[];
 
   const linesHtml = righe.map(r => `
@@ -84,7 +87,7 @@ ${customMessage ? `<p style="font-size:14px;color:#334155;margin:0 0 24px;line-h
 
 <p style="font-size:14px;color:#334155;margin:0 0 16px;">
   Gentile <strong>${esc(clienteName)}</strong>,<br>
-  ${customMessage ? "" : `in allegato trova la ${docLabel.toLowerCase()} N° <strong>${esc(doc.numero)}</strong>.`}
+  ${customMessage ? "" : `di seguito il riepilogo del documento: ${docLabel.toLowerCase()} N° <strong>${esc(doc.numero)}</strong>.`}
 </p>
 
 <!-- Summary -->
@@ -161,6 +164,9 @@ Deno.serve(async (req) => {
     } catch {
       return json({ error: "Non autorizzato" }, 403);
     }
+    if (!(await puoGestireDocumento(token, doc.company_id, doc.tipo))) {
+      return json({ error: "Per spedire un documento serve il permesso «Fatturazione»." }, 403);
+    }
 
     // Fetch company profile
     const { data: company } = await supabase
@@ -206,8 +212,9 @@ Deno.serve(async (req) => {
       return json({ error: msg }, result.status === 402 ? 402 : 500);
     }
 
-    // Legacy billing_sync_log entry (indexed by document id)
-    await supabase.from("billing_sync_log").insert({
+    // Legacy billing_sync_log entry (indexed by document id). L'email è partita: un
+    // errore del registro non deve dire il contrario, o la si rispedisce pagandola due volte.
+    const { error: errRegistro } = await supabase.from("billing_sync_log").insert({
       company_id: doc.company_id,
       invoice_id: doc.id,
       provider: "email",
@@ -221,7 +228,8 @@ Deno.serve(async (req) => {
         over_quota: result.overQuota ?? false,
         charged_eur: result.chargedEur ?? 0,
       } as any,
-    }).catch(() => {});
+    });
+    if (errRegistro) console.warn("send-documento-email: registro non scritto", errRegistro.message);
 
     return json({
       success:     true,

@@ -88,7 +88,7 @@ export function nomeDaIntestatario(intestatario: string, codiceFiscale?: string 
   return { last_name: parti.slice(0, lunghezza).join(" "), first_name: parti.slice(lunghezza).join(" ") };
 }
 
-type Riconciliazione = { status: string; motivo?: string; customer_id?: string | null; cliente_operativo_mancante?: boolean };
+type Riconciliazione = { status: string; motivo?: string; customer_id?: string | null; anagrafica_id?: string | null; cliente_operativo_mancante?: boolean };
 type Riconcilia = (supabase: any, companyId: string, id: string) => Promise<Riconciliazione>;
 
 async function riconciliaImportata(supabase: any, companyId: string, invoiceId: string): Promise<Riconciliazione> {
@@ -145,6 +145,8 @@ export async function clienteDaFatturaImportata(
     // delle società). Una persona ha il codice fiscale di 16 caratteri.
     const cfFattura = codiceFiscaleDaFattura(fattura.client_fiscal_code);
     const ivaFattura = (fattura.client_vat_number || "").replace(/[^0-9A-Za-z]/g, "").toUpperCase().replace(/^IT/, "") || null;
+    // Un identificativo estero non passa i controlli italiani del profilo: resta sull'anagrafica fiscale.
+    const estero = (fattura.client_country || "IT").trim().toUpperCase() !== "IT";
     const azienda = !!ivaFattura || /^\d{11}$/.test(cfFattura || "");
     const persona = azienda ? { first_name: "", last_name: intestatario } : nomeDaIntestatario(intestatario, fattura.client_fiscal_code);
 
@@ -182,8 +184,8 @@ export async function clienteDaFatturaImportata(
       // I dati fiscali sono quelli della fattura, scritti come li confronta
       // norm_id_fiscale: il sanitizer sposterebbe un CF di 11 cifre nella P.IVA,
       // e la riconciliazione non ritroverebbe più il cliente.
-      fiscal_code: cfFattura,
-      vat_number: ivaFattura,
+      fiscal_code: estero ? null : cfFattura,
+      vat_number: estero ? null : ivaFattura,
       is_business: azienda,
       business_name: azienda ? intestatario.slice(0, 200) : null,
       customer_type: "privato",
@@ -218,6 +220,13 @@ export async function clienteDaFatturaImportata(
 
     const dopo = await riconcilia(supabase, companyId, fattura.id);
     if (dopo.status === "ok" && dopo.customer_id) return { esito: "collegato", customer_id: dopo.customer_id, creato: true };
+    // Senza identificativo sul profilo il legame si scrive sull'anagrafica fiscale.
+    if (estero && dopo.status === "ok" && dopo.anagrafica_id) {
+      const { error: errLegame } = await supabase.from("anagrafiche_native")
+        .update({ cliente_id: id, sync_from_cliente: false }).eq("id", dopo.anagrafica_id).eq("company_id", companyId).is("cliente_id", null);
+      if (errLegame) return { esito: "errore", motivo: `Collegamento: ${errLegame.message}` };
+      return { esito: "collegato", customer_id: id, creato: true };
+    }
     return { esito: "da_verificare", motivo: dopo.motivo || "Cliente creato ma non collegato" };
   } catch (e) {
     return { esito: "errore", motivo: e instanceof Error ? e.message : String(e) };

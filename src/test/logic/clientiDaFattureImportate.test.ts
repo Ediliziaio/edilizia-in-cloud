@@ -21,7 +21,7 @@ describe("clienti dalle fatture importate", () => {
 
   it("un codice fiscale di 11 cifre è un'azienda, e il CF resta quello della fattura", () => {
     expect(MODULO).toContain("/^\\d{11}$/.test(cfFattura");
-    expect(MODULO).toContain("fiscal_code: cfFattura,");
+    expect(MODULO).toContain("fiscal_code: estero ? null : cfFattura,");
   });
 
   it("niente email, niente contatti CRM", () => {

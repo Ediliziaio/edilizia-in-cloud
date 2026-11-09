@@ -279,10 +279,12 @@ export function EditorTopBar({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {onDuplicate && (
               <DropdownMenuItem onClick={onDuplicate}>
                 <Copy className="h-3.5 w-3.5 mr-2" />
                 Duplica
               </DropdownMenuItem>
+              )}
               {/* Niente export su telefono. */}
               {!isMobile && (
                 <DropdownMenuItem onClick={onDownloadPDF}>

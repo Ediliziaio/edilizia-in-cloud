@@ -2,7 +2,7 @@ import { useParams, Link } from "react-router-dom";
 import { useDentroPopupDocumento, useIdDocumento, useNavigaDocumento } from "@/lib/orders/documentoPopup";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { useDocumentoFiscale, useUpdateDocumento, useEmittiDocumento } from "@/hooks/useDocumentiFiscali";
-import { datiCopiaDocumento } from "@/lib/fatturazione/duplicaDocumento";
+import { datiCopiaDocumento, siPuoDuplicare } from "@/lib/fatturazione/duplicaDocumento";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { useAuth } from "@/contexts/AuthContext";
 import { PreviewFattura } from "@/components/fatturazione/PreviewFattura";
@@ -265,7 +265,7 @@ export default function DocumentoDetail() {
             </AlertDialogContent>
           </AlertDialog>
         )}
-        <Button size="sm" variant="secondary" className="gap-1.5 max-md:hidden" onClick={handleDuplica}><Copy className="h-4 w-4" />Duplica</Button>
+        {siPuoDuplicare(doc.tipo) && <Button size="sm" variant="secondary" className="gap-1.5 max-md:hidden" onClick={handleDuplica}><Copy className="h-4 w-4" />Duplica</Button>}
         <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" disabled={pdfBusy} onClick={() => void handleApriPdf()}><FileText className="h-4 w-4" />Apri PDF</Button>
         <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" disabled={pdfBusy} onClick={() => void handleStampa(true)}><Save className="h-4 w-4" />Salva PDF</Button>
         <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" disabled={pdfBusy} onClick={() => void handleStampa(false)}><Printer className="h-4 w-4" />Stampa</Button>

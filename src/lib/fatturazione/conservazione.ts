@@ -16,6 +16,10 @@ const TIPI_DA_CONSERVARE = new Set([
   "autofattura",
   "fattura_riepilogativa",
   "ddt",
+  "reverse_charge_interno",
+  "integrazione_servizi_estero",
+  "integrazione_beni_ue",
+  "integrazione_beni_extra_ue",
 ]);
 
 /** true = il documento non può essere cancellato: va conservato. */

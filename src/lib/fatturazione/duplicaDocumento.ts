@@ -25,6 +25,11 @@ const CAMPI_DA_COPIARE = [
   "ddt_indirizzo_consegna", "ddt_vettore",
 ] as const satisfies readonly (keyof DocumentoFiscale)[];
 
+/** Un'integrazione regolarizza una sola fattura ricevuta: copiarla la integrerebbe due volte. */
+export function siPuoDuplicare(tipo: string | null | undefined): boolean {
+  return !["reverse_charge_interno", "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue"].includes(String(tipo));
+}
+
 const GIORNO_MS = 86_400_000;
 const adUtc = (giorno: string) => Date.parse(`${giorno.slice(0, 10)}T00:00:00Z`);
 
@@ -56,6 +61,11 @@ export function datiCopiaDocumento(
   }
 
   // Id nuovi: quelli vecchi agganciano la riga a SAL e fasi già fatturati.
+  // La nota copiata resta legata alla fattura che storna: conta il limite e l'XML la dichiara.
+  if ((doc.tipo === "nota_credito" || doc.tipo === "nota_debito") && doc.documento_correlato_id) {
+    copia.documento_correlato_id = doc.documento_correlato_id;
+  }
+
   copia.righe = (doc.righe ?? []).map((riga: RigaDocumento, i) => ({
     ...riga,
     id: crypto.randomUUID(),

@@ -1,3 +1,4 @@
+import { puoGestireDocumento } from "../_shared/permessoDocumentoFiscale.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
@@ -97,6 +98,10 @@ Deno.serve(async (req) => {
       await verifyCompanyAccess(supabase, userId, doc.company_id);
     } catch {
       return new Response(JSON.stringify({ error: "Non autorizzato: accesso negato a questo documento" }), { status: 403, headers: getCorsHeaders(req) });
+    }
+
+    if (!(await puoGestireDocumento(token, doc.company_id, doc.tipo))) {
+      return new Response(JSON.stringify({ error: "Per inviare allo SDI serve il permesso «Fatturazione»." }), { status: 403, headers: getCorsHeaders(req) });
     }
 
     // Gate "carta obbligatoria": l'invio della fattura elettronica a SDI ha un costo per documento.

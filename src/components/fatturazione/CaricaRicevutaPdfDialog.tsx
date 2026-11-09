@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { righeRicevutaPdf, problemiRicevutaPdf, type RicevutaPdfForm } from "@/lib/fatturazione/ricevutaPdf";
 
-const VUOTO: RicevutaPdfForm = { fornitore: "", partitaIva: "", paese: "IT", numero: "", data: "", totale: "", reverseCharge: false };
+const VUOTO: RicevutaPdfForm = { fornitore: "", partitaIva: "", paese: "IT", numero: "", data: "", totale: "", indirizzo: "", cap: "", comune: "" };
 
 /** Il PDF non è una fattura elettronica: i dati li scrive chi lo carica, il file resta allegato. */
 export function CaricaRicevutaPdfDialog({
@@ -50,7 +49,7 @@ export function CaricaRicevutaPdfDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Carica fattura da PDF</DialogTitle>
-          <DialogDescription>{file?.name}. Non muove l'IVA finché non fai l'integrazione o l'autofattura.</DialogDescription>
+          <DialogDescription>{file?.name}. Non muove l'IVA finché non fai l'integrazione o l'autofattura: l'indirizzo serve per quella.</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2 space-y-1"><Label htmlFor="pdf-fornitore">Fornitore *</Label><Input id="pdf-fornitore" value={form.fornitore} onChange={campo("fornitore")} /></div>
@@ -59,10 +58,9 @@ export function CaricaRicevutaPdfDialog({
           <div className="space-y-1"><Label htmlFor="pdf-numero">Numero *</Label><Input id="pdf-numero" value={form.numero} onChange={campo("numero")} /></div>
           <div className="space-y-1"><Label htmlFor="pdf-data">Data *</Label><Input id="pdf-data" type="date" value={form.data} onChange={campo("data")} /></div>
           <div className="col-span-2 space-y-1"><Label htmlFor="pdf-totale">Importo in euro *</Label><Input id="pdf-totale" inputMode="decimal" value={form.totale} onChange={campo("totale")} /></div>
-          <label className="col-span-2 flex items-center gap-2 text-sm">
-            <Checkbox checked={form.reverseCharge} onCheckedChange={(v) => setForm((f) => ({ ...f, reverseCharge: v === true }))} />
-            Fornitore italiano in reverse charge
-          </label>
+          <div className="col-span-2 space-y-1"><Label htmlFor="pdf-indirizzo">Indirizzo *</Label><Input id="pdf-indirizzo" value={form.indirizzo} onChange={campo("indirizzo")} /></div>
+          <div className="space-y-1"><Label htmlFor="pdf-cap">CAP</Label><Input id="pdf-cap" value={form.cap} onChange={campo("cap")} /></div>
+          <div className="space-y-1"><Label htmlFor="pdf-comune">Comune *</Label><Input id="pdf-comune" value={form.comune} onChange={campo("comune")} /></div>
         </div>
         {problemi.length > 0 && <p className="text-xs text-amber-700">Manca: {problemi.join(", ")}.</p>}
         <DialogFooter>

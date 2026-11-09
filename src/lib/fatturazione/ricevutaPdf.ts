@@ -1,6 +1,7 @@
 // Fattura ricevuta caricata da PDF (09/11/2026), tipicamente da un fornitore estero.
 // Non è un documento SDI: IVA a zero finché non c'è l'integrazione, che è ciò che la
-// fa entrare nei registri. Importo = imponibile.
+// fa entrare nei registri: niente natura N6 qui, che la porterebbe subito in liquidazione.
+// Importo = imponibile.
 
 export interface RicevutaPdfForm {
   fornitore: string;
@@ -9,7 +10,9 @@ export interface RicevutaPdfForm {
   numero: string;
   data: string;
   totale: string;
-  reverseCharge: boolean;
+  indirizzo: string;
+  cap: string;
+  comune: string;
 }
 
 /** «1.234,56», «1234.56», «1234,5»: il numero che l'utente intende. */
@@ -26,6 +29,8 @@ export function problemiRicevutaPdf(f: RicevutaPdfForm): string[] {
   if (!/^[A-Za-z]{2}$/.test(f.paese.trim())) p.push("il paese (due lettere, es. DE)");
   if (!f.numero.trim()) p.push("il numero");
   if (!f.data) p.push("la data");
+  if (!f.indirizzo.trim()) p.push("l'indirizzo");
+  if (!f.comune.trim()) p.push("il comune");
   const v = importoDaTesto(f.totale);
   if (Number.isNaN(v) || v <= 0) p.push("l'importo");
   return p;
@@ -45,6 +50,9 @@ export function righeRicevutaPdf(f: RicevutaPdfForm) {
     imponibile_totale: importo,
     iva_totale: 0,
     totale_documento: importo,
-    riepilogo_iva: f.reverseCharge ? [{ natura: "N6.9", aliquota: "0.00", imponibile: importo, imposta: 0 }] : [],
+    cedente_indirizzo: f.indirizzo.trim(),
+    cedente_cap: f.cap.trim() || null,
+    cedente_comune: f.comune.trim(),
+    riepilogo_iva: [] as unknown[],
   };
 }

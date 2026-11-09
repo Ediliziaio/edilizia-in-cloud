@@ -130,6 +130,7 @@ Deno.serve(async (req) => {
         // Mancata consegna — SDI deposits in cassetto fiscale, keep current stato
         newStato = null;
         break;
+      case "NE": // la sigla SDI dell'esito committente
       case "EC": {
         // Notifica Esito Committente: l'esito reale è nell'elemento <Esito>
         // (EC01 = accettazione, EC02 = rifiuto). Leggerlo via getTag/parser è

@@ -25,7 +25,7 @@ import { faseSdi } from "@/lib/fatturazione/sdiCassetto";
 import { useInvioSdi, useAggiornaStatoSdi } from "@/hooks/useInvioSdi";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { convertiProformaInFattura } from "@/lib/fatturazione/proforma";
-import { datiCopiaDocumento } from "@/lib/fatturazione/duplicaDocumento";
+import { datiCopiaDocumento, siPuoDuplicare } from "@/lib/fatturazione/duplicaDocumento";
 import { datiFatturaDaDdt } from "@/lib/fatturazione/fatturaDaDdt";
 import { toast } from "sonner";
 import { useEditorState } from "./editor/useEditorState";
@@ -485,7 +485,7 @@ function EditorDelDocumento() {
         onDownloadPDF={handleDownloadPDF}
         onDownloadXML={handleDownloadXML}
         onSendEmail={() => setEmailDialogOpen(true)}
-        onDuplicate={handleDuplicate}
+        onDuplicate={siPuoDuplicare(state.tipo) ? handleDuplicate : undefined}
         onConvertToFattura={handleConvertToFattura}
         isInviaSDILoading={invioSdi.isPending}
         isAggiornaStatoLoading={aggiornaStatoSdi.isPending}
