@@ -56,8 +56,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
-  DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SalAppalto } from "@/components/orders/SalAppalto";
@@ -415,6 +414,22 @@ export default function CommittenteDetail() {
   };
   const apriAppuntamento = () => setAppuntamentoOpen(true);
   const nuovoContratto = () => navigate(`/azienda/committenti/${id}/contratto/nuovo`);
+  const puoCreareLavori = permessi.isAdmin || permessi.canEditOrders;
+  const nuovoLavoro = () => navigate(`/azienda/ordini/nuovo-lavoro-appaltatore?committente=${c.id}`);
+  const pulsantiCrea = (
+    <>
+      {puoCreareLavori && (
+        <Button variant="outline" size="sm" className="h-9 gap-1.5 max-md:flex-1" onClick={nuovoLavoro}>
+          <ClipboardList className="h-3.5 w-3.5" /> Nuovo lavoro
+        </Button>
+      )}
+      {puoModificare && (
+        <Button size="sm" className="h-9 gap-1.5 max-md:flex-1" onClick={nuovoContratto}>
+          <Plus className="h-3.5 w-3.5" /> Nuovo contratto
+        </Button>
+      )}
+    </>
+  );
   const conteggi: Record<string, number | undefined> = {
     contratti: elencoContratti.length,
     listino: vedeImporti ? tariffe.data?.length ?? 0 : undefined,
@@ -427,23 +442,11 @@ export default function CommittenteDetail() {
   const menuCommittente = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Altre azioni">
+        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" aria-label="Altre azioni">
           <ChevronDown className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
-          Crea per questo committente
-        </DropdownMenuLabel>
-        {puoModificare && (
-          <DropdownMenuItem onClick={nuovoContratto}>
-            <FileSignature className="mr-2 h-3.5 w-3.5" /> Nuovo contratto
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuItem onClick={() => navigate(`/azienda/ordini/nuovo-lavoro-appaltatore?committente=${c.id}`)}>
-          <ClipboardList className="mr-2 h-3.5 w-3.5" /> Nuovo lavoro
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
         {/* Solo a elenco letto: finche' non si sa quante commesse ha, zero non vuol dire nessuna,
             e le commesse resterebbero senza committente. */}
         {lavori.isSuccess && (
@@ -692,49 +695,49 @@ export default function CommittenteDetail() {
     <div className="space-y-4">
       {/* Testata: la stessa della scheda cliente */}
       <div className="rounded-2xl border bg-card p-3 shadow-sm md:p-4">
-        <div className="flex items-start gap-3 md:gap-4">
-          <Button variant="ghost" size="icon" className="-ml-2 shrink-0 max-md:hidden" onClick={() => navigate("/azienda/clienti?tipo=committenti")} aria-label="Torna ai committenti">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-slate-800 to-slate-500 text-lg font-bold text-white shadow-sm ring-2 ring-background">
-            {iniziali}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="truncate text-lg font-bold tracking-tight sm:text-xl">{nome}</h1>
-              <Badge variant="outline" className="h-5 px-1.5 text-[10px]">Committente</Badge>
+        {/* Nome e pulsanti stanno in fila finché c'entrano; se no i pulsanti vanno a capo
+            interi e i contatti restano su una riga, invece di impilarsi in una colonna stretta. */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex min-w-0 flex-[1_1_24rem] items-center gap-3">
+            <Button variant="ghost" size="icon" className="-ml-2 shrink-0 max-md:hidden" onClick={() => navigate("/azienda/clienti?tipo=committenti")} aria-label="Torna ai committenti">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-slate-800 to-slate-500 text-base font-bold text-white shadow-sm ring-2 ring-background">
+              {iniziali}
             </div>
-            {referente && (
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Referente: <span className="font-medium text-foreground">{referente}</span>
-              </p>
-            )}
-            <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-              {email && (
-                <a href={`mailto:${email}`} className="inline-flex items-center gap-1 truncate transition-colors hover:text-primary">
-                  <Mail className="h-3 w-3 shrink-0" />
-                  <span className="truncate">{email}</span>
-                </a>
-              )}
-              {c.phone && (
-                <a href={`tel:${c.phone}`} className="inline-flex items-center gap-1 transition-colors hover:text-primary">
-                  <Phone className="h-3 w-3 shrink-0" />
-                  {c.phone}
-                </a>
-              )}
-              {(c.city || c.address) && (
-                <span className="inline-flex items-center gap-1 text-[11px]">
-                  <MapPin className="h-3 w-3 shrink-0" />
-                  {[c.address, c.city].filter(Boolean).join(" · ")}
-                </span>
-              )}
-              {(c.vat_number || c.fiscal_code) && <span className="text-[11px]">P.IVA {c.vat_number || c.fiscal_code}</span>}
-              <DistanceFromBase address={c.address} city={c.city} province={c.province} className="text-[11px]" />
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 items-center gap-2">
+                <h1 className="truncate text-lg font-bold tracking-tight sm:text-xl">{nome}</h1>
+                <Badge variant="outline" className="h-5 shrink-0 px-1.5 text-[10px]">Committente</Badge>
+                {menuCommittente}
+              </div>
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                {referente && <span>Referente: <span className="font-medium text-foreground">{referente}</span></span>}
+                {email && (
+                  <a href={`mailto:${email}`} className="inline-flex min-w-0 max-w-full items-center gap-1 transition-colors hover:text-primary">
+                    <Mail className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{email}</span>
+                  </a>
+                )}
+                {c.phone && (
+                  <a href={`tel:${c.phone}`} className="inline-flex items-center gap-1 whitespace-nowrap transition-colors hover:text-primary">
+                    <Phone className="h-3 w-3 shrink-0" />
+                    {c.phone}
+                  </a>
+                )}
+                {(c.city || c.address) && (
+                  <span className="inline-flex items-center gap-1">
+                    <MapPin className="h-3 w-3 shrink-0" />
+                    {[c.address, c.city].filter(Boolean).join(" · ")}
+                  </span>
+                )}
+                {(c.vat_number || c.fiscal_code) && <span className="whitespace-nowrap">P.IVA {c.vat_number || c.fiscal_code}</span>}
+                <DistanceFromBase address={c.address} city={c.city} province={c.province} className="text-xs" />
+              </div>
             </div>
           </div>
 
-          <div className="shrink-0 md:hidden">{menuCommittente}</div>
-          <div className="hidden shrink-0 items-center gap-1.5 md:flex">
+          <div className="ml-auto hidden flex-wrap items-center justify-end gap-1.5 md:flex">
             <ChiediASilvio ask={`Analizza il committente ${nome}: contratti e listino, lavori in corso, rendiconti da fare, fatture da incassare e ritenute a garanzia. Cosa devo sapere?`} />
             <AzioniContattoScheda
               telefono={c.phone}
@@ -744,13 +747,15 @@ export default function CommittenteDetail() {
               onEmail={apriEmail}
               onAppuntamento={apriAppuntamento}
             />
-            {menuCommittente}
+            {pulsantiCrea}
           </div>
         </div>
 
         <AzioniContattoSchedaMobile telefono={c.phone} email={email} onEmail={apriEmail} onAppuntamento={apriAppuntamento} />
 
-        <div className="mt-2 grid grid-cols-2 gap-2 xl:grid-cols-4">
+        <div className="mt-1.5 flex gap-1.5 md:hidden">{pulsantiCrea}</div>
+
+        <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-4">
           <KpiCard
             icon={FileSignature}
             iconColor="text-orange-500"
