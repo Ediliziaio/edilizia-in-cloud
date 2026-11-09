@@ -35,6 +35,10 @@ import {
 import { DettaglioVoceMeseSheet } from "@/components/controllo-gestione/ui/DettaglioVoceMeseSheet";
 import { isDrillDownEnabled } from "@/hooks/controlloGestione/useDettaglioVoceMese";
 import { ExportButton } from "@/components/controllo-gestione/ui/ExportButton";
+import { Printer } from "lucide-react";
+import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
+import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
+import { htmlContoEconomico } from "@/lib/contabilita/stampaBilancio";
 import { exportXlsx } from "@/lib/controlloGestione/exportXlsx";
 import { formatPct } from "@/lib/controlloGestione/formatCG";
 import { etichettaVoce, spiegazioneImposte } from "@/lib/controlloGestione/contoEconomico";
@@ -147,6 +151,36 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
       ? MESI_LABELS[meseDa - 1]
       : `${MESI_LABELS[meseDa - 1]}-${MESI_LABELS[meseA - 1]}`;
 
+  // Stampa del conto economico (09/11/2026): prima usciva solo in Excel o
+  // dentro il «Pacchetto banca», che è un documento pensato per la banca.
+  const [stampaCE, setStampaCE] = useState<string | null>(null);
+  const anagraficaCE = useAnagraficaAzienda();
+  const htmlCE = () => {
+    const a = anagraficaCE.data;
+    return htmlContoEconomico({
+      azienda: {
+        ragione_sociale: a?.ragione_sociale ?? "",
+        partita_iva: a?.partita_iva ?? null,
+        codice_fiscale: a?.codice_fiscale ?? null,
+        indirizzo_via: a?.indirizzo_via ?? null,
+        indirizzo_numero_civico: a?.indirizzo_numero_civico ?? null,
+        indirizzo_cap: a?.indirizzo_cap ?? null,
+        indirizzo_comune: a?.indirizzo_comune ?? null,
+        indirizzo_provincia: a?.indirizzo_provincia ?? null,
+        logo_url: a?.logo_url ?? null,
+      },
+      voci: (ce.data?.voci ?? []).map((v) => ({
+        codice: v.codice,
+        label: etichettaVoce(v.codice, v.label),
+        valore: v.valore,
+        forte: v.tipo !== "voce",
+      })),
+      anno,
+      mesi: periodoLabel === "Anno completo" ? null : periodoLabel,
+      aliquotaImposte: ce.data?.meta?.aliquota_imposte_pct ?? null,
+    });
+  };
+
   const ViewSwitcher = (
     <ToggleGroup
       type="single"
@@ -240,8 +274,22 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
 
     return (
       <div className="space-y-4">
+        {stampaCE && (
+          <PrintPreviewModal
+            open
+            onOpenChange={(v) => { if (!v) setStampaCE(null); }}
+            htmlContent={stampaCE}
+            title="Conto economico — anteprima di stampa"
+            fileName={`conto-economico-${anno}`}
+            soloPdf
+          />
+        )}
         <div className="flex items-center justify-between">
           {ViewSwitcher}
+          <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setStampaCE(htmlCE())}>
+            <Printer className="mr-2 h-4 w-4" />Stampa
+          </Button>
           <ExportButton
             onExport={async () => {
               await exportXlsx({
@@ -290,6 +338,7 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
               });
             }}
           />
+          </div>
         </div>
         <CEExecutiveSummary
           periodoLabel={periodoLabel}
