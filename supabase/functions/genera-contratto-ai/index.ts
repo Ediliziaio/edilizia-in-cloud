@@ -13,6 +13,7 @@
  * art. 1666 c.c. (subappalto), art. 1667 c.c. (garanzia).
  */
 
+import { contrattoStandardMd } from "../_shared/contrattoStandard.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { puoRiscrivereCondizioniNelServer } from "../_shared/permessoCondizioni.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
@@ -86,6 +87,16 @@ OUTPUT: rispondi con JSON valido (NO markdown wrapper) con questi campi ESATTI:
   "suggerimenti_next_steps": ["array — es. richiedi POS, polizza CAR, ecc."]
 }`;
 
+/** I dati dell'AI per la finestra: niente, se il contratto è quello standard. */
+// deno-lint-ignore no-explicit-any
+function metaAi(r: any, parsed: AnyObj) {
+  if (!r) return null;
+  return {
+    model_used: r.modelUsed, tokens: r.totalTokens, cost_eur: r.costRealEur, cost_billed_eur: r.costBilledEur,
+    warnings: parsed.warnings ?? [], suggerimenti: parsed.suggerimenti_next_steps ?? [],
+  };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
@@ -100,11 +111,14 @@ Deno.serve(async (req: Request) => {
     const { userId, supabaseAdmin } = await requireAuth(req, cors);
 
     const body = await req.json().catch(() => ({}));
-    const { order_id, company_id, opzioni } = body as {
+    const { order_id, company_id, opzioni, modo } = body as {
       order_id?: string;
       company_id?: string;
       opzioni?: OpzioniContratto;
+      /** «ai» solo se lo chiede chi lo sta facendo: di norma il contratto è quello standard (09/11/2026). */
+      modo?: "standard" | "ai";
     };
+    const conAi = modo === "ai";
 
     if (!order_id || !company_id) {
       return errorResponse("order_id e company_id sono obbligatori", 400, cors);
@@ -116,7 +130,7 @@ Deno.serve(async (req: Request) => {
     const { data: order, error: orderErr } = await supabaseAdmin
       .from("orders")
       .select(
-        "id, description, total_amount, deposit_amount, balance_amount, work_start_date, expected_date, " +
+        "id, description, work_description, work_address, total_amount, deposit_amount, balance_amount, work_start_date, expected_date, " +
           "client_name, client_company, client_email, client_phone, client_address",
       )
       .eq("id", order_id)
@@ -173,6 +187,11 @@ Deno.serve(async (req: Request) => {
         }
       : null;
 
+    if (!conAi && !modelloCondizioni) {
+      return errorResponse("Mancano le condizioni: scrivi il modello in Impostazioni → Contratti e condizioni.", 400, cors);
+    }
+    const testoStandard = conAi ? "" : contrattoStandardMd(order);
+
     const cantierePayload = {
       ...(condizioniAzienda ? { condizioni_azienda: condizioniAzienda } : {}),
       committente: {
@@ -212,47 +231,50 @@ Deno.serve(async (req: Request) => {
         subappalto_consentito: opzioni?.subappalto_consentito ?? true,
       },
     };
-    const idempotencyKey = await buildStableAiIdempotencyKey("genera_contratto", [
+    const idempotencyKey = await buildStableAiIdempotencyKey(conAi ? "genera_contratto" : "contratto_standard", [
       company_id,
       userId,
       order_id,
       cantierePayload,
+      ...(conAi ? [] : [testoStandard, modelloCondizioni?.id ?? null, modelloCondizioni?.versione ?? null]),
     ]);
 
-    // Call AI via router
-    let aiResult;
-    try {
-      aiResult = await aiRouterComplete({
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        supabase: supabaseAdmin as any,
-        taskKey: "documento_contratto",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          {
-            role: "user",
-            content: `Genera il contratto d'appalto edile completo per questo cantiere. Dati strutturati:\n\n${JSON.stringify(cantierePayload, null, 2)}`,
-          },
-        ],
-        params: { temperature: 0.2, max_tokens: 4000 },
-        responseFormat: { type: "json_object" },
-        companyId: company_id,
-        userId,
-        idempotencyKey,
-      });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      return errorResponse(`AI Router error: ${msg}`, 502, cors);
-    }
+    // L'AI solo se la si chiede; il contratto standard si compone dai dati.
+    let aiResult: Awaited<ReturnType<typeof aiRouterComplete>> | null = null;
+    let parsed: AnyObj = { contenuto_md: testoStandard, oggetto_lavori_breve: order.description };
+    if (conAi) {
+      try {
+        aiResult = await aiRouterComplete({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          supabase: supabaseAdmin as any,
+          taskKey: "documento_contratto",
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            {
+              role: "user",
+              content: `Genera il contratto d'appalto edile completo per questo cantiere. Dati strutturati:\n\n${JSON.stringify(cantierePayload, null, 2)}`,
+            },
+          ],
+          params: { temperature: 0.2, max_tokens: 4000 },
+          responseFormat: { type: "json_object" },
+          companyId: company_id,
+          userId,
+          idempotencyKey,
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return errorResponse(`AI Router error: ${msg}`, 502, cors);
+      }
 
-    let parsed: AnyObj = {};
-    try {
-      parsed = JSON.parse(aiResult.content);
-    } catch {
-      return errorResponse("AI ha restituito JSON non valido", 502, cors);
-    }
+      try {
+        parsed = JSON.parse(aiResult.content);
+      } catch {
+        return errorResponse("AI ha restituito JSON non valido", 502, cors);
+      }
 
-    if (!parsed.contenuto_md || typeof parsed.contenuto_md !== "string") {
-      return errorResponse("AI non ha generato contenuto contratto", 502, cors);
+      if (!parsed.contenuto_md || typeof parsed.contenuto_md !== "string") {
+        return errorResponse("AI non ha generato contenuto contratto", 502, cors);
+      }
     }
 
     const idempotentInsertKey = idempotencyKey;
@@ -271,14 +293,7 @@ Deno.serve(async (req: Request) => {
         success: true,
         contratto: existingContratto,
         idempotent_replay: true,
-        ai_meta: {
-          model_used: aiResult.modelUsed,
-          tokens: aiResult.totalTokens,
-          cost_eur: aiResult.costRealEur,
-          cost_billed_eur: aiResult.costBilledEur,
-          warnings: parsed.warnings ?? [],
-          suggerimenti: parsed.suggerimenti_next_steps ?? [],
-        },
+        ai_meta: metaAi(aiResult, parsed),
       }, 200, cors);
     }
 
@@ -322,8 +337,8 @@ Deno.serve(async (req: Request) => {
           : parsed.contenuto_md,
         ...(modelloCondizioni ? { condizioni_origine: origineDelModello(modelloCondizioni) } : {}),
         ai_generated_raw: { ...parsed, idempotency_key: idempotentInsertKey },
-        ai_model_used: aiResult.modelUsed,
-        generated_by: "ai",
+        ai_model_used: aiResult?.modelUsed ?? null,
+        generated_by: conAi ? "ai" : "standard",
         created_by: userId,
       })
       .select()
@@ -336,14 +351,7 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({
       success: true,
       contratto,
-      ai_meta: {
-        model_used: aiResult.modelUsed,
-        tokens: aiResult.totalTokens,
-        cost_eur: aiResult.costRealEur,
-        cost_billed_eur: aiResult.costBilledEur,
-        warnings: parsed.warnings ?? [],
-        suggerimenti: parsed.suggerimenti_next_steps ?? [],
-      },
+      ai_meta: metaAi(aiResult, parsed),
     }, 200, cors);
   } catch (err) {
     if (err instanceof Response) return err;

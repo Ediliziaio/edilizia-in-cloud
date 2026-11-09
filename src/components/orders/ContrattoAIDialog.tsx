@@ -1,11 +1,8 @@
 /**
- * ContrattoAIDialog — Genera contratto d'appalto via AI
+ * Il contratto col cliente (09/11/2026).
  *
- * Bottone + Dialog che:
- *   1. Chiama edge function `genera-contratto-ai` con order_id
- *   2. Mostra preview Markdown (con react-markdown)
- *   3. Permette edit inline
- *   4. Salva versione finale + scarica come .md
+ * Di norma è quello standard: dati della commessa, tabella dei lavori e condizioni definite a monte (Florin: «l'AI
+ * solo se la chiedo»). Il risultato si vede come PDF vero; il testo si può correggere e salvare.
  *
  * Le condizioni dell'azienda (07/11/2026) vengono da «Contratti e condizioni»: il predefinito dei contratti
  * d'appalto, oppure — per un cliente che tratta — un altro modello. Sceglierne un altro, o cambiarle a mano
@@ -13,7 +10,7 @@
  * server). Gli altri possono sistemare parti, oggetto e importi, ma non le condizioni.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useCondizioniArchivio } from "@/hooks/useCondizioniArchivio";
@@ -21,6 +18,8 @@ import { condizioniDelContratto } from "@/lib/condizioni/archivio";
 import { paginaDelModello, PAGINA_CONDIZIONI } from "@/lib/condizioni/indirizzi";
 import { puoRiscrivereLeCondizioni } from "@/lib/preventivi/condizioniDelPreventivo";
 import { contrattoDaCompletare } from "@/lib/orders/contrattoCommittentePdf";
+import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
+import { PdfBlobLivePreviewPanel } from "@/components/shared/PdfBlobLivePreviewPanel";
 import { datiDaCommessa } from "@/lib/contratti/contrattoCliente";
 import { caricaDatiSocietari } from "../../../supabase/functions/_shared/datiSocietari";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -89,7 +88,7 @@ const DEFAULT_OPZIONI: ContrattoOpzioni = {
   subappalto_consentito: true,
 };
 
-export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera Contratto AI" }: Props) {
+export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratto" }: Props) {
   const qc = useQueryClient();
   // «Nuovo contratto» dalla scheda del cliente arriva qui con ?contratto=1: si apre da solo.
   const [parametri, setParametri] = useSearchParams();
@@ -130,9 +129,9 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera C
 
   // Genera contratto via AI
   const generaMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (modo: "standard" | "ai") => {
       const { data, error } = await supabase.functions.invoke("genera-contratto-ai", {
-        body: { order_id: orderId, company_id: companyId, opzioni },
+        body: { order_id: orderId, company_id: companyId, opzioni, modo },
       });
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error ?? "Generazione fallita");
@@ -142,14 +141,13 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera C
       setPreviewMd(data.contratto.contenuto_md ?? "");
       setCondizioniOriginali(condizioniDelContratto(data.contratto.contenuto_md));
       setAiMeta(data.ai_meta ?? null);
+      setModificaTesto(false);
       setContrattoId(data.contratto.id ?? null);
       qc.invalidateQueries({ queryKey: ["contratti_for_order", orderId] });
-      toast.success(
-        `Contratto ${data.contratto.numero_contratto} generato (${data.ai_meta?.tokens ?? 0} token)`,
-      );
+      toast.success(`Contratto ${data.contratto.numero_contratto} pronto`);
     },
     onError: (err) => {
-      toast.error(`Errore: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(err instanceof Error ? err.message : String(err));
     },
   });
 
@@ -206,41 +204,35 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera C
     },
   });
 
-  const handleDownload = () => {
-    if (!previewMd) return;
-    const blob = new Blob([previewMd], { type: "text/markdown;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `contratto-${orderId.slice(0, 8)}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // Il PDF vero (09/11/2026): stesso foglio delle condizioni, coi dati societari in fondo e le firme.
+  // Il PDF vero: stessa impostazione del subappalto, con parti, cantiere, importi, articoli e tabella dei lavori.
+  const [modificaTesto, setModificaTesto] = useState(false);
+  const datiPdf = useCallback(async () => {
+    const contratto = existing?.find((c) => c.id === contrattoId);
+    const [societari, ordine, voci] = await Promise.all([
+      caricaDatiSocietari(supabase, companyId),
+      supabase.from("orders")
+        .select("order_code, description, work_address, client_name, client_company, client_email, client_phone, client_address, total_amount, deposit_amount, deposit_2_amount, balance_amount, vat_rate, work_start_date, expected_date, customer:profiles!orders_customer_id_fkey(first_name, last_name, business_name, fiscal_code, vat_number, address, city, postal_code, province, email, phone)")
+        .eq("id", orderId).single(),
+      supabase.from("order_items").select("name, description, quantity, unit_price, discount_percent, unita_misura, categoria").eq("order_id", orderId).order("position", { ascending: true }),
+    ]);
+    if (ordine.error) throw ordine.error;
+    if (voci.error) throw voci.error;
+    return datiDaCommessa({
+      contratto: { numero_contratto: contratto?.numero_contratto, created_at: contratto?.created_at },
+      md: previewMd, ordine: ordine.data as Record<string, unknown>, voci: voci.data ?? [], societari,
+    });
+  }, [existing, contrattoId, companyId, orderId, previewMd]);
+  const anteprimaPdf = useCallback(async () => {
+    const { contrattoClienteBlob } = await import("@/components/contratti/ContrattoClientePDF");
+    return createPdfPreviewUrl(await contrattoClienteBlob(await datiPdf()));
+  }, [datiPdf]);
   const pdfMutation = useMutation({
     mutationFn: async () => {
-      // Stessa impostazione del contratto di subappalto: parti, cantiere, importi, articoli e l'elenco dei lavori.
-      const contratto = existing?.find((c) => c.id === contrattoId);
-      const [{ contrattoClienteBlob }, societari, ordine, voci] = await Promise.all([
-        import("@/components/contratti/ContrattoClientePDF"),
-        caricaDatiSocietari(supabase, companyId),
-        supabase.from("orders")
-          .select("order_code, description, work_address, client_name, client_company, client_email, client_phone, client_address, total_amount, deposit_amount, deposit_2_amount, balance_amount, vat_rate, work_start_date, expected_date, customer:profiles!orders_customer_id_fkey(first_name, last_name, business_name, fiscal_code, vat_number, address, city, postal_code, province, email, phone)")
-          .eq("id", orderId).single(),
-        supabase.from("order_items").select("name, description, quantity, unit_price, discount_percent, unita_misura, categoria").eq("order_id", orderId).order("position", { ascending: true }),
-      ]);
-      if (ordine.error) throw ordine.error;
-      if (voci.error) throw voci.error;
-      const numero = contratto?.numero_contratto ?? orderId.slice(0, 8);
-      const blob = await contrattoClienteBlob(datiDaCommessa({
-        contratto: { numero_contratto: contratto?.numero_contratto, created_at: contratto?.created_at },
-        md: previewMd, ordine: ordine.data as Record<string, unknown>, voci: voci.data ?? [], societari,
-      }));
-      const url = URL.createObjectURL(blob);
+      const [{ contrattoClienteBlob }, dati] = await Promise.all([import("@/components/contratti/ContrattoClientePDF"), datiPdf()]);
+      const url = URL.createObjectURL(await contrattoClienteBlob(dati));
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Contratto ${numero}.pdf`.replace(/[\\/:*?"<>|]/g, "-");
+      a.download = `Contratto ${dati.numero ?? orderId.slice(0, 8)}.pdf`.replace(/[\\/:*?"<>|]/g, "-");
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
     },
@@ -255,39 +247,62 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera C
     setCondizioniOriginali(condizioniDelContratto(c.contenuto_md));
     setContrattoId(c.id);
     setAiMeta(null);
+    setModificaTesto(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
-          <Sparkles className="h-4 w-4 text-violet-600" />
+          <FileText className="h-4 w-4" />
           {triggerLabel}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Contratto d'Appalto AI
-            <Badge variant="outline" className="ml-2 text-xs bg-violet-50 text-violet-700 border-violet-300">
-              <Sparkles className="h-3 w-3 mr-1" /> Silvio AI
-            </Badge>
-          </DialogTitle>
-          <DialogDescription>
-            Genera contratto d'appalto conforme art. 1655 c.c. dai dati dell'ordine.
-            L'AI compila automaticamente parti, oggetto, importi, penali, garanzie e clausole.
-          </DialogDescription>
+          <DialogTitle className="flex items-center gap-2"><FileText className="h-5 w-5" />Contratto col cliente</DialogTitle>
+          <DialogDescription>Dati della commessa, tabella dei lavori e condizioni della tua azienda: esce sempre così.</DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* LEFT: Options + existing list */}
           <div className="space-y-3 overflow-y-auto pr-2">
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Opzioni</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
+              <CardContent className="space-y-3 p-3 text-sm">
+                <div className="space-y-1">
+                  <Label className="flex items-center gap-1 text-xs"><Scale className="h-3 w-3" />Condizioni dell'azienda</Label>
+                  {modelliAppalto.length === 0 ? (
+                    <p className="text-[11px] text-muted-foreground">
+                      Mancano le condizioni: il contratto non si può fare senza.{" "}
+                      <Link to={PAGINA_CONDIZIONI} className="underline">Scrivile una volta</Link>
+                    </p>
+                  ) : (
+                    <>
+                      <OfficeSelect label="Condizioni per questo contratto" className="h-8 px-2 text-xs"
+                        value={opzioni.condizioni_modello_id ?? ""} disabled={!puoRiscrivere}
+                        onValueChange={(v) => setOpzioni({ ...opzioni, condizioni_modello_id: v || null })}
+                        options={[
+                          { value: "", label: predefinitoAppalto ? `Predefinito («${predefinitoAppalto.nome}»)` : "Nessuna" },
+                          ...modelliAppalto.filter((m) => !m.predefinito).map((m) => ({ value: m.id, label: m.nome })),
+                        ]} />
+                      <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                        {!puoRiscrivere && <Lock className="h-3 w-3 shrink-0" />}
+                        {puoRiscrivere
+                          ? <>Per questo cliente puoi sceglierne un altro.{condizioniScelte && <> <Link to={paginaDelModello(condizioniScelte.id)} className="underline">Apri</Link></>}</>
+                          : "Altre condizioni: serve il permesso «Riscrivere le condizioni su un documento»."}
+                      </p>
+                    </>
+                  )}
+                </div>
+
+                <Button size="sm" className="w-full gap-2" onClick={() => generaMutation.mutate("standard")}
+                  disabled={generaMutation.isPending || !predefinitoAppalto && !condizioniScelte}>
+                  {generaMutation.isPending && generaMutation.variables === "standard" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                  Crea il contratto
+                </Button>
+                <details>
+                  <summary className="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground hover:text-foreground"><Sparkles className="h-3 w-3 text-violet-600" />Scrivilo con l'AI</summary>
+                  <div className="mt-2 space-y-3">
                 <div>
                   <Label className="text-xs">Penale ritardo €/giorno</Label>
                   <Input
@@ -337,54 +352,21 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera C
                   />
                 </div>
 
-                <div className="space-y-1 border-t pt-2">
-                  <Label className="flex items-center gap-1 text-xs"><Scale className="h-3 w-3" />Condizioni dell'azienda</Label>
-                  {modelliAppalto.length === 0 ? (
-                    <p className="text-[11px] text-muted-foreground">
-                      Nessun modello per i contratti d'appalto: l'AI scrive le clausole.{" "}
-                      <Link to={PAGINA_CONDIZIONI} className="underline">Scrivile una volta</Link>
-                    </p>
-                  ) : (
-                    <>
-                      <OfficeSelect label="Condizioni per questo contratto" className="h-8 px-2 text-xs"
-                        value={opzioni.condizioni_modello_id ?? ""} disabled={!puoRiscrivere}
-                        onValueChange={(v) => setOpzioni({ ...opzioni, condizioni_modello_id: v || null })}
-                        options={[
-                          { value: "", label: predefinitoAppalto ? `Predefinito («${predefinitoAppalto.nome}»)` : "Nessuna: le scrive l'AI" },
-                          ...modelliAppalto.filter((m) => !m.predefinito).map((m) => ({ value: m.id, label: m.nome })),
-                        ]} />
-                      <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                        {!puoRiscrivere && <Lock className="h-3 w-3 shrink-0" />}
-                        {puoRiscrivere
-                          ? <>Per questo cliente puoi sceglierne un altro.{condizioniScelte && <> <Link to={paginaDelModello(condizioniScelte.id)} className="underline">Apri</Link></>}</>
-                          : "Altre condizioni: serve il permesso «Riscrivere le condizioni su un documento»."}
-                      </p>
-                    </>
-                  )}
-                </div>
-
-                <Button
-                  size="sm"
-                  className="w-full gap-2 mt-3"
-                  onClick={() => generaMutation.mutate()}
-                  disabled={generaMutation.isPending}
-                >
-                  {generaMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Wand2 className="h-4 w-4" />
-                  )}
-                  Genera contratto
-                </Button>
+                    <Button size="sm" variant="outline" className="w-full gap-2" onClick={() => generaMutation.mutate("ai")} disabled={generaMutation.isPending}>
+                      {generaMutation.isPending && generaMutation.variables === "ai" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                      Genera con l'AI
+                    </Button>
+                  </div>
+                </details>
               </CardContent>
             </Card>
 
             {existing && existing.length > 0 && (
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Versioni precedenti</CardTitle>
+                  <CardTitle className="text-sm">Già fatti</CardTitle>
                   <CardDescription className="text-xs">
-                    {existing.length} contratto/i già generati
+                    {existing.length === 1 ? "1 contratto già fatto" : `${existing.length} contratti già fatti`}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
@@ -428,15 +410,9 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera C
           <div className="lg:col-span-2 flex flex-col overflow-hidden">
             {!previewMd && !generaMutation.isPending && (
               <div className="flex flex-col items-center justify-center text-muted-foreground space-y-2 p-6 border border-dashed rounded">
-                <Sparkles className="h-8 w-8 text-violet-400" />
-                <p className="text-sm text-center">
-                  Configura le opzioni a sinistra e clicca <strong>Genera contratto</strong>.
-                </p>
-                <p className="text-xs text-center max-w-md">
-                  L'AI userà i dati dell'ordine (cliente, importo, date, descrizione) e
-                  l'anagrafica della tua azienda; le condizioni le attacca il sistema, parola per parola,
-                  dal modello scelto.
-                </p>
+                <FileText className="h-8 w-8" />
+                <p className="text-sm text-center">Scegli le condizioni e clicca <strong>Crea il contratto</strong>.</p>
+                <p className="text-xs text-center max-w-md">Parti, cantiere, importi e tabella dei lavori vengono dalla commessa; le condizioni, parola per parola, dal modello.</p>
               </div>
             )}
 
@@ -444,7 +420,7 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera C
               <div className="flex-1 flex flex-col items-center justify-center space-y-3 p-8">
                 <Loader2 className="h-12 w-12 animate-spin text-violet-600" />
                 <p className="text-sm text-muted-foreground">
-                  L'AI sta redigendo il contratto... (~30s)
+                  {generaMutation.variables === "ai" ? "L'AI sta redigendo il contratto... (~30s)" : "Preparo il contratto..."}
                 </p>
               </div>
             )}
@@ -479,12 +455,18 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera C
                     Puoi correggere parti, oggetto e importi. La sezione «Condizioni generali dell'impresa» resta quella dell'azienda.
                   </p>
                 )}
-                <Textarea
+                {modificaTesto ? (
+                  <Textarea
                   value={previewMd}
                   onChange={(e) => setPreviewMd(e.target.value)}
                   className="flex-1 font-mono text-xs leading-relaxed resize-none min-h-[400px]"
                   placeholder="Contenuto contratto markdown..."
                 />
+                ) : (
+                  <div className="min-h-[420px] flex-1">
+                    <PdfBlobLivePreviewPanel renderBlobUrl={anteprimaPdf} depsKey={`${contrattoId}:${previewMd}`} debounceMs={300} headerLabel="Il contratto" downloadFileName="Contratto.pdf" />
+                  </div>
+                )}
 
                 {aiMeta && aiMeta.suggerimenti.length > 0 && (
                   <Alert>
@@ -579,7 +561,8 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera C
           {contrattoId && <CommessaDaContratto contrattoId={contrattoId} orderId={orderId} />}
           {previewMd && (
             <>
-              {contrattoId && (
+              <Button variant="ghost" size="sm" onClick={() => setModificaTesto(!modificaTesto)}>{modificaTesto ? "Vedi il PDF" : "Modifica il testo"}</Button>
+              {contrattoId && aiMeta && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -598,14 +581,6 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera C
               <Button size="sm" onClick={() => pdfMutation.mutate()} disabled={pdfMutation.isPending} className="gap-1">
                 {pdfMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                 Scarica PDF
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDownload}
-                className="gap-1"
-              >
-                <Download className="h-4 w-4" /> .md
               </Button>
               {contrattoId && (
                 <Button

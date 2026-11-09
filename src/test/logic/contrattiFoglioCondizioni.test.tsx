@@ -169,3 +169,37 @@ describe("contratto col committente, come il subappalto", () => {
     expect(t).toContain("Beta Spa");
   });
 });
+
+import { contrattoStandardMd } from "../../../supabase/functions/_shared/contrattoStandard";
+import { condizioniInCodaAlContratto } from "../../../supabase/functions/_shared/condizioniArchivio";
+
+describe("contratto col cliente standard, senza AI", () => {
+  const COMMESSA = { description: "Ristrutturazione bagno", work_address: "Via Roma 1, Milano", work_start_date: "2026-12-01", expected_date: "2027-01-15" };
+  const MODELLO = { id: "m", nome: "Appalto", ambito: "appalto", clausole: [{ titolo: "Garanzia", testo: "Due anni." }, { titolo: "Foro", testo: "Milano.", vessatoria: true }] };
+  it("dice cosa, dove e quando coi dati della commessa", () => {
+    const md = contrattoStandardMd(COMMESSA);
+    expect(md).toContain("Ristrutturazione bagno");
+    expect(md).toContain("Via Roma 1, Milano");
+    expect(md).toContain("01/12/2026");
+    expect(md).toContain("15/01/2027");
+    expect(md).not.toContain("DA COMPLETARE");
+  });
+  it("senza date non inventa niente", () => {
+    expect(contrattoStandardMd({ description: "Bagno" })).toContain("si concordano per iscritto");
+  });
+  it("il PDF esce con tabella dei lavori e condizioni definite a monte", async () => {
+    const SOC = datiSocietariDa({ business_name: "Alfa S.r.l.", vat_number: "11" }, null);
+    const md = `${contrattoStandardMd(COMMESSA)}
+
+${condizioniInCodaAlContratto(MODELLO)}`;
+    const d = datiDaCommessa({ contratto: { numero_contratto: "CON-9", created_at: "2026-11-09" }, md, societari: SOC, ordine: { ...COMMESSA, order_code: "C-9", client_name: "Giulia", total_amount: 1000, vat_rate: 10 },
+      voci: [{ name: "Demolizioni", quantity: 2, unit_price: 500, unita_misura: "mq", categoria: "Opere" }] });
+    expect(d.articoli.map((a) => a.titolo)).toEqual(["Oggetto dei lavori", "Luogo dei lavori", "Corrispettivo", "Tempi di esecuzione", "Condizioni generali dell'impresa", "Garanzia", "Foro"]);
+    expect(d.daApprovare).toEqual(["Foro"]);
+    const t = await testoDi(<ContrattoClientePDF d={d} />);
+    expect(t).toContain("ELENCO DEI LAVORI");
+    expect(t).toContain("Demolizioni");
+    expect(t).toContain("Due anni.");
+    expect(t).toContain("approva specificamente: Foro");
+  });
+});
