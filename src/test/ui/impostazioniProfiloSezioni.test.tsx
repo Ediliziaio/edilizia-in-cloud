@@ -36,6 +36,13 @@ describe("Profilo aziendale per argomento", () => {
     expect(screen.getByText("Opzioni bonus")).toBeVisible();
     expect(screen.getByLabelText("Dato in bozza")).not.toBeVisible();
   });
+  it.each(["logo", "bonus", "portale-clienti"])("un vecchio link #%s in sola lettura lascia visibili i dati", (sezione) => {
+    stato.modifica = false;
+    apri(`#${sezione}`);
+    expect(screen.getByLabelText("Dato in bozza")).toBeVisible();
+    expect(screen.getByLabelText("Dato in bozza")).toBeDisabled();
+    expect(screen.getByRole("link", { name: "Dati" })).toHaveAttribute("aria-current", "page");
+  });
   it("chi consulta in sola lettura può cambiare argomento senza poter scrivere", () => {
     stato.modifica = false;
     apri();

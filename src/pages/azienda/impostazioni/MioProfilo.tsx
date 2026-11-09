@@ -38,6 +38,7 @@ import { EmailOAuthConnectionsCard } from "@/components/integrations/EmailOAuthC
 import { TwoFactorSetup } from "@/components/auth/TwoFactorSetup";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
+import { CompanySecuritySettings } from "@/components/settings/CompanySecuritySettings";
 import { AvvisiPerEvento } from "@/components/notifications/AvvisiPerEvento";
 import { useUserCalendarPrefs } from "@/hooks/useUserCalendarPrefs";
 import { useCalendariDiCasella } from "@/hooks/useCalendariEsterni";
@@ -752,10 +753,10 @@ export default function MioProfilo() {
               </div>
             </CardContent>
           </Card>
-          {canManageCompanySecurity && (
+          {canManageCompanySecurity && !!companyId && (
             // Mobile no: le regole di sicurezza dell'azienda si impostano al computer.
             <div className="lg:col-span-2 max-sm:hidden">
-              <Card id="regole-azienda">
+              {inUfficio ? <Card id="regole-azienda">
                 <CardHeader>
                   <CardTitle className="text-base">Sicurezza dell’azienda</CardTitle>
                   <CardDescription>Blocco dei tentativi e reti autorizzate si gestiscono insieme alle altre regole aziendali.</CardDescription>
@@ -763,7 +764,7 @@ export default function MioProfilo() {
                 <CardContent>
                   <Button asChild variant="outline"><Link to="/azienda/impostazioni/sicurezza-privacy?tab=regole#regole-azienda">Apri le regole aziendali</Link></Button>
                 </CardContent>
-              </Card>
+              </Card> : <CompanySecuritySettings />}
             </div>
           )}
           </div>

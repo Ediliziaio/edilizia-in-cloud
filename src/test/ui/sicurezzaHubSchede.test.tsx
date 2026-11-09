@@ -8,9 +8,10 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
-const stato = vi.hoisted(() => ({ ruolo: "company_admin" as string, mobile: false, vedeSicurezza: false }));
+const stato = vi.hoisted(() => ({ ruolo: "company_admin" as string, mobile: false, vedeSicurezza: false, bozza: false }));
 
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ role: stato.ruolo }) }));
 vi.mock("@/hooks/usePermissions", () => ({
@@ -21,7 +22,7 @@ vi.mock("@/pages/azienda/settings/SettingsPrivacy", () => ({ default: () => <p>C
 vi.mock("@/pages/azienda/settings/SettingsSecurityDashboard", () => ({ default: () => <p>Contenuto accessi</p> }));
 vi.mock("@/pages/azienda/settings/SettingsActivityLog", () => ({ default: () => <p>Contenuto registro</p> }));
 
-vi.mock("@/components/settings/CompanySecuritySettings", () => ({ CompanySecuritySettings: () => <p>Contenuto regole aziendali</p> }));
+vi.mock("@/components/settings/CompanySecuritySettings", () => ({ CompanySecuritySettings: () => { useSettingsDraftGuard(stato.bozza); return <p>Contenuto regole aziendali</p>; } }));
 
 import SettingsSecurityHub from "@/pages/azienda/settings/SettingsSecurityHub";
 
@@ -39,6 +40,8 @@ afterEach(() => {
   stato.ruolo = "company_admin";
   stato.mobile = false;
   stato.vedeSicurezza = false;
+  stato.bozza = false;
+  vi.restoreAllMocks();
 });
 
 describe("Sicurezza & Privacy", () => {
@@ -75,6 +78,19 @@ describe("Sicurezza & Privacy", () => {
     stato.vedeSicurezza = true;
     apri("?tab=regole");
     expect(screen.queryByText("Contenuto regole aziendali")).toBeNull();
+    expect(screen.getByText("Contenuto privacy")).toBeVisible();
+  });
+
+  it("cambiare scheda non abbandona una bozza delle regole senza conferma", () => {
+    stato.bozza = true;
+    const conferma = vi.spyOn(window, "confirm").mockReturnValue(false);
+    apri("?tab=regole");
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Privacy" }), { button: 0, ctrlKey: false });
+    expect(conferma).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Contenuto regole aziendali")).toBeVisible();
+    expect(screen.getByTestId("url")).toHaveTextContent("?tab=regole");
+    conferma.mockReturnValue(true);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Privacy" }), { button: 0, ctrlKey: false });
     expect(screen.getByText("Contenuto privacy")).toBeVisible();
   });
 

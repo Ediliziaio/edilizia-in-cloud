@@ -39,7 +39,6 @@ export default function SettingsProfile() {
   const isMobile = useIsMobile();
   const { hash } = useLocation();
   const richiesta = hash.slice(1);
-  const attiva = SEZIONI_UFFICIO.some((voce) => voce.id === richiesta) ? richiesta : "dati-azienda";
   const { evidenziata, vai } = useVaiASezione(true);
   // Il punto della barra in cui il modulo dei dati porta «Salva dati aziendali» e il suo stato.
   const [azioni, setAzioni] = useState<HTMLElement | null>(null);
@@ -56,6 +55,8 @@ export default function SettingsProfile() {
 
   // Da telefono restano i dati e il logo: voto, portale e bonus si impostano una volta, al computer.
   const voci = SEZIONI_UFFICIO.filter((voce) => canEdit || !["logo", "portale-clienti", "bonus"].includes(voce.id));
+  // Un vecchio link a una sezione riservata non deve nascondere tutti i dati a chi consulta.
+  const attiva = voci.some((voce) => voce.id === richiesta) ? richiesta : "dati-azienda";
 
   return (
     <div className="max-w-3xl space-y-4 max-sm:space-y-3">
