@@ -40,7 +40,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { CampaignPageField } from "@/components/ads/CampaignPageField";
-import { selectCampaignPage, type CampaignPage } from "../../../supabase/functions/_shared/metaAdsPublicationSafety";
+import { selectCampaignPage, type CampaignPage } from "../../../../supabase/functions/_shared/metaAdsPublicationSafety";
 import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";

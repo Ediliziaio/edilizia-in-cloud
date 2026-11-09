@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import ts from "typescript";
@@ -11,7 +12,7 @@ const company = "00000000-0000-4000-8000-000000000001";
 const campaign = "00000000-0000-4000-8000-000000000002";
 const integration = "00000000-0000-4000-8000-000000000003";
 const account = "00000000-0000-4000-8000-000000000004";
-const state = { name: "Prova", objective: "OUTCOME_LEADS", budgetMode: "campaign", dailyBudget: 10, adSets: [], creatives: [], copyVariants: [], pageMetaId: "page-a" };
+const state: Row = { name: "Prova", objective: "OUTCOME_LEADS", budgetMode: "campaign", dailyBudget: 10, adSets: [], creatives: [], copyVariants: [], pageMetaId: "page-a" };
 const compiled = ts.transpileModule(readFileSync(resolve(process.cwd(), "supabase/functions/meta-ads-create-campaign/index.ts"), "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
@@ -59,7 +60,7 @@ function fixture() {
   let handler!: (request: Request) => Promise<Response>;
   const env: Row = { SUPABASE_URL: "https://test.supabase.co", SUPABASE_ANON_KEY: "anon", SUPABASE_SERVICE_ROLE_KEY: "service" };
   const dependencies = (name: string) => {
-    if (name.startsWith("https://esm.sh/")) return { createClient: (_url: string, key: string) => key === "service" ? admin : { auth: { getUser: async () => ({ data: { user: { id: "user" } }, error: null }) } } };
+    if (name.startsWith("https://esm.sh/")) return { createClient: (_url: string, key: string) => key === "service" ? admin : { auth: { getUser: async () => ({ data: { user: { id: "user" } }, error: null as null }) } } };
     if (name.includes("encryption")) return { decrypt: async () => "fake-token", getEncryptionKey: () => "fake-key" };
     if (name.includes("headers")) return { getCorsHeaders: () => ({}) };
     if (name.includes("metaAdsPublicationSafety")) return safety;
