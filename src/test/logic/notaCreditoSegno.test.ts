@@ -36,18 +36,19 @@ const fatturaFinta = {
   ],
 };
 
+/** La fattura con `.single()`; nessuna nota già emessa quando si attende la lista. */
+function catenaFinta(): Record<string, unknown> {
+  const catena: Record<string, unknown> = {
+    eq: () => catena, not: () => catena, is: () => catena,
+    single: async (): Promise<{ data: typeof fatturaFinta; error: null }> => ({ data: fatturaFinta, error: null }),
+    then: (risolvi: (v: { data: unknown[]; error: null }) => void) => risolvi({ data: [], error: null }),
+  };
+  return catena;
+}
+
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          is: () => ({
-            single: async (): Promise<{ data: typeof fatturaFinta; error: null }> =>
-              ({ data: fatturaFinta, error: null }),
-          }),
-        }),
-      }),
-    }),
+    from: () => ({ select: () => catenaFinta() }),
   },
 }));
 

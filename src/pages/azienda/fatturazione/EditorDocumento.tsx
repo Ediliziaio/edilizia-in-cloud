@@ -26,6 +26,7 @@ import { useInvioSdi, useAggiornaStatoSdi } from "@/hooks/useInvioSdi";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { convertiProformaInFattura } from "@/lib/fatturazione/proforma";
 import { datiCopiaDocumento } from "@/lib/fatturazione/duplicaDocumento";
+import { datiFatturaDaDdt } from "@/lib/fatturazione/fatturaDaDdt";
 import { toast } from "sonner";
 import { useEditorState } from "./editor/useEditorState";
 import { useBeforeUnload } from "@/hooks/useBeforeUnload";
@@ -80,6 +81,7 @@ function EditorDelDocumento() {
   // Fatturare un rendiconto d'appalto: il documento nasce qui, e qui si chiude
   // l'aggancio — prima non esiste un id da agganciare. Vedi SalAppalto.tsx.
   const appaltoSalParam = searchParams.get("appalto_sal");
+  const fromDdtParam = searchParams.get("from_ddt");
 
   // Leave dialog state
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
@@ -102,6 +104,20 @@ function EditorDelDocumento() {
     },
   });
 
+  // Fattura da DDT: si legge il DDT; se ha già una bozza di fattura si riapre quella.
+  const { data: ddtData, isFetched: ddtFetched, isError: ddtErrore } = useQuery({
+    queryKey: ["ddt-prefill", fromDdtParam],
+    enabled: isCreate && !!fromDdtParam,
+    retry: 1,
+    queryFn: async () => {
+      const ddt = await rileggiDocumentoFiscale(fromDdtParam!);
+      if (!ddt.ddt_fattura_id) return { ddt, bozzaId: null };
+      const { data } = await supabase.from("documenti_fiscali" as never).select("id")
+        .eq("id", ddt.ddt_fattura_id).eq("stato", "bozza").is("deleted_at", null).maybeSingle();
+      return { ddt, bozzaId: (data as { id: string } | null)?.id ?? null };
+    },
+  });
+
   const createMutation = useCreateDocumento();
   const { data: loadedDoc, isLoading } = useDocumentoFiscale(id);
   const emittiMutation = useEmittiDocumento();
@@ -121,11 +137,22 @@ function EditorDelDocumento() {
     // If ordine param specified, wait until the query has completed (success OR error)
     // but don't block forever — proceed after fetch attempt
     if (ordineParam && !ordineDataFetched) return;
+    if (fromDdtParam && !ddtFetched) return;
 
     createdRef.current = true;
 
+    if (fromDdtParam && (ddtErrore || !ddtData)) {
+      toast.error("DDT non letto: la fattura non è stata creata");
+      navigate(-1);
+      return;
+    }
+    if (ddtData?.bozzaId) {
+      navigate(`/azienda/documenti/${ddtData.bozzaId}`, { replace: true });
+      return;
+    }
+
     // Build prefilled data from order if available
-    const mergedPrefill: Partial<DocumentoFiscale> = { ...prefilled };
+    const mergedPrefill: Partial<DocumentoFiscale> = { ...prefilled, ...(ddtData ? datiFatturaDaDdt(ddtData.ddt) : {}) };
     if (ordineData && !mergedPrefill.note_documento) {
       mergedPrefill.note_documento = ordineData.description || undefined;
     }
@@ -134,6 +161,11 @@ function EditorDelDocumento() {
       { tipo: tipoParam, ...mergedPrefill },
       {
         onSuccess: async (doc) => {
+          if (fromDdtParam) {
+            const { error } = await supabase.from("documenti_fiscali" as never)
+              .update({ ddt_fattura_id: doc.id } as never).eq("id", fromDdtParam);
+            if (error) toast.error("Fattura creata, ma non agganciata al DDT", { description: error.message });
+          }
           if (appaltoSalParam) {
             const { error } = await (supabase as any).rpc("appalto_sal_collega_fattura", {
               p_sal_id: appaltoSalParam,
@@ -161,7 +193,7 @@ function EditorDelDocumento() {
       },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCreate, tipoParam, ordineParam, ordineDataFetched, appaltoSalParam]);
+  }, [isCreate, tipoParam, ordineParam, ordineDataFetched, appaltoSalParam, fromDdtParam, ddtFetched]);
 
   const { state, dispatch, isSaving, lastSaved, isDirty, saveNow } = useEditorState(loadedDoc);
   const isBozza = state.stato === "bozza";

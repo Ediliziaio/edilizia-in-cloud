@@ -22,6 +22,15 @@ export function EditorContributiRitenuteSection({ state, dispatch, disabled }: P
     dispatch({ type: "SET_FIELD", field, value });
   }
 
+  // Accendendo una voce entrano davvero i valori che il modulo mostra (20%, 4%…):
+  // prima erano solo a video, il dato restava vuoto e il calcolo faceva zero.
+  function accendi(voce: string, attiva: boolean, predefiniti: Record<string, unknown>) {
+    const pieni = Object.fromEntries(
+      Object.entries(predefiniti).filter(([campo]) => (state as Record<string, unknown>)[campo] == null),
+    );
+    dispatch({ type: "SET_PAGAMENTO", fields: { [voce]: attiva, ...(attiva ? pieni : {}) } });
+  }
+
   const hasContributiActive = (state.ritenuta_acconto ?? false)
     || (state.cassa_previdenziale ?? false)
     || (state.rivalsa_inps ?? false)
@@ -54,7 +63,7 @@ export function EditorContributiRitenuteSection({ state, dispatch, disabled }: P
               <div className="flex items-center gap-2">
                 <Switch
                   checked={state.cassa_previdenziale ?? false}
-                  onCheckedChange={(v) => setField("cassa_previdenziale", v)}
+                  onCheckedChange={(v) => accendi("cassa_previdenziale", v, { cassa_tipo: "TC06", cassa_aliquota: 4 })}
                   disabled={disabled}
                   className="scale-75"
                 />
@@ -109,7 +118,7 @@ export function EditorContributiRitenuteSection({ state, dispatch, disabled }: P
               <div className="flex items-center gap-2">
                 <Switch
                   checked={state.rivalsa_inps ?? false}
-                  onCheckedChange={(v) => setField("rivalsa_inps", v)}
+                  onCheckedChange={(v) => accendi("rivalsa_inps", v, { rivalsa_tipo: "TC22", rivalsa_aliquota: 4 })}
                   disabled={disabled}
                   className="scale-75"
                 />
@@ -155,7 +164,7 @@ export function EditorContributiRitenuteSection({ state, dispatch, disabled }: P
               <div className="flex items-center gap-2">
                 <Switch
                   checked={state.ritenuta_acconto ?? false}
-                  onCheckedChange={(v) => setField("ritenuta_acconto", v)}
+                  onCheckedChange={(v) => accendi("ritenuta_acconto", v, { ritenuta_tipo: "RT01", ritenuta_aliquota: 20, ritenuta_causale: "A" })}
                   disabled={disabled}
                   className="scale-75"
                 />

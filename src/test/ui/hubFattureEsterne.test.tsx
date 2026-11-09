@@ -32,6 +32,7 @@ vi.mock("@/hooks/useDocumentiFiscali", () => ({
     return { data: { documenti: s.documenti, total: s.documenti.length }, isLoading: false, isError: false, isFetching: false, refetch: vi.fn() };
   },
   useDeleteDocumento: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
+  useRipristinaDocumento: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateDocumento: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 vi.mock("@/components/fatturazione/GestionaleEsterno", async (orig) => ({

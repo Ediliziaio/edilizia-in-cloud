@@ -6,6 +6,7 @@ import { createTimeoutSignal, withClientTimeout } from "@/lib/query-timeout";
 import { toast } from "sonner";
 import type { DocumentoFiscale, TipoDocumento, StatoDocumento } from "@/types/fatturazione";
 import { ricercaDocumenti } from "@/lib/fatturazione/filtriDocumenti";
+import { stornatoDellaFattura } from "@/lib/fatturazione/noteCredito";
 
 const DOCUMENTI_QUERY_TIMEOUT_MS = 12_000;
 
@@ -146,6 +147,20 @@ function mapRow(row: Record<string, unknown>): DocumentoFiscale {
   } as DocumentoFiscale;
 }
 
+/**
+ * Una fattura emessa porta con sé quanto hanno già stornato le note di credito: il
+ * residuo da incassare si conta su questo. Se la lettura non riesce il documento
+ * resta com'è: il database rifiuta comunque un incasso oltre il residuo.
+ */
+async function conStornato(doc: DocumentoFiscale): Promise<DocumentoFiscale> {
+  if (!["fattura", "fattura_pa"].includes(doc.tipo) || ["bozza", "annullata"].includes(doc.stato)) return doc;
+  try {
+    return { ...doc, stornato: await stornatoDellaFattura(doc.id) };
+  } catch {
+    return doc;
+  }
+}
+
 // ─── List hook ────────────────────────────────────────────────
 
 export function useDocumentiFiscali(filters: DocumentiFiscaliFilters = {}) {
@@ -257,7 +272,7 @@ export async function rileggiDocumentoFiscale(id: string): Promise<DocumentoFisc
     .eq("id", id)
     .single();
   if (error) throw error;
-  return mapRow(data as Record<string, unknown>);
+  return conStornato(mapRow(data as Record<string, unknown>));
 }
 
 export function useDocumentoFiscale(id: string | undefined) {
@@ -276,7 +291,7 @@ export function useDocumentoFiscale(id: string | undefined) {
         .single();
 
       if (error) throw error;
-      return mapRow(data as Record<string, unknown>);
+      return conStornato(mapRow(data as Record<string, unknown>));
     },
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
@@ -436,6 +451,22 @@ export function useUpdateDocumento() {
   });
 }
 
+// ─── Ripristino dal cestino ──────────────────────────────────
+export function useRipristinaDocumento() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.rpc("documento_ripristina" as never, { p_documento_id: id } as never);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
+      toast.success("Documento ripristinato");
+    },
+    onError: (err: Error) => toast.error("Documento non ripristinato", { description: err.message }),
+  });
+}
+
 // ─── Soft-delete mutation ─────────────────────────────────────
 // Italian fiscal law requires document retention — physical deletion is
 // illegal for emitted invoices. We therefore:
@@ -530,7 +561,7 @@ export function useEmittiDocumento() {
 
       const righe = (d.righe as unknown[]) ?? [];
       const tipo = d.tipo as string;
-      if (righe.length === 0 && tipo !== "nota_credito") {
+      if (righe.length === 0) {
         throw new Error("Il documento deve avere almeno una riga");
       }
 

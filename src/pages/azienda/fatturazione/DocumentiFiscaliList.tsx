@@ -3,7 +3,7 @@ import { nomeCliente } from "@/lib/fatturazione/clienteSnapshot";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { documentoDaConservare } from "@/lib/fatturazione/conservazione";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
-import { useDocumentiFiscali, useDeleteDocumento, useUpdateDocumento, rileggiDocumentoFiscale } from "@/hooks/useDocumentiFiscali";
+import { useDocumentiFiscali, useDeleteDocumento, useUpdateDocumento, useRipristinaDocumento, rileggiDocumentoFiscale } from "@/hooks/useDocumentiFiscali";
 import { datiCopiaDocumento } from "@/lib/fatturazione/duplicaDocumento";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -12,7 +12,8 @@ import { useMonthlyTimeline } from "@/hooks/billing/useMonthlyTimeline";
 import { useDocumentCounts } from "@/hooks/billing/useDocumentCounts";
 import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
 import { useShipmentDDTPDF } from "@/hooks/useShipmentDDTPDF";
-import { generateFatturaPAXML } from "@/lib/fatturazione/generateXML";
+import { scaricaXmlFattura } from "@/lib/fatturazione/scaricaXml";
+import { siPuoRipristinare } from "@/lib/fatturazione/cestino";
 import { creaNotaCredito } from "@/lib/fatturazione/noteCredito";
 import { convertiProformaInFattura } from "@/lib/fatturazione/proforma";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
@@ -272,6 +273,7 @@ function DocumentiFiscaliListInner() {
   const { data: azienda } = useAnagraficaAzienda();
   const deleteMutation = useDeleteDocumento();
   const updateMutation = useUpdateDocumento();
+  const ripristina = useRipristinaDocumento();
 
   // Current tab config
   const currentTab = TIPO_TABS.find((t) => t.id === activeTab) ?? TIPO_TABS[0];
@@ -544,14 +546,8 @@ function DocumentiFiscaliListInner() {
             toast.error("Anagrafica azienda non configurata");
             return;
           }
-          const xml = generateFatturaPAXML(doc, azienda as AnagraficaAzienda);
-          const blob = new Blob([xml], { type: "application/xml" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = `${doc.numero}.xml`;
-          a.click();
-          URL.revokeObjectURL(url);
+          // La riga dell'elenco non ha le righe della fattura: l'XML nasce dal documento intero.
+          await scaricaXmlFattura(await rileggiDocumentoFiscale(doc.id), azienda as AnagraficaAzienda);
           toast.success("XML scaricato");
         } catch (e: unknown) {
           toast.error(getErrorMessage(e));
@@ -566,7 +562,12 @@ function DocumentiFiscaliListInner() {
         }
         break;
       case "pagata":
-        setPayTarget(doc);
+        // Metodo di pagamento e storni non sono nella riga dell'elenco.
+        try {
+          setPayTarget(await rileggiDocumentoFiscale(doc.id));
+        } catch (e: unknown) {
+          toast.error(getErrorMessage(e));
+        }
         break;
       case "delete":
         setDeleteTarget(doc);
@@ -581,7 +582,7 @@ function DocumentiFiscaliListInner() {
         }
         break;
       case "restore":
-        updateMutation.mutate({ id: doc.id, stato: "bozza" as StatoDocumento, deleted_at: null });
+        ripristina.mutate(doc.id);
         break;
       case "fattura_ddt":
         navigate(`/azienda/documenti/nuovo?tipo=fattura&from_ddt=${doc.id}`);
@@ -960,7 +961,7 @@ function DocumentiFiscaliListInner() {
                 {docs.map((doc) => {
                   const scadenza = getScadenzaInfo(doc);
                   const isDdt = doc.tipo === "ddt";
-                  const ddtFatturato = isDdt && !!doc.ddt_fattura_id;
+                  const ddtFatturato = isDdt && !!doc.ddt_fatturato;
 
                   return (
                     <TableRow
@@ -1164,13 +1165,14 @@ function DocumentiFiscaliListInner() {
                               <DropdownMenuItem disabled>Nel cestino</DropdownMenuItem>
                             ) : isTrash ? (
                               <>
-                                <DropdownMenuItem onClick={() => handleAction("restore", doc)}>
-                                  <RotateCcw className="h-4 w-4 mr-2" /> Ripristina
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem className="text-destructive font-medium" onClick={() => handleAction("delete", doc)}>
-                                  <Trash2 className="h-4 w-4 mr-2" /> Elimina definitivamente
-                                </DropdownMenuItem>
+                                {/* Si elimina da sola dopo 14 giorni, se la legge non la vuole conservata. */}
+                                {siPuoRipristinare(doc) ? (
+                                  <DropdownMenuItem onClick={() => handleAction("restore", doc)}>
+                                    <RotateCcw className="h-4 w-4 mr-2" /> Ripristina
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <DropdownMenuItem disabled>In archivio: annullata con il suo numero</DropdownMenuItem>
+                                )}
                               </>
                             ) : (
                               <>
@@ -1220,7 +1222,7 @@ function DocumentiFiscaliListInner() {
                                 )}
 
                                 {/* DDT: fattura da DDT */}
-                                {puoCreare && doc.tipo === "ddt" && !doc.ddt_fattura_id && (
+                                {puoCreare && doc.tipo === "ddt" && !doc.ddt_fatturato && (
                                   <>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem className="text-emerald-600" onClick={() => handleAction("fattura_ddt", doc)}>
