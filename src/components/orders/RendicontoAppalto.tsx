@@ -175,10 +175,10 @@ export function RendicontoAppalto({
   const daRendicontare = useQuery({
     queryKey: ["appalto-rapportini-da-rendicontare", orderId],
     enabled: vedeImporti,
-    queryFn: async (): Promise<Array<{ rapportino_id: string; data_lavoro: string; ore_lavorate: number | null; motivo: string | null }>> => {
+    queryFn: async (): Promise<Array<{ rapportino_id: string; data_lavoro: string; ore_lavorate: number | null; motivo: string | null; persona: string | null }>> => {
       const { data, error } = await (supabase as any)
         .from("v_appalto_rapportini_da_rendicontare")
-        .select("rapportino_id, data_lavoro, ore_lavorate, motivo")
+        .select("rapportino_id, data_lavoro, ore_lavorate, motivo, persona")
         .eq("order_id", orderId)
         .order("data_lavoro", { ascending: false });
       if (error) throw error;
@@ -245,6 +245,19 @@ export function RendicontoAppalto({
   }, [qtaGrezza, prezzoGrezzo, form?.maggiorazione_pct, tariffaScelta, mappaEccezioni]);
 
   /* ── Scritture ── */
+
+  // Rapportini già approvati, o listino sistemato dopo: la riga nasce qui.
+  const recupera = useMutation({
+    mutationFn: async (rapportinoId: string) => {
+      const { error } = await (supabase as any).rpc("appalto_rendiconto_recupera", { p_rapportino_id: rapportinoId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: chiaveRighe });
+      queryClient.invalidateQueries({ queryKey: ["appalto-rapportini-da-rendicontare", orderId] });
+    },
+    onError: (e: unknown) => toast({ title: e instanceof Error ? e.message : "Riga non creata", variant: "destructive" }),
+  });
 
   const salva = useMutation({
     mutationFn: async (f: Partial<Riga>) => {
@@ -550,25 +563,24 @@ export function RendicontoAppalto({
           subtitle="Rapportini approvati che il sistema non ha potuto tradurre in un importo."
         >
           <div className="space-y-2">
-            {(daRendicontare.data ?? []).map((x) => (
-              <div key={x.rapportino_id} className="rounded-lg border border-amber-200 bg-amber-50/50 p-2.5">
-                <p className="text-sm font-medium text-slate-900">
-                  {giornoIT(x.data_lavoro)}
-                  {x.ore_lavorate ? ` · ${formatDecimalIT(x.ore_lavorate, { minDecimals: 0, maxDecimals: 1 })} ore` : ""}
-                </p>
-                {/* Motivo vuoto non vuol dire «non si sa»: vuol dire che ADESSO
-                    il listino basterebbe, e la riga non e' nata perche' quando
-                    il rapportino e' stato approvato mancava qualcosa (la
-                    qualifica dell'operaio, una tariffa in vigore). Si risolve
-                    con la riga qui sotto, non indagando. */}
-                <p className="text-xs text-amber-800">
-                  {x.motivo ?? "Adesso il listino basterebbe: la riga non è nata quando il rapportino è stato approvato."}
-                </p>
+            {(daRendicontare.data ?? []).map((x, i) => (
+              <div key={`${x.rapportino_id}-${x.persona ?? i}`} className="flex items-start justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50/50 p-2.5">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-900">
+                    {giornoIT(x.data_lavoro)}{x.persona ? ` · ${x.persona}` : ""}
+                  </p>
+                  {/* Motivo vuoto: adesso il listino basta, la riga si può creare. */}
+                  <p className="text-xs text-amber-800">{x.motivo ?? "Il listino adesso basta: si può creare la riga."}</p>
+                </div>
+                {!x.motivo && (
+                  <Button size="sm" variant="outline" className="shrink-0" disabled={recupera.isPending} onClick={() => recupera.mutate(x.rapportino_id)}>
+                    Crea riga
+                  </Button>
+                )}
               </div>
             ))}
             <p className="text-xs text-muted-foreground">
-              Sistemato il listino del contratto, basta togliere e rimettere l'approvazione del
-              rapportino perché la riga nasca. Oppure si scrive a mano qui sopra.
+              Se manca un prezzo, sistema il listino del contratto: comparirà «Crea riga». Oppure scrivi la riga a mano qui sopra.
             </p>
           </div>
         </QuoteCard>

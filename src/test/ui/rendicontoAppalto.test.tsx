@@ -115,7 +115,7 @@ it("un rapportino approvato che non è diventato una riga si vede, col motivo", 
   m.daFare = [{rapportino_id: "p1", data_lavoro: "2026-10-22", ore_lavorate: 8, motivo: "Nessuna tariffa di manodopera per Operaio specializzato in vigore il 22/10/2026"}];
   draw();
   expect(screen.getByText("Giornate di campo non rendicontate")).toBeVisible();
-  expect(screen.getByText(/22\/10\/26 · 8 ore/)).toBeVisible();
+  expect(screen.getByText(/22\/10\/26/)).toBeVisible();
   expect(screen.getByText(/Nessuna tariffa di manodopera/)).toBeVisible();
 });
 
