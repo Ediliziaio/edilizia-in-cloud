@@ -21,6 +21,7 @@ export function ChiediASilvio({
   variant = "outline",
   size = "sm",
   className,
+  soloIcona = false,
 }: {
   /** Domanda pre-caricata che Silvio riceve all'apertura della pagina. */
   ask: string;
@@ -28,6 +29,7 @@ export function ChiediASilvio({
   variant?: BtnVariant;
   size?: BtnSize;
   className?: string;
+  soloIcona?: boolean;
 }) {
   const navigate = useNavigate();
   const handle = () => {
@@ -46,9 +48,10 @@ export function ChiediASilvio({
       onClick={handle}
       className={cn("gap-1.5", className)}
       title="Apri Silvio AI con questa domanda già pronta"
+      aria-label={soloIcona ? label : undefined}
     >
       <Sparkles className="h-4 w-4 text-orange-500" />
-      {label}
+      {!soloIcona && label}
     </Button>
   );
 }

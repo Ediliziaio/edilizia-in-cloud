@@ -2,9 +2,8 @@ import { useMemo, lazy, Suspense } from "react";
 import { Navigate, useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, Loader2, Mail, Phone, Wand2,
-  AlertTriangle, Pencil, Euro, ShoppingBag, LifeBuoy,
-  FileText, ChevronDown,
+  ArrowLeft, Loader2, Mail, MapPin, Phone, Wand2,
+  AlertTriangle, Pencil, ChevronDown,
   ClipboardList, FileSignature, Ticket,
 } from "lucide-react";
 import {
@@ -41,8 +40,10 @@ import { queryKeys } from "@/lib/queryKeys";
 import {
   CustomerBusinessTabs,
 } from "@/components/clients/CustomerBusinessTabs";
-import { KpiCard } from "@/components/clients/KpiCard";
-import { AzioniContattoScheda, AzioniContattoSchedaMobile, linkWhatsApp } from "@/components/clients/AzioniContattoScheda";
+import { RigaNumeri } from "@/components/clients/RigaNumeri";
+import { TestataScheda } from "@/components/clients/TestataScheda";
+import { AzioniContattoScheda, AzioniContattoSchedaMobile, IconaScheda, linkWhatsApp } from "@/components/clients/AzioniContattoScheda";
+import { AiCallButton } from "@/components/telephony/AiCallButton";
 import { PannelloLateraleScheda } from "@/components/clients/PannelloLateraleScheda";
 import { VoceEliminaCliente } from "@/components/clients/VoceEliminaCliente";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
@@ -115,6 +116,7 @@ export default function CompanyCustomerDetail() {
   // a customer.email.
   const [composeOpen, setComposeOpen] = useState(false);
   const [nuovoContratto, setNuovoContratto] = useState(false);
+  const [chiamataAi, setChiamataAi] = useState(false);
   const [composeContext, setComposeContext] = useState<ComposeContext>({ mode: "new" });
   // 2026-05-27 (layout 3-col): tab pannello laterale destro.
   // null = chiuso, "ordini" | "preventivi" | "assistenza" | "interventi" |
@@ -366,96 +368,33 @@ export default function CompanyCustomerDetail() {
     <div className="space-y-4">
       {/* ───── Hero header stile MarketingContactDetail ───── */}
       <div className="rounded-2xl border bg-card p-3 md:p-4 shadow-sm">
-        <div className="flex items-start gap-3 md:gap-4">
-          {/* Mobile: la freccia c'è già nella barra in alto. */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="shrink-0 -ml-2 max-md:hidden"
-            onClick={() => navigate("/azienda/clienti")}
-            aria-label="Torna ai clienti"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-
-          {/* Avatar */}
-          <div className="relative shrink-0">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-orange-500 text-white text-lg font-bold shadow-sm ring-2 ring-background">
-              {customerInitials}
-            </div>
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-lg sm:text-xl font-bold tracking-tight truncate">
-                {fullName}
-              </h1>
-              {customer.is_business ? (
-                <Badge variant="outline" className="text-[10px] h-5 px-1.5">Azienda</Badge>
-              ) : (
-                <Badge variant="outline" className="text-[10px] h-5 px-1.5">Cliente</Badge>
-              )}
+        <TestataScheda
+          onIndietro={() => navigate("/azienda/clienti")}
+          etichettaIndietro="Torna ai clienti"
+          iniziali={customerInitials}
+          coloreAvatar="bg-gradient-to-br from-blue-500 to-orange-500"
+          nome={fullName}
+          accantoAlNome={
+            <>
+              <Badge variant="outline" className="h-5 shrink-0 px-1.5 text-[10px]">{customer.is_business ? "Azienda" : "Cliente"}</Badge>
               {!customer.is_business && isFirstPlaceholder && isLastPlaceholder && !biz && (
-                <span className="text-xs font-normal text-muted-foreground">(anagrafica da completare)</span>
+                <span className="truncate text-xs font-normal text-muted-foreground">(anagrafica da completare)</span>
               )}
-            </div>
-            {referentName && (
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Referente: <span className="font-medium text-foreground">{referentName}</span>
-              </p>
-            )}
-
-            {/* Chip info inline (stile marketing: gap-3 testo grigio, non pill colorati) */}
-            <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1 flex-wrap">
-              {customerEmailClean && (
-                <a href={`mailto:${customerEmailClean}`} className="inline-flex items-center gap-1 hover:text-primary transition-colors truncate">
-                  <Mail className="h-3 w-3 shrink-0" />
-                  <span className="truncate">{customerEmailClean}</span>
-                </a>
-              )}
-              {customer.phone && (
-                <a href={`tel:${customer.phone}`} className="inline-flex items-center gap-1 hover:text-primary transition-colors">
-                  <Phone className="h-3 w-3 shrink-0" />
-                  {customer.phone}
-                </a>
-              )}
-              {(customer.city || customer.address) && (
-                <span className="text-[11px]">
-                  📍 {[customer.address, customer.city].filter(Boolean).join(" · ")}
-                </span>
-              )}
-              <DistanceFromBase
-                address={customer.address}
-                city={customer.city}
-                province={customer.province}
-                className="text-[11px]"
-              />
-            </div>
-          </div>
-
-          {/* Quick actions (stessi colori marketing) */}
-          <div className="hidden md:flex shrink-0 items-center gap-1.5">
-            <ChiediASilvio
-              ask={`Analizza il cliente ${fullName}: commesse/lavori, fatturato, crediti aperti, preventivi in corso e prossime azioni consigliate. Cosa devo sapere?`}
-            />
-            <AzioniContattoScheda
-              telefono={customer.phone ?? null}
-              nome={fullName}
-              contactId={customer.marketing_contact_id ?? undefined}
-              email={customerEmailClean}
-              onEmail={openCompose}
-              onAppuntamento={() => setAppointmentDialogOpen(true)}
-            />
-
-            <NuovoContrattoClienteDialog aperto={nuovoContratto} onChiudi={() => setNuovoContratto(false)} clienteId={customer.id} nomeCliente={fullName} />
-            {/* Dropdown "..." con crea entità + elimina (stile marketing) */}
-            <DropdownMenu>
+              <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9">
+                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" aria-label="Altre azioni">
                   <ChevronDown className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {customer.phone && (
+                  <>
+                    <DropdownMenuItem onClick={() => setChiamataAi(true)}>
+                      <Phone className="h-3.5 w-3.5 mr-2" /> Chiama con agente AI
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
                   Crea per questo cliente
                 </DropdownMenuLabel>
@@ -475,8 +414,54 @@ export default function CompanyCustomerDetail() {
                 <VoceEliminaCliente id={customer.id} commesse={orderCount} />
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
-        </div>
+            </>
+          }
+          contatti={
+            <>
+              {referentName && <span>Referente: <span className="font-medium text-foreground">{referentName}</span></span>}
+              {customerEmailClean && (
+                <a href={`mailto:${customerEmailClean}`} className="inline-flex min-w-0 max-w-full items-center gap-1 transition-colors hover:text-primary">
+                  <Mail className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{customerEmailClean}</span>
+                </a>
+              )}
+              {customer.phone && (
+                <a href={`tel:${customer.phone}`} className="inline-flex items-center gap-1 whitespace-nowrap transition-colors hover:text-primary">
+                  <Phone className="h-3 w-3 shrink-0" />
+                  {customer.phone}
+                </a>
+              )}
+              {(customer.city || customer.address) && (
+                <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3 shrink-0" />{customer.city || customer.address}</span>
+              )}
+              <DistanceFromBase address={customer.address} city={customer.city} province={customer.province} className="text-xs" />
+            </>
+          }
+          azioni={
+            <>
+              <IconaScheda etichetta="Chiedi a Silvio">
+                <ChiediASilvio
+                  soloIcona
+                  size="icon"
+                  className="h-9 w-9"
+                  ask={`Analizza il cliente ${fullName}: commesse/lavori, fatturato, crediti aperti, preventivi in corso e prossime azioni consigliate. Cosa devo sapere?`}
+                />
+              </IconaScheda>
+              <AzioniContattoScheda
+                telefono={customer.phone ?? null}
+                nome={fullName}
+                contactId={customer.marketing_contact_id ?? undefined}
+                email={customerEmailClean}
+                onEmail={openCompose}
+                onAppuntamento={() => setAppointmentDialogOpen(true)}
+              />
+            </>
+          }
+        />
+        <NuovoContrattoClienteDialog aperto={nuovoContratto} onChiudi={() => setNuovoContratto(false)} clienteId={customer.id} nomeCliente={fullName} />
+        {customer.phone && (
+          <AiCallButton senzaPulsante aperto={chiamataAi} onAperto={setChiamataAi} phone={customer.phone} contactId={customer.marketing_contact_id ?? undefined} contactName={fullName} />
+        )}
 
         {/* Quick action mobile (sotto l'header) */}
         <AzioniContattoSchedaMobile
@@ -509,54 +494,25 @@ export default function CompanyCustomerDetail() {
           </div>
         </div>
 
-        {/* DESKTOP: KPI strip full (border bg-card + icon corner + subtext) */}
         {/* Cinque numeri che dicono come sta il cliente; ognuno apre il suo pannello. */}
-        <div className="mt-2 hidden md:grid md:grid-cols-3 xl:grid-cols-5 gap-2">
-          <KpiCard
-            icon={ShoppingBag}
-            iconColor="text-blue-500"
-            label="Commesse"
-            value={orderCount}
-            subtext={orderCount === 0 ? "Nessuna commessa" : `l'ultima del ${new Date(orders[0].created_at).toLocaleDateString("it-IT")}`}
-            onClick={() => apri("ordini")}
-          />
-          <KpiCard
-            icon={Euro}
-            iconColor="text-emerald-500"
-            label="Valore lavori"
-            value={euro(totalOrderValue)}
-            subtext="IVA esclusa"
-            onClick={() => apri("ordini")}
-          />
-          <KpiCard
-            icon={CreditCardIcon}
-            iconColor={daIncassare?.scaduto ? "text-red-500" : "text-emerald-500"}
-            label="Da incassare"
-            value={daIncassare ? euro(daIncassare.totale) : orderCount === 0 ? "—" : "…"}
-            subtext={!daIncassare ? "IVA inclusa"
-              : daIncassare.totale === 0 ? "Tutto incassato"
-              : daIncassare.scaduto > 0 ? `di cui ${euro(daIncassare.scaduto)} scaduti`
-              : "IVA inclusa · niente di scaduto"}
-            tono={daIncassare?.scaduto ? "rosso" : undefined}
-            onClick={() => apri("rate")}
-          />
-          <KpiCard
-            icon={FileText}
-            iconColor="text-violet-500"
-            label="Preventivi"
-            value={preventivi.length}
-            subtext={preventivi.length === 0 ? "Nessun preventivo" : preventiviInAttesa > 0 ? `${preventiviInAttesa} in attesa di risposta` : "nessuno in attesa"}
-            onClick={() => apri("preventivi")}
-          />
-          <KpiCard
-            icon={LifeBuoy}
-            iconColor="text-amber-500"
-            label="Assistenza aperta"
-            value={openTickets}
-            subtext={tickets.length > 0 ? `su ${tickets.length} richieste` : "Nessuna richiesta"}
-            onClick={() => apri("assistenza")}
-          />
-        </div>
+        <RigaNumeri
+          numeri={[
+            { label: "Commesse", value: orderCount, sub: orderCount === 0 ? "Nessuna commessa" : `l'ultima del ${new Date(orders[0].created_at).toLocaleDateString("it-IT")}`, onClick: () => apri("ordini") },
+            { label: "Valore lavori", value: euro(totalOrderValue), sub: "IVA esclusa", onClick: () => apri("ordini") },
+            {
+              label: "Da incassare",
+              value: daIncassare ? euro(daIncassare.totale) : orderCount === 0 ? "—" : "…",
+              sub: !daIncassare ? "IVA inclusa"
+                : daIncassare.totale === 0 ? "Tutto incassato"
+                : daIncassare.scaduto > 0 ? `di cui ${euro(daIncassare.scaduto)} scaduti`
+                : "IVA inclusa · niente di scaduto",
+              tono: daIncassare?.scaduto ? "rosso" : undefined,
+              onClick: () => apri("rate"),
+            },
+            { label: "Preventivi", value: preventivi.length, sub: preventivi.length === 0 ? "Nessun preventivo" : preventiviInAttesa > 0 ? `${preventiviInAttesa} in attesa di risposta` : "nessuno in attesa", onClick: () => apri("preventivi") },
+            { label: "Assistenza aperta", value: openTickets, sub: tickets.length > 0 ? `su ${tickets.length} richieste` : "Nessuna richiesta", onClick: () => apri("assistenza") },
+          ]}
+        />
         <CosaFareAdesso
           azioni={azioni}
           cliente={fullName}
@@ -630,7 +586,7 @@ export default function CompanyCustomerDetail() {
       {/* Altezza LIMITATA su desktop (come la scheda contatti): così la timeline
           scrolla dentro il pannello e la barra «scrivi email / WhatsApp» resta
           FISSA in basso invece di finire in coda allo scroll della pagina. */}
-      <div className="flex flex-col lg:flex-row gap-3 lg:gap-4 lg:h-[calc(100dvh-18rem)]">
+      <div className="flex flex-col lg:flex-row gap-3 lg:gap-4 lg:h-[calc(100dvh-14rem)]">
         {/* ─── LEFT 280px (su mobile va dopo center → order-2) ─── */}
         <div className="order-2 lg:order-none lg:w-72 shrink-0 space-y-3">
           <CustomerProfileCard

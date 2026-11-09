@@ -21,11 +21,11 @@
 import { useCondizioniDocumento } from "@/hooks/useCondizioniDocumento";
 import { datiDaAccordo } from "@/lib/contratti/contrattoCliente";
 import { caricaDatiSocietari } from "../../../supabase/functions/_shared/datiSocietari";
-import { lazy, Suspense, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, CalendarDays, ChevronDown, CreditCard, Download, ExternalLink, FileSignature, FileText, HardHat,
+  CalendarDays, ChevronDown, CreditCard, Download, ExternalLink, FileSignature, FileText, HardHat,
   Loader2, Mail, MapPin, Pencil, Phone, Plus, Trash2, Euro, AlertTriangle, ClipboardList, Lock, Receipt,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -56,7 +56,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SalAppalto } from "@/components/orders/SalAppalto";
@@ -66,7 +66,10 @@ import { CustomerActivityTimeline } from "@/components/clients/CustomerActivityT
 import { CustomerComposeBar } from "@/components/clients/CustomerComposeBar";
 import { CustomerBusinessTabs } from "@/components/clients/CustomerBusinessTabs";
 import { KpiCard } from "@/components/clients/KpiCard";
-import { AzioniContattoScheda, AzioniContattoSchedaMobile } from "@/components/clients/AzioniContattoScheda";
+import { RigaNumeri } from "@/components/clients/RigaNumeri";
+import { TestataScheda } from "@/components/clients/TestataScheda";
+import { AzioniContattoScheda, AzioniContattoSchedaMobile, IconaScheda } from "@/components/clients/AzioniContattoScheda";
+import { AiCallButton } from "@/components/telephony/AiCallButton";
 import { PannelloLateraleScheda, type SezioneLaterale } from "@/components/clients/PannelloLateraleScheda";
 import { VoceEliminaCliente } from "@/components/clients/VoceEliminaCliente";
 import DistanceFromBase from "@/components/customers/DistanceFromBase";
@@ -187,15 +190,15 @@ export default function CommittenteDetail() {
   const [sezione, setSezione] = useState<string | null>(() =>
     typeof window !== "undefined" && window.matchMedia?.("(min-width: 1280px)").matches ? "contratti" : null);
   const schermoStretto = useSchermoStretto();
-  const riquadroSezioni = useRef<HTMLDivElement>(null);
   // Da telefono il pannello a destra non c'e': un numero porta alla sua scheda, in fondo alla pagina.
   const apriSezione = (chiave: string) => {
     setSezione(chiave);
-    if (schermoStretto) requestAnimationFrame(() => riquadroSezioni.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }));
+    if (schermoStretto) requestAnimationFrame(() => document.getElementById("sezioni-committente")?.scrollIntoView?.({ behavior: "smooth", block: "start" }));
   };
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeContext, setComposeContext] = useState<ComposeContext>({ mode: "new" });
   const [appuntamentoOpen, setAppuntamentoOpen] = useState(false);
+  const [chiamataAi, setChiamataAi] = useState(false);
 
   /* ── Dati ── */
 
@@ -447,6 +450,14 @@ export default function CommittenteDetail() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        {c.phone && (
+          <>
+            <DropdownMenuItem onClick={() => setChiamataAi(true)}>
+              <Phone className="mr-2 h-3.5 w-3.5" /> Chiama con agente AI
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         {/* Solo a elenco letto: finche' non si sa quante commesse ha, zero non vuol dire nessuna,
             e le commesse resterebbero senza committente. */}
         {lavori.isSuccess && (
@@ -646,6 +657,35 @@ export default function CommittenteDetail() {
     </div>
   );
 
+  const numeri = [
+    {
+      label: "Contratto", icon: FileSignature, iconColor: "text-orange-500", largo: true,
+      value: contratti.isLoading ? "…" : contrattoInCorso?.nome ?? "Nessuno",
+      sub: !contrattoInCorso ? "Da scrivere"
+        : [contrattoInCorso.valido_al ? `scade il ${giornoIT(contrattoInCorso.valido_al)}` : "senza scadenza",
+           elencoContratti.length > 1 ? `${elencoContratti.length} contratti` : ""].filter(Boolean).join(" · "),
+      onClick: () => apriSezione("contratti"),
+    },
+    {
+      label: "Pagamento", icon: CreditCard, iconColor: "text-emerald-500",
+      value: contrattoInCorso ? `${contrattoInCorso.giorni_pagamento} gg` : "—",
+      sub: contrattoInCorso ? `ritenuta ${formatDecimalIT(contrattoInCorso.ritenuta_pct, { minDecimals: 0 })} %` : "Dal contratto",
+      onClick: () => apriSezione("contratti"),
+    },
+    {
+      label: "Commesse", icon: ClipboardList, iconColor: "text-blue-500",
+      value: lavori.isLoading ? "…" : elencoLavori.length,
+      sub: elencoLavori.length === 0 ? "Nessun lavoro" : `l'ultima del ${new Date(elencoLavori[0].created_at).toLocaleDateString("it-IT")}`,
+      onClick: () => apriSezione("commesse"),
+    },
+    {
+      label: "Listino", icon: Euro, iconColor: "text-violet-500",
+      value: !vedeImporti ? "—" : tariffe.data?.length ?? 0,
+      sub: !vedeImporti ? "Prezzi riservati" : (tariffe.data?.length ?? 0) === 1 ? "voce concordata" : "voci concordate",
+      onClick: () => apriSezione("listino"),
+    },
+  ];
+
   const contenutoSezione = (chiave: string) => {
     if (chiave === "contratti") return pannelloContratti;
     if (chiave === "listino") return pannelloListino;
@@ -695,105 +735,78 @@ export default function CommittenteDetail() {
     <div className="space-y-4">
       {/* Testata: la stessa della scheda cliente */}
       <div className="rounded-2xl border bg-card p-3 shadow-sm md:p-4">
-        {/* Nome e pulsanti stanno in fila finché c'entrano; se no i pulsanti vanno a capo
-            interi e i contatti restano su una riga, invece di impilarsi in una colonna stretta. */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <div className="flex min-w-0 flex-[1_1_24rem] items-center gap-3">
-            <Button variant="ghost" size="icon" className="-ml-2 shrink-0 max-md:hidden" onClick={() => navigate("/azienda/clienti?tipo=committenti")} aria-label="Torna ai committenti">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-slate-800 to-slate-500 text-base font-bold text-white shadow-sm ring-2 ring-background">
-              {iniziali}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-center gap-2">
-                <h1 className="truncate text-lg font-bold tracking-tight sm:text-xl">{nome}</h1>
-                <Badge variant="outline" className="h-5 shrink-0 px-1.5 text-[10px]">Committente</Badge>
-                {menuCommittente}
-              </div>
-              <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                {referente && <span>Referente: <span className="font-medium text-foreground">{referente}</span></span>}
-                {email && (
-                  <a href={`mailto:${email}`} className="inline-flex min-w-0 max-w-full items-center gap-1 transition-colors hover:text-primary">
-                    <Mail className="h-3 w-3 shrink-0" />
-                    <span className="truncate">{email}</span>
-                  </a>
-                )}
-                {c.phone && (
-                  <a href={`tel:${c.phone}`} className="inline-flex items-center gap-1 whitespace-nowrap transition-colors hover:text-primary">
-                    <Phone className="h-3 w-3 shrink-0" />
-                    {c.phone}
-                  </a>
-                )}
-                {(c.city || c.address) && (
-                  <span className="inline-flex items-center gap-1">
-                    <MapPin className="h-3 w-3 shrink-0" />
-                    {[c.address, c.city].filter(Boolean).join(" · ")}
-                  </span>
-                )}
-                {(c.vat_number || c.fiscal_code) && <span className="whitespace-nowrap">P.IVA {c.vat_number || c.fiscal_code}</span>}
-                <DistanceFromBase address={c.address} city={c.city} province={c.province} className="text-xs" />
-              </div>
-            </div>
-          </div>
-
-          <div className="ml-auto hidden flex-wrap items-center justify-end gap-1.5 md:flex">
-            <ChiediASilvio ask={`Analizza il committente ${nome}: contratti e listino, lavori in corso, rendiconti da fare, fatture da incassare e ritenute a garanzia. Cosa devo sapere?`} />
-            <AzioniContattoScheda
-              telefono={c.phone}
-              nome={nome}
-              contactId={c.marketing_contact_id ?? undefined}
-              email={email}
-              onEmail={apriEmail}
-              onAppuntamento={apriAppuntamento}
-            />
-            {pulsantiCrea}
-          </div>
-        </div>
+        <TestataScheda
+          onIndietro={() => navigate("/azienda/clienti?tipo=committenti")}
+          etichettaIndietro="Torna ai committenti"
+          iniziali={iniziali}
+          coloreAvatar="bg-gradient-to-br from-slate-800 to-slate-500"
+          nome={nome}
+          accantoAlNome={
+            <>
+              <Badge variant="outline" className="h-5 shrink-0 px-1.5 text-[10px]">Committente</Badge>
+              {menuCommittente}
+            </>
+          }
+          contatti={
+            <>
+              {referente && <span>Referente: <span className="font-medium text-foreground">{referente}</span></span>}
+              {email && (
+                <a href={`mailto:${email}`} className="inline-flex min-w-0 max-w-full items-center gap-1 transition-colors hover:text-primary">
+                  <Mail className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{email}</span>
+                </a>
+              )}
+              {c.phone && (
+                <a href={`tel:${c.phone}`} className="inline-flex items-center gap-1 whitespace-nowrap transition-colors hover:text-primary">
+                  <Phone className="h-3 w-3 shrink-0" />
+                  {c.phone}
+                </a>
+              )}
+              {(c.city || c.address) && (
+                <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3 shrink-0" />{c.city || c.address}</span>
+              )}
+              <DistanceFromBase address={c.address} city={c.city} province={c.province} className="text-xs" />
+            </>
+          }
+          azioni={
+            <>
+              <IconaScheda etichetta="Chiedi a Silvio">
+                <ChiediASilvio
+                  soloIcona
+                  size="icon"
+                  className="h-9 w-9"
+                  ask={`Analizza il committente ${nome}: contratti e listino, lavori in corso, rendiconti da fare, fatture da incassare e ritenute a garanzia. Cosa devo sapere?`}
+                />
+              </IconaScheda>
+              <AzioniContattoScheda
+                telefono={c.phone}
+                nome={nome}
+                contactId={c.marketing_contact_id ?? undefined}
+                email={email}
+                onEmail={apriEmail}
+                onAppuntamento={apriAppuntamento}
+              />
+              <div className="ml-2 flex items-center gap-1.5">{pulsantiCrea}</div>
+            </>
+          }
+        />
+        {c.phone && (
+          <AiCallButton senzaPulsante aperto={chiamataAi} onAperto={setChiamataAi} phone={c.phone} contactId={c.marketing_contact_id ?? undefined} contactName={nome} />
+        )}
 
         <AzioniContattoSchedaMobile telefono={c.phone} email={email} onEmail={apriEmail} onAppuntamento={apriAppuntamento} />
 
         <div className="mt-1.5 flex gap-1.5 md:hidden">{pulsantiCrea}</div>
 
-        <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-4">
-          <KpiCard
-            icon={FileSignature}
-            iconColor="text-orange-500"
-            label="Contratto"
-            value={contratti.isLoading ? "…" : contrattoInCorso?.nome ?? "Nessuno"}
-            subtext={!contrattoInCorso ? "Da scrivere"
-              : [contrattoInCorso.valido_al ? `scade il ${giornoIT(contrattoInCorso.valido_al)}` : "senza scadenza",
-                 elencoContratti.length > 1 ? `${elencoContratti.length} contratti` : ""].filter(Boolean).join(" · ")}
-            onClick={() => apriSezione("contratti")}
-          />
-          <KpiCard
-            icon={CreditCard}
-            iconColor="text-emerald-500"
-            label="Pagamento"
-            value={contrattoInCorso ? `${contrattoInCorso.giorni_pagamento} gg` : "—"}
-            subtext={contrattoInCorso ? `ritenuta a garanzia ${formatDecimalIT(contrattoInCorso.ritenuta_pct, { minDecimals: 0 })} %` : "Dal contratto"}
-            onClick={() => apriSezione("contratti")}
-          />
-          <KpiCard
-            icon={ClipboardList}
-            iconColor="text-blue-500"
-            label="Commesse"
-            value={lavori.isLoading ? "…" : elencoLavori.length}
-            subtext={elencoLavori.length === 0 ? "Nessun lavoro" : `l'ultima del ${new Date(elencoLavori[0].created_at).toLocaleDateString("it-IT")}`}
-            onClick={() => apriSezione("commesse")}
-          />
-          <KpiCard
-            icon={Euro}
-            iconColor="text-violet-500"
-            label="Listino"
-            value={!vedeImporti ? "—" : tariffe.data?.length ?? 0}
-            subtext={!vedeImporti ? "Prezzi riservati" : (tariffe.data?.length ?? 0) === 1 ? "voce concordata" : "voci concordate"}
-            onClick={() => apriSezione("listino")}
-          />
+        <div className="mt-2 grid grid-cols-2 gap-2 md:hidden">
+          {numeri.map((n) => (
+            <KpiCard key={n.label} icon={n.icon} iconColor={n.iconColor} label={n.label} value={n.value} subtext={n.sub} onClick={n.onClick} />
+          ))}
         </div>
+        <RigaNumeri numeri={numeri} />
       </div>
 
-      <div className="flex flex-col gap-3 lg:h-[calc(100dvh-18rem)] lg:flex-row lg:gap-4">
+      <div className="flex flex-col gap-3 lg:h-[calc(100dvh-14rem)] lg:flex-row lg:gap-4">
         <div className="order-2 shrink-0 space-y-3 lg:order-none lg:w-72">
           <CustomerProfileCard customer={c} linkedContact={contattoCollegato} onSaved={() => committente.refetch()} perCommittente />
           <ContactCallHistory contactId={c.marketing_contact_id ?? undefined} phone={c.phone} name={nome} showActions={false} />
@@ -824,7 +837,7 @@ export default function CommittenteDetail() {
       </div>
 
       {schermoStretto && (
-        <Tabs ref={riquadroSezioni} value={sezione ?? "contratti"} onValueChange={setSezione} className="scroll-mt-16 lg:hidden">
+        <Tabs id="sezioni-committente" value={sezione ?? "contratti"} onValueChange={setSezione} className="scroll-mt-16 lg:hidden">
           <TabsList className="flex h-auto w-full justify-start overflow-x-auto">
             {SEZIONI.map((s) => (
               <TabsTrigger key={s.key} value={s.key} className="shrink-0 px-2 py-2 text-xs">{s.label}</TabsTrigger>

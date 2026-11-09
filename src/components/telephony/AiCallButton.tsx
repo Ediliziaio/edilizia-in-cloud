@@ -27,6 +27,10 @@ interface AiCallButtonProps {
   size?: ButtonProps["size"];
   className?: string;
   iconOnly?: boolean;
+  /** Niente pulsante: il dialogo lo apre chi usa il componente, per esempio da un menu. */
+  senzaPulsante?: boolean;
+  aperto?: boolean;
+  onAperto?: (aperto: boolean) => void;
 }
 
 /**
@@ -44,9 +48,14 @@ export function AiCallButton({
   size = "sm",
   className,
   iconOnly = false,
+  senzaPulsante = false,
+  aperto,
+  onAperto,
 }: AiCallButtonProps) {
   const companyId = useEffectiveCompanyId();
-  const [open, setOpen] = useState(false);
+  const [apertoQui, setApertoQui] = useState(false);
+  const open = aperto ?? apertoQui;
+  const setOpen = onAperto ?? setApertoQui;
   const [agentId, setAgentId] = useState("");
   const [calling, setCalling] = useState(false);
 
@@ -105,17 +114,19 @@ export function AiCallButton({
 
   return (
     <>
-      <Button
-        variant={variant}
-        size={size}
-        className={className}
-        disabled={noTarget}
-        onClick={() => setOpen(true)}
-        title={noTarget ? "Numero mancante" : label}
-      >
-        <Phone className={iconOnly ? "h-4 w-4" : "h-3.5 w-3.5 mr-2"} />
-        {!iconOnly && label}
-      </Button>
+      {!senzaPulsante && (
+        <Button
+          variant={variant}
+          size={size}
+          className={className}
+          disabled={noTarget}
+          onClick={() => setOpen(true)}
+          title={noTarget ? "Numero mancante" : label}
+        >
+          <Phone className={iconOnly ? "h-4 w-4" : "h-3.5 w-3.5 mr-2"} />
+          {!iconOnly && label}
+        </Button>
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">

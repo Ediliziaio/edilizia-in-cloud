@@ -1,8 +1,9 @@
 /** I pulsanti per raggiungere una persona, uguali nelle schede cliente e committente. */
+import type { ReactNode } from "react";
 import { CalendarDays, Mail, MessageSquare, Phone } from "lucide-react";
-import { AiCallButton } from "@/components/telephony/AiCallButton";
 import { WebCallButton } from "@/components/telephony/WebCallButton";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 /** Il link wa.me di un telefono, col prefisso italiano se manca; null senza numero. */
 export function linkWhatsApp(telefono: string | null | undefined): string | null {
@@ -20,52 +21,43 @@ interface Props {
   onAppuntamento: () => void;
 }
 
-/** Da computer, in fila nella testata. */
+/** Il nome di un pulsante a icona, passandoci sopra. */
+export function IconaScheda({ etichetta, children }: { etichetta: string; children: ReactNode }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild><span className="inline-flex">{children}</span></TooltipTrigger>
+      <TooltipContent>{etichetta}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+const ICONA = "h-9 w-9";
+
+/** Da computer, in fila nella testata: icone uguali, senza colori che si fanno concorrenza. */
 export function AzioniContattoScheda({ telefono, nome, contactId, email, onEmail, onAppuntamento }: Props) {
   const waHref = linkWhatsApp(telefono);
   return (
     <>
       {telefono && (
-        <WebCallButton
-          phone={telefono}
-          name={nome}
-          contactId={contactId}
-          label="Chiama"
-          variant="outline"
-          size="sm"
-          className="gap-1.5 h-9 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-        />
-      )}
-      {telefono && (
-        <AiCallButton
-          phone={telefono}
-          contactId={contactId}
-          contactName={nome}
-          variant="outline"
-          size="sm"
-          label="AI"
-          className="gap-1.5 h-9 border-primary/30 bg-primary/5 text-primary hover:bg-primary/10"
-        />
+        <IconaScheda etichetta="Chiama">
+          <WebCallButton phone={telefono} name={nome} contactId={contactId} label="Chiama" variant="outline" size="icon" iconOnly className={ICONA} />
+        </IconaScheda>
       )}
       {email && (
-        <Button
-          variant="outline" size="sm"
-          className="gap-1.5 h-9 border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100"
-          onClick={onEmail}
-        >
-          <Mail className="h-3.5 w-3.5" /> Email
-        </Button>
+        <IconaScheda etichetta="Email">
+          <Button variant="outline" size="icon" className={ICONA} onClick={onEmail} aria-label="Email"><Mail className="h-4 w-4" /></Button>
+        </IconaScheda>
       )}
       {waHref && (
-        <Button asChild variant="outline" size="sm" className="gap-1.5 h-9 border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-200">
-          <a href={waHref} target="_blank" rel="noopener noreferrer">
-            <MessageSquare className="h-3.5 w-3.5" /> WhatsApp
-          </a>
-        </Button>
+        <IconaScheda etichetta="WhatsApp">
+          <Button asChild variant="outline" size="icon" className={ICONA}>
+            <a href={waHref} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp"><MessageSquare className="h-4 w-4" /></a>
+          </Button>
+        </IconaScheda>
       )}
-      <Button variant="outline" size="sm" className="gap-1.5 h-9" onClick={onAppuntamento}>
-        <CalendarDays className="h-3.5 w-3.5" /> Appuntamento
-      </Button>
+      <IconaScheda etichetta="Appuntamento">
+        <Button variant="outline" size="icon" className={ICONA} onClick={onAppuntamento} aria-label="Appuntamento"><CalendarDays className="h-4 w-4" /></Button>
+      </IconaScheda>
     </>
   );
 }
