@@ -70,6 +70,12 @@ export function ActivationStep({ hook, integration }: ActivationStepProps) {
       </div>
 
       <div className="space-y-2">
+        {hook.assets.filter((asset: any) => asset.asset_type === "ad_account" && asset.selected).map((account: any) => (
+          <div key={account.id} className="flex items-center gap-2 text-sm">
+            <CheckCircle className="h-4 w-4 text-emerald-500" />
+            <span>Account pubblicitario: {account.asset_name}</span>
+          </div>
+        ))}
         <div className="flex items-center gap-2 text-sm">
           <CheckCircle className="h-4 w-4 text-emerald-500" />
           <span>Account Meta collegato</span>

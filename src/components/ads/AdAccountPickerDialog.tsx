@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import type { MetaAsset } from "@/types/integrations";
+import { queryKeys } from "@/lib/queryKeys";
 import { cn } from "@/lib/utils";
 
 interface AdAccountPickerDialogProps {
@@ -25,9 +26,11 @@ interface AdAccountPickerDialogProps {
   companyId: string | undefined;
   /** Tutti gli ad account (selected e non) visibili all'admin. */
   accounts: MetaAsset[];
+  /** Nel wizard resta nello stesso popup e rinvia la pulizia alla conferma delle pagine. */
+  embedded?: boolean;
 }
 
-export function AdAccountPickerDialog({ open, onOpenChange, companyId, accounts }: AdAccountPickerDialogProps) {
+export function AdAccountPickerDialog({ open, onOpenChange, companyId, accounts, embedded = false }: AdAccountPickerDialogProps) {
   const qc = useQueryClient();
   const [query, setQuery] = useState("");
 
@@ -49,6 +52,7 @@ export function AdAccountPickerDialog({ open, onOpenChange, companyId, accounts 
   }, [accounts, query]);
 
   const selectMutation = useMutation({
+    mutationKey: ["meta-account-selection", companyId],
     mutationFn: async (assetId: string) => {
       if (!companyId) throw new Error("companyId mancante");
       // Un solo account attivo per azienda: azzera tutti, poi attiva lo scelto.
@@ -71,7 +75,7 @@ export function AdAccountPickerDialog({ open, onOpenChange, companyId, accounts 
       // spariscono da questa azienda. Per cambiarlo: "Collega con Facebook"
       // li reimporta, con la scelta attuale già spuntata.
       const integrationId = accounts.find((a) => a.asset_id === assetId)?.integration_id;
-      if (integrationId) {
+      if (integrationId && !embedded) {
         try {
           await supabase.functions.invoke("meta-api-proxy", {
             body: { action: "purge-unselected", company_id: companyId, integration_id: integrationId },
@@ -81,11 +85,14 @@ export function AdAccountPickerDialog({ open, onOpenChange, companyId, accounts 
         }
       }
     },
-    onSuccess: (_data, assetId) => {
+    onSuccess: async (_data, assetId) => {
       const name = accounts.find((a) => a.asset_id === assetId)?.asset_name ?? assetId;
       toast.success(`Account pubblicitario attivo: ${name}`);
-      qc.invalidateQueries({ queryKey: ["ads-manager-beta", "meta-assets"] });
-      onOpenChange(false);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["ads-manager-beta", "meta-assets"] }),
+        qc.invalidateQueries({ queryKey: queryKeys.metaAds.assetsAll }),
+      ]);
+      if (!embedded) onOpenChange(false);
     },
     onError: (err: unknown) => {
       toast.error("Impossibile cambiare account", {
@@ -94,18 +101,17 @@ export function AdAccountPickerDialog({ open, onOpenChange, companyId, accounts 
     },
   });
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+  const content = (
+    <>
+        <div>
+          <h3 className="flex items-center gap-2 font-medium">
             <Megaphone className="h-4 w-4" />
             Scegli l'account pubblicitario
-          </DialogTitle>
-          <DialogDescription>
+          </h3>
+          <p className="text-sm text-muted-foreground">
             Le campagne di questa azienda verranno create e monitorate sull'account selezionato.
-          </DialogDescription>
-        </DialogHeader>
+          </p>
+        </div>
 
         {accounts.length > 6 && (
           <div className="relative">
@@ -178,6 +184,18 @@ export function AdAccountPickerDialog({ open, onOpenChange, companyId, accounts 
             </span>
           )}
         </div>
+    </>
+  );
+
+  if (embedded) return <section className="space-y-3" aria-label="Account pubblicitario">{content}</section>;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader className="sr-only">
+          <DialogTitle>Account pubblicitario Meta</DialogTitle>
+          <DialogDescription>Scegli l’account per le campagne della tua azienda.</DialogDescription>
+        </DialogHeader>
+        {content}
       </DialogContent>
     </Dialog>
   );

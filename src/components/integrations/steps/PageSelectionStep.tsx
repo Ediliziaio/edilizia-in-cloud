@@ -3,11 +3,30 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Loader2, Search } from "lucide-react";
 
+import { AdAccountPickerDialog } from "@/components/ads/AdAccountPickerDialog";
+
 interface PageSelectionStepProps {
   hook: any;
 }
 
 export function PageSelectionStep({ hook }: PageSelectionStepProps) {
+  const accounts = hook.assets.filter((asset: { asset_type: string }) => asset.asset_type === "ad_account");
+  return (
+    <div className="space-y-6">
+      {accounts.length > 0 ? (
+        <AdAccountPickerDialog open onOpenChange={() => {}} companyId={hook.companyId} accounts={accounts} embedded />
+      ) : !hook.isLoadingPages && (
+        <p className="text-sm text-muted-foreground">
+          Nessun account pubblicitario disponibile. Puoi collegare i lead delle Pagine;
+          per le sponsorizzate verifica l’accesso al tuo account pubblicitario e aggiorna i permessi Meta.
+        </p>
+      )}
+      <PageList hook={hook} />
+    </div>
+  );
+}
+
+function PageList({ hook }: PageSelectionStepProps) {
   const { pages, togglePageSelection, isLoadingPages } = hook;
   const [query, setQuery] = useState("");
 
@@ -51,7 +70,7 @@ export function PageSelectionStep({ hook }: PageSelectionStepProps) {
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        Seleziona le pagine Facebook di questa azienda da cui ricevere i lead. Le pagine
+        Seleziona le pagine Facebook di questa azienda da usare per le sponsorizzate e da cui ricevere i lead. Le pagine
         non selezionate non verranno collegate.
       </p>
 

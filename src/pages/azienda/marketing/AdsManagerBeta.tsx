@@ -39,7 +39,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { AdAccountPickerDialog } from "@/components/ads/AdAccountPickerDialog";
+import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -1829,13 +1829,13 @@ export default function AdsManagerBeta() {
             meta={meta}
             google={google}
             pixelConfig={pixel.config}
-            onPickAdAccount={isAdmin && meta.allAdAccounts.length > 1 ? () => setAdAccountPickerOpen(true) : undefined}
+            onPickAdAccount={isAdmin ? () => setAdAccountPickerOpen(true) : undefined}
           />
-          <AdAccountPickerDialog
+          <MetaIntegrationWizard
             open={adAccountPickerOpen}
             onOpenChange={setAdAccountPickerOpen}
-            companyId={companyId}
-            accounts={meta.allAdAccounts}
+            integration={meta.integration ?? null}
+            onComplete={() => { queryClient.invalidateQueries({ queryKey: ["ads-manager-beta"] }); }}
           />
           <div className="mt-5">
             <CampaignBuilderTab
@@ -1983,13 +1983,13 @@ export default function AdsManagerBeta() {
           meta={meta}
           google={google}
           pixelConfig={pixel.config}
-          onPickAdAccount={isAdmin && meta.allAdAccounts.length > 1 ? () => setAdAccountPickerOpen(true) : undefined}
+          onPickAdAccount={isAdmin ? () => setAdAccountPickerOpen(true) : undefined}
         />
-        <AdAccountPickerDialog
+        <MetaIntegrationWizard
           open={adAccountPickerOpen}
           onOpenChange={setAdAccountPickerOpen}
-          companyId={companyId}
-          accounts={meta.allAdAccounts}
+          integration={meta.integration ?? null}
+          onComplete={() => { queryClient.invalidateQueries({ queryKey: ["ads-manager-beta"] }); }}
         />
 
         <Tabs
@@ -2303,7 +2303,7 @@ function ConnectionPill({
       fattoDetail: `${meta.selectedAdAccounts[0]?.asset_name ?? "conto attivo"} · ${meta.pages.length} ${meta.pages.length === 1 ? "pagina" : "pagine"}`,
       obbligatorio: true,
       azione: onPickAdAccount && metaConnected
-        ? { label: "Scegli conto", onClick: onPickAdAccount }
+        ? { label: "Configura Meta", onClick: onPickAdAccount }
         : { label: "Configura", href: "/azienda/impostazioni/lead-forms" },
     },
     {

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Integration, MetaWizardStep } from "@/types/integrations";
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useIsMutating } from "@tanstack/react-query";
 import { useMetaIntegration } from "@/hooks/useMetaIntegration";
 import { OAuthStep } from "./steps/OAuthStep";
 import { PageSelectionStep } from "./steps/PageSelectionStep";
@@ -38,7 +39,7 @@ interface MetaIntegrationWizardProps {
 
 const STEP_TITLES: Record<MetaWizardStep, string> = {
   oauth: "Collega il tuo account Meta",
-  pages: "Seleziona le pagine",
+  pages: "Scegli account pubblicitario e Pagine",
   confirm: "Collegamento completato",
   forms: "Moduli Lead Ads",
   mapping: "Mappatura campi",
@@ -85,6 +86,10 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
   }, [step, open, baseStep]);
 
   const currentIndex = STEP_ORDER.indexOf(step);
+  const adAccounts = hook.assets.filter((asset) => asset.asset_type === "ad_account");
+  const savingAccount = useIsMutating({ mutationKey: ["meta-account-selection", hook.companyId] }) > 0;
+  const assetsReady = !savingAccount && !hook.isLoadingPages && hook.selectedPages.length > 0 &&
+    (adAccounts.length === 0 || adAccounts.filter((asset) => asset.selected).length === 1);
 
   const goNext = useCallback(() => {
     // Confermata la selezione pagine: le pagine NON scelte (che possono
@@ -95,6 +100,10 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
       hook.callProxy("purge-unselected").catch(() => {
         // best-effort: se fallisce, la RLS mostra comunque solo le selezionate
       });
+    }
+    if (step === "forms") {
+      setStep("activation");
+      return;
     }
     if (currentIndex < STEP_ORDER.length - 1) {
       setStep(STEP_ORDER[currentIndex + 1]);
@@ -236,6 +245,9 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
                     {currentIndex > 0 && (
                       <Button variant="outline" onClick={goBack}>Indietro</Button>
                     )}
+                    {step === "confirm" && (
+                      <Button variant="outline" onClick={handleComplete}>Salva e chiudi</Button>
+                    )}
                     {step !== "oauth" && currentIndex < STEP_ORDER.length - 1 && (
                       step === "mapping" ? (
                         // Sul passo mappatura si avanza SALVANDO ("Salva
@@ -244,7 +256,7 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
                         // configurata.
                         <Button variant="outline" onClick={goNext}>Salta senza salvare</Button>
                       ) : (
-                        <Button onClick={goNext}>Avanti</Button>
+                        <Button onClick={goNext} disabled={step === "pages" && !assetsReady}>{step === "confirm" ? "Configura lead" : "Avanti"}</Button>
                       )
                     )}
                     {currentIndex === STEP_ORDER.length - 1 && (
