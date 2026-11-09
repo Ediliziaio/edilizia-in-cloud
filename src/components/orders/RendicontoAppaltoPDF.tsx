@@ -328,6 +328,7 @@ export function RendicontoAppaltoPDF({
   netto,
   note,
   societarie = [],
+  giornale = [],
   companyId,
 }: RendicontoAppaltoPDFProps) {
   const righeTotali = cantieri.reduce((s, c) => s + c.righe.length, 0);
