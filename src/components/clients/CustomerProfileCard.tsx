@@ -98,9 +98,11 @@ interface CustomerProfileCardProps {
   };
   linkedContact?: LinkedContact | null;
   onSaved?: () => void;
+  /** Sulla scheda di un committente: è sempre un'impresa e non ha un cantiere suo. */
+  perCommittente?: boolean;
 }
 
-export function CustomerProfileCard({ customer, linkedContact, onSaved }: CustomerProfileCardProps) {
+export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommittente = false }: CustomerProfileCardProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -204,7 +206,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
   // la scheda mostrava Cognome vuoto e niente partita IVA.
   const nomeIntero = [customer.first_name, customer.last_name]
     .map((x) => (x ?? "").trim()).filter((x) => x && x !== "—" && x !== "-").join(" ");
-  const proponiAzienda = !customer.is_business && sembraAzienda(nomeIntero);
+  const proponiAzienda = !perCommittente && !customer.is_business && sembraAzienda(nomeIntero);
   const segnaAzienda = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.from("profiles")
@@ -246,7 +248,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
           {solaLettura && !permessi.isLoading && (
             <p className="flex items-start gap-1.5 rounded-md border bg-muted/40 px-2 py-1.5 text-[11px] leading-4 text-muted-foreground">
               <Lock className="mt-0.5 h-3 w-3 shrink-0" />
-              Non hai il permesso di modificare i dati del cliente
+              Non hai il permesso di modificare i dati {perCommittente ? "del committente" : "del cliente"}
             </p>
           )}
 
@@ -326,7 +328,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
 
           {/* ─── Data cliente badge ─── */}
           <div>
-            <Label className="text-xs text-muted-foreground block mb-1">Cliente dal</Label>
+            <Label className="text-xs text-muted-foreground block mb-1">{perCommittente ? "Committente dal" : "Cliente dal"}</Label>
             <Badge variant="outline" className="text-[11px] gap-1 font-normal">
               <Calendar className="h-3 w-3" />
               {format(new Date(customer.created_at), "dd MMM yyyy", { locale: it })}
@@ -433,7 +435,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                       })}
                     />
                   )}
-                  {matchesSearch("Tipo cliente") && (
+                  {!perCommittente && matchesSearch("Tipo cliente") && (
                     <InlineField
                       disabled={solaLettura}
                       label="Tipo cliente"
@@ -511,7 +513,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
               </Collapsible>
 
               {/* Collapsible: Indirizzo cantiere */}
-              <Collapsible defaultOpen={!isMobile}>
+              {!perCommittente && <Collapsible defaultOpen={!isMobile}>
                 <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
                   <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
                   Indirizzo cantiere
@@ -564,7 +566,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                     />
                   )}
                 </CollapsibleContent>
-              </Collapsible>
+              </Collapsible>}
 
               {/* Collapsible: Note */}
               <Collapsible>
@@ -635,24 +637,35 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
             </TabsContent>
 
             <TabsContent value="actions" className="mt-2 space-y-1">
-              <Button
-                variant="outline" size="sm" className="w-full justify-start h-8 text-xs"
-                onClick={() => navigate(`/azienda/ordini/nuovo?customer_id=${customer.id}`)}
-              >
-                Crea ordine
-              </Button>
-              <Button
-                variant="outline" size="sm" className="w-full justify-start h-8 text-xs"
-                onClick={() => navigate(`/azienda/marketing/preventivi/nuovo?customer_id=${customer.id}`)}
-              >
-                Crea preventivo
-              </Button>
-              <Button
-                variant="outline" size="sm" className="w-full justify-start h-8 text-xs"
-                onClick={() => navigate(`/azienda/assistenza/nuovo?customer_id=${customer.id}`)}
-              >
-                Apri ticket assistenza
-              </Button>
+              {perCommittente ? (
+                <Button
+                  variant="outline" size="sm" className="w-full justify-start h-8 text-xs"
+                  onClick={() => navigate(`/azienda/ordini/nuovo-lavoro-appaltatore?committente=${customer.id}`)}
+                >
+                  Nuovo lavoro in appalto
+                </Button>
+              ) : (
+                <>
+                <Button
+                  variant="outline" size="sm" className="w-full justify-start h-8 text-xs"
+                  onClick={() => navigate(`/azienda/ordini/nuovo?customer_id=${customer.id}`)}
+                >
+                  Crea ordine
+                </Button>
+                <Button
+                  variant="outline" size="sm" className="w-full justify-start h-8 text-xs"
+                  onClick={() => navigate(`/azienda/marketing/preventivi/nuovo?customer_id=${customer.id}`)}
+                >
+                  Crea preventivo
+                </Button>
+                <Button
+                  variant="outline" size="sm" className="w-full justify-start h-8 text-xs"
+                  onClick={() => navigate(`/azienda/assistenza/nuovo?customer_id=${customer.id}`)}
+                >
+                  Apri ticket assistenza
+                </Button>
+                </>
+              )}
               <Button
                 variant="outline" size="sm" className="w-full justify-start h-8 text-xs"
                 onClick={() => navigate(`/azienda/calendario?customer_id=${customer.id}`)}

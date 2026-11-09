@@ -36,9 +36,11 @@ function dataBreve(iso: string): string {
 export function DocumentiCommesseCliente({
   customerId,
   commesse,
+  perCommittente = false,
 }: {
   customerId: string;
   commesse: CommessaDelCliente[];
+  perCommittente?: boolean;
 }) {
   const navigate = useNavigate();
   // Anche le cartelle archiviate: un file rimasto dentro mostra il nome vero.
@@ -61,7 +63,7 @@ export function DocumentiCommesseCliente({
     <div>
       <p className="text-sm font-semibold">Documenti delle commesse</p>
       <p className="text-xs text-muted-foreground">
-        I file caricati nelle commesse del cliente, per cartella. Si gestiscono dalla commessa.
+        I file caricati nelle commesse {perCommittente ? "del committente" : "del cliente"}, per cartella. Si gestiscono dalla commessa.
       </p>
     </div>
   );
@@ -90,7 +92,7 @@ export function DocumentiCommesseCliente({
   } else if (gruppi.length === 0) {
     contenuto = (
       <p className="rounded-md border border-dashed px-3 py-6 text-center text-xs text-muted-foreground">
-        Nessun documento nelle commesse di questo cliente
+        Nessun documento nelle commesse di questo {perCommittente ? "committente" : "cliente"}
       </p>
     );
   } else {

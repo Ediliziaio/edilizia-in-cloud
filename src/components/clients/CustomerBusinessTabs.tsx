@@ -168,6 +168,10 @@ interface CustomerBusinessTabsProps {
    *  2026-05-27: invece di navigate /calendario, apre AppointmentDialog
    *  popup controllato da CompanyCustomerDetail. */
   onCreateAppointment?: () => void;
+  /** Sulla scheda di un committente: niente documenti da persona. */
+  perCommittente?: boolean;
+  /** Per chi non ha il permesso sugli importi: fatture senza euro. */
+  nascondiImporti?: boolean;
   dataWarnings?: {
     anagrafica?: string | null;
     fatture?: string | null;
@@ -486,6 +490,8 @@ function DocumentiTab({
   anagraficaCollegata,
   customerId,
   companyId,
+  perCommittente = false,
+  nascondiImporti = false,
 }: {
   fatture: FatturaRow[];
   customerDocuments: CustomerDocumentRow[];
@@ -493,6 +499,8 @@ function DocumentiTab({
   anagraficaCollegata: { id: string; ragione_sociale: string | null } | null;
   customerId: string;
   companyId: string;
+  perCommittente?: boolean;
+  nascondiImporti?: boolean;
 }) {
   const navigate = useNavigate();
   return (
@@ -518,7 +526,7 @@ function DocumentiTab({
             >
               <div className="flex items-baseline justify-between gap-2">
                 <p className="text-sm font-medium break-all">{f.numero || "—"}</p>
-                {f.totale_documento != null && (
+                {f.totale_documento != null && !nascondiImporti && (
                   <span className="text-sm font-medium tabular-nums whitespace-nowrap">
                     {euro(f.totale_documento, true)}
                   </span>
@@ -534,9 +542,9 @@ function DocumentiTab({
         </div>
       )}
 
-      <FascicoloCliente customerId={customerId} companyId={companyId} documenti={customerDocuments} />
+      <FascicoloCliente customerId={customerId} companyId={companyId} documenti={customerDocuments} perCommittente={perCommittente} />
 
-      <DocumentiCommesseCliente customerId={customerId} commesse={commesse} />
+      <DocumentiCommesseCliente customerId={customerId} commesse={commesse} perCommittente={perCommittente} />
     </div>
   );
 }
@@ -544,6 +552,7 @@ function DocumentiTab({
 function AppuntamentiTab({
   items,
   onCreateClick,
+  perCommittente = false,
 }: {
   items: AppuntamentoRow[];
   customerId: string;
@@ -551,6 +560,7 @@ function AppuntamentiTab({
   /** 2026-05-27: invece di navigate /calendario, apre AppointmentDialog popup
    *  controllato dalla pagina parent (CompanyCustomerDetail). */
   onCreateClick?: () => void;
+  perCommittente?: boolean;
 }) {
   const navigate = useNavigate();
   if (items.length === 0) {
@@ -559,7 +569,7 @@ function AppuntamentiTab({
         <CalendarDays className="h-10 w-10 text-muted-foreground/30 mb-3" />
         <p className="text-sm font-medium text-muted-foreground">Nessun appuntamento trovato</p>
         <p className="text-xs text-muted-foreground mt-1 mb-3">
-          Crealo ora e verrà collegato a questo cliente.
+          Crealo ora e verrà collegato a questo {perCommittente ? "committente" : "cliente"}.
         </p>
         {onCreateClick && (
           <Button variant="outline" size="sm" onClick={onCreateClick}>
@@ -843,6 +853,8 @@ export function CustomerBusinessTabs({
   defaultTab,
   onCreateAppointment,
   dataWarnings,
+  perCommittente = false,
+  nascondiImporti = false,
 }: CustomerBusinessTabsProps) {
   useAuth();
   const navigate = useNavigate();
@@ -991,6 +1003,8 @@ export function CustomerBusinessTabs({
           customerId={customerId}
           companyId={companyId}
           anagraficaCollegata={anagraficaCollegata}
+          perCommittente={perCommittente}
+          nascondiImporti={nascondiImporti}
         />
       </TabsContent>
       <TabsContent value="email">
@@ -1008,6 +1022,7 @@ export function CustomerBusinessTabs({
           customerId={customerId}
           customerFullName={customerFullName}
           onCreateClick={onCreateAppointment}
+          perCommittente={perCommittente}
         />
       </TabsContent>
       <TabsContent value="rate">

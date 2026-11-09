@@ -84,6 +84,8 @@ interface Props {
   modoFatturazione?: "per_commessa" | "mensile_cumulativa" | null;
   puoModificare: boolean;
   vedeImporti: boolean;
+  /** Dentro un pannello che ha già la sua cornice. */
+  senzaCornice?: boolean;
 }
 
 const giornoIT = (iso: string) => {
@@ -91,7 +93,7 @@ const giornoIT = (iso: string) => {
   return g && m && a ? `${g}/${m}/${a.slice(2)}` : iso;
 };
 
-export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModificare, vedeImporti }: Props) {
+export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModificare, vedeImporti, senzaCornice = false }: Props) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -382,6 +384,7 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
 
   return (
     <QuoteCard
+      className={senzaCornice ? "border-0 p-1 shadow-none hover:shadow-none sm:p-1" : undefined}
       title="Rendiconti al committente"
       icon={<FileText className="h-4 w-4" />}
       subtitle={

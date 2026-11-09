@@ -77,6 +77,10 @@ interface CustomerActivityTimelineProps {
   /** WhatsApp/SMS/campagne email dalla vista conversazioni unificata. */
   messaggi?: ConversazioneMessaggioLite[];
   customerCreatedAt?: string;
+  /** Sulla scheda di un committente: le parole cambiano, gli eventi no. */
+  perCommittente?: boolean;
+  /** Per chi non ha il permesso sugli importi: niente euro nel diario. */
+  nascondiImporti?: boolean;
 }
 
 const FILTER_OPTIONS: { key: FilterCategory; label: string; icon: React.ReactNode }[] = [
@@ -132,6 +136,8 @@ export function CustomerActivityTimeline({
   diaryMessages = [],
   messaggi = [],
   customerCreatedAt,
+  perCommittente = false,
+  nascondiImporti = false,
 }: CustomerActivityTimelineProps) {
   const navigate = useNavigate();
   const [filter, setFilter] = useState<FilterCategory>("all");
@@ -147,7 +153,7 @@ export function CustomerActivityTimeline({
         category: "activity",
         icon: <Activity className="h-3.5 w-3.5" />,
         iconBg: "bg-emerald-100 text-emerald-600",
-        title: "Cliente registrato",
+        title: perCommittente ? "Committente registrato" : "Cliente registrato",
         description: "Anagrafica creata nel sistema",
         timestamp: customerCreatedAt,
       });
@@ -161,7 +167,7 @@ export function CustomerActivityTimeline({
         icon: <ClipboardList className="h-3.5 w-3.5" />,
         iconBg: "bg-blue-100 text-blue-600",
         title: `Commessa ${o.order_code ?? "—"}`,
-        description: o.description || `${o.order_statuses?.name ?? "Nuovo"}${o.total_amount ? ` · ${euro(o.total_amount, true)}` : ""}`,
+        description: o.description || `${o.order_statuses?.name ?? "Nuovo"}${o.total_amount && !nascondiImporti ? ` · ${euro(o.total_amount, true)}` : ""}`,
         timestamp: o.created_at,
         href: `/azienda/ordini/${o.id}`,
       });
@@ -205,7 +211,7 @@ export function CustomerActivityTimeline({
         icon: <FileText className="h-3.5 w-3.5" />,
         iconBg: "bg-emerald-100 text-emerald-600",
         title: maiuscola(`${f.tipo || "Fattura"} ${f.numero || ""}`.trim()),
-        description: f.totale_documento != null ? `${euro(f.totale_documento, true)}${f.stato ? ` · ${f.stato}` : ""}` : (f.stato ?? undefined),
+        description: f.totale_documento != null && !nascondiImporti ? `${euro(f.totale_documento, true)}${f.stato ? ` · ${f.stato}` : ""}` : (f.stato ?? undefined),
         timestamp: f.data_emissione,
         href: `/azienda/documenti/${f.id}`,
       });
@@ -272,7 +278,7 @@ export function CustomerActivityTimeline({
     // Sort by timestamp desc
     list.sort((a, b) => dataEvento(b.timestamp).getTime() - dataEvento(a.timestamp).getTime());
     return list;
-  }, [customerId, customerCreatedAt, orders, tickets, appuntamenti, fatture, emailConversations, diaryMessages, messaggi]);
+  }, [customerId, customerCreatedAt, orders, tickets, appuntamenti, fatture, emailConversations, diaryMessages, messaggi, perCommittente, nascondiImporti]);
 
   // Filtra in base a tab attivo
   const filteredEvents = useMemo(() => {
@@ -342,7 +348,7 @@ export function CustomerActivityTimeline({
             <p className="text-sm font-medium text-muted-foreground">Nessuna attività da mostrare</p>
             <p className="text-xs text-muted-foreground mt-1">
               {filter === "all"
-                ? "Le interazioni con questo cliente appariranno qui."
+                ? `Le interazioni con questo ${perCommittente ? "committente" : "cliente"} appariranno qui.`
                 : `Nessuna attività di tipo "${FILTER_OPTIONS.find((o) => o.key === filter)?.label}".`}
             </p>
           </div>

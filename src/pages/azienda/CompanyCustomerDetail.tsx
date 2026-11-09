@@ -1,10 +1,10 @@
-import { useEffect, useMemo, lazy, Suspense } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useMemo, lazy, Suspense } from "react";
+import { Navigate, useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, Loader2, Mail, Phone, Trash2, Wand2,
+  ArrowLeft, Loader2, Mail, Phone, Wand2,
   AlertTriangle, Pencil, Euro, ShoppingBag, LifeBuoy,
-  FileText, CalendarDays, MessageSquare, ChevronDown,
+  FileText, ChevronDown,
   ClipboardList, FileSignature, Ticket,
 } from "lucide-react";
 import {
@@ -21,26 +21,12 @@ const EmailComposeDialog = lazy(() =>
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { logger } from "@/utils/logger";
 import { Button } from "@/components/ui/button";
-import { AiCallButton } from "@/components/telephony/AiCallButton";
-import { WebCallButton } from "@/components/telephony/WebCallButton";
 import { ContactCallHistory } from "@/components/telephony/ContactCallHistory";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { looksLikePhone, looksLikeFiscalCode, looksLikeEmail } from "@/lib/customerDataSanitizer";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { useState } from "react";
 import { NuovoContrattoClienteDialog } from "@/components/clients/NuovoContrattoClienteDialog";
 import { ChiediASilvio } from "@/components/silvio/ChiediASilvio";
@@ -55,12 +41,19 @@ import { queryKeys } from "@/lib/queryKeys";
 import {
   CustomerBusinessTabs,
 } from "@/components/clients/CustomerBusinessTabs";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { KpiCard } from "@/components/clients/KpiCard";
+import { AzioniContattoScheda, AzioniContattoSchedaMobile, linkWhatsApp } from "@/components/clients/AzioniContattoScheda";
+import { PannelloLateraleScheda } from "@/components/clients/PannelloLateraleScheda";
+import { VoceEliminaCliente } from "@/components/clients/VoceEliminaCliente";
+import { useFeatureFlags } from "@/hooks/useFeatureFlags";
+import { APPALTATORE_MODULE_FLAG } from "@/hooks/useAppaltatoreModule";
+import { useSchermoStretto } from "@/hooks/useSchermoStretto";
+import { emailVera, useComunicazioniScheda, useContattoCollegato } from "@/hooks/useComunicazioniScheda";
 import {
   ClipboardList as ClipboardListIcon, Ticket as TicketIcon,
   FileSignature as FileSignatureIcon, FileText as FileTextIcon,
   Wrench as WrenchIcon, CalendarDays as CalendarDaysIcon,
-  CreditCard as CreditCardIcon, Mail as MailIcon, X as XIcon,
+  CreditCard as CreditCardIcon, Mail as MailIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { euro, oggiRoma, rateConResiduo, totaleDaIncassare, type SchedaCliente } from "@/lib/clienti/schedaCliente";
@@ -92,9 +85,8 @@ interface CustomerProfile {
   site_city: string | null;
   site_postal_code: string | null;
   site_province: string | null;
+  customer_type: string | null;
 }
-
-const INTERNAL_NO_EMAIL_DOMAIN = "@no-email.ediliziaincloud.local";
 
 // ───────────────────────────────────────────────────────────────
 // RIGHT_TABS — icon strip verticale lato destro (pattern marketing).
@@ -112,19 +104,12 @@ const RIGHT_TABS: { key: string; icon: React.ComponentType<{ className?: string 
   { key: "rate",         icon: CreditCardIcon,     label: "Rate / Scadenzario" },
 ];
 
-function formatCustomerEmail(email: string | null | undefined): string | null {
-  const value = (email ?? "").trim();
-  if (!value || value.endsWith(INTERNAL_NO_EMAIL_DOMAIN)) return null;
-  return value;
-}
-
 export default function CompanyCustomerDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [isDeleting, setIsDeleting] = useState(false);
   // 2026-05-26: compose email dialog integrato (richiesta utente "vorrei che
   // potessi inviare email anche da qui"). Apre con destinatario pre-popolato
   // a customer.email.
@@ -145,15 +130,11 @@ export default function CompanyCustomerDetail() {
   const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false);
   // La vista a schede per il telefono si monta solo sugli schermi stretti:
   // nascosta col CSS sul computer, rifaceva comunque le sue letture.
-  const [schermoStretto, setSchermoStretto] = useState(() => typeof window !== "undefined" && window.innerWidth < 1024);
-  useEffect(() => {
-    const mql = window.matchMedia?.("(max-width: 1023px)");
-    if (!mql) return;
-    const aggiorna = () => setSchermoStretto(mql.matches);
-    aggiorna();
-    mql.addEventListener?.("change", aggiorna);
-    return () => mql.removeEventListener?.("change", aggiorna);
-  }, []);
+  const schermoStretto = useSchermoStretto();
+  // Un committente ha la sua scheda: ci si arriva anche da ricerca, fatture e
+  // conversazioni, che conoscono soltanto questo indirizzo.
+  const { isFeatureEnabled, isLoading: flagInCaricamento } = useFeatureFlags();
+  const moduloAppaltatori = isFeatureEnabled(APPALTATORE_MODULE_FLAG);
 
   // ── Core customer data ──────────────────────────────────────────────────────
   const { data: customer, isLoading, refetch: refetchCustomer } = useQuery({
@@ -162,7 +143,7 @@ export default function CompanyCustomerDetail() {
       if (!effectiveCompany?.id) throw new Error("Azienda non trovata");
       const query = supabase
         .from("profiles")
-        .select("id, first_name, last_name, email, phone, address, fiscal_code, vat_number, site_address, notes, company_id, created_at, salesperson_id, marketing_contact_id, is_business, business_name, city, postal_code, province, country, site_city, site_postal_code, site_province")
+        .select("id, first_name, last_name, email, phone, address, fiscal_code, vat_number, site_address, notes, company_id, created_at, salesperson_id, marketing_contact_id, is_business, business_name, city, postal_code, province, country, site_city, site_postal_code, site_province, customer_type")
         .eq("id", id!)
         .eq("company_id", effectiveCompany.id);
       // maybeSingle: un cliente inesistente ritorna null (→ "non trovato") invece
@@ -201,125 +182,9 @@ export default function CompanyCustomerDetail() {
   const erroreScheda = schedaError instanceof Error ? schedaError.message : null;
   const azioni = useMemo(() => azioniSuggerite({ rate, preventivi, tickets }, oggiRoma()), [rate, preventivi, tickets]);
 
-  const isSoftTableError = (e: unknown): boolean => {
-    const code = (e as { code?: string })?.code;
-    return code === "42P01" || code === "42501" || code === "PGRST116" || code === "PGRST301";
-  };
-
-  // ── Email conversations collegate al cliente ────────────────────────────────
-  // 2026-05-27 (layout 3-col): fetch qui (oltre che in CustomerBusinessTabs)
-  // così posso passare gli ultimi 25 thread alla CustomerActivityTimeline.
-  const customerEmailLookup = (() => {
-    const e = (customer?.email ?? "").trim().toLowerCase();
-    return e && e.includes("@") && !e.endsWith(INTERNAL_NO_EMAIL_DOMAIN) ? e : null;
-  })();
-  const { data: emailConversationsForTimeline = [] } = useQuery({
-    queryKey: ["customer-email-timeline", id, effectiveCompany?.id, customerEmailLookup],
-    enabled: !!effectiveCompany?.id && !!customerEmailLookup,
-    staleTime: 60_000,
-    queryFn: async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const client = supabase as any;
-      const baseQuery = () =>
-        client
-          .from("v_my_email_inbox")
-          .select("id, thread_id, from_email, from_name, subject, received_at, preview")
-          .eq("company_id", effectiveCompany!.id)
-          .order("received_at", { ascending: false })
-          .limit(15);
-      const [fromR, toR] = await Promise.all([
-        baseQuery().ilike("from_email", customerEmailLookup!),
-        baseQuery().ilike("to_email", customerEmailLookup!),
-      ]);
-      const all = [...(fromR.data ?? []), ...(toR.data ?? [])];
-      // Dedup per thread_id, prendi più recente
-      const byThread = new Map<string, typeof all[number]>();
-      all.forEach((row: { thread_id?: string; id?: string; received_at?: string }) => {
-        const key = (row.thread_id ?? row.id ?? "") as string;
-        if (!key) return;
-        const prev = byThread.get(key);
-        if (!prev || new Date(row.received_at ?? 0).getTime() > new Date(prev.received_at ?? 0).getTime()) {
-          byThread.set(key, row);
-        }
-      });
-      return Array.from(byThread.values());
-    },
-  });
-
-  // ── Messaggi WhatsApp/SMS/campagne dalla vista conversazioni unificata ──────
-  // RPC conversazione_timeline('cliente', id): stessa fonte dell'inbox
-  // Conversazioni. Le email IN ARRIVO sono escluse (già coperte dalla query
-  // v_my_email_inbox sopra → niente doppioni in timeline).
-  const { data: conversazioniMessaggi = [] } = useQuery({
-    queryKey: ["customer-conversazioni-timeline", id],
-    enabled: !!id,
-    staleTime: 60_000,
-    queryFn: async () => {
-      const rpc = supabase.rpc.bind(supabase) as unknown as (
-        f: string,
-        a: Record<string, unknown>,
-      ) => Promise<{ data: unknown; error: { message: string } | null }>;
-      const { data, error } = await rpc("conversazione_timeline", {
-        p_entita_tipo: "cliente",
-        p_entita_id: id,
-      });
-      if (error) return []; // fail-soft: la timeline mostra il resto
-      type Msg = {
-        canale: string; direzione: string; oggetto: string | null;
-        testo: string | null; ts: string; ref_id: string;
-      };
-      return ((data as Msg[]) ?? []).filter(
-        (m) => !(m.canale === "email" && m.direzione === "in") && m.canale !== "nota",
-      );
-    },
-  });
-
-  // ── Diary messages (note interne) per timeline ──────────────────────────────
-  const { data: diaryMessagesForTimeline = [] } = useQuery({
-    queryKey: ["customer-diary-timeline", id, effectiveCompany?.id],
-    enabled: !!id && !!effectiveCompany?.id,
-    staleTime: 30_000,
-    queryFn: async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
-        .from("customer_messages")
-        .select("id, body, created_at, sender_role, channel, sender_id")
-        .eq("customer_id", id!)
-        .eq("company_id", effectiveCompany!.id)
-        .eq("channel", "internal")
-        .order("created_at", { ascending: false })
-        .limit(20);
-      if (error) {
-        if (isSoftTableError(error)) return [];
-        throw error;
-      }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return ((data ?? []) as any[]).map((m) => ({
-        id: m.id,
-        content: m.body ?? "",
-        author_name: m.sender_role === "staff" ? "Nota team" : "Nota cliente",
-        created_at: m.created_at,
-      }));
-    },
-  });
-
-  // ── Contatto marketing collegato ─────────────────────────────────────────────
-  const { data: linkedContact } = useQuery({
-    queryKey: ["linked-marketing-contact", customer?.marketing_contact_id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("marketing_contacts")
-        .select("id, first_name, last_name, source, lead_score, contact_type, created_at, attr_campaign, tags")
-        .eq("id", customer!.marketing_contact_id!)
-        .maybeSingle();
-      // Il contatto collegato può essere stato cancellato: maybeSingle ritorna null
-      // senza errore; un errore reale invece va propagato, non ingoiato.
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!customer?.marketing_contact_id,
-    staleTime: 5 * 60 * 1000,
-  });
+  const { emailConversazioni: emailConversationsForTimeline, messaggi: conversazioniMessaggi, note: diaryMessagesForTimeline } =
+    useComunicazioniScheda(id, effectiveCompany?.id, customer?.email);
+  const { data: linkedContact } = useContattoCollegato(customer?.marketing_contact_id);
 
   // ── Computed values ──────────────────────────────────────────────────────────
   const orderCount = orders.length;
@@ -411,51 +276,8 @@ export default function CompanyCustomerDetail() {
     },
   });
 
-  // ── Delete ───────────────────────────────────────────────────────────────────
-  const handleDelete = async () => {
-    if (orderCount > 0) {
-      toast({
-        title: "Impossibile eliminare",
-        description: `Il cliente ha ${orderCount} ${orderCount === 1 ? "ordine associato" : "ordini associati"}. Elimina prima gli ordini.`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsDeleting(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("delete-company-user", {
-        body: { userId: id },
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
-
-      if (res.error) {
-        let body: { error?: string } | null = null;
-        try {
-          const ctx = (res.error as { context?: unknown }).context;
-          if (ctx instanceof Response) body = await ctx.json();
-        } catch {
-          body = null;
-        }
-        throw new Error(body?.error || res.error.message || "Errore eliminazione");
-      }
-      if (res.data?.error) throw new Error(res.data.error);
-
-      queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all });
-      toast({ title: "Cliente eliminato", description: "Il cliente è stato eliminato con successo." });
-      navigate("/azienda/clienti");
-    } catch (error: unknown) {
-      logger.error("Error deleting customer:", error);
-      const message = error instanceof Error ? error.message : "Impossibile eliminare il cliente.";
-      toast({ title: "Errore", description: message, variant: "destructive" });
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
   // ── Loading / not found ──────────────────────────────────────────────────────
-  if (isLoading) {
+  if (isLoading || (customer?.customer_type === "appaltatore" && flagInCaricamento)) {
     return (
       <div className="space-y-5">
         <div className="flex items-center gap-3">
@@ -496,15 +318,16 @@ export default function CompanyCustomerDetail() {
     );
   }
 
+  if (customer.customer_type === "appaltatore" && moduloAppaltatori) {
+    return <Navigate to={`/azienda/committenti/${customer.id}`} replace />;
+  }
+
   // 2026-05-26: header restyle ispirato alla pagina Contatti (MarketingContactDetail).
   // Pattern: back arrow + avatar + nome/badge + chip info + bottoni quick action a
   // destra (Chiama / Email / WhatsApp / Appuntamento) + Elimina.
-  const customerEmailClean = formatCustomerEmail(customer.email);
+  const customerEmailClean = emailVera(customer.email);
   const customerInitials = (fullName.match(/\b\w/g) ?? []).slice(0, 2).join("").toUpperCase() || "?";
-  const cleanPhoneForWa = (customer.phone ?? "").replace(/\D/g, "");
-  const waHref = cleanPhoneForWa
-    ? `https://wa.me/${cleanPhoneForWa.startsWith("39") || cleanPhoneForWa.length > 10 ? cleanPhoneForWa : `39${cleanPhoneForWa}`}`
-    : null;
+  const waHref = linkWhatsApp(customer.phone);
 
   // Il sollecito già scritto, da leggere e cambiare prima di mandarlo.
   const apriSollecito = (oggetto: string, testo: string) => {
@@ -615,50 +438,14 @@ export default function CompanyCustomerDetail() {
             <ChiediASilvio
               ask={`Analizza il cliente ${fullName}: commesse/lavori, fatturato, crediti aperti, preventivi in corso e prossime azioni consigliate. Cosa devo sapere?`}
             />
-            {customer.phone && (
-              <WebCallButton
-                phone={customer.phone}
-                name={fullName}
-                contactId={customer.marketing_contact_id ?? undefined}
-                label="Chiama"
-                variant="outline"
-                size="sm"
-                className="gap-1.5 h-9 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-              />
-            )}
-            {customer.phone && (
-              <AiCallButton
-                phone={customer.phone}
-                contactId={customer.marketing_contact_id ?? undefined}
-                contactName={fullName}
-                variant="outline"
-                size="sm"
-                label="AI"
-                className="gap-1.5 h-9 border-primary/30 bg-primary/5 text-primary hover:bg-primary/10"
-              />
-            )}
-            {customerEmailClean && (
-              <Button
-                variant="outline" size="sm"
-                className="gap-1.5 h-9 border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100"
-                onClick={openCompose}
-              >
-                <Mail className="h-3.5 w-3.5" /> Email
-              </Button>
-            )}
-            {waHref && (
-              <Button asChild variant="outline" size="sm" className="gap-1.5 h-9 border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-200">
-                <a href={waHref} target="_blank" rel="noopener noreferrer">
-                  <MessageSquare className="h-3.5 w-3.5" /> WhatsApp
-                </a>
-              </Button>
-            )}
-            <Button
-              variant="outline" size="sm" className="gap-1.5 h-9"
-              onClick={() => setAppointmentDialogOpen(true)}
-            >
-              <CalendarDays className="h-3.5 w-3.5" /> Appuntamento
-            </Button>
+            <AzioniContattoScheda
+              telefono={customer.phone ?? null}
+              nome={fullName}
+              contactId={customer.marketing_contact_id ?? undefined}
+              email={customerEmailClean}
+              onEmail={openCompose}
+              onAppuntamento={() => setAppointmentDialogOpen(true)}
+            />
 
             <NuovoContrattoClienteDialog aperto={nuovoContratto} onChiudi={() => setNuovoContratto(false)} clienteId={customer.id} nomeCliente={fullName} />
             {/* Dropdown "..." con crea entità + elimina (stile marketing) */}
@@ -675,11 +462,7 @@ export default function CompanyCustomerDetail() {
                 <DropdownMenuItem onClick={() => navigate(`/azienda/ordini/nuovo?customer_id=${customer.id}&customer_name=${encodeURIComponent(fullName)}`)}>
                   <ClipboardList className="h-3.5 w-3.5 mr-2" /> Nuovo ordine
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => {
-                  // Un committente ha nella sua scheda l'accordo col listino; un cliente parte da una commessa.
-                  if ((customer as { customer_type?: string | null }).customer_type === "appaltatore") navigate(`/azienda/committenti/${customer.id}`);
-                  else setNuovoContratto(true);
-                }}>
+                <DropdownMenuItem onClick={() => setNuovoContratto(true)}>
                   <FileSignature className="h-3.5 w-3.5 mr-2" /> Nuovo contratto
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate(`/azienda/marketing/preventivi/nuovo?customer_id=${customer.id}&customer_name=${encodeURIComponent(fullName)}`)}>
@@ -689,74 +472,19 @@ export default function CompanyCustomerDetail() {
                   <Ticket className="h-3.5 w-3.5 mr-2" /> Nuovo ticket
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <DropdownMenuItem
-                      onSelect={(e) => e.preventDefault()}
-                      disabled={isDeleting}
-                      className="text-destructive focus:text-destructive"
-                    >
-                      <Trash2 className="h-3.5 w-3.5 mr-2" /> Elimina cliente
-                    </DropdownMenuItem>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Eliminare questo cliente?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        {orderCount > 0
-                          ? `Impossibile eliminare: il cliente ha ${orderCount} ${orderCount === 1 ? "ordine associato" : "ordini associati"}. Elimina prima gli ordini.`
-                          : "Questa azione è irreversibile. Il cliente e il suo account verranno eliminati permanentemente."}
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Annulla</AlertDialogCancel>
-                      {orderCount === 0 && (
-                        <AlertDialogAction
-                          onClick={handleDelete}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                          {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                          Elimina
-                        </AlertDialogAction>
-                      )}
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                <VoceEliminaCliente id={customer.id} commesse={orderCount} />
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </div>
 
         {/* Quick action mobile (sotto l'header) */}
-        <div className="mt-3 flex md:hidden flex-wrap gap-1.5">
-          {customer.phone && (
-            <Button asChild variant="outline" size="sm" className="flex-1 min-w-[80px] gap-1.5 border-emerald-200 bg-emerald-50 text-emerald-700">
-              <a href={`tel:${customer.phone}`}><Phone className="h-3.5 w-3.5" /> Chiama</a>
-            </Button>
-          )}
-          {customerEmailClean && (
-            <Button
-              variant="outline" size="sm"
-              className="flex-1 min-w-[80px] gap-1.5 border-violet-200 bg-violet-50 text-violet-700"
-              onClick={openCompose}
-            >
-              <Mail className="h-3.5 w-3.5" /> Email
-            </Button>
-          )}
-          {waHref && (
-            <Button asChild variant="outline" size="sm" className="flex-1 min-w-[80px] gap-1.5 border-emerald-300 bg-emerald-100 text-emerald-800">
-              <a href={waHref} target="_blank" rel="noopener noreferrer">
-                <MessageSquare className="h-3.5 w-3.5" /> WhatsApp
-              </a>
-            </Button>
-          )}
-          <Button
-            variant="outline" size="sm" className="flex-1 min-w-[80px] gap-1.5"
-            onClick={() => setAppointmentDialogOpen(true)}
-          >
-            <CalendarDays className="h-3.5 w-3.5" /> Appuntamento
-          </Button>
-        </div>
+        <AzioniContattoSchedaMobile
+          telefono={customer.phone ?? null}
+          email={customerEmailClean}
+          onEmail={openCompose}
+          onAppuntamento={() => setAppointmentDialogOpen(true)}
+        />
 
         {/* KPI strip — desktop grid 4 col, mobile scroll-x compatto stile marketing */}
         {/* MOBILE: 4 chips inline, scroll-x se serve, no subtext (compatto) */}
@@ -938,91 +666,43 @@ export default function CompanyCustomerDetail() {
           </div>
           <CustomerComposeBar
             customerId={customer.id}
-            customerEmail={formatCustomerEmail(customer.email)}
+            customerEmail={customerEmailClean}
             customerPhone={customer.phone ?? null}
           />
         </div>
 
         {/* ─── RIGHT icon strip + panel collassabile ─── */}
-        <div className="hidden lg:flex shrink-0">
-          {/* Pannello attivo (rendering condizionale).
-              2026-05-27 fix: NO dataWarnings nel pannello (sono già nella
-              vista mobile sotto), NO TabsList (è "isCompactPanel" via defaultTab),
-              header con conteggio dinamico. */}
-          {rightTab && (
-            <div className="w-[340px] rounded-2xl border bg-card shadow-sm flex flex-col overflow-hidden mr-2">
-              <div className="flex items-center justify-between px-3 py-2 border-b">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  {RIGHT_TABS.find((t) => t.key === rightTab)?.label ?? "Pannello"}
-                  <span className="text-[10px] tabular-nums text-muted-foreground/70">
-                    ({
-                      rightTab === "ordini"       ? orders.length :
-                      rightTab === "preventivi"   ? preventivi.length :
-                      rightTab === "assistenza"   ? tickets.length :
-                      rightTab === "interventi"   ? rapportini.length :
-                      rightTab === "documenti"    ? fattureCliente.length :
-                      rightTab === "appuntamenti" ? appuntamenti.length :
-                      rightTab === "rate"         ? rate.length :
-                      0
-                    })
-                  </span>
-                </h3>
-                <Button variant="ghost" size="icon" className="h-9 w-9 md:h-6 md:w-6" onClick={() => setRightTab(null)} aria-label="Chiudi pannello">
-                  <XIcon className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-2">
-                <CustomerBusinessTabs
-                  customerId={customer.id}
-                  companyId={effectiveCompany?.id ?? ""}
-                  customerFullName={fullName}
-                  customerEmail={formatCustomerEmail(customer.email)}
-                  orders={orders}
-                  preventivi={preventivi}
-                  tickets={tickets}
-                  rapportini={rapportini}
-                  fatture={fattureCliente}
-                  appuntamenti={appuntamenti}
-                  rate={rate}
-                  anagraficaCollegata={anagraficaCollegata ?? null}
-                  defaultTab={rightTab}
-                  onCreateAppointment={() => setAppointmentDialogOpen(true)}
-                  /* dataWarnings volutamente OMESSO: l'alert apparirebbe
-                     duplicato per ogni pannello aperto. Resta nella vista
-                     mobile full di CustomerBusinessTabs sotto. */
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Icon strip verticale (sempre visibile) */}
-          <div className="w-10 rounded-2xl border bg-muted/30 flex flex-col items-center py-2 gap-1 shrink-0">
-            {RIGHT_TABS.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = rightTab === tab.key;
-              return (
-                <Tooltip key={tab.key}>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      className={cn(
-                        "h-8 w-8 rounded flex items-center justify-center transition-colors",
-                        isActive
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                      )}
-                      onClick={() => setRightTab(isActive ? null : tab.key)}
-                      aria-label={tab.label}
-                    >
-                      <Icon className="h-4 w-4" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="left">{tab.label}</TooltipContent>
-                </Tooltip>
-              );
-            })}
-          </div>
-        </div>
+        <PannelloLateraleScheda
+          attiva={rightTab}
+          onCambia={setRightTab}
+          sezioni={RIGHT_TABS.map((t) => ({
+            ...t,
+            conteggio: {
+              ordini: orders.length, preventivi: preventivi.length, assistenza: tickets.length,
+              interventi: rapportini.length, documenti: fattureCliente.length,
+              appuntamenti: appuntamenti.length, rate: rate.length,
+            }[t.key] ?? 0,
+          }))}
+        >
+          <CustomerBusinessTabs
+            customerId={customer.id}
+            companyId={effectiveCompany?.id ?? ""}
+            customerFullName={fullName}
+            customerEmail={customerEmailClean}
+            orders={orders}
+            preventivi={preventivi}
+            tickets={tickets}
+            rapportini={rapportini}
+            fatture={fattureCliente}
+            appuntamenti={appuntamenti}
+            rate={rate}
+            anagraficaCollegata={anagraficaCollegata ?? null}
+            defaultTab={rightTab ?? undefined}
+            onCreateAppointment={() => setAppointmentDialogOpen(true)}
+            /* dataWarnings volutamente OMESSO: l'alert apparirebbe duplicato
+               per ogni pannello aperto. Resta nella vista mobile sotto. */
+          />
+        </PannelloLateraleScheda>
       </div>
 
       {/*
@@ -1035,7 +715,7 @@ export default function CompanyCustomerDetail() {
           customerId={customer.id}
           companyId={effectiveCompany?.id ?? ""}
           customerFullName={fullName}
-          customerEmail={formatCustomerEmail(customer.email)}
+          customerEmail={customerEmailClean}
           orders={orders}
           preventivi={preventivi}
           tickets={tickets}
@@ -1092,52 +772,5 @@ export default function CompanyCustomerDetail() {
         </Suspense>
       )}
     </div>
-  );
-}
-
-// ───────────────────────────────────────────────────────────────
-// KpiCard — stile MarketingContactDetail (border bg-card + icon corner + subtext)
-// 2026-05-27: refactor signature per matchare visivamente la pagina contatti.
-// ───────────────────────────────────────────────────────────────
-
-function KpiCard({
-  icon: Icon,
-  iconColor,
-  label,
-  value,
-  subtext,
-  tono,
-  onClick,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  iconColor?: string;
-  label: string;
-  value: number | string;
-  subtext?: string;
-  tono?: "rosso";
-  onClick?: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "rounded-lg border bg-card px-3 py-1.5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        tono === "rosso" && "border-red-200 bg-red-50/60 dark:border-red-900/50 dark:bg-red-950/20",
-      )}
-    >
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold truncate">
-          {label}
-        </span>
-        <Icon className={`h-3 w-3 ${iconColor ?? "text-muted-foreground"}`} />
-      </div>
-      <div className="flex items-baseline gap-1.5 mt-0.5">
-        <span className={cn("text-lg font-bold tabular-nums truncate", tono === "rosso" && "text-red-700 dark:text-red-400")}>{value}</span>
-      </div>
-      {subtext && (
-        <p className={cn("text-[10px] mt-0.5 truncate", tono === "rosso" ? "text-red-700 dark:text-red-400" : "text-muted-foreground")}>{subtext}</p>
-      )}
-    </button>
   );
 }

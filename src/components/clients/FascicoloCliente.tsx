@@ -40,10 +40,13 @@ export function FascicoloCliente({
   customerId,
   companyId,
   documenti,
+  perCommittente = false,
 }: {
   customerId: string;
   companyId: string;
   documenti: DocumentoClienteRiga[];
+  /** Un'impresa non ha carta d'identità: un solo gruppo, per visura, DURC, polizze. */
+  perCommittente?: boolean;
 }) {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -86,16 +89,20 @@ export function FascicoloCliente({
 
   // I tipi standard sempre; «Contratto» solo se ce n'è uno storico.
   const tipi: { tipo: string; etichetta: string }[] = [
-    ...TIPI_DOCUMENTO_CLIENTE.map((t) => ({ tipo: t.tipo, etichetta: t.etichetta })),
+    ...(perCommittente
+      ? [{ tipo: "other", etichetta: "Visura, DURC, polizze…" }]
+      : TIPI_DOCUMENTO_CLIENTE.map((t) => ({ tipo: t.tipo, etichetta: t.etichetta }))),
     ...(documenti.some((d) => d.document_type === "contract") ? [{ tipo: "contract", etichetta: "Contratto" }] : []),
   ];
 
   return (
     <div className="rounded-lg border p-3 space-y-3">
       <div>
-        <p className="text-sm font-semibold">Documenti personali</p>
+        <p className="text-sm font-semibold">{perCommittente ? "Documenti dell'impresa" : "Documenti personali"}</p>
         <p className="text-xs text-muted-foreground">
-          Facoltativi, anche più file per tipo. Compaiono anche nei documenti delle commesse del cliente.
+          {perCommittente
+            ? "Anche più file. Compaiono anche nei documenti delle sue commesse."
+            : "Facoltativi, anche più file per tipo. Compaiono anche nei documenti delle commesse del cliente."}
         </p>
       </div>
       {/* Colonne secondo lo spazio che c'è, non secondo lo schermo: nel pannello
@@ -173,8 +180,8 @@ export function FascicoloCliente({
           <AlertDialogHeader>
             <AlertDialogTitle>Togliere «{daTogliere?.file_name}»?</AlertDialogTitle>
             <AlertDialogDescription>
-              {ETICHETTA_DOCUMENTO_CLIENTE[daTogliere?.document_type ?? ""] ?? "Documento"} eliminato definitivamente:
-              sparisce anche dai documenti delle commesse del cliente.
+              {perCommittente ? "Documento" : ETICHETTA_DOCUMENTO_CLIENTE[daTogliere?.document_type ?? ""] ?? "Documento"} eliminato definitivamente:
+              sparisce anche dai documenti delle commesse {perCommittente ? "del committente" : "del cliente"}.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
