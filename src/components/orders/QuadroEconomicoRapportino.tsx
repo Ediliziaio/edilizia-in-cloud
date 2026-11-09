@@ -17,7 +17,8 @@ interface Riga {
   unita: string | null; quantita: number | null; prezzo: number | null; ricavo: number | null;
 }
 interface Voce { id: string; descrizione: string; quantita: number; unita: string; costo_unitario: number | null; vendita_unitaria: number | null }
-interface Quadro { persone: Riga[]; voci?: Voce[]; appalto: boolean; a_corpo: boolean; registrato: boolean }
+interface Mezzo { mezzo_id: string; nome: string | null; noleggio: boolean; ore: number; ore_stimate: boolean; costo_orario: number | null; importo: number | null }
+interface Quadro { persone: Riga[]; voci?: Voce[]; mezzi?: Mezzo[]; appalto: boolean; a_corpo: boolean; registrato: boolean }
 
 const ore = (n: number) => `${n.toLocaleString("it-IT", { maximumFractionDigits: 2 })} h`;
 const euro = (n: number | null | undefined) => (n == null ? "—" : formatCurrency(Number(n)));
@@ -87,6 +88,7 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
   const ricavoVoce = (v: Voce) => Number(v.quantita) * Number(v.vendita_unitaria ?? 0);
   const totCosto = data.persone.reduce((s, r) => s + Number(r.costo ?? 0), 0) + voci.reduce((s, v) => s + costoVoce(v), 0);
   const totRicavo = data.persone.reduce((s, r) => s + Number(r.ricavo ?? 0), 0) + voci.reduce((s, v) => s + ricavoVoce(v), 0);
+  const mezzi = Array.isArray(data.mezzi) ? data.mezzi : [];
   const totOre = data.persone.reduce((s, r) => s + Number(r.ore), 0);
   const margine = (r: Riga) => (r.ricavo == null || r.costo == null ? null : Number(r.ricavo) - Number(r.costo));
 
@@ -114,6 +116,16 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
                 </span>
               </>
             )}
+          </li>
+        ))}
+        {mezzi.map((m) => (
+          <li key={m.mezzo_id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 px-3 py-1.5">
+            <span className="min-w-0 truncate font-medium text-slate-900">{m.nome ?? "Mezzo"}</span>
+            <span className="text-right tabular-nums font-semibold">{m.noleggio ? "Da fattura" : euro(m.importo)}</span>
+            <span className="text-xs text-muted-foreground">
+              {ore(Number(m.ore))}{m.ore_stimate ? " stimate" : ""}{m.noleggio ? " · noleggio" : m.costo_orario != null ? ` · ${euro(m.costo_orario)}/h` : " · costo orario da completare"}
+            </span>
+            <span className="text-right text-xs text-muted-foreground">{m.noleggio ? "" : "quota interna"}</span>
           </li>
         ))}
         {voci.map((v) => (

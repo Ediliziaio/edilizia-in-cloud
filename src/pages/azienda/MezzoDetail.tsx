@@ -31,6 +31,7 @@ import { MezzoFormDialog } from "@/components/mezzi/MezzoFormDialog";
 import { MezzoDocumentiSection } from "@/components/mezzi/MezzoDocumentiSection";
 import { MezzoManutenzioniSection } from "@/components/mezzi/MezzoManutenzioniSection";
 import { MezzoFattureSection } from "@/components/mezzi/MezzoFattureSection";
+import { MezzoCostoOrario } from "@/components/mezzi/MezzoCostoOrario";
 import { MezzoFotoSection } from "@/components/mezzi/MezzoFotoSection";
 import { MezzoStoricoSection } from "@/components/mezzi/MezzoStoricoSection";
 import { MezzoUsoCantieri } from "@/components/mezzi/MezzoUsoCantieri";
@@ -400,6 +401,7 @@ export default function MezzoDetail() {
         </TabsContent>
         {perms.canViewCosts && (
           <TabsContent value="fatture" className="mt-3">
+            <MezzoCostoOrario mezzoId={mezzo.id} puoModificare={puoModificare} />
             <MezzoFattureSection mezzoId={mezzo.id} puoModificare={!perms.solaLettura} />
           </TabsContent>
         )}

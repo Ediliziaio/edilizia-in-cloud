@@ -580,7 +580,7 @@ export function OrderEconomicsSummary({
               <div className="flex min-w-0 items-start gap-2">
                 <Truck className="mt-0.5 h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400" />
                 <div>
-                  <p className="text-sm font-semibold text-foreground">Stima annua del parco mezzi</p>
+                  <p className="text-sm font-semibold text-foreground">Mezzi nostri su questo cantiere</p>
                   <p className="text-[11px] text-muted-foreground">
                     {vehicleCosts.vehiclesUsed} {vehicleCosts.vehiclesUsed === 1 ? "mezzo" : "mezzi"} · {vehicleCosts.vehicleDays} giorni-mezzo sul cantiere
                   </p>
@@ -592,7 +592,11 @@ export function OrderEconomicsSummary({
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
               <StructureKpi label="Costo mezzi stimato" value={formatCurrency(vehicleCosts.estimatedCost)} />
-              <StructureKpi label="Trattamento economico" value="Stima separata" />
+              <StructureKpi
+                label="Margine con i mezzi nostri"
+                value={quality.canShowMargin ? formatCurrency(actual.margin - vehicleCosts.estimatedCost) : "—"}
+                valueClass={quality.canShowMargin && actual.margin - vehicleCosts.estimatedCost < 0 ? "text-red-700 dark:text-red-300" : undefined}
+              />
               <StructureKpi
                 label="Copertura dati"
                 value={vehicleCosts.vehiclesWithoutCost > 0
@@ -604,7 +608,7 @@ export function OrderEconomicsSummary({
               />
             </div>
             <p className="mt-2 text-[11px] text-muted-foreground">
-              Assicurazione, bollo, rate e manutenzioni degli ultimi 12 mesi ripartiti sui giorni di utilizzo. Non modifica il consuntivo contabile e non va duplicato tra i costi diretti.
+              Ore del rapportino per il costo orario del mezzo (gasolio, rate, assicurazione, manutenzioni degli ultimi 12 mesi); dove non ci sono ore, i giorni di utilizzo. I noleggi non sono qui: arrivano dalla fattura. Non modifica il consuntivo contabile e non va duplicato tra i costi diretti.
             </p>
           </div>
         )}
