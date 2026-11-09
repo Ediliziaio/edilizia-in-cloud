@@ -8,13 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import {
-  BookOpen, Plus, Loader2, Search, Download, ArrowDownLeft, ArrowUpRight,
-  TrendingUp, TrendingDown, Wallet, Bot, Trash2, FileText, ExternalLink, RefreshCw,
-  ChevronLeft, ChevronRight, MoreHorizontal,
-} from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, BookOpen, Bot, ChevronLeft, ChevronRight, Download, ExternalLink, FileSpreadsheet, FileText, Loader2, MoreHorizontal, Plus, Printer, RefreshCw, Search, Trash2, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
-import { PrimaNotaXBRL } from "@/components/contabilita/PrimaNotaXBRL";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { usePrimaNota } from "@/hooks/usePrimaNota";
@@ -23,6 +18,10 @@ import NewEntryDialog from "@/components/prima-nota/NewEntryDialog";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { escapeCsvCell } from "@/lib/csvExport";
+import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
+import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
+import { exportXlsx } from "@/lib/controlloGestione/exportXlsx";
+import { costruisciRegistro, htmlRegistroPrimaNota, periodoInLettere, righeExcelPrimaNota } from "@/lib/contabilita/registroPrimaNota";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -193,6 +192,86 @@ function PrimaNotaInner() {
     }
   };
 
+  // Stampa e Excel del registro (09/11/2026): il CSV non dice di chi è né di
+  // che periodo, e in pagina i movimenti vanno dal più recente. Su carta il
+  // registro si legge dal primo giorno, col saldo che cammina.
+  const [stampa, setStampa] = useState<string | null>(null);
+  const [preparo, setPreparo] = useState(false);
+  const anagrafica = useAnagraficaAzienda();
+  const intestazione = {
+    ragione_sociale: anagrafica.data?.ragione_sociale ?? "",
+    partita_iva: anagrafica.data?.partita_iva ?? null,
+    codice_fiscale: anagrafica.data?.codice_fiscale ?? null,
+    indirizzo_via: anagrafica.data?.indirizzo_via ?? null,
+    indirizzo_numero_civico: anagrafica.data?.indirizzo_numero_civico ?? null,
+    indirizzo_cap: anagrafica.data?.indirizzo_cap ?? null,
+    indirizzo_comune: anagrafica.data?.indirizzo_comune ?? null,
+    indirizzo_provincia: anagrafica.data?.indirizzo_provincia ?? null,
+    logo_url: anagrafica.data?.logo_url ?? null,
+  };
+
+  const preparaRegistro = async () => {
+    const tutte = await fetchAllForExport();
+    if (!tutte.length) { toast.info("Nessun movimento da stampare in questo periodo"); return null; }
+    return tutte.map((e) => ({
+      entry_date: e.entry_date,
+      direction: e.direction,
+      category: e.category,
+      description: e.description,
+      amount: Number(e.amount),
+      payment_method: e.payment_method,
+      reference_number: e.reference_number,
+      account_label: e.account_label,
+      notes: e.notes,
+      is_auto: e.is_auto,
+    }));
+  };
+
+  const apriStampa = async () => {
+    setPreparo(true);
+    try {
+      const movimenti = await preparaRegistro();
+      if (movimenti) setStampa(htmlRegistroPrimaNota({ azienda: intestazione, movimenti, dal: fromDate, al: toDate }));
+    } catch { toast.error("Non riesco a preparare la stampa: riprova."); }
+    finally { setPreparo(false); }
+  };
+
+  const scaricaExcel = async () => {
+    setPreparo(true);
+    try {
+      const movimenti = await preparaRegistro();
+      if (!movimenti) return;
+      const registro = costruisciRegistro(movimenti);
+      await exportXlsx({
+        filename: `prima-nota-${fromDate}-${toDate}.xlsx`,
+        brand: {
+          company_name: intestazione.ragione_sociale || undefined,
+          title: "Prima nota",
+          subtitle: periodoInLettere(fromDate, toDate),
+        },
+        sheets: [{
+          name: "Prima nota",
+          rows: righeExcelPrimaNota(registro) as unknown[],
+          columns: [
+            { header: "N.", key: "numero", type: "number", width: 6 },
+            { header: "Data", key: "data", width: 12 },
+            { header: "Descrizione", key: "descrizione", width: 46 },
+            { header: "Categoria", key: "categoria", width: 16 },
+            { header: "Riferimento", key: "riferimento", width: 16 },
+            { header: "Metodo", key: "metodo", width: 14 },
+            { header: "Conto", key: "conto", width: 10 },
+            { header: "Entrate", key: "entrate", type: "number", width: 14 },
+            { header: "Uscite", key: "uscite", type: "number", width: 14 },
+            { header: "Saldo", key: "saldo", type: "number", width: 14 },
+            { header: "Origine", key: "origine", width: 12 },
+            { header: "Note", key: "note", width: 30 },
+          ],
+        }] as never,
+      });
+    } catch { toast.error("Non riesco a preparare il file: riprova."); }
+    finally { setPreparo(false); }
+  };
+
   // Nei KPI di testata i centesimi non servono e troncano: 0 decimali
   // come nel pannello navy delle Commesse.
   const eurTondo = (v: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(v);
@@ -231,28 +310,18 @@ function PrimaNotaInner() {
                 Importa da banca e fatture
               </DropdownMenuItem>
               <DropdownMenuSeparator />
+              <DropdownMenuItem className="gap-2" onSelect={() => { void apriStampa(); }} disabled={preparo}>
+                {preparo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+                Stampa il registro
+              </DropdownMenuItem>
+              <DropdownMenuItem className="gap-2" onSelect={() => { void scaricaExcel(); }} disabled={preparo}>
+                <FileSpreadsheet className="h-4 w-4" />
+                Scarica Excel
+              </DropdownMenuItem>
               <DropdownMenuItem className="gap-2" onSelect={() => { void exportCSV(); }} disabled={isExporting}>
                 {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                 Esporta CSV
               </DropdownMenuItem>
-              <PrimaNotaXBRL
-                comeVoceMenu
-            entries={entries.map(e => ({
-              data: e.entry_date,
-              descrizione: e.description,
-              importo_dare: e.direction === 'uscita' ? Number(e.amount) : 0,
-              importo_avere: e.direction === 'entrata' ? Number(e.amount) : 0,
-              conto: e.category,
-            }))}
-            anno={new Date(fromDate).getFullYear()}
-            fetchAll={async () => (await fetchAllForExport()).map(e => ({
-              data: e.entry_date,
-              descrizione: e.description,
-              importo_dare: e.direction === 'uscita' ? Number(e.amount) : 0,
-              importo_avere: e.direction === 'entrata' ? Number(e.amount) : 0,
-              conto: e.category,
-            }))}
-              />
             </DropdownMenuContent>
           </DropdownMenu>
           <Button onClick={() => setNewOpen(true)} className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-8 max-sm:px-3 max-sm:text-xs">
@@ -264,6 +333,16 @@ function PrimaNotaInner() {
         </div>
       </div>
 
+      {stampa && (
+        <PrintPreviewModal
+          open
+          onOpenChange={(v) => { if (!v) setStampa(null); }}
+          htmlContent={stampa}
+          title="Prima nota — anteprima di stampa"
+          fileName={`prima-nota-${fromDate}-${toDate}`}
+          soloPdf
+        />
+      )}
       {/* Testata navy di famiglia (stessa dei Costi e delle Commesse):
           i tre numeri della cassa in card di vetro, senza troncamenti. */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm max-sm:hidden">
