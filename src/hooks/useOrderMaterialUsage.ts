@@ -13,7 +13,7 @@ export function useOrderMaterialUsage(companyId: string | null | undefined, orde
     staleTime: 30_000,
     refetchOnWindowFocus: true,
     queryFn: async () => {
-      const [moves, reports] = await Promise.all([
+      const [moves, reports, righe] = await Promise.all([
         allPaymentRows((from, to) => supabase.from('warehouse_movements')
           .select('id,stock_item_id,movement_type,quantity,unit_cost,notes').eq('company_id', companyId!)
           .eq('order_id', orderId)
@@ -22,8 +22,12 @@ export function useOrderMaterialUsage(companyId: string | null | undefined, orde
         allPaymentRows((from, to) => supabase.from('campo_rapportini')
           .select('id,stato,materiali_usati').eq('company_id', companyId!).eq('order_id', orderId)
           .eq('stato', 'approvato').order('id').range(from, to)),
+        allPaymentRows((from, to) => supabase.from('order_items')
+          .select('id,stock_item_id').eq('order_id', orderId).order('id').range(from, to)),
       ]);
-      const ids = [...new Set([...moves.map(m => m.stock_item_id), ...reports.flatMap(r =>
+      // I rapportini scritti dall'ufficio dicono l'articolo della commessa, non il prodotto di magazzino.
+      const magazzinoDellaRiga = Object.fromEntries(righe.filter(r => r.stock_item_id).map(r => [r.id, r.stock_item_id as string]));
+      const ids = [...new Set([...moves.map(m => m.stock_item_id), ...Object.values(magazzinoDellaRiga), ...reports.flatMap(r =>
         Array.isArray(r.materiali_usati) ? r.materiali_usati.flatMap(m => m && typeof m === 'object' && !Array.isArray(m) && typeof m.stock_item_id === 'string' ? [m.stock_item_id] : []) : [])])];
       const names: Record<string, string> = {};
       for (let i = 0; i < ids.length; i += 50) {
@@ -34,7 +38,7 @@ export function useOrderMaterialUsage(companyId: string | null | undefined, orde
       // La divisione di una voce tra le fasi sposta la merce da una riga all'altra: non è uscita
       // né rientrata dal cantiere, quindi non entra in Consegnato e Reso.
       const movimenti = moves.filter(m => !(m.notes ?? '').startsWith(NOTA_DIVISIONE_FASI));
-      return materialUsage(movimenti, reports, names);
+      return materialUsage(movimenti, reports, names, magazzinoDellaRiga);
     },
   });
 }

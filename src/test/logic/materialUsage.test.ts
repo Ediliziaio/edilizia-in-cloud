@@ -32,4 +32,11 @@ describe('physical material usage', () => {
     expect(materialUsage([move('out', 10), move('bad', -1)], [report(), { ...report('approvato', { unita: 'kg', quantita: 1 }), id: 'r2' }], names).rows[0].review).toBe(true);
     expect(materialUsage([move('out', 10)], [], {}).rows[0].review).toBe(true);
   });
+  it('conta anche i rapportini scritti dall\'ufficio, che portano solo l\'articolo della commessa', () => {
+    const r = { id: 'uff', stato: 'approvato', materiali_usati: [{ nome: 'Cemento', quantita: 4, order_item_id: 'riga' }] };
+    expect(materialUsage([], [r], names).unlinked).toBe(1);
+    const con = materialUsage([], [r], { ...names, s1: 'Cemento' }, { riga: 's1' });
+    expect(con.unlinked).toBe(0);
+    expect(con.rows[0]).toMatchObject({ id: 's1', used: 4 });
+  });
 });

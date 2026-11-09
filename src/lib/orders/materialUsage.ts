@@ -16,7 +16,8 @@ function materialNumber(value: unknown): number | null {
 }
 
 /** Physical quantities, not additional job costs. A withdrawal is NOT a consumption. */
-export function materialUsage(movements: MaterialMovement[], reports: MaterialReport[], names: Record<string, string> = {}) {
+/** `magazzinoDellaRiga`: articolo della commessa → prodotto di magazzino. I rapportini scritti dall'ufficio portano solo la riga. */
+export function materialUsage(movements: MaterialMovement[], reports: MaterialReport[], names: Record<string, string> = {}, magazzinoDellaRiga: Record<string, string> = {}) {
   const groups = new Map<string, MaterialUsage & { deliveredValue: number; priced: number; incompleteData: boolean; units: Set<string> }>();
   let unlinked = 0;
   const get = (id: string) => {
@@ -47,8 +48,11 @@ export function materialUsage(movements: MaterialMovement[], reports: MaterialRe
     for (const entry of r.materiali_usati) {
       if (!entry || typeof entry !== 'object') { unlinked++; continue; }
       const m = entry as Record<string, unknown>;
-      if (typeof m.stock_item_id !== 'string' || !m.stock_item_id) { unlinked++; continue; }
-      const g = get(m.stock_item_id);
+      const prodotto = typeof m.stock_item_id === 'string' && m.stock_item_id
+        ? m.stock_item_id
+        : typeof m.order_item_id === 'string' ? magazzinoDellaRiga[m.order_item_id] : undefined;
+      if (!prodotto) { unlinked++; continue; }
+      const g = get(prodotto);
       const qty = materialNumber(m.quantita);
       if (qty == null || qty <= 0) { g.review = true; g.incompleteData = true; continue; }
       g.used += qty;

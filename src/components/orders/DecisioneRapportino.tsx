@@ -105,7 +105,7 @@ export function useDecisioneRapportino(orderId: string, opzioni: { onApprovato?:
       void notifyRapportinoPdf(id, orderId, qc);
       opzioni.onRifiutato?.();
     },
-    onError: () => toast.error("Errore durante il rifiuto"),
+    onError: (e: unknown) => toast.error((e as { message?: string } | null)?.message || "Errore durante il rifiuto"),
   });
 
   const annullaMutation = useMutation({
