@@ -22,6 +22,8 @@ function database(apt = appointment()) {
     writes: [] as { table: string; kind: string; filters: [string, unknown][] }[], readError: false, writeError: false, mapError: false };
   const db = { from(table: string) {
     const query = { kind: "select", patch: {} as Record<string, unknown>, filters: [] as [string, unknown][],
+      elenco: null as null | { key: string; values: unknown[] },
+      in(key: string, values: unknown[]) { this.elenco = { key, values }; return this; },
       select() { return this; }, eq(key: string, value: unknown) { this.filters.push([key, value]); return this; },
       update(patch: Record<string, unknown>) { this.kind = "update"; this.patch = patch; return this; },
       delete() { this.kind = "delete"; return this; },
@@ -29,6 +31,11 @@ function database(apt = appointment()) {
       then(resolve: (value: unknown) => unknown, reject: (error: unknown) => unknown) { return Promise.resolve(this.run()).then(resolve, reject); },
       run(): { data: unknown; error: { message: string } | null } {
         const rows = table === "appointments" ? state.appointments : state.mappings;
+        const elenco = this.elenco;
+        if (elenco) {
+          if (state.readError) return { data: null, error: { message: "Simulated database failure" } };
+          return { data: structuredClone(rows.filter((row) => elenco.values.includes((row as Record<string, unknown>)[elenco.key]) && this.filters.every(([key, value]: [string, unknown]) => (row as Record<string, unknown>)[key] === value))), error: null };
+        }
         const found = rows.find(row => this.filters.every(([key, value]: [string, unknown]) => (row as Record<string, unknown>)[key] === value));
         const error = (this.kind === "select" && state.readError) || (this.kind === "update" && state.writeError) || (this.kind === "delete" && state.mapError);
         if (error) return { data: null, error: { message: "Simulated database failure" } };
@@ -184,5 +191,18 @@ describe("Missing appointment reconciliation", () => {
     const body = source.slice(source.indexOf("async function reconcileCalendario("), source.indexOf("// ---- RECONCILE PRIMARY"));
     expect(body).toContain("await listGoogleAppointmentEvents"); expect(body).toContain("await reconcileMissingGoogleAppointments");
     expect(body).not.toContain("const giornoMin"); expect(body).not.toContain('status: "annullato"');
+  });
+});
+
+describe("il controllo legge a blocchi", () => {
+  it("250 appuntamenti: tre letture, non 250", async () => {
+    const letture: number[] = [];
+    const db = { from: () => {
+      const q = { select: () => q, in: (_k: string, v: unknown[]) => { letture.push(v.length); return q; }, eq: async () => ({ data: [] as unknown[], error: null as unknown }) };
+      return q;
+    } };
+    const tante = Array.from({ length: 250 }, (_, i) => mapping({ id: `m${i}`, appointment_id: `a${i}`, google_event_id: `g${i}` }));
+    await reconcileMissingGoogleAppointments(db, scope, tante, new Set(), { fetcher: vi.fn(), now: () => now });
+    expect(letture).toEqual([100, 100, 50]);
   });
 });

@@ -86,13 +86,21 @@ export async function reconcileMissingGoogleAppointments(
 ): Promise<number> {
   const clock = options.now ?? (() => new Date());
   let removed = 0;
-  for (const mapping of mappings) {
-    if (seen.has(mapping.google_event_id) || mapping.company_id !== scope.companyId ||
-      mapping.user_id !== scope.userId || mapping.google_calendar_id !== scope.calendarId) continue;
-    const { data: apt, error: readError } = await db.from("appointments")
+  const candidati = mappings.filter((m) => !seen.has(m.google_event_id) && m.company_id === scope.companyId &&
+    m.user_id === scope.userId && m.google_calendar_id === scope.calendarId);
+  // A blocchi: leggerli uno per volta faceva centinaia di chiamate a giro, e le ondate
+  // aprivano decine di connessioni al database (memoria al limite, 09/11/2026).
+  const appuntamenti = new Map<string, any>();
+  const ids = [...new Set(candidati.map((m) => m.appointment_id))];
+  for (let i = 0; i < ids.length; i += 100) {
+    const { data, error: readError } = await db.from("appointments")
       .select("id,appointment_date,appointment_time,status,is_completed,internal_notes,updated_at")
-      .eq("id", mapping.appointment_id).eq("company_id", scope.companyId).maybeSingle();
+      .in("id", ids.slice(i, i + 100)).eq("company_id", scope.companyId);
     if (readError) throw new Error("Impossibile verificare lo stato dell'appuntamento");
+    for (const a of data ?? []) appuntamenti.set(a.id, a);
+  }
+  for (const mapping of candidati) {
+    const apt = appuntamenti.get(mapping.appointment_id);
     if (!apt || !mayCancelMissingGoogleAppointment(apt, clock(), scope.timeMax)) continue;
     if (!await googleAppointmentDeletionConfirmed(scope.calendarId, mapping.google_event_id, scope.accessToken, options.fetcher)) continue;
     const now = clock();

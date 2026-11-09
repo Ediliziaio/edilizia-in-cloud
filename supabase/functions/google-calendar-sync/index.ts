@@ -1,3 +1,4 @@
+// Tocco del 09/11/2026: controllo degli eventi mancanti a blocchi (_shared/googleAppointmentReconcile.ts).
 import { costruisciEventoPosa, leggiDateDaEventoGoogle, stesseDate } from "../_shared/posaEvento.ts";
 import { descrizioneDaModello, senzaSchedaCliente, type ContattoPerEvento } from "../_shared/descrizioneAppuntamentoGoogle.ts";
 import { applyContactCustomFields, loadContactCustomFieldResolver } from "../_shared/contactCustomFields.ts";
