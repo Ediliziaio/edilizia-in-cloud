@@ -228,6 +228,25 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
 
+  // Solo la nota (09/11/2026): si scrive anche su una riga nata da sola, che
+  // non si può né modificare né cancellare. La nota non tocca gli importi,
+  // quindi non altera nessun saldo: serve a dire «pagato in contanti da
+  // Mario», che il movimento di banca non sa.
+  const updateNotesMutation = useMutation({
+    mutationFn: async ({ id, notes }: { id: string; notes: string | null }) => {
+      const { error } = await supabase
+        .from("prima_nota_entries")
+        .update({ notes })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Nota salvata");
+      queryClient.invalidateQueries({ queryKey: queryKeys.primaNota.all });
+    },
+    onError: (e) => toast.error("Nota non salvata", { description: String(e) }),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("prima_nota_entries").delete().eq("id", id);
@@ -245,6 +264,8 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
   return {
+    updateNotes: (id: string, notes: string | null) =>
+      updateNotesMutation.mutateAsync({ id, notes }),
     entries: entriesQuery.data?.data || [],
     isLoading: entriesQuery.isLoading,
     totalCount,

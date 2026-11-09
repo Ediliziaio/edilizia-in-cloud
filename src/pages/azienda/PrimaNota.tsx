@@ -19,6 +19,7 @@ import { TablePagination } from "@/components/ui/table-pagination";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { escapeCsvCell } from "@/lib/csvExport";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
+import { NotaRiga } from "@/components/shared/NotaRiga";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { exportXlsx } from "@/lib/controlloGestione/exportXlsx";
 import { costruisciRegistro, htmlRegistroPrimaNota, periodoInLettere, righeExcelPrimaNota } from "@/lib/contabilita/registroPrimaNota";
@@ -122,7 +123,7 @@ function PrimaNotaInner() {
   // Chi cerca un nome non sa in che mese sta: la ricerca guarda tutte le date, non il periodo aperto.
   const cercaSuTutteLeDate = search.trim() !== "";
 
-  const { entries, isLoading, totalCount, totalPages, saldo, isSaldoLoading, monthlyChart, create, remove, fetchAllForExport } = usePrimaNota({
+  const { entries, isLoading, totalCount, totalPages, saldo, isSaldoLoading, monthlyChart, create, remove, updateNotes, fetchAllForExport } = usePrimaNota({
     fromDate: cercaSuTutteLeDate ? undefined : fromDate,
     toDate: cercaSuTutteLeDate ? undefined : toDate,
     direction: direction || undefined,
@@ -599,6 +600,12 @@ function PrimaNotaInner() {
                     {e.payment_method || "—"}
                   </td>
                   <td className="p-3">
+                    <div className="flex items-center justify-end gap-0.5">
+                    <NotaRiga
+                      nota={e.notes}
+                      titolo={`${format(new Date(e.entry_date), "dd/MM/yyyy", { locale: it })} · ${e.description}`}
+                      onSalva={(nota) => updateNotes(e.id, nota)}
+                    />
                     {!e.is_auto && (
                       <Button
                         variant="ghost"
@@ -621,6 +628,7 @@ function PrimaNotaInner() {
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     )}
+                    </div>
                   </td>
                 </tr>
               ))}

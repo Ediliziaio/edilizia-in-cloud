@@ -256,7 +256,23 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
   const totalCount = scadenzeQuery.data?.totalCount ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
+  // Solo la nota (09/11/2026): si scrive anche su una scadenza nata da una
+  // fattura. Non tocca importi né stato, quindi non sposta nessun incasso.
+  const updateNotesMutation = useMutation({
+    mutationFn: async ({ id, notes }: { id: string; notes: string | null }) => {
+      const { error } = await supabase.from("scadenze").update({ notes }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Nota salvata");
+      queryClient.invalidateQueries({ queryKey: queryKeys.scadenzario.all });
+    },
+    onError: (e) => toast.error("Nota non salvata", { description: String(e) }),
+  });
+
   return {
+    updateNotes: (id: string, notes: string | null) =>
+      updateNotesMutation.mutateAsync({ id, notes }),
     scadenze: scadenzeQuery.data?.data || [],
     isLoading: scadenzeQuery.isLoading,
     totalCount,

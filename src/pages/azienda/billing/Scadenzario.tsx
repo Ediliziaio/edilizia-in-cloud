@@ -138,7 +138,7 @@ export default function Scadenzario() {
     tipo: filterTipo && filterTipo !== "all" ? filterTipo : null,
   }), [tabDirection, tabStatus, filterStatus, serverDateRange, searchServer, tab, filterTipo]);
 
-  const { scadenze, isLoading, totalCount, totalPages, summary, isSummaryLoading, markPaid, create, cancel, annullaIncasso } = useScadenzario(page, pageSize, serverFilters);
+  const { scadenze, isLoading, totalCount, totalPages, summary, isSummaryLoading, markPaid, create, cancel, annullaIncasso, updateNotes } = useScadenzario(page, pageSize, serverFilters);
   const [daAnnullare, setDaAnnullare] = useState<Scadenza | null>(null);
   const queryClient = useQueryClient();
   const { effectiveCompany } = useAuth();
@@ -422,6 +422,7 @@ export default function Scadenzario() {
           <>
             <ScadenzarioTable
               scadenze={filtered}
+              onNota={(s, nota) => updateNotes(s.id, nota)}
               onMarkPaid={(s) => setPayDialog(s)}
               onCancel={(id) => cancel.mutate(id)}
               onAnnullaIncasso={setDaAnnullare}
