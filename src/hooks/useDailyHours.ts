@@ -20,7 +20,7 @@ export function useDailyHours(orderId?:string, periodo?:{da:string;a:string}) {
   let jobsQuery=supabase.from('orders').select('id,order_code,description').eq('company_id',companyId!).is('deleted_at',null).order('created_at',{ascending:false}).limit(1000);
   if(orderId)jobsQuery=jobsQuery.eq('id',orderId);
   const [people,jobs,rows]=await Promise.all([
-   supabase.from('employees').select('id,user_id,first_name,last_name,is_active').eq('company_id',companyId!).order('first_name').limit(1000),
+   supabase.from('employees').select('id,user_id,first_name,last_name,is_active,ore_settimana').eq('company_id',companyId!).order('first_name').limit(1000),
    jobsQuery,reports]);
   if(people.error) throw people.error;if(jobs.error) throw jobs.error;if(rows.error) throw rows.error;
   assertDailyHoursCompany(rows.data,companyId!);
@@ -30,7 +30,7 @@ export function useDailyHours(orderId?:string, periodo?:{da:string;a:string}) {
    const employee=(people.data??[]).find(e=>!!row.user_id&&e.user_id===row.user_id);
    return employee?{...row,presenze:[{employee_id:employee.id,ore:Number(row.ore_lavorate??0)+Number(row.ore_straordinario??0)}]}:row;
   });
-  const employees=(people.data??[]).map(e=>({id:e.id,userId:e.user_id,name:[e.first_name,e.last_name].filter(Boolean).join(' '),active:e.is_active}));
+  const employees=(people.data??[]).map(e=>({id:e.id,userId:e.user_id,name:[e.first_name,e.last_name].filter(Boolean).join(' '),active:e.is_active,weeklyHours:e.ore_settimana}));
   return {people:employees as DailyHoursPerson[],activePeople:employees.filter(e=>e.active) as DailyHoursPerson[],orders:(jobs.data??[]).map(o=>({id:o.id,name:[o.order_code,o.description].filter(Boolean).join(' · ')})) as DailyHoursOrder[],lines:dailyHoursLines(normalized)};
  }});
  const refresh=async(id?:string)=>{if(id)refreshWorkQueries(qc,id,companyId); await Promise.all(['daily-hours','hr-labor-reconciliation','hr-giornate'].map(k=>qc.invalidateQueries({queryKey:[k]})));};

@@ -23,6 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ApprovaRapportinoPopup, useDecisioneRapportino } from "@/components/orders/DecisioneRapportino";
 import { PulsantePdfRapportino } from "@/components/orders/PulsantePdfRapportino";
 import { CorreggiRapportino, StoricoRapportino } from "@/components/orders/CorreggiRapportino";
+import { GiornatePersonaPopup, SegnaGiornataPersona } from "@/components/orders/GiornataPersona";
 import { QuadroEconomicoRapportino } from "@/components/orders/QuadroEconomicoRapportino";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -96,7 +97,9 @@ export default function RapportiniCommesse() {
 }
 
 function Pagina({ companyId }: { companyId?: string }) {
-  const { canViewCosts } = usePermissions();
+  const { canViewCosts, canEditOrders } = usePermissions();
+  const [personaAperta, setPersonaAperta] = useState<string | null>(null);
+  const [segna, setSegna] = useState<{ employeeId?: string } | null>(null);
   const isMobile = useIsMobile();
   const pdf = useScaricaPdf();
   const [params, setParams] = useSearchParams();
@@ -147,6 +150,7 @@ function Pagina({ companyId }: { companyId?: string }) {
     return [{ value: "", label: "Persone" }, ...scelta, ...voci];
   }, [righe, persona]);
 
+  const schedaPersona = persone.find((p) => p.chiave === personaAperta) ?? null;
   const elencoNavigabile = giorni.flatMap((g) => g.righe);
   const indiceAperto = elencoNavigabile.findIndex((r) => r.id === aperto);
   const selezionato = righe.find((r) => r.id === aperto) ?? null;
@@ -400,7 +404,14 @@ function Pagina({ companyId }: { companyId?: string }) {
             ) : vista === "cantieri" ? (
               <TabellaCantieri righe={cantieri} conCosti={canViewCosts} onScegli={(id) => vaiA({ rap_cantiere: id })} />
             ) : vista === "persone" ? (
-              <TabellaPersone righe={persone} onScegli={(chiave) => vaiA({ rap_persona: chiave })} />
+              <>
+                {canEditOrders && (
+                  <div className="flex justify-end border-b border-slate-100 px-3 py-2">
+                    <Button size="sm" variant="outline" onClick={() => setSegna({})}>Segna la giornata di una persona</Button>
+                  </div>
+                )}
+                <TabellaPersone righe={persone} onScegli={setPersonaAperta} />
+              </>
             ) : (
               <MappaDelMese righe={filtrate} mese={mese} oggi={oggi} onCella={(id, g) => vaiA({ rap_cantiere: id, rap_giorno: g })} />
             )}
@@ -417,6 +428,13 @@ function Pagina({ companyId }: { companyId?: string }) {
         const prossimo = [...elencoNavigabile.slice(indiceAperto + 1), ...elencoNavigabile.slice(0, Math.max(0, indiceAperto))].find((x) => statoDi(x) === "inviato");
         imposta({ rap_id: prossimo?.id ?? null }, false);
       }} />
+      {schedaPersona && (
+        <GiornatePersonaPopup persona={schedaPersona} righe={righe} puoScrivere={canEditOrders} onChiudi={() => setPersonaAperta(null)}
+          onApriRapportino={(id) => { setPersonaAperta(null); imposta({ rap_id: id }, false); }}
+          onVediRapportini={() => { const chiave = schedaPersona.chiave; setPersonaAperta(null); vaiA({ rap_persona: chiave }); }}
+          onSegna={(employeeId) => { setPersonaAperta(null); setSegna({ employeeId }); }} />
+      )}
+      {segna && <SegnaGiornataPersona employeeId={segna.employeeId} onChiudi={() => setSegna(null)} />}
     </div>
   );
 }

@@ -161,7 +161,8 @@ Sotto: fasi con ore e costo (risolve E8), materiali e mezzi con valore, totale g
 vendita unitaria (trasporto, nolo, smaltimento). Entrano in costi e rendiconto una volta sola.
 
 **Lotto 2b. Correggi e livelli** — Correzione dell'ufficio con registro: fatta il 09/11 (risolve E12).
-Restano: livelli di visibilità nel database (E11), vista per persona su più cantieri.
+Vista per persona fatta il 09/11: popup con le giornate del mese e «Segna la giornata» (una riga per cantiere, avviso su orario e timbrature), sul registro `ufficio_registra_ore`.
+Resta: livelli di visibilità nel database (E11).
 
 **Lotto 3. Materiali** — Fatti il 09/11: aggiunta fuori commessa, «Materiali da regolarizzare», bolla di entrata. Restano: scarico automatico da magazzino, costo orario dei mezzi. I quattro casi: residuo sui previsti, aggiunta fuori commessa con
 lavorazione e provenienza, scarico da magazzino, «Materiali da regolarizzare» e DDT di entrata.
