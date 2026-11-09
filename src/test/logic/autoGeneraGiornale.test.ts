@@ -48,6 +48,16 @@ function database(parte: Partial<Record<string, Riga[]>> = {}): DbFinto {
   return db;
 }
 
+async function giraCoda(db: DbFinto, coda: Riga[]): Promise<Record<string, unknown>> {
+  condiviso.client = new Proxy(db.client as object, { get: (o, k) => (k === "rpc" ? async () => ({ data: coda, error: null as unknown }) : Reflect.get(o, k)) });
+  const { deno, gestore } = denoFinto({ SUPABASE_URL: "https://x", SUPABASE_SERVICE_ROLE_KEY: CHIAVE });
+  vi.stubGlobal("Deno", deno);
+  vi.resetModules();
+  await import(/* @vite-ignore */ FUNZIONE);
+  const r = await gestore()(new Request("https://x/f", { method: "POST", headers: { authorization: `Bearer ${CHIAVE}` }, body: JSON.stringify({ modo: "coda" }) }));
+  return await r.json() as Record<string, unknown>;
+}
+
 async function gira(db: DbFinto): Promise<{ status: number; corpo: Record<string, unknown> }> {
   condiviso.client = db.client;
   const { deno, gestore } = denoFinto({ SUPABASE_URL: "https://x", SUPABASE_SERVICE_ROLE_KEY: CHIAVE });
@@ -139,5 +149,35 @@ describe("auto-genera-giornale-cantiere", () => {
     vi.resetModules();
     await import(/* @vite-ignore */ FUNZIONE);
     expect((await gestore()(new Request("https://x/f", { method: "POST" }))).status).toBe(401);
+  });
+
+  describe("quando cambiano i rapportini", () => {
+    const coda = [{ order_id: "o1", data_lavori: OGGI, company_id: "az" }];
+    const auto = { lavorazioni_eseguite: "Vecchio", materiali_utilizzati: "", note: "", condizioni_meteo: null as unknown, personale_presente: null as unknown, avanzamento_percentuale: null as unknown };
+
+    it("riscrive la pagina nata in automatico e mai toccata", async () => {
+      const db = database({ giornale_lavori: [{ id: "g", company_id: "az", order_id: "o1", data_lavori: OGGI, stato: "bozza", ...auto, bozza_auto_campi: auto }] });
+      expect(await giraCoda(db, coda)).toMatchObject({ aggiornate: 1, errori: 0 });
+      expect(String(db.tabelle.giornale_lavori[0].lavorazioni_eseguite)).toContain("Posa guaina");
+    });
+
+    it("una pagina modificata a mano non cambia: si segnala", async () => {
+      const db = database({ giornale_lavori: [{ id: "g", company_id: "az", order_id: "o1", data_lavori: OGGI, stato: "bozza", ...auto, lavorazioni_eseguite: "Scritto da me", bozza_auto_campi: auto }] });
+      expect(await giraCoda(db, coda)).toMatchObject({ segnalate: 1, aggiornate: 0 });
+      expect(db.tabelle.giornale_lavori[0].lavorazioni_eseguite).toBe("Scritto da me");
+      expect(db.tabelle.giornale_lavori[0].aggiornamento_disponibile_il).toBeTruthy();
+    });
+
+    it("una pagina firmata non si tocca", async () => {
+      const db = database({ giornale_lavori: [{ id: "g", company_id: "az", order_id: "o1", data_lavori: OGGI, stato: "firmata", ...auto, bozza_auto_campi: auto }] });
+      expect(await giraCoda(db, coda)).toMatchObject({ saltate: 1, aggiornate: 0, segnalate: 0 });
+      expect(db.tabelle.giornale_lavori[0].lavorazioni_eseguite).toBe("Vecchio");
+    });
+
+    it("una pagina che non c'è ancora nasce, con la traccia di cosa ha scritto", async () => {
+      const db = database();
+      expect(await giraCoda(db, coda)).toMatchObject({ create: 1 });
+      expect(db.tabelle.giornale_lavori[0].bozza_auto_campi).toBeTruthy();
+    });
   });
 });

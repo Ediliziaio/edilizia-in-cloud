@@ -113,6 +113,7 @@ interface RigaGiornale {
   source_ddt_ids?: string[] | null;
   source_segnalazioni_ids?: string[] | null;
   source_foto_ids?: string[] | null;
+  aggiornamento_disponibile_il?: string | null;
 }
 
 /** Esito di «Prepara dalla giornata»: vale per quel cantiere e quel giorno. */
@@ -998,6 +999,11 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
               </div>
             )}
 
+            {editingEntry?.aggiornamento_disponibile_il && (
+              <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                Dopo che questa pagina è stata modificata a mano sono cambiati dei rapportini. Il testo non è stato toccato: usa «Prepara dalla giornata» per riprenderli.
+              </p>
+            )}
             {/* Proposta dai dati del giorno, senza AI: riempie il modulo, si salva solo quando lo decide chi scrive. */}
             {regole.puoModificare && orderDelGiorno && formData.data_lavori && !paginaGiaScritta && (
               <div className="rounded-lg border p-3 space-y-2">

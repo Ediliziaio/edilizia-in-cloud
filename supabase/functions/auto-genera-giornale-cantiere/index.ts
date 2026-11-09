@@ -5,6 +5,10 @@
  * acceso, compone la bozza del giorno da rapportini, bolle, segnalazioni e foto
  * (`_shared/bozzaGiornale.ts`). Niente AI: riporta quel che è registrato. Scrive solo
  * bozze nuove, non tocca mai una pagina esistente; la firma resta a una persona.
+ *
+ * Con {"modo":"coda"} (09/11/2026, ogni 10 minuti) tiene aggiornate le pagine quando cambiano i
+ * rapportini: una bozza nata qui e mai toccata si riscrive, una modificata a mano si segna soltanto,
+ * una firmata non si tocca.
  */
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
@@ -46,6 +50,9 @@ serveConMetricheRapida("auto-genera-giornale-cantiere", async (req) => {
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
+
+  const richiesta = await req.clone().json().catch(() => null) as { modo?: string } | null;
+  if (richiesta?.modo === "coda") return jsonOk(await aggiornaDaCoda(supabase));
 
   const t0 = Date.now();
   const summary = {
@@ -149,6 +156,7 @@ serveConMetricheRapida("auto-genera-giornale-cantiere", async (req) => {
               visibile_cliente: false,
               ...bozza.campi,
               ...bozza.fonti,
+              bozza_auto_campi: bozza.campi,
             }, { onConflict: "order_id,data_lavori", ignoreDuplicates: true })
             .select("id");
           if (insErr) throw new Error(insErr.message);
@@ -157,16 +165,7 @@ serveConMetricheRapida("auto-genera-giornale-cantiere", async (req) => {
           summary.giornali_generated++;
 
           // Solo sulla pagina nata da questo giro: su una pagina altrui `scritte` è vuoto e si esce sopra.
-          if (bozza.eventi.length) {
-            const { conDdt, conTicket } = righeEventiProposti(bozza.eventi, c.id, scritte[0].id as string);
-            for (const [righe, chiave] of [[conDdt, "giornale_id,ddt_id"], [conTicket, "giornale_id,ticket_id"]] as const) {
-              if (!righe.length) continue;
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const { error: errEventi } = await (supabase as any).from("giornale_eventi")
-                .upsert(righe, { onConflict: chiave, ignoreDuplicates: true });
-              if (errEventi) throw new Error(`eventi non scritti: ${errEventi.message}`);
-            }
-          }
+          await scriviEventi(supabase, bozza, c.id, scritte[0].id as string);
         } catch (e) {
           summary.errors++;
           summary.errors_detail.push({
@@ -196,6 +195,87 @@ function jsonOk(body: unknown): Response {
 }
 
 type ClientDb = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+const CAMPI_AUTO = ["lavorazioni_eseguite", "materiali_utilizzati", "note", "condizioni_meteo", "personale_presente", "avanzamento_percentuale"] as const;
+const LIMITE_CODA = 25;
+
+async function scriviEventi(supabase: ClientDb, bozza: ReturnType<typeof componiBozzaGiornale>, companyId: string, giornaleId: string): Promise<void> {
+  if (!bozza.eventi.length) return;
+  const { conDdt, conTicket } = righeEventiProposti(bozza.eventi, companyId, giornaleId);
+  for (const [righe, chiave] of [[conDdt, "giornale_id,ddt_id"], [conTicket, "giornale_id,ticket_id"]] as const) {
+    if (!righe.length) continue;
+    const { error } = await supabase.from("giornale_eventi").upsert(righe, { onConflict: chiave, ignoreDuplicates: true });
+    if (error) throw new Error(`eventi non scritti: ${error.message}`);
+  }
+}
+
+/** Le pagine dei giorni in cui è cambiato un rapportino, a piccoli lotti. */
+async function aggiornaDaCoda(supabase: ClientDb): Promise<Record<string, number>> {
+  const esito = { presi: 0, aggiornate: 0, create: 0, segnalate: 0, saltate: 0, errori: 0 };
+  const { data: coda, error } = await supabase.rpc("giornale_coda_prendi", { p_limite: LIMITE_CODA });
+  if (error) throw new Error(`coda non leggibile: ${error.message}`);
+  const righe = (coda ?? []) as Array<{ order_id: string; data_lavori: string; company_id: string }>;
+  esito.presi = righe.length;
+  const giornate = new Map<string, Map<string, GiornataPerBozza>>();
+  for (const r of righe) {
+    try {
+      const { data: azienda } = await supabase.from("companies").select("status, giornale_auto_enabled").eq("id", r.company_id).maybeSingle();
+      const { data: commessa } = await supabase.from("orders").select("id, status, giornale_auto_enabled, deleted_at").eq("id", r.order_id).maybeSingle();
+      if (!azienda?.giornale_auto_enabled || ["suspended", "cancelled", "canceled", "expired"].includes(String(azienda.status ?? ""))
+        || !commessa || commessa.deleted_at || commessa.giornale_auto_enabled === false || !["in_corso", "confermato", "active"].includes(String(commessa.status))) {
+        esito.saltate++;
+        continue;
+      }
+      const { data: pagina, error: errPagina } = await supabase.from("giornale_lavori")
+        .select(`id, stato, bozza_auto_campi, ${CAMPI_AUTO.join(", ")}`).eq("order_id", r.order_id).eq("data_lavori", r.data_lavori).maybeSingle();
+      if (errPagina) throw new Error(errPagina.message);
+      if (pagina?.stato === "firmata") { esito.saltate++; continue; }
+
+      const chiave = `${r.company_id}|${r.data_lavori}`;
+      if (!giornate.has(chiave)) {
+        const { inizio, fine } = intervalloGiornoRoma(r.data_lavori);
+        giornate.set(chiave, await giornataAzienda(supabase, r.company_id, r.data_lavori, inizio, fine));
+      }
+      const bozza = componiBozzaGiornale(giornate.get(chiave)!.get(r.order_id) ?? { rapportini: [] });
+
+      if (!pagina) {
+        if (bozza.vuota) { esito.saltate++; continue; }
+        const { data: titolari } = await supabase.from("user_roles").select("user_id").eq("role", "company_admin");
+        const { data: autori } = await supabase.from("profiles").select("id").eq("company_id", r.company_id).in("id", ((titolari ?? []) as Array<{ user_id: string }>).map((x) => x.user_id)).limit(1);
+        const autore = (autori ?? [])[0]?.id as string | undefined;
+        if (!autore) { esito.saltate++; continue; }
+        const { data: scritte, error: errIns } = await supabase.from("giornale_lavori").upsert({
+          company_id: r.company_id, order_id: r.order_id, data_lavori: r.data_lavori, stato: "bozza", generation_method: "imported",
+          created_by: autore, visibile_cliente: false, ...bozza.campi, ...bozza.fonti, bozza_auto_campi: bozza.campi,
+        }, { onConflict: "order_id,data_lavori", ignoreDuplicates: true }).select("id");
+        if (errIns) throw new Error(errIns.message);
+        if (scritte?.length) { await scriviEventi(supabase, bozza, r.company_id, scritte[0].id as string); esito.create++; }
+        continue;
+      }
+
+      // Intatta: ogni campo è ancora quello scritto dall'ultimo giro. Una pagina vuota non cancella niente.
+      const scritto = pagina.bozza_auto_campi as Record<string, unknown> | null;
+      const intatta = !!scritto && CAMPI_AUTO.every((k) => String(pagina[k] ?? "") === String(scritto[k] ?? ""));
+      if (intatta && !bozza.vuota) {
+        const { error: errUp } = await supabase.from("giornale_lavori")
+          .update({ ...bozza.campi, ...bozza.fonti, bozza_auto_campi: bozza.campi, aggiornamento_disponibile_il: null })
+          .eq("id", pagina.id).eq("stato", "bozza");
+        if (errUp) throw new Error(errUp.message);
+        await scriviEventi(supabase, bozza, r.company_id, pagina.id as string);
+        esito.aggiornate++;
+      } else {
+        const { error: errUp } = await supabase.from("giornale_lavori").update({ aggiornamento_disponibile_il: new Date().toISOString() }).eq("id", pagina.id).eq("stato", "bozza");
+        if (errUp) throw new Error(errUp.message);
+        esito.segnalate++;
+      }
+    } catch (e) {
+      esito.errori++;
+      console.error("giornale coda", r.order_id, r.data_lavori, e instanceof Error ? e.message : e);
+      await supabase.from("giornale_da_aggiornare").upsert({ order_id: r.order_id, data_lavori: r.data_lavori, company_id: r.company_id }, { onConflict: "order_id,data_lavori" });
+    }
+  }
+  return esito;
+}
 
 /**
  * Il lavoro registrato oggi da un'azienda, per commessa: rapportini inviati o
