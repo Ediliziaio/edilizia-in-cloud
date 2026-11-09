@@ -105,16 +105,37 @@ describe("meteo di stagione (nessun servizio meteo)", () => {
 });
 
 describe("adempimenti prima di partire", () => {
-  it("ristrutturazione con una ditta: CILA o SCIA, cartello, notifica preliminare, suolo pubblico, con le scadenze sui giorni lavorativi", () => {
+  it("ristrutturazione con una ditta: titolo, cartello, coordinatori, PSC, POS delle ditte, notifica, suolo pubblico", () => {
     const a = adempimentiPrimaDiPartire({ lavoro: "Ristrutturazione appartamento", inizio: "2026-12-09", ditte: 1,
       fasi: [{ nome: "Demolizioni", dal: "2026-12-09", al: "2026-12-11" }] });
     expect(a.map((x) => [x.tipo, x.scadenza])).toEqual([
       ["cila_scia", "2026-12-01"], // 5 giorni lavorativi prima, saltando l'Immacolata
       ["cartello_cantiere", "2026-12-09"],
+      // Con più imprese: prima i nomi e il piano del committente (10 giorni
+      // lavorativi), poi i POS delle ditte (5), poi la notifica (3).
+      ["nomina_coordinatori", "2026-11-24"],
+      ["psc", "2026-11-24"],
+      ["pos_ditte", "2026-12-01"],
       ["notifica_preliminare", "2026-12-03"],
       ["suolo_pubblico", "2026-11-24"],
     ]);
     expect(a.find((x) => x.tipo === "notifica_preliminare")!.testo).toMatch(/più imprese/);
+    // Il PSC non è un documento tuo: va chiesto, e il POS viene dopo di lui.
+    expect(a.find((x) => x.tipo === "psc")!.testo).toMatch(/committente/);
+    expect(a.find((x) => x.tipo === "psc")!.testo).toMatch(/il tuo POS deve essere coerente/);
+    expect(a.find((x) => x.tipo === "nomina_coordinatori")!.testo).toMatch(/art\. 90/);
+    expect(a.find((x) => x.tipo === "pos_ditte")!.testo).toMatch(/art\. 101/);
+  });
+
+  it("con un'impresa sola PSC e coordinatori non servono, ma la notifica può servire lo stesso", () => {
+    // Oltre i 200 uomini-giorno scatta solo la notifica (art. 99): il PSC
+    // nasce dalla presenza di più imprese (art. 90 c. 3), non dalla mole.
+    const grande = adempimentiPrimaDiPartire({ lavoro: "Impianto elettrico capannone", inizio: "2027-02-01", ditte: 0,
+      fasi: [{ nome: "Impianto", dal: null, al: null, giorni: 60, persone: 4 }] });
+    expect(grande.map((x) => x.tipo)).not.toContain("psc");
+    expect(grande.map((x) => x.tipo)).not.toContain("nomina_coordinatori");
+    expect(grande.map((x) => x.tipo)).not.toContain("pos_ditte");
+    expect(grande.map((x) => x.tipo)).toContain("notifica_preliminare");
   });
 
   it("serramenti con un'impresa sola: niente", () => {

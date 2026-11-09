@@ -488,6 +488,7 @@ const CAT_SICUREZZA: Record<string, string> = {
   notifica_preliminare: "Notifica preliminare", fascicolo_opera: "Fascicolo dell'opera",
   pimus: "PiMUS", verbale_coordinamento: "Verbale di coordinamento",
   nomina_coordinatori: "Nomina dei coordinatori", nomina: "Nomina",
+  pos_ditte: "POS delle ditte",
   durc: "DURC", idoneita_tecnica: "Idoneità tecnico-professionale",
   idoneita_mansione: "Idoneità alla mansione", dvr: "DVR",
   patente_crediti: "Patente a crediti", piano_emergenza: "Piano di emergenza",

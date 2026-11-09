@@ -93,6 +93,11 @@ import {
   readFunctionError,
   isPastDate,
 } from "./SicurezzaCantiere/helpers";
+import { NOME_TIPO_SICUREZZA } from "@/lib/sicurezza/scadenzeCommessa";
+
+/** «Nomina dei coordinatori», non «nomina coordinatori». */
+const nomeTipoAdempimento = (tipo: string | null | undefined) =>
+  (tipo && NOME_TIPO_SICUREZZA[tipo]) || tipo?.replace(/_/g, " ") || "";
 
 const SCHEDE = [
   "pos",
@@ -1518,7 +1523,7 @@ export default function SicurezzaCantiere() {
               renderCard={(a) => (
                 <>
                   <p className="text-xs capitalize text-muted-foreground">
-                    {a.tipo?.replace(/_/g, " ")}
+                    {nomeTipoAdempimento(a.tipo)}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Scadenza: {dataBreve(a.scadenza_data)}
@@ -1585,7 +1590,7 @@ export default function SicurezzaCantiere() {
                   label: "Tipo",
                   render: (a) => (
                     <span className="capitalize">
-                      {a.tipo?.replace(/_/g, " ") || "—"}
+                      {nomeTipoAdempimento(a.tipo) || "—"}
                     </span>
                   ),
                 },

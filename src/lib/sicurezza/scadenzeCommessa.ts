@@ -33,6 +33,7 @@ export const NOME_TIPO_SICUREZZA: Record<string, string> = {
   pimus: "PiMUS",
   verbale_coordinamento: "Verbale di coordinamento",
   nomina_coordinatori: "Nomina dei coordinatori",
+  pos_ditte: "POS delle ditte",
   nomina: "Nomina",
   durc: "DURC",
   idoneita_tecnica: "Idoneità tecnico-professionale",

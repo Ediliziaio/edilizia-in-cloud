@@ -1,4 +1,8 @@
 export const RUOLI_INCARICO = {
+  // Primo perché è il primo della catena: nomina CSP e CSE, fa redigere il PSC
+  // e manda la notifica preliminare. L'app lo nominava negli adempimenti senza
+  // saperlo registrare (09/11/2026).
+  committente: "Committente",
   datore_lavoro: "Datore di lavoro",
   responsabile_lavori: "Responsabile dei lavori",
   progettista: "Progettista",

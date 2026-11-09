@@ -107,7 +107,18 @@ export function avvisoMeteoInParole(a: AvvisoMeteo): string {
 
 // ── Adempimenti ─────────────────────────────────────────────────────────────
 
-export type TipoAdempimento = "cila_scia" | "notifica_preliminare" | "cartello_cantiere" | "suolo_pubblico";
+export type TipoAdempimento =
+  | "cila_scia"
+  | "notifica_preliminare"
+  | "cartello_cantiere"
+  | "suolo_pubblico"
+  // Con più imprese in cantiere (09/11/2026). Prima il PSC era nominato solo
+  // dentro le note della notifica, i coordinatori da nessuna parte e il POS
+  // delle ditte era un controllo a posteriori: tre obblighi che vengono prima
+  // dell'inizio dei lavori e che nessuna data ricordava.
+  | "psc"
+  | "nomina_coordinatori"
+  | "pos_ditte";
 
 /** Un adempimento in `sicurezza.adempimenti` → `adempimenti_sicurezza` della commessa. */
 export interface AdempimentoDelPiano {
@@ -179,12 +190,42 @@ export function adempimentiPrimaDiPartire(d: DatiPartenza, cal: CalendarioCantie
 
   const ug = uominiGiorno(d, cal);
   const piuImprese = d.ditte > 0;
+  const quanteDitte = d.ditte === 1 ? "una ditta" : `${d.ditte} ditte`;
+
+  // Il PSC e i coordinatori nascono dalla presenza di più imprese (art. 90
+  // c. 3), anche se non lavorano negli stessi giorni. La notifica, invece,
+  // serve anche con un'impresa sola oltre i 200 uomini-giorno (art. 99): sono
+  // due condizioni diverse e vanno tenute distinte.
+  if (piuImprese) {
+    out.push({
+      tipo: "nomina_coordinatori",
+      titolo: "Chiedi al committente chi sono il CSP e il CSE",
+      scadenza: entro(10),
+      testo:
+        `In cantiere lavorano più imprese (l'azienda e ${quanteDitte}): il committente deve nominare il coordinatore della sicurezza, in progettazione e in esecuzione (art. 90 del D.Lgs. 81/2008). Non è una scelta tua, ma senza i loro nomi non parte nulla. Scrivili fra le figure del cantiere appena li sai${dal}.`,
+    });
+    out.push({
+      tipo: "psc",
+      titolo: "Fatti dare il PSC dal committente, prima di scrivere il POS",
+      scadenza: entro(10),
+      testo:
+        `Con più imprese il piano di sicurezza e coordinamento lo fa redigere il committente, tramite il CSP, e fa parte del contratto: a te deve arrivare prima dell'inizio${dal}, perché il tuo POS deve essere coerente con quello. Se non ce l'hai, chiedilo per iscritto: senza PSC i lavori non possono partire.`,
+    });
+    out.push({
+      tipo: "pos_ditte",
+      titolo: `Fatti consegnare il POS da ${quanteDitte}, prima che entrino`,
+      scadenza: entro(5),
+      testo:
+        "Ogni impresa che entra in cantiere consegna il suo POS. Come impresa affidataria devi controllare che vada d'accordo col PSC e passarlo al coordinatore in esecuzione prima che quei lavori comincino (art. 101). Una ditta senza POS verificato non entra.",
+    });
+  }
+
   if (piuImprese || ug > SOGLIA_UOMINI_GIORNO) {
-    const perche = [piuImprese ? `in cantiere lavorano più imprese (l'azienda e ${d.ditte === 1 ? "una ditta" : `${d.ditte} ditte`})` : "",
+    const perche = [piuImprese ? `in cantiere lavorano più imprese (l'azienda e ${quanteDitte})` : "",
       ug > SOGLIA_UOMINI_GIORNO ? `i lavori stimati sono circa ${ug} uomini-giorno, oltre i ${SOGLIA_UOMINI_GIORNO}` : ""].filter(Boolean).join(" e ");
     out.push({
       tipo: "notifica_preliminare", titolo: "Notifica preliminare all'ASL e all'Ispettorato del lavoro", scadenza: entro(3),
-      testo: `Serve perché ${perche} (art. 99 del D.Lgs. 81/2008). La trasmette il committente o il responsabile dei lavori prima dell'inizio${dal}, e una copia va affissa in cantiere. Con più imprese serve anche il coordinatore della sicurezza (PSC).`,
+      testo: `Serve perché ${perche} (art. 99 del D.Lgs. 81/2008). La trasmette il committente o il responsabile dei lavori prima dell'inizio${dal}, e una copia va affissa in cantiere.`,
     });
   }
 
