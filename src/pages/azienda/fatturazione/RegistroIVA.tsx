@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { useLiquidazioneIVA } from "@/hooks/useLiquidazioneIVA";
 import { LiquidazioneIVA } from "@/components/contabilita/LiquidazioneIVA";
 import { RicezioneAcquisti } from "@/components/fatturazione/RicezioneAcquisti";
+import { DetraibilitaAcquisti } from "@/components/fatturazione/DetraibilitaAcquisti";
 import { fiscalDate, fiscalVatGroups } from "@/lib/fatturazione/fiscalInsights";
 
 function etichettaAliquota(r: { rate: string; nature: string }): string {
@@ -98,7 +99,7 @@ function RegistroContent() {
         supabase
           .from("fatture_ricevute_periodo_iva" as never)
           .select(
-            "id,numero_fattura,data_fattura,data_ricezione_sdi,data_detrazione,tipo_documento,cedente_ragione_sociale,imponibile_totale,iva_totale,totale_documento,riepilogo_iva,aliquota_reverse_charge,ricezione_dichiarata_il,ricezione_origine,integrazione",
+            "id,numero_fattura,data_fattura,data_ricezione_sdi,data_detrazione,tipo_documento,cedente_ragione_sociale,imponibile_totale,iva_totale,totale_documento,riepilogo_iva,aliquota_reverse_charge,ricezione_dichiarata_il,ricezione_origine,integrazione,detraibilita_percentuale",
           )
           .eq("company_id", company!)
           .gte("data_detrazione", p.dal)
@@ -469,7 +470,10 @@ function RegistroContent() {
         </div>
       </details>
       {side !== "vendite" && (
-        <RicezioneAcquisti company={company} acquisti={purchases.data || []} />
+        <>
+          <RicezioneAcquisti company={company} acquisti={purchases.data || []} />
+          <DetraibilitaAcquisti company={company} acquisti={purchases.data || []} />
+        </>
       )}
       <div className="overflow-x-auto rounded-xl border bg-white">
         <table className="w-full text-left text-sm">
@@ -516,7 +520,10 @@ function RegistroContent() {
                   )}
                 </td>
                 <td className="p-3 whitespace-nowrap">{money(r.base)}</td>
-                <td className="p-3 whitespace-nowrap">{money(r.tax)}</td>
+                <td className="p-3 whitespace-nowrap">
+                  {money(r.tax)}
+                  {r.deductible !== undefined && <p className="text-xs text-amber-700">Detraibile {r.deductible}%</p>}
+                </td>
                 <td className="p-3">
                   {r.rate === null ? "Da verificare" : r.rate + "%"}
                   <p className="text-xs text-muted-foreground">

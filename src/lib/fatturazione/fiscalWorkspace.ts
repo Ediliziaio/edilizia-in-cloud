@@ -233,12 +233,16 @@ export interface FiscalDocument {
   iva_totale: unknown;
   totale_documento: unknown;
   riepilogo_iva: unknown;
+  /** Quota di IVA detraibile (%). Assente = 100. */
+  detraibilita_percentuale?: number | null;
   esigibilita_iva?: string;
   sdi_stato?: string | null;
   aliquota_reverse_charge?: unknown;
 }
 export type RicezioneOrigine = "sdi" | "dichiarata" | "presunta" | "da_verificare";
 export interface FiscalRow extends FiscalBucket {
+  /** Solo acquisti ridotti: la percentuale detraibile della fattura. */
+  deductible?: number;
   id: string;
   documentId: string;
   date: string;
@@ -349,6 +353,9 @@ export function fiscalRows(
         ...common,
         ...b,
         issues,
+        ...(side === "acquisti" && doc.detraibilita_percentuale !== null && doc.detraibilita_percentuale !== undefined
+          ? { deductible: Number(doc.detraibilita_percentuale) }
+          : {}),
         base: sign(b.base),
         tax: sign(b.tax),
         id: `${side}:${doc.id}:${i}`,
