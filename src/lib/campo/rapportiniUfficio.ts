@@ -21,6 +21,9 @@ export const METEO = [
 /** Chi può comparire nelle presenze: un dipendente (ore e costo) o una ditta (solo presenza). */
 export interface PersonaPresenza { chiave: string; nome: string; employee_id?: string; subappaltatore_id?: string }
 
+/** Una voce libera con i suoi prezzi: si salva col rapportino. */
+export interface VoceUfficio { chiave: string; descrizione: string; quantita: string; unita: string; costo: string; vendita: string }
+
 export interface GiornoUfficio {
   chiave: string;
   data: string;
@@ -42,6 +45,7 @@ export interface GiornoUfficio {
   meteo?: string;
   /** I campi propri dell'azienda, per chiave. */
   campi?: Record<string, unknown>;
+  voci?: VoceUfficio[];
 }
 
 /** «7,5» → 7.5; vuoto o non numero → null. */
@@ -153,6 +157,10 @@ export function caricoRapportini(
         return m ? [{ nome: m.nome, quantita: oreLette(q) ?? 0, ...(m.unita ? { unita: m.unita } : {}), order_item_id: id }] : [];
       }),
       foto_urls: g.foto ?? [],
+      ...((g.voci ?? []).some((v) => v.descrizione.trim()) ? { voci_libere: (g.voci ?? []).filter((v) => v.descrizione.trim()).map((v) => ({
+        descrizione: v.descrizione.trim(), quantita: oreLette(v.quantita) ?? 0, unita: v.unita.trim() || "cad",
+        costo_unitario: oreLette(v.costo), vendita_unitaria: oreLette(v.vendita),
+      })) } : {}),
       meteo: g.meteo || null,
       ...(valori.length > 0 ? { campi_extra: valori } : {}),
     };

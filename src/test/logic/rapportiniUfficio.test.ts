@@ -111,3 +111,17 @@ describe("parti spente e lettura AI", () => {
     expect(g.descrizione).toBe("Posa");
   });
 });
+
+describe("voci libere nel modulo dell'ufficio", () => {
+  const giorno = { ...giornoVuoto("2026-11-03", "g"), descrizione: "Lavori" };
+  it("partono col rapportino, con i prezzi letti alla italiana; le righe vuote no", () => {
+    const [c] = caricoRapportini([{ ...giorno, voci: [
+      { chiave: "a", descrizione: " Trasporto ", quantita: "2", unita: "viaggi", costo: "50,5", vendita: "" },
+      { chiave: "b", descrizione: "  ", quantita: "1", unita: "", costo: "", vendita: "" },
+    ] }], [], new Map());
+    expect(c.voci_libere).toEqual([{ descrizione: "Trasporto", quantita: 2, unita: "viaggi", costo_unitario: 50.5, vendita_unitaria: null }]);
+  });
+  it("un giorno copiato dal precedente non porta le voci", () => {
+    expect(giornoVuoto("2026-11-04", "h", { ...giorno, voci: [{ chiave: "a", descrizione: "X", quantita: "1", unita: "cad", costo: "", vendita: "" }] }).voci).toBeUndefined();
+  });
+});

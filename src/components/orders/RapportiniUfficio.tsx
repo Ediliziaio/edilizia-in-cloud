@@ -1,4 +1,6 @@
 // src/components/orders/RapportiniUfficio.tsx
+import { VociRapportinoUfficio } from "@/components/orders/VociRapportinoUfficio";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarRange, Camera, Check, FileUp, Hammer, Loader2, NotebookPen, Plus, Sparkles, Trash2, Users, X } from "lucide-react";
@@ -96,6 +98,7 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
   const qc = useQueryClient();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const { canViewCosts } = usePermissions();
   // Le parti e i campi che l'azienda usa: l'ufficio vede tutti i campi, anche quelli solo del capo.
   const { schema: moduloCantiere } = useModuloRapportino(orderId);
   const parti = moduloCantiere.blocchi;
@@ -411,6 +414,11 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
               </Blocco>
             )}
 
+            {canViewCosts && (
+              <Blocco titolo="Voci e costi">
+                <VociRapportinoUfficio companyId={companyId} voci={g.voci ?? []} onCambia={(voci) => setGiorni((p) => p.map((x) => (x.chiave === g.chiave ? { ...x, voci } : x)))} />
+              </Blocco>
+            )}
             {campiModulo.length > 0 && <Blocco titolo="Altre informazioni">
               <div className="space-y-3">
                 <CampiModulo campi={campiModulo.filter((c) => c.livello !== "fase" || !parti.fasi || g.fasi.length === 0)} valori={g.campi ?? {}} mostraErrori={tentato}

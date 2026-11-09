@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCatalogoVociRapportino } from "@/hooks/useCatalogoVociRapportino";
 import { formatCurrency } from "@/lib/formatters";
 
 interface Riga {
@@ -54,19 +55,7 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
   });
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
-  const { data: catalogo } = useQuery({
-    queryKey: ["rapportino-voci-modello", companyId, "attive"],
-    enabled: !!companyId && puoModificare,
-    retry: false,
-    queryFn: async () => {
-      const q = supabase as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
-      const [a, b] = await Promise.all([
-        q.from("rapportino_voci_modello").select("id, nome, unita, costo_unitario, vendita_unitaria").eq("company_id", companyId).eq("attivo", true).order("ordine"),
-        q.from("rapportino_voci_impostazioni").select("a_mano").eq("company_id", companyId).maybeSingle(),
-      ]);
-      return { voci: (a.data ?? []) as Array<{ id: string; nome: string; unita: string; costo_unitario: number | null; vendita_unitaria: number | null }>, aMano: (b.data?.a_mano ?? true) as boolean };
-    },
-  });
+  const { data: catalogo } = useCatalogoVociRapportino(companyId, puoModificare);
   const vociPronte = Array.isArray(catalogo?.voci) ? catalogo!.voci : [];
   const aMano = catalogo?.aMano ?? true;
   const puoAggiungere = puoModificare && (vociPronte.length > 0 || aMano);

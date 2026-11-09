@@ -157,7 +157,7 @@ E18 (Lotto 3).
 La vendita viene dalle tariffe del committente, con l'eccezione per cantiere (già esistenti).
 Sotto: fasi con ore e costo (risolve E8), materiali e mezzi con valore, totale giornata.
 
-**Lotto 2. Voci libere** — Fatto il 09/11 (dal popup del rapportino; manca il campo nel modulo di inserimento ufficio). Righe nel rapportino: descrizione, quantità, unità, costo unitario,
+**Lotto 2. Voci libere** — Fatto il 09/11 (dal popup e, dal 09/11, anche nel modulo dell’ufficio). Righe nel rapportino: descrizione, quantità, unità, costo unitario,
 vendita unitaria (trasporto, nolo, smaltimento). Entrano in costi e rendiconto una volta sola.
 
 **Lotto 2b. Correggi e livelli** — Correzione dell'ufficio con registro: fatta il 09/11 (risolve E12).
