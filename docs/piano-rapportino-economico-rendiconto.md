@@ -157,20 +157,20 @@ E18 (Lotto 3).
 La vendita viene dalle tariffe del committente, con l'eccezione per cantiere (già esistenti).
 Sotto: fasi con ore e costo (risolve E8), materiali e mezzi con valore, totale giornata.
 
-**Lotto 2. Voci libere** — Righe nel rapportino: descrizione, quantità, unità, costo unitario,
+**Lotto 2. Voci libere** — Fatto il 09/11 (dal popup del rapportino; manca il campo nel modulo di inserimento ufficio). Righe nel rapportino: descrizione, quantità, unità, costo unitario,
 vendita unitaria (trasporto, nolo, smaltimento). Entrano in costi e rendiconto una volta sola.
 
-**Lotto 2b. Correggi e livelli** — Correzione dell'ufficio con registro, livelli di
-visibilità nel database, vista per persona su più cantieri.
+**Lotto 2b. Correggi e livelli** — Correzione dell'ufficio con registro: fatta il 09/11 (risolve E12).
+Restano: livelli di visibilità nel database (E11), vista per persona su più cantieri.
 
-**Lotto 3. Materiali** — I quattro casi: residuo sui previsti, aggiunta fuori commessa con
+**Lotto 3. Materiali** — Fatti il 09/11: aggiunta fuori commessa, «Materiali da regolarizzare», bolla di entrata. Restano: scarico automatico da magazzino, costo orario dei mezzi. I quattro casi: residuo sui previsti, aggiunta fuori commessa con
 lavorazione e provenienza, scarico da magazzino, «Materiali da regolarizzare» e DDT di entrata.
 Mezzi con costo orario.
 
-**Lotto 4. Giornale automatico** — Una pagina per cantiere e giorno con tutti i rapportini:
+**Lotto 4. Giornale automatico** — Fatti il 09/11: mezzi nella bozza. Restano: bozza serale accesa per chi la vuole, aggiornamento finché non è firmata. Obiettivo: Una pagina per cantiere e giorno con tutti i rapportini:
 persone con nome, lavori, materiali, mezzi. Si aggiorna finché non è firmata. Mai importi.
 
-**Lotto 5. Rendiconto e accettazione**
+**Lotto 5. Rendiconto e accettazione** — Fatti il 09/11: nomi nel PDF, E13, E14. Resta: firma del committente.
 - Righe giorno per giorno con nome, ore e lavoro svolto; voci libere; giornale allegato.
 - Il committente riceve un link e firma per accettazione, riusando la firma elettronica già
   attiva sui contratti di subappalto. Può accettare o contestare, con il motivo.
