@@ -22,6 +22,12 @@ import {
   FiscalMetric,
 } from "@/components/fatturazione/FiscalSectionLayout";
 import { Button } from "@/components/ui/button";
+import { Printer, FileSpreadsheet } from "lucide-react";
+import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
+import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
+import { exportXlsx } from "@/lib/controlloGestione/exportXlsx";
+import { htmlRegistroIva, righeExcelIva } from "@/lib/contabilita/registroIva";
+import { periodoInLettere } from "@/lib/contabilita/registroPrimaNota";
 import { Input } from "@/components/ui/input";
 import { useLiquidazioneIVA } from "@/hooks/useLiquidazioneIVA";
 import { LiquidazioneIVA } from "@/components/contabilita/LiquidazioneIVA";
@@ -137,6 +143,51 @@ function RegistroContent() {
         }}
       />
     );
+  // Stampa ed Excel del registro (09/11/2026): prima si poteva solo esportare
+  // un CSV senza intestazione, e chi porta il trimestre al commercialista si
+  // trovava numeri senza di chi sono né di che periodo.
+  const [stampa, setStampa] = useState<string | null>(null);
+  const anagrafica = useAnagraficaAzienda();
+  const intestazione = {
+    ragione_sociale: anagrafica.data?.ragione_sociale ?? "",
+    partita_iva: anagrafica.data?.partita_iva ?? null,
+    codice_fiscale: anagrafica.data?.codice_fiscale ?? null,
+    indirizzo_via: anagrafica.data?.indirizzo_via ?? null,
+    indirizzo_numero_civico: anagrafica.data?.indirizzo_numero_civico ?? null,
+    indirizzo_cap: anagrafica.data?.indirizzo_cap ?? null,
+    indirizzo_comune: anagrafica.data?.indirizzo_comune ?? null,
+    indirizzo_provincia: anagrafica.data?.indirizzo_provincia ?? null,
+    logo_url: anagrafica.data?.logo_url ?? null,
+  };
+  const apriStampa = () =>
+    setStampa(htmlRegistroIva({ azienda: intestazione, righe: filtered, lato: side, dal: p.dal, al: p.al }));
+  const scaricaExcel = async () => {
+    await exportXlsx({
+      filename: `registro-iva-${side}-${p.dal}-${p.al}.xlsx`,
+      brand: {
+        company_name: intestazione.ragione_sociale || undefined,
+        title: side === "acquisti" ? "Registro IVA acquisti" : side === "vendite" ? "Registro IVA vendite" : "Registro IVA",
+        subtitle: periodoInLettere(p.dal, p.al),
+      },
+      sheets: [{
+        name: "Registro IVA",
+        rows: righeExcelIva(filtered) as unknown[],
+        columns: [
+          { header: "Data documento", key: "data", width: 14 },
+          { header: side === "acquisti" ? "Data detrazione" : "Data periodo", key: "periodo", width: 14 },
+          { header: "Numero", key: "numero", width: 16 },
+          { header: "Controparte", key: "controparte", width: 38 },
+          { header: "Registro", key: "registro", width: 11 },
+          { header: "Imponibile", key: "imponibile", type: "number", width: 15 },
+          { header: "Imposta", key: "imposta", type: "number", width: 14 },
+          { header: "Aliquota", key: "aliquota", width: 10 },
+          { header: "Natura", key: "natura", width: 10 },
+          { header: "Nota", key: "nota", width: 34 },
+        ],
+      }] as never,
+    });
+  };
+
   const exportCsv = () => {
     const cells = [
       [
@@ -182,6 +233,16 @@ function RegistroContent() {
   };
   return (
     <div className="space-y-4">
+      {stampa && (
+        <PrintPreviewModal
+          open
+          onOpenChange={(v) => { if (!v) setStampa(null); }}
+          htmlContent={stampa}
+          title="Registro IVA — anteprima di stampa"
+          fileName={`registro-iva-${side}-${p.dal}-${p.al}`}
+          soloPdf
+        />
+      )}
       <FiscalSectionHeader
         title="Registro IVA documentale"
         description={
@@ -286,6 +347,12 @@ function RegistroContent() {
             setPage(0);
           }}
         />
+        <Button variant="outline" disabled={!filtered.length} onClick={apriStampa}>
+          <Printer className="mr-2 h-4 w-4" />Stampa
+        </Button>
+        <Button variant="outline" disabled={!filtered.length} onClick={() => { void scaricaExcel(); }}>
+          <FileSpreadsheet className="mr-2 h-4 w-4" />Excel
+        </Button>
         <Button
           variant="outline"
           disabled={
