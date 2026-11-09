@@ -385,6 +385,9 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
   );
   // Senza il permesso sui mezzi la vista risponde 0: non è un costo zero, è un dato non visibile.
   const vehicleDataHidden = vehicleEstimates.some((row) => row.dati_mezzi_visibili === false);
+  // La quota interna dei mezzi nostri: accanto al margine diretto, mai dopo la struttura, che le rate le contiene già.
+  const quotaMezzi = (orderId: string): number =>
+    vehicleDataHidden || vehicleEstimatesError || isLoadingVehicleEstimates ? 0 : safeNumber(vehicleEstimateByOrder.get(orderId)?.costo_mezzi_stimato);
 
   const { data: marginSettings, error: marginSettingsError, refetch: refetchMarginSettings } = useQuery({
     queryKey: ["preventivo-impostazioni-margin", companyId],
@@ -735,6 +738,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
       "Mezzi stimati fuori consuntivo",
       "Mezzi assegnati",
       "Mezzi senza costo configurato",
+      "Margine con i mezzi euro",
       "Costo errori e anomalie",
       "Anomalie aperte",
       "Motivo rischio",
@@ -765,6 +769,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
         vehicleDataHidden || vehicleEstimatesError || isLoadingVehicleEstimates ? "" : safeNumber(vehicleEstimateByOrder.get(row.id)?.costo_mezzi_stimato).toFixed(2),
         vehicleDataHidden || vehicleEstimatesError || isLoadingVehicleEstimates ? "" : String(safeNumber(vehicleEstimateByOrder.get(row.id)?.mezzi_usati)),
         vehicleDataHidden || vehicleEstimatesError || isLoadingVehicleEstimates ? "" : String(safeNumber(vehicleEstimateByOrder.get(row.id)?.mezzi_senza_costo)),
+        vehicleDataHidden || vehicleEstimatesError || isLoadingVehicleEstimates || !reliable ? "" : (safeNumber(row.margine) - quotaMezzi(row.id)).toFixed(2),
         safeNumber(row.costo_errori).toFixed(2),
         anomaliesError || isFetchingAnomalies ? "" : String(anomaly?.openCount ?? 0),
         decision.label,
@@ -809,6 +814,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
       (sum, row) => sum + safeNumber(vehicleEstimateByOrder.get(row.id)?.costo_mezzi_stimato),
       0,
     );
+    const margineConMezzi = totMargine - reliableRows.reduce((sum, row) => sum + quotaMezzi(row.id), 0);
     const vehiclesUsed = filtered.reduce(
       (sum, row) => sum + safeNumber(vehicleEstimateByOrder.get(row.id)?.mezzi_usati),
       0,
@@ -835,6 +841,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
       errorCost,
       purchaseCost,
       vehicleEstimateTotal,
+      margineConMezzi,
       vehiclesUsed,
       vehiclesWithoutCost,
       targetRecovery,
@@ -1103,7 +1110,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
             <p className="text-xs text-muted-foreground">
               {vehicleEstimatesError ? "dati non caricati: premi Aggiorna dati" : vehicleDataHidden
                 ? "non visibili con i tuoi permessi"
-                : `fuori consuntivo · ${kpi.vehiclesUsed} assegnazioni${kpi.vehiclesWithoutCost > 0 ? ` · ${kpi.vehiclesWithoutCost} senza costo` : ""}`}
+                : `margine con i mezzi ${formatCurrency(kpi.margineConMezzi)} · ${kpi.vehiclesUsed} assegnazioni${kpi.vehiclesWithoutCost > 0 ? ` · ${kpi.vehiclesWithoutCost} senza costo` : ""}`}
             </p>
           </div>
           <div>
@@ -1363,6 +1370,9 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
                       <TableCell className="text-right">{formatCurrency(consuntivo)}</TableCell>
                       <TableCell className={cn("text-right font-semibold", MargineColorClass(marginePerc))}>
                         {reliable ? formatCurrency(margine) : "—"}
+                        {reliable && quotaMezzi(row.id) > 0 && (
+                          <div className="whitespace-nowrap text-xs font-normal text-muted-foreground">con i mezzi {formatCurrency(margine - quotaMezzi(row.id))}</div>
+                        )}
                       </TableCell>
                       <TableCell className="text-center">
                         {reliable ? <div className="flex flex-col items-center gap-1">
