@@ -3269,7 +3269,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
             <View style={styles.coverLogoBox}>
             {coverLogoUrl ? (
               <Image src={coverLogoUrl} style={[styles.coverLogoImage, vesteDocumento.logoCopertinaAltezza
-                ? { maxWidth: vesteDocumento.logoCopertinaLarghezzaMax!, height: vesteDocumento.logoCopertinaAltezza, marginRight: 0, backgroundColor: "#FFFFFF", padding: 6 }
+                ? { maxWidth: vesteDocumento.logoCopertinaLarghezzaMax!, height: vesteDocumento.logoCopertinaAltezza, marginRight: 0 }
                 : { maxWidth: 220 * coverLogoScale, height: 70 * coverLogoScale }]} />
             ) : (
               <View style={styles.coverLogoCircle}>
