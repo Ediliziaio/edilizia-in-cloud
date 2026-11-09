@@ -73,8 +73,8 @@ import {
   CODICE_ASSE_COLORE, MISURA_DI_CONFRONTO_MM, PREZZO_DI_CONFRONTO, cambiaLato, fasceDeiLati, leggiColori, sceltaPerIlPrezzo, type LatoColore,
 } from "@/lib/serramenti/coloriDentroFuori";
 import { Checkbox } from "@/components/ui/checkbox";
-import { misuraDaTesto } from "@/lib/serramenti/righePreventivo";
-import { CampoQuantitaRiga } from "@/components/serramenti/CampoQuantitaRiga";
+import { misuraDaTesto, quantitaDaTesto } from "@/lib/serramenti/righePreventivo";
+import { ATTESA_MISURA_MS, CampoNumeroVivo } from "@/components/serramenti/CampoNumeroVivo";
 import { salvaPoiSincronizza } from "@/lib/serramenti/salvataggioSequenziale";
 import { preferenzeDaRiga } from "@/lib/serramenti/pickerListino";
 import { conAssiVisibili, normalizzaSelezione } from "@/lib/serramenti/assiCondizionati";
@@ -1837,42 +1837,40 @@ export function SerramentoRow({
             <>
               <div className="order-1 col-span-12 sm:col-span-4 md:col-span-3">
                 <Label className="flex h-5 items-center text-xs">Largh. (mm)</Label>
-                <Input
-                  type="number"
+                {/* Non valida torna quella salvata; uguale non ricalcola, che riporterebbe il prezzo al listino di oggi. */}
+                <CampoNumeroVivo
                   key={`L-${s.id}`}
-                  defaultValue={s.larghezza_mm ?? ""}
-                  onBlur={(e) => {
-                    const mm = misuraDaTesto(e.target.value);
-                    const salvata = s.larghezza_mm ?? null;
-                    // Non valida torna quella salvata; uguale non ricalcola, che
-                    // riporterebbe il prezzo al listino di oggi.
-                    e.target.value = String((mm === undefined ? salvata : mm) ?? "");
-                    if (mm !== undefined && mm !== salvata) handleMisurePatch({ larghezza_mm: mm });
-                  }}
+                  aria-label="Larghezza in mm"
+                  valore={s.larghezza_mm ?? null}
+                  daTesto={misuraDaTesto}
+                  attesaMs={ATTESA_MISURA_MS}
+                  onCambia={(mm) => handleMisurePatch({ larghezza_mm: mm })}
                   className="h-9 text-xs"
                 />
               </div>
               <div className="order-1 col-span-12 sm:col-span-4 md:col-span-3">
                 <Label className="flex h-5 items-center text-xs">Altezza (mm)</Label>
-                <Input
-                  type="number"
+                <CampoNumeroVivo
                   key={`H-${s.id}`}
-                  defaultValue={s.altezza_mm ?? ""}
-                  onBlur={(e) => {
-                    const mm = misuraDaTesto(e.target.value);
-                    const salvata = s.altezza_mm ?? null;
-                    e.target.value = String((mm === undefined ? salvata : mm) ?? "");
-                    if (mm !== undefined && mm !== salvata) handleMisurePatch({ altezza_mm: mm });
-                  }}
+                  aria-label="Altezza in mm"
+                  valore={s.altezza_mm ?? null}
+                  daTesto={misuraDaTesto}
+                  attesaMs={ATTESA_MISURA_MS}
+                  onCambia={(mm) => handleMisurePatch({ altezza_mm: mm })}
                   className="h-9 text-xs"
                 />
               </div>
               <div className="order-1 col-span-12 sm:col-span-4 md:col-span-2">
                 <Label className="flex h-5 items-center text-xs">Quantità</Label>
-                <CampoQuantitaRiga
+                <CampoNumeroVivo
                   key={`Q-${s.id}`}
-                  quantita={s.quantita}
-                  onCambia={(pezzi) => handleMisurePatch({ quantita: pezzi })}
+                  aria-label="Quantità"
+                  min={1}
+                  step={1}
+                  valore={s.quantita}
+                  daTesto={quantitaDaTesto}
+                  onCambia={(pezzi) => { if (pezzi !== null) handleMisurePatch({ quantita: pezzi }); }}
+                  className="h-9 text-xs"
                 />
               </div>
             </>

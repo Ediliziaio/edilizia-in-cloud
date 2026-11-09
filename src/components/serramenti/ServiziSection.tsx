@@ -14,6 +14,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CampoNumeroVivo } from "@/components/serramenti/CampoNumeroVivo";
+import { quantitaServizioDaTesto } from "@/lib/serramenti/righePreventivo";
 import { Card } from "@/components/ui/card";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
@@ -343,10 +345,13 @@ export function ServiziSection({ progettoId, detail }: Props) {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Input
-                          type="number" min={0} step={0.5}
-                          defaultValue={r.quantita}
-                          onBlur={(e) => onPatch(r.id, { quantita: Math.max(0, Number(e.target.value) || 0) })}
+                        <CampoNumeroVivo
+                          aria-label={`Quantità ${r.descrizione ?? "servizio"}`}
+                          min={0}
+                          step={0.5}
+                          valore={r.quantita}
+                          daTesto={quantitaServizioDaTesto}
+                          onCambia={(quantita) => { if (quantita !== null) onPatch(r.id, { quantita }); }}
                           className="h-8 text-xs w-16"
                         />
                       </TableCell>

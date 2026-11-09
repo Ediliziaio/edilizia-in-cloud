@@ -4,7 +4,7 @@
  * coi link; una posizione che non prende complementi non ha bottoni; un
  * complemento senza finestra si aggancia.
  */
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { SrAccessorioRow } from "@/types/serramenti";
 
@@ -90,6 +90,24 @@ const box = (extra: Partial<Parameters<typeof ComplementiFinestra>[0]> = {}) => 
 );
 
 describe("ComplementiFinestra", () => {
+  it("una misura cambiata parte senza uscire dal campo, una volta sola", async () => {
+    const onPatch = vi.fn();
+    render(riga(complemento({}), { onPatch }));
+    const misura = screen.getByDisplayValue("1200");
+    fireEvent.change(misura, { target: { value: "1" } });
+    fireEvent.change(misura, { target: { value: "1500" } });
+    await waitFor(() => expect(onPatch).toHaveBeenCalledWith(expect.objectContaining({ larghezza_mm: 1500 })), { timeout: 2_000 });
+    expect(onPatch).toHaveBeenCalledTimes(1);
+  });
+
+  it("i pezzi cambiati con le frecce o scrivendo partono senza uscire dal campo", async () => {
+    const onPatch = vi.fn();
+    render(riga(complemento({}), { onPatch }));
+    fireEvent.change(screen.getByLabelText("Pezzi"), { target: { value: "3" } });
+    await waitFor(() => expect(onPatch).toHaveBeenCalledWith(expect.objectContaining({ quantita: 3 })));
+    expect(onPatch).toHaveBeenCalledTimes(1);
+  });
+
   it("il cassonetto ha la profondità, e scriverla la salva; la tapparella non ce l'ha", () => {
     const onPatch = vi.fn();
     const { rerender } = render(riga(complemento({}), { onPatch }));

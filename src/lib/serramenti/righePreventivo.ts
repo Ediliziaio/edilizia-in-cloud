@@ -26,6 +26,13 @@ export function quantitaDaTesto(testo: string): number | undefined {
   return Number.isInteger(pezzi) && pezzi >= 1 ? pezzi : undefined;
 }
 
+/** La quantità di un servizio: anche mezze unità e zero; vuoto o negativo non è valido e non si salva. */
+export function quantitaServizioDaTesto(testo: string): number | undefined {
+  if (testo.trim() === "") return undefined;
+  const quantita = Number(testo);
+  return Number.isFinite(quantita) && quantita >= 0 ? quantita : undefined;
+}
+
 export interface TotaliPreventivo {
   totale_min: number;
   totale_max: number;

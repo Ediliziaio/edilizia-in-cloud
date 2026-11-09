@@ -96,7 +96,7 @@ function monta(riga = posizione(), listino = true) {
   };
 }
 
-const campo = () => screen.getByText("Quantità").parentElement!.querySelector("input") as HTMLInputElement;
+const campo = () => screen.getByRole("spinbutton", { name: "Quantità" }) as HTMLInputElement;
 /** Scrivere o premere una freccia: per il browser sono entrambi un cambio del valore, senza uscire dal campo. */
 const scrivi = (valore: string) => fireEvent.change(campo(), { target: { value: valore } });
 const attendiLaScrittura = () => act(() => new Promise<void>((fatto) => { setTimeout(fatto, 600); }));
@@ -196,5 +196,40 @@ describe("Quantità della riga aperta", () => {
     expect(onPatch).toHaveBeenCalledTimes(1);
     act(() => impostaDaFuori({ quantita: 9 }));
     expect(campo().value).toBe("9");
+  });
+});
+
+describe("Larghezza e altezza della riga aperta", () => {
+  const misura = (nome: string) => screen.getByRole("spinbutton", { name: nome }) as HTMLInputElement;
+
+  it("la misura nuova parte senza uscire dal campo e rifà il prezzo", async () => {
+    const { onPatch } = monta();
+    fireEvent.change(misura("Larghezza in mm"), { target: { value: "1500" } });
+    await waitFor(() => expect(onPatch).toHaveBeenCalledTimes(1), { timeout: 2_000 });
+    expect(onPatch.mock.calls[0][0].larghezza_mm).toBe(1500);
+    expect(onPatch.mock.calls[0][0].prezzo_unitario).toBe(1260);
+  });
+
+  it("scrivendo cifra per cifra le misure a metà non diventano vere", async () => {
+    const { onPatch } = monta();
+    for (const parziale of ["1", "19", "190", "1900"]) fireEvent.change(misura("Altezza in mm"), { target: { value: parziale } });
+    await waitFor(() => expect(onPatch).toHaveBeenCalledTimes(1), { timeout: 2_000 });
+    expect(onPatch.mock.calls[0][0].altezza_mm).toBe(1900);
+  });
+
+  it("uscendo: zero torna la misura salvata, vuoto la toglie, uguale non ricalcola", () => {
+    const { onPatch } = monta();
+    const campoL = misura("Larghezza in mm");
+    fireEvent.change(campoL, { target: { value: "0" } });
+    fireEvent.blur(campoL);
+    expect(campoL.value).toBe("1200");
+    expect(onPatch).not.toHaveBeenCalled();
+    fireEvent.change(campoL, { target: { value: "1200" } });
+    fireEvent.blur(campoL);
+    expect(onPatch).not.toHaveBeenCalled();
+    fireEvent.change(campoL, { target: { value: "" } });
+    fireEvent.blur(campoL);
+    expect(onPatch).toHaveBeenCalledTimes(1);
+    expect(onPatch.mock.calls[0][0].larghezza_mm).toBeNull();
   });
 });

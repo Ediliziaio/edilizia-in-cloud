@@ -30,6 +30,7 @@ import { haProfondita, nomeBreve, nomeComplemento, prezzoComplemento } from "@/l
 import { formatEuro } from "@/lib/serramenti/format";
 import { useListinoGriglia } from "@/lib/serramenti/queries";
 import { misuraDaTesto, quantitaDaTesto } from "@/lib/serramenti/righePreventivo";
+import { ATTESA_MISURA_MS, CampoNumeroVivo } from "@/components/serramenti/CampoNumeroVivo";
 import { cn } from "@/lib/utils";
 import { SR_ACCESSORI_TIPI, type SrAccessorioRow, type SrSerramentoRow } from "@/types/serramenti";
 import { BarraComplementi } from "./BarraComplementi";
@@ -180,21 +181,16 @@ function CampoMisura({
       <Label htmlFor={id} className={cn("text-[10px]", manca ? "font-semibold text-amber-700" : "text-muted-foreground")}>
         {etichetta}
       </Label>
-      <Input
+      {/* Anche la finestra cambia le misure dei suoi complementi: il campo le segue. Non valida torna quella salvata; uguale non ricalcola. */}
+      <CampoNumeroVivo
         id={id}
-        // Anche la finestra cambia le misure dei suoi complementi: il campo riparte dal valore salvato.
-        key={`${id}-${valore ?? ""}`}
-        type="number"
         inputMode="numeric"
         min={1}
-        defaultValue={valore ?? ""}
         placeholder="mm"
-        onBlur={(e) => {
-          const mm = misuraDaTesto(e.target.value);
-          // Non valida torna quella salvata; uguale non ricalcola.
-          e.target.value = String((mm === undefined ? valore : mm) ?? "");
-          if (mm !== undefined && mm !== valore) onCambia(mm);
-        }}
+        valore={valore}
+        daTesto={misuraDaTesto}
+        attesaMs={ATTESA_MISURA_MS}
+        onCambia={onCambia}
         className={cn("h-8 px-2 text-xs", manca && "border-amber-300 bg-amber-50/60")}
       />
     </div>
@@ -321,17 +317,14 @@ export function ComplementoRiga({
             )}
             <div className="w-14">
               <Label htmlFor={`${a.id}-pezzi`} className="text-[10px] text-muted-foreground">Pezzi</Label>
-              <Input
+              <CampoNumeroVivo
                 id={`${a.id}-pezzi`}
-                key={`${a.id}-pezzi-${a.quantita}`}
-                type="number"
+                key={`${a.id}-pezzi`}
                 min={1}
-                defaultValue={a.quantita}
-                onBlur={(e) => {
-                  const pezzi = quantitaDaTesto(e.target.value) ?? a.quantita;
-                  e.target.value = String(pezzi);
-                  if (pezzi !== a.quantita) aggiorna({ quantita: pezzi });
-                }}
+                step={1}
+                valore={a.quantita}
+                daTesto={quantitaDaTesto}
+                onCambia={(pezzi) => { if (pezzi !== null) aggiorna({ quantita: pezzi }); }}
                 className="h-8 px-2 text-xs"
               />
             </div>
