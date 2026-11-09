@@ -77,13 +77,14 @@ function esito(r?: RighiLipe) {
   return { testo: "Nessun importo", cls: "text-muted-foreground" };
 }
 
-function DettaglioPeriodo({ company, anno, periodo, confermata, puoScrivere, onCambiato }: {
-  company: string; anno: number; periodo: number; confermata?: Confermata; puoScrivere: boolean; onCambiato: () => void;
+function DettaglioPeriodo({ company, anno, periodo, confermata, puoScrivere, finito, onCambiato, onApriRegistro }: {
+  company: string; anno: number; periodo: number; confermata?: Confermata; puoScrivere: boolean; finito: boolean; onCambiato: () => void; onApriRegistro: () => void;
 }) {
   const [manuali, setManuali] = useState<Record<string, string>>({});
   const bloccata = !!confermata;
   const inviati = confermata && confermata.stato !== "reviewed_commercialista";
 
+  const sbagliati = Object.entries(manuali).filter(([, v]) => v.trim() !== "" && leggiImporto(v) === null).map(([k]) => k);
   const valori = useMemo(() => {
     const out: Record<string, number> = {};
     for (const [k, v] of Object.entries(manuali)) {
@@ -145,7 +146,8 @@ function DettaglioPeriodo({ company, anno, periodo, confermata, puoScrivere, onC
                     <Input
                       aria-label={nome}
                       inputMode="decimal"
-                      className="ml-auto h-7 w-28 text-right text-xs"
+                      aria-invalid={sbagliati.includes(k)}
+                      className={cn("ml-auto h-7 w-28 text-right text-xs", sbagliati.includes(k) && "border-destructive")}
                       placeholder={String(righi[k] ?? 0).replace(".", ",")}
                       value={manuali[k] ?? ""}
                       onChange={(e) => setManuali((p) => ({ ...p, [k]: e.target.value }))}
@@ -165,11 +167,19 @@ function DettaglioPeriodo({ company, anno, periodo, confermata, puoScrivere, onC
       {(r.credito_anno_disponibile ?? 0) > 0 && !bloccata && (
         <p className="text-xs text-muted-foreground">Credito dell'anno precedente ancora disponibile: {formatCurrency(r.credito_anno_disponibile!)}.</p>
       )}
-      {r.avvisi?.map((a) => <p key={a} className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">{a}</p>)}
+      {r.avvisi?.map((a) => (
+        <p key={a} className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          {a}{a.includes("Registro IVA") && (
+            <button type="button" className="ml-1 font-medium underline" onClick={onApriRegistro}>Apri il registro</button>
+          )}
+        </p>
+      ))}
+      {!bloccata && !finito && <p className="text-xs text-muted-foreground">Periodo ancora in corso: si conferma quando è finito. Intanto vedi il calcolo a oggi.</p>}
+      {sbagliati.length > 0 && <p role="alert" className="text-xs text-destructive">Scrivi un importo valido, per esempio 1.234,50.</p>}
       {puoScrivere && (
         <div className="flex justify-end gap-2">
           {!bloccata && (
-            <Button size="sm" onClick={() => conferma.mutate()} disabled={conferma.isPending || calcolo.isFetching}>
+            <Button size="sm" onClick={() => conferma.mutate()} disabled={conferma.isPending || calcolo.isFetching || !finito || sbagliati.length > 0}>
               {conferma.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Conferma liquidazione
             </Button>
           )}
@@ -182,14 +192,16 @@ function DettaglioPeriodo({ company, anno, periodo, confermata, puoScrivere, onC
   );
 }
 
-export function LiquidazioniIVA({ anno, onApriImpostazioni }: { anno: number; onApriImpostazioni: () => void }) {
+export function LiquidazioniIVA({ anno, onApriImpostazioni, onApriRegistro }: { anno: number; onApriImpostazioni: () => void; onApriRegistro?: () => void }) {
   const company = useEffectiveCompanyId();
   const qc = useQueryClient();
   const { isAdmin, solaLettura } = usePermissions();
   const puoScrivere = isAdmin && !solaLettura;
   const { impostazioni, isLoading } = useImpostazioniIVA(anno);
   const { data: azienda } = useAnagraficaAzienda();
-  const [aperto, setAperto] = useState<number | null>(null);
+  // undefined = segue il primo periodo da confermare; null = chiuso a mano.
+  const [aperto, setAperto] = useState<number | null | undefined>(undefined);
+  const [segnando, setSegnando] = useState<number | null>(null);
   const [protocollo, setProtocollo] = useState<Record<number, string>>({});
 
   const lista = useQuery({
@@ -202,6 +214,7 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni }: { anno: number; on
     },
   });
   const aggiorna = () => {
+    setAperto(undefined);
     void qc.invalidateQueries({ queryKey: ["liquidazioni-iva"] });
     void qc.invalidateQueries({ queryKey: ["liquidazione-righi"] });
   };
@@ -232,6 +245,14 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni }: { anno: number; on
   const periodi = periodiAnno(anno, mensile);
   const confermate = new Map((lista.data ?? []).map((c) => [c.dal, c]));
   const oggi = new Date().toLocaleDateString("en-CA");
+  const fineDi = (dal: string) => {
+    const [a, m] = dal.split("-").map(Number);
+    return new Date(Date.UTC(a, m - 1 + (mensile ? 1 : 3), 0)).toISOString().slice(0, 10);
+  };
+  const finito = (dal: string) => fineDi(dal) < oggi;
+  const prossimo = periodi.find((p) => !confermate.has(p.dal))?.periodo ?? null;
+  const apertoOra = aperto === undefined ? (lista.isSuccess ? prossimo : null) : aperto;
+  const fatti = periodi.filter((p) => confermate.has(p.dal)).length;
 
   const comunicazione = (q: number) => {
     const inizio = (q - 1) * 3 + 1;
@@ -271,7 +292,10 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni }: { anno: number; on
     <div className="space-y-4">
       <div className="overflow-hidden rounded-xl border bg-white">
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-          <h3 className="font-semibold">Liquidazione IVA {anno}</h3>
+          <div>
+            <h3 className="font-semibold">Liquidazione IVA {anno}</h3>
+            <p className="text-xs text-muted-foreground">{fatti} di {periodi.length} confermati · si confermano in ordine, poi si scarica il file</p>
+          </div>
           <button type="button" onClick={onApriImpostazioni} className="text-xs text-muted-foreground hover:underline">
             {mensile ? "Mensile" : impostazioni.periodicita === "trimestrale" ? "Trimestrale su opzione" : "Trimestrale speciale"} · cambia
           </button>
@@ -280,7 +304,7 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni }: { anno: number; on
           {periodi.map((p) => {
             const c = confermate.get(p.dal);
             const es = esito(c?.dati.righi);
-            const isAperto = aperto === p.periodo;
+            const isAperto = apertoOra === p.periodo;
             return (
               <div key={p.periodo}>
                 <button type="button" aria-expanded={isAperto} onClick={() => setAperto(isAperto ? null : p.periodo)}
@@ -292,10 +316,10 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni }: { anno: number; on
                     <Badge variant="outline" className="gap-1 border-emerald-300 font-normal text-emerald-700">
                       <CheckCircle2 className="h-3 w-3" />{c.stato === "reviewed_commercialista" ? "Confermata" : "Inviata"}
                     </Badge>
-                  ) : <span className="text-xs text-muted-foreground">Da confermare</span>}
+                  ) : <span className="text-xs text-muted-foreground">{finito(p.dal) ? "Da confermare" : "In corso"}</span>}
                 </button>
                 {isAperto && company && (
-                  <DettaglioPeriodo company={company} anno={anno} periodo={p.periodo} confermata={c} puoScrivere={puoScrivere} onCambiato={aggiorna} />
+                  <DettaglioPeriodo company={company} anno={anno} periodo={p.periodo} confermata={c} puoScrivere={puoScrivere} finito={finito(p.dal)} onCambiato={aggiorna} onApriRegistro={onApriRegistro ?? (() => undefined)} />
                 )}
               </div>
             );
@@ -315,20 +339,28 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni }: { anno: number; on
             return (
               <div key={q} className="flex flex-wrap items-center gap-3 px-4 py-2 text-sm">
                 <span className="w-24 font-medium">{q}° trimestre</span>
-                <span className={cn("w-36 text-xs", !stato.pronto && scad < oggi ? "text-red-700" : "text-muted-foreground")}>Entro il {fiscalDate(scad)}</span>
+                <span className={cn("w-36 text-xs", scad < oggi && !(stato.pronto && stato.inviata) ? "font-medium text-red-700" : "text-muted-foreground")}>Entro il {fiscalDate(scad)}</span>
                 <div className="min-w-40 flex-1 text-xs">
                   {!stato.pronto && <span className="text-muted-foreground">{mensile ? `Mancano ${stato.mancano} mesi da confermare` : "Da confermare"}</span>}
-                  {stato.pronto && stato.errori.length > 0 && <ul className="text-destructive">{stato.errori.map((e) => <li key={e}>{e}</li>)}</ul>}
+                  {stato.pronto && stato.errori.length > 0 && (
+                    <div className="text-destructive">
+                      <ul>{stato.errori.map((e) => <li key={e}>{e}</li>)}</ul>
+                      <button type="button" className="font-medium underline" onClick={onApriImpostazioni}>Completa le impostazioni</button>
+                    </div>
+                  )}
                   {stato.pronto && stato.inviata && <span className="text-emerald-700">Inviata · protocollo {stato.protocollo}</span>}
                 </div>
                 {stato.pronto && stato.errori.length === 0 && (
                   <div className="flex items-center gap-2">
-                    <Button size="sm" variant="outline" onClick={() => scarica(q, stato.c)}><Download className="mr-1.5 h-3.5 w-3.5" />Scarica XML</Button>
-                    {!stato.inviata && puoScrivere && (
+                    <Button size="sm" variant={stato.inviata ? "outline" : "default"} onClick={() => scarica(q, stato.c)}><Download className="mr-1.5 h-3.5 w-3.5" />Scarica XML</Button>
+                    {!stato.inviata && puoScrivere && segnando !== q && (
+                      <Button size="sm" variant="ghost" onClick={() => setSegnando(q)}>Ho inviato</Button>
+                    )}
+                    {!stato.inviata && puoScrivere && segnando === q && (
                       <>
                         <Input aria-label={`Protocollo ricevuta ${q}° trimestre`} placeholder="Protocollo ricevuta" className="h-8 w-40 text-xs"
                           value={protocollo[q] ?? ""} onChange={(e) => setProtocollo((p) => ({ ...p, [q]: e.target.value }))} />
-                        <Button size="sm" variant="ghost" disabled={!protocollo[q]?.trim() || segna.isPending} onClick={() => segna.mutate({ q })}>Segna inviata</Button>
+                        <Button size="sm" disabled={!protocollo[q]?.trim() || segna.isPending} onClick={() => segna.mutate({ q })}>Salva</Button>
                       </>
                     )}
                   </div>

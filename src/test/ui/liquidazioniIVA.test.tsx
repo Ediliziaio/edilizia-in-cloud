@@ -46,7 +46,7 @@ describe("liquidazione IVA", () => {
 
   it("apre il periodo, passa gli importi a mano e conferma", async () => {
     wrap(<LiquidazioniIVA anno={2026} onApriImpostazioni={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: /1° trimestre/ }));
+    // Il primo periodo da confermare è già aperto.
     fireEvent.change(await screen.findByLabelText("Versamenti auto UE"), { target: { value: "12,50" } });
     await waitFor(() => expect(s.rpc.some((r) => r.fn === "liquidazione_iva_righi" && (r.args.p_manuali as { vp10?: number }).vp10 === 12.5)).toBe(true));
     fireEvent.click(await screen.findByRole("button", { name: "Conferma liquidazione" }));
@@ -56,9 +56,21 @@ describe("liquidazione IVA", () => {
   it("periodo non calcolabile: dice il motivo e non si conferma", async () => {
     s.righi = { calcolabile: false, motivo: "Conferma prima il periodo precedente." };
     wrap(<LiquidazioniIVA anno={2026} onApriImpostazioni={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: /2° trimestre/ }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Conferma prima");
     expect(screen.queryByRole("button", { name: "Conferma liquidazione" })).toBeNull();
+  });
+
+  it("un periodo in corso si vede ma non si conferma", async () => {
+    wrap(<LiquidazioniIVA anno={2099} onApriImpostazioni={vi.fn()} />);
+    expect(await screen.findByText(/ancora in corso/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Conferma liquidazione" })).toBeDisabled();
+  });
+
+  it("un importo scritto male blocca la conferma", async () => {
+    wrap(<LiquidazioniIVA anno={2026} onApriImpostazioni={vi.fn()} />);
+    fireEvent.change(await screen.findByLabelText("Versamenti auto UE"), { target: { value: "abc" } });
+    expect(await screen.findByText(/importo valido/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Conferma liquidazione" })).toBeDisabled();
   });
 
   it("il file si scarica solo col trimestre confermato", async () => {

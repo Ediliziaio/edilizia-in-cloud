@@ -118,6 +118,9 @@ export default function FiscalWorkspace({
   const section = params.has("sezione")
     ? fiscalSection(params)
     : defaultSection;
+  // La liquidazione elenca da sola i periodi dell'anno: mese e trimestre lì confonderebbero.
+  const vista = params.get("vista");
+  const conPeriodo = section === "iva" || (section === "contabilita" && (vista === "f24" || vista === "ritenute_bancarie"));
   return (
     <section className="space-y-4" aria-label="Area fiscale">
       <div className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border bg-white p-5 max-md:gap-2 max-md:p-3">
@@ -133,7 +136,7 @@ export default function FiscalWorkspace({
           mese={mese}
           trimestre={trimestre}
           tipo={tipo}
-          showPeriod={["iva", "contabilita"].includes(section)}
+          showPeriod={conPeriodo}
           onChange={set}
         />
       </div>

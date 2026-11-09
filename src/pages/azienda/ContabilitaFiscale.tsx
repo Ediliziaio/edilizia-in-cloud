@@ -86,7 +86,7 @@ function Content() {
           Impostazioni IVA
         </Button>
       </div>
-      {p.tipo === "mensile" && (
+      {p.tipo === "mensile" && (view === "f24" || view === "ritenute_bancarie") && (
         <FiscalPeriodControl
           key={`${f.companyId}:${p.anno}:${p.mese}`}
           anno={p.anno}
@@ -101,9 +101,13 @@ function Content() {
           <RitenuteBonificiPanel />
         </Suspense>
       ) : view === "impostazioni_iva" ? (
-        <ImpostazioniIVA anno={p.anno} />
+        <ImpostazioniIVA anno={p.anno} onSalvate={() => p.set({ vista: "iva" })} />
       ) : view === "iva" ? (
-        <LiquidazioniIVA anno={p.anno} onApriImpostazioni={() => p.set({ vista: "impostazioni_iva" })} />
+        <LiquidazioniIVA
+          anno={p.anno}
+          onApriImpostazioni={() => p.set({ vista: "impostazioni_iva" })}
+          onApriRegistro={() => p.set({ sezione: "iva", vista: "" })}
+        />
       ) : (
         <>
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">

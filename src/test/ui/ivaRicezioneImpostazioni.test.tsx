@@ -24,6 +24,7 @@ vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "
 vi.mock("@/hooks/usePermissions", () => ({
   usePermissions: () => ({ isAdmin: state.admin, isLoading: false, solaLettura: false }),
 }));
+vi.mock("@/hooks/useAnagraficaAzienda", () => ({ useAnagraficaAzienda: () => ({ data: { codice_fiscale: "09876543210" }, isLoading: false }) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
@@ -149,6 +150,7 @@ describe("impostazioni IVA", () => {
     wrap(<ImpostazioniIVA anno={2026} />);
     expect(await screen.findByText(/Impostazioni IVA dell'anno non compilate/)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Liquidazione"), { target: { value: "mensile" } });
+    expect(screen.getByLabelText("Codice fiscale dell'azienda")).toHaveValue("09876543210");
     fireEvent.change(screen.getByLabelText("Codice fiscale dell'azienda"), { target: { value: "01234567890" } });
     fireEvent.click(screen.getByRole("button", { name: "Salva impostazioni" }));
     await waitFor(() => expect(state.upsert).toHaveLength(1));

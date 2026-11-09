@@ -10,6 +10,7 @@ import {
   type ImpostazioniIVA as Valori,
 } from "@/hooks/useImpostazioniIVA";
 import { fiscalDate } from "@/lib/fatturazione/fiscalInsights";
+import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 
 const VUOTE: Valori = {
   periodicita: "trimestrale",
@@ -30,23 +31,26 @@ const selectClass =
   "h-10 w-full rounded-md border border-input bg-background px-3 text-sm disabled:opacity-60";
 
 /** Fase 0 della liquidazione IVA: le scelte dell'azienda per l'anno. */
-export function ImpostazioniIVA({ anno }: { anno: number }) {
+export function ImpostazioniIVA({ anno, onSalvate }: { anno: number; onSalvate?: () => void }) {
   const s = useImpostazioniIVA(anno);
-  if (s.isLoading || s.isError)
-    return <FiscalQueryState loading={s.isLoading} error={s.isError} onRetry={() => void s.refetch()} />;
+  const { data: azienda, isLoading: aziendaInArrivo } = useAnagraficaAzienda();
+  if (s.isLoading || s.isError || aziendaInArrivo)
+    return <FiscalQueryState loading={s.isLoading || aziendaInArrivo} error={s.isError} onRetry={() => void s.refetch()} />;
+  // La prima volta il codice fiscale si prende dall'anagrafica: uno in meno da scrivere.
+  const cfAzienda = String(azienda?.codice_fiscale || azienda?.partita_iva || "").replace(/^IT/i, "").trim().toUpperCase() || null;
   // La chiave rimonta il modulo quando cambiano anno o riga salvata: i valori
   // iniziali vengono sempre dal database, mai da quelli dell'anno prima.
-  return <Modulo key={`${anno}:${s.impostazioni?.aggiornato_il ?? "nuova"}`} anno={anno} s={s} />;
+  return <Modulo key={`${anno}:${s.impostazioni?.aggiornato_il ?? "nuova"}`} anno={anno} s={s} cfAzienda={cfAzienda} onSalvate={onSalvate} />;
 }
 
-function iniziali(s: ReturnType<typeof useImpostazioniIVA>): Valori {
-  if (!s.impostazioni) return VUOTE;
+function iniziali(s: ReturnType<typeof useImpostazioniIVA>, cfAzienda: string | null): Valori {
+  if (!s.impostazioni) return { ...VUOTE, cf_contribuente: cfAzienda };
   const { aggiornato_il: _ignora, ...resto } = s.impostazioni;
   return { ...resto, credito_anno_precedente: Number(resto.credito_anno_precedente) || 0 };
 }
 
-function Modulo({ anno, s }: { anno: number; s: ReturnType<typeof useImpostazioniIVA> }) {
-  const [v, setV] = useState<Valori>(() => iniziali(s));
+function Modulo({ anno, s, cfAzienda, onSalvate }: { anno: number; s: ReturnType<typeof useImpostazioniIVA>; cfAzienda: string | null; onSalvate?: () => void }) {
+  const [v, setV] = useState<Valori>(() => iniziali(s, cfAzienda));
   const nuova = !s.impostazioni;
 
   const mancanti = impostazioniMancanti(nuova ? null : v);
@@ -59,7 +63,8 @@ function Modulo({ anno, s }: { anno: number; s: ReturnType<typeof useImpostazion
       className="space-y-5 rounded-xl border bg-white p-5"
       onSubmit={(e) => {
         e.preventDefault();
-        void s.salva(v).catch((): undefined => undefined);
+        // Prima compilazione: si torna dritti alla liquidazione.
+        void s.salva(v).then(() => { if (nuova) onSalvate?.(); }).catch((): undefined => undefined);
       }}
     >
       <div>
