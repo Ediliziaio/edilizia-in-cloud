@@ -1275,7 +1275,7 @@ function InArrivoNota({ inArrivo }: { inArrivo?: InArrivoArticolo }) {
   const elenco = inArrivo.ordini.map((o) => o.numero).join(", ");
   return (
     <Link
-      to={primo ? `/azienda/ordini-acquisto/${primo.id}` : "/azienda/ordini-acquisto"}
+      to={primo ? `/azienda/ordini-acquisto/${primo.id}` : "/azienda/ordini?tab=acquisto"}
       onClick={(e) => e.stopPropagation()}
       title={`In arrivo da ${elenco}`}
       className="mt-0.5 block text-[10px] font-medium text-blue-700 hover:underline"

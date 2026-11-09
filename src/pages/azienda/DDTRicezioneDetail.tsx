@@ -185,7 +185,7 @@ export default function DDTRicezioneDetail() {
     deleteDDT.mutate(ddt.id, {
       onSuccess: () => {
         if (po?.id) navigate(`/azienda/ordini-acquisto/${po.id}`);
-        else navigate("/azienda/ddt");
+        else navigate("/azienda/ordini?tab=ddt");
       },
     });
   };
@@ -484,7 +484,7 @@ export default function DDTRicezioneDetail() {
       <div className="text-center py-12 space-y-3">
         <FileCheck className="h-12 w-12 mx-auto text-muted-foreground/40" />
         <p className="text-muted-foreground">DDT non trovato</p>
-        <Button variant="outline" onClick={() => navigate("/azienda/ddt")}>
+        <Button variant="outline" onClick={() => navigate("/azienda/ordini?tab=ddt")}>
           <ArrowLeft className="h-4 w-4 mr-1" /> Torna ai DDT
         </Button>
       </div>
@@ -513,7 +513,7 @@ export default function DDTRicezioneDetail() {
           {!inPopup && <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate("/azienda/ddt")}
+            onClick={() => navigate("/azienda/ordini?tab=ddt")}
             className="shrink-0"
           >
             <ArrowLeft className="h-4 w-4" />

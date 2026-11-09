@@ -64,7 +64,7 @@ begin
   if r.annullato_at is not null then return; end if;
   if v_motivo is null then raise exception 'Scrivi il motivo dell''annullamento.' using errcode = '22023'; end if;
   if r.updated_at is distinct from p_updated_at then
-    raise exception 'Il rapportino è cambiato: aggiorna la pagina prima di annullarlo.' using errcode = '40001';
+    raise exception 'Il rapportino è cambiato: aggiorna la pagina prima di annullarlo.' using errcode = 'PT409';
   end if;
   if exists (select 1 from public.appalto_rendiconto_righe a where a.rapportino_id = p_id and a.stato <> 'bozza') then
     raise exception 'Non si può annullare: è già in un rendiconto non più in bozza.' using errcode = '23514';

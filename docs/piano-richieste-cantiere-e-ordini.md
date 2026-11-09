@@ -4,7 +4,7 @@ Piano scritto il 09/11/2026 partendo dalle richieste di un cliente, che valgono 
 tutte le aziende. Stato del codice letto su `origin/main` (`e390ab9e6`), database di
 produzione letto senza scrivere.
 
-**Stato al 09/11/2026:** fasi 1, 2, 3, 5, 6 e 7 realizzate. Della fase 4 c'è solo il dettaglio
+**Stato al 09/11/2026:** fasi 1, 2, 3, 6 e 7 realizzate. La fase 5 è stata annullata dopo la prova a video: DDT e Ordini restano schede in alto in Commesse, non voci della barra laterale. Della fase 4 c'è solo il dettaglio
 della manodopera per persona: materiali e mezzi aspettano la risposta del cliente, e oggi non
 hanno un prezzo da cui partire (zero righe prezzate in `rapportino_materiali`, nessuna tariffa
 sui mezzi). Sugli ordini di materiali l'interruttore c'è; la clausola va confermata da un
@@ -116,7 +116,9 @@ vede con `canViewCosts`. Prima dell'approvazione risulta «Non disponibile».
 - **Ipotesi B:** importo da addebitare al committente per i lavori in economia. Esistono già
   il documento «economia» e `appalto_rendiconto_righe`: si collega lì.
 
-### Fase 5 — DDT e ordini come pagine proprie (M)
+### Fase 5 — DDT e ordini come pagine proprie (M) — annullata
+
+Fatta e tolta il 09/11/2026: DDT e Ordini stanno nelle schede di Commesse, come prima.
 
 - Pagine `/azienda/ordini-acquisto` e `/azienda/ddt` col contenuto delle schede di
   `OrdersList.tsx` (`activeTab === "acquisto"` e `"ddt"`).

@@ -176,7 +176,7 @@ export default function PurchaseOrderDetail() {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground mb-4">Ordine non trovato</p>
-        <Button variant="outline" onClick={() => navigate("/azienda/ordini-acquisto")}>Torna alla lista</Button>
+        <Button variant="outline" onClick={() => navigate("/azienda/ordini?tab=acquisto")}>Torna alla lista</Button>
       </div>
     );
   }
@@ -362,7 +362,7 @@ export default function PurchaseOrderDetail() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate("/azienda/ordini-acquisto")}
+          onClick={() => navigate("/azienda/ordini?tab=acquisto")}
           aria-label="Torna alla lista Ordini d'Acquisto"
         >
           <ArrowLeft className="h-4 w-4 mr-1" />
