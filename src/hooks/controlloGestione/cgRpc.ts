@@ -40,6 +40,7 @@ export const CG_RPC_NAMES = [
   "cg_ricavi_provenienza",
   "cg_simula_piano_safe",
   "cg_simulazione_what_if",
+  "cg_voci_non_classificate",
 ] as const;
 
 export type CgRpcName = (typeof CG_RPC_NAMES)[number];

@@ -40,6 +40,7 @@ import {
 import { EmptyState } from "@/components/controllo-gestione/ui/EmptyState";
 import { NotePanel } from "@/components/controllo-gestione/ui/NotePanel";
 import { AliquoteEditor } from "@/components/controllo-gestione/ui/AliquoteEditor";
+import { VociDaSistemare } from "@/components/controllo-gestione/ui/VociDaSistemare";
 import { ErrorBlock } from "@/components/controllo-gestione/ui/ErrorBlock";
 import { cn } from "@/lib/utils";
 import { categoriaLeggibile } from "@/lib/controlloGestione/formatCG";
@@ -107,6 +108,9 @@ export function TabConfigurazione({ anno }: TabConfigurazioneProps = {}) {
 
   return (
     <div className="space-y-4">
+      {/* Prima quello che manca, poi l'elenco completo: è l'ordine in cui
+          serve, non quello in cui è nato. */}
+      <VociDaSistemare anno={annoCurrent} />
       <Card className="rounded-2xl">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Come si leggono i costi nel conto economico</CardTitle>

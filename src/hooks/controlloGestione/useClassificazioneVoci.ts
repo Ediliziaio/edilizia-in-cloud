@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { cgRpc } from "@/hooks/controlloGestione/cgRpc";
 
 export type MacroVoce =
   | "ricavi"
@@ -118,6 +119,85 @@ export function useUpdateClassificazione() {
       qc.invalidateQueries({ queryKey: ["cg"] });
     },
     onError: (err) => toast.error(`Errore aggiornamento: ${(err as Error).message}`),
+  });
+}
+
+/**
+ * Le categorie di spesa che non hanno una voce del conto economico.
+ *
+ * Finiscono nella riga «Costi non classificati»: entrano nell'EBITDA, quindi
+ * il margine è giusto, ma non si vede dove vanno i soldi. Qui si elencano
+ * dalla più costosa, perché è da quella che conviene partire — e perché
+ * alcune è giusto che restino fuori: l'acquisto di un terreno non è un costo
+ * dell'anno.
+ */
+export interface VoceNonClassificata {
+  source_table: SourceTable;
+  source_value: string;
+  righe: number;
+  euro: number;
+}
+
+export function useVociNonClassificate(anno: number) {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  return useQuery({
+    queryKey: ["cg", "voci-non-classificate", anno, companyId],
+    enabled: !!companyId,
+    queryFn: async (): Promise<VoceNonClassificata[]> => {
+      const { data, error } = await cgRpc<{ voci: VoceNonClassificata[] }>(
+        "cg_voci_non_classificate",
+        { p_anno: anno },
+      );
+      if (error) throw error;
+      return data?.voci ?? [];
+    },
+    staleTime: 60_000,
+  });
+}
+
+/** Dà una voce del conto economico a una categoria che non ne aveva. */
+export function useClassificaVoce() {
+  const qc = useQueryClient();
+  const { effectiveCompany } = useAuth();
+  return useMutation({
+    mutationFn: async (input: {
+      sourceTable: SourceTable;
+      sourceValue: string;
+      macroVoce: MacroVoce;
+      tipo: ClassTipo;
+    }) => {
+      const companyId = effectiveCompany?.id;
+      if (!companyId) throw new Error("azienda non risolvibile");
+      // La chiave la ricaviamo dal nome della categoria: resta leggibile in
+      // Configurazione e non collide con le voci standard, che hanno nomi loro.
+      const chiave = `cat_${input.sourceValue
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_|_$/g, "")
+        .slice(0, 40)}`;
+      const { error } = await supabase.from("cg_classificazione_voci").insert({
+        company_id: companyId,
+        voce_chiave: chiave,
+        voce_descrizione: input.sourceValue,
+        macro_voce: input.macroVoce,
+        tipo: input.tipo,
+        source_table: input.sourceTable,
+        source_field: input.sourceTable === "manual" ? null : "category",
+        source_value: input.sourceValue,
+        ordering: 950,
+        is_active: true,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Categoria classificata: il conto economico si aggiorna");
+      qc.invalidateQueries({ queryKey: queryKeys.controlloGestione.classificazione(effectiveCompany?.id) });
+      qc.invalidateQueries({ queryKey: ["cg"] });
+    },
+    onError: (err) => toast.error(`Non è stato possibile classificarla: ${(err as Error).message}`),
   });
 }
 
