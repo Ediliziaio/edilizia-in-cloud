@@ -60,6 +60,24 @@ export function useImpostazioniIVA(anno: number) {
     },
   });
 
+  // Anno senza impostazioni: si propongono quelle dell'ultimo anno compilato.
+  const annoPrima = useQuery({
+    queryKey: ["fiscal-impostazioni-iva-precedente", company, anno],
+    enabled: !!company && query.data === null,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("fiscalita_impostazioni_iva" as never)
+        .select(COLONNE)
+        .eq("company_id", company!)
+        .lt("anno", anno)
+        .order("anno", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) return null;
+      return (data as ImpostazioniIVASalvate | null) ?? null;
+    },
+  });
+
   const salva = useMutation({
     mutationFn: async (valori: ImpostazioniIVA) => {
       if (!company || !puoModificare) throw Error("Modifica non autorizzata");
@@ -78,12 +96,16 @@ export function useImpostazioniIVA(anno: number) {
       toast.error(
         e instanceof Error && /check|violates/i.test(e.message)
           ? "Un valore non è valido: controlla codici fiscali e percentuali."
-          : "Impostazioni non salvate. Riprova.",
+          : e instanceof Error && /riaprile/i.test(e.message)
+            ? e.message
+            : "Impostazioni non salvate. Riprova.",
       ),
   });
 
   return {
     impostazioni: query.data,
+    impostazioniAnnoPrima: annoPrima.data ?? null,
+    annoPrimaInArrivo: query.data === null && annoPrima.isPending,
     isLoading: query.isPending,
     isError: query.isError,
     refetch: query.refetch,

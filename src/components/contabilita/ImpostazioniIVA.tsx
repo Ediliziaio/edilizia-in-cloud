@@ -34,8 +34,8 @@ const selectClass =
 export function ImpostazioniIVA({ anno, onSalvate }: { anno: number; onSalvate?: () => void }) {
   const s = useImpostazioniIVA(anno);
   const { data: azienda, isLoading: aziendaInArrivo } = useAnagraficaAzienda();
-  if (s.isLoading || s.isError || aziendaInArrivo)
-    return <FiscalQueryState loading={s.isLoading || aziendaInArrivo} error={s.isError} onRetry={() => void s.refetch()} />;
+  if (s.isLoading || s.isError || aziendaInArrivo || s.annoPrimaInArrivo)
+    return <FiscalQueryState loading={s.isLoading || aziendaInArrivo || !!s.annoPrimaInArrivo} error={s.isError} onRetry={() => void s.refetch()} />;
   // La prima volta il codice fiscale si prende dall'anagrafica: uno in meno da scrivere.
   const cfAzienda = String(azienda?.codice_fiscale || azienda?.partita_iva || "").replace(/^IT/i, "").trim().toUpperCase() || null;
   // La chiave rimonta il modulo quando cambiano anno o riga salvata: i valori
@@ -44,7 +44,13 @@ export function ImpostazioniIVA({ anno, onSalvate }: { anno: number; onSalvate?:
 }
 
 function iniziali(s: ReturnType<typeof useImpostazioniIVA>, cfAzienda: string | null): Valori {
-  if (!s.impostazioni) return { ...VUOTE, cf_contribuente: cfAzienda };
+  if (!s.impostazioni) {
+    const prima = s.impostazioniAnnoPrima;
+    if (!prima) return { ...VUOTE, cf_contribuente: cfAzienda };
+    // Stesse scelte dell'anno prima; il credito di partenza è di ogni anno.
+    const { aggiornato_il: _x, ...resto } = prima;
+    return { ...resto, credito_anno_precedente: 0, note: null };
+  }
   const { aggiornato_il: _ignora, ...resto } = s.impostazioni;
   return { ...resto, credito_anno_precedente: Number(resto.credito_anno_precedente) || 0 };
 }

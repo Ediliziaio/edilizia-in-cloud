@@ -87,3 +87,34 @@ describe("liquidazione IVA", () => {
     expect(screen.queryByRole("button", { name: "Scarica XML" })).toBeNull();
   });
 });
+
+describe("dopo la conferma", () => {
+  const confermata = (r = righi, stato = "reviewed_commercialista") => ({ id: "r1", dal: "2026-01-01", al: "2026-03-31", stato, protocollo: null as string | null, dati: { calcolabile: true, trimestre: 1, righi: r } });
+
+  it("avvisa se i documenti sono cambiati", async () => {
+    s.anno = [confermata()];
+    s.righi = { calcolabile: true, trimestre: 1, righi: { ...righi, vp4: 300 } };
+    wrap(<LiquidazioniIVA anno={2026} onApriImpostazioni={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: /1° trimestre/ }));
+    expect(await screen.findByText(/cambiati dopo la conferma/)).toBeInTheDocument();
+  });
+
+  it("crea l'F24 solo se c'è da versare oltre 100 €", async () => {
+    s.anno = [confermata()];
+    s.righi = { calcolabile: true, trimestre: 1, righi };
+    wrap(<LiquidazioniIVA anno={2026} onApriImpostazioni={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: /1° trimestre/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Crea F24 da questa liquidazione" }));
+    await waitFor(() => expect(s.rpc.find((r) => r.fn === "liquidazione_iva_crea_f24")?.args).toEqual({ p_report: "r1" }));
+  });
+
+  it("sotto 100 € niente F24, e lo dice", async () => {
+    const piccolo = { ...righi, vp4: 170, vp5: 110, vp6_debito: 60, vp12: 0, vp14_debito: 60 };
+    s.anno = [confermata(piccolo)];
+    s.righi = { calcolabile: true, trimestre: 1, righi: piccolo };
+    wrap(<LiquidazioniIVA anno={2026} onApriImpostazioni={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: /1° trimestre/ }));
+    expect(await screen.findByText(/Fino a 100 € non si versa/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Crea F24 da questa liquidazione" })).toBeNull();
+  });
+});

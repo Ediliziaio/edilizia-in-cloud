@@ -95,12 +95,13 @@ function DettaglioPeriodo({ company, anno, periodo, confermata, puoScrivere, fin
     return out;
   }, [manuali]);
 
+  // Confermato: si ricalcola lo stesso, per accorgersi se i documenti sono cambiati.
+  const manualiUsati = bloccata ? (confermata.dati as Calcolo & { manuali?: Record<string, number> }).manuali ?? {} : valori;
   const calcolo = useQuery({
-    queryKey: ["liquidazione-righi", company, anno, periodo, valori],
-    enabled: !bloccata,
+    queryKey: ["liquidazione-righi", company, anno, periodo, manualiUsati],
     staleTime: 0,
     queryFn: async () => {
-      const { data, error } = await db.rpc("liquidazione_iva_righi", { p_company: company, p_anno: anno, p_periodo: periodo, p_manuali: valori });
+      const { data, error } = await db.rpc("liquidazione_iva_righi", { p_company: company, p_anno: anno, p_periodo: periodo, p_manuali: manualiUsati });
       if (error) throw error;
       return data as Calcolo;
     },
@@ -114,6 +115,15 @@ function DettaglioPeriodo({ company, anno, periodo, confermata, puoScrivere, fin
     },
     onSuccess: () => { toast.success("Liquidazione confermata"); onCambiato(); },
     onError: (e: Error) => toast.error("Non confermata", { description: e.message }),
+  });
+  const creaF24 = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await db.rpc("liquidazione_iva_crea_f24", { p_report: confermata!.id });
+      if (error) throw error;
+      return data as { gia_creato?: boolean; codice?: string };
+    },
+    onSuccess: (d) => toast.success(d.gia_creato ? "F24 già creato: lo trovi nel Registro F24" : `F24 creato, codice ${d.codice}: lo trovi nel Registro F24`),
+    onError: (e: Error) => toast.error("F24 non creato", { description: e.message }),
   });
   const riapri = useMutation({
     mutationFn: async () => {
@@ -130,6 +140,9 @@ function DettaglioPeriodo({ company, anno, periodo, confermata, puoScrivere, fin
   if (!r?.righi) return null;
   const righi = r.righi;
   const acconto = (r.mese === 12) || (r.trimestre === 4) || (r.trimestre === 5);
+  const ora = bloccata && calcolo.data?.calcolabile ? calcolo.data.righi : undefined;
+  const cambiati = !!ora && (["vp2", "vp3", "vp4", "vp5"] as const).some((k) => Math.abs(Number(ora[k]) - Number(righi[k])) >= 0.01);
+  const versabile = righi.vp14_debito > 100 && r.trimestre !== 5;
 
   return (
     <div className="space-y-3 border-t bg-muted/20 p-3">
@@ -174,6 +187,15 @@ function DettaglioPeriodo({ company, anno, periodo, confermata, puoScrivere, fin
           )}
         </p>
       ))}
+      {cambiati && (
+        <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-800">
+          I documenti sono cambiati dopo la conferma: ora l'IVA vendite è {formatCurrency(Number(ora!.vp4))} e quella acquisti {formatCurrency(Number(ora!.vp5))}.{" "}
+          {inviati ? "Questo periodo è già stato inviato: serve una comunicazione correttiva." : "Riapri e riconferma il periodo."}
+        </p>
+      )}
+      {bloccata && righi.vp14_debito > 0 && !versabile && r.trimestre !== 5 && (
+        <p className="text-xs text-muted-foreground">Fino a 100 € non si versa: l'importo passa al periodo successivo.</p>
+      )}
       {!bloccata && !finito && <p className="text-xs text-muted-foreground">Periodo ancora in corso: si conferma quando è finito. Intanto vedi il calcolo a oggi.</p>}
       {sbagliati.length > 0 && <p role="alert" className="text-xs text-destructive">Scrivi un importo valido, per esempio 1.234,50.</p>}
       {puoScrivere && (
@@ -182,6 +204,9 @@ function DettaglioPeriodo({ company, anno, periodo, confermata, puoScrivere, fin
             <Button size="sm" onClick={() => conferma.mutate()} disabled={conferma.isPending || calcolo.isFetching || !finito || sbagliati.length > 0}>
               {conferma.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Conferma liquidazione
             </Button>
+          )}
+          {bloccata && versabile && (
+            <Button size="sm" onClick={() => creaF24.mutate()} disabled={creaF24.isPending}>Crea F24 da questa liquidazione</Button>
           )}
           {bloccata && !inviati && (
             <Button size="sm" variant="outline" onClick={() => riapri.mutate()} disabled={riapri.isPending}>Riapri</Button>
@@ -254,6 +279,25 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni, onApriRegistro }: { 
   const apertoOra = aperto === undefined ? (lista.isSuccess ? prossimo : null) : aperto;
   const fatti = periodi.filter((p) => confermate.has(p.dal)).length;
 
+  const confermatiRighi = periodi.map((p) => confermate.get(p.dal)?.dati.righi).filter((x): x is RighiLipe => !!x);
+  const somma = (k: keyof RighiLipe) => confermatiRighi.reduce((t, x) => t + Number(x[k] ?? 0), 0);
+  const esportaCsv = () => {
+    const n = (v: number | undefined) => (v === undefined ? "" : v.toFixed(2).replace(".", ","));
+    const righeCsv = [
+      ["Periodo", "Operazioni attive", "Operazioni passive", "IVA vendite", "IVA acquisti", "Da versare", "A credito", "Stato"],
+      ...periodi.map((p) => {
+        const c = confermate.get(p.dal), x = c?.dati.righi;
+        return [p.nome, n(x?.vp2), n(x?.vp3), n(x?.vp4), n(x?.vp5), n(x?.vp14_debito), n(x?.vp14_credito), c ? (c.stato === "reviewed_commercialista" ? "Confermata" : "Inviata") : "Da confermare"];
+      }),
+    ];
+    const url = URL.createObjectURL(new Blob(["\uFEFF" + righeCsv.map((r) => r.join(";")).join("\r\n")], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `liquidazioni-iva-${anno}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const comunicazione = (q: number) => {
     const inizio = (q - 1) * 3 + 1;
     const servono = mensile ? [inizio, inizio + 1, inizio + 2] : [inizio];
@@ -296,9 +340,12 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni, onApriRegistro }: { 
             <h3 className="font-semibold">Liquidazione IVA {anno}</h3>
             <p className="text-xs text-muted-foreground">{fatti} di {periodi.length} confermati · si confermano in ordine, poi si scarica il file</p>
           </div>
+          <div className="flex items-center gap-3">
+          {fatti > 0 && <button type="button" onClick={esportaCsv} className="text-xs text-primary hover:underline">Esporta tabella</button>}
           <button type="button" onClick={onApriImpostazioni} className="text-xs text-muted-foreground hover:underline">
             {mensile ? "Mensile" : impostazioni.periodicita === "trimestrale" ? "Trimestrale su opzione" : "Trimestrale speciale"} · cambia
           </button>
+          </div>
         </div>
         <div className="hidden grid-cols-[1.25rem_8rem_repeat(4,minmax(0,1fr))_minmax(0,1.2fr)_7rem] items-center gap-2 border-t bg-muted/40 px-4 py-1.5 text-xs font-medium text-muted-foreground md:grid">
           <span /><span>Periodo</span>
@@ -334,6 +381,13 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni, onApriRegistro }: { 
             );
           })}
         </div>
+        {fatti > 0 && (
+          <div className="hidden grid-cols-[1.25rem_8rem_repeat(4,minmax(0,1fr))_minmax(0,1.2fr)_7rem] items-center gap-2 border-t bg-muted/40 px-4 py-1.5 text-xs font-semibold md:grid">
+            <span /><span>Totale confermati</span>
+            {(["vp2", "vp3", "vp4", "vp5"] as const).map((k) => <span key={k} className="text-right tabular-nums">{formatCurrency(somma(k))}</span>)}
+            <span /><span />
+          </div>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-xl border bg-white">

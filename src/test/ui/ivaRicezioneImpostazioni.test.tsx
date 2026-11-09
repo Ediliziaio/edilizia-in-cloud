@@ -34,7 +34,7 @@ vi.mock("@/integrations/supabase/client", () => ({
     },
     from: () => {
       const chain: Record<string, unknown> = {};
-      for (const k of ["select", "eq", "abortSignal"]) chain[k] = () => chain;
+      for (const k of ["select", "eq", "lt", "order", "limit", "abortSignal"]) chain[k] = () => chain;
       chain.maybeSingle = () => Promise.resolve({ data: state.impostazioni, error: null });
       chain.upsert = (row: Record<string, unknown>) => {
         state.upsert.push(row);
