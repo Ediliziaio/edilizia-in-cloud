@@ -12,6 +12,12 @@ vi.mock("@/hooks/usePermissions", () => ({usePermissions: () => ({canViewBilling
 vi.mock("@/hooks/useRendicontoAppaltoPDF", () => ({
   useRendicontoAppaltoPDF: () => ({stampa: m.stampa, isGenerating: false}),
 }));
+vi.mock("@/components/orders/AccettazioneRendiconto", () => ({
+  useRichiesteFirmaRendiconti: () => new Map(),
+  StatoAccettazione: (): null => null,
+  SegnaAccettatoDialog: () => <div>popup accettato</div>,
+  MandaFirmaDialog: () => <div>popup firma</div>,
+}));
 vi.mock("react-router-dom", () => ({
   useNavigate: () => m.naviga,
   Link: ({to, children}: {to: string; children: unknown}) => <a href={to}>{children as never}</a>,
@@ -168,4 +174,14 @@ it("l'autofattura del committente ha la sua strada, separata dalla fattura tua",
   // dichiara fatturato un documento che il committente non ha accettato.
   expect(screen.getByRole("button", {name: /Prepara la fattura/})).toBeVisible();
   expect(screen.queryByRole("button", {name: /L'ha fatturato lui/})).not.toBeInTheDocument();
+});
+
+it("un rendiconto mandato si segna accettato o si manda da firmare, e non cambia stato con un clic", () => {
+  m.sal = [doc({stato: "inviato"})];
+  render(<SalAppalto committenteId="c" modoFatturazione="per_commessa" puoModificare vedeImporti />);
+  fireEvent.click(screen.getByRole("button", {name: /Segna accettato/}));
+  expect(screen.getByText("popup accettato")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", {name: /Manda da firmare/}));
+  expect(screen.getByText("popup firma")).toBeInTheDocument();
+  expect(m.componi).not.toHaveBeenCalled();
 });

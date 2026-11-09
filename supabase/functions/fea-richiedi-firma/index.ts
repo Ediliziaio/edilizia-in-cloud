@@ -60,7 +60,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    if (!["order", "quote", "sessione", "odv", "fv", "subappalto"].includes(tipo_documento)) {
+    if (!["order", "quote", "sessione", "odv", "fv", "subappalto", "rendiconto"].includes(tipo_documento)) {
       return new Response(
         JSON.stringify({ error: "tipo_documento non valido" }),
         { status: 400, headers: { ...corsH, "Content-Type": "application/json" } }
@@ -114,6 +114,8 @@ Deno.serve(async (req: Request) => {
       subappalto: "contratti_subappalto",
       // Lavori extra e varianti (06/11/2026): il PDF congelato è in order_variation_documents.
       odv: "ordini_variazione",
+      // Rendiconto al committente (09/11/2026): il PDF congelato è in appalto_sal.pdf_path.
+      rendiconto: "appalto_sal",
     };
     let company_id: string | null = (profile.company_id as string | null) ?? null;
     const tabella = tabellaDocumento[tipo_documento];
@@ -150,6 +152,18 @@ Deno.serve(async (req: Request) => {
         await verificaPermessoAzienda(supabaseAdmin, userId, company_id, ["can_edit_preventivi"], "inviare il preventivo fotovoltaico per la firma");
       } catch {
         return new Response(JSON.stringify({ error: "Non hai il permesso di inviare il preventivo per la firma." }), { status: 403, headers: { ...corsH, "Content-Type": "application/json" } });
+      }
+    }
+    if (tipo_documento === "rendiconto") {
+      try {
+        await verificaPermessoAzienda(supabaseAdmin, userId, company_id, ["can_edit_orders"], "mandare il rendiconto per la firma");
+      } catch {
+        return new Response(JSON.stringify({ error: "Non hai il permesso di mandare in firma i rendiconti." }), { status: 403, headers: { ...corsH, "Content-Type": "application/json" } });
+      }
+      // Solo un rendiconto già mandato: le righe sono congelate, e non è ancora accettato.
+      const { data: s } = await supabaseAdmin.from("appalto_sal").select("stato").eq("id", documento_id).eq("company_id", company_id).maybeSingle();
+      if (s?.stato !== "inviato") {
+        return new Response(JSON.stringify({ error: "Si manda in firma un rendiconto già mandato e non ancora accettato." }), { status: 409, headers: { ...corsH, "Content-Type": "application/json" } });
       }
     }
     if (tipo_documento === "odv") {
@@ -290,6 +304,8 @@ Deno.serve(async (req: Request) => {
       insertPayload.fv_progetto_id = documento_id;
     } else if (tipo_documento === "subappalto") {
       insertPayload.contratto_subappalto_id = documento_id;
+    } else if (tipo_documento === "rendiconto") {
+      insertPayload.appalto_sal_id = documento_id;
     } else if (tipo_documento === "odv") {
       // La variante, e la sua commessa: l'avviso al titolare passa da order_id (fea-completa-firma).
       insertPayload.odv_id = documento_id;
@@ -377,6 +393,7 @@ Deno.serve(async (req: Request) => {
         tipo_documento, quote_id: null, fv_progetto_id: tipo_documento === "fv" ? documento_id : null,
         sessione_id: tipo_documento === "sessione" ? documento_id : null,
         contratto_subappalto_id: tipo_documento === "subappalto" ? documento_id : null,
+        appalto_sal_id: tipo_documento === "rendiconto" ? documento_id : null,
         order_id: tipo_documento === "order" ? documento_id : null, categoria,
       });
       let importo: number | null = null;
@@ -384,6 +401,10 @@ Deno.serve(async (req: Request) => {
         const { data: c } = await supabaseAdmin.from("contratti_subappalto")
           .select("importo_contrattuale, oneri_sicurezza").eq("id", documento_id).maybeSingle();
         importo = c ? (Number(c.importo_contrattuale) || 0) + (Number(c.oneri_sicurezza) || 0) : null;
+      }
+      if (tipo_documento === "rendiconto") {
+        const { data: s } = await supabaseAdmin.from("appalto_sal").select("totale").eq("id", documento_id).maybeSingle();
+        importo = s ? Number(s.totale) || 0 : null;
       }
       const invito = emailInvitoFirma(await brandingFirma(supabaseAdmin, company_id), {
         nome: String(signer_name),

@@ -162,7 +162,8 @@ vendita unitaria (trasporto, nolo, smaltimento). Entrano in costi e rendiconto u
 
 **Lotto 2b. Correggi e livelli** — Correzione dell'ufficio con registro: fatta il 09/11 (risolve E12).
 Vista per persona fatta il 09/11: popup con le giornate del mese e «Segna la giornata» (una riga per cantiere, avviso su orario e timbrature), sul registro `ufficio_registra_ore`.
-Resta: livelli di visibilità nel database (E11).
+Rendiconto accettato il 09/11: «Segna accettato» (chi, quando, come, copia firmata) o «Manda da firmare» (firma elettronica, si approva da solo).
+Costi (E11): letture a colonne esplicite e `rapportini_costi` online; manca il GRANT per colonna.
 
 **Lotto 3. Materiali** — Fatti il 09/11: aggiunta fuori commessa, «Materiali da regolarizzare», bolla di entrata. Restano: scarico automatico da magazzino, costo orario dei mezzi. I quattro casi: residuo sui previsti, aggiunta fuori commessa con
 lavorazione e provenienza, scarico da magazzino, «Materiali da regolarizzare» e DDT di entrata.

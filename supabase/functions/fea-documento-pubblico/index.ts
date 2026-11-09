@@ -53,7 +53,7 @@ Deno.serve(async (req: Request) => {
     const variantiToken = Array.from(new Set([tokenPulito, tokenPulito.replace(/-/g, "")]));
     const { data: sigReq, error: fetchErr } = await supabaseAdmin
       .from("signature_requests")
-      .select("id, status, tipo_documento, tipo_firmatario, signer_name, signer_email, expires_at, otp_scadenza, sessione_id, order_id, quote_id, fv_progetto_id, contratto_subappalto_id, odv_id, company_id, signed_at, categoria, signer_phone, otp_canale, signed_pdf_path, documento_path, livello_firma, gruppo_firma_id, clausole_da_approvare")
+      .select("id, status, tipo_documento, tipo_firmatario, signer_name, signer_email, expires_at, otp_scadenza, sessione_id, order_id, quote_id, fv_progetto_id, contratto_subappalto_id, appalto_sal_id, odv_id, company_id, signed_at, categoria, signer_phone, otp_canale, signed_pdf_path, documento_path, livello_firma, gruppo_firma_id, clausole_da_approvare")
       .in("token", variantiToken)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -227,6 +227,17 @@ Deno.serve(async (req: Request) => {
       }
     } else if (tipo === "odv") {
       documento_titolo = "Lavori extra";
+    } else if (tipo === "rendiconto" && sigReq.appalto_sal_id) {
+      const { data: s } = await supabaseAdmin.from("appalto_sal").select("numero, periodo_dal, periodo_al, totale, pdf_path").eq("id", sigReq.appalto_sal_id).maybeSingle();
+      if (s) {
+        documento_titolo = `Rendiconto n. ${s.numero}`;
+        titolo = `Dal ${String(s.periodo_dal).split("-").reverse().join("/")} al ${String(s.periodo_al).split("-").reverse().join("/")}`;
+        importo_totale = Number(s.totale) || 0;
+        if (s.pdf_path) {
+          const { data: file } = await supabaseAdmin.storage.from("quote-pdfs").createSignedUrl(s.pdf_path, 3600);
+          pdf_url = file?.signedUrl ?? null;
+        }
+      }
     } else if (tipo === "subappalto" && sigReq.contratto_subappalto_id) {
       const { data: contratto } = await supabaseAdmin
         .from("contratti_subappalto")

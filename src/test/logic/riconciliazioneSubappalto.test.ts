@@ -101,7 +101,7 @@ describe("firma elettronica del contratto di subappalto", () => {
   it("le funzioni di firma riconoscono il contratto di subappalto e chiedono il PDF prima dell'invio", async () => {
     const { readFileSync } = await import("node:fs");
     const richiedi = readFileSync("supabase/functions/fea-richiedi-firma/index.ts", "utf8");
-    expect(richiedi).toMatch(/"subappalto"\]\.includes\(tipo_documento\)/);
+    expect(richiedi).toMatch(/"subappalto", "rendiconto"\]\.includes\(tipo_documento\)/);
     // Il PDF si congela all'invio (documentoCongelato): senza, l'invio si ferma con un messaggio chiaro.
     expect(richiedi).toContain("congelaDocumento(");
     expect(readFileSync("supabase/functions/_shared/documentoCongelato.ts", "utf8")).toContain("Prepara prima il PDF del contratto da firmare");

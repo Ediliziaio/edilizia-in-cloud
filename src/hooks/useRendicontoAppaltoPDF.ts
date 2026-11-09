@@ -69,12 +69,13 @@ export function useRendicontoAppaltoPDF() {
   const inCorso = useRef(false);
 
   const stampa = useCallback(
-    async (salId: string): Promise<void> => {
+    /** Con `soloFile` restituisce il PDF senza scaricarlo (per mandarlo in firma). */
+    async (salId: string, opzioni?: { soloFile?: boolean }): Promise<Blob | null> => {
       if (!effectiveCompany?.id) {
         toast.error("Nessuna azienda attiva");
-        return;
+        return null;
       }
-      if (inCorso.current) return;
+      if (inCorso.current) return null;
       inCorso.current = true;
       setIsGenerating(true);
       try {
@@ -157,6 +158,7 @@ export function useRendicontoAppaltoPDF() {
             note: sal.note,
           }),
         ).toBlob();
+        if (opzioni?.soloFile) return blob;
 
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -166,11 +168,13 @@ export function useRendicontoAppaltoPDF() {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+        return blob;
       } catch (e) {
         logger.error("useRendicontoAppaltoPDF", e);
         toast.error("Rendiconto non stampato", {
           description: e instanceof Error ? e.message : "Riprova",
         });
+        return null;
       } finally {
         inCorso.current = false;
         setIsGenerating(false);

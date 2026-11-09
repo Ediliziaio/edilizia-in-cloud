@@ -26,6 +26,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useRendicontoAppaltoPDF } from "@/hooks/useRendicontoAppaltoPDF";
+import { MandaFirmaDialog, SegnaAccettatoDialog, StatoAccettazione, useRichiesteFirmaRendiconti } from "@/components/orders/AccettazioneRendiconto";
 import { raggruppaPerCantiere, prefillFatturaDaRendiconto, type RigaDaStampare } from "@/lib/appalto/fattura";
 import { useToast } from "@/hooks/use-toast";
 import { logger } from "@/utils/logger";
@@ -59,6 +60,11 @@ export interface Sal {
   documento_fiscale_id: string | null;
   /** La fattura agganciata, se c'è: serve per dire «quale» e non solo «sì». */
   documenti_fiscali?: { id: string; numero: string; stato: string } | null;
+  accettato_da_nome?: string | null;
+  accettato_il?: string | null;
+  accettato_come?: string | null;
+  accettato_nota?: string | null;
+  accettato_allegato_path?: string | null;
   /** Il cantiere, quando il rendiconto è di uno solo: con la fatturazione per
       commessa, sulla scheda del committente, senza questo non si capisce a
       quale dei suoi cantieri si riferisca il documento. */
@@ -119,6 +125,8 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
 
   const [form, setForm] = useState<{ dal: string; al: string; soloQuesta: boolean; note: string } | null>(null);
   const [daAnnullare, setDaAnnullare] = useState<Sal | null>(null);
+  const [daAccettare, setDaAccettare] = useState<Sal | null>(null);
+  const [daFirmare, setDaFirmare] = useState<Sal | null>(null);
   const [daCollegare, setDaCollegare] = useState<Sal | null>(null);
   const [daStaccare, setDaStaccare] = useState<Sal | null>(null);
 
@@ -131,7 +139,7 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
       let q = (supabase as any)
         .from("appalto_sal")
         .select(
-          "id, company_id, numero, stato, periodo_dal, periodo_al, totale, ritenuta, netto, righe_contate, order_id, note, contratto_id, documento_fiscale_id, documenti_fiscali(id, numero, stato), orders(order_code, description)",
+          "id, company_id, numero, stato, periodo_dal, periodo_al, totale, ritenuta, netto, righe_contate, order_id, note, contratto_id, documento_fiscale_id, accettato_da_nome, accettato_il, accettato_come, accettato_nota, accettato_allegato_path, documenti_fiscali(id, numero, stato), orders(order_code, description)",
         )
         .eq("committente_id", committenteId);
       // Su una commessa interessano i documenti che la riguardano: i suoi, e
@@ -142,6 +150,8 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
       return (data ?? []) as Sal[];
     },
   });
+
+  const firme = useRichiesteFirmaRendiconti((sal.data ?? []).filter((s) => s.stato === "inviato").map((s) => s.id));
 
   const componi = useMutation({
     mutationFn: async (f: { dal: string; al: string; soloQuesta: boolean; note: string }) => {
@@ -479,6 +489,8 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
                   </div>
                 )}
 
+                <div className="mt-2"><StatoAccettazione sal={s} richiesta={firme.get(s.id)} puoModificare={puoModificare} /></div>
+
                 <div className="mt-2 flex flex-wrap gap-2 border-t border-slate-100 pt-2">
                   {/* La stampa è il documento che il committente riceve: c'è
                       sempre, anche su una bozza e anche su un rendiconto chiuso. */}
@@ -500,9 +512,14 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
                     </>
                   )}
                   {puoModificare && s.stato === "inviato" && (
-                    <Button size="sm" variant="outline" onClick={() => cambiaStato.mutate({ id: s.id, stato: "approvato" })}>
-                      <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> L'ha approvato
-                    </Button>
+                    <>
+                      <Button size="sm" variant="outline" onClick={() => setDaAccettare(s)}>
+                        <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> Segna accettato
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setDaFirmare(s)}>
+                        <Send className="mr-1.5 h-3.5 w-3.5" /> Manda da firmare
+                      </Button>
+                    </>
                   )}
 
                   {/* Fatturare. Due strade, perché i due casi esistono
@@ -691,6 +708,8 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {daAccettare && <SegnaAccettatoDialog sal={daAccettare} onChiudi={() => setDaAccettare(null)} />}
+      {daFirmare && <MandaFirmaDialog sal={daFirmare} committenteId={committenteId} onChiudi={() => setDaFirmare(null)} />}
     </QuoteCard>
   );
 }

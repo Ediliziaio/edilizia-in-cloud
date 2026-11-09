@@ -35,7 +35,7 @@ Deno.serve(async (req: Request) => {
       sb.from("fea_prove_conservate").select("created_at").eq("richiesta_id", r.id).maybeSingle(),
     ]);
     const tipi: Record<string, string> = {
-      quote: "Preventivo", fv: "Preventivo fotovoltaico", subappalto: "Contratto di subappalto",
+      quote: "Preventivo", fv: "Preventivo fotovoltaico", subappalto: "Contratto di subappalto", rendiconto: "Rendiconto dei lavori",
       sessione: "Modulo", order: "Verbale di commessa", odv: "Lavori extra e varianti",
     };
     return risposta(200, {

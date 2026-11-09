@@ -119,6 +119,7 @@ const TIPO_DOC_LABEL: Record<string, string> = {
   quote: "Preventivo",
   sessione: "Documento",
   odv: "Ordine di vendita",
+  rendiconto: "Rendiconto",
 };
 const SIGNATURE_REQUESTS_TIMEOUT_MS = 12_000;
 const SIGNATURE_OPTIONAL_LOOKUP_TIMEOUT_MS = 4_000;

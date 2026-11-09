@@ -281,6 +281,10 @@ export async function titoloDelDocumento(sb: any, r: { tipo_documento: string | 
     const { data } = await sb.from("contratti_subappalto").select("numero_contratto").eq("id", r.contratto_subappalto_id).maybeSingle();
     return `Contratto di subappalto${data?.numero_contratto ? ` ${data.numero_contratto}` : ""}`;
   }
+  if (r.tipo_documento === "rendiconto" && (r as { appalto_sal_id?: string | null }).appalto_sal_id) {
+    const { data } = await sb.from("appalto_sal").select("numero").eq("id", (r as { appalto_sal_id?: string | null }).appalto_sal_id).maybeSingle();
+    return data?.numero ? `Rendiconto n. ${data.numero}` : "Rendiconto";
+  }
   if (r.tipo_documento === "fv" && r.fv_progetto_id) {
     const { data } = await sb.from("fv_progetti").select("numero").eq("id", r.fv_progetto_id).maybeSingle();
     return `Preventivo fotovoltaico ${data?.numero ?? ""}`.trim();
@@ -308,7 +312,7 @@ const eUnPdf = (b: Uint8Array) => b.length > 5 && b[0] === 0x25 && b[1] === 0x50
  * quando la richiesta è `signed`. Se il file c'è già, lo restituisce.
  */
 // deno-lint-ignore no-explicit-any
-const COLONNE_RICHIESTA = "id, company_id, status, tipo_documento, tipo_firmatario, signer_name, signer_email, signed_at, firma_ip, firma_user_agent, documento_hash, quote_id, fv_progetto_id, sessione_id, contratto_subappalto_id, odv_id, order_id, categoria, documento_path, livello_firma, firmatario_id, b2c_recesso, clausole_approvate, signer_phone, otp_canale, signed_pdf_path, signed_pdf_hash, codice_verifica, gruppo_firma_id, ordine_firmatario, firmatari_richiesti";
+const COLONNE_RICHIESTA = "id, company_id, status, tipo_documento, appalto_sal_id, tipo_firmatario, signer_name, signer_email, signed_at, firma_ip, firma_user_agent, documento_hash, quote_id, fv_progetto_id, sessione_id, contratto_subappalto_id, odv_id, order_id, categoria, documento_path, livello_firma, firmatario_id, b2c_recesso, clausole_approvate, signer_phone, otp_canale, signed_pdf_path, signed_pdf_hash, codice_verifica, gruppo_firma_id, ordine_firmatario, firmatari_richiesti";
 
 /** I dati del certificato di UNA firma (firmatario, codice, clausole, identificazione). */
 // deno-lint-ignore no-explicit-any

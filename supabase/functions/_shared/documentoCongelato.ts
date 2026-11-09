@@ -137,6 +137,11 @@ export async function bytesDelDocumento(sb: any, f: FonteDocumento): Promise<Uin
       if (!data?.pdf_path) throw new DocumentoNonPronto("Prepara prima il PDF del contratto da firmare");
       return await scaricaDaStorage(sb, BUCKET_RICHIESTE, data.pdf_path);
     }
+    case "rendiconto": {
+      const { data } = await sb.from("appalto_sal").select("pdf_path").eq("id", f.documentoId).maybeSingle();
+      if (!data?.pdf_path) throw new DocumentoNonPronto("Prepara prima il PDF del rendiconto da firmare");
+      return await scaricaDaStorage(sb, BUCKET_RICHIESTE, data.pdf_path);
+    }
     case "quote": {
       const { data } = await sb.from("quotes").select("pdf_storage_path").eq("id", f.documentoId).maybeSingle();
       if (!data?.pdf_storage_path) throw new DocumentoNonPronto("Prepara prima il PDF del preventivo");
