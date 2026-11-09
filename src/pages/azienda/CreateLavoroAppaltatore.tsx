@@ -479,13 +479,13 @@ export default function CreateLavoroAppaltatore() {
         title="Nuovo lavoro in appalto"
         subtitle="Il lavoro che un'impresa committente ti passa."
         chips={
-          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide">
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 max-md:hidden text-[11px] font-semibold uppercase tracking-wide">
             <HardHat className="h-3 w-3" />
             Modulo Appaltatori
           </span>
         }
         actions={
-          <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
+          <Button variant="outline" size="sm" className="max-md:hidden" onClick={() => navigate(-1)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Annulla
           </Button>

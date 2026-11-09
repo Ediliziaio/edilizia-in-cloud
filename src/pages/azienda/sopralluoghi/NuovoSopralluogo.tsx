@@ -702,13 +702,13 @@ function SurveyCreateForm({
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <p className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">
+          <p className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500 max-md:hidden">
             Nuovo sopralluogo
           </p>
-          <h1 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
+          <h1 className="text-xl font-semibold tracking-tight text-slate-900 max-md:text-base sm:text-2xl">
             Prepara il rilievo, poi lavora sul posto.
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-slate-500 max-md:hidden">
             Modello, collegamenti e appuntamento in un unico percorso.
           </p>
         </div>

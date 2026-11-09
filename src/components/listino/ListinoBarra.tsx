@@ -188,7 +188,7 @@ export function ListinoBarra({
 
       {/* Altezza libera: da telefono i bottoni diventano 44 px (index.css) e un
           contenitore fisso a 36 li faceva uscire dal bordo. */}
-      <div className="inline-flex items-center rounded-md border border-input bg-background p-0.5" role="group" aria-label="Vista">
+      <div className="inline-flex items-center rounded-md border border-input bg-background p-0.5 max-md:hidden" role="group" aria-label="Vista">
         {(
           [
             ["cards", LayoutGrid, "Schede"],
@@ -211,7 +211,8 @@ export function ListinoBarra({
         ))}
       </div>
 
-      <div className="ml-auto flex flex-wrap items-center gap-2">
+      {/* Da telefono solo «Nuovo»: tipologie, modelli, import e cestino sono da scrivania. */}
+      <div className="ml-auto flex flex-wrap items-center gap-2 max-md:[&>*:not(.bg-gradient-to-br)]:hidden">
         {isAdmin && (
           <>
             {onTipologie && (

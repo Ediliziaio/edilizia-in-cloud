@@ -41,8 +41,8 @@ export function ListinoPrezzariSection() {
 
   return (
     <div className="space-y-4">
-      {/* Card entry-point: import prezzari + lookup manodopera */}
-      <Card>
+      {/* Card entry-point: import prezzari + lookup manodopera (da telefono no: si imposta da scrivania) */}
+      <Card className="max-md:hidden">
         <CardHeader className="pb-3">
           <div className="flex items-start gap-2.5">
             <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-orange-600">

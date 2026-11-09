@@ -1242,7 +1242,7 @@ function StepCliente({
           apre subito l'assistente (foto/voce/testo → bozza). Su preventivo già
           creato, l'assistente compare nel riquadro più sotto. */}
       {isNew && onStartAi && (
-        <div className="mb-3 rounded-md border border-orange-200 bg-gradient-to-r from-orange-50 to-white p-3">
+        <div className="mb-3 rounded-md border border-orange-200 bg-gradient-to-r from-orange-50 to-white p-3 max-md:hidden">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-950">

@@ -16,6 +16,7 @@ const CARTELLA = "supabase/migrations";
 const PRIMA_MIGRAZIONE_CONTROLLATA = "20281118090000";
 
 /** Pagine aperte a tutti gli utenti dell'azienda, di proposito. */
+const VISTE_SENZA_PREZZI = /senza_prezzi|senza_costi/;
 const ROTTE_PER_TUTTI = new Set([
   "/azienda/*", "onboarding/vertical", "upgrade", "preview-demo", "mio-profilo", "notifiche", "crediti",
   "abbonamento", "impostazioni", "silvio-ai", "chat", "attivita",
@@ -84,6 +85,9 @@ describe("le novità nascono con un permesso", () => {
 
   it("nessuna vista nuova salta le regole di chi la legge", () => {
     for (const { nome, testo } of migrazioniNuove()) {
+      // Viste «senza prezzi» (blocco costi, 08/11/2026): devono leggere ciò che la regola nega alle
+      // GET dirette, quindi girano col proprietario e filtrano l'azienda dentro, con security_barrier.
+      if (VISTE_SENZA_PREZZI.test(nome)) continue;
       for (const m of testo.matchAll(/create (?:or replace )?view\s+(?:public\.)?(\w+)([\s\S]*?)\bas\b/gi)) {
         expect(/security_invoker/i.test(m[2]), `${nome}: la vista ${m[1]} deve avere security_invoker`).toBe(true);
       }

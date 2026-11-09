@@ -786,7 +786,7 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
   return (
     <div className="space-y-3">
       {isAdmin && scelta.area?.chiave === "serramenti" && scelta.tipologia?.macrocategoriaId && chiaveTesto(scelta.tipologia.nome) === "serramenti" && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/20 px-3 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/20 px-3 py-2 max-md:hidden">
           <p className="text-xs text-muted-foreground">Configurazioni comuni. Prezzi mancanti dalla base della stessa linea, se presente; fattibilità da verificare col fornitore.</p>
           <div className="flex flex-wrap gap-2">
           {!!prezziMancanti && <Button size="sm" variant="outline" onClick={() => setPrezziMancantiAperto(true)}>Completa prezzi mancanti ({prezziMancanti})</Button>}

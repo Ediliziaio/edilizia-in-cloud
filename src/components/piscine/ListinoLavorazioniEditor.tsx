@@ -441,8 +441,8 @@ function CapitoloAccordionItem({
             onClick={(e) => e.stopPropagation()}
           />
         ) : (
-          <AccordionTrigger className="flex-1 py-3 hover:no-underline">
-            <span className="flex items-center gap-2 text-left">
+          <AccordionTrigger className="flex-1 min-w-0 py-3 hover:no-underline">
+            <span className="flex min-w-0 flex-wrap items-center gap-2 text-left">
               <span className="font-semibold">{capitolo.nome}</span>
               <Badge variant="secondary" className="font-normal">
                 {voci.length} {voci.length === 1 ? "voce" : "voci"}
@@ -694,6 +694,7 @@ export function ListinoLavorazioniEditor({ className }: ListinoLavorazioniEditor
             type="button"
             variant="outline"
             size="sm"
+            className="max-md:hidden"
             onClick={() => setPrezzarioOpen(true)}
           >
             <Library className="mr-1.5 h-4 w-4" /> Importa da prezzario regionale
@@ -702,6 +703,7 @@ export function ListinoLavorazioniEditor({ className }: ListinoLavorazioniEditor
             type="button"
             variant="outline"
             size="sm"
+            className="max-md:hidden"
             onClick={() => void handleImportSeed()}
             disabled={importSeed.isPending}
           >

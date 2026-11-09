@@ -122,6 +122,8 @@ export function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, 
       visible: schede.length > 0,
       attivoSu: (pathname) => percorsoNelGruppo(gruppo, pathname),
       indirizzi: gruppo.schede.map((s) => s.to),
+      // Listini e modelli si gestiscono da tablet o computer (richiesta 09/11/2026).
+      desktopOnly: id === "listino" || id === "modelli",
     };
   };
   const gruppi: SettingsNavGroup[] = [
@@ -166,7 +168,7 @@ export function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, 
       label: "Cantieri & Costi",
       items: [
         { to: "/azienda/impostazioni/stati-ordine",        label: "Stati commessa",        icon: <ListOrdered className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },
-        { to: "/azienda/impostazioni/modelli-pdf", label: "Modelli PDF", icon: <FileText className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },
+        { to: "/azienda/impostazioni/modelli-pdf", label: "Modelli PDF", icon: <FileText className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders, desktopOnly: true },
         { to: "/azienda/impostazioni/cartelle-documenti",  label: "Cartelle documenti",  icon: <FolderOpen className="h-4 w-4" />,  visible: isAdmin || permissions.canViewSettingsOrders },
         { to: "/azienda/impostazioni/calendari-lavori",   label: "Squadre e calendari lavori", icon: <HardHat className="h-4 w-4" />,     visible: isAdmin || permissions.canViewSettingsOrders },
         { to: "/azienda/impostazioni/rapportini-cantiere", label: "Rapportini e presenze", icon: <ClipboardList className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },

@@ -1075,7 +1075,7 @@ export default function CompanyRoutesContainer() {
         <Route path="ristrutturazione/listino" element={
           withCompanyPermission(
             "canViewMarketingOpportunities",
-            <FeatureRoute featureKey="modulo_ristrutturazione_attivo"><ErrorBoundary title="Errore listino Ristrutturazione"><RistrutturazioneListino /></ErrorBoundary></FeatureRoute>,
+            <SoloTabletDesktop avviso="Listini e modelli si gestiscono da tablet o computer." torna="/azienda/marketing/preventivi"><FeatureRoute featureKey="modulo_ristrutturazione_attivo"><ErrorBoundary title="Errore listino Ristrutturazione"><RistrutturazioneListino /></ErrorBoundary></FeatureRoute>,</SoloTabletDesktop>
           )
         } />
         <Route path="ristrutturazione/nuovo" element={
@@ -1100,7 +1100,7 @@ export default function CompanyRoutesContainer() {
         <Route path="bagni/listino" element={
           withCompanyPermission(
             "canViewMarketingOpportunities",
-            <FeatureRoute featureKey="modulo_bagni_attivo"><ErrorBoundary title="Errore listino Bagni"><BagniListino /></ErrorBoundary></FeatureRoute>,
+            <SoloTabletDesktop avviso="Listini e modelli si gestiscono da tablet o computer." torna="/azienda/marketing/preventivi"><FeatureRoute featureKey="modulo_bagni_attivo"><ErrorBoundary title="Errore listino Bagni"><BagniListino /></ErrorBoundary></FeatureRoute>,</SoloTabletDesktop>
           )
         } />
         <Route path="bagni/nuovo" element={
@@ -1125,7 +1125,7 @@ export default function CompanyRoutesContainer() {
         <Route path="tetti/listino" element={
           withCompanyPermission(
             "canViewMarketingOpportunities",
-            <FeatureRoute featureKey="modulo_tetti_attivo"><ErrorBoundary title="Errore listino Tetti"><TettiListino /></ErrorBoundary></FeatureRoute>,
+            <SoloTabletDesktop avviso="Listini e modelli si gestiscono da tablet o computer." torna="/azienda/marketing/preventivi"><FeatureRoute featureKey="modulo_tetti_attivo"><ErrorBoundary title="Errore listino Tetti"><TettiListino /></ErrorBoundary></FeatureRoute>,</SoloTabletDesktop>
           )
         } />
         <Route path="tetti/nuovo" element={
@@ -1150,7 +1150,7 @@ export default function CompanyRoutesContainer() {
         <Route path="climatizzazione/listino" element={
           withCompanyPermission(
             "canViewMarketingOpportunities",
-            <FeatureRoute featureKey="modulo_climatizzazione_attivo"><ErrorBoundary title="Errore listino Climatizzazione"><ClimatizzazioneListino /></ErrorBoundary></FeatureRoute>,
+            <SoloTabletDesktop avviso="Listini e modelli si gestiscono da tablet o computer." torna="/azienda/marketing/preventivi"><FeatureRoute featureKey="modulo_climatizzazione_attivo"><ErrorBoundary title="Errore listino Climatizzazione"><ClimatizzazioneListino /></ErrorBoundary></FeatureRoute>,</SoloTabletDesktop>
           )
         } />
         <Route path="climatizzazione/nuovo" element={
@@ -1175,7 +1175,7 @@ export default function CompanyRoutesContainer() {
         <Route path="elettrico/listino" element={
           withCompanyPermission(
             "canViewMarketingOpportunities",
-            <FeatureRoute featureKey="modulo_elettrico_attivo"><ErrorBoundary title="Errore listino Elettrico"><ElettricoListino /></ErrorBoundary></FeatureRoute>,
+            <SoloTabletDesktop avviso="Listini e modelli si gestiscono da tablet o computer." torna="/azienda/marketing/preventivi"><FeatureRoute featureKey="modulo_elettrico_attivo"><ErrorBoundary title="Errore listino Elettrico"><ElettricoListino /></ErrorBoundary></FeatureRoute>,</SoloTabletDesktop>
           )
         } />
         <Route path="elettrico/nuovo" element={
@@ -1200,7 +1200,7 @@ export default function CompanyRoutesContainer() {
         <Route path="termoidraulico/listino" element={
           withCompanyPermission(
             "canViewMarketingOpportunities",
-            <FeatureRoute featureKey="modulo_termoidraulico_attivo"><ErrorBoundary title="Errore listino Termoidraulico"><TermoidraulicoListino /></ErrorBoundary></FeatureRoute>,
+            <SoloTabletDesktop avviso="Listini e modelli si gestiscono da tablet o computer." torna="/azienda/marketing/preventivi"><FeatureRoute featureKey="modulo_termoidraulico_attivo"><ErrorBoundary title="Errore listino Termoidraulico"><TermoidraulicoListino /></ErrorBoundary></FeatureRoute>,</SoloTabletDesktop>
           )
         } />
         <Route path="termoidraulico/nuovo" element={
@@ -1225,7 +1225,7 @@ export default function CompanyRoutesContainer() {
         <Route path="pavimenti/listino" element={
           withCompanyPermission(
             "canViewMarketingOpportunities",
-            <FeatureRoute featureKey="modulo_pavimenti_attivo"><ErrorBoundary title="Errore listino Pavimenti"><PavimentiListino /></ErrorBoundary></FeatureRoute>,
+            <SoloTabletDesktop avviso="Listini e modelli si gestiscono da tablet o computer." torna="/azienda/marketing/preventivi"><FeatureRoute featureKey="modulo_pavimenti_attivo"><ErrorBoundary title="Errore listino Pavimenti"><PavimentiListino /></ErrorBoundary></FeatureRoute>,</SoloTabletDesktop>
           )
         } />
         <Route path="pavimenti/nuovo" element={
@@ -1250,7 +1250,7 @@ export default function CompanyRoutesContainer() {
         <Route path="piscine/listino" element={
           withCompanyPermission(
             "canViewMarketingOpportunities",
-            <FeatureRoute featureKey="modulo_piscine_attivo"><ErrorBoundary title="Errore listino Piscine"><PiscineListino /></ErrorBoundary></FeatureRoute>,
+            <SoloTabletDesktop avviso="Listini e modelli si gestiscono da tablet o computer." torna="/azienda/marketing/preventivi"><FeatureRoute featureKey="modulo_piscine_attivo"><ErrorBoundary title="Errore listino Piscine"><PiscineListino /></ErrorBoundary></FeatureRoute>,</SoloTabletDesktop>
           )
         } />
         <Route path="piscine/nuovo" element={
@@ -1299,16 +1299,16 @@ export default function CompanyRoutesContainer() {
           {/* ── Impostazioni azienda (solo admin/permessi) ── */}
           <Route path="profilo" element={withCompanyPermission("canViewSettingsProfile", <SettingsProfile />)} />
           <Route path="catalogo" element={<Navigate to="../listino" replace />} />
-          <Route path="listino" element={withCompanyPermission("canViewSettingsPricing", <SettingsCatalog />)} />
+          <Route path="listino" element={withCompanyPermission("canViewSettingsPricing", <SoloTabletDesktop avviso="Listini e modelli si gestiscono da tablet o computer."><SettingsCatalog /></SoloTabletDesktop>)} />
           <Route path="catalogo-render" element={withCompanyPermission("canViewSettingsCustomization", <SettingsCatalogoRender />)} />
-          <Route path="listino/import" element={withCompanyPermission("canEditSettingsPricing", <SettingsCatalogImport />)} />
+          <Route path="listino/import" element={withCompanyPermission("canEditSettingsPricing", <SoloTabletDesktop avviso="Listini e modelli si gestiscono da tablet o computer."><SettingsCatalogImport /></SoloTabletDesktop>)} />
           <Route path="catalogo/import" element={<Navigate to="../listino/import" replace />} />
           <Route path="listino/famiglie" element={<Navigate to="../listino?tab=famiglie" replace />} />
-          <Route path="listino/famiglie/nuova" element={withCompanyPermission("canEditSettingsPricing", <SettingsFamilyEditor />)} />
-          <Route path="listino/famiglie/:id" element={withCompanyPermission("canViewSettingsPricing", <SettingsFamilyEditor />)} />
+          <Route path="listino/famiglie/nuova" element={withCompanyPermission("canEditSettingsPricing", <SoloTabletDesktop avviso="Listini e modelli si gestiscono da tablet o computer."><SettingsFamilyEditor /></SoloTabletDesktop>)} />
+          <Route path="listino/famiglie/:id" element={withCompanyPermission("canViewSettingsPricing", <SoloTabletDesktop avviso="Listini e modelli si gestiscono da tablet o computer."><SettingsFamilyEditor /></SoloTabletDesktop>)} />
           <Route path="bundle-serramentista" element={withCompanyPermission("canViewSettingsBundle", <SettingsBundle />)} />
           <Route path="bundle" element={withCompanyPermission("canViewSettingsBundle", <SettingsBundle />)} />
-          <Route path="tariffe" element={withCompanyPermission("canViewSettingsPricing", <SettingsTariffe />)} />
+          <Route path="tariffe" element={withCompanyPermission("canViewSettingsPricing", <SoloTabletDesktop avviso="Listini e modelli si gestiscono da tablet o computer."><SettingsTariffe /></SoloTabletDesktop>)} />
           {/* Listino Manutenzione accorpato nella pagina Tariffe (tab Manutenzione) */}
           <Route path="listino-manutenzione" element={<Navigate to="../tariffe?tab=manutenzione" replace />} />
           {/* Finanziamenti — tabelle finanziarie + calcolatore (Phase A MVP).
@@ -1404,8 +1404,8 @@ export default function CompanyRoutesContainer() {
           <Route path="preferenze-email" element={withCompanyPermission("canViewMarketingEmail", <SettingsEmailPreferences />)} />
           <Route path="privacy" element={<Navigate to="/azienda/impostazioni/sicurezza-privacy?tab=privacy" replace />} />
           <Route path="branding" element={withCompanyPermission("canViewSettingsCustomization", <SettingsBranding />)} />
-          <Route path="modelli-pdf" element={withCompanyPermission("canViewSettingsOrders", <SettingsModelliPdf />)} />
-          <Route path="template-preventivi" element={withCompanyPermission("canViewSettingsPricing", <SettingsQuoteTemplates />)} />
+          <Route path="modelli-pdf" element={withCompanyPermission("canViewSettingsOrders", <SoloTabletDesktop avviso="Listini e modelli si gestiscono da tablet o computer."><SettingsModelliPdf /></SoloTabletDesktop>)} />
+          <Route path="template-preventivi" element={withCompanyPermission("canViewSettingsPricing", <SoloTabletDesktop avviso="Listini e modelli si gestiscono da tablet o computer."><SettingsQuoteTemplates /></SoloTabletDesktop>)} />
           {/* AI Test Lab — gated all'interno della pagina (auto-redirect se non autorizzato) */}
           <Route path="ai-test-lab" element={withCompanyPermission("canViewMarketingAiAgent", <AITestLab />)} />
           <Route path="firma-elettronica" element={<Navigate to="/azienda/impostazioni/contratti-e-condizioni?scheda=firma-elettronica" replace />} />
