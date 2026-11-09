@@ -208,7 +208,7 @@ it("a genuine accountant exception applies only to the already delegated registe
   s.role = "accountant";
   setup("/azienda/documenti?tab=fiscalita&commercialistaMode=1");
   await screen.findByText("Registro montato");
-  fireEvent.click(screen.getByRole("tab", { name: "Contabilità fiscale" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Liquidazione IVA e F24" }));
   expect(screen.getByText("Accesso negato")).toBeVisible();
   expect(s.mounts).not.toContain("contabilita");
 });

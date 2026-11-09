@@ -25,7 +25,7 @@ const ArchivioFiscale = lazy(
 );
 const sections = [
   ["iva", "Registro IVA", ReceiptText],
-  ["contabilita", "Contabilità fiscale", Calculator],
+  ["contabilita", "Liquidazione IVA e F24", Calculator],
   ["ritenute", "Ritenute di garanzia", ShieldCheck],
   ["archivio", "Archivio fiscale", Archive],
 ] as const;
@@ -125,7 +125,7 @@ export default function FiscalWorkspace({
     <section className="space-y-4" aria-label="Area fiscale">
       <div className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border bg-white p-5 max-md:gap-2 max-md:p-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-950 max-md:hidden">Fiscalità</h1>
+          <h1 className="text-lg font-bold text-slate-950 max-md:hidden">Fiscalità</h1>
           <p className="mt-1 text-sm text-slate-500 max-md:hidden">
             Documenti, prospetti e verifiche della tua azienda. Nessun
             versamento automatico.
@@ -175,7 +175,7 @@ export default function FiscalWorkspace({
                 );
               tabs?.[next]?.focus();
             }}
-            className={`flex shrink-0 items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${section === key ? "bg-blue-50 text-blue-800 ring-1 ring-inset ring-blue-200" : "text-slate-600 hover:bg-slate-50"}`}
+            className={`flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${section === key ? "bg-blue-50 text-blue-800 ring-1 ring-inset ring-blue-200" : "text-slate-600 hover:bg-slate-50"}`}
           >
             <Icon className="h-4 w-4" />
             {label}

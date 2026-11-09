@@ -300,6 +300,12 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni, onApriRegistro }: { 
             {mensile ? "Mensile" : impostazioni.periodicita === "trimestrale" ? "Trimestrale su opzione" : "Trimestrale speciale"} · cambia
           </button>
         </div>
+        <div className="hidden grid-cols-[1.25rem_8rem_repeat(4,minmax(0,1fr))_minmax(0,1.2fr)_7rem] items-center gap-2 border-t bg-muted/40 px-4 py-1.5 text-xs font-medium text-muted-foreground md:grid">
+          <span /><span>Periodo</span>
+          <span className="text-right">Op. attive</span><span className="text-right">Op. passive</span>
+          <span className="text-right">IVA vendite</span><span className="text-right">IVA acquisti</span>
+          <span className="text-right">Risultato</span><span className="text-right">Stato</span>
+        </div>
         <div className="divide-y border-t">
           {periodi.map((p) => {
             const c = confermate.get(p.dal);
@@ -308,15 +314,18 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni, onApriRegistro }: { 
             return (
               <div key={p.periodo}>
                 <button type="button" aria-expanded={isAperto} onClick={() => setAperto(isAperto ? null : p.periodo)}
-                  className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm hover:bg-accent/40">
+                  className="grid w-full grid-cols-[1.25rem_1fr_auto] items-center gap-2 px-4 py-1.5 text-left text-sm hover:bg-accent/40 md:grid-cols-[1.25rem_8rem_repeat(4,minmax(0,1fr))_minmax(0,1.2fr)_7rem]">
                   <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", isAperto && "rotate-180")} />
-                  <span className="w-32 font-medium">{p.nome}</span>
-                  <span className={cn("flex-1 tabular-nums", es?.cls)}>{es?.testo}</span>
-                  {c ? (
+                  <span className="font-medium">{p.nome}</span>
+                  {([c?.dati.righi?.vp2, c?.dati.righi?.vp3, c?.dati.righi?.vp4, c?.dati.righi?.vp5] as Array<number | undefined>).map((v, i) => (
+                    <span key={i} className="hidden text-right tabular-nums text-muted-foreground md:block">{v === undefined ? "—" : formatCurrency(Number(v))}</span>
+                  ))}
+                  <span className={cn("hidden text-right text-xs tabular-nums md:block", es?.cls)}>{es?.testo ?? "—"}</span>
+                  <span className="text-right">{c ? (
                     <Badge variant="outline" className="gap-1 border-emerald-300 font-normal text-emerald-700">
                       <CheckCircle2 className="h-3 w-3" />{c.stato === "reviewed_commercialista" ? "Confermata" : "Inviata"}
                     </Badge>
-                  ) : <span className="text-xs text-muted-foreground">{finito(p.dal) ? "Da confermare" : "In corso"}</span>}
+                  ) : <span className="text-xs text-muted-foreground">{finito(p.dal) ? "Da confermare" : "In corso"}</span>}</span>
                 </button>
                 {isAperto && company && (
                   <DettaglioPeriodo company={company} anno={anno} periodo={p.periodo} confermata={c} puoScrivere={puoScrivere} finito={finito(p.dal)} onCambiato={aggiorna} onApriRegistro={onApriRegistro ?? (() => undefined)} />

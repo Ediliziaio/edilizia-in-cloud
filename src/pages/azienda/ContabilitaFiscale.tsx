@@ -50,7 +50,7 @@ function Content() {
   return (
     <div className="space-y-4">
       <FiscalSectionHeader
-        title="Contabilità fiscale"
+        title="Liquidazione IVA e F24"
         actions={
           <Link
             className="text-sm text-blue-700 underline"
@@ -62,24 +62,28 @@ function Content() {
       />
       <div className="flex flex-wrap gap-2">
         <Button
+          size="sm"
           variant={view === "iva" ? "default" : "outline"}
           onClick={() => p.set({ vista: "iva" })}
         >
           Liquidazione IVA
         </Button>
         <Button
+          size="sm"
           variant={view === "f24" ? "default" : "outline"}
           onClick={() => p.set({ vista: "f24" })}
         >
           Registro F24
         </Button>
         <Button
+          size="sm"
           variant={view === "ritenute_bancarie" ? "default" : "outline"}
           onClick={() => p.set({ vista: "ritenute_bancarie" })}
         >
           Ritenute bancarie
         </Button>
         <Button
+          size="sm"
           variant={view === "impostazioni_iva" ? "default" : "outline"}
           onClick={() => p.set({ vista: "impostazioni_iva" })}
         >

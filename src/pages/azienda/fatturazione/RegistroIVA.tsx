@@ -259,6 +259,11 @@ function RegistroContent() {
             presenti, non una liquidazione fiscale approvata.
           </>
         }
+        actions={
+          <Button size="sm" onClick={() => p.set({ sezione: "contabilita", vista: "iva" })}>
+            Vai alla liquidazione IVA
+          </Button>
+        }
       />
       <div className="grid gap-3 sm:grid-cols-3">
         {(["vendite", "acquisti"] as const).map((s) => {
@@ -333,6 +338,7 @@ function RegistroContent() {
           {(["vendite", "acquisti", "tutti"] as const).map((s) => (
             <Button
               key={s}
+              size="sm"
               role="tab"
               aria-selected={side === s}
               variant={side === s ? "default" : "outline"}
@@ -347,7 +353,7 @@ function RegistroContent() {
         </div>
         <select
           aria-label="Aliquota"
-          className="h-10 rounded-md border bg-background px-3 text-sm"
+          className="h-9 rounded-md border bg-background px-2 text-sm"
           value={aliquota}
           onChange={(e) => {
             setAliquota(e.target.value);
@@ -360,7 +366,7 @@ function RegistroContent() {
           ))}
         </select>
         <Input
-          className="min-w-40 flex-1"
+          className="h-9 min-w-40 flex-1"
           aria-label="Cerca nel registro IVA"
           placeholder="Numero o controparte…"
           value={search}
@@ -369,10 +375,10 @@ function RegistroContent() {
             setPage(0);
           }}
         />
-        <Button variant="outline" disabled={!filtered.length} onClick={apriStampa}>
+        <Button size="sm" variant="outline" disabled={!filtered.length} onClick={apriStampa}>
           <Printer className="mr-2 h-4 w-4" />Stampa
         </Button>
-        <Button variant="outline" disabled={!filtered.length} onClick={() => { void scaricaExcel(); }}>
+        <Button size="sm" variant="outline" disabled={!filtered.length} onClick={() => { void scaricaExcel(); }}>
           <FileSpreadsheet className="mr-2 h-4 w-4" />Excel
         </Button>
         <Button
@@ -402,7 +408,7 @@ function RegistroContent() {
           </button>
         </p>
       )}
-      <details className="rounded-xl border bg-white p-4">
+      <details open className="rounded-xl border bg-white p-4">
         <summary className="cursor-pointer text-sm font-medium">
           Riepilogo per aliquota e natura · {groups.length}{" "}
           {groups.length === 1 ? "gruppo" : "gruppi"}
