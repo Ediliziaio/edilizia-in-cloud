@@ -140,6 +140,7 @@ export interface IntegrationAuditEntry {
 export type MetaWizardStep = 
   | "oauth"
   | "pages"
+  | "ad_account"
   | "confirm"
   | "forms"
   | "mapping"

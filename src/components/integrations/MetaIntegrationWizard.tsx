@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useIsMutating } from "@tanstack/react-query";
 import { useMetaIntegration } from "@/hooks/useMetaIntegration";
 import { OAuthStep } from "./steps/OAuthStep";
+import { AdAccountSelectionStep } from "./steps/AdAccountSelectionStep";
 import { PageSelectionStep } from "./steps/PageSelectionStep";
 import { ConnectionConfirmStep } from "./steps/ConnectionConfirmStep";
 import { FormListStep } from "./steps/FormListStep";
@@ -39,14 +40,15 @@ interface MetaIntegrationWizardProps {
 
 const STEP_TITLES: Record<MetaWizardStep, string> = {
   oauth: "Collega il tuo account Meta",
-  pages: "Scegli account pubblicitario e Pagine",
+  pages: "Seleziona le Pagine",
+  ad_account: "Scegli l’account pubblicitario",
   confirm: "Collegamento completato",
   forms: "Moduli Lead Ads",
   mapping: "Mappatura campi",
   activation: "Attivazione",
 };
 
-const STEP_ORDER: MetaWizardStep[] = ["oauth", "pages", "confirm", "forms", "mapping", "activation"];
+const STEP_ORDER: MetaWizardStep[] = ["oauth", "pages", "ad_account", "confirm", "forms", "mapping", "activation"];
 
 export function MetaIntegrationWizard({ open, onOpenChange, integration, onComplete, initialStep, openDisconnect }: MetaIntegrationWizardProps) {
   const isConnected = integration?.status === "connected";
@@ -88,15 +90,16 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
   const currentIndex = STEP_ORDER.indexOf(step);
   const adAccounts = hook.assets.filter((asset) => asset.asset_type === "ad_account");
   const savingAccount = useIsMutating({ mutationKey: ["meta-account-selection", hook.companyId] }) > 0;
-  const assetsReady = !savingAccount && !hook.isLoadingPages && hook.selectedPages.length > 0 &&
-    (adAccounts.length === 0 || adAccounts.filter((asset) => asset.selected).length === 1);
+  const selectedAccountsCount = adAccounts.filter((asset) => asset.selected).length;
+  const pagesReady = !hook.isLoadingPages && !hook.togglePageSelection?.isPending && hook.selectedPages.length > 0;
+  const accountsReady = !savingAccount && !hook.isLoadingPages && selectedAccountsCount <= 1;
 
   const goNext = useCallback(() => {
-    // Confermata la selezione pagine: le pagine NON scelte (che possono
+    // Confermate Pagine e account: le pagine NON scelte (che possono
     // appartenere ad altri clienti dell'utente Meta che ha fatto l'OAuth)
     // vengono eliminate da questa azienda insieme ai loro token. Per
     // aggiungerne altre in futuro basta ripetere "Collega con Facebook".
-    if (step === "pages") {
+    if (step === "ad_account") {
       hook.callProxy("purge-unselected").catch(() => {
         // best-effort: se fallisce, la RLS mostra comunque solo le selezionate
       });
@@ -229,6 +232,7 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
                 <div className="min-h-[200px]">
                   {step === "oauth" && <OAuthStep onSuccess={handleOAuthSuccess} hook={hook} />}
                   {step === "pages" && <PageSelectionStep hook={hook} />}
+                  {step === "ad_account" && <AdAccountSelectionStep hook={hook} />}
                   {step === "confirm" && <ConnectionConfirmStep hook={hook} />}
                   {step === "forms" && <FormListStep hook={hook} onMapFields={handleFormMapping} />}
                   {step === "mapping" && selectedFormId && (
@@ -256,7 +260,7 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
                         // configurata.
                         <Button variant="outline" onClick={goNext}>Salta senza salvare</Button>
                       ) : (
-                        <Button onClick={goNext} disabled={step === "pages" && !assetsReady}>{step === "confirm" ? "Configura lead" : "Avanti"}</Button>
+                        <Button onClick={goNext} disabled={(step === "pages" && !pagesReady) || (step === "ad_account" && !accountsReady)}>{step === "confirm" ? "Configura lead" : step === "ad_account" && selectedAccountsCount === 0 ? "Continua senza account pubblicitario" : "Avanti"}</Button>
                       )
                     )}
                     {currentIndex === STEP_ORDER.length - 1 && (

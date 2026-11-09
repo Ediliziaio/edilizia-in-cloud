@@ -6,6 +6,7 @@ interface ConnectionConfirmStepProps {
 
 export function ConnectionConfirmStep({ hook }: ConnectionConfirmStepProps) {
   const { selectedPages } = hook;
+  const selectedAccounts = hook.assets.filter((asset: any) => asset.asset_type === "ad_account" && asset.selected);
 
   return (
     <div className="space-y-4 py-4">
@@ -14,7 +15,10 @@ export function ConnectionConfirmStep({ hook }: ConnectionConfirmStepProps) {
         <p className="font-medium">Risorse Meta collegate con successo!</p>
       </div>
 
-      {hook.assets.filter((asset: any) => asset.asset_type === "ad_account" && asset.selected).map((account: any) => (
+      {selectedAccounts.length === 0 && (
+        <p className="text-sm text-muted-foreground">Nessun account pubblicitario selezionato. Il collegamento delle Pagine resta attivo.</p>
+      )}
+      {selectedAccounts.map((account: any) => (
         <div key={account.id} className="rounded-lg border px-4 py-3">
           <p className="text-sm font-medium">{account.asset_name}</p>
           <p className="text-xs text-muted-foreground">Account pubblicitario · {account.asset_id}</p>
@@ -38,7 +42,7 @@ export function ConnectionConfirmStep({ hook }: ConnectionConfirmStepProps) {
 
       <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
         <p className="text-sm text-amber-800 dark:text-amber-300">
-          <strong>Collegamento pronto.</strong> Puoi salvare e chiudere per gestire le sponsorizzate, oppure configurare i moduli e la mappatura dei campi per ricevere i lead nel CRM.
+          <strong>Collegamento pronto.</strong> Puoi salvare e chiudere{selectedAccounts.length > 0 ? " per gestire le sponsorizzate" : ""}, oppure configurare i moduli e la mappatura dei campi per ricevere i lead nel CRM.
         </p>
       </div>
     </div>

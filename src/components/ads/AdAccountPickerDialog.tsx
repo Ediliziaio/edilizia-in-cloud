@@ -53,7 +53,7 @@ export function AdAccountPickerDialog({ open, onOpenChange, companyId, accounts,
 
   const selectMutation = useMutation({
     mutationKey: ["meta-account-selection", companyId],
-    mutationFn: async (assetId: string) => {
+    mutationFn: async (assetId: string | null) => {
       if (!companyId) throw new Error("companyId mancante");
       // Un solo account attivo per azienda: azzera tutti, poi attiva lo scelto.
       const { error: clearErr } = await supabase
@@ -62,6 +62,8 @@ export function AdAccountPickerDialog({ open, onOpenChange, companyId, accounts,
         .eq("company_id", companyId)
         .eq("asset_type", "ad_account");
       if (clearErr) throw clearErr;
+
+      if (!assetId) return;
 
       const { error: setErr } = await supabase
         .from("meta_assets")
@@ -87,14 +89,20 @@ export function AdAccountPickerDialog({ open, onOpenChange, companyId, accounts,
     },
     onSuccess: async (_data, assetId) => {
       const name = accounts.find((a) => a.asset_id === assetId)?.asset_name ?? assetId;
-      toast.success(`Account pubblicitario attivo: ${name}`);
+      toast.success(assetId ? `Account pubblicitario attivo: ${name}` : "Account pubblicitario deselezionato");
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["ads-manager-beta", "meta-assets"] }),
         qc.invalidateQueries({ queryKey: queryKeys.metaAds.assetsAll }),
+        qc.invalidateQueries({ queryKey: ["meta-ad-accounts", companyId] }),
       ]);
       if (!embedded) onOpenChange(false);
     },
-    onError: (err: unknown) => {
+    onError: async (err: unknown) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["ads-manager-beta", "meta-assets"] }),
+        qc.invalidateQueries({ queryKey: queryKeys.metaAds.assetsAll }),
+        qc.invalidateQueries({ queryKey: ["meta-ad-accounts", companyId] }),
+      ]);
       toast.error("Impossibile cambiare account", {
         description: err instanceof Error ? err.message : "Riprova (serve il ruolo amministratore).",
       });
@@ -110,6 +118,7 @@ export function AdAccountPickerDialog({ open, onOpenChange, companyId, accounts,
           </h3>
           <p className="text-sm text-muted-foreground">
             Le campagne di questa azienda verranno create e monitorate sull'account selezionato.
+            Puoi deselezionarlo premendo di nuovo sul suo nome.
           </p>
         </div>
 
@@ -140,7 +149,8 @@ export function AdAccountPickerDialog({ open, onOpenChange, companyId, accounts,
                   key={account.id}
                   type="button"
                   disabled={selectMutation.isPending}
-                  onClick={() => { if (!isActive) selectMutation.mutate(account.asset_id); }}
+                  aria-pressed={isActive}
+                  onClick={() => selectMutation.mutate(isActive ? null : account.asset_id)}
                   className={cn(
                     "flex w-full items-center gap-3 px-4 py-3 text-left transition-colors",
                     isActive ? "bg-primary/5" : "hover:bg-muted/50",
