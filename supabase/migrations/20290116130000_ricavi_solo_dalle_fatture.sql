@@ -16,8 +16,9 @@
 -- 3. il valore del contratto non è il ricavo dell'anno comunque: per un'impresa
 --    edile il ricavo è la produzione (SAL, fatture), non l'ordine firmato.
 --
--- Da qui: i ricavi restano solo le fatture emesse (le fatture native di EiC
--- sono già specchiate in `invoices`, verificato riga per riga). Il valore delle
+-- Da qui: i ricavi restano solo le fatture emesse. (Questa vista legge solo
+-- `invoices`: le fatture native di EiC le ha aggiunte poi la migrazione
+-- 20290126140000_ricavi_anche_fatture_native.) Il valore delle
 -- commesse non si butta via: va in `v_cg_portafoglio_commesse` col suo nome
 -- vero, cancellate e bozze escluse, e la pagina lo mostra come portafoglio
 -- quando le fatture dell'anno sono zero — invece di spacciarlo per ricavo o,
