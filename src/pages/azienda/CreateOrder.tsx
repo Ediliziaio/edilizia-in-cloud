@@ -1,3 +1,4 @@
+import { righePreventivoPerCommessa } from "@/lib/preventivi/prefillPreventivo";
 import { COLONNE_RIGHE_LAVORO, righeDaLavoroPrecedente, totaleDelleRighe } from "@/lib/orders/righeDaLavoroPrecedente";
 import { verificaCostoSuPiano, modalitaCostoFinanziaria, costoDaSottrarreAlSaldo, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 import { verificaSupportoModalitaFinanziaria } from "@/lib/finanziamenti/verificaSupportoModalita";
@@ -763,10 +764,20 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   }, [invoiceSource.data,effectiveCompany?.id,invoiceId,getValues,setValue]);
 
   // Nuovo lavoro per un cliente che c'è già: si riparte dalle righe di un suo lavoro precedente (09/11/2026).
+  // Anche da un suo preventivo di tempo fa: si copiano le righe, senza legare la commessa a quel preventivo
+  // (un preventivo può generare una sola commessa, e quello magari l'ha già fatta).
   const copiaDa = searchParams.get("copia_da");
+  const copiaPreventivo = searchParams.get("copia_preventivo");
   const righeCopiate = useQuery({
-    queryKey: ["righe-lavoro-precedente", copiaDa], enabled: !!copiaDa && !!effectiveCompany?.id, staleTime: Infinity,
+    queryKey: ["righe-lavoro-precedente", copiaDa, copiaPreventivo], enabled: !!(copiaDa || copiaPreventivo) && !!effectiveCompany?.id, staleTime: Infinity,
     queryFn: async () => {
+      if (copiaPreventivo) {
+        const { data: origine, error: e } = await supabase.from("quotes").select("id").eq("id", copiaPreventivo).eq("company_id", effectiveCompany!.id).maybeSingle();
+        if (e || !origine) throw new Error("Preventivo non trovato");
+        const { data, error } = await supabase.from("quote_items").select("*").eq("quote_id", copiaPreventivo).order("sort_order", { ascending: true });
+        if (error) throw error;
+        return righePreventivoPerCommessa((data ?? []) as Array<Record<string, unknown>>);
+      }
       const { data: origine, error: e } = await supabase.from("orders").select("id").eq("id", copiaDa!).eq("company_id", effectiveCompany!.id).maybeSingle();
       if (e || !origine) throw new Error("Lavoro non trovato");
       const { data, error } = await supabase.from("order_items").select(COLONNE_RIGHE_LAVORO).eq("order_id", copiaDa!).order("position", { ascending: true });
@@ -782,7 +793,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     setOrderItems(righeCopiate.data);
     const totale = totaleDelleRighe(righeCopiate.data);
     if (totale > 0 && !parseDecimalIT(getValues("total_amount") ?? "")) setValue("total_amount", formatDecimalIT(totale));
-    toast.success(`${righeCopiate.data.length} righe riprese dal lavoro precedente`, { description: "Correggi quantità e prezzi se serve." });
+    toast.success(`${righeCopiate.data.length} righe riprese`, { description: "Correggi quantità e prezzi se serve." });
   }, [righeCopiate.data, getValues, setValue]);
 
   // Clienti appena creati dal dialog inline. La query `useCompanyCustomers` viene

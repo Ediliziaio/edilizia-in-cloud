@@ -5,12 +5,19 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { NuovoContrattoClienteDialog } from "@/components/clients/NuovoContrattoClienteDialog";
 
-const righe = vi.hoisted(() => ({ valore: [] as Array<{ id: string; order_code: string; description: string }> }));
+const righe = vi.hoisted(() => ({ valore: [] as Array<{ id: string; order_code: string; description: string }>, preventivi: [] as Array<{ id: string; quote_number: string; title: string; created_at: string }> }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "az" } }) }));
 vi.mock("@/integrations/supabase/client", () => {
-  const q: Record<string, unknown> = {};
-  for (const m of ["select", "eq", "is", "order"]) q[m] = () => q;
-  q.limit = async () => ({ data: righe.valore, error: null as null });
-  return { supabase: { from: () => q } };
+  const tabella = (nome: string) => {
+    const q: Record<string, unknown> = {};
+    for (const m of ["select", "eq", "is", "order"]) q[m] = () => q;
+    q.maybeSingle = async () => ({ data: { email: "g@x.it" }, error: null as null });
+    const esito = { data: nome === "quotes" ? righe.preventivi : righe.valore, error: null as null };
+    q.limit = () => q;
+    q.then = (ok: (v: unknown) => unknown) => ok(esito);
+    return q;
+  };
+  return { supabase: { from: tabella } };
 });
 
 function Dove() { const l = useLocation(); return <div data-testid="dove">{l.pathname + l.search}</div>; }
@@ -30,9 +37,19 @@ describe("nuovo contratto dal cliente", () => {
   it("si possono riprendere le righe di un lavoro precedente", async () => {
     righe.valore = [{ id: "o1", order_code: "SIM-1", description: "Bagno" }];
     disegna();
-    fireEvent.change(await screen.findByLabelText("Righe del nuovo lavoro"), { target: { value: "o1" } });
+    fireEvent.change(await screen.findByLabelText("Righe del nuovo lavoro"), { target: { value: "lavoro:o1" } });
     fireEvent.click(screen.getByRole("button", { name: /Nuovo lavoro/ }));
     expect(screen.getByTestId("dove")).toHaveTextContent("contratto=1&copia_da=o1");
+  });
+  it("un cliente col preventivo di un anno fa: riparte da lì, senza farne uno nuovo", async () => {
+    righe.valore = [];
+    righe.preventivi = [{ id: "q1", quote_number: "PRV-2025-7", title: "Bagno", created_at: "2025-11-09T10:00:00Z" }];
+    disegna();
+    fireEvent.change(await screen.findByLabelText("Righe del nuovo lavoro"), { target: { value: "preventivo:q1" } });
+    fireEvent.click(screen.getByRole("button", { name: /Nuovo lavoro/ }));
+    expect(screen.getByTestId("dove")).toHaveTextContent("contratto=1&copia_preventivo=q1");
+    expect(screen.getByTestId("dove")).not.toHaveTextContent("quote_id");
+    righe.preventivi = [];
   });
   it("oppure il contratto su un lavoro che c'è già", async () => {
     righe.valore = [{ id: "o1", order_code: "SIM-1", description: "Bagno" }];
