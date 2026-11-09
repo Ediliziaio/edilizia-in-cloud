@@ -603,8 +603,8 @@ function NuovaRitenutaDialog({
   const permissions = usePermissions();
   const [direzione, setDirezione] = useState<"attiva" | "passiva">("attiva");
   const [orderId, setOrderId] = useState<string>("");
-  // Una ritenuta passiva vive su un contratto di subappalto (lo richiede il
-  // database): prima il dialog non lo chiedeva e l'inserimento falliva sempre.
+  // Una ritenuta passiva vive sul contratto di subappalto oppure, se il
+  // contratto non è stato caricato, sulla sola commessa.
   const [contrattoId, setContrattoId] = useState<string>("");
   const [controparte, setControparte] = useState("");
   const [importo, setImporto] = useState("");
@@ -621,6 +621,7 @@ function NuovaRitenutaDialog({
         .from("orders")
         .select("id, order_code, description")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(100);
       if (error) throw error;
@@ -665,11 +666,19 @@ function NuovaRitenutaDialog({
       });
       return;
     }
-    if (direzione === "passiva" && !contrattoId) {
+    if (direzione === "passiva" && !contrattoId && !orderId) {
       toast({
-        title: "Contratto mancante",
+        title: "Commessa mancante",
         description:
-          "Una ritenuta al subappaltatore si registra sul suo contratto: scegli quale.",
+          "Scegli il contratto del subappaltatore o, se non c'è, la commessa.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (direzione === "passiva" && !contrattoId && !controparte.trim()) {
+      toast({
+        title: "Subappaltatore mancante",
+        description: "Senza contratto serve il nome del subappaltatore.",
         variant: "destructive",
       });
       return;
@@ -687,9 +696,10 @@ function NuovaRitenutaDialog({
       const { error } = await supabase.from("ritenute_garanzia").insert({
         company_id: companyId,
         direzione,
-        order_id: direzione === "attiva" && orderId ? orderId : null,
-        // Passiva: commessa, percentuale, svincolo e subappaltatore li completa il database dal contratto.
-        contratto_id: direzione === "passiva" ? contrattoId : null,
+        // Col contratto, commessa, percentuale, svincolo e subappaltatore li completa il database.
+        order_id: direzione === "passiva" && contrattoId ? null : orderId,
+        contratto_id:
+          direzione === "passiva" && contrattoId ? contrattoId : null,
         controparte: controparte || null,
         importo: imp,
         percentuale_applicata: percentuale.trim()
@@ -750,30 +760,19 @@ function NuovaRitenutaDialog({
               </SelectContent>
             </Select>
           </div>
-          {direzione === "attiva" && (
-            <div className="space-y-1.5">
-              <Label>Commessa</Label>
-              <Select value={orderId} onValueChange={setOrderId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Scegli la commessa" />
-                </SelectTrigger>
-                <SelectContent>
-                  {commesse.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.order_code ?? c.id.slice(0, 8)}
-                      {c.description ? ` · ${c.description.slice(0, 40)}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
           {direzione === "passiva" && (
             <div className="space-y-1.5">
               <Label>Contratto di subappalto</Label>
               <Select
-                value={contrattoId}
+                value={contrattoId || "nessuno"}
                 onValueChange={(v) => {
+                  if (v === "nessuno") {
+                    // Nome e percentuale venivano dal contratto appena tolto.
+                    setContrattoId("");
+                    setControparte("");
+                    setPercentuale("");
+                    return;
+                  }
                   setContrattoId(v);
                   const c = contratti.find((x) => x.id === v);
                   if (c?.sub?.ragione_sociale && !controparte)
@@ -785,9 +784,10 @@ function NuovaRitenutaDialog({
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Scegli il contratto" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="nessuno">Senza contratto</SelectItem>
                   {contratti.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {[
@@ -797,6 +797,24 @@ function NuovaRitenutaDialog({
                       ]
                         .filter(Boolean)
                         .join(" · ") || "Contratto"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {(direzione === "attiva" || !contrattoId) && (
+            <div className="space-y-1.5">
+              <Label>Commessa</Label>
+              <Select value={orderId} onValueChange={setOrderId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Scegli la commessa" />
+                </SelectTrigger>
+                <SelectContent>
+                  {commesse.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.order_code ?? c.id.slice(0, 8)}
+                      {c.description ? ` · ${c.description.slice(0, 40)}` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>

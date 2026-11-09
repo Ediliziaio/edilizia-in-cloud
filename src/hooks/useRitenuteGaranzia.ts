@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 export interface RitenuteGaranzia {
   id: string;
   company_id: string;
-  contratto_id: string;
+  contratto_id: string | null;
   sal_id: string;
   importo: number;
   stato: 'trattenuta' | 'svincolata' | 'persa';
@@ -47,16 +47,18 @@ export function useRitenuteGaranzia(orderId: string | undefined) {
 
   const contrattoIds = contrattiQuery.data?.map(c => c.id) ?? [];
 
-  // 2. Carica ritenute dei contratti trovati
+  // 2. Carica le ritenute dei contratti trovati e quelle ai subappaltatori
+  //    registrate sulla sola commessa, senza contratto
   const ritenuteQuery = useQuery({
-    queryKey: ['ritenute-garanzia', companyId, orderId],
-    enabled: contrattoIds.length > 0,
+    queryKey: ['ritenute-garanzia', companyId, orderId, contrattoIds],
+    enabled: !!companyId && !!orderId && contrattiQuery.isSuccess,
     queryFn: async () => {
+      const sullaCommessa = `and(order_id.eq.${orderId},direzione.eq.passiva)`;
       const { data, error } = await supabase
         .from('ritenute_garanzia')
         .select('id, contratto_id, sal_id, importo, stato, data_svincolo_prevista, data_svincolo_effettiva, percentuale_applicata, note, created_at')
         .eq('company_id', companyId!)
-        .in('contratto_id', contrattoIds)
+        .or(contrattoIds.length > 0 ? `contratto_id.in.(${contrattoIds.join(',')}),${sullaCommessa}` : sullaCommessa)
         .order('created_at', { ascending: false });
       if (error) throw new Error(`[useRitenuteGaranzia] ${error.message}`);
       return (data ?? []) as RitenuteGaranzia[];
