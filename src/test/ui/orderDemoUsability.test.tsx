@@ -48,7 +48,6 @@ describe('Usabilità del collaudo commesse', () => {
     fireEvent.click(button);
     expect(button).toHaveAttribute('aria-expanded','true');
     expect(screen.getByText('Lavoro 0')).toBeVisible();
-    expect(screen.getByText(/Costo manodopera registrato/)).toHaveTextContent('240,00');
   });
   it('usa lo snapshot cliente senza creare un collegamento anagrafico fittizio', () => {
     render(<OrdineCliente customer={null} snapshot={{name:'Famiglia Demo',email:'demo@example.invalid'}}/>);

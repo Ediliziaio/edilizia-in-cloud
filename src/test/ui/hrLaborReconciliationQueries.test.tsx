@@ -6,7 +6,10 @@ import { useHrLaborReconciliation } from "@/hooks/useHrLaborReconciliation";
 const mocks = vi.hoisted(() => ({ from: vi.fn(), company: "c", p: { canViewPersone: true, canViewCosts: true, canViewOrders: true, canViewGiornaleLavori: true, isLoading: false } }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => mocks.company }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => mocks.p }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from } }));
+vi.mock("@/integrations/supabase/client", () => {
+  const costi = { order: () => costi, range: async () => ({ data: [{ id: "r1", presenze_registrate: [] as unknown[] }], error: null as unknown }) };
+  return { supabase: { from: mocks.from, rpc: () => costi } };
+});
 const calls: { table: string; selected: string; filters: Record<string, unknown> }[] = [];
 let profile: { id: string; employee_id: string | null; user_id: string | null } | null;
 let reportError: Error | null = null;
@@ -40,7 +43,7 @@ describe("Riconciliazione HR: poche query, identità, mese e permessi", () => {
     expect(calls).toHaveLength(3); for (const c of calls) expect(c.filters.company_id).toBe("c");
     expect(calls.find(c => c.table === "hr_giornate")?.filters).toMatchObject({ profilo_id: "h", "gte:data": "2026-10-01", "lte:data": "2026-10-31" });
     expect(calls.map(c => c.selected).join(" ")).not.toMatch(/iban|ritenute|netto|diagnos|anomalia_motivo|pdf_url/);
-    expect(calls.find(c => c.table === "campo_rapportini")?.filters.or).toContain('presenze_registrate.cs.[{"employee_id":"e"}]');
+    expect(calls.find(c => c.table === "campo_rapportini")?.filters.or).toContain('id.in.(r1)');
     expect(calls.find(c => c.table === "campo_rapportini")?.filters.or).toContain('presenze.cs.[{"employee_id":"e"}]');
   });
   it("senza accesso commesse non interroga i rapportini e non inventa un consuntivo", async () => {

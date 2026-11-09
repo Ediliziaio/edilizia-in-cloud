@@ -1,3 +1,4 @@
+import { leggiCostiRapportini } from "@/lib/campo/colonneRapportino";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { giorniDelMese, type RapportinoRiga } from "@/lib/orders/rapportiniMese";
@@ -46,12 +47,11 @@ export interface RapportinoCompleto extends RapportinoRiga {
  */
 export async function leggiRapportiniMese(companyId: string, mese: string, conCosti: boolean): Promise<RapportinoCompleto[]> {
   const giorni = giorniDelMese(mese);
-  const campi = conCosti ? `${CAMPI}, costo_manodopera` : CAMPI;
   const righe: RapportinoCompleto[] = [];
   for (let da = 0; ; da += PAGINA) {
     const { data, error } = await db
       .from("campo_rapportini")
-      .select(campi)
+      .select(CAMPI)
       .eq("company_id", companyId)
       .is("annullato_at", null)
       .gte("data_lavoro", giorni[0])
@@ -62,6 +62,10 @@ export async function leggiRapportiniMese(companyId: string, mese: string, conCo
     if (error) throw error;
     righe.push(...((data ?? []) as RapportinoCompleto[]));
     if (!data || data.length < PAGINA) break;
+  }
+  if (conCosti) {
+    const costi = new Map((await leggiCostiRapportini({ da: giorni[0], a: giorni[giorni.length - 1] })).map((c) => [c.id, c.costo_manodopera]));
+    for (const r of righe) r.costo_manodopera = costi.get(r.id) ?? null;
   }
   return righe.filter((r) => r.order && !r.order.deleted_at);
 }

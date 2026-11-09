@@ -1,3 +1,4 @@
+import { COLONNE_RAPPORTINO, COLONNE_RAPPORTINO_CON_AUTORE } from "@/lib/campo/colonneRapportino";
 import { RuoloCantiereCampo } from "@/components/campo/RuoloCantiereCampo";
 import { BottoneCollaudo } from "@/components/campo/BottoneCollaudo";
 import { leggiRuoloOperativoCampo } from "@/lib/campo/ruoloOperativo";
@@ -568,7 +569,7 @@ export default function CampoLavoroDetail() {
     queryFn: async () => {
       let query = supabase
         .from("campo_rapportini")
-        .select("*, autore:profiles!campo_rapportini_user_id_fkey(first_name,last_name)")
+        .select(COLONNE_RAPPORTINO_CON_AUTORE)
         .eq("company_id", companyId!)
         .eq("order_id", orderId!);
       if (!vedeRapportiniCantiere) query = query.eq("user_id", currentUserId!);
@@ -588,7 +589,7 @@ export default function CampoLavoroDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("campo_rapportini")
-        .select("*")
+        .select(COLONNE_RAPPORTINO)
         .eq("order_id", orderId!)
         .or("lavoro_completato.eq.true,firma_cliente_url.not.is.null")
         .order("data_lavoro", { ascending: false })

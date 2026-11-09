@@ -1,3 +1,4 @@
+import { leggiCostiRapportini } from "@/lib/campo/colonneRapportino";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -22,8 +23,7 @@ export function useCostoDaCedolini(orderId: string, employeeIds: string[], enabl
     staleTime: 2 * 60 * 1000,
     queryFn: async (): Promise<{ rapportini: RapportinoOre[]; cedolini: CedolinoMese[] }> => {
       const [rapportini, cedolini] = await Promise.all([
-        readAllPages<RapportinoOre>((da, a) => db.from("campo_rapportini").select("data_lavoro, presenze_registrate")
-          .eq("company_id", companyId).eq("order_id", orderId).eq("stato", "approvato").order("data_lavoro").order("id").range(da, a)),
+        leggiCostiRapportini({ orderId }).then((righe) => righe.filter((r) => r.stato === "approvato") as unknown as RapportinoOre[]),
         readAllPages<CedolinoMese>((da, a) => db.from("hr_cedolini").select("employee_id, anno, mese, lordo, contributi_datore, ore_lavorate")
           .eq("company_id", companyId).in("employee_id", ids).neq("stato", "bozza").order("id").range(da, a)),
       ]);

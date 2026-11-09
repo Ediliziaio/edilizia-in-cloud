@@ -1,3 +1,4 @@
+import { leggiCostiRapportini } from "@/lib/campo/colonneRapportino";
 import { useQuery } from "@tanstack/react-query";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -25,12 +26,15 @@ export function useHrLaborReconciliation(profiloId: string, month: string, open:
       const daysPromise = supabase.from("hr_giornate")
         .select("data,stato,ore_lavorate,ore_straordinario,anomalia")
         .eq("company_id", companyId!).eq("profilo_id", profiloId).gte("data", bounds.start).lte("data", bounds.end);
+      // I costi arrivano dalla lettura protetta: per i rapportini di questa persona, in questo mese.
+      const costi = reportsAllowed ? await leggiCostiRapportini({ da: bounds.start, a: bounds.end, employeeId: profile.employee_id }) : [];
+      const costoDi = new Map(costi.map((c) => [c.id, c.presenze_registrate]));
       const reportsPromise = reportsAllowed ? supabase.from("campo_rapportini")
-        .select("id,company_id,order_id,user_id,data_lavoro,stato,approvato,updated_at,ore_lavorate,ore_straordinario,presenze,costo_registrato_at,presenze_registrate,order:orders(order_code,description)")
+        .select("id,company_id,order_id,user_id,data_lavoro,stato,approvato,updated_at,ore_lavorate,ore_straordinario,presenze,costo_registrato_at,order:orders(order_code,description)")
         .eq("company_id", companyId!).gte("data_lavoro", bounds.start).lte("data_lavoro", bounds.end)
         .in("stato", ["approvato", "inviato"])
         .or([
-          `presenze_registrate.cs.${JSON.stringify([{ employee_id: profile.employee_id }])}`,
+          ...(costi.length ? [`id.in.(${costi.map((c) => c.id).join(",")})`] : []),
           `presenze.cs.${JSON.stringify([{ employee_id: profile.employee_id }])}`,
           ...(profile.user_id ? [`user_id.eq.${profile.user_id}`] : []),
         ].join(",")) : Promise.resolve({ data: null, error: null });
@@ -40,7 +44,7 @@ export function useHrLaborReconciliation(profiloId: string, month: string, open:
       // API page limit: never display a clipped payroll/cost total as complete.
       if ((days.data?.length ?? 0) > 31 || (reports.data?.length ?? 0) >= 1000) throw new Error("Troppi risultati per un riepilogo completo: verifica i dati del mese.");
       return { linked: true as const, summary: reconcileHrLabor({ companyId: companyId!, employeeId: profile.employee_id,
-        userId: profile.user_id, month, days: (days.data ?? []) as HrCostDay[], reports: reports.data as unknown as HrCostReport[] | null }) };
+        userId: profile.user_id, month, days: (days.data ?? []) as HrCostDay[], reports: ((reports.data as unknown as Array<{ id: string }> | null)?.map((r) => ({ ...r, presenze_registrate: costoDi.get(r.id) ?? null })) ?? null) as unknown as HrCostReport[] | null }) };
     },
   });
 }

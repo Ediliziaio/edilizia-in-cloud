@@ -3,6 +3,7 @@
  * La regola sta nel database (`rapportino_correggi`): su un approvato toglie ore,
  * costi e fasi vecchi e rimette i nuovi in un colpo solo.
  */
+import { COLONNE_RAPPORTINO } from "@/lib/campo/colonneRapportino";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
@@ -52,7 +53,7 @@ export function CorreggiRapportino({ rapportinoId, orderId, onCorretto }: { rapp
     enabled: aperto,
     staleTime: 0,
     queryFn: async () => {
-      const { data, error } = await db.from("campo_rapportini").select("*").eq("id", rapportinoId).maybeSingle();
+      const { data, error } = await db.from("campo_rapportini").select(COLONNE_RAPPORTINO).eq("id", rapportinoId).maybeSingle();
       if (error) throw error;
       return data;
     },

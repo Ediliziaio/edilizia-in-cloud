@@ -222,8 +222,4 @@ describe("Rapportini: permessi e aggiornamento del consuntivo", () => {
     expect(screen.getByRole("heading", { name: "Posa serramenti" })).toBeInTheDocument();
     expect(screen.queryByText("Lavorazione non identificata")).not.toBeInTheDocument();
   });
-  it("espone lo zero registrato senza dichiararlo lavoro gratuito", () => {
-    state.reports=[{...report,stato:"approvato",costo_manodopera:0}];render(<OrdineRapportiniCampo orderId="order"/>);
-    fireEvent.click(screen.getByText(/Mario Rossi/));expect(screen.getByText(/Zero registrato/)).toBeInTheDocument();
-  });
 });

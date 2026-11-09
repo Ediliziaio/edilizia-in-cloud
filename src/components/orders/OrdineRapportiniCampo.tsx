@@ -3,6 +3,7 @@
  * Gestisce approvazione e rifiuto con motivo; ogni rapportino si apre in un popup.
  * Usato nel tab "Campo" di OrderDetail.tsx.
  */
+import { COLONNE_RAPPORTINO_CON_AUTORE } from "@/lib/campo/colonneRapportino";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
@@ -63,12 +64,6 @@ function StatoBadge({ stato }: { stato: RapportinoStato }) {
       {s.label}
     </Badge>
   );
-}
-
-/** Il nome sta nelle presenze del rapportino; il registro del costo ha solo l'id. */
-function nomePresenza(presenze: unknown, employeeId?: string): string {
-  const trovata = Array.isArray(presenze) ? (presenze as Array<{ employee_id?: string; nome?: string }>).find((p) => p.employee_id === employeeId) : undefined;
-  return trovata?.nome || "Persona";
 }
 
 const BadgeAnnullato = () => <Badge variant="outline" className="text-[10px] py-0 border-slate-300 bg-slate-100 text-slate-600">Annullato</Badge>;
@@ -142,7 +137,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
         .from("campo_rapportini")
         // NB: FK esplicita — campo_rapportini ha DUE relazioni verso profiles
         // (user_id e approvato_da): senza disambiguare PostgREST rifiuta l'embed.
-        .select("*, autore:profiles!campo_rapportini_user_id_fkey(first_name, last_name)")
+        .select(COLONNE_RAPPORTINO_CON_AUTORE)
         .eq("order_id", orderId)
         .eq("company_id", companyId!)
         .order("data_lavoro", { ascending: false });
@@ -469,27 +464,6 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                                     </div>
                                   )}
                                 </div>
-                              </div>
-                            )}
-
-                            {/* Costo scritto dal trigger all'approvazione: ore ×
-                                costo orario del dipendente. 0 = subappaltatore
-                                (costa a contratto/SAL) o dipendente senza tariffa. */}
-                            {canViewCosts && stato === "approvato" && (
-                              <div className="hidden">
-                                Costo manodopera registrato:{" "}
-                                {r.costo_manodopera == null ? "Non disponibile" : Number(r.costo_manodopera).toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: true })}
-                                {Array.isArray(r.presenze_registrate) && r.presenze_registrate.length > 0 && (
-                                  <ul className="mt-1.5 space-y-0.5 font-normal">
-                                    {(r.presenze_registrate as Array<{ employee_id?: string; ore?: number; costo?: number }>).map((p, i) => (
-                                      <li key={i} className="flex justify-between gap-3">
-                                        <span>{nomePresenza(r.presenze, p.employee_id)} · {Number(p.ore ?? 0)} h</span>
-                                        <span className="tabular-nums">{Number(p.costo ?? 0).toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: true })}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                )}
-                                {Number(r.costo_manodopera) === 0 && r.costo_manodopera != null && <span className="mt-1 block font-normal text-amber-700">Zero registrato: può dipendere da tariffa mancante o presenze esterne. Non indica automaticamente lavoro senza costo.</span>}
                               </div>
                             )}
 

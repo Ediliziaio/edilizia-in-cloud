@@ -23,7 +23,7 @@ export default function CampoProfilo() {
       const [{ count: rapportiniMese }, { count: cantieri }] = await Promise.all([
         supabase
           .from("campo_rapportini")
-          .select("*", { count: "exact", head: true })
+          .select("id", { count: "exact", head: true })
           .eq("user_id", user!.id)
           .gte("data_lavoro", monthStart.slice(0, 10)),
         supabase

@@ -12,6 +12,7 @@
  *
  * Le ore vanno confermate: 0 per sole foto/note; nessuna presenza implicita.
  */
+import { COLONNE_RAPPORTINO } from "@/lib/campo/colonneRapportino";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -366,8 +367,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     queryFn: async (): Promise<RapportinoEsistente | null> => {
       const { data, error } = await supabase
         .from("campo_rapportini")
-        // «*»: un'app aggiornata prima del database non deve fermarsi su una colonna che ancora non c'è (campi_extra).
-        .select("*")
+        .select(COLONNE_RAPPORTINO)
         .eq("order_id", orderId!)
         .eq("user_id", user!.id)
         .eq("company_id", companyId!)

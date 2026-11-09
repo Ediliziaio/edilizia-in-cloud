@@ -2,6 +2,7 @@
  * Tutto quello che l'operaio ha scritto nel rapportino, dentro il popup di
  * approvazione: si decide leggendo, senza aprire altre pagine.
  */
+import { COLONNE_RAPPORTINO } from "@/lib/campo/colonneRapportino";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
@@ -25,7 +26,7 @@ export function DettagliRapportino({ companyId, orderId, reportId }: { companyId
   const { data: r } = useQuery({
     queryKey: ["campo-rapportino-dettagli", reportId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("campo_rapportini").select("*")
+      const { data, error } = await supabase.from("campo_rapportini").select(COLONNE_RAPPORTINO)
         .eq("id", reportId).eq("order_id", orderId).eq("company_id", companyId).maybeSingle();
       if (error) throw error;
       return data;
