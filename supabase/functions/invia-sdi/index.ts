@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Non autorizzato: accesso negato a questo documento" }), { status: 403, headers: getCorsHeaders(req) });
     }
 
-    if (!(await puoGestireDocumento(token, doc.company_id, doc.tipo))) {
+    if (!(await puoGestireDocumento(token, doc.company_id, doc.tipo, req.headers.get("x-azienda-scheda")))) {
       return new Response(JSON.stringify({ error: "Per inviare allo SDI serve il permesso «Fatturazione»." }), { status: 403, headers: getCorsHeaders(req) });
     }
 

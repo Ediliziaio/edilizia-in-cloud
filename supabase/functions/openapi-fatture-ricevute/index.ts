@@ -210,7 +210,11 @@ async function importaUna(acc: Accesso, cfg: Config, id: string, giaLetta?: unkn
     ricevutaIl: ricevutaIl(fattura),
   }, letta, (i) => (xmlLetto ? leggiFatturaRicevuta(xmlLetto, new LettoreXmlMinimo(), i) : null));
   if (salvata.errore) return { esito: "errore", motivo: salvata.errore };
-  if (salvata.doppione) return { esito: "doppione", id: salvata.id };
+  // Lotto con corpi falliti: conta come errore, così il file si riprova al massimo tre volte.
+  const lottoIncompleto: Esito | null = salvata.altreErrori.length > 0
+    ? { esito: "errore", motivo: `Lotto incompleto: ${salvata.altreErrori.join("; ")}` }
+    : null;
+  if (salvata.doppione) return lottoIncompleto ?? { esito: "doppione", id: salvata.id };
 
   await supabase.from("sdi_log").insert({
     company_id: cfg.company_id,
@@ -219,7 +223,7 @@ async function importaUna(acc: Accesso, cfg: Config, id: string, giaLetta?: unkn
     messaggio: `Fattura ricevuta da ${letta.cedente_ragione_sociale} - ${letta.numero_fattura} (openapi)`,
   });
   if (salvata.id) await avvisaFatturaRicevuta(supabase, cfg.company_id, salvata.id, letta);
-  return { esito: "nuova", id: salvata.id };
+  return lottoIncompleto ?? { esito: "nuova", id: salvata.id };
 }
 
 interface Riepilogo {

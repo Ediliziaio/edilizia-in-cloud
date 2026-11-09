@@ -164,7 +164,7 @@ Deno.serve(async (req) => {
     } catch {
       return json({ error: "Non autorizzato" }, 403);
     }
-    if (!(await puoGestireDocumento(token, doc.company_id, doc.tipo))) {
+    if (!(await puoGestireDocumento(token, doc.company_id, doc.tipo, req.headers.get("x-azienda-scheda")))) {
       return json({ error: "Per spedire un documento serve il permesso «Fatturazione»." }, 403);
     }
 

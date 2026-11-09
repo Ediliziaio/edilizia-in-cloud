@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
     }
 
     // Il PDF segue le regole di lettura; salvarlo nell'archivio chiede «Fatturazione».
-    const permesso = upload ? await puoGestireDocumento(token, doc.company_id, doc.tipo) : await puoLeggereDocumento(token, documento_id);
+    const permesso = upload ? await puoGestireDocumento(token, doc.company_id, doc.tipo, req.headers.get("x-azienda-scheda")) : await puoLeggereDocumento(token, documento_id, req.headers.get("x-azienda-scheda"));
     if (!permesso) {
       return new Response(JSON.stringify({ error: "Non autorizzato: serve il permesso per vedere i documenti fiscali" }), { status: 403, headers: getCorsHeaders(req) });
     }

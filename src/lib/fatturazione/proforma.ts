@@ -2,6 +2,21 @@ import { supabase } from "@/integrations/supabase/client";
 import type { DocumentoFiscale, RigaDocumento } from "@/types/fatturazione";
 import { calcolaTotaliDocumento } from "./calcoli";
 
+const NOTA_CONVERTITO = "Convertito in fattura: la trovi tra le bozze, prende il numero quando la emetti";
+
+async function segnaConvertito(proformaId: string, noteEsistenti: string | null): Promise<void> {
+  // Le note della proforma restano: la frase si aggiunge una volta sola.
+  const note = noteEsistenti?.includes(NOTA_CONVERTITO) ? noteEsistenti : [noteEsistenti, NOTA_CONVERTITO].filter(Boolean).join("\n");
+  const { error } = await supabase
+    .from("documenti_fiscali" as never)
+    .update({ stato: "annullata", note_interne: note, updated_at: new Date().toISOString() } as never)
+    .eq("id", proformaId);
+  if (error) {
+    console.error("[proforma] Errore aggiornamento stato proforma originale:", error.message, error.code);
+    throw new Error(`Impossibile aggiornare lo stato del documento originale: ${error.message}`);
+  }
+}
+
 /**
  * Converts a proforma or preventivo into a fattura.
  * - Creates a new fattura with same data
@@ -27,8 +42,25 @@ export async function convertiProformaInFattura(proformaId: string): Promise<Doc
   // sta convertendo due volte lo stesso documento e ne uscirebbero DUE fatture
   // (con due numeri fiscali). L'interfaccia nasconde gia' il pulsante, questa
   // e' la rete sotto.
-  if (doc.stato === "annullata") {
-    throw new Error("Questo documento risulta gia' convertito in fattura");
+  const { data: gia, error: giaErr } = await supabase
+    .from("documenti_fiscali" as never)
+    .select("*")
+    .eq("documento_correlato_id", proformaId)
+    .in("tipo", ["fattura", "fattura_pa"])
+    .is("deleted_at", null)
+    .neq("stato", "annullata")
+    .limit(1);
+  if (giaErr) throw giaErr;
+  const giaCreata = ((gia ?? []) as unknown as DocumentoFiscale[])[0];
+
+  // Un tentativo interrotto a metà ha già la sua fattura: si riprende quella, non se ne fa un'altra.
+  if (giaCreata) {
+    if (doc.stato !== "annullata") await segnaConvertito(proformaId, doc.note_interne as string | null);
+    return giaCreata;
+  }
+  // Annullata e senza fattura viva: o la bozza è stata eliminata (si riconverte) o era annullata davvero.
+  if (doc.stato === "annullata" && !String(doc.note_interne ?? "").includes(NOTA_CONVERTITO)) {
+    throw new Error("Questo documento è annullato: non si converte in fattura");
   }
 
   const companyId = doc.company_id as string;
@@ -144,20 +176,7 @@ export async function convertiProformaInFattura(proformaId: string): Promise<Doc
     .single();
   if (readErr) throw readErr;
 
-  // Mark original as annullata
-  const { error: updateErr } = await supabase
-    .from("documenti_fiscali" as never)
-    .update({
-      stato: "annullata",
-      note_interne: "Convertito in fattura: la trovi tra le bozze, prende il numero quando la emetti",
-      updated_at: new Date().toISOString(),
-    } as never)
-    .eq("id", proformaId);
-
-  if (updateErr) {
-    console.error('[proforma] Errore aggiornamento stato proforma originale:', updateErr.message, updateErr.code);
-    throw new Error(`Impossibile aggiornare lo stato del documento originale: ${updateErr.message}`);
-  }
+  await segnaConvertito(proformaId, doc.note_interne as string | null);
 
   return newDoc as unknown as DocumentoFiscale;
 }

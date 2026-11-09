@@ -16,6 +16,7 @@
  *   }
  */
 
+import { puoCaricareFatturaRicevuta } from "../_shared/permessoDocumentoFiscale.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
@@ -202,6 +203,10 @@ serve(async (req: Request) => {
 
     // Auto-create record se richiesto (una fattura già registrata non si inserisce di nuovo)
     let createdId: string | null = autoCreate && giaRegistrata ? giaRegistrata.id : null;
+    const tokenUtente = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
+    if (autoCreate && !giaRegistrata && !(await puoCaricareFatturaRicevuta(tokenUtente, companyId, req.headers.get("x-azienda-scheda")))) {
+      return errorResponse("Per caricare una fattura ricevuta serve il permesso su fatture, costi o commesse.", 403, corsHeaders);
+    }
     if (autoCreate && !giaRegistrata) {
       const { data: ins, error: insErr } = await supabaseAdmin
         .from("fatture_ricevute")

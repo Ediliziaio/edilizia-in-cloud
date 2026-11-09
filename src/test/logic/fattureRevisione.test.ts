@@ -75,9 +75,9 @@ describe("email della fattura", () => {
 
 describe("permessi", () => {
   it("invio, spedizione e PDF controllano il permesso con il token di chi chiama", () => {
-    expect(sorgente("supabase/functions/invia-sdi/index.ts")).toContain("puoGestireDocumento(token, doc.company_id, doc.tipo)");
-    expect(sorgente("supabase/functions/send-documento-email/index.ts")).toContain("puoGestireDocumento(token, doc.company_id, doc.tipo)");
-    expect(sorgente("supabase/functions/generate-native-pdf/index.ts")).toContain("puoLeggereDocumento(token, documento_id)");
+    expect(sorgente("supabase/functions/invia-sdi/index.ts")).toContain("puoGestireDocumento(token, doc.company_id, doc.tipo,");
+    expect(sorgente("supabase/functions/send-documento-email/index.ts")).toContain("puoGestireDocumento(token, doc.company_id, doc.tipo,");
+    expect(sorgente("supabase/functions/generate-native-pdf/index.ts")).toContain("puoLeggereDocumento(token, documento_id,");
   });
   it("fatture ricevute: dati fiscali solo con Fatturazione", () => {
     expect(migrazione).toContain("create trigger fatture_ricevute_solo_fatturazione");

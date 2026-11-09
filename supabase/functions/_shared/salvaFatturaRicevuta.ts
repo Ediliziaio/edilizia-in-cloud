@@ -269,5 +269,13 @@ export async function salvaFattureDelFile(
     if (r.errore) altreErrori.push(`fattura ${i + 1} di ${nelFile}: ${r.errore}`);
     else if (!r.doppione) altre++;
   }
+  // Corpi falliti: la prima tiene l'id openapi e il file risulterebbe già noto. Con questa
+  // nota («Dati incompleti») il file si riprova, e la prima si riconosce come doppione.
+  if (esito.id && altreErrori.length > 0) {
+    await supabase.from("fatture_ricevute")
+      .update({ note: `Dati incompleti (lotto): ${altreErrori.join("; ")}`.slice(0, 500) }).eq("id", esito.id);
+  } else if (esito.id && esito.doppione) {
+    await supabase.from("fatture_ricevute").update({ note: null }).eq("id", esito.id).like("note", "Dati incompleti (lotto):%");
+  }
   return { ...esito, altre, altreErrori };
 }

@@ -15,6 +15,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { LettoreXmlMinimo } from "../_shared/xmlMinimo.ts";
 import { corsHeaders } from "../_shared/headers.ts";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
+import { puoCaricareFatturaRicevuta } from "../_shared/permessoDocumentoFiscale.ts";
 import type { LettoreXml } from "../_shared/fatturapaReader.ts";
 import { leggiFatturaRicevuta } from "../_shared/fatturaRicevutaXml.ts";
 import { avvisaFatturaRicevuta, salvaFattureDelFile } from "../_shared/salvaFatturaRicevuta.ts";
@@ -180,6 +181,9 @@ Deno.serve(async (req) => {
           status: 403,
           headers: corsHeaders,
         });
+      }
+      if (!(await puoCaricareFatturaRicevuta(token, company_id, req.headers.get("x-azienda-scheda")))) {
+        return new Response(JSON.stringify({ error: "Per caricare una fattura ricevuta serve il permesso su fatture, costi o commesse." }), { status: 403, headers: corsHeaders });
       }
 
       // Il file firmato: si apre la busta qui, e si conserva così com'è.

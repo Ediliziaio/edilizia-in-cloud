@@ -65,8 +65,12 @@ function RegistroContent() {
   const sales = useQuery({
     queryKey: ["fiscal-sales", company, p.dal, p.al],
     enabled: !!company,
-    queryFn: async ({ signal }) =>
-      (await readAllPages((from, to) =>
+    queryFn: async ({ signal }) => {
+      // Una fattura scartata dallo SDI per l'Agenzia non esiste: fuori dal registro.
+      const { data: scartate } = await supabase.from("documenti_fiscali" as never)
+        .select("id").eq("company_id", company!).eq("sdi_stato", "NS").abortSignal(signal);
+      const fuori = new Set(((scartate ?? []) as unknown as { id: string }[]).map((d) => d.id));
+      const righe = (await readAllPages((from, to) =>
         supabase
           .from("fatture_vendite_iva" as never)
           .select(
@@ -82,7 +86,9 @@ function RegistroContent() {
           .order("id")
           .range(from, to)
           .abortSignal(signal),
-      )) as unknown as FiscalDocument[],
+      )) as unknown as FiscalDocument[];
+      return righe.filter((d) => !fuori.has((d as unknown as { id: string }).id));
+    },
   });
   const purchases = useQuery({
     queryKey: ["fiscal-purchases", company, p.dal, p.al],
@@ -133,6 +139,9 @@ function RegistroContent() {
     pages = Math.max(1, Math.ceil(filtered.length / 50)),
     current = Math.min(page, pages - 1);
   const iva = useLiquidazioneIVA();
+  // Prima dei return qui sotto: un hook dopo un return anticipato manda in errore la pagina.
+  const [stampa, setStampa] = useState<string | null>(null);
+  const anagrafica = useAnagraficaAzienda();
   if (!company)
     return <p>Seleziona un’azienda per consultare i dati fiscali.</p>;
   if (
@@ -154,8 +163,6 @@ function RegistroContent() {
   // Stampa ed Excel del registro (09/11/2026): prima si poteva solo esportare
   // un CSV senza intestazione, e chi porta il trimestre al commercialista si
   // trovava numeri senza di chi sono né di che periodo.
-  const [stampa, setStampa] = useState<string | null>(null);
-  const anagrafica = useAnagraficaAzienda();
   const intestazione = {
     ragione_sociale: anagrafica.data?.ragione_sociale ?? "",
     partita_iva: anagrafica.data?.partita_iva ?? null,

@@ -48,7 +48,9 @@ const inEuro = (centesimi: number | null): number =>
   centesimi === null ? 0 : Math.round(centesimi) / 100;
 
 /** Somma imponibile e imposta, e conta i documenti distinti (non le righe). */
-export function totaliIva(righe: readonly RigaIva[]): TotaliIva {
+export function totaliIva(tutte: readonly RigaIva[]): TotaliIva {
+  // Come la pagina: le proiezioni (reverse charge presunto) non sono documenti.
+  const righe = tutte.filter((r) => !r.synthetic);
   let imponibile = 0;
   let imposta = 0;
   for (const r of righe) {
@@ -67,7 +69,8 @@ export function totaliIva(righe: readonly RigaIva[]): TotaliIva {
  * prima. Dove l'aliquota manca comanda la natura: un'operazione esente non è
  * «0%», è N4, e tenerle insieme nasconderebbe il motivo.
  */
-export function perAliquota(righe: readonly RigaIva[]): GruppoAliquota[] {
+export function perAliquota(tutte: readonly RigaIva[]): GruppoAliquota[] {
+  const righe = tutte.filter((r) => !r.synthetic);
   const mappa = new Map<string, GruppoAliquota>();
   for (const r of righe) {
     const chiave = r.rate ? `${r.rate}%` : r.nature || "Senza aliquota";

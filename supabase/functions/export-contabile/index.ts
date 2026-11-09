@@ -43,7 +43,7 @@ function buildCsv(docs: any[]): string {
       d.tipo || "",
       d.numero || "",
       fmtDate(d.data_emissione),
-      snap.denominazione || `${snap.nome || ""} ${snap.cognome || ""}`.trim() || "",
+      snap.ragione_sociale || snap.denominazione || `${snap.nome || ""} ${snap.cognome || ""}`.trim() || "",
       snap.partita_iva || snap.codice_fiscale || "",
       fmtNum(d.imponibile_totale),
       fmtNum(d.iva_totale),
@@ -54,6 +54,38 @@ function buildCsv(docs: any[]): string {
     ].map(escCsv).join(",");
   });
   return [headers.join(","), ...rows].join("\n");
+}
+
+const TIPI_INTEGRAZIONE = ["autofattura", "reverse_charge_interno", "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue"];
+
+/** Tutte le righe, non le prime mille (il limite di PostgREST). */
+// deno-lint-ignore no-explicit-any
+async function tutteLeRighe(pagina: (da: number, a: number) => any): Promise<{ righe: any[]; errore: unknown }> {
+  const righe: unknown[] = [];
+  for (let da = 0; ; da += 1000) {
+    const { data, error } = await pagina(da, da + 999);
+    if (error) return { righe: [], errore: error };
+    righe.push(...(data ?? []));
+    if ((data ?? []).length < 1000) return { righe, errore: null };
+  }
+}
+
+// Le fatture dal gestionale esterno, negli stessi campi di quelle native.
+// deno-lint-ignore no-explicit-any
+function importataComeDocumento(i: any) {
+  const credito = ["credit_note", "TD04", "TD08"].includes(i.document_type);
+  return {
+    tipo: credito ? "nota_credito" : i.external_document_type === "TD05" || i.document_type === "debit_note" ? "nota_debito" : "fattura",
+    numero: i.invoice_number,
+    data_emissione: i.issue_date,
+    cliente_snapshot: { ragione_sociale: i.client_company_name, partita_iva: i.client_vat_number, codice_fiscale: i.client_fiscal_code },
+    imponibile_totale: i.subtotal ?? 0,
+    iva_totale: i.tax_amount ?? 0,
+    totale_da_pagare: i.total ?? 0,
+    stato: i.status,
+    importo_pagato: i.paid_amount ?? 0,
+    note_documento: i.notes,
+  };
 }
 
 function buildPrimaNota(docs: any[]): string {
@@ -70,15 +102,21 @@ function buildPrimaNota(docs: any[]): string {
   const rows: string[] = [];
   for (const d of docs) {
     const snap = d.cliente_snapshot || {};
-    const controparte = snap.denominazione || `${snap.nome || ""} ${snap.cognome || ""}`.trim() || "";
+    const controparte = snap.ragione_sociale || snap.denominazione || `${snap.nome || ""} ${snap.cognome || ""}`.trim() || "";
     const isNotaCredito = d.tipo?.includes("nota_credito");
+    // Autofatture e integrazioni: non sono ricavi né crediti, solo IVA a debito e a credito.
+    if (TIPI_INTEGRAZIONE.includes(d.tipo)) {
+      rows.push([fmtDate(d.data_emissione), d.tipo, d.numero || "", "IVA a credito (integrazione)", fmtNum(d.iva_totale), "", "IVA a credito", controparte].map(escCsv).join(","));
+      rows.push([fmtDate(d.data_emissione), d.tipo, d.numero || "", "IVA a debito (integrazione)", "", fmtNum(d.iva_totale), "IVA a debito", controparte].map(escCsv).join(","));
+      continue;
+    }
     // Riga ricavi
     rows.push([
       fmtDate(d.data_emissione),
       d.tipo || "",
       d.numero || "",
       `Emissione ${d.tipo?.replace("_", " ")}`,
-      isNotaCredito ? fmtNum(d.totale_da_pagare) : "",
+      isNotaCredito ? fmtNum(d.imponibile_totale) : "",
       isNotaCredito ? "" : fmtNum(d.imponibile_totale),
       "Ricavi vendite",
       controparte,
@@ -90,8 +128,8 @@ function buildPrimaNota(docs: any[]): string {
         d.tipo || "",
         d.numero || "",
         "IVA a debito",
-        "",
-        fmtNum(d.iva_totale),
+        isNotaCredito ? fmtNum(d.iva_totale) : "",
+        isNotaCredito ? "" : fmtNum(d.iva_totale),
         "IVA a debito",
         controparte,
       ].map(escCsv).join(","));
@@ -123,7 +161,7 @@ function buildXml(docs: any[], azienda: any): string {
     <Numero>${escXml(d.numero)}</Numero>
     <Data>${d.data_emissione?.split("T")[0] || ""}</Data>
     <Cliente>
-      <Denominazione>${escXml(snap.denominazione || `${snap.nome || ""} ${snap.cognome || ""}`)}</Denominazione>
+      <Denominazione>${escXml(snap.ragione_sociale || snap.denominazione || `${snap.nome || ""} ${snap.cognome || ""}`)}</Denominazione>
       <PIVA>${escXml(snap.partita_iva || snap.codice_fiscale || "")}</PIVA>
     </Cliente>
     <Totale_Imponibile>${fmtNum(d.imponibile_totale)}</Totale_Imponibile>
@@ -211,25 +249,41 @@ Deno.serve(async (req) => {
     }
 
     // Fetch documenti fiscali
-    const { data: docs, error: docsErr } = await supabase
+    const { righe: native, errore: docsErr } = await tutteLeRighe((da, a) => supabase
       .from("documenti_fiscali")
       .select("tipo, numero, data_emissione, cliente_snapshot, imponibile_totale, iva_totale, totale_da_pagare, stato, importo_pagato, note_documento")
       .eq("company_id", company_id)
       .is("deleted_at", null)
       .not("stato", "in", "(bozza,annullata)")
+      .or("sdi_stato.is.null,sdi_stato.neq.NS")
       .gte("data_emissione", date_from)
       .lte("data_emissione", date_to)
-      .in("tipo", ["fattura", "fattura_pa", "nota_credito", "nota_debito", "parcella"])
-      .order("data_emissione", { ascending: true });
+      .in("tipo", ["fattura", "fattura_pa", "nota_credito", "nota_debito", "parcella", "fattura_riepilogativa", ...TIPI_INTEGRAZIONE])
+      .order("data_emissione", { ascending: true })
+      .order("id", { ascending: true })
+      .range(da, a));
+    const { righe: importate, errore: importateErr } = await tutteLeRighe((da, a) => supabase
+      .from("invoices")
+      .select("invoice_number, issue_date, client_company_name, client_vat_number, client_fiscal_code, subtotal, tax_amount, total, status, paid_amount, notes, document_type, external_document_type")
+      .eq("company_id", company_id)
+      .is("deleted_at", null)
+      .not("external_provider", "is", null)
+      .not("status", "in", "(draft,cancelled,canceled,void,deleted)")
+      .gte("issue_date", date_from)
+      .lte("issue_date", date_to)
+      .order("issue_date", { ascending: true })
+      .order("id", { ascending: true })
+      .range(da, a));
 
-    if (docsErr) {
+    if (docsErr || importateErr) {
       return new Response(JSON.stringify({ error: "Errore nel caricamento dei documenti" }), {
         status: 500,
         headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
-    const safeDocs = docs || [];
+    const safeDocs = [...native, ...importate.map(importataComeDocumento)]
+      .sort((x, y) => String(x.data_emissione).localeCompare(String(y.data_emissione)));
     let content = "";
     let filename = "";
 
