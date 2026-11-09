@@ -68,7 +68,7 @@ describe("hub da telefono: cosa si vede", () => {
     apri();
     expect(screen.queryAllByRole("heading", { level: 3 })).toHaveLength(0);
     const gruppi = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
-    expect(gruppi).toEqual(expect.arrayContaining(["Il mio account", "La mia azienda", "Account corrente"]));
+    expect(gruppi).toEqual(expect.arrayContaining(["Il mio account", "Azienda", "Account corrente"]));
   });
 
   it("Piano abbonamento apre Crediti anche da telefono, senza una seconda voce", () => {
@@ -86,7 +86,7 @@ describe("hub da telefono: la ricerca", () => {
     expect(link).toHaveAttribute("href", "/azienda/impostazioni/mio-profilo?tab=sicurezza");
     expect(screen.getByRole("heading", { level: 2, name: "Risultati" })).toBeInTheDocument();
     // la griglia dei gruppi lascia il posto ai risultati
-    expect(screen.queryByText("La mia azienda")).toBeNull();
+    expect(screen.queryByText("Azienda")).toBeNull();
   });
 
   it("«logo» trova il logo del Profilo aziendale; Marchio e colori, nascosto da telefono, no", () => {
@@ -125,6 +125,6 @@ describe("hub da telefono: la ricerca", () => {
     apri();
     cerca("logo");
     cerca("");
-    expect(screen.getByText("La mia azienda")).toBeInTheDocument();
+    expect(screen.getByText("Azienda")).toBeInTheDocument();
   });
 });

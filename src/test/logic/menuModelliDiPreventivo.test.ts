@@ -12,15 +12,17 @@ const COMPLETO: StatoPiano = { tuttoVisibile: true, pianoLimitato: false, modulo
 const SENZA_PREVENTIVI: StatoPiano = { tuttoVisibile: false, pianoLimitato: false, moduloIncluso: () => false, livelloFunzione: () => "disabled" };
 
 function voci(permessi: Record<string, boolean>, { isAdmin = false, piano = COMPLETO } = {}) {
-  const gruppo = buildSettingsGroups(isAdmin, permessi as unknown as Permissions, piano, false).find((g) => g.label === "Preventivi & Listino");
+  const gruppo = buildSettingsGroups(isAdmin, permessi as unknown as Permissions, piano, false).find((g) => g.label === "Vendite e documenti");
   expect(gruppo).toBeDefined();
   return gruppo!.items;
 }
 
-describe("menu «Preventivi & Listino»", () => {
-  it("quattro voci, nell'ordine: Listino, Finanziamenti, Modelli preventivi e contratti, Contratti condizioni e firma", () => {
+describe("menu «Vendite e documenti»", () => {
+  it("i preventivi restano nel gruppo vendite con tutte le altre voci, una volta sola e nell’ordine", () => {
     expect(voci({}, { isAdmin: true }).filter((v) => v.visible).map((v) => v.label)).toEqual([
-      "Listino", "Finanziamenti", "Modelli preventivi e contratti", "Contratti, condizioni e firma",
+      "Pipeline di vendita", "Motivi di perdita", "Listino", "Modelli preventivi e contratti",
+      "Modelli PDF", "Contratti, condizioni e firma", "Modelli di pagamento", "Modelli di sopralluogo",
+      "Finanziamenti", "Fornitori", "Catalogo render", "Tag",
     ]);
   });
 

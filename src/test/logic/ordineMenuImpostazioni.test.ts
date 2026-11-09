@@ -1,20 +1,22 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { buildSettingsGroups } from "@/lib/impostazioni/navigazioneImpostazioni";
+import type { Permissions } from "@/hooks/usePermissions";
+import type { StatoPiano } from "@/lib/impostazioni/pianoImpostazioni";
+
+const piano: StatoPiano = { tuttoVisibile: true, pianoLimitato: false, moduloIncluso: () => true, livelloFunzione: () => "enabled" };
+const permissions = { isAdmin: true, isLoading: false } as Permissions;
 
 describe("Ordine delle sezioni nelle impostazioni", () => {
+  it.each([false, true])("Azienda è seguita da Persone e sicurezza (mobile: %s)", (mobile) => {
+    const gruppi = buildSettingsGroups(true, permissions, piano, mobile);
+    expect(gruppi.slice(0, 3).map((g) => g.label)).toEqual(["Il mio account", "Azienda", "Persone e sicurezza"]);
+    expect(gruppi.flatMap((g) => g.items).filter((v) => v.to === "/azienda/impostazioni/persone")).toHaveLength(1);
+  });
   it.each([
     "src/components/layouts/CompanyLayout.tsx",
     "src/pages/azienda/settings/SettingsMobileHub.tsx",
-  ])("mette Persone & Accessi subito dopo La mia azienda in %s", (file) => {
-    const source = readFileSync(file, "utf8");
-    expect(source).toContain("buildSettingsGroups");
-    const menu = readFileSync("src/lib/impostazioni/navigazioneImpostazioni.tsx", "utf8");
-    const azienda = menu.indexOf('label: "La mia azienda"');
-    const dopoAzienda = menu.slice(azienda + 'label: "La mia azienda"'.length);
-    const nextGroup = dopoAzienda.match(/\n {4}label: "([^"]+)"|\n {6}label: "([^"]+)"/);
-
-    expect(azienda).toBeGreaterThan(-1);
-    expect(nextGroup?.[1] ?? nextGroup?.[2]).toBe("Persone & Accessi");
-    expect(menu.match(/to: "\/azienda\/impostazioni\/persone"/g)).toHaveLength(1);
+  ])("%s usa la stessa classificazione delle voci", (file) => {
+    expect(readFileSync(file, "utf8")).toContain("buildSettingsGroups");
   });
 });
