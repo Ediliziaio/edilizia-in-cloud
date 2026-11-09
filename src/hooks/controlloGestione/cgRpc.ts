@@ -37,6 +37,8 @@ export const CG_RPC_NAMES = [
   "cg_get_rating_safe",
   "cg_get_riconciliazione_safe",
   "cg_get_sp_safe",
+  "cg_lavori_in_corso",
+  "cg_registra_rimanenza_lavori",
   "cg_ricavi_provenienza",
   "cg_simula_piano_safe",
   "cg_simulazione_what_if",

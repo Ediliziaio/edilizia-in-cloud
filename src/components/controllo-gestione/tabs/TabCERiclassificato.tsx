@@ -15,6 +15,7 @@ import {
   AvvisoRicaviCommesse,
   serveAvvisoRicavi,
 } from "@/components/controllo-gestione/ui/AvvisoRicaviCommesse";
+import { LavoriInCorsoCard } from "@/components/controllo-gestione/ui/LavoriInCorsoCard";
 import { CETable } from "@/components/controllo-gestione/ui/CETable";
 import { BEPChart } from "@/components/controllo-gestione/ui/BEPChart";
 import { KPIBox } from "@/components/controllo-gestione/ui/KPIBox";
@@ -379,6 +380,9 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
           actions={ceActions}
         />
         <InsightsPanel insights={insights} title="Cosa devi guardare per primo" />
+        {/* Sta qui, subito sotto la sintesi: la voce 02 del conto economico non
+            si capisce senza il lavoro in corso che c'è dietro. */}
+        <LavoriInCorsoCard anno={anno} />
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <Card className="rounded-2xl lg:col-span-2">
             <CardHeader className="pb-3">
