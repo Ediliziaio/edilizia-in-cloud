@@ -505,7 +505,7 @@ export default function RegistroIncassi({
             value="scadenzario"
             className="tap-compact max-sm:text-xs"
           >
-            Scadenzario
+            Fatture da incassare
           </TabsTrigger>
         </TabsList>
 
