@@ -92,7 +92,7 @@ mancanti. Non può correggere un rapportino in modo normale.
 | Approvato | Ufficio con permesso, con **Correggi** | In un colpo solo: toglie ore, costi, fasi e righe vecchie, rimette le nuove |
 | Riga già in un SAL inviato, o giornale firmato | Nessuno | Bloccato col motivo: prima si riapre il SAL, sul giornale si annota |
 
-Ogni correzione lascia un registro: prima, dopo, chi, quando.
+Ogni correzione lascia un registro visibile nel rapportino: prima, dopo, chi, quando.
 
 ### 2. Chi vede cosa
 
@@ -104,7 +104,7 @@ Non si decide pagina per pagina, ma per **livello di informazione**:
 | Ore della squadra, fasi | No | Sì | Sì | Sì | Sì |
 | Quantità materiali, mezzi | No, o solo i suoi | Sì | Sì | Sì | Sì |
 | Costo orario e costi | No | No | No | Sì | Sì |
-| Vendita, ricavo, margine | No | No | No | Sì (D2) | Sì |
+| Vendita, ricavo, margine | No | No | No | Sì | Sì |
 
 I livelli costi e vendita si applicano nel database, come nel blocco costi dell'08/11, non solo a schermo.
 
@@ -127,13 +127,17 @@ solo, così non si conta mai due volte.
 |---|---|---|---|
 | A. Previsto in commessa | 30 sacchi previsti, oggi 20 | Sceglie dalla lista: restano 10; avviso se si supera 30 | Ordine o magazzino già registrati |
 | B. Non previsto, dal magazzino | 5 sacchi presi in sede | Lo aggiunge, indica la lavorazione | Scarico di magazzino all'approvazione |
-| C. Non previsto, comprato o portato in cantiere | 10 sacchi dal rivenditore | Lo aggiunge, indica la lavorazione e il fornitore se lo sa | **DDT di entrata**, poi fattura |
+| C. Non previsto, comprato o portato in cantiere | 10 sacchi dal rivenditore | Lo aggiunge, indica la lavorazione e il fornitore se lo sa | **Ordine se c'è, altrimenti bolla e poi fattura del fornitore** |
 | D. Consumo minuto | Viti, silicone | Scrive la voce | Voce libera, o nessun costo |
 
 **DDT di entrata (caso C).** L'ufficio trova «Materiali da regolarizzare» per cantiere: con un
 tocco raccoglie quelle righe in una bolla di entrata, sulla stessa struttura delle bolle che
 già esistono senza ordine (`ddt_ricezione`, `ddt_righe`). Arrivata la fattura, si abbina e il
 costo diventa definitivo. Fino ad allora è stimato e segnato come tale.
+
+Regola semplice, voluta da Florin: **si può ricevere una bolla senza ordine; il costo arriva
+dall'ordine, se c'è, oppure dalla fattura del fornitore.** Bolla senza ordine e collegamento
+bolla-fattura esistono già: i materiali del rapportino si agganciano lì, senza un percorso nuovo.
 
 Oggi dal cantiere si può già scrivere un materiale libero, ma non genera nulla; dall'ufficio
 solo articoli della commessa.
@@ -170,6 +174,9 @@ persone con nome, lavori, materiali, mezzi. Si aggiorna finché non è firmata. 
   attiva sui contratti di subappalto. Può accettare o contestare, con il motivo.
 - Accettato si fattura. Correzione di E13 ed E14.
 
+**Telefono, in ogni lotto** — Tutto ciò che si aggiunge si progetta prima per il telefono:
+rapportino veloce per il cantiere, correzione e approvazione in popup, testo e bottoni piccoli.
+
 **Lotto 6. Vulcano in produzione** — Con loro: fasi tipo sulle commesse aperte, tariffe di
 vendita per qualifica, contratti collegati, tipo a corpo o a misura sulle 60 mancanti.
 Prova su una commessa vera, per una settimana, confrontando con i loro conti.
@@ -179,7 +186,7 @@ Prova su una commessa vera, per una settimana, confrontando con i loro conti.
 | # | Domanda | Proposta |
 |---|---|---|
 | D1 | Lo straordinario costa di più? | Sì: maggiorazione impostabile, 0 di partenza |
-| D2 | Chi vede la vendita nel rapportino? | Chi vede i costi |
+| D2 | Chi vede la vendita nel rapportino? | Deciso: l'ufficio con il permesso, compresi vendita e margine |
 | D3 | Unità «giornata»: 2 ore cosa valgono? | Mezza giornata fino a 4 ore, impostabile sul contratto |
 | D4 | Chi indica la provenienza dei materiali fuori commessa (casi B e C)? | Il capocantiere la propone, l'ufficio conferma |
 | D5 | I mezzi entrano nei costi? | Sì, con un costo orario sul mezzo (oggi manca) |
