@@ -89,6 +89,43 @@ export function useCEriclassificato(anno: number, meseDa = 1, meseA = 12) {
   });
 }
 
+/**
+ * Da dove vengono i ricavi del periodo.
+ *
+ * I ricavi del Controllo di Gestione sono le fatture emesse, e solo quelle.
+ * Un'azienda che non fattura dentro EiC ha quindi un conto economico senza
+ * ricavi: senza una riga che lo dica, sembra un guasto. Questa RPC dice quante
+ * fatture ci sono nel periodo e, se sono zero, quanto vale il portafoglio
+ * commesse inserito nello stesso periodo — che è un'altra cosa e va chiamata
+ * col suo nome.
+ */
+export interface RicaviProvenienza {
+  anno: number;
+  mese_da: number;
+  mese_a: number;
+  fatture_righe: number;
+  fatture_imponibile: number;
+  commesse_righe: number;
+  commesse_valore: number;
+}
+
+export function useRicaviProvenienza(anno: number, meseDa = 1, meseA = 12) {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: ["cg", "ricavi-provenienza", anno, meseDa, meseA, companyId],
+    enabled: !!companyId,
+    queryFn: async (): Promise<RicaviProvenienza | null> => {
+      const { data, error } = await cgRpc<RicaviProvenienza>("cg_ricavi_provenienza", {
+        p_anno: anno, p_mese_da: meseDa, p_mese_a: meseA,
+      });
+      // Non è un dato che vale un errore in pagina: è una nota a margine.
+      if (error) return null;
+      return data ?? null;
+    },
+    staleTime: 5 * 60_000,
+  });
+}
+
 export function useBEP(anno: number) {
   const companyId = useEffectiveCompanyId();
   return useQuery({

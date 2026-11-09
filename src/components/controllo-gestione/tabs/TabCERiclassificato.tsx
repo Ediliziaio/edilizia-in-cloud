@@ -8,8 +8,13 @@ import {
   useBEP,
   useCEMensileDettaglio,
   useCEMultiAnno,
+  useRicaviProvenienza,
   type VoceCE,
 } from "@/hooks/controlloGestione/useCEriclassificato";
+import {
+  AvvisoRicaviCommesse,
+  serveAvvisoRicavi,
+} from "@/components/controllo-gestione/ui/AvvisoRicaviCommesse";
 import { CETable } from "@/components/controllo-gestione/ui/CETable";
 import { BEPChart } from "@/components/controllo-gestione/ui/BEPChart";
 import { KPIBox } from "@/components/controllo-gestione/ui/KPIBox";
@@ -127,6 +132,10 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
   // Stessa fonte della Dashboard («N commesse in perdita»): la qualità dati
   // diceva «nessuna anomalia» mentre sotto comparivano cantieri sotto zero.
   const commesse = useMarginalitaCommesse(anno);
+  // Serve a dire «non ci sono fatture» invece di mostrare ricavi a zero senza
+  // spiegazione — o, come prima del 09/11/2026, il valore delle commesse
+  // spacciato per ricavo.
+  const provenienza = useRicaviProvenienza(anno, meseDa, meseA);
   const { insights } = useControlloGestioneInsights(anno);
 
   const handleVistaChange = (value: string) => {
@@ -220,6 +229,20 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
     if (!ce.data) return <div className="space-y-4">{ViewSwitcher}</div>;
 
     if (allZero) {
+      // Tutto a zero perché non ci sono fatture, non perché manchi la prima
+      // nota: dirlo è l'unica risposta utile, mandarli in Prima Nota no.
+      if (serveAvvisoRicavi(provenienza.data)) {
+        return (
+          <div className="space-y-4">
+            {ViewSwitcher}
+            <AvvisoRicaviCommesse
+              provenienza={provenienza.data}
+              periodoLabel={periodoLabel}
+              anno={anno}
+            />
+          </div>
+        );
+      }
       return (
         <div className="space-y-4">
           {ViewSwitcher}
@@ -340,6 +363,11 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
           />
           </div>
         </div>
+        <AvvisoRicaviCommesse
+          provenienza={provenienza.data}
+          periodoLabel={periodoLabel}
+          anno={anno}
+        />
         <CEExecutiveSummary
           periodoLabel={periodoLabel}
           notaAnnoInCorso={annoInCorso}
