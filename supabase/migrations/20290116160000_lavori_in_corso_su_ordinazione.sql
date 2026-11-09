@@ -117,7 +117,7 @@ begin
   if v_company_id is null then
     raise exception 'company_id non risolvibile';
   end if;
-  if v_company_id <> public.get_my_company_id()
+  if v_company_id is distinct from public.get_my_company_id()
      and not public.has_role(auth.uid(), 'super_admin'::public.app_role) then
     raise exception 'Accesso negato: company_id non autorizzato';
   end if;
