@@ -1,4 +1,6 @@
+import { CollegamentiImpostazioni } from "@/components/impostazioni/CollegamentiImpostazioni";
 import { Suspense } from "react";
+import "@/styles/impostazioni.css";
 import { Outlet, useLocation, Link } from "react-router-dom";
 import { SettingsSearch } from "@/components/layouts/SettingsSearch";
 import { ArrowLeft } from "lucide-react";
@@ -51,7 +53,7 @@ export function SettingsLayout() {
   const haTestataPropria = pathname.startsWith("/azienda/impostazioni/utenti/");
 
   return (
-    <div className="flex flex-col min-h-full">
+    <div className="settings-workspace flex min-w-0 flex-col min-h-full">
       {/* Header contestuale — titolo + descrizione derivati dall'URL corrente.
           Mobile: senza riquadro e senza margini propri (<main> ha già p-3). */}
       <div className={cn("border-b bg-background px-4 py-4 md:px-6 md:py-5 max-sm:border-0 max-sm:bg-transparent max-sm:px-0 max-sm:pb-2 max-sm:pt-0", haTestataPropria && "max-sm:hidden")}>
@@ -70,7 +72,7 @@ export function SettingsLayout() {
           )}
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 flex-1 min-w-0">
             <div className="min-w-0">
-              <h1 className="text-xl font-semibold tracking-tight truncate max-sm:text-lg">{title}</h1>
+              <h1 className="text-xl font-semibold tracking-tight break-words max-sm:text-lg">{title}</h1>
               {/* Descrizione nascosta su mobile: su 375px occupava fino a 3 righe
                   prima del contenuto in ogni sotto-pagina impostazioni. */}
               <p className="mt-0.5 hidden text-sm text-muted-foreground sm:block">{description}</p>
@@ -109,10 +111,11 @@ export function SettingsLayout() {
       </div>
 
       {/* Contenuto della pagina figlia — larghezza piena */}
-      <div className="flex-1 px-4 py-4 md:px-6 md:py-6 max-sm:px-0 max-sm:py-2">
+      <div className="settings-content min-w-0 flex-1 px-4 py-4 md:px-6 md:py-6 max-sm:px-0 max-sm:py-2">
         {nelPiano ? (
           <Suspense key={pathname} fallback={<p role="status" aria-busy="true">Caricamento della sezione…</p>}>
             <Outlet />
+            <CollegamentiImpostazioni sezione={sezione} />
           </Suspense>
         ) : (
           <NonNelPiano

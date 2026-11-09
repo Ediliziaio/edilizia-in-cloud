@@ -10,7 +10,7 @@
  * Multi-account supportato per utente. Se due utenti collegano la stessa
  * casella, ognuno vede e gestisce solo la propria connessione.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -111,6 +111,11 @@ const STATUS_BADGE: Record<string, { label: string; color: string; icon: typeof 
 
 export function EmailOAuthConnectionsCard() {
   const qc = useQueryClient();
+  const [adesso, setAdesso] = useState(Date.now);
+  useEffect(() => {
+    const intervallo = window.setInterval(() => setAdesso(Date.now()), 60_000);
+    return () => window.clearInterval(intervallo);
+  }, []);
   const { effectiveCompany, user, userRoles } = useAuth();
   const userId = user?.id ?? null;
   // La diagnostica della configurazione (chiavi, webhook, secrets) serve a chi
@@ -532,6 +537,10 @@ export function EmailOAuthConnectionsCard() {
           <div className="space-y-2">
             {connections.map((c) => {
               const provider = PROVIDER_LABEL[c.provider];
+              const ultimaSincronizzazione = c.last_synced_at ? new Date(c.last_synced_at).getTime() : NaN;
+              const ricezioneDaVerificare = c.status === "active" && (
+                !Number.isFinite(ultimaSincronizzazione) || adesso - ultimaSincronizzazione > Math.max(60, (c.poll_interval_minutes || 15) * 3) * 60_000
+              );
               const status = STATUS_BADGE[c.status];
               const StatusIcon = status.icon;
               const ProviderIcon = provider.Icon;
@@ -550,6 +559,7 @@ export function EmailOAuthConnectionsCard() {
                           <StatusIcon className="h-2.5 w-2.5" />
                           {status.label}
                         </Badge>
+                        {ricezioneDaVerificare && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-[10px] text-amber-800 dark:bg-amber-950 dark:text-amber-200">Ricezione da verificare</Badge>}
                         {(c.signature_html?.trim() || c.signature_text?.trim()) && (
                           <Badge variant="outline" className="text-[10px] gap-1 border-emerald-200 bg-emerald-50 text-emerald-700">
                             <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />

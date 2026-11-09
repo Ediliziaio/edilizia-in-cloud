@@ -70,7 +70,12 @@ export default function SettingsFatturazioneUnified() {
 
   return (
     <div className="space-y-6">
-      <ComeFatturi onScelta={(modo) => setTab(modo === "native" ? "nativa" : "esterna")} />
+      <details className="rounded-xl border bg-card" open={!isChosen || undefined}>
+        <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
+          {isLoading ? "Caricamento della modalità…" : isChosen ? `Fatturi ${isNative ? "con Edilizia in Cloud" : "con un altro programma"} · Cambia modalità` : "Scegli come fatturare"}
+        </summary>
+        <div className="border-t p-4"><ComeFatturi onScelta={(modo) => setTab(modo === "native" ? "nativa" : "esterna")} /></div>
+      </details>
 
       <Tabs value={activeTab} onValueChange={setTab} className="w-full">
         <TabsList className="grid h-auto w-full max-w-xl grid-cols-2">

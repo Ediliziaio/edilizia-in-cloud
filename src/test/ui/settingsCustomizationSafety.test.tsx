@@ -49,6 +49,7 @@ describe("Personalizzazione: accessi, errori e bozze", () => {
   });
   it("i campi sono in sola lettura mentre si caricano i permessi", async () => {
     state.loading = true; mount(<CustomFieldsConfig />);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Variabili di sistema" }), { button: 0, ctrlKey: false });
     // «ID Contatto» ora compare due volte nella prima pagina (Contatto e Opportunità: «Contact ID» è stato tradotto):
     // basta che il dizionario sia disegnato.
     expect((await screen.findAllByText("ID Contatto")).length).toBeGreaterThan(0);

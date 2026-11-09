@@ -806,7 +806,7 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
     "bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary";
 
   return (
-    <>
+    <div className="settings-sidebar">
       {/* Bottone Torna indietro */}
       <div className="px-3 pt-3">
         <Button
@@ -866,7 +866,7 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
           Nessun risultato per <strong>"{query}"</strong>
         </div>
       )}
-    </>
+    </div>
   );
 });
 

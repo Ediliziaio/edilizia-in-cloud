@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -7,7 +7,6 @@ import { useVaiASezione } from "@/hooks/useVaiASezione";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AmbitoImpostazione,
-  IndiceSezioni,
   SezioneImpostazione,
   type VoceIndice,
 } from "@/components/impostazioni/SezioneImpostazione";
@@ -38,6 +37,8 @@ export default function SettingsProfile() {
   const { effectiveCompany, refreshAuth } = useAuth();
   const permissions = usePermissions();
   const isMobile = useIsMobile();
+  const { hash } = useLocation();
+  const richiesta = hash.slice(1);
   const { evidenziata, vai } = useVaiASezione(true);
   // Il punto della barra in cui il modulo dei dati porta «Salva dati aziendali» e il suo stato.
   const [azioni, setAzioni] = useState<HTMLElement | null>(null);
@@ -54,6 +55,8 @@ export default function SettingsProfile() {
 
   // Da telefono restano i dati e il logo: voto, portale e bonus si impostano una volta, al computer.
   const voci = SEZIONI_UFFICIO.filter((voce) => canEdit || !["logo", "portale-clienti", "bonus"].includes(voce.id));
+  // Un vecchio link a una sezione riservata non deve nascondere tutti i dati a chi consulta.
+  const attiva = voci.some((voce) => voce.id === richiesta) ? richiesta : "dati-azienda";
 
   return (
     <div className="max-w-3xl space-y-4 max-sm:space-y-3">
@@ -69,10 +72,13 @@ export default function SettingsProfile() {
       <fieldset disabled={!canEdit} className="m-0 min-w-0 space-y-4 border-0 p-0 max-sm:space-y-3">
         {/* Indice e «Salva» restano in vista mentre si scorre: prima il pulsante stava in fondo a un modulo da sei sezioni. */}
         <div className="sticky top-2 z-20 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-card/95 px-3 py-2 shadow-sm backdrop-blur">
-          {!isMobile && <IndiceSezioni voci={voci} onVai={vai} />}
-          <div ref={setAzioni} className="ml-auto flex shrink-0 items-center gap-3" />
+          {!isMobile && <nav aria-label="Sezioni del profilo aziendale" className="flex flex-wrap items-center gap-1 rounded-lg bg-muted/60 p-1">
+            {voci.map((voce) => <a key={voce.id} href={`#${voce.id}`} aria-current={attiva === voce.id ? "page" : undefined} className={`inline-flex min-h-9 items-center self-center rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${attiva === voce.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:bg-muted"}`} onClick={(event) => { event.preventDefault(); vai(voce.id); }}>{voce.etichetta}</a>)}
+          </nav>}
+          <div ref={setAzioni} hidden={!isMobile && attiva !== "dati-azienda"} className="ml-auto flex shrink-0 items-center gap-3" />
         </div>
 
+        <div hidden={!isMobile && attiva !== "dati-azienda"}>
         <SezioneImpostazione
           id="dati-azienda"
           titolo="Dati dell'azienda"
@@ -89,14 +95,16 @@ export default function SettingsProfile() {
           <CompanyProfileForm canEdit={canEdit} azioniSlot={azioni} evidenziata={evidenziata} />
         </SezioneImpostazione>
 
+        </div>
         {canEdit && (
+          <div hidden={!isMobile && attiva !== "logo"}>
           <SezioneImpostazione
             id="logo"
             titolo="Logo"
             descrizione={
               <>
                 Il logo compare su preventivi, email e portale clienti. Colori e nome della piattaforma si cambiano in{" "}
-                <Link to="/azienda/impostazioni/branding" className="font-medium underline">White-Label</Link>.
+                <Link to="/azienda/impostazioni/branding" className="font-medium underline">Marchio e colori</Link>.
               </>
             }
             ambito={<AmbitoImpostazione>Tutta l'azienda</AmbitoImpostazione>}
@@ -107,11 +115,12 @@ export default function SettingsProfile() {
               <LogoUploader company={effectiveCompany} onLogoUpdated={refreshAuth} />
             </div>
           </SezioneImpostazione>
+          </div>
         )}
 
         {/* Il voto su Google, Trustpilot…: una volta qui, vale per tutti i preventivi.
             Mobile no, come portale clienti e bonus: si impostano una volta, al computer. */}
-        <div className="max-sm:hidden">
+        <div className="max-sm:hidden" hidden={attiva !== "recensioni"}>
           <SezioneImpostazione
             id="recensioni"
             titolo="Recensioni online"
@@ -126,7 +135,7 @@ export default function SettingsProfile() {
         </div>
 
         {canEdit && (
-          <div className="max-sm:hidden">
+          <div className="max-sm:hidden" hidden={attiva !== "portale-clienti"}>
             <SezioneImpostazione
               id="portale-clienti"
               titolo="Portale clienti"
@@ -142,7 +151,7 @@ export default function SettingsProfile() {
         )}
 
         {canEdit && (
-          <div className="max-sm:hidden">
+          <div className="max-sm:hidden" hidden={attiva !== "bonus"}>
             <SezioneImpostazione
               id="bonus"
               titolo="Bonus edilizi e blocca prezzo"

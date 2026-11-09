@@ -18,12 +18,11 @@ const voci = (p: Permissions, mobile = false) => buildSettingsGroups(p.isAdmin, 
 afterEach(() => vi.resetModules());
 
 describe("un solo ingresso per Piano e Crediti", () => {
-  it("in «La mia azienda» resta solo Piano abbonamento", () => {
-    const gruppo = voci(permessi({ isAdmin: true })).find((g) => g.label === "La mia azienda")!;
-    expect(gruppo.items.filter((i) => i.visible).map((i) => i.label)).toEqual([
-      "Profilo aziendale", "Sedi", "Documenti e scadenze", "Marchio e colori", "Piano abbonamento",
-    ]);
-    expect(gruppo.items.find((i) => i.label === "Piano abbonamento")!.to).toBe(url("abbonamento"));
+  it("Piano e Crediti hanno un solo ingresso in Amministrazione", () => {
+    const gruppo = voci(permessi({ isAdmin: true })).find((g) => g.label === "Amministrazione")!;
+    const piano = gruppo.items.filter((i) => i.label === "Piano abbonamento");
+    expect(piano).toHaveLength(1);
+    expect(piano[0].to).toBe(url("abbonamento"));
     expect(gruppo.items.some(i => i.to === url("crediti"))).toBe(false);
   });
 
@@ -56,7 +55,7 @@ describe("un solo ingresso per Piano e Crediti", () => {
   });
 
   it("la voce nuova non cambia l'ordine dei gruppi", () => {
-    expect(voci(permessi({ isAdmin: true })).map((g) => g.label).slice(0, 3)).toEqual(["Il mio account", "La mia azienda", "Persone & Accessi"]);
+    expect(voci(permessi({ isAdmin: true })).map((g) => g.label).slice(0, 3)).toEqual(["Il mio account", "Azienda", "Persone e sicurezza"]);
   });
   it("Fatturazione apre direttamente Crediti ma non Piano o Pagamenti", () => {
     const p = permessi({ canViewBilling: true });
@@ -120,7 +119,7 @@ describe("le schede dentro una pagina hanno i permessi loro", () => {
 
 describe("la voce con le schede dice tutti gli indirizzi che può aprire", () => {
   it("Listino, Modelli preventivi e contratti e Firma e condizioni portano l'elenco delle loro schede", () => {
-    const gruppo = voci(permessi({ isAdmin: true })).find((g) => g.label === "Preventivi & Listino")!;
+    const gruppo = voci(permessi({ isAdmin: true })).find((g) => g.label === "Vendite e documenti")!;
     const modelli = gruppo.items.find((i) => i.label === "Modelli preventivi e contratti")!;
     expect(modelli.indirizzi).toEqual([url("template-preventivi"), url("margini"), url("scontistica"), url("approvazioni")]);
     expect(gruppo.items.find((i) => i.label === "Listino")!.indirizzi).toEqual([url("listino"), url("tariffe"), url("bundle")]);

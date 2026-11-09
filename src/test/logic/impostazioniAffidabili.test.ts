@@ -12,10 +12,16 @@ const url = (sezione: string) => `/azienda/impostazioni/${sezione}`;
 describe("Navigazione condivisa delle impostazioni", () => {
   it("mantiene l'ordine azienda → persone e nessuna voce duplicata", () => {
     const groups = buildSettingsGroups(true, permessi({ isAdmin: true }), piano, false);
-    expect(groups.map(g => g.label).slice(0, 3)).toEqual(["Il mio account", "La mia azienda", "Persone & Accessi"]);
+    expect(groups.map(g => g.label).slice(0, 3)).toEqual(["Il mio account", "Azienda", "Persone e sicurezza"]);
     const entries = groups.flatMap(g => g.items).filter(i => i.visible).map(i => i.to);
     expect(new Set(entries).size).toBe(entries.length);
+    expect(entries).toHaveLength(44);
     expect(entries).toContain(url("fornitori"));
+  });
+  it("una sola scheda concessa resta nel gruppo giusto, senza concedere le altre", () => {
+    const groups = buildSettingsGroups(false, permessi({ canViewSettingsBundle: true }), piano, false);
+    expect(groups.find(g => g.label === "Vendite e documenti")?.items.some(i => i.visible && i.to === url("bundle"))).toBe(true);
+    expect(impostazioneAccessibile(url("listino"), permessi({ canViewSettingsBundle: true }), piano, false)).toBe(false);
   });
   it("senza permessi lascia solo le preferenze personali", () => {
     const entries = buildSettingsGroups(false, permessi(), piano, false).flatMap(g => g.items).filter(i => i.visible).map(i => i.to);

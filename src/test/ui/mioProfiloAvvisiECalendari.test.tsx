@@ -201,10 +201,25 @@ describe("Il mio profilo: dati personali", () => {
     }
   });
 
-  it("il blocco delle regole dell'azienda sta nella scheda Sicurezza per gli amministratori", async () => {
+  it("le regole aziendali si raggiungono dalla Sicurezza, insieme alle protezioni personali", async () => {
     apri("/azienda/impostazioni/mio-profilo?tab=sicurezza");
-    expect(await screen.findByText("Blocco regole azienda")).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Apri le regole aziendali" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Cambia password" })).toBeInTheDocument();
     expect(screen.getByText("Privacy e dati personali")).toBeInTheDocument();
+  });
+});
+
+
+describe("regole aziendali nei profili condivisi", () => {
+  it("nell'ufficio rimanda alla pagina aziendale delle regole", async () => {
+    apri("/azienda/impostazioni/mio-profilo?tab=sicurezza");
+    expect(await screen.findByRole("link", { name: "Apri le regole aziendali" })).toHaveAttribute("href", "/azienda/impostazioni/sicurezza-privacy?tab=regole#regole-azienda");
+    expect(screen.queryByText("Blocco regole azienda")).not.toBeInTheDocument();
+  });
+  it("nel profilo dell'amministrazione conserva il modulo, senza rimandare all'ufficio", async () => {
+    stato.ruolo = "super_admin";
+    apri("/admin/impostazioni/mio-profilo?tab=sicurezza");
+    expect(await screen.findByText("Blocco regole azienda")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Apri le regole aziendali" })).not.toBeInTheDocument();
   });
 });

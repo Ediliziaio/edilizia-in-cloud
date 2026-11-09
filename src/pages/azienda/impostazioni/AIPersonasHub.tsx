@@ -60,7 +60,7 @@ export default function AIPersonasHub() {
     return () => window.clearTimeout(t);
   }, []);
   const tabParam = searchParams.get("tab");
-  const activeTab: TabKey = isValidTab(tabParam) ? tabParam : "chat";
+  const activeTab: TabKey = isValidTab(tabParam) ? tabParam : "memoria";
 
   const handleTabChange = (next: string) => {
     const sp = new URLSearchParams(searchParams);
@@ -71,7 +71,7 @@ export default function AIPersonasHub() {
   return (
     <div className="space-y-4">
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid grid-cols-4 max-w-2xl">
+        <TabsList className="flex h-auto max-w-full flex-wrap">
           <TabsTrigger value="chat" className="gap-2">
             <MessageSquare className="h-4 w-4" />
             Chat
@@ -82,11 +82,11 @@ export default function AIPersonasHub() {
           </TabsTrigger>
           <TabsTrigger value="cervello" className="gap-2">
             <Network className="h-4 w-4" />
-            Cervello
+            Mappa della memoria
           </TabsTrigger>
           <TabsTrigger value="sessioni" className="gap-2">
             <History className="h-4 w-4" />
-            Sessioni
+            Conversazioni precedenti
           </TabsTrigger>
         </TabsList>
 

@@ -107,7 +107,7 @@ describe("palette ⌘K: le impostazioni", () => {
     await cerca("commercialista");
     await waitFor(() => expect(impostazioni().length).toBeGreaterThan(1));
     const righe = impostazioni();
-    expect(righe[0]).toContain("Persone & Accessi");
+    expect(righe[0]).toContain("Persone e sicurezza");
     expect(new Set(righe).size).toBe(righe.length);
   });
 

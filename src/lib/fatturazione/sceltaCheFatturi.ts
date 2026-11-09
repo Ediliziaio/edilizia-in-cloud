@@ -7,6 +7,8 @@ export const ID_SCELTA_ESTERNA = "come-fatturi-esterna";
 /** «Scegli Con Edilizia in Cloud»: scorre fino alla scelta e le dà il focus. */
 export function vaiAllaScelta(id: string = ID_SCELTA_NATIVA): void {
   const el = document.getElementById(id);
+  const dettagli = el?.closest("details");
+  if (dettagli) dettagli.open = true;
   el?.scrollIntoView?.({ block: "center", behavior: "smooth" });
   el?.focus();
 }

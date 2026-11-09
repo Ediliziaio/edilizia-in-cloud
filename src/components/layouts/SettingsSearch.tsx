@@ -94,8 +94,8 @@ export function SettingsSearch({ hideTrigger = false }: SettingsSearchProps) {
     >
       <ArrowRight className="mr-2 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       <div className="min-w-0 flex-1">
-        <span className="block truncate">{entry.title}</span>
-        {entry.description && <span className="block truncate text-xs text-muted-foreground">{entry.description}</span>}
+        <span className="block whitespace-normal font-medium">{entry.title}</span>
+        {entry.description && <span className="block whitespace-normal text-xs text-muted-foreground">{entry.description}</span>}
       </div>
     </CommandItem>
   );
@@ -125,6 +125,9 @@ export function SettingsSearch({ hideTrigger = false }: SettingsSearchProps) {
           value={query}
           onValueChange={setQuery}
         />
+        {query.trim() && <p role="status" aria-live="polite" className="border-b px-4 py-2 text-xs text-muted-foreground">
+          {results.length === 1 ? "1 risultato" : `${results.length} risultati`} · Seleziona una voce per aprire la pagina o la sezione indicata
+        </p>}
         <CommandList>
           {results.length === 0 && (
             <CommandEmpty>

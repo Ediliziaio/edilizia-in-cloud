@@ -1020,8 +1020,8 @@ export default function SettingsQuoteTemplates() {
       )}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div className="flex items-start gap-3 min-w-0">
-          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-orange-500 to-eic-amber flex items-center justify-center shrink-0 shadow-sm" aria-hidden="true">
-            <FileText className="h-5 w-5 text-white" />
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0" aria-hidden="true">
+            <FileText className="h-5 w-5 text-primary" />
           </div>
           <div className="min-w-0">
             {/* Il titolo della pagina è nel layout (h1): qui il titolo di questa scheda è un h2. */}
@@ -1042,7 +1042,7 @@ export default function SettingsQuoteTemplates() {
             </Badge>
           )}
           {isAdmin && !editing && (
-            <Button onClick={() => setCreateDialogOpen(true)} size="sm" className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500">
+            <Button onClick={() => setCreateDialogOpen(true)} size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
               <Plus className="h-4 w-4 mr-1.5" />
               Nuovo modello
             </Button>
@@ -1141,7 +1141,7 @@ export default function SettingsQuoteTemplates() {
                   </p>
                 </div>
                 {isAdmin && (
-                  <Button onClick={() => activeKind === 'offerta' ? setCreateDialogOpen(true) : handleNew(activeKind)} className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500">
+                  <Button onClick={() => activeKind === 'offerta' ? setCreateDialogOpen(true) : handleNew(activeKind)} className="bg-primary text-primary-foreground hover:bg-primary/90">
                     <Plus className="mr-2 h-4 w-4" />{pulsanteVuoto(activeKind)}
                   </Button>
                 )}
@@ -1252,7 +1252,7 @@ export default function SettingsQuoteTemplates() {
                   onClick={() => handleSave(true)}
                   disabled={!puoModificare || upsertTemplate.isPending}
                   aria-describedby={!puoModificare ? ID_AVVISO_SOLA_LETTURA : undefined}
-                  className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 gap-1.5"
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5"
                 >
                   <Star className="h-3.5 w-3.5" aria-hidden="true" />
                   Salva e usa per i nuovi preventivi
@@ -2235,7 +2235,7 @@ export default function SettingsQuoteTemplates() {
                 }}
                 disabled={!puoModificare || upsertTemplate.isPending}
                 aria-describedby={!puoModificare ? ID_AVVISO_SOLA_LETTURA : undefined}
-                className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500"
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 {upsertTemplate.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4 mr-2" aria-hidden="true" />}
                 Salva e torna ai modelli

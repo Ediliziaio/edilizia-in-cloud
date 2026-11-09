@@ -243,7 +243,7 @@ export default function SettingsSecurityDashboard() {
           <p className="mt-1 text-xs text-muted-foreground">
             La tua password e la verifica in due passaggi sono in{" "}
             <Link to="/azienda/impostazioni/mio-profilo?tab=sicurezza" className="underline underline-offset-2">Il mio profilo → Sicurezza</Link>,
-            e nella stessa pagina, in fondo, le regole di sicurezza dell'azienda (blocco dopo password sbagliate, indirizzi consentiti).
+            le regole di sicurezza dell'azienda sono nella scheda Regole aziendali di questa pagina.
             Chi ha accessi a rischio lo vedi in{" "}
             <Link to="/azienda/impostazioni/persone?tab=sicurezza-accessi" className="underline underline-offset-2">Persone &amp; Accessi → Controllo accessi</Link>.
           </p>

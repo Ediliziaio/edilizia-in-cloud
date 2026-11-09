@@ -151,6 +151,12 @@ export default function SettingsPeople() {
 
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+      <p className="mb-4 text-sm text-muted-foreground">
+        {activeTab === "utenti" ? "Chi può entrare nel gestionale, con quali ruoli e permessi. La stessa persona può avere più ruoli."
+          : ["dipendenti", "subappaltatori", "venditori", "team"].includes(activeTab)
+            ? "Organizzazione delle persone e dei team. Gli accessi al gestionale si gestiscono nella scheda Utenti."
+            : "Deleghe e controlli degli accessi: ogni scheda mantiene i propri permessi."}
+      </p>
       {/* Su telefono la barra c'è solo se non si è bloccati sulla scheda «Utenti»:
           chi non vede gli utenti ma vede i dipendenti prima restava sulla prima
           scheda senza modo di cambiarla. */}

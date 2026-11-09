@@ -1397,7 +1397,7 @@ export function CustomFieldsConfig() {
   const [objectType, setObjectType] = useState<string>("contact");
   const [optionsInput, setOptionsInput] = useState("");
   const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState("all");
+  const [activeTab, setActiveTab] = useState("custom");
   const [groupBy, setGroupBy] = useState("all");
   const [pageSize, setPageSize] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
@@ -1487,7 +1487,9 @@ export function CustomFieldsConfig() {
   }, [customFields]);
 
   const filtered = useMemo(() => {
-    let result = allFields;
+    let result = activeTab === "system"
+      ? allFields.filter((field) => field.isSystem)
+      : allFields.filter((field) => !field.isSystem);
     if (groupBy !== "all") {
       result = result.filter((f) => fieldObjectType(f) === groupBy);
     }
@@ -1501,7 +1503,7 @@ export function CustomFieldsConfig() {
       );
     }
     return result;
-  }, [allFields, search, groupBy]);
+  }, [allFields, search, groupBy, activeTab]);
 
   // Campi su schede che non li mostrano: il valore si salva e si usa nei testi e nelle automazioni,
   // ma nessuna scheda lo compila. Sorgente di verità: RENDERED_OBJECT_TYPES.
@@ -1717,6 +1719,7 @@ export function CustomFieldsConfig() {
       .catch(() => toast.error("Non è stato possibile copiare la variabile"));
   };
 
+  const mostraCampi = activeTab === "custom" || activeTab === "system";
   const total = filtered.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(currentPage, totalPages);
@@ -1724,14 +1727,15 @@ export function CustomFieldsConfig() {
 
   return (
     <div className="min-w-0 space-y-0 max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:grid max-md:[&_tr]:grid-cols-2 max-md:[&_tr]:gap-x-2 max-md:[&_tr]:p-2 max-md:[&_td]:block max-md:[&_td]:min-w-0 max-md:[&_td]:break-words max-md:[&_td]:p-1">
-      {/* Due schede: i campi (i tuoi, poi le variabili di sistema) e i campi eliminati.
+      {/* Campi aziendali, variabili di sistema, eliminati e modelli restano separati.
           flex-wrap: a 375 px il pulsante «Aggiungi campo» andava in overflow. */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 mb-0">
         <Tabs value={activeTab} onValueChange={(tab) => { if (!busy) { setActiveTab(tab); setCurrentPage(1); } }} className="min-w-0 max-w-full">
           <TabsList className="bg-transparent h-auto p-0 gap-0 overflow-x-auto max-w-full">
-            <TabsTrigger value="all" className="rounded-none border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent px-3 sm:px-4 pb-2.5 pt-1 shrink-0 max-md:min-h-11">
-              Tutti i campi
+            <TabsTrigger value="custom" className="rounded-none border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent px-3 sm:px-4 pb-2.5 pt-1 shrink-0 max-md:min-h-11">
+              Campi dell’azienda
             </TabsTrigger>
+            <TabsTrigger value="system" className="px-3 sm:px-4">Variabili di sistema</TabsTrigger>
             <TabsTrigger value="deleted" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent px-3 sm:px-4 pb-2.5 pt-1 shrink-0 max-md:min-h-11">
               Campi eliminati
               {deletedFields.length > 0 && (
@@ -1745,7 +1749,7 @@ export function CustomFieldsConfig() {
         </Tabs>
 
         <div className="flex items-center gap-2 pb-1 shrink-0 w-full sm:w-auto">
-          {puoModificare && activeTab !== "models" && (
+          {puoModificare && activeTab === "custom" && (
             <Button size="sm" onClick={openCreateDialog} disabled={!companyId || isLoading || isError || busy} className="w-full sm:w-auto max-md:h-11">
               <Plus className="h-4 w-4 mr-1.5" /> Aggiungi campo
             </Button>
@@ -1763,14 +1767,14 @@ export function CustomFieldsConfig() {
         </div>
       )}
 
-      {/* ── Cosa c'è in questa tabella, la ricerca e il filtro per oggetto (solo su «Tutti i campi») ── */}
-      {activeTab === "all" && (
+      {activeTab === "custom" && <p className="pt-3 text-sm text-muted-foreground">I campi aggiunti dalla tua azienda. Le variabili già disponibili sono nella scheda «Variabili di sistema».</p>}
+      {/* ── Cosa c'è in questa tabella, la ricerca e il filtro per oggetto (solo nelle due schede dei campi) ── */}
+      {activeTab === "system" && (
         <p className="pt-3 text-sm text-muted-foreground">
-          In cima i campi che hai aggiunto tu; sotto, le variabili di sistema. Le variabili le scrivi dentro email, SMS e
-          messaggi: al loro posto compare il dato del contatto (per esempio <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">{"{{ contact.first_name }}"}</code> diventa «Mario»).
+          Le variabili di sistema si usano dentro email, SMS e messaggi: al loro posto compare il dato del contatto (per esempio <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">{"{{ contact.first_name }}"}</code> diventa «Mario»).
         </p>
       )}
-      {activeTab === "all" && (
+      {mostraCampi && (
       <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full sm:flex-1 sm:max-w-sm">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -1799,14 +1803,14 @@ export function CustomFieldsConfig() {
       )}
 
       {/* ── Nessun campo dell'azienda ancora ── */}
-      {activeTab === "all" && !isLoading && !isError && customFields.length === 0 && (
+      {activeTab === "custom" && !isLoading && !isError && customFields.length === 0 && (
         <p className="mb-3 rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
           Non hai ancora campi tuoi.{puoModificare ? " Aggiungine uno, per esempio «Tipo di caldaia» sul contatto." : ""}
         </p>
       )}
 
       {/* ── Campi su schede che non li mostrano ── */}
-      {activeTab === "all" && fuoriDalleSchedeCount > 0 && (
+      {activeTab === "custom" && fuoriDalleSchedeCount > 0 && (
         <div className="mb-3 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50/60 p-2.5 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>
@@ -1818,8 +1822,8 @@ export function CustomFieldsConfig() {
         </div>
       )}
 
-      {/* ── Tabella (solo «Tutti i campi») ── */}
-      {activeTab === "all" && (isError ? (
+      {/* ── Tabella (schede dei campi) ── */}
+      {mostraCampi && !(activeTab === "custom" && !isLoading && !isError && customFields.length === 0) && (isError ? (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Campi personalizzati non disponibili</AlertTitle>
@@ -1937,8 +1941,8 @@ export function CustomFieldsConfig() {
         </div>
       ))}
 
-      {/* ── Paginazione (solo «Tutti i campi») ── */}
-      {activeTab === "all" && !isLoading && !isError && (
+      {/* ── Paginazione (schede dei campi) ── */}
+      {mostraCampi && !isLoading && !isError && (
         <TablePagination
           currentPage={safePage}
           totalPages={totalPages}

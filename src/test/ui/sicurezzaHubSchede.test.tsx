@@ -8,9 +8,10 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
-const stato = vi.hoisted(() => ({ ruolo: "company_admin" as string, mobile: false, vedeSicurezza: false }));
+const stato = vi.hoisted(() => ({ ruolo: "company_admin" as string, mobile: false, vedeSicurezza: false, bozza: false }));
 
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ role: stato.ruolo }) }));
 vi.mock("@/hooks/usePermissions", () => ({
@@ -20,6 +21,8 @@ vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => stato.mobile }));
 vi.mock("@/pages/azienda/settings/SettingsPrivacy", () => ({ default: () => <p>Contenuto privacy</p> }));
 vi.mock("@/pages/azienda/settings/SettingsSecurityDashboard", () => ({ default: () => <p>Contenuto accessi</p> }));
 vi.mock("@/pages/azienda/settings/SettingsActivityLog", () => ({ default: () => <p>Contenuto registro</p> }));
+
+vi.mock("@/components/settings/CompanySecuritySettings", () => ({ CompanySecuritySettings: () => { useSettingsDraftGuard(stato.bozza); return <p>Contenuto regole aziendali</p>; } }));
 
 import SettingsSecurityHub from "@/pages/azienda/settings/SettingsSecurityHub";
 
@@ -37,6 +40,8 @@ afterEach(() => {
   stato.ruolo = "company_admin";
   stato.mobile = false;
   stato.vedeSicurezza = false;
+  stato.bozza = false;
+  vi.restoreAllMocks();
 });
 
 describe("Sicurezza & Privacy", () => {
@@ -44,7 +49,7 @@ describe("Sicurezza & Privacy", () => {
     apri();
     expect(screen.getByText("Contenuto accessi")).toBeVisible();
     const schede = screen.getAllByRole("tab").map((s) => s.textContent);
-    expect(schede).toEqual(["Accessi", "Registro attività", "Privacy"]);
+    expect(schede).toEqual(["Accessi", "Registro attività", "Regole aziendali", "Privacy"]);
     expect(screen.queryByRole("tab", { name: /Security dashboard|Privacy & GDPR/ })).toBeNull();
   });
 
@@ -63,6 +68,30 @@ describe("Sicurezza & Privacy", () => {
     apri("?tab=attivita");
     expect(screen.getAllByText("Contenuto privacy").length).toBeGreaterThan(0);
     expect(screen.queryByText("Contenuto registro")).toBeNull();
+  });
+
+  it("le regole aziendali sono disponibili solo all’amministratore da computer", () => {
+    apri("?tab=regole");
+    expect(screen.getByText("Contenuto regole aziendali")).toBeVisible();
+    cleanup();
+    stato.ruolo = "company_staff";
+    stato.vedeSicurezza = true;
+    apri("?tab=regole");
+    expect(screen.queryByText("Contenuto regole aziendali")).toBeNull();
+    expect(screen.getByText("Contenuto privacy")).toBeVisible();
+  });
+
+  it("cambiare scheda non abbandona una bozza delle regole senza conferma", () => {
+    stato.bozza = true;
+    const conferma = vi.spyOn(window, "confirm").mockReturnValue(false);
+    apri("?tab=regole");
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Privacy" }), { button: 0, ctrlKey: false });
+    expect(conferma).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Contenuto regole aziendali")).toBeVisible();
+    expect(screen.getByTestId("url")).toHaveTextContent("?tab=regole");
+    conferma.mockReturnValue(true);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Privacy" }), { button: 0, ctrlKey: false });
+    expect(screen.getByText("Contenuto privacy")).toBeVisible();
   });
 
   it("gli indirizzi delle schede non cambiano", () => {

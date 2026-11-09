@@ -30,7 +30,13 @@ export function useVaiASezione(pronto: boolean) {
   useEffect(() => {
     if (!id || !chiave) return;
     const ridotto = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    document.getElementById(id)?.scrollIntoView?.({ block: "start", behavior: ridotto ? "auto" : "smooth" });
+    const destinazione = document.getElementById(id);
+    let antenato = destinazione?.parentElement;
+    while (antenato) {
+      if (antenato instanceof HTMLDetailsElement) antenato.open = true;
+      antenato = antenato.parentElement;
+    }
+    destinazione?.scrollIntoView?.({ block: "start", behavior: ridotto ? "auto" : "smooth" });
     const spegni = window.setTimeout(() => setSpenta(chiave), DURATA_EVIDENZIA_MS);
     return () => window.clearTimeout(spegni);
   }, [id, chiave]);

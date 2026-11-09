@@ -66,7 +66,6 @@ export default function SettingsModelliPdf() {
   return effectiveCompany ? <Libreria key={effectiveCompany.id} /> : null;
 }
 function Libreria() {
-  const { effectiveCompany } = useAuth();
   const permissions = usePermissions();
   const query = useDocumentPdfTemplates();
   const [params, setParams] = useSearchParams();
@@ -90,31 +89,7 @@ function Libreria() {
   };
   return (
     <div className="min-w-0 space-y-6" data-testid="modelli-pdf-pagina">
-      <header className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-orange-50 p-5 sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-500 text-white">
-              <FileText />
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-orange-700">
-                Cantieri & Costi
-              </p>
-              <h1 className="mt-1 text-2xl font-bold text-slate-950">
-                Modelli PDF
-              </h1>
-              <p className="mt-1 max-w-2xl text-sm text-slate-600">
-                Una veste riconoscibile per i documenti di{" "}
-                {effectiveCompany?.business_name || effectiveCompany?.name}.
-                Scegli un modello, personalizzalo e controlla il PDF.
-              </p>
-            </div>
-          </div>
-          <Badge variant="outline" className="bg-white">
-            Personalizzazioni della tua azienda
-          </Badge>
-        </div>
-      </header>
+      <p className="text-sm text-muted-foreground">Scegli il documento da personalizzare. Le modifiche salvate valgono per le nuove generazioni, senza cambiare i PDF già creati.</p>
       <section
         aria-label="Libreria modelli PDF"
         className="grid grid-cols-2 gap-3 xl:grid-cols-4"
@@ -136,17 +111,17 @@ function Libreria() {
               onClick={() => select(tipo)}
               aria-pressed={selected === tipo}
               className={cn(
-                "min-w-0 rounded-xl border bg-white p-4 text-left transition-colors hover:border-orange-300 focus-visible:outline-orange-500",
+                "min-w-0 rounded-xl border bg-card p-4 text-left transition-colors hover:border-primary/50 focus-visible:outline-primary",
                 selected === tipo
-                  ? "border-orange-400 bg-orange-50/70 ring-1 ring-orange-200"
-                  : "border-slate-200",
+                  ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                  : "border-border",
               )}
             >
               <div className="flex items-center justify-between gap-2">
                 <Icon
                   className={cn(
                     "h-5 w-5",
-                    selected === tipo ? "text-orange-600" : "text-slate-500",
+                    selected === tipo ? "text-primary" : "text-muted-foreground",
                   )}
                 />
                 <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">

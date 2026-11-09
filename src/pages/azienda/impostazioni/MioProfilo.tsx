@@ -7,7 +7,7 @@
  * (/admin/impostazioni/mio-profilo): ogni modifica va provata nei tre posti.
  */
 import { useState, useRef, useEffect, useMemo } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { motivoPasswordRifiutata } from "@/lib/auth/cambioPassword";
@@ -38,8 +38,8 @@ import { EmailOAuthConnectionsCard } from "@/components/integrations/EmailOAuthC
 import { TwoFactorSetup } from "@/components/auth/TwoFactorSetup";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
-import { AvvisiPerEvento } from "@/components/notifications/AvvisiPerEvento";
 import { CompanySecuritySettings } from "@/components/settings/CompanySecuritySettings";
+import { AvvisiPerEvento } from "@/components/notifications/AvvisiPerEvento";
 import { useUserCalendarPrefs } from "@/hooks/useUserCalendarPrefs";
 import { useCalendariDiCasella } from "@/hooks/useCalendariEsterni";
 import { direzioneDaModo, etichettaDirezione, type DirezioneSync } from "@/lib/calendar/direzioneSync";
@@ -753,10 +753,18 @@ export default function MioProfilo() {
               </div>
             </CardContent>
           </Card>
-          {canManageCompanySecurity && (
+          {canManageCompanySecurity && !!companyId && (
             // Mobile no: le regole di sicurezza dell'azienda si impostano al computer.
             <div className="lg:col-span-2 max-sm:hidden">
-              <CompanySecuritySettings />
+              {inUfficio ? <Card id="regole-azienda">
+                <CardHeader>
+                  <CardTitle className="text-base">Sicurezza dell’azienda</CardTitle>
+                  <CardDescription>Blocco dei tentativi e reti autorizzate si gestiscono insieme alle altre regole aziendali.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button asChild variant="outline"><Link to="/azienda/impostazioni/sicurezza-privacy?tab=regole#regole-azienda">Apri le regole aziendali</Link></Button>
+                </CardContent>
+              </Card> : <CompanySecuritySettings />}
             </div>
           )}
           </div>
