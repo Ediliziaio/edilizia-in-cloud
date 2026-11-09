@@ -59,7 +59,7 @@ function entry(id: string, mese: number | null, importo: number): F24Entry {
 }
 function setup(period = "mese=10") {
   render(
-    <MemoryRouter initialEntries={[`/?anno=2026&${period}`]}>
+    <MemoryRouter initialEntries={[`/?anno=2026&vista=f24&${period}`]}>
       <ContabilitaFiscale embedded />
     </MemoryRouter>,
   );

@@ -1,4 +1,7 @@
-import { lazy, Suspense, type ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
+// Come in App.tsx: dopo una pubblicazione i pezzi vecchi non ci sono più, e senza
+// il nuovo tentativo la sezione finiva su «Errore nel caricamento fiscale».
+import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { useSearchParams, useLocation, Navigate } from "react-router-dom";
 import { ReceiptText, Calculator, ShieldCheck, Archive } from "lucide-react";
 import { RequireCompanyPermission } from "@/components/auth/RequireCompanyPermission";

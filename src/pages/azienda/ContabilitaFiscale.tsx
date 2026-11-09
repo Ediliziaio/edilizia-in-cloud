@@ -1,10 +1,9 @@
 import { Link } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import { useF24 } from "@/hooks/useF24";
-import { useLiquidazioneIVA } from "@/hooks/useLiquidazioneIVA";
 import { useFiscalPeriod } from "@/hooks/useFiscalPeriod";
 import { F24Generator } from "@/components/contabilita/F24Generator";
-import { LiquidazioneIVA } from "@/components/contabilita/LiquidazioneIVA";
+import { LiquidazioniIVA } from "@/components/contabilita/LiquidazioniIVA";
 import { ImpostazioniIVA } from "@/components/contabilita/ImpostazioniIVA";
 import {
   FiscalLegacyRedirect,
@@ -36,15 +35,14 @@ export default function ContabilitaFiscale({
 }
 function Content() {
   const p = useFiscalPeriod(),
-    f = useF24(p.anno),
-    iva = useLiquidazioneIVA();
+    f = useF24(p.anno);
   const requestedView = p.params.get("vista");
   const view =
-    requestedView === "iva" ||
+    requestedView === "f24" ||
     requestedView === "ritenute_bancarie" ||
     requestedView === "impostazioni_iva"
       ? requestedView
-      : "f24";
+      : "iva";
   const { selected: periodEntries, unassigned } = partitionFiscalMonths(
     f.entries,
     p,
@@ -64,16 +62,16 @@ function Content() {
       />
       <div className="flex flex-wrap gap-2">
         <Button
+          variant={view === "iva" ? "default" : "outline"}
+          onClick={() => p.set({ vista: "iva" })}
+        >
+          Liquidazione IVA
+        </Button>
+        <Button
           variant={view === "f24" ? "default" : "outline"}
           onClick={() => p.set({ vista: "f24" })}
         >
           Registro F24
-        </Button>
-        <Button
-          variant={view === "iva" ? "default" : "outline"}
-          onClick={() => p.set({ vista: "iva" })}
-        >
-          Prospetto IVA
         </Button>
         <Button
           variant={view === "ritenute_bancarie" ? "default" : "outline"}
@@ -105,19 +103,12 @@ function Content() {
       ) : view === "impostazioni_iva" ? (
         <ImpostazioniIVA anno={p.anno} />
       ) : view === "iva" ? (
-        <LiquidazioneIVA {...iva} />
+        <LiquidazioniIVA anno={p.anno} onApriImpostazioni={() => p.set({ vista: "impostazioni_iva" })} />
       ) : (
         <>
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
-            <strong>
-              Registrazioni F24, non deleghe trasmesse o pagamenti.
-            </strong>
-            <p className="mt-1">
-              La composizione automatica è sospesa finché fonti, date fiscali e
-              revisione non sono verificate. Consulta il prospetto IVA senza
-              scrivere righe; registra solo importi comunicati dal consulente.
-              Per i pagamenti serve una quietanza verificata.
-            </p>
+            Qui registri gli F24 pagati o comunicati dal consulente: non è la delega
+            trasmessa all'Agenzia.
           </div>
           {f.isLoading || f.isError ? (
             <FiscalQueryState

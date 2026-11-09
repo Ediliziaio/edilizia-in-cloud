@@ -261,3 +261,9 @@ Le fasi 4, 5 e 6 possono andare in parallelo dopo la 3.
 1. Quale azienda ha chiesto: usa Fatture in Cloud (external) o fattura da EiC (native)? Cambia da dove parte la fase 1.
 2. Quell'azienda è mensile o trimestrale, e manda la LIPE da sola (Entratel proprio) o tramite un intermediario?
 3. Ci dà le LIPE 2026 già inviate per il collaudo della fase 7?
+
+## Avanzamento 09/11/2026
+
+- **Fasi 2, 3 e 5 fatte.** `liquidazione_iva_righi` calcola VP2-VP14 (periodicità dalle impostazioni), `liquidazione_iva_conferma` li ferma in `fiscal_reports`, in ordine di periodo. Pagina «Liquidazione IVA» in Contabilità fiscale.
+- **File LIPE:** `src/lib/contabilita/lipeXml.ts`, fornitura IVP18 secondo le specifiche del 14/03/2024 e `comunicazioneIvp_2018_v1.xsd`; i controlli bloccanti stanno in `controlliLipe`.
+- **Da fare prima di usarlo sul serio:** passare un file vero nel Software di controllo dell'Agenzia (Entratel) e confrontare con una LIPE già inviata (fase 7). Mancano indetraibilità e pro-rata nel calcolo (fase 1.3) e l'F24 che nasce dalla liquidazione (fase 4).

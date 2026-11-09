@@ -34,6 +34,11 @@ import { LiquidazioneIVA } from "@/components/contabilita/LiquidazioneIVA";
 import { RicezioneAcquisti } from "@/components/fatturazione/RicezioneAcquisti";
 import { fiscalDate, fiscalVatGroups } from "@/lib/fatturazione/fiscalInsights";
 
+function etichettaAliquota(r: { rate: string; nature: string }): string {
+  const aliquota = r.rate || "Da verificare";
+  return r.nature ? `${aliquota} · ${r.nature}` : aliquota;
+}
+
 export default function RegistroIVA({
   embedded = false,
 }: { embedded?: boolean } = {}) {
@@ -48,6 +53,7 @@ function RegistroContent() {
     p = useFiscalPeriod();
   const search = p.params.get("q_iva") ?? "";
   const [page, setPage] = useState(0);
+  const [aliquota, setAliquota] = useState("tutte");
   const side =
     p.params.get("registro") === "tutti"
       ? "tutti"
@@ -103,9 +109,11 @@ function RegistroContent() {
     [sales.data, purchases.data],
   );
   const issues = fiscalDocumentIssues(rows);
+  const aliquote = [...new Set(rows.filter((r) => !r.synthetic).map((r) => etichettaAliquota(r)))].sort();
   const matching = rows.filter(
     (r) =>
       (side === "tutti" || r.side === side) &&
+      (aliquota === "tutte" || etichettaAliquota(r) === aliquota) &&
       (!onlyIssues || r.issues.length > 0) &&
       `${r.number} ${r.counterparty} ${r.nature}`
         .toLocaleLowerCase("it")
@@ -337,6 +345,20 @@ function RegistroContent() {
             </Button>
           ))}
         </div>
+        <select
+          aria-label="Aliquota"
+          className="h-10 rounded-md border bg-background px-3 text-sm"
+          value={aliquota}
+          onChange={(e) => {
+            setAliquota(e.target.value);
+            setPage(0);
+          }}
+        >
+          <option value="tutte">Tutte le aliquote</option>
+          {aliquote.map((a) => (
+            <option key={a} value={a}>{a}</option>
+          ))}
+        </select>
         <Input
           className="min-w-40 flex-1"
           aria-label="Cerca nel registro IVA"
@@ -552,7 +574,7 @@ function RegistroContent() {
       </div>
       <details className="rounded-xl border bg-white p-4">
         <summary className="cursor-pointer text-sm font-medium">
-          Prospetto IVA preliminare del server
+          Confronto tra registro e liquidazione
         </summary>
         <div className="mt-4">
           <LiquidazioneIVA
