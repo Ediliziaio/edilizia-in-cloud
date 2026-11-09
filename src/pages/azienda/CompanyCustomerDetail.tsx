@@ -334,7 +334,7 @@ export default function CompanyCustomerDetail() {
   // Il sollecito già scritto, da leggere e cambiare prima di mandarlo.
   const apriSollecito = (oggetto: string, testo: string) => {
     const html = testo.split("\n\n").map((p) => `<p>${p.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>")}</p>`).join("");
-    setComposeContext({ mode: "new", initialTo: customerEmailClean ? [customerEmailClean] : undefined, initialSubject: oggetto, initialBodyHtml: html });
+    setComposeContext({ mode: "new", initialTo: customerEmailClean ? [customerEmailClean] : undefined, initialSubject: oggetto, initialBodyHtml: html, storicoScheda: true });
     setComposeOpen(true);
   };
 
@@ -343,6 +343,7 @@ export default function CompanyCustomerDetail() {
       mode: "new",
       initialTo: customerEmailClean ? [customerEmailClean] : undefined,
       initialSubject: undefined,
+      storicoScheda: true,
     });
     setComposeOpen(true);
   };

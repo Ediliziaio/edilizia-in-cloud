@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { RichTextEditor } from "./RichTextEditor";
+import { segnaNelloStoricoScheda } from "@/lib/email/storicoScheda";
 import { RecipientField } from "./RecipientField";
 import { EmailTemplatePicker } from "@/components/email/EmailTemplatePicker";
 import { OrderDocumentAttacher } from "@/components/email/OrderDocumentAttacher";
@@ -71,6 +72,8 @@ export interface ComposeContext {
    * nell'editor come contenuto ricco, pronto da modificare prima di inviare.
    */
   initialBodyHtml?: string;
+  /** Scritta dalla scheda di un cliente o committente: entra nel suo storico condiviso. */
+  storicoScheda?: boolean;
 }
 
 interface EmailComposeDialogProps {
@@ -458,10 +461,12 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const r = result as any;
       if (r?.ok === false) throw new Error(r.error ?? "Invio fallito");
+      if (context.storicoScheda && id) await segnaNelloStoricoScheda(id);
       return r;
     },
     onSuccess: () => {
       toast.success("Email inviata");
+      if (context.storicoScheda) qc.invalidateQueries({ queryKey: ["customer-conversazioni-timeline"] });
       if(context.procurement)qc.invalidateQueries({queryKey:["procurement-history"]});
       onSent?.();
       qc.invalidateQueries({ queryKey: ["email-threads"] });

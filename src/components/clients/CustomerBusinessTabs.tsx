@@ -678,6 +678,7 @@ function EmailConversationsTab({
     setComposeContext({
       mode: "new",
       initialTo: customerEmail ? [customerEmail] : undefined,
+      storicoScheda: true,
     });
     setComposeOpen(true);
   };

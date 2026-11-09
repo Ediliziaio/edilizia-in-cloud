@@ -5,6 +5,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { storicoSenzaDoppioni, type MessaggioStorico } from "@/lib/email/storicoScheda";
 
 const DOMINIO_SENZA_EMAIL = "@no-email.ediliziaincloud.local";
 
@@ -59,9 +60,10 @@ export function useComunicazioniScheda(id: string | undefined, companyId: string
     },
   });
 
-  // WhatsApp, SMS e campagne dalla vista unificata; le email in arrivo stanno
-  // già nella lettura qui sopra, e le note in quella qui sotto.
-  const { data: messaggi = [] } = useQuery({
+  // Lo storico condiviso: WhatsApp, SMS, campagne e le email che fanno parte
+  // della storia della scheda, viste da chiunque la apra. Le note stanno nella
+  // lettura qui sotto.
+  const { data: messaggiCondivisi = [] } = useQuery({
     queryKey: ["customer-conversazioni-timeline", id],
     enabled: !!id,
     staleTime: 60_000,
@@ -72,8 +74,7 @@ export function useComunicazioniScheda(id: string | undefined, companyId: string
       ) => Promise<{ data: unknown; error: { message: string } | null }>;
       const { data, error } = await rpc("conversazione_timeline", { p_entita_tipo: "cliente", p_entita_id: id });
       if (error) return []; // fail-soft: la timeline mostra il resto
-      type Msg = { canale: string; direzione: string; oggetto: string | null; testo: string | null; ts: string; ref_id: string };
-      return ((data as Msg[]) ?? []).filter((m) => !(m.canale === "email" && m.direzione === "in") && m.canale !== "nota");
+      return ((data as MessaggioStorico[]) ?? []).filter((m) => m.canale !== "nota");
     },
   });
 
@@ -104,6 +105,8 @@ export function useComunicazioniScheda(id: string | undefined, companyId: string
       }));
     },
   });
+
+  const messaggi = storicoSenzaDoppioni(messaggiCondivisi, emailConversazioni as Array<{ id?: string; subject?: string; received_at?: string }>);
 
   return { emailConversazioni, messaggi, note };
 }

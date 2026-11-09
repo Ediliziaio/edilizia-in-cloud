@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Activity, Mail, CalendarDays, StickyNote, ClipboardList,
-  Ticket as TicketIcon, FileText, ExternalLink, MessageCircle, MessageSquare,
+  Ticket as TicketIcon, FileText, ExternalLink, MessageCircle, MessageSquare, FileSignature, Receipt,
 } from "lucide-react";
 import type {
   OrderRow, TicketRow, AppuntamentoRow, FatturaRow,
@@ -37,6 +37,17 @@ interface TimelineEvent {
   description?: string;
   timestamp: string;
   href?: string;
+  onClick?: () => void;
+}
+
+/** Un fatto che non sta nelle letture della scheda: chi lo porta dice anche cosa aprire. */
+export interface EventoDiario {
+  id: string;
+  tipo: "contratto" | "rendiconto";
+  titolo: string;
+  descrizione?: string;
+  quando: string;
+  onClick?: () => void;
 }
 
 interface EmailConversationLite {
@@ -60,6 +71,7 @@ interface DiaryMessageLite {
 interface ConversazioneMessaggioLite {
   canale: string;
   direzione: string;
+  controparte?: string | null;
   oggetto: string | null;
   testo: string | null;
   ts: string;
@@ -81,6 +93,7 @@ interface CustomerActivityTimelineProps {
   perCommittente?: boolean;
   /** Per chi non ha il permesso sugli importi: niente euro nel diario. */
   nascondiImporti?: boolean;
+  eventiExtra?: EventoDiario[];
 }
 
 const FILTER_OPTIONS: { key: FilterCategory; label: string; icon: React.ReactNode }[] = [
@@ -138,6 +151,7 @@ export function CustomerActivityTimeline({
   customerCreatedAt,
   perCommittente = false,
   nascondiImporti = false,
+  eventiExtra,
 }: CustomerActivityTimelineProps) {
   const navigate = useNavigate();
   const [filter, setFilter] = useState<FilterCategory>("all");
@@ -230,7 +244,7 @@ export function CustomerActivityTimeline({
         icon: <Mail className="h-3.5 w-3.5" />,
         iconBg: "bg-violet-100 text-violet-600",
         title: e.subject || "(senza oggetto)",
-        description: `Da: ${senderName}${e.preview ? ` — ${e.preview.substring(0, 80)}` : ""}`,
+        description: `Da: ${senderName}${e.preview && !nascondiImporti ? ` — ${e.preview.substring(0, 80)}` : ""}`,
         timestamp: e.received_at,
         href: threadHref,
       });
@@ -249,9 +263,9 @@ export function CustomerActivityTimeline({
       });
     });
 
-    // Messaggi dalla vista conversazioni unificata: WhatsApp / SMS / campagne
-    // email inviate. Le email IN ARRIVO restano da emailConversations (sopra)
-    // per evitare doppioni con la casella sincronizzata.
+    // Lo storico condiviso: WhatsApp, SMS, campagne e le email della scheda,
+    // comprese quelle di un collega. I doppioni con la casella di chi guarda
+    // li ha già tolti useComunicazioniScheda.
     messaggi.forEach((m) => {
       const isWa = m.canale === "whatsapp";
       const isSms = m.canale === "sms";
@@ -270,15 +284,34 @@ export function CustomerActivityTimeline({
             ? "bg-sky-100 text-sky-600"
             : "bg-violet-100 text-violet-600",
         title: m.oggetto || (isWa ? "WhatsApp" : isSms ? "SMS" : "Email"),
-        description: `${out ? "Tu: " : ""}${(m.testo ?? "").substring(0, 120)}`,
+        description: isWa || isSms
+          ? `${out ? "Tu: " : ""}${(m.testo ?? "").substring(0, 120)}`
+          : [
+              out ? "Inviata" : `Da: ${m.controparte ?? "—"}`,
+              // Un sollecito ha l'importo nelle prime righe: chi non vede gli importi non legge il testo.
+              ...(nascondiImporti ? [] : [(m.testo ?? "").substring(0, 120)]),
+            ].filter(Boolean).join(" — "),
         timestamp: m.ts,
+      });
+    });
+
+    (eventiExtra ?? []).forEach((e) => {
+      list.push({
+        id: e.id,
+        category: "activity",
+        icon: e.tipo === "contratto" ? <FileSignature className="h-3.5 w-3.5" /> : <Receipt className="h-3.5 w-3.5" />,
+        iconBg: e.tipo === "contratto" ? "bg-orange-100 text-orange-600" : "bg-indigo-100 text-indigo-600",
+        title: e.titolo,
+        description: e.descrizione,
+        timestamp: e.quando,
+        onClick: e.onClick,
       });
     });
 
     // Sort by timestamp desc
     list.sort((a, b) => dataEvento(b.timestamp).getTime() - dataEvento(a.timestamp).getTime());
     return list;
-  }, [customerId, customerCreatedAt, orders, tickets, appuntamenti, fatture, emailConversations, diaryMessages, messaggi, perCommittente, nascondiImporti]);
+  }, [customerId, customerCreatedAt, orders, tickets, appuntamenti, fatture, emailConversations, diaryMessages, messaggi, perCommittente, nascondiImporti, eventiExtra]);
 
   // Filtra in base a tab attivo
   const filteredEvents = useMemo(() => {
@@ -365,11 +398,11 @@ export function CustomerActivityTimeline({
                     <button
                       key={ev.id}
                       type="button"
-                      disabled={!ev.href}
-                      onClick={() => ev.href && navigate(ev.href)}
+                      disabled={!ev.href && !ev.onClick}
+                      onClick={() => { if (ev.onClick) ev.onClick(); else if (ev.href) navigate(ev.href); }}
                       className={cn(
                         "w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors group",
-                        ev.href ? "hover:bg-muted/50 cursor-pointer" : "cursor-default",
+                        ev.href || ev.onClick ? "hover:bg-muted/50 cursor-pointer" : "cursor-default",
                       )}
                     >
                       <div className={cn("h-7 w-7 rounded-full flex items-center justify-center shrink-0", ev.iconBg)}>

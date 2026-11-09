@@ -37,6 +37,7 @@ import {
   X as XIcon, Paperclip as PaperclipIcon,
 } from "lucide-react";
 import { friendlyPostgresError } from "@/lib/postgresErrors";
+import { segnaNelloStoricoScheda } from "@/lib/email/storicoScheda";
 import { LinkImpostazione } from "@/components/impostazioni/LinkImpostazione";
 
 type Channel = "email" | "whatsapp" | "sms" | "note";
@@ -351,6 +352,7 @@ export function CustomerComposeBar({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const r = data as any;
         if (r?.ok === false) throw new Error(r?.error ?? "Invio fallito");
+        await segnaNelloStoricoScheda(outboxId);
         return r;
       } catch (err) {
         if ((err as { name?: string })?.name === "AbortError") {
@@ -364,6 +366,7 @@ export function CustomerComposeBar({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["email-threads"] });
       qc.invalidateQueries({ queryKey: ["customer-email-timeline", customerId] });
+      qc.invalidateQueries({ queryKey: ["customer-conversazioni-timeline", customerId] });
       qc.invalidateQueries({ queryKey: ["customer-email-conversations", customerId] });
       setEmailSubject("");
       setEmailBody("");

@@ -16,6 +16,7 @@ const stato = vi.hoisted(() => ({
   modulo: true,
   tabelle: {} as Record<string, unknown[]>,
   scheda: {} as Record<string, unknown>,
+  storico: [] as unknown[],
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
@@ -45,7 +46,7 @@ vi.mock("@/integrations/supabase/client", () => {
     return q;
   };
   const rpc = (nome: string) => {
-    const dati: unknown = nome === "scheda_cliente" ? stato.scheda : [];
+    const dati: unknown = nome === "scheda_cliente" ? stato.scheda : nome === "conversazione_timeline" ? stato.storico : [];
     return Promise.resolve({ data: dati, error: null as unknown });
   };
   return { supabase: {
@@ -86,6 +87,7 @@ const lavoro = {
 beforeEach(() => {
   stato.importi = true;
   stato.modulo = true;
+  stato.storico = [];
   stato.tabelle = { profiles: [committente], appalto_contratti: [contratto], appalto_tariffe: [tariffa], orders: [lavoro] };
   stato.scheda = {
     ordini: [], anagrafica: null, preventivi: [], ticket: [], interventi: [], appuntamenti: [], rate: [], da_incassare: [],
@@ -197,4 +199,29 @@ it("senza il permesso sugli importi i rendiconti dicono perché non si vedono", 
   await apri("Rendiconti");
   expect(await screen.findByText(/I rendiconti al committente li vede chi ha il permesso/)).toBeVisible();
   expect(screen.queryByText("Elenco rendiconti")).not.toBeInTheDocument();
+});
+
+it("il diario mostra le email di tutto il team e i rendiconti mandati", async () => {
+  stato.storico = [
+    { canale: "email", direzione: "out", controparte: "ufficio@edilrossi.invalid", oggetto: "Listino 2026", testo: "In allegato", ts: "2026-11-05T10:00:00Z", ref_id: "o1" },
+    { canale: "email", direzione: "in", controparte: "ufficio@edilrossi.invalid", oggetto: "Re: Listino 2026", testo: "Ricevuto", ts: "2026-11-05T12:00:00Z", ref_id: "e1" },
+    { canale: "nota", direzione: "out", controparte: null, oggetto: null, testo: "doppia", ts: "2026-11-05T12:30:00Z", ref_id: "n1" },
+  ];
+  stato.tabelle.appalto_sal = [{ id: "s1", numero: 3, periodo_dal: "2026-10-01", periodo_al: "2026-10-31", inviato_at: "2026-11-01T09:00:00Z", accettato_il: null, accettato_da_nome: null }];
+  mostra();
+  expect(await screen.findByText("Listino 2026")).toBeInTheDocument();
+  expect(screen.getByText(/^Inviata — In allegato/)).toBeInTheDocument();
+  expect(screen.getByText(/^Da: ufficio@edilrossi.invalid — Ricevuto/)).toBeInTheDocument();
+  expect(screen.queryByText(/doppia/)).not.toBeInTheDocument();
+  expect(await screen.findByText("Rendiconto N. 3 mandato")).toBeInTheDocument();
+  expect(screen.getByText("Contratto: Accordo 2026")).toBeInTheDocument();
+});
+
+it("senza il permesso sugli importi il testo delle email non si legge: un sollecito ha la cifra", async () => {
+  stato.importi = false;
+  stato.storico = [{ canale: "email", direzione: "out", controparte: "ufficio@edilrossi.invalid", oggetto: "Promemoria", testo: "Restano da saldare 1.200,00 €", ts: "2026-11-05T10:00:00Z", ref_id: "o1" }];
+  mostra();
+  expect(await screen.findByText("Promemoria")).toBeInTheDocument();
+  expect(screen.getByText("Inviata")).toBeInTheDocument();
+  expect(screen.queryByText(/1\.200/)).not.toBeInTheDocument();
 });

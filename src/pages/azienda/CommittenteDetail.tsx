@@ -78,6 +78,7 @@ import { emailVera, useComunicazioniScheda, useContattoCollegato } from "@/hooks
 import { useSchermoStretto } from "@/hooks/useSchermoStretto";
 import type { ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
 import { queryKeys } from "@/lib/queryKeys";
+import { eventiCommittente, type RendicontoNelDiario } from "@/lib/appalto/diarioCommittente";
 
 const EmailComposeDialog = lazy(() =>
   import("@/pages/azienda/email/components/EmailComposeDialog").then((m) => ({ default: m.EmailComposeDialog }))
@@ -106,7 +107,7 @@ interface Contratto {
   modo_fatturazione: "per_commessa" | "mensile_cumulativa";
   regime_iva: "ordinaria" | "reverse_charge";
   include_fornitura: boolean; riferimento_committente: string | null;
-  condizioni: string | null; note: string | null; attivo: boolean;
+  condizioni: string | null; note: string | null; attivo: boolean; created_at?: string | null;
 }
 
 interface Tariffa {
@@ -290,6 +291,22 @@ export default function CommittenteDetail() {
     },
   });
 
+  // Solo i fatti da mettere nel diario. Senza permesso sugli importi non si leggono, come il pannello.
+  const rendicontiDiario = useQuery({
+    queryKey: ["appalto-sal", id, "diario"],
+    enabled: !!companyId && !!id && vedeImporti,
+    staleTime: 60_000,
+    queryFn: async (): Promise<RendicontoNelDiario[]> => {
+      const { data, error } = await (supabase as any)
+        .from("appalto_sal")
+        .select("id, numero, periodo_dal, periodo_al, inviato_at, accettato_il, accettato_da_nome")
+        .eq("company_id", companyId)
+        .eq("committente_id", id);
+      if (error) throw error;
+      return (data ?? []) as RendicontoNelDiario[];
+    },
+  });
+
   /* ── Scritture ── */
 
   // Il PDF dell'accordo (09/11/2026): come il contratto di subappalto, col listino in Allegato A.
@@ -412,7 +429,7 @@ export default function CommittenteDetail() {
   const elencoLavori = lavori.data ?? [];
   const contrattoInCorso = contrattoDiOggi(elencoContratti);
   const apriEmail = () => {
-    setComposeContext({ mode: "new", initialTo: email ? [email] : undefined, initialSubject: undefined });
+    setComposeContext({ mode: "new", initialTo: email ? [email] : undefined, initialSubject: undefined, storicoScheda: true });
     setComposeOpen(true);
   };
   const apriAppuntamento = () => setAppuntamentoOpen(true);
@@ -826,6 +843,7 @@ export default function CommittenteDetail() {
               customerCreatedAt={c.created_at}
               perCommittente
               nascondiImporti={!vedeImporti}
+              eventiExtra={eventiCommittente(elencoContratti, rendicontiDiario.data ?? [], apriSezione)}
             />
           </div>
           <CustomerComposeBar customerId={c.id} customerEmail={email} customerPhone={c.phone} />
