@@ -13,7 +13,7 @@ function dbFinto(tabelle: Record<string, Array<Record<string, unknown>>>, lettur
       for (const m of ["select", "is", "order", "or", "limit"]) q[m] = () => q;
       q.eq = (k: string, v: unknown) => { cond = [...cond, [k, v]]; return q; };
       const righe = () => (tabelle[t] ?? []).filter((r) => cond.every(([k, v]) => r[k] === undefined || r[k] === v));
-      q.maybeSingle = async () => ({ data: righe()[0] ?? null, error: null });
+      q.maybeSingle = async () => ({ data: righe()[0] ?? null, error: null as null });
       q.then = (ok: (v: unknown) => unknown) => ok({ data: righe(), error: tabelle[t] ? null : { message: "manca" } });
       return q;
     },
