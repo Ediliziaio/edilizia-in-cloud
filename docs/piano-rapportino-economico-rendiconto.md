@@ -144,10 +144,12 @@ solo articoli della commessa.
 
 ## Lavori, in ordine
 
-**Lotto 0. Numeri giusti** — E1–E6, E9–E11, E15–E18. Prima di tutto il resto: senza, ogni
-novità poggia su dati sbagliati. Per E1 una riga di rendiconto per persona, dalle presenze.
+**Lotto 0. Numeri giusti** — Fatti il 09/11: E1, E2, E3, E4, E5, E6, E13, E14, E15, E17; E7 con
+mezza giornata fino a 4 ore. Restano: E9, E10, E12 (con «Correggi», Lotto 2b); E11 (protezione dei
+costi nel database: prima il client deve smettere di leggerli con `select *`); E16 (Lotto 4);
+E18 (Lotto 3).
 
-**Lotto 1. Rapportino con i soldi** — Nel popup, con permesso:
+**Lotto 1. Rapportino con i soldi** — Fatto il 09/11 per le persone. Nel popup, con permesso:
 
 | Persona | Ore | Costo orario | Costo | Vendita oraria | Ricavo | Margine |
 |---|---|---|---|---|---|---|
