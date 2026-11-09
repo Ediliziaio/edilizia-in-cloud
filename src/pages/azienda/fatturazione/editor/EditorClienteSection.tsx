@@ -1,4 +1,4 @@
-import { datiClienteMancanti, ePrivato, nomeCliente } from "@/lib/fatturazione/clienteSnapshot";
+import { cambiaTipoCliente, datiClienteMancanti, ePrivato, nomeCliente } from "@/lib/fatturazione/clienteSnapshot";
 import { useState, useMemo } from "react";
 import { Search, X, ChevronDown, Plus, MapPin, Building2, Pencil, AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -80,7 +80,9 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
   // Un cliente scelto dall'anagrafica ma senza nome (succede: i privati importati hanno
   // solo codice fiscale e indirizzo) resta davanti agli occhi, da completare: prima
   // spariva e sembrava di non aver scelto niente.
-  const hasCliente = !!nomeCliente(snapshot) || !!state.anagrafica_id;
+  // Mentre lo si modifica resta aperto anche col nome vuoto: chi cancella il nome per
+  // scriverne un altro non deve ritrovarsi davanti la ricerca, senza i dati.
+  const hasCliente = !!nomeCliente(snapshot) || !!state.anagrafica_id || (editingSnapshot && !!snapshot);
   const mancanti = snapshot ? datiClienteMancanti(snapshot) : [];
 
   const filtered = useMemo(() => {
@@ -131,6 +133,16 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
   function updateSnapshotFields(patch: Partial<ClienteSnapshot>) {
     if (!snapshot) return;
     dispatch({ type: "SET_CLIENTE", anagrafica_id: state.anagrafica_id ?? "", snapshot: { ...snapshot, ...patch } });
+  }
+
+  // Dalla lista a mano: i dati restano sul documento da modificare, l'anagrafica si
+  // sgancia. Così «Fine modifica» non riscrive il cliente scelto prima, e righe, date,
+  // pagamento e note non si toccano.
+  function passaAManuale() {
+    if (!snapshot) return;
+    dispatch({ type: "SET_CLIENTE", anagrafica_id: "", snapshot });
+    setDetailsOpen(true);
+    setEditingSnapshot(true);
   }
 
   // Create quick B2C client (occasionale)
@@ -243,19 +255,27 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
             : "Cliente / Committente"}
         </Label>
         {hasCliente && !disabled && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-5 text-[10px] px-1.5"
-            onClick={() => {
-              dispatch({ type: "CLEAR_CLIENTE" });
-              setDetailsOpen(false);
-              setEditingSnapshot(false);
-            }}
-          >
-            <X className="h-2.5 w-2.5 mr-0.5" />
-            Cambia
-          </Button>
+          <div className="flex items-center gap-1">
+            {state.anagrafica_id && snapshot && (
+              <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5" onClick={passaAManuale}>
+                <Pencil className="h-2.5 w-2.5 mr-0.5" />
+                Inserisci a mano
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 text-[10px] px-1.5"
+              onClick={() => {
+                dispatch({ type: "CLEAR_CLIENTE" });
+                setDetailsOpen(false);
+                setEditingSnapshot(false);
+              }}
+            >
+              <X className="h-2.5 w-2.5 mr-0.5" />
+              Cambia
+            </Button>
+          </div>
         )}
       </div>
 
@@ -316,21 +336,38 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                 </div>
                 {editingSnapshot && !disabled ? (
                   <div className="grid grid-cols-2 gap-2">
+                    {/* Scritto a mano si può cambiare natura; quello in anagrafica la tiene. */}
+                    {!state.anagrafica_id && (
+                      <div className="col-span-2 flex gap-1">
+                        {([["B2B", "Azienda"], ["B2C", "Privato"], ["PA", "Ente PA"]] as const).map(([tipo, etichetta]) => (
+                          <Button
+                            key={tipo}
+                            type="button"
+                            variant={(snapshot!.tipo_cliente ?? "B2B") === tipo ? "default" : "outline"}
+                            size="sm"
+                            className="h-6 flex-1 text-[10px]"
+                            onClick={() => dispatch({ type: "SET_CLIENTE", anagrafica_id: "", snapshot: cambiaTipoCliente(snapshot!, tipo) })}
+                          >
+                            {etichetta}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
                     {snapshot!.tipo_cliente === "B2C" ? (
                       <>
                         <div>
-                          <Label className="text-[9px] text-muted-foreground">Nome *</Label>
-                          <Input value={snapshot!.nome ?? ""} onChange={(e) => updateSnapshotField("nome", e.target.value)} className="h-6 text-[11px]" />
+                          <Label htmlFor="cliente-nome" className="text-[9px] text-muted-foreground">Nome *</Label>
+                          <Input id="cliente-nome" value={snapshot!.nome ?? ""} onChange={(e) => updateSnapshotField("nome", e.target.value)} className="h-6 text-[11px]" />
                         </div>
                         <div>
-                          <Label className="text-[9px] text-muted-foreground">Cognome *</Label>
-                          <Input value={snapshot!.cognome ?? ""} onChange={(e) => updateSnapshotField("cognome", e.target.value)} className="h-6 text-[11px]" />
+                          <Label htmlFor="cliente-cognome" className="text-[9px] text-muted-foreground">Cognome *</Label>
+                          <Input id="cliente-cognome" value={snapshot!.cognome ?? ""} onChange={(e) => updateSnapshotField("cognome", e.target.value)} className="h-6 text-[11px]" />
                         </div>
                       </>
                     ) : (
                       <div>
-                        <Label className="text-[9px] text-muted-foreground">Ragione Sociale</Label>
-                        <Input value={snapshot!.ragione_sociale ?? ""} onChange={(e) => updateSnapshotField("ragione_sociale", e.target.value)} className="h-6 text-[11px]" />
+                        <Label htmlFor="cliente-ragione-sociale" className="text-[9px] text-muted-foreground">Ragione Sociale</Label>
+                        <Input id="cliente-ragione-sociale" value={snapshot!.ragione_sociale ?? ""} onChange={(e) => updateSnapshotField("ragione_sociale", e.target.value)} className="h-6 text-[11px]" />
                       </div>
                     )}
                     <div>

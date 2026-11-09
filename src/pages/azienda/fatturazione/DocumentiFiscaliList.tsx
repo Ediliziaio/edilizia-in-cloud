@@ -3,7 +3,8 @@ import { nomeCliente } from "@/lib/fatturazione/clienteSnapshot";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { documentoDaConservare } from "@/lib/fatturazione/conservazione";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
-import { useDocumentiFiscali, useDeleteDocumento, useUpdateDocumento } from "@/hooks/useDocumentiFiscali";
+import { useDocumentiFiscali, useDeleteDocumento, useUpdateDocumento, rileggiDocumentoFiscale } from "@/hooks/useDocumentiFiscali";
+import { datiCopiaDocumento } from "@/lib/fatturazione/duplicaDocumento";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
@@ -500,7 +501,13 @@ function DocumentiFiscaliListInner() {
         navigate(`/azienda/documenti/${doc.id}`);
         break;
       case "duplicate":
-        navigate(`/azienda/documenti/nuovo?tipo=${doc.tipo}`, { state: { prefilled: doc } });
+        // La riga dell'elenco è ridotta (niente righe né pagamento): la copia nasce dal documento intero.
+        try {
+          const completo = await rileggiDocumentoFiscale(doc.id);
+          navigate(`/azienda/documenti/nuovo?tipo=${doc.tipo}`, { state: { prefilled: datiCopiaDocumento(completo) } });
+        } catch (e: unknown) {
+          toast.error("Documento non duplicato", { description: getErrorMessage(e) });
+        }
         break;
       case "pdf":
         try {

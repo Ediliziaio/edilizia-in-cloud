@@ -25,6 +25,7 @@ import { faseSdi } from "@/lib/fatturazione/sdiCassetto";
 import { useInvioSdi, useAggiornaStatoSdi } from "@/hooks/useInvioSdi";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { convertiProformaInFattura } from "@/lib/fatturazione/proforma";
+import { datiCopiaDocumento } from "@/lib/fatturazione/duplicaDocumento";
 import { toast } from "sonner";
 import { useEditorState } from "./editor/useEditorState";
 import { useBeforeUnload } from "@/hooks/useBeforeUnload";
@@ -56,7 +57,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useQuery } from "@tanstack/react-query";
 import type { TipoDocumento, DocumentoFiscale } from "@/types/fatturazione";
 
+// Un'istanza per documento: l'editor si inizializza una volta sola, e passando da
+// un documento all'altro (Duplica, Converti) sarebbe rimasto sul primo, salvando lì.
 export default function EditorDocumento() {
+  const { id } = useParams();
+  return <EditorDelDocumento key={id ?? "nuovo"} />;
+}
+
+function EditorDelDocumento() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -237,27 +245,19 @@ export default function EditorDocumento() {
   }, [state.id, state.numero]);
 
   // Duplicate document as new draft
-  const handleDuplicate = useCallback(() => {
+  const handleDuplicate = useCallback(async () => {
     if (!state.id) return;
-    const prefillData: Partial<DocumentoFiscale> = {
-      anagrafica_id: state.anagrafica_id,
-      cliente_snapshot: state.cliente_snapshot as DocumentoFiscale["cliente_snapshot"],
-      righe: (state.righe ?? []).map((r, i) => ({
-        ...r,
-        id: crypto.randomUUID(),
-        numero_linea: i + 1,
-      })),
-      note_documento: state.note_documento,
-      metodo_pagamento_codice: state.metodo_pagamento_codice,
-      iban_pagamento: state.iban_pagamento,
-      bic_pagamento: state.bic_pagamento,
-      nome_banca: state.nome_banca,
-      intestatario_conto: state.intestatario_conto,
-      esigibilita_iva: state.esigibilita_iva as DocumentoFiscale["esigibilita_iva"],
-      serie: state.serie,
-    };
+    // Uscendo dall'originale il salvataggio automatico in attesa si perderebbe.
+    if (isDirty) {
+      try {
+        await saveNow();
+      } catch (err) {
+        toast.error("Modifiche non salvate: il documento non è stato duplicato", { description: (err as Error).message });
+        return;
+      }
+    }
     createMutation.mutate(
-      { tipo: (state.tipo ?? "fattura") as TipoDocumento, ...prefillData },
+      { tipo: (state.tipo ?? "fattura") as TipoDocumento, ...datiCopiaDocumento(state) },
       {
         onSuccess: (doc) => {
           toast.success("Documento duplicato");
@@ -268,7 +268,7 @@ export default function EditorDocumento() {
         },
       }
     );
-  }, [state, createMutation, navigate]);
+  }, [state, createMutation, navigate, isDirty, saveNow]);
 
   // ── Auto-cleanup draft "vuote" ─────────────────────────────────
   //

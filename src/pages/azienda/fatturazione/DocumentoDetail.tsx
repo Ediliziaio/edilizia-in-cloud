@@ -2,6 +2,7 @@ import { useParams, Link } from "react-router-dom";
 import { useDentroPopupDocumento, useIdDocumento, useNavigaDocumento } from "@/lib/orders/documentoPopup";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { useDocumentoFiscale, useUpdateDocumento, useEmittiDocumento } from "@/hooks/useDocumentiFiscali";
+import { datiCopiaDocumento } from "@/lib/fatturazione/duplicaDocumento";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { useAuth } from "@/contexts/AuthContext";
 import { PreviewFattura } from "@/components/fatturazione/PreviewFattura";
@@ -157,7 +158,7 @@ export default function DocumentoDetail() {
   };
 
   const handleDuplica = () => {
-    navigate(`/azienda/documenti/nuovo?tipo=${doc.tipo}`, { state: { prefilled: doc } });
+    navigate(`/azienda/documenti/nuovo?tipo=${doc.tipo}`, { state: { prefilled: datiCopiaDocumento(doc) } });
   };
 
   const handleDownloadXML = async () => {

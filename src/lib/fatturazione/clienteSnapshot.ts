@@ -38,6 +38,19 @@ export function normalizzaCliente(s: ClienteSnapshot): ClienteSnapshot {
 }
 
 /**
+ * Il cliente scritto a mano cambia natura: a un privato non restano il nome
+ * dell'azienda e la partita IVA, che lo farebbero passare per azienda; a
+ * un'azienda non restano nome e cognome. Indirizzo e codici restano.
+ */
+export function cambiaTipoCliente(s: ClienteSnapshot, tipo: "B2B" | "B2C" | "PA"): ClienteSnapshot {
+  if (tipo === "B2C") {
+    return s.tipo_cliente === "B2C" ? s : { ...s, tipo_cliente: tipo, ragione_sociale: "", partita_iva: undefined };
+  }
+  const { nome: _nome, cognome: _cognome, ...resto } = s;
+  return { ...resto, tipo_cliente: tipo };
+}
+
+/**
  * Cosa manca per fatturare a questo cliente, in parole («il codice fiscale»,
  * «l'indirizzo»…). Vuoto = si può. Per un privato: nome, cognome, codice
  * fiscale, indirizzo completo. Per un'azienda: solo la ragione sociale (partita
