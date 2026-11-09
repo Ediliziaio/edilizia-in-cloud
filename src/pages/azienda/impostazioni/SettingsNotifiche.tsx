@@ -1,3 +1,4 @@
+import { StatoSalvataggio } from "@/components/impostazioni/StatoSalvataggio";
 /**
  * SettingsNotifiche — quali avvisi ricevo e come arrivano i messaggi automatici.
  *
@@ -17,7 +18,7 @@
  * verifica: i dati che ci fossero restano dove sono.
  */
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -110,7 +111,14 @@ export default function SettingsNotifiche() {
   const qc = useQueryClient();
   const confirm = useConfirm();
   // Con l'àncora (…/notifiche#messaggi-automatici) la sezione chiusa si apre già aperta.
-  const { hash } = useLocation();
+  const { hash, search } = useLocation();
+  const navigate = useNavigate();
+  const messaggiAziendali = isAdmin && (hash === "#messaggi-programmati" || new URLSearchParams(search).get("tab") === "azienda");
+  const cambiaAmbito = (ambito: "personale" | "azienda") => {
+    const next = new URLSearchParams(search);
+    next.set("tab", ambito);
+    navigate({ search: next.toString(), hash: "" }, { replace: true });
+  };
 
   // Wizard "Nuovo messaggio programmato" — solo per admin azienda. Apre il
   // BulkScheduleWizard riutilizzato da /azienda/automazioni.
@@ -294,7 +302,6 @@ export default function SettingsNotifiche() {
     return <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-3">Non riesco a leggere le preferenze. Nessuna modifica verrà salvata.<Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button></AlertDescription></Alert>;
   }
 
-  const stato = saveMut.isPending ? "Salvataggio…" : dirty ? "Modifiche non salvate" : "Nessuna modifica da salvare";
 
   return (
     // Niente titolo né riquadro informativo: il titolo lo mette il layout delle impostazioni (un solo h1).
@@ -302,15 +309,20 @@ export default function SettingsNotifiche() {
     <div className="max-w-3xl space-y-4 max-sm:space-y-3">
       {flowsError && isAdmin && <Alert variant="destructive"><AlertDescription>I messaggi programmati non sono disponibili. Non vengono mostrati come elenco vuoto.</AlertDescription></Alert>}
 
+      {isAdmin && <nav aria-label="Ambito delle notifiche" className="flex flex-wrap gap-2 max-sm:hidden">
+        <Button variant={messaggiAziendali ? "ghost" : "secondary"} onClick={() => cambiaAmbito("personale")} aria-pressed={!messaggiAziendali}>Le mie notifiche</Button>
+        <Button variant={messaggiAziendali ? "secondary" : "ghost"} onClick={() => cambiaAmbito("azienda")} aria-pressed={messaggiAziendali}>Messaggi all’azienda</Button>
+      </nav>}
+      <div hidden={messaggiAziendali} className="space-y-4">
       {/* 1 · Avvisi: la campanella e le email delle attività. Si salvano da soli. */}
       <AvvisiPerEvento evidenziata={evidenziata === "avvisi"} />
 
       {/* Orari di silenzio e canali si salvano insieme, col pulsante: la barra resta in vista mentre si scorre. */}
       <fieldset disabled={saveMut.isPending} className="m-0 min-w-0 space-y-4 border-0 p-0 max-sm:space-y-3">
-        <div className="sticky top-2 z-20 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-lg border bg-card/95 px-3 py-2 shadow-sm backdrop-blur">
+        <div className="settings-save-bar sticky top-2 z-20 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-lg border bg-card/95 px-3 py-2 shadow-sm backdrop-blur">
           <p className="text-xs text-muted-foreground max-sm:hidden">Orari di silenzio e canali si salvano con il pulsante.</p>
           <div className="ml-auto flex items-center gap-3">
-            <p role="status" className={cn("text-xs", dirty && !saveMut.isPending ? "font-medium text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>{stato}</p>
+            <StatoSalvataggio modificato={dirty} inCorso={saveMut.isPending} />
             <Button size="sm" onClick={() => saveMut.mutate()} disabled={saveMut.isPending || !dirty} className="gap-2">
               <Save className="h-4 w-4" />
               {saveMut.isPending ? "Salvataggio..." : "Salva preferenze"}
@@ -453,10 +465,11 @@ export default function SettingsNotifiche() {
         </SezioneImpostazione>
       </fieldset>
 
+      </div>
       {/* 4 · Messaggi programmati — solo amministratori, in fondo. Telefono no: sono automazioni, che si creano da
           computer o tablet. */}
       {isAdmin && (
-        <div className="max-sm:hidden">
+        <div className="max-sm:hidden" hidden={!messaggiAziendali}>
           <SezioneImpostazione
             id="messaggi-programmati"
             titolo="Messaggi programmati"

@@ -1,6 +1,6 @@
 // src/components/settings/ModelliFasiConfig.tsx
 import { useState } from "react";
-import { Copy, Loader2, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Copy, Eye, Loader2, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { SezioneImpostazione } from "@/components/impostazioni/SezioneImpostazione";
@@ -16,7 +16,12 @@ import {
   bozzaDaModello, bozzaVuota, modelliDaOffrire, modelliDiPartenzaMancanti, modelliPerInizializzare, totaleSottofasi,
   type BozzaModello, type ModelloFasi,
 } from "@/lib/orders/modelliFasi";
+import { AnteprimaModelloFasi } from "./AnteprimaModelloFasi";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import ModelloFasiEditor from "./ModelloFasiEditor";
+
+const piega = (testo: string) => testo.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 const dettaglio = (m: ModelloFasi): string => {
   const sotto = totaleSottofasi(m);
@@ -33,6 +38,8 @@ export default function ModelliFasiConfig({ evidenziata = false }: { evidenziata
   const puoModificare = !permissions.isLoading && (role === "company_admin" || role === "super_admin" || !!permissions.canEditSettingsOrders);
   const { modelli, inizializzati, disponibile, isLoading, isError, refetch, salva, elimina, inizializza } = useModelliFasi();
   const [bozza, setBozza] = useState<BozzaModello | null>(null);
+  const [anteprima, setAnteprima] = useState<ModelloFasi | null>(null);
+  const [ricerca, setRicerca] = useState("");
   const [daEliminare, setDaEliminare] = useState<ModelloFasi | null>(null);
 
   // L'apertura della pagina non scrive dati: gli standard si importano esplicitamente.
@@ -41,6 +48,7 @@ export default function ModelliFasiConfig({ evidenziata = false }: { evidenziata
   // Gli standard sono quelli dei lavori che l'azienda fa; i modelli suoi si vedono tutti, qui si gestiscono.
   const { modelliStandard } = useProfiloLavori();
   const elenco = modelliDaOffrire(inizializzati, modelli, modelliStandard);
+  const filtrati = elenco.filter((m) => piega([m.nome, m.descrizione, ...m.fasi.flatMap((f) => [f.nome, ...f.sottofasi.map((s) => s.nome)])].join(" ")).includes(piega(ricerca.trim())));
   const mancanti = inizializzati ? modelliDiPartenzaMancanti(modelliStandard, modelli) : 0;
   const preparazione = disponibile && !inizializzati && puoModificare;
   const busy = salva.isPending || elimina.isPending || inizializza.isPending;
@@ -57,7 +65,7 @@ export default function ModelliFasiConfig({ evidenziata = false }: { evidenziata
       <SezioneImpostazione
         id="modelli"
         titolo="Modelli di fasi"
-        descrizione="Li trovi nella commessa: Lavorazioni → Aggiungi fasi → Usa un modello. Ogni fase può avere sottofasi. Modificare un modello non cambia le commesse già avviate."
+        descrizione="Li trovi nella commessa: Lavorazioni → Aggiungi fasi → Usa un modello. Ogni fase può avere sottofasi. Le modifiche si applicano con «Salva modello». Modificare un modello non cambia le commesse già avviate."
         azione={puoAgire ? <Button size="sm" onClick={() => setBozza(bozzaVuota())}><Plus className="mr-1 h-4 w-4" />Nuovo modello</Button> : undefined}
         evidenziata={evidenziata}
       >
@@ -80,6 +88,11 @@ export default function ModelliFasiConfig({ evidenziata = false }: { evidenziata
             <p className={AVVISO}>Sono i modelli di partenza. Chi gestisce le impostazioni delle commesse li potrà fare suoi e cambiarli.</p>
           )}
 
+          {elenco.length > 0 && <div className="flex flex-wrap items-center gap-3">
+            <Input aria-label="Cerca nei modelli di fasi" placeholder="Cerca un modello, una fase o una sottofase…" value={ricerca} onChange={(e) => setRicerca(e.target.value)} className="max-w-md" />
+            <span role="status" className="text-xs text-muted-foreground">{filtrati.length} di {elenco.length} modelli</span>
+          </div>}
+          {elenco.length > 0 && filtrati.length === 0 && <p className={AVVISO}>Nessun modello corrisponde alla ricerca. <Button variant="link" size="sm" onClick={() => setRicerca("")}>Mostra tutti</Button></p>}
           {elenco.length === 0 ? (
             <p className={AVVISO}>
               Non hai modelli. Creane uno con «Nuovo modello», oppure rimetti quelli di partenza. Puoi anche salvare le fasi di una commessa già fatta:
@@ -87,17 +100,18 @@ export default function ModelliFasiConfig({ evidenziata = false }: { evidenziata
             </p>
           ) : (
             <ul className="divide-y rounded-lg border">
-              {elenco.map((m) => (
+              {filtrati.map((m) => (
                 <li key={m.id} className="flex flex-wrap items-center gap-2 p-3">
                   <div className="min-w-0 flex-1">
                     <p className="break-words text-sm font-medium">{m.nome}</p>
                     <p className="break-words text-xs text-muted-foreground">{dettaglio(m)}</p>
                   </div>
+                  <Button variant="ghost" size="icon" className="h-11 w-11" title={`Anteprima ${m.nome}`} aria-label={`Anteprima ${m.nome}`} onClick={() => setAnteprima(m)}><Eye className="h-4 w-4" /></Button>
                   {puoAgire && m.origine === "azienda" && (
                     <>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Modifica ${m.nome}`} onClick={() => setBozza(bozzaDaModello(m, false))}><Pencil className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Duplica ${m.nome}`} onClick={() => setBozza(bozzaDaModello(m, true))}><Copy className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-600" aria-label={`Elimina ${m.nome}`} onClick={() => setDaEliminare(m)}><Trash2 className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" className="h-11 w-11" title={`Modifica ${m.nome}`} aria-label={`Modifica ${m.nome}`} onClick={() => setBozza(bozzaDaModello(m, false))}><Pencil className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" className="h-11 w-11" title={`Duplica ${m.nome}`} aria-label={`Duplica ${m.nome}`} onClick={() => setBozza(bozzaDaModello(m, true))}><Copy className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" className="h-11 w-11 text-rose-600" title={`Elimina ${m.nome}`} aria-label={`Elimina ${m.nome}`} onClick={() => setDaEliminare(m)}><Trash2 className="h-4 w-4" /></Button>
                     </>
                   )}
                 </li>
@@ -116,6 +130,12 @@ export default function ModelliFasiConfig({ evidenziata = false }: { evidenziata
         </div>
       </SezioneImpostazione>
 
+      <Dialog open={anteprima !== null} onOpenChange={(o) => { if (!o) setAnteprima(null); }}>
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-xl">
+          <DialogHeader><DialogTitle>Anteprima: {anteprima?.nome}</DialogTitle><DialogDescription>Questa è la sequenza che copierai nella commessa scegliendo il modello. Le commesse esistenti restano come sono.</DialogDescription></DialogHeader>
+          {anteprima && <AnteprimaModelloFasi fasi={anteprima.fasi} />}
+        </DialogContent>
+      </Dialog>
       <ModelloFasiEditor
         aperto={bozza !== null}
         bozzaIniziale={bozza}

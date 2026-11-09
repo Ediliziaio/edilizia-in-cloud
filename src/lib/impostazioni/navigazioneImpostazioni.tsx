@@ -35,7 +35,7 @@ function schedaInternaAccessibile(url: string, sezione: string | null, permissio
     }
   }
   // Registro delle attività e accessi: la pagina li apre solo all'amministratore.
-  if (sezione === "sicurezza-privacy" && (scheda === "dashboard" || scheda === "attivita")) return admin;
+  if (sezione === "sicurezza-privacy" && (scheda === "dashboard" || scheda === "attivita" || scheda === "regole")) return admin;
   return true;
 }
 
@@ -233,7 +233,7 @@ export function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, 
         { to: "/azienda/impostazioni/integrazioni",   label: "Integrazioni",   icon: <Plug className="h-4 w-4" />,   visible: isAdmin || permissions.canViewSettingsIntegrations, desktopOnly: true },
         { to: "/azienda/impostazioni/api",            label: "Chiavi di accesso",   icon: <Key className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsIntegrations },
         { to: "/azienda/impostazioni/webhook",        label: "Webhook",        icon: <Globe className="h-4 w-4" />,  visible: isAdmin || permissions.canViewSettingsIntegrations },
-        { to: "/azienda/impostazioni/dominio-email",  label: "Dominio Email",  icon: <AtSign className="h-4 w-4" />, visible: isAdmin || permissions.canViewMarketingEmail },
+        { to: "/azienda/impostazioni/dominio-email",  label: "Dominio di invio email",  icon: <AtSign className="h-4 w-4" />, visible: isAdmin || permissions.canViewMarketingEmail },
         { to: "/azienda/impostazioni/numeri-telefono",label: "Telefonia",icon: <Phone className="h-4 w-4" />,  visible: isAdmin || permissions.canViewSettingsIntegrations },
       ],
     },
@@ -248,7 +248,37 @@ export function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, 
       ],
     },
   ];
-  return gruppi.map((gruppo) => ({
+  // Una sola classificazione per sidebar, ricerca e hub. Le destinazioni e
+  // i permessi rimangono quelli delle voci originali, anche per le schede.
+  const voci = gruppi.flatMap((gruppo) => gruppo.items);
+  const perSezione = new Map(voci.map((voce) => {
+    const gruppo = GRUPPI_IMPOSTAZIONI.find((candidato) => candidato.titolo === voce.label);
+    return [gruppo?.schede[0].sezione ?? sezioneDaPercorso(voce.to), voce];
+  }));
+  const ordine: Array<{ label: string; sezioni: string[] }> = [
+    { label: "Il mio account", sezioni: ["mio-profilo", "notifiche"] },
+    { label: "Azienda", sezioni: ["profilo", "sedi", "documenti-azienda", "branding"] },
+    { label: "Persone e sicurezza", sezioni: ["persone", "sicurezza-privacy"] },
+    { label: "Cantieri", sezioni: ["stati-ordine", "modelli-fasi", "rapportini-cantiere", "calendari-lavori", "commesse-generali", "acquisti-materiali", "cartelle-documenti", "qr-codici"] },
+    { label: "Vendite e documenti", sezioni: ["sequenze", "motivi-perdita", "listino", "template-preventivi", "modelli-pdf", "contratti-e-condizioni", "condizioni-firma", "modelli-pagamento", "sopralluoghi", "finanziamenti", "fornitori", "catalogo-render", "tag"] },
+    { label: "Comunicazioni e collegamenti", sezioni: ["ai-memoria", "integrazioni", "dominio-email", "numeri-telefono", "calendari", "form-builder", "lead-forms"] },
+    { label: "Amministrazione", sezioni: ["fatturazione", "banca", "categorie-costi", "automazioni-finanza", "abbonamento"] },
+    { label: "Avanzate", sezioni: ["campi-personalizzati", "api", "webhook", "esporta-dati"] },
+  ];
+  const assegnate = new Set<string>();
+  const riordinati = ordine.map(({ label, sezioni }) => ({
+    label,
+    items: sezioni.flatMap((sezione) => {
+      const voce = perSezione.get(sezione);
+      if (!voce || assegnate.has(voce.to)) return [];
+      assegnate.add(voce.to);
+      return [voce];
+    }),
+  }));
+  // Una voce aggiunta in futuro non deve sparire se manca dalla classificazione.
+  const altre = voci.filter((voce) => !assegnate.has(voce.to));
+  if (altre.length) riordinati.push({ label: "Altre impostazioni", items: altre });
+  return riordinati.map((gruppo) => ({
     ...gruppo,
     // Le impostazioni seguono il piano (21/09/2026): una voce resta solo se
     // oltre al permesso c'è anche il modulo. Vedi pianoImpostazioni.ts.

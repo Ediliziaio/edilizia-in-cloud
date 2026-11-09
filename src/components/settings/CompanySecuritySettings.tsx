@@ -1,5 +1,6 @@
+import { StatoSalvataggio } from "@/components/impostazioni/StatoSalvataggio";
 /**
- * Regole di sicurezza dell'azienda (dentro «Il mio profilo» → Sicurezza, solo per gli amministratori).
+ * Regole di sicurezza dell'azienda (in «Sicurezza e privacy» → Regole aziendali, solo per gli amministratori).
  *
  * Restano le due che qualcuno applica davvero, entrambe lette da `check-login-security` alla schermata di
  * accesso: il blocco dopo troppi tentativi sbagliati (con la sua durata) e l'elenco degli indirizzi da cui si
@@ -179,6 +180,13 @@ function FormRegole({ companyId, salvate, mioIndirizzo }: { companyId: string; s
       evidenziata={evidenziata === "regole-azienda"}
     >
       <fieldset disabled={salva.isPending} className="m-0 min-w-0 divide-y border-0 p-0">
+        <div className="settings-save-bar">
+          <StatoSalvataggio modificato={dirty} inCorso={salva.isPending} />
+          <Button size="sm" onClick={avviaSalvataggio} disabled={!dirty || salva.isPending || nonValidi.length > 0}>
+            {salva.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            Salva regole
+          </Button>
+        </div>
         <div className="space-y-3 px-4 py-4">
           <div>
             <h3 className="text-sm font-semibold">Troppi tentativi sbagliati</h3>
@@ -258,15 +266,7 @@ function FormRegole({ companyId, salvate, mioIndirizzo }: { companyId: string; s
           </Alert>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-          <p role="status" className={dirty && !salva.isPending ? "text-xs font-medium text-amber-700 dark:text-amber-400" : "text-xs text-muted-foreground"}>
-            {salva.isPending ? "Salvataggio…" : dirty ? "Modifiche non salvate" : "Nessuna modifica da salvare"}
-          </p>
-          <Button size="sm" onClick={avviaSalvataggio} disabled={!dirty || salva.isPending || nonValidi.length > 0}>
-            {salva.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            Salva regole
-          </Button>
-        </div>
+
       </fieldset>
     </SezioneImpostazione>
   );

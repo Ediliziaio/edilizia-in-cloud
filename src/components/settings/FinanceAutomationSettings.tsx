@@ -1,3 +1,4 @@
+import { StatoSalvataggio } from "@/components/impostazioni/StatoSalvataggio";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -104,7 +105,7 @@ export function FinanceAutomationSettings() {
   useSettingsDraftGuard(hasChanges || saveMutation.isPending);
 
   const salva = () => {
-    if (!hasChanges || saveMutation.isPending) return;
+    if (!canEdit || !hasChanges || saveMutation.isPending) return;
     const email = alertEmail.trim();
     if (email && !isValidEmail(email)) {
       toast.error("Scrivi un indirizzo email valido, per esempio amministrazione@azienda.it.");
@@ -132,6 +133,23 @@ export function FinanceAutomationSettings() {
           Sola lettura: qui serve il permesso «Costi», e chi ce l&apos;ha in «Sola lettura» non può scrivere.
         </AvvisoSolaLettura>
       )}
+      <Alert>
+        <p className="mb-1 text-sm font-semibold">Invio automatico email non disponibile</p>
+        <AlertDescription>Puoi preparare le preferenze, ma non vengono ancora inviate email. I promemoria in campanella continuano a funzionare indipendentemente da queste scelte.</AlertDescription>
+      </Alert>
+      <div className="settings-save-bar">
+        <StatoSalvataggio modificato={hasChanges} inCorso={saveMutation.isPending} />
+        <Button
+          onClick={salva}
+          disabled={!canEdit || !hasChanges || saveMutation.isPending}
+        >
+          {saveMutation.isPending ? (
+            <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Salvataggio...</>
+          ) : (
+            "Salva impostazioni"
+          )}
+        </Button>
+      </div>
       <fieldset disabled={!canEdit || saveMutation.isPending} className="m-0 min-w-0 border-0 p-0">
         <SezioneImpostazione
           id="avvisi-scadenze"
@@ -140,7 +158,7 @@ export function FinanceAutomationSettings() {
         >
           <RigaInterruttore
             id="finance-alert-enabled"
-            titolo="Avvisi attivi"
+            titolo="Prepara gli avvisi email"
             descrizione="Un riepilogo per email delle scadenze scadute e in arrivo."
             checked={alertEnabled}
             onCheckedChange={(v) => upd("alert_enabled", v)}
@@ -159,19 +177,6 @@ export function FinanceAutomationSettings() {
             <p className="text-xs text-muted-foreground">
               L&apos;invio di queste email non parte ancora da solo: la scelta resta salvata e varrà quando lo attiveremo.
             </p>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p role="status" className="text-xs text-muted-foreground">{saveMutation.isPending ? "Salvataggio…" : hasChanges ? "Modifiche non salvate" : "Nessuna modifica da salvare"}</p>
-              <Button
-                onClick={salva}
-                disabled={!hasChanges || saveMutation.isPending}
-              >
-                {saveMutation.isPending ? (
-                  <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Salvataggio...</>
-                ) : (
-                  "Salva impostazioni"
-                )}
-              </Button>
-            </div>
           </div>
         </SezioneImpostazione>
       </fieldset>

@@ -1,3 +1,4 @@
+import { StatoSalvataggio } from "@/components/impostazioni/StatoSalvataggio";
 /**
  * Impostazioni → Rapportini e presenze.
  *
@@ -222,20 +223,11 @@ export default function RegoleCampoConfig() {
       {!permissions.isLoading && !puoModificare && <AvvisoSolaLetturaImpostazioni permesso="Configurazione Ordini" />}
 
       <div ref={contenitore} className="sticky top-2 z-20" style={{ height: altezza }}>
-      <div ref={barra} style={stile} className="z-20 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card/95 p-2 shadow-sm backdrop-blur">
+      <div ref={barra} style={stile} className="settings-save-bar z-20 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card/95 p-2 shadow-sm backdrop-blur">
         <IndiceSezioni voci={mobile ? SEZIONI : [...SEZIONI, ...SEZIONI_MODULI]} onVai={vai} />
         {puoModificare && (
           <div className="flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:w-auto">
-            <p
-              role="status"
-              className={cn(
-                "mr-auto text-xs",
-                "text-muted-foreground",
-                daSalvare && !inCorso && "font-medium text-amber-700 dark:text-amber-400",
-              )}
-            >
-              {inCorso ? "Salvataggio…" : daSalvare ? "Modifiche non salvate" : "Nessuna modifica"}
-            </p>
+            <StatoSalvataggio modificato={daSalvare} inCorso={inCorso} />
             {daSalvare && (
               <Button size="sm" variant="ghost" aria-label="Annulla le modifiche" onClick={annulla} disabled={inCorso}>
                 <span className="hidden sm:inline" aria-hidden="true">Annulla le modifiche</span><span className="sm:hidden" aria-hidden="true">Annulla</span>
@@ -251,6 +243,9 @@ export default function RegoleCampoConfig() {
       </div>
 
       {/* In cima: prima di scegliere, il titolare vede chi fa cosa con le regole che ha davanti (anche non salvate). */}
+      <details className="rounded-xl border bg-card">
+      <summary className="cursor-pointer px-4 py-3 text-sm font-medium">Chi fa cosa con queste regole</summary>
+      <div className="border-t p-3">
       <ChiFaCosaRiquadro
         regole={regole}
         modificato={modificato}
@@ -262,6 +257,9 @@ export default function RegoleCampoConfig() {
           giornale: isAdmin || permissions.canViewGiornaleLavori,
         }}
       />
+
+      </div>
+      </details>
 
       <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]" data-testid="regole-campo-colonne">
         <div className="min-w-0 space-y-4">

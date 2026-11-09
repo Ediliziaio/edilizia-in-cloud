@@ -21,6 +21,8 @@ vi.mock("@/pages/azienda/settings/SettingsPrivacy", () => ({ default: () => <p>C
 vi.mock("@/pages/azienda/settings/SettingsSecurityDashboard", () => ({ default: () => <p>Contenuto accessi</p> }));
 vi.mock("@/pages/azienda/settings/SettingsActivityLog", () => ({ default: () => <p>Contenuto registro</p> }));
 
+vi.mock("@/components/settings/CompanySecuritySettings", () => ({ CompanySecuritySettings: () => <p>Contenuto regole aziendali</p> }));
+
 import SettingsSecurityHub from "@/pages/azienda/settings/SettingsSecurityHub";
 
 function Indirizzo() { return <output data-testid="url">{useLocation().search}</output>; }
@@ -44,7 +46,7 @@ describe("Sicurezza & Privacy", () => {
     apri();
     expect(screen.getByText("Contenuto accessi")).toBeVisible();
     const schede = screen.getAllByRole("tab").map((s) => s.textContent);
-    expect(schede).toEqual(["Accessi", "Registro attività", "Privacy"]);
+    expect(schede).toEqual(["Accessi", "Registro attività", "Regole aziendali", "Privacy"]);
     expect(screen.queryByRole("tab", { name: /Security dashboard|Privacy & GDPR/ })).toBeNull();
   });
 
@@ -63,6 +65,17 @@ describe("Sicurezza & Privacy", () => {
     apri("?tab=attivita");
     expect(screen.getAllByText("Contenuto privacy").length).toBeGreaterThan(0);
     expect(screen.queryByText("Contenuto registro")).toBeNull();
+  });
+
+  it("le regole aziendali sono disponibili solo all’amministratore da computer", () => {
+    apri("?tab=regole");
+    expect(screen.getByText("Contenuto regole aziendali")).toBeVisible();
+    cleanup();
+    stato.ruolo = "company_staff";
+    stato.vedeSicurezza = true;
+    apri("?tab=regole");
+    expect(screen.queryByText("Contenuto regole aziendali")).toBeNull();
+    expect(screen.getByText("Contenuto privacy")).toBeVisible();
   });
 
   it("gli indirizzi delle schede non cambiano", () => {

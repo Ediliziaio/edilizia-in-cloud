@@ -51,7 +51,7 @@ describe("a casella vuota", () => {
     expect(voci[0]).toContain("Prezzo scritto a mano");
     expect(voci[1]).toContain("Modelli preventivi e contratti · Sconti");
     // …e sotto c'è tutto il menu, con i nomi dei suoi gruppi
-    expect(screen.getByText("Preventivi & Listino")).toBeInTheDocument();
+    expect(screen.getByText("Vendite e documenti")).toBeInTheDocument();
     expect(screen.getByText("Profilo aziendale")).toBeInTheDocument();
   });
 
@@ -107,8 +107,8 @@ describe("scrivendo", () => {
   it("i risultati hanno il nome del gruppo del menu, non un vocabolario a parte", async () => {
     await cerca("commercialista");
     await screen.findByText("Commercialista");
-    // «Persone & Accessi» è il gruppo del menu
-    expect(screen.getAllByText("Persone & Accessi").length).toBeGreaterThan(0);
+    // «Persone e sicurezza» è il gruppo del menu
+    expect(screen.getAllByText("Persone e sicurezza").length).toBeGreaterThan(0);
     expect(screen.queryByText("Persone")).toBeNull();
   });
 });

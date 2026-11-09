@@ -23,7 +23,7 @@ describe("I lavori che facciamo", () => {
     render(<TipiLavoroConfig puoModificare />);
     expect(screen.getByRole("checkbox", { name: "Serramenti e infissi" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Fotovoltaico" })).not.toBeChecked();
-    expect(screen.getByRole("status")).toHaveTextContent("dal settore");
+    expect(screen.getByText(/Per ora li deduciamo dal settore/)).toHaveAttribute("role", "status");
   });
   it("aggiungere un lavoro salva la scelta completa", () => {
     render(<TipiLavoroConfig puoModificare />);
@@ -40,7 +40,7 @@ describe("I lavori che facciamo", () => {
     state.settore = "altro";
     render(<TipiLavoroConfig puoModificare />);
     expect(screen.getByRole("checkbox", { name: "Bagni" })).not.toBeChecked();
-    expect(screen.getByRole("status")).toHaveTextContent("tutti i modelli");
+    expect(screen.getByText(/ti proponiamo tutti i modelli/)).toHaveAttribute("role", "status");
   });
   it("i serramenti aspettano il sopralluogo, e la scelta si salva per tipo di lavoro", () => {
     render(<TipiLavoroConfig puoModificare />);

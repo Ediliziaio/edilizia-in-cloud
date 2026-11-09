@@ -168,7 +168,7 @@ afterEach(() => cleanup());
 describe("la finestra «Nuovo campo»", () => {
   it("non ha più «Sezione», «Campo obbligatorio» né «Testo di aiuto», e la pagina non ha la scheda «Cartelle»", async () => {
     monta();
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Tutti i campi", "Campi eliminati", "Modelli e schede tecniche"]);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Campi dell’azienda", "Variabili di sistema", "Campi eliminati", "Modelli e schede tecniche"]);
     expect(screen.queryByRole("tab", { name: "Cartelle" })).toBeNull();
 
     const finestra = await apriNuovoCampo();
@@ -369,19 +369,23 @@ describe("l'elenco dei campi", () => {
     expect(within(righe[1]).getByText("Tipo di caldaia")).toBeTruthy();
     expect(within(righe[1]).getByText("Una scelta da un elenco")).toBeTruthy();
     expect(within(righe[1]).getByText("{{ contact.tipo_di_caldaia }}")).toBeTruthy();
-    expect(within(righe[2]).getByText("ID Contatto")).toBeTruthy();
+    expect(screen.queryByText("ID Contatto")).toBeNull();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Variabili di sistema" }), { button: 0, ctrlKey: false });
+    expect((await screen.findAllByText("ID Contatto")).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Tipo di caldaia")).toBeNull();
     // La data finta delle variabili di sistema (1/1/2024) non si mostra più.
     expect(screen.queryByText(/01 gen 2024/)).toBeNull();
   });
 
   it("le intestazioni e il filtro hanno parole italiane; la pagina spiega cosa sono le variabili", async () => {
     monta();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Variabili di sistema" }), { button: 0, ctrlKey: false });
     await screen.findByText("Si scrive così nei testi");
     const intestazioni = within(screen.getAllByRole("row")[0]).getAllByRole("columnheader").map((h) => h.textContent);
     expect(intestazioni).toEqual(["Campo di sistema", "Nome del campo", "Dove compare", "Si scrive così nei testi", "Creato il", "Azioni"]);
     expect(screen.getByRole("combobox", { name: "Mostra solo un oggetto" })).toBeTruthy();
     expect(screen.queryByText(/Raggruppa per/)).toBeNull();
-    expect(screen.getByText(/In cima i campi che hai aggiunto tu; sotto, le variabili di sistema/)).toBeTruthy();
+    expect(screen.getByText(/Le variabili di sistema si usano dentro email, SMS e messaggi/)).toBeTruthy();
   });
 
   it("senza campi propri dice come cominciare (e a chi non può modificare non offre di aggiungerne)", async () => {
@@ -428,6 +432,7 @@ describe("l'elenco dei campi", () => {
 
   it("la lettura prende solo i campi non eliminati, nell'azienda, nell'ordine delle schede", async () => {
     monta();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Variabili di sistema" }), { button: 0, ctrlKey: false });
     await screen.findByText("Si scrive così nei testi");
     const lettura = db.stato.chiamate.find((c) => c.tabella === "marketing_custom_fields" && !c.ops.some(([m]) => m === "not"))!;
     expect(ha(lettura, "eq", "company_id", "azienda-1")).toBe(true);

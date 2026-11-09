@@ -785,9 +785,10 @@ export default function MarketingCalendarsConfig() {
         <TabsContent value="calendars" className="space-y-4">
           {!loadingCalendars && !calendarsError && (
             <p className="text-sm text-muted-foreground">
-              {calendarStats.total === 1 ? "1 calendario" : `${calendarStats.total} calendari`} · {calendarStats.active === 1 ? "1 attivo" : `${calendarStats.active} attivi`}
+              {calendarStats.total === 1 ? "1 calendario" : `${calendarStats.total} calendari`} · {calendarStats.active === 1 ? "1 abilitato" : `${calendarStats.active} abilitati`}
             </p>
           )}
+          <p className="text-xs text-muted-foreground">Abilitato non significa pronto per le prenotazioni: completa link e orari segnalati nella riga del calendario.</p>
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
             <div className="flex gap-2 flex-wrap items-center">
               <div className="relative max-md:w-full">

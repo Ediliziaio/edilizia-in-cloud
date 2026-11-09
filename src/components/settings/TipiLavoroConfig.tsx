@@ -44,7 +44,7 @@ export default function TipiLavoroConfig({ puoModificare, evidenziata = false }:
       titolo="I lavori che facciamo"
       descrizione="Quando apri una commessa ti proponiamo solo i modelli standard di questi lavori. I modelli già nella lista della tua azienda restano tutti."
       ambito={<AmbitoImpostazione>Commesse nuove</AmbitoImpostazione>}
-      azione={<span>Si salva subito</span>}
+      azione={<span role="status" aria-live="polite">{salva.isPending ? "Salvataggio…" : "Si salva subito"}</span>}
       evidenziata={evidenziata}
     >
       <div className="px-4 py-4">
@@ -52,9 +52,9 @@ export default function TipiLavoroConfig({ puoModificare, evidenziata = false }:
           <legend className="sr-only">I lavori che facciamo</legend>
           <div className="grid gap-2 sm:grid-cols-2">
             {TIPI_LAVORO.map((t) => (
-              <div key={t} className="flex items-center gap-3 rounded-lg border p-3">
+              <div key={t} className="flex min-h-11 items-center gap-3 rounded-md px-2 transition-colors hover:bg-muted/50">
                 <Checkbox id={`tipo-lavoro-${t}`} checked={attivi.has(t)} onCheckedChange={(v) => cambia(t, v === true)} disabled={!puoModificare || salva.isPending} />
-                <Label htmlFor={`tipo-lavoro-${t}`} className="cursor-pointer text-sm font-normal">{ETICHETTE_TIPI[t]}</Label>
+                <Label htmlFor={`tipo-lavoro-${t}`} className="flex min-h-11 flex-1 cursor-pointer items-center text-sm font-normal">{ETICHETTE_TIPI[t]}</Label>
               </div>
             ))}
           </div>
@@ -64,9 +64,9 @@ export default function TipiLavoroConfig({ puoModificare, evidenziata = false }:
               <p className="text-xs text-muted-foreground">Spunta se le misure definitive le prende un tecnico dopo il contratto: l'ordine aspetta la conferma. Senza spunta valgono quelle del preventivo.</p>
               <div className="grid gap-2 sm:grid-cols-2">
                 {profilo.tipi.filter((t) => TIPI_CON_MISURE.includes(t)).map((t) => (
-                  <div key={t} className="flex items-center gap-3 rounded-lg border p-3">
+                  <div key={t} className="flex min-h-11 items-center gap-3 rounded-md px-2 transition-colors hover:bg-muted/50">
                     <Checkbox id={`misure-regola-${t}`} aria-label={`Sopralluogo per ${ETICHETTE_TIPI[t]}`} checked={regolaDi(t) === "sopralluogo"} onCheckedChange={(v) => cambiaRegola(t, v === true)} disabled={!puoModificare || salva.isPending} />
-                    <Label htmlFor={`misure-regola-${t}`} className="cursor-pointer text-sm font-normal">{ETICHETTE_TIPI[t]}</Label>
+                    <Label htmlFor={`misure-regola-${t}`} className="flex min-h-11 flex-1 cursor-pointer items-center text-sm font-normal">{ETICHETTE_TIPI[t]}</Label>
                   </div>
                 ))}
               </div>

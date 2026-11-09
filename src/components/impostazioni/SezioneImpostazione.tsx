@@ -43,6 +43,7 @@ export function SezioneImpostazione({
   return (
     <section
       id={id}
+      data-ui="settings-section"
       aria-labelledby={`${id}-titolo`}
       data-evidenziata={evidenziata ? "true" : undefined}
       className={cn("scroll-mt-28 rounded-lg border bg-card transition-shadow duration-500", evidenziata && "ring-2 ring-primary/50")}

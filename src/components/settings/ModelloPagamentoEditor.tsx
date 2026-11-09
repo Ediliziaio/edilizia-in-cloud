@@ -1,3 +1,4 @@
+import { StatoSalvataggio } from "@/components/impostazioni/StatoSalvataggio";
 // src/components/settings/ModelloPagamentoEditor.tsx
 import { useState } from "react";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
@@ -76,9 +77,8 @@ function EditorAperto({
 }) {
   const [bozza, setBozza] = useState<BozzaModelloPagamento>(bozzaIniziale);
   // Esc o un clic fuori non devono buttare via il lavoro: con modifiche si chiede conferma (come per i modelli di fasi).
-  const conferma = useSettingsDraftGuard(
-    salvataggio || JSON.stringify(bozza) !== JSON.stringify(bozzaIniziale),
-  );
+  const modificato = JSON.stringify(bozza) !== JSON.stringify(bozzaIniziale);
+  const conferma = useSettingsDraftGuard(salvataggio || modificato);
   const chiudi = () => {
     if (!salvataggio && conferma()) onChiudi();
   };
@@ -374,7 +374,8 @@ function EditorAperto({
           </div>
         </div>
 
-        <DialogFooter className="shrink-0 border-t bg-background px-5 py-3">
+        <DialogFooter className="shrink-0 items-center border-t bg-background px-5 py-3">
+          <StatoSalvataggio modificato={modificato} inCorso={salvataggio} descrizione={bozza.id ? "Modifica i campi e salva il modello" : "Il nuovo modello si crea con Salva modello"} />
           <Button variant="outline" disabled={salvataggio} onClick={chiudi}>
             Annulla
           </Button>

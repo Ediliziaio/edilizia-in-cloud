@@ -777,9 +777,6 @@ export default function SettingsBranding() {
 
   return (
     <div className="space-y-6 max-w-7xl">
-      <p className="text-muted-foreground">
-        Logo, colori, nome e indirizzo web della piattaforma con il tuo marchio.
-      </p>
       {!permissions.isAdmin && (
         <Alert>
           <Lock className="h-4 w-4" />
@@ -887,7 +884,7 @@ export default function SettingsBranding() {
                   dove non serve). In alto e non in basso: da telefono la barra di navigazione galleggia sul fondo. */}
               <div
                 className={cn(
-                  "sticky top-2 z-20 flex flex-wrap items-center justify-end gap-x-3 gap-y-2 rounded-lg border bg-card/95 px-3 py-2 shadow-sm backdrop-blur",
+                  "settings-save-bar sticky top-2 z-20 flex flex-wrap items-center justify-end gap-x-3 gap-y-2 rounded-lg border bg-card/95 px-3 py-2 shadow-sm backdrop-blur",
                   !barraInUso && "max-sm:hidden",
                 )}
               >

@@ -7,7 +7,7 @@
  * `scadenza_alert_prefs` ha 0 righe e `check-scadenze-alerts`, che legge solo `alert_enabled` e `alert_email`,
  * non ha nessun cron). Sono stati tolti dalla pagina. Per questo i test che usavano «Giorni di preavviso» come
  * campo d'esempio (salvare solo il campo cambiato, mantenere la bozza, sola lettura, refetch) ora usano
- * «Email per avvisi» e l'interruttore «Avvisi attivi», e il caso dei preavvisi non validi (0, 31, 1.5) è
+ * «Email per avvisi» e l'interruttore «Prepara gli avvisi email», e il caso dei preavvisi non validi (0, 31, 1.5) è
  * diventato quello degli indirizzi email non validi.
  */
 import { readdirSync, readFileSync } from "node:fs";
@@ -75,7 +75,7 @@ describe("Automazioni finanza: salvataggi controllati", () => {
     open();
     const email = await screen.findByLabelText("Email per avvisi");
     expect(email).toHaveValue("");
-    expect(screen.getByRole("switch", { name: "Avvisi attivi" })).toBeChecked();
+    expect(screen.getByRole("switch", { name: "Prepara gli avvisi email" })).toBeChecked();
     expect(screen.getByRole("button", { name: "Salva impostazioni" })).toBeDisabled();
     fireEvent.change(email, { target: { value: "amministrazione@rossi.it" } });
     expect(state.updates).toHaveLength(0);
@@ -87,8 +87,8 @@ describe("Automazioni finanza: salvataggi controllati", () => {
   });
   it("spegnere gli avvisi salva solo quell'interruttore", async () => {
     open();
-    fireEvent.click(await screen.findByRole("switch", { name: "Avvisi attivi" }));
-    expect(screen.getByRole("switch", { name: "Avvisi attivi" })).not.toBeChecked();
+    fireEvent.click(await screen.findByRole("switch", { name: "Prepara gli avvisi email" }));
+    expect(screen.getByRole("switch", { name: "Prepara gli avvisi email" })).not.toBeChecked();
     expect(screen.getByRole("status")).toHaveTextContent("Modifiche non salvate");
     fireEvent.click(screen.getByRole("button", { name: "Salva impostazioni" }));
     await waitFor(() => expect(state.toastSuccess).toHaveBeenCalledOnce());
@@ -130,7 +130,7 @@ describe("Automazioni finanza: salvataggi controllati", () => {
     state.canEdit = false;
     open();
     expect(await screen.findByLabelText("Email per avvisi")).toBeDisabled();
-    expect(screen.getByRole("switch", { name: "Avvisi attivi" })).toBeDisabled();
+    expect(screen.getByRole("switch", { name: "Prepara gli avvisi email" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Salva impostazioni" })).toBeDisabled();
     expect(screen.getByRole("note")).toHaveTextContent("Sola lettura: qui serve il permesso «Costi», e chi ce l'ha in «Sola lettura» non può scrivere.");
   });
@@ -194,8 +194,8 @@ describe("Avvisi sulle scadenze: solo quello che qualcuno legge, e parole oneste
     state.noRow = true;
     open();
     // Si cambia solo l'interruttore due volte (spento e riacceso) e poi l'email si lascia vuota ma si salva.
-    fireEvent.click(await screen.findByRole("switch", { name: "Avvisi attivi" }));
-    fireEvent.click(screen.getByRole("switch", { name: "Avvisi attivi" }));
+    fireEvent.click(await screen.findByRole("switch", { name: "Prepara gli avvisi email" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Prepara gli avvisi email" }));
     fireEvent.click(screen.getByRole("button", { name: "Salva impostazioni" }));
     await waitFor(() => expect(state.toastSuccess).toHaveBeenCalledOnce());
     expect(state.inserts[0]).toEqual({ company_id: "company-1", alert_enabled: true, alert_email: null, updated_at: expect.any(String) });
@@ -203,7 +203,7 @@ describe("Avvisi sulle scadenze: solo quello che qualcuno legge, e parole oneste
   it("alla prima volta con gli avvisi spenti la riga nasce spenta", async () => {
     state.noRow = true;
     open();
-    fireEvent.click(await screen.findByRole("switch", { name: "Avvisi attivi" }));
+    fireEvent.click(await screen.findByRole("switch", { name: "Prepara gli avvisi email" }));
     fireEvent.click(screen.getByRole("button", { name: "Salva impostazioni" }));
     await waitFor(() => expect(state.toastSuccess).toHaveBeenCalledOnce());
     expect(state.inserts[0]).toEqual({ company_id: "company-1", alert_enabled: false, alert_email: null, updated_at: expect.any(String) });

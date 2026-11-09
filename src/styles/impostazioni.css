@@ -1,0 +1,102 @@
+/* Solo le impostazioni: anteprime PDF, marchio e il resto dell'app
+   mantengono i propri colori. Nessuna regola su visibilità o permessi. */
+.settings-workspace { --settings-radius: .75rem; }
+.settings-workspace [data-ui="card"],
+.settings-workspace [data-ui="settings-section"] {
+  border-radius: var(--settings-radius);
+  box-shadow: none;
+}
+.settings-workspace [data-ui="card-title"] {
+  font-size: 1rem;
+  line-height: 1.5;
+  font-weight: 600;
+}
+.settings-workspace [data-ui="tabs-list"] {
+  max-width: 100%;
+  height: auto;
+  min-height: 2.75rem;
+  justify-content: flex-start;
+  gap: .25rem;
+  padding: .25rem;
+  border-radius: .625rem;
+}
+.settings-workspace [data-ui="tabs-trigger"] {
+  min-height: 2.25rem;
+  border-radius: .375rem;
+  border-bottom-color: transparent;
+}
+.settings-workspace [data-ui="tabs-trigger"][data-state="active"] {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  box-shadow: 0 1px 3px hsl(var(--foreground) / .08);
+}
+.settings-workspace [data-ui="button"][data-variant="brand"] {
+  background-image: none;
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+.settings-workspace [data-ui="button"][data-variant="brand"]:hover {
+  background-color: hsl(var(--primary) / .9);
+}
+.settings-workspace .settings-save-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .75rem 1rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--settings-radius);
+  background: hsl(var(--card));
+}
+@media (max-width: 767px) {
+  .settings-workspace [data-ui="tabs-list"] {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .settings-workspace [data-ui="tabs-trigger"] {
+    min-height: 2.75rem;
+    white-space: normal;
+    text-align: center;
+  }
+}
+
+/* hidden deve avere precedenza sui layout flex delle barre condivise. */
+.settings-workspace [hidden] { display: none !important; }
+
+/* Il menu resta interamente aperto. I nomi lunghi vanno a capo invece di
+   tagliare la parola che distingue due funzioni. */
+.settings-sidebar [data-sidebar="menu-button"] {
+  height: auto;
+  min-height: 2.25rem;
+}
+.settings-sidebar [data-sidebar="menu-button"] > span:last-child {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.4;
+}
+
+/* Gerarchia delle pagine: una cornice per argomento, contenuto interno leggero. */
+.settings-content > * { min-width: 0; }
+.settings-workspace [data-ui="card-header"] { padding: 1rem 1rem .75rem; }
+.settings-workspace [data-ui="card-content"] { padding: 0 1rem 1rem; }
+.settings-workspace [data-ui="card"] [data-ui="card"] {
+  border-radius: .375rem;
+  box-shadow: none;
+}
+.settings-workspace [data-ui="table"] th {
+  font-size: .75rem;
+  font-weight: 600;
+  background: hsl(var(--muted) / .4);
+}
+.settings-workspace [data-ui="table"] td { padding-top: .75rem; padding-bottom: .75rem; }
+.settings-workspace .settings-save-bar {
+  position: sticky;
+  top: .5rem;
+  z-index: 20;
+  box-shadow: 0 2px 6px hsl(var(--foreground) / .05);
+}
+@media (max-width: 767px) {
+  .settings-workspace [data-ui="button"][data-variant="ghost"] { min-height: 2.75rem; }
+}

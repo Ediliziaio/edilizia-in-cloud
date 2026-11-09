@@ -206,3 +206,45 @@ describe("con i modelli dell'azienda", () => {
     }
   });
 });
+
+
+describe("anteprima e ricerca senza modificare i modelli", () => {
+  it("trova anche una sottofase e permette di tornare all'elenco completo", () => {
+    state.modelli = [mio, { ...mio, id: "m2", nome: "Copertura", fasi: [{ nome: "Posa tegole", sottofasi: [] }] }];
+    render(<ModelliFasiConfig />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Cerca nei modelli di fasi" }), { target: { value: "CAVI" } });
+    expect(screen.getByText("Impianti completi")).toBeInTheDocument();
+    expect(screen.queryByText("Copertura")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "Cerca nei modelli di fasi" }), { target: { value: "inesistente" } });
+    fireEvent.click(screen.getByRole("button", { name: "Mostra tutti" }));
+    expect(screen.getByText("Copertura")).toBeInTheDocument();
+    expect(state.salva).not.toHaveBeenCalled();
+  });
+
+  it("chi ha la sola lettura può vedere fasi, sottofasi e pesi senza scrivere", () => {
+    state.puoModificare = false; state.modelli = [mio];
+    render(<ModelliFasiConfig />);
+    fireEvent.click(screen.getByRole("button", { name: "Anteprima Impianti completi" }));
+    const anteprima = within(screen.getByRole("dialog"));
+    expect(anteprima.getByText("Elettrico")).toBeInTheDocument();
+    expect(anteprima.getByText("Cavi")).toBeInTheDocument();
+    expect(anteprima.getByText("Peso 3")).toBeInTheDocument();
+    expect(anteprima.queryByRole("button", { name: "Salva modello" })).not.toBeInTheDocument();
+    expect(state.salva).not.toHaveBeenCalled();
+    expect(state.elimina).not.toHaveBeenCalled();
+  });
+
+  it("l'anteprima segue il riordino della bozza e il salvataggio conserva la sequenza", () => {
+    state.modelli = [mio];
+    render(<ModelliFasiConfig />);
+    fireEvent.click(screen.getByRole("button", { name: "Modifica Impianti completi" }));
+    const dialogo = within(screen.getByRole("dialog"));
+    fireEvent.click(dialogo.getByRole("button", { name: "Sposta su fase 2" }));
+    fireEvent.click(dialogo.getByText("Anteprima della sequenza"));
+    const sequenza = dialogo.getByRole("list", { name: "Sequenza delle fasi" });
+    expect(within(sequenza).getAllByRole("listitem")[0]).toHaveTextContent("Collaudo");
+    expect(state.salva).not.toHaveBeenCalled();
+    fireEvent.click(dialogo.getByRole("button", { name: "Salva modello" }));
+    expect(state.salva.mock.calls[0][0].fasi.map((f: { nome: string }) => f.nome)).toEqual(["Collaudo", "Elettrico"]);
+  });
+});

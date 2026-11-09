@@ -1,5 +1,7 @@
 // src/components/settings/ModelloFasiEditor.tsx
 import { useState } from "react";
+import { AnteprimaModelloFasi } from "./AnteprimaModelloFasi";
+import { StatoSalvataggio } from "@/components/impostazioni/StatoSalvataggio";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -25,13 +27,13 @@ function Comandi({ etichetta, indice, totale, onSu, onGiu, onElimina, eliminaDis
 }) {
   return (
     <>
-      <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label={`Sposta su ${etichetta}`} disabled={indice === 0} onClick={onSu}>
+      <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0" aria-label={`Sposta su ${etichetta}`} disabled={indice === 0} onClick={onSu}>
         <ArrowUp className="h-4 w-4" />
       </Button>
-      <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label={`Sposta giù ${etichetta}`} disabled={indice === totale - 1} onClick={onGiu}>
+      <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0" aria-label={`Sposta giù ${etichetta}`} disabled={indice === totale - 1} onClick={onGiu}>
         <ArrowDown className="h-4 w-4" />
       </Button>
-      <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-rose-600" aria-label={`Elimina ${etichetta}`} disabled={eliminaDisabilitato} onClick={onElimina}>
+      <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0 text-rose-600" aria-label={`Elimina ${etichetta}`} disabled={eliminaDisabilitato} onClick={onElimina}>
         <Trash2 className="h-4 w-4" />
       </Button>
     </>
@@ -46,7 +48,8 @@ export default function ModelloFasiEditor({ aperto, bozzaIniziale, ...resto }: M
 
 function EditorAperto({ bozzaIniziale, salvataggio, onChiudi, onSalva }: Omit<ModelloFasiEditorProps, "aperto" | "bozzaIniziale"> & { bozzaIniziale: BozzaModello }) {
   const [bozza, setBozza] = useState<BozzaModello>(bozzaIniziale);
-  const conferma = useSettingsDraftGuard(salvataggio || JSON.stringify(bozza) !== JSON.stringify(bozzaIniziale));
+  const modificato = JSON.stringify(bozza) !== JSON.stringify(bozzaIniziale);
+  const conferma = useSettingsDraftGuard(salvataggio || modificato);
   const chiudi = () => { if (!salvataggio && conferma()) onChiudi(); };
   const fasi = bozza.fasi;
   const cambiaFasi = (nuove: FaseModello[]) => setBozza({ ...bozza, fasi: nuove });
@@ -141,7 +144,12 @@ function EditorAperto({ bozzaIniziale, salvataggio, onChiudi, onSalva }: Omit<Mo
           </Button>
         </fieldset>
 
-        <DialogFooter>
+        <details className="rounded-lg border p-3">
+          <summary className="cursor-pointer text-sm font-medium">Anteprima della sequenza</summary>
+          <div className="mt-4"><AnteprimaModelloFasi fasi={fasi} /></div>
+        </details>
+        <DialogFooter className="sticky -bottom-6 z-10 border-t bg-background py-3">
+          <StatoSalvataggio modificato={modificato} inCorso={salvataggio} descrizione={bozza.id ? "Modifica i campi e salva il modello" : "Il nuovo modello si crea con Salva modello"} />
           <Button variant="outline" disabled={salvataggio} onClick={chiudi}>Annulla</Button>
           <Button onClick={salva} disabled={salvataggio}>Salva modello</Button>
         </DialogFooter>

@@ -279,7 +279,7 @@ describe("il campo di ricerca del menu a sinistra", () => {
 
   it("i gruppi senza voci spariscono, e il nome di un gruppo ne mostra le voci", () => {
     const gruppi = filtraGruppiDelMenu(menu(), tutte, "ore lavorate").map((g) => g.label);
-    expect(gruppi).toEqual(["Cantieri & Costi"]);
+    expect(gruppi).toEqual(["Cantieri"]);
     expect(voceDi("persone")).toContain("Utenti e permessi");
   });
 
@@ -445,8 +445,8 @@ describe("le sezioni dentro le pagine hanno la loro voce, che le apre già scors
     ["non disturbare", "Notifiche · Orari di silenzio", "/azienda/impostazioni/notifiche#orari-di-silenzio"],
     ["messaggi automatici", "Notifiche · Messaggi automatici", "/azienda/impostazioni/notifiche#messaggi-automatici"],
     ["messaggi programmati", "Notifiche · Messaggi programmati", "/azienda/impostazioni/notifiche#messaggi-programmati"],
-    ["password sbagliate", "Regole di sicurezza dell'azienda", "/azienda/impostazioni/mio-profilo?tab=sicurezza#regole-azienda"],
-    ["ip consentiti", "Regole di sicurezza dell'azienda", "/azienda/impostazioni/mio-profilo?tab=sicurezza#regole-azienda"],
+    ["password sbagliate", "Regole di sicurezza dell'azienda", "/azienda/impostazioni/sicurezza-privacy?tab=regole#regole-azienda"],
+    ["ip consentiti", "Regole di sicurezza dell'azienda", "/azienda/impostazioni/sicurezza-privacy?tab=regole#regole-azienda"],
     ["chi è collegato", "Chi è collegato", "/azienda/impostazioni/sicurezza-privacy?tab=dashboard"],
     ["privacy e consensi", "Privacy e consensi", "/azienda/impostazioni/sicurezza-privacy?tab=privacy"],
     ["cancella account", "Privacy e consensi", "/azienda/impostazioni/sicurezza-privacy?tab=privacy"],
@@ -534,12 +534,13 @@ describe("ogni voce porta a una pagina che esiste", () => {
   // riscrive quelle pagine («una sezione per argomento»): finché non è unito le pagine non hanno sezioni e il link le
   // apre dall'inizio, senza danno. Dopo l'unione le àncore devono esserci davvero: il controllo si accende da solo.
   const FILE_DELLE_ANCORE: Record<string, string[]> = {
+    "sicurezza-privacy": ["src/pages/azienda/settings/SettingsSecurityHub.tsx", "src/components/settings/CompanySecuritySettings.tsx"],
     margini: ["src/pages/azienda/settings/SettingsMargini.tsx"],
     profilo: ["src/pages/azienda/settings/SettingsProfile.tsx", "src/components/settings/CompanyProfileForm.tsx"],
     notifiche: ["src/pages/azienda/impostazioni/SettingsNotifiche.tsx", "src/components/notifications/AvvisiPerEvento.tsx"],
-    "mio-profilo": ["src/pages/azienda/impostazioni/MioProfilo.tsx", "src/components/settings/CompanySecuritySettings.tsx"],
+    "mio-profilo": ["src/pages/azienda/impostazioni/MioProfilo.tsx"],
     "stati-ordine": ["src/components/settings/OrderStatusConfig.tsx"],
-    "modelli-fasi": ["src/pages/azienda/settings/SettingsModelliFasi.tsx", "src/components/settings/NuovaCommessaConfig.tsx", "src/components/settings/TipiLavoroConfig.tsx"],
+    "modelli-fasi": ["src/components/settings/ModelliFasiConfig.tsx", "src/pages/azienda/settings/SettingsModelliFasi.tsx", "src/components/settings/NuovaCommessaConfig.tsx", "src/components/settings/TipiLavoroConfig.tsx"],
     "modelli-pagamento": ["src/pages/azienda/settings/SettingsModelliPagamento.tsx", "src/components/settings/ModelliPagamentoConfig.tsx", "src/components/settings/SalMaturaConfig.tsx"],
     // Una pagina sola (07/11/2026): le schede «Firma del preventivo» e «Firma elettronica» vivono dentro l'archivio.
     "contratti-e-condizioni": ["src/pages/azienda/settings/SettingsFirmaElettronica.tsx", "src/pages/azienda/impostazioni/SettingsCondizioniFirma.tsx"],

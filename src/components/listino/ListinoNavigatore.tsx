@@ -264,7 +264,7 @@ export function CappelloAree({
           </Button>
         )}
       </div>
-      <div className="flex min-w-0 items-center gap-1 px-1">
+      <div className="hidden min-w-0 items-center gap-1 px-1 sm:flex">
       <Button type="button" variant="ghost" size="icon" className="h-11 w-9 shrink-0" aria-label="Scorri aree a sinistra" disabled={!scorrimento.prima} onClick={() => scorri(-1)}>
         <ChevronLeft className="h-5 w-5" aria-hidden="true" />
       </Button>
