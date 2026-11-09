@@ -229,7 +229,7 @@ export default function Preventivi() {
           <div className="flex items-center justify-between gap-2 sm:hidden">
             <h1 className="text-lg font-bold text-slate-900">Preventivi</h1>
             <div className="flex items-center gap-1.5">
-              {listiniModuli.length > 0 && (
+              {listiniModuli.length > 0 && !isMobile && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="icon" className="tap-compact h-8 w-8" aria-label="Listini lavorazioni">
@@ -320,7 +320,7 @@ export default function Preventivi() {
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                {listiniModuli.length > 0 && (
+                {listiniModuli.length > 0 && !isMobile && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" size="sm" className="h-10 sm:h-9 flex-1 sm:flex-initial" aria-label="Listini lavorazioni" title="Listini lavorazioni">
