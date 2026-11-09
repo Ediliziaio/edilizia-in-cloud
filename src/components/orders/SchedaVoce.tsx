@@ -13,6 +13,7 @@ import { dateValide, type RigaDistinta } from "@/lib/orders/distintaLavorazioni"
 import { conAliquota } from "@/lib/orders/ivaCommessa";
 import type { DatiVoce } from "@/hooks/useSottofasi";
 import { percentualeDaQuantita, quantitaEseguita } from "@/lib/orders/sottofasi";
+import { OfficeSelect } from "./OfficeSelect";
 
 // La tabella non è nei tipi generati con le colonne usate qui.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -350,12 +351,13 @@ function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVe
                 ))}
               </div>
               {puoModificare && onAggiungiChi && opzioniChi && (
-                <select aria-label="Aggiungi chi fa questa sottofase" value="" onChange={(e) => e.target.value && onAggiungiChi(e.target.value)} className="h-7 w-full rounded border bg-background px-1 text-xs">
-                  <option value="">+ Aggiungi persona, squadra o ditta…</option>
-                  {opzioniChi.squadre.length > 0 && <optgroup label="Squadre">{opzioniChi.squadre.map((o) => <option key={o.id} value={`d:${o.id}`}>{o.nome}</option>)}</optgroup>}
-                  {opzioniChi.persone.length > 0 && <optgroup label="Persone">{opzioniChi.persone.map((o) => <option key={o.id} value={`p:${o.id}`}>{o.nome}</option>)}</optgroup>}
-                  {opzioniChi.ditte.length > 0 && <optgroup label="Ditte">{opzioniChi.ditte.map((o) => <option key={o.id} value={`d:${o.id}`}>{o.nome}</option>)}</optgroup>}
-                </select>
+                <OfficeSelect label="Aggiungi chi fa questa sottofase" value="" onValueChange={(v) => v && onAggiungiChi(v)}
+                  className="h-7 w-full rounded-lg px-1 text-xs" placeholder="+ Aggiungi persona, squadra o ditta…"
+                  options={[
+                    ...opzioniChi.squadre.map((o) => ({ value: `d:${o.id}`, label: o.nome, group: "Squadre" })),
+                    ...opzioniChi.persone.map((o) => ({ value: `p:${o.id}`, label: o.nome, group: "Persone" })),
+                    ...opzioniChi.ditte.map((o) => ({ value: `d:${o.id}`, label: o.nome, group: "Ditte" })),
+                  ]} />
               )}
             </div>
           )}

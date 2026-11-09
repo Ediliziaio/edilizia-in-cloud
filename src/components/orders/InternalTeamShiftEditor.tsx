@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { CrewSnapshot } from "@/lib/orders/internalTeamRoster";
 import { crewShiftChanges, crewShiftError, overlappingShifts, replaceShiftParticipant, shiftFingerprint, shiftHours, type CrewShift, type CrewShiftDraft } from "@/lib/orders/internalTeamShift";
+import { OfficeSelect } from "./OfficeSelect";
 
 interface Props {
   snapshot: CrewSnapshot;
@@ -68,7 +69,7 @@ export function InternalTeamShiftEditor({ snapshot, phases, workDate, shifts, ca
         <div className="min-w-0 space-y-1"><Label htmlFor={`${uid}-start`}>Dalle</Label><Input className="min-w-0" id={`${uid}-start`} type="time" value={draft.startTime} onChange={e => patch({ startTime: e.target.value })} /></div>
         <div className="min-w-0 space-y-1"><Label htmlFor={`${uid}-end`}>Alle</Label><Input className="min-w-0" id={`${uid}-end`} type="time" value={draft.endTime} onChange={e => patch({ endTime: e.target.value })} /></div>
       </div>
-      <div className="space-y-1"><Label htmlFor={`${uid}-phase`}>Lavorazione</Label><select className={selectClass} id={`${uid}-phase`} value={draft.phaseId ?? ""} onChange={e => patch({ phaseId: e.target.value || null })}><option value="">Intera commessa</option>{phases.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+      <div className="space-y-1"><Label htmlFor={`${uid}-phase`}>Lavorazione</Label><OfficeSelect id={`${uid}-phase`} label="Lavorazione" className="min-w-0" value={draft.phaseId ?? ""} onValueChange={v => patch({ phaseId: v || null })} options={[{ value: "", label: "Intera commessa" }, ...phases.map(p => ({ value: p.id, label: p.name }))]} /></div>
     </fieldset>
     <fieldset disabled={disabled} className="min-w-0 space-y-3">
       <legend className="text-sm font-semibold">Chi sarà presente · {selected.size} persone</legend>
@@ -76,8 +77,8 @@ export function InternalTeamShiftEditor({ snapshot, phases, workDate, shifts, ca
       <details className="rounded-lg border p-3 text-sm">
         <summary className="cursor-pointer font-medium">Sostituisci una persona solo in questo turno</summary>
         <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
-          <div className="min-w-0 space-y-1"><Label htmlFor={`${uid}-absent`}>Chi non partecipa</Label><select className={selectClass} id={`${uid}-absent`} value={absentId} onChange={e => setAbsentId(e.target.value)}><option value="">Scegli una persona prevista</option>{snapshot.employees.filter(e => selected.has(e.id)).map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select></div>
-          <div className="min-w-0 space-y-1"><Label htmlFor={`${uid}-replacement`}>Chi viene al suo posto</Label><select className={selectClass} id={`${uid}-replacement`} value={replacementId} onChange={e => setReplacementId(e.target.value)}><option value="">Scegli il sostituto</option>{snapshot.employees.filter(e => e.active && !selected.has(e.id)).map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select></div>
+          <div className="min-w-0 space-y-1"><Label htmlFor={`${uid}-absent`}>Chi non partecipa</Label><OfficeSelect id={`${uid}-absent`} label="Chi non partecipa" className="min-w-0" value={absentId} onValueChange={setAbsentId} options={[{ value: "", label: "Scegli una persona prevista" }, ...snapshot.employees.filter(e => selected.has(e.id)).map(e => ({ value: e.id, label: e.name }))]} /></div>
+          <div className="min-w-0 space-y-1"><Label htmlFor={`${uid}-replacement`}>Chi viene al suo posto</Label><OfficeSelect id={`${uid}-replacement`} label="Chi viene al suo posto" className="min-w-0" value={replacementId} onValueChange={setReplacementId} options={[{ value: "", label: "Scegli il sostituto" }, ...snapshot.employees.filter(e => e.active && !selected.has(e.id)).map(e => ({ value: e.id, label: e.name }))]} /></div>
         </div>
         <Button variant="outline" size="sm" className="mt-3" disabled={!canReplace} onClick={() => {
           if (disabled) return;
@@ -101,7 +102,7 @@ export function InternalTeamShiftEditor({ snapshot, phases, workDate, shifts, ca
         {changes.replacements.length > 0 && <p>Persone aggiunte: {names(changes.replacements)}</p>}
         <p className="mt-1 text-muted-foreground">Solo questo turno: la squadra abituale resta invariata.</p>
       </div>}
-      <div className="space-y-1"><Label htmlFor={`${uid}-leader`}>Referente del turno</Label><select className={selectClass} id={`${uid}-leader`} value={draft.leaderEmployeeId ?? ""} onChange={e => patch({ leaderEmployeeId: e.target.value || null })}><option value="">Nessun referente</option>{snapshot.employees.filter(e => selected.has(e.id) && e.active).map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select><p className="text-xs text-muted-foreground">È un riferimento organizzativo: non diventa automaticamente capocantiere nell'app.</p></div>
+      <div className="space-y-1"><Label htmlFor={`${uid}-leader`}>Referente del turno</Label><OfficeSelect id={`${uid}-leader`} label="Referente del turno" className="min-w-0" value={draft.leaderEmployeeId ?? ""} onValueChange={v => patch({ leaderEmployeeId: v || null })} options={[{ value: "", label: "Nessun referente" }, ...snapshot.employees.filter(e => selected.has(e.id) && e.active).map(e => ({ value: e.id, label: e.name }))]} /><p className="text-xs text-muted-foreground">È un riferimento organizzativo: non diventa automaticamente capocantiere nell'app.</p></div>
       <div className="space-y-1"><Label htmlFor={`${uid}-notes`}>Indicazioni per il turno <span className="text-muted-foreground">(facoltative)</span></Label><Textarea id={`${uid}-notes`} maxLength={1000} value={draft.notes} onChange={e => patch({ notes: e.target.value })} placeholder="Es. ritrovo in deposito; materiale da portare" /></div>
     </fieldset>
     {stale && <p role="alert" className="text-sm text-destructive">La composizione è cambiata in un'altra sessione. La tua selezione è conservata: ricarica prima di confermare.</p>}

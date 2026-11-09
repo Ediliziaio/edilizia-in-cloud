@@ -19,6 +19,7 @@ import {
   formaDellaRiga, misureInTesto, NOME_ASSE, NOME_TIPO_MISURA, numeroMisura, scartoDellaRiga, valoreAsse,
   type AsseMisura, type FormaMisura, type TipoMisura,
 } from "@/lib/surveys/misureRilievo";
+import { OfficeSelect } from "./OfficeSelect";
 
 /**
  * OrderMeasureControl — "Controllo misure" della commessa.
@@ -370,12 +371,13 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
             {editing && !assiEdit.includes("quantita") && (
               <label className="block text-sm">
                 È la misura del
-                <select className="mt-1 h-11 w-full rounded-md border bg-white px-2 text-sm" value={tipo} onChange={(e) => setTipo(e.target.value as TipoMisura | "")}>
-                  <option value="">Non specificato</option>
-                  <option value="foro">Foro</option>
-                  <option value="telaio">Telaio</option>
-                  <option value="finita">Prodotto finito</option>
-                </select>
+                <OfficeSelect label="È la misura del" className="mt-1 h-11" value={tipo} onValueChange={(v) => setTipo(v as TipoMisura | "")}
+                  options={[
+                    { value: "", label: "Non specificato" },
+                    { value: "foro", label: "Foro" },
+                    { value: "telaio", label: "Telaio" },
+                    { value: "finita", label: "Prodotto finito" },
+                  ]} />
               </label>
             )}
           </div>

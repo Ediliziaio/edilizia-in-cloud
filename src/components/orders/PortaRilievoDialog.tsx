@@ -14,6 +14,7 @@ import {
 } from "@/lib/surveys/misureRilievo";
 import { usePermissions } from "@/hooks/usePermissions";
 import type { TemplateSchema } from "@/types/surveys";
+import { OfficeSelect } from "./OfficeSelect";
 
 /**
  * Dal rilievo alle righe della commessa. Il sistema propone, una persona conferma.
@@ -185,17 +186,20 @@ export function PortaRilievoDialog({ surveyId, orderId, onClose }: { surveyId: s
 
                 <label className="mt-2 block text-xs font-medium">
                   Riga della commessa
-                  <select
-                    className="mt-1 h-11 w-full rounded-md border bg-white px-2 text-sm font-normal"
+                  <OfficeSelect
+                    className="mt-1 h-11 font-normal"
+                    label="Dove portarlo"
                     value={s.destinazione}
-                    onChange={(e) => aggiorna(c, { destinazione: e.target.value })}
-                  >
-                    <option value={SALTA}>Non collegare</option>
-                    {canEditOrders && <option value={NUOVA}>Crea una riga nuova</option>}
-                    {dati.data?.righe.map((r) => (
-                      <option key={r.id} value={r.id}>{r.riferimento ? `${r.riferimento} · ` : ""}{r.name}</option>
-                    ))}
-                  </select>
+                    onValueChange={(v) => aggiorna(c, { destinazione: v })}
+                    options={[
+                      { value: SALTA, label: "Non collegare" },
+                      ...(canEditOrders ? [{ value: NUOVA, label: "Crea una riga nuova" }] : []),
+                      ...(dati.data?.righe ?? []).map((r) => ({
+                        value: r.id,
+                        label: `${r.riferimento ? `${r.riferimento} · ` : ""}${r.name}`,
+                      })),
+                    ]}
+                  />
                 </label>
 
                 {s.destinazione === NUOVA && (

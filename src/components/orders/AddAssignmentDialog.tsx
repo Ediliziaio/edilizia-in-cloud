@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { OfficeSelect } from "./OfficeSelect";
 
 const eur = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: true });
 
@@ -452,10 +453,15 @@ export function AddAssignmentDialog({
             {selectedCompany?.unavailableReason && <p role="alert" className="text-sm text-amber-800">{selectedCompany.unavailableReason}</p>}
           </div>
           <label className="block space-y-1.5 text-sm font-medium">Dove lavora
-            <select aria-label="Fase" value={selectedPhase} onChange={e => setSelectedPhase(e.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm">
-              <option value="">Tutta la commessa</option>
-              {phases.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+            <OfficeSelect
+              label="Fase"
+              value={selectedPhase}
+              onValueChange={setSelectedPhase}
+              options={[
+                { value: "", label: "Tutta la commessa" },
+                ...phases.map(p => ({ value: p.id, label: p.name })),
+              ]}
+            />
           </label>
           {tipo !== "esterno" && <p className="text-xs text-muted-foreground" aria-live="polite">{selectedPhase
             ? "Incarico aggiuntivo su questa lavorazione: non rimuove la squadra generale né gli altri assegnati."

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { OfficeSelect } from "./OfficeSelect";
 import { Upload, FileText, Image as ImageIcon, XCircle, Sparkles, Loader2, Brain, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
@@ -697,17 +698,19 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
                 <p className="text-xs font-semibold text-sky-900">Confronto fornitori (RDO)</p>
                 <p className="text-[11px] text-sky-800">Se hai più offerte per lo stesso lavoro, registrale come risposte a una richiesta d'offerta: le confronti riga per riga prima di ordinare.</p>
                 <div className="flex flex-wrap items-center gap-2">
-                  <select
+                  <OfficeSelect
+                    label="Richiesta d'offerta di destinazione"
                     value={rdoTarget}
-                    onChange={(e) => setRdoTarget(e.target.value)}
-                    className="h-8 rounded-md border border-input bg-background px-2 text-xs max-w-[280px]"
-                    aria-label="Richiesta d'offerta di destinazione"
-                  >
-                    <option value="nuova">— Crea nuova RDO da questa offerta —</option>
-                    {rdoAperte.map((r) => (
-                      <option key={r.id} value={r.id}>{r.rfq_number} · {r.titolo}</option>
-                    ))}
-                  </select>
+                    onValueChange={setRdoTarget}
+                    className="h-8 max-w-[280px] text-xs"
+                    options={[
+                      { value: "nuova", label: "— Crea nuova RDO da questa offerta —" },
+                      ...rdoAperte.map((r) => ({
+                        value: r.id,
+                        label: `${r.rfq_number} · ${r.titolo}`,
+                      })),
+                    ]}
+                  />
                   <Button size="sm" variant="outline" onClick={registraRispostaRdo} disabled={registrandoRdo} className="gap-1 h-8">
                     {registrandoRdo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                     Registra come risposta RDO

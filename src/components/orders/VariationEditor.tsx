@@ -7,6 +7,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { CONDIZIONI_STANDARD_VARIANTE, prepareVariation, variationDocumentParts, variationImpact, variationDecimal, variationDatePreview, VARIATION_KINDS, type VariationDraft, type VariationKind } from "@/lib/orders/variationDraft";
 
 import type {VariationContext} from "@/lib/orders/variationDocumentContext";
+import { OfficeSelect } from "./OfficeSelect";
 export type {VariationContext} from "@/lib/orders/variationDocumentContext";
 export function VariationEditor({ draft, setDraft, phases, chiPuo, context, busy, review, onBack, error,showPdfPreview=true,persistentDraft=false }: {
   draft: VariationDraft; setDraft: (draft: VariationDraft) => void; phases: {id: string; name: string; end_date?: string | null}[];
@@ -53,15 +54,15 @@ export function VariationEditor({ draft, setDraft, phases, chiPuo, context, busy
     </> : <fieldset disabled={busy} className="space-y-4 min-w-0">
       <div className="grid gap-3 sm:grid-cols-[13rem_minmax(0,1fr)]">
       <div className="space-y-1.5"><Label htmlFor="variation-kind">Cosa cambia</Label>
-        <select id="variation-kind" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={draft.kind} onChange={e => set("kind", e.target.value as VariationKind)}>
-          {Object.entries(VARIATION_KINDS).map(([key,label]) => <option key={key} value={key}>{label}</option>)}
-        </select>
+        <OfficeSelect id="variation-kind" label="Cosa cambia" value={draft.kind} onValueChange={v => set("kind", v as VariationKind)}
+          options={Object.entries(VARIATION_KINDS).map(([key,label]) => ({ value: key, label }))} />
       </div>
       <div className="space-y-1.5"><Label htmlFor="variation-title">Titolo *</Label><Input id="variation-title" value={draft.title} onChange={input("title")} placeholder="Es. Sostituzione pavimento cucina" /></div>
       </div>
       <div className="space-y-1.5"><Label htmlFor="variation-description">Descrizione dei lavori *</Label><Textarea id="variation-description" rows={3} value={draft.description} onChange={input("description")} placeholder="Cosa viene aggiunto, sostituito o eliminato?" /></div>
       <div className="space-y-1.5"><Label htmlFor="variation-pricing">Come definisci il prezzo</Label>
-        <select id="variation-pricing" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={draft.pricing} onChange={e => set("pricing", e.target.value as "corpo" | "voci")}><option value="corpo">Prezzo a corpo</option><option value="voci">Dettaglio delle voci</option></select>
+        <OfficeSelect id="variation-pricing" label="Come definisci il prezzo" value={draft.pricing} onValueChange={v => set("pricing", v as "corpo" | "voci")}
+          options={[{ value: "corpo", label: "Prezzo a corpo" }, { value: "voci", label: "Dettaglio delle voci" }]} />
       </div>
       {draft.pricing === "corpo" ? <div className="space-y-1.5"><Label htmlFor="variation-amount">{draft.kind === "riduzione" ? "Importo da sottrarre" : "Variazione del prezzo"}, IVA esclusa (€) *</Label>
         <Input id="variation-amount" inputMode="decimal" value={draft.amount} onChange={input("amount")} placeholder="Es. 1250,00" />
@@ -94,10 +95,9 @@ export function VariationEditor({ draft, setDraft, phases, chiPuo, context, busy
         </div>
         {draft.destinazione === "fase" ? <div className="space-y-1">
           <Label htmlFor="variation-phase">In quale fase</Label>
-          <select id="variation-phase" className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={draft.phaseId ?? ""}
-            onChange={e => { const phase = phases.find(p => p.id === e.target.value); setDraft({ ...draft, phaseId: phase?.id, phase: phase?.name ?? "" }); }}>
-            <option value="">Scegli la fase</option>{phases.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+          <OfficeSelect id="variation-phase" label="Fase" className="h-9" value={draft.phaseId ?? ""}
+            onValueChange={v => { const phase = phases.find(p => p.id === v); setDraft({ ...draft, phaseId: phase?.id, phase: phase?.name ?? "" }); }}
+            options={[{ value: "", label: "Scegli la fase" }, ...phases.map(p => ({ value: p.id, label: p.name }))]} />
         </div> : <p className="text-xs text-muted-foreground">Si chiamerà «Lavoro extra · {draft.title.trim() || "titolo"}», in fondo alle Lavorazioni.</p>}
         <p className="text-xs text-muted-foreground">{draft.pricing === "voci" ? "Ogni voce diventa una sottofase, con quantità e prezzo." : "Diventa una sottofase col titolo, a corpo."} Il contratto della commessa sale dell'importo; nessuna data viene spostata.</p>
         {chiPuo && <div className="space-y-1.5">
@@ -106,21 +106,22 @@ export function VariationEditor({ draft, setDraft, phases, chiPuo, context, busy
             {(draft.chi ?? []).map((c) => <span key={c.id} className="flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-xs text-sky-900">{c.nome}
               <button type="button" aria-label={`Togli ${c.nome}`} className="hover:text-rose-700" onClick={() => set("chi", (draft.chi ?? []).filter((x) => x.id !== c.id))}>×</button></span>)}
           </div>
-          <select id="variation-chi" className="h-9 w-full rounded-md border bg-background px-2 text-sm" value=""
-            onChange={(e) => { const [tipo, id] = e.target.value.split(":"); const nome = tipo === "p" ? chiPuo.persone.find((x) => x.id === id)?.nome : chiPuo.ditte.find((x) => x.id === id)?.nome;
-              if (id && nome && !(draft.chi ?? []).some((x) => x.id === id)) set("chi", [...(draft.chi ?? []), { tipo: tipo === "p" ? "persona" : "ditta", id, nome }]); }}>
-            <option value="">+ Persona, squadra o ditta…</option>
-            {chiPuo.ditte.some((d) => d.squadra) && <optgroup label="Squadre">{chiPuo.ditte.filter((d) => d.squadra).map((d) => <option key={d.id} value={`d:${d.id}`}>{d.nome}</option>)}</optgroup>}
-            {chiPuo.persone.length > 0 && <optgroup label="Persone">{chiPuo.persone.map((d) => <option key={d.id} value={`p:${d.id}`}>{d.nome}</option>)}</optgroup>}
-            {chiPuo.ditte.some((d) => !d.squadra) && <optgroup label="Ditte">{chiPuo.ditte.filter((d) => !d.squadra).map((d) => <option key={d.id} value={`d:${d.id}`}>{d.nome}</option>)}</optgroup>}
-          </select>
+          <OfficeSelect id="variation-chi" label="Chi lo farà" className="h-9" value=""
+            placeholder="+ Persona, squadra o ditta…"
+            onValueChange={(v) => { const [tipo, id] = v.split(":"); const nome = tipo === "p" ? chiPuo.persone.find((x) => x.id === id)?.nome : chiPuo.ditte.find((x) => x.id === id)?.nome;
+              if (id && nome && !(draft.chi ?? []).some((x) => x.id === id)) set("chi", [...(draft.chi ?? []), { tipo: tipo === "p" ? "persona" : "ditta", id, nome }]); }}
+            options={[
+              ...chiPuo.ditte.filter((d) => d.squadra).map((d) => ({ value: `d:${d.id}`, label: d.nome, group: "Squadre" })),
+              ...chiPuo.persone.map((d) => ({ value: `p:${d.id}`, label: d.nome, group: "Persone" })),
+              ...chiPuo.ditte.filter((d) => !d.squadra).map((d) => ({ value: `d:${d.id}`, label: d.nome, group: "Ditte" })),
+            ]} />
           <p className="text-xs text-muted-foreground">Non compare nel documento del cliente. Costi e accessi si danno poi dalla fase, come per le altre.</p>
         </div>}
       </fieldset>}
       {draft.kind === "riduzione" && <div className="space-y-1.5"><Label htmlFor="variation-phase-rid">Lavorazione di riferimento</Label>
-        <select id="variation-phase-rid" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={draft.phaseId ?? ""} onChange={e => { const phase = phases.find(p => p.id === e.target.value); setDraft({ ...draft, phaseId: phase?.id, phase: phase?.name ?? "" }); }}>
-          <option value="">Tutta la commessa</option>{phases.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select><p className="text-xs text-muted-foreground">Compare nel documento. Una riduzione non crea lavorazioni.</p>
+        <OfficeSelect id="variation-phase-rid" label="Lavorazione di riferimento" value={draft.phaseId ?? ""}
+          onValueChange={v => { const phase = phases.find(p => p.id === v); setDraft({ ...draft, phaseId: phase?.id, phase: phase?.name ?? "" }); }}
+          options={[{ value: "", label: "Tutta la commessa" }, ...phases.map(p => ({ value: p.id, label: p.name }))]} /><p className="text-xs text-muted-foreground">Compare nel documento. Una riduzione non crea lavorazioni.</p>
       </div>}
       <details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-medium">Dati del documento e pagamento</summary><div className="mt-3 space-y-3">
         <p className="text-xs text-muted-foreground">Cliente e impresa sono precompilati quando disponibili. Verifica i dati prima di inviare il PDF; non vengono modificate le anagrafiche.</p>
@@ -139,7 +140,8 @@ export function VariationEditor({ draft, setDraft, phases, chiPuo, context, busy
         <Label htmlFor="variation-intro">Introduzione del documento</Label><Textarea id="variation-intro" rows={2} value={draft.documentIntro ?? ""} onChange={e => set("documentIntro", e.target.value)} />
       </div></details>
       <details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-medium">Tempi e dettagli facoltativi</summary><div className="mt-3 space-y-3">
-        <div className="grid grid-cols-2 gap-2"><div><Label htmlFor="variation-days">Giorni aggiuntivi</Label><Input id="variation-days" inputMode="numeric" value={draft.days} onChange={input("days")} /></div><div><Label htmlFor="variation-day-unit">Tipo di giorni</Label><select id="variation-day-unit" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={draft.dayUnit} onChange={e => set("dayUnit",e.target.value as "calendario" | "lavorativi")}><option value="calendario">Calendario</option><option value="lavorativi">Lavorativi</option></select></div></div>
+        <div className="grid grid-cols-2 gap-2"><div><Label htmlFor="variation-days">Giorni aggiuntivi</Label><Input id="variation-days" inputMode="numeric" value={draft.days} onChange={input("days")} /></div><div><Label htmlFor="variation-day-unit">Tipo di giorni</Label><OfficeSelect id="variation-day-unit" label="Tipo di giorni" value={draft.dayUnit} onValueChange={v => set("dayUnit", v as "calendario" | "lavorativi")}
+          options={[{ value: "calendario", label: "Calendario" }, { value: "lavorativi", label: "Lavorativi" }]} /></div></div>
         <p className="text-xs text-muted-foreground">Una richiesta di tempo in più non sposta automaticamente le date del cantiere.</p>
         <Label htmlFor="variation-reason">Motivazione</Label><Textarea id="variation-reason" rows={2} value={draft.reason} onChange={input("reason")} />
         <Label htmlFor="variation-requester">Richiesto da</Label><Input id="variation-requester" list="variation-requesters" value={draft.requester} onChange={input("requester")} /><datalist id="variation-requesters">{context.customerName && <option value={context.customerName}/>}<option value="Direzione lavori"/><option value="Impresa"/></datalist>

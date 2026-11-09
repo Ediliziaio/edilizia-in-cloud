@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { DistintaLavorazioni } from "@/components/orders/DistintaLavorazioni";
 import type { Sottofase } from "@/lib/orders/sottofasi";
+import { setupRadixMenus, scegliNelMenu } from "@/test/helpers/radixMenus";
+setupRadixMenus();
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: [] as unknown[], isLoading: false, isError: false }) }));
@@ -247,13 +249,13 @@ describe("Tabella delle lavorazioni", () => {
     expect(azioni.onAvanza.mock.calls[0][0]).toBe("s1");
     expect(screen.getByRole("button", { name: "Fine aggiornamento" })).toHaveAttribute("aria-pressed", "true");
   });
-  it("chi fa la sottofase: si vede sulla riga e si aggiunge dal popup", () => {
+  it("chi fa la sottofase: si vede sulla riga e si aggiunge dal popup", async () => {
     const onAggiungiChi = vi.fn();
     mostra({ persone: [{ id: "p1", nome: "Mario Rossi" }], chiSottofasi: { disponibile: true, perSottofase: new Map([["s1", [{ id: "c1", subphase_id: "s1", employee_id: "p1", external_team_id: null }]]]) }, onAggiungiChi });
     expect(screen.getAllByText("Mario Rossi").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: /^Controparete/ }));
     const popup = screen.getByRole("dialog");
-    fireEvent.change(within(popup).getByLabelText("Aggiungi chi fa questa sottofase"), { target: { value: "p:p1" } });
+    await scegliNelMenu("Aggiungi chi fa questa sottofase", "Mario Rossi", popup);
     expect(onAggiungiChi).toHaveBeenCalledExactlyOnceWith(["s1"], { persona: "p1" });
   });
   it("in sola lettura non si sceglie e non si spunta", () => {

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { calcolaFineLavori, dataValida, type SettimanaLavorativa } from "@/lib/orders/pianificazioneAvvio";
+import { OfficeSelect } from "./OfficeSelect";
 
 export type CampoDataPiano = "work_start_date" | "work_end_date" | "expected_date" | "warehouse_arrival_date";
 interface Props {
@@ -53,9 +54,8 @@ export function PianificazioneCommessa({ date, onData, durata, onDurata, settima
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="piano-settimana" className="text-xs">Settimana di lavoro</Label>
-            <select id="piano-settimana" value={settimana} onChange={(e) => onSettimana(Number(e.target.value) as SettimanaLavorativa)} className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm">
-              <option value={5}>Lun – ven</option><option value={6}>Lun – sab</option>
-            </select>
+            <OfficeSelect id="piano-settimana" label="Settimana lavorativa" value={String(settimana)} onValueChange={(v) => onSettimana(Number(v) as SettimanaLavorativa)}
+              options={[{ value: "5", label: "Lun – ven" }, { value: "6", label: "Lun – sab" }]} />
           </div>
           <Button type="button" variant="outline" className="col-span-2 h-10 border-blue-200 bg-white text-blue-900" disabled={!fineCalcolata} onClick={() => onData("work_end_date", fineCalcolata)}>
             <CalendarDays className="mr-2 h-4 w-4" />Calcola fine

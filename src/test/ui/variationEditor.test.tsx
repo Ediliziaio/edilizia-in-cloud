@@ -6,6 +6,8 @@ import {QueryClient,QueryClientProvider} from "@tanstack/react-query";
 import {OdVSection} from "@/components/orders/OdVSection";
 import {VariationEditor} from "@/components/orders/VariationEditor";
 import {emptyVariationDraft} from "@/lib/orders/variationDraft";
+import { setupRadixMenus, scegliNelMenu } from "@/test/helpers/radixMenus";
+setupRadixMenus();
 const mock=vi.hoisted(()=>({request:vi.fn(),open:vi.fn(),canEdit:true,insert:vi.fn(),invoke:vi.fn(),refetch:vi.fn(),rows:[] as unknown[],session:vi.fn(),query:vi.fn()}));
 vi.mock("@/hooks/usePermissions",()=>({usePermissions:()=>({canEditOrders:mock.canEdit})}));
 vi.mock("@/hooks/useCondizioniDocumento",()=>({useCondizioniDocumento:()=>({disponibile:false,modello:null as null,clausole:[] as unknown[],testo:"",caricamento:false})}));
@@ -73,8 +75,8 @@ describe("Composizione della variante",()=>{
 });
 describe("Dettaglio voci e riservatezza",()=>{
   function Editor(){const [draft,setDraft]=useState(emptyVariationDraft);return <VariationEditor draft={draft} setDraft={setDraft} phases={[]} context={{}} busy={false} review={false} onBack={()=>{}}/>;}
-  it("prezzo a corpo resta semplice e voci sono disponibili solo su richiesta",()=>{
-    render(<Editor/>);expect(screen.queryByLabelText("Quantità")).not.toBeInTheDocument();fireEvent.change(screen.getByLabelText("Come definisci il prezzo"),{target:{value:"voci"}});fireEvent.click(screen.getByRole("button",{name:"Aggiungi voce"}));expect(screen.getByLabelText("Quantità")).toHaveValue("1");fireEvent.click(screen.getByRole("button",{name:"Rimuovi voce 1"}));expect(screen.queryByLabelText("Quantità")).not.toBeInTheDocument();
+  it("prezzo a corpo resta semplice e voci sono disponibili solo su richiesta",async()=>{
+    render(<Editor/>);expect(screen.queryByLabelText("Quantità")).not.toBeInTheDocument();await scegliNelMenu("Come definisci il prezzo","Dettaglio delle voci");fireEvent.click(screen.getByRole("button",{name:"Aggiungi voce"}));expect(screen.getByLabelText("Quantità")).toHaveValue("1");fireEvent.click(screen.getByRole("button",{name:"Rimuovi voce 1"}));expect(screen.queryByLabelText("Quantità")).not.toBeInTheDocument();
   });
   it("il PDF disponibile segue il contenuto attuale, escludendo costo e note interne",async()=>{
     function Preview(){const [draft,setDraft]=useState({...emptyVariationDraft(),title:"Extra TEST",description:"Contenuto cliente",amount:"25",internalNotes:"SEGRETO_NON_ESPORTARE",estimatedCost:"123,45"});const [review,setReview]=useState(true);return <><VariationEditor draft={draft} setDraft={setDraft} phases={[]} context={{vatRate:10}} busy={false} review={review} onBack={()=>setReview(false)}/>{!review&&<button onClick={()=>setReview(true)}>Rivedi</button>}</>;}
@@ -84,7 +86,7 @@ describe("Dettaglio voci e riservatezza",()=>{
     fireEvent.click(screen.getByRole("button",{name:"Modifica bozza"}));fireEvent.change(screen.getByLabelText("Descrizione dei lavori *"),{target:{value:"Nuovo contenuto cliente"}});fireEvent.click(screen.getByRole("button",{name:"Rivedi"}));
     expect(screen.queryByRole("link",{name:"Scarica PDF pronto"})).not.toBeInTheDocument();
   });
-  it("lavoro extra: si sceglie dove va nelle Lavorazioni e chi lo farà; la riduzione non lo chiede", () => {
+  it("lavoro extra: si sceglie dove va nelle Lavorazioni e chi lo farà; la riduzione non lo chiede", async () => {
     function Prova({ kind }: { kind: "aggiunta" | "riduzione" }) {
       const [draft, setDraft] = useState<ReturnType<typeof emptyVariationDraft>>({ ...emptyVariationDraft(), kind, title: "Pavimento cucina" });
       return <><VariationEditor draft={draft} setDraft={setDraft} phases={[{ id: "f1", name: "Pavimenti" }]} context={{}} busy={false} review={false} onBack={() => {}}
@@ -95,9 +97,9 @@ describe("Dettaglio voci e riservatezza",()=>{
     expect(screen.getByRole("button", { name: "In una fase nuova" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText(/Si chiamerà «Lavoro extra · Pavimento cucina»/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Dentro una fase che c'è già" }));
-    expect(screen.getByLabelText("In quale fase")).toHaveValue("f1");
-    fireEvent.change(screen.getByLabelText("Chi lo farà"), { target: { value: "p:p1" } });
-    fireEvent.change(screen.getByLabelText("Chi lo farà"), { target: { value: "d:d1" } });
+    expect(screen.getByRole("combobox", { name: "In quale fase" })).toHaveTextContent("Pavimenti");
+    await scegliNelMenu("Chi lo farà", "Mario Rossi");
+    await scegliNelMenu("Chi lo farà", "Squadra A");
     expect(JSON.parse(screen.getByTestId("stato").textContent!)).toEqual({ destinazione: "fase", chi: [{ tipo: "persona", id: "p1", nome: "Mario Rossi" }, { tipo: "ditta", id: "d1", nome: "Squadra A" }] });
     fireEvent.click(screen.getByRole("button", { name: "Togli Mario Rossi" }));
     expect(JSON.parse(screen.getByTestId("stato").textContent!).chi).toHaveLength(1);

@@ -25,6 +25,7 @@ import { applicaParti, fasiDelGiorno,
   METEO, caricoRapportini, erroriGiorni, giornoDaLetto, giorniDaPeriodo, giornoVuoto,
   type GiornoUfficio, type PersonaPresenza, type RapportinoLetto,
 } from "@/lib/campo/rapportiniUfficio";
+import { OfficeSelect } from "./OfficeSelect";
 
 /** Un file in base64, senza il prefisso «data:…;base64,». */
 const inBase64 = (b: Blob) => new Promise<string>((ok, ko) => {
@@ -300,18 +301,14 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
                 <Input type="date" max={oggi} value={g.data} onChange={(e) => cambia(g.chiave, { data: e.target.value })} className="h-9 w-40" aria-label={`Giorno del rapportino ${i + 1}`} />
               </label>
               <label className="grid min-w-[11rem] flex-1 gap-1 text-xs text-muted-foreground">A nome di
-                <select value={g.autore} onChange={(e) => cambia(g.chiave, { autore: e.target.value })} aria-label={`A nome di, rapportino ${i + 1}`}
-                  className="h-9 rounded-md border bg-background px-2 text-sm text-foreground">
-                  <option value="">Ufficio (chi scrive)</option>
-                  {autori.map((a) => <option key={a.user_id} value={a.user_id}>{nomeAccesso(a)}{a.is_capocantiere ? " · capocantiere" : ""}</option>)}
-                </select>
+                <OfficeSelect value={g.autore} onValueChange={(v) => cambia(g.chiave, { autore: v })} label={`A nome di, rapportino ${i + 1}`}
+                  className="h-9 text-foreground"
+                  options={[{ value: "", label: "Ufficio (chi scrive)" }, ...autori.map((a) => ({ value: a.user_id, label: `${nomeAccesso(a)}${a.is_capocantiere ? " · capocantiere" : ""}` }))]} />
               </label>
               <label className="grid gap-1 text-xs text-muted-foreground">Meteo
-                <select value={g.meteo ?? ""} onChange={(e) => cambia(g.chiave, { meteo: e.target.value })} aria-label={`Meteo, rapportino ${i + 1}`}
-                  className="h-9 rounded-md border bg-background px-2 text-sm text-foreground">
-                  <option value="">—</option>
-                  {METEO.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-                </select>
+                <OfficeSelect value={g.meteo ?? ""} onValueChange={(v) => cambia(g.chiave, { meteo: v })} label={`Meteo, rapportino ${i + 1}`}
+                  className="h-9 text-foreground"
+                  options={[{ value: "", label: "—" }, ...METEO.map((m) => ({ value: m.value, label: m.label }))]} />
               </label>
               {giorni.length > 1 && (
                 <Button variant="ghost" size="icon" className="h-9 w-9 text-rose-600" aria-label={`Togli il rapportino ${i + 1}`} onClick={() => setGiorni((gs) => gs.filter((x) => x.chiave !== g.chiave))}>
@@ -512,15 +509,13 @@ function RigheConValore({ etichetta, voci, valori, segnaposto, valoreNuovo, onCa
       )}
       <div className="flex flex-wrap items-center gap-2">
         {libere.length > 0 && (
-          <select value="" aria-label={`Aggiungi ${etichetta}`} onChange={(e) => { if (e.target.value) onCambia({ ...valori, [e.target.value]: valoreNuovo }); }}
-            className="h-8 min-w-[12rem] flex-1 rounded-md border bg-background px-2 text-sm text-muted-foreground">
-            <option value="">+ Aggiungi {etichetta}…</option>
-            {gruppi.map((gr) => gr ? (
-              <optgroup key={gr} label={gr}>
-                {libere.filter((v) => v.gruppo === gr).map((v) => <option key={v.id} value={v.id}>{v.nome}</option>)}
-              </optgroup>
-            ) : libere.filter((v) => !v.gruppo).map((v) => <option key={v.id} value={v.id}>{v.nome}</option>))}
-          </select>
+          <OfficeSelect value="" label={`Aggiungi ${etichetta}`} onValueChange={(v) => { if (v) onCambia({ ...valori, [v]: valoreNuovo }); }}
+            className="h-8 min-w-[12rem] flex-1 text-muted-foreground"
+            placeholder={`+ Aggiungi ${etichetta}…`}
+            options={gruppi.flatMap((gr) => gr
+              ? libere.filter((v) => v.gruppo === gr).map((v) => ({ value: v.id, label: v.nome, group: gr }))
+              : libere.filter((v) => !v.gruppo).map((v) => ({ value: v.id, label: v.nome })))}
+          />
         )}
         {extra}
       </div>

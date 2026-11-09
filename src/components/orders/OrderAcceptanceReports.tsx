@@ -41,6 +41,7 @@ import {
   results,
   type AcceptanceContent,
 } from "../../../supabase/functions/collaudo-commessa/model";
+import { OfficeSelect } from "./OfficeSelect";
 
 interface Report {
   id: string;
@@ -400,31 +401,24 @@ export function OrderAcceptanceReports({
                           })
                         }
                       />
-                      <select
-                        aria-label={`Esito verifica ${i + 1}`}
-                        className={selectClass}
+                      <OfficeSelect
+                        label={`Esito verifica ${i + 1}`}
                         value={check.result}
-                        onChange={(e) =>
+                        onValueChange={(value) =>
                           edit({
                             ...content,
                             checks: content.checks.map((v, j) =>
                               j === i
-                                ? {
-                                    ...v,
-                                    result: e.target
-                                      .value as typeof check.result,
-                                  }
+                                ? { ...v, result: value as typeof check.result }
                                 : v,
                             ),
                           })
                         }
-                      >
-                        {Object.entries(results).map(([v, l]) => (
-                          <option value={v} key={v}>
-                            {l}
-                          </option>
-                        ))}
-                      </select>
+                        options={Object.entries(results).map(([v, l]) => ({
+                          value: v,
+                          label: l,
+                        }))}
+                      />
                     </div>
                     <Textarea
                       aria-label={`Note verifica ${i + 1}`}
@@ -493,23 +487,21 @@ export function OrderAcceptanceReports({
               )}
               <div>
                 <Label htmlFor="acceptance-outcome">Esito complessivo</Label>
-                <select
+                <OfficeSelect
                   id="acceptance-outcome"
-                  className={selectClass}
+                  label="Esito del verbale"
                   value={content.outcome}
-                  onChange={(e) =>
+                  onValueChange={(value) =>
                     edit({
                       ...content,
-                      outcome: e.target.value as AcceptanceContent["outcome"],
+                      outcome: value as AcceptanceContent["outcome"],
                     })
                   }
-                >
-                  {Object.entries(outcomes).map(([v, l]) => (
-                    <option key={v} value={v}>
-                      {l}
-                    </option>
-                  ))}
-                </select>
+                  options={Object.entries(outcomes).map(([v, l]) => ({
+                    value: v,
+                    label: l,
+                  }))}
+                />
               </div>
               <div>
                 <Label htmlFor="acceptance-reserves">

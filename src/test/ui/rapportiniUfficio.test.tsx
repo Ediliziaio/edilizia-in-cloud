@@ -2,6 +2,14 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RapportiniUfficio } from "@/components/orders/RapportiniUfficio";
+import { setupRadixMenus } from "@/test/helpers/radixMenus";
+setupRadixMenus();
+
+/** Le tendine del rapportino sono il menu della piattaforma: si aprono e si sceglie una voce. */
+async function scegli(tendina: string, voce: string | RegExp) {
+  fireEvent.keyDown(screen.getByRole("combobox", { name: tendina }), { key: "ArrowDown" });
+  fireEvent.click(await screen.findByRole("option", { name: voce }));
+}
 
 const stato = vi.hoisted(() => ({ rpc: vi.fn(async () => ({ data: 2, error: null })) }));
 // Ditte e articoli della commessa: una ditta collegata a un subappaltatore, un articolo.
@@ -46,7 +54,7 @@ describe("Rapportini dall'ufficio", () => {
     render(<QueryClientProvider client={new QueryClient()}><RapportiniUfficio orderId="o1" /></QueryClientProvider>);
     fireEvent.click(screen.getByRole("button", { name: "Scrivi rapportini" }));
     fireEvent.change(screen.getByLabelText("Giorno del rapportino 1"), { target: { value: "2026-10-27" } });
-    fireEvent.change(screen.getByLabelText("A nome di, rapportino 1"), { target: { value: "u9" } });
+    await scegli("A nome di, rapportino 1", /Marco Operaio/);
     fireEvent.change(screen.getByLabelText("Cosa si è fatto, rapportino 1"), { target: { value: "Tracce al piano terra" } });
     fireEvent.click(screen.getByRole("button", { name: "Impianti" }));
     fireEvent.click(screen.getByRole("button", { name: "Tracce: finita" }));
@@ -73,15 +81,14 @@ describe("Rapportini dall'ufficio", () => {
     render(<QueryClientProvider client={new QueryClient()}><RapportiniUfficio orderId="o1" /></QueryClientProvider>);
     fireEvent.click(screen.getByRole("button", { name: "Scrivi rapportini" }));
     fireEvent.change(screen.getByLabelText("Cosa si è fatto, rapportino 1"), { target: { value: "Getto solaio" } });
-    fireEvent.change(screen.getByLabelText("Meteo, rapportino 1"), { target: { value: "pioggia" } });
+    await scegli("Meteo, rapportino 1", "Pioggia");
     // Chi è sulla commessa entra con 8 ore, poi si correggono.
     fireEvent.click(screen.getByRole("button", { name: /Chi lavora sulle fasi scelte|Tutti quelli della commessa/ }));
     fireEvent.change(screen.getByLabelText("Mario Rossi: ore"), { target: { value: "6,5" } });
-    await waitFor(() => expect(screen.getByRole("option", { name: "Edil Savoca" })).toBeInTheDocument());
-    fireEvent.change(screen.getByLabelText("Aggiungi persona"), { target: { value: "s:sub9" } });
-    fireEvent.change(screen.getByLabelText("Aggiungi mezzo"), { target: { value: "m1" } });
+    await scegli("Aggiungi persona", "Edil Savoca");
+    await scegli("Aggiungi mezzo", "Betoniera");
     fireEvent.change(screen.getByLabelText("Betoniera: ore (facolt.)"), { target: { value: "4" } });
-    fireEvent.change(screen.getByLabelText("Aggiungi materiale"), { target: { value: "i1" } });
+    await scegli("Aggiungi materiale", "Cemento");
     fireEvent.change(screen.getByLabelText("Cemento: quantità"), { target: { value: "3" } });
     expect(screen.getByText("14,5 ore")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Salva il rapportino" }));

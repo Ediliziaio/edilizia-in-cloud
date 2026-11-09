@@ -12,6 +12,7 @@ import { TERMINI_PRESET } from "@/lib/terminiPagamento";
 import { isValidEmail } from "@/lib/email/preferencesValidators";
 import type { TablesUpdate } from "@/integrations/supabase/types";
 import { aggiornamentoDettagliOda } from "@/lib/orders/dettagliDocumentoOda";
+import { OfficeSelect } from "./OfficeSelect";
 
 export function OdaDettagliCard({documento,orderId,internalNotes,condizioniFornitore,paymentMethod,canEdit,onSave,onEditingChange}: {
   documento:DocumentoOperativo; orderId:string | null; internalNotes:string | null; condizioniFornitore:string;
@@ -66,14 +67,16 @@ function DettagliForm({documento,orderId,internalNotes,condizioniFornitore,payme
   <fieldset disabled={saving} className="space-y-5">
    <div className="rounded-xl border border-orange-100 bg-orange-50/60 p-4">
     <Label htmlFor="oda-metodo-pagamento">Metodo di pagamento</Label>
-    <select id="oda-metodo-pagamento" value={metodo} onChange={e=>setMetodo(e.target.value)} className="mb-3 mt-1 h-10 w-full rounded-md border bg-white px-3 text-sm"><option value="">Da concordare</option>{metodo && !PAGAMENTI_FORNITORI.some(m=>m.value === metodo) && <option value={metodo}>{etichettaPagamentoFornitore(metodo)}</option>}{PAGAMENTI_FORNITORI.map(m=><option key={m.value} value={m.value}>{m.label}</option>)}</select>
+    <OfficeSelect id="oda-metodo-pagamento" label="Metodo di pagamento" value={metodo} onValueChange={setMetodo} className="mb-3 mt-1"
+     options={[{value:"",label:"Da concordare"},...(metodo && !PAGAMENTI_FORNITORI.some(m=>m.value === metodo) ? [{value:metodo,label:etichettaPagamentoFornitore(metodo)}] : []),...PAGAMENTI_FORNITORI.map(m=>({value:m.value,label:m.label}))]} />
     <Label htmlFor="oda-pagamento">Condizioni di pagamento dell’ordine</Label><Textarea id="oda-pagamento" value={d.pagamento || ""} maxLength={4000} onChange={e=>cambia("pagamento",e.target.value)} />
     <p className="mt-2 text-xs text-slate-500">Concordato con il fornitore: {condizioniFornitore}</p>
     <Button type="button" variant="ghost" size="sm" className="mt-1 px-0 text-orange-800" onClick={()=>cambia("pagamento",condizioniFornitore)}>Usa condizioni del fornitore</Button>
     <div className="mt-2 flex flex-wrap gap-1.5">{TERMINI_PRESET.map(t=><button type="button" key={t} className="rounded-full border border-orange-100 bg-white px-2 py-1 text-xs text-slate-600 hover:border-orange-300" onClick={()=>cambia("pagamento",t)}>{t}</button>)}</div>
    </div>
    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-    <div><Label htmlFor="oda-tipo">Tipo documento</Label><select id="oda-tipo" className="h-10 w-full rounded-md border bg-white px-3 text-sm" value={d.tipo} onChange={e=>cambia("tipo",e.target.value === "servizi" ? "servizi" : "materiali")}><option value="materiali">Ordine materiali</option><option value="servizi">Ordine di servizi e lavori</option></select></div>
+    <div><Label htmlFor="oda-tipo">Tipo documento</Label><OfficeSelect id="oda-tipo" label="Tipo documento" value={d.tipo} onValueChange={v=>cambia("tipo",v === "servizi" ? "servizi" : "materiali")}
+     options={[{value:"materiali",label:"Ordine materiali"},{value:"servizi",label:"Ordine di servizi e lavori"}]} /></div>
     {campo("Data emissione","data","date")}{campo("Consegna prevista","consegna","date")}
     <div><Label htmlFor="oda-destinatario">Destinatario</Label><Input id="oda-destinatario" required value={d.destinatario.nome} onChange={e=>cambia("destinatario",{...d.destinatario,nome:e.target.value})} /></div>
     <div><Label htmlFor="oda-destinatario-email">Email destinatario</Label><Input id="oda-destinatario-email" type="email" value={d.destinatario.email || ""} onChange={e=>cambia("destinatario",{...d.destinatario,email:e.target.value})} /></div>

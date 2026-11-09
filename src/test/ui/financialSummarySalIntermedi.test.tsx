@@ -57,7 +57,7 @@ describe("Riepilogo della finanziaria", () => {
       { position: 2, label: "Saldo", type: "balance", amount: 0, is_paid: false },
     ];
     mostra({ totalAmount: "10.000,00", installments, paymentType: "financing", financingCost: "300", financingCostMode, onFinancingCostModeChange: () => {}, balance: importoSaldoFinale(installments, 10000, 300, financingCostMode) });
-    expect(screen.getByLabelText("Come viene pagato il costo della finanziaria?")).toHaveValue(financingCostMode);
+    expect(screen.getByRole("combobox", { name: "Come viene pagato il costo della finanziaria?" })).toHaveTextContent(financingCostMode === "trattenuto" ? "Trattenuto dall’erogazione" : "Pagato separatamente dall’azienda");
     expect(screen.getByText("Saldo Cliente").parentElement).toHaveTextContent("2.000,00");
     const preview = screen.getByText(/Incasso previsto dalla finanziaria:/);
     expect(preview).toHaveTextContent(financingCostMode === "trattenuto" ? "5.700,00" : "6.000,00");

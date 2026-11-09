@@ -5,6 +5,8 @@ import {afterEach,expect,it,vi} from "vitest";
 import type {DocumentoOperativo} from "@/lib/documentiOperativi/modello";
 vi.mock("@/components/documentiOperativi/DestinazioneDocumento",()=>({DestinazioneDocumento:(): null=>null}));
 import {OdaDettagliCard} from "@/components/orders/OdaDettagliCard";
+import { setupRadixMenus, scegliNelMenu } from "@/test/helpers/radixMenus";
+setupRadixMenus();
 const documento:DocumentoOperativo={tipo:"materiali",numero:"ODA-5",data:"2026-11-06",destinatario:{nome:"KLASSE",email:"ordini@esempio.it"},pagamento:"Bonifico · 60 giorni fine mese",righe:[]};
 afterEach(cleanup);
 const props:Omit<ComponentProps<typeof OdaDettagliCard>,"onSave">={documento,orderId:null,internalNotes:null,condizioniFornitore:"Bonifico · 60 giorni fine mese",paymentMethod:"bonifico",canEdit:true};
@@ -14,7 +16,7 @@ it("mostra subito i termini concordati e permette di cambiarli per questo ordine
  fireEvent.click(screen.getByRole("button",{name:"Modifica dettagli"}));
  expect(screen.getByLabelText("Condizioni di pagamento dell’ordine")).toHaveValue(props.condizioniFornitore);
  fireEvent.change(screen.getByLabelText("Condizioni di pagamento dell’ordine"),{target:{value:"Bonifico a 30 giorni"}});
- fireEvent.change(screen.getByLabelText("Metodo di pagamento"),{target:{value:"riba"}});
+ await scegliNelMenu("Metodo di pagamento", "RIBA");
  fireEvent.change(screen.getByLabelText("Email destinatario"),{target:{value:"acquisti@esempio.it"}});
  fireEvent.click(screen.getByRole("button",{name:"Salva dettagli ordine"}));
  await waitFor(()=>expect(save).toHaveBeenCalledWith(expect.objectContaining({payment_terms:"Bonifico a 30 giorni",payment_method:"riba",document_details:expect.objectContaining({destinatarioEmail:"acquisti@esempio.it"})})));

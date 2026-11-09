@@ -1,5 +1,7 @@
-import { cleanup,fireEvent,render,screen } from "@testing-library/react";
+import { cleanup,render,screen } from "@testing-library/react";
 import {afterEach,beforeEach,describe,expect,it,vi} from "vitest";
+import { setupRadixMenus, scegliNelMenu } from "@/test/helpers/radixMenus";
+setupRadixMenus();
 import {ContractOfficeAssignments} from "@/components/orders/ContractOfficeAssignments";
 const m=vi.hoisted(()=>({tasks:[] as Array<Record<string,unknown>>,insert:vi.fn(),editable:true}));
 vi.mock("@/hooks/useOfficePeople",()=>({useOfficePeople:()=>({people:[{id:"office-a",label:"Persona ufficio · Personale collegato"}],unlinked:[{id:"unlinked",first_name:"Da",last_name:"Collegare"}],isError:false,isLoading:false})}));
@@ -11,10 +13,10 @@ vi.mock("@tanstack/react-query",()=>({useQuery:()=>({data:m.tasks,isLoading:fals
 beforeEach(()=>{m.tasks=[];m.editable=true;m.insert.mockReset();m.insert.mockReturnValue({select:()=>({single:async()=>({data:{id:"task"},error:null as null})})});});
 afterEach(cleanup);
 describe("attività d’ufficio per ogni azienda",()=>{
- it("mostra la scelta dei responsabili senza attribuire nomi prima della conferma",()=>{
+ it("mostra la scelta dei responsabili senza attribuire nomi prima della conferma",async()=>{
   const onChange=vi.fn();render(<ContractOfficeAssignments companyId="company-a" steps={[{nome:"Contabilità",controlli:[]}]} value={{}} onChange={onChange}/>);
-  const select=screen.getByRole("combobox",{name:"Responsabile proposto: Contabilità"});
-  expect(select).toHaveValue("");fireEvent.change(select,{target:{value:"office-a"}});expect(onChange).toHaveBeenCalledWith({Contabilità:"office-a"});
+  expect(screen.getByRole("combobox",{name:"Responsabile proposto: Contabilità"})).toHaveTextContent("Da assegnare");
+  await scegliNelMenu("Responsabile proposto: Contabilità",/Persona ufficio/);expect(onChange).toHaveBeenCalledWith({Contabilità:"office-a"});
   expect(screen.getByText(/richiedono ancora il collegamento/)).toBeVisible();
  });
 });

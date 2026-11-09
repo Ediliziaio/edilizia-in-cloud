@@ -5,6 +5,7 @@ import { applyVariationTemplate, VARIATION_TEMPLATE_EXAMPLES } from "@/lib/order
 import type { VariationDraft } from "@/lib/orders/variationDraft";
 import type { VariationContext } from "@/lib/orders/variationDocumentContext";
 import { Button } from "@/components/ui/button";
+import { OfficeSelect } from "./OfficeSelect";
 import { isVariationUuid } from "@/lib/orders/variationWorkspace";
 import { listVariationFiles } from "@/lib/orders/variationTemplateFiles";
 import { VARIATION_KINDS } from "@/lib/orders/variationDraft";
@@ -19,11 +20,13 @@ export function VariationTemplatePicker({ companyId, draft, context, onApply, di
   return <details className="mb-4 rounded-lg border p-3"><summary className="cursor-pointer text-sm font-medium">Parti da un modello · facoltativo</summary>
     <div className="mt-3 space-y-2">
       <label className="text-sm" htmlFor="variation-template">Modello di variante</label>
-      <select id="variation-template" disabled={disabled} value={selected} onChange={e => { setSelected(e.target.value); setExcluded([]); setError(""); }} className="h-11 w-full rounded-md border bg-background px-3 text-sm">
-        <option value="">Scegli un modello</option>
-        <optgroup label="Modelli dell'azienda">{choices.filter(c => !c.key.startsWith("example-")).map(c => <option key={c.key} value={c.key}>{c.value.name}</option>)}</optgroup>
-        <optgroup label="Esempi da adattare">{choices.filter(c => c.key.startsWith("example-")).map(c => <option key={c.key} value={c.key}>{c.value.name}</option>)}</optgroup>
-      </select>
+      <OfficeSelect id="variation-template" label="Modello" disabled={disabled} value={selected} className="h-11"
+        onValueChange={v => { setSelected(v); setExcluded([]); setError(""); }}
+        options={[
+          { value: "", label: "Scegli un modello" },
+          ...choices.filter(c => !c.key.startsWith("example-")).map(c => ({ value: c.key, label: c.value.name, group: "Modelli dell'azienda" })),
+          ...choices.filter(c => c.key.startsWith("example-")).map(c => ({ value: c.key, label: c.value.name, group: "Esempi da adattare" })),
+        ]} />
       {models.isError && <p className="text-xs text-muted-foreground">Modelli aziendali non disponibili. Gli esempi restano utilizzabili. <button type="button" className="underline" onClick={() => void models.refetch()}>Riprova</button></p>}
       <p className="text-xs text-muted-foreground">Applica tipo, testi e stile; lavori e importo da compilare restano tuoi. Gli allegati selezionati saranno conservati con la proposta. Modelli in Impostazioni → Modelli preventivi e contratti.</p>
       {isVariationUuid(selected) && files.isLoading && <p role="status" className="text-sm">Caricamento allegati…</p>}

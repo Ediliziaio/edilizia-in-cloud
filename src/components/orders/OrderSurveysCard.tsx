@@ -22,6 +22,7 @@ import {
   ArrowRightLeft,
   Link2,
 } from "lucide-react";
+import { OfficeSelect } from "./OfficeSelect";
 
 /**
  * OrderSurveysCard — mostra, dentro la commessa, i sopralluoghi (rilievi misure)
@@ -230,17 +231,18 @@ export function OrderSurveysCard({ orderId }: OrderSurveysCardProps) {
                   <div className="flex flex-wrap items-center gap-2 pb-2">
                     <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       Misure
-                      <select
-                        className="h-9 rounded-md border bg-white px-2 text-xs text-foreground disabled:opacity-60"
-                        aria-label={`Tipo di misure del sopralluogo ${s.code || ""}`.trim()}
+                      <OfficeSelect
+                        className="h-9 px-2 text-xs text-foreground"
+                        label={`Tipo di misure del sopralluogo ${s.code || ""}`.trim()}
                         disabled={solaLettura || cambiaRuolo.isPending}
                         value={s.ruolo_misure ?? ""}
-                        onChange={(e) => cambiaRuolo.mutate({ id: s.id, ruolo: (e.target.value || null) as "preliminare" | "definitivo" | null })}
-                      >
-                        <option value="">Non indicato</option>
-                        <option value="preliminare">Preliminari</option>
-                        <option value="definitivo">Definitive</option>
-                      </select>
+                        onValueChange={(v) => cambiaRuolo.mutate({ id: s.id, ruolo: (v || null) as "preliminare" | "definitivo" | null })}
+                        options={[
+                          { value: "", label: "Non indicato" },
+                          { value: "preliminare", label: "Preliminari" },
+                          { value: "definitivo", label: "Definitive" },
+                        ]}
+                      />
                     </label>
                     {canEditOrders && !solaLettura && (
                       <Button size="sm" variant="outline" className="min-h-9 text-xs" onClick={() => setDaPortare(s.id)}>

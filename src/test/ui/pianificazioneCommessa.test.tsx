@@ -7,6 +7,8 @@ import type { SettimanaLavorativa } from "@/lib/orders/pianificazioneAvvio";
 import type { FaseModello, ModelloFasi } from "@/lib/orders/modelliFasi";
 import { pianificaFasi } from "@/lib/orders/pianoFasiNuovaCommessa";
 import { calendarioCantiere } from "@/lib/orders/sottofasi";
+import { setupRadixMenus, scegliNelMenu } from "@/test/helpers/radixMenus";
+setupRadixMenus();
 
 afterEach(cleanup);
 const modello: ModelloFasi = { id: "bagno", origine: "azienda", nome: "Bagno", descrizione: "", fasi: [
@@ -39,10 +41,10 @@ describe("pianificazione chiara e senza modifiche implicite", () => {
     expect(screen.getByLabelText("Fine lavori prevista")).toHaveValue("2026-10-12");
     expect(submit).not.toHaveBeenCalled();
   });
-  it("rispetta il calendario a sei giorni e non sovrascrive una fine manuale", () => {
+  it("rispetta il calendario a sei giorni e non sovrascrive una fine manuale", async () => {
     render(<Piano />);
     fireEvent.change(screen.getByLabelText("Durata stimata · giorni lavorativi"), { target: { value: "2" } });
-    fireEvent.change(screen.getByLabelText("Settimana di lavoro"), { target: { value: "6" } });
+    await scegliNelMenu("Settimana di lavoro", "Lun – sab");
     fireEvent.click(screen.getByRole("button", { name: "Calcola fine" }));
     expect(screen.getByLabelText("Fine lavori prevista")).toHaveValue("2026-10-10");
     fireEvent.change(screen.getByLabelText("Fine lavori prevista"), { target: { value: "2026-10-20" } });

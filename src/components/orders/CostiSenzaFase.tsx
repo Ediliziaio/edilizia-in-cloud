@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/formatters";
+import { OfficeSelect } from "./OfficeSelect";
 
 export interface CostoDaSistemare { id: string; importo: number; nome: string; data: string | null; fornitore: string | null }
 
@@ -25,10 +26,8 @@ const dataIt = (d: string | null) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${
 
 function SceltaFase({ etichetta, fasi, valore, onCambia }: { etichetta: string; fasi: ReadonlyArray<{ id: string; name: string }>; valore: string; onCambia: (v: string) => void }) {
   return (
-    <select aria-label={etichetta} value={valore} onChange={(e) => onCambia(e.target.value)} className="h-7 w-44 min-w-0 rounded border bg-background px-1 text-xs">
-      <option value="">Scegli la fase…</option>
-      {fasi.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-    </select>
+    <OfficeSelect label={etichetta} value={valore} onValueChange={onCambia} className="h-7 w-44 min-w-0 rounded-lg px-1 text-xs"
+      options={[{ value: "", label: "Scegli la fase…" }, ...fasi.map((f) => ({ value: f.id, label: f.name }))]} />
   );
 }
 

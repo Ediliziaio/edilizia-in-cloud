@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { OfficeSelect } from "./OfficeSelect";
 
 type Passo = "cosa" | "rivedi" | "manda";
 const PASSI: { id: Passo; titolo: string }[] = [
@@ -353,9 +354,8 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
             {approval.data === true && evidenceForDocument.length > 0 && <div className="grid gap-3 border-t pt-3 sm:grid-cols-2">
               {evidenceForDocument.length > 1 && <div className="space-y-1 sm:col-span-2">
                 <Label htmlFor="variation-copy">Quale copia</Label>
-                <select id="variation-copy" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={selectedEvidence} onChange={e=>setSelectedEvidence(e.target.value)}>
-                  <option value="">Scegli la copia</option>{evidenceForDocument.map(item=><option key={item.id} value={item.id}>{item.file_name}</option>)}
-                </select>
+                <OfficeSelect id="variation-copy" label="Copia firmata" value={selectedEvidence} onValueChange={setSelectedEvidence}
+                  options={[{value:"",label:"Scegli la copia"},...evidenceForDocument.map(item=>({value:item.id,label:item.file_name}))]} />
               </div>}
               <div className="space-y-1"><Label htmlFor="variation-signer">Chi ha firmato</Label><Input id="variation-signer" value={signer} maxLength={200} onChange={e=>setSigner(e.target.value)} /></div>
               <div className="space-y-1"><Label htmlFor="variation-signed-date">Quando</Label><Input id="variation-signed-date" type="date" value={signedOn} onChange={e=>setSignedOn(e.target.value)} /></div>

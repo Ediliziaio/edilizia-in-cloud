@@ -3,6 +3,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
+import { setupRadixMenus, scegliNelMenu } from "@/test/helpers/radixMenus";
+setupRadixMenus();
 const state = vi.hoisted(() => ({from: vi.fn(), rpc: vi.fn(), folderError: false, attachmentError: false, clientError: false, deniedUpdate: false, rows: [] as object[], retryFolders: vi.fn(), download: vi.fn(), update: vi.fn(), success: vi.fn(), error: vi.fn(), scopes: [] as [string, unknown][]}));
 vi.mock("sonner", () => ({toast: {success: state.success, error: state.error}}));
 vi.mock("@/integrations/supabase/client", () => ({supabase: {from: state.from, rpc: state.rpc}}));
@@ -148,12 +150,12 @@ describe("Documenti commessa: elenco e letture affidabili", () => {
   });
   it("azzera ricerca, categoria e visibilità passando a un'altra commessa", async () => {
     const view = draw(); await screen.findByRole("button", {name: document.file_name});
-    fireEvent.change(screen.getByRole("combobox", {name: "Categoria documenti"}), {target: {value: "quote"}});
+    await scegliNelMenu("Categoria documenti", /^Preventivi/);
     fireEvent.change(screen.getByRole("textbox", {name: "Cerca documenti"}), {target: {value: "assente"}});
     fireEvent.click(screen.getByRole("button", {name: "Condivisi con cliente: 0 documenti"}));
     view.changeOrder("other");
     await screen.findByRole("button", {name: document.file_name});
-    expect(screen.getByRole("combobox", {name: "Categoria documenti"})).toHaveValue("__tutti");
+    expect(screen.getByRole("combobox", {name: "Categoria documenti"})).toHaveTextContent("Tutti i documenti");
     expect(screen.getByRole("textbox", {name: "Cerca documenti"})).toHaveValue("");
     expect(screen.getByRole("button", {name: "Tutti: 1 documenti"})).toHaveAttribute("aria-pressed", "true");
   });

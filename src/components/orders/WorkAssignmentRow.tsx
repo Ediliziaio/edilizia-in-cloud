@@ -16,6 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { conIva, origineCostoDitta } from "@/lib/orders/costoDitta";
+import { OfficeSelect } from "./OfficeSelect";
 
 export type AssignmentPatch = Partial<Pick<PhaseAssignment,
   "cost_preventivo" | "cost_consuntivo" | "hours" | "is_paid" | "paid_date" | "phase_id" | "notes" | "costo_origine">>;
@@ -190,11 +191,8 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
         <DialogHeader><DialogTitle>Gestisci assegnazione</DialogTitle><DialogDescription>{name} · {internal ? "Dipendente interno" : "Ditta esterna"}</DialogDescription></DialogHeader>
         <div className="space-y-4">
           <label className="block space-y-1.5 text-sm font-medium">Lavorazione
-            <select aria-label="Lavorazione assegnata" value={draft.phase} onChange={e => setDraft({ ...draft, phase: e.target.value })} disabled={busy}
-              className="flex h-10 w-full rounded-md border bg-background px-3 text-sm">
-              <option value="">Intera commessa · senza fase</option>
-              {phases.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+            <OfficeSelect label="Lavorazione assegnata" value={draft.phase} onValueChange={v => setDraft({ ...draft, phase: v })} disabled={busy}
+              options={[{ value: "", label: "Intera commessa · senza fase" }, ...phases.map(p => ({ value: p.id, label: p.name }))]} />
           </label>
           <div className="space-y-1.5"><Label htmlFor={`notes-${a.id}`}>Attività e accordi</Label>
             <Textarea id={`notes-${a.id}`} value={draft.notes} disabled={busy} rows={3} onChange={e => setDraft({ ...draft, notes: e.target.value })} />

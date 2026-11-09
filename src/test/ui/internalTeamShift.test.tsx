@@ -3,6 +3,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { InternalTeamShiftEditor } from "@/components/orders/InternalTeamShiftEditor";
 import type { CrewSnapshot } from "@/lib/orders/internalTeamRoster";
+import { setupRadixMenus, scegliNelMenu } from "@/test/helpers/radixMenus";
+setupRadixMenus();
 
 const snapshot: CrewSnapshot = { teamId: "t", teamName: "Squadra", teamActive: true, canManage: false,
   roster: { version: "v1", employeeIds: ["a", "b"], leaderEmployeeId: "a", effectiveFrom: "2026-09-24" },
@@ -17,15 +19,15 @@ describe("Turno squadra · UI", () => {
     const {save} = draw();
     fireEvent.click(screen.getByText("Sostituisci una persona solo in questo turno"));
     expect(screen.getByRole("button", {name: "Applica alla bozza"})).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Chi non partecipa"), {target: {value: "a"}});
-    fireEvent.change(screen.getByLabelText("Chi viene al suo posto"), {target: {value: "c"}});
+    await scegliNelMenu("Chi non partecipa", "Anna Bianchi");
+    await scegliNelMenu("Chi viene al suo posto", "Carlo Verdi");
     fireEvent.click(screen.getByRole("button", {name: "Applica alla bozza"}));
     expect(save).not.toHaveBeenCalled();
     expect(screen.getByRole("checkbox", {name: /Anna Bianchi/})).not.toBeChecked();
     expect(screen.getByRole("checkbox", {name: /Carlo Verdi/})).toBeChecked();
     expect(screen.getByText("Non partecipano: Anna Bianchi")).toBeInTheDocument();
     expect(screen.getByText("Persone aggiunte: Carlo Verdi")).toBeInTheDocument();
-    expect(screen.getByLabelText("Referente del turno")).toHaveValue("");
+    expect(screen.getByRole("combobox", {name: "Referente del turno"})).toHaveTextContent("Nessun referente");
     fireEvent.click(screen.getByRole("button", {name: "Pianifica turno"}));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save.mock.calls[0][0]).toMatchObject({employeeIds: ["c", "b"], leaderEmployeeId: null});

@@ -21,12 +21,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { PlaybookEditorDialog } from "./PlaybookEditorDialog";
 import { OfficeTemplateApplyDialog } from "./OfficeTemplateApplyDialog";
 import { OfficeSelect } from "./OfficeSelect";
@@ -715,49 +716,50 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
         </Suspense>
       )}
       {detail && !editable && (
-        <Sheet
+        <Dialog
           open
           onOpenChange={(v) => {
             if (!v) setSelected(null);
           }}
         >
-          <SheetContent>
-            <SheetHeader>
-              <SheetTitle>{detail.title}</SheetTitle>
-              <SheetDescription>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>{detail.title}</DialogTitle>
+              <DialogDescription>
                 {who(detail)} · {officeStatus(detail.status)} ·{" "}
                 {shortDate(detail.due_date)}
-              </SheetDescription>
-            </SheetHeader>
-            <p className="mt-4 whitespace-pre-wrap text-sm">
+              </DialogDescription>
+            </DialogHeader>
+            <p className="whitespace-pre-wrap text-sm">
               {detail.notes || "Nessuna nota"}
             </p>
-          </SheetContent>
-        </Sheet>
+          </DialogContent>
+        </Dialog>
       )}
-      <Sheet
+      <Dialog
         open={creating}
         onOpenChange={(v) => {
           if (!add.isPending) setCreating(v);
         }}
       >
-        <SheetContent className="w-full overflow-y-auto sm:max-w-lg sm:rounded-l-3xl">
-          <SheetHeader>
-            <SheetTitle>Nuova attività d’ufficio</SheetTitle>
-            <SheetDescription>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Nuova attività d’ufficio</DialogTitle>
+            <DialogDescription>
               Collegata alla commessa e visibile nelle Attività del
               responsabile.
-            </SheetDescription>
-          </SheetHeader>
+            </DialogDescription>
+          </DialogHeader>
           <form
-            className="mt-5 space-y-4"
+            id="nuova-attivita-ufficio"
+            className="space-y-4"
             onSubmit={(e) => {
               e.preventDefault();
               add.mutate();
             }}
           >
             <label className="block space-y-1.5 text-sm">
-              <span>Cosa c’è da fare</span>
+              <span className="font-medium">Cosa c’è da fare</span>
               <Input
                 required
                 maxLength={250}
@@ -767,48 +769,48 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
                 placeholder="Es. Confermare l’ordine al fornitore"
               />
             </label>
-            <label className="block space-y-1.5 text-sm">
-              <span>Fase dell’ufficio</span>
-              <OfficeSelect
-                label="Fase dell’ufficio"
-                value={draft.stage}
-                onValueChange={(stage) => setDraft({ ...draft, stage })}
-                options={OFFICE_STAGES.map(([value, label]) => ({
-                  value,
-                  label,
-                }))}
-              />
-            </label>
-            <label className="block space-y-1.5 text-sm">
-              <span>Responsabile</span>
-              <OfficeSelect
-                label="Responsabile"
-                value={draft.assigned}
-                onValueChange={(assigned) => setDraft({ ...draft, assigned })}
-                options={[
-                  { value: "", label: "Io" },
-                  ...(people.data ?? [])
-                    .filter((p) =>
-                      (p.roles ?? []).some((r) =>
-                        [
-                          "company_admin",
-                          "company_staff",
-                          "salesperson",
-                          "call_center",
-                        ].includes(r),
-                      ),
-                    )
-                    .filter((p) => p.id !== user?.id)
-                    .map((p) => ({
-                      value: p.id,
-                      label: names.get(p.id) || "Nome non disponibile",
-                    })),
-                ]}
-              />
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <label className="space-y-1.5 text-sm">
-                <span>Scadenza</span>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block space-y-1.5 text-sm">
+                <span className="font-medium">Fase dell’ufficio</span>
+                <OfficeSelect
+                  label="Fase dell’ufficio"
+                  value={draft.stage}
+                  onValueChange={(stage) => setDraft({ ...draft, stage })}
+                  options={OFFICE_STAGES.map(([value, label]) => ({
+                    value,
+                    label,
+                  }))}
+                />
+              </label>
+              <label className="block space-y-1.5 text-sm">
+                <span className="font-medium">Responsabile</span>
+                <OfficeSelect
+                  label="Responsabile"
+                  value={draft.assigned}
+                  onValueChange={(assigned) => setDraft({ ...draft, assigned })}
+                  options={[
+                    { value: "", label: "Io" },
+                    ...(people.data ?? [])
+                      .filter((p) =>
+                        (p.roles ?? []).some((r) =>
+                          [
+                            "company_admin",
+                            "company_staff",
+                            "salesperson",
+                            "call_center",
+                          ].includes(r),
+                        ),
+                      )
+                      .filter((p) => p.id !== user?.id)
+                      .map((p) => ({
+                        value: p.id,
+                        label: names.get(p.id) || "Nome non disponibile",
+                      })),
+                  ]}
+                />
+              </label>
+              <label className="block space-y-1.5 text-sm">
+                <span className="font-medium">Scadenza</span>
                 <Input
                   type="date"
                   className="rounded-xl"
@@ -817,8 +819,8 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
                   onChange={(e) => setDraft({ ...draft, date: e.target.value })}
                 />
               </label>
-              <label className="space-y-1.5 text-sm">
-                <span>Priorità</span>
+              <label className="block space-y-1.5 text-sm">
+                <span className="font-medium">Priorità</span>
                 <OfficeSelect
                   label="Priorità"
                   value={draft.priority}
@@ -833,7 +835,7 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
               </label>
             </div>
             <label className="block space-y-1.5 text-sm">
-              <span>Parte dopo</span>
+              <span className="font-medium">Parte dopo</span>
               <OfficeSelect
                 label="Parte dopo"
                 value={draft.predecessor}
@@ -850,7 +852,9 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
             </label>
             {draft.predecessor && (
               <label className="block space-y-1.5 text-sm">
-                <span>Giorni per completarla dopo lo sblocco</span>
+                <span className="font-medium">
+                  Giorni per completarla dopo lo sblocco
+                </span>
                 <Input
                   type="number"
                   className="rounded-xl"
@@ -865,7 +869,7 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
               </label>
             )}
             <label className="block space-y-1.5 text-sm">
-              <span>Dettagli</span>
+              <span className="font-medium">Dettagli</span>
               <Textarea
                 className="rounded-xl"
                 value={draft.notes}
@@ -873,27 +877,26 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
                 rows={3}
               />
             </label>
-            <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setCreating(false)}
-                disabled={add.isPending}
-              >
-                Annulla
-              </Button>
-              <Button
-                disabled={
-                  add.isPending || !draft.title.trim() || people.isError
-                }
-                type="submit"
-              >
-                {add.isPending ? "Salvo…" : "Crea attività"}
-              </Button>
-            </div>
           </form>
-        </SheetContent>
-      </Sheet>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setCreating(false)}
+              disabled={add.isPending}
+            >
+              Annulla
+            </Button>
+            <Button
+              form="nuova-attivita-ufficio"
+              disabled={add.isPending || !draft.title.trim() || people.isError}
+              type="submit"
+            >
+              {add.isPending ? "Salvo…" : "Crea attività"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

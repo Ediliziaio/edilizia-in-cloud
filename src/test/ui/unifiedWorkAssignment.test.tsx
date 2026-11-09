@@ -3,6 +3,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { AddAssignmentDialog } from "@/components/orders/AddAssignmentDialog";
 import { assignment } from "../fixtures/workPlanning";
+import { setupRadixMenus, scegliNelMenu } from "@/test/helpers/radixMenus";
+setupRadixMenus();
 const m = vi.hoisted(() => ({
   editOrders: true, editCrew: true, readOnly: false, costs: true, crewError: false, crewLoading: false,
   assignments: [] as Array<{squadra_id: string; phase_id: string | null}>, reads: [] as boolean[],
@@ -38,9 +40,9 @@ it("una sola finestra permette tutte le tre scelte, senza scrivere all'apertura"
   for (const name of ["Persona", "Squadra interna", "Ditta"]) expect(screen.getByRole("button", {name})).toBeInTheDocument();
   expect(m.add).not.toHaveBeenCalled(); expect(m.crew).not.toHaveBeenCalled(); expect(m.reads.at(-1)).toBe(false);
 });
-it("esplicita incarico generale e aggiunta alla fase senza sostituzioni implicite", () => {
+it("esplicita incarico generale e aggiunta alla fase senza sostituzioni implicite", async () => {
   draw(); expect(screen.getByText(/Incarico generale della commessa/)).toBeInTheDocument();
-  fireEvent.change(screen.getByLabelText("Fase"), {target: {value: "p1"}});
+  await scegliNelMenu("Fase", "Demolizioni");
   expect(screen.getByText(/Incarico aggiuntivo su questa lavorazione/)).toHaveTextContent(/non rimuove la squadra generale/);
   expect(m.add).not.toHaveBeenCalled(); expect(m.crew).not.toHaveBeenCalled();
 });
@@ -209,7 +211,7 @@ it('un errore varianti dopo la scelta non lascia salvare una tariffa incompleta'
 it('la chiusura controllata ripulisce la bozza e la riapertura usa la fase corrente',()=>{
   const view=draw();openCosts();fireEvent.change(screen.getByLabelText('Già speso €'),{target:{value:'250'}});
   view.rerender(dialog({aperto:false,phaseId:'p2'}));view.rerender(dialog({aperto:true,phaseId:'p2'}));
-  expect(screen.getByLabelText('Fase')).toHaveValue('p2');expect(screen.getByRole('button',{name:'Conferma assegnazione'})).toBeDisabled();
+  expect(screen.getByRole('combobox',{name:'Fase'})).toHaveTextContent('Posa');expect(screen.getByRole('button',{name:'Conferma assegnazione'})).toBeDisabled();
   fireEvent.click(screen.getByRole('button',{name:'Ditta'}));select('Edil Alfa');confirm();expect(m.add).toHaveBeenCalledWith(expect.objectContaining({phase_id:'p2',cost_consuntivo:0}),expect.any(Object));
 });
 it('un aggiornamento dei prezzi richiede conferma e non salva un budget stantio',()=>{

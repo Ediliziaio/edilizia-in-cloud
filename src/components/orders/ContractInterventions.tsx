@@ -11,6 +11,7 @@ import { Card,CardHeader,CardTitle,CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription } from "@/components/ui/dialog";
+import { OfficeSelect } from "./OfficeSelect";
 import { toast } from "sonner";
 const db=supabase as any;
 interface Intervention {id:string;order_code:string;description:string;work_address:string|null;work_start_date:string|null;work_end_date:string|null;intervention_reference:string;percentuale_avanzamento:number}
@@ -45,7 +46,12 @@ export function ContractInterventions({orderId}:{orderId:string}) {
  <label className="block text-sm">Descrizione intervento *<Input value={description} maxLength={500} onChange={e=>setDescription(e.target.value)} /></label>
  <label className="block text-sm">Strada, tratto / progressive, luogo *<Input value={place} maxLength={1000} onChange={e=>setPlace(e.target.value)} /></label>
  <div className="grid grid-cols-2 gap-3"><label className="text-sm">Inizio previsto<Input type="date" value={start} onChange={e=>setStart(e.target.value)} /></label><label className="text-sm">Fine prevista<Input type="date" value={end} onChange={e=>setEnd(e.target.value)} /></label></div>
- <label className="block text-sm">Standard di lavorazione<select className="mt-1 h-10 w-full rounded-md border bg-background px-2" value={template} onChange={e=>setTemplate(e.target.value)}><option value="">Da scegliere dopo</option>{modelli.filter(m=>m.origine==="azienda" && m.ambito!=="contratto").map(m=><option key={m.id} value={m.id}>{m.nome} · {m.fasi.length} fasi</option>)}</select></label>
+ <label className="block text-sm">Standard di lavorazione<span className="mt-1 block"><OfficeSelect
+   label="Standard di lavorazione"
+   value={template}
+   onValueChange={setTemplate}
+   options={[{value:"",label:"Da scegliere dopo"},...modelli.filter(m=>m.origine==="azienda" && m.ambito!=="contratto").map(m=>({value:m.id,label:`${m.nome} · ${m.fasi.length} fasi`}))]}
+ /></span></label>
  <p className="text-sm text-muted-foreground">Squadra, mezzi e quantità si completano nella pianificazione del cantiere. Nessun appuntamento periodico automatico.</p>
  <Button disabled={create.isPending||reference.trim().length<1||description.trim().length<3||place.trim().length<3||!!(start&&end&&end<start)} onClick={()=>create.mutate()}>{create.isPending?"Creazione…":"Crea intervento e apri le lavorazioni"}</Button>
  </div></DialogContent></Dialog>

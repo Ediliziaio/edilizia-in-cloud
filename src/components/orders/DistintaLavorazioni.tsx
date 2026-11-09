@@ -30,6 +30,7 @@ import {
 import { conAliquota, saldoIva, type IvaCommessa } from "@/lib/orders/ivaCommessa";
 import { percentualeDaQuantita, quantitaEseguita, type GiornoLavorativo, type Sottofase } from "@/lib/orders/sottofasi";
 import { cn } from "@/lib/utils";
+import { OfficeSelect } from "./OfficeSelect";
 
 export interface ChiLavora {
   squadre: string[];
@@ -721,14 +722,15 @@ export function DistintaLavorazioni({
               </PopoverContent>
             </Popover>
             {chiSottofasi?.disponibile && onAggiungiChi && (
-              <select aria-label="Chi fa le righe scelte" value={bloccoChi} disabled={conSottofase.length === 0}
-                onChange={(e) => { scegliChi(e.target.value, conSottofase.map((x) => x.sottofaseId!)); setBloccoChi(""); azzeraScelte(); }}
-                className="h-6 max-w-40 rounded bg-secondary px-1 text-xs text-secondary-foreground">
-                <option value="">Chi la fa…</option>
-                {squadre.length > 0 && <optgroup label="Squadre">{squadre.map((o) => <option key={o.id} value={`d:${o.id}`}>{o.nome}</option>)}</optgroup>}
-                {persone.length > 0 && <optgroup label="Persone">{persone.map((o) => <option key={o.id} value={`p:${o.id}`}>{o.nome}</option>)}</optgroup>}
-                {ditte.length > 0 && <optgroup label="Ditte">{ditte.map((o) => <option key={o.id} value={`d:${o.id}`}>{o.nome}</option>)}</optgroup>}
-              </select>
+              <OfficeSelect label="Chi fa le righe scelte" value={bloccoChi} disabled={conSottofase.length === 0}
+                onValueChange={(v) => { scegliChi(v, conSottofase.map((x) => x.sottofaseId!)); setBloccoChi(""); azzeraScelte(); }}
+                className="h-6 max-w-40 rounded-lg border-0 bg-secondary px-1 text-xs text-secondary-foreground"
+                placeholder="Chi la fa…"
+                options={[
+                  ...squadre.map((o) => ({ value: `d:${o.id}`, label: o.nome, group: "Squadre" })),
+                  ...persone.map((o) => ({ value: `p:${o.id}`, label: o.nome, group: "Persone" })),
+                  ...ditte.map((o) => ({ value: `d:${o.id}`, label: o.nome, group: "Ditte" })),
+                ]} />
             )}
             {onAvanzaTante && (
               <Popover>

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { OfficeSelect } from './OfficeSelect';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { formatCurrency } from '@/lib/formatters';
@@ -55,7 +56,8 @@ export function ExpensePaymentDialog({ costId, onClose }: {costId: string; onClo
         </tbody></table></div>
         {editing && <div className="space-y-3 rounded-lg border bg-muted/20 p-4"><p className="text-sm font-medium">Registra un pagamento già eseguito</p><p className="text-xs text-muted-foreground">Aggiorna cassa, scadenze e residuo. Non dispone un bonifico.</p>
           <div className="grid grid-cols-2 gap-3"><div><Label htmlFor="expense-amount">Importo</Label><Input id="expense-amount" inputMode="decimal" value={amount} onChange={e=>{setAmount(e.target.value);resetRequest();}}/></div><div><Label htmlFor="expense-date">Data</Label><Input id="expense-date" type="date" max={new Date().toLocaleDateString('en-CA')} value={date} onChange={e=>{setDate(e.target.value);resetRequest();}}/></div></div>
-          <div className="grid grid-cols-2 gap-3"><div><Label htmlFor="expense-method">Metodo</Label><select id="expense-method" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={method} onChange={e=>{setMethod(e.target.value);resetRequest();}}><option value="bonifico">Bonifico</option><option value="contanti">Contanti</option><option value="assegno">Assegno</option><option value="altro">Altro</option></select></div><div><Label htmlFor="expense-reference">Riferimento</Label><Input id="expense-reference" maxLength={500} value={reference} onChange={e=>{setReference(e.target.value);resetRequest();}} placeholder="CRO o nota"/></div></div>
+          <div className="grid grid-cols-2 gap-3"><div><Label htmlFor="expense-method">Metodo</Label><OfficeSelect id="expense-method" label="Metodo" value={method} onValueChange={v=>{setMethod(v);resetRequest();}}
+            options={[{value:'bonifico',label:'Bonifico'},{value:'contanti',label:'Contanti'},{value:'assegno',label:'Assegno'},{value:'altro',label:'Altro'}]} /></div><div><Label htmlFor="expense-reference">Riferimento</Label><Input id="expense-reference" maxLength={500} value={reference} onChange={e=>{setReference(e.target.value);resetRequest();}} placeholder="CRO o nota"/></div></div>
         </div>}
       </>}
       <DialogFooter><Button variant="outline" disabled={pay.isPending} onClick={() => editing ? setEditing(false) : onClose()}>{editing ? 'Annulla' : 'Chiudi'}</Button>

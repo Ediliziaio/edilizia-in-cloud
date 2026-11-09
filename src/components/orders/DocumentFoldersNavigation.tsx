@@ -4,6 +4,7 @@ import { AlertTriangle, FileText, Folder, FolderOpen, Loader2, Settings2 } from 
 import type { CartellaDocumenti } from "@/lib/commesse/documentiCommessa";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { OfficeSelect } from "./OfficeSelect";
 
 export const TUTTI_DOCUMENTI = "__tutti";
 export const SENZA_CARTELLA = "__senza";
@@ -60,13 +61,26 @@ export function DocumentFoldersNavigation({ cartelle, conteggi, totale, senzaCar
   };
   if (compact && !explore) return <nav aria-label="Categorie dei documenti" style={{minHeight: 0}} className="flex flex-wrap items-center gap-2">
     <label className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium sm:flex-none">Categoria
-      <select aria-label="Categoria documenti" value={selezione} onChange={e => onSelect(e.target.value)} disabled={loading}
-        className="h-11 min-w-0 flex-1 rounded-md border bg-background px-2 text-sm font-normal sm:w-64 sm:flex-none">
-        <option value={TUTTI_DOCUMENTI}>Tutti i documenti ({totale})</option>
-        {used.map(c => <option key={c.id} value={c.id}>{c.nome} ({conteggi[c.id] ?? 0}){mancanti.includes(c.id) ? " · obbligatoria, vuota" : ""}{c.archiviata_at ? " · archiviata" : ""}</option>)}
-        {senzaCartella > 0 && <option value={SENZA_CARTELLA}>Senza categoria ({senzaCartella})</option>}
-        {empty.length > 0 && <optgroup label="Categorie vuote — disponibili per nuovi file">{empty.map(c => <option key={c.id} value={c.id}>{c.nome} (0)</option>)}</optgroup>}
-      </select>
+      <OfficeSelect
+        label="Categoria documenti"
+        value={selezione}
+        onValueChange={onSelect}
+        disabled={loading}
+        className="h-11 min-w-0 flex-1 text-sm font-normal sm:w-64 sm:flex-none"
+        options={[
+          { value: TUTTI_DOCUMENTI, label: `Tutti i documenti (${totale})` },
+          ...used.map(c => ({
+            value: c.id,
+            label: `${c.nome} (${conteggi[c.id] ?? 0})${mancanti.includes(c.id) ? " · obbligatoria, vuota" : ""}${c.archiviata_at ? " · archiviata" : ""}`,
+          })),
+          ...(senzaCartella > 0 ? [{ value: SENZA_CARTELLA, label: `Senza categoria (${senzaCartella})` }] : []),
+          ...empty.map(c => ({
+            value: c.id,
+            label: `${c.nome} (0)`,
+            group: "Categorie vuote — disponibili per nuovi file",
+          })),
+        ]}
+      />
     </label>
     <button type="button" className="hidden min-h-11 rounded-md border px-3 text-xs sm:block" onClick={() => setExplore(true)}>Esplora cartelle</button>
     {puoGestireCartelle && <Link to="/azienda/impostazioni/cartelle-documenti" aria-label="Gestisci categorie" title="Gestisci categorie" className="hidden h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring sm:inline-flex"><Settings2 className="h-4 w-4" aria-hidden="true" /></Link>}

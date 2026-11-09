@@ -2,6 +2,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkAssignmentRow } from "@/components/orders/WorkAssignmentRow";
 import { assignment } from "../fixtures/workPlanning";
+import { setupRadixMenus, scegliNelMenu } from "@/test/helpers/radixMenus";
+setupRadixMenus();
 
 const permissions = vi.hoisted(() => ({ canEditOrders: true, canViewCosts: true, canManagePayments: true }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => permissions }));
@@ -42,7 +44,7 @@ describe("Assegnazione manodopera", () => {
   });
   it("sposta una riga esistente senza ricreare o riscrivere costi", async () => {
     render(<WorkAssignmentRow {...props()} />); edit();
-    fireEvent.change(screen.getByLabelText("Lavorazione assegnata"), { target: { value: "p1" } }); save();
+    await scegliNelMenu("Lavorazione assegnata", "Opere murarie"); save();
     await waitFor(() => expect(update).toHaveBeenCalledWith({ phase_id: "p1" }));
     expect(remove).not.toHaveBeenCalled();
   });

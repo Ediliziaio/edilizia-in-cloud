@@ -39,6 +39,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { OfficeSelect } from "./OfficeSelect";
 
 // Colonne nuove (allegato, fase, senza_fattura) non ancora nei tipi generati.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -279,12 +280,10 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
             { titolo: "Tipo", cella: (c) => TIPI_COSTO.find((t) => t.value === c.tipo)?.label },
             { titolo: "Data", cella: (c) => <span className="whitespace-nowrap">{dataIt(c.due_date)}</span> },
             { titolo: "Fase", cella: (c) => puoModificare && (data?.fasi.length ?? 0) > 0 ? (
-              <select aria-label={`Fase di ${c.name}`} value={c.order_work_phase_id ?? ""} disabled={scegliFase.isPending}
-                onChange={(e) => scegliFase.mutate({ id: c.id, faseId: e.target.value || null })}
-                className="h-7 max-w-44 rounded border bg-background px-1 text-xs">
-                <option value="">Senza fase</option>
-                {data!.fasi.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-              </select>
+              <OfficeSelect label={`Fase di ${c.name}`} value={c.order_work_phase_id ?? ""} disabled={scegliFase.isPending}
+                onValueChange={(v) => scegliFase.mutate({ id: c.id, faseId: v || null })}
+                className="h-7 max-w-44 rounded-lg px-1 text-xs"
+                options={[{ value: "", label: "Senza fase" }, ...data!.fasi.map((f) => ({ value: f.id, label: f.name }))]} />
             ) : c.fase ?? "—" },
             { titolo: "Documento", cella: (c) => (
               <div className="space-y-0.5">

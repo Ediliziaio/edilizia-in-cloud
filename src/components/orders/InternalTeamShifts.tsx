@@ -12,6 +12,7 @@ import { loadCrewSnapshot, type CrewRpcClient } from "@/lib/orders/internalTeamR
 import { loadCrewShifts, saveCrewShift } from "@/lib/orders/internalTeamShiftApi";
 import { validShiftDate, type CrewShift } from "@/lib/orders/internalTeamShift";
 import { InternalTeamShiftEditor } from "./InternalTeamShiftEditor";
+import { OfficeSelect } from "./OfficeSelect";
 
 const config = { url: import.meta.env.VITE_SUPABASE_URL, optIn: import.meta.env.VITE_INTERNAL_TEAM_ROSTERS_LOCAL };
 const enabled = isLocalCrewBackend(config.url, config.optIn);
@@ -78,7 +79,7 @@ function LocalTeamShifts({ orderId, teams, phases, canPlan }: Props) {
     {!internalTeams.length && <p className="text-sm text-muted-foreground">Crea prima una squadra interna e la sua composizione in Impostazioni → Calendari lavori → Squadre.</p>}
     <Dialog open={open} onOpenChange={value => { if (!busy) setOpen(value); }}><DialogContent className="flex max-h-[90dvh] flex-col overflow-hidden sm:max-w-2xl">
       <DialogHeader className="pr-6 text-left"><DialogTitle>Pianifica una squadra</DialogTitle><DialogDescription>Parti dalle persone abituali e adatta il turno alla giornata.</DialogDescription></DialogHeader>
-      <label className="space-y-1 text-sm font-medium">Squadra interna<select aria-label="Squadra interna" className="flex h-10 w-full min-w-0 rounded-md border bg-background px-3 text-sm" disabled={busy} value={teamId} onChange={e => setTeamId(e.target.value)}>{internalTeams.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}</select></label>
+      <label className="space-y-1 text-sm font-medium">Squadra interna<OfficeSelect label="Squadra interna" className="min-w-0 font-normal" disabled={busy} value={teamId} onValueChange={setTeamId} options={internalTeams.map(t => ({ value: t.id, label: t.label }))} /></label>
       {roster.isPending ? <p role="status">Caricamento composizione…</p> : roster.isError ? <div role="alert" className="space-y-2"><p>Composizione non disponibile.</p><Button variant="outline" onClick={() => void roster.refetch()}>Riprova composizione</Button></div> : roster.data && <InternalTeamShiftEditor key={`${companyId}:${orderId}:${teamId}:${generation}`} snapshot={roster.data} phases={phases} workDate={day} shifts={shifts.data ?? []} canPlan={canPlan}
         onReload={() => { void roster.refetch().then(r => { if (!r.isError) setGeneration(n => n + 1); }); }}
         onSave={async draft => {

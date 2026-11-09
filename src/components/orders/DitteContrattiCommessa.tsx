@@ -37,6 +37,7 @@ import { vesteContratto } from "@/lib/subappaltatori/vesteContratto";
 import { modelloPredefinitoDellAzienda } from "../../../supabase/functions/_shared/condizioniArchivio";
 import { caricaDatiSocietari, righeSocietarie } from "../../../supabase/functions/_shared/datiSocietari";
 import { clausoleArchivioDelContratto, totaleElencoLavori, unisciArticoliPersonalizzati, type DatiContrattoSubappalto, type RigaElencoLavori } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
+import { OfficeSelect } from "./OfficeSelect";
 
 // Tabelle recenti, non ancora tutte nei tipi generati.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -237,15 +238,21 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
                     </div>
                   ) : (
                     <>
-                      <select
-                        aria-label={`Ditta per ${r.f.name}`}
-                        className="h-9 max-w-[14rem] rounded-md border bg-background px-2 text-sm"
+                      <OfficeSelect
+                        label={`Ditta per ${r.f.name}`}
+                        className="h-9 max-w-[14rem]"
                         value={r.dittaId}
-                        onChange={(e) => setScelte((s) => ({ ...s, [r.f.id]: e.target.value }))}
-                      >
-                        <option value="">Nessuna ditta</option>
-                        {d.ditte.filter((x) => x.is_active !== false || x.id === r.dittaId).map((x) => <option key={x.id} value={x.id}>{x.name}{x.is_active === false ? " (disattivata)" : ""}</option>)}
-                      </select>
+                        onValueChange={(v) => setScelte((s) => ({ ...s, [r.f.id]: v }))}
+                        options={[
+                          { value: "", label: "Nessuna ditta" },
+                          ...d.ditte
+                            .filter((x) => x.is_active !== false || x.id === r.dittaId)
+                            .map((x) => ({
+                              value: x.id,
+                              label: `${x.name}${x.is_active === false ? " (disattivata)" : ""}`,
+                            })),
+                        ]}
+                      />
                       {r.proposta && r.dittaId === r.proposta.external_team_id && (
                         <Badge variant="outline" className="border-sky-200 bg-sky-50 text-[11px] text-sky-900" title={`Ha fatto «${r.proposta.come}» in altre commesse`}>
                           <Wand2 className="mr-1 h-3 w-3" />come in «{r.proposta.come}»
@@ -729,10 +736,13 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
               {righe.map((r, i) => (
                 <tr key={chiaveRiga(r)} className="border-t align-top">
                   <td className="px-2 py-1.5">
-                    <select aria-label={`Lavorazione della riga ${i + 1}`} value={r.fase} onChange={(e) => cambia(i, { fase: e.target.value })}
-                      className="mb-1 h-7 max-w-full rounded border bg-background px-1 text-xs text-muted-foreground">
-                      {fasiScelta.map((f) => <option key={f} value={f}>{f}</option>)}
-                    </select>
+                    <OfficeSelect
+                      label={`Lavorazione della riga ${i + 1}`}
+                      value={r.fase}
+                      onValueChange={(v) => cambia(i, { fase: v })}
+                      className="mb-1 h-7 max-w-full rounded-lg px-1 text-xs text-muted-foreground"
+                      options={fasiScelta.map((f) => ({ value: f, label: f }))}
+                    />
                     <Input aria-label={`Descrizione della riga ${i + 1}`} value={r.descrizione} onChange={(e) => cambia(i, { descrizione: e.target.value })} className="h-8" />
                   </td>
                   <td className="px-1 py-1.5">
@@ -763,9 +773,13 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <label className="text-xs text-muted-foreground">Aggiungi a
-            <select aria-label="Lavorazione delle righe nuove" value={faseNuova} onChange={(e) => setFaseNuova(e.target.value)} className="ml-1 h-9 rounded-md border bg-background px-2 text-sm text-foreground">
-              {fasiScelta.map((f) => <option key={f} value={f}>{f}</option>)}
-            </select>
+            <OfficeSelect
+              label="Lavorazione delle righe nuove"
+              value={faseNuova}
+              onValueChange={setFaseNuova}
+              className="ml-1 inline-flex h-9 w-auto min-w-[10rem] text-foreground"
+              options={fasiScelta.map((f) => ({ value: f, label: f }))}
+            />
           </label>
           <div className="relative min-w-[16rem] flex-1">
             <Input aria-label="Cerca nel listino per il contratto" placeholder="Cerca nel listino (nome o codice)" value={cerca} onChange={(e) => setCerca(e.target.value)} className="h-9" />

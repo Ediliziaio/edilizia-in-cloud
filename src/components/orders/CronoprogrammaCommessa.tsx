@@ -43,6 +43,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { costoSforato, fontePrevistoTesto } from "./EconomiaFaseRiga";
+import { OfficeSelect } from "./OfficeSelect";
 
 export interface CommessaCronoprogramma {
   quote_id?: string | null;
@@ -522,9 +523,17 @@ export function CronoprogrammaCommessa({
             <Button size="sm" variant={periodo === "confronto" ? "secondary" : "ghost"} aria-pressed={periodo === "confronto"} onClick={() => setPeriodo("confronto")}>Previsto e reale</Button>
           </div>
           {vista === "grafico" && <label className="flex items-center gap-2 text-xs text-muted-foreground">Scala
-            <select aria-label="Scala del cronoprogramma" value={scala} onChange={e => setScala(e.target.value as typeof scala)} className="h-9 rounded-md border bg-white px-2 text-foreground">
-              <option value="adatta">Adatta al riquadro</option><option value="mesi">Mesi</option><option value="settimane">Settimane</option>
-            </select>
+            <OfficeSelect
+              label="Scala del cronoprogramma"
+              value={scala}
+              onValueChange={v => setScala(v as typeof scala)}
+              className="inline-flex h-9 w-auto min-w-[11rem]"
+              options={[
+                { value: "adatta", label: "Adatta al riquadro" },
+                { value: "mesi", label: "Mesi" },
+                { value: "settimane", label: "Settimane" },
+              ]}
+            />
           </label>}
           <Button size="sm" variant="outline" onClick={() => setVista(vista === "tabella" ? "grafico" : "tabella")}>{vista === "tabella" ? "Grafico" : "Tabella"}</Button>
         </div>}

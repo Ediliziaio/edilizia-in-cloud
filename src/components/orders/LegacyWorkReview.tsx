@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/formatters";
 import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
+import { OfficeSelect } from "./OfficeSelect";
 export interface LegacyWorkRow {
   id: string;
   name: string;
@@ -115,17 +116,18 @@ export function LegacyWorkReviewForm({
       </div>
       <label className="mt-3 block text-sm">
         Classifica le righe selezionate
-        <select
-          className="mt-1 w-full min-h-11 rounded-md border bg-background p-2"
-          aria-label="Natura delle righe"
+        <OfficeSelect
+          className="mt-1 min-h-11"
+          label="Natura delle righe"
           value={kind}
           disabled={busy}
-          onChange={(e) => setKind(e.target.value)}
-        >
-          <option value="lavorazione">Lavorazioni → fasi del cantiere</option>
-          <option value="descrizione">Descrizioni → nessun acquisto</option>
-          <option value="materiale">Materiali → acquisti</option>
-        </select>
+          onValueChange={setKind}
+          options={[
+            { value: "lavorazione", label: "Lavorazioni → fasi del cantiere" },
+            { value: "descrizione", label: "Descrizioni → nessun acquisto" },
+            { value: "materiale", label: "Materiali → acquisti" },
+          ]}
+        />
       </label>
       <p className="my-3 text-sm">
         Le righe diventate lavorazioni compaiono nelle fasi, non tra gli

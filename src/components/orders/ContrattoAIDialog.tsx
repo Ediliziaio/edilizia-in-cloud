@@ -42,6 +42,7 @@ import {
   FileText, Sparkles, Download, Save, AlertTriangle,
   CheckCircle2, Loader2, Wand2, ShieldCheck, Lock, Scale,
 } from "lucide-react";
+import { OfficeSelect } from "./OfficeSelect";
 
 interface Props {
   orderId: string;
@@ -345,12 +346,13 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera C
                     </p>
                   ) : (
                     <>
-                      <select aria-label="Condizioni per questo contratto" className="h-8 w-full rounded-md border bg-background px-2 text-xs disabled:opacity-60"
+                      <OfficeSelect label="Condizioni per questo contratto" className="h-8 px-2 text-xs"
                         value={opzioni.condizioni_modello_id ?? ""} disabled={!puoRiscrivere}
-                        onChange={(e) => setOpzioni({ ...opzioni, condizioni_modello_id: e.target.value || null })}>
-                        <option value="">{predefinitoAppalto ? `Predefinito («${predefinitoAppalto.nome}»)` : "Nessuna: le scrive l'AI"}</option>
-                        {modelliAppalto.filter((m) => !m.predefinito).map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
-                      </select>
+                        onValueChange={(v) => setOpzioni({ ...opzioni, condizioni_modello_id: v || null })}
+                        options={[
+                          { value: "", label: predefinitoAppalto ? `Predefinito («${predefinitoAppalto.nome}»)` : "Nessuna: le scrive l'AI" },
+                          ...modelliAppalto.filter((m) => !m.predefinito).map((m) => ({ value: m.id, label: m.nome })),
+                        ]} />
                       <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
                         {!puoRiscrivere && <Lock className="h-3 w-3 shrink-0" />}
                         {puoRiscrivere

@@ -6,6 +6,8 @@ import { OrderWorkPhases } from "@/components/orders/OrderWorkPhases";
 import { assignment, phase } from "../fixtures/workPlanning";
 import type { WorkPhase, PhaseAssignment, PhaseMaterial } from "@/hooks/useOrderWorkPhases";
 import type { SquadraInCommessa } from "@/hooks/useOperai";
+import { setupRadixMenus, scegliNelMenu } from "@/test/helpers/radixMenus";
+setupRadixMenus();
 
 const state = vi.hoisted(() => ({
   permissions: { canEditOrders: true, canViewCosts: true, canManagePayments: true },
@@ -339,7 +341,7 @@ describe("Lavorazioni e squadra", () => {
   it("apre l'assegnazione sul lavoro, non sui costi, e distingue gli esterni", () => {
     draw(); fireEvent.click(screen.getByRole("button", { name: "Assegna" }));
     const dialog = screen.getByRole("dialog");
-    expect(within(dialog).getByLabelText("Fase")).toHaveValue("");
+    expect(within(dialog).getByRole("combobox", { name: "Fase" })).toHaveTextContent("Tutta la commessa");
     fireEvent.click(within(dialog).getByRole("button", { name: "Ditta" }));
     expect(within(dialog).queryByLabelText("Ore già registrate (facoltativo)")).not.toBeInTheDocument();
     expect(within(dialog).getByText("Se la ditta ha l'app, vede la commessa per tutta la durata dei lavori.")).toBeInTheDocument();
@@ -356,18 +358,18 @@ describe("Lavorazioni e squadra", () => {
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi fase" }));
     expect(state.addPhase).toHaveBeenCalledWith("Demolizioni", expect.any(Object));
   });
-  it("crea l'assegnazione sulla fase scelta mantenendo il contratto dei dati", () => {
+  it("crea l'assegnazione sulla fase scelta mantenendo il contratto dei dati", async () => {
     state.phases = [phase({ assignments: [] })]; draw();
     fireEvent.click(screen.getByRole("button", { name: "Assegna" }));
     chooseEmployee();
-    fireEvent.change(screen.getByLabelText("Fase"), { target: { value: "p1" } });
+    await scegliNelMenu("Fase", "Opere murarie");
     fireEvent.click(screen.getByRole("button", { name: "Conferma assegnazione" }));
     expect(state.add).toHaveBeenCalledWith(expect.objectContaining({ executor_type: "interno", employee_id: "e1", external_team_id: null,
       phase_id: "p1", cost_preventivo: 0, cost_consuntivo: 0, hours: null, is_paid: false }), expect.any(Object));
   });
-  it("non crea una seconda riga della stessa persona sulla stessa fase", () => {
+  it("non crea una seconda riga della stessa persona sulla stessa fase", async () => {
     draw(); fireEvent.click(screen.getByRole("button", { name: "Assegna" }));
-    chooseEmployee(); fireEvent.change(screen.getByLabelText("Fase"), { target: { value: "p1" } });
+    chooseEmployee(); await scegliNelMenu("Fase", "Opere murarie");
     fireEvent.click(screen.getByRole("button", { name: "Conferma assegnazione" }));
     expect(state.add).not.toHaveBeenCalled();
   });
