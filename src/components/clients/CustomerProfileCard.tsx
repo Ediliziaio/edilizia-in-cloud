@@ -36,8 +36,7 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  ChevronDown, Search, User, ExternalLink, Calendar, Lock, Building2, ClipboardCheck,
-} from "lucide-react";
+  ChevronDown, Search, User, ExternalLink, Calendar, Lock, Building2, ClipboardCheck, X as XIcon } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { InlineField } from "@/components/marketing/contacts/InlineField";
@@ -72,6 +71,8 @@ interface LinkedContact {
 }
 
 interface CustomerProfileCardProps {
+  /** Al computer chiude la colonna di lato. */
+  onChiudi?: () => void;
   customer: {
     id: string;
     first_name: string | null;
@@ -102,7 +103,7 @@ interface CustomerProfileCardProps {
   perCommittente?: boolean;
 }
 
-export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommittente = false }: CustomerProfileCardProps) {
+export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommittente = false, onChiudi }: CustomerProfileCardProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -236,11 +237,16 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
   return (
     <div className="rounded-2xl border bg-card shadow-sm flex flex-col h-full">
       {/* Header sticky */}
-      <div className="px-3 py-2.5 border-b sticky top-0 bg-card z-10 rounded-t-2xl">
+      <div className="flex items-center justify-between gap-2 px-3 py-2.5 border-b sticky top-0 bg-card z-10 rounded-t-2xl">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
           <User className="h-3 w-3" />
           Anagrafica completa
         </h3>
+        {onChiudi && (
+          <Button variant="ghost" size="icon" className="hidden h-6 w-6 lg:inline-flex" onClick={onChiudi} aria-label="Chiudi l'anagrafica">
+            <XIcon className="h-3.5 w-3.5" />
+          </Button>
+        )}
       </div>
 
       <ScrollArea className="flex-1">

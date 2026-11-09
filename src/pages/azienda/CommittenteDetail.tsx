@@ -62,6 +62,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SalAppalto } from "@/components/orders/SalAppalto";
 import { CaricaListinoDialog } from "@/components/committenti/CaricaListinoDialog";
 import { DocumentiContratto } from "@/components/committenti/DocumentiContratto";
+import { ColonnaAnagrafica, useAnagraficaChiusa } from "@/components/clients/ColonnaAnagrafica";
 import { ChiediASilvio } from "@/components/silvio/ChiediASilvio";
 import { CustomerProfileCard } from "@/components/clients/CustomerProfileCard";
 import { CustomerActivityTimeline } from "@/components/clients/CustomerActivityTimeline";
@@ -193,6 +194,7 @@ export default function CommittenteDetail() {
   const [sezione, setSezione] = useState<string | null>(() =>
     typeof window !== "undefined" && window.matchMedia?.("(min-width: 1280px)").matches ? "contratti" : null);
   const schermoStretto = useSchermoStretto();
+  const [anagraficaChiusa, setAnagraficaChiusa] = useAnagraficaChiusa();
   // Da telefono il pannello a destra non c'e': un numero porta alla sua scheda, in fondo alla pagina.
   const apriSezione = (chiave: string) => {
     setSezione(chiave);
@@ -845,10 +847,10 @@ export default function CommittenteDetail() {
       </div>
 
       <div className="flex flex-col gap-3 lg:h-[calc(100dvh-14rem)] lg:flex-row lg:gap-4">
-        <div className="order-2 shrink-0 space-y-3 lg:order-none lg:w-72">
-          <CustomerProfileCard customer={c} linkedContact={contattoCollegato} onSaved={() => committente.refetch()} perCommittente />
+        <ColonnaAnagrafica chiusa={anagraficaChiusa} onApri={() => setAnagraficaChiusa(false)}>
+          <CustomerProfileCard customer={c} linkedContact={contattoCollegato} onSaved={() => committente.refetch()} perCommittente onChiudi={() => setAnagraficaChiusa(true)} />
           <ContactCallHistory contactId={c.marketing_contact_id ?? undefined} phone={c.phone} name={nome} showActions={false} />
-        </div>
+        </ColonnaAnagrafica>
 
         <div className="order-1 flex min-h-[50vh] min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border bg-card shadow-sm lg:order-none lg:min-h-0">
           <div className="min-h-0 flex-1 overflow-hidden">
@@ -871,7 +873,8 @@ export default function CommittenteDetail() {
         </div>
 
         <PannelloLateraleScheda sezioni={sezioniConNumeri} attiva={sezione} onCambia={setSezione}>
-          {sezione ? contenutoSezione(sezione) : null}
+          {/* Sullo schermo stretto le sezioni stanno nelle schede qui sotto: due copie farebbero tutte le letture due volte. */}
+          {sezione && !schermoStretto ? contenutoSezione(sezione) : null}
         </PannelloLateraleScheda>
       </div>
 

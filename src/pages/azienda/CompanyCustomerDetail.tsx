@@ -49,6 +49,7 @@ import { VoceEliminaCliente } from "@/components/clients/VoceEliminaCliente";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { APPALTATORE_MODULE_FLAG } from "@/hooks/useAppaltatoreModule";
 import { useSchermoStretto } from "@/hooks/useSchermoStretto";
+import { ColonnaAnagrafica, useAnagraficaChiusa } from "@/components/clients/ColonnaAnagrafica";
 import { emailVera, useComunicazioniScheda, useContattoCollegato } from "@/hooks/useComunicazioniScheda";
 import {
   ClipboardList as ClipboardListIcon, Ticket as TicketIcon,
@@ -133,6 +134,7 @@ export default function CompanyCustomerDetail() {
   // La vista a schede per il telefono si monta solo sugli schermi stretti:
   // nascosta col CSS sul computer, rifaceva comunque le sue letture.
   const schermoStretto = useSchermoStretto();
+  const [anagraficaChiusa, setAnagraficaChiusa] = useAnagraficaChiusa();
   // Un committente ha la sua scheda: ci si arriva anche da ricerca, fatture e
   // conversazioni, che conoscono soltanto questo indirizzo.
   const { isFeatureEnabled, isLoading: flagInCaricamento } = useFeatureFlags();
@@ -589,11 +591,12 @@ export default function CompanyCustomerDetail() {
           FISSA in basso invece di finire in coda allo scroll della pagina. */}
       <div className="flex flex-col lg:flex-row gap-3 lg:gap-4 lg:h-[calc(100dvh-14rem)]">
         {/* ─── LEFT 280px (su mobile va dopo center → order-2) ─── */}
-        <div className="order-2 lg:order-none lg:w-72 shrink-0 space-y-3">
+        <ColonnaAnagrafica chiusa={anagraficaChiusa} onApri={() => setAnagraficaChiusa(false)}>
           <CustomerProfileCard
             customer={customer}
             linkedContact={linkedContact}
             onSaved={() => refetchCustomer()}
+            onChiudi={() => setAnagraficaChiusa(true)}
           />
           {/* Storico chiamate sincronizzato (centralino + AI) */}
           <ContactCallHistory
@@ -602,7 +605,7 @@ export default function CompanyCustomerDetail() {
             name={fullName}
             showActions={false}
           />
-        </div>
+        </ColonnaAnagrafica>
 
         {/* ─── CENTER timeline + compose (su mobile è il PRIMO blocco) ─── */}
         <div className="order-1 lg:order-none flex-1 min-w-0 rounded-2xl border bg-card shadow-sm flex flex-col overflow-hidden min-h-[50vh] lg:min-h-0">
