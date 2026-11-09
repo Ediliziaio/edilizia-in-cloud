@@ -43,6 +43,7 @@ import type { PaginaConTestata } from "../../../../supabase/functions/_shared/te
 import { giorniDellaDurata, perArticoli, senzaNumeroDavanti, spezzaAccento } from "./testoDocumento";
 import { TestoContrattoPdf } from './TestoContrattoPdf';
 import { PieSocietario } from './FoglioCondizioniPDF';
+import { personalizzazioneDocumento } from "../../../../supabase/functions/_shared/personalizzazioneDocumenti";
 import { clausoleStampateEdile, segnaClausoleDelDocumento } from '@/lib/fea/clausoleDelDocumento';
 import { altezzaTesto, righeDiTesto, testoDaHtml, type FamigliaPdf } from "./misuraTesto";
 import type {
@@ -86,6 +87,9 @@ const etichettaIvaInclusa = (t: DocEdileTotali): string =>
 
 /** L'altezza scrivibile di una pagina: 841 punti meno i margini di 96 sopra e sotto. */
 const ALTEZZA_UTILE = ALTEZZA - 96 * 2;
+/** Testata col logo grande (personalizzazioneDocumenti): dove comincia e di quanto spinge giù la pagina. */
+const TESTATA_GRANDE_CIMA = 22;
+const SPOSTAMENTO_TESTATA_GRANDE = 20;
 /** Lo stacco fra due capitoli sulla stessa pagina. */
 const STACCO = 30;
 /**
@@ -342,6 +346,24 @@ function TavolaDiProgetto({ colore, conSegni }: { colore: string; conSegni: bool
 function Intestazione({ tema, dati }: { tema: TemaDocumento; dati: DocEdileDati }) {
   const { azienda, modulo, codice } = dati;
   const sobrio = dati.stile === "sobrio";
+  const veste = personalizzazioneDocumento(azienda.companyId);
+  // Logo grande: occupa la riga, e il riferimento del preventivo va sotto. Il nome sta già nel logo.
+  if (veste.logoAltezza && veste.logoLarghezzaMax && azienda.logoUrl) return (
+    <View fixed style={{ position: "absolute", top: TESTATA_GRANDE_CIMA, left: MARGINE, right: MARGINE }}>
+      <Image src={azienda.logoUrl} style={{ height: veste.logoAltezza, width: veste.logoLarghezzaMax, objectFit: "contain", objectPositionX: 0 }} />
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", height: 11, marginTop: 3 }}>
+        {sobrio ? <View /> : (
+          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7.5, color: tema.inchiostroMarca, letterSpacing: 1.3 }}>
+            {`PIANO DEI LAVORI · ${modulo.etichetta.toUpperCase()}`}
+          </Text>
+        )}
+        {codice ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio }}>{`PREVENTIVO N. ${codice} · ${oggi()}`}</Text> : null}
+      </View>
+      {sobrio
+        ? <View style={{ marginTop: 4, height: 0.8, backgroundColor: tema.inchiostro }} />
+        : <View style={{ marginTop: 4 }}><BarraSegmenti colore={tema.fondo} larghezza={UTILE} /></View>}
+    </View>
+  );
   return (
     <View fixed style={{ position: "absolute", top: 30, left: MARGINE, right: MARGINE }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", height: 26 }}>
@@ -373,7 +395,7 @@ function Intestazione({ tema, dati }: { tema: TemaDocumento; dati: DocEdileDati 
 
 function PieDiPagina({ tema, dati }: { tema: TemaDocumento; dati: DocEdileDati }) {
   // I dati societari, su ogni foglio e per tutti (Florin, 09/11/2026).
-  if (dati.azienda.righeSocietarie?.length) return <PieSocietario righe={dati.azienda.righeSocietarie} font={tema.caratteri.testo} margine={MARGINE} />;
+  if (dati.azienda.righeSocietarie?.length) return <PieSocietario righe={dati.azienda.righeSocietarie} font={tema.caratteri.testo} margine={MARGINE} companyId={dati.azienda.companyId} />;
   const { azienda, modello, codice } = dati;
   const recapiti = [azienda.indirizzo, azienda.telefono, azienda.email].filter(Boolean).join("  ·  ");
   const fiscali = [azienda.partitaIva ? `P.IVA ${azienda.partitaIva}` : null, azienda.sito].filter(Boolean).join("  ·  ");
@@ -705,7 +727,7 @@ function RigaRiepilogo({ tema, etichetta, valore, forte = false }: {
 // ─── Copertina ───────────────────────────────────────────────────────────────
 export type DatiCopertinaDocumento = Pick<DocEdileDati, "cliente" | "cantiere" | "codice" | "tipoIntervento" | "localita" | "stile"> & {
   modello: Pick<DocEdileDati["modello"], "copertina">;
-  azienda: Pick<DocEdileDati["azienda"], "nome" | "logoUrl" | "logoChiaroUrl"> & { indirizzo?: string | null };
+  azienda: Pick<DocEdileDati["azienda"], "nome" | "logoUrl" | "logoChiaroUrl" | "companyId"> & { indirizzo?: string | null };
   modulo: Pick<DocEdileDati["modulo"], "titoloCopertina" | "sottotitoloCopertina">;
 };
 
@@ -737,6 +759,11 @@ export function CopertinaDocumento({ tema, dati, bookmark, data, nota, avviso, c
   const corpoSottotitolo = Math.max(10, Math.min(16, c.corpoSottotitolo ?? 12.5));
   // Il logo scelto per la copertina vince; poi, su fondo scuro, il logo chiaro del kit del marchio.
   const logo = c.logoUrl || (testo === "#FFFFFF" ? dati.azienda.logoChiaroUrl : null) || dati.azienda.logoUrl;
+  const veste = personalizzazioneDocumento(dati.azienda.companyId);
+  const altezzaLogo = veste.logoCopertinaAltezza ?? 50 * c.scalaLogo;
+  const larghezzaLogo = veste.logoCopertinaLarghezzaMax ?? 190 * c.scalaLogo;
+  // Un logo scuro su un fondo scuro non si legge: se non c'è quello chiaro, gli si mette sotto un fondo bianco.
+  const logoSuBianco = veste.logoCopertinaAltezza != null && testo === "#FFFFFF" && !c.logoUrl && !dati.azienda.logoChiaroUrl;
   const centro = c.allineamento === "center";
   const giustificaLogo = c.posizioneLogo === "top_right" ? "flex-end" : c.posizioneLogo === "top_center" ? "center" : "flex-start";
   const giustificaTesto = c.verticale === "top" ? "flex-start" : c.verticale === "center" ? "center" : "flex-end";
@@ -818,10 +845,12 @@ export function CopertinaDocumento({ tema, dati, bookmark, data, nota, avviso, c
       ) : null}
 
       <View style={{ position: "absolute", top: 0, left: 0, width: LARGHEZZA, height: ALTEZZA, paddingHorizontal: MARGINE, paddingTop: 46, paddingBottom: 44 }}>
-        <View style={{ height: Math.max(62, 50 * c.scalaLogo), flexDirection: "row", justifyContent: giustificaLogo, alignItems: "flex-start" }}>
+        <View style={{ height: Math.max(62, altezzaLogo) + (veste.logoCopertinaAltezza != null ? 28 : 0), flexDirection: "row", justifyContent: giustificaLogo, alignItems: "flex-start" }}>
           {c.posizioneLogo === "hidden" ? null : logo ? (
             <View>
-              <Image src={logo} style={{ height: 50 * c.scalaLogo, maxWidth: 190 * c.scalaLogo, objectFit: "contain" }} />
+              {logoSuBianco
+                ? <View style={{ backgroundColor: "#FFFFFF", padding: 6 }}><Image src={logo} style={{ height: altezzaLogo, maxWidth: larghezzaLogo, objectFit: "contain" }} /></View>
+                : <Image src={logo} style={{ height: altezzaLogo, maxWidth: larghezzaLogo, objectFit: "contain" }} />}
               {dati.azienda.indirizzo ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8, color: testo, marginTop: 5 }}>{dati.azienda.indirizzo}</Text> : null}
             </View>
           ) : (
@@ -1282,12 +1311,16 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   const corpoTesto = { fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.inchiostro, lineHeight: 1.55 } as const;
   // paddingBottom: il piè di pagina può arrivare a cinque righe (nome, recapiti, dati
   // fiscali, testo libero, versione). Sotto i 90 punti il testo gli finiva sopra.
-  const pagina = { paddingTop: 96, paddingBottom: 96, paddingHorizontal: MARGINE, fontFamily: tema.caratteri.testo, backgroundColor: tema.carta } as const;
+  // Col logo grande la pagina scende quanto sale il fondo (basta: il piè societario sono due righe): l'altezza
+  // utile resta ALTEZZA_UTILE, e con lei tutte le misure a mano dei capitoli.
+  const vesteTestata = personalizzazioneDocumento(dati.azienda.companyId);
+  const spostamento = vesteTestata.logoAltezza && dati.azienda.logoUrl ? SPOSTAMENTO_TESTATA_GRANDE : 0;
+  const pagina = { paddingTop: 96 + spostamento, paddingBottom: 96 - spostamento, paddingHorizontal: MARGINE, fontFamily: tema.caratteri.testo, backgroundColor: tema.carta } as const;
   const cornice = (<>{dati.filigrana ? <Text fixed style={{ position: "absolute", top: 380, left: MARGINE, width: UTILE, textAlign: "center", fontSize: 48, color: tema.grigioChiaro, opacity: 0.12, transform: "rotate(-35deg)" }}>{dati.filigrana}</Text> : null}<Intestazione tema={tema} dati={dati} /><PieDiPagina tema={tema} dati={dati} /></>);
 
   // Il foglio delle condizioni e della firma: niente intestazione (né logo, né «Piano dei lavori»), in fondo i dati societari.
   const paginaFoglio = { ...pagina, paddingTop: 48, paddingBottom: 72 } as const;
-  const corniceFoglio = (<>{dati.filigrana ? <Text fixed style={{ position: "absolute", top: 380, left: MARGINE, width: UTILE, textAlign: "center", fontSize: 48, color: tema.grigioChiaro, opacity: 0.12, transform: "rotate(-35deg)" }}>{dati.filigrana}</Text> : null}<PieSocietario righe={dati.azienda.righeSocietarie ?? []} font={tema.caratteri.testo} margine={MARGINE} /></>);
+  const corniceFoglio = (<>{dati.filigrana ? <Text fixed style={{ position: "absolute", top: 380, left: MARGINE, width: UTILE, textAlign: "center", fontSize: 48, color: tema.grigioChiaro, opacity: 0.12, transform: "rotate(-35deg)" }}>{dati.filigrana}</Text> : null}<PieSocietario righe={dati.azienda.righeSocietarie ?? []} font={tema.caratteri.testo} margine={MARGINE} companyId={dati.azienda.companyId} /></>);
 
   // Dopo il capitolo precedente, sulla stessa pagina: quelli di altezza limitata
   // (se ci stanno interi) e il piano dei lavori, che si spezza da sé. Il computo

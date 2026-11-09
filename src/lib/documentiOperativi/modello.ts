@@ -84,6 +84,8 @@ export function testoInversioneContabile(d: Pick<DocumentoOperativo, "clausolaIn
 export type AziendaDocumento = Pick<Company, "id" | "name"> & Partial<Company> & {
   /** I dati societari, per il piè di pagina: li carica `generaPdfOperativo`. */
   righeSocietarie?: string[];
+  /** Il carattere del piè, in base64, per le aziende che ne hanno uno proprio: lo carica `generaPdfOperativo`. */
+  fontPiede?: string | null;
 };
 export const testo = (v: unknown) => String(v ?? "").trim();
 export const esc = (v: unknown) =>

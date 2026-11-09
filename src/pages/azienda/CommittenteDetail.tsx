@@ -319,7 +319,7 @@ export default function CommittenteDetail() {
         (supabase as any).from("appalto_tariffe").select("*").eq("contratto_id", contrattoAttivo.id).order("ordine", { ascending: true }),
       ]);
       if (listino.error) throw listino.error;
-      const blob = await contrattoClienteBlob(datiDaAccordo({ accordo: contrattoAttivo, committente: committente.data, tariffe: listino.data ?? [], societari, vessatorie: condizioniAzienda.clausole.filter((x) => x.vessatoria).map((x) => x.titolo.trim()) }));
+      const blob = await contrattoClienteBlob(datiDaAccordo({ accordo: contrattoAttivo, committente: committente.data, tariffe: listino.data ?? [], societari, companyId, vessatorie: condizioniAzienda.clausole.filter((x) => x.vessatoria).map((x) => x.titolo.trim()) }));
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;

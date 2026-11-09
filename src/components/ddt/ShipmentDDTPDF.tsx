@@ -23,6 +23,7 @@ import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/render
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { etichettaCausale } from "@/lib/ddt/causaliTrasporto";
+import { personalizzazioneDocumento } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
 
 /* ── Palette (coerente OrdinePDF) ─────────────────────────────────────── */
 const C = {
@@ -210,6 +211,8 @@ const styles = StyleSheet.create({
 
 export interface DDTCompanyMittente {
   name: string;
+  /** Per la veste propria dell'azienda, se ne ha una (personalizzazioneDocumenti). */
+  company_id?: string | null;
   vat_number?: string | null;
   fiscal_code?: string | null;
   address?: string | null;
@@ -365,6 +368,11 @@ export function ShipmentDDTPDF({
   );
 
   const mittenteAddr = fmtAddress(mittente);
+  // Logo grande: sta sopra i dati dell'impresa e contiene già il nome.
+  const veste = personalizzazioneDocumento(mittente.company_id);
+  const logoGrande = veste.logoAltezza && veste.logoLarghezzaMax && mittente.logo_url
+    ? { width: veste.logoLarghezzaMax, height: veste.logoAltezza, objectFit: "contain" as const, objectPositionX: 0, marginBottom: 6 }
+    : null;
 
   return (
     <Document
@@ -375,10 +383,10 @@ export function ShipmentDDTPDF({
       <Page size="A4" style={styles.page} wrap>
         {/* HEADER FISSO — intestazione azienda mittente */}
         <View style={styles.header} fixed>
-          <View style={styles.headerLeft}>
-            {mittente.logo_url ? <Image src={mittente.logo_url} style={styles.logo} /> : null}
+          <View style={logoGrande ? { flex: 1 } : styles.headerLeft}>
+            {mittente.logo_url ? <Image src={mittente.logo_url} style={logoGrande ?? styles.logo} /> : null}
             <View>
-              <Text style={styles.companyName}>{mittente.name}</Text>
+              {logoGrande ? null : <Text style={styles.companyName}>{mittente.name}</Text>}
               {mittenteAddr.map((l, i) => (
                 <Text key={i} style={styles.companyMeta}>
                   {l}

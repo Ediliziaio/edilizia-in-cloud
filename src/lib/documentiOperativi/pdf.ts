@@ -22,6 +22,8 @@ import {
   documentoIncompleto,
 } from "./modello";
 
+import { fontPiedeBase64, personalizzazioneDocumento, puntiInMm } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
+
 /** Layout comune, derivato dai cinque modelli operativi: identità aziendale,
  * fascia titolo, anagrafiche affiancate, tabella e riepiloghi. */
 export function creaPdfOperativo(
@@ -36,7 +38,12 @@ export function creaPdfOperativo(
     condizioni: d.condizioni?.trim() || modello.condizioni || d.condizioni,
   };
   if (!modello.mostraLogo) logo = undefined;
-  const pdf = new jsPDF({ unit: "mm", format: "a4" });
+  const veste = personalizzazioneDocumento(a.id);
+  const logoGrande = logo && veste.logoAltezza && veste.logoLarghezzaMax
+    ? { larghezza: puntiInMm(veste.logoLarghezzaMax), altezza: puntiInMm(veste.logoAltezza) }
+    : null;
+  // Logo grande e carattere proprio pesano: si comprime solo chi li ha.
+  const pdf = new jsPDF({ unit: "mm", format: "a4", compress: Boolean(logoGrande) });
   pdf.setProperties({
     title: `${modello.titolo || TITOLI[d.tipo]} ${d.numero}`,
     author: a.business_name || a.name,
@@ -79,9 +86,10 @@ export function creaPdfOperativo(
     if (modello.mostraLogo) {
       if (logo) {
         const info = pdf.getImageProperties(logo);
-        const w =
-          (Math.min(62, (17 * info.width) / info.height) * modello.scalaLogo) /
-          100;
+        const w = logoGrande
+          ? Math.min(logoGrande.larghezza, (logoGrande.altezza * info.width) / info.height)
+          : (Math.min(62, (17 * info.width) / info.height) * modello.scalaLogo) /
+            100;
         pdf.addImage(
           logo,
           info.fileType,
@@ -114,7 +122,7 @@ export function creaPdfOperativo(
         );
       }
     }
-    y = modello.mostraLogo ? 28 : 12;
+    y = logoGrande ? 12 + logoGrande.altezza + 3 : modello.mostraLogo ? 28 : 12;
     pdf.setFillColor(...navy);
     pdf.roundedRect(left, y, width, 10, 0.6, 0.6, "F");
     font(11.5);
@@ -716,12 +724,20 @@ export function creaPdfOperativo(
     );
   }
   const foot = a.righeSocietarie?.length ? a.righeSocietarie : footerAzienda(a);
+  if (a.fontPiede) {
+    pdf.addFileToVFS("EBGaramond-Regular.ttf", a.fontPiede);
+    pdf.addFont("EBGaramond-Regular.ttf", "EBGaramond", "normal");
+  }
   for (let page = 1; page <= pdf.getNumberOfPages(); page++) {
     pdf.setPage(page);
     pdf.setDrawColor(210, 219, 231);
     pdf.line(left, 278, left + width, 278);
     foot.forEach((line, i) => {
       font(7, false, true);
+      if (a.fontPiede && veste.piedeColore) {
+        pdf.setFont("EBGaramond", "normal");
+        pdf.setTextColor(veste.piedeColore);
+      }
       const content = safe(line),
         tw = pdf.getTextWidth(content);
       if (tw > width) pdf.setFontSize((7 * width) / tw);
@@ -786,5 +802,6 @@ export async function generaPdfOperativo(
   // Il piè di pagina: i dati societari veri, uguali in tutti i documenti (09/11/2026).
   const [{ supabase }, societari] = await Promise.all([import("@/integrations/supabase/client"), import("../../../supabase/functions/_shared/datiSocietari")]);
   const righeSocietarie = societari.righeSocietarie(await societari.caricaDatiSocietari(supabase, a.id));
-  return creaPdfOperativo(d, { ...a, righeSocietarie }, logo, modello).output("blob");
+  const fontPiede = personalizzazioneDocumento(a.id).piedeFont ? await fontPiedeBase64() : null;
+  return creaPdfOperativo(d, { ...a, righeSocietarie, fontPiede }, logo, modello).output("blob");
 }

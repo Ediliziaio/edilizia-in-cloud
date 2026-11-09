@@ -29,6 +29,7 @@ export interface DatiContrattoCliente {
   soloPrezzi?: boolean;
   firme: { sinistra: string; destra: string };
   societarie: string[];
+  companyId?: string | null;
 }
 
 /** «2. OGGETTO DEI LAVORI» → «Oggetto dei lavori»: il numero lo mette il documento. */
@@ -92,7 +93,7 @@ function committenteDa(p: Riga | null | undefined, ripiego: Riga = {}): DatiCont
 }
 
 /** Il contratto di una commessa: il testo dell'AI, i dati della commessa e le sue voci in Allegato A. */
-export function datiDaCommessa(a: { contratto: Riga; md: string; ordine: Riga; voci: Riga[]; societari: DatiSocietari | null }): DatiContrattoCliente {
+export function datiDaCommessa(a: { contratto: Riga; md: string; ordine: Riga; voci: Riga[]; societari: DatiSocietari | null; companyId?: string | null }): DatiContrattoCliente {
   const { ordine: o, contratto: c } = a;
   const { articoli, daApprovare } = articoliDalContratto(a.md);
   const imponibile = num(o.total_amount);
@@ -120,7 +121,7 @@ export function datiDaCommessa(a: { contratto: Riga; md: string; ordine: Riga; v
     },
     articoli, daApprovare, elenco, titoloElenco: "ALLEGATO A – ELENCO DEI LAVORI",
     sottoElenco: `Commessa ${testo(o.order_code)} · ${elenco.length} voci · prezzi IVA esclusa`,
-    firme: { sinistra: "L'Appaltatore", destra: "Il Committente" }, societarie: righeSocietarie(a.societari),
+    firme: { sinistra: "L'Appaltatore", destra: "Il Committente" }, societarie: righeSocietarie(a.societari), companyId: a.companyId,
   };
 }
 
@@ -128,7 +129,7 @@ const UNITA_LEGGIBILI: Record<string, string> = { uomo_giorno: "uomo/giorno", mq
 
 /** L'accordo col committente: condizioni concordate, clausole e listino in Allegato A. */
 export function datiDaAccordo(a: {
-  accordo: Riga; committente: Riga; tariffe: Riga[]; societari: DatiSocietari | null;
+  accordo: Riga; committente: Riga; tariffe: Riga[]; societari: DatiSocietari | null; companyId?: string | null;
   /** I titoli delle clausole «da approvare a parte» del modello: valgono se l'accordo le contiene ancora. */
   vessatorie?: string[];
 }): DatiContrattoCliente {
@@ -162,6 +163,6 @@ export function datiDaAccordo(a: {
     ] },
     articoli, daApprovare: articoli.filter((x) => a.vessatorie?.includes(x.titolo)).map((x) => x.titolo), elenco, soloPrezzi: true, titoloElenco: "ALLEGATO A – LISTINO CONCORDATO",
     sottoElenco: `${elenco.length} voci · prezzi IVA esclusa`,
-    firme: { sinistra: "L'Appaltatore", destra: "Il Committente" }, societarie: righeSocietarie(a.societari),
+    firme: { sinistra: "L'Appaltatore", destra: "Il Committente" }, societarie: righeSocietarie(a.societari), companyId: a.companyId,
   };
 }

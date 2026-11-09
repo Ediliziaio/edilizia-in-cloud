@@ -99,7 +99,7 @@ export function foglioAnteprima(modello: ModelloArchivio, azienda: AziendaPerAnt
   const riserva = datiSocietariDa({ business_name: azienda.nome, legal_address: azienda.indirizzo, vat_number: azienda.partitaIva }, null);
   return (
     <FoglioCondizioniPDF titolo={dati.titoloDocumento ?? modello.nome} autore={azienda.nome}
-      righe={dati.modello.condizioniLegali} societarie={righeSocietarie(societari ?? riserva)} />
+      righe={dati.modello.condizioniLegali} societarie={righeSocietarie(societari ?? riserva)} companyId={azienda.id} />
   );
 }
 

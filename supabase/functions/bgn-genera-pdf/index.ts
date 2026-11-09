@@ -1,3 +1,4 @@
+// 09/11/2026: il renderer comune stampa la veste propria dell'azienda (logo e piè). Questo commento fa ripubblicare la funzione.
 // Actual saved bathroom intervention model, not a disguised classic quote.
 // Does not send messages or mutate the source quote.
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";

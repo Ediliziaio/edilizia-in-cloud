@@ -152,6 +152,7 @@ export function useRendicontoAppaltoPDF() {
             statoEtichetta: STATI_SAL[sal.stato]?.etichetta ?? sal.stato,
             azienda: { name: societari?.ragioneSociale || effectiveCompany.name || "—" },
             societarie: righeSocietarie(societari),
+            companyId: effectiveCompany.id,
             committente: {
               ragione_sociale: nomeDi(comm),
               vat_number: comm.vat_number,

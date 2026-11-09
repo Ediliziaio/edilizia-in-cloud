@@ -44,7 +44,7 @@ export interface DatiContrattoSubappalto {
   /** Aliquota IVA della ditta: 0 = reverse charge (il caso normale nel subappalto edile). */
   ivaPct?: number;
   /** Logo dell'impresa affidataria (Impostazioni → Profilo aziendale), già letto come data URL. */
-  veste?: { logoUrl: string | null };
+  veste?: { logoUrl: string | null; companyId?: string | null };
   commessa: { codice: string; descrizione: string; indirizzoCantiere: string; cliente: string };
   descrizioneLavori: string;
   importo: number;

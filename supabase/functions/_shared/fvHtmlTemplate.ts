@@ -14,6 +14,7 @@ import { isFvAccumulo, isFvLocalIntervention, fvInterventionLabel, FV_ACCUMULO_P
 import { eFotoDiSerie, leggiBlocco, leggiFotoPagina, PAGINE_BLOCCO, type PaginaBlocco } from "./blocchiPreventivo.ts";
 import { iconaSvg } from "./iconePreventivo.ts";
 import { eTavola } from "./proporzioniImmagine.ts";
+import { personalizzazioneDocumento, urlFontPiede } from "./personalizzazioneDocumenti.ts";
 import { leggiTestata, type PaginaConTestata, type TestataPagina } from "./testatePagine.ts";
 import {
   ORO_STELLE, PUNTI_STELLA, indirizzoDaLeggere, leggiVotiOnline, recensioniScritte, stellePiene, votoScritto, type VotoOnline,
@@ -161,6 +162,8 @@ export interface FvPdfTemplateData {
     vat_number?: string | null;
     /** Ragione sociale, sede, P.IVA, REA, capitale: il piè di pagina (09/11/2026). */
     righe_societarie?: string[];
+    /** Per la veste propria dell'azienda, se ne ha una (personalizzazioneDocumenti). */
+    company_id?: string | null;
   };
   cliente: {
     nome: string;
@@ -1107,6 +1110,17 @@ function renderCoverLines(value: string): string {
  * contiene: dalla ricerca dell'indirizzo arriva «Via Roma, 12, 20121 Milano MI,
  * Italia», e il PDF aggiungeva di nuovo «20121 Milano, (MI)».
  */
+/** La veste propria dell'azienda, se ne ha una: logo di copertina più grande e carattere del piè (09/11/2026). */
+function cssVesteAzienda(companyId: string | null | undefined): string {
+  const v = personalizzazioneDocumento(companyId);
+  if (!v.piedeFont) return "";
+  return `
+@font-face { font-family: '${v.piedeFont}'; src: url('${urlFontPiede()}') format('truetype'); }
+.cover-brand .logo-img { width: auto; height: ${v.logoCopertinaAltezza}pt; max-width: ${v.logoCopertinaLarghezzaMax}pt; border-radius: 2px; background: #fff; padding: 6px; }
+.page-footer.societario, .page-footer.societario .pnum { font-family: '${v.piedeFont}', 'Times New Roman', serif; color: ${v.piedeColore}; }
+`;
+}
+
 export function indirizzoCompleto(c: FvPdfTemplateData["cliente"]): string {
   const via = plainText(c.indirizzo).replace(/,?\s*Italia\s*$/i, "").trim();
   const comune = plainText(c.comune);
@@ -2889,7 +2903,7 @@ export function renderFvPdfHtml(d: FvPdfTemplateData): string {
 <meta charset="UTF-8">
 <title>Preventivo Fotovoltaico — ${escHtml(nomeCommittenti(d.cliente))} — ${escHtml(d.progetto.numero)}</title>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter+Tight:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>${STYLE}${d.configurationOnly ? '\n@media screen {body{padding:0;background:#e2e8f0;overflow-x:hidden}.page{margin:0 0 10mm;box-shadow:none}}' : ''}</style>
+<style>${STYLE}${cssVesteAzienda(d.azienda.company_id)}${d.configurationOnly ? '\n@media screen {body{padding:0;background:#e2e8f0;overflow-x:hidden}.page{margin:0 0 10mm;box-shadow:none}}' : ''}</style>
 </head>
 <body>
 ${d.configurationOnly ? '' : renderPdfActionBar(d)}

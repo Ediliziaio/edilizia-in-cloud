@@ -83,7 +83,7 @@ export function ContrattoClientePDF({ d }: { d: DatiContrattoCliente }) {
   return (
     <Document title={`${d.titolo} ${d.numero ?? ""}`.trim()} author={a.ragioneSociale} producer="Edilizia in Cloud">
       <Page size="A4" style={[s.pagina, { paddingTop: 44 }]}>
-        <PieSocietario righe={d.societarie} margine={44} />
+        <PieSocietario righe={d.societarie} margine={44} companyId={d.companyId} />
         <View style={[s.fascia, { backgroundColor: c }]}>
           <Text style={s.titolo}>{d.titolo.toUpperCase()}</Text>
           <Text style={s.sottoTitolo}>{d.sottotitolo}</Text>

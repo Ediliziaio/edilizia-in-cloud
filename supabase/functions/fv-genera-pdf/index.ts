@@ -766,6 +766,7 @@ Deno.serve(async (req: Request) => {
         email: template.contatto_email ?? company.email,
         website: template.url_sito ?? company.website,
         righe_societarie: righeSocietarie(await caricaDatiSocietari(supabaseAdmin, prog.company_id)),
+        company_id: prog.company_id, // veste propria dell'azienda nel PDF (09/11/2026)
       },
       cliente: {
         nome: clienteNome,

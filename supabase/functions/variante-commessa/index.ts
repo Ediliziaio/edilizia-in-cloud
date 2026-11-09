@@ -1,3 +1,4 @@
+// 09/11/2026: il generatore della variante stampa la veste propria dell'azienda (logo). Bundle rigenerato.
 // 06/11/2026: la bozza tiene anche «destinazione» e «chi» (lavoro extra → fase nelle Lavorazioni all'approvazione).
 // _render.mjs rigenerato con scripts/variation-render/build.mjs; questo commento fa ripubblicare la funzione.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -162,7 +163,7 @@ Deno.serve(async req => {
       const terms=prepareVariation(valid.content);
       if([terms.descrizione,workspace.context.companyName,workspace.context.customerName,workspace.context.documentHeading].some(value=>typeof value==="string"&&/{{|}}/.test(value)))return errorResponse("Completa le variabili del documento",422,cors);
       const docId=crypto.randomUUID(),prefix=`${scope.company}/${scope.order}/${scope.id}/${docId}/`;
-      const pdf=await variationProposalPdf(terms,{...workspace.context,proposalNumber:variation.numero_odv,proposalRegisteredAt:variation.created_at,archivedOriginal:true,parti:variationDocumentParts(valid.content),logo:await logoPerPdf(admin,scope.company)});
+      const pdf=await variationProposalPdf(terms,{...workspace.context,companyId:scope.company,proposalNumber:variation.numero_odv,proposalRegisteredAt:variation.created_at,archivedOriginal:true,parti:variationDocumentParts(valid.content),logo:await logoPerPdf(admin,scope.company)});
       const bytes=pdf.output("arraybuffer"),path=`${prefix}proposal.pdf`,hash=await sha(bytes);
       if(bytes.byteLength>10*1024*1024)return errorResponse("Documento troppo grande",413,cors);
       const sourceContent=valid.content as typeof valid.content & {attachmentIds?:string[];templateId?:string};

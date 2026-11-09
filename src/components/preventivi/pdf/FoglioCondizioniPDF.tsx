@@ -9,6 +9,8 @@ import { Document, Page, Text, View, pdf } from "@react-pdf/renderer";
 import type { RigaContratto } from "../../../../supabase/functions/_shared/testoRiccoContratto";
 import { clausoleDaApprovare, perArticoli, righeDaStampare } from "../../../../supabase/functions/_shared/condizioniStandard";
 import { TestoContrattoPdf } from "./TestoContrattoPdf";
+import { fontPiedeRegistrato } from "./fontPiede";
+import { personalizzazioneDocumento } from "../../../../supabase/functions/_shared/personalizzazioneDocumenti";
 
 const MARGINE = 50;
 const GRIGIO = "#6B7280";
@@ -19,9 +21,14 @@ const A4_ALTEZZA = 841.89;
  * Il piè di pagina di ogni documento: i dati societari centrati, in alto, e sotto il numero di pagina
  * (Florin, 09/11/2026). `fixed`: su ogni foglio.
  */
-export function PieSocietario({ righe, font = "Helvetica", margine = MARGINE, colore = GRIGIO }: {
+export function PieSocietario({ righe, font: fontBase = "Helvetica", margine = MARGINE, colore: coloreBase = GRIGIO, companyId }: {
   righe: string[]; font?: string; margine?: number; colore?: string;
+  /** L'azienda del documento: carattere e colore propri, se ne ha (personalizzazioneDocumenti). */
+  companyId?: string | null;
 }) {
+  const veste = personalizzazioneDocumento(companyId);
+  const font = veste.piedeFont ? fontPiedeRegistrato(veste.piedeFont) : fontBase;
+  const colore = veste.piedeColore ?? coloreBase;
   // Posizioni e altezze scritte: con `bottom` su un contenuto che scorre più fogli il piè finiva fuori pagina, e un
   // numero di pagina dentro il riquadro restava senza spazio e non si stampava.
   const altezzaDati = 5 + righe.length * 9.5;
@@ -66,7 +73,7 @@ function RigaFirme({ sinistra, destra }: { sinistra: string; destra: string }) {
   );
 }
 
-export function FoglioCondizioniPDF({ titolo, autore, righe, societarie, firme, conTitolo = false }: {
+export function FoglioCondizioniPDF({ titolo, autore, righe, societarie, firme, conTitolo = false, companyId }: {
   /** Solo nelle proprietà del file: sul foglio non si scrive. */
   titolo: string; autore?: string;
   righe: RigaContratto[];
@@ -75,6 +82,7 @@ export function FoglioCondizioniPDF({ titolo, autore, righe, societarie, firme, 
   firme?: FirmeFoglio;
   /** Un contratto si apre col suo titolo («Contratto di appalto»); le sole condizioni no. */
   conTitolo?: boolean;
+  companyId?: string | null;
 }) {
   const daApprovare = firme ? clausoleDaApprovare(righe) : [];
   const corpo = righeDaStampare(righe, { conRiquadroFirma: daApprovare.length > 0 });
@@ -82,7 +90,7 @@ export function FoglioCondizioniPDF({ titolo, autore, righe, societarie, firme, 
   return (
     <Document title={titolo} author={autore} producer="Edilizia in Cloud">
       <Page size="A4" style={{ paddingTop: 48, paddingBottom: 72, paddingHorizontal: MARGINE, fontFamily: "Helvetica" }}>
-        <PieSocietario righe={societarie} />
+        <PieSocietario righe={societarie} companyId={companyId} />
         <CorpoFoglio righe={testo} />
         {firme && (
           <View wrap={false}>

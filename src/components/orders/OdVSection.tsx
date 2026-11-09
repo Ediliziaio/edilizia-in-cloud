@@ -43,7 +43,7 @@ export function OdVSection({ orderId, companyId, context: contestoCommessa = {},
     queryKey: ["dati-societari", companyId], staleTime: 5 * 60_000, enabled: !!companyId,
     queryFn: async () => righeSocietarie(await caricaDatiSocietari(supabase, companyId)),
   });
-  const context: VariationContext = { ...contestoCommessa, societarie, companyDetails: contestoCommessa.companyDetails ?? dettagliImpresa(anagrafica) };
+  const context: VariationContext = { ...contestoCommessa, societarie, companyId, companyDetails: contestoCommessa.companyDetails ?? dettagliImpresa(anagrafica) };
   const permissions = usePermissions();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<{id:string;existing:boolean}|null>(null);

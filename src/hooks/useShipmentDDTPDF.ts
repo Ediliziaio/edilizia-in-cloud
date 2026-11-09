@@ -195,6 +195,7 @@ export function useShipmentDDTPDF() {
         email: company.email,
         pec: company.pec,
         logo_url: company.logo_url,
+        company_id: ddtRec.company_id,
       };
 
       const cs = (ddtRec.cliente_snapshot ?? {}) as Record<string, unknown>;

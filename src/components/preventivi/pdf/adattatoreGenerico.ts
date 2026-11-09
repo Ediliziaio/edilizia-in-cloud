@@ -39,6 +39,7 @@ export function datiGenerici(input: { quote: Riga; items: Riga[]; righePerIva?: 
   const imponibile = iva.subTotShown - iva.scontoShown;
   const totale = iva.totShown;
   const dati = costruisciDatiEdile({
+    companyId: typeof q.company_id === "string" ? q.company_id : null,
     modulo: { chiave: "generico", etichetta: "Preventivo", titoloCopertina: str(q.title) || "La tua *proposta*.", sottotitoloCopertina: str(q.description), titoloComputo: "Lavorazioni e forniture" },
     progetto, azienda: { name: str(c?.business_name || c?.name), indirizzo: str(c?.address), email: str(c?.email), telefono: str(c?.phone), partita_iva: str(c?.vat_number), logo_url: str(c?.logo_url), logo_chiaro_url: str(c?.brand_logo_dark_url), colore_marca: str(c?.brand_primary_color) },
     template: { ...t, color_primary: t.primary_color, color_secondary: t.secondary_color, color_accent: t.accent_color,

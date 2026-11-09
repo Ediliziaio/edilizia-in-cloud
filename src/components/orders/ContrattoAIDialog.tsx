@@ -230,7 +230,7 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Contratt
     if (voci.error) throw voci.error;
     return datiDaCommessa({
       contratto: { numero_contratto: contratto?.numero_contratto, created_at: contratto?.created_at },
-      md: previewMd, ordine: ordine.data as Record<string, unknown>, voci: voci.data ?? [], societari,
+      md: previewMd, ordine: ordine.data as Record<string, unknown>, voci: voci.data ?? [], societari, companyId,
     });
   }, [existing, contrattoId, companyId, orderId, previewMd]);
   const anteprimaPdf = useCallback(async () => {

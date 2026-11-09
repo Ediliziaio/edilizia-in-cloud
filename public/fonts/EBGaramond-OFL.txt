@@ -1,0 +1,5 @@
+EB Garamond
+Copyright The EB Garamond Project Authors (https://github.com/octaviopardo/EBGaramond12).
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+The license is available at https://openfontlicense.org

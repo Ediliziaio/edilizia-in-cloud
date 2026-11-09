@@ -77,6 +77,8 @@ export interface DocEdileOpzioniComputo {
 export interface DocEdileAzienda {
   /** Ragione sociale, sede, P.IVA, REA, capitale: il piè di pagina delle condizioni (09/11/2026). */
   righeSocietarie?: string[];
+  /** Per la veste propria dell'azienda, se ne ha una (personalizzazioneDocumenti). */
+  companyId?: string | null;
   nome: string;
   indirizzo: string | null;
   telefono: string | null;

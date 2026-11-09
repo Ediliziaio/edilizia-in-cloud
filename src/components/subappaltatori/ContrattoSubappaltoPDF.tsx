@@ -10,6 +10,7 @@
  * l'elenco completo dei lavori in Allegato A come nell'ordine.
  */
 import { PieSocietario } from "@/components/preventivi/pdf/FoglioCondizioniPDF";
+import { personalizzazioneDocumento } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
 import { Document, Font, Image, Page, StyleSheet, Text, View, pdf } from "@react-pdf/renderer";
 import {
   articoliContratto, articoliDaApprovare, dataContratto, elencoPerFase, euroContratto, quantitaContratto,
@@ -81,6 +82,8 @@ export function RigaEco({ label, valore, forte, colore }: { label: string; valor
 }
 
 export function ContrattoSubappaltoPDF({ d }: { d: DatiContrattoSubappalto }) {
+  const veste = personalizzazioneDocumento(d.veste?.companyId);
+  const logoGrande = veste.logoAltezza && veste.logoLarghezzaMax && d.veste?.logoUrl ? { maxHeight: veste.logoAltezza, maxWidth: veste.logoLarghezzaMax } : null;
   const articoli = articoliContratto(d);
   const eco = riepilogoEconomicoContratto(d);
   const c = BLU;
@@ -93,18 +96,18 @@ export function ContrattoSubappaltoPDF({ d }: { d: DatiContrattoSubappalto }) {
   const codici = codiciElenco(elenco);
   return (
     <Document title={`Contratto di subappalto ${d.numero ?? ""}`.trim()} author={a.ragioneSociale} producer="Edilizia in Cloud">
-      <Page size="A4" style={s.pagina}>
+      <Page size="A4" style={logoGrande ? [s.pagina, { paddingTop: 98 }] : s.pagina}>
         {/* Il piè sta per primo: dopo un contenuto su più fogli react-pdf lo disegnava fuori pagina. */}
-        {d.societarie?.length ? <PieSocietario righe={d.societarie} margine={44} /> : (
+        {d.societarie?.length ? <PieSocietario righe={d.societarie} margine={44} companyId={d.veste?.companyId} /> : (
           <View style={s.piede} fixed>
             <Text>{`${a.ragioneSociale} · Contratto di subappalto${d.numero ? ` ${d.numero}` : ""} · ${d.commessa.codice}`}</Text>
             <Text render={({ pageNumber, totalPages }) => `Pagina ${pageNumber} di ${totalPages}`} />
           </View>
         )}
         {/* Testata su ogni pagina: logo (o nome) e dati dell'impresa. */}
-        <View style={[s.testata, { borderBottomColor: c }]} fixed>
-          {d.veste?.logoUrl ? <Image src={d.veste.logoUrl} style={s.logo} /> : <Text style={[s.nomeTestata, { color: c }]}>{a.ragioneSociale}</Text>}
-          <View>
+        <View style={logoGrande ? [s.testata, { borderBottomColor: c, top: 18 }] : [s.testata, { borderBottomColor: c }]} fixed>
+          {d.veste?.logoUrl ? <Image src={d.veste.logoUrl} style={logoGrande ? [s.logo, logoGrande] : s.logo} /> : <Text style={[s.nomeTestata, { color: c }]}>{a.ragioneSociale}</Text>}
+          <View style={logoGrande ? { maxWidth: 160 } : undefined}>
             <Text style={[s.datiTestata, s.bold]}>{a.ragioneSociale}</Text>
             {!!a.indirizzo && <Text style={s.datiTestata}>{a.indirizzo}</Text>}
             <Text style={s.datiTestata}>{[a.partitaIva && `P.IVA ${a.partitaIva}`, a.telefono && `Tel. ${a.telefono}`].filter(Boolean).join(" · ")}</Text>

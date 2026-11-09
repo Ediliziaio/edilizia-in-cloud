@@ -7,6 +7,8 @@ export interface VariationContext {
   customerEmail?:string;
   /** I dati societari dell'impresa, per il piè di pagina (09/11/2026). */
   societarie?:string[];
+  /** Per la veste propria dell'azienda, se ne ha una (personalizzazioneDocumenti). */
+  companyId?:string;
 }
 /** Explicitly cleared fields stay cleared: do not silently restore a different party on the PDF. */
 export function variationDocumentContext(draft:VariationDraft,context:VariationContext):VariationContext {

@@ -1,8 +1,9 @@
 import type { prepareVariation, VariationDocumentParts } from "./variationDraft";
 import { CONDIZIONI_STANDARD_VARIANTE, variationImpact } from "./variationDraft";
 import { variationEventDate } from "./pendingVariationDocument";
+import { fontPiedeBase64, personalizzazioneDocumento, puntiInMm } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
 type PublicVariation=Pick<ReturnType<typeof prepareVariation>,"titolo"|"descrizione"|"motivazione"|"richiesto_da"|"impatto_economico"> & {impatto_giorni?:number};
-export interface VariationPdfContext {orderCode?:string;customerName?:string;currentNet?:number;vatRate?:number;companyName?:string;companyDetails?:string;customerAddress?:string;siteAddress?:string;proposalNumber?:number;proposalRegisteredAt?:string;documentHeading?:string;primaryColor?:string;archivedOriginal?:boolean;parti?:VariationDocumentParts;logo?:string;societarie?:string[]}
+export interface VariationPdfContext {companyId?:string;orderCode?:string;customerName?:string;currentNet?:number;vatRate?:number;companyName?:string;companyDetails?:string;customerAddress?:string;siteAddress?:string;proposalNumber?:number;proposalRegisteredAt?:string;documentHeading?:string;primaryColor?:string;archivedOriginal?:boolean;parti?:VariationDocumentParts;logo?:string;societarie?:string[]}
 export function variationPdfFilename(orderCode:string|undefined,title:string){
   const part=(value:string)=>value.normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,65);
   return `variante-${part(orderCode||"commessa")}-${part(title)||"lavori-extra"}.pdf`;
@@ -29,6 +30,10 @@ async function buildVariationPdf(variation:PublicVariation,context:VariationPdfC
   const navy:[number,number,number]=colors[context.primaryColor || ""] || [30,58,95];
   const INK:[number,number,number]=[35,45,60], GREY:[number,number,number]=[100,110,125], LINE:[number,number,number]=[215,222,232], PALE:[number,number,number]=[245,247,250];
   const LEFT=15, RIGHT=195, WIDTH=RIGHT-LEFT, BOTTOM=272;
+  const veste=personalizzazioneDocumento(context.companyId);
+  // Se il carattere non si scarica il piè resta in Helvetica: il documento esce lo stesso.
+  const fontPiede=veste.piedeFont&&context.societarie?.length?await fontPiedeBase64():null;
+  if(fontPiede){doc.addFileToVFS("EBGaramond-Regular.ttf",fontPiede);doc.addFont("EBGaramond-Regular.ttf","EBGaramond","normal");}
   let y = 14;
   const clean = (text: string) => text.replace(/[‐-―−]/g,"-").replace(/[  ]/g," ");
   const money = (amount: number) => clean(new Intl.NumberFormat("it-IT",{style:"currency",currency:"EUR",useGrouping:true}).format(amount));
@@ -57,20 +62,29 @@ async function buildVariationPdf(variation:PublicVariation,context:VariationPdfC
   const section=(title:string)=>{room(11);y+=2;font(9,true,navy);doc.text(title.toUpperCase(),LEFT,y);y+=1.5;doc.setDrawColor(...navy);doc.setLineWidth(.3);doc.line(LEFT,y,RIGHT,y);doc.setLineWidth(.2);y+=4.5;};
 
   // ── Testata: chi scrive
-  let textX=LEFT;
+  let textX=LEFT, altezzaLogoGrande=0;
   if(context.logo){
     try{
       const image=doc.getImageProperties(context.logo);
       // Le proporzioni del logo restano le sue: sta in 48 x 15 mm, senza deformarsi.
-      const scale=Math.min(48/image.width,15/image.height),width=image.width*scale,height=image.height*scale;
+      const scale=Math.min((veste.logoLarghezzaMax?puntiInMm(veste.logoLarghezzaMax):48)/image.width,(veste.logoAltezza?puntiInMm(veste.logoAltezza):15)/image.height),width=image.width*scale,height=image.height*scale;
       doc.addImage(context.logo,image.fileType,LEFT,y-4,width,height);
-      textX=LEFT+width+5;
+      if(veste.logoAltezza)altezzaLogoGrande=height;else textX=LEFT+width+5;
     }catch{/* Un logo illeggibile non ferma il documento. */}
   }
+  if(altezzaLogoGrande){
+    // Il logo grande occupa la riga e contiene già il nome: i dati dell'impresa vanno sotto.
+    y+=altezzaLogoGrande;
+    font(7.5,false,GREY);
+    const dati=lines(context.companyDetails ?? "",WIDTH).slice(0,3);
+    dati.forEach((line,i)=>doc.text(line,LEFT,y+i*3.3));
+    y+=dati.length*3.3+3;
+  }else{
   font(11,true,navy);doc.text(lines(context.companyName || "Impresa",RIGHT-textX)[0],textX,y+1);
   font(7.5,false,GREY);
   lines(context.companyDetails ?? "",RIGHT-textX).slice(0,3).forEach((line,i)=>doc.text(line,textX,y+5+i*3.3));
   y+=16;
+  }
 
   // ── Fascia: che documento è
   doc.setFillColor(...navy);doc.rect(LEFT,y,WIDTH,9,"F");
@@ -203,6 +217,7 @@ async function buildVariationPdf(variation:PublicVariation,context:VariationPdfC
     if(societarie){
       // In fondo i dati societari, centrati, e sotto pagina e stato (09/11/2026).
       font(6.5,false,GREY);
+      if(fontPiede){doc.setFont("EBGaramond","normal");doc.setTextColor(veste.piedeColore!);}
       const righe=societarie.flatMap(r=>lines(r,WIDTH)).slice(0,3);
       righe.forEach((r,i)=>doc.text(r,105,283.5+i*3,{align:"center"}));
       doc.text(`Pagina ${page} di ${count} - ${stato}`,105,284+righe.length*3,{align:"center"});

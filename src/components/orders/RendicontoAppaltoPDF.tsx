@@ -251,6 +251,7 @@ export interface RendicontoAppaltoPDFProps {
   note?: string | null;
   /** Ragione sociale, sede, P.IVA, REA, capitale: il piè di pagina. */
   societarie?: string[];
+  companyId?: string | null;
 }
 
 /* ── Formattazione ──────────────────────────────────────────────────── */
@@ -327,7 +328,7 @@ export function RendicontoAppaltoPDF({
   netto,
   note,
   societarie = [],
-  giornale = [],
+  companyId,
 }: RendicontoAppaltoPDFProps) {
   const righeTotali = cantieri.reduce((s, c) => s + c.righe.length, 0);
   const riepilogo = riepilogoRendiconto(cantieri);
@@ -340,7 +341,7 @@ export function RendicontoAppaltoPDF({
     >
       <Page size="A4" style={styles.page} wrap>
         {/* I dati dell'azienda sono in fondo, uguali a tutti i documenti (09/11/2026). Il piè sta per primo. */}
-        <PieSocietario righe={societarie.length ? societarie : [azienda.name]} margine={40} />
+        <PieSocietario righe={societarie.length ? societarie : [azienda.name]} margine={40} companyId={companyId} />
 
         {/* 2. Titolo */}
         <View style={styles.docBlock}>

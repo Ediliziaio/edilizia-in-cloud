@@ -156,7 +156,7 @@ export default function ContrattoCommittentePagina() {
     const societari = await caricaDatiSocietari(supabase, companyId);
     const num = (v: string): number => Number(String(v).replace(",", ".")) || 0;
     return datiDaAccordo({
-      societari, committente: committente.data ?? {},
+      societari, companyId, committente: committente.data ?? {},
       accordo: { ...b, giorni_pagamento: num(b?.giorni_pagamento ?? "0"), ritenuta_pct: num(b?.ritenuta_pct ?? "0"), maggiorazione_straordinario_pct: num(b?.maggiorazione_straordinario_pct ?? "0"), maggiorazione_festivo_pct: num(b?.maggiorazione_festivo_pct ?? "0") },
       tariffe: visibili.filter((r) => r.descrizione.trim()).map((r) => ({ tipo: r.tipo, descrizione: r.descrizione, unita_misura: r.unita_misura, prezzo_unitario: parseDecimalIT(r.prezzo), attivo: true })),
       vessatorie: (modello?.clausole ?? []).filter((c) => c.vessatoria).map((c) => c.titolo.trim()),

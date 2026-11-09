@@ -135,6 +135,57 @@ function variationEventDate(value) {
   return Number.isFinite(date.getTime()) ? date.toLocaleDateString("it-IT", { timeZone: "Europe/Rome" }) : null;
 }
 
+// supabase/functions/_shared/personalizzazioneDocumenti.ts
+var SENZA_PERSONALIZZAZIONE = Object.freeze({
+  logoAltezza: null,
+  logoLarghezzaMax: null,
+  logoCopertinaAltezza: null,
+  logoCopertinaLarghezzaMax: null,
+  piedeFont: null,
+  piedeColore: null
+});
+var IMPRESA_VULCANO = "7c87c209-7868-42d0-ad98-6c95ac6de196";
+var FONT_EB_GARAMOND = "EB Garamond";
+var VESTE_VULCANO = Object.freeze({
+  logoAltezza: 55,
+  logoLarghezzaMax: 340,
+  logoCopertinaAltezza: 75,
+  logoCopertinaLarghezzaMax: 460,
+  piedeFont: FONT_EB_GARAMOND,
+  piedeColore: "#1C1650"
+});
+function personalizzazioneDocumento(companyId) {
+  return companyId === IMPRESA_VULCANO ? VESTE_VULCANO : SENZA_PERSONALIZZAZIONE;
+}
+var puntiInMm = (punti) => punti * 25.4 / 72;
+var PERCORSO_FONT_PIEDE = "/fonts/EBGaramond-Regular.ttf";
+function urlFontPiede() {
+  try {
+    const origine = globalThis.location?.origin;
+    if (origine && /^https?:/.test(origine)) return `${origine}${PERCORSO_FONT_PIEDE}`;
+  } catch {
+  }
+  return `https://app.ediliziaincloud.com${PERCORSO_FONT_PIEDE}`;
+}
+var fontBase64 = null;
+function fontPiedeBase64() {
+  fontBase64 ??= (async () => {
+    try {
+      const risposta = await fetch(urlFontPiede(), { signal: AbortSignal.timeout(8e3) });
+      if (!risposta.ok) throw new Error(String(risposta.status));
+      const byte = new Uint8Array(await risposta.arrayBuffer());
+      if (byte[0] !== 0 || byte[1] !== 1) throw new Error("non \xE8 un TTF");
+      let binario = "";
+      for (let i = 0; i < byte.length; i += 8192) binario += String.fromCharCode(...byte.subarray(i, i + 8192));
+      return btoa(binario);
+    } catch {
+      fontBase64 = null;
+      return null;
+    }
+  })();
+  return fontBase64;
+}
+
 // src/lib/orders/variationPreviewPdf.ts
 function variationPdfFilename(orderCode, title) {
   const part = (value) => value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 65);
@@ -156,6 +207,12 @@ async function buildVariationPdf(variation, context, mode) {
   const navy = colors[context.primaryColor || ""] || [30, 58, 95];
   const INK = [35, 45, 60], GREY = [100, 110, 125], LINE = [215, 222, 232], PALE = [245, 247, 250];
   const LEFT = 15, RIGHT = 195, WIDTH = RIGHT - LEFT, BOTTOM = 272;
+  const veste = personalizzazioneDocumento(context.companyId);
+  const fontPiede = veste.piedeFont && context.societarie?.length ? await fontPiedeBase64() : null;
+  if (fontPiede) {
+    doc.addFileToVFS("EBGaramond-Regular.ttf", fontPiede);
+    doc.addFont("EBGaramond-Regular.ttf", "EBGaramond", "normal");
+  }
   let y = 14;
   const clean = (text) => text.replace(/[‐-―−]/g, "-").replace(/[  ]/g, " ");
   const money = (amount) => clean(new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: true }).format(amount));
@@ -206,21 +263,30 @@ async function buildVariationPdf(variation, context, mode) {
     doc.setLineWidth(0.2);
     y += 4.5;
   };
-  let textX = LEFT;
+  let textX = LEFT, altezzaLogoGrande = 0;
   if (context.logo) {
     try {
       const image = doc.getImageProperties(context.logo);
-      const scale = Math.min(48 / image.width, 15 / image.height), width = image.width * scale, height = image.height * scale;
+      const scale = Math.min((veste.logoLarghezzaMax ? puntiInMm(veste.logoLarghezzaMax) : 48) / image.width, (veste.logoAltezza ? puntiInMm(veste.logoAltezza) : 15) / image.height), width = image.width * scale, height = image.height * scale;
       doc.addImage(context.logo, image.fileType, LEFT, y - 4, width, height);
-      textX = LEFT + width + 5;
+      if (veste.logoAltezza) altezzaLogoGrande = height;
+      else textX = LEFT + width + 5;
     } catch {
     }
   }
-  font(11, true, navy);
-  doc.text(lines(context.companyName || "Impresa", RIGHT - textX)[0], textX, y + 1);
-  font(7.5, false, GREY);
-  lines(context.companyDetails ?? "", RIGHT - textX).slice(0, 3).forEach((line, i) => doc.text(line, textX, y + 5 + i * 3.3));
-  y += 16;
+  if (altezzaLogoGrande) {
+    y += altezzaLogoGrande;
+    font(7.5, false, GREY);
+    const dati = lines(context.companyDetails ?? "", WIDTH).slice(0, 3);
+    dati.forEach((line, i) => doc.text(line, LEFT, y + i * 3.3));
+    y += dati.length * 3.3 + 3;
+  } else {
+    font(11, true, navy);
+    doc.text(lines(context.companyName || "Impresa", RIGHT - textX)[0], textX, y + 1);
+    font(7.5, false, GREY);
+    lines(context.companyDetails ?? "", RIGHT - textX).slice(0, 3).forEach((line, i) => doc.text(line, textX, y + 5 + i * 3.3));
+    y += 16;
+  }
   doc.setFillColor(...navy);
   doc.rect(LEFT, y, WIDTH, 9, "F");
   font(10, true, [255, 255, 255]);
@@ -358,7 +424,8 @@ async function buildVariationPdf(variation, context, mode) {
   section("Condizioni contrattuali");
   const conditions = [
     ...CONDIZIONI_STANDARD_VARIANTE,
-    ...parts?.condizioni ? [parts.condizioni] : [],
+    // Un paragrafo, un punto: le clausole dell'azienda arrivano separate da una riga vuota.
+    ...parts?.condizioni ? parts.condizioni.split(/\n\s*\n/).map((t) => t.trim()).filter(Boolean) : [],
     ...parts?.pagamento ? [`Pagamento dei lavori extra: ${parts.pagamento}`] : [],
     ...parts ? [parts.tempi] : []
   ];
@@ -402,9 +469,22 @@ async function buildVariationPdf(variation, context, mode) {
     doc.setPage(page);
     doc.setDrawColor(...LINE);
     doc.line(LEFT, 280, RIGHT, 280);
-    font(7.5, false, GREY);
-    doc.text(clean(`${context.companyName ? `${context.companyName} - ` : ""}${mode === "proposta" ? "Proposta non firmata" : "Anteprima non firmata"}`), LEFT, 284);
-    doc.text(`Pagina ${page} di ${count}`, RIGHT, 284, { align: "right" });
+    const stato = mode === "proposta" ? "Proposta non firmata" : "Anteprima non firmata";
+    const societarie = context.societarie?.length ? context.societarie : null;
+    if (societarie) {
+      font(6.5, false, GREY);
+      if (fontPiede) {
+        doc.setFont("EBGaramond", "normal");
+        doc.setTextColor(veste.piedeColore);
+      }
+      const righe = societarie.flatMap((r) => lines(r, WIDTH)).slice(0, 3);
+      righe.forEach((r, i) => doc.text(r, 105, 283.5 + i * 3, { align: "center" }));
+      doc.text(`Pagina ${page} di ${count} - ${stato}`, 105, 284 + righe.length * 3, { align: "center" });
+    } else {
+      font(7.5, false, GREY);
+      doc.text(clean(`${context.companyName ? `${context.companyName} - ` : ""}${stato}`), LEFT, 284);
+      doc.text(`Pagina ${page} di ${count}`, RIGHT, 284, { align: "right" });
+    }
   }
   return doc;
 }

@@ -415,6 +415,8 @@ export function costruisciDatiEdile(input: {
   schedaModulo?: Array<{ etichetta: string; valore: string | null | undefined }>;
   /** Segnaposto in più del modulo per i testi di copertina ({superficie_mq}, {tipo_piscina}…). */
   sostituzioniExtra?: Record<string, string>;
+  /** L'azienda, se non sta già su progetto o modello (il preventivo classico). */
+  companyId?: string | null;
 }): DocEdileDati {
   const { modulo, template: t, azienda } = input;
   // I codici del preventivatore («rifacimento_completo», «casa_indipendente»)
@@ -504,6 +506,9 @@ export function costruisciDatiEdile(input: {
     tipoIntervento: stringa(p.tipo_intervento),
     scheda: [...schedaComune(p), ...schedaModulo],
     azienda: {
+      // Il primo id vero: nell'anteprima del modello company_id può valere «preview».
+      companyId: [input.companyId, (p as unknown as Grezzo).company_id, t.company_id]
+        .find((v): v is string => typeof v === "string" && /^[0-9a-f-]{36}$/i.test(v)) ?? null,
       righeSocietarie: righeSocietarie((t[CHIAVE_ARCHIVIO] as ArchivioDelDocumento | undefined)?.societari
         ?? datiSocietariDa({ business_name: nomeAzienda, legal_address: stringa(t.indirizzo_completo) || azienda?.indirizzo, vat_number: stringa(t.partita_iva) || azienda?.partita_iva }, null)),
       nome: nomeAzienda,
