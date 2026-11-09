@@ -23,6 +23,7 @@ import React from "react";
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { PieSocietario } from "@/components/preventivi/pdf/FoglioCondizioniPDF";
 import { riepilogoRendiconto, type CantiereDelRendiconto } from "@/lib/appalto/fattura";
+import type { CantiereAllegato } from "@/lib/appalto/giornaleAllegato";
 
 const C = {
   navy: "#1E3A5F",
@@ -232,6 +233,8 @@ export interface RendicontoCommittente {
 }
 
 export interface RendicontoAppaltoPDFProps {
+  /** Le pagine firmate del giornale: se non ce ne sono, nessun allegato. */
+  giornale?: CantiereAllegato[];
   numero: number;
   periodoDal: string;
   periodoAl: string;
@@ -324,6 +327,7 @@ export function RendicontoAppaltoPDF({
   netto,
   note,
   societarie = [],
+  giornale = [],
 }: RendicontoAppaltoPDFProps) {
   const righeTotali = cantieri.reduce((s, c) => s + c.righe.length, 0);
   const riepilogo = riepilogoRendiconto(cantieri);
@@ -509,6 +513,37 @@ export function RendicontoAppaltoPDF({
           </View>
         </View>
       </Page>
+
+      {/* Allegato: le pagine firmate del giornale dei giorni rendicontati. Niente importi. */}
+      {giornale.length > 0 ? (
+        <Page size="A4" style={styles.page} wrap>
+          <PieSocietario righe={societarie.length ? societarie : [azienda.name]} margine={40} />
+          <View style={styles.docBlock}>
+            <View>
+              <Text style={styles.docTitle}>Allegato: giornale dei lavori</Text>
+              <Text style={styles.docMeta}>Rendiconto n. {numero} · pagine firmate dei giorni rendicontati</Text>
+            </View>
+          </View>
+          {giornale.map((c) => (
+            <View key={c.orderId} style={{ marginBottom: 12 }}>
+              <Text style={styles.sectionTitle}>{c.nome}</Text>
+              {c.giornate.map((g) => (
+                <View key={g.data} style={styles.note}>
+                  <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9, marginBottom: 2 }}>
+                    {giornoIT(g.data)}{g.meteo ? ` · ${g.meteo}` : ""}{g.personale != null ? ` · ${g.personale} persone` : ""}
+                  </Text>
+                  <Text style={styles.noteTesto}>{g.lavorazioni}</Text>
+                  {g.materiali ? <Text style={styles.noteTesto}>Materiali: {g.materiali}</Text> : null}
+                  {g.firmatoDa ? <Text style={{ fontSize: 7, color: C.gray500, marginTop: 2 }}>Firmata da {g.firmatoDa}{g.firmatoIl ? ` il ${giornoIT(g.firmatoIl.slice(0, 10))}` : ""}</Text> : null}
+                </View>
+              ))}
+              {c.senzaPagina.length > 0 ? (
+                <Text style={{ fontSize: 8, color: C.gray500 }}>Giorni senza pagina firmata: {c.senzaPagina.map(giornoIT).join(", ")}</Text>
+              ) : null}
+            </View>
+          ))}
+        </Page>
+      ) : null}
     </Document>
   );
 }

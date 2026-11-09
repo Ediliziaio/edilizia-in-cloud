@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { logger } from "@/utils/logger";
 import { raggruppaPerCantiere, type RigaDaStampare } from "@/lib/appalto/fattura";
 import { STATI_SAL } from "@/lib/appalto/rendiconto";
+import { giornaleDaAllegare, type RigaGiornaleDb } from "@/lib/appalto/giornaleAllegato";
 import { caricaDatiSocietari, righeSocietarie } from "../../supabase/functions/_shared/datiSocietari";
 
 let pdfModulePromise: Promise<{
@@ -130,6 +131,18 @@ export function useRendicontoAppaltoPDF() {
         const comm = (committenteRes.data ?? {}) as Record<string, string | null>;
         const contratto = (contrattoRes.data ?? {}) as { nome?: string | null; riferimento_committente?: string | null };
 
+        // Il giornale è un allegato: se chi stampa non può leggerlo, il rendiconto esce lo stesso.
+        const { data: pagineGiornale } = await (supabase as any)
+          .from("giornale_lavori")
+          .select("order_id, data_lavori, condizioni_meteo, lavorazioni_eseguite, materiali_utilizzati, personale_presente, firmato_da, pm_signed_at")
+          .in("order_id", orderIds)
+          .eq("stato", "firmata")
+          .gte("data_lavori", sal.periodo_dal)
+          .lte("data_lavori", sal.periodo_al);
+        const nomiCantieri = new Map(((cantieriRes.data ?? []) as Array<{ id: string; order_code: string | null; description: string | null }>)
+          .map((o) => [o.id, [o.order_code, o.description].filter(Boolean).join(" · ") || "Cantiere"]));
+        const giornale = giornaleDaAllegare(righe as unknown as Array<{ order_id: string; data: string }>, (pagineGiornale ?? []) as RigaGiornaleDb[], nomiCantieri);
+
         const { pdf, RendicontoAppaltoPDF } = await loadPdfModule();
         const blob = await pdf(
           RendicontoAppaltoPDF({
@@ -156,6 +169,7 @@ export function useRendicontoAppaltoPDF() {
             ritenuta: Number(sal.ritenuta),
             netto: Number(sal.netto),
             note: sal.note,
+            giornale,
           }),
         ).toBlob();
         if (opzioni?.soloFile) return blob;

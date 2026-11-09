@@ -10,6 +10,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { RendicontoAppaltoPDF } from "@/components/orders/RendicontoAppaltoPDF";
 import { raggruppaPerCantiere, type RigaDaStampare } from "@/lib/appalto/fattura";
+import { giornaleDaAllegare, type CantiereAllegato, type RigaGiornaleDb } from "@/lib/appalto/giornaleAllegato";
 
 vi.setConfig({ testTimeout: 120_000 });
 
@@ -52,7 +53,7 @@ const CANTIERI = [
 ];
 
 /** Il testo del PDF, una pagina per elemento, spazi ridotti a uno. */
-async function paginePdf(righe: RigaDaStampare[] = RIGHE): Promise<string[]> {
+async function paginePdf(righe: RigaDaStampare[] = RIGHE, giornale: CantiereAllegato[] = []): Promise<string[]> {
   const totale = righe.reduce((s, r) => s + r.importo, 0);
   const ritenuta = Math.round(totale * 4) / 100;
   const buffer = await renderToBuffer(
@@ -86,6 +87,7 @@ async function paginePdf(righe: RigaDaStampare[] = RIGHE): Promise<string[]> {
       ritenuta,
       netto: totale - ritenuta,
       note: "Rendiconto di settembre. Dettaglio per cantiere in allegato.",
+      giornale,
     }),
   );
   const pdf = await getDocument({ data: new Uint8Array(buffer) }).promise;
@@ -188,5 +190,32 @@ describe("il PDF del rendiconto d'appalto", () => {
       .join(" ");
     expect(text).not.toContain("Ritenuta a garanzia");
     expect(text).toContain("Netto da fatturare");
+  });
+});
+
+describe("il giornale allegato al rendiconto", () => {
+  const firmata = (order_id: string, data_lavori: string, lavorazioni_eseguite: string): RigaGiornaleDb => ({
+    order_id, data_lavori, condizioni_meteo: "soleggiato", lavorazioni_eseguite, materiali_utilizzati: "Colla 10 sacchi", personale_presente: 3, firmato_da: "Mario Direttore", pm_signed_at: "2026-09-08T10:00:00Z",
+  });
+  const nomi = new Map([["o1", "AP-2026-001 · Cappotto"], ["o2", "AP-2026-002 · Tetto"]]);
+
+  it("riporta le pagine firmate e dice quali giorni non ne hanno una, senza importi", async () => {
+    const allegato = giornaleDaAllegare(RIGHE, [firmata("o1", "2026-09-07", "Posa pannelli lato nord")], nomi);
+    const pagine = await paginePdf(RIGHE, allegato);
+    const ultima = pagine.at(-1) ?? "";
+    expect(ultima).toContain("Allegato: giornale dei lavori");
+    expect(ultima).toContain("Posa pannelli lato nord");
+    expect(ultima).toContain("Firmata da Mario Direttore");
+    expect(ultima).toContain("Giorni senza pagina firmata");
+    expect(ultima).not.toContain("€");
+  });
+
+  it("nessuna pagina firmata: nessun allegato", () => {
+    expect(giornaleDaAllegare(RIGHE, [], nomi)).toEqual([]);
+  });
+
+  it("una pagina di un giorno non rendicontato resta fuori", () => {
+    const allegato = giornaleDaAllegare(RIGHE, [firmata("o1", "2026-09-07", "Giusta"), firmata("o1", "2026-09-08", "Fuori")], nomi);
+    expect(allegato.flatMap((c) => c.giornate.map((g) => g.lavorazioni))).toEqual(["Giusta"]);
   });
 });
