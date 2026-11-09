@@ -5,7 +5,7 @@
  * Le connessioni OAuth sono gestite in Impostazioni → Integrazioni → Piattaforme Social.
  */
 
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, useId } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -67,6 +67,7 @@ import { useAuthCompany, useAuthUser } from "@/contexts/AuthContext";
 import { AdMediaUploader } from "@/components/ads/AdMediaUploader";
 import { SocialMediaUploader } from "@/components/social/SocialMediaUploader";
 import { StatistichePagineSocial } from "@/components/social/StatistichePagineSocial";
+import { parseSocialSchedule } from "@/lib/social/scheduling";
 import { useSocialManagerData } from "@/hooks/useSocialManagerData";
 import { useStatoPubblicazioneSocial } from "@/hooks/useStatoPubblicazioneSocial";
 import { usePostFacebookEsterni, usePostInstagramReali, usePuoApprovareSocial } from "@/hooks/useCalendarioSocial";
@@ -2074,6 +2075,8 @@ function ContentStudioTab({
   })();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const scheduleErrorId = useId();
 
   const resetComposer = () => {
     setPostText("");
@@ -2084,6 +2087,7 @@ function ContentStudioTab({
     setTargetPageIds({});
     setScheduledDate("");
     setScheduledTime("09:00");
+    setScheduleError(null);
     setPublishNow(true);
     setCopyVariants([]);
     setFirstComment("");
@@ -2107,15 +2111,11 @@ function ContentStudioTab({
       toast.error(selectedPlatforms.length === 0 ? "Scegli almeno una piattaforma." : "Scrivi il testo del post.");
       return;
     }
-    // Chi approva deve sapere quando uscirebbe: in approvazione si manda con giorno e ora.
-    if (status === "review" && !scheduledDate) {
-      toast.error("Scegli giorno e ora: servono a chi deve approvare");
-      return;
-    }
+    const schedule = parseSocialSchedule(scheduledDate, scheduledTime, { required: status === "review" });
+    if (schedule.error) { setPublishNow(false); setScheduleError(schedule.error); toast.error(schedule.error); return; }
+    setScheduleError(null);
     setIsSubmitting(true);
-
-    // Una bozza senza data resta senza data: prima finiva su «domani».
-    const scheduledAt = scheduledDate ? new Date(`${scheduledDate}T${scheduledTime}`).toISOString() : "";
+    const scheduledAt = schedule.scheduledAt;
     const bozza: ScheduledPost = {
       id: `local-${crypto.randomUUID()}`,
       platforms: selectedPlatforms,
@@ -2150,23 +2150,9 @@ function ContentStudioTab({
   const onSchedulePost = async () => {
     if (isSubmitting) return; // anti doppio-submit
     setTentato(true);
-    // FIX P1: l'input date ha min=oggi ma l'input time è libero. Se l'utente
-    // sceglie oggi + un orario passato (es. 14:00 quando sono le 15:00), il post
-    // veniva accettato ma non si sarebbe mai pubblicato (lo scheduler lo ignora).
-    if (!publishNow) {
-      if (!scheduledDate) { toast.error("Scegli il giorno di pubblicazione"); return; }
-      const scheduledDt = new Date(`${scheduledDate}T${scheduledTime}`);
-      if (Number.isNaN(scheduledDt.getTime())) {
-        toast.error("Data o ora non valide");
-        return;
-      }
-      if (scheduledDt.getTime() <= Date.now() + 60_000) {
-        toast.error("L'orario di pubblicazione deve essere almeno 1 minuto nel futuro", {
-          description: "Sposta l'orario più avanti oppure scegli «Pubblica ora».",
-        });
-        return;
-      }
-    }
+    const schedule = publishNow ? { scheduledAt: new Date().toISOString(), error: undefined } : parseSocialSchedule(scheduledDate, scheduledTime, { required: true, future: true });
+    if (schedule.error) { setPublishNow(false); setScheduleError(schedule.error); toast.error(schedule.error); return; }
+    setScheduleError(null);
     if (!draftValidation.canPublishLive) {
       toast.error(draftValidation.errors[0] ?? "Il post non si può ancora pubblicare.");
       return;
@@ -2194,9 +2180,7 @@ function ContentStudioTab({
       if (scelta && opzioni.some((o) => o.page_id === scelta)) chosenTargets[platformId] = scelta;
       else if (opzioni.length === 1) chosenTargets[platformId] = opzioni[0].page_id;
     }
-    const scheduledAt = publishNow
-      ? new Date().toISOString()
-      : new Date(`${scheduledDate}T${scheduledTime}`).toISOString();
+    const scheduledAt = schedule.scheduledAt;
 
     const newPost: ScheduledPost = {
       id: `post-${crypto.randomUUID()}`,
@@ -2753,12 +2737,12 @@ function ContentStudioTab({
         {/* ── 3 · QUANDO ───────────────────────────────────────────────── */}
         <PassoComposer numero={3} titolo="Quando">
           <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => setPublishNow(true)} aria-pressed={publishNow}
+            <button type="button" onClick={() => { setPublishNow(true); setScheduleError(null); }} aria-pressed={publishNow}
               className={cn("flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border-2 px-2 py-2.5 text-[13px] font-semibold transition sm:gap-2 sm:px-3 sm:text-sm",
                 publishNow ? "border-emerald-400 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300")}>
               <Send className="h-4 w-4" /> Pubblica ora
             </button>
-            <button type="button" onClick={() => setPublishNow(false)} aria-pressed={!publishNow}
+            <button type="button" onClick={() => { setPublishNow(false); setScheduleError(null); }} aria-pressed={!publishNow}
               className={cn("flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border-2 px-2 py-2.5 text-[13px] font-semibold transition sm:gap-2 sm:px-3 sm:text-sm",
                 !publishNow ? "border-emerald-400 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300")}>
               <Clock className="h-4 w-4" /> Programma
@@ -2769,21 +2753,24 @@ function ContentStudioTab({
             <div className="space-y-2">
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Giorno">
-                  <Input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} min={new Date().toLocaleDateString("en-CA")} />
+                  <Input type="date" aria-label="Giorno di pubblicazione" aria-invalid={Boolean(scheduleError)} aria-describedby={scheduleError ? scheduleErrorId : undefined} value={scheduledDate} onChange={(e) => { setScheduledDate(e.target.value); setScheduleError(null); }} min={new Date().toLocaleDateString("en-CA")} />
                 </Field>
                 <Field label="Ora">
                   <div className="flex gap-1.5">
                     <Input
                       type="time"
+                      aria-label="Ora di pubblicazione"
+                      aria-invalid={Boolean(scheduleError)}
+                      aria-describedby={scheduleError ? scheduleErrorId : undefined}
                       value={scheduledTime}
-                      onChange={(e) => setScheduledTime(e.target.value)}
+                      onChange={(e) => { setScheduledTime(e.target.value); setScheduleError(null); }}
                       className="min-w-0 flex-1"
                       {...(scheduledDate === new Date().toLocaleDateString("en-CA")
                         ? { min: new Date(Date.now() + 60_000).toTimeString().slice(0, 5) }
                         : {})}
                     />
                     {suggestedTime && scheduledTime !== suggestedTime && (
-                      <button type="button" onClick={() => setScheduledTime(suggestedTime)}
+                      <button type="button" onClick={() => { setScheduledTime(suggestedTime); setScheduleError(null); }}
                         title={`Orario consigliato per ${PLATFORMS.find((p) => p.id === selectedPlatforms[0])?.name}`}
                         className="flex shrink-0 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 text-[10px] font-bold text-emerald-700 hover:bg-emerald-100">
                         <Zap className="h-3 w-3" />{suggestedTime}
@@ -2804,6 +2791,7 @@ function ContentStudioTab({
             </div>
           )}
 
+          {scheduleError && <p id={scheduleErrorId} role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">{scheduleError}</p>}
           {(mostraErrori || draftValidation.warnings.length > 0) && (
             <div className="space-y-1.5">
               {mostraErrori && draftValidation.errors.slice(0, 3).map((error) => (

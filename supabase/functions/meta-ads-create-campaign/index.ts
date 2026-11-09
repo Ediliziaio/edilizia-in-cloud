@@ -61,6 +61,8 @@ import {
   traduciErroreMeta,
 } from "../_shared/metaAdsPubblicazione.ts";
 
+import { selectCampaignPage, campaignStateMatches, campaignApprovalMatches, acquireCampaignPublicationLock, CampaignPublicationLockError } from "../_shared/metaAdsPublicationSafety.ts";
+
 const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
 
 interface CreateCampaignRequest {
@@ -200,6 +202,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405, corsHeaders);
 
+  let releasePublication: (() => Promise<void>) | undefined;
   try {
     // AUTH
     const authHeader = req.headers.get("Authorization");
@@ -253,6 +256,20 @@ Deno.serve(async (req) => {
     }
     const adAccount = accountRisolto.account;
 
+    if (!dryRun) {
+      if (!body.draft_id || !eUuid(body.draft_id)) return json({ error: "draft_required", detail: "Salva la bozza prima di pubblicarla su Meta." }, 400, corsHeaders);
+      const { data: draft, error: draftError } = await admin.from("meta_campaigns").select("id")
+        .eq("id", body.draft_id).eq("company_id", body.company_id).maybeSingle();
+      if (draftError || !draft) return json({ error: "draft_not_found", detail: "La bozza non esiste o non appartiene a questa azienda." }, 404, corsHeaders);
+      releasePublication = await acquireCampaignPublicationLock(admin, body.company_id, body.draft_id);
+      // Rileggi dopo il claim: un'altra scheda potrebbe aver salvato o pubblicato prima del lock.
+      const { data: currentDraft, error: currentError } = await admin.from("meta_campaigns").select("builder_state, meta_campaign_id")
+        .eq("id", body.draft_id).eq("company_id", body.company_id).maybeSingle();
+      if (currentError || !currentDraft) return json({ error: "draft_not_found", detail: "Non riesco a verificare la bozza. Riaprila prima di pubblicare." }, 409, corsHeaders);
+      if (currentDraft.meta_campaign_id) return json({ error: "draft_already_published", detail: "Questa bozza risulta già creata su Meta. Aggiorna il riepilogo." }, 409, corsHeaders);
+      if (!campaignStateMatches(currentDraft.builder_state, body.builder_state)) return json({ error: "draft_changed", detail: "La bozza è stata modificata. Riapri il riepilogo aggiornato prima di pubblicare." }, 409, corsHeaders);
+    }
+
     // SPEND GUARD CHECK
     if (!dryRun) {
       const guardCheck = await checkSpendGuard(
@@ -272,16 +289,16 @@ Deno.serve(async (req) => {
     }
 
     // BUILD META PAYLOAD
-    const { pageMetaId, igUserId } = await resolvePageMetaId(
+    const { pageMetaId, igUserId, error: pageError } = await resolvePageMetaId(
       admin,
       body.company_id,
       adAccount.integration_id,
       body.builder_state,
     );
-    if (!pageMetaId && !dryRun) {
+    if (pageError || !pageMetaId) {
       return json({
         error: "page_missing",
-        detail: "Seleziona o collega una Pagina Facebook prima di pubblicare la campagna.",
+        detail: pageError ?? "Seleziona o collega una Pagina Facebook prima di pubblicare la campagna.",
       }, 400, corsHeaders);
     }
     const sorgentiImmagini = await sorgentiImmaginiCreativita(admin, body.company_id, body.builder_state);
@@ -388,7 +405,7 @@ Deno.serve(async (req) => {
           detail: String(existingErr?.message ?? "La bozza indicata non esiste."),
         }, 404, corsHeaders);
       }
-      if (existingDraft.meta_campaign_id && existingDraft.status !== "error") {
+      if (existingDraft.meta_campaign_id) {
         return json({
           error: "draft_already_published",
           detail: "Questa bozza risulta già pubblicata su Meta.",
@@ -454,15 +471,15 @@ Deno.serve(async (req) => {
       const campaignMeta = campaignResp.data;
       createdMetaIds.campaign = campaignMeta.id;
 
-      await admin
+      const { error: recordError } = await admin
         .from("meta_campaigns")
         .update({
           meta_campaign_id: campaignMeta.id,
-          status: "published",
           last_published_at: new Date().toISOString(),
           raw: campaignMeta,
         })
         .eq("id", localCampaign.id);
+      if (recordError) throw new Error("Non riesco a registrare la campagna creata su Meta.");
 
       // 2. CREATE AD SETS
       for (let i = 0; i < metaPayload.ad_sets.length; i += 1) {
@@ -573,6 +590,10 @@ Deno.serve(async (req) => {
         if (localAd) localIdMap.adLocalIds.push(localAd.id);
       }
 
+      const { error: completedError } = await admin.from("meta_campaigns")
+        .update({ status: "published" }).eq("id", localCampaign.id);
+      if (completedError) throw new Error("Non riesco a confermare la pubblicazione della campagna.");
+
       // SUCCESS
       const result: CreateResult = {
         success: true,
@@ -597,12 +618,16 @@ Deno.serve(async (req) => {
         ? `Pubblicazione non riuscita, su Meta non è rimasto nulla. ${messaggio}`
         : `Pubblicazione non riuscita. ${messaggio} Alcuni oggetti in pausa sono rimasti su Meta: controllali in Gestione inserzioni.`;
 
+      // Un rollback incompleto richiede una verifica, non un nuovo invio automatico.
+      if (rollbackResults.failed > 0) releasePublication = undefined;
+
       // Marca campagna locale come error
       await admin
         .from("meta_campaigns")
         .update({
           status: "error",
-          publish_error: messaggio,
+          publish_error: detail,
+          ...(rollbackResults.failed === 0 ? { meta_campaign_id: null, last_published_at: null } : {}),
         })
         .eq("id", localCampaign.id);
 
@@ -618,8 +643,11 @@ Deno.serve(async (req) => {
       }, 200, corsHeaders);
     }
   } catch (e) {
+    if (e instanceof CampaignPublicationLockError) return json({ error: e.code, detail: e.message }, e.code === "publication_in_progress" ? 409 : 503, corsHeaders);
     console.error("[meta-ads-create-campaign] uncaught", e);
     return json({ error: "internal_error", detail: String(e) }, 500, corsHeaders);
+  } finally {
+    if (releasePublication) await releasePublication().catch((error) => console.error("Publication lock cleanup failed", error));
   }
 });
 
@@ -640,8 +668,8 @@ async function resolvePageMetaId(
   companyId: string,
   integrationId: string,
   state: BuilderState,
-): Promise<{ pageMetaId: string | null; igUserId: string | null }> {
-  const { data: righe } = await admin
+): Promise<{ pageMetaId: string | null; igUserId: string | null; error?: string }> {
+  const { data: righe, error: loadError } = await admin
     .from("meta_assets")
     .select("id, asset_id, selected, metadata")
     .eq("company_id", companyId)
@@ -649,15 +677,10 @@ async function resolvePageMetaId(
     .eq("asset_type", "page");
   const pagine = (righe ?? []) as Array<{ id: string; asset_id: string; selected: boolean; metadata: unknown }>;
 
-  let pagina: { asset_id: string; metadata: unknown } | null = null;
-  if (state.pageMetaId) {
-    pagina = pagine.find((p) => p.asset_id === state.pageMetaId) ?? { asset_id: state.pageMetaId, metadata: null };
-  } else if (state.pageId) {
-    pagina = eUuid(state.pageId)
-      ? pagine.find((p) => p.id === state.pageId) ?? null
-      : pagine.find((p) => p.asset_id === state.pageId) ?? { asset_id: state.pageId, metadata: null };
-  }
-  if (!pagina) pagina = pagine.find((p) => p.selected) ?? pagine[0] ?? null;
+  if (loadError) return { pageMetaId: null, igUserId: null, error: "Non riesco a verificare le Pagine collegate. Riprova." };
+  const choice = selectCampaignPage(pagine, state);
+  if (choice.error) return { pageMetaId: null, igUserId: null, error: choice.error };
+  const pagina = choice.page;
 
   return {
     pageMetaId: pagina?.asset_id ?? null,
@@ -964,11 +987,11 @@ async function checkSpendGuard(
     if (draftId) {
       const { data: bozza } = await admin
         .from("meta_campaigns")
-        .select("approved_at")
+        .select("approved_at, builder_state, daily_budget_cents")
         .eq("id", draftId)
         .eq("company_id", companyId)
         .maybeSingle();
-      approvata = Boolean(bozza?.approved_at);
+      approvata = campaignApprovalMatches(bozza, state, effectiveBudget);
     }
     if (!approvata) {
       const soglia = (guard.campaign_approval_threshold_cents / 100).toFixed(0);

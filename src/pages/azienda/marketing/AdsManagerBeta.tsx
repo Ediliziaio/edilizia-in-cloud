@@ -39,6 +39,8 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { CampaignPageField } from "@/components/ads/CampaignPageField";
+import { selectCampaignPage, type CampaignPage } from "../../../supabase/functions/_shared/metaAdsPublicationSafety";
 import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -191,6 +193,8 @@ interface CampaignRow {
 type LocalCampaignDraft = AdsLocalCampaignDraft<BuilderState>;
 
 interface BuilderState {
+  pageMetaId?: string;
+  pageId?: string;
   /** Piattaforma pubblicitaria: 'meta' (Facebook/Instagram) o 'google' (Search/Display/PMax). */
   platform: "meta" | "google";
   /** Solo per Google: canale (SEARCH/DISPLAY/VIDEO/PERFORMANCE_MAX) */
@@ -819,7 +823,7 @@ function getPublishQa(
     // (decine di account di altri clienti) pubblicare su adAccounts[0]
     // alfabetico rischia l'account sbagliato. 0 → nessuna scelta; >1 → ambiguo.
     { ok: meta.selectedAdAccounts.length === 1, message: "Seleziona l'account pubblicitario prima di pubblicare (selezionane uno solo)." },
-    { ok: meta.pages.length > 0, message: "Pagina Facebook non disponibile." },
+    { ok: !selectCampaignPage(meta.pages, state).error, message: selectCampaignPage(meta.pages, state).error ?? "Pagina Facebook non disponibile." },
     {
       ok: !pixelObbligatorio || Boolean(pixelConfig?.pixel_id),
       message: "La campagna porta al sito: senza Pixel non sai chi chiede il preventivo. Configuralo in Impostazioni.",
@@ -948,7 +952,7 @@ function useMetaConnection(companyId: string | undefined, enabled: boolean) {
     integration,
     assets,
     isLoading: integrationLoading || assetsLoading,
-    pages: assets.filter((asset) => asset.asset_type === "page"),
+    pages: assets.filter((asset) => asset.asset_type === "page" && asset.selected),
     // Nessun ripiego su "tutti": sarebbero gli account degli altri clienti
     // dell'agenzia. Senza una scelta la pagina chiede di configurarlo.
     adAccounts: selectedAdAccounts,
@@ -1515,8 +1519,10 @@ export default function AdsManagerBeta() {
   const { config: spendGuardConfig } = useAdSpendGuard(companyId);
 
   const [isPublishing, setIsPublishing] = useState(false);
+  const publishingRef = useRef(false);
   const publishDraft = useCallback(
     async (draft: LocalCampaignDraft) => {
+      if (publishingRef.current) return;
       if (!companyId) throw new Error("no_company_id");
       if (draft.builderState?.platform === "google") {
         throw new Error("Google Ads live richiede OAuth Google Ads e Developer Token: completa il collegamento in Impostazioni.");
@@ -1525,6 +1531,7 @@ export default function AdsManagerBeta() {
       if (publishQa.blockers.length > 0) {
         throw new Error(`QA pre-pubblicazione: ${publishQa.blockers[0]}`);
       }
+      publishingRef.current = true;
       setIsPublishing(true);
       try {
         const request = buildMetaPublishRequest({
@@ -1561,13 +1568,14 @@ export default function AdsManagerBeta() {
         }
         await queryClient.invalidateQueries({ queryKey: metaCampaignKeys.byCompany(companyId) });
         await queryClient.invalidateQueries({ queryKey: ["meta-pending-approvals", companyId] });
-        toast.success("Campagna pubblicata in PAUSED", {
+        toast.success("Campagna creata su Meta, in pausa", {
           description: [
             "Meta ha creato campagna, ad set e annunci senza attivarli.",
             ...(data?.avvisi ?? []),
           ].join(" "),
         });
       } finally {
+        publishingRef.current = false;
         setIsPublishing(false);
       }
     },
@@ -1841,17 +1849,20 @@ export default function AdsManagerBeta() {
             <CampaignBuilderTab
               companyName={companyName}
               companyId={companyId}
+              metaPages={meta.pages}
               initialState={initialState}
               initialPlatform={initialPlatformFromUrl}
               initialGoogleChannel={initialGoogleChannelFromUrl}
               isEditing={!!editingDraft}
               onCancel={() => backToList()}
               onSaveDraft={async (state) => {
+                const destination = state.platform === "meta" ? selectCampaignPage(meta.pages, state) : null;
+                if (destination?.page) state = { ...state, pageMetaId: destination.page.asset_id, pageId: undefined };
                 try {
                   if (editingDraft) {
                     await updateDraft(editingDraft.id, state);
                     toast.success("Bozza aggiornata", {
-                      description: `${state.name || "Campagna"} salvata.`,
+                      description: `${state.name || "Campagna"} salvata. Se era già approvata, le modifiche richiedono un nuovo ok.`,
                     });
                     openDetail(editingDraft.id);
                   } else {
@@ -1918,6 +1929,7 @@ export default function AdsManagerBeta() {
           isPublishing={isPublishing}
           canPublish={draftPlatform === "meta" && canPublishToMeta && publishQa.blockers.length === 0}
           publishBlockers={publishQa.blockers}
+          destinationSummary={draftPlatform === "meta" ? `Pagina: ${selectCampaignPage(meta.pages, draft.builderState ?? {}).page?.asset_name ?? "da scegliere"} · Account: ${meta.selectedAdAccounts[0]?.asset_name ?? "da scegliere"}` : undefined}
           onDelete={async () => {
             try {
               await removeDraft(draft.id);
@@ -2128,6 +2140,7 @@ function DetailHeader({
   isPublishing = false,
   canPublish = false,
   publishBlockers = [],
+  destinationSummary,
   onDelete,
 }: {
   draft: LocalCampaignDraft;
@@ -2138,6 +2151,7 @@ function DetailHeader({
   isPublishing?: boolean;
   canPublish?: boolean;
   publishBlockers?: string[];
+  destinationSummary?: string;
   onDelete: () => void;
 }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -2175,15 +2189,16 @@ function DetailHeader({
             </h1>
             <p className="text-xs text-slate-500">
               {draft.zone} · {formatEuro(draft.budgetCents)}/giorno ·{" "}
-              {draft.adSets} gruppi · {draft.ads} ads
+              {draft.adSets} gruppi · {draft.ads} annunci
             </p>
+            {destinationSummary && <p className="mt-1 break-words text-xs text-slate-600">{destinationSummary}</p>}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
           {canRequestReview && onRequestReview && (
             <Button variant="outline" onClick={() => void onRequestReview()}>
               <ShieldCheck className="h-4 w-4" />
-              Invia in review
+              Invia in approvazione
             </Button>
           )}
           {onPublish && (
@@ -2197,7 +2212,7 @@ function DetailHeader({
               ) : (
                 <Rocket className="h-4 w-4" />
               )}
-              Pubblica PAUSED
+              {isPublishing ? "Creazione in corso…" : "Crea su Meta in pausa"}
             </Button>
           )}
           <Button variant="outline" onClick={onEdit}>
@@ -2209,9 +2224,10 @@ function DetailHeader({
             Elimina
           </Button>
         </div>
+        {onPublish && <p className="w-full text-xs text-slate-600">La campagna nasce in pausa. La attivi solo dopo il controllo finale.</p>}
         {onPublish && publishBlockers.length > 0 && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 lg:max-w-md">
-            <p className="font-semibold">QA pre-pubblicazione bloccante</p>
+            <p className="font-semibold">Prima di creare la campagna</p>
             <p className="mt-1">{publishBlockers.slice(0, 2).join(" · ")}</p>
           </div>
         )}
@@ -3159,21 +3175,30 @@ function CampaignBuilderTab({
   companyName,
   companyId,
   initialState,
+  metaPages = [],
   initialPlatform,
   initialGoogleChannel,
   isEditing = false,
 }: {
-  onSaveDraft: (state: BuilderState) => void;
+  onSaveDraft: (state: BuilderState) => Promise<void> | void;
   onCancel: () => void;
   companyName?: string;
   companyId?: string;
   initialState?: BuilderState | null;
+  metaPages?: (CampaignPage & { asset_name?: string })[];
   /** Se aperto da ProviderChoiceDialog, forza la piattaforma scelta. */
   initialPlatform?: "meta" | "google";
   initialGoogleChannel?: "SEARCH" | "DISPLAY" | "VIDEO" | "PERFORMANCE_MAX";
   isEditing?: boolean;
 }) {
   const [step, setStep] = useState(1);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const saveBusy = useRef(false);
+  const save = async () => {
+    if (saveBusy.current) return;
+    saveBusy.current = true; setSavingDraft(true);
+    try { await onSaveDraft(state); } finally { saveBusy.current = false; setSavingDraft(false); }
+  };
   const [state, setState] = useState<BuilderState>(() => {
     const base = initialState ?? DEFAULT_BUILDER;
     if (initialPlatform && !initialState) {
@@ -3194,7 +3219,9 @@ function CampaignBuilderTab({
   // Validazione per step (atomica) — utile sia per gating della navigation che per next button.
   const stepValidity = useMemo(() => {
     // STEP 1: offerta + nome + obiettivo
-    const v1 = state.name.trim().length >= 3 && state.offer.trim().length >= 12 && !!state.objective;
+    const pageChoice = selectCampaignPage(metaPages, state);
+    const pageValid = state.platform !== "meta" || metaPages.length === 0 || !pageChoice.error;
+    const v1 = state.name.trim().length >= 3 && state.offer.trim().length >= 12 && !!state.objective && pageValid;
 
     // STEP 2: pubblico — supporta ENTRAMBI i percorsi (v1 zone string, v2 metaGeoLocations[])
     const hasV2Geo = (state.metaGeoLocations?.filter((g) => !g.excluded).length ?? 0) > 0;
@@ -3235,7 +3262,7 @@ function CampaignBuilderTab({
 
     const v5 = readiness.score >= 60;
     return { 1: v1, 2: v2, 3: v3, 4: v4, 5: v5 } as Record<number, boolean>;
-  }, [state, readiness.score]);
+  }, [state, readiness.score, metaPages]);
 
   /** Quale step è raggiungibile via click sull'indicator: tutti i precedenti devono essere ok. */
   const canJumpTo = (target: number) => {
@@ -3392,6 +3419,11 @@ function CampaignBuilderTab({
             })}
           </div>
 
+          {step === 1 && state.platform === "meta" && (
+            <div className="mb-5"><CampaignPageField pages={metaPages}
+              value={selectCampaignPage(metaPages, state).page?.asset_id ?? state.pageMetaId ?? state.pageId}
+              onChange={(pageMetaId) => setState((previous) => ({ ...previous, pageMetaId, pageId: undefined }))} /></div>
+          )}
           {step === 1 && (
             <div className="space-y-5">
               {/* PLATFORM RECAP — la scelta è già stata fatta nel ProviderChoiceDialog */}
@@ -3519,7 +3551,7 @@ function CampaignBuilderTab({
                       : "La gente esce da Facebook: serve il Pixel sul sito, altrimenti non sai chi ha chiesto il preventivo."}
                   </p>
                 </Field>
-                <Field label="Pagina / destinazione">
+                <Field label="Indirizzo del sito (URL)">
                   <Input
                     value={state.landingUrl}
                     onChange={(event) => update("landingUrl", event.target.value)}
@@ -4008,8 +4040,8 @@ function CampaignBuilderTab({
                 <ArrowRight className="h-4 w-4" />
               </Button>
             ) : (
-              <Button onClick={() => onSaveDraft(state)} disabled={readiness.score < 40}>
-                {isEditing ? "Salva modifiche" : "Salva bozza locale"}
+              <Button onClick={() => void save()} disabled={savingDraft || readiness.score < 40}>
+                {savingDraft ? "Salvataggio…" : isEditing ? "Salva modifiche" : "Salva bozza"}
                 <Check className="h-4 w-4" />
               </Button>
             )}

@@ -160,4 +160,21 @@ describe("Crea post", () => {
     await new Promise((r) => setTimeout(r, 0));
     expect((screen.getByLabelText("Testo del post") as HTMLTextAreaElement).value).toBe("Il testo da non perdere");
   });
+  it("un'ora svuotata non blocca il salvataggio: mostra l'errore e permette di correggerla", async () => {
+    scenario.stato = PRONTE;
+    scenario.addPost = vi.fn().mockResolvedValue({ id: "local-data", status: "draft" });
+    monta();
+    fireEvent.change(screen.getByLabelText("Testo del post"), { target: { value: "Test data senza bloccare il composer" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Programma$/ }));
+    fireEvent.change(screen.getByLabelText("Giorno di pubblicazione"), { target: { value: "2099-02-10" } });
+    fireEvent.change(screen.getByLabelText("Ora di pubblicazione"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: /Salva bozza/ }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Scegli l’ora");
+    expect(scenario.addPost).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /Salva bozza/ })).not.toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Ora di pubblicazione"), { target: { value: "10:30" } });
+    fireEvent.click(screen.getByRole("button", { name: /Salva bozza/ }));
+    await waitFor(() => expect(scenario.addPost).toHaveBeenCalledTimes(1));
+  });
+
 });
