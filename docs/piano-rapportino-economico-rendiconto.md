@@ -165,7 +165,7 @@ Vista per persona fatta il 09/11: popup con le giornate del mese e «Segna la gi
 Rendiconto accettato il 09/11: «Segna accettato» (chi, quando, come, copia firmata) o «Manda da firmare» (firma elettronica, si approva da solo).
 E9, E10, E16, E18 chiusi il 09/11: tariffa o scheda arrivate dopo fanno rientrare il costo; non si rifiuta un rapportino in un giornale firmato; l’usato conta anche i rapportini dell’ufficio.
 Giornale automatico il 09/11: per chi ha acceso la bozza, una pagina intatta si aggiorna coi rapportini, una modificata a mano si segnala, una firmata non si tocca.
-Costi (E11): letture a colonne esplicite e `rapportini_costi` online; manca il GRANT per colonna.
+Costi (E11): letture a colonne esplicite, `rapportini_costi` e GRANT per colonna applicati il 09/11.
 
 **Lotto 3. Materiali** — Fatti il 09/11: aggiunta fuori commessa, «Materiali da regolarizzare», bolla di entrata. Fatto il 09/11: scarico da magazzino confermato dall’ufficio in «Materiali da regolarizzare» (D4), con rientro se il rapportino si annulla o si corregge. Costo orario dei mezzi fatto il 09/11: spese di 12 mesi (fatture per targa, rate, assicurazione, manutenzioni) / ore; quota interna fuori dal consuntivo. I quattro casi: residuo sui previsti, aggiunta fuori commessa con
 lavorazione e provenienza, scarico da magazzino, «Materiali da regolarizzare» e DDT di entrata.

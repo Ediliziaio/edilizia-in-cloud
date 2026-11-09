@@ -229,6 +229,14 @@ alcun `EXECUTE` (il privilegio non viene controllato allo scatto). Se una RPC
 deve essere pubblica, va inserita in `funzioni_pubbliche_di_proposito` nella
 stessa migrazione che la apre.
 
+## I soldi dei rapportini
+
+Su `campo_rapportini` il ruolo `authenticated` ha il GRANT per colonna, tutto tranne
+`costo_manodopera` e `presenze_registrate` (dal 09/11/2026). Un `select("*")` dal browser
+fallisce per tutti: si usa `COLONNE_RAPPORTINO` (`src/lib/campo/colonneRapportino.ts`), e i
+costi arrivano da `rapportini_costi()`, che li dà solo a chi ha il permesso. Una colonna nuova
+che il browser deve leggere va aggiunta al GRANT e a `COLONNE_RAPPORTINO`.
+
 ## Backup e ripristino delle aziende
 
 Il job `company-backup-settimanale` (domenica 02:30 UTC) salva un JSON per
