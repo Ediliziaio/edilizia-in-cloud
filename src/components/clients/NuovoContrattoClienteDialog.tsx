@@ -46,7 +46,7 @@ export function NuovoContrattoClienteDialog({ aperto, onChiudi, clienteId, nomeC
             </button>
           ))}
         </div>
-        <Button variant="outline" size="sm" className="w-full" onClick={() => vai(`/azienda/ordini/nuovo?customer_id=${clienteId}&customer_name=${encodeURIComponent(nomeCliente)}`)}>
+        <Button variant="outline" size="sm" className="w-full" onClick={() => vai(`/azienda/ordini/nuovo?customer_id=${clienteId}&customer_name=${encodeURIComponent(nomeCliente)}&contratto=1`)}>
           <Plus className="mr-1.5 h-3.5 w-3.5" />Nuova commessa
         </Button>
       </DialogContent>

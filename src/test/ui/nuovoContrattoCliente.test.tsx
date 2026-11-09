@@ -32,6 +32,6 @@ describe("nuovo contratto dal cliente", () => {
     disegna();
     expect(await screen.findByText(/non ha ancora commesse/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Nuova commessa/ }));
-    expect(screen.getByTestId("dove")).toHaveTextContent("/azienda/ordini/nuovo?customer_id=c1&customer_name=Giulia%20Ferrari");
+    expect(screen.getByTestId("dove")).toHaveTextContent("/azienda/ordini/nuovo?customer_id=c1&customer_name=Giulia%20Ferrari&contratto=1");
   });
 });

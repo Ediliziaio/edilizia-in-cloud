@@ -17,7 +17,7 @@ export interface DatiContrattoCliente {
   sottotitolo: string;
   etichettaImpresa: string;
   impresa: { ragioneSociale: string; partitaIva: string; codiceFiscale?: string; sede: string; pec?: string };
-  committente: { nome: string; partitaIva?: string; codiceFiscale?: string; indirizzo: string; email?: string; telefono?: string };
+  committente: { nome: string; partitaIva?: string; codiceFiscale?: string; indirizzo: string; email?: string; telefono?: string; rappresentante?: string };
   cantiere: Array<[string, string]>;
   economico: { titolo: string; destra?: string; righe: RigaEconomica[]; nota?: string };
   articoli: ArticoloCliente[];
@@ -124,6 +124,8 @@ export function datiDaCommessa(a: { contratto: Riga; md: string; ordine: Riga; v
   };
 }
 
+const UNITA_LEGGIBILI: Record<string, string> = { uomo_giorno: "uomo/giorno", mq: "m²", ml: "m", mc: "m³", corpo: "a corpo" };
+
 /** L'accordo col committente: condizioni concordate, clausole e listino in Allegato A. */
 export function datiDaAccordo(a: {
   accordo: Riga; committente: Riga; tariffe: Riga[]; societari: DatiSocietari | null;
@@ -142,13 +144,13 @@ export function datiDaAccordo(a: {
     else { corrente = { titolo: "Condizioni concordate", paragrafi: [blocco] }; articoli.push(corrente); }
   }
   const elenco: RigaElencoLavori[] = a.tariffe.filter((t) => t.attivo !== false).map((t) => ({
-    fase: testo(t.tipo).replace(/^./, (x) => x.toUpperCase()) || "Listino", descrizione: testo(t.descrizione), unita: testo(t.unita_misura) || null, quantita: 1, prezzo: num(t.prezzo_unitario), importo: num(t.prezzo_unitario),
+    fase: testo(t.tipo).replace(/^./, (x) => x.toUpperCase()) || "Listino", descrizione: testo(t.descrizione), unita: UNITA_LEGGIBILI[testo(t.unita_misura)] ?? (testo(t.unita_misura) || null), quantita: 1, prezzo: num(t.prezzo_unitario), importo: num(t.prezzo_unitario),
   }));
   return {
     titolo: "Contratto d'appalto", numero: null,
     sottotitolo: [testo(c.nome), `valido dal ${giorno(c.valido_dal)}${c.valido_al ? ` al ${giorno(c.valido_al)}` : ""}`].join("  ·  "),
-    etichettaImpresa: "APPALTATORE", impresa: impresaDa(a.societari), committente: committenteDa(a.committente),
-    cantiere: testo(c.riferimento_committente) ? [["Riferimento del committente", testo(c.riferimento_committente)]] : [],
+    etichettaImpresa: "APPALTATORE", impresa: impresaDa(a.societari), committente: { ...committenteDa(a.committente), rappresentante: testo(c.firmatario_committente) || undefined },
+    cantiere: ([["Oggetto", testo(c.oggetto_lavori)], ["Luogo dei lavori", testo(c.luogo_lavori)], ["Riferimento del committente", testo(c.riferimento_committente)]] as Array<[string, string]>).filter(([, v]) => v),
     economico: { titolo: "Condizioni economiche", righe: [
       { label: "Pagamento", valore: `${num(c.giorni_pagamento)} giorni` },
       { label: "Ritenuta a garanzia", valore: `${num(c.ritenuta_pct)}%` },

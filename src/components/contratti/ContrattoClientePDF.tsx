@@ -101,6 +101,7 @@ export function ContrattoClientePDF({ d }: { d: DatiContrattoCliente }) {
             <Text style={s.nome}>{b.nome || "—"}</Text>
             <Text style={s.riga}>{b.partitaIva ? `P.IVA ${b.partitaIva}` : b.codiceFiscale ? `C.F. ${b.codiceFiscale}` : "C.F. / P.IVA ________________"}{b.partitaIva && b.codiceFiscale && b.codiceFiscale !== b.partitaIva ? ` · C.F. ${b.codiceFiscale}` : ""}</Text>
             <Text style={s.riga}>Indirizzo: {b.indirizzo || "________________________________"}</Text>
+            {!!b.rappresentante && <Text style={s.riga}>Rappresentata da {b.rappresentante}</Text>}
             {(!!b.email || !!b.telefono) && <Text style={s.riga}>{[b.email, b.telefono && `Tel. ${b.telefono}`].filter(Boolean).join(" · ")}</Text>}
           </View>
         </View>

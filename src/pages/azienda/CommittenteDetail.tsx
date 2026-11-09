@@ -34,7 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { logger } from "@/utils/logger";
 import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
 import { euro } from "@/lib/clienti/schedaCliente";
-import { contrattoDiOggi, oggiISO } from "@/lib/appalto/contratti";
+import { contrattoDiOggi } from "@/lib/appalto/contratti";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -144,7 +144,6 @@ export default function CommittenteDetail() {
 
   const condizioniAzienda = useCondizioniDocumento("appalto");
   const [contrattoSelId, setContrattoSelId] = useState<string | null>(null);
-  const [contrattoForm, setContrattoForm] = useState<Partial<Contratto> | null>(null);
   const [tariffaForm, setTariffaForm] = useState<Partial<Tariffa> | null>(null);
   const [prezzoGrezzo, setPrezzoGrezzo] = useState("");
   const [daEliminare, setDaEliminare] = useState<{ tipo: "contratto" | "tariffa"; id: string; nome: string } | null>(null);
@@ -244,47 +243,6 @@ export default function CommittenteDetail() {
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
     },
     onError: (e) => toast({ title: "PDF non generato", description: e instanceof Error ? e.message : "Riprova", variant: "destructive" }),
-  });
-
-  const salvaContratto = useMutation({
-    mutationFn: async (f: Partial<Contratto>) => {
-      const riga = {
-        company_id: companyId,
-        committente_id: id,
-        nome: (f.nome ?? "").trim(),
-        valido_dal: f.valido_dal || oggiISO(),
-        valido_al: f.valido_al || null,
-        giorni_pagamento: Number(f.giorni_pagamento ?? 30),
-        ritenuta_pct: Number(f.ritenuta_pct ?? 0),
-        maggiorazione_straordinario_pct: Number(f.maggiorazione_straordinario_pct ?? 0),
-        maggiorazione_festivo_pct: Number(f.maggiorazione_festivo_pct ?? 0),
-        modo_fatturazione: f.modo_fatturazione ?? "per_commessa",
-        regime_iva: f.regime_iva ?? "ordinaria",
-        include_fornitura: !!f.include_fornitura,
-        riferimento_committente: f.riferimento_committente || null,
-        condizioni: f.condizioni || null,
-        note: f.note || null,
-        attivo: f.attivo !== false,
-      };
-      if (f.id) {
-        const { error } = await (supabase as any).from("appalto_contratti").update(riga).eq("id", f.id);
-        if (error) throw error;
-        return f.id;
-      }
-      const { data, error } = await (supabase as any).from("appalto_contratti").insert(riga).select("id").single();
-      if (error) throw error;
-      return data.id as string;
-    },
-    onSuccess: (nuovoId) => {
-      setContrattoForm(null);
-      setContrattoSelId(nuovoId);
-      queryClient.invalidateQueries({ queryKey: ["appalto-contratti", companyId, id] });
-      toast({ title: "Contratto salvato" });
-    },
-    onError: (e) => {
-      logger.error("salvaContratto", e);
-      toast({ title: "Contratto non salvato", description: e instanceof Error ? e.message : "Riprova", variant: "destructive" });
-    },
   });
 
   const salvaTariffa = useMutation({
@@ -410,7 +368,7 @@ export default function CommittenteDetail() {
             {puoModificare && (
               <Button
                 size="sm"
-                onClick={() => setContrattoForm({ condizioni: condizioniAzienda.disponibile ? condizioniAzienda.testo : "", nome: `Accordo ${new Date().getFullYear()}`, valido_dal: oggiISO(), giorni_pagamento: 30, modo_fatturazione: "per_commessa", regime_iva: "ordinaria", attivo: true })}
+                onClick={() => navigate(`/azienda/committenti/${id}/contratto/nuovo`)}
               >
                 <Plus className="mr-1.5 h-3.5 w-3.5" /> Nuovo contratto
               </Button>
@@ -458,7 +416,7 @@ export default function CommittenteDetail() {
                     </Button>
                     {puoModificare && (
                       <div className="flex shrink-0 gap-1">
-                        <Button variant="ghost" size="icon" aria-label="Modifica contratto" onClick={() => setContrattoForm(contrattoAttivo)}>
+                        <Button variant="ghost" size="icon" aria-label="Modifica contratto" onClick={() => navigate(`/azienda/committenti/${id}/contratto/${contrattoAttivo.id}`)}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
                         <Button variant="ghost" size="icon" aria-label="Elimina contratto"
@@ -630,115 +588,6 @@ export default function CommittenteDetail() {
           </div>
         )}
       </QuoteCard>
-
-      {/* ─── Dialogo contratto ─── */}
-      <Dialog open={!!contrattoForm} onOpenChange={(o) => !o && setContrattoForm(null)}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>{contrattoForm?.id ? "Modifica contratto" : "Nuovo contratto"}</DialogTitle>
-            <DialogDescription>Le condizioni concordate con {nomeCommittente(c)}.</DialogDescription>
-          </DialogHeader>
-          {contrattoForm && (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <Label>Nome</Label>
-                <Input value={contrattoForm.nome ?? ""} onChange={(e) => setContrattoForm({ ...contrattoForm, nome: e.target.value })} placeholder="Accordo 2026" />
-              </div>
-              <div>
-                <Label>Valido dal</Label>
-                <Input type="date" value={contrattoForm.valido_dal ?? ""} onChange={(e) => setContrattoForm({ ...contrattoForm, valido_dal: e.target.value })} />
-              </div>
-              <div>
-                <Label>Valido al</Label>
-                <Input type="date" value={contrattoForm.valido_al ?? ""} onChange={(e) => setContrattoForm({ ...contrattoForm, valido_al: e.target.value })} />
-              </div>
-              <div>
-                <Label>Giorni di pagamento</Label>
-                <Input type="number" min={0} max={365} value={contrattoForm.giorni_pagamento ?? 30}
-                  onChange={(e) => setContrattoForm({ ...contrattoForm, giorni_pagamento: Number(e.target.value) })} />
-              </div>
-              <div>
-                {/* È la trattenuta a garanzia sui SAL (01/11/2026): non una ritenuta fiscale. */}
-                <Label>Ritenuta a garanzia %</Label>
-                <Input type="number" min={0} max={100} step="0.01" value={contrattoForm.ritenuta_pct ?? 0}
-                  onChange={(e) => setContrattoForm({ ...contrattoForm, ritenuta_pct: Number(e.target.value) })} />
-              </div>
-              <div>
-                <Label>Maggiorazione straordinario %</Label>
-                <Input type="number" min={0} max={200} step="0.01" value={contrattoForm.maggiorazione_straordinario_pct ?? 0}
-                  onChange={(e) => setContrattoForm({ ...contrattoForm, maggiorazione_straordinario_pct: Number(e.target.value) })} />
-              </div>
-              <div>
-                <Label>Maggiorazione festivo %</Label>
-                <Input type="number" min={0} max={200} step="0.01" value={contrattoForm.maggiorazione_festivo_pct ?? 0}
-                  onChange={(e) => setContrattoForm({ ...contrattoForm, maggiorazione_festivo_pct: Number(e.target.value) })} />
-              </div>
-              <div className="sm:col-span-2">
-                <Label>Come si fattura</Label>
-                <Select value={contrattoForm.modo_fatturazione ?? "per_commessa"}
-                  onValueChange={(v) => setContrattoForm({ ...contrattoForm, modo_fatturazione: v as Contratto["modo_fatturazione"] })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="per_commessa">Per commessa — ogni lavoro fattura il suo</SelectItem>
-                    <SelectItem value="mensile_cumulativa">Mensile — un documento con tutte le commesse del mese</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="sm:col-span-2">
-                <Label>IVA in fattura</Label>
-                <Select value={contrattoForm.regime_iva ?? "ordinaria"}
-                  onValueChange={(v) => setContrattoForm({ ...contrattoForm, regime_iva: v as Contratto["regime_iva"] })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ordinaria">Ordinaria — l'IVA la esponi tu</SelectItem>
-                    <SelectItem value="reverse_charge">Reverse charge — subappalto edile, art. 17 c. 6 lett. a)</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="mt-1 text-xs text-slate-500">
-                  In reverse charge la fattura non espone l'IVA (natura N6.3) e la paga il committente.
-                  Sta qui e non sulla singola fattura perché con lo stesso committente è sempre lo stesso.
-                </p>
-              </div>
-              <div className="flex items-center justify-between rounded-lg border p-3 sm:col-span-2">
-                <div>
-                  <Label className="cursor-pointer">Comprende la fornitura</Label>
-                  <p className="text-xs text-slate-500">Se spento, con questo committente fai sola manodopera.</p>
-                </div>
-                <Switch checked={!!contrattoForm.include_fornitura}
-                  onCheckedChange={(v) => setContrattoForm({ ...contrattoForm, include_fornitura: v })} />
-              </div>
-              <div className="sm:col-span-2">
-                <Label>Loro riferimento (n° ordine)</Label>
-                <Input value={contrattoForm.riferimento_committente ?? ""}
-                  onChange={(e) => setContrattoForm({ ...contrattoForm, riferimento_committente: e.target.value })} />
-              </div>
-              <div className="sm:col-span-2">
-                <Label>Condizioni concordate</Label>
-                {!contrattoForm.id && condizioniAzienda.disponibile && (
-                  <p className="text-xs text-muted-foreground">Partono da «{condizioniAzienda.modello?.nome}» di Contratti e condizioni: qui puoi cambiarle per questo committente.</p>
-                )}
-                <Textarea rows={8} value={contrattoForm.condizioni ?? ""}
-                  onChange={(e) => setContrattoForm({ ...contrattoForm, condizioni: e.target.value })} />
-              </div>
-              <div className="flex items-center justify-between rounded-lg border p-3 sm:col-span-2">
-                <Label className="cursor-pointer">Contratto attivo</Label>
-                <Switch checked={contrattoForm.attivo !== false}
-                  onCheckedChange={(v) => setContrattoForm({ ...contrattoForm, attivo: v })} />
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setContrattoForm(null)}>Annulla</Button>
-            <Button
-              disabled={!contrattoForm?.nome?.trim() || salvaContratto.isPending}
-              onClick={() => contrattoForm && salvaContratto.mutate(contrattoForm)}
-            >
-              {salvaContratto.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-              Salva
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* ─── Dialogo tariffa ─── */}
       <Dialog open={!!tariffaForm} onOpenChange={(o) => !o && setTariffaForm(null)}>

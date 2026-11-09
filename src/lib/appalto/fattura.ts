@@ -297,3 +297,28 @@ export function prefillFatturaDaRendiconto(d: DatiFatturaDaRendiconto): Partial<
     note_documento: causale[0],
   };
 }
+
+
+/** Quanto si è lavorato: le quantità sommate per unità, e una riga per ogni voce del listino. */
+export interface RiepilogoRendiconto {
+  ore: number; giornate: number;
+  voci: Array<{ descrizione: string; unita_misura: string; prezzo_unitario: number; maggiorazione_pct: number; quantita: number; importo: number }>;
+}
+
+const GIORNATE = new Set(["giornata", "uomo_giorno"]);
+
+export function riepilogoRendiconto(cantieri: ReadonlyArray<CantiereDelRendiconto>): RiepilogoRendiconto {
+  const voci = new Map<string, RiepilogoRendiconto["voci"][number]>();
+  let ore = 0;
+  let giornate = 0;
+  for (const c of cantieri) for (const r of c.righe) {
+    const q = Number(r.quantita) || 0;
+    if (r.unita_misura === "ora") ore += q;
+    else if (GIORNATE.has(r.unita_misura)) giornate += q;
+    const chiave = [r.descrizione, r.unita_misura, r.prezzo_unitario, r.maggiorazione_pct].join("|");
+    const v = voci.get(chiave);
+    if (v) { v.quantita += q; v.importo += Number(r.importo) || 0; }
+    else voci.set(chiave, { descrizione: r.descrizione, unita_misura: r.unita_misura, prezzo_unitario: Number(r.prezzo_unitario) || 0, maggiorazione_pct: Number(r.maggiorazione_pct) || 0, quantita: q, importo: Number(r.importo) || 0 });
+  }
+  return { ore, giornate, voci: [...voci.values()].sort((a, b) => b.importo - a.importo) };
+}

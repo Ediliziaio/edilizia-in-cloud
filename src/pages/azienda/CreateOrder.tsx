@@ -1390,6 +1390,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         navigate(`/azienda/ordini/${order.id}?tab=articoli&genera=1`);
         return;
       }
+      // Arrivati da «Nuovo contratto» sulla scheda del cliente: finita la commessa si apre il contratto.
+      if (searchParams.get("contratto") === "1") { navigate(`/azienda/ordini/${order.id}?contratto=1`); return; }
       navigate(`/azienda/ordini/${order.id}${"fasiDaVerificare" in order && order.fasiDaVerificare ? "?tab=cantiere&vista_cantiere=lavorazioni" : ""}`);
     },
     onError: (error) => {

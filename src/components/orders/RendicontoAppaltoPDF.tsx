@@ -9,19 +9,20 @@
  *
  * Layout A4 verticale, palette coerente con OrdinePDF e ShipmentDDTPDF.
  *
- *  1. Header fisso: intestazione azienda
+ *  1. In fondo a ogni pagina: i dati societari
  *  2. Titolo: Rendiconto n. X, periodo, stato
  *  3. Due colonne: committente | contratto e riferimento
- *  4. Un blocco per cantiere: righe + subtotale del cantiere
+ *  4. Riepilogo: ore lavorate, giornate, totale, una riga per voce
+ *  5. Un blocco per cantiere: righe + subtotale del cantiere
  *  5. Totali: totale, ritenuta, netto
  *  6. Note e riga firme (il committente lo firma per accettazione)
- *  7. Footer fisso: Pag X/Y
  *
  * Fase 5 del Modulo Appaltatori (28/10/2026) — vedi docs/piano-commessa-appalto.md.
  */
 import React from "react";
-import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
-import type { CantiereDelRendiconto } from "@/lib/appalto/fattura";
+import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { PieSocietario } from "@/components/preventivi/pdf/FoglioCondizioniPDF";
+import { riepilogoRendiconto, type CantiereDelRendiconto } from "@/lib/appalto/fattura";
 
 const C = {
   navy: "#1E3A5F",
@@ -140,6 +141,13 @@ const styles = StyleSheet.create({
   subtotaleLabel: { fontSize: 8, color: C.gray500 },
   subtotaleValore: { fontSize: 9, fontFamily: "Helvetica-Bold", color: C.gray900 },
 
+  riquadroOre: { marginBottom: 14 },
+  numeri: { flexDirection: "row", gap: 8, marginBottom: 8 },
+  numero: { flex: 1, backgroundColor: C.gray50, border: `0.5pt solid ${C.gray200}`, borderRadius: 4, padding: 8 },
+  numeroEtichetta: { fontSize: 7, color: C.gray500, textTransform: "uppercase" as const },
+  numeroValore: { fontSize: 14, fontFamily: "Helvetica-Bold", color: C.navy, marginTop: 2 },
+  rDesc: { width: "52%", paddingRight: 4 },
+
   extra: { fontSize: 7, color: C.orange, fontFamily: "Helvetica-Bold" },
 
   /* Totali */
@@ -238,7 +246,8 @@ export interface RendicontoAppaltoPDFProps {
   ritenuta: number;
   netto: number;
   note?: string | null;
-  platformName?: string;
+  /** Ragione sociale, sede, P.IVA, REA, capitale: il piè di pagina. */
+  societarie?: string[];
 }
 
 /* ── Formattazione ──────────────────────────────────────────────────── */
@@ -293,6 +302,10 @@ const indirizzo = (a: {
   return lines;
 };
 
+function Numero({ etichetta, valore }: { etichetta: string; valore: string }) {
+  return <View style={styles.numero}><Text style={styles.numeroEtichetta}>{etichetta}</Text><Text style={styles.numeroValore}>{valore}</Text></View>;
+}
+
 /* ── Il documento ───────────────────────────────────────────────────── */
 
 export function RendicontoAppaltoPDF({
@@ -310,9 +323,10 @@ export function RendicontoAppaltoPDF({
   ritenuta,
   netto,
   note,
-  platformName = "Edilizia in Cloud",
+  societarie = [],
 }: RendicontoAppaltoPDFProps) {
   const righeTotali = cantieri.reduce((s, c) => s + c.righe.length, 0);
+  const riepilogo = riepilogoRendiconto(cantieri);
 
   return (
     <Document
@@ -321,35 +335,8 @@ export function RendicontoAppaltoPDF({
       subject={`Rendiconto n. ${numero} dal ${giornoIT(periodoDal)} al ${giornoIT(periodoAl)}`}
     >
       <Page size="A4" style={styles.page} wrap>
-        {/* 1. Intestazione azienda */}
-        <View style={styles.header} fixed>
-          <View style={styles.headerLeft}>
-            {azienda.logo_url ? <Image src={azienda.logo_url} style={styles.logo} /> : null}
-            <View>
-              <Text style={styles.companyName}>{azienda.name}</Text>
-              {indirizzo(azienda).map((l, i) => (
-                <Text key={i} style={styles.companyMeta}>
-                  {l}
-                </Text>
-              ))}
-              <Text style={styles.companyMeta}>
-                {[
-                  azienda.vat_number ? `P.IVA ${azienda.vat_number}` : null,
-                  azienda.fiscal_code && azienda.fiscal_code !== azienda.vat_number
-                    ? `CF ${azienda.fiscal_code}`
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </Text>
-              <Text style={styles.companyMeta}>
-                {[azienda.phone ? `Tel ${azienda.phone}` : null, azienda.email, azienda.pec ? `PEC ${azienda.pec}` : null]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </Text>
-            </View>
-          </View>
-        </View>
+        {/* I dati dell'azienda sono in fondo, uguali a tutti i documenti (09/11/2026). Il piè sta per primo. */}
+        <PieSocietario righe={societarie.length ? societarie : [azienda.name]} margine={40} />
 
         {/* 2. Titolo */}
         <View style={styles.docBlock}>
@@ -407,6 +394,33 @@ export function RendicontoAppaltoPDF({
               </Text>
             </View>
           </View>
+        </View>
+
+        {/* Quanto si è lavorato: la prima cosa che il committente controlla. */}
+        <View style={styles.riquadroOre} wrap={false}>
+          <Text style={styles.sectionTitle}>Riepilogo del periodo</Text>
+          <View style={styles.numeri}>
+            {riepilogo.ore > 0 ? <Numero etichetta="Ore lavorate" valore={quantita(riepilogo.ore)} /> : null}
+            {riepilogo.giornate > 0 ? <Numero etichetta="Giornate" valore={quantita(riepilogo.giornate)} /> : null}
+            <Numero etichetta={cantieri.length === 1 ? "Cantiere" : "Cantieri"} valore={String(cantieri.length)} />
+            <Numero etichetta="Totale" valore={`€ ${soldi(totale)}`} />
+          </View>
+          <View style={styles.thead}>
+            <Text style={[styles.th, styles.rDesc]}>Voce</Text>
+            <Text style={[styles.th, styles.cQta]}>Q.tà</Text>
+            <Text style={[styles.th, styles.cUm, { textAlign: "right" }]}>U.m.</Text>
+            <Text style={[styles.th, styles.cPrezzo]}>Prezzo</Text>
+            <Text style={[styles.th, styles.cImporto]}>Importo</Text>
+          </View>
+          {riepilogo.voci.map((v, i) => (
+            <View key={i} style={styles.tr}>
+              <Text style={[styles.td, styles.rDesc]}>{v.descrizione}</Text>
+              <Text style={[styles.td, styles.cQta]}>{quantita(v.quantita)}</Text>
+              <Text style={[styles.td, styles.cUm, { textAlign: "right" }]}>{etichettaUnita(v.unita_misura)}</Text>
+              <Text style={[styles.td, styles.cPrezzo]}>{soldi(v.prezzo_unitario)}{v.maggiorazione_pct !== 0 ? ` +${quantita(v.maggiorazione_pct)}%` : ""}</Text>
+              <Text style={[styles.td, styles.cImporto]}>{soldi(v.importo)}</Text>
+            </View>
+          ))}
         </View>
 
         {/* 4. Un blocco per cantiere */}
@@ -493,15 +507,6 @@ export function RendicontoAppaltoPDF({
               </Text>
             </View>
           </View>
-        </View>
-
-        {/* 7. Footer */}
-        <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>
-            Rendiconto n. {numero} · {azienda.name}
-          </Text>
-          <Text style={styles.footerText} render={({ pageNumber, totalPages }) => `Pag. ${pageNumber} / ${totalPages}`} />
-          <Text style={styles.footerText}>Generato da {platformName}</Text>
         </View>
       </Page>
     </Document>

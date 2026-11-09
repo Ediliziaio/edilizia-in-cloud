@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { logger } from "@/utils/logger";
 import { raggruppaPerCantiere, type RigaDaStampare } from "@/lib/appalto/fattura";
 import { STATI_SAL } from "@/lib/appalto/rendiconto";
+import { caricaDatiSocietari, righeSocietarie } from "../../supabase/functions/_shared/datiSocietari";
 
 let pdfModulePromise: Promise<{
   pdf: typeof import("@react-pdf/renderer").pdf;
@@ -103,7 +104,7 @@ export function useRendicontoAppaltoPDF() {
         }
 
         const orderIds = [...new Set(righe.map((r) => r.order_id))];
-        const [cantieriRes, committenteRes, contrattoRes, aziendaRes] = await Promise.all([
+        const [cantieriRes, committenteRes, contrattoRes, societari] = await Promise.all([
           supabase.from("orders").select("id, order_code, description").in("id", orderIds),
           supabase
             .from("profiles")
@@ -115,11 +116,8 @@ export function useRendicontoAppaltoPDF() {
             .select("nome, riferimento_committente")
             .eq("id", sal.contratto_id)
             .maybeSingle(),
-          supabase
-            .from("companies")
-            .select("name, vat_number, fiscal_code, address, city, postal_code, province, phone, email, pec, logo_url")
-            .eq("id", effectiveCompany.id)
-            .maybeSingle(),
+          // `companies` non ha address/city: la lettura falliva e in testata restava il solo nome (09/11/2026).
+          caricaDatiSocietari(supabase, effectiveCompany.id),
         ]);
 
         const cantieri = raggruppaPerCantiere(righe, (cantieriRes.data ?? []) as Array<{
@@ -130,7 +128,6 @@ export function useRendicontoAppaltoPDF() {
 
         const comm = (committenteRes.data ?? {}) as Record<string, string | null>;
         const contratto = (contrattoRes.data ?? {}) as { nome?: string | null; riferimento_committente?: string | null };
-        const azienda = (aziendaRes.data ?? { name: effectiveCompany.name ?? "—" }) as Record<string, string | null>;
 
         const { pdf, RendicontoAppaltoPDF } = await loadPdfModule();
         const blob = await pdf(
@@ -139,19 +136,8 @@ export function useRendicontoAppaltoPDF() {
             periodoDal: sal.periodo_dal,
             periodoAl: sal.periodo_al,
             statoEtichetta: STATI_SAL[sal.stato]?.etichetta ?? sal.stato,
-            azienda: {
-              name: azienda.name ?? "—",
-              vat_number: azienda.vat_number,
-              fiscal_code: azienda.fiscal_code,
-              address: azienda.address,
-              city: azienda.city,
-              postal_code: azienda.postal_code,
-              province: azienda.province,
-              phone: azienda.phone,
-              email: azienda.email,
-              pec: azienda.pec,
-              logo_url: azienda.logo_url,
-            },
+            azienda: { name: societari?.ragioneSociale || effectiveCompany.name || "—" },
+            societarie: righeSocietarie(societari),
             committente: {
               ragione_sociale: nomeDi(comm),
               vat_number: comm.vat_number,

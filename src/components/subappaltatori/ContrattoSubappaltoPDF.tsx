@@ -43,7 +43,7 @@ export const stiliContratto = StyleSheet.create({
   riga: { fontSize: 8.5 },
   bold: { fontFamily: "Helvetica-Bold" },
   cantiere: { borderRadius: 3, padding: 8, marginBottom: 10, flexDirection: "row", flexWrap: "wrap" },
-  cella: { width: "50%", fontSize: 8.5, marginBottom: 2 },
+  cella: { width: "50%", fontSize: 8.5, marginBottom: 2, paddingRight: 8 },
   economico: { borderWidth: 0.75, borderColor: "#d1d5db", borderRadius: 3, marginBottom: 12 },
   ecoRiga: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3.5, paddingHorizontal: 9, borderBottomWidth: 0.5, borderBottomColor: "#e5e7eb" },
   ecoTotale: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, paddingHorizontal: 9 },

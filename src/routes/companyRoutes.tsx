@@ -266,6 +266,7 @@ const CreateOrder = lazy(() => import("@/pages/azienda/CreateOrder"));
 const CreateLavoroAppaltatore = lazy(() => import("@/pages/azienda/CreateLavoroAppaltatore"));
 const SimulatoreOperazione = lazy(() => import("@/pages/azienda/SimulatoreOperazione"));
 const CommittenteDetail = lazy(() => import("@/pages/azienda/CommittenteDetail"));
+const ContrattoCommittentePagina = lazy(() => import("@/pages/azienda/ContrattoCommittentePagina"));
 const NumeriAppalto = lazy(() => import("@/pages/azienda/NumeriAppalto"));
 const OrderDetail = lazy(() => import("@/pages/azienda/OrderDetail"));
 const OrderDiaryPage = lazy(() => import("@/pages/azienda/OrderDiaryPage"));
@@ -690,6 +691,7 @@ export default function CompanyRoutesContainer() {
             dei clienti; i prezzi del listino li filtra la policy su appalto_tariffe. */}
         {/* I numeri PRIMA di /:id, altrimenti "numeri" verrebbe letto come un id. */}
         <Route path="committenti/numeri" element={withCompanyPermission("canViewOrderAmounts", <FeatureRoute featureKey="appaltatore_module"><ErrorBoundary title="Errore nei numeri dell'appalto"><NumeriAppalto /></ErrorBoundary></FeatureRoute>)} />
+        <Route path="committenti/:id/contratto/:contrattoId" element={withCompanyPermission("canEditCustomers", <FeatureRoute featureKey="appaltatore_module"><ErrorBoundary title="Errore nel contratto"><ContrattoCommittentePagina /></ErrorBoundary></FeatureRoute>)} />
         <Route path="committenti/:id" element={withCompanyPermission("canViewCustomers", <FeatureRoute featureKey="appaltatore_module"><ErrorBoundary title="Errore nella scheda committente"><CommittenteDetail /></ErrorBoundary></FeatureRoute>)} />
         
         {/* "Assistenza & Lavori" era una seconda pagina di assistenza che
