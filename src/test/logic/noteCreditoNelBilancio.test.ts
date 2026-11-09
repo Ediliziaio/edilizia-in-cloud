@@ -68,3 +68,34 @@ describe("I crediti verso clienti", () => {
     expect(prosa).toContain("non sono agganciate alle fatture che rettificano");
   });
 });
+
+describe("La data dei costi", () => {
+  const sql = leggi(
+    "supabase/migrations/20290116120000_costi_datati_per_competenza.sql",
+  );
+
+  it("non data più il costo al pagamento: prima viene la competenza", () => {
+    const prosa = sql.replace(/\s+/g, " ");
+    expect(prosa).toContain(
+      "coalesce( cc.mese_competenza, cc.documento_data, fr.data_fattura, cc.due_date, cc.paid_date )",
+    );
+    // Il pagamento resta l'ultima spiaggia, non il primo criterio.
+    expect(prosa).not.toContain("coalesce(cc.paid_date, cc.due_date)");
+  });
+
+  it("la data del documento arriva dalla fattura ricevuta collegata", () => {
+    expect(sql).toContain("left join fatture_ricevute fr on fr.company_cost_id = cc.id");
+  });
+
+  it("le uscite di banca restano datate al movimento", () => {
+    expect(sql).toContain("coalesce(bt.value_date, bt.booking_date) as data");
+  });
+
+  it("i giroconti restano fuori: non sono costi", () => {
+    expect(sql).toContain("girocont%");
+  });
+
+  it("la classificazione resta un join che non scarta righe", () => {
+    expect(sql).toContain("left join cg_classificazione_voci");
+  });
+});
