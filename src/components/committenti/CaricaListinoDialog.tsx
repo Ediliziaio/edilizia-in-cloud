@@ -70,7 +70,7 @@ export function CaricaListinoDialog({
       .eq("contratto_id", daCopiare).eq("attivo", true).order("ordine", { ascending: true });
     setLeggendo(false);
     if (error) { setErrore("Non riesco a leggere il listino di quel contratto."); return; }
-    const lette: RigaListino[] = ((data ?? []) as Array<Omit<RigaListino, "riga" | "problema">>).map((r, i) => ({ ...r, prezzo_unitario: Number(r.prezzo_unitario), riga: i + 1, problema: null }));
+    const lette: RigaListino[] = ((data ?? []) as Array<Omit<RigaListino, "riga" | "problema">>).map((r, i) => ({ ...r, prezzo_unitario: Number(r.prezzo_unitario), riga: i + 1, problema: null as string | null }));
     if (lette.length === 0) { setErrore("Quel contratto non ha voci in uso."); return; }
     setRighe(lette);
     setOrigine(altriContratti.find((c) => c.id === daCopiare)?.nome ?? "altro contratto");
