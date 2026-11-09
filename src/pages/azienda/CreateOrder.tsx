@@ -1,4 +1,4 @@
-import { righePreventivoPerCommessa } from "@/lib/preventivi/prefillPreventivo";
+import { righeDelPreventivo } from "@/lib/orders/preventiviDelCliente";
 import { COLONNE_RIGHE_LAVORO, righeDaLavoroPrecedente, totaleDelleRighe } from "@/lib/orders/righeDaLavoroPrecedente";
 import { verificaCostoSuPiano, modalitaCostoFinanziaria, costoDaSottrarreAlSaldo, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 import { verificaSupportoModalitaFinanziaria } from "@/lib/finanziamenti/verificaSupportoModalita";
@@ -771,13 +771,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const righeCopiate = useQuery({
     queryKey: ["righe-lavoro-precedente", copiaDa, copiaPreventivo], enabled: !!(copiaDa || copiaPreventivo) && !!effectiveCompany?.id, staleTime: Infinity,
     queryFn: async () => {
-      if (copiaPreventivo) {
-        const { data: origine, error: e } = await supabase.from("quotes").select("id").eq("id", copiaPreventivo).eq("company_id", effectiveCompany!.id).maybeSingle();
-        if (e || !origine) throw new Error("Preventivo non trovato");
-        const { data, error } = await supabase.from("quote_items").select("*").eq("quote_id", copiaPreventivo).order("sort_order", { ascending: true });
-        if (error) throw error;
-        return righePreventivoPerCommessa((data ?? []) as Array<Record<string, unknown>>);
-      }
+      if (copiaPreventivo) return righeDelPreventivo(supabase, effectiveCompany!.id, copiaPreventivo);
       const { data: origine, error: e } = await supabase.from("orders").select("id").eq("id", copiaDa!).eq("company_id", effectiveCompany!.id).maybeSingle();
       if (e || !origine) throw new Error("Lavoro non trovato");
       const { data, error } = await supabase.from("order_items").select(COLONNE_RIGHE_LAVORO).eq("order_id", copiaDa!).order("position", { ascending: true });

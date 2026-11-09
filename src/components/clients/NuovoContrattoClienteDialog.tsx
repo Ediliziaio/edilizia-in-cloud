@@ -12,11 +12,11 @@ import { useNavigate } from "react-router-dom";
 import { Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { cercaPreventiviDelCliente } from "@/lib/orders/preventiviDelCliente";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface Commessa { id: string; order_code: string | null; description: string | null }
-interface Preventivo { id: string; quote_number: string | null; title: string | null; created_at: string }
 const nomeCommessa = (c: Commessa): string => [c.order_code, c.description].filter(Boolean).join(" · ") || "Commessa";
 
 export function NuovoContrattoClienteDialog({ aperto, onChiudi, clienteId, nomeCliente }: {
@@ -36,28 +36,18 @@ export function NuovoContrattoClienteDialog({ aperto, onChiudi, clienteId, nomeC
       return (data ?? []) as Commessa[];
     },
   });
-  // I preventivi non hanno il collegamento al cliente: si riconoscono da email, codice fiscale o nome.
   const { data: preventivi = [] } = useQuery({
     queryKey: ["contratto-preventivi-cliente", clienteId, companyId],
     enabled: aperto && !!companyId,
-    queryFn: async (): Promise<Preventivo[]> => {
+    queryFn: async () => {
       const { data: c } = await supabase.from("profiles").select("email, fiscal_code, business_name, first_name, last_name").eq("id", clienteId).maybeSingle();
-      const base = () => supabase.from("quotes").select("id, quote_number, title, created_at").eq("company_id", companyId).is("deleted_at", null).order("created_at", { ascending: false }).limit(20);
-      const nomi = [c?.business_name, [c?.first_name, c?.last_name].filter(Boolean).join(" "), nomeCliente].map((n) => (n ?? "").trim()).filter(Boolean);
-      const letture = await Promise.all([
-        ...(c?.email ? [base().eq("client_email", c.email)] : []),
-        ...(c?.fiscal_code ? [base().eq("client_fiscal_code", c.fiscal_code)] : []),
-        ...[...new Set(nomi)].map((n) => base().eq("client_name", n)),
-      ]);
-      const uno = new Map<string, Preventivo>();
-      for (const l of letture) for (const q of (l.data ?? []) as Preventivo[]) uno.set(q.id, q);
-      return [...uno.values()].sort((x, y) => y.created_at.localeCompare(x.created_at));
+      return cercaPreventiviDelCliente(supabase, companyId, { id: clienteId, ...(c ?? {}) }, nomeCliente);
     },
   });
   const vai = (dove: string): void => { onChiudi(); navigate(dove); };
   const nuovoLavoro = (): void => {
-    const [tipo, id] = copiaDa.split(":");
-    const origine = tipo === "lavoro" ? `&copia_da=${id}` : tipo === "preventivo" ? `&copia_preventivo=${id}` : "";
+    // «lavoro:id» è una commessa; «preventivo:id» e «modulo:rst:id» sono preventivi.
+    const origine = copiaDa.startsWith("lavoro:") ? `&copia_da=${copiaDa.slice(7)}` : copiaDa ? `&copia_preventivo=${encodeURIComponent(copiaDa)}` : "";
     vai(`/azienda/ordini/nuovo?customer_id=${clienteId}&customer_name=${encodeURIComponent(nomeCliente)}&contratto=1${origine}`);
   };
   return (
@@ -74,7 +64,7 @@ export function NuovoContrattoClienteDialog({ aperto, onChiudi, clienteId, nomeC
             <select id="copia-righe" className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={copiaDa} onChange={(e) => setCopiaDa(e.target.value)}>
               <option value="">Le scrivo da zero</option>
               {commesse.length > 0 && <optgroup label="Da un suo lavoro">{commesse.map((c) => <option key={c.id} value={`lavoro:${c.id}`}>{nomeCommessa(c)}</option>)}</optgroup>}
-              {preventivi.length > 0 && <optgroup label="Da un suo preventivo">{preventivi.map((q) => <option key={q.id} value={`preventivo:${q.id}`}>{[q.quote_number, q.title, new Date(q.created_at).toLocaleDateString("it-IT")].filter(Boolean).join(" · ")}</option>)}</optgroup>}
+              {preventivi.length > 0 && <optgroup label="Da un suo preventivo">{preventivi.map((q) => <option key={q.valore} value={q.valore}>{q.etichetta}</option>)}</optgroup>}
             </select>
             <p className="text-xs text-muted-foreground">Non serve fare un preventivo nuovo.</p>
           </div>
