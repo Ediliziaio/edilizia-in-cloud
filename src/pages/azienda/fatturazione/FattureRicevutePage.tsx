@@ -1577,8 +1577,10 @@ export default function FattureRicevutePage() {
           ))}
         </div>
         <Card className="max-sm:hidden">
-          <Table>
-            <TableHeader>
+          {/* L'elenco scorre dentro il riquadro: così la barra orizzontale resta
+              a vista anche con migliaia di fatture, e l'intestazione non scappa. */}
+          <Table wrapperClassName="max-h-[70vh] tabella-scorrevole">
+            <TableHeader className="sticky top-0 z-10 bg-card shadow-[0_1px_0_hsl(var(--border))]">
               <TableRow>
                 {puoInBlocco && (
                   <TableHead className="w-8 pr-0">

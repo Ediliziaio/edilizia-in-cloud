@@ -2,13 +2,20 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
-  ({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto">
-      <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
-    </div>
-  ),
-);
+/**
+ * `wrapperClassName` arriva al riquadro che scorre, non alla tabella (09/11/2026).
+ * Serve a dargli un'altezza massima: una tabella larga dentro un elenco lungo
+ * ha la barra di scorrimento orizzontale in fondo a tutte le righe, e con
+ * settemila fatture quella barra sta migliaia di pixel sotto lo schermo.
+ */
+const Table = React.forwardRef<
+  HTMLTableElement,
+  React.HTMLAttributes<HTMLTableElement> & { wrapperClassName?: string }
+>(({ className, wrapperClassName, ...props }, ref) => (
+  <div className={cn("relative w-full overflow-auto", wrapperClassName)}>
+    <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
+  </div>
+));
 Table.displayName = "Table";
 
 const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(

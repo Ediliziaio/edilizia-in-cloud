@@ -591,6 +591,24 @@ html.capacitor [role="button"] {
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { scrollbar-width: none; }
 
+/* Una tabella larga da scorrere a mano (09/11/2026). La barra si vede dove il
+ * sistema la disegna sempre (Windows, Linux, e il Mac impostato su «Mostra
+ * barre di scorrimento: sempre»); sul Mac di serie resta «a sovrapposizione»
+ * e compare appena tocchi il trackpad — questo lo decide il sistema, non il
+ * CSS. Quello che conta è che il riquadro abbia un'altezza sua: altrimenti la
+ * barra orizzontale finisce sotto l'ultima riga, e con settemila fatture non
+ * la raggiunge nessuno. */
+.tabella-scorrevole { scrollbar-width: thin; scrollbar-color: hsl(var(--border)) transparent; }
+.tabella-scorrevole::-webkit-scrollbar { -webkit-appearance: none; width: 10px; height: 10px; }
+.tabella-scorrevole::-webkit-scrollbar-track { background: transparent; }
+.tabella-scorrevole::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+.tabella-scorrevole::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.5); background-clip: content-box; }
+
 /* ──────────────────────────────────────────────────────────────────────────
  * P3.5 — Stampa Cruscotto / Dashboard
  *
