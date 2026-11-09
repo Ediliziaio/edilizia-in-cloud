@@ -120,9 +120,12 @@ function PrimaNotaInner() {
   const periodoScelto = periodiRapidi.find((p) => p.da === fromDate && p.a === toDate)?.value ?? "altro";
   const nFiltriMobile = [direction !== "", autoView !== "tutte", periodoScelto !== "mese"].filter(Boolean).length;
 
+  // Chi cerca un nome non sa in che mese sta: la ricerca guarda tutte le date, non il periodo aperto.
+  const cercaSuTutteLeDate = search.trim() !== "";
+
   const { entries, isLoading, totalCount, totalPages, saldo, isSaldoLoading, monthlyChart, create, remove, fetchAllForExport } = usePrimaNota({
-    fromDate,
-    toDate,
+    fromDate: cercaSuTutteLeDate ? undefined : fromDate,
+    toDate: cercaSuTutteLeDate ? undefined : toDate,
     direction: direction || undefined,
     search,
     isAuto: isAutoFilter,
@@ -347,6 +350,10 @@ function PrimaNotaInner() {
         filtriAttivi={nFiltriMobile}
         onApriFiltri={() => setFiltriMobileAperti(true)}
       />
+
+      {cercaSuTutteLeDate && (
+        <p className="text-xs text-muted-foreground">Stai cercando su tutte le date: il periodo scelto non vale finché c'è testo nella ricerca.</p>
+      )}
 
       {/* Filters */}
       {/* Una riga di filtri senza riquadro attorno; la ricerca non scende sotto
