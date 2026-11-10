@@ -63,7 +63,7 @@ describe("Controllo della lettura prima di registrare una bolla", () => {
 });
 
 it("segnala una partita IVA incompleta senza correggerla o inventarla", () => {
-  const doc = { mittente: { partita_iva: "0075630120" }, righe_merce: [] };
+  const doc = { mittente: { partita_iva: "0075630120" }, righe_merce: [] as unknown[] };
   render(<RigheLetteBolla nomeFile="bolla.pdf" documento={doc} righe={[]} />);
   expect(screen.getByRole("alert")).toHaveTextContent(
     "Partita IVA letta incompleta o non valida",

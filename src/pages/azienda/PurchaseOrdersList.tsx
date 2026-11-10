@@ -925,9 +925,50 @@ export default function PurchaseOrdersList() {
       onClick={() => navigate(`/azienda/ordini-acquisto/${o.id}`)}
     >
       <td className="p-3 font-mono text-xs font-medium">{o.oda_number}</td>
-      <td className="p-3" onClick={e => e.stopPropagation()}>
+      <td className="p-3" onClick={(e) => e.stopPropagation()}>
         <div className="flex flex-wrap items-center gap-1.5">
-          {puoAgire ? <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="sm" className="h-auto gap-1 px-1" disabled={odaMovement.saving || o.status === "annullato"} aria-label={`Gestisci stato ordine ${o.oda_number}`}><QuoteChip variant={STATUS_CHIP_VARIANT[o.status] || "default"}>{STATUS_LABELS[o.status] || o.status}</QuoteChip><ChevronDown className="h-3 w-3" /></Button></DropdownMenuTrigger><DropdownMenuContent align="start" onClick={e => e.stopPropagation()}><DropdownMenuItem onSelect={() => movePurchaseDocument(`oda:${o.id}`, "ordinato")}>Ordine inviato</DropdownMenuItem><DropdownMenuItem onSelect={() => movePurchaseDocument(`oda:${o.id}`, "in_consegna")}>Registra ricezione parziale</DropdownMenuItem><DropdownMenuItem onSelect={() => movePurchaseDocument(`oda:${o.id}`, "consegnato")}>Registra ricezione completa</DropdownMenuItem></DropdownMenuContent></DropdownMenu> : <QuoteChip variant={STATUS_CHIP_VARIANT[o.status] || "default"}>{STATUS_LABELS[o.status] || o.status}</QuoteChip>}
+          {puoAgire ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto gap-1 px-1"
+                  disabled={odaMovement.saving || o.status === "annullato"}
+                  aria-label={`Gestisci stato ordine ${o.oda_number}: ${STATUS_LABELS[o.status] || o.status}`}
+                >
+                  <QuoteChip
+                    variant={STATUS_CHIP_VARIANT[o.status] || "default"}
+                  >
+                    {STATUS_LABELS[o.status] || o.status}
+                  </QuoteChip>
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <DropdownMenuItem
+                  disabled={o.status !== "bozza"}
+                  onSelect={() =>
+                    movePurchaseDocument(`oda:${o.id}`, "ordinato")
+                  }
+                >
+                  Ordine inviato
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => navigate(`/azienda/ordini-acquisto/${o.id}`)}
+                >
+                  Ricezioni e DDT
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <QuoteChip variant={STATUS_CHIP_VARIANT[o.status] || "default"}>
+              {STATUS_LABELS[o.status] || o.status}
+            </QuoteChip>
+          )}
           <VerificationBadge result={o.last_verification?.result} />
         </div>
       </td>

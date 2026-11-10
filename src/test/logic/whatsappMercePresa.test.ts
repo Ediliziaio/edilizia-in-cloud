@@ -48,7 +48,7 @@ describe("la bolla dell'operaio", () => {
     expect(db.tabelle.ddt_document_jobs).toHaveLength(1);
     expect(db.tabelle.ddt_document_jobs[0]).toMatchObject({company_id:"company",created_by:null,employee_id:"emp",order_id:"ordine",status:"queued",source:"whatsapp",files:[{bucket:"ddt-documenti",path:expect.stringMatching(/^company\/null\/[^/]+\/1-originale\.jpg$/)}]});
     expect(db.rpcChiamate).toHaveLength(0); expect(caricati).toHaveLength(1);
-    expect(caricati[0]).toBe(`ddt-documenti:${db.tabelle.ddt_document_jobs[0].files[0].path}`);
+    expect(caricati[0]).toBe(`ddt-documenti:${(db.tabelle.ddt_document_jobs[0].files as Array<{ path: string }>)[0].path}`);
     expect(esito.user_message).toContain("Documenti in ingresso");
     expect(db.scritture.every(w=>w.tabella==="ddt_document_jobs")).toBe(true);
   });

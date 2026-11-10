@@ -8,7 +8,7 @@ vi.mock("../../../supabase/functions/_shared/aiRouter.ts", () => ({
 import { processaDocumento } from "../../../supabase/functions/ddt-documenti-processa/worker";
 const file = new TextEncoder().encode("%PDF-1.7 test scansione");
 const sha = async (bytes: Uint8Array) =>
-  Buffer.from(await webcrypto.subtle.digest("SHA-256", bytes)).toString("hex");
+  Buffer.from(await webcrypto.subtle.digest("SHA-256", new Uint8Array(bytes))).toString("hex");
 let job: Record<string, unknown>,
   updates: Record<string, unknown>[],
   download: ReturnType<typeof vi.fn>,
@@ -37,10 +37,10 @@ beforeEach(async () => {
   };
   download = vi.fn().mockResolvedValue({
     data: { arrayBuffer: async () => file.buffer },
-    error: null,
+    error: null as null,
   });
   db = {
-    rpc: vi.fn().mockResolvedValue({ data: [job], error: null }),
+    rpc: vi.fn().mockResolvedValue({ data: [job], error: null as null }),
     storage: { from: () => ({ download }) },
     from: vi.fn(() => ({
       update: (p: Record<string, unknown>) => {
@@ -50,8 +50,8 @@ beforeEach(async () => {
             filtri[k] = v;
             return chain;
           },
-          select: async () => ({ data: [{ id: "job" }], error: null }),
-          then: (resolve: any) => resolve({ error: null }),
+          select: async () => ({ data: [{ id: "job" }], error: null as null }),
+          then: (resolve: any) => resolve({ error: null as null }),
         };
         return chain;
       },
@@ -109,7 +109,7 @@ it("rifiuta file camuffati e conversioni fuori cartella", async () => {
     data: {
       arrayBuffer: async () => new TextEncoder().encode("MZ eseguibile").buffer,
     },
-    error: null,
+    error: null as null,
   });
   expect((await processaDocumento(db)).stato).toBe("error");
   expect(m.ai).not.toHaveBeenCalled();
@@ -122,7 +122,7 @@ it("rimette in coda gli errori temporanei con backoff, ma termina dopo cinque te
   expect((await processaDocumento(db)).stato).toBe("error");
 });
 it("senza lease disponibile non scarica file e non invoca il modello", async () => {
-  db.rpc.mockResolvedValue({ data: [], error: null });
+  db.rpc.mockResolvedValue({ data: [], error: null as null });
   expect(await processaDocumento(db)).toEqual({ stato: "nessun_lavoro" });
   expect(download).not.toHaveBeenCalled();
   expect(m.ai).not.toHaveBeenCalled();

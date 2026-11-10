@@ -20,12 +20,12 @@ vi.mock("@/hooks/campo/useCampoAssignments", () => ({
   }),
 }));
 vi.mock("@/hooks/useDocumentiDDT", () => ({
-  useDocumentiDDT: () => ({ data: [], refetch: vi.fn() }),
+  useDocumentiDDT: () => ({ data: [] as unknown[], refetch: vi.fn() }),
   STATO_DOCUMENTO: {},
 }));
 vi.mock("@/lib/campo/sync-queue", () => ({
   syncQueue: {
-    getAll: async () => [],
+    getAll: async () => [] as unknown[],
     on: () => () => {},
     enqueue: m.enqueue,
     processQueue: m.process,
@@ -37,7 +37,7 @@ vi.mock("@/lib/ddt/dividiPdf", () => ({
   leggiPerDividere: vi.fn(),
 }));
 vi.mock("@/components/ddt/DividiPdfPannello", () => ({
-  DividiPdfPannello: () => null,
+  DividiPdfPannello: (): null => null,
 }));
 import CampoDDT from "@/pages/campo/CampoDDT";
 beforeEach(() => {

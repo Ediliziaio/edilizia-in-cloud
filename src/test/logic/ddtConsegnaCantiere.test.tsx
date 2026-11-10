@@ -34,11 +34,11 @@ vi.mock("@/integrations/supabase/client", () => ({
             tabella === "ddt_ricezione"
               ? { id: "ddt", ...payload }
               : { id: "magazzino" },
-          error: null,
+          error: null as null,
         }),
-        maybeSingle: async () => ({ data: { id: "magazzino" }, error: null }),
+        maybeSingle: async () => ({ data: { id: "magazzino" }, error: null as null }),
         then: (resolve: (r: unknown) => void) =>
-          Promise.resolve({ data: [], error: null }).then(resolve),
+          Promise.resolve({ data: [], error: null as null }).then(resolve),
       };
       return chain;
     },

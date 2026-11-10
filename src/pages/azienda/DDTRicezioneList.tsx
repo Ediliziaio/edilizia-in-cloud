@@ -937,7 +937,7 @@ export default function DDTRicezioneList() {
             }
           />
           <span>
-            {rows.length} documenti · {pending.length} da registrare
+            {rows.length} {rows.length === 1 ? "documento" : "documenti"} caricati · {pending.length} da registrare
             {focus === "pendenti"
               ? " · Attesi e parziali"
               : focus === "verifica"
@@ -1162,7 +1162,7 @@ export default function DDTRicezioneList() {
                               size="sm"
                               className="h-auto gap-1 px-1"
                               disabled={movement.saving}
-                              aria-label={`Gestisci stato DDT ${ddt.numero_ddt}`}
+                              aria-label={`Gestisci stato DDT ${ddt.numero_ddt}: ${DDT_STATO_META[ddt.stato as keyof typeof DDT_STATO_META]?.label ?? ddt.stato}`}
                             >
                               <DDTStatusBadge stato={ddt.stato} size="sm" />
                               <ChevronDown className="h-3 w-3" />

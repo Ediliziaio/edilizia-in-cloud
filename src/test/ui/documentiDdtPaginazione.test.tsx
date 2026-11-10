@@ -71,7 +71,7 @@ const riga = (n: number, status = "review") => ({
   created_at:
     status === "review" ? "2026-11-09T12:00:00Z" : "2026-11-10T12:00:00Z",
   result: { risposta_ai: "grande" },
-  files: [],
+  files: [] as unknown[],
 });
 beforeEach(() => {
   m.failNext = false;

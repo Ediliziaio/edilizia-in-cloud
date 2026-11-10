@@ -25,7 +25,7 @@ const db = {
         select: () => ({
           single: async () => ({
             data: { id: "nuovo", status: "review" },
-            error: null,
+            error: null as null,
           }),
         }),
       };
@@ -37,17 +37,17 @@ const opts = {
   companyId: "azienda",
   userId: "utente",
   messageId: "messaggio",
-  result: { ddt_number: "42", items: [] },
+  result: { ddt_number: "42", items: [] as unknown[] },
 };
 beforeEach(() => {
   vi.stubGlobal("crypto", webcrypto);
   for (const f of Object.values(m)) f.mockReset();
   m.download.mockResolvedValue({
     data: new Blob(["%PDF-1.7"], { type: "application/pdf" }),
-    error: null,
+    error: null as null,
   });
-  m.upload.mockResolvedValue({ error: null });
-  m.lookup.mockResolvedValue({ data: null, error: null });
+  m.upload.mockResolvedValue({ error: null as null });
+  m.lookup.mockResolvedValue({ data: null, error: null as null });
 });
 afterEach(() => vi.unstubAllGlobals());
 it("conserva una copia identica nell'archivio DDT per gli utenti autorizzati su più aziende", async () => {
@@ -83,7 +83,7 @@ it("non dichiara acquisito il documento se il salvataggio della copia fallisce",
 it("un duplicato riusa il documento senza creare altre copie o nuove letture", async () => {
   m.lookup.mockResolvedValue({
     data: { id: "esistente", status: "review", created_by: "collega" },
-    error: null,
+    error: null as null,
   });
   expect(await acquisisciDdtWhatsapp(db, opts)).toEqual({
     id: "esistente",

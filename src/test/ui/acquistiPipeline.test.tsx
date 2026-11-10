@@ -210,6 +210,16 @@ describe("Commesse › Acquisti: la pipeline", () => {
     expect(screen.queryByRole("region", { name: "Colonna Da ordinare" })).not.toBeInTheDocument();
   });
 
+  it("lo stato è nella seconda colonna e le ricezioni si aprono anche per un ordine già inviato", async () => {
+    disegna("/azienda/ordini?tab=acquisto");
+    const table = screen.getByRole("table", { name: "Elenco ordini d’acquisto" });
+    expect(within(table).getAllByRole("columnheader")[1]).toHaveTextContent("Stato");
+    fireEvent.keyDown(screen.getByRole("button", { name: /^Gestisci stato ordine ODA-1:/ }), { key: "Enter", code: "Enter" });
+    expect(await screen.findByRole("menuitem", { name: "Ordine inviato" })).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Ricezioni e DDT" }));
+    expect(screen.getByTestId("dove")).toHaveTextContent("/azienda/ordini-acquisto/1");
+  });
+
   it("apre sugli acquisti operativi e permette di consultare lo storico", () => {
     disegna();
     expect(

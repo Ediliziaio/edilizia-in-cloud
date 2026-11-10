@@ -425,10 +425,10 @@ describe("Colonne dell’elenco documenti", () => {
         name: "Cantiere: 2,5 mq · Magazzino: 3,25 mq",
       }),
     ).toBeInTheDocument();
-    fireEvent.keyDown(
-      screen.getByRole("button", { name: "Esporta", exact: true }),
-      { key: "Enter", code: "Enter" },
-    );
+    fireEvent.keyDown(screen.getByRole("button", { name: "Esporta" }), {
+      key: "Enter",
+      code: "Enter",
+    });
     fireEvent.click(await screen.findByRole("menuitem", { name: /CSV/ }));
     expect(state.csv).toHaveBeenCalledWith(
       [
@@ -489,7 +489,7 @@ describe("Elenco DDT operativo", () => {
       screen.queryByRole("region", { name: "Riepilogo DDT" }),
     ).not.toBeInTheDocument();
     fireEvent.keyDown(
-      screen.getByRole("button", { name: "Gestisci stato DDT DDT-stato" }),
+      screen.getByRole("button", { name: /^Gestisci stato DDT DDT-stato:/ }),
       { key: "Enter", code: "Enter" },
     );
     fireEvent.click(
@@ -504,7 +504,7 @@ describe("Elenco DDT operativo", () => {
     const base = {
       company_id: "co",
       created_by: "u",
-      order_id: null,
+      order_id: null as string | null,
       source: "whatsapp" as const,
       files: [
         {
@@ -513,7 +513,7 @@ describe("Elenco DDT operativo", () => {
           path: "co/u/originale",
         },
       ],
-      result: null,
+      result: null as Record<string, unknown> | null,
       created_at: "2026-11-10T12:00:00Z",
       updated_at: "2026-11-10T12:00:00Z",
     };

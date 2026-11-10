@@ -193,6 +193,7 @@ jobs:
           src/test/logic/whatsappMercePresa.test.ts
           src/test/logic/whatsappPdfScansione.test.ts
           src/test/ui/campoDdtPersistente.test.tsx
+          src/test/ui/warehouseConsegnaCantiere.test.tsx
           src/test/ui/correggiRigheBolla.test.tsx
           src/test/ui/righeLetteBolla.test.tsx
           src/test/ui/offlineAziendaAttiva.test.tsx
@@ -228,6 +229,7 @@ jobs:
           src/test/logic/marketingPrerenderSlugs.test.ts
           src/test/logic/comparisonCrawlerParity.test.ts
           src/test/logic/prerenderJsonLd.test.ts
+          src/test/logic/prerenderIndexShell.test.ts
           src/test/logic/searchConsoleStructuredData.test.ts
           src/test/logic/prerenderPerIBot.test.ts
 

@@ -110,21 +110,21 @@ it("non espone a un secondo operaio il documento duplicato di un collega", async
 });
 it("riprende una lease scaduta senza duplicare il lavoro vivo e chiude il quinto arresto", async () => {
   await enqueue();
-  const a = (await db.query("select * from ddt_documento_prendi()")).rows[0];
+  const a = (await db.query<{ lease_id: string; attempts: number; status: string }>("select * from ddt_documento_prendi()")).rows[0];
   expect(a).toMatchObject({ attempts: 1, status: "processing" });
   expect(
-    (await db.query("select * from ddt_documento_prendi()")).rows,
+    (await db.query<{ lease_id: string; attempts: number; status: string }>("select * from ddt_documento_prendi()")).rows,
   ).toHaveLength(0);
   await db.exec(
     "update ddt_document_jobs set lease_until=now()-interval '1 minute'",
   );
-  const b = (await db.query("select * from ddt_documento_prendi()")).rows[0];
+  const b = (await db.query<{ lease_id: string; attempts: number; status: string }>("select * from ddt_documento_prendi()")).rows[0];
   expect(b).toMatchObject({ attempts: 2 });
   expect(b.lease_id).not.toBe(a.lease_id);
   await db.exec(
     "update ddt_document_jobs set attempts=5,lease_until=now()-interval '1 minute'",
   );
-  await db.query("select * from ddt_documento_prendi()");
+  await db.query<{ lease_id: string; attempts: number; status: string }>("select * from ddt_documento_prendi()");
   expect(
     (await db.query("select status from ddt_document_jobs")).rows[0],
   ).toEqual({ status: "error" });
@@ -141,7 +141,7 @@ const dati = () => ({
       descrizione: "Materiale senza prezzo",
       quantita: 2.5,
       unita_misura: "mq",
-      prezzo_unitario: null,
+      prezzo_unitario: null as number | null,
     },
   ],
 });

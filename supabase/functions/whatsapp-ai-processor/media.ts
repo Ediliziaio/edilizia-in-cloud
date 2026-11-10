@@ -318,7 +318,7 @@ export async function leggiDocumentoOperativo(
         max_chars: 8000,
       }),
     });
-    const j = await res.json().catch(() => null) as { text?: string; error?: string } | null;
+    const j = await res.json().catch((): null => null) as { text?: string; error?: string } | null;
     if (!res.ok) console.error(JSON.stringify({ level: "error", fn: "leggi_documento_pdf", status: res.status, error: j?.error ?? null }));
     testo = res.ok ? (j?.text ?? "").trim() : "";
   } catch (e) {

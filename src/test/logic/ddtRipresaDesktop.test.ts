@@ -41,7 +41,7 @@ const input = () => ({
   ],
   companyId: "azienda",
   userId: "utente",
-  orderId: null,
+  orderId: null as string | null,
   source: "desktop" as const,
   operationId: "operazione",
   salvaCopiaLocale: true,

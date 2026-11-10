@@ -18,7 +18,7 @@ vi.mock("@/hooks/useDDTRicezione", () => ({
         descrizione: "Rete",
         quantita: 2,
         unita_misura: "mq",
-        prezzo_unitario: null,
+        prezzo_unitario: null as number | null,
       },
     ],
   }),
@@ -109,6 +109,6 @@ it("un errore della ricerca mostra il ritentativo e permette di ricaricare le fa
   apri();
   await screen.findByText(/Fatture non disponibili/);
   m.rpc.mockResolvedValue({ data: [invoice], error: null });
-  fireEvent.click(screen.getByRole("button", { name: "Riprova", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Riprova" }));
   await screen.findByRole("option", { name: /2020-45/ });
 });
