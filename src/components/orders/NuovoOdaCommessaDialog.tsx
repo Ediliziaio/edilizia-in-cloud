@@ -7,8 +7,8 @@ import { condizioniPagamentoFornitore } from "@/lib/documentiOperativi/fornitore
  */
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Package, Plus, Trash2 } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ClipboardList, Loader2, Package, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -30,10 +30,14 @@ import { ODA_ORIGINI, ODA_ORIGINE_INFO, type OdaOrigine } from "@/lib/odaOrigine
 import { formatCurrency } from "@/lib/formatters";
 import { leggiImporto } from "@/lib/fatturazione/quoteOrdini";
 import {
-  erroreNuovoOda, rigaLibera, righeDagliArticoli, righeInOrdine, righePerDatabase, totaliNuovoOda,
+  chiaveVoce, erroreNuovoOda, rigaLibera, righeDaElenco, righeDagliArticoli, righeInOrdine, righePerDatabase, totaliNuovoOda,
   type RigaNuovoOda,
 } from "@/lib/orders/nuovoOdaCommessa";
 import { logger } from "@/utils/logger";
+import { ArticleCombobox, type ArticleTemplateData } from "./ArticleCombobox";
+import { caricaArticoliCatalogo } from "@/lib/listino/catalogoArticoli";
+import { caricaVociListino } from "@/lib/listino/vociListino";
+import { valoriArticoloAcquisto } from "@/lib/orders/articoloAcquisto";
 
 interface Props {
   open: boolean;
@@ -66,6 +70,42 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
   const [note, setNote] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [contatore, setContatore] = useState(1);
+  // «Incolla un elenco»: una cosa per riga, diventano righe dell'ordine.
+  const [elencoAperto, setElencoAperto] = useState(false);
+  const [elenco, setElenco] = useState("");
+
+  // Catalogo e listino prodotti, con le stesse chiavi di cache del menu delle righe:
+  // servono a riconoscere le voci dell'elenco incollato.
+  const catalogo = useQuery({
+    queryKey: ["article-templates", companyId],
+    queryFn: () => caricaArticoliCatalogo(companyId!),
+    enabled: open && !!companyId,
+  });
+  const listino = useQuery({
+    queryKey: ["article-combobox-listino", companyId],
+    queryFn: () => caricaVociListino(companyId!),
+    enabled: open && !!companyId,
+  });
+  const perNome = useMemo(() => {
+    const m = new Map<string, ArticleTemplateData>();
+    for (const t of [...(listino.data ?? []), ...(catalogo.data ?? [])]) m.set(chiaveVoce(t.name), t);
+    return m;
+  }, [catalogo.data, listino.data]);
+  const daElenco = useMemo(() => righeDaElenco(elenco), [elenco]);
+  const aggiungiElenco = () => {
+    const nuove = daElenco.map((r, i) => {
+      const t = perNome.get(chiaveVoce(r.description));
+      const base = rigaLibera(`libera:${contatore + i}`);
+      if (!t) return { ...base, ...r };
+      const v = valoriArticoloAcquisto(t);
+      return { ...base, ...r, description: t.name, unit_of_measure: r.unit_of_measure !== "pz" ? r.unit_of_measure : v.unit_of_measure,
+        unit_price: v.unit_price, price_pending: !(v.unit_price > 0), vat_rate: v.vat_rate };
+    });
+    setLibere((rr) => [...rr, ...nuove]);
+    setContatore((c) => c + nuove.length);
+    setElenco("");
+    setElencoAperto(false);
+  };
 
   const attivi = useMemo(() => suppliers.filter((s) => s.is_active), [suppliers]);
   const nomeFornitore = useMemo(() => new Map(suppliers.map((s) => [s.id, s.name])), [suppliers]);
@@ -81,6 +121,7 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
     if (salvando) return;
     if (!v) {
       setOrigine(null); setFornitore(null); setModifiche({}); setLibere([]); setConsegna(""); setRiferimento(""); setNote("");
+      setElenco(""); setElencoAperto(false);
     }
     onOpenChange(v);
   };
@@ -229,16 +270,41 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
         <section className="space-y-2">
           <div className="flex items-baseline justify-between gap-2">
             <Label>Altre righe</Label>
-            <Button type="button" size="sm" variant="outline" onClick={() => { setLibere((rr) => [...rr, rigaLibera(`libera:${contatore}`)]); setContatore((c) => c + 1); }}>
-              <Plus className="h-3.5 w-3.5 mr-1" /> Aggiungi riga
-            </Button>
+            <div className="flex gap-2">
+              <Button type="button" size="sm" variant="outline" onClick={() => setElencoAperto((v) => !v)} aria-expanded={elencoAperto}>
+                <ClipboardList className="h-3.5 w-3.5 mr-1" /> Incolla un elenco
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => { setLibere((rr) => [...rr, rigaLibera(`libera:${contatore}`)]); setContatore((c) => c + 1); }}>
+                <Plus className="h-3.5 w-3.5 mr-1" /> Aggiungi riga
+              </Button>
+            </div>
           </div>
+          {elencoAperto && (
+            <div className="space-y-2 rounded-md border bg-slate-50 p-3">
+              <Label htmlFor="nuovo-oda-elenco" className="text-xs text-muted-foreground">
+                Una cosa per riga, con la quantità davanti o in fondo: «10 sacchi cemento», «tubo 32 x 5», «2,5 mq rete».
+                Le voci con lo stesso nome di un prodotto del listino prendono unità e prezzo da lì.
+              </Label>
+              <Textarea id="nuovo-oda-elenco" rows={5} value={elenco} onChange={(e) => setElenco(e.target.value)}
+                placeholder={"10 sacchi cemento 32,5\n5 pz tubo pvc 32\nsilicone trasparente x 6"} />
+              <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                <span>{daElenco.length} {daElenco.length === 1 ? "riga" : "righe"}{daElenco.length > 0 ? ` · ${daElenco.filter((r) => perNome.has(chiaveVoce(r.description))).length} dal listino` : ""}</span>
+                <div className="flex gap-2">
+                  <Button type="button" size="sm" variant="ghost" onClick={() => { setElenco(""); setElencoAperto(false); }}>Annulla</Button>
+                  <Button type="button" size="sm" onClick={aggiungiElenco} disabled={daElenco.length === 0}>
+                    Aggiungi {daElenco.length || ""} {daElenco.length === 1 ? "riga" : "righe"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
           {libere.length > 0 && (
             <div className="divide-y rounded-md border">
               {libere.map((r) => (
                 <RigaModificabile
                   key={r.key}
                   riga={r}
+                  fornitore={fornitore}
                   onCambia={(p) => cambia(r.key, p)}
                   onTogli={() => setLibere((rr) => rr.filter((x) => x.key !== r.key))}
                 />
@@ -279,34 +345,29 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
 }
 
 function RigaModificabile({
-  riga, conSpunta, nota, onCambia, onTogli,
+  riga, conSpunta, nota, fornitore, onCambia, onTogli,
 }: {
   riga: RigaNuovoOda;
   conSpunta?: boolean;
   nota?: string | null;
+  /** Per le righe libere: il fornitore scelto, i suoi articoli in cima al menu. */
+  fornitore?: string | null;
   onCambia: (p: Partial<RigaNuovoOda>) => void;
   onTogli?: () => void;
 }) {
   const [qta, setQta] = useState(numeroTesto(riga.quantity));
   const [prezzo, setPrezzo] = useState(riga.price_pending ? "" : numeroTesto(riga.unit_price));
   const spenta = conSpunta && !riga.scelta;
-  return (
-    <div className={`flex flex-wrap items-center gap-2 px-3 py-2 text-sm ${spenta ? "opacity-60" : ""}`}>
-      {conSpunta && (
-        <Checkbox
-          checked={riga.scelta}
-          aria-label={`Ordina ${riga.description}`}
-          onCheckedChange={(v) => onCambia({ scelta: v === true })}
-        />
-      )}
-      <div className="min-w-[10rem] flex-1">
-        {conSpunta ? (
-          <p className="font-medium">{riga.description}</p>
-        ) : (
-          <Input aria-label="Descrizione" placeholder="Cosa ordini" value={riga.description} onChange={(e) => onCambia({ description: e.target.value })} />
-        )}
-        {nota && <p className="text-xs text-amber-700">{nota}</p>}
-      </div>
+  // Riga libera: si cerca nel listino prodotti e nel catalogo, oppure si scrive la voce.
+  const scegli = (nome: string, t?: ArticleTemplateData) => {
+    if (!t) { onCambia({ description: nome }); return; }
+    const v = valoriArticoloAcquisto(t);
+    const attesa = !(v.unit_price > 0);
+    setPrezzo(attesa ? "" : numeroTesto(v.unit_price));
+    onCambia({ description: nome, unit_of_measure: v.unit_of_measure, unit_price: v.unit_price, price_pending: attesa, vat_rate: v.vat_rate });
+  };
+  const campi = (
+    <>
       <Input
         aria-label={`Quantità di ${riga.description || "riga"}`}
         inputMode="decimal"
@@ -324,7 +385,7 @@ function RigaModificabile({
       <Input
         aria-label={`Prezzo di ${riga.description || "riga"}`}
         inputMode="decimal"
-        className="h-8 w-24 text-right tabular-nums"
+        className="h-8 w-28 text-right tabular-nums"
         value={prezzo}
         placeholder="Da confermare"
         onChange={(e) => { setPrezzo(e.target.value); onCambia({ unit_price: leggiImporto(e.target.value), price_pending: e.target.value.trim() === "" }); }}
@@ -335,6 +396,38 @@ function RigaModificabile({
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
       )}
+    </>
+  );
+  if (!conSpunta) {
+    // Riga libera su due piani: la descrizione intera sopra (va a capo, si legge tutta), i numeri sotto.
+    return (
+      <div className="space-y-2 px-3 py-2 text-sm">
+        <ArticleCombobox
+          value={riga.description}
+          modalita="acquisto"
+          includeListino
+          salvaNuoviNelCatalogo={false}
+          preferredSupplierId={fornitore ?? undefined}
+          onValueChange={scegli}
+          placeholder="Cerca nel listino prodotti o scrivi cosa ordini…"
+        />
+        {nota && <p className="text-xs text-amber-700">{nota}</p>}
+        <div className="flex flex-wrap items-center justify-end gap-2">{campi}</div>
+      </div>
+    );
+  }
+  return (
+    <div className={`flex flex-wrap items-center gap-2 px-3 py-2 text-sm ${spenta ? "opacity-60" : ""}`}>
+      <Checkbox
+        checked={riga.scelta}
+        aria-label={`Ordina ${riga.description}`}
+        onCheckedChange={(v) => onCambia({ scelta: v === true })}
+      />
+      <div className="min-w-[10rem] flex-1">
+        <p className="font-medium break-words">{riga.description}</p>
+        {nota && <p className="text-xs text-amber-700">{nota}</p>}
+      </div>
+      {campi}
     </div>
   );
 }

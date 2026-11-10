@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { caricaVociListino } from "@/lib/listino/vociListino";
+import { caricaArticoliCatalogo } from "@/lib/listino/catalogoArticoli";
 import { formatCurrency } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
 import {
@@ -88,16 +89,7 @@ export function ArticleCombobox({
 
   const { data: templates = [], isLoading: loadingCatalogo, isError: erroreCatalogo } = useQuery({
     queryKey: ["article-templates", companyId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("article_templates")
-        .select("id, name, sku, category, unit_price, standard_cost, unit_of_measure, vat_rate, supplier_id, description, immagine_url, pdf_scheda_url")
-        .eq("company_id", companyId!)
-        .eq("attivo", true)
-        .order("name");
-      if (error) throw error;
-      return data as ArticleTemplateData[];
-    },
+    queryFn: () => caricaArticoliCatalogo(companyId!),
     enabled: !!companyId,
   });
 

@@ -142,3 +142,72 @@ export function righePerDatabase(
     sort_order: i,
   }));
 }
+
+/** Come si scrivono le unità in un elenco a mano, verso quelle dell'ordine. */
+const SINONIMI_UNITA: Record<string, string> = {
+  pz: "pz", pezzo: "pz", pezzi: "pz", n: "pz", nr: "pz", "n.": "pz", "nr.": "pz",
+  ml: "ml", m: "ml", mt: "ml", metri: "ml", metro: "ml",
+  mq: "mq", m2: "mq", "m²": "mq",
+  mc: "mc", m3: "mc", "m³": "mc",
+  kg: "kg", q: "q", t: "t", l: "l", lt: "l", litri: "l",
+  h: "h", ore: "h", gg: "gg", giorni: "gg",
+  conf: "conf", confezioni: "conf", sacco: "conf", sacchi: "conf", rotolo: "conf", rotoli: "conf",
+  bancale: "conf", bancali: "conf", scatola: "conf", scatole: "conf", secchio: "conf", secchi: "conf",
+};
+/** Le unità «a confezione» che vale la pena tenere scritte nella descrizione (10 sacchi, non 10 conf). */
+const CONFEZIONI = new Set(["sacco", "sacchi", "rotolo", "rotoli", "bancale", "bancali", "scatola", "scatole", "secchio", "secchi"]);
+
+export interface RigaDaElenco {
+  description: string;
+  quantity: number;
+  unit_of_measure: string;
+}
+
+/**
+ * Un elenco scritto o incollato, una cosa per riga, diventa righe d'ordine (10/11/2026).
+ * Si leggono «10 sacchi cemento 32,5», «5 pz tubo 32», «- 2,5 mq rete», «cemento x 10» e
+ * «tubo 32 (5 pz)»: quantità e unità all'inizio, oppure in fondo; quello che non si
+ * capisce resta tutto descrizione, con quantità 1. Righe vuote e titoli («Materiali:») si saltano.
+ */
+export function righeDaElenco(testo: string): RigaDaElenco[] {
+  const out: RigaDaElenco[] = [];
+  const numero = (s: string) => Number(s.replace(/\./g, "").replace(",", "."));
+  for (const grezza of testo.split(/\r?\n/)) {
+    let riga = grezza.replace(/^\s*(?:[-*•·]|\d+[.)](?=\s))\s*/, "").trim();
+    if (!riga || /:$/.test(riga)) continue;
+    let quantita = 1;
+    let unita = "pz";
+    let tieniUnita = "";
+    // In testa: «10 sacchi cemento», «10x cemento», «2,5 mq rete».
+    // Un numero in testa è sempre la quantità; la parola dopo è l'unità solo se è un'unità.
+    let m = riga.match(/^(\d+(?:[.,]\d+)?)\s*(?:x\s+)?(\S.*)$/i);
+    if (m) {
+      quantita = numero(m[1]);
+      riga = m[2].trim();
+      const primo = riga.match(/^([a-zA-Z²³.]+)\s+(.+)$/);
+      const u = primo?.[1].toLowerCase();
+      if (primo && u && SINONIMI_UNITA[u] !== undefined) {
+        unita = SINONIMI_UNITA[u];
+        if (CONFEZIONI.has(u)) tieniUnita = primo[1];
+        riga = primo[2].trim();
+      }
+    } else {
+      // In fondo: «cemento x 10», «tubo 32 (5 pz)», «rete 2,5 mq».
+      m = riga.match(/^(.+?)\s*(?:[x×]\s*|\(\s*)?(\d+(?:[.,]\d+)?)\s*([a-zA-Z²³.]+)?\s*\)?$/);
+      const u = m?.[3]?.toLowerCase();
+      const conSegno = !!m && /[x×(]\s*\d/.test(riga.slice(m[1].length));
+      if (m && (u ? SINONIMI_UNITA[u] !== undefined : conSegno)) {
+        quantita = numero(m[2]);
+        if (u) { unita = SINONIMI_UNITA[u]; if (CONFEZIONI.has(u)) tieniUnita = m[3]; }
+        riga = m[1].trim();
+      }
+    }
+    if (!(quantita > 0)) quantita = 1;
+    const descrizione = (tieniUnita ? `${tieniUnita} ${riga}` : riga).replace(/\s+/g, " ").trim();
+    if (descrizione) out.push({ description: descrizione, quantity: quantita, unit_of_measure: unita });
+  }
+  return out;
+}
+
+/** Il nome per riconoscere una voce del listino: minuscole, senza spazi doppi e punteggiatura ai bordi. */
+export const chiaveVoce = (s: string) => s.toLowerCase().replace(/\s+/g, " ").replace(/^[\s.,;:-]+|[\s.,;:-]+$/g, "");
