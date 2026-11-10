@@ -605,10 +605,9 @@ export default function SubappaltatoreDetail() {
     stato: 'ricevuto' as StatoSALSub,
   });
 
-  // DURC bloccante: senza documento valido niente nuovi SAL e niente
-  // pagamenti. Gli alert c'erano già ma erano solo grafica — e il sito
-  // promette il "blocco automatico con DURC non valido".
-  const durcBloccante = (): string | null => {
+  // DURC: un AVVISO, non un blocco (Florin, 10/11/2026: «il DURC non deve bloccare i SAL»). Si vede
+  // nella finestra del SAL e dopo il salvataggio; SAL e pagamenti si registrano comunque.
+  const avvisoDurc = (): string | null => {
     const daDocumenti = [
       ...documenti.filter((d) => d.tipo === 'durc' && d.data_scadenza).map((d) => d.data_scadenza as string),
       ...documentiCompliance.filter((d) => d.tipo === 'durc' && d.scadenza).map((d) => d.scadenza as string),
@@ -618,10 +617,10 @@ export default function SubappaltatoreDetail() {
     // sulla scheda è rimasta la data vecchia (prima vinceva sempre la scheda e SAL e pagamenti restavano bloccati).
     const tutte = [...(sub?.durc_scadenza ? [sub.durc_scadenza] : []), ...daDocumenti].sort();
     const scad = tutte.length ? tutte[tutte.length - 1] : null;
-    if (!scad) return 'DURC mancante: carica il DURC con la data di scadenza prima di procedere.';
+    if (!scad) return 'DURC mancante: il SAL si registra, ma chiedi il DURC alla ditta e caricalo con la data di scadenza.';
     const oggi = new Date(); oggi.setHours(0, 0, 0, 0);
     if (new Date(scad) < oggi) {
-      return `DURC scaduto il ${new Date(scad).toLocaleDateString('it-IT')}: rinnovalo prima di procedere.`;
+      return `DURC scaduto il ${new Date(scad).toLocaleDateString('it-IT')}: il SAL si registra, ma chiedi alla ditta il DURC nuovo.`;
     }
     return null;
   };
@@ -630,8 +629,6 @@ export default function SubappaltatoreDetail() {
   const saveSalMutation = useMutation({
     mutationFn: async () => {
       if (!contratto?.id) throw new Error('Contratto non trovato');
-      const bloccoDurc = durcBloccante();
-      if (bloccoDurc) throw new Error(bloccoDurc);
       const importoLordo = parseDecimalIT(salForm.importo_lordo);
       if (!(importoLordo > 0)) throw new Error('Scrivi l\'importo del SAL');
       // Lo 0% è una ritenuta valida: prima `|| 5` la trasformava in 5%.
@@ -651,6 +648,8 @@ export default function SubappaltatoreDetail() {
     },
     onSuccess: () => {
       toast.success('SAL e relativa garanzia registrati');
+      const durc = avvisoDurc();
+      if (durc) toast.warning(durc);
       setSalRichiestaId(crypto.randomUUID());
       if (contratto?.order_id) void queryClient.invalidateQueries({ queryKey: ['order-subcontract-statistics', contratto.order_id, companyId] });
       queryClient.invalidateQueries({ queryKey: ['sal-sub', contratto?.id] });
@@ -1346,6 +1345,9 @@ export default function SubappaltatoreDetail() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {avvisoDurc() && (
+              <p role="status" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">{avvisoDurc()}</p>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>N. SAL</Label>

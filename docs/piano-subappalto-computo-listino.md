@@ -326,7 +326,7 @@ in bozza di Dimora con due varianti, che è il caso «corrispettivo ≠ tabella�
 - SAL: «Approva» e «Contesta» solo dagli stati giusti (un SAL pagato non torna indietro); dopo la
   contestazione il registro ritenute si rilegge.
 
-**Pronta ma NON applicata (serve il via di Florin):** la migrazione con le stesse protezioni nel
+**Applicata il 10/11/2026 sera col via di Florin** (`20290213235000` + correzione `20290213235100`: le funzioni di trigger devono girare con l'identità di chi scrive, altrimenti il controllo «scrive il browser?» non scatta mai; provato: 12 casi su 12, pagamento SAL e variante passano). Era la migrazione con le stesse protezioni nel
 database — il controllo automatico l'ha fermata perché tocca regole di accesso in produzione. Il file
 è nella cartella delle note della sessione (`20290213220000_subappalto_protezioni.DA_APPROVARE.sql`),
 fuori da `supabase/migrations/` perché al push si applicherebbe da sola. Contiene: contratto firmato e
@@ -336,8 +336,9 @@ sulla fase scrivibili da chi ha commesse + costi (oggi solo l'amministratore: pe
 «Assegna ditte e costi» non salva).
 
 **Decisioni per Florin:**
-- DURC: oggi blocca solo il SAL scritto a mano. Bloccarlo anche nei SAL dalle misure e nei pagamenti
-  fermerebbe subito Bonarrigo (14 contratti aperti, nessun DURC caricato).
+- DURC — **deciso da Florin (10/11/2026): non blocca niente**. Il blocco sul SAL scritto a mano è
+  diventato un avviso (nella finestra del SAL e dopo il salvataggio). Nota: alcune pagine del sito
+  dicono ancora «pagamenti bloccati con DURC scaduto» (GestioneSubappalti, RitenuteGaranzia, blog).
 - 14 ritenute di Bonarrigo del 06/11 (146.158,52 €) senza commessa, mentre il loro contratto ce l'ha:
   da ricollegare (dati del cliente, registro fiscale).
 - Reinvio in firma: il link vecchio si annulla prima di sapere se il nuovo parte; per invertirlo serve
