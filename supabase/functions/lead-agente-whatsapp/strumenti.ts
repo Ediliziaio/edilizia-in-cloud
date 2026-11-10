@@ -304,6 +304,26 @@ const orariLiberi: Strumento = {
     }
     const calendari = showroom ? showroom.calendari : [ctx.config.calendarioId];
 
+    // Un calendario a cui nessuno ha impostato gli orari di apertura non può
+    // dare un appuntamento, mai, e non è la stessa cosa di «è pieno». Il
+    // 10/11/2026 erano 21 calendari attivi su tutta la piattaforma, tre con
+    // una pagina di prenotazione pubblica. Senza questo controllo l'assistente
+    // dice al cliente che non c'è posto e nessuno scopre che manca un
+    // orario di apertura.
+    const { data: finestre } = await ctx.admin
+      .from("marketing_calendar_availability")
+      .select("calendar_id")
+      .in("calendar_id", calendari).eq("is_enabled", true).limit(1);
+    if (!finestre?.length) {
+      return {
+        ok: false,
+        errore: "calendario_senza_orari",
+        messaggio: showroom
+          ? `Nessuno ha impostato gli orari di apertura dei calendari dello showroom di ${showroom.nome}: non dire al cliente che è pieno. Usa passa_a_operatore dicendo che il calendario non ha orari.`
+          : "Nessuno ha impostato gli orari di apertura del calendario delle chiamate: non dire al cliente che è pieno. Usa passa_a_operatore dicendo che il calendario non ha orari.",
+      };
+    }
+
     const chiusure = await giorniDiChiusura(ctx);
     const [y, m, d] = primo.split("-").map(Number);
     const giorni: Array<{ data: string; giorno: string; orari: string[]; orari_totali: number }> = [];
