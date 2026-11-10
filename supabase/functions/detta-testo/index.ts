@@ -1,3 +1,4 @@
+// 10/11/2026: ripubblicata per _shared/quoteTemplateComposer, contrattoStandard e punteggiatura (niente doppio punto).
 // detta-testo — «Detta e ripulisci» (07/11/2026).
 //
 // Chi detta dal telefono parla come capita: qui l'audio diventa testo pulito

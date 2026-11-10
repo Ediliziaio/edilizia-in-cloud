@@ -1,3 +1,4 @@
+// 10/11/2026: ripubblicata per _shared/quoteTemplateComposer, contrattoStandard e punteggiatura (niente doppio punto).
 // supabase/functions/meta-capi-send-event/index.ts
 //
 // Server-side Conversions API per Meta — risolve la perdita di attribuzione

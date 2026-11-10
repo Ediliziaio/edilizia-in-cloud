@@ -1,3 +1,4 @@
+// 10/11/2026: ripubblicata per _shared/quoteTemplateComposer, contrattoStandard e punteggiatura (niente doppio punto).
 // 09/11/2026: il renderer comune stampa la veste propria dell'azienda (logo e piè). Questo commento fa ripubblicare la funzione.
 // 10/11/2026: il piè di Impresa Vulcano con le righe dell'esempio del titolare (personalizzazioneDocumenti). Rimpicciolito lo stesso giorno. Anche questo fa ripubblicare.
 // 06/11/2026: il preventivo generico non porta più i blocchi raccontati di «ristrutturazione» (copertina,

@@ -1,3 +1,4 @@
+// 10/11/2026: ripubblicata per _shared/quoteTemplateComposer, contrattoStandard e punteggiatura (niente doppio punto).
 /**
  * genera-contratto-ai — FASE B.1
  * (07/11/2026: ripubblicata per il modulo condiviso _shared/condizioniArchivio.ts, cambiato.)

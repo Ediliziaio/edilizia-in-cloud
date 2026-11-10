@@ -1,3 +1,4 @@
+// 10/11/2026: ripubblicata per _shared/quoteTemplateComposer, contrattoStandard e punteggiatura (niente doppio punto).
 // 10/11/2026: il piè di Impresa Vulcano con le righe dell'esempio del titolare (fvHtmlTemplate). Rimpicciolito lo stesso giorno. Questo commento fa ripubblicare la funzione.
 /**
  * Edge Function: fv-genera-pdf v2 (Reonic-killer)
