@@ -40,6 +40,7 @@ import { caricaDatiSocietari, righeSocietarie } from "../../../supabase/function
 import { clausoleArchivioDelContratto, totaleElencoLavori, unisciArticoliPersonalizzati, type DatiContrattoSubappalto, type RigaElencoLavori } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
 import { OfficeSelect } from "./OfficeSelect";
 import { AbbinaListinoDialog } from "./AbbinaListinoDialog";
+import { AffidaVociDialog } from "./AffidaVociDialog";
 
 // Tabelle recenti, non ancora tutte nei tipi generati.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -146,6 +147,7 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
   const [scelte, setScelte] = useState<Record<string, string>>({});
   const [vociAperte, setVociAperte] = useState<string | null>(null);
   const [abbinaAperto, setAbbinaAperto] = useState(false);
+  const [affidaAperto, setAffidaAperto] = useState(false);
   const invalida = () => {
     void qc.invalidateQueries({ queryKey: ["ditte-contratti-commessa", companyId, orderId] });
     void qc.invalidateQueries({ queryKey: chiaveVociPreviste(companyId, orderId) });
@@ -217,6 +219,17 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
 
   return (
     <div className="space-y-5">
+      {listaVoci.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border px-3 py-2 text-sm">
+          <span className="min-w-0 flex-1">Chi fa cosa: affida fasi o singole voci alle ditte, anche dividendo la quantità, col prezzo del loro listino.</span>
+          <Button size="sm" onClick={() => setAffidaAperto(true)}>Affida le voci alle ditte</Button>
+        </div>
+      )}
+      {affidaAperto && (
+        <AffidaVociDialog orderId={orderId} companyId={companyId} fasi={d.fasi}
+          voci={listaVoci.map((v) => ({ id: v.id, phase_id: v.phase_id, descrizione: v.descrizione, unita: v.unita, quantita: v.quantita, importo: v.importo, costo_materiali: v.costo_materiali }))}
+          onChiudi={() => setAffidaAperto(false)} onCambio={invalida} />
+      )}
       {tariffe.isError && (
         <p role="alert" className="text-sm text-destructive">
           Il listino manodopera non si è caricato: senza, non si aggiungono voci e non si collegano al listino.{" "}
