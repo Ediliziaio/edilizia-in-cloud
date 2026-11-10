@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { partiPerCategoria } from "@/lib/costi/partiPerCategoria";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { calculateNetFromGross } from "@/lib/vatUtils";
@@ -69,7 +70,7 @@ export function useBreakEvenHistorical() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_costs")
-        .select("amount, category, recurrence, vat_rate")
+        .select("amount, category, recurrence, vat_rate, ripartizione_categorie")
         .eq("company_id", companyId!)
         .eq("cost_type", "fixed");
       if (error) throw error;
@@ -102,8 +103,10 @@ export function useBreakEvenHistorical() {
     const vat = cost.vat_rate ?? 22;
     const { netAmount } = calculateNetFromGross(cost.amount, vat);
     const monthly = netAmount * recurrenceMultiplier(cost.recurrence);
-    const cat = cost.category || "Altro";
-    fixedCostsMonthlyByCat.set(cat, (fixedCostsMonthlyByCat.get(cat) || 0) + monthly);
+    for (const p of partiPerCategoria(cost, monthly)) {
+      const cat = p.categoria || "Altro";
+      fixedCostsMonthlyByCat.set(cat, (fixedCostsMonthlyByCat.get(cat) || 0) + p.importo);
+    }
   });
   const totalFixedCostsMonthly =
     Array.from(fixedCostsMonthlyByCat.values()).reduce((s, v) => s + v, 0) +

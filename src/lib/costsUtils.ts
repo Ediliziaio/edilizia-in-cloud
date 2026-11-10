@@ -29,6 +29,8 @@ export interface UnifiedCost {
   supplierName?: string | null;
   vat_rate?: number | null;
   supplier_id?: string;
+  /** Divisione per categoria dalla fattura (conti per riga): vedi lib/costi/partiPerCategoria. */
+  ripartizione_categorie?: unknown;
 }
 
 /** Transform order items into unified cost format (handles split payments) */

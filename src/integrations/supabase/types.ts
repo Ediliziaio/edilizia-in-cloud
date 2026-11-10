@@ -21235,6 +21235,7 @@ export type Database = {
           recurrence: string
           recurrence_auto: boolean
           recurrence_end_date: string | null
+          ripartizione_categorie: Json
           sede_id: string | null
           supplier_id: string | null
           ticket_id: string | null
@@ -21267,6 +21268,7 @@ export type Database = {
           recurrence?: string
           recurrence_auto?: boolean
           recurrence_end_date?: string | null
+          ripartizione_categorie?: Json
           sede_id?: string | null
           supplier_id?: string | null
           ticket_id?: string | null
@@ -21299,6 +21301,7 @@ export type Database = {
           recurrence?: string
           recurrence_auto?: boolean
           recurrence_end_date?: string | null
+          ripartizione_categorie?: Json
           sede_id?: string | null
           supplier_id?: string | null
           ticket_id?: string | null
@@ -36787,6 +36790,7 @@ export type Database = {
           purchase_order_id: string | null
           riepilogo_iva: Json | null
           righe: Json | null
+          conti_righe: Json
           sdi_id_trasmissione: string | null
           sdi_progressivo: string | null
           sottocategoria_ai: string | null
@@ -36835,6 +36839,7 @@ export type Database = {
           purchase_order_id?: string | null
           riepilogo_iva?: Json | null
           righe?: Json | null
+          conti_righe?: Json
           sdi_id_trasmissione?: string | null
           sdi_progressivo?: string | null
           sottocategoria_ai?: string | null
@@ -36883,6 +36888,7 @@ export type Database = {
           purchase_order_id?: string | null
           riepilogo_iva?: Json | null
           righe?: Json | null
+          conti_righe?: Json
           sdi_id_trasmissione?: string | null
           sdi_progressivo?: string | null
           sottocategoria_ai?: string | null

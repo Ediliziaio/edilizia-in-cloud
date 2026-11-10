@@ -7,6 +7,7 @@
 // GIÀ imponibili in tutta l'app): terzo margine diverso sulle stesse commesse.
 // Ora un margine solo, ovunque.
 // ============================================================================
+import { partiPerCategoria } from "@/lib/costi/partiPerCategoria";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
@@ -141,7 +142,7 @@ export function useMarginData(): MarginData {
       // A pagine (08/11/2026): oltre mille costi fissi PostgREST tagliava in silenzio.
       return readAllOrderRows((from, to) => supabase
         .from("company_costs")
-        .select("id, amount, category, recurrence, recurrence_end_date, allocations, quota_magazzino")
+        .select("id, amount, category, recurrence, recurrence_end_date, allocations, quota_magazzino, ripartizione_categorie")
         .eq("company_id", companyId!)
         .eq("cost_type", "fixed")
         // Un costo con order_id è già nel consuntivo diretto della commessa:
@@ -244,8 +245,10 @@ export function useMarginData(): MarginData {
   const fixedCostsByCategory = new Map<string, number>();
   (fixedCostsRaw || []).forEach(cost => {
     const monthly = quotaNonRipartita(cost.amount, cost.allocations, cost.quota_magazzino) * recurrenceMultiplier(cost.recurrence);
-    const cat = cost.category || "Altro";
-    fixedCostsByCategory.set(cat, (fixedCostsByCategory.get(cat) || 0) + monthly);
+    for (const p of partiPerCategoria(cost, monthly)) {
+      const cat = p.categoria || "Altro";
+      fixedCostsByCategory.set(cat, (fixedCostsByCategory.get(cat) || 0) + p.importo);
+    }
   });
 
   const fixedCosts: FixedCostBreakdown[] = Array.from(fixedCostsByCategory.entries())

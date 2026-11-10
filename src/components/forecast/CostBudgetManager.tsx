@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { partiPerCategoria } from "@/lib/costi/partiPerCategoria";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, startOfMonth } from "date-fns";
 import { it } from "date-fns/locale";
@@ -110,8 +111,11 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted, soloLettu
       if (!c.due_date) return;
       const d = new Date(c.due_date);
       if (d >= monthStart && d <= monthEnd) {
-        const cat = c.category || "Altro";
-        map.set(cat, (map.get(cat) || 0) + Number(c.amount));
+        // Una fattura divisa per categoria (conti per riga) si conta per parti.
+        for (const p of partiPerCategoria(c, Number(c.amount))) {
+          const cat = p.categoria || "Altro";
+          map.set(cat, (map.get(cat) || 0) + p.importo);
+        }
       }
     });
     return map;
