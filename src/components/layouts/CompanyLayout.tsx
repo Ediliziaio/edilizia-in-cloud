@@ -1,4 +1,5 @@
-import { Link, Navigate, Outlet, useNavigate, useLocation } from "react-router-dom";
+import { Link, Navigate, useNavigate, useLocation } from "react-router-dom";
+import { CompanyPageOutlet } from "./CompanyPageOutlet";
 import { useContabilitaGeneraleAttiva } from "@/components/contabilita/ContabilitaInCasa";
 import { SoftphoneProvider } from "@/components/telephony/SoftphoneProvider";
 import { navigateToSubdomain } from "@/utils/subdomainNav";
@@ -1829,7 +1830,7 @@ export function CompanyLayout() {
                 <SoftphoneProvider>
                   {effectiveCompany?.management_mode === "accounting" && !isCompanyPathAvailable("accounting", location.pathname)
                     ? <Navigate to={accountingHome(permissions)} replace />
-                    : <Outlet />}
+                    : <CompanyPageOutlet />}
                 </SoftphoneProvider>
               </Suspense>
             </ErrorBoundary>

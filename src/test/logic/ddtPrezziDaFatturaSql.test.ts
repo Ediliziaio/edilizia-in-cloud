@@ -53,6 +53,18 @@ beforeAll(async () => {
       "utf8",
     ),
   );
+  await db.exec(
+    readFileSync(
+      "supabase/migrations/20290214180000_ddt_ricerca_fatture_fornitore.sql",
+      "utf8",
+    ),
+  );
+  await db.exec(
+    readFileSync(
+      "supabase/migrations/20290214190000_ddt_fatture_piva_normalizzata.sql",
+      "utf8",
+    ),
+  );
 }, 60000);
 beforeEach(async () => {
   await db.exec(`truncate ddt_valorizzazioni,fattura_ddt,fatture_ricevute,ddt_consegne,ddt_operazioni_consegna,ddt_document_jobs,ddt_righe,ddt_ricezione,purchase_order_items,purchase_orders,order_items,warehouse_movements,warehouse_stock,warehouses,orders,suppliers,profiles,companies cascade;
@@ -256,4 +268,60 @@ it("mescola il nuovo lotto valorizzato con la giacenza storica senza riscriverne
       )
     ).rows,
   ).toEqual([{ prezzo: 20 }, { prezzo: 12 }]);
+});
+
+it("trova la fattura del fornitore anche oltre le ultime mille fatture dell'azienda, per numero e data italiana", async () => {
+  await db.exec(
+    `update fatture_ricevute set data_fattura='2020-01-02';insert into fatture_ricevute(id,company_id,fornitore_id,numero_fattura,data_fattura) select gen_random_uuid(),'${c}',null,'ALTRO-'||n,'2026-11-10' from generate_series(1,1100) n`,
+  );
+  expect(
+    (
+      await db.query(
+        "select id from(select id from fatture_ricevute order by data_fattura desc limit 1000) vecchie where id=$1",
+        [f],
+      )
+    ).rows,
+  ).toHaveLength(0);
+  expect(
+    (
+      await db.query("select id from ddt_fatture_fornitore($1,'SIM-FATTURA')", [
+        d,
+      ])
+    ).rows,
+  ).toEqual([{ id: f }]);
+  expect(
+    (
+      await db.query("select id from ddt_fatture_fornitore($1,'02/01/2020')", [
+        d,
+      ])
+    ).rows,
+  ).toEqual([{ id: f }]);
+});
+it("la ricerca normalizza la P.IVA ma non include fatture di altre aziende", async () => {
+  await db.exec(
+    `update fatture_ricevute set fornitore_id=null,cedente_piva='it082 368 70963';insert into fatture_ricevute(id,company_id,fornitore_id,numero_fattura,cedente_piva) values('${id(99)}','${id(98)}','${s}','ESTERNA','08236870963')`,
+  );
+  expect(
+    (await db.query("select id from ddt_fatture_fornitore($1)", [d])).rows,
+  ).toEqual([{ id: f }]);
+  await db.exec("select set_config('test.office','false',false)");
+  await expect(
+    db.query("select id from ddt_fatture_fornitore($1)", [d]),
+  ).rejects.toThrow("Non puoi consultare");
+});
+it("trova e valorizza la fattura con prefisso IT preceduto da spazi", async () => {
+  await db.exec(
+    "update fatture_ricevute set fornitore_id=null,cedente_piva=' IT082 368 70963 ';update suppliers set vat_number='08236870963'",
+  );
+  expect(
+    (await db.query("select id from ddt_fatture_fornitore($1)", [d])).rows,
+  ).toEqual([{ id: f }]);
+  await prezzo();
+  expect(
+    (
+      await db.query(
+        "select prezzo_unitario::float8 as prezzo from ddt_valorizzazioni",
+      )
+    ).rows,
+  ).toEqual([{ prezzo: 12 }]);
 });

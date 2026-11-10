@@ -987,7 +987,7 @@ function DocumentiFiscaliListInner() {
                       {showColTipo && (
                         <TableCell>
                           <Badge variant="outline" className="text-[10px] font-normal">
-                            {{ reverse_charge_interno: "TD16", integrazione_servizi_estero: "TD17", integrazione_beni_ue: "TD18", integrazione_beni_extra_ue: "TD19", autofattura: "Autofattura", fattura: "Fattura", fattura_pa: "Fattura PA", proforma: "Proforma", nota_credito: "NC", ddt: "DDT", preventivo: "Preventivo", nota_debito: "Nota Debito", autofattura: "Autofattura", fattura_riepilogativa: "Riepilogativa", parcella: "Parcella", fattura_accompagnatoria: "F. Accomp.", integrazione_servizi_estero: "TD17", integrazione_beni_ue: "TD18", integrazione_beni_extra_ue: "TD19", acconto_fattura: "Acconto fattura", acconto_parcella: "Acconto parcella", autoconsumo: "Autoconsumo", autofattura_splafonamento: "TD21", fattura_differita_b: "TD25", reverse_charge_interno: "TD16" }[doc.tipo] ?? doc.tipo}
+                            {{ fattura: "Fattura", fattura_pa: "Fattura PA", proforma: "Proforma", nota_credito: "NC", ddt: "DDT", preventivo: "Preventivo", nota_debito: "Nota Debito", autofattura: "Autofattura", fattura_riepilogativa: "Riepilogativa", parcella: "Parcella", fattura_accompagnatoria: "F. Accomp.", integrazione_servizi_estero: "TD17", integrazione_beni_ue: "TD18", integrazione_beni_extra_ue: "TD19", acconto_fattura: "Acconto fattura", acconto_parcella: "Acconto parcella", autoconsumo: "Autoconsumo", autofattura_splafonamento: "TD21", fattura_differita_b: "TD25", reverse_charge_interno: "TD16" }[doc.tipo] ?? doc.tipo}
                           </Badge>
                         </TableCell>
                       )}

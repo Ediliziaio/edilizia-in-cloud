@@ -1337,6 +1337,7 @@ function BolleCantiere({ orderId }: { orderId: string }) {
       </button>
       {documenti.data?.map(j => <div key={j.id} className="rounded-xl border bg-background p-3 text-sm"><p className="break-all font-semibold">{j.files[0]?.name}</p><p className="mt-1 text-xs text-muted-foreground">{STATO_DOCUMENTO[j.status]} · {new Date(j.created_at).toLocaleString("it-IT")}</p></div>)}
       {documenti.isError && <button className="min-h-11 text-sm underline" onClick={() => void documenti.refetch()}>Riprova a caricare i DDT inviati</button>}
+      {documenti.hasNextPage && <button className="min-h-11 w-full rounded-xl border text-sm" disabled={documenti.isFetchingNextPage} onClick={()=>void documenti.fetchNextPage()}>{documenti.isFetchingNextPage?"Caricamento…":"Carica altri DDT inviati"}</button>}
       {isLoading && <p className="text-sm text-muted-foreground">Carico le bolle…</p>}
       {isError && <p className="text-sm text-destructive">Non riesco a leggere le bolle. <button type="button" className="underline" onClick={() => refetch()}>Riprova</button></p>}
       {!isLoading && !isError && bolle.length === 0 && !documenti.data?.length && (

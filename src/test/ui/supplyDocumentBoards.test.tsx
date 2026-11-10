@@ -8,6 +8,7 @@ import {
   within,
 } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import SupplierRfqsList from "@/pages/azienda/SupplierRfqsList";
 import DDTRicezioneList from "@/pages/azienda/DDTRicezioneList";
 import type { SupplierRfq, ContatoriRichiesta } from "@/hooks/useSupplierRfqs";
@@ -33,6 +34,12 @@ const state = vi.hoisted(() => ({
   costs: true,
   error: false,
   create: vi.fn(),
+  csv: vi.fn(),
+  xlsx: vi.fn(),
+}));
+vi.mock("@/lib/csvExport", () => ({
+  exportToCSV: state.csv,
+  exportToXLSX: state.xlsx,
 }));
 vi.mock("@/hooks/usePermissions", () => ({
   usePermissions: () => ({
@@ -79,12 +86,19 @@ function Url() {
   const location = useLocation();
   return <output data-testid="url">{location.search}</output>;
 }
+const clients: QueryClient[] = [];
 function open(node: React.ReactNode, url: string) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  });
+  clients.push(client);
   render(
-    <MemoryRouter initialEntries={[url]}>
-      {node}
-      <Url />
-    </MemoryRouter>,
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[url]}>
+        {node}
+        <Url />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 function rfq(
@@ -165,9 +179,13 @@ beforeEach(() => {
   state.costs = true;
   state.error = false;
   state.create.mockClear();
+  state.csv.mockClear();
+  state.xlsx.mockClear();
 });
 afterEach(() => {
   cleanup();
+  for (const client of clients) client.clear();
+  clients.length = 0;
   vi.useRealTimers();
 });
 describe("Richieste d’offerta", () => {
@@ -180,14 +198,10 @@ describe("Richieste d’offerta", () => {
     open(<SupplierRfqsList />, "/azienda/ordini?tab=offerte");
     expect(screen.getByText("Materiale a")).toBeInTheDocument();
     expect(screen.queryByText("Materiale b")).not.toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Elenco" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Elenco" }));
     expect(screen.queryByText("Materiale b")).not.toBeInTheDocument();
     expect(screen.getByTestId("url")).toHaveTextContent("rdo_ambito=active");
-    fireEvent.click(
-      screen.getByRole("button", { name: "Pipeline" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Pipeline" }));
     fireEvent.click(
       within(
         screen.getByRole("group", { name: "Ambito richieste d’offerta" }),
@@ -196,9 +210,7 @@ describe("Richieste d’offerta", () => {
     expect(screen.queryByText("Materiale a")).not.toBeInTheDocument();
     expect(screen.getByText("Materiale b")).toBeInTheDocument();
     expect(screen.getByTestId("url")).toHaveTextContent("rdo_ambito=history");
-    fireEvent.click(
-      screen.getByRole("button", { name: "Elenco" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Elenco" }));
     expect(
       screen.getByRole("table", { name: "Elenco richieste d’offerta" }),
     ).toBeInTheDocument();
@@ -363,6 +375,54 @@ describe("DDT", () => {
 });
 
 describe("Colonne dell’elenco documenti", () => {
+  it("l'elenco e il CSV mantengono quote, unità e destinazioni delle consegne miste", async () => {
+    state.ddt = [
+      ddt("misto", "ricevuto", {
+        ricezione_esplicita: true,
+        quantita_ricevuta: 308,
+        warehouse_id: null,
+        destinazione: "cantiere",
+        consegne: [
+          {
+            tipo: "ingresso",
+            destinazione: "cantiere",
+            quantita: 2.5,
+            unita_misura: "mq",
+          },
+          {
+            tipo: "ingresso",
+            destinazione: "magazzino",
+            quantita: 3.25,
+            unita_misura: "mq",
+            warehouses: { name: "Principale" },
+          },
+        ],
+      }),
+    ];
+    open(<DDTRicezioneList />, "/azienda/ordini?tab=ddt&ddt_vista=elenco");
+    expect(
+      screen.getByRole("cell", {
+        name: "Cantiere: 2,5 mq · Magazzino: 3,25 mq",
+      }),
+    ).toBeInTheDocument();
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: "Esporta", exact: true }),
+      { key: "Enter", code: "Enter" },
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: /CSV/ }));
+    expect(state.csv).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          numero_ddt: "DDT-misto",
+          quantita: "Cantiere: 2,5 mq · Magazzino: 3,25 mq",
+          destinazione: "Cantiere e magazzino",
+          magazzino: "Principale",
+        }),
+      ],
+      expect.any(Array),
+      expect.any(String),
+    );
+  });
   it("separa numero e oggetto della richiesta d’offerta", () => {
     state.rfqs = [rfq("table")];
     open(<SupplierRfqsList />, "/azienda/ordini?tab=offerte&rdo_vista=elenco");

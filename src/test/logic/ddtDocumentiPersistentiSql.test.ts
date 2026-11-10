@@ -54,11 +54,20 @@ beforeAll(async () => {
   await db.exec(
     "create trigger ddt_muove_oda after insert on ddt_ricezione for each row execute function trg_ddt_muove_oda()",
   );
+  await db.exec(
+    "grant usage on schema storage to authenticated;grant select,insert on storage.objects to authenticated",
+  );
+  await db.exec(
+    readFileSync(
+      "supabase/migrations/20290214170000_ddt_originali_accessi_coerenti.sql",
+      "utf8",
+    ),
+  );
 }, 60000);
 beforeEach(async () => {
   await db.exec(`reset role;truncate ddt_document_jobs,ddt_righe,ddt_ricezione,purchase_order_items,purchase_orders,order_items,orders,suppliers,warehouses,profiles,companies cascade;
   truncate storage.objects;
-  select set_config('test.user','${user}',false),set_config('test.company','${company}',false),set_config('test.order','${order}',false),set_config('test.office','false',false),set_config('test.blocked','false',false);
+  select set_config('test.user','${user}',false),set_config('test.company','${company}',false),set_config('test.order','${order}',false),set_config('test.office','false',false),set_config('test.blocked','false',false),set_config('test.external','false',false),set_config('test.multicompany','false',false);
   insert into companies values('${company}');insert into profiles values('${user}');insert into orders values('${order}','${company}',null);
   insert into suppliers(id,company_id) values('${supplier}','${company}');insert into warehouses values('${warehouse}','${company}');
   insert into storage.objects(bucket_id,name) values('ddt-documenti','${files[0].path}');`);
@@ -203,6 +212,54 @@ it("RLS: un collega non legge l’originale altrui e un account sospeso non legg
   );
   expect(
     (await db.query("select id from ddt_document_jobs")).rows,
+  ).toHaveLength(0);
+  await db.exec("reset role");
+});
+
+it.each(["blocked", "external"])(
+  "RLS file: un account %s con accesso multi azienda non legge né carica gli originali, neppure come ufficio",
+  async (stato) => {
+    await db.exec("set role authenticated");
+    expect(
+      (
+        await db.query(
+          "select name from storage.objects where bucket_id='ddt-documenti'",
+        )
+      ).rows,
+    ).toHaveLength(1);
+    await db.exec(
+      `select set_config('test.${stato}','true',false),set_config('test.office','true',false),set_config('test.multicompany','true',false)`,
+    );
+    expect(
+      (
+        await db.query(
+          "select name from storage.objects where bucket_id='ddt-documenti'",
+        )
+      ).rows,
+    ).toHaveLength(0);
+    await expect(
+      db.exec(
+        `insert into storage.objects(bucket_id,name) values('ddt-documenti','${company}/${user}/${job}/nuovo.pdf')`,
+      ),
+    ).rejects.toThrow("row-level security");
+    await db.exec("reset role");
+  },
+);
+
+it("RLS file: l'ufficio autorizzato legge i file del collega solo nella propria azienda", async () => {
+  await db.exec(
+    `select set_config('test.user','${id(99)}',false);set role authenticated`,
+  );
+  expect(
+    (await db.query("select name from storage.objects")).rows,
+  ).toHaveLength(0);
+  await db.exec("select set_config('test.office','true',false)");
+  expect(
+    (await db.query("select name from storage.objects")).rows,
+  ).toHaveLength(1);
+  await db.exec(`select set_config('test.company','${id(88)}',false)`);
+  expect(
+    (await db.query("select name from storage.objects")).rows,
   ).toHaveLength(0);
   await db.exec("reset role");
 });

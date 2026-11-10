@@ -97,6 +97,7 @@ import {
   OperationalPagination,
 } from "@/components/orders/OperationalBoard";
 import { usePermissions } from "@/hooks/usePermissions";
+import { riepilogoQuantitaDDT,destinazioneConsegneDDT,magazziniConsegneDDT } from "@/lib/ddt/riepilogoConsegne";
 import {
   inOperationalPeriod,
   operationalPage,
@@ -130,11 +131,11 @@ function compareSortValues(
   a: string | number | null | undefined,
   b: string | number | null | undefined,
 ) {
-  const normalizedA = typeof a === "number" ? a : String(a ?? "").toLowerCase();
-  const normalizedB = typeof b === "number" ? b : String(b ?? "").toLowerCase();
-  if (normalizedA < normalizedB) return -1;
-  if (normalizedA > normalizedB) return 1;
-  return 0;
+  if (typeof a === "number" && typeof b === "number") return a - b;
+  return String(a ?? "").localeCompare(String(b ?? ""), "it", {
+    numeric: true,
+    sensitivity: "base",
+  });
 }
 
 function SortIcon({
@@ -384,11 +385,13 @@ export default function DDTRicezioneList() {
         case "corriere":
           return d.corriere ?? "";
         case "magazzino":
-          return d.warehouses?.name ?? "";
+          return magazziniConsegneDDT(d);
         case "allegati":
           return (d.attachments?.length ?? 0) + (d.ddt_file_url ? 1 : 0);
         case "quantita":
-          return Number(d.quantita_ricevuta ?? 0);
+          return d.ricezione_esplicita
+            ? riepilogoQuantitaDDT(d)
+            : Number(d.quantita_ricevuta ?? 0);
         case "stato":
           return (
             DDT_STATO_META[d.stato as keyof typeof DDT_STATO_META]?.label ??
@@ -436,7 +439,9 @@ export default function DDTRicezioneList() {
         stato:
           DDT_STATO_META[d.stato as keyof typeof DDT_STATO_META]?.label ??
           d.stato,
-        quantita: String(d.quantita_ricevuta ?? 0),
+        quantita: riepilogoQuantitaDDT(d),
+        destinazione: destinazioneConsegneDDT(d),
+        magazzino: magazziniConsegneDDT(d),
         has_damages: d.has_damages || d.stato === "non_conforme" ? "Sì" : "No",
         attachments_count: String(
           (d.attachments?.length ?? 0) + (d.ddt_file_url ? 1 : 0),
@@ -456,6 +461,8 @@ export default function DDTRicezioneList() {
       { key: "autista", label: "Autista" },
       { key: "stato", label: "Stato" },
       { key: "quantita", label: "Q.tà Ricevuta" },
+      { key: "destinazione", label: "Destinazione" },
+      { key: "magazzino", label: "Magazzino" },
       { key: "has_damages", label: "Non conforme" },
       { key: "attachments_count", label: "N. Allegati" },
     ],
@@ -661,7 +668,7 @@ export default function DDTRicezioneList() {
       </p>
       <p className="mt-1 text-xs text-primary">
         {commessaCodiceDi(ddt) ?? "Senza commessa"}
-        {ddt.destinazione === "cantiere" ? " · in cantiere" : ""}
+        {` · ${destinazioneConsegneDDT(ddt)}`}
       </p>
       <div className="mt-2 space-y-1 text-xs text-muted-foreground">
         <p>
@@ -670,7 +677,7 @@ export default function DDTRicezioneList() {
             : "Data non indicata"}
           {ddt.ora_arrivo ? ` · ${ddt.ora_arrivo.slice(0, 5)}` : ""}
         </p>
-        <p>{ddt.warehouses?.name ?? "Magazzino non indicato"}</p>
+        <p>{magazziniConsegneDDT(ddt)}</p>
         {ddt.corriere && (
           <p className="flex items-center gap-1">
             <Truck className="h-3 w-3" />
@@ -679,7 +686,7 @@ export default function DDTRicezioneList() {
         )}
       </div>
       <p className="mt-2 text-xs font-medium">
-        Quantità ricevuta: {Number(ddt.quantita_ricevuta ?? 0)}
+        {ddt.ricezione_esplicita ? "Consegne" : "Quantità ricevuta"}: {riepilogoQuantitaDDT(ddt)}
       </p>
       {ddt.has_damages && (
         <p className="mt-2 flex items-center gap-1 text-xs font-medium text-rose-700">
@@ -1128,10 +1135,10 @@ export default function DDTRicezioneList() {
                       {ddt.warehouses?.name ? (
                         <span className="inline-flex items-center gap-1 text-muted-foreground">
                           <WarehouseIcon className="h-3 w-3" />
-                          {ddt.warehouses.name}
+                          {magazziniConsegneDDT(ddt)}
                         </span>
                       ) : (
-                        <span className="text-muted-foreground">—</span>
+                        <span className="text-muted-foreground">{magazziniConsegneDDT(ddt)}</span>
                       )}
                     </td>
                     <td className="p-3 text-center">
@@ -1145,9 +1152,7 @@ export default function DDTRicezioneList() {
                       )}
                     </td>
                     <td className="p-3 text-right font-medium">
-                      {Number(ddt.quantita_ricevuta).toLocaleString("it-IT", {
-                        maximumFractionDigits: 2,
-                      })}
+                      {riepilogoQuantitaDDT(ddt)}
                     </td>
                     <td className="p-3">
                       <DDTStatusBadge stato={ddt.stato} size="sm" />

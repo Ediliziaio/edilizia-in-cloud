@@ -159,6 +159,12 @@ jobs:
           src/test/ui/campoDdtPersistente.test.tsx
           src/test/ui/correggiRigheBolla.test.tsx
           src/test/ui/righeLetteBolla.test.tsx
+          src/test/ui/offlineAziendaAttiva.test.tsx
+          src/test/ui/documentiDdtPaginazione.test.tsx
+          src/test/ui/cambioAziendaBozze.test.tsx
+          src/test/ui/ddtConfrontoFattura.test.tsx
+          src/test/ui/supplyDocumentBoards.test.tsx
+          src/test/ui/acquistiPermessi.test.tsx
 
       - name: Run computo persistence, tenant isolation and PDF regressions
         run: >-

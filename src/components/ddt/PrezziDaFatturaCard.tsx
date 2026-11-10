@@ -10,6 +10,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useDDTRighe, type DDTRicezione } from "@/hooks/useDDTRicezione";
 import { documentiDb as db } from "@/lib/ddt/documentiPersistenti";
 import { queryKeys } from "@/lib/queryKeys";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface Fattura {
   id: string;
@@ -34,6 +35,7 @@ export function PrezziDaFatturaCard({ ddt }: { ddt: DDTRicezione }) {
   const [aperto, setAperto] = useState(false);
   const [fattura, setFattura] = useState("");
   const [ricerca, setRicerca] = useState("");
+  const ricercaFattura = useDebounce(ricerca.trim(), 300);
   const [bozze, setBozze] = useState<
     Record<string, { q: string; prezzo: string }>
   >({});
@@ -53,36 +55,22 @@ export function PrezziDaFatturaCard({ ddt }: { ddt: DDTRicezione }) {
     },
   });
   const fatture = useQuery<Fattura[]>({
-    queryKey: ["ddt-fatture-fornitore", ddt.company_id, ddt.supplier_id],
+    queryKey: [
+      "ddt-fatture-fornitore",
+      ddt.company_id,
+      ddt.id,
+      ddt.supplier_id,
+      ricercaFattura,
+    ],
     enabled: visibile && aperto && !!ddt.supplier_id,
     queryFn: async () => {
-      const { data: s, error: se } = await db
-        .from("suppliers")
-        .select("vat_number")
-        .eq("id", ddt.supplier_id)
-        .eq("company_id", ddt.company_id)
-        .single();
-      if (se) throw se;
-      const { data, error } = await db
-        .from("fatture_ricevute")
-        .select(
-          "id,numero_fattura,data_fattura,cedente_ragione_sociale,fornitore_id,cedente_piva",
-        )
-        .eq("company_id", ddt.company_id)
-        .order("data_fattura", { ascending: false })
-        .limit(1000);
+      const { data, error } = await db.rpc("ddt_fatture_fornitore", {
+        p_ddt: ddt.id,
+        p_cerca: ricercaFattura,
+        p_limite: 100,
+      });
       if (error) throw error;
-      const normalizza = (v: string | null) =>
-        String(v ?? "")
-          .toUpperCase()
-          .replace(/^IT/, "")
-          .replace(/[^A-Z0-9]/g, "");
-      return (data ?? []).filter(
-        (f: { fornitore_id: string | null; cedente_piva: string | null }) =>
-          f.fornitore_id === ddt.supplier_id ||
-          (!!normalizza(s.vat_number) &&
-            normalizza(f.cedente_piva) === normalizza(s.vat_number)),
-      );
+      return data ?? [];
     },
   });
   const salva = useMutation({
@@ -205,7 +193,11 @@ export function PrezziDaFatturaCard({ ddt }: { ddt: DDTRicezione }) {
               Cerca per numero o data
               <Input
                 value={ricerca}
-                onChange={(e) => setRicerca(e.target.value)}
+                onChange={(e) => {
+                  setRicerca(e.target.value);
+                  setFattura("");
+                  setConfermo(false);
+                }}
                 placeholder="Numero della fattura"
               />
             </label>
@@ -222,20 +214,20 @@ export function PrezziDaFatturaCard({ ddt }: { ddt: DDTRicezione }) {
                 <option value="">
                   {fatture.isLoading ? "Caricamento…" : "Seleziona la fattura"}
                 </option>
-                {fatture.data
-                  ?.filter((f) =>
-                    `${f.numero_fattura} ${f.data_fattura}`
-                      .toLowerCase()
-                      .includes(ricerca.toLowerCase()),
-                  )
-                  .map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.numero_fattura} · {f.data_fattura} ·{" "}
-                      {f.cedente_ragione_sociale}
-                    </option>
-                  ))}
+                {fatture.data?.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.numero_fattura} · {f.data_fattura} ·{" "}
+                    {f.cedente_ragione_sociale}
+                  </option>
+                ))}
               </select>
             </label>
+            {(fatture.data?.length ?? 0) >= 100 && (
+              <p className="text-xs text-muted-foreground">
+                Mostrate le prime 100 fatture del fornitore. Cerca il numero o
+                la data per trovare quelle precedenti.
+              </p>
+            )}
             {fatture.isError && (
               <p className="text-destructive">
                 Fatture non disponibili.{" "}

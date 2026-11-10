@@ -399,7 +399,7 @@ function CampoDDTEditor() {
       )}
       <section className="space-y-2" aria-label="Documenti inviati">
         <h2 className="font-semibold">Documenti inviati</h2>
-        {documenti.isError ? (
+        {documenti.isError && !documenti.data?.length ? (
           <button
             className="min-h-11 text-sm underline"
             onClick={() => void documenti.refetch()}
@@ -430,6 +430,20 @@ function CampoDDTEditor() {
               )}
             </article>
           ))
+        )}
+        {documenti.hasNextPage && (
+          <button
+            type="button"
+            className="min-h-12 w-full rounded-xl border text-sm font-medium"
+            disabled={documenti.isFetchingNextPage}
+            onClick={() => void documenti.fetchNextPage()}
+          >
+            {documenti.isFetchingNextPage
+              ? "Caricamento…"
+              : documenti.isFetchNextPageError
+                ? "Riprova a caricare altri DDT"
+                : "Carica altri DDT"}
+          </button>
         )}
       </section>
       <Link

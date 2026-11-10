@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { FileText, Loader2, RefreshCw, Smartphone } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useDocumentiDDT, STATO_DOCUMENTO } from "@/hooks/useDocumentiDDT";
@@ -10,6 +11,7 @@ import { useOfflineSync } from "@/hooks/campo/useOfflineSync";
 import {
   documentiDb,
   avviaLetturaPersistente,
+  leggiPersistente,
   type DocumentoPersistente,
 } from "@/lib/ddt/documentiPersistenti";
 import {
@@ -46,7 +48,8 @@ function RevisioneDocumento({
       documento.updated_at,
     ],
     queryFn: async () => {
-      const f = documento.files[0];
+      const aggiornato = await leggiPersistente(documento.id);
+      const f = aggiornato.files[0];
       const { data, error } = await supabase.storage
         .from(f.bucket ?? "ddt-documenti")
         .download(f.path);
@@ -61,8 +64,8 @@ function RevisioneDocumento({
       });
       const letta = conLettura(
         partenza,
-        leggiDDTdaAI(documento.result ?? {}),
-        documento.result ?? {},
+        leggiDDTdaAI(aggiornato.result ?? {}),
+        aggiornato.result ?? {},
         [],
       );
       const pagine =
@@ -117,12 +120,15 @@ function RevisioneDocumento({
 }
 
 export function DocumentiInIngresso() {
-  const ripresaLocale = useOfflineSync();
-  const query = useDocumentiDDT();
+  const { effectiveCompany } = useAuth();
+  const ripresaLocale = useOfflineSync({
+    companyId: effectiveCompany?.id ?? null,
+  });
+  const [mostraTutti, setMostraTutti] = useState(false);
+  const query = useDocumentiDDT(false, undefined, mostraTutti);
   const qc = useQueryClient();
   const [aperto, setAperto] = useState<DocumentoPersistente | null>(null);
   const [riprovando, setRiprovando] = useState<string | null>(null);
-  const [mostraTutti, setMostraTutti] = useState(false);
   const documenti = query.data ?? [];
   const inAttesa = documenti.filter(
     (j) => !["registered", "split"].includes(j.status),
@@ -170,7 +176,8 @@ export function DocumentiInIngresso() {
             <Smartphone className="h-4 w-4 text-orange-600" />
             Documenti in ingresso{" "}
             <span className="rounded-full bg-orange-100 px-2 text-xs text-orange-900">
-              {inAttesa.length}
+              {daMostrare.length}
+              {query.hasNextPage ? "+" : ""}
             </span>
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -198,7 +205,7 @@ export function DocumentiInIngresso() {
           </Button>
         </div>
       </div>
-      {query.isError ? (
+      {query.isError && !documenti.length ? (
         <p role="alert" className="p-4 text-sm text-destructive">
           Elenco non disponibile. Riprova ad aggiornare.
         </p>
@@ -270,6 +277,28 @@ export function DocumentiInIngresso() {
             </li>
           ))}
         </ul>
+      )}
+      {query.isError && !!documenti.length && (
+        <p role="alert" className="px-4 py-2 text-sm text-amber-800">
+          Aggiornamento non riuscito. I documenti già caricati restano
+          disponibili.
+        </p>
+      )}
+      {query.hasNextPage && (
+        <div className="border-t p-3">
+          <Button
+            variant="outline"
+            className="w-full"
+            disabled={query.isFetchingNextPage}
+            onClick={() => void query.fetchNextPage()}
+          >
+            {query.isFetchingNextPage
+              ? "Caricamento…"
+              : query.isFetchNextPageError
+                ? "Riprova a caricare altri documenti"
+                : "Carica altri documenti"}
+          </Button>
+        </div>
       )}
       {aperto && (
         <RevisioneDocumento

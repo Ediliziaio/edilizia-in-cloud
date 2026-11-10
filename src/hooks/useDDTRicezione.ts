@@ -132,6 +132,7 @@ export interface DDTRicezione {
 }
 
 export interface DDTRicezioneWithJoins extends DDTRicezione {
+  consegne?: import("@/lib/ddt/riepilogoConsegne").ConsegnaRiepilogo[];
   purchase_orders?: {
     id: string;
     oda_number: string;
@@ -231,7 +232,7 @@ export function useDDTRicezioneList(filters?: {
   const companyId = effectiveCompany?.id;
 
   return useQuery<DDTRicezioneWithJoins[]>({
-    queryKey: queryKeys.ddtRicezione.list(companyId, filters),
+    queryKey: [...queryKeys.ddtRicezione.list(companyId, filters), "consegne-v1"],
     queryFn: async () => {
       // Tutte le pagine, a blocchi di 500. Prima c'era un tetto di 500 bolle:
       // contatori, schede ed esportazione vedevano solo quelle senza dirlo.
@@ -243,7 +244,7 @@ export function useDDTRicezioneList(filters?: {
             // Left join sull'ODA, non !inner: dal 29/10/2026 una bolla può non
             // averne, e con l'inner join sarebbe sparita dalla lista senza che
             // nessuno lo dicesse. Commessa e fornitore si leggono dalla bolla.
-            "*, purchase_orders(id, oda_number, status, order_id, supplier_id, suppliers(name, email), orders(id, order_code)), warehouses(id, name), orders(id, order_code), suppliers(id, name)"
+            "*, purchase_orders(id, oda_number, status, order_id, supplier_id, suppliers(name, email), orders(id, order_code)), warehouses(id, name), orders(id, order_code), suppliers(id, name), consegne:ddt_consegne(tipo, quantita, unita_misura, destinazione, warehouses(name))"
           )
           .eq("company_id", companyId!)
           .order("data_ricezione", { ascending: false })

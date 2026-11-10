@@ -1,11 +1,11 @@
 create role anon; create role authenticated; create role service_role bypassrls;
 create schema auth; create schema storage; create schema cron;
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('test.user',true),'')::uuid $$;
-create function user_can_access_company(c uuid) returns boolean language sql stable as $$select c=nullif(current_setting('test.company',true),'')::uuid$$;
+create function user_can_access_company(c uuid) returns boolean language sql stable as $$select c=nullif(current_setting('test.company',true),'')::uuid and (coalesce(current_setting('test.blocked',true),'false')<>'true' or coalesce(current_setting('test.multicompany',true),'false')='true')$$;
 create function campo_e_ufficio(c uuid) returns boolean language sql stable as $$select current_setting('test.office',true)='true' and user_can_access_company(c)$$;
 create function e_super_admin_dentro(c uuid) returns boolean language sql stable as $$select false$$;
 create function utente_bloccato() returns boolean language sql stable as $$select current_setting('test.blocked',true)='true'$$;
-create function utente_e_cliente_esterno() returns boolean language sql stable as $$select false$$;
+create function utente_e_cliente_esterno() returns boolean language sql stable as $$select coalesce(current_setting('test.external',true),'false')='true'$$;
 create function campo_lavoro_su_commessa(o uuid) returns boolean language sql stable as $$select o=nullif(current_setting('test.order',true),'')::uuid$$;
 create function has_permission_for_company(u uuid,p text,c uuid) returns boolean language sql stable as $$select u=auth.uid() and campo_e_ufficio(c)$$;
 create function num_da_json(v text) returns numeric language sql immutable as $$select nullif(v,'')::numeric$$;
@@ -28,5 +28,5 @@ create table warehouse_stock(id uuid primary key default gen_random_uuid(),compa
 create table warehouse_movements(id uuid primary key default gen_random_uuid(),company_id uuid,warehouse_id uuid,stock_item_id uuid,quantity integer,movement_type text,performed_by uuid,order_id uuid,order_item_id uuid,unit_cost numeric,notes text,created_at timestamptz default now(),valorizza_medio boolean default true);
 create table ddt_ricezione(id uuid primary key default gen_random_uuid(),company_id uuid references companies,created_by uuid,order_id uuid,supplier_id uuid,purchase_order_id uuid,numero_ddt text,data_ricezione date,destinazione text,warehouse_id uuid,stato text,quantita_ricevuta numeric,note text,source text,ai_lettura jsonb,ai_confidenza numeric,ddt_file_url text,ddt_file_name text,ddt_file_mime text,corriere text,targa_mezzo text,autista_nome text,trasporto_a_cura_di text,porto text,ai_avvisi text[],caricata_a_magazzino_at timestamptz,company_cost_id uuid);
 create table ddt_righe(id uuid primary key default gen_random_uuid(),ddt_ricezione_id uuid references ddt_ricezione,company_id uuid,posizione integer,descrizione text,codice_articolo text,quantita numeric,unita_misura text,prezzo_unitario numeric,importo numeric,iva_percentuale numeric,origine text,ai_originale jsonb,purchase_order_item_id uuid,abbinamento text,order_item_id uuid,stock_item_id uuid,movimento_id uuid,arrivo_registrato_il timestamptz);
-create table fatture_ricevute(id uuid primary key,company_id uuid,fornitore_id uuid,cedente_piva text,numero_fattura text,righe jsonb);
+create table fatture_ricevute(id uuid primary key,company_id uuid,fornitore_id uuid,cedente_piva text,numero_fattura text,righe jsonb,data_fattura date,cedente_ragione_sociale text);
 create table fattura_ddt(id uuid primary key default gen_random_uuid(),company_id uuid,fattura_ricevuta_id uuid,ddt_ricezione_id uuid,numero_ddt text,data_ddt date,origine text,created_by uuid);
