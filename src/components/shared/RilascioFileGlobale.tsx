@@ -67,7 +67,10 @@ function ritaglia(el: HTMLElement, chiave: number): Riquadro | null {
 }
 
 function costruisciVista(zone: ZonaRilascio[], attiva: ZonaRilascio | null): Vista {
-  const riquadri = zone.flatMap((z, i) => ritaglia(z.elemento, i) ?? []);
+  const riquadri = zone.flatMap((z, i): Riquadro[] => {
+    const r = ritaglia(z.elemento, i);
+    return r ? [r] : [];
+  });
   const input = attiva?.input;
   const disabilitata = !!input?.matches(":disabled");
   const formati = input && input.dataset.rilascio !== "senza-filtro" ? descriviFormati(input.accept) : "";
