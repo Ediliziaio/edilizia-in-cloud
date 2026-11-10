@@ -66,3 +66,58 @@ it("è ripetibile su un ambiente che possiede già il campo senza perdere conten
     ).rows,
   ).toEqual([{ content: "Testo del cliente" }]);
 });
+
+it("non blocca i cataloghi ancora assenti e applica la protezione quando vengono creati", async () => {
+  const anticipata = readFileSync(
+    resolve(
+      "supabase/migrations/20260601173055_enable_rls_fv_catalog_tables.sql",
+    ),
+    "utf8",
+  );
+  await db.exec(anticipata);
+  const tables = [
+    "fv_incentivi_catalogo",
+    "fv_solar_api_cache",
+    "fv_pvgis_cache",
+    "fv_parametri_calcolo",
+    "fv_profili_autoconsumo",
+  ];
+  for (const table of tables) {
+    await db.exec(
+      `CREATE TABLE ${table}(id integer); INSERT INTO ${table} VALUES (1); GRANT SELECT,INSERT ON ${table} TO authenticated;`,
+    );
+  }
+  const ottobre = readFileSync(
+    resolve("supabase/migrations/20261027120000_fv_modulo_wave1.sql"),
+    "utf8",
+  );
+  const marker =
+    "-- Sicurezza dei cataloghi anche nelle ricostruzioni da zero.";
+  expect(ottobre).toContain(marker);
+  const protezione = ottobre
+    .slice(ottobre.indexOf(marker))
+    .replace(/COMMIT;\s*$/, "");
+  await db.exec(protezione);
+  await db.exec(anticipata);
+  for (const table of tables) {
+    expect(
+      (
+        await db.query(
+          "SELECT relrowsecurity AS enabled FROM pg_class WHERE oid=$1::regclass",
+          [table],
+        )
+      ).rows,
+    ).toEqual([{ enabled: true }]);
+    await db.exec("SET ROLE authenticated");
+    try {
+      expect((await db.query(`SELECT * FROM ${table}`)).rows).toEqual([
+        { id: 1 },
+      ]);
+      await expect(db.exec(`INSERT INTO ${table} VALUES (2)`)).rejects.toThrow(
+        /row-level security/,
+      );
+    } finally {
+      await db.exec("RESET ROLE");
+    }
+  }
+});
