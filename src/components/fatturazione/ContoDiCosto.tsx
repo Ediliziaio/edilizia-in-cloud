@@ -10,6 +10,9 @@
  * - Già contabilizzata: si cambia la categoria del costo.
  * - Non ancora: si fissa sulla fattura, e `contabilizza_fattura_ricevuta` la
  *   usa al posto di «materiali».
+ * - Se la fattura è già nella contabilità generale, la sua scrittura si storna e
+ *   si rifà col conto nuovo (`contabilita_riregistra_documento`): prima restava
+ *   sul conto vecchio e il bilancio non vedeva il cambio.
  */
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -54,9 +57,32 @@ export function ContoDiCosto({ companyId, fatturaId, costoId, attuale, onCambiat
         ? await supabase.from("company_costs").update({ category: categoria }).eq("id", costoId).eq("company_id", companyId)
         : await supabase.from("fatture_ricevute").update({ categoria_ai: categoria }).eq("id", fatturaId).eq("company_id", companyId);
       if (error) throw error;
+      // La contabilità generale segue: niente da fare se la fattura non c'è ancora.
+      const { data, error: errGiornale } = await (supabase as unknown as {
+        rpc: (fn: string, args: Record<string, unknown>) => Promise<{
+          data: { stornate?: number; esito?: { fatture_ricevute?: number; errori?: string[] } } | null;
+          error: { message: string } | null;
+        }>;
+      }).rpc("contabilita_riregistra_documento", { p_company: companyId, p_documento: fatturaId, p_motivo: `Conto di costo cambiato in «${categoria}»` });
+      const stornate = data?.stornate ?? 0;
+      // Dal 20290210150000 storno e scrittura nuova sono tutto o niente: se la nuova non nasce
+      // (mese chiuso, conto mancante) arriva un errore e la scrittura di prima resta. Il controllo
+      // sull'esito resta per la versione precedente della funzione.
+      const nonRifatta = stornate > 0 && (data?.esito?.fatture_ricevute ?? 0) === 0;
+      return { stornate, nonRifatta, motivo: data?.esito?.errori?.[0] ?? null, errGiornale: errGiornale?.message ?? null };
     },
-    onSuccess: () => {
-      toast.success(costoId ? "Conto di costo cambiato" : "Conto di costo fissato: si userà alla contabilizzazione");
+    onSuccess: ({ stornate, nonRifatta, motivo, errGiornale }) => {
+      toast.success(costoId ? "Conto di costo cambiato" : "Conto di costo fissato: si userà alla contabilizzazione", {
+        description: stornate > 0 && !nonRifatta ? "Anche la contabilità generale: la scrittura è stata stornata e rifatta col conto nuovo." : undefined,
+      });
+      if (nonRifatta) {
+        toast.warning("Contabilità generale: scrittura stornata ma non rifatta", {
+          description: `${motivo ? `${motivo}. ` : ""}Risolto il motivo, «Genera dai documenti» in Contabilità generale la registra di nuovo.`,
+          duration: 12000,
+        });
+      } else if (errGiornale && !/Accesso negato/.test(errGiornale)) {
+        toast.warning("Contabilità generale non aggiornata", { description: errGiornale });
+      }
       onCambiato();
     },
     onError: (e) => toast.error("Conto di costo non cambiato", { description: e instanceof Error ? e.message : String(e) }),

@@ -11,6 +11,14 @@
 // registro incassi: movimento, prima nota, scadenza e stato della fattura in
 // una transazione sola. Lo stato verso lo SDI non si tocca: sta in sdi_stato.
 
+/**
+ * Gli acconti su Fatture in Cloud. `billing-payment-push` con `{ azione: "incassa", importo }`
+ * ridistribuisce il pagato sulle rate (ramo fattura-pagamenti-banca, 7faa1beb6). Finché quella
+ * versione non è pubblicata, quella online salda TUTTE le rate: un acconto resta solo qui.
+ * Si accende quando la funzione nuova è in produzione.
+ */
+export const ACCONTI_SU_FATTURE_IN_CLOUD = false;
+
 /** I metodi del registro incassi (lo stesso valore finisce in prima nota). */
 export const METODI_INCASSO = [
   { value: "bonifico", label: "Bonifico" },

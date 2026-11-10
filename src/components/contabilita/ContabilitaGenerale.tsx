@@ -281,20 +281,21 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
   const nomi = useMemo(() => new Map(conti.map((c) => [c.id, `${c.codice} ${c.descrizione}`])), [conti]);
   // Fatture emesse e ricevute, incassi e pagamenti dell'esercizio diventano scritture.
   // Lo fa il database (contabilita_genera_da_documenti): un documento genera al più
-  // una scrittura, quindi rilanciarlo aggiunge solo quello che manca.
+  // una scrittura viva, quindi rilanciarlo aggiunge solo quello che manca; tutto in
+  // ordine di data, così i numeri seguono il calendario.
   const genera = useMutation({
     mutationFn: async () => {
       const { data, error } = await db.rpc("contabilita_genera_da_documenti", { p_company: companyId, p_anno: anno });
       if (error) throw error;
       return data as {
-        fatture_emesse: number; fatture_ricevute: number; incassi: number; pagamenti: number;
+        fatture_emesse: number; fatture_ricevute: number; incassi: number; pagamenti: number; altre?: number;
         saltate_solo_testata: number; gia_generate: number; errori: string[];
       };
     },
     onSuccess: (r) => {
-      const nuove = r.fatture_emesse + r.fatture_ricevute + r.incassi + r.pagamenti;
+      const nuove = r.fatture_emesse + r.fatture_ricevute + r.incassi + r.pagamenti + (r.altre ?? 0);
       const dettagli = [
-        `${r.fatture_emesse} fatture emesse, ${r.fatture_ricevute} ricevute, ${r.incassi} incassi, ${r.pagamenti} pagamenti`,
+        `${r.fatture_emesse} fatture emesse, ${r.fatture_ricevute} ricevute, ${r.incassi} incassi, ${r.pagamenti} pagamenti${r.altre ? `, ${r.altre} ritenute subite` : ""}`,
         r.gia_generate ? `${r.gia_generate} già registrati` : "",
         r.saltate_solo_testata ? `${r.saltate_solo_testata} saltati: senza imponibile (solo testata) o senza la loro fattura in contabilità` : "",
         r.errori.length ? `${r.errori.length} non registrati: ${r.errori.slice(0, 3).join("; ")}` : "",

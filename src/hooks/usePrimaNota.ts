@@ -3,6 +3,31 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
+import { ACCONTI_SU_FATTURE_IN_CLOUD } from "@/lib/fatturazione/incassi";
+
+
+/**
+ * L'incasso di una fattura che viene da Fatture in Cloud va registrato anche lì,
+ * come fa la scheda della fattura (GestionaleEsterno): altrimenti alla prossima
+ * sincronizzazione la fattura torna «da incassare». Best effort: l'incasso qui
+ * resta comunque, e chi lo registra sa se deve ripeterlo sul gestionale.
+ */
+async function allineaFattureInCloud(invoiceId: string, importo: number, data: string): Promise<"ok" | "non_allineata" | "solo_qui" | null> {
+  const { data: f } = await supabase.from("invoices").select("external_provider, total, paid_amount").eq("id", invoiceId).maybeSingle();
+  if (!f || f.external_provider !== "fattureincloud") return null;
+  // paid_amount è già ricalcolato dal trigger del registro pagamenti.
+  const saldo = Number(f.paid_amount ?? 0) >= Number(f.total ?? 0) - 0.005;
+  if (!saldo && !ACCONTI_SU_FATTURE_IN_CLOUD) return "solo_qui";
+  try {
+    const body = saldo
+      ? { invoice_id: invoiceId, paid_date: data }
+      : { invoice_id: invoiceId, paid_date: data, azione: "incassa", importo };
+    const { data: pr, error } = await supabase.functions.invoke("billing-payment-push", { body });
+    return !error && pr?.ok ? "ok" : "non_allineata";
+  } catch {
+    return "non_allineata";
+  }
+}
 
 export interface PrimaNotaEntry {
   id: string;
@@ -248,10 +273,17 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
           }
           throw errPagamento;
         }
+        return await allineaFattureInCloud(params.invoice_id, params.amount, params.entry_date);
       }
+      return null;
     },
-    onSuccess: (_d, params) => {
-      toast.success(params.invoice_id ? "Incasso registrato e fattura aggiornata" : "Registrazione creata");
+    onSuccess: (gestionale, params) => {
+      toast.success(params.invoice_id ? "Incasso registrato e fattura aggiornata" : "Registrazione creata",
+        gestionale === "non_allineata"
+          ? { description: "Su Fatture in Cloud non è stato registrato: va segnato anche lì." }
+          : gestionale === "solo_qui"
+            ? { description: "È un acconto: su Fatture in Cloud va registrato a mano (lì per ora si segna solo il saldo)." }
+            : undefined);
       queryClient.invalidateQueries({ queryKey: queryKeys.primaNota.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.summary(companyId) });
       if (params.invoice_id) {

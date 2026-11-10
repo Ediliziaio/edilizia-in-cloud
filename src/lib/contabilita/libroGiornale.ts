@@ -104,7 +104,10 @@ export function controllaBozza(righe: readonly RigaBozza[], conti: readonly Cont
 /** Una riga del libro giornale: la testata ripetuta su ogni riga, come nei libri. */
 export interface RigaGiornale {
   progressivo: number;
+  /** Numero di giornale: progressivo per esercizio in ordine di data, come vuole la tenuta del libro. */
   numero: string;
+  /** Numero di registrazione dato al momento dell'inserimento (resta sulla scrittura e nei riferimenti). */
+  registrazione: string;
   data: string;
   causale: string;
   conto: string;
@@ -124,7 +127,13 @@ export function costruisciGiornale(scritture: readonly Scrittura[], conti: reado
   let totDare = cent(riporto);
   let totAvere = cent(riporto);
   let progressivo = 0;
+  // Una scrittura inserita dopo, con una data precedente, ha un numero di registrazione «fuori posto»:
+  // nel giornale conta l'ordine di data, quindi il numero si ricalcola per esercizio.
+  const perEsercizio = new Map<number, number>();
   for (const s of ordinate) {
+    const nGiornale = (perEsercizio.get(s.esercizio) ?? 0) + 1;
+    perEsercizio.set(s.esercizio, nGiornale);
+    const fuoriPosto = nGiornale !== s.numero;
     const proprie = [...(s.contabilita_righe ?? [])].sort((a, b) => a.riga - b.riga);
     proprie.forEach((r, i) => {
       totDare += cent(Number(r.dare) || 0);
@@ -132,9 +141,11 @@ export function costruisciGiornale(scritture: readonly Scrittura[], conti: reado
       progressivo += 1;
       righe.push({
         progressivo,
-        numero: `${s.numero}/${s.esercizio}`,
+        numero: `${nGiornale}/${s.esercizio}`,
+        registrazione: `${s.numero}/${s.esercizio}`,
         data: s.data_registrazione,
-        causale: [s.causale, s.documento_numero ? `doc. ${s.documento_numero}` : ""].filter(Boolean).join(" · "),
+        causale: [s.causale, s.documento_numero ? `doc. ${s.documento_numero}` : "", fuoriPosto ? `reg. n. ${s.numero}` : ""]
+          .filter(Boolean).join(" · "),
         conto: nomi.get(r.conto_id) ?? "conto non trovato",
         descrizione: r.descrizione ?? s.descrizione ?? "",
         dare: Number(r.dare) > 0 ? Number(r.dare) : null,
@@ -168,7 +179,7 @@ export function htmlLibroGiornale(d: {
     titolo: "Libro giornale",
     periodo: periodoInLettere(d.dal, d.al),
     sottotitolo:
-      "Scritture in partita doppia in ordine di data e numero. Ogni scrittura quadra; le correzioni sono storni, non cancellazioni.",
+      "Scritture in partita doppia in ordine di data, numerate per esercizio. Ogni scrittura quadra; le correzioni sono storni, non cancellazioni.",
     azienda: d.azienda,
     riepilogo: [
       { etichetta: "Scritture", valore: String(g.scritture) },

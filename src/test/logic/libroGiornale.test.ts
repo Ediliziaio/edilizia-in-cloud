@@ -71,6 +71,15 @@ describe("libro giornale", () => {
     expect(g.righe[3].primaDellaScrittura).toBe(true);
     expect(g.righe[4].progressivoDare).toBe(172);
   });
+  it("una scrittura inserita dopo con data precedente prende il numero del suo giorno", () => {
+    const g = costruisciGiornale([
+      s(1, "2026-03-01", [["clienti", 10, 0], ["ricavi", 0, 10]]),
+      s(2, "2026-01-15", [["clienti", 20, 0], ["ricavi", 0, 20]]),
+    ], conti);
+    const teste = g.righe.filter((r) => r.primaDellaScrittura);
+    expect(teste.map((r) => [r.numero, r.registrazione])).toEqual([["1/2026", "2/2026"], ["2/2026", "1/2026"]]);
+    expect(teste[0].causale).toContain("reg. n. 2");
+  });
   it("il foglio di stampa porta titolo, conti e totali", () => {
     const html = htmlLibroGiornale({
       azienda: { ragione_sociale: "Prova srl" },

@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { formatCurrency } from "@/lib/formatters";
 import { queryKeys } from "@/lib/queryKeys";
 import { invalidaStatisticheFatturazione } from "@/lib/fatturazione/invalidaStatistiche";
-import { residuoDaIncassare } from "@/lib/fatturazione/incassi";
+import { ACCONTI_SU_FATTURE_IN_CLOUD, residuoDaIncassare } from "@/lib/fatturazione/incassi";
 import { eseguiInBlocco } from "@/lib/fatturazione/azioniInBlocco";
 import { cn } from "@/lib/utils";
 import type { DocumentoFiscale } from "@/types/fatturazione";
@@ -242,13 +242,8 @@ const METODI = [
   { value: "other", label: "Altro" },
 ];
 
-/**
- * Gli acconti su Fatture in Cloud. `billing-payment-push` con `{ azione: "incassa", importo }`
- * ridistribuisce il pagato sulle rate (ramo fattura-pagamenti-banca, 7faa1beb6). Finché quella
- * versione non è pubblicata, quella online salda TUTTE le rate: un acconto resta solo qui.
- * Si accende quando la funzione nuova è in produzione.
- */
-export const ACCONTI_SU_FATTURE_IN_CLOUD = false;
+// L'interruttore sta in lib/fatturazione/incassi: lo legge anche la Prima nota.
+export { ACCONTI_SU_FATTURE_IN_CLOUD };
 
 /** Quanto resta da incassare di una fattura importata (note di credito collegate già tolte). */
 export function residuoImportata(doc: Pick<DocumentoFiscale, "totale_da_pagare" | "importo_pagato">): number {
