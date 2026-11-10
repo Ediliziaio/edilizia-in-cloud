@@ -287,8 +287,10 @@ function ElencoStanze({ pianta, dati, vista, azioni }: { pianta: Pianta; dati: D
   const quantita = locali.map((l) => ({ l, q: l }));
   const totale = quantita.reduce((s, x) => s + x.q.mq, 0);
   const stimate = contaStimate(pianta);
-  const porte = pianta.aperture.filter((a) => a.tipo !== "finestra" && a.tipo !== "varco" && visibile(a.stato, vista) && a.stato !== "da_demolire").length;
+  const porte = pianta.aperture.filter((a) => a.tipo === "porta" && visibile(a.stato, vista) && a.stato !== "da_demolire").length;
   const finestre = pianta.aperture.filter((a) => a.tipo === "finestra" && visibile(a.stato, vista) && a.stato !== "da_demolire").length;
+  const portefinestre = pianta.aperture.filter((a) => a.tipo === "portafinestra" && visibile(a.stato, vista) && a.stato !== "da_demolire").length;
+  const passaggi = pianta.aperture.filter((a) => a.tipo === "varco" && visibile(a.stato, vista) && a.stato !== "da_demolire").length;
   return (
     <div className="space-y-4">
       <div>
@@ -321,9 +323,14 @@ function ElencoStanze({ pianta, dati, vista, azioni }: { pianta: Pianta; dati: D
           </div>
         )}
       </div>
-      {(porte > 0 || finestre > 0) && (
+      {(porte > 0 || finestre > 0 || portefinestre > 0 || passaggi > 0) && (
         <p className="text-sm text-muted-foreground">
-          {porte} {porte === 1 ? "porta" : "porte"} · {finestre} {finestre === 1 ? "finestra" : "finestre"}
+          {[
+            porte ? `${porte} ${porte === 1 ? "porta" : "porte"}` : null,
+            finestre ? `${finestre} ${finestre === 1 ? "finestra" : "finestre"}` : null,
+            portefinestre ? `${portefinestre} ${portefinestre === 1 ? "portafinestra" : "portefinestre"}` : null,
+            passaggi ? `${passaggi} ${passaggi === 1 ? "passaggio" : "passaggi"}` : null,
+          ].filter(Boolean).join(" · ")}
         </p>
       )}
       {stimate > 0 && (
@@ -336,11 +343,11 @@ function ElencoStanze({ pianta, dati, vista, azioni }: { pianta: Pianta; dati: D
             <Button size="sm" onClick={() => azioni.seleziona(prossimaStimata(pianta))}>
               Controllale una alla volta
             </Button>
-            <Button size="sm" variant="outline" onClick={azioni.confermaTutte}>
+            {!pianta.letturaDocumento && <Button size="sm" variant="outline" onClick={azioni.confermaTutte}>
               <Check /> Le ho controllate tutte
-            </Button>
+            </Button>}
           </div>
-          <p className="mt-1.5 text-xs text-foreground/80">Una alla volta: si parte dalla stanza più grande; correggi la misura se serve e premi «Misura controllata», si passa da sola alla prossima.</p>
+          <p className="mt-1.5 text-xs text-foreground/80">{pianta.letturaDocumento ? "Correggi le misure sul disegno e completa le verifiche in «Confronta foto e pianta». Le quote dubbie restano aperte fino alla conferma." : "Una alla volta: si parte dalla stanza più grande; correggi la misura se serve e premi «Misura controllata», si passa da sola alla prossima."}</p>
         </div>
       )}
       <DaSistemare pianta={pianta} dati={dati} azioni={azioni} />
@@ -784,9 +791,10 @@ function DettaglioApertura({ vista, apertura: a, azioni, essenziale }: { vista: 
         )}
       </div>
       <div className="flex flex-wrap gap-2 pt-1">
+        {a.versoDaVerificare && <p className="w-full text-xs text-amber-800">Verso di apertura da verificare sul documento o sul posto.</p>}
         {a.tipo !== "finestra" && (
           <Button size="sm" variant="outline" onClick={() => azioni.giraApertura(a.id)} disabled={!misurabile}>
-            <RotateCw /> Gira il verso
+            <RotateCw /> {a.versoDaVerificare ? "Imposta il verso" : "Gira il verso"}
           </Button>
         )}
         {a.origine === "stimata" && (

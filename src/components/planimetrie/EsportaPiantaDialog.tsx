@@ -1,3 +1,6 @@
+import { controlloPrimaDellUso } from "../../../shared/planimetrie/verificaDocumento.ts";
+import { ControlloUsoBloccato } from "./ControlloPrimaDellUso";
+import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
 /**
  * Esporta la pianta (fase 1 del piano di completamento, 1/11/2026): DXF a layer per AutoCAD,
  * PDF in scala con cartiglio, SVG e PNG, in stile tecnico o da presentazione.
@@ -113,6 +116,7 @@ export function EsportaPiantaDialog({
   const [cantiere, setCantiere] = useState("");
   const [inCorso, setInCorso] = useState(false);
   const [faseFascicolo, setFaseFascicolo] = useState("");
+  const [renderDaIncludere, setRenderDaIncludere] = useState<"ultimi" | "tutti">("ultimi");
   const [preventivoId, setPreventivoId] = useState<string>("");
   const [allegando, setAllegando] = useState(false);
   // Tavola completa: dopo la pianta, i fogli con prospetti e sezione.
@@ -196,7 +200,7 @@ export function EsportaPiantaDialog({
   };
 
   const preparaFascicolo = async (cartiglio: DatiCartiglio) => {
-    const { renderPerFascicolo, sorgentePerFascicolo, campioniPersonaliPerFascicolo } = await import("@/lib/planimetrie/fascicoloDati");
+    const { renderPerFascicolo, sorgentePerFascicolo, campioniPersonaliPerFascicolo, documentoOriginalePerFascicolo } = await import("@/lib/planimetrie/fascicoloDati");
     const { esportaFascicolo } = await import("@/lib/planimetrie/fascicoloPdf");
     setFaseFascicolo("Leggo i render del progetto");
     const renders = planimetriaId && effectiveCompany?.id ? await renderPerFascicolo(effectiveCompany.id, planimetriaId) : [];
@@ -209,11 +213,12 @@ export function EsportaPiantaDialog({
       if (!sorgenti.has(path)) sorgenti.set(path, sorgentePerFascicolo(effectiveCompany.id, path));
       return sorgenti.get(path)!;
     };
-    return esportaFascicolo({ documento, titolo, versione, ambito, cartiglio, renders, progresso: setFaseFascicolo, leggiSorgente, leggiCampioniPersonali: (render) => effectiveCompany?.id ? campioniPersonaliPerFascicolo(effectiveCompany.id, render.scelte) : Promise.resolve([]) });
+    return esportaFascicolo({ documento, titolo, versione, ambito, cartiglio, renders, renderDaIncludere, progresso: setFaseFascicolo, leggiSorgente, leggiDocumentoOriginale: () => effectiveCompany?.id ? documentoOriginalePerFascicolo(effectiveCompany.id, documento.letturaDocumento?.sorgente?.percorso) : Promise.resolve(null), leggiCampioniPersonali: (render) => effectiveCompany?.id ? campioniPersonaliPerFascicolo(effectiveCompany.id, render.scelte) : Promise.resolve([]) });
   };
 
   /** La pianta in A4 come scheda del preventivo: si accoda al PDF che parte al cliente. */
   const allega = async () => {
+    if (!controlloPrimaDellUso(documento, "pdf").ok) { toast.error("Verifica il documento prima di allegare il PDF."); return; }
     if (!vista || !planimetriaId || !preventivoId || !effectiveCompany?.id) return;
     setAllegando(true);
     try {
@@ -242,6 +247,7 @@ export function EsportaPiantaDialog({
   };
 
   const esporta = async () => {
+    if (!controlloPrimaDellUso(documento, "pdf").ok) { toast.error("Verifica il documento prima di esportare la pianta."); return; }
     if (!vista) { toast.error("La pianta non ha niente da disegnare in questo stato."); return; }
     setInCorso(true);
     try {
@@ -347,7 +353,17 @@ export function EsportaPiantaDialog({
 
             {(formato === "pdf" || formato === "fascicolo") && (
               <div className="space-y-3 rounded-lg border p-3">
-                {formato === "fascicolo" && <p className="text-xs">Il fascicolo comprende tutti i piani dello stato selezionato, indice, campioni dei materiali comuni, viste 3D della casa e degli ambienti, misure e finiture, porte e finestre, arredi e impianti, prospetti, sezioni e tutti i render completati di questa versione. Le stanze senza render sono indicate. Le vecchie versioni rimangono nello storico.</p>}
+                {formato === "fascicolo" && <>
+                  <p className="text-xs">Il fascicolo comprende tutti i piani dello stato selezionato, indice, campioni dei materiali comuni, viste 3D della casa e degli ambienti, misure e finiture, porte e finestre, arredi e impianti, prospetti, sezioni e render di questa versione. Le stanze senza render sono indicate. Le vecchie versioni rimangono nello storico.</p>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="fascicolo-render" className="text-xs">Render da includere</Label>
+                    <Select value={renderDaIncludere} onValueChange={(v) => setRenderDaIncludere(v as "ultimi" | "tutti")}>
+                      <SelectTrigger id="fascicolo-render" className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="ultimi">Ultimo render per stanza</SelectItem><SelectItem value="tutti">Tutte le varianti</SelectItem></SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-muted-foreground">{renderDaIncludere === "ultimi" ? "Solo il render completato più recente di ogni stanza. Le altre varianti restano nello storico." : "Tutti i render completati per ogni stanza, della versione e dello stato selezionati."}</p>
+                  </div>
+                </>}
                 {formato === "pdf" && <>
                 <div className="grid grid-cols-3 gap-2">
                   <div className="space-y-1">
@@ -429,7 +445,7 @@ export function EsportaPiantaDialog({
                       ))}
                     </SelectContent>
                   </Select>
-                  <Button size="sm" variant="outline" className="h-9" disabled={!preventivoId || allegando || !vista} onClick={() => void allega()}>
+                  <Button size="sm" variant="outline" className="h-9" disabled={!preventivoId || allegando || !vista || !controlloPrimaDellUso(documento, "pdf").ok} onClick={() => void allega()}>
                     {allegando ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Paperclip className="mr-1 h-4 w-4" />}Allega
                   </Button>
                 </div>
@@ -446,9 +462,10 @@ export function EsportaPiantaDialog({
 
         {(inCorso || allegando) && faseFascicolo && <p role="status" className="text-sm text-muted-foreground">{faseFascicolo}…</p>}
 
+        <ControlloUsoBloccato documento={documento} uso="pdf" modifica={planimetriaId ? percorsiPlanimetrie.modifica(planimetriaId) : undefined} />
         <DialogFooter>
           <Button variant="outline" onClick={onChiudi} disabled={inCorso || allegando}>Chiudi</Button>
-          <Button onClick={() => void esporta()} disabled={inCorso || allegando || !vista}>
+          <Button onClick={() => void esporta()} disabled={inCorso || allegando || !vista || !controlloPrimaDellUso(documento, "pdf").ok}>
             {inCorso ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}
             {inCorso && faseFascicolo ? faseFascicolo : `Scarica ${FORMATI.find((f) => f.id === formato)?.nome}`}
           </Button>

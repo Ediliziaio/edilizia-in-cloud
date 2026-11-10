@@ -11,6 +11,7 @@ import { costruisciScena, scenaEdificio, metadatiFotogramma, type PianoPer3D, ty
 import { adattaAmbiente, attendiTexture, applicaTelecamera, creaGruppo, liberaGruppo, preparaAmbiente } from "./scenaThree";
 import { creaAspetto } from "./aspetto";
 import type { OpzioniAspetto } from "@/lib/planimetrie/tred/aspettoOpzioni";
+import { etichetteArrediInquadrati } from "@/lib/planimetrie/tred/inquadraturaArredi";
 
 export interface RichiestaFotogramma {
   pianta: PiantaPer3D;
@@ -30,6 +31,8 @@ export interface RichiestaFotogramma {
   piani?: PianoPer3D[];
   /** Aspetto realistico (facciata, infissi, ora, alberi…) come nel 3D: per i render degli esterni. Senza, la vista è quella semplice di sempre. */
   aspetto?: OpzioniAspetto;
+  /** Legenda degli oggetti per l'AI: aiuta a non confondere i sanitari nei modelli schematici. */
+  annotaElementi?: boolean;
 }
 
 export interface Fotogramma {
@@ -43,6 +46,7 @@ export async function catturaFotogramma(r: RichiestaFotogramma): Promise<Fotogra
   const vista = r.vista ?? "progetto";
   const metadati = metadatiFotogramma(r.pianta, r.localeId, r.telecamera, { larghezza, altezza }, vista);
   if (!metadati) throw new Error("Locale non trovato nella pianta.");
+  metadati.arredi_inclusi = r.elementi !== false;
 
   const canvas = document.createElement("canvas");
   canvas.width = larghezza;
@@ -70,7 +74,25 @@ export async function catturaFotogramma(r: RichiestaFotogramma): Promise<Fotogra
     } else {
       renderer.render(scene, camera);
     }
-    const png = await new Promise<Blob>((ok, ko) => canvas.toBlob((b) => (b ? ok(b) : ko(new Error("Immagine non creata."))), "image/png"));
+    let immagine = canvas;
+    if (r.annotaElementi && metadati.arredi_inclusi) {
+      const etichette = etichetteArrediInquadrati(r.pianta, r.localeId, r.telecamera, larghezza / altezza);
+      if (etichette.length) {
+        immagine = document.createElement("canvas"); immagine.width = larghezza; immagine.height = altezza;
+        const ctx = immagine.getContext("2d");
+        if (!ctx) throw new Error("Legenda degli arredi non disponibile.");
+        ctx.drawImage(canvas, 0, 0);
+        const font = Math.max(16, Math.round(larghezza / 65));
+        ctx.font = `600 ${font}px sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        for (const e of etichette) {
+          const w = ctx.measureText(e.nome).width + 20, h = font + 14;
+          const x = Math.max(w / 2 + 5, Math.min(larghezza - w / 2 - 5, e.x * larghezza)), y = Math.max(h / 2 + 5, Math.min(altezza - h / 2 - 5, e.y * altezza));
+          ctx.fillStyle = "rgba(22,40,62,.88)"; ctx.fillRect(x - w / 2, y - h / 2, w, h);
+          ctx.fillStyle = "white"; ctx.fillText(e.nome, x, y);
+        }
+      }
+    }
+    const png = await new Promise<Blob>((ok, ko) => immagine.toBlob((b) => (b ? ok(b) : ko(new Error("Immagine non creata."))), "image/png"));
     return { png, metadati };
   } finally {
     aspetto?.libera();

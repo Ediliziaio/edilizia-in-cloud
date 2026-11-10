@@ -1,3 +1,6 @@
+import { controlloPrimaDellUso } from "../../../shared/planimetrie/verificaDocumento.ts";
+import type { Planimetria } from "../../../shared/planimetrie/modello.ts";
+import { ControlloUsoBloccato } from "./ControlloPrimaDellUso";
 import { COLORI_INFISSI_PROGETTO, PROFILI_PROGETTO } from "../../../shared/planimetrie/materialiProgetto.ts";
 /**
  * Render degli esterni dalla pianta: piscina, pergola, giardino, facciata, pavimento esterno.
@@ -38,6 +41,7 @@ const INQUADRATURE: Array<{ valore: Inquadratura; nome: string }> = [
 ];
 
 interface Props {
+  documento: Planimetria;
   aperto: boolean;
   onChiudi: () => void;
   pianta: PiantaPer3D;
@@ -49,7 +53,7 @@ interface Props {
   piani?: PianoPer3D[];
 }
 
-export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, moduloIniziale, piani }: Props) {
+export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, moduloIniziale, piani, documento }: Props) {
   const navigate = useNavigate();
   // finché non se ne sceglie un altro vale quello proposto (con una piscina disegnata: «Piscina»)
   const [scelto, setScelto] = useState<ModuloEsterno | null>(null);
@@ -76,7 +80,7 @@ export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, m
   const chiaveAspetto = JSON.stringify(asp);
 
   useEffect(() => {
-    if (!aperto || !localeId) return;
+    if (!aperto || !localeId || !controlloPrimaDellUso(documento, "render").ok) return;
     let annullato = false;
     let url: string | null = null;
     // un attimo di pausa: scorrendo l'ora o cambiando facciata non si rifà la vista a ogni passo
@@ -99,14 +103,14 @@ export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, m
       clearTimeout(attesa);
       if (url) URL.revokeObjectURL(url);
     };
-  }, [aperto, inquadratura, limiti, casa, localeId, pianta, piani, titolo, vista, asp, chiaveAspetto]);
+  }, [aperto, inquadratura, limiti, casa, localeId, pianta, piani, titolo, vista, asp, chiaveAspetto, documento]);
 
   // con l'aspetto cambiato l'anteprima vecchia resta finché non arriva la nuova
   const carico = !!localeId && ((anteprima?.per !== inquadratura && errore?.per !== inquadratura) || (anteprima?.chiave !== chiaveAspetto && errore?.per !== inquadratura));
   const erroreOra = errore?.per === inquadratura && anteprima?.per !== inquadratura ? errore.testo : null;
 
   const continua = () => {
-    if (!anteprima) return;
+    if (!anteprima || !controlloPrimaDellUso(documento, "render").ok) return;
     const m = MODULI_ESTERNI.find((x) => x.modulo === modulo)!;
     const infissi = pianta.infissiProgetto;
     const notaInfissi = infissi ? `Infissi comuni del progetto: ${PROFILI_PROGETTO[infissi.profilo]}, ${COLORI_INFISSI_PROGETTO[infissi.colore].nome}. Usa lo stesso materiale e colore in tutte le viste. Conserva per ogni apertura dimensioni, posizione, davanzale, numero di ante e meccanismo di apertura. Non cambiare persiane o porte.` : "";
@@ -185,9 +189,9 @@ export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, m
             {!localeId && <p className="p-4 text-sm text-muted-foreground">La pianta non ha stanze: disegnale prima.</p>}
           </div>
         </div>
-        <DialogFooter>
+        <ControlloUsoBloccato documento={documento} uso="render" /><DialogFooter>
           <Button variant="outline" onClick={onChiudi}>Annulla</Button>
-          <Button onClick={continua} disabled={!anteprima || carico || anteprima.chiave !== chiaveAspetto} className="bg-primary hover:bg-primary/90">Continua col render</Button>
+          <Button onClick={continua} disabled={!anteprima || carico || anteprima.chiave !== chiaveAspetto || !controlloPrimaDellUso(documento, "render").ok} className="bg-primary hover:bg-primary/90">Continua col render</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

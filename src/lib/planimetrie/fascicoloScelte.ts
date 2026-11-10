@@ -10,6 +10,8 @@ const SEZIONI: Array<[string, string, Record<string, string>]> = [
   ["spazi_dettagli", "Spazi e dettagli", { layout_strategy: "Disposizione", elementi_da_mantenere: "Da mantenere", elementi_da_aggiungere: "Da aggiungere", elementi_da_rimuovere: "Da rimuovere", note_tecniche: "Note" }],
 ];
 
+export { renderVisibleNotes as richiesteFascicolo } from "../render/renderVisibleNotes";
+
 /** Informazioni del cliente leggibili, senza serializzare la configurazione tecnica. */
 export function descriviScelteFascicolo(config: Record<string, unknown>): string[] {
   const righe: string[] = [];

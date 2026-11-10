@@ -161,6 +161,8 @@ export function righeQaPianta(v: VincoliStanza, opz: { partenza: PartenzaRender;
     righe.push(
       "- The source (Image 1) is a 3D model, not a photo: photorealistic materials, light and furniture are expected; selected render interventions may replace the source finishes. That is expected and is NOT a geometry change. Judge walls, ceiling, camera, openings and preservation of the visible furniture inventory/footprints, unless the customer explicitly requests additions or full furniture replacement.",
       "- unrequested_furniture: fail if the candidate introduces a coffee table, side table, rug, chair, ottoman or cabinet that has no corresponding block in the source, unless the written customer request explicitly asks for it or for full furniture replacement. Small decorative objects on existing furniture are allowed. Never treat furniture in the sample boards as permission to add it to the real room.",
+      "- geometry_change: compare EACH visible furniture item and sanitary fixture with its own source footprint and labelled position. Fail if a bed, wardrobe, sofa, desk, kitchen unit, toilet, bidet, washbasin or washing machine is swapped, moved to another place, or replaced by a different object. A matching total item count is NOT enough. Styling does not authorize rearrangement.",
+      "- Do not infer a kitchen, bed, chair or any other furniture from the room name. Source labels identify existing objects and must disappear in the final photograph; they never authorize extra furniture. Keep items behind the camera out of frame.",
     );
     if (inquadrate.length > 0) {
       righe.push(

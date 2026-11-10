@@ -22,7 +22,7 @@ describe("Anteprima e dettaglio dello stesso render", () => {
         : [{ id: "p1", titolo: "Villa Rossi" }];
       const query = {
         select: () => query, eq: () => query, is: () => query, order: () => query,
-        limit: async (): Promise<{ data: unknown[]; error: null }> => ({ data, error: null }),
+        range: () => query, abortSignal: () => query, then: (resolve: (result: unknown) => unknown) => Promise.resolve({ data, error: null, count: data.length }).then(resolve),
         in: async (): Promise<{ data: unknown[]; error: null }> => ({ data, error: null }),
       };
       return query;
@@ -33,9 +33,9 @@ describe("Anteprima e dettaglio dello stesso render", () => {
         <Route path="/azienda/render/stanza/gallery/render-bagno" element={<p>Dettaglio del bagno selezionato</p>} />
       </Routes></MemoryRouter>
     </QueryClientProvider>);
-    const preview = await screen.findByRole("button", { name: /Bagno ospiti/ });
+    const preview = await screen.findByRole("link", { name: /Apri render Bagno ospiti/ });
     expect(preview.querySelector("img")).toHaveAttribute("src", "https://example.test/bagno.png");
-    expect(screen.getByText("Bagno ospiti · Villa Rossi")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Apri planimetria Villa Rossi/ })).toBeInTheDocument();
     fireEvent.click(preview);
     expect(await screen.findByText("Dettaglio del bagno selezionato")).toBeInTheDocument();
   });

@@ -343,6 +343,8 @@ export default defineConfig(({ command, mode }) => ({
   // ────────────────────────────────────────────────────────────────────────
   optimizeDeps: {
     include: [
+      "heic-to/csp",
+      "react-image-crop",
       "@tiptap/react",
       "@tiptap/starter-kit",
       "@tiptap/extension-underline",

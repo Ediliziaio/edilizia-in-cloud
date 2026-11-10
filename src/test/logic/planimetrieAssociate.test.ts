@@ -12,7 +12,7 @@ beforeEach(() => {
 
 describe("Planimetrie visibili dalle schede associate", () => {
   it.each([
-    ["cliente", "customer_id"], ["preventivo", "quote_id"], ["commessa", "order_id"], ["computo", "computo_upload_id"],
+    ["cliente", "customer_id"], ["contatto", "contact_id"], ["preventivo", "quote_id"], ["commessa", "order_id"], ["computo", "computo_upload_id"],
   ] as const)("legge solo il riferimento esplicito %s nella stessa azienda", async (tipo, colonna) => {
     const result = await caricaPianteAssociate("azienda-A", tipo, "scheda-1");
     expect(db.from).toHaveBeenCalledWith("planimetrie");

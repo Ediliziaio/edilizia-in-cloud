@@ -12,12 +12,14 @@ export interface RenderPdfMetadataItem {
 
 export interface DownloadRenderPdfArgs {
   beforeUrl?: string | null;
+  beforeLabel?: string;
   afterUrl: string;
   title: string;
   subtitle?: string;
   filename: string;
   metadata?: RenderPdfMetadataItem[];
   companyLogoUrl?: string | null;
+  includeAllMetadata?: boolean;
   /** @deprecated The platform logo is intentionally not rendered in the PDF footer. */
   platformLogoUrl?: string | null;
 }
@@ -142,8 +144,44 @@ async function optionalImage(url?: string | null): Promise<string | null> {
 function isPublicMetadata(item: RenderPdfMetadataItem): boolean {
   const value = item.value == null ? "" : String(item.value);
   if (!value.trim()) return false;
-  const combined = `${item.label} ${value}`.toLowerCase();
-  return !/(provider|openai|gemini|model|modello|costo|cost|addeb|billing|token|api)/.test(combined);
+  return !/(?:^|[\s_·:])(provider|openai|gemini|model|modello|costo|cost|addebito|billing|token|api)(?:$|[\s_·:])/i.test(item.label);
+}
+
+/** Pagine aggiuntive per tutte le scelte: nessuna troncatura dei valori salvati. */
+export function appendRenderMetadataPages(doc: JsPdfDoc, metadata: RenderPdfMetadataItem[], title: string) {
+  const entries = metadata.filter(isPublicMetadata);
+  if (!entries.length) return;
+  const width = doc.internal.pageSize.getWidth();
+  const height = doc.internal.pageSize.getHeight();
+  let y = 0;
+  const newPage = () => {
+    doc.addPage();
+    doc.setFillColor(255, 255, 255); doc.rect(0, 0, width, height, "F");
+    doc.setDrawColor(30, 58, 95); doc.setLineWidth(1); doc.line(12, 13, width - 12, 13);
+    doc.setTextColor(25, 35, 50); doc.setFont("helvetica", "bold"); doc.setFontSize(14);
+    doc.text("Scelte registrate con il render", 12, 24);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9);
+    const heading = doc.splitTextToSize(title, width - 24) as string[];
+    doc.text(heading, 12, 32); y = 39 + Math.max(0, heading.length - 1) * 4;
+  };
+  newPage();
+  for (const entry of entries) {
+    doc.setFontSize(9);
+    const labelLines = doc.splitTextToSize(entry.label, 75) as string[];
+    const valueLines = doc.splitTextToSize(String(entry.value), width - 111) as string[];
+    let offset = 0;
+    while (offset < valueLines.length) {
+      if (y + Math.max(labelLines.length, 2) * 4.5 + 5 > height - 16) newPage();
+      const available = Math.max(1, Math.floor((height - 20 - y) / 4.5));
+      const part = valueLines.slice(offset, offset + available);
+      doc.setTextColor(80, 95, 115); doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.text(labelLines, 12, y);
+      doc.setTextColor(25, 35, 50); doc.setFontSize(9); doc.text(part, 99, y);
+      y += Math.max(labelLines.length, part.length) * 4.5 + 7;
+      doc.setDrawColor(225, 230, 236); doc.setLineWidth(0.2); doc.line(12, y - 4, width - 12, y - 4);
+      offset += part.length;
+      if (offset < valueLines.length) newPage();
+    }
+  }
 }
 
 export async function downloadRenderBeforeAfterPdf(args: DownloadRenderPdfArgs): Promise<void> {
@@ -168,7 +206,7 @@ export async function downloadRenderBeforeAfterPdf(args: DownloadRenderPdfArgs):
   const imageInnerW = imageCardW - 10;
 
   const [beforeData, afterData, companyLogoData] = await Promise.all([
-    args.beforeUrl ? imageUrlToDataUrl(args.beforeUrl) : Promise.resolve(null),
+    optionalImage(args.beforeUrl),
     imageUrlToDataUrl(args.afterUrl),
     optionalImage(args.companyLogoUrl),
   ]);
@@ -209,7 +247,7 @@ export async function downloadRenderBeforeAfterPdf(args: DownloadRenderPdfArgs):
   const beforeX = margin;
   const afterX = beforeX + imageCardW + gap;
 
-  for (const [x, label] of [[beforeX, "PRIMA"], [afterX, "DOPO"]] as const) {
+  for (const [x, label] of [[beforeX, args.beforeLabel || "PRIMA"], [afterX, "RISULTATO AI"]] as const) {
     drawRoundedBox(doc, x, imageY, imageCardW, imageCardH, [255, 255, 255], [219, 229, 243], 4);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8.5);
@@ -250,5 +288,6 @@ export async function downloadRenderBeforeAfterPdf(args: DownloadRenderPdfArgs):
   doc.setTextColor(37, 99, 235);
   doc.text("Edilizia in Cloud", creditX, footerY + 11.2, { align: "right" });
 
+  if (args.includeAllMetadata) appendRenderMetadataPages(doc, visibleMeta, args.title);
   doc.save(args.filename.endsWith(".pdf") ? args.filename : `${args.filename}.pdf`);
 }

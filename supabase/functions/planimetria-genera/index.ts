@@ -55,6 +55,10 @@ const BUCKET = "planimetrie";
 // e bruciava mezzo minuto prima del ripiego. Ora ogni chiamata ha 100 s (`timeoutMs`).
 const MODELLI = (Deno.env.get("PLANIMETRIA_MODELLI") ?? "anthropic/claude-sonnet-4.5,google/gemini-2.5-pro")
   .split(",").map((m) => m.trim()).filter(Boolean);
+// Gli schizzi quotati richiedono lettura delle note e ragionamento geometrico.
+// Catena separata: i documenti ordinari mantengono la configurazione esistente.
+const MODELLI_SCHIZZO = (Deno.env.get("PLANIMETRIA_MODELLI_SCHIZZO") ?? "anthropic/claude-opus-5.5,anthropic/claude-sonnet-4.5")
+  .split(",").map((m) => m.trim()).filter(Boolean);
 /** Il gateway chiude a 150 s: 140 s per leggere la pianta, di cui al massimo 110 s per un modello solo. */
 const TEMPO_TOTALE_MS = 140_000;
 const TEMPO_PER_MODELLO_MS = 110_000;
@@ -74,6 +78,7 @@ function base64(bytes: Uint8Array): string {
 function risposta(g: PiantaGenerata, tentativi: unknown[], mime: string | null, cors: Record<string, string>) {
   return jsonResponse({
     success: true,
+    versione_prompt: VERSIONE_PROMPT,
     planimetria: g.planimetria,
     generazione: g.generazione,
     // da passare a planimetria_crea / planimetria_salva_versione
@@ -200,7 +205,7 @@ serveConMetricheRapida(NOME, async (req: Request) => {
       // Il primo modello; se il provider non risponde, il secondo con il tempo che resta (il gateway chiude
       // a 150 s). Nessun ripiego automatico del router: la catena di default ha modelli che non vedono immagini.
       let ultimoErrore: unknown = null;
-      for (const modello of MODELLI) {
+      for (const modello of ingresso === "schizzo" ? MODELLI_SCHIZZO : MODELLI) {
         const resto = TEMPO_TOTALE_MS - (Date.now() - inizioChiamate);
         if (resto < 20_000) break;
         try {

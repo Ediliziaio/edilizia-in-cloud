@@ -1,3 +1,4 @@
+import { esigiVerificaDocumento } from "../../../shared/planimetrie/verificaDocumento.ts";
 import { puntoNelPoligono } from "../../../shared/planimetrie/geometria.ts";
 import { materialiDelProgetto, type MaterialiProgetto } from "../../../shared/planimetrie/materialiProgetto.ts";
 // generate-room-render — render della stanza partendo dalla pianta (Planimetrie, fase 5b).
@@ -80,6 +81,10 @@ export async function caricaPiantaDelRender(
   if (!ver) throw new Error("Questa versione della pianta non esiste.");
   const esito = validaPlanimetria(ver.documento);
   if (esito.ok === false) throw new Error("La pianta salvata non si legge: aprila e salvala di nuovo.");
+
+  // Le versioni create dall'editor con le conferme sono controllate anche qui.
+  // L'interfaccia precedente non sa ancora registrarle: continua a leggere lo storico.
+  if (esito.planimetria.letturaDocumento?.protocolloVerifica === 1) esigiVerificaDocumento(esito.planimetria, "render");
 
   const materialiAmbito = typeof rif.materiali_ambito === "string" ? rif.materiali_ambito : ambito;
   if (!ambitiDi(esito.planimetria).some((a) => a.chiave === materialiAmbito)) throw new Error("Materiali del progetto non trovati: riapri la pianta e riprova.");

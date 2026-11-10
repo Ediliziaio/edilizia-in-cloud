@@ -29,14 +29,15 @@ export function leggiMisura(testo: string): number | null {
   return Math.round(cm * 10) / 10;
 }
 
-/** «4,20» — metri con due decimali, virgola italiana. */
+/** «4,20», oppure «1,945» per una quota di 194,5 cm: non perde i mezzi centimetri. */
 export function scriviMetri(cm: number): string {
-  return (cm / 100).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const arrotondata = Math.round(cm * 10) / 10;
+  return (arrotondata / 100).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: Number.isInteger(arrotondata) ? 2 : 3 });
 }
 
 /** «90» — centimetri interi, per porte e finestre. */
 export function scriviCentimetri(cm: number): string {
-  return Math.round(cm).toLocaleString("it-IT");
+  return cm.toLocaleString("it-IT", { maximumFractionDigits: 1 });
 }
 
 /** «12,35 mq» */

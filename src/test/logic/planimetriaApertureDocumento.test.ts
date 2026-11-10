@@ -70,6 +70,15 @@ describe("aperture confrontate con il documento originale", () => {
     const g = applicaVerificaAperture(pianta(), { verifiche: [{ ...verifiche[0], evidenza: "simbolo_finestra" }, { ...verifiche[1], evidenza: "nessuna" }] }, true);
     expect(g.planimetria.livelli[0].fatto.aperture).toHaveLength(0);
   });
+  it("una portafinestra a battente può avere il simbolo di una porta: conferma solo il suo vano e il suo tipo", () => {
+    const ap = { tipo: "portafinestra", da: [100, 200], a: [100, 310] };
+    const g = costruisciPiani(leggiRispostaAI({ ...ipotesi, aperture: [ap] }, "immagine"), { ingresso: "documento", larghezzaImmagine: 1000, altezzaImmagine: 1000 });
+    const riscontro = { aperture: [{ ...ap, evidenza: "simbolo_porta" }] };
+    expect(applicaVerificaAperture(g, confrontaRilievoAperture(g, riscontro), true).planimetria.livelli[0].fatto.aperture).toEqual(g.planimetria.livelli[0].fatto.aperture);
+    const altroTipo = { aperture: [{ ...ap, tipo: "porta", evidenza: "simbolo_porta" }] };
+    expect(applicaVerificaAperture(g, confrontaRilievoAperture(g, altroTipo), true).planimetria.livelli[0].fatto.aperture).toHaveLength(0);
+    expect(applicaVerificaAperture(g, { verifiche: [{ id: "a1", esito: "incerta", evidenza: "simbolo_porta" }] }, true).planimetria.livelli[0].fatto.aperture).toHaveLength(0);
+  });
   it.each(["errore", "risposta malformata", "budget esaurito"])("%s: mantiene le stanze, senza inserire aperture non verificate", async (caso) => {
     let tempo = 0;
     const modello = vi.fn(async (_m, n) => {

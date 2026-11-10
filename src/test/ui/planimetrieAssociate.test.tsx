@@ -9,7 +9,7 @@ vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewRende
 vi.mock("@/lib/planimetrie/pianteAssociate", async (original) => ({ ...await original<typeof import("@/lib/planimetrie/pianteAssociate")>(), caricaPianteAssociate: mock.carica }));
 
 const pianta = { id: "p1", titolo: "Villa associata", stato: "in_uso", versione_corrente: 3, updated_at: "2026-11-10" };
-function monta(tipo: "cliente" | "preventivo" | "commessa" | "computo" = "cliente", id = "scheda-1") {
+function monta(tipo: "cliente" | "contatto" | "preventivo" | "commessa" | "computo" = "cliente", id = "scheda-1") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const view = render(<PlanimetrieAssociate companyId="azienda-A" tipo={tipo} schedaId={id} />, { wrapper: ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}><MemoryRouter>{children}</MemoryRouter></QueryClientProvider> });
   return { ...view, client };
@@ -22,7 +22,7 @@ beforeEach(() => {
 });
 
 describe("Collegamento al progetto originale", () => {
-  it.each(["cliente", "preventivo", "commessa", "computo"] as const)("nella scheda %s mostra soltanto l'accesso alla planimetria esistente, anche in sola lettura", async (tipo) => {
+  it.each(["cliente", "contatto", "preventivo", "commessa", "computo"] as const)("nella scheda %s mostra soltanto l'accesso alla planimetria esistente, anche in sola lettura", async (tipo) => {
     monta(tipo);
     expect(await screen.findByRole("link", { name: "Apri planimetria Villa associata" })).toHaveAttribute("href", "/azienda/planimetrie/p1");
     expect(mock.carica).toHaveBeenCalledWith("azienda-A", tipo, "scheda-1", 0);

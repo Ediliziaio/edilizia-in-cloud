@@ -21,6 +21,8 @@ interface Props {
    * sinistra: le etichette seguono comunque le immagini.
    */
   beforeOnLeft?: boolean;
+  /** Nei dettagli conserva tutta l'immagine, anche se il formato del render è diverso. */
+  preserveWholeImage?: boolean;
 }
 
 export function BeforeAfterSlider({
@@ -33,11 +35,10 @@ export function BeforeAfterSlider({
   className = "",
   compact = false,
   beforeOnLeft = true,
+  preserveWholeImage = false,
 }: Props) {
   const before = beforeUrl ?? beforeSrc ?? "";
   const after = afterUrl ?? afterSrc ?? "";
-  const baseImage = beforeOnLeft ? after : before;
-  const overlayImage = beforeOnLeft ? before : after;
   const baseAlt = beforeOnLeft ? afterLabel : beforeLabel;
   const overlayAlt = beforeOnLeft ? beforeLabel : afterLabel;
   // L'immagine sovrapposta occupa la parte a sinistra della maniglia: tutta
@@ -46,10 +47,15 @@ export function BeforeAfterSlider({
   const posizioneRender = beforeOnLeft ? 0 : 100;
 
   const [position, setPosition] = useState(50);
-  const [beforeRatio, setBeforeRatio] = useState<number | undefined>();
-  const [afterRatio, setAfterRatio] = useState<number | undefined>();
-  const [afterReady, setAfterReady] = useState(false);
-  const [afterError, setAfterError] = useState(false);
+  const [beforeSize, setBeforeSize] = useState<{ url: string; ratio: number } | null>(null);
+  const [afterLoad, setAfterLoad] = useState<{ url: string; loadedUrl?: string; ratio?: number; ready: boolean; error: boolean } | null>(null);
+  const beforeRatio = !before ? 4 / 3 : beforeSize?.url === before ? beforeSize.ratio : undefined;
+  const afterRatio = afterLoad?.url === after ? afterLoad.ratio : undefined;
+  const afterReady = !!after && afterLoad?.url === after && afterLoad.ready;
+  const afterError = !!after && afterLoad?.url === after && afterLoad.error;
+  const afterDisplay = afterReady ? afterLoad?.loadedUrl || after : after;
+  const baseImage = beforeOnLeft ? afterDisplay : before;
+  const overlayImage = beforeOnLeft ? before : afterDisplay;
   const containerRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
 
@@ -60,36 +66,19 @@ export function BeforeAfterSlider({
   //   contesto autentico), con object-contain sul render → letterbox limitato
   //   solo se aspect ratios diversi. Niente più "scroll effect" pesante.
   useEffect(() => {
-    setBeforeRatio(undefined);
-    if (!before) { setBeforeRatio(4 / 3); return; }
+    if (!before) return;
     let active = true;
     const image = new window.Image();
     image.onload = () => {
       if (!active) return;
       const w = image.naturalWidth || 0;
       const h = image.naturalHeight || 0;
-      setBeforeRatio(w > 0 && h > 0 ? w / h : 4 / 3);
+      setBeforeSize({ url: before, ratio: w > 0 && h > 0 ? w / h : 4 / 3 });
     };
-    image.onerror = () => { if (active) setBeforeRatio(4 / 3); };
+    image.onerror = () => { if (active) setBeforeSize({ url: before, ratio: 4 / 3 }); };
     image.src = before;
     return () => { active = false; };
   }, [before]);
-
-  useEffect(() => {
-    setAfterRatio(undefined);
-    if (!after) return;
-    let active = true;
-    const image = new window.Image();
-    image.onload = () => {
-      if (!active) return;
-      const w = image.naturalWidth || 0;
-      const h = image.naturalHeight || 0;
-      if (w > 0 && h > 0) setAfterRatio(w / h);
-    };
-    image.onerror = () => {};
-    image.src = after;
-    return () => { active = false; };
-  }, [after]);
 
   // v8.6.19 — aspectRatio finale: usa la foto originale (before) come base.
   // L'immagine generata (after) viene scalata via object-cover per matchare
@@ -131,10 +120,10 @@ export function BeforeAfterSlider({
   const scartoFisiologico = ratioMismatch > 0 && ratioMismatch <= 0.2;
   const allineaAlFormatoFoto = renderPiuAlto && scartoFisiologico;
 
-  const afterObjectFit = allineaAlFormatoFoto
+  const afterObjectFit = allineaAlFormatoFoto && !preserveWholeImage
     ? "object-cover"
     : "object-contain";
-  const afterObjectPosition = allineaAlFormatoFoto ? "50% 30%" : undefined;
+  const afterObjectPosition = allineaAlFormatoFoto && !preserveWholeImage ? "50% 30%" : undefined;
   const baseObjectFit = beforeOnLeft ? afterObjectFit : "object-contain";
   const overlayObjectFit = beforeOnLeft ? "object-contain" : afterObjectFit;
   const baseObjectPosition = beforeOnLeft ? afterObjectPosition : undefined;
@@ -142,28 +131,26 @@ export function BeforeAfterSlider({
 
   // Precarica il render e ritenta sui 404 transitori da propagazione CDN.
   useEffect(() => {
-    if (!after) {
-      setAfterReady(false);
-      return;
-    }
+    if (!after) return;
     let active = true;
     let attempts = 0;
-    setAfterReady(false);
-    setAfterError(false);
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
     const tryLoad = () => {
+      if (!active) return;
       const image = new window.Image();
       image.onload = () => {
         if (!active) return;
-        setAfterReady(true);
+        const w = image.naturalWidth; const h = image.naturalHeight;
+        setAfterLoad({ url: after, loadedUrl: image.src, ready: true, error: false, ratio: w > 0 && h > 0 ? w / h : undefined });
       };
       image.onerror = () => {
         if (!active) return;
         attempts += 1;
         if (attempts < 4) {
-          setTimeout(tryLoad, 800 * attempts);
+          retryTimer = setTimeout(tryLoad, 800 * attempts);
         } else {
-          setAfterError(true);
+          setAfterLoad({ url: after, ready: false, error: true });
         }
       };
       image.src = attempts === 0 ? after : `${after}${after.includes("?") ? "&" : "?"}retry=${attempts}`;
@@ -172,6 +159,7 @@ export function BeforeAfterSlider({
     tryLoad();
     return () => {
       active = false;
+      if (retryTimer) clearTimeout(retryTimer);
     };
   }, [after]);
 
@@ -187,11 +175,17 @@ export function BeforeAfterSlider({
     updatePosition(event.clientX);
   }, [updatePosition]);
 
-  const onMouseUp = useCallback(() => {
+  const onMouseUp = useCallback(function finishDrag() {
+    dragging.current = false;
+    window.removeEventListener("mousemove", onMouseMove);
+    window.removeEventListener("mouseup", finishDrag);
+  }, [onMouseMove]);
+
+  useEffect(() => () => {
     dragging.current = false;
     window.removeEventListener("mousemove", onMouseMove);
     window.removeEventListener("mouseup", onMouseUp);
-  }, [onMouseMove]);
+  }, [onMouseMove, onMouseUp]);
 
   const stopDrag = useCallback(() => {
     dragging.current = false;
@@ -279,7 +273,7 @@ export function BeforeAfterSlider({
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(position)}
-        aria-label="Confronta foto originale e render AI"
+        aria-label={`Confronta ${beforeLabel} e ${afterLabel}`}
         onMouseDown={onMouseDown}
         onTouchMove={onTouchMove}
         onTouchStart={onTouchStart}

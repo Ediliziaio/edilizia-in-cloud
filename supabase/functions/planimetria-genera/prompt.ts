@@ -1,6 +1,6 @@
 // Prompt della generazione. Ogni modifica qui va misurata col banco di prova
 // (scripts/planimetrie-banco/): il punteggio si salva a ogni versione.
-export const VERSIONE_PROMPT = "p5";
+export const VERSIONE_PROMPT = "p12";
 
 const DESTINAZIONI_TESTO =
   "soggiorno, cucina, camera, bagno, disimpegno, ingresso, ripostiglio, studio, lavanderia, balcone, terrazzo, garage, cantina, altro";
@@ -58,22 +58,39 @@ Rispondi SOLO con il JSON, senza testo prima o dopo:
  "elementi":[{"tipo":"wc","riquadro":[110,130,140,170],"lato_muro":"alto"}],
  "aree":[]}`;
 
-const SISTEMA_METRI = `COORDINATE: in METRI, origine in alto a sinistra della pianta, x verso destra, y verso il basso. Ogni punto è [x, y] con due decimali.
+const SISTEMA_METRI = `COORDINATE: in METRI, origine in alto a sinistra della pianta, x verso destra, y verso il basso. Ogni punto è [x, y] con fino a tre decimali: conserva i mezzi centimetri senza arrotondarli (es. 137,5 cm = 1,375 m).
 Le stanze vicine si TOCCANO (ignora lo spessore dei muri): il lato in comune ha le stesse coordinate nelle due stanze, senza buchi né sovrapposizioni. Muri dritti e ad angolo retto, salvo che il disegno mostri chiaramente un muro storto.`;
 
 const APERTURE_METRI = `APERTURE — da, a: i due estremi del vano, sul lato della stanza dove sta (per una porta fra due stanze, sul lato in comune). tipo: "porta", "finestra" (sui lati esterni), "portafinestra" (verso balconi e terrazzi) o "varco" (passaggio senza serramento, portone carrabile). Larghezze tipiche se non scritte: porta 0,80 m, portoncino 0,90 m, finestra 1,20 m, portafinestra 1,40 m. Se le stanze hanno il campo piano, ogni apertura ha lo stesso campo piano della sua stanza.`;
 
 export const PROMPT_SCHIZZO = `Sei un geometra italiano. Ricevi la foto di uno schizzo a mano di una pianta, fatto in cantiere, con le misure scritte a penna. Lo schizzo NON è in scala: contano le misure scritte, non le proporzioni del disegno. Trasformalo in JSON.
 
+PRIMA DI DISEGNARE:
+- Una foto può mostrare un solo bagno, una cucina o un altro ambiente: non completarla con una casa inventata. Ignora i fogli tagliati sullo sfondo, cartigli e pubblicità.
+- Ricostruisci anche nicchie e rientri del perimetro. Non trasformare una forma a L in un rettangolo solo per semplificare.
+- Mantieni l'orientamento del foglio: le quote orizzontali determinano x, quelle verticali y. Non ruotare il locale per far tornare i numeri.
+- Leggi "194,5" come 1,945 m quando la quota è in cm. Controlla che le catene di quote tornino; una nota "int. 81 cm" può essere un interasse di impianti, non la larghezza del locale.
+- Distingui l'altezza del soffitto da "H piastrelle", "H rivestimento", altezza lavabo, quota scarico o attacco dell'acqua. Solo "H soffitto" o una quota esplicitamente riferita al locale va in altezza_m; non attribuire 2,06 m al soffitto perché è la quota delle piastrelle.
+- Porte e finestre SOLO se un simbolo o una scritta con posizione inequivocabile le identifica. Frecce di quota, scarichi, attacchi e riquadri di sanitari non sono aperture. Un dubbio non autorizza ad aggiungerne una.
+- "WC", "B" (bidet), vasca, lavabo o doccia, con una freccia che ne identifica la posizione, vanno negli elementi, con ingombro stimato se non quotato. "Vasca 69×169" indica l'ingombro del sanitario, non le dimensioni del bagno. Una nota su lavori futuri ("fare", "spostare", "togliere") non prova che l'elemento esista già: segnala il dubbio.
+- Nel campo avvisi elenca in frasi brevi le scritte ambigue, le quote non conciliabili e le dimensioni dedotte. Non risolvere un numero illeggibile presentando un valore inventato come letto.
+- Prima trascrivi mentalmente le quote principali di larghezza, profondità e rientri, poi chiudi il perimetro. Non trasformare gli interassi dei sanitari in nicchie del muro. Non aggiungere lavabo o doccia perché il locale è un bagno: una vasca indicata a parole resta una vasca.
+
 ${SISTEMA_METRI}
 
 LOCALI:
 - contorno: vertici in ordine lungo il perimetro, con le misure scritte (es. "3,50 × 4,20" o un numero lungo una parete → quel lato è lungo così). Disponi le stanze come nello schizzo (chi sta accanto a chi).
 ${LOCALE_CAMPI}
-- misure_lette: true se le misure di questa stanza sono scritte sullo schizzo; false se le hai dedotte (allora usa misure plausibili e coerenti con le stanze vicine).
+- misure_lette: true SOLO se tutte le dimensioni principali sono lette e concordanti; false se almeno una è dedotta, illeggibile o contraddittoria. In tal caso segnala nel campo avvisi quali misure vanno confermate.
 - superficie_scritta_mq, altezza_scritta_m: solo se scritte, altrimenti null.
 
 ${APERTURE_METRI}
+
+Per ogni apertura riporta anche altezza_m e davanzale_m SOLO se la relativa quota è leggibile e si riferisce chiaramente a quel serramento, altrimenti null. Per le aperture a battente conserva il numero di ante riconoscibili in ante (intero 1–6); cardine indica lo stipite «da» o «a» dove è disegnata la cerniera; apertura_verso indica verso quale parte del foglio si apre l’anta («alto», «basso», «sinistra», «destra»). Per due ante scegli uno dei cardini laterali; il secondo è sull’altro stipite. Se un dettaglio non si legge, ometti il relativo campo e segnala il dubbio, senza sceglierlo per abitudine. Una nota su scarichi non è l'altezza della finestra. La larghezza scritta va rispettata nel segmento da–a: non sostituirla con una misura tipica.
+
+ELEMENTI: tipo fra wc, bidet, lavabo, doccia, vasca, lavatrice, caldaia; riquadro [x0,y0,x1,y1] in METRI, lato_muro "alto" | "basso" | "sinistra" | "destra". Riporta soltanto ciò che è chiaramente indicato nel disegno, non l'arredo tipico di un bagno.
+
+CONTROLLI DA CONFERMARE — restituisci anche verifiche_documento, un elenco strutturato delle quote e dei dettagli dubbi, separato dalle note impiantistiche. Ogni voce: {"descrizione":"...", "locale_nome":"nome esatto del locale oppure null", "apertura_indice":null, "ambito_misura":"totale_locale|vano_apertura|segmento|dettaglio", "campo":"larghezza|profondita|altezza|verso|posizione|contorno", "valori_cm":[]}. ambito_misura è obbligatorio: totale_locale SOLO per l’intera larghezza, profondità o altezza della stanza; vano_apertura SOLO per larghezza/altezza dell’intero vano; segmento per spalle, distanze parziali, nicchie e singoli tratti; dettaglio per verso o altre note. Una spalla o l’ultimo tratto di una catena NON è la larghezza dell’intera stanza. Non usare totale_locale per rendere una quota applicabile al disegno. Per una porta/finestra usa apertura_indice da 1 nell'ordine dell'array aperture, e locale_nome null. valori_cm contiene TUTTE le letture numeriche alternative, in centimetri, senza preferenze né scelta automatica. Conserva anche le quote discordanti che non hai usato nel contorno. Per cardine o verso incerto aggiungi sempre una voce dedicata, con valori_cm vuoto. I riferimenti numerici di una catena di quote non sono tutti larghezze alternative: spiega quali sono quote scritte e quali calcoli dedotti. Non aggiungere verifiche per un dato chiaramente leggibile e coerente. Non risolvere un dubbio con misure tipiche: segnala che la geometria è provvisoria. L'utente sceglierà la misura dopo aver verificato il documento o il rilievo.
 
 Se la foto non è uno schizzo di pianta o non si legge: {"sistema":"metri","leggibile":false,"motivo_non_leggibile":"..."}.
 
@@ -81,7 +98,7 @@ Rispondi SOLO con il JSON:
 {"sistema":"metri","leggibile":true,"altezza_m":null,
  "locali":[{"nome":"Bagno","destinazione":"bagno","contorno":[[0,0],[2.2,0],[2.2,2.5],[0,2.5]],"misure_lette":true,"superficie_scritta_mq":null,"altezza_scritta_m":null}],
  "aperture":[{"tipo":"porta","da":[2.2,1.6],"a":[2.2,2.4]}],
- "quote":[]}`;
+ "quote":[],"elementi":[],"avvisi":[]}`;
 
 export const PROMPT_DESCRIZIONE = `Sei un geometra italiano. Ricevi la descrizione a parole di un edificio (appartamento, villa, villetta bifamiliare o a schiera, piccolo condominio, capannone o magazzino con uffici) e disegni una pianta PLAUSIBILE in JSON: servirà come base da correggere, quindi deve essere sensata e semplice.
 

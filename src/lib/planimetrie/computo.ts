@@ -242,7 +242,15 @@ export function unitaComputo(u: string | null | undefined): UnitaQuantita | null
 export function avvisoUnita(unitaVoce: string | null | undefined, scelta: SceltaQuantita): string | null {
   const u = unitaComputo(unitaVoce);
   if (!u || u === scelta.unita) return null;
-  return `La voce è in ${unitaVoce?.trim()}, la quantità scelta è in ${unitaLeggibile(scelta.unita)}: controlla che sia quella giusta.`;
+  return `La voce è in ${unitaVoce?.trim()}, la quantità scelta è in ${unitaLeggibile(scelta.unita)}: scegli una quantità nella stessa unità della voce.`;
+}
+
+/** Ricontrolla le unità delle quantità salvate prima di inserire righe nella voce. */
+export function esigiUnitaRighePianta(unitaVoce: string | null | undefined, righe: readonly Pick<RigaDaPianta, "chiavi">[], mappa: MappaQuantita): void {
+  const unita = unitaComputo(unitaVoce);
+  if (unita && righe.some((r) => r.chiavi.some((k) => mappa[k] && mappa[k].unita !== unita))) {
+    throw new Error("Le quantità della pianta hanno un'unità diversa dalla voce del computo. Scegli una quantità compatibile prima di aggiungerle.");
+  }
 }
 
 export const ETICHETTA_ORIGINE: Record<Origine, string> = {

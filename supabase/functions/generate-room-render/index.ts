@@ -548,7 +548,7 @@ Deno.serve(async (req: Request) => {
       const contestoQa = { daPianta: !!pianta, materiali: !!materialBoards, da3D: pianta?.partenza === "vista_3d" };
       try {
         const qaPrompt = [
-          "You are a LENIENT quality inspector for an interior room restyling render.",
+          pianta?.partenza === "vista_3d" ? "You inspect whether a floorplan render faithfully preserves the source geometry and the identity and position of every visible furniture item. Photorealism and styling do not excuse moved, swapped or invented objects." : "You are a LENIENT quality inspector for an interior room restyling render.",
           pianta?.partenza === "vista_3d"
             ? "Image 1 = SOURCE: a 3D model of the real room, possibly with selected finish textures from the chosen viewpoint. Image 2 = CANDIDATE render (the same room as a photograph, with finishes/furniture per brief)."
             : "Image 1 = SOURCE photo of the real room. Image 2 = CANDIDATE render (same room, new finishes/furniture per brief).",
@@ -566,7 +566,7 @@ Deno.serve(async (req: Request) => {
           "- unrealistic_scale: furniture rendered at impossible size for the room.",
           ...QA_BLOCCO_RICOMPOSIZIONE_RESTYLING,
           ...(pianta ? righeQaPianta(pianta.vincoli, { partenza: pianta.partenza, inquadrate: pianta.inquadrate }) : []),
-          pianta?.partenza === "vista_3d" ? "When in doubt, PASS. Fail clear geometry violations, substitutions of selected materials, or unrequested furniture/rugs violating the source inventory. Explicitly requested additions, furniture replacement, ceiling details and colour overrides are allowed." : materialBoards ? "When in doubt, PASS. Fail only clear geometry violations or clear substitutions of the selected material/pattern/fixture shown in the boards. An intentional colour override from the brief is allowed." : "When in doubt, PASS. Style and furniture CHANGES are expected and fine — only duplications, invented openings and geometry breaks fail.",
+          pianta?.partenza === "vista_3d" ? "PASS only when visible items keep their identities and source positions, openings and selected materials are preserved, and no unrequested furniture or rug appears. Compare labelled source positions when supplied. A toilet swapped with a washing machine, a shifted bed or a missing desk is a geometry_change even when the total count matches. Explicitly requested additions, full furniture replacement, ceiling details and colour overrides remain allowed." : materialBoards ? "When in doubt, PASS. Fail only clear geometry violations or clear substitutions of the selected material/pattern/fixture shown in the boards. An intentional colour override from the brief is allowed." : "When in doubt, PASS. Style and furniture CHANGES are expected and fine — only duplications, invented openings and geometry breaks fail.",
         ].join("\n");
 
         const sourceBytes = new Uint8Array(await imgBlob.arrayBuffer());

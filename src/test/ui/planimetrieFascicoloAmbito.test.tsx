@@ -9,7 +9,7 @@ vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: {
 vi.mock("@/hooks/useBranding", () => ({ useBranding: () => ({ branding: null as null }) }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: ({ queryKey }: { queryKey: string[] }): { data: unknown[] | { name: string } } => ({ data: queryKey[0].includes("preventivi") ? [] : { name: "Demo" } }) }));
 vi.mock("@/components/shared/CampoIndirizzo", () => ({ CampoIndirizzo: () => <input aria-label="Indirizzo del cantiere" /> }));
-vi.mock("@/lib/planimetrie/fascicoloDati", () => ({ renderPerFascicolo: async (): Promise<unknown[]> => [], sorgentePerFascicolo: async (): Promise<null> => null, campioniPersonaliPerFascicolo: async (): Promise<unknown[]> => [] }));
+vi.mock("@/lib/planimetrie/fascicoloDati", () => ({ renderPerFascicolo: async (): Promise<unknown[]> => [], sorgentePerFascicolo: async (): Promise<null> => null, campioniPersonaliPerFascicolo: async (): Promise<unknown[]> => [], documentoOriginalePerFascicolo: async (): Promise<null> => null }));
 vi.mock("@/lib/planimetrie/fascicoloPdf", () => ({ esportaFascicolo: mocks.esporta }));
 
 beforeEach(() => {
@@ -33,8 +33,9 @@ describe("stato del progetto conservato fino al fascicolo", () => {
     for (const e of secondo.fatto.elementi) if (e.localeId) e.localeId = `p1-${e.localeId}`;
     documento.livelli.push(secondo);
     render(<EsportaPiantaDialog aperto onChiudi={() => undefined} documento={documento} titolo="Casa" versione={3} livelloId={ambito === "fatto" ? primo.id : secondo.id} planimetriaId="casa" haProgetto={haProgetto} ambitoIniziale={ambito} propostaId={propostaId} />);
+    expect(screen.getByRole("combobox", { name: "Render da includere" })).toHaveTextContent("Ultimo render per stanza");
     fireEvent.click(screen.getByRole("button", { name: "Scarica Fascicolo completo PDF" }));
-    await waitFor(() => expect(mocks.esporta).toHaveBeenCalledWith(expect.objectContaining({ ambito, versione: 3 })));
+    await waitFor(() => expect(mocks.esporta).toHaveBeenCalledWith(expect.objectContaining({ ambito, versione: 3, renderDaIncludere: "ultimi" })));
     await waitFor(() => expect(screen.getByRole("button", { name: "Scarica Fascicolo completo PDF" })).toBeEnabled());
   });
 });

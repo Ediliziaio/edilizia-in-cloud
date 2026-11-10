@@ -12,6 +12,7 @@ export { costruisciScena, limitiDi, muroPresente, comeApertura } from "./scena";
 export { esportaGlb, esportaObj } from "./esporta";
 export { pianiDaPlanimetria, scenaEdificio, type OpzioniEdificio, type PianoPer3D } from "./edificio";
 export { MATERIALI } from "./materiali";
+export { vistaInternaArredata, arrediInquadrati } from "./inquadraturaArredi";
 export {
   ALTEZZA_OCCHI,
   apertureDelLocale,

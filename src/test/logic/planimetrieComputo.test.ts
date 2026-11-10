@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { Planimetria } from "../../../shared/planimetrie/modello.ts";
 import { calcolaQuantita } from "../../../shared/planimetrie/quantita.ts";
 import {
-  QUANTITA_LOCALI, avvisoUnita, confrontaRighe, localiDelloStato, quantitaPianta, righeCambiate, righeDaPianta,
+  QUANTITA_LOCALI, avvisoUnita, confrontaRighe, esigiUnitaRighePianta, localiDelloStato, quantitaPianta, righeCambiate, righeDaPianta,
   statiDellaPianta, unitaComputo, valoreChiavi, voceDopo, type MisuraConPianta,
 } from "@/lib/planimetrie/computo";
 
@@ -165,6 +165,12 @@ describe("la voce dopo le righe", () => {
 });
 
 describe("unità della voce", () => {
+  it("blocca anche prima della scrittura l'inserimento di mq in una voce a pezzi", () => {
+    const righe = righeDaPianta({ mappa: mappaTri, stato: fatto, scelta: scelta("pavimento_mq"), locali: localiDelloStato(trilocale, "fatto"), negativa: false }).righe;
+    expect(() => esigiUnitaRighePianta("pz", righe, mappaTri)).toThrow(/unità diversa/);
+    expect(() => esigiUnitaRighePianta("m²", righe, mappaTri)).not.toThrow();
+    expect(() => esigiUnitaRighePianta("mq", righe, mappaTri)).not.toThrow();
+  });
   it("riconosce le scritture comuni", () => {
     expect(unitaComputo("m²")).toBe("mq");
     expect(unitaComputo("M2")).toBe("mq");

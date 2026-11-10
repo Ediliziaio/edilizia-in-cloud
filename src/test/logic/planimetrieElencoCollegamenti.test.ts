@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { filtraElencoPiante, type FiltriElencoPiante } from "@/lib/planimetrie/elenco";
+import { filtraElencoPiante, scegliFiltroPianta, valoreFiltroPianta, leggiFiltriElenco, scriviFiltriElenco, type FiltriElencoPiante } from "@/lib/planimetrie/elenco";
 import { accessiCollegamenti, cercaCollegamentiPianta, sceltaDaRiga, type MappaCollegamenti } from "@/lib/planimetrie/collegamenti";
 import type { RigaPlanimetria } from "@/lib/planimetrie/archivio";
 
@@ -49,4 +49,38 @@ describe("Archivio planimetrie", () => {
     await cercaCollegamentiPianta("azienda-A", "cliente", "Mario");
     expect(db.rpc).toHaveBeenCalledWith("get_customers_paginated", expect.objectContaining({ p_company_id: "azienda-A", p_search: "Mario", p_limit: 20 }));
   });
+  it("combina periodo, autore e scheda esistente senza confondere clienti diversi", () => {
+    const rows = [pianta("Casa A", { customer_id: "c1", created_by: "me", updated_at: "2026-11-10T12:00:00Z" }), pianta("Casa B", { customer_id: "c2", created_by: "me", updated_at: "2026-11-10T12:00:00Z" }), pianta("Casa C", { customer_id: "c1", created_by: "altro", updated_at: "2026-11-10T12:00:00Z" }), pianta("Casa D", { customer_id: "c1", created_by: "me", updated_at: "2026-10-01T12:00:00Z" })];
+    expect(filtraElencoPiante(rows, { ...filtri, collegamento: "cliente", riferimento: "c1", soloMie: true, dal: "2026-11-01", al: "2026-11-10" }, undefined, "me").map((row) => row.id)).toEqual(["Casa A"]);
+    expect(filtraElencoPiante(rows, { ...filtri, soloMie: true }, undefined, undefined)).toEqual([]);
+  });
+  it("include tutto il giorno scelto, anche ai confini, ed esclude date non leggibili", () => {
+    const rows = [pianta("inizio", { updated_at: new Date(2026, 10, 10, 0, 0, 1).toISOString() }), pianta("fine", { updated_at: new Date(2026, 10, 10, 23, 59, 59).toISOString() }), pianta("ieri", { updated_at: new Date(2026, 10, 9, 23, 59, 59).toISOString() }), pianta("errata", { updated_at: "non-data" })];
+    expect(filtraElencoPiante(rows, { ...filtri, dal: "2026-11-10", al: "2026-11-10" }).map((row) => row.id)).toEqual(["fine", "inizio"]);
+    expect(filtraElencoPiante(rows, { ...filtri, dal: "2026-11-11", al: "2026-11-10" })).toEqual([]);
+  });
+  it("conserva vista e filtri nell’indirizzo e pulisce una scheda quando cambia tipo", () => {
+    const params = new URLSearchParams("vista=elenco&collegamento=cliente&scheda=c1&dal=2026-11-01&al=2026-11-10&mie=1&pagina=3");
+    expect(leggiFiltriElenco(params)).toMatchObject({ collegamento: "cliente", riferimento: "c1", soloMie: true, pagina: 2, dal: "2026-11-01" });
+    const next = scriviFiltriElenco(params, { collegamento: "commessa", pagina: 0 });
+    expect(next.has("scheda")).toBe(false); expect(next.get("vista")).toBe("elenco"); expect(next.get("mie")).toBe("1"); expect(next.has("pagina")).toBe(false);
+    expect(leggiFiltriElenco(new URLSearchParams("dal=2026-02-30&al=bad&mie=no&collegamento=libere&scheda=c1"))).toMatchObject({ dal: "", al: "", soloMie: false, riferimento: "" });
+  });
+  it("trova i nomi accentati e include le archiviate solo con una scelta esplicita", () => {
+    const rows = [pianta("Città", { stato: "archiviata" }), pianta("Villa")];
+    expect(filtraElencoPiante(rows, { ...filtri, ricerca: "citta", stato: "tutte" }).map((row) => row.id)).toEqual(["Città"]);
+    expect(filtraElencoPiante(rows, { ...filtri, ricerca: "citta" })).toEqual([]);
+  });
+
+  it("ricerca cliente e contatto per due ID distinti combinati, mantenendo i vecchi indirizzi", () => {
+    const rows = [pianta("A", { customer_id: "cliente-1", contact_id: "crm-1" }), pianta("B", { customer_id: "cliente-1", contact_id: "crm-2" }), pianta("C", { customer_id: "cliente-2", contact_id: "crm-1" })];
+    const query = scriviFiltriElenco(new URLSearchParams("vista=elenco"), { cliente: "cliente-1", contatto: "crm-1" });
+    expect(filtraElencoPiante(rows, leggiFiltriElenco(query)).map((p) => p.id)).toEqual(["A"]);
+    const legacy = leggiFiltriElenco(new URLSearchParams("collegamento=contatto&scheda=crm-2"));
+    expect(valoreFiltroPianta(legacy, "contatto")).toBe("crm-2");
+    const changed = scriviFiltriElenco(new URLSearchParams("collegamento=contatto&scheda=crm-2"), scegliFiltroPianta(legacy, "contatto", "crm-1"));
+    expect(changed.has("collegamento")).toBe(false); expect(changed.has("scheda")).toBe(false); expect(changed.get("contatto")).toBe("crm-1");
+    expect(filtraElencoPiante(rows, { ...filtri, cliente: "nessuno" })).toEqual([]);
+  });
+
 });

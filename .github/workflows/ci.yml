@@ -98,6 +98,9 @@ jobs:
       - name: Run critical tests
         run: bun run test:critical
 
+      - name: Run floorplan, 3D orientation and document verification regressions
+        run: bun run test:planimetrie
+
       - name: Run catalogue and selected-company regressions
         run: >-
           bunx vitest run --maxWorkers=2

@@ -2,7 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { RigaPlanimetria } from "./archivio";
 import { DEFINIZIONI_COLLEGAMENTI } from "./collegamenti";
 
-export type DestinazionePianta = "cliente" | "preventivo" | "commessa" | "computo";
+export type DestinazionePianta = "cliente" | "contatto" | "preventivo" | "commessa" | "computo";
 export type PiantaAssociata = Pick<RigaPlanimetria, "id" | "titolo" | "stato" | "versione_corrente" | "updated_at">;
 export interface PaginePianteAssociate { piante: PiantaAssociata[]; totale: number }
 export const ASSOCIATE_PER_PAGINA = 6;
