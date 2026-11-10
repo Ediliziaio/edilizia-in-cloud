@@ -1,4 +1,5 @@
 import { useMemo, lazy, Suspense } from "react";
+import { PlanimetrieAssociate } from "@/components/planimetrie/PlanimetrieAssociate";
 import { Navigate, useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -587,6 +588,7 @@ export default function CompanyCustomerDetail() {
       {/* Altezza LIMITATA su desktop (come la scheda contatti): così la timeline
           scrolla dentro il pannello e la barra «scrivi email / WhatsApp» resta
           FISSA in basso invece di finire in coda allo scroll della pagina. */}
+      <PlanimetrieAssociate companyId={effectiveCompany?.id} tipo="cliente" schedaId={customer.id} />
       <div className="flex flex-col lg:flex-row gap-3 lg:gap-4 lg:h-[calc(100dvh-14rem)]">
         {/* ─── LEFT 280px (su mobile va dopo center → order-2) ─── */}
         <div className="order-2 lg:order-none lg:w-72 shrink-0 space-y-3">

@@ -1,4 +1,5 @@
 import { QuoteConversionSummary } from "@/components/marketing/preventivi/QuoteConversionSummary";
+import { PlanimetrieAssociate } from "@/components/planimetrie/PlanimetrieAssociate";
 import { separaVoci } from "../../../../supabase/functions/_shared/destinazioneVocePreventivo";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useState } from "react";
@@ -524,6 +525,8 @@ export default function QuoteDetail() {
           </>
         }
       />
+
+      <PlanimetrieAssociate companyId={companyId} tipo="preventivo" schedaId={id} />
 
       {/* Pianta o computo cambiati dopo il preventivo: quantità da aggiornare (o revisione). */}
       {id && companyId && !rigaDiModulo && (

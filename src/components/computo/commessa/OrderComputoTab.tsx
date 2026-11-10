@@ -8,6 +8,7 @@
  * dati da lavoro pubblico con il quadro economico, esportazione Excel e PDF.
  */
 import { useState } from "react";
+import { PlanimetrieAssociate } from "@/components/planimetrie/PlanimetrieAssociate";
 import { toast } from "sonner";
 import { CheckCircle2, FileDown, FileSpreadsheet, Loader2, Lock, Map as IconaPianta, Search, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -337,6 +338,8 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
           )}
         </CardContent>
       </Card>
+
+      <PlanimetrieAssociate companyId={companyId} tipo="computo" schedaId={computo.id} />
 
       {letto && canViewAmounts && voci.length > 0 && (
         <LavoroPubblico key={[computo.id, computo.stazione_appaltante, computo.cig, computo.cup, computo.ribasso_percentuale].join("|")} computo={computo} voci={voci} bloccato={bloccato} onSalva={salva} />
