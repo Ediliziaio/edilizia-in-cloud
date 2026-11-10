@@ -57,6 +57,7 @@ const ECCEZIONI: Record<string, string> = {
   "src/pages/OffertaCheckout.tsx": "pagina pubblica: chi compra non ha ancora un accesso, e la ricerca (maps-proxy) lo chiede",
   "src/components/shared/AddressAutocomplete.tsx": "i dettagli da correggere a mano, sotto la ricerca",
   "src/components/orders/VariationEditor.tsx": "testo libero per il PDF (indirizzo, P.IVA e contatti insieme), non un indirizzo da cercare",
+  "src/components/giornale/InviaDirezioneLavori.tsx": "è l'indirizzo email della direzione lavori, non un indirizzo postale",
 };
 
 /** I moduli che chiedono un indirizzo: tutti con la ricerca. */

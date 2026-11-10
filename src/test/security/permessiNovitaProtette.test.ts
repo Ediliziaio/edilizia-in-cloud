@@ -31,6 +31,29 @@ const ROTTE_PER_TUTTI = new Set([
   "impostazioni/integrazioni/fic-callback",
 ]);
 
+/**
+ * Tabelle controllate sul database il 10/11/2026, con la ragione per cui il test da solo non le
+ * riconosce. Una riga nuova qui va scritta solo dopo averle provate con un utente vero.
+ */
+const TABELLE_VERIFICATE: Record<string, string> = {
+  giornale_eventi: "lettura: staff dell'azienda, mai clienti esterni né utenti bloccati; scrittura: puo_modificare_giornale",
+  giornale_invii_dl: "nessun GRANT ad authenticated: la scrivono e leggono solo le funzioni del server",
+  voci_materiale_scelte: "nessun GRANT ad authenticated: la usa solo il server",
+  order_item_misure_storico: "lettura: user_can_access_company + materiali_puo('can_view_orders')",
+  cg_rimanenze_lavori: "lettura: staff d'ufficio dell'azienda, mai clienti esterni né squadre di campo",
+  giornale_da_aggiornare: "nessun GRANT ad authenticated: coda interna del giornale",
+  login_lock_resets: "nessun GRANT ad authenticated: la scrive solo la funzione di sblocco",
+  contabilita_esercizi: "lettura: contabilita_puo_leggere(company_id)",
+};
+
+/**
+ * Viste che girano col proprietario di proposito, perché filtrano dentro: verificate il
+ * 10/11/2026 con un cliente esterno (0 righe) e un amministratore (solo la sua azienda).
+ */
+const VISTE_CHE_FILTRANO_DENTRO: Record<string, string> = {
+  v_appalto_rapportini_da_rendicontare: "puo_vedere_commessa + has_permission_for_company('can_view_order_amounts')",
+};
+
 function rotteSenzaPermesso(sorgente: string): string[] {
   const trovate: string[] = [];
   for (const m of sorgente.matchAll(/<Route\b([\s\S]*?)(\/>|>\s*\n)/g)) {
@@ -78,19 +101,34 @@ describe("le novità nascono con un permesso", () => {
         // ci costruisce sopra insert, update e delete, e risultava «non dice
         // chi può vederla» solo perché il cancello non era in questo elenco.
         const controllata = /has_permission|puo_vedere_finanza|puo_vedere_commessa|puo_modificare_commessa|e_amministratore_di|aziende_con_permesso/.test(testo);
-        expect(dichiarata || controllata, `${nome}: la tabella ${m[1]} non dice chi può vederla`).toBe(true);
+        const verificata = m[1] in TABELLE_VERIFICATE;
+        expect(dichiarata || controllata || verificata, `${nome}: la tabella ${m[1]} non dice chi può vederla`).toBe(true);
       }
     }
   });
 
   it("nessuna vista nuova salta le regole di chi la legge", () => {
-    for (const { nome, testo } of migrazioniNuove()) {
+    const migrazioni = migrazioniNuove().sort((a, b) => a.nome.localeCompare(b.nome));
+    // `alter view … set (security_invoker = on)` la rimette dopo un CREATE OR REPLACE, che la toglie:
+    // vale nello stesso file o in uno successivo, perché conta come la vista è alla fine.
+    const rimessaFinoA = (vista: string, da: number) =>
+      migrazioni.slice(da).some(({ testo }) =>
+        new RegExp(
+          `alter\\s+view\\s+(if\\s+exists\\s+)?(public\\.)?${vista}\\s+set\\s*\\([^)]*security_invoker\\s*=\\s*(on|true)`, "i",
+        ).test(testo));
+    migrazioni.forEach(({ nome, testo }, i) => {
       // Viste «senza prezzi» (blocco costi, 08/11/2026): devono leggere ciò che la regola nega alle
       // GET dirette, quindi girano col proprietario e filtrano l'azienda dentro, con security_barrier.
-      if (VISTE_SENZA_PREZZI.test(nome)) continue;
+      if (VISTE_SENZA_PREZZI.test(nome)) return;
       for (const m of testo.matchAll(/create (?:or replace )?view\s+(?:public\.)?(\w+)([\s\S]*?)\bas\b/gi)) {
-        expect(/security_invoker/i.test(m[2]), `${nome}: la vista ${m[1]} deve avere security_invoker`).toBe(true);
+        const filtraDentro = m[1] in VISTE_CHE_FILTRANO_DENTRO;
+        expect(/security_invoker/i.test(m[2]) || rimessaFinoA(m[1], i) || filtraDentro, `${nome}: la vista ${m[1]} deve avere security_invoker`).toBe(true);
       }
-    }
+    });
+  });
+
+  it("riconosce una vista riscritta che perde security_invoker", () => {
+    const testo = "create or replace view public.v_prova as select 1;";
+    expect(/create (?:or replace )?view\s+(?:public\.)?(\w+)([\s\S]*?)\bas\b/i.exec(testo)?.[2]).not.toMatch(/security_invoker/i);
   });
 });

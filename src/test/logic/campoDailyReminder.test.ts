@@ -13,7 +13,7 @@ vi.mock("@tanstack/react-query", () => ({ useQuery: (options: typeof state.optio
 vi.mock("@/lib/campo/loadTimePunches", () => ({ loadCampoDayPunches: async (...args: unknown[]) => { state.load(...args); return state.punches; } }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: async (name: string) => state.rpcError ? { data: null as unknown, error: new Error("rpc") as Error | null } : { error: null as Error | null, data: (name === "campo_regole_per_ordine" ? { chi_compila: state.chiCompila, ore_dalle: "capo", avviso_scostamento_minuti: null } : state.ruolo ) as unknown }, from: (table: string) => {
   const response = { data: table === "campo_rapportini" ? state.reports : ["A", "B"].map(id => ({ id, order_code: id })), error: state.error ? new Error("read failed") : null };
-  const q = { select: () => q, eq: (...args: unknown[]) => { state.calls.push([table, ...args]); return q; }, in: () => q,
+  const q = { select: () => q, eq: (...args: unknown[]) => { state.calls.push([table, ...args]); return q; }, in: () => q, is: (...args: unknown[]) => { state.calls.push([table, ...args]); return q; },
     then: Promise.resolve(response).then.bind(Promise.resolve(response)) }; return q;
 } } }));
 const punch = (day: string, time: string, tipo: string, order_id: string): CampoPunch => ({ tipo, order_id, timestamp_evento: `${day}T${time}:00+02:00` });

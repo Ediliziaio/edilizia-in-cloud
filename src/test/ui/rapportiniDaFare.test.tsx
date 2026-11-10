@@ -16,7 +16,7 @@ vi.mock("react-router-dom", () => ({ useNavigate: () => state.navigate }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "worker" }, profile: { company_id: "azienda-1" } }) }));
 vi.mock("@/hooks/useCampoRapportiniDaCompilare", () => ({ useCampoRapportiniDaCompilare: () => ({ ...state.daCompilare, refetch: state.refetch }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => {
-  const q = { select: () => q, eq: (c: string, v: unknown) => { state.filtri.push([c, v]); return q; }, in: () => q, lt: (c: string, v: unknown) => { state.filtri.push([c, v]); return q; }, order: async () => ({ data: state.sospesi, error: null as null }) };
+  const q = { select: () => q, eq: (c: string, v: unknown) => { state.filtri.push([c, v]); return q; }, in: () => q, is: () => q, lt: (c: string, v: unknown) => { state.filtri.push([c, v]); return q; }, order: async () => ({ data: state.sospesi, error: null as null }) };
   return q;
 } } }));
 vi.mock("@tanstack/react-query", () => ({
