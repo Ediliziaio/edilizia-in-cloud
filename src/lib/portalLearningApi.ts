@@ -1,3 +1,4 @@
+import { readAllPages } from "@/lib/personale/readAllPages";
 import { supabase } from "@/integrations/supabase/client";
 import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 
@@ -161,6 +162,7 @@ interface QueryResult<T = unknown> {
 }
 
 interface PortalQueryBuilder<T = unknown> extends PromiseLike<QueryResult<T>> {
+  range: (from: number, to: number) => PortalQueryBuilder<T>;
   select: (columns?: string) => PortalQueryBuilder<T>;
   eq: (column: string, value: unknown) => PortalQueryBuilder<T>;
   order: (column: string, options?: Record<string, unknown>) => PortalQueryBuilder<T>;
@@ -358,16 +360,21 @@ export async function listPortalCourseEnrollments(companyId: string, userId: str
 }
 
 /**
- * Tutte le iscrizioni dell'azienda (tutti i corsi, tutti gli utenti) in UNA query.
- * Usata per il riepilogo formazione lato admin (aggregazione per corso lato client).
+ * Tutte le iscrizioni dell'azienda, con pagine ordinate per corso e utente.
+ * I riepiloghi ricevono l'intero risultato oppure un errore, mai un totale parziale.
  */
 export async function listAllPortalCourseEnrollments(companyId: string): Promise<PortalLearningEnrollment[]> {
-  const { data, error } = await getDb()
-    .from("portal_course_enrollments")
-    .select("course_id,user_id,status,progress_percent,due_at,completed_at")
-    .eq("company_id", companyId);
-  if (error) throw error;
-  return ((data ?? []) as PortalEnrollmentRow[]).map((row) => ({
+  const rows = await readAllPages<PortalEnrollmentRow>(async (from, to) => {
+    const { data, error } = await getDb()
+      .from<PortalEnrollmentRow[]>("portal_course_enrollments")
+      .select("course_id,user_id,status,progress_percent,due_at,completed_at")
+      .eq("company_id", companyId)
+      .order("course_id", { ascending: true })
+      .order("user_id", { ascending: true })
+      .range(from, to);
+    return { data: data ?? null, error: error ?? null };
+  });
+  return rows.map((row) => ({
     courseId: row.course_id,
     userId: row.user_id,
     status: row.status,

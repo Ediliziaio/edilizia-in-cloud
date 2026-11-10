@@ -69,7 +69,7 @@ export function ImpostazionePrelievoCampo() {
         {isLoading ? (
           <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
         ) : (
-          <Switch checked={!!conferma} onCheckedChange={(v) => salva.mutate(v)} disabled={salva.isPending} />
+          <Switch aria-label="Prelievo dal cantiere a conferma" checked={!!conferma} onCheckedChange={(v) => salva.mutate(v)} disabled={salva.isPending} />
         )}
       </CardContent>
     </Card>

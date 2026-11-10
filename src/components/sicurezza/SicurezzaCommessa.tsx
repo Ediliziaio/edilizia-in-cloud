@@ -336,6 +336,7 @@ export function SicurezzaCommessa({
         size="sm"
         variant={v.stato === "manca" ? "default" : "outline"}
         className="h-8 gap-1"
+        aria-label={`${v.stato === "manca" ? "Carica" : "Aggiorna"}: ${v.titolo}`}
         onClick={() =>
           setPreset({
             tipo: v.tipo,

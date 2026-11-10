@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { readAllPages } from "@/lib/personale/readAllPages";
 import { exportToCSV } from "@/lib/csvExport";
 import { useScadenzario, type ScadenzarioFilters } from "@/hooks/useScadenzario";
 import { invalidaFattureImportate } from "@/components/fatturazione/GestionaleEsterno";
@@ -135,10 +136,11 @@ export default function Scadenzario() {
     dateTo: serverDateRange?.to ?? null,
     search: searchServer || null,
     soloScadute: tab === "scadute",
+    soloAperte: tab === "da_incassare" || tab === "da_pagare",
     tipo: filterTipo && filterTipo !== "all" ? filterTipo : null,
   }), [tabDirection, tabStatus, filterStatus, serverDateRange, searchServer, tab, filterTipo]);
 
-  const { scadenze, isLoading, totalCount, totalPages, summary, isSummaryLoading, markPaid, create, cancel, annullaIncasso, updateNotes } = useScadenzario(page, pageSize, serverFilters);
+  const { scadenze, isLoading, isError, refetch, totalCount, totalPages, summary, isSummaryLoading, isSummaryError, refetchSummary, markPaid, create, cancel, annullaIncasso, updateNotes } = useScadenzario(page, pageSize, serverFilters);
   const [daAnnullare, setDaAnnullare] = useState<Scadenza | null>(null);
   const queryClient = useQueryClient();
   const { effectiveCompany } = useAuth();
@@ -152,19 +154,24 @@ export default function Scadenzario() {
     if (!companyId) return;
     setExporting(true);
     try {
+      const data = await readAllPages(async (from, to) => {
       let q = supabase
         .from("scadenze")
         .select("due_date, direction, description, amount, paid_amount, status, invoices(invoice_number), orders(order_code)")
         .eq("company_id", companyId)
-        .neq("status", "annullata")
         .order("due_date", { ascending: true })
-        .limit(5000);
+        .order("id", { ascending: true });
       if (serverFilters.dateFrom) q = q.gte("due_date", serverFilters.dateFrom);
       if (serverFilters.dateTo) q = q.lte("due_date", serverFilters.dateTo);
       if (serverFilters.direction) q = q.eq("direction", serverFilters.direction);
       if (serverFilters.status) q = q.eq("status", serverFilters.status);
-      const { data, error } = await q;
-      if (error) throw error;
+      else q = q.neq("status", "annullata");
+      if (serverFilters.soloAperte || serverFilters.soloScadute) q = q.in("status", ["da_pagare", "parziale"]);
+      if (serverFilters.soloScadute) q = q.lt("due_date", format(new Date(), "yyyy-MM-dd"));
+      if (serverFilters.tipo) q = q.eq("tipo", serverFilters.tipo);
+      if (serverFilters.search) q = q.ilike("description", `%${serverFilters.search}%`);
+      return await q.range(from, to);
+      });
       const s = (search || "").toLowerCase();
       const rows = (data || [])
         .filter((r: any) => !s || (r.description || "").toLowerCase().includes(s) || (r.invoices?.invoice_number || "").toLowerCase().includes(s))
@@ -250,8 +257,13 @@ export default function Scadenzario() {
       {/* KPIs — mobile: due numeri (lo scaduto da incassare filtra le scadute). */}
       {/* «Per settimana» ha i suoi numeri, dalla stessa fonte dell'elenco: questi leggono solo la tabella delle
           scadenze dell'anno scelto, e accanto a quell'elenco dicevano cifre diverse per la stessa domanda. */}
-      {tab !== "settimane" && <ScadenzarioKPIs summary={summary} isLoading={isSummaryLoading} className="max-sm:hidden" />}
-      {summary && tab !== "settimane" && (
+      {tab !== "settimane" && (isSummaryError ? (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
+          <p>Riepilogo scadenze non disponibile. I totali non sono aggiornati.</p>
+          <Button variant="outline" size="sm" onClick={() => void refetchSummary()}>Riprova riepilogo</Button>
+        </div>
+      ) : <ScadenzarioKPIs summary={summary} isLoading={isSummaryLoading} className="max-sm:hidden" />)}
+      {summary && !isSummaryError && tab !== "settimane" && (
         <KpiMobili
           className="sm:hidden"
           voci={[
@@ -308,6 +320,7 @@ export default function Scadenzario() {
             <div className="relative w-full sm:w-56">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
+                aria-label="Cerca nello scadenzario"
                 placeholder="Cerca..."
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
@@ -318,6 +331,8 @@ export default function Scadenzario() {
               variant={showFilters ? "default" : "outline"}
               size="icon"
               onClick={() => setShowFilters(!showFilters)}
+              aria-label="Filtri avanzati scadenzario"
+              aria-expanded={showFilters}
               className="relative"
             >
               <Filter className="h-4 w-4" />
@@ -327,7 +342,7 @@ export default function Scadenzario() {
             </Button>
             {/* Niente export su telefono: icon-only non lo rende un'altra cosa. */}
             {!isMobile && (
-              <Button variant="outline" size="icon" onClick={handleExport} disabled={exporting} title="Esporta CSV" aria-label="Esporta CSV">
+              <Button variant="outline" size="icon" onClick={handleExport} disabled={exporting || isLoading || isError} title="Esporta CSV" aria-label="Esporta CSV">
                 {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               </Button>
             )}
@@ -340,7 +355,7 @@ export default function Scadenzario() {
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Periodo</label>
               <Select value={datePreset} onValueChange={(v) => { setDatePreset(v); setPage(1); }}>
-                <SelectTrigger className="w-[160px] h-9 text-sm">
+                <SelectTrigger aria-label="Periodo scadenze" className="w-[160px] h-9 text-sm">
                   <SelectValue placeholder="Tutti" />
                 </SelectTrigger>
                 <SelectContent>
@@ -368,7 +383,7 @@ export default function Scadenzario() {
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Tipo</label>
               <Select value={filterTipo} onValueChange={(v) => { setFilterTipo(v); setPage(1); }}>
-                <SelectTrigger className="w-[160px] h-9 text-sm">
+                <SelectTrigger aria-label="Tipo di scadenza" className="w-[160px] h-9 text-sm">
                   <SelectValue placeholder="Tutti" />
                 </SelectTrigger>
                 <SelectContent>
@@ -385,7 +400,7 @@ export default function Scadenzario() {
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Stato</label>
               <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v); setPage(1); }}>
-                <SelectTrigger className="w-[140px] h-9 text-sm">
+                <SelectTrigger aria-label="Stato della scadenza" className="w-[140px] h-9 text-sm">
                   <SelectValue placeholder="Tutti" />
                 </SelectTrigger>
                 <SelectContent>
@@ -415,8 +430,13 @@ export default function Scadenzario() {
       ) : (
         /* Table */
         isLoading ? (
-          <div className="flex justify-center py-12">
+          <div role="status" aria-label="Caricamento scadenze" className="flex justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : isError ? (
+          <div role="alert" className="space-y-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
+            <p>Non riesco a caricare le scadenze. Riprova senza modificare i filtri.</p>
+            <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova scadenze</Button>
           </div>
         ) : (
           <>

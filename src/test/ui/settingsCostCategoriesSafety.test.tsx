@@ -284,6 +284,8 @@ describe("Categorie costi: riepilogo e strumenti", () => {
     expect(screen.getByText("Categoria 07")).toBeInTheDocument();
     // Niente più la riga «Vista filtrata/ordinata…» sotto i filtri.
     fireEvent.click(screen.getByRole("button", { name: "Inutilizzate" }));
+    expect(screen.getByRole("button", { name: "Inutilizzate" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Tutte" })).toHaveAttribute("aria-pressed", "false");
     expect(screen.queryByText(/Vista filtrata/)).toBeNull();
   });
   it("scendendo sotto le 11 categorie i filtri rimasti accesi non nascondono righe", async () => {

@@ -1631,12 +1631,12 @@ export default function SicurezzaCantiere() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Ordine / Cantiere</Label>
+              <Label htmlFor="duvri-commessa">Ordine / Cantiere</Label>
               <Select
                 value={selectedOrderId || undefined}
                 onValueChange={setSelectedOrderId}
               >
-                <SelectTrigger>
+                <SelectTrigger id="duvri-commessa">
                   <SelectValue placeholder="Seleziona ordine" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1660,8 +1660,9 @@ export default function SicurezzaCantiere() {
               </div>
             )}
             <div className="space-y-2">
-              <Label>Costi sicurezza stimati (€)</Label>
+              <Label htmlFor="duvri-costi">Costi sicurezza stimati (€)</Label>
               <Input
+                id="duvri-costi"
                 type="number"
                 inputMode="decimal"
                 placeholder="0"
@@ -1673,7 +1674,6 @@ export default function SicurezzaCantiere() {
           <DialogFooter>
             <Button
               variant="outline"
-              className="max-sm:hidden"
               onClick={() => setDuvriDialogOpen(false)}
             >
               Annulla
@@ -1719,7 +1719,7 @@ export default function SicurezzaCantiere() {
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1">
-              <Label>Cantiere (opzionale)</Label>
+              <Label htmlFor="verbale-commessa">Cantiere (opzionale)</Label>
               <Select
                 value={verbaleForm.order_id || "__none__"}
                 onValueChange={(v) =>
@@ -1729,7 +1729,7 @@ export default function SicurezzaCantiere() {
                   }))
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger id="verbale-commessa">
                   <SelectValue placeholder="Tutti i cantieri" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1744,8 +1744,8 @@ export default function SicurezzaCantiere() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>Data</Label>
-                <Input
+                <Label htmlFor="verbale-data">Data</Label>
+                <Input id="verbale-data"
                   type="date"
                   value={verbaleForm.data}
                   onChange={(e) =>
@@ -1754,14 +1754,14 @@ export default function SicurezzaCantiere() {
                 />
               </div>
               <div className="space-y-1">
-                <Label>Tipo</Label>
+                <Label htmlFor="verbale-tipo">Tipo</Label>
                 <Select
                   value={verbaleForm.tipo}
                   onValueChange={(v) =>
                     setVerbaleForm((p) => ({ ...p, tipo: v }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="verbale-tipo">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1794,8 +1794,8 @@ export default function SicurezzaCantiere() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Redatto da</Label>
-              <Input
+              <Label htmlFor="verbale-autore">Redatto da</Label>
+              <Input id="verbale-autore"
                 value={verbaleForm.redatto_da}
                 onChange={(e) =>
                   setVerbaleForm((p) => ({ ...p, redatto_da: e.target.value }))
@@ -1804,8 +1804,8 @@ export default function SicurezzaCantiere() {
               />
             </div>
             <div className="space-y-1">
-              <Label>Note</Label>
-              <textarea
+              <Label htmlFor="verbale-note">Note</Label>
+              <textarea id="verbale-note"
                 className="w-full border rounded-md p-2 text-sm resize-none min-h-[80px]"
                 value={verbaleForm.note}
                 onChange={(e) =>
@@ -1818,7 +1818,6 @@ export default function SicurezzaCantiere() {
           <DialogFooter>
             <Button
               variant="outline"
-              className="max-sm:hidden"
               onClick={() => {
                 setVerbaleDialogOpen(false);
                 setVerbaleInModifica(null);
@@ -1865,8 +1864,8 @@ export default function SicurezzaCantiere() {
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1">
-              <Label>Ragione Sociale *</Label>
-              <Input
+              <Label htmlFor="sub-sicurezza-ragione">Ragione Sociale *</Label>
+              <Input id="sub-sicurezza-ragione"
                 value={subappaltatoreForm.ragione_sociale}
                 onChange={(e) =>
                   setSubappaltatoreForm((p) => ({
@@ -1878,7 +1877,7 @@ export default function SicurezzaCantiere() {
               />
             </div>
             <div className="space-y-1">
-              <Label>Cantiere (opzionale)</Label>
+              <Label htmlFor="sub-sicurezza-commessa">Cantiere (opzionale)</Label>
               <Select
                 value={subappaltatoreForm.order_id || "__none__"}
                 onValueChange={(v) =>
@@ -1888,7 +1887,7 @@ export default function SicurezzaCantiere() {
                   }))
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger id="sub-sicurezza-commessa">
                   <SelectValue placeholder="Tutti i cantieri" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1903,8 +1902,8 @@ export default function SicurezzaCantiere() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>Tipo lavori</Label>
-                <Input
+                <Label htmlFor="sub-sicurezza-lavori">Tipo lavori</Label>
+                <Input id="sub-sicurezza-lavori"
                   value={subappaltatoreForm.tipo_lavori}
                   onChange={(e) =>
                     setSubappaltatoreForm((p) => ({
@@ -1916,8 +1915,8 @@ export default function SicurezzaCantiere() {
                 />
               </div>
               <div className="space-y-1">
-                <Label>Responsabile</Label>
-                <Input
+                <Label htmlFor="sub-sicurezza-responsabile">Responsabile</Label>
+                <Input id="sub-sicurezza-responsabile"
                   value={subappaltatoreForm.responsabile}
                   onChange={(e) =>
                     setSubappaltatoreForm((p) => ({
@@ -1931,8 +1930,8 @@ export default function SicurezzaCantiere() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>Data inizio</Label>
-                <Input
+                <Label htmlFor="sub-sicurezza-inizio">Data inizio</Label>
+                <Input id="sub-sicurezza-inizio"
                   type="date"
                   value={subappaltatoreForm.data_inizio}
                   onChange={(e) =>
@@ -1944,8 +1943,8 @@ export default function SicurezzaCantiere() {
                 />
               </div>
               <div className="space-y-1">
-                <Label>Data fine</Label>
-                <Input
+                <Label htmlFor="sub-sicurezza-fine">Data fine</Label>
+                <Input id="sub-sicurezza-fine"
                   type="date"
                   value={subappaltatoreForm.data_fine}
                   onChange={(e) =>
@@ -1958,8 +1957,8 @@ export default function SicurezzaCantiere() {
               </div>
             </div>
             <div className="space-y-1">
-              <Label>Scadenza DURC</Label>
-              <Input
+              <Label htmlFor="sub-sicurezza-durc">Scadenza DURC</Label>
+              <Input id="sub-sicurezza-durc"
                 type="date"
                 value={subappaltatoreForm.durc_scadenza}
                 onChange={(e) =>
@@ -1974,7 +1973,6 @@ export default function SicurezzaCantiere() {
           <DialogFooter>
             <Button
               variant="outline"
-              className="max-sm:hidden"
               onClick={() => {
                 setSubappaltatoreDialogOpen(false);
                 setSubappaltatoreInModifica(null);
@@ -2023,7 +2021,7 @@ export default function SicurezzaCantiere() {
             {/* La commessa: prima order_id restava sempre vuoto e la scadenza non
                 si vedeva nel cantiere a cui si riferisce. */}
             <div className="space-y-1">
-              <Label>Commessa</Label>
+              <Label htmlFor="adempimento-commessa">Commessa</Label>
               <Select
                 value={adempimentoForm.order_id || "nessuna"}
                 onValueChange={(v) =>
@@ -2033,7 +2031,7 @@ export default function SicurezzaCantiere() {
                   }))
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger id="adempimento-commessa">
                   <SelectValue placeholder="Tutta l'azienda" />
                 </SelectTrigger>
                 <SelectContent>
@@ -2048,8 +2046,8 @@ export default function SicurezzaCantiere() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Titolo *</Label>
-              <Input
+              <Label htmlFor="adempimento-titolo">Titolo *</Label>
+              <Input id="adempimento-titolo"
                 value={adempimentoForm.titolo}
                 onChange={(e) =>
                   setAdempimentoForm((p) => ({ ...p, titolo: e.target.value }))
@@ -2059,14 +2057,14 @@ export default function SicurezzaCantiere() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>Tipo</Label>
+                <Label htmlFor="adempimento-tipo">Tipo</Label>
                 <Select
                   value={adempimentoForm.tipo}
                   onValueChange={(v) =>
                     setAdempimentoForm((p) => ({ ...p, tipo: v }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="adempimento-tipo">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -2085,8 +2083,8 @@ export default function SicurezzaCantiere() {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label>Scadenza</Label>
-                <Input
+                <Label htmlFor="adempimento-scadenza">Scadenza</Label>
+                <Input id="adempimento-scadenza"
                   type="date"
                   value={adempimentoForm.scadenza_data}
                   onChange={(e) =>
@@ -2099,8 +2097,8 @@ export default function SicurezzaCantiere() {
               </div>
             </div>
             <div className="space-y-1">
-              <Label>Note</Label>
-              <Input
+              <Label htmlFor="adempimento-note">Note</Label>
+              <Input id="adempimento-note"
                 value={adempimentoForm.note}
                 onChange={(e) =>
                   setAdempimentoForm((p) => ({ ...p, note: e.target.value }))
@@ -2112,7 +2110,6 @@ export default function SicurezzaCantiere() {
           <DialogFooter>
             <Button
               variant="outline"
-              className="max-sm:hidden"
               onClick={() => {
                 setAdempimentoDialogOpen(false);
                 setAdempimentoInModifica(null);

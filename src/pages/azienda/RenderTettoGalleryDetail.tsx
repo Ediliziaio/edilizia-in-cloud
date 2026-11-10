@@ -89,7 +89,7 @@ export default function RenderTettoGalleryDetail() {
     try {
       await downloadRenderImage(resultUrl, `render_tetto_${id?.slice(0, 8)}_${Date.now()}.png`);
     } catch {
-      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
+      toast.error("Impossibile scaricare il render. Riprova.");
     }
   };
 
@@ -132,7 +132,7 @@ export default function RenderTettoGalleryDetail() {
     <div className="space-y-6 max-w-2xl mx-auto pb-12 max-md:space-y-3">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/render/tetto/gallery")}>
+        <Button variant="ghost" size="icon" aria-label="Torna alla galleria tetto" onClick={() => navigate("/azienda/render/tetto/gallery")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
@@ -229,7 +229,7 @@ export default function RenderTettoGalleryDetail() {
           />
           <Button variant="outline" className="flex-1 gap-2" onClick={handleDownload}>
             <Download className="h-4 w-4" />
-            Download
+            Scarica render
           </Button>
         </div>
       )}

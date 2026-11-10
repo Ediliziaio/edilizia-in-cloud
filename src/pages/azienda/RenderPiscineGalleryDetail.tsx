@@ -145,7 +145,7 @@ export default function RenderPiscineGalleryDetail() {
     try {
       await downloadRenderImage(resultUrl, `render_piscine_${id ?? "session"}_${Date.now()}.png`);
     } catch {
-      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
+      toast.error("Impossibile scaricare il render. Riprova.");
     }
   };
 
@@ -157,7 +157,7 @@ export default function RenderPiscineGalleryDetail() {
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12 max-md:space-y-3">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/render/piscine/gallery")}>
+        <Button variant="ghost" size="icon" aria-label="Torna alla galleria piscine" onClick={() => navigate("/azienda/render/piscine/gallery")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
@@ -232,7 +232,7 @@ export default function RenderPiscineGalleryDetail() {
             ]}
           />
           <Button variant="outline" className="gap-2" onClick={handleDownload}>
-            <Download className="h-4 w-4" />Download
+            <Download className="h-4 w-4" />Scarica render
           </Button>
         </div>
       )}

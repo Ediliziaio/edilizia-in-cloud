@@ -31,18 +31,20 @@ export function CollegaAttivitaPicker({
   valore,
   onChange,
   disabled,
+  id,
 }: {
   companyId?: string | null;
   valore: CollegamentoAttivita | null;
   onChange: (v: CollegamentoAttivita | null) => void;
   disabled?: boolean;
+  id?: string;
 }) {
   const [aperto, setAperto] = useState(false);
   const [ricerca, setRicerca] = useState("");
   // Una ricerca ogni 300 ms di pausa, non a ogni lettera.
   const ricercaRitardata = useDebounce(ricerca.trim(), 300);
 
-  const { data, isFetching } = useQuery({
+  const { data, isFetching, isError, refetch } = useQuery({
     queryKey: ["collegamento-attivita", companyId, ricercaRitardata],
     enabled: aperto && !!companyId,
     staleTime: 30_000,
@@ -71,6 +73,8 @@ export function CollegaAttivitaPicker({
       if (contatti) for (const filtro of filtriRicercaContatti(q)) contatti = contatti.or(filtro);
 
       const [risOpp, risCont] = await Promise.all([opp, contatti]);
+      if (risOpp.error) throw risOpp.error;
+      if (risCont?.error) throw risCont.error;
       const opportunita: CollegamentoAttivita[] = (risOpp.data ?? []).map((o) => ({
         tipo: "opportunita",
         id: o.id as string,
@@ -98,6 +102,8 @@ export function CollegaAttivitaPicker({
             type="button"
             variant="outline"
             role="combobox"
+            id={id}
+            aria-expanded={aperto}
             disabled={disabled}
             className="h-9 w-full justify-between gap-2 px-3 font-normal"
           >
@@ -111,14 +117,21 @@ export function CollegaAttivitaPicker({
           <Command shouldFilter={false}>
             <CommandInput placeholder="Cerca cliente o opportunità…" value={ricerca} onValueChange={setRicerca} />
             <CommandList className="max-h-64">
-              {isFetching && risultati.length === 0 ? (
-                <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+              {isError ? (
+                <div role="alert" className="space-y-2 p-4 text-sm">
+                  <p>Non riesco a caricare clienti e opportunità.</p>
+                  <Button type="button" size="sm" variant="outline" disabled={isFetching} onClick={() => void refetch()}>
+                    {isFetching ? "Riprovo…" : "Riprova"}
+                  </Button>
+                </div>
+              ) : isFetching && risultati.length === 0 ? (
+                <div role="status" className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" /> Cerco…
                 </div>
               ) : (
                 <CommandEmpty>Nessun risultato</CommandEmpty>
               )}
-              {opportunita.length > 0 && (
+              {!isError && opportunita.length > 0 && (
                 <CommandGroup heading="Opportunità">
                   {opportunita.map((o) => (
                     <CommandItem
@@ -134,7 +147,7 @@ export function CollegaAttivitaPicker({
                   ))}
                 </CommandGroup>
               )}
-              {contatti.length > 0 && (
+              {!isError && contatti.length > 0 && (
                 <CommandGroup heading="Clienti e contatti">
                   {contatti.map((c) => (
                     <CommandItem

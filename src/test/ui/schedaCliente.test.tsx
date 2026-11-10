@@ -14,6 +14,7 @@ import { formatDistanceText } from "@/lib/routing";
 
 const stato = vi.hoisted(() => ({
   tabelle: {} as Record<string, unknown[]>,
+  profileError: null as unknown, rpcError: null as unknown, profileReads: 0,
   rpc: {} as Record<string, unknown[]>,
 }));
 
@@ -30,7 +31,10 @@ vi.mock("@/integrations/supabase/client", () => {
     const q: Record<string, unknown> = {};
     for (const m of ["select", "eq", "neq", "in", "is", "not", "or", "order", "limit", "range", "gte", "lte", "lt", "gt", "ilike", "contains", "filter", "match"]) q[m] = () => q;
     const risultato = () => ({ data: stato.tabelle[tabella] ?? [], error: null as unknown });
-    q.maybeSingle = async () => ({ data: (stato.tabelle[tabella] ?? [])[0] ?? null, error: null as unknown });
+    q.maybeSingle = async () => {
+      if (tabella === "profiles") stato.profileReads++;
+      return { data: tabella === "profiles" && stato.profileError ? null : (stato.tabelle[tabella] ?? [])[0] ?? null, error: tabella === "profiles" ? stato.profileError : null as unknown };
+    };
     q.single = q.maybeSingle;
     q.then = (si: (r: unknown) => unknown, no: (e: unknown) => unknown) => Promise.resolve(risultato()).then(si, no);
     return q;
@@ -38,7 +42,7 @@ vi.mock("@/integrations/supabase/client", () => {
   const rpc = (nome: string) => {
     const q: Record<string, unknown> = {};
     for (const m of ["order", "range", "limit"]) q[m] = () => q;
-    q.then = (si: (r: unknown) => unknown, no: (e: unknown) => unknown) => Promise.resolve({ data: stato.rpc[nome] ?? [], error: null }).then(si, no);
+    q.then = (si: (r: unknown) => unknown, no: (e: unknown) => unknown) => Promise.resolve({ data: stato.rpc[nome] ?? [], error: nome === "scheda_cliente" ? stato.rpcError : null as unknown }).then(si, no);
     return q;
   };
   return { supabase: {
@@ -62,6 +66,7 @@ const cliente: Record<string, unknown> = {
 };
 
 beforeEach(() => {
+  stato.profileError = null; stato.rpcError = null; stato.profileReads = 0;
   stato.tabelle = { profiles: [cliente] };
   stato.rpc = {
     scheda_cliente: {
@@ -174,5 +179,34 @@ describe("la scheda cliente", () => {
     fireEvent.click(screen.getByRole("button", { name: "Documenti / Fatture" }));
     await screen.findAllByText("Documenti personali");
     writeFileSync(process.env.ANTEPRIMA_SCHEDA.replace(".html", "-documenti.html"), document.body.innerHTML);
+  });
+});
+
+describe("Errori di lettura della scheda cliente", () => {
+  it("non confonde una lettura fallita con un cliente inesistente e consente di riprovare", async () => {
+    stato.profileError = new Error("Connessione assente");
+    mostra();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Impossibile caricare il cliente");
+    expect(screen.queryByText("Cliente non trovato")).toBeNull();
+    const letture = stato.profileReads;
+    stato.profileError = null;
+    fireEvent.click(screen.getByRole("button", { name: "Riprova caricamento cliente" }));
+    await screen.findByRole("heading", { level: 1 });
+    expect(stato.profileReads).toBeGreaterThan(letture);
+  });
+  it("mantiene il caso di cliente realmente inesistente", async () => {
+    stato.tabelle.profiles = [];
+    mostra();
+    expect(await screen.findByText("Cliente non trovato")).toBeInTheDocument();
+    expect(screen.queryByText("Impossibile caricare il cliente")).toBeNull();
+  });
+  it("non mostra zeri rassicuranti né abilita la cancellazione quando manca il riepilogo", async () => {
+    stato.rpcError = new Error("Riepilogo non disponibile");
+    mostra();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Impossibile caricare il riepilogo cliente");
+    expect(screen.queryByRole("button", { name: /Da incassare/ })).toBeNull();
+    expect(screen.queryByText("IVA inclusa · niente di scaduto")).toBeNull();
+    fireEvent.keyDown(screen.getByRole("button", { name: "Altre azioni" }), { key: "ArrowDown" });
+    expect(await screen.findByRole("menuitem", { name: "Elimina cliente" })).toHaveAttribute("aria-disabled", "true");
   });
 });

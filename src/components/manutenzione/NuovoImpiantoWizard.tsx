@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useDialogFocusReturn } from "@/hooks/useDialogFocusReturn";
+import { useState, useId, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
 import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,6 +49,11 @@ interface Props {
 }
 
 export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Props) {
+  const fieldId = useId();
+  const focusReturn = useDialogFocusReturn();
+  const pendingRef = useRef(false);
+  const progressRef = useRef({ impiantoId: null as string | null, contrattoId: null as string | null, pianoCreato: false, primoCreato: false });
+  const [createdImpiantoId, setCreatedImpiantoId] = useState<string | null>(null);
   const [step, setStep] = useState(1);
 
   // Step 1 fields
@@ -128,32 +134,41 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
       if (hasPiano && !titoloManutenzione.trim())
         throw new Error("Inserisci un titolo per il piano di manutenzione, oppure deseleziona l'opzione.");
 
-      // 1. Crea impianto
-      const { data: impianto, error: impErr } = await supabase
-        .from("impianti_cliente")
-        .insert({
-          company_id: companyId,
-          customer_id: customerId,
-          tipo_impianto: tipoImpianto,
-          marca: marca.trim() || null,
-          modello: modello.trim() || null,
-          matricola: matricola.trim() || null,
-          data_installazione: dataInstallazione || null,
-          garanzia_scadenza: garanziaScadenza || null,
-          note_tecniche: noteTecniche.trim() || null,
-        })
-        .select()
-        .single();
-      if (impErr) throw impErr;
+      if (programmaPrimo && (!primoData || Number.isNaN(new Date(primoData).getTime())))
+        throw new Error("Indica data e ora per programmare il primo intervento.");
 
+      // Riprende le fasi già confermate senza ricreare gli oggetti precedenti.
+      let impiantoId = progressRef.current.impiantoId;
+      if (!impiantoId) {
+        const { data: impianto, error: impErr } = await supabase
+          .from("impianti_cliente")
+          .insert({
+            company_id: companyId,
+            customer_id: customerId,
+            tipo_impianto: tipoImpianto,
+            marca: marca.trim() || null,
+            modello: modello.trim() || null,
+            matricola: matricola.trim() || null,
+            data_installazione: dataInstallazione || null,
+            garanzia_scadenza: garanziaScadenza || null,
+            note_tecniche: noteTecniche.trim() || null,
+          })
+          .select()
+          .single();
+        if (impErr) throw impErr;
+        if (!impianto?.id) throw new Error("Il server non ha restituito l’ID dell’impianto.");
+        impiantoId = impianto.id;
+        progressRef.current.impiantoId = impiantoId;
+        setCreatedImpiantoId(impiantoId);
+      }
       // 2. Crea contratto se richiesto
-      let contrattoId: string | null = null;
-      if (hasContratto) {
+      let contrattoId = progressRef.current.contrattoId;
+      if (hasContratto && !contrattoId) {
         const { data: contratto, error: contErr } = await supabase
           .from("contratti_manutenzione")
           .insert({
             company_id: companyId,
-            impianto_id: impianto.id,
+            impianto_id: impiantoId,
             customer_id: customerId,
             nome_contratto: nomeContratto.trim(),
             importo_canone: parseFloat(importoCanone),
@@ -164,11 +179,13 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
           .select()
           .single();
         if (contErr) throw contErr;
+        if (!contratto?.id) throw new Error("Il server non ha restituito l’ID del contratto.");
         contrattoId = contratto.id;
+        progressRef.current.contrattoId = contrattoId;
       }
 
       // 3. Crea piano se richiesto (contratto opzionale)
-      if (hasPiano) {
+      if (hasPiano && !progressRef.current.pianoCreato) {
         const { error: pianoErr } = await supabase
           .from("piani_manutenzione")
           .insert({
@@ -180,19 +197,20 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
             tecnico_preferito: tecnicoPreferito && tecnicoPreferito !== "__none__" ? tecnicoPreferito : null,
           });
         if (pianoErr) throw pianoErr;
+        progressRef.current.pianoCreato = true;
       }
 
       // 4. Programma il primo intervento (una tantum) come vero intervento
       // sull'impianto: assegnato a operaio o squadra, con data e note. Compare
       // in assistenza, nel calendario e nell'app di chi ci va.
-      if (programmaPrimo) {
+      if (programmaPrimo && !progressRef.current.primoCreato) {
         const etichettaTipo = TIPI_IMPIANTO.find((t) => t.value === tipoImpianto)?.label?.replace(/^[^\p{L}]+/u, "").trim() || tipoImpianto;
         const { error: tErr } = await supabase
           .from("tickets")
           .insert({
             company_id: companyId,
             customer_id: customerId,
-            impianto_id: impianto.id,
+            impianto_id: impiantoId,
             subject: `Primo intervento — ${etichettaTipo}`,
             tipo: "intervento",
             status: "aperto",
@@ -203,17 +221,23 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
             note_tecnico: primoNote.trim() || null,
           } as never);
         if (tErr) throw tErr;
+        progressRef.current.primoCreato = true;
       }
     },
     onSuccess: () => {
       toast.success("Impianto registrato con successo");
       onSuccess();
+      pendingRef.current = false;
       handleClose();
     },
     onError: (err: Error) => toast.error(err.message || "Errore nel salvataggio"),
+    onSettled: () => { pendingRef.current = false; },
   });
 
   const handleClose = () => {
+    if (pendingRef.current) return;
+    progressRef.current = { impiantoId: null, contrattoId: null, pianoCreato: false, primoCreato: false };
+    setCreatedImpiantoId(null);
     setStep(1);
     setCustomerId(""); setTipoImpianto(""); setMarca(""); setModello(""); setMatricola("");
     setDataInstallazione(""); setGaranziaScadenza(""); setNoteTecniche("");
@@ -227,11 +251,12 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
   };
 
   const canNext1 = !!customerId && !!tipoImpianto;
+  const canNext2 = !programmaPrimo || Boolean(primoData) && Number.isFinite(new Date(primoData).getTime());
 
   return (
     <>
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg">
+      <DialogContent {...focusReturn} aria-busy={mutation.isPending} className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Nuovo Impianto</DialogTitle>
           <div className="flex gap-1 mt-2">
@@ -239,20 +264,26 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
               <div key={s} className={`flex-1 h-1 rounded-full ${s <= step ? "bg-primary" : "bg-muted"}`} />
             ))}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
+          <DialogDescription className="text-xs text-muted-foreground mt-1">
             Passo {step} di 3: {step === 1 ? "Cliente e impianto" : step === 2 ? "Manutenzione e primo intervento" : "Contratto"}
-          </p>
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 min-h-[240px] max-sm:min-h-0 max-sm:space-y-3">
+        {createdImpiantoId && mutation.isError && (
+          <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            L’impianto è già stato registrato. Riprova per completare le operazioni mancanti senza ricreare quelle confermate.
+            Chiudendo abbandoni il completamento in questo modulo.
+          </div>
+        )}
+        <fieldset disabled={mutation.isPending || Boolean(createdImpiantoId)} className="space-y-4 min-h-[240px] max-sm:min-h-0 max-sm:space-y-3">
           {/* Step 1 */}
           {step === 1 && (
             <>
               <div className="space-y-1.5">
-                <Label>Cliente *</Label>
+                <Label htmlFor={`${fieldId}-customerId`}>Cliente *</Label>
                 <div className="flex gap-2">
                   <Select value={customerId} onValueChange={setCustomerId}>
-                    <SelectTrigger className="flex-1"><SelectValue placeholder="Seleziona cliente..." /></SelectTrigger>
+                    <SelectTrigger id={`${fieldId}-customerId`} className="flex-1"><SelectValue placeholder="Seleziona cliente..." /></SelectTrigger>
                     <SelectContent>
                       {clienti.map((c) => <SelectItem key={c.id} value={c.id}>{[c.first_name, c.last_name].filter(Boolean).join(" ") || c.id}</SelectItem>)}
                     </SelectContent>
@@ -264,9 +295,9 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label>Tipo impianto *</Label>
+                <Label htmlFor={`${fieldId}-tipoImpianto`}>Tipo impianto *</Label>
                 <Select value={tipoImpianto} onValueChange={setTipoImpianto}>
-                  <SelectTrigger><SelectValue placeholder="Seleziona tipo..." /></SelectTrigger>
+                  <SelectTrigger id={`${fieldId}-tipoImpianto`}><SelectValue placeholder="Seleziona tipo..." /></SelectTrigger>
                   <SelectContent>
                     {TIPI_IMPIANTO.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                   </SelectContent>
@@ -274,27 +305,27 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label>Marca</Label>
-                  <Input value={marca} onChange={(e) => setMarca(e.target.value)} placeholder="Es. Baxi" />
+                  <Label htmlFor={`${fieldId}-marca`}>Marca</Label>
+                  <Input id={`${fieldId}-marca`} value={marca} onChange={(e) => setMarca(e.target.value)} placeholder="Es. Baxi" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Modello</Label>
-                  <Input value={modello} onChange={(e) => setModello(e.target.value)} placeholder="Es. Luna3" />
+                  <Label htmlFor={`${fieldId}-modello`}>Modello</Label>
+                  <Input id={`${fieldId}-modello`} value={modello} onChange={(e) => setModello(e.target.value)} placeholder="Es. Luna3" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label>Data installazione</Label>
-                  <Input type="date" value={dataInstallazione} onChange={(e) => setDataInstallazione(e.target.value)} />
+                  <Label htmlFor={`${fieldId}-dataInstallazione`}>Data installazione</Label>
+                  <Input id={`${fieldId}-dataInstallazione`} type="date" value={dataInstallazione} onChange={(e) => setDataInstallazione(e.target.value)} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Scadenza garanzia</Label>
-                  <Input type="date" value={garanziaScadenza} onChange={(e) => setGaranziaScadenza(e.target.value)} />
+                  <Label htmlFor={`${fieldId}-garanziaScadenza`}>Scadenza garanzia</Label>
+                  <Input id={`${fieldId}-garanziaScadenza`} type="date" value={garanziaScadenza} onChange={(e) => setGaranziaScadenza(e.target.value)} />
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label>Note (posizione, matricola, accessi…)</Label>
-                <Textarea value={noteTecniche} onChange={(e) => setNoteTecniche(e.target.value)} rows={2} placeholder="Dove si trova, come si accede, dettagli utili…" />
+                <Label htmlFor={`${fieldId}-noteTecniche`}>Note (posizione, matricola, accessi…)</Label>
+                <Textarea id={`${fieldId}-noteTecniche`} value={noteTecniche} onChange={(e) => setNoteTecniche(e.target.value)} rows={2} placeholder="Dove si trova, come si accede, dettagli utili…" />
               </div>
             </>
           )}
@@ -309,8 +340,8 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
               {hasPiano && (
                 <div className="space-y-3 pl-7 max-sm:pl-0">
                   <div className="space-y-1.5">
-                    <Label>Titolo piano</Label>
-                    <Input value={titoloManutenzione} onChange={(e) => setTitoloManutenzione(e.target.value)} />
+                    <Label htmlFor={`${fieldId}-titoloManutenzione`}>Titolo piano</Label>
+                    <Input id={`${fieldId}-titoloManutenzione`} value={titoloManutenzione} onChange={(e) => setTitoloManutenzione(e.target.value)} />
                     <p className="text-xs text-muted-foreground mt-1 max-sm:hidden">
                       Puoi aggiungere un contratto a pagamento nel passo successivo.
                       Il piano funziona anche senza contratto.
@@ -318,23 +349,23 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label>Frequenza</Label>
+                      <Label htmlFor={`${fieldId}-frequenza`}>Frequenza</Label>
                       <Select value={frequenza} onValueChange={setFrequenza}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger id={`${fieldId}-frequenza`}><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {FREQUENZE.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Prima manutenzione</Label>
-                      <Input type="date" value={primaManutenzione} onChange={(e) => setPrimaManutenzione(e.target.value)} />
+                      <Label htmlFor={`${fieldId}-primaManutenzione`}>Prima manutenzione</Label>
+                      <Input id={`${fieldId}-primaManutenzione`} type="date" value={primaManutenzione} onChange={(e) => setPrimaManutenzione(e.target.value)} />
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Tecnico preferito</Label>
+                    <Label htmlFor={`${fieldId}-tecnicoPreferito`}>Tecnico preferito</Label>
                     <Select value={tecnicoPreferito} onValueChange={setTecnicoPreferito}>
-                      <SelectTrigger><SelectValue placeholder="Qualsiasi tecnico" /></SelectTrigger>
+                      <SelectTrigger id={`${fieldId}-tecnicoPreferito`}><SelectValue placeholder="Qualsiasi tecnico" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__none__">Qualsiasi tecnico</SelectItem>
                         {tecnici.map((t) => <SelectItem key={t.id} value={t.id}>{[t.first_name, t.last_name].filter(Boolean).join(" ") || t.id}</SelectItem>)}
@@ -353,14 +384,15 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
               {programmaPrimo && (
                 <div className="space-y-3 pl-7 max-sm:pl-0">
                   <div className="space-y-1.5">
-                    <Label>Data e ora</Label>
-                    <Input type="datetime-local" value={primoData} onChange={(e) => setPrimoData(e.target.value)} />
+                    <Label htmlFor={`${fieldId}-primoData`}>Data e ora *</Label>
+                    <Input id={`${fieldId}-primoData`} required aria-describedby={!primoData ? `${fieldId}-primo-hint` : undefined} type="datetime-local" value={primoData} onChange={(e) => setPrimoData(e.target.value)} />
+                    {!primoData && <p id={`${fieldId}-primo-hint`} className="text-xs text-muted-foreground">Indica data e ora per programmare il primo intervento.</p>}
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label>Assegna a un operaio</Label>
+                      <Label htmlFor={`${fieldId}-primoTecnico`}>Assegna a un operaio</Label>
                       <Select value={primoTecnico} onValueChange={setPrimoTecnico}>
-                        <SelectTrigger><SelectValue placeholder="Nessuno" /></SelectTrigger>
+                        <SelectTrigger id={`${fieldId}-primoTecnico`}><SelectValue placeholder="Nessuno" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="__none__">Nessuno</SelectItem>
                           {tecnici.map((t) => <SelectItem key={t.id} value={t.id}>{[t.first_name, t.last_name].filter(Boolean).join(" ") || t.id}</SelectItem>)}
@@ -368,9 +400,9 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
                       </Select>
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="flex items-center gap-1"><Users className="h-3 w-3" /> Oppure a una squadra</Label>
+                      <Label htmlFor={`${fieldId}-primoSquadra`} className="flex items-center gap-1"><Users className="h-3 w-3" /> Oppure a una squadra</Label>
                       <Select value={primoSquadra} onValueChange={setPrimoSquadra}>
-                        <SelectTrigger><SelectValue placeholder="Nessuna squadra" /></SelectTrigger>
+                        <SelectTrigger id={`${fieldId}-primoSquadra`}><SelectValue placeholder="Nessuna squadra" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="__none__">Nessuna squadra</SelectItem>
                           {squadre.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
@@ -379,8 +411,8 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Note per chi interviene</Label>
-                    <Textarea value={primoNote} onChange={(e) => setPrimoNote(e.target.value)} rows={2} placeholder="Cosa fare, materiali, accessi…" />
+                    <Label htmlFor={`${fieldId}-primoNote`}>Note per chi interviene</Label>
+                    <Textarea id={`${fieldId}-primoNote`} value={primoNote} onChange={(e) => setPrimoNote(e.target.value)} rows={2} placeholder="Cosa fare, materiali, accessi…" />
                   </div>
                 </div>
               )}
@@ -397,8 +429,8 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
               {hasContratto && (
                 <div className="space-y-3 pl-7 max-sm:pl-0">
                   <div className="space-y-1.5">
-                    <Label>Nome contratto</Label>
-                    <Input value={nomeContratto} onChange={(e) => setNomeContratto(e.target.value)} placeholder="Es. Manutenzione Caldaia Annuale" />
+                    <Label htmlFor={`${fieldId}-nomeContratto`}>Nome contratto</Label>
+                    <Input id={`${fieldId}-nomeContratto`} value={nomeContratto} onChange={(e) => setNomeContratto(e.target.value)} placeholder="Es. Manutenzione Caldaia Annuale" />
                   </div>
 
                   {/* Suggerimento canone dal listino manutenzione (opt-in: solo se l'azienda ha configurato il listino) */}
@@ -410,18 +442,18 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-1">
-                          <Label className="text-xs">Tipo impianto</Label>
+                          <Label htmlFor={`${fieldId}-canoneTipoImpiantoId`} className="text-xs">Tipo impianto</Label>
                           <Select value={canoneTipoImpiantoId} onValueChange={setCanoneTipoImpiantoId}>
-                            <SelectTrigger className="h-9"><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+                            <SelectTrigger id={`${fieldId}-canoneTipoImpiantoId`} className="h-9"><SelectValue placeholder="Seleziona..." /></SelectTrigger>
                             <SelectContent>
                               {tipiImpianto.map((t) => <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-xs">Tipo intervento</Label>
+                          <Label htmlFor={`${fieldId}-canoneTipoInterventoId`} className="text-xs">Tipo intervento</Label>
                           <Select value={canoneTipoInterventoId} onValueChange={setCanoneTipoInterventoId}>
-                            <SelectTrigger className="h-9"><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+                            <SelectTrigger id={`${fieldId}-canoneTipoInterventoId`} className="h-9"><SelectValue placeholder="Seleziona..." /></SelectTrigger>
                             <SelectContent>
                               {tipiIntervento.map((t) => <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>)}
                             </SelectContent>
@@ -467,13 +499,13 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label>Importo canone (€)</Label>
-                      <Input type="number" min="0" step="0.01" value={importoCanone} onChange={(e) => setImportoCanone(e.target.value)} placeholder="150.00" />
+                      <Label htmlFor={`${fieldId}-importoCanone`}>Importo canone (€)</Label>
+                      <Input id={`${fieldId}-importoCanone`} type="number" min="0" step="0.01" value={importoCanone} onChange={(e) => setImportoCanone(e.target.value)} placeholder="150.00" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Tipo fatturazione</Label>
+                      <Label htmlFor={`${fieldId}-tipoFatturazione`}>Tipo fatturazione</Label>
                       <Select value={tipoFatturazione} onValueChange={setTipoFatturazione}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger id={`${fieldId}-tipoFatturazione`}><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {TIPO_FATTURAZIONE.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                         </SelectContent>
@@ -493,22 +525,26 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
               )}
             </>
           )}
-        </div>
+        </fieldset>
 
         <DialogFooter className="flex justify-between">
           {/* Mobile: al primo passo «Annulla» è la X; il bottone avanti riempie la riga. */}
-          <Button variant="outline" className={step === 1 ? "max-sm:hidden" : undefined} onClick={step === 1 ? handleClose : () => setStep((s) => s - 1)}>
+          <Button variant="outline" disabled={mutation.isPending || Boolean(createdImpiantoId)} className={step === 1 ? "max-sm:hidden" : undefined} onClick={step === 1 ? handleClose : () => setStep((s) => s - 1)}>
             {step === 1 ? "Annulla" : <><ChevronLeft className="h-4 w-4 mr-1" />Indietro</>}
           </Button>
           <div className="flex gap-2 max-sm:[&>button]:w-full">
             {step < 3 ? (
-              <Button onClick={() => setStep((s) => s + 1)} disabled={step === 1 && !canNext1}>
+              <Button onClick={() => setStep((s) => s + 1)} disabled={mutation.isPending || (step === 1 && !canNext1) || (step === 2 && !canNext2)}>
                 Avanti <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
             ) : (
-              <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+              <Button onClick={() => {
+                if (pendingRef.current) return;
+                pendingRef.current = true;
+                mutation.mutate();
+              }} disabled={mutation.isPending}>
                 {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-1" />}
-                Salva Impianto
+                {createdImpiantoId ? "Completa impianto" : "Salva Impianto"}
               </Button>
             )}
           </div>

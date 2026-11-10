@@ -185,7 +185,7 @@ export function ImportWizard({
           <h1 className="text-lg font-semibold">Importazioni</h1>
           <p className="text-sm text-muted-foreground">{destinazione || "Importare contatti e lead"}</p>
         </div>
-        <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
+        <button type="button" aria-label="Chiudi importazione" onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
           <X className="h-5 w-5" />
         </button>
       </div>

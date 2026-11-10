@@ -113,8 +113,8 @@ function RegiaOperativa() {
   const [agendaEstesa, setAgendaEstesa] = useState(false);
   // le azioni dirette scrivono su commesse e ordini fornitore: stesso permesso dell'elenco commesse
   const puoModificare =
-    permissions.isAdmin ||
-    (permissions.canEditOrders && !permissions.solaLettura);
+    (permissions.isAdmin || permissions.canEditOrders) &&
+    !permissions.solaLettura;
 
   if (!effectiveCompany?.id) {
     return (

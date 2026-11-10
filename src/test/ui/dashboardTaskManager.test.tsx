@@ -33,9 +33,9 @@ Object.assign(Element.prototype, { hasPointerCapture: () => false, releasePointe
 function task(id: string, extra: Partial<DashboardTask> = {}): DashboardTask {
   return { id, title: `Attività ${id}`, notes: null, category: "altro", status: "da_fare", priority: "normale", assigned_to: "me", due_date: "2026-10-14", created_by: "me", order_id: null, stock_item_id: null, contact_id: null, opportunity_id: null, completed_at: null, order: null, stock_item: null, contatto: null, opportunita: null, assignee: null, ...extra };
 }
-function Page({ date = null, request = null }: { date?: string | null; request?: { id: string; requestId: number } | null }) {
+function Page({ date = null, request = null, filter }: { date?: string | null; request?: { id: string; requestId: number } | null; filter?: import("@/lib/attivita/dashboardTasks").DashboardTaskFilter }) {
   const [selected, setSelected] = useState(date);
-  return <MieAttivita calendarDate={selected} onCalendarDateClear={() => setSelected(null)} openTaskRequest={request} />;
+  return <MieAttivita filter={filter} calendarDate={selected} onCalendarDateClear={() => setSelected(null)} openTaskRequest={request} />;
 }
 function page(props = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -49,6 +49,27 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe("Task manager della Dashboard", () => {
+  it("il riepilogo esterno applica il filtro e riparte dalla prima pagina", () => {
+    state.tasks = [...Array.from({ length: 25 }, (_, i) => task(`old-${i}`, { due_date: "2026-10-13" })), task("today")];
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = (filter: import("@/lib/attivita/dashboardTasks").DashboardTaskFilter) => <MemoryRouter><QueryClientProvider client={client}><Page filter={filter} /></QueryClientProvider></MemoryRouter>;
+    const { rerender } = render(view("tutte"));
+    fireEvent.click(screen.getByRole("button", { name: "Successive" }));
+    rerender(view("oggi"));
+    expect(screen.getByRole("button", { name: /^Oggi/ }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText("1–1 di 1 attività")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Attività old-0" })).toBeNull();
+    rerender(view("scadute"));
+    expect(screen.getByText("1–20 di 25 attività")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Attività today" })).toBeNull();
+  });
+  it("il modulo espone il nome dei selettori e l'aggiunta rapida è etichettata", () => {
+    page();
+    expect(screen.getByRole("textbox", { name: "Titolo della nuova attività rapida" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Attività today" }));
+    for (const name of ["Assegna a", "Priorità", "Categoria", "Stato"]) expect(screen.getByRole("combobox", { name })).toBeTruthy();
+  });
+
   it("Oggi non comprende le scadute e la vista iniziale resta Aperte", () => {
     page(); expect(screen.getByRole("button", { name: /^Aperte/ }).getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(screen.getByRole("button", { name: /^Oggi/ }));

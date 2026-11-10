@@ -3,11 +3,13 @@
  * Flusso: hub → [overlay full-page] fonte → library / clona → [dialog] nome → crea
  */
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions } from "@/hooks/usePermissions";
+import { getDashboard } from "@/lib/dashboardBuilder/api";
+import { useDialogFocusReturn } from "@/hooks/useDialogFocusReturn";
 import {
   useDashboards,
   useDashboardTemplates,
@@ -36,6 +38,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Plus,
@@ -189,7 +192,10 @@ function CreationOverlay({
 
   const saveDash = useSaveDashboard();
   const cloneTpl = useCloneTemplateToCompany();
-  const isPending = saveDash.isPending || cloneTpl.isPending;
+  const [confirming, setConfirming] = useState(false);
+  const pendingRef = useRef(false);
+  const isPending = confirming || saveDash.isPending || cloneTpl.isPending;
+  const focusReturn = useDialogFocusReturn();
 
   const reset = () => {
     setStep("source");
@@ -199,38 +205,43 @@ function CreationOverlay({
     setNameOpen(false);
   };
 
-  const handleClose = () => { reset(); onClose(); };
+  const handleClose = () => { if (pendingRef.current || isPending) return; reset(); onClose(); };
 
   const defaultName =
     pickedTpl?.name ?? (pickedClone ? `${pickedClone.name} (copia)` : "");
 
-  const handleConfirm = (name: string, isPrivate: boolean) => {
+  const handleConfirm = async (name: string, isPrivate: boolean) => {
+    if (pendingRef.current || !name.trim()) return;
+    pendingRef.current = true;
+    setConfirming(true);
     const scope: "personal" | "company" = isPrivate ? "personal" : "company";
-
-    if (source === "blank" || (source === "clone" && !pickedTpl)) {
-      saveDash.mutate(
-        { name, scope, layout: { widgets: [] } },
-        {
-          onSuccess: (res) => {
-            toast.success(`Dashboard "${name}" creata`);
-            handleClose();
-            navigate(`/azienda/dashboards/${res.dashboard_id}/modifica`);
-          },
-          onError: (e) => toast.error(String(e)),
-        },
-      );
-    } else if (pickedTpl) {
-      cloneTpl.mutate(
-        { templateId: pickedTpl.id, scope, name },
-        {
-          onSuccess: (newId) => {
-            toast.success(`Dashboard "${name}" creata`);
-            handleClose();
-            navigate(`/azienda/dashboards/${newId}/modifica`);
-          },
-          onError: (e) => toast.error(String(e)),
-        },
-      );
+    try {
+      let newId: string;
+      if (source === "template" && pickedTpl) {
+        newId = await cloneTpl.mutateAsync({ templateId: pickedTpl.id, scope, name });
+      } else {
+        // Il clone usa l'ultima versione leggibile della sorgente. Se la lettura
+        // fallisce non creare una dashboard vuota presentandola come copia.
+        const original = source === "clone" && pickedClone
+          ? await getDashboard(pickedClone.id)
+          : null;
+        if (source === "clone" && !original) throw new Error("Seleziona una dashboard da clonare.");
+        const result = await saveDash.mutateAsync({
+          name, scope,
+          layout: original ? original.version.layout : { widgets: [] },
+          ...(original ? { description: original.dashboard.description, icon: original.dashboard.icon } : {}),
+        });
+        newId = result.dashboard_id;
+      }
+      toast.success(`Dashboard "${name}" creata`);
+      reset();
+      onClose();
+      navigate(`/azienda/dashboards/${newId}/modifica`);
+    } catch (error) {
+      toast.error(String(error));
+    } finally {
+      pendingRef.current = false;
+      setConfirming(false);
     }
   };
 
@@ -239,7 +250,10 @@ function CreationOverlay({
   return (
     <>
       {/* Full-page overlay */}
-      <div className="fixed inset-0 z-50 bg-white flex flex-col">
+      <Dialog open={open} onOpenChange={(value) => { if (!value) handleClose(); }}>
+      <DialogContent {...focusReturn} className="fixed inset-0 top-0 left-0 translate-x-0 translate-y-0 z-50 bg-white flex flex-col w-screen max-w-none sm:max-w-none h-dvh max-h-none rounded-none sm:rounded-none border-0 p-0 gap-0 [&>button]:hidden">
+        <DialogTitle className="sr-only">Nuova dashboard</DialogTitle>
+        <DialogDescription className="sr-only">Scegli la fonte della nuova dashboard.</DialogDescription>
         {/* Top bar */}
         <div className="flex items-center h-12 px-6 border-b shrink-0">
           <button
@@ -252,7 +266,7 @@ function CreationOverlay({
           <p className="absolute left-1/2 -translate-x-1/2 text-sm font-semibold text-foreground pointer-events-none">
             Nuova dashboard
           </p>
-          <button onClick={handleClose} className="ml-auto p-1.5 rounded-md hover:bg-muted transition-colors">
+          <button aria-label="Chiudi creazione dashboard" onClick={handleClose} className="ml-auto p-1.5 rounded-md hover:bg-muted transition-colors">
             <X className="h-4 w-4 text-muted-foreground" />
           </button>
         </div>
@@ -268,7 +282,7 @@ function CreationOverlay({
                 </p>
               </div>
 
-              <div className="grid grid-cols-3 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                 {[
                   {
                     id: "blank" as const,
@@ -306,6 +320,7 @@ function CreationOverlay({
                     </div>
                     <div className="px-6 pb-6">
                       <Button
+                        aria-label={src.title}
                         variant="outline"
                         size="sm"
                         className="w-full group-hover:bg-primary group-hover:text-white group-hover:border-primary transition-colors"
@@ -340,7 +355,8 @@ function CreationOverlay({
             onSelect={(d) => { setPickedClone(d); setNameOpen(true); }}
           />
         )}
-      </div>
+      </DialogContent>
+      </Dialog>
 
       {/* ── Name dialog (sopra l'overlay) ──────────────────────────── */}
       <NameDialog
@@ -348,7 +364,7 @@ function CreationOverlay({
         defaultName={defaultName}
         isAdmin={isAdmin}
         isPending={isPending}
-        onClose={() => setNameOpen(false)}
+        onClose={() => { if (!pendingRef.current) setNameOpen(false); }}
         onConfirm={handleConfirm}
       />
     </>
@@ -467,7 +483,7 @@ function TemplateLibraryContent({
   onSelect: (t: DashboardTemplate) => void;
 }) {
   const navigate = useNavigate();
-  const { data: templates = [], isLoading } = useDashboardTemplates();
+  const { data: templates = [], isLoading, isError, refetch } = useDashboardTemplates();
   const [search, setSearch]       = useState("");
   const [catFilter, setCatFilter] = useState<string>("all");
 
@@ -495,9 +511,9 @@ function TemplateLibraryContent({
   }, [templates, search, catFilter]);
 
   return (
-    <div className="flex flex-1 overflow-hidden">
+    <div className="flex flex-col sm:flex-row flex-1 min-h-0 overflow-hidden">
       {/* Sidebar */}
-      <div className="w-60 border-r bg-white shrink-0 flex flex-col">
+      <div className="w-full sm:w-60 max-h-[40%] sm:max-h-none border-b sm:border-b-0 sm:border-r bg-white shrink-0 flex flex-col">
         <div className="px-4 py-3 border-b">
           <p className="text-sm font-semibold">Libreria di modelli</p>
         </div>
@@ -506,6 +522,7 @@ function TemplateLibraryContent({
             {SIDEBAR_ITEMS.map(({ label, key, icon: Icon }) => (
               <button
                 key={key}
+                aria-pressed={catFilter === key}
                 onClick={() => setCatFilter(key)}
                 className={cn(
                   "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition-colors",
@@ -530,6 +547,7 @@ function TemplateLibraryContent({
               return (
                 <button
                   key={cat}
+                  aria-pressed={catFilter === cat}
                   onClick={() => setCatFilter(cat)}
                   className={cn(
                     "w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors",
@@ -554,14 +572,15 @@ function TemplateLibraryContent({
       </div>
 
       {/* Main */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-[#f8f9fb]">
+      <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden bg-[#f8f9fb]">
         {/* Toolbar */}
-        <div className="flex items-center gap-4 px-5 py-3 border-b bg-white shrink-0">
+        <div className="flex flex-wrap items-center gap-4 px-5 py-3 border-b bg-white shrink-0">
           <p className="font-semibold text-sm">Dashboards</p>
-          <div className="relative ml-auto w-56">
+          <div className="relative ml-auto w-full sm:w-56">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="Cerca per categoria..."
+              aria-label="Cerca modelli per nome"
+              placeholder="Cerca modelli per nome..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 h-8 text-sm bg-muted/40 border-0 focus-visible:ring-1"
@@ -571,6 +590,12 @@ function TemplateLibraryContent({
 
         <ScrollArea className="flex-1">
           <div className="p-5 space-y-8">
+            {isError && (
+              <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 space-y-2">
+                <p className="text-sm">Impossibile caricare i modelli personalizzati. I modelli standard restano disponibili.</p>
+                <Button variant="outline" size="sm" aria-label="Riprova caricamento modelli" onClick={() => void refetch()}>Riprova</Button>
+              </div>
+            )}
 
             {/* ── Sezione Standard ──────────────────────────────────── */}
             {filteredStd.length > 0 && (
@@ -678,7 +703,7 @@ function TemplateLibraryContent({
                     })}
                   </div>
                 </div>
-              ) : filteredStd.length === 0 ? (
+              ) : filteredStd.length === 0 && !isError ? (
                 <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
                   <Layers className="h-9 w-9 opacity-30" />
                   <p className="text-sm">Nessun template trovato</p>
@@ -717,6 +742,7 @@ function ClonePickContent({
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
+            aria-label="Cerca dashboard da clonare"
             placeholder="Cerca dashboard..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -780,18 +806,20 @@ function NameDialog({
 }) {
   const [name, setName]         = useState(defaultName ?? "");
   const [isPrivate, setPrivate] = useState(true);
+  const focusReturn = useDialogFocusReturn();
 
   // Sync defaultName when it changes (useEffect — useMemo non deve avere side-effect)
   useEffect(() => { setName(defaultName ?? ""); }, [defaultName]);
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="sm:max-w-md z-[60]">
+      <DialogContent {...focusReturn} className="sm:max-w-md z-[60]">
         <DialogHeader className="items-center text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 mb-1">
             <Plus className="h-6 w-6 text-green-600" />
           </div>
           <DialogTitle className="text-lg">Nuova dashboard</DialogTitle>
+          <DialogDescription>Scegli un nome e la visibilità della dashboard.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-1">
@@ -799,11 +827,11 @@ function NameDialog({
             <Label htmlFor="d-name" className="text-sm">Nome della dashboard</Label>
             <Input
               id="d-name"
+              disabled={isPending}
               placeholder="(ad es.) Panoramica delle vendite"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) onConfirm(name.trim(), isPrivate); }}
-              autoFocus
+              onKeyDown={(e) => { if (e.key === "Enter" && !isPending && name.trim()) onConfirm(name.trim(), isPrivate); }}
               className="h-11"
             />
           </div>
@@ -821,6 +849,8 @@ function NameDialog({
                   </p>
                 </div>
                 <Switch
+                  aria-label="Dashboard privata"
+                  disabled={isPending}
                   checked={isPrivate}
                   onCheckedChange={setPrivate}
                   className="shrink-0 mt-0.5"
@@ -831,7 +861,7 @@ function NameDialog({
         </div>
 
         <div className="flex gap-3 mt-2">
-          <Button variant="outline" className="flex-1" onClick={onClose}>
+          <Button variant="outline" className="flex-1" disabled={isPending} onClick={onClose}>
             Annulla
           </Button>
           <Button
@@ -1339,9 +1369,11 @@ function DeleteConfirmDialog({
 function DashboardCard({
   dashboard,
   isAdmin,
+  readOnly,
 }: {
   dashboard: DashboardListItem;
   isAdmin: boolean;
+  readOnly: boolean;
 }) {
   const [permOpen, setPermOpen]     = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -1366,6 +1398,7 @@ function DashboardCard({
             {isAdmin && (
               <button
                 type="button"
+                disabled={readOnly}
                 onClick={(e) => { e.preventDefault(); setPermOpen(true); }}
                 className="flex h-7 w-7 items-center justify-center rounded-lg bg-black/30 text-white/80 hover:bg-black/50 hover:text-white transition-colors"
                 title="Permessi dashboard"
@@ -1376,6 +1409,7 @@ function DashboardCard({
             {dashboard.is_owner && (
               <button
                 type="button"
+                disabled={readOnly}
                 onClick={(e) => { e.preventDefault(); setDeleteOpen(true); }}
                 className="flex h-7 w-7 items-center justify-center rounded-lg bg-black/30 text-white/80 hover:bg-red-500 hover:text-white transition-colors"
                 title="Elimina dashboard"
@@ -1393,7 +1427,7 @@ function DashboardCard({
                 Apri
               </Button>
             </Link>
-            {dashboard.can_edit && (
+            {dashboard.can_edit && !readOnly && (
               <Link to={`/azienda/dashboards/${dashboard.id}/modifica`}>
                 <Button size="sm" className="h-8 gap-1.5 bg-white text-foreground hover:bg-white/90 shadow-sm">
                   <Pencil className="h-3.5 w-3.5" />
@@ -1433,14 +1467,14 @@ function DashboardCard({
       {/* Dialog permessi */}
       <DashboardPermissionsDialog
         dashboard={dashboard}
-        open={permOpen}
+        open={permOpen && !readOnly}
         onClose={() => setPermOpen(false)}
       />
 
       {/* Dialog conferma eliminazione */}
       <DeleteConfirmDialog
         dashboard={dashboard}
-        open={deleteOpen}
+        open={deleteOpen && !readOnly}
         onClose={() => setDeleteOpen(false)}
       />
     </>
@@ -1448,10 +1482,11 @@ function DashboardCard({
 }
 
 // ─── Add card ─────────────────────────────────────────────────────────────────
-function AddCard({ onClick }: { onClick: () => void }) {
+function AddCard({ onClick, disabled }: { onClick: () => void; disabled: boolean }) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className="rounded-xl border-2 border-dashed border-muted-foreground/20 flex flex-col items-center justify-center gap-2.5 min-h-[200px] text-muted-foreground/40 transition-all hover:border-primary/50 hover:text-primary hover:bg-primary/5 group"
     >
       <div className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed border-current transition-transform group-hover:scale-110 group-hover:border-primary">
@@ -1466,8 +1501,10 @@ function AddCard({ onClick }: { onClick: () => void }) {
 export default function CruscottoHub() {
   const permissions             = usePermissions();
   const [createOpen, setCreate] = useState(false);
+  const canManage = !permissions.isLoading && !permissions.solaLettura;
+  const openCreation = () => { if (canManage) setCreate(true); };
 
-  const { data: dashboards = [], isLoading: dashLoading } = useDashboards();
+  const { data: dashboards = [], isLoading: dashLoading, isError, refetch } = useDashboards();
 
   const myDashboards     = dashboards.filter((d) => d.is_owner);
   const sharedDashboards = dashboards.filter((d) => !d.is_owner);
@@ -1500,20 +1537,29 @@ export default function CruscottoHub() {
             <div className="min-w-0">
               <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Dashboard</h1>
               <p className="mt-0.5 text-sm text-slate-500">
-                {dashboards.length === 0
+                {isError
+                  ? "Le dashboard personalizzate potrebbero non essere aggiornate."
+                  : dashboards.length === 0
                   ? "Crea la tua prima dashboard personalizzata con KPI, grafici e viste operative."
                   : `${dashboards.length} dashboard ${dashboards.length === 1 ? "personalizzata" : "personalizzate"} tra viste private e aziendali.`}
               </p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" className="gap-1.5" onClick={() => setCreate(true)}>
+            <Button size="sm" className="gap-1.5" disabled={!canManage} onClick={openCreation}>
               <Plus className="h-4 w-4" />
               Aggiungi dashboard
             </Button>
           </div>
         </div>
       </div>
+
+      {isError && (
+        <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 space-y-2">
+          <p className="text-sm">Impossibile aggiornare le dashboard personalizzate. Eventuali risultati già caricati restano visibili.</p>
+          <Button variant="outline" size="sm" aria-label="Riprova caricamento dashboard" onClick={() => void refetch()}>Riprova</Button>
+        </div>
+      )}
 
       {/* ── Dashboard predefinite (sempre visibili) ─────────────────────────── */}
       <section className="space-y-3">
@@ -1538,9 +1584,10 @@ export default function CruscottoHub() {
               key={d.id}
               dashboard={d}
               isAdmin={permissions.isAdmin}
+              readOnly={!canManage}
             />
           ))}
-          <AddCard onClick={() => setCreate(true)} />
+          <AddCard disabled={!canManage} onClick={openCreation} />
         </div>
       </section>
 
@@ -1556,6 +1603,7 @@ export default function CruscottoHub() {
                 key={d.id}
                 dashboard={d}
                 isAdmin={permissions.isAdmin}
+                readOnly={!canManage}
               />
             ))}
           </div>
@@ -1564,7 +1612,7 @@ export default function CruscottoHub() {
 
       {/* ── Overlay creazione ───────────────────────────────────────────────── */}
       <CreationOverlay
-        open={createOpen}
+        open={createOpen && canManage}
         onClose={() => setCreate(false)}
         dashboards={dashboards}
         isAdmin={permissions.isAdmin}

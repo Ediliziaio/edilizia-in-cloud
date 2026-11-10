@@ -44,6 +44,7 @@ interface Props {
   onChange: (orderId: string, order: OrderOption) => void;
   disabled?: boolean;
   placeholder?: string;
+  ariaLabel?: string;
   /** Da dove partire: una fattura può essere di un lavoro già finito, non solo dei prossimi. */
   filtroIniziale?: Filter;
   /** Già scelte altrove nella stessa finestra: non si ripropongono. */
@@ -93,7 +94,7 @@ function relativeBadge(workStart: string | null, workEnd: string | null, expecte
   return { label: fmtDate(ref), cls: "bg-muted text-foreground" };
 }
 
-export function OrderSelectCombobox({ companyId, value, onChange, disabled, placeholder, filtroIniziale, esclusi }: Props) {
+export function OrderSelectCombobox({ companyId, value, onChange, disabled, placeholder, filtroIniziale, esclusi, ariaLabel = "Commessa" }: Props) {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<Filter>(filtroIniziale ?? "soon");
   const [search, setSearch] = useState("");
@@ -267,6 +268,7 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
         <Button
           variant="outline"
           role="combobox"
+          aria-label={ariaLabel}
           aria-expanded={open}
           disabled={disabled}
           className={cn(

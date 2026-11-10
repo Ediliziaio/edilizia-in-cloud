@@ -137,7 +137,7 @@ export default function RenderPergoleGalleryDetail() {
     try {
       await downloadRenderImage(resultUrl, `render_pergole_${id ?? "session"}_${Date.now()}.png`);
     } catch {
-      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
+      toast.error("Impossibile scaricare il render. Riprova.");
     }
   };
 
@@ -149,7 +149,7 @@ export default function RenderPergoleGalleryDetail() {
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12 max-md:space-y-3">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/render/pergole/gallery")}>
+        <Button variant="ghost" size="icon" aria-label="Torna alla galleria pergole" onClick={() => navigate("/azienda/render/pergole/gallery")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
@@ -223,7 +223,7 @@ export default function RenderPergoleGalleryDetail() {
             ]}
           />
           <Button variant="outline" className="gap-2" onClick={handleDownload}>
-            <Download className="h-4 w-4" />Download
+            <Download className="h-4 w-4" />Scarica render
           </Button>
         </div>
       )}

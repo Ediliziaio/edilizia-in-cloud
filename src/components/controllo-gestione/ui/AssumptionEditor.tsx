@@ -109,6 +109,8 @@ export function AssumptionEditor({ scenarioId, onResult, onReset, disabled = fal
           </div>
           <Slider
             min={0} max={30} step={1}
+            aria-label="Crescita dei ricavi ogni anno"
+            aria-valuetext={`${val.crescita}%`}
             value={[val.crescita]}
             onValueChange={([v]) => bump({ crescita: v })}
             disabled={disabled}
@@ -122,6 +124,8 @@ export function AssumptionEditor({ scenarioId, onResult, onReset, disabled = fal
           </div>
           <Slider
             min={5} max={30} step={1}
+            aria-label="Margine operativo lordo obiettivo (ultimo anno)"
+            aria-valuetext={`${val.margine}%`}
             value={[val.margine]}
             onValueChange={([v]) => bump({ margine: v })}
             disabled={disabled}
@@ -137,6 +141,8 @@ export function AssumptionEditor({ scenarioId, onResult, onReset, disabled = fal
           </div>
           <Slider
             min={0} max={1_000_000} step={25_000}
+            aria-label="Investimenti ogni anno"
+            aria-valuetext={formatCurrency(val.investimento)}
             value={[val.investimento]}
             onValueChange={([v]) => bump({ investimento: v })}
             disabled={disabled}

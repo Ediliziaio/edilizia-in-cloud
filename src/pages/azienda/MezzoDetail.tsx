@@ -402,7 +402,7 @@ export default function MezzoDetail() {
         {perms.canViewCosts && (
           <TabsContent value="fatture" className="mt-3">
             <MezzoCostoOrario mezzoId={mezzo.id} puoModificare={puoModificare} />
-            <MezzoFattureSection mezzoId={mezzo.id} puoModificare={!perms.solaLettura} />
+            <MezzoFattureSection mezzoId={mezzo.id} puoModificare={puoModificare} />
           </TabsContent>
         )}
         <TabsContent value="foto" className="mt-3">

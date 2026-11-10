@@ -1,3 +1,4 @@
+import { usePermissions } from "@/hooks/usePermissions";
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -32,6 +33,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export default function ImpiantoDetail() {
   const { id } = useParams<{ id: string }>();
+  const permissions = usePermissions();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { effectiveCompany, user } = useAuth();
@@ -131,6 +133,7 @@ export default function ImpiantoDetail() {
 
   const registraEsecuzioneMutation = useMutation({
     mutationFn: async () => {
+      if (permissions.solaLettura) throw new Error("Modalità di sola lettura");
       // 2026-05-27 (UX audit): precondizioni esplicite + payload completo.
       // Prima: data poteva essere "" (Input non-required) → insert rifiutato.
       // company_id/tecnico_id mancanti → orfanaggio + zero traccia "chi ha eseguito".
@@ -179,6 +182,7 @@ export default function ImpiantoDetail() {
 
   const salvaImpianto = useMutation({
     mutationFn: async () => {
+      if (permissions.solaLettura) throw new Error("Modalità di sola lettura");
       if (!formImpianto.tipo_impianto.trim()) throw new Error("Il tipo di impianto è obbligatorio");
       const { error } = await supabase
         .from("impianti_cliente")
@@ -211,6 +215,7 @@ export default function ImpiantoDetail() {
    */
   const cambiaArchiviazione = useMutation({
     mutationFn: async (attivo: boolean) => {
+      if (permissions.solaLettura) throw new Error("Modalità di sola lettura");
       const { error } = await supabase
         .from("impianti_cliente")
         .update({ attivo })
@@ -243,6 +248,7 @@ export default function ImpiantoDetail() {
 
   const salvaContratto = useMutation({
     mutationFn: async () => {
+      if (permissions.solaLettura) throw new Error("Modalità di sola lettura");
       if (!contratto?.id) throw new Error("Contratto non disponibile");
       if (!formContratto.nome_contratto.trim()) throw new Error("Il nome del contratto è obbligatorio");
       if (!formContratto.data_inizio) throw new Error("La data di inizio è obbligatoria");
@@ -305,7 +311,7 @@ export default function ImpiantoDetail() {
       {/* Mobile: titolo e due icone sulla stessa riga; la freccia indietro è
           già nella barra in alto. */}
       <div className="flex flex-wrap items-center gap-3 max-sm:flex-nowrap max-sm:gap-2">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/azienda/manutenzione")} className="-ml-2 max-sm:hidden">
+        <Button aria-label="Torna agli impianti" variant="ghost" size="sm" onClick={() => navigate("/azienda/manutenzione")} className="-ml-2 max-sm:hidden">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="min-w-0 flex-1">
@@ -341,11 +347,11 @@ export default function ImpiantoDetail() {
             size="icon"
             className="shrink-0 tap-compact max-sm:h-8 max-sm:w-8"
             title={impianto.attivo === false ? "Ripristina impianto" : "Archivia impianto"}
-            onClick={() => setArchiviaOpen(true)}
+            disabled={permissions.solaLettura} onClick={() => setArchiviaOpen(true)}
           >
             {impianto.attivo === false ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
           </Button>
-          <Button className="flex-1 sm:flex-none gap-2 tap-compact max-sm:h-8 max-sm:w-8 max-sm:flex-none max-sm:p-0" aria-label="Modifica impianto" onClick={apriModificaImpianto}>
+          <Button className="flex-1 sm:flex-none gap-2 tap-compact max-sm:h-8 max-sm:w-8 max-sm:flex-none max-sm:p-0" aria-label="Modifica impianto" disabled={permissions.solaLettura} onClick={apriModificaImpianto}>
             <Pencil className="h-4 w-4" /> <span className="max-sm:hidden">Modifica</span>
           </Button>
         </div>
@@ -440,10 +446,10 @@ export default function ImpiantoDetail() {
                   {contratto.rinnovo_automatico && <Badge className="bg-blue-100 text-blue-800 text-xs">Rinnovo automatico</Badge>}
                   {contratto.note && <p className="rounded bg-muted/50 p-2 text-muted-foreground">{contratto.note}</p>}
                   <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button variant="outline" size="sm" className="w-full gap-2 sm:flex-1" onClick={apriModificaContratto}>
+                    <Button variant="outline" size="sm" className="w-full gap-2 sm:flex-1" disabled={permissions.solaLettura} onClick={apriModificaContratto}>
                       <Pencil className="h-4 w-4" /> Modifica
                     </Button>
-                    <Button variant="outline" size="sm" className="w-full gap-2 sm:flex-1" onClick={() => setFatturaOpen(true)}>
+                    <Button variant="outline" size="sm" className="w-full gap-2 sm:flex-1" disabled={permissions.solaLettura} onClick={() => setFatturaOpen(true)}>
                       <Receipt className="h-4 w-4" /> Fattura canone
                     </Button>
                   </div>
@@ -463,7 +469,7 @@ export default function ImpiantoDetail() {
                   <Calendar className="h-4 w-4 text-muted-foreground" /> Piano di manutenzione
                   {piani.length > 0 && <span className="text-muted-foreground">({piani.length})</span>}
                 </h3>
-                <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" disabled={piani.length === 0}
+                <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" disabled={permissions.solaLettura || piani.length === 0}
                         onClick={() => { setSelectedPianoId(piani[0]?.id ?? null); setEsecuzioneOpen(true); }}>
                   <Plus className="h-3.5 w-3.5" /> Registra esecuzione
                 </Button>
@@ -482,7 +488,7 @@ export default function ImpiantoDetail() {
                             {piano.ultima_esecuzione && ` · Ultima: ${format(new Date(piano.ultima_esecuzione), "dd MMM yyyy", { locale: it })}`}
                           </div>
                         </div>
-                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setSelectedPianoId(piano.id); setEsecuzioneOpen(true); }}>
+                        <Button size="sm" variant="outline" className="h-7 text-xs" disabled={permissions.solaLettura} onClick={() => { setSelectedPianoId(piano.id); setEsecuzioneOpen(true); }}>
                           Esegui
                         </Button>
                       </div>
@@ -517,7 +523,7 @@ export default function ImpiantoDetail() {
                   <Wrench className="h-4 w-4 text-muted-foreground" /> Interventi
                   {interventiImpianto.length > 0 && <span className="text-muted-foreground">({interventiImpianto.length})</span>}
                 </h3>
-                <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={() => setNuovoInterventoOpen(true)}>
+                <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" disabled={permissions.solaLettura} onClick={() => setNuovoInterventoOpen(true)}>
                   <Plus className="h-3.5 w-3.5" /> Nuovo intervento
                 </Button>
               </div>
@@ -600,7 +606,7 @@ export default function ImpiantoDetail() {
           </div>
           <DialogFooter className="flex-col gap-2 sm:flex-row">
             <Button variant="outline" className="w-full sm:w-auto max-sm:hidden" onClick={() => setModificaOpen(false)}>Annulla</Button>
-            <Button className="w-full sm:w-auto" onClick={() => salvaImpianto.mutate()} disabled={salvaImpianto.isPending}>
+            <Button className="w-full sm:w-auto" onClick={() => salvaImpianto.mutate()} disabled={permissions.solaLettura || salvaImpianto.isPending}>
               {salvaImpianto.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvataggio...</> : "Salva"}
             </Button>
           </DialogFooter>
@@ -661,7 +667,7 @@ export default function ImpiantoDetail() {
           </div>
           <DialogFooter className="flex-col gap-2 sm:flex-row">
             <Button variant="outline" className="w-full sm:w-auto max-sm:hidden" onClick={() => setModificaContrattoOpen(false)}>Annulla</Button>
-            <Button className="w-full sm:w-auto" onClick={() => salvaContratto.mutate()} disabled={salvaContratto.isPending}>
+            <Button className="w-full sm:w-auto" onClick={() => salvaContratto.mutate()} disabled={permissions.solaLettura || salvaContratto.isPending}>
               {salvaContratto.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvataggio...</> : "Salva"}
             </Button>
           </DialogFooter>
@@ -684,7 +690,7 @@ export default function ImpiantoDetail() {
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
-              disabled={cambiaArchiviazione.isPending}
+              disabled={permissions.solaLettura || cambiaArchiviazione.isPending}
               onClick={(e) => { e.preventDefault(); cambiaArchiviazione.mutate(impianto.attivo === false); }}
             >
               {impianto.attivo === false ? "Ripristina" : "Archivia"}
@@ -695,7 +701,7 @@ export default function ImpiantoDetail() {
 
       {/* Dialog nuovo intervento */}
       <NuovoInterventoDialog
-        open={nuovoInterventoOpen}
+        open={nuovoInterventoOpen && !permissions.solaLettura}
         onClose={() => setNuovoInterventoOpen(false)}
         defaultCustomerId={(impianto?.customer as any)?.id}
         defaultCustomerLabel={[(impianto?.customer as any)?.first_name, (impianto?.customer as any)?.last_name].filter(Boolean).join(" ") || undefined}
@@ -751,7 +757,7 @@ export default function ImpiantoDetail() {
           </div>
           <DialogFooter>
             <Button variant="outline" className="max-sm:hidden" onClick={() => setEsecuzioneOpen(false)}>Annulla</Button>
-            <Button onClick={() => registraEsecuzioneMutation.mutate()} disabled={registraEsecuzioneMutation.isPending}>
+            <Button onClick={() => registraEsecuzioneMutation.mutate()} disabled={permissions.solaLettura || registraEsecuzioneMutation.isPending}>
               {registraEsecuzioneMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Salva
             </Button>
@@ -773,7 +779,7 @@ export default function ImpiantoDetail() {
 
       {/* Fattura del canone di manutenzione. */}
       <CreaFatturaAssistenzaDialog
-        open={fatturaOpen}
+        open={fatturaOpen && !permissions.solaLettura}
         onOpenChange={setFatturaOpen}
         customerId={(impianto.customer as { id?: string } | null)?.id ?? null}
         customerName={[(impianto.customer as { first_name?: string | null } | null)?.first_name, (impianto.customer as { last_name?: string | null } | null)?.last_name].filter(Boolean).join(" ") || "Cliente"}

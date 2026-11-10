@@ -2202,7 +2202,7 @@ function StanzaDaMisure({ onAggiungi }: { onAggiungi: (larghezza: number, lunghe
           Scrivi le misure
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-72" align="start">
+      <PopoverContent className="w-72" align="start" aria-labelledby="pl-nuova-stanza-titolo" aria-describedby="pl-nuova-stanza-aiuto">
         <form
           className="space-y-3"
           onSubmit={(e) => {
@@ -2210,11 +2210,11 @@ function StanzaDaMisure({ onAggiungi }: { onAggiungi: (larghezza: number, lunghe
             aggiungi();
           }}
         >
-          <p className="text-sm font-semibold">Nuova stanza a misure</p>
+          <p id="pl-nuova-stanza-titolo" className="text-sm font-semibold">Nuova stanza a misure</p>
           <div className="space-y-1">
-            <Label>Che stanza è</Label>
+            <Label htmlFor="pl-nuovo-tipo">Che stanza è</Label>
             <Select value={destinazione} onValueChange={(v) => setDestinazione(v as Destinazione)}>
-              <SelectTrigger>
+              <SelectTrigger id="pl-nuovo-tipo">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -2233,15 +2233,15 @@ function StanzaDaMisure({ onAggiungi }: { onAggiungi: (larghezza: number, lunghe
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <Label htmlFor="pl-larghezza">Larghezza (m)</Label>
-              <Input id="pl-larghezza" inputMode="decimal" placeholder="3,50" value={larghezza} onChange={(e) => setLarghezza(e.target.value)} />
+              <Input id="pl-larghezza" aria-invalid={errore} aria-describedby={errore ? "pl-misure-errore" : undefined} inputMode="decimal" placeholder="3,50" value={larghezza} onChange={(e) => setLarghezza(e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label htmlFor="pl-lunghezza">Lunghezza (m)</Label>
-              <Input id="pl-lunghezza" inputMode="decimal" placeholder="4,00" value={lunghezza} onChange={(e) => setLunghezza(e.target.value)} />
+              <Input id="pl-lunghezza" aria-invalid={errore} aria-describedby={errore ? "pl-misure-errore" : undefined} inputMode="decimal" placeholder="4,00" value={lunghezza} onChange={(e) => setLunghezza(e.target.value)} />
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">Misure interne, da muro a muro. La stanza si mette accanto alle altre.</p>
-          {errore && <p className="text-xs text-destructive">Scrivi larghezza e lunghezza, almeno 0,50 m ciascuna.</p>}
+          <p id="pl-nuova-stanza-aiuto" className="text-xs text-muted-foreground">Misure interne, da muro a muro. La stanza si mette accanto alle altre.</p>
+          {errore && <p id="pl-misure-errore" role="alert" className="text-xs text-destructive">Scrivi larghezza e lunghezza, almeno 0,50 m ciascuna.</p>}
           <Button type="submit" size="sm" className="w-full">
             Aggiungi la stanza
           </Button>

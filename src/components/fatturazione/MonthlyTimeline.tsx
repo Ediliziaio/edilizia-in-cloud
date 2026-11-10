@@ -40,6 +40,7 @@ export function MonthlyTimeline({ months, selectedMonth, onSelectMonth, year, on
           variant="ghost"
           size="sm"
           className="h-6 w-6 p-0"
+          aria-label="Anno precedente"
           onClick={() => onYearChange(year - 1)}
         >
           <ChevronLeft className="h-4 w-4" />
@@ -61,6 +62,7 @@ export function MonthlyTimeline({ months, selectedMonth, onSelectMonth, year, on
           variant="ghost"
           size="sm"
           className="h-6 w-6 p-0"
+          aria-label="Anno successivo"
           onClick={() => onYearChange(year + 1)}
           disabled={year >= currentYear}
         >
@@ -70,7 +72,7 @@ export function MonthlyTimeline({ months, selectedMonth, onSelectMonth, year, on
 
       {/* Month grid — su mobile scorre in orizzontale: con grid-cols-12 fisse le celle
           scendevano a ~31px (testo su 3-4 righe, tap impossibile) */}
-      <div className="flex overflow-x-auto scrollbar-none sm:grid sm:grid-cols-12">
+      <div role="group" aria-label="Filtra documenti per mese" className="flex overflow-x-auto scrollbar-none sm:grid sm:grid-cols-12">
         {months.map((month) => {
           const isSelected = selectedMonth === month.key;
           const isCurrent = month.key === currentMonthKey;
@@ -78,6 +80,7 @@ export function MonthlyTimeline({ months, selectedMonth, onSelectMonth, year, on
           return (
             <button
               key={month.key}
+              aria-pressed={isSelected}
               onClick={() => onSelectMonth(isSelected ? null : month.key)}
               className={cn(
                 "min-w-[64px] flex-1 shrink-0 sm:min-w-0 border-r last:border-r-0 border-border px-1 py-2.5 text-center transition-colors hover:bg-accent/50 relative",

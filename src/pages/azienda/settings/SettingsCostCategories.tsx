@@ -554,6 +554,7 @@ export default function SettingsCostCategories() {
                       type="button"
                       size="sm"
                       variant={usageFilter === value ? "default" : "outline"}
+                      aria-pressed={usageFilter === value}
                       onClick={() => setUsageFilter(value)}
                       disabled={value !== "all" && !usageKnown}
                     >

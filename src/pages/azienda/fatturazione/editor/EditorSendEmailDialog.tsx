@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Mail, Send, Loader2, AlertCircle } from "lucide-react";
 import {
@@ -45,11 +45,12 @@ export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Pr
     queryKey: ["anagrafica-email", state.anagrafica_id],
     enabled: open && !!state.anagrafica_id,
     queryFn: async () => {
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("anagrafiche_native")
         .select("email, pec")
         .eq("id", state.anagrafica_id!)
         .maybeSingle();
+      if (error) throw error;
       return data as { email?: string; pec?: string } | null;
     },
   });
@@ -61,21 +62,34 @@ export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Pr
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const sendingRef = useRef(false);
+  const openedDocument = useRef<string | null>(null);
+  const recipientEdited = useRef(false);
 
   // Reset form when dialog opens
   useEffect(() => {
-    if (open) {
+    if (!open) {
+      openedDocument.current = null;
+      return;
+    }
+    const documentKey = state.id || `${state.tipo}:${state.numero}`;
+    if (openedDocument.current !== documentKey) {
+      openedDocument.current = documentKey;
+      recipientEdited.current = false;
       setToEmail(customerEmail);
       setSubject(`${docLabel} N° ${state.numero || "—"}`);
       setMessage("");
-      setIsSending(false);
+    } else if (!recipientEdited.current) {
+      // L'anagrafica può arrivare dopo che l'utente ha iniziato a scrivere:
+      // precompila solo il destinatario non modificato, senza azzerare la bozza.
+      setToEmail(customerEmail);
     }
-  }, [open, customerEmail, docLabel, state.numero]);
+  }, [open, customerEmail, docLabel, state.id, state.tipo, state.numero]);
 
   const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   const handleSend = useCallback(async () => {
-    if (!state.id || !toEmail) return;
+    if (sendingRef.current || !state.id || !toEmail) return;
     if (isBozza) {
       toast.error("Documento in bozza", { description: "Emetti il documento prima di inviarlo via email." });
       return;
@@ -85,6 +99,7 @@ export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Pr
       return;
     }
 
+    sendingRef.current = true;
     setIsSending(true);
     // Il salvataggio automatico aspetta 2 secondi: un dettaglio appena modificato
     // (una riga, una nota) non sarebbe nel PDF allegato, perché l'email si genera
@@ -94,6 +109,7 @@ export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Pr
     } catch (err) {
       toast.error("Modifiche non salvate: email non inviata", { description: (err as Error).message });
       setIsSending(false);
+      sendingRef.current = false;
       return;
     }
     try {
@@ -122,11 +138,12 @@ export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Pr
       toast.error("Errore invio email", { description: err.message });
     } finally {
       setIsSending(false);
+      sendingRef.current = false;
     }
   }, [state.id, toEmail, subject, message, onOpenChange, saveNow, isBozza]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => { if (!sendingRef.current) onOpenChange(next); }}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -149,12 +166,14 @@ export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Pr
 
           {/* Destinatario */}
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium">Destinatario *</Label>
+            <Label htmlFor="document-email-to" className="text-sm font-medium">Destinatario *</Label>
             <Input
+              id="document-email-to"
+              disabled={isSending}
               type="email"
               placeholder="email@cliente.it"
               value={toEmail}
-              onChange={(e) => setToEmail(e.target.value)}
+              onChange={(e) => { recipientEdited.current = true; setToEmail(e.target.value); }}
               className={!toEmail ? "border-amber-300" : ""}
             />
             {!customerEmail && (
@@ -167,8 +186,10 @@ export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Pr
 
           {/* Oggetto */}
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium">Oggetto</Label>
+            <Label htmlFor="document-email-subject" className="text-sm font-medium">Oggetto</Label>
             <Input
+              id="document-email-subject"
+              disabled={isSending}
               placeholder={`${docLabel} N° ${state.numero || ""}`}
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
@@ -177,8 +198,10 @@ export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Pr
 
           {/* Messaggio personalizzato */}
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium">Messaggio (opzionale)</Label>
+            <Label htmlFor="document-email-message" className="text-sm font-medium">Messaggio (opzionale)</Label>
             <Textarea
+              id="document-email-message"
+              disabled={isSending}
               placeholder="Aggiungi un messaggio personalizzato per il cliente..."
               value={message}
               onChange={(e) => setMessage(e.target.value)}

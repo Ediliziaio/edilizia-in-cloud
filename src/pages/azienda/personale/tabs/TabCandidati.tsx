@@ -68,16 +68,23 @@ const ESITI: Record<Esito, { label: string; classe: string }> = {
 };
 
 function Stelle({ valore, onChange, size = "h-4 w-4" }: { valore: number | null; onChange?: (v: number | null) => void; size?: string }) {
+  if (!onChange) {
+    return (
+      <span role="img" aria-label={valore == null ? "Valutazione non assegnata" : `Valutazione: ${valore} su 5`} className="flex items-center gap-0.5">
+        {[1, 2, 3, 4, 5].map((n) => <Star key={n} aria-hidden="true" className={`${size} ${valore != null && n <= valore ? "fill-amber-400 text-amber-400" : "text-slate-300"}`} />)}
+      </span>
+    );
+  }
   return (
     <div className="flex items-center gap-0.5">
       {[1, 2, 3, 4, 5].map((n) => (
         <button
           key={n}
           type="button"
-          disabled={!onChange}
           onClick={(e) => { e.stopPropagation(); onChange?.(valore === n ? null : n); }}
           className={onChange ? "cursor-pointer" : "cursor-default"}
-          aria-label={`${n} stelle`}
+          aria-label={`${n} ${n === 1 ? "stella" : "stelle"}`}
+          aria-pressed={valore === n}
         >
           <Star className={`${size} ${valore != null && n <= valore ? "fill-amber-400 text-amber-400" : "text-slate-300"}`} />
         </button>

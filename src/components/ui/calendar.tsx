@@ -1,6 +1,8 @@
 import * as React from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
 import { DayPicker } from "react-day-picker";
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
 
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
@@ -17,10 +19,26 @@ export type CalendarProps = React.ComponentProps<typeof DayPicker>;
  * Su mobile i giorni sono 40px (esclusi dal min-44 globale in index.css
  * per non far sovrapporre le celle della griglia 7×).
  */
-function Calendar({ className, classNames, showOutsideDays = true, ...props }: CalendarProps) {
+function Calendar({ className, classNames, showOutsideDays = true, locale = it, labels, ...props }: CalendarProps) {
+  const effectiveLocale = React.useMemo(() => ({ ...it, ...locale, options: { ...it.options, ...locale?.options } }), [locale]);
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
+      locale={effectiveLocale}
+      labels={{
+        labelNav: () => "Navigazione calendario",
+        labelPrevious: () => "Mese precedente",
+        labelNext: () => "Mese successivo",
+        labelMonthDropdown: () => "Scegli il mese",
+        labelYearDropdown: () => "Scegli l’anno",
+        labelWeekNumber: (week) => `Settimana ${week}`,
+        labelDayButton: (date, modifiers, _options, dateLib) => [
+          dateLib ? dateLib.format(date, "PPPP") : format(date, "PPPP", { locale: effectiveLocale }),
+          modifiers.today && "oggi",
+          modifiers.selected && "selezionato",
+        ].filter(Boolean).join(", "),
+        ...labels,
+      }}
       className={cn("rdp-root p-3", className)}
       classNames={{
         months: "relative flex flex-col sm:flex-row gap-4",

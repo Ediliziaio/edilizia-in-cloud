@@ -6,7 +6,8 @@
  *                   →  Sub-righe (singoli movimenti: fatture, costi, cedolini…)
  */
 
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useDialogFocusReturn } from "@/hooks/useDialogFocusReturn";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { ErrorBlock } from "@/components/controllo-gestione/ui/ErrorBlock";
@@ -46,6 +47,7 @@ export function DettaglioVoceMeseSheet({
   open, onOpenChange, anno, mese, codice, labelFallback,
 }: Props) {
   const q = useDettaglioVoceMese(anno, mese, codice);
+  const focusReturn = useDialogFocusReturn();
 
   const titolo = q.data?.meta.label ?? labelFallback ?? "Dettaglio voce";
   const sottotitolo =
@@ -55,11 +57,12 @@ export function DettaglioVoceMeseSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
+        {...focusReturn}
         className="w-full overflow-y-auto sm:max-w-2xl"
       >
         <SheetHeader>
           <SheetTitle className="text-xl">{titolo}</SheetTitle>
-          <p className="text-sm text-muted-foreground">{sottotitolo}</p>
+          <SheetDescription className="text-sm text-muted-foreground">{sottotitolo}</SheetDescription>
           {q.data?.meta.totale != null && (
             <p className="pt-1 text-2xl font-bold tabular-nums">
               {formatCurrency(q.data.meta.totale)}

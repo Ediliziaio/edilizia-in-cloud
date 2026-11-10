@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, type MutableRefObject } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useDialogFocusReturn } from "@/hooks/useDialogFocusReturn";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import type { MaterialeListino } from "@/hooks/useMaterialiListino";
 import { parseDecimalField } from "@/lib/listino/numeriEditor";
@@ -16,6 +17,8 @@ const euro = (value: number | null) => value == null ? "Da impostare" : new Intl
 const metadata = (r: MaterialeListino) => r.custom_field_values && typeof r.custom_field_values === "object" && !Array.isArray(r.custom_field_values) ? r.custom_field_values : {};
 
 export function MaterialiListino({ righe, puoModificare }: { righe: MaterialeListino[]; puoModificare: boolean }) {
+  const focusReturn = useDialogFocusReturn();
+  const richiestaInCorsoRef = useRef(false);
   const [cerca, setCerca] = useState("");
   const [fornitore, setFornitore] = useState("");
   const [categoria, setCategoria] = useState("");
@@ -51,13 +54,13 @@ export function MaterialiListino({ righe, puoModificare }: { righe: MaterialeLis
       {!filtrate.length && <TableRow><TableCell colSpan={6} className="py-8 text-center">Nessuna voce corrisponde ai filtri.</TableCell></TableRow>}
     </TableBody></Table></div>
     {ultima > 0 && <div className="flex items-center justify-end gap-3"><Button variant="outline" disabled={corrente === 0} onClick={() => setPagina(corrente - 1)}>Precedente</Button><span className="text-sm">Pagina {corrente + 1} di {ultima + 1}</span><Button variant="outline" disabled={corrente === ultima} onClick={() => setPagina(corrente + 1)}>Successiva</Button></div>}
-    <Dialog open={!!scelto} onOpenChange={open => { if (!open) setScelto(null); }}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-      {scelto && <SchedaMateriale key={scelto.id} riga={scelto} puoModificare={puoModificare} chiudi={() => setScelto(null)} />}
+    <Dialog open={!!scelto} onOpenChange={open => { if (!open && !richiestaInCorsoRef.current) setScelto(null); }}><DialogContent {...focusReturn} className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      {scelto && <SchedaMateriale key={scelto.id} riga={scelto} puoModificare={puoModificare} richiestaInCorsoRef={richiestaInCorsoRef} chiudi={() => setScelto(null)} />}
     </DialogContent></Dialog>
   </section>;
 }
 
-function SchedaMateriale({ riga, puoModificare, chiudi }: { riga: MaterialeListino; puoModificare: boolean; chiudi: () => void }) {
+function SchedaMateriale({ riga, puoModificare, richiestaInCorsoRef, chiudi }: { riga: MaterialeListino; puoModificare: boolean; richiestaInCorsoRef: MutableRefObject<boolean>; chiudi: () => void }) {
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
   const [nome, setNome] = useState(riga.name);
@@ -90,12 +93,12 @@ function SchedaMateriale({ riga, puoModificare, chiudi }: { riga: MaterialeListi
     for (const key of [["materiali-listino"], ["article-templates"], ["article-templates-full"], ["article-templates-pro"], ["catalog"], ["edilizia-listino"], ["bundle-editor-articoli"]]) void qc.invalidateQueries({ queryKey: key });
     void qc.invalidateQueries({ predicate: q => q.queryKey.some(k => typeof k === "string" && /articoli|articles/.test(k)) });
     toast.success("Materiale aggiornato"); chiudi();
-  }, onError: e => toast.error(e.message) });
+  }, onError: e => toast.error(e.message), onSettled: () => { richiestaInCorsoRef.current = false; } });
   const disabilitato = !puoModificare || salva.isPending;
   return <>
     <DialogHeader><DialogTitle>Scheda materiale o servizio</DialogTitle><DialogDescription>{riga.suppliers?.name ?? "Listino aziendale"} · {riga.sku}</DialogDescription></DialogHeader>
     {typeof fonte.source_file === "string" && <div className="rounded-md bg-muted p-3 text-sm"><p>Documento: {fonte.source_file} · pagina {String(fonte.source_page ?? "—")}</p>{typeof fonte.source_period === "string" && <p>Listino: {fonte.source_period}</p>}{typeof fonte.vendor_code === "string" && <p>Codice fornitore: {fonte.vendor_code}</p>}</div>}
-    <form className="space-y-4" onSubmit={e => { e.preventDefault(); if (!salva.isPending) salva.mutate(); }}>
+    <form className="space-y-4" onSubmit={e => { e.preventDefault(); if (!richiestaInCorsoRef.current) { richiestaInCorsoRef.current = true; salva.mutate(); } }}>
       <div><Label htmlFor="materiale-nome">Descrizione</Label><Input id="materiale-nome" value={nome} disabled={disabilitato} onChange={e => setNome(e.target.value)} /></div>
       <div className="grid grid-cols-2 gap-4">
         <div><Label htmlFor="materiale-costo">Costo netto (€)</Label><Input id="materiale-costo" inputMode="decimal" value={costo} disabled={disabilitato} onChange={e => setCosto(e.target.value)} /></div>
@@ -106,7 +109,7 @@ function SchedaMateriale({ riga, puoModificare, chiudi }: { riga: MaterialeListi
       <p className="text-xs text-muted-foreground">Un campo prezzo o IVA vuoto resta da impostare. Il costo è al netto dell’IVA e si riferisce all’unità indicata.</p>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={attivo} disabled={disabilitato} onChange={e => setAttivo(e.target.checked)} />Voce attiva, utilizzabile per nuove righe</label>
       <div><Label htmlFor="materiale-note">Note e condizioni di utilizzo</Label><textarea id="materiale-note" className="min-h-28 w-full rounded-md border bg-background p-3 text-sm" value={note} disabled={disabilitato} onChange={e => setNote(e.target.value)} /></div>
-      <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={chiudi}>Chiudi</Button>{puoModificare && <Button type="submit" disabled={salva.isPending}>{salva.isPending ? "Salvataggio…" : "Salva materiale"}</Button>}</div>
+      <div className="flex justify-end gap-2"><Button type="button" variant="outline" disabled={salva.isPending} onClick={chiudi}>Chiudi</Button>{puoModificare && <Button type="submit" disabled={salva.isPending}>{salva.isPending ? "Salvataggio…" : "Salva materiale"}</Button>}</div>
     </form>
   </>;
 }

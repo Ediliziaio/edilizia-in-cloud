@@ -76,6 +76,8 @@ export interface ScadenzarioFilters {
   /** Solo le scadute: aperte (da pagare o parziali) con scadenza passata. Prima
    *  la linguetta «Scadute» non passava nessun filtro e mostrava tutte. */
   soloScadute?: boolean;
+  /** Incassi e pagamenti ancora aperti, incluse le rate parziali. */
+  soloAperte?: boolean;
   /** Tipo di scadenza (incasso_cliente, pagamento_fornitore…): il filtro
    *  «Tipo» della pagina esisteva ma non arrivava alla query. */
   tipo?: string | null;
@@ -86,10 +88,10 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
 
-  const { direction, status, dateFrom, dateTo, search, soloScadute, tipo } = filters;
+  const { direction, status, dateFrom, dateTo, search, soloScadute, soloAperte, tipo } = filters;
 
   const scadenzeQuery = useQuery({
-    queryKey: [...queryKeys.scadenzario.list(companyId), page, pageSize, direction, status, dateFrom, dateTo, search, soloScadute ?? false, tipo ?? null],
+    queryKey: [...queryKeys.scadenzario.list(companyId), page, pageSize, direction, status, dateFrom, dateTo, search, soloScadute ?? false, tipo ?? null, soloAperte ?? false],
     queryFn: async () => {
       let query = supabase
         .from("scadenze")
@@ -108,6 +110,8 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
       if (search && search.trim()) query = query.ilike("description", `%${search.trim()}%`);
       if (direction) query = query.eq("direction", direction);
       if (status) query = query.eq("status", status);
+      else query = query.neq("status", "annullata");
+      if (soloAperte) query = query.in("status", ["da_pagare", "parziale"]);
       if (dateFrom) query = query.gte("due_date", dateFrom);
       if (dateTo) query = query.lte("due_date", dateTo);
       if (soloScadute) {
@@ -275,10 +279,14 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
       updateNotesMutation.mutateAsync({ id, notes }),
     scadenze: scadenzeQuery.data?.data || [],
     isLoading: scadenzeQuery.isLoading,
+    isError: scadenzeQuery.isError,
+    refetch: scadenzeQuery.refetch,
     totalCount,
     totalPages,
     summary: summaryQuery.data,
     isSummaryLoading: summaryQuery.isLoading,
+    isSummaryError: summaryQuery.isError,
+    refetchSummary: summaryQuery.refetch,
     markPaid: markPaidMutation,
     create: createMutation,
     cancel: cancelMutation,

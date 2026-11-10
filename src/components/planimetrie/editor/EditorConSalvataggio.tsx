@@ -64,6 +64,7 @@ export function EditorConSalvataggio({
   const ricalcoArchivio = useMemo(() => archivioRicalco(companyId), [companyId]);
   const [titolo, setTitolo] = useState(titoloProposto);
   const [salvando, setSalvando] = useState(false);
+  const salvataggioInCorso = useRef(false);
   // Schermo intero: sul tablet il menu e la testata della pagina tolgono metà del disegno.
   const [intero, setIntero] = useState(false);
   useEffect(() => {
@@ -104,7 +105,8 @@ export function EditorConSalvataggio({
   useSettingsDraftGuard(modificata);
 
   const salva = async () => {
-    if (!documento.current) return;
+    if (!documento.current || salvataggioInCorso.current || solaLettura) return;
+    salvataggioInCorso.current = true;
     setSalvando(true);
     const esito = await salvaPianta(
       { crea: creaPlanimetria, salva: salvaNuovaVersione },
@@ -119,6 +121,7 @@ export function EditorConSalvataggio({
         collegamenti,
       },
     );
+    salvataggioInCorso.current = false;
     setSalvando(false);
     if (esito.ok === false) {
       if (esito.conflitto) setConflitto(esito.messaggio);
@@ -147,6 +150,7 @@ export function EditorConSalvataggio({
             {nuova && (
               <Input
                 aria-label="Nome della pianta"
+                disabled={salvando}
                 value={titolo}
                 maxLength={200}
                 placeholder="Nome, es. Appartamento Rossi"
@@ -189,7 +193,7 @@ export function EditorConSalvataggio({
 
       {sopra}
 
-      <EditorPlanimetria className="min-h-0 flex-1" piantaIniziale={iniziale} onChange={suCambio} ricalco={ricalcoArchivio} soloVista={solaLettura || undefined} />
+      <EditorPlanimetria className="min-h-0 flex-1" piantaIniziale={iniziale} onChange={suCambio} ricalco={ricalcoArchivio} soloVista={solaLettura || salvando || undefined} />
     </div>
   );
 }

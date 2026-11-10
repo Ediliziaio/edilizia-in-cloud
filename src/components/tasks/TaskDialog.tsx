@@ -1,5 +1,6 @@
 import type { TablesInsert } from "@/integrations/supabase/types";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef, useId } from "react";
+import { useDialogFocusReturn } from "@/hooks/useDialogFocusReturn";
 import { useNavigate } from "react-router-dom";
 import {
   Dialog,
@@ -10,7 +11,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -257,6 +258,10 @@ export function TaskDialog({
   defaultAssignedTo,
   defaultActivityScope,
 }: TaskDialogProps) {
+  const fieldId = useId();
+  const deleteFocusReturn = useDialogFocusReturn();
+  const savingRef = useRef(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const taskQueryClient = useQueryClient();
   const { effectiveCompany, user, profile } = useAuth();
   const navigate = useNavigate();
@@ -561,6 +566,7 @@ export function TaskDialog({
   });
 
   const handleSave = async () => {
+    if (savingRef.current) return;
     if (!title.trim()) {
       toast.error("Inserisci un titolo");
       return;
@@ -582,6 +588,7 @@ export function TaskDialog({
       .filter(Boolean)
       .slice(0, MAX_INITIAL_CHECKLIST_ITEMS);
 
+    savingRef.current = true;
     setSaving(true);
     try {
       // Con un'opportunità e nessun contatto scelto, l'attività prende il
@@ -721,12 +728,14 @@ export function TaskDialog({
     } catch (e: any) {
       toast.error("Errore", { description: e.message });
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!task?.id) return;
+    if (savingRef.current || !task?.id) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       await logTaskActivity({
@@ -751,13 +760,17 @@ export function TaskDialog({
     } catch (e: any) {
       toast.error("Errore", { description: e.message });
     } finally {
+      savingRef.current = false;
       setSaving(false);
+      setDeleteConfirmOpen(false);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={(next) => { if (!savingRef.current) onOpenChange(next); }}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <fieldset disabled={saving} aria-busy={saving} className="contents">
         <DialogHeader>
           <div className="flex items-start justify-between gap-2 pr-6">
             <div>
@@ -828,6 +841,7 @@ export function TaskDialog({
               </p>
             )}
             <Input
+              required
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -864,11 +878,9 @@ export function TaskDialog({
                         key={`checklist-${index}`}
                         className="flex items-center gap-2 rounded-md bg-background px-2 py-1.5"
                       >
-                        <Checkbox
-                          checked={false}
-                          aria-label={`Elemento checklist ${index + 1}`}
-                        />
+                        <span aria-hidden="true" className="h-4 w-4 shrink-0 rounded-sm border border-primary" />
                         <Input
+                          aria-label={`Elemento checklist ${index + 1}`}
                           value={item}
                           onChange={(e) =>
                             updateInitialChecklistItem(index, e.target.value)
@@ -881,6 +893,7 @@ export function TaskDialog({
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          aria-label={`Rimuovi elemento checklist ${index + 1}`}
                           onClick={() => removeInitialChecklistItem(index)}
                         >
                           <X className="h-3.5 w-3.5" />
@@ -891,14 +904,11 @@ export function TaskDialog({
                 )}
                 <div className="flex gap-2">
                   <div className="flex h-9 items-center pl-2">
-                    <Checkbox
-                      checked={false}
-                      disabled
-                      aria-label="Nuovo elemento checklist"
-                    />
+                    <span aria-hidden="true" className="h-4 w-4 shrink-0 rounded-sm border border-primary opacity-50" />
                   </div>
                   <Input
                     id="initial-checklist-item"
+                    aria-label="Testo del nuovo elemento checklist"
                     value={checklistDraft}
                     onChange={(e) => setChecklistDraft(e.target.value)}
                     onKeyDown={(e) => {
@@ -916,6 +926,7 @@ export function TaskDialog({
                     variant="outline"
                     size="icon"
                     className="h-9 w-9 shrink-0"
+                    aria-label="Aggiungi elemento alla checklist"
                     onClick={addInitialChecklistItem}
                     disabled={!checklistDraft.trim()}
                   >
@@ -927,13 +938,14 @@ export function TaskDialog({
           )}
 
           <div className="space-y-2">
-            <Label>Assegna a</Label>
+            <Label htmlFor={`${fieldId}-assignee`}>Assegna a</Label>
             {/* Mobile: basta il menu qui sotto (dentro ci sono «Nessuno», te e il team). */}
             <div className="hidden sm:grid grid-cols-3 gap-2">
               <Button
                 type="button"
                 variant={assignMode === "me" ? "default" : "outline"}
                 className="gap-1.5"
+                aria-pressed={assignMode === "me"}
                 onClick={() => setAssignMode("me")}
                 disabled={!user?.id}
               >
@@ -944,6 +956,7 @@ export function TaskDialog({
                 type="button"
                 variant={assignMode === "team" ? "default" : "outline"}
                 className="gap-1.5"
+                aria-pressed={assignMode === "team"}
                 onClick={() => setAssignMode("team")}
                 disabled={onlyAssigned || teamAssigneeOptions.length === 0}
               >
@@ -954,6 +967,7 @@ export function TaskDialog({
                 type="button"
                 variant={assignMode === "unassigned" ? "default" : "outline"}
                 className="gap-1.5"
+                aria-pressed={assignMode === "unassigned"}
                 onClick={() => setAssignMode("unassigned")}
                 disabled={onlyAssigned}
               >
@@ -966,7 +980,7 @@ export function TaskDialog({
               onValueChange={setAssignedTo}
               disabled={onlyAssigned}
             >
-              <SelectTrigger>
+              <SelectTrigger id={`${fieldId}-assignee`}>
                 <SelectValue placeholder="Nessun assegnatario" />
               </SelectTrigger>
               <SelectContent>
@@ -983,9 +997,9 @@ export function TaskDialog({
           <div className="grid grid-cols-2 gap-3 sm:block sm:space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 max-sm:contents">
               <div className="space-y-2">
-                <Label>Priorità</Label>
+                <Label htmlFor={`${fieldId}-priority`}>Priorità</Label>
                 <Select value={priority} onValueChange={setPriority}>
-                  <SelectTrigger>
+                  <SelectTrigger id={`${fieldId}-priority`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -999,7 +1013,7 @@ export function TaskDialog({
               </div>
 
               <div className="space-y-2 max-sm:hidden">
-                <Label>Categoria</Label>
+                <Label htmlFor={`${fieldId}-category`}>Categoria</Label>
                 <Select
                   value={category}
                   onValueChange={(v) => {
@@ -1011,7 +1025,7 @@ export function TaskDialog({
                     setOpportunityId("");
                   }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id={`${fieldId}-category`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1031,9 +1045,9 @@ export function TaskDialog({
                   "max-sm:order-last",
                 )}
               >
-                <Label>{isEditing ? "Stato" : "Stato iniziale"}</Label>
+                <Label htmlFor={`${fieldId}-status`}>{isEditing ? "Stato" : "Stato iniziale"}</Label>
                 <Select value={status} onValueChange={setStatus}>
-                  <SelectTrigger>
+                  <SelectTrigger id={`${fieldId}-status`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1049,10 +1063,10 @@ export function TaskDialog({
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 max-sm:contents">
               <div className="space-y-2">
-                <Label>Scadenza</Label>
+                <Label htmlFor={`${fieldId}-due`}>Scadenza</Label>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button
+                    <Button id={`${fieldId}-due`}
                       variant="outline"
                       className={cn(
                         "w-full justify-start text-left font-normal",
@@ -1104,6 +1118,7 @@ export function TaskDialog({
             <button
               type="button"
               className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
+              aria-expanded={advancedOpen}
               onClick={() => setAdvancedOpen((value) => !value)}
             >
               <span className="flex items-center gap-2 text-sm font-medium">
@@ -1124,13 +1139,14 @@ export function TaskDialog({
               {/* Ripetizione */}
               <div className="space-y-2 border rounded-md p-3 bg-muted/20">
                 <div className="flex items-center justify-between">
-                  <Label className="flex items-center gap-1.5 cursor-pointer">
+                  <Label htmlFor={`${fieldId}-recurring`} className="flex items-center gap-1.5 cursor-pointer">
                     <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
                     Ripetizione
                   </Label>
                   <button
                     type="button"
                     role="switch"
+                    id={`${fieldId}-recurring`}
                     aria-checked={isRecurring}
                     onClick={() => setIsRecurring((v) => !v)}
                     className={cn(
@@ -1149,14 +1165,14 @@ export function TaskDialog({
                 {isRecurring && (
                   <div className="grid grid-cols-2 gap-3 pt-1">
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">
+                      <Label htmlFor={`${fieldId}-recurrence-rule`} className="text-xs text-muted-foreground">
                         Ogni
                       </Label>
                       <Select
                         value={recurrenceRule}
                         onValueChange={setRecurrenceRule}
                       >
-                        <SelectTrigger className="h-8 text-sm">
+                        <SelectTrigger id={`${fieldId}-recurrence-rule`} className="h-8 text-sm">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1171,12 +1187,12 @@ export function TaskDialog({
                       </Select>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">
+                      <Label htmlFor={`${fieldId}-recurrence-end`} className="text-xs text-muted-foreground">
                         Termina il (opz.)
                       </Label>
                       <Popover>
                         <PopoverTrigger asChild>
-                          <Button
+                          <Button id={`${fieldId}-recurrence-end`}
                             variant="outline"
                             size="sm"
                             className={cn(
@@ -1219,7 +1235,7 @@ export function TaskDialog({
               {(category === "ordini" || category === "pagamenti") && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label>Ordine collegato</Label>
+                    <Label htmlFor={`${fieldId}-order`}>Commessa collegata</Label>
                     {orderId && orderId !== "none" && (
                       <button
                         type="button"
@@ -1234,8 +1250,8 @@ export function TaskDialog({
                     )}
                   </div>
                   <Select value={orderId} onValueChange={setOrderId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleziona ordine" />
+                    <SelectTrigger id={`${fieldId}-order`}>
+                      <SelectValue placeholder="Seleziona commessa" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Nessuno</SelectItem>
@@ -1252,9 +1268,9 @@ export function TaskDialog({
 
               {category === "magazzino" && (
                 <div className="space-y-2">
-                  <Label>Articolo magazzino</Label>
+                  <Label htmlFor={`${fieldId}-stock`}>Articolo magazzino</Label>
                   <Select value={stockItemId} onValueChange={setStockItemId}>
-                    <SelectTrigger>
+                    <SelectTrigger id={`${fieldId}-stock`}>
                       <SelectValue placeholder="Seleziona articolo" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1271,9 +1287,9 @@ export function TaskDialog({
 
               {category === "costi" && (
                 <div className="space-y-2">
-                  <Label>Costo collegato</Label>
+                  <Label htmlFor={`${fieldId}-cost`}>Costo collegato</Label>
                   <Select value={costId} onValueChange={setCostId}>
-                    <SelectTrigger>
+                    <SelectTrigger id={`${fieldId}-cost`}>
                       <SelectValue placeholder="Seleziona costo" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1289,9 +1305,9 @@ export function TaskDialog({
               )}
 
               <div className="space-y-2">
-                <Label>Contatto collegato</Label>
+                <Label htmlFor={`${fieldId}-contact`}>Contatto collegato</Label>
                 <Select value={contactId} onValueChange={setContactId}>
-                  <SelectTrigger>
+                  <SelectTrigger id={`${fieldId}-contact`}>
                     <SelectValue placeholder="Seleziona contatto" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1307,9 +1323,9 @@ export function TaskDialog({
               </div>
 
               <div className="space-y-2">
-                <Label>Opportunità collegata</Label>
+                <Label htmlFor={`${fieldId}-opportunity`}>Opportunità collegata</Label>
                 <Select value={opportunityId} onValueChange={setOpportunityId}>
-                  <SelectTrigger>
+                  <SelectTrigger id={`${fieldId}-opportunity`}>
                     <SelectValue placeholder="Seleziona opportunità" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1343,11 +1359,12 @@ export function TaskDialog({
           )}
         </div>
 
+        </fieldset>
         <DialogFooter className="sticky -bottom-6 z-10 -mx-6 -mb-6 border-t bg-background px-6 py-3 max-sm:-bottom-4 max-sm:-mx-4 max-sm:-mb-4 max-sm:px-4 gap-2">
           {isEditing && (
             <Button
               variant="destructive"
-              onClick={handleDelete}
+              onClick={() => setDeleteConfirmOpen(true)}
               disabled={saving}
               className="sm:mr-auto"
             >
@@ -1357,13 +1374,12 @@ export function TaskDialog({
           )}
           <Button
             variant="outline"
-            className="max-sm:hidden"
             onClick={() => onOpenChange(false)}
             disabled={saving}
           >
             Annulla
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
+          <Button onClick={handleSave} disabled={saving || !title.trim()}>
             {saving
               ? "Salvataggio..."
               : isEditing
@@ -1375,5 +1391,20 @@ export function TaskDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    <AlertDialog open={deleteConfirmOpen} onOpenChange={(next) => { if (!savingRef.current) setDeleteConfirmOpen(next); }}>
+      <AlertDialogContent {...deleteFocusReturn}>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Eliminare l’attività?</AlertDialogTitle>
+          <AlertDialogDescription>L’attività «{task?.title}» verrà eliminata definitivamente.</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={saving}>Annulla</AlertDialogCancel>
+          <AlertDialogAction onClick={handleDelete} disabled={saving} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            {saving ? "Eliminazione..." : "Elimina definitivamente"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

@@ -1040,6 +1040,7 @@ export function CreaFatturaDialog({
               onClick={() => setClausoleMie((prev) => prev.filter((x) => x.id !== id))}
               className="text-muted-foreground hover:text-red-600"
               title="Togli la clausola"
+              aria-label={`Togli: ${titolo}`}
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -1087,6 +1088,7 @@ export function CreaFatturaDialog({
         )}
         {attiva && (c ? c.testo !== "" && c.effetto !== "trattenuta" : true) && (
           <Textarea
+            aria-label={`Testo clausola: ${titolo}`}
             value={testo}
             onChange={(e) => setTestiClausole((prev) => ({ ...prev, [id]: e.target.value }))}
             rows={2}
@@ -1140,6 +1142,7 @@ export function CreaFatturaDialog({
                 <button
                   key={p.id}
                   type="button"
+                  aria-pressed={profilo === p.id}
                   onClick={() => scegliProfilo(p.id)}
                   title={p.aiuto}
                   className={`rounded-md border px-2 py-1.5 text-xs font-medium transition-colors ${
@@ -1175,6 +1178,7 @@ export function CreaFatturaDialog({
                     <button
                       key={key}
                       type="button"
+                      aria-pressed={isSelected}
                       onClick={() => {
                         if (isSelected) { setSelectedInstId(null); return; }
                         setSelectedInstId(key);
@@ -1705,6 +1709,7 @@ export function CreaFatturaDialog({
             {clausoleMie.map((c) => rigaClausola(c.id, "Clausola aggiunta da te", undefined, true))}
             <div className="flex gap-1.5 p-2">
               <Input
+                aria-label="Nuova clausola personalizzata"
                 value={nuovaClausola}
                 onChange={(e) => setNuovaClausola(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); aggiungiClausolaMia(); } }}
@@ -1719,6 +1724,7 @@ export function CreaFatturaDialog({
 
           <button
             type="button"
+            aria-expanded={altreClausole}
             onClick={() => setAltreClausole((v) => !v)}
             className="text-[11px] font-medium text-primary hover:underline"
           >
@@ -1777,9 +1783,9 @@ export function CreaFatturaDialog({
           <div className="rounded-lg border p-3 space-y-3">
             <div className="grid gap-3 sm:grid-cols-[200px_1fr]">
               <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">Come</Label>
+                <Label htmlFor="fattura-metodo" className="text-[11px] text-muted-foreground">Come</Label>
                 <Select value={metodo} onValueChange={setMetodoScelto}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectTrigger id="fattura-metodo" className="h-8 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {[...new Set<string>([...METODI_PROPOSTI, metodo])].map((m) => (
                       <SelectItem key={m} value={m} className="text-xs">
@@ -1803,6 +1809,7 @@ export function CreaFatturaDialog({
                     <button
                       key={k}
                       type="button"
+                      aria-pressed={scadenza === k}
                       onClick={() => setScadenza(k)}
                       className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
                         scadenza === k ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted/40"
@@ -1814,6 +1821,7 @@ export function CreaFatturaDialog({
                   {scadenza === "data" && (
                     <Input
                       type="date"
+                      aria-label="Data di scadenza della fattura"
                       value={dataLibera}
                       onChange={(e) => setDataLibera(e.target.value)}
                       className="h-7 w-36 text-[11px]"
