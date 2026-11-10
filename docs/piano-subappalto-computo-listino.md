@@ -1,345 +1,297 @@
-# Contratti di subappalto dal computo e dal listino della ditta — analisi e piano
+# Contratti di subappalto dal computo e dal listino della ditta — piano (versione 2)
 
-10/11/2026. **È un piano: niente codice e niente migrazioni finché Florin non dà il via.**
+Versione 1 e versione 2 scritte il 10/11/2026. **È un piano: niente codice e niente migrazioni
+finché Florin non dà il via.**
 
-## La richiesta
+La versione 2 aggiunge:
+- l'impostazione concreta: schermate, dati e regole;
+- i rischi e i difetti prevedibili, ognuno con la sua difesa;
+- l'elenco di ciò che si riusa, per non creare doppioni.
 
-Florin, 10/11/2026: quando faccio un contratto con un subappaltatore, deve uscire la tabella
-delle fasi e sottofasi che deve fare lui, presa dal computo metrico, con mq, quantità e il resto.
-Esempio: un computo di 7 fasi con 5 voci ciascuna, e tre ditte che fanno 3 fasi ognuna. Ho
-venduto il lavoro a 100.000 €; ogni ditta lo fa a meno, partendo dal **suo** listino prezzi.
-
-Il punto difficile è il listino del subappaltatore. La manodopera e i servizi si possono
-collegare a un subappaltatore: come lo impostiamo?
-
----
-
-## 1. Era già stato chiesto? Sì, in parte, da Dimora Torino (29–31/10/2026)
-
-| Data | Cosa era stato chiesto | Cosa è stato costruito (commit) |
-|---|---|---|
-| 29/10 | Il costo previsto delle fasi deve venire dalle voci del preventivo o del computo | `order_work_phase_voci` (voci della fase con quantità, unità, costo e venduto). Ditta sulla fase con tariffa, quantità e origine del costo (migrazione 20281029296000) |
-| 30/10 | Ditte e contratti dalla commessa | Pannello **«Ditte e contratti»** (`DitteContrattiCommessa.tsx`): voci dal listino sulle fasi, ditta proposta dalle commesse passate, contratto con **Allegato A** in PDF (8c077c793) |
-| 31/10 | Il contratto deve trovare la ditta, e il costo previsto deve seguire le voci | f44e71fb3 |
-| 31/10 | L'elenco dei lavori e i prezzi si rivedono prima di salvare | Righe da togliere, da aggiungere, prezzi modificabili. Prezzo proposto: quello **concordato con la ditta** (variante di listino), altrimenti il costo del listino (bb7db1e54) |
-| 31/10 | Misure, SAL e varianti del subappalto | Quadro lavori da Allegato A, misure, SAL contestati, variante tracciata dell'importo (6bc94db8e, fc80d8300, 388304d7e) |
-| 31/10 | Commessa da un computo | Capitolo del computo = fase, voce = sottofase, con le sue voci (4242fe27b) |
-| 01/09 | Ogni squadra o subappaltatore ha il suo listino posa | `tariffe_aziendali.external_team_id` (20280901100000) e prezzo della ditta su una voce aziendale, `tariffa_costi_varianti.external_team_id` (20280901120000) |
-
-**Cosa manca rispetto alla richiesta di oggi:**
-
-1. **Si affida solo la fase intera.** Non si può dare una sottofase o una voce a una ditta. Non
-   c'è nessun controllo che impedisca di affidare due volte la stessa voce, e non c'è un elenco
-   di ciò che resta senza ditta.
-2. **Il listino del subappaltatore c'è solo sulla carta.** Due meccanismi esistono, ma:
-   - li usa una sola azienda, la Demo 2 (58 voci proprie e 8 prezzi per ditta);
-   - si compila dalla voce di listino, una alla volta. Non c'è una pagina «listino di questa
-     ditta» e non c'è un modo di caricarlo da Excel o da PDF;
-   - dipende dalla «squadra» (`external_teams`), mentre il contratto dipende dalla scheda
-     sicurezza. Bonarrigo, per esempio, ha 71 subappaltatori e **0 squadre**.
-3. **Le voci del computo non sono legate al listino.** Delle 1.977 voci di fase in produzione,
-   solo le 186 di Dimora hanno la voce di listino. Bonarrigo ha 1.109 voci con 8,4 milioni di
-   venduto e **costo del lavoro a 0**. Un contratto fatto oggi da quelle fasi uscirebbe a 0 €
-   su ogni riga.
-4. **Il corrispettivo non è la somma della tabella.** `importo_contrattuale` vive per conto suo.
-   Il PDF scrive «a listino X» quando i due numeri non coincidono.
-5. **Venduto e margine non si vedono** mentre si prepara il contratto.
-6. **Le righe del contratto non sanno da quale voce vengono.** Delle 171 righe dei 18 contratti
-   di Dimora, nessuna ha la fase scritta. Quindi:
-   - il quadro misure si imposta a mano;
-   - se il computo cambia, il contratto non se ne accorge.
+Rispetto alla versione 1 cambiano tre scelte:
+1. una voce **non** si duplica per dividerla fra due ditte;
+2. gli abbinamenti ricordati usano una tabella che esiste già (`product_aliases`);
+3. le unità di misura si normalizzano prima di ogni confronto.
 
 ---
 
-## 2. Com'è fatto oggi
+## 0. In una riga
 
-### Tabelle e collegamenti
+**Il computo dice cosa si fa e a quanto si vende. Il listino della ditta dice a quanto lo fa lei.
+L'affidamento dice chi fa cosa. Il contratto è la fotografia firmata dell'affidamento.** Ogni
+informazione vive in un posto solo; tutto il resto la legge o la fotografa.
+
+---
+
+## 1. La richiesta, e cosa c'è già
+
+Florin, 10/11/2026: nel contratto con il subappaltatore deve uscire la tabella delle fasi e
+sottofasi che fa lui, dal computo, con quantità e misure. Ogni ditta fa le sue fasi **a meno del
+venduto**, partendo dal **suo** listino. Va capito come impostare il listino del subappaltatore
+per manodopera e servizi.
+
+**Era già stato chiesto in parte, da Dimora Torino, tra il 29 e il 31/10.** Cosa è stato
+costruito:
+
+| Cosa | Dove |
+|---|---|
+| Pannello «Ditte e contratti» nella commessa | `DitteContrattiCommessa.tsx` |
+| Contratto con l'Allegato A dalle fasi, prezzi modificabili prima di salvare | commit 8c077c793, bb7db1e54 |
+| Prezzo «concordato con la ditta», cioè la variante di costo della voce di listino per quella squadra | f44e71fb3, `costoDitta.ts` |
+| Quadro misure, SAL, variante dell'importo | 6bc94db8e, fc80d8300 |
+| Voce propria di una squadra nel listino | migrazione 20280901100000 |
+| Commessa dal computo: capitolo = fase, voce = sottofase | 4242fe27b |
+
+**Cosa manca:**
+- si affida solo la fase intera, senza controllo sui doppi affidamenti e senza l'elenco di cosa
+  resta da affidare;
+- il listino della ditta lo usa solo la Demo 2 (66 righe), non ha una pagina sua né un import,
+  ed è legato alla squadra. Bonarrigo, per esempio, ha 0 squadre;
+- le voci del computo non hanno la voce di listino: 1.143 voci senza nessun costo, Bonarrigo
+  1.109 voci e 8,4 M€ venduti con costo 0;
+- il corrispettivo non è la somma della tabella;
+- venduto e margine non si vedono mentre si prepara il contratto;
+- le righe del contratto non sanno da quale voce vengono (0 su 171).
+
+I numeri completi sono nella sezione 6.
+
+---
+
+## 2. L'impostazione proposta
+
+### 2.1 Come lo usa l'impresa: quattro schermate
+
+**① Scheda subappaltatore → linguetta «Listino».** Si tiene una volta sola per ditta e vale per
+tutte le commesse.
 
 ```
-computo_uploads ─┬─ computo_voci_estratte (657)        il computo letto o scritto
-                 └─ order_id (5 computi collegati a una commessa)
-                        │  crea_commessa_preventivo_atomic («modulo:computo:…»)
-                        ▼
-orders ── order_work_phases (fase = capitolo) ── order_work_subphases (sottofase = voce)
-              └── order_work_phase_voci (1.977): descrizione, unita, quantita, importo (VENDUTO),
-                  costo_manodopera, costo_materiali, tariffa_id → tariffe_aziendali,
-                  origine (computo | computo_rst | listino | variante), origine_codice, subphase_id
-              └── order_external_teams (175): la ditta sulla fase (phase_id), cost_preventivo,
-                  tariffa_id, quantita, costo_unitario, costo_origine (listino | preventivo | manuale)
-
-tariffe_aziendali (1.361, 12 aziende): listino manodopera e servizi
-   tipo: posa 894, manodopera 258, nolo 37, smaltimento 34, ponteggio 28, …
-   unita: tutte presenti; prezzo_costo > 0 in 553; codice in 1.036
-   external_team_id: voce PROPRIA di una squadra (58, solo Demo 2)
-tariffa_costi_varianti (8, solo Demo 2): costo di una voce aziendale per una squadra
-   (external_team_id, costo, valid_from/valid_to, is_default, modalita_contabile)
-
-LA DITTA HA QUATTRO SCHEDE:
-external_teams (37: 25 esterne)    la «squadra» della commessa, del calendario e dell'app cantiere
-   └ subappaltatore_id → subappaltatori (269)      l'anagrafica principale
-subappaltatori_sicurezza ── campo_subappaltatore_id → subappaltatori   (DURC, PEC: la scheda del contratto)
-suppliers (tipo='subappalto') ── subappaltatore_id → subappaltatori    (le fatture)
-
-contratti_subappalto (181) ── subappaltatore_id → subappaltatori_sicurezza
-   importo_contrattuale, oneri_sicurezza, elenco_lavori jsonb (Allegato A: 18 contratti, tutti di Dimora)
-   └ subappalto_quadri_lavori (5): voci con fase_id, revisione
-       └ subappalto_misure (2): misura per voce → sal_subappaltatori (109)
-   └ subappalto_varianti_contratto: variante di importo e oneri, con lo storico
-appalto_tariffe (14): prezzi verso il COMMITTENTE (lavori in economia), non verso la ditta
-listini_fornitore (41): listini dei fornitori di MATERIALI (39 di Ke Bei), non dei subappaltatori
+ Listino di ROSSI SRL                       valido dal 01/11/2026  [Carica Excel/PDF] [+ Voce sua]
+ ┌────────────────────────────────┬──────┬─────────────┬──────────────┬─────────┐
+ │ Voce (listino aziendale)       │ U.M. │ Costo nostro│ Prezzo Rossi │ Origine │
+ ├────────────────────────────────┼──────┼─────────────┼──────────────┼─────────┤
+ │ Intonaco civile                │ mq   │ 15,00       │ 14,00        │ Excel   │
+ │ Rasatura                       │ mq   │  8,00       │  —           │         │  ← vuoto = non ha prezzo
+ │ ★ Punto luce (voce sua)        │ pz   │  —          │ 38,00        │ a mano  │
+ └────────────────────────────────┴──────┴─────────────┴──────────────┴─────────┘
+ [ ] solo con prezzo     Storico: listino 2025 (chiuso il 31/10/2026)
 ```
 
-### Dati veri per azienda
+**② Commessa → Fasi → «Chi fa cosa».** È l'albero del computo.
 
-| Azienda | Voci di fase | Costo del lavoro sulle voci | Contratti | Allegato A | Ditte (squadre) |
-|---|---|---|---|---|---|
-| Bonarrigo | 1.109 su 4 commesse (Villa Ida: 643 voci, 4,48 M€ venduto) | **0** | 21 (19 a 0 €) | 0 | 0 squadre, 71 subappaltatori |
-| Dimora Torino | 186 su 3 commesse (dal computo RST) | 156 k€ (dal listino aziendale) | 18 bozze | 18, 171 righe | 11 |
-| Demo 2 | 657 + 14 | 1,76 M€ | 129 | 0 | 7 |
-| Scavolo | 25 (Elisii-Scarfoglio, 620 k€) | 0 | 0 | — | 0 |
+```
+ Venduto 100.000 · affidato 72.400 a 3 ditte · margine 27,6% · SENZA DITTA 0        [Filtra: senza ditta]
+ ☐ ▸ 1 DEMOLIZIONI                          venduto 12.000   ROSSI      8.900   26%
+ ☑ ▾ 2 INTONACI                             venduto 18.000   ⚠ 2 ditte
+ ☑     2.1 Intonaco civile   420 mq  ×28,5  venduto 11.970   ROSSI 300 mq · BIANCHI 120 mq
+ ☑     2.2 Rasatura          420 mq  ×14,3  venduto  6.030   — senza ditta —
+ ────────────────────────────────────────────────────────────────────────────────────────
+ 2 voci selezionate   [Affida a… ▾]  [Dividi quantità…]  [Togli ditta]
+```
 
-Bonarrigo è il caso che Florin descrive, e oggi ci si ferma subito. Le sue 561 voci di listino
-hanno solo il prezzo di vendita: sono i prezzi dei suoi computi. Il codice della voce si ritrova
-nel listino in 265 casi su 1.109.
+Venduto e margine compaiono solo a chi ha il permesso sui costi. Chi non ce l'ha vede le voci e
+le ditte senza cifre.
 
-### Chi scrive cosa
+**③ «Prepara contratto» su una ditta.** È la finestra che c'è già (`ElencoLavoriDialog`), con le
+righe prese dagli affidamenti.
 
-| Schermata | Scrive |
-|---|---|
-| Computo → «Crea commessa» | fasi, sottofasi, `order_work_phase_voci` (venduto, codice; costo dal listino se il codice combacia) |
-| Commessa → Fasi → «Ditte e contratti» | `order_external_teams` (ditta sulla fase), voci aggiunte dal listino, contratto in bozza con `elenco_lavori` |
-| Impostazioni → Listino manodopera (`SettingsTariffe`) | `tariffe_aziendali`, compresa la squadra della voce. «Varianti di costo» (`TariffaVariantiEditor`) scrive `tariffa_costi_varianti` |
-| Scheda subappaltatore → Contratti (`ContrattiSubappalto`) | condizioni, firma, variante, «Imposta elenco lavori» → `subappalto_quadri_lavori`, misure, SAL |
-| PDF (`ContrattoSubappaltoPDF.tsx`, `contrattoSubappaltoHtml.ts`) | contratto con lo stile unico. Riquadro economico da `importo_contrattuale`, Allegato A raggruppato per fase con il totale. C'è anche una copia per il cantiere senza cifre |
+Per ogni riga si vedono:
+- il prezzo con il pallino d'origine: listino ditta, voce sua, costo nostro o a mano;
+- a destra, solo all'interno, venduto e margine.
 
----
+«Ricorda nel listino di Rossi» salva il prezzo corretto. Il salvataggio scrive il contratto in
+bozza; il corrispettivo è la somma delle righe, calcolato dal database.
 
-## 3. Il disegno proposto
+**④ PDF e firma.** Il PDF ha la tabella «Lavori affidati» per fase, con il totale di ogni fase.
+All'invio per la firma il contratto si fotografa. Alla firma nasce il quadro misure, e da lì
+partono misure, SAL e il costo per fase nella commessa.
 
-### Il principio
+### 2.2 I dati: una sola fonte per ogni cosa
 
-**Il listino aziendale della manodopera e dei servizi è l'elenco di ciò che si fa. Il listino
-della ditta è il prezzo che quella ditta chiede per ciascuna voce.** Le voci del computo si
-abbinano una volta sola a una voce di listino, e l'abbinamento resta. Da lì in poi:
-
-> voce del computo → voce di listino → prezzo della ditta X (valido alla data del contratto)
-
-Con lo stesso abbinamento si confrontano più ditte sulla stessa voce, si sa il costo previsto
-prima di scegliere la ditta, e il prezzo cambia una volta sola per tutte le commesse future.
-
-### (a) Il listino del subappaltatore
-
-**Dove vive.** Non serve una tabella nuova: si usano le due che ci sono già.
-
-- **Prezzo della ditta su una voce aziendale** → `tariffa_costi_varianti`. È il caso normale:
-  «intonaco civile al mq», la ditta Rossi lo fa a 14 €, la ditta Bianchi a 15,50 €.
-- **Voce che ha solo quella ditta** → `tariffe_aziendali` con la ditta scritta sopra. È il caso
-  dell'elettricista con il suo listino punti luce.
-
-**La ditta si identifica con l'anagrafica `subappaltatori`, non con la squadra.** Bonarrigo non
-ha squadre, e il contratto, il fornitore e la squadra puntano tutti all'anagrafica. Quindi:
-
-- si aggiunge `subappaltatore_id` alle due tabelle e lo si ricava dalle 66 righe di oggi
-  attraverso la squadra;
-- chi legge accetta per qualche settimana sia la squadra sia l'anagrafica;
-- quando una ditta viene affidata in una commessa e non ha ancora la squadra, la squadra si crea
-  da sola, perché servono il calendario e l'app cantiere.
-
-**Il legame con le voci del computo.** Si scrive `order_work_phase_voci.tariffa_id`: la colonna
-c'è già, e il prezzo per ditta (`prezzoVoceDitta`) la sa già usare. Per trovare la voce di
-listino, nell'ordine:
-
-1. la voce ha già la voce di listino (Dimora, dal computo RST);
-2. lo stesso **codice**: codice del prezzario o codice della voce;
-3. un **abbinamento ricordato**: una tabella nuova, `abbinamenti_voce_listino`, con azienda,
-   chiave (codice oppure descrizione normalizzata) e voce di listino. Si scrive la prima volta
-   che qualcuno abbina a mano, e alla commessa dopo l'abbinamento è automatico;
-4. una **proposta dell'AI**: la ricerca per significato c'è già (`tariffe_aziendali.embedding`),
-   con conferma a un clic e mai in automatico;
-5. a mano.
-
-Una voce del computo che non esiste nel listino si può aggiungere al listino con un clic, con la
-sua unità, e diventa abbinata.
-
-**Come si carica il listino della ditta.** Si apre la scheda del subappaltatore, linguetta
-**«Listino»**. Ci sono tre modi:
-
-- **A mano.** È la tabella delle voci di manodopera e servizi dell'azienda, con la colonna
-  «Prezzo della ditta». Si scrive solo dove la ditta ha un prezzo, e c'è il filtro «solo quelle
-  con prezzo».
-- **Da Excel.** Si incolla o si carica il file, riusando `parseVociIncollate`, che è già
-  collaudato per i listini fornitore.
-- **Da PDF.** Il PDF lo legge l'AI, riusando il lettore unico della commessa di Silvio.
-
-Excel e PDF finiscono nella stessa finestra di abbinamento: ogni riga del file con la voce
-aziendale proposta, sicura o da confermare. Le righe senza abbinamento diventano «voce propria
-della ditta» oppure si scartano. Si salva tutto insieme.
-
-**Validità e revisioni.** Le colonne `valid_from` e `valid_to` ci sono già. Un listino nuovo
-della ditta chiude le righe vecchie (`valid_to` = ieri) e apre le nuove: la storia resta. Il
-contratto usa il prezzo valido alla sua data e lo fotografa nell'Allegato A. **Un listino nuovo
-non cambia mai un contratto già fatto**: solo una variante lo cambia.
-
-### (b) L'affidamento
-
-Nel pannello «Ditte e contratti» della commessa si apre la vista **«Chi fa cosa»**:
-
-- un albero **fase → sottofase → voce**, con quantità, unità e venduto;
-- si seleziona una fase intera, una sottofase o singole voci, si sceglie la ditta, e si preme
-  «Affida»;
-- ogni voce mostra la sua ditta con un colore;
-- il filtro **«Senza ditta»** mostra cosa resta da affidare, con il venduto residuo;
-- in testa c'è un riepilogo per ditta: voci, venduto affidato, costo dal suo listino.
-
-**Una tabella nuova: `subappalto_affidamenti`.** Ogni riga ha:
-
-- la voce (`voce_id`) e la ditta (`subappaltatore_id`);
-- il contratto, vuoto finché il contratto non c'è;
-- la quantità, il prezzo e da dove viene il prezzo;
-- lo stato: proposto, a contratto o revocato.
-
-Un indice unico su `voce_id`, valido per le righe non revocate, garantisce che **una voce non
-si affidi due volte**, anche con due persone che lavorano insieme.
-
-**Una voce su due ditte: si divide la voce.** È la proposta da far decidere a Florin.
-«Dividi» crea due voci con la stessa origine: 120 mq diventano 80 mq + 40 mq, e il venduto si
-divide in proporzione. Ogni voce poi ha la sua ditta. La regola «una voce, una ditta» resta
-semplice. Le misure e i SAL non devono contare da quale ditta viene ogni metro quadro.
-
-La ditta sulla fase (`order_external_teams`) **si tiene allineata da sola**. Una ditta con
-almeno una voce della fase ha la sua riga, con costo previsto = somma degli affidamenti e
-origine nuova `contratto`. Il calendario, l'app cantiere ed `economiaFasi` continuano a leggere
-lì. Le fasi senza voci, quelle create a mano, restano affidabili a corpo come oggi.
-
-### (c) I prezzi del contratto
-
-Il prezzo di ogni riga si cerca in quest'ordine:
-
-1. il prezzo della ditta valido alla data del contratto;
-2. la voce propria della ditta;
-3. il costo del listino aziendale, con l'etichetta «costo aziendale, non della ditta»;
-4. scritto a mano, con l'etichetta «a mano».
-
-Il pallino accanto al prezzo dice da dove viene. Un prezzo cambiato a mano si può **salvare nel
-listino della ditta** («ricorda per le prossime volte»): così il listino si costruisce
-lavorando, senza doverlo caricare tutto prima.
-
-**Solo nella finestra interna, e solo con il permesso sui costi:**
-
-- venduto unitario e venduto della riga;
-- margine in euro e in percentuale, per riga, per fase e in totale;
-- in rosso le righe dove la ditta costa più del venduto, e le righe a 0 €.
-
-Il riepilogo dice per esempio: «Venduto 100.000 € · affidato a 3 ditte 72.400 € · margine
-27.600 € (27,6%) · senza ditta 0 €».
-
-### (d) Il PDF del contratto
-
-Buona parte c'è già: stile unico, Allegato A raggruppato per fase con il totale, copia per il
-cantiere senza cifre. Le modifiche:
-
-- **Il corrispettivo è la somma della tabella.** Con l'Allegato A, `importo_contrattuale` lo
-  calcola il database (trigger finché il contratto è in bozza). Spariscono «a listino X» e il
-  numero scritto a parte. Gli oneri della sicurezza restano una riga a sé, non soggetta a
-  ribasso. Il totale è lavori + oneri.
-- **La tabella «Lavori affidati»**, per fase:
-  - intestazione della fase;
-  - righe con N., descrizione, U.M., quantità, prezzo unitario, importo;
-  - sottotitolo della sottofase quando una fase ne ha più di una;
-  - «Totale fase»;
-  - in fondo, «Totale lavori».
-
-  Il codice va nella colonna solo se ogni riga ha il suo. Intestazione grigia, filetti e
-  accento vengono da `stileDocumenti.ts`, con la veste propria per Vulcano.
-- Mai il venduto, il margine o il prezzo al committente. Lo garantisce già il fatto che la
-  riga dell'elenco non ha quei campi; un test lo rende esplicito.
-
-### (e) Collegamento a misure, SAL, costi della commessa e controllo di gestione
-
-- **Alla firma** nasce da solo il quadro lavori, revisione 1, con le righe dell'Allegato A. Ogni
-  riga del quadro porta `voce_id` e `fase_id`. «Imposta elenco lavori» resta solo per i
-  contratti vecchi.
-- **Misure e SAL** restano quelli di oggi (`subappalto_misure` → `sal_subappaltatori`); in più
-  ogni misura sa la sua voce, quindi la sua fase.
-- **Costo previsto della commessa per fase** = la somma degli affidamenti a contratto. La
-  funzione `contrattoPerFase` esiste già. **Consuntivo per fase** = i SAL approvati, ripartiti
-  con le misure.
-- **Controllo di gestione e Margini**: per ogni fase, venduto, costo da contratto e costo
-  maturato dai SAL. Lo scostamento si vede per voce, non solo per commessa.
-- Un'idea, non in questo piano: le misure riconosciute alla ditta come proposta di avanzamento
-  per il SAL al committente, sulla stessa voce.
-
-### (f) Varianti quando il computo cambia
-
-Il computo ha già le sue varianti (`computo_uploads.variante_di`). Quando le voci della
-commessa cambiano, il pannello confronta affidamenti e voci attuali e mostra tre casi:
-
-- **quantità cambiata** (120 → 135 mq) su una voce a contratto → «Proponi variante alla ditta»;
-- **voce nuova** → finisce in «Senza ditta»;
-- **voce tolta** ma a contratto → avviso. Con misure registrate non si può togliere, solo ridurre.
-
-Per la variante si **estende la funzione che c'è già** (`subappalto_variante_registra`). Oggi
-cambia solo importo e oneri con una voce a corpo; in futuro accetterà righe (voce, quantità
-nuova, prezzo) e creerà una nuova revisione del quadro. Lo storico resta in
-`subappalto_varianti_contratto`. Il PDF della variante usa il modello «Variante in opera»,
-già esistente.
-
-### (g) Permessi
-
-| Chi | Cosa vede |
-|---|---|
-| Con permesso sui costi | prezzi delle ditte, venduto, margine, listino della ditta |
-| Chi modifica il listino (`can_edit_settings_pricing`) | modifica i prezzi delle ditte e l'import. Oggi le varianti chiedono l'amministratore: si allinea |
-| Chi modifica le commesse senza permesso sui costi | vede chi fa cosa (le voci e la ditta), senza nessuna cifra |
-| Il subappaltatore nell'app | solo il suo contratto e il suo Allegato A con i suoi prezzi; mai il venduto né il listino di altre ditte |
-| Operai e capisquadra | la copia per il cantiere senza cifre |
-
-Le tabelle nuove nascono con la sicurezza per riga, a immagine di `order_work_phase_voci`
-(commesse + costi). Le funzioni nascono chiuse (`REVOKE … FROM PUBLIC, anon`).
-
----
-
-## 4. Piano a lotti
-
-Ogni lotto si pubblica e si verifica da solo. Le migrazioni si fanno con `apply_migration` più
-il riallineamento della versione, controllando prima che la versione sia libera.
-
-| Lotto | Cosa | Come si verifica |
+| Informazione | Dove vive (l'unica fonte) | Chi la legge o la fotografa |
 |---|---|---|
-| **0** | Florin risponde alle domande sotto | — |
-| **1** | **Ditta = anagrafica.** `subappaltatore_id` su `tariffa_costi_varianti` e `tariffe_aziendali`, ricavato dalla squadra; i lettori accettano entrambi; la squadra si crea da sola quando serve | Le 66 righe della Demo 2 hanno l'anagrafica; i test di `costoDitta` e `ditteLavori` sono verdi |
-| **2** | **Listino della ditta, a mano.** Linguetta «Listino» nella scheda subappaltatore: voci aziendali con il prezzo della ditta, voci proprie, validità, «solo con prezzo» | Su Demo 2 si scrivono 3 prezzi e il pannello della commessa li propone |
-| **3** | **Listino della ditta da Excel e da PDF.** Finestra di abbinamento (sicuro / da confermare / voce propria / scarta) | Un listino vero di una ditta di Bonarrigo o di Dimora, riga per riga |
-| **4** | **Voci del computo abbinate al listino.** `tariffa_id` per codice, abbinamenti ricordati (tabella nuova), proposta AI, «aggiungi al listino»; pannello «Abbina al listino» nella commessa | Villa Ida (Bonarrigo): quante voci su 643 si abbinano da sole per codice. Una seconda commessa usa gli abbinamenti ricordati |
-| **5** | **Affidamento per voce.** Tabella `subappalto_affidamenti` con l'indice unico, vista «Chi fa cosa», «Senza ditta», «Dividi voce», allineamento della ditta sulla fase | Due affidamenti della stessa voce in parallelo: uno fallisce. L'esempio 7×5 con 3 ditte torna al centesimo |
-| **6** | **Contratto dagli affidamenti.** Prezzi dal listino della ditta alla data, pallino d'origine, «ricorda nel listino», venduto e margine solo con il permesso, corrispettivo = somma (trigger), PDF «Lavori affidati» con i totali per fase | PDF di Dimora O-0001 e di Villa Ida. Test: niente venduto nel PDF; il corrispettivo è uguale al totale della tabella |
-| **7** | **Firma → quadro, misure, SAL, costi.** Quadro automatico con `voce_id`; previsto per fase dal contratto; consuntivo per fase dai SAL; Margini e controllo di gestione per fase | Su un contratto Demo 2 firmato in una transazione annullata: quadro, misura, SAL e consuntivo della fase |
-| **8** | **Varianti dal computo.** Confronto, avvisi, «Proponi variante» per voce, revisione del quadro | Variante di quantità su una voce con misure: le misure restano valide, l'importo segue |
-| **9** | **Contratti esistenti e collaudo.** Cosa fare dei 18 contratti di Dimora e dei 21 di Bonarrigo (domanda 7); verifica a schermo con un utente senza permesso sui costi | Visto a schermo, non solo nei test |
+| Cosa si fa, quantità, venduto | `order_work_phase_voci` (esiste) | tutto |
+| L'elenco delle lavorazioni dell'impresa | `tariffe_aziendali` (esiste) | listino della ditta, abbinamenti |
+| Il prezzo della ditta su una voce | `tariffa_costi_varianti` (esiste) + **`subappaltatore_id`** | affidamento (proposta di prezzo) |
+| La voce che ha solo quella ditta | `tariffe_aziendali` con **`subappaltatore_id`** (esiste per squadra) | come sopra |
+| Voce del computo ↔ voce di listino | `order_work_phase_voci.tariffa_id` (esiste) | prezzo della ditta |
+| Abbinamento ricordato per la prossima volta | **`product_aliases`** (esiste, vuota: c'è già la colonna `tariffa_id`) | abbinamento automatico |
+| Chi fa cosa, e a che prezzo | **`subappalto_affidamenti`** (NUOVA, l'unica tabella nuova) | contratto, ditta sulla fase, margini |
+| La ditta sulla fase (calendario, app, costo previsto) | `order_external_teams` (esiste) | **calcolata** dagli affidamenti, mai scritta a mano accanto a loro |
+| Il contratto firmato | `contratti_subappalto.elenco_lavori` (esiste) | fotografia, mai riscritta dopo l'invio |
+| Cosa si misura dopo la firma | `subappalto_quadri_lavori` (esiste) | misure e SAL; la revisione 1 nasce dalla fotografia |
+| La ditta | `subappaltatori`, l'anagrafica (esiste) | squadra, scheda sicurezza e fornitore puntano a lei |
 
-I lotti 1–2 e 4 sono indipendenti dal 3 (l'import). Il 5 serve a 6, 7 e 8.
+**La tabella nuova `subappalto_affidamenti`:**
+
+```
+id, company_id, order_id
+voce_id            → order_work_phase_voci   ON DELETE RESTRICT (vedi rischio R6)
+subappaltatore_id  → subappaltatori (anagrafica)
+contratto_id       → contratti_subappalto (vuoto finché non c'è il contratto)
+quantita           numeric(14,3)  > 0
+prezzo_unitario    numeric(12,4)  senza IVA
+origine_prezzo     listino_ditta | voce_ditta | costo_aziendale | manuale
+variante_id        → tariffa_costi_varianti (il prezzo usato, per sapere da dove)
+comprende          posa | fornitura_e_posa        (vedi rischio R9)
+stato              bozza | a_contratto | revocato
+creato_da, creato_il, aggiornato_il
+```
+
+Il venduto **non** si scrive qui: si legge dalla voce, protetta dal permesso sui costi (rischio
+R10).
+
+**Le funzioni:** tutte nascono chiuse (`REVOKE … FROM PUBLIC, anon`) e controllano il permesso
+sull'azienda della commessa.
+- `affida_voci(order, voci[], subappaltatore, quantita?)`: in un colpo solo, e blocca le voci
+  mentre lavora.
+- `dividi_affidamento(id, quantita)`.
+- `revoca_affidamento(id)`: solo se non è a contratto.
+- `prepara_elenco_contratto(order, subappaltatore, data)`: le righe con il prezzo proposto e la
+  sua origine.
+- `margini_affidamenti(order)`: venduto e margine, solo con il permesso sui costi.
+- `listino_ditta_salva(subappaltatore, righe[], valido_dal)`: chiude il listino vecchio e apre
+  il nuovo.
+
+**Le colonne aggiunte a tabelle esistenti:**
+- `subappaltatore_id` su `tariffa_costi_varianti` e su `tariffe_aziendali`;
+- `voce_id` e `affidamento_id` nelle righe di `elenco_lavori` e del quadro: è jsonb, quindi
+  nessuna migrazione di schema;
+- il valore `contratto` per `order_external_teams.costo_origine`.
+
+### 2.3 Le regole, scritte come si controllano
+
+1. **Una voce non si affida mai per più della sua quantità.** La somma delle quantità affidate
+   e non revocate deve restare ≤ alla quantità della voce. Il controllo sta nel database, con
+   la riga della voce bloccata (`FOR UPDATE`) mentre si scrive.
+
+   È questa la «divisione fra due ditte»: 300 mq a Rossi e 120 a Bianchi. **La voce resta
+   una**, il venduto non raddoppia, la sottofase non si tocca. Il database ammette **una sola
+   voce per sottofase** (indice unico `order_work_phase_voci_sottofase_key`), quindi duplicare
+   la voce, come diceva la versione 1, avrebbe rotto quell'indice.
+2. **Il prezzo proposto si cerca in quest'ordine:**
+   1. prezzo della ditta valido alla data del contratto;
+   2. voce propria della ditta;
+   3. costo aziendale, con l'avviso «non è un prezzo della ditta»;
+   4. a mano.
+
+   La proposta automatica si usa solo se **l'unità combacia** dopo la normalizzazione.
+3. **Il corrispettivo è la somma delle righe arrotondate al centesimo, riga per riga.** È lo
+   stesso conto nel database, nella finestra e nel PDF.
+4. **Dopo l'invio per la firma il contratto non cambia.** Si cambia solo con una variante, che
+   apre una nuova revisione del quadro e aggiorna gli affidamenti nello stesso passaggio.
+5. **Un listino nuovo della ditta non cambia nessun contratto esistente.**
+6. **Il venduto e il margine non escono mai dall'interno**: né nel PDF, né nel contratto, né
+   nella fotografia, né all'app del subappaltatore.
 
 ---
 
-## 5. Domande per Florin
+## 3. Niente doppioni: cosa si riusa e cosa NON si crea
 
-1. **Una voce su due ditte.** Va bene «Dividi la voce per quantità» (80 mq alla ditta A,
-   40 mq alla B)? L'alternativa è vietarlo del tutto.
-2. **La ditta non ha un prezzo per una voce.** Cosa propongo?
-   - **(a)** il costo del listino aziendale;
-   - **(b)** una percentuale del venduto uguale per tutta l'azienda (per esempio il 70%);
-   - **(c)** casella vuota da compilare, e il contratto non si salva finché non è compilata.
+| Tentazione | Perché no | Al suo posto |
+|---|---|---|
+| Una tabella «listino subappaltatori» | duplicherebbe `tariffe_aziendali` + `tariffa_costi_varianti`, e due listini divergono | le due tabelle esistenti, con `subappaltatore_id` |
+| Una tabella «abbinamenti voce→listino» | `product_aliases` ha già `alias_normalized`, `tariffa_id`, `learned_from`, `use_count` | `product_aliases` con `learned_from='voce_computo'` |
+| Duplicare la voce per dividerla | venduto doppio, indice unico della sottofase rotto | quote di quantità negli affidamenti |
+| Scrivere a mano il costo della ditta sulla fase *e* negli affidamenti | due numeri che divergono | `order_external_teams` calcolata dagli affidamenti (trigger) |
+| Un'anagrafica nuova per la ditta | ne esistono già quattro | si punta a `subappaltatori`; le altre la raggiungono |
+| Un nuovo dialog per l'elenco | `ElencoLavoriDialog` e il PDF esistono e sono collaudati | gli stessi, alimentati dagli affidamenti |
+| Un nuovo sistema di misure | `subappalto_misure` e `sal_subappaltatori` esistono | si aggiunge `voce_id` alle righe del quadro |
+| Una funzione di unità in TS e un'altra in SQL scritte a mano | si allineano male | una tabella di sinonimi sola, generata in un file per il codice e uno per l'SQL, con lo stesso test (rischio R4) |
+| Import listino nuovo da zero | `parseVociIncollate` (listino fornitore) e il lettore AI di Silvio esistono | si riusano; cambia solo la destinazione |
 
-   La mia proposta è (a) se il costo c'è, altrimenti (c).
-3. **Il listino della ditta ha una scadenza** (dal… al…)? Un listino nuovo a metà commessa
-   lascia i contratti firmati col prezzo vecchio: confermi?
-4. **Si parte da Bonarrigo?** È il caso più vicino all'esempio: computi grandi e tante ditte.
-   Le sue ditte hanno un listino da caricare (Excel o PDF), o i prezzi si scrivono man mano
-   nei contratti?
-5. **Oneri della sicurezza della ditta:** un importo scritto a mano (come oggi) o una
-   percentuale sui lavori affidati?
-6. **Le fasi create a mano, senza voci,** restano affidabili «a corpo» con un prezzo unico?
-7. **I contratti che ci sono già** (18 bozze di Dimora con l'Allegato A, 21 di Bonarrigo, 19
-   dei quali a 0 €): si rifanno dagli affidamenti quando sono ancora bozze, o si lasciano come sono?
-8. **Il subappaltatore con l'accesso all'app** vede il suo contratto con i prezzi, o solo la
-   copia per il cantiere?
+**Doppioni nei dati, da ripulire o da gestire prima:**
+- 26 voci di listino con lo stesso nome e la stessa unità (Bonarrigo, Dimora): l'abbinamento
+  automatico non deve scegliere a caso;
+- 2 coppie «stessa voce, stessa ditta, due prezzi» (Demo 2);
+- 1 subappaltatore doppio per nome;
+- 81 subappaltatori senza P.IVA;
+- 34 schede sicurezza senza anagrafica, 6 squadre esterne senza anagrafica.
+
+Il lotto 1 produce l'elenco e lo fa decidere a una persona. **Nessuna fusione automatica per
+nome.**
+
+---
+
+## 4. Rischi, difetti prevedibili e come si evitano
+
+| # | Rischio | Cosa succederebbe | Difesa |
+|---|---|---|---|
+| **R1** | Due persone affidano la stessa voce nello stesso momento | voce affidata due volte, costo doppio | `affida_voci` blocca le voci (`FOR UPDATE`) e controlla la somma dentro la transazione; test con due transazioni parallele |
+| **R2** | La ditta ha due prezzi validi per la stessa voce (2 casi già oggi) | prezzo scelto a caso | regola: un prezzo per voce, ditta e periodo. Trigger che rifiuta periodi sovrapposti (`btree_gist` non è installato: niente vincolo di esclusione). I 2 casi vanno decisi a mano |
+| **R3** | Abbinamento sbagliato fra voce del computo e voce di listino (descrizioni simili, 26 omonimi) | prezzo di un'altra lavorazione nel contratto | automatico solo per codice identico o abbinamento ricordato; l'AI propone e una persona conferma; omonimi = sempre «da confermare»; il pallino d'origine resta visibile |
+| **R4** | Unità diverse: nelle voci ci sono 21 scritture (m2/mq, mc/m3, cad/cad./n., ora/ore, a corpo/a.c./corpo…), nel listino 8 | 420 m2 × prezzo «a pezzo», oppure nessun abbinamento | normalizzazione unica con test (m2→mq, m3→mc, cad/n.→pz, ore→h, a.c.→corpo); unità diverse = mai proposta automatica, avviso in riga |
+| **R5** | Il contratto cambia dopo l'invio in firma | il firmato non è il PDF mandato | fotografia all'invio; la modifica annulla la firma in attesa (esiste già) e si rifà; test |
+| **R6** | Si cancella una fase o una voce già a contratto: oggi la fase porta via le sue voci (`ON DELETE CASCADE`) | righe del contratto senza voce, affidamenti spariti in silenzio | `voce_id … ON DELETE RESTRICT` sugli affidamenti a contratto, con un messaggio leggibile; quelli in bozza si revocano prima. Va aggiunta la tabella all'ordine della **purga azienda** e controllato che `admin_backup_tabelle_scoperte()` resti vuota |
+| **R7** | Il trigger che calcola il corrispettivo urta `subappalto_base_contratto_protetta`, che blocca l'importo con misure o SAL | errore al salvataggio di una variante | il ricalcolo vale solo in bozza; dopo, l'importo cambia solo dentro `subappalto_variante_registra`, che già apre il blocco; test di entrambi i casi |
+| **R8** | Arrotondamenti: totale del PDF ≠ importo nel database per qualche centesimo | contestazioni, SAL che non chiudono | stesso conto ovunque (riga arrotondata, poi somma); test che confronta database, finestra e PDF |
+| **R9** | **Il venduto della voce comprende i materiali, la ditta fa solo la posa** (634 voci hanno anche il costo materiali) | margine falso: sembra 60% ed è 15% | `comprende` sull'affidamento (posa / fornitura e posa); con «posa» il margine sottrae anche i materiali della voce; la colonna lo dice |
+| **R10** | Chi vede i prezzi. I contratti si leggono anche con il solo permesso «subappaltatori» (`scheda_subappaltatori_leggi`), senza il permesso sui costi | se il venduto finisse nel contratto o negli affidamenti, lo vedrebbe chi non deve | venduto e margine **mai salvati** fuori dalle voci; calcolati da `margini_affidamenti` solo con `can_view_costs`; test con un utente senza permesso |
+| **R11** | Le regole di accesso del listino delle ditte usano `get_my_company_id()`: un utente con più aziende vede il listino dell'azienda sbagliata | prezzi di un'altra azienda proposti | regole nuove con `has_permission_for_company(company_id)`, come le altre tabelle recenti; si riscrivono anche le vecchie |
+| **R12** | Le voci di Bonarrigo (1.752 su 1.777 dal computo) non puntano più alla riga del computo da cui vengono | una variante del computo non trova le voci della commessa | per quelle commesse il confronto lavora sulla voce della commessa (quantità cambiata → «da rivedere»), non sul computo; per i computi nuovi si usa la voce radice (`voce_origine_id`), che esiste già |
+| **R13** | Commesse grandi: Villa Ida ha 643 voci | lentezza, 643 chiamate, limite di 1.000 righe di PostgREST | una chiamata per azione (`affida_voci` con un elenco); letture con RPC o a pagine; albero chiuso per fase di default |
+| **R14** | La ditta del contratto ha più schede sicurezza (fino a 33 per la stessa anagrafica) | contratto sulla scheda sbagliata | si usa la regola che c'è già (`schedeSicurezzaDitta`: prima quella della commessa, poi la generale) |
+| **R15** | Il costo previsto della fase si scrive da due parti (a mano sulla ditta e dagli affidamenti) | doppio conteggio in `economiaFasi` e nei Margini | con affidamenti la riga della ditta sulla fase è in sola lettura (`costo_origine='contratto'`); senza, resta come oggi |
+| **R16** | IVA: le ditte sono in reverse charge, ma qualcuna mette l'IVA | importi con l'IVA scambiati per imponibili | affidamenti e contratto sempre senza IVA; l'IVA entra solo nella riga della ditta sulla fase (`conIva`), come già oggi |
+| **R17** | L'import da PDF legge numeri sbagliati (1.250,00 letto 1,25) | listino falsato | lettura AI = proposta: righe con prezzo fuori scala rispetto al costo nostro (meno di un quinto o più di cinque volte) segnalate in rosso; nessun salvataggio senza conferma |
+| **R18** | Contratti esistenti: 18 bozze di Dimora senza `voce_id`, 21 di Bonarrigo quasi tutti a 0 € | doppio affidamento fra contratto vecchio e nuovo | i contratti vecchi restano come sono e le loro fasi risultano «coperte da contratto senza voci» (si usa `contrattoPerFase`, che riconosce la fase dal nome); rifarli è una scelta di Florin (domanda 6) |
+
+---
+
+## 5. Piano a lotti
+
+Ogni lotto si pubblica da solo, con i test e una prova sui dati veri.
+
+| Lotto | Contenuto | Fatto quando |
+|---|---|---|
+| **1. Fondamenta** | `subappaltatore_id` su varianti e voci di ditta, ricavato dalla squadra; normalizzazione delle unità (R4); regole di accesso con `has_permission_for_company` (R11); rapporto dei doppioni (sezione 3) | le 66 righe Demo 2 hanno l'anagrafica; il test delle unità è verde in TS e SQL; un utente con 2 aziende vede il listino giusto |
+| **2. Listino della ditta, a mano** | linguetta «Listino» nella scheda subappaltatore, prezzi per periodo, voci proprie, periodi senza sovrapposizioni (R2) | su Demo 2 tre prezzi scritti a mano compaiono nel pannello della commessa; un periodo sovrapposto viene rifiutato |
+| **3. Abbinamento voci ↔ listino** | `tariffa_id` per codice, abbinamenti ricordati in `product_aliases`, proposta AI da confermare, «aggiungi al listino» (R3) | su Villa Ida: quante voci si abbinano da sole per codice; una seconda commessa ritrova gli abbinamenti ricordati |
+| **4. Affidamento per voce** | `subappalto_affidamenti`, funzioni, «Chi fa cosa», quote di quantità, «senza ditta», ditta sulla fase calcolata (R1, R6, R13, R15) | due affidamenti in parallelo: uno fallisce; l'esempio 7 fasi × 5 voci con 3 ditte torna al centesimo; fase con voce a contratto non cancellabile |
+| **5. Contratto dagli affidamenti** | prezzi proposti con l'origine, «ricorda nel listino», margini interni con «comprende» (R9, R10), corrispettivo calcolato (R7, R8), PDF «Lavori affidati» | PDF di O-0001 di Dimora; utente senza permesso sui costi: nessuna cifra di venduto in nessuna risposta; database, finestra e PDF uguali al centesimo |
+| **6. Firma → quadro → misure → costi** | fotografia all'invio (R5), quadro con `voce_id` alla firma, previsto e consuntivo per fase, Margini e controllo di gestione | contratto Demo 2 firmato in una transazione annullata: quadro, misura, SAL e consuntivo della fase coerenti |
+| **7. Listino da Excel e PDF** | finestra di abbinamento, controllo dei prezzi fuori scala (R17) | un listino vero di una ditta, riga per riga |
+| **8. Varianti** | voce cambiata → «da rivedere» (R12), «Proponi variante» per riga, nuova revisione del quadro | variante di quantità su una voce con misure: le misure restano valide, l'importo segue |
+| **9. Collaudo a schermo** | Bonarrigo e Dimora, due ruoli (con e senza costi), telefono | visto a schermo, non solo nei test |
+
+L'import (lotto 7) è stato spostato dopo il contratto: il listino si costruisce già con
+«ricorda nel listino» lavorando, e l'import serve solo quando la ditta manda un file.
+
+---
+
+## 6. I numeri di oggi (produzione, 10/11/2026)
+
+| | Bonarrigo | Dimora | Demo 2 | Scavolo |
+|---|---|---|---|---|
+| Voci delle fasi | 1.109 (4 commesse) | 186 (3) | 657 + 14 | 25 |
+| Costo del lavoro sulle voci | 0 | 156 k€ | 1,76 M€ | 0 |
+| Voci di listino | 561 (solo vendita) | 290 | 174 | — |
+| Codici della voce che si ritrovano nel listino | 265 su 1.109 | (voce di listino già presente) | 0 | 0 |
+| Contratti | 21 (19 a 0 €) | 18 bozze con Allegato A (171 righe) | 129 | 0 |
+| Ditte | 71 anagrafiche, 0 squadre | 11 squadre | 7 | 0 |
+
+**In tutto il sistema:**
+- `tariffe_aziendali`: 1.361 voci in 12 aziende, 553 con un costo;
+- prezzi per ditta: 8, voci proprie di una ditta: 58, tutti della Demo 2;
+- `product_aliases`: 0 righe;
+- quadri lavori: 5, misure: 2, SAL dei subappaltatori: 109.
+
+---
+
+## 7. Domande per Florin (con la mia proposta)
+
+1. **Voce divisa fra due ditte per quantità** (300 mq a Rossi + 120 a Bianchi, la voce resta
+   una). *Proposta: sì.*
+2. **La ditta non ha un prezzo per una voce.** *Proposta: si propone il costo aziendale con
+   l'avviso; se manca anche quello, la casella resta vuota e il contratto non si salva finché
+   non c'è un prezzo.* Oppure preferisci una percentuale fissa del venduto?
+3. **Il prezzo della ditta comprende anche i materiali?** *Proposta: si sceglie a ogni
+   affidamento, con «solo posa» come valore iniziale.* Serve per un margine vero (R9).
+4. **Un listino nuovo della ditta lascia i contratti già fatti col prezzo vecchio.** *Proposta:
+   sì, sempre.*
+5. **Si parte da Bonarrigo** (Villa Ida)? Le sue ditte hanno un listino da caricare, o i prezzi
+   si scrivono man mano nei contratti?
+6. **I contratti esistenti** (18 bozze di Dimora, 21 di Bonarrigo): *proposta: restano come
+   sono; chi vuole rifà una bozza dagli affidamenti con un pulsante.*
+7. **Oneri della sicurezza della ditta**: importo a mano, come oggi, o percentuale sui lavori?
+8. **Il subappaltatore nell'app** vede il suo contratto con i prezzi? *Proposta: sì, solo il
+   suo, mai il venduto.*
