@@ -9,6 +9,8 @@ const sblocca = vi.fn();
 let computo: ComputoCommessa;
 let voci: VoceComputo[];
 
+// Le planimetrie associate hanno il loro test (planimetrieAssociate.test.tsx): qui non servono.
+vi.mock("@/components/planimetrie/PlanimetrieAssociate", () => ({ PlanimetrieAssociate: (): null => null }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "c1" }, user: { id: "u1" } }) }));
 vi.mock("@/hooks/useComputoCommessa", () => ({
   computoInLettura: (c: ComputoCommessa | null) => !!c && ["uploading", "extracting_text"].includes(c.extraction_status),

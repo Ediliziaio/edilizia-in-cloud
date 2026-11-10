@@ -17,5 +17,5 @@ export async function scriviMisureAtomiche(uploadId: string, confronto: readonly
     vecchia_pianta: attesa(c).piantaId, vecchia_versione: attesa(c).versione,
     pianta_id: c.misura.planimetriaId, versione, chiavi: c.misura.chiavi }));
   const { error } = await supabase.rpc("planimetria_aggiorna_misure_computo" as never, { p_upload_id: uploadId, p_righe, p_voci } as never);
-  if (error) throw new Error(error.code === "40001" || error.code === "42501" || error.code === "22023" ? error.message : "Misure non aggiornate. Nessuna modifica è stata applicata: riprova.");
+  if (error) throw new Error(error.code === "PT409" || error.code === "40001" || error.code === "42501" || error.code === "22023" ? error.message : "Misure non aggiornate. Nessuna modifica è stata applicata: riprova.");
 }

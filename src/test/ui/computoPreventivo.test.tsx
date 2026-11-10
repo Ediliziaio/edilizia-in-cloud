@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { chiaveBozzaComputo } from "@/lib/computo/editorNativo";
 import ComputoPreventivo from "@/pages/azienda/marketing/ComputoPreventivo";
 // La pagina legge il modello del computo dell'azienda: qui non c'è, e si parte coi valori di serie.
@@ -19,19 +20,19 @@ beforeEach(() => { localStorage.clear(); stato.company = "c1"; stato.user = "u1"
 
 describe("computo nel flusso Preventivi", () => {
   it("mantiene l'identità della bozza nell'URL e non richiede una commessa", () => {
-    render(<MemoryRouter initialEntries={[`/azienda/marketing/preventivi/computo?bozza=${ID}`]}><ComputoPreventivo /><Location /></MemoryRouter>);
+    render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={[`/azienda/marketing/preventivi/computo?bozza=${ID}`]}><ComputoPreventivo /><Location /></MemoryRouter></QueryClientProvider>);
     expect(screen.getByTestId("storage-key")).toHaveTextContent(chiaveBozzaComputo("c1", "u1", `preventivo:${ID}`));
     fireEvent.click(screen.getByRole("button", { name: "Torna ai Preventivi" }));
     expect(screen.getByTestId("location")).toHaveTextContent("/azienda/marketing/preventivi");
   });
   it("assegna un identificativo al nuovo preventivo locale", () => {
-    render(<MemoryRouter initialEntries={["/azienda/marketing/preventivi/computo"]}><ComputoPreventivo /><Location /></MemoryRouter>);
+    render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={["/azienda/marketing/preventivi/computo"]}><ComputoPreventivo /><Location /></MemoryRouter></QueryClientProvider>);
     expect(screen.getByTestId("location").textContent).toMatch(/bozza=[0-9a-f-]{36}/);
   });
   it("nella versione pubblicata un'azienda non riconosciuta non apre l'editor, anche con URL diretto", () => {
     vi.stubEnv("DEV", false);
     try {
-      render(<MemoryRouter initialEntries={[`/azienda/marketing/preventivi/computo?bozza=${ID}`]}><ComputoPreventivo /></MemoryRouter>);
+      render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={[`/azienda/marketing/preventivi/computo?bozza=${ID}`]}><ComputoPreventivo /></MemoryRouter></QueryClientProvider>);
       expect(screen.getByRole("alert")).toHaveTextContent("Azienda non riconosciuta");
       expect(screen.queryByTestId("storage-key")).not.toBeInTheDocument();
     } finally { vi.unstubAllEnvs(); }
