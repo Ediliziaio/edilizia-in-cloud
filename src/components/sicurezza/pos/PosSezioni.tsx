@@ -3,7 +3,6 @@ import {SegnaleticaLavorazionePos} from "./SegnaleticaLavorazionePos";
 import { RequisitiLavorazionePos } from "./RequisitiLavorazionePos";
 import { cambiaNominativoFormazione } from "../../../../supabase/functions/_shared/posAddetti";
 import { TecnicaLavorazionePos } from "./TecnicaLavorazionePos";
-import { tecnicaPosVuota } from "../../../../supabase/functions/_shared/posTecnica";
 /**
  * Le sezioni dell'editor del POS, nell'ordine del modello semplificato del
  * DI 9/9/2014 (Allegato I). Ogni sezione modifica la bozza con `modifica`,

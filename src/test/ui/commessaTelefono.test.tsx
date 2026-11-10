@@ -4,7 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { OrderWorkPhases } from "@/components/orders/OrderWorkPhases";
 import { OrdineDetailHeader } from "@/components/orders/OrdineDetailHeader";
 import { OrderQuickActions } from "@/components/orders/OrderQuickActions";
-import { assignment, phase } from "../fixtures/workPlanning";
+import { phase } from "../fixtures/workPlanning";
 import type { WorkPhase, PhaseAssignment } from "@/hooks/useOrderWorkPhases";
 
 /**

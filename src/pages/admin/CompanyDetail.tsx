@@ -24,29 +24,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
   ArrowLeft,
   Building2,
   Loader2,
-  Users,
   Copy,
   Check,
   RefreshCw,
-  Eye,
   FileText,
-  CreditCard,
-  Activity,
-  StickyNote,
-  Blocks,
-  History,
-  Mail,
-  MailCheck,
-  Ticket,
-  ListChecks,
-  ShieldAlert,
   AlertTriangle,
-  Palette,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -79,7 +66,6 @@ import { AuditLogTab } from "@/components/admin/company/AuditLogTab";
 import { TabWhiteLabel } from "@/components/admin/company/TabWhiteLabel";
 import { CompanyAICockpit } from "@/components/admin/company/CompanyAICockpit";
 import { CompanyEmailTab } from "@/components/admin/company/CompanyEmailTab";
-import { SuperAdminCompanyOverrides } from "@/components/admin/SuperAdminCompanyOverrides";
 import { useCompanyDetail } from "@/hooks/useCompanyDetail";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
@@ -87,7 +73,6 @@ import { AccessDenied } from "@/components/admin/AccessDenied";
 import { CompanyDetailNavigation } from "@/components/admin/company/CompanyDetailNavigation";
 import {
   COMPANY_SECTIONS,
-  companyAreaFor,
 } from "@/lib/companyDetailNavigation";
 const COMPANY_TABS = COMPANY_SECTIONS;
 

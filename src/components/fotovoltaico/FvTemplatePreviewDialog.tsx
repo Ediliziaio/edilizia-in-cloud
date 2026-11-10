@@ -17,7 +17,6 @@ import {
 import {
   badgeGaranzieDalSito,
   fotoBlocchiDalSito,
-  fotoDiSerieDalSito,
   fotoPagineDalSito,
   renderFvPdfHtml,
   type FvPdfTemplateData,

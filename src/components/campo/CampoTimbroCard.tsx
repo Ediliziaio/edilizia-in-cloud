@@ -15,7 +15,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Building2, Clock, Coffee, HardHat, Loader2, LogIn, LogOut, PauseCircle } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGPS } from "@/hooks/useGPS";
 import { useCampoDayTime } from "@/hooks/campo/useCampoDayTime";

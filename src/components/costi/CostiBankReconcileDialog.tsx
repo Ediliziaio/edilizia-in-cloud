@@ -91,7 +91,7 @@ export function CostiBankReconcileDialog({
     try {
       // Sequenziale: ogni conferma scrive anche Prima Nota; niente raffiche parallele
       for (const m of strong) {
-        // eslint-disable-next-line no-await-in-loop
+         
         await confirmOne(m);
       }
     } finally {

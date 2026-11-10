@@ -13,7 +13,6 @@ import { ruoloFirmatario, leggiGiornateDocumento } from "../../../supabase/funct
 import { vesteHtml } from "../../../supabase/functions/_shared/vesteHtml";
 import { senzaEmoji } from "../../../supabase/functions/_shared/senzaEmoji";
 import { createOrdinePDFDocument } from "@/components/orders/OrdinePDF";
-import { PieSocietario } from "@/components/preventivi/pdf/FoglioCondizioniPDF";
 import { PiedeDocumento, TestataDocumento } from "@/components/documenti/stileDocumentoPdf";
 import type { DatiRiepilogo } from "@/lib/orders/riepilogoCommessaDati";
 

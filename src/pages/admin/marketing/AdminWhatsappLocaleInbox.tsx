@@ -193,7 +193,7 @@ export default function AdminWhatsappLocaleInbox() {
       setSelectedChat(chat);
       setFiltroStato("tutte");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [searchParams]);
   const [reply, setReply] = useState("");
   // Avviso sul telefono quando arriva una risposta. Web push: funziona nel

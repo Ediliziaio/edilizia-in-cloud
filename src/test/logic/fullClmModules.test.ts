@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { existsSync } from "node:fs";
 import { buildClmModulePreview, createFullClmTemplate, FULL_CLM_MODULES, CLM_MODULE_COVERS, CLM_MODULE_TITLES } from "@/lib/moduli-vendita/fullClmModules";
 import { localClmTemplateKey, loadLocalClmTemplate, saveLocalClmTemplate } from "@/lib/moduli-vendita/localClmTemplates";

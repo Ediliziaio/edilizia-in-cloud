@@ -45,19 +45,13 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import {
-  Mail,
   Bot,
   MessageSquare,
   Phone,
-  CreditCard,
-  Plus,
-  Minus,
   Loader2,
   Settings2,
   ShieldAlert,
   Download,
-  AlertTriangle,
-  Wallet,
   RotateCcw,
   Search,
   Filter,

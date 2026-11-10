@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  STATI_MANUTENZIONE, STATO_MANUT_META, etichettaScadenza, type StatoManutenzione,
+  STATI_MANUTENZIONE, STATO_MANUT_META, type StatoManutenzione,
 } from "@/lib/manutenzione/statoManutenzione";
 
 export type PrioritaManutenzione = "alta" | "media" | "bassa" | null;

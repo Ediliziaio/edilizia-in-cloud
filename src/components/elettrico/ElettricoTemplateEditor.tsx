@@ -40,9 +40,9 @@ import { tipografiaDaModello } from "@/components/preventivi/pdf/temaDocumento";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
-  Save, Loader2, Upload, Image as ImageIcon, Plus, Trash2, GripVertical,
+  Save, Loader2,
   Palette, FileText, Sparkles, ListChecks, Clock, Building2,
-  Eye, EyeOff, BadgeEuro, AlertTriangle, FileSearch, Route, Percent,
+  Eye, BadgeEuro, AlertTriangle, FileSearch, Route, Percent,
   Wand2, ListOrdered,} from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -50,13 +50,10 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { RichTextEditorSafe } from "@/components/ui/rich-text-editor-safe";
@@ -81,7 +78,7 @@ import {
   type EleTemplatePatch,
 } from "@/hooks/useElettricoProgetto";
 import type {
-  EleTemplatePdf, EleListItem, EleFaqItem, EleTestimonianza, EleCronoFase,
+  EleTemplatePdf, EleListItem, EleFaqItem, EleCronoFase,
   EleProgetto, EleComputoVoce,
 } from "@/types/elettrico";
 import { GalleryLavoriEditor } from "@/components/shared/GalleryLavoriEditor";

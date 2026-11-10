@@ -6,7 +6,6 @@ import {
   normalizzaHex, testoSopra, testoSuChiaro, testoSuScuro,
 } from "../../../supabase/functions/_shared/temaColori";
 import { cssDelMarchio } from "../../../supabase/functions/_shared/srHtmlTemplate";
-import { renderFvPdfHtml } from "../../../supabase/functions/_shared/fvHtmlTemplate";
 import { condizioniStandard } from "../../../supabase/functions/_shared/condizioniStandard";
 import { tipografiaDaModello } from "@/components/preventivi/pdf/temaDocumento";
 import { datiGenerici } from "@/components/preventivi/pdf/adattatoreGenerico";

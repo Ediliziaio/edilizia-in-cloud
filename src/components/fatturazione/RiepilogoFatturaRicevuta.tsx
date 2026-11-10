@@ -119,7 +119,7 @@ async function leggiDettaglio(fatturaId: string, companyId: string): Promise<Det
   // fiscale, e l'altro identificativo che non contraddice la fattura (come
   // receipt_supplier_check, che altrimenti rifiuta il collegamento).
   let candidatiFornitore: Dettaglio["candidatiFornitore"] = [];
-  let schedeDiscordanti: Dettaglio["schedeDiscordanti"] = [];
+  const schedeDiscordanti: Dettaglio["schedeDiscordanti"] = [];
   let daCollegareStessoCedente: string[] = [];
   const piva = chiaveFiscale(f.cedente_piva);
   const cf = chiaveFiscale(f.cedente_cf);

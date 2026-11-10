@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { useSalvaVersionePlanimetria } from "@/lib/planimetrie/archivio";
 import { esportaSvg, vistaDaPlanimetria } from "@/lib/planimetrie/esporta";
 import { conVendita, NOMI_STATO_VENDITA, riepilogoVendite, unitaDellEdificio, type Unita } from "@/lib/planimetrie/unita";

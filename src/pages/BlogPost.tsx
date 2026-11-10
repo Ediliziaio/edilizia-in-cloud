@@ -1,7 +1,6 @@
 import { BLOG_AUTHOR } from "@/data/blogAuthorProfile";
 import { buildBlogHowTo } from "@/lib/seo/blogHowTo";
 import { useEffect, useState, useRef } from "react";
-import { prioritaCaricamento } from "@/lib/immagini/prioritaCaricamento";
 import { useParams, Link } from "react-router-dom";
 import { Clock, ArrowLeft, ArrowRight, Tag, ChevronRight } from "lucide-react";
 import LandingNavbar from "@/components/landing/LandingNavbar";

@@ -17,7 +17,6 @@ import { Button } from "@/components/ui/button";
 import {
   badgeGaranzieDalSito,
   fotoBlocchiDalSito,
-  fotoDiSerieDalSito,
   fotoPagineDalSito,
   renderFvPdfHtml,
   type FvPdfTemplateData,
@@ -94,7 +93,7 @@ export function FvLivePreviewPanel({ form: formSalvato, companyName, logoUrl: lo
         return `<div style="padding:32px;font-family:sans-serif;color:#b91c1c">Anteprima non disponibile: ${String(e)}</div>`;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [form, companyName, logoUrl]);
 
   const formKey = useMemo(
