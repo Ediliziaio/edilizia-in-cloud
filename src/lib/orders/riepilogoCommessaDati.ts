@@ -31,6 +31,8 @@ export interface AziendaRiepilogo {
   nome: string | null;
   righe: string[];
   logo: string | null;
+  /** Il colore principale: l'accento dello stile unico dei documenti (10/11/2026). */
+  colore?: string | null;
 }
 
 export interface PermessiRiepilogo {
@@ -442,14 +444,14 @@ export async function caricaDatiRiepilogo(db: Db, orderId: string, permessi: Per
     ? await leggi("Fasi di lavorazione", db.from("order_work_subphases").select("id, phase_id, name, position, data_inizio, data_fine, fatta").in("phase_id", idFasi).order("position"))
     : [];
   const [aziendaRiga] = opzioni.companyId
-    ? await leggi("Dati dell'azienda", db.from("companies").select("name, logo_url, vat_number, phone, email, pec, legal_address, legal_city, legal_province, legal_postal_code").eq("id", opzioni.companyId).limit(1))
+    ? await leggi("Dati dell'azienda", db.from("companies").select("name, logo_url, brand_primary_color, vat_number, phone, email, pec, legal_address, legal_city, legal_province, legal_postal_code").eq("id", opzioni.companyId).limit(1))
     : [];
 
   const { fatture, annullate } = fattureDiCommessa(documenti, importate);
   const accettazioni = new Map(verbaliSub.map((v) => [v.sal_id, v]));
   return {
     permessi,
-    azienda: aziendaRiga ? { nome: aziendaRiga.name ?? null, righe: righeAzienda(aziendaRiga), logo: await logoPerPdf(aziendaRiga.logo_url) } : null,
+    azienda: aziendaRiga ? { nome: aziendaRiga.name ?? null, righe: righeAzienda(aziendaRiga), logo: await logoPerPdf(aziendaRiga.logo_url), colore: aziendaRiga.brand_primary_color ?? null } : null,
     fornitoriArticoli: Object.fromEntries(articoli.filter((a) => a.supplier?.name).map((a) => [a.id, a.supplier.name])),
     fasi: fasi.map((f) => ({ ...f, sottofasi: sottofasi.filter((s) => s.phase_id === f.id) })),
     fatture,

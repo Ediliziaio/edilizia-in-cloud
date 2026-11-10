@@ -1,3 +1,4 @@
+// 10/11/2026: la variante con lo stile unico dei documenti (stileDocumenti.ts: testata col logo su bianco, riquadri, tabelle). Bundle rigenerato.
 // 09/11/2026: il generatore della variante stampa la veste propria dell'azienda (logo). Bundle rigenerato.
 // 06/11/2026: la bozza tiene anche «destinazione» e «chi» (lavoro extra → fase nelle Lavorazioni all'approvazione).
 // _render.mjs rigenerato con scripts/variation-render/build.mjs; questo commento fa ripubblicare la funzione.

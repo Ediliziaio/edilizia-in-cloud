@@ -30,6 +30,9 @@ export interface DatiContrattoCliente {
   firme: { sinistra: string; destra: string };
   societarie: string[];
   companyId?: string | null;
+  /** Logo (data URL) e colore principale dell'impresa, per la testata dello stile unico (10/11/2026). */
+  logoUrl?: string | null;
+  coloreAzienda?: string | null;
 }
 
 /** «2. OGGETTO DEI LAVORI» → «Oggetto dei lavori»: il numero lo mette il documento. */

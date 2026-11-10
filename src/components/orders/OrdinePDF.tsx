@@ -5,169 +5,142 @@ import { CATEGORIE, STATO_USCITA, documentoUscita } from "@/lib/orders/quadroPag
 import { ritenutaSuLordo } from "@/lib/orders/bonusFiscali";
 import { avanzamentoSal, type DatiRiepilogo, type GruppoRiepilogo } from "@/lib/orders/riepilogoCommessaDati";
 import { ancoraDi, etichetta, graficoSal, sezioneAgenda, sezioneCantiere, sezioneCompletezza, sezioneCronoprogramma, sezioneFatture, sezioneFoto, sezioneGrafici, sezioneGraficiCosti, sezioneIndice, sezioneProgramma, sezioneSubappalti, type KitPdf } from "./RiepilogoCommessaSezioni";
-import { Document, Image, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { format } from "date-fns";
 import { quantitaConUnita, totaleQuantita } from "@/lib/orders/unitaDocumento";
 import { it } from "date-fns/locale";
-import { PieSocietario } from "@/components/preventivi/pdf/FoglioCondizioniPDF";
-import { margineInferiorePiede, misurePiede, personalizzazioneDocumento } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
+import {
+  Etichetta, PiedeDocumento, TestataDocumento, accentoPdf, colore, margineInferioreDocumento, riquadro, sezione, st, tabella,
+} from "@/components/documenti/stileDocumentoPdf";
 
-/* ── Palette ─────────────────────────────────────────────── */
+/* ── Palette e stili: lo stile unico dei documenti (10/11/2026, stileDocumenti.ts) ── */
 
-const C = {
-  navy: "#1E3A5F",
-  orange: "#F97316",
-  green: "#16a34a",
-  red: "#dc2626",
-  cyan: "#0891b2",
-  amber: "#d97706",
-  gray50: "#f9fafb",
-  gray100: "#f3f4f6",
-  gray200: "#e5e7eb",
-  gray300: "#d1d5db",
-  gray500: "#6b7280",
-  gray700: "#374151",
-  gray900: "#111827",
-  white: "#ffffff",
-  greenBg: "#dcfce7",
-  redBg: "#fef2f2",
-  amberBg: "#fffbeb",
-  cyanBg: "#ecfeff",
-  orangeBg: "#fff7ed",
+/** Il colore mescolato col bianco: la seconda serie dei grafici, un tono dell'accento. */
+function schiarisci(hex: string, quanto: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => Math.round(v + (255 - v) * quanto));
+  return `#${c.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/**
+ * I nomi storici dei colori (le sezioni li leggono da `kit.C`) portati sullo stile unico: l'accento al posto di blu e
+ * arancio, i grigi dello stile, nessun fondo colorato (i «…Bg» sono il fondo tenue), positivo e avviso per gli stati.
+ */
+function tavolozza(accento: string) {
+  return {
+    navy: accento,
+    orange: accento,
+    /** Seconda serie dei grafici (uscite, parte eseguita): un tono dell'accento. */
+    serie2: schiarisci(accento, 0.5),
+    green: colore.positivo,
+    red: colore.avviso,
+    cyan: colore.testoTenue,
+    amber: colore.avviso,
+    gray50: colore.fondoTenue,
+    gray100: colore.fondoIntestazione,
+    gray200: colore.linea,
+    gray300: colore.linea,
+    gray500: colore.testoTenue,
+    gray700: colore.inchiostro,
+    gray900: colore.inchiostro,
+    white: "#FFFFFF",
+    greenBg: colore.fondoTenue,
+    redBg: colore.fondoTenue,
+    amberBg: colore.fondoTenue,
+    cyanBg: colore.fondoTenue,
+    orangeBg: colore.fondoTenue,
+  };
+}
+type Tavolozza = ReturnType<typeof tavolozza>;
+
+const etichettaStato = {
+  fontSize: 7, fontFamily: "Helvetica-Bold", textTransform: "uppercase" as const, padding: "2 5", borderRadius: 3,
+  backgroundColor: colore.fondoTenue, border: `0.75pt solid ${colore.linea}`, color: colore.testoTenue,
 };
 
-const styles = StyleSheet.create({
-  page: {
-    fontFamily: "Helvetica",
-    fontSize: 9,
-    color: C.gray900,
-    backgroundColor: C.white,
-    padding: 40,
-    paddingBottom: 60,
-  },
-  // Header
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 20,
-    paddingBottom: 14,
-    borderBottom: `2pt solid ${C.navy}`,
-  },
-  companyName: { fontSize: 16, fontFamily: "Helvetica-Bold", color: C.navy },
-  orderCode: { fontSize: 18, fontFamily: "Helvetica-Bold", color: C.orange, textAlign: "right" as const },
-  orderDate: { fontSize: 8, color: C.gray500, textAlign: "right" as const },
+function creaStili(C: Tavolozza) {
+  return StyleSheet.create({
+  page: { ...st.pagina, paddingBottom: 60 },
 
-  // Section
+  // Section: 8 pt maiuscolo nell'accento, filetto sotto
   sectionTitle: {
-    fontSize: 11,
+    fontSize: sezione.corpo,
     fontFamily: "Helvetica-Bold",
     color: C.navy,
-    marginBottom: 4,
-    marginTop: 10,
+    textTransform: "uppercase" as const,
+    letterSpacing: sezione.spaziatura,
+    marginBottom: 3,
+    marginTop: sezione.spazioPrima,
   },
-  sectionLine: { height: 1, backgroundColor: C.gray200, marginBottom: 6 },
+  sectionLine: { height: sezione.filetto, backgroundColor: colore.linea, marginBottom: sezione.spazioDopo },
 
   // Grid
   row2: { flexDirection: "row" as const, gap: 10, marginBottom: 10 },
   row3: { flexDirection: "row" as const, gap: 10, marginBottom: 10 },
   col: { flex: 1 },
 
-  // Info box
-  infoBox: {
-    backgroundColor: C.gray50,
-    borderRadius: 4,
-    padding: 10,
-    border: `0.5pt solid ${C.gray200}`,
-  },
-  label: { fontSize: 7, color: C.gray500, marginBottom: 2, textTransform: "uppercase" as const },
-  value: { fontSize: 9, color: C.gray900, fontFamily: "Helvetica-Bold" },
-  valueNormal: { fontSize: 9, color: C.gray700 },
+  // Riquadro
+  infoBox: { ...st.riquadro },
+  label: { fontSize: riquadro.etichettaCorpo, color: colore.testoTenue, marginBottom: 2, textTransform: "uppercase" as const, letterSpacing: 0.5 },
+  value: { fontSize: 9, color: colore.inchiostro, fontFamily: "Helvetica-Bold" },
+  valueNormal: { fontSize: 9, color: colore.inchiostro },
 
-  // Table
-  table: {
-    border: `0.5pt solid ${C.gray200}`,
-    borderRadius: 4,
-    overflow: "hidden" as const,
-    marginBottom: 4,
+  // Table: intestazione grigia, righe con filetto, niente righe alternate né bordi verticali
+  table: { marginBottom: 4 },
+  tableHeader: { flexDirection: "row" as const, backgroundColor: colore.fondoIntestazione, padding: `4 ${tabella.paddingOrizzontale}` },
+  tableHeaderText: { fontSize: tabella.intestazioneCorpo, fontFamily: "Helvetica-Bold", color: colore.testoTenue, textTransform: "uppercase" as const },
+  tableRow: {
+    flexDirection: "row" as const, alignItems: "center" as const, minHeight: tabella.altezzaRigaMin,
+    padding: `3 ${tabella.paddingOrizzontale}`, borderBottom: `${tabella.filetto}pt solid ${colore.linea}`,
   },
-  tableHeader: {
-    flexDirection: "row" as const,
-    backgroundColor: C.navy,
-    padding: "5 8",
-  },
-  tableHeaderText: { fontSize: 7, fontFamily: "Helvetica-Bold", color: C.white },
-  tableRow: { flexDirection: "row" as const, padding: "3 8", borderTop: `0.5pt solid ${C.gray200}` },
   tableRowAlt: {
-    flexDirection: "row" as const,
-    padding: "3 8",
-    borderTop: `0.5pt solid ${C.gray200}`,
-    backgroundColor: C.gray50,
+    flexDirection: "row" as const, alignItems: "center" as const, minHeight: tabella.altezzaRigaMin,
+    padding: `3 ${tabella.paddingOrizzontale}`, borderBottom: `${tabella.filetto}pt solid ${colore.linea}`,
   },
-  tableCell: { fontSize: 8, color: C.gray700 },
+  /** La riga del totale: grassetto, filetto d'inchiostro sopra, nessun fondo. */
+  tableTotal: { borderTop: `${tabella.filettoTotale}pt solid ${colore.inchiostro}`, borderBottom: 0 },
+  tableCell: { fontSize: 8.5, color: colore.inchiostro },
 
-  // Badges
-  badgeGreen: { backgroundColor: C.greenBg, color: C.green, fontSize: 7, padding: "2 5", borderRadius: 8 },
-  badgeGray: { backgroundColor: C.gray100, color: C.gray500, fontSize: 7, padding: "2 5", borderRadius: 8 },
-  badgeOrange: { backgroundColor: C.orangeBg, color: C.orange, fontSize: 7, padding: "2 5", borderRadius: 8 },
-  badgeCyan: { backgroundColor: C.cyanBg, color: C.cyan, fontSize: 7, padding: "2 5", borderRadius: 8 },
-  badgeRed: { backgroundColor: C.redBg, color: C.red, fontSize: 7, padding: "2 5", borderRadius: 8 },
+  // Etichette di stato: fondo tenue, bordo linea, testo tenue; solo i positivi nel verde
+  pill: { ...etichettaStato, fontSize: 6.5, padding: "1 4" },
+  badgeGreen: { ...etichettaStato, color: colore.positivo },
+  badgeGray: etichettaStato,
+  badgeOrange: etichettaStato,
+  badgeCyan: etichettaStato,
+  badgeRed: { ...etichettaStato, color: colore.avviso },
 
   // Financial
-  financialBox: { backgroundColor: C.gray50, borderRadius: 6, padding: 10, border: `0.5pt solid ${C.gray200}` },
+  financialBox: { ...st.riquadro },
   financialRow: { flexDirection: "row" as const, justifyContent: "space-between" as const, marginBottom: 3 },
-  financialLabel: { fontSize: 8, color: C.gray500 },
-  financialValue: { fontSize: 8, fontFamily: "Helvetica-Bold", color: C.gray900 },
-  financialTotal: { fontSize: 12, fontFamily: "Helvetica-Bold", color: C.orange },
-  financialTotalLabel: { fontSize: 10, fontFamily: "Helvetica-Bold", color: C.navy },
+  financialLabel: { fontSize: 8.5, color: colore.testoTenue },
+  financialValue: { fontSize: 8.5, fontFamily: "Helvetica-Bold", color: colore.inchiostro },
+  financialTotal: { fontSize: riquadro.numeroCorpo, fontFamily: "Helvetica-Bold", color: C.navy },
+  financialTotalLabel: { fontSize: riquadro.valoreCorpo, fontFamily: "Helvetica-Bold", color: colore.inchiostro },
 
   // Status strip
-  statusStrip: {
-    flexDirection: "row" as const,
-    backgroundColor: C.gray50,
-    borderRadius: 4,
-    padding: 8,
-    marginBottom: 14,
-    border: `0.5pt solid ${C.gray200}`,
-    gap: 4,
-    flexWrap: "wrap" as const,
-  },
+  statusStrip: { ...st.riquadro, flexDirection: "row" as const, padding: 8, marginBottom: 14, gap: 4, flexWrap: "wrap" as const },
   statusStep: {
     flexDirection: "row" as const,
     alignItems: "center" as const,
     gap: 4,
   },
   statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
   },
-  statusText: { fontSize: 7, color: C.gray500 },
+  statusText: { fontSize: 7, color: colore.testoTenue },
 
-  // Footer
-  footer: {
-    position: "absolute" as const,
-    bottom: 25,
-    left: 40,
-    right: 40,
-    flexDirection: "row" as const,
-    justifyContent: "space-between" as const,
-    borderTop: `0.5pt solid ${C.gray200}`,
-    paddingTop: 6,
-  },
-  footerText: { fontSize: 7, color: C.gray500 },
-
-  // KPI strip
+  // KPI: riquadri dei numeri chiave
   kpiRow: { flexDirection: "row" as const, gap: 8, marginBottom: 12 },
-  kpiBox: {
-    flex: 1,
-    borderRadius: 4,
-    padding: 8,
-    alignItems: "center" as const,
-  },
-  kpiValue: { fontSize: 14, fontFamily: "Helvetica-Bold" },
-  kpiLabel: { fontSize: 7, color: C.gray500, marginTop: 2 },
-});
+  kpiBox: { ...st.riquadro, flex: 1, padding: 8, alignItems: "center" as const },
+  kpiValue: { fontSize: riquadro.numeroCorpo, fontFamily: "Helvetica-Bold", color: colore.inchiostro },
+  kpiLabel: { fontSize: riquadro.etichettaCorpo, color: colore.testoTenue, marginTop: 2, textTransform: "uppercase" as const },
+  });
+}
+
+/** Palette e stili predefiniti: per le tabelle fuori dal documento (stati degli articoli). */
+const C = tavolozza(colore.accentoPredefinito);
 
 /* ── Helpers ─────────────────────────────────────────────── */
 const fmt = (n: number | null | undefined) => {
@@ -186,7 +159,6 @@ const fmtPerc = (n: number) => `${n.toFixed(1)}%`;
 /** Dove una data mancante non è un'informazione: nelle tabelle basta il trattino. */
 const fmtData = (d: string | null | undefined) => (d ? fmtDate(d) : "—");
 
-const kit: KitPdf = { styles, C, fmt, fmtPerc, data: fmtData };
 
 /** L'importo vero della provvigione è quello registrato; il calcolo vale solo per le righe vecchie senza. */
 function provvigioneNetta(sp: any, imponibile: number, incassato: number): number {
@@ -199,13 +171,14 @@ function provvigioneNetta(sp: any, imponibile: number, incassato: number): numbe
 }
 
 /* ── Status maps ─────────────────────────────────────────── */
+// Le etichette di stato hanno tutte la stessa veste (stileDocumenti): solo «Installato» nel colore positivo.
 const ITEM_STATUS_MAP: Record<string, { label: string; style: any }> = {
-  da_ordinare: { label: "Da ordinare", style: { backgroundColor: C.gray100, color: C.gray500 } },
-  ordinato: { label: "Ordinato", style: { backgroundColor: C.orangeBg, color: C.orange } },
-  in_produzione: { label: "In Produzione", style: { backgroundColor: C.cyanBg, color: C.cyan } },
-  in_arrivo: { label: "In Arrivo", style: { backgroundColor: C.amberBg, color: C.amber } },
-  in_magazzino: { label: "In Magazzino", style: { backgroundColor: "#ede9fe", color: "#7c3aed" } },
-  installato: { label: "Installato", style: { backgroundColor: C.greenBg, color: C.green } },
+  da_ordinare: { label: "Da ordinare", style: {} },
+  ordinato: { label: "Ordinato", style: {} },
+  in_produzione: { label: "In Produzione", style: {} },
+  in_arrivo: { label: "In Arrivo", style: {} },
+  in_magazzino: { label: "In Magazzino", style: {} },
+  installato: { label: "Installato", style: { color: C.green } },
 };
 
 const ODA_STATO: Record<string, { label: string; tono: "green" | "cyan" | "orange" | "gray" }> = {
@@ -388,7 +361,6 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
 
   // Installments
   const installmentsPaid = installments.filter((inst: any) => inst.is_paid);
-  const installmentsTotal = installments.reduce((s: number, inst: any) => s + (inst.amount ?? 0), 0);
   const incassato = installmentsPaid.reduce((s: number, inst: any) => s + (inst.amount ?? 0), 0);
 
   // Customer
@@ -413,14 +385,18 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
   const currentStatusPos = currentStatus?.position ?? 0;
 
   const orderCode = order?.order_code ?? "ORD";
-  // La veste propria dell'azienda (Vulcano, 10/11/2026): logo grande e piè proprio su ogni foglio.
+  // Lo stile unico dei documenti (10/11/2026): accento della veste o dell'azienda; la veste (Vulcano) decide logo e piè.
   const companyId: string | null = order?.company_id ?? null;
-  const veste = personalizzazioneDocumento(companyId);
-  const logoGrande = !!(veste.logoAltezza && veste.logoLarghezzaMax && dati?.azienda?.logo);
-  const misureVeste = misurePiede(veste, 595.28 - 80);
-  // Sopra il piè proprio una riga di riferimento: commessa e data, e «Documento riservato» solo per la versione interna.
+  const accento = accentoPdf(companyId, dati?.azienda?.colore);
+  const C = tavolozza(accento);
+  const styles = creaStili(C);
+  const kit: KitPdf = { styles, C, fmt, fmtPerc, data: fmtData };
+  // Il piè: ragione sociale e dati dell'azienda (prima in testata accanto al logo); sopra, una riga di riferimento con
+  // commessa e data, e «Documento riservato» solo per la versione interna.
+  const nomeAzienda = dati?.azienda?.nome ?? companyName ?? "Edilizia in Cloud";
+  const righePiede = [nomeAzienda, ...(dati?.azienda?.righe ?? [])];
   const rigaRiferimento = `${perCliente ? "" : "Documento riservato · "}${orderCode} · ${format(new Date(), "dd/MM/yyyy", { locale: it })}`;
-  const paginaStile = misureVeste ? [styles.page, { paddingBottom: margineInferiorePiede(companyId, 60, 595.28 - 80) + 12 }] : styles.page;
+  const paginaStile = [styles.page, { paddingBottom: margineInferioreDocumento(companyId, righePiede.length, true) }];
   // Nella versione per il cliente quello che non c'è non si scrive: niente «Non impostata» né bollino vuoto.
   const tempistiche = ([
     ["Data posa prevista", order?.expected_date],
@@ -486,59 +462,46 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
     <Document title={`Commessa ${orderCode}`} author={companyName ?? "Edilizia in Cloud"}>
       <Page size="A4" style={paginaStile} wrap>
 
-        {/* ─── HEADER ─── */}
-        <View style={styles.header} fixed>
-          <View style={logoGrande ? { flexDirection: "column", gap: 4, maxWidth: "70%" } : { flexDirection: "row", gap: 8, alignItems: "center", maxWidth: "62%" }}>
-            {dati?.azienda?.logo && (logoGrande
-              ? <Image src={dati.azienda.logo} style={{ height: veste.logoAltezza!, width: veste.logoLarghezzaMax!, objectFit: "contain", objectPositionX: 0 }} />
-              : <Image src={dati.azienda.logo} style={{ maxHeight: 38, maxWidth: 90, objectFit: "contain" }} />)}
-            <View>
-            <Text style={styles.companyName}>{dati?.azienda?.nome ?? companyName ?? "Edilizia in Cloud"}</Text>
-            {(dati?.azienda?.righe ?? []).map((riga) => <Text key={riga} style={{ fontSize: 6.5, color: C.gray500, marginTop: 1 }}>{riga}</Text>)}
-            <Text style={{ fontSize: 8, color: C.gray500, marginTop: 3 }}>{perCliente ? "Riepilogo commessa" : "Riepilogo commessa completo"}</Text>
-            </View>
-          </View>
-          <View>
-            <Text style={styles.orderCode}>{orderCode}</Text>
-            {(!perCliente || order?.created_at) && <Text style={styles.orderDate}>Creato il {fmtDate(order?.created_at)}</Text>}
-            <Text style={[styles.orderDate, { marginTop: 1 }]}>Stampato il {printDate}</Text>
-          </View>
-        </View>
+        {/* ─── TESTATA: logo a sinistra, titolo e riferimenti a destra, su ogni foglio ─── */}
+        <TestataDocumento fixed logo={dati?.azienda?.logo} ragioneSociale={nomeAzienda} companyId={companyId} accento={accento}
+          titolo={perCliente ? "Riepilogo commessa" : "Riepilogo commessa completo"}
+          sotto={[
+            [orderCode, (!perCliente || order?.created_at) ? `Creato il ${fmtDate(order?.created_at)}` : null].filter(Boolean).join(" · "),
+            `Stampato il ${printDate}`,
+          ]} />
 
         {/* ─── TITOLO ─── */}
         <View style={{ marginBottom: 12 }}>
-          <Text style={{ fontSize: 13, fontFamily: "Helvetica-Bold", color: C.gray900 }}>
+          <Text style={{ fontSize: 12, fontFamily: "Helvetica-Bold", color: colore.inchiostro }}>
             {order?.description ?? "Commessa senza descrizione"}
           </Text>
           {currentStatus?.name ? (
           <View style={{ flexDirection: "row", gap: 6, marginTop: 4, alignItems: "center" }}>
-            <View style={{ backgroundColor: C.orange, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 }}>
-              <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: C.white }}>{currentStatusName}</Text>
-            </View>
+            <Etichetta testo={currentStatusName} />
           </View>
           ) : null}
         </View>
 
-        {/* ─── KPI STRIP ─── */}
+        {/* ─── KPI STRIP: riquadri dei numeri chiave, il totale nell'accento ─── */}
         <View style={styles.kpiRow}>
-          <View style={[styles.kpiBox, { backgroundColor: C.orangeBg }]}>
-            <Text style={[styles.kpiValue, { color: C.orange }]}>{fmt(totaleIva)}</Text>
+          <View style={styles.kpiBox}>
+            <Text style={[styles.kpiValue, { color: accento }]}>{fmt(totaleIva)}</Text>
             <Text style={styles.kpiLabel}>Totale Commessa (IVA incl.)</Text>
           </View>
           {showMargins && (
-          <View style={[styles.kpiBox, { backgroundColor: margine >= 0 ? C.greenBg : C.redBg }]}>
-            <Text style={[styles.kpiValue, { color: margine >= 0 ? C.green : C.red }]}>{fmtPerc(marginePerc)}</Text>
+          <View style={styles.kpiBox}>
+            <Text style={[styles.kpiValue, margine < 0 ? { color: colore.avviso } : {}]}>{fmtPerc(marginePerc)}</Text>
             <Text style={styles.kpiLabel}>Margine</Text>
           </View>
           )}
           {!perCliente && (
-          <View style={[styles.kpiBox, { backgroundColor: C.cyanBg }]}>
-            <Text style={[styles.kpiValue, { color: C.cyan }]}>{itemsInstallati}/{items.length}</Text>
+          <View style={styles.kpiBox}>
+            <Text style={styles.kpiValue}>{itemsInstallati}/{items.length}</Text>
             <Text style={styles.kpiLabel}>Articoli Installati</Text>
           </View>
           )}
-          <View style={[styles.kpiBox, { backgroundColor: incassato >= installmentsTotal && installmentsTotal > 0 ? C.greenBg : C.amberBg }]}>
-            <Text style={[styles.kpiValue, { color: incassato >= installmentsTotal && installmentsTotal > 0 ? C.green : C.amber }]}>{fmt(incassato)}</Text>
+          <View style={styles.kpiBox}>
+            <Text style={styles.kpiValue}>{fmt(incassato)}</Text>
             <Text style={styles.kpiLabel}>Incassato</Text>
           </View>
         </View>
@@ -568,7 +531,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
         {dati && sezioneIndice(kit, sezioni)}
 
         {/* ─── INFORMAZIONI GENERALI ─── */}
-        <Text style={styles.sectionTitle}>Informazioni Generali</Text>
+        <Text minPresenceAhead={60} style={styles.sectionTitle}>Informazioni Generali</Text>
         <View style={styles.sectionLine} />
         <View style={styles.row2}>
           {/* Cliente */}
@@ -652,7 +615,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
         {/* ─── ARTICOLI ─── */}
         {mostra("articoli") && items.length > 0 && (
           <View wrap={items.length > 5}>
-            <Text id={ancoraDi("Articoli della Commessa")} style={styles.sectionTitle}>Articoli della Commessa ({items.length})</Text>
+            <Text id={ancoraDi("Articoli della Commessa")} minPresenceAhead={60} style={styles.sectionTitle}>Articoli della Commessa ({items.length})</Text>
             <View style={styles.sectionLine} />
             <View style={styles.table}>
               {/* fixed: l'header colonne si ripete sulle pagine successive SOLO
@@ -678,7 +641,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
                 const totalVendita = unitPrice * qty * (1 - discount / 100);
                 // Una lavorazione non si ordina: «Da ordinare» su di lei sarebbe falso.
                 const statusInfo = item.natura_riga === "lavorazione"
-                  ? { label: "Lavorazione", style: { backgroundColor: C.gray100, color: C.gray700 } }
+                  ? { label: "Lavorazione", style: {} }
                   : ITEM_STATUS_MAP[item.status] ?? ITEM_STATUS_MAP.da_ordinare;
                 const supplier = dati?.fornitoriArticoli[item.id] ?? item.supplier?.name ?? item.supplier_name ?? "—";
                 return (
@@ -701,12 +664,12 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
                     {/* Lo stato d'acquisto («Da ordinare», «In arrivo»...) è un dato interno: al cliente non va. */}
                     {!perCliente && (
                     <View style={{ flex: 0.8, alignItems: "center" }}>
-                      <Text style={[{ fontSize: 6, padding: "1 4", borderRadius: 6 }, statusInfo.style]}>{statusInfo.label}</Text>
+                      <Text style={[styles.pill, statusInfo.style]}>{statusInfo.label}</Text>
                     </View>
                     )}
                     {!perCliente && (
                     <View style={{ flex: 0.6, alignItems: "center" }}>
-                      <Text style={[{ fontSize: 6, padding: "1 4", borderRadius: 6 }, item.is_paid ? { backgroundColor: C.greenBg, color: C.green } : { backgroundColor: C.redBg, color: C.red }]}>
+                      <Text style={[styles.pill, item.is_paid ? { color: C.green } : { color: C.red }]}>
                         {item.is_paid ? "Sì" : "No"}
                       </Text>
                     </View>
@@ -715,7 +678,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
                 );
               })}
               {/* Totals row */}
-              <View style={[styles.tableRow, { backgroundColor: C.gray100, borderTop: `1pt solid ${C.gray300}` }]}>
+              <View style={[styles.tableRow, styles.tableTotal]}>
                 <Text style={[styles.tableCell, { flex: 2.5, fontFamily: "Helvetica-Bold" }]}>TOTALE</Text>
                 {!perCliente && <Text style={{ flex: 1.5 }} />}
                 <Text style={[styles.tableCell, { flex: 0.5, textAlign: "center", fontFamily: "Helvetica-Bold" }]}>
@@ -741,7 +704,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
         )}
 
         {/* ─── RIEPILOGO ECONOMICO ─── */}
-        <Text style={styles.sectionTitle}>Riepilogo Economico</Text>
+        <Text minPresenceAhead={60} style={styles.sectionTitle}>Riepilogo Economico</Text>
         <View style={styles.sectionLine} />
         <View style={styles.row2} wrap={false}>
           {/* Importi e pagamenti */}
@@ -799,12 +762,12 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
               <Text style={styles.financialValue}>{fmt(dossier.conto.ricavi)}</Text>
             </View>
             {dossier.conto.righe.filter((r) => r.consuntivo !== 0).map((r) => (
-              <View key={r.key} style={[styles.financialRow, { backgroundColor: C.redBg, padding: 3, borderRadius: 3, marginTop: 2 }]}>
-                <Text style={[styles.financialLabel, { color: C.red }]}>{r.label}</Text>
-                <Text style={[styles.financialValue, { color: C.red }]}>- {fmt(r.consuntivo)}</Text>
+              <View key={r.key} style={[styles.financialRow, { marginTop: 2 }]}>
+                <Text style={styles.financialLabel}>{r.label}</Text>
+                <Text style={styles.financialValue}>- {fmt(r.consuntivo)}</Text>
               </View>
             ))}
-            <View style={[styles.financialRow, { borderTop: `1pt solid ${C.gray300}`, paddingTop: 6, marginTop: 4 }]}>
+            <View style={[styles.financialRow, { borderTop: `${tabella.filettoTotale}pt solid ${colore.inchiostro}`, paddingTop: 6, marginTop: 4 }]}>
               <Text style={styles.financialTotalLabel}>Margine diretto</Text>
               <Text style={[styles.financialTotal, { color: dossier.margineDiretto.importo >= 0 ? C.green : C.red }]}>{fmt(dossier.margineDiretto.importo)}</Text>
             </View>
@@ -827,25 +790,25 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
               <Text style={styles.financialLabel}>Ricavo vendita (netto)</Text>
               <Text style={styles.financialValue}>{fmt(imponibile)}</Text>
             </View>
-            <View style={[styles.financialRow, { backgroundColor: C.redBg, padding: 3, borderRadius: 3, marginTop: 2 }]}>
-              <Text style={[styles.financialLabel, { color: C.red }]}>Costo materiali</Text>
-              <Text style={[styles.financialValue, { color: C.red }]}>- {fmt(costoMateriali)}</Text>
+            <View style={[styles.financialRow, { marginTop: 2 }]}>
+              <Text style={styles.financialLabel}>Costo materiali</Text>
+              <Text style={styles.financialValue}>- {fmt(costoMateriali)}</Text>
             </View>
-            <View style={[styles.financialRow, { backgroundColor: C.redBg, padding: 3, borderRadius: 3, marginTop: 2 }]}>
-              <Text style={[styles.financialLabel, { color: C.red }]}>Costo dipendenti</Text>
-              <Text style={[styles.financialValue, { color: C.red }]}>- {fmt(costoEmployees)}</Text>
+            <View style={[styles.financialRow, { marginTop: 2 }]}>
+              <Text style={styles.financialLabel}>Costo dipendenti</Text>
+              <Text style={styles.financialValue}>- {fmt(costoEmployees)}</Text>
             </View>
-            <View style={[styles.financialRow, { backgroundColor: C.redBg, padding: 3, borderRadius: 3, marginTop: 2 }]}>
-              <Text style={[styles.financialLabel, { color: C.red }]}>Costo subappaltatori</Text>
-              <Text style={[styles.financialValue, { color: C.red }]}>- {fmt(costoTeams)}</Text>
+            <View style={[styles.financialRow, { marginTop: 2 }]}>
+              <Text style={styles.financialLabel}>Costo subappaltatori</Text>
+              <Text style={styles.financialValue}>- {fmt(costoTeams)}</Text>
             </View>
             {totaleProvvigioni > 0 && (
-              <View style={[styles.financialRow, { backgroundColor: C.redBg, padding: 3, borderRadius: 3, marginTop: 2 }]}>
-                <Text style={[styles.financialLabel, { color: C.red }]}>Provvigioni</Text>
-                <Text style={[styles.financialValue, { color: C.red }]}>- {fmt(totaleProvvigioni)}</Text>
+              <View style={[styles.financialRow, { marginTop: 2 }]}>
+                <Text style={styles.financialLabel}>Provvigioni</Text>
+                <Text style={styles.financialValue}>- {fmt(totaleProvvigioni)}</Text>
               </View>
             )}
-            <View style={[styles.financialRow, { borderTop: `1pt solid ${C.gray300}`, paddingTop: 6, marginTop: 4 }]}>
+            <View style={[styles.financialRow, { borderTop: `${tabella.filettoTotale}pt solid ${colore.inchiostro}`, paddingTop: 6, marginTop: 4 }]}>
               <Text style={styles.financialTotalLabel}>Margine Lordo</Text>
               <Text style={[styles.financialTotal, { color: margine >= 0 ? C.green : C.red }]}>
                 {fmt(margine - totaleProvvigioni)}
@@ -866,7 +829,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
           <>
             {sezioneGrafici(kit, dossier, showMargins)}
             {sezioneGraficiCosti(kit, dossier)}
-            <Text id={ancoraDi("Conto economico per voce")} style={styles.sectionTitle}>Conto economico per voce</Text>
+            <Text id={ancoraDi("Conto economico per voce")} minPresenceAhead={60} style={styles.sectionTitle}>Conto economico per voce</Text>
             <View style={styles.sectionLine} />
             <View style={styles.table}>
               <View style={styles.tableHeader}>
@@ -906,7 +869,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
             {/* Con le sezioni nuove l'economia sta nella tabella unica delle fasi. */}
             {!(dati && dati.fasi.length > 0) && dossier.fasi.length > 0 && (
               <>
-                <Text style={styles.sectionTitle}>Economia delle fasi ({dossier.fasi.length})</Text>
+                <Text minPresenceAhead={60} style={styles.sectionTitle}>Economia delle fasi ({dossier.fasi.length})</Text>
                 <View style={styles.sectionLine} />
                 <View style={styles.table}>
                   <View style={styles.tableHeader}>
@@ -933,7 +896,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
 
             {dossier.quadro && dossier.quadro.uscite.length > 0 && (
               <>
-                <Text id={ancoraDi("Pagamenti della commessa")} style={styles.sectionTitle}>Pagamenti della commessa ({dossier.quadro.uscite.length})</Text>
+                <Text id={ancoraDi("Pagamenti della commessa")} minPresenceAhead={60} style={styles.sectionTitle}>Pagamenti della commessa ({dossier.quadro.uscite.length})</Text>
                 <View style={styles.sectionLine} />
                 {dossier.totaliQuadro && (
                   <Text style={[styles.tableCell, { marginBottom: 4 }]}>
@@ -975,7 +938,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
             pratiche = una detrazione persa. */}
         {mostra("fatture") && bonusLines.length > 0 && (
           <>
-            <Text id={ancoraDi("Bonus Edilizi e Bonifici Parlanti")} style={styles.sectionTitle}>Bonus Edilizi e Bonifici Parlanti ({bonusLines.length})</Text>
+            <Text id={ancoraDi("Bonus Edilizi e Bonifici Parlanti")} minPresenceAhead={60} style={styles.sectionTitle}>Bonus Edilizi e Bonifici Parlanti ({bonusLines.length})</Text>
             <View style={styles.sectionLine} />
             <View style={[styles.financialBox, { marginBottom: 8 }]}>
               {bonusLines.map((b: any, idx: number) => {
@@ -1015,7 +978,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
         {/* ─── MANODOPERA DIPENDENTI ─── */}
         {mostra("risorse") && showCosts && laborEmployees.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>Dipendenti Assegnati ({laborEmployees.length})</Text>
+            <Text minPresenceAhead={60} style={styles.sectionTitle}>Dipendenti Assegnati ({laborEmployees.length})</Text>
             <View style={styles.sectionLine} />
             <View style={styles.table}>
               <View style={styles.tableHeader}>
@@ -1040,7 +1003,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
                   </View>
                 );
               })}
-              <View style={[styles.tableRow, { backgroundColor: C.gray100, borderTop: `1pt solid ${C.gray300}` }]}>
+              <View style={[styles.tableRow, styles.tableTotal]}>
                 <Text style={[styles.tableCell, { flex: 3, fontFamily: "Helvetica-Bold" }]}>TOTALE DIPENDENTI</Text>
                 <Text style={[styles.tableCell, { flex: 1, textAlign: "center", fontFamily: "Helvetica-Bold" }]}>
                   {laborEmployees.reduce((s: number, e: any) => s + (e.hours_worked ?? 0), 0)}h
@@ -1057,7 +1020,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
         {/* ─── SUBAPPALTATORI ─── */}
         {mostra("subappalti") && showCosts && laborTeams.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>Subappaltatori ({laborTeams.length})</Text>
+            <Text minPresenceAhead={60} style={styles.sectionTitle}>Subappaltatori ({laborTeams.length})</Text>
             <View style={styles.sectionLine} />
             <View style={styles.table}>
               <View style={styles.tableHeader}>
@@ -1082,7 +1045,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
                   </View>
                 );
               })}
-              <View style={[styles.tableRow, { backgroundColor: C.gray100, borderTop: `1pt solid ${C.gray300}` }]}>
+              <View style={[styles.tableRow, styles.tableTotal]}>
                 <Text style={[styles.tableCell, { flex: 3, fontFamily: "Helvetica-Bold" }]}>TOTALE SUBAPPALTATORI</Text>
                 <Text style={{ flex: 1 }} />
                 <Text style={[styles.tableCell, { flex: 1, textAlign: "right", fontFamily: "Helvetica-Bold", color: C.navy }]}>
@@ -1098,7 +1061,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
         {/* ─── PROVVIGIONI VENDITORI ─── */}
         {mostra("risorse") && showMargins && salespeople.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>Provvigioni Venditori ({salespeople.length})</Text>
+            <Text minPresenceAhead={60} style={styles.sectionTitle}>Provvigioni Venditori ({salespeople.length})</Text>
             <View style={styles.sectionLine} />
             <View style={styles.table}>
               <View style={styles.tableHeader}>
@@ -1130,7 +1093,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
                   </View>
                 );
               })}
-              <View style={[styles.tableRow, { backgroundColor: C.gray100, borderTop: `1pt solid ${C.gray300}` }]}>
+              <View style={[styles.tableRow, styles.tableTotal]}>
                 <Text style={[styles.tableCell, { flex: 2.5, fontFamily: "Helvetica-Bold" }]}>TOTALE PROVVIGIONI</Text>
                 <Text style={{ flex: 1.5 }} />
                 <Text style={{ flex: 1 }} />
@@ -1144,7 +1107,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
         {/* ─── ORDINI DI ACQUISTO ─── */}
         {mostra("risorse") && showCosts && purchaseOrders.length > 0 && (
           <>
-            <Text id={ancoraDi("Ordini di Acquisto")} style={styles.sectionTitle}>Ordini di Acquisto ({purchaseOrders.length})</Text>
+            <Text id={ancoraDi("Ordini di Acquisto")} minPresenceAhead={60} style={styles.sectionTitle}>Ordini di Acquisto ({purchaseOrders.length})</Text>
             <View style={styles.sectionLine} />
             <View style={styles.table}>
               <View style={styles.tableHeader}>
@@ -1176,7 +1139,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
         {/* ─── SAL ─── */}
         {mostra("sal") && salList.length > 0 && (
           <View wrap={salList.length > 3}>
-            <Text id={ancoraDi("SAL — Avanzamento Lavori")} style={styles.sectionTitle}>SAL — Avanzamento Lavori ({salList.length})</Text>
+            <Text id={ancoraDi("SAL — Avanzamento Lavori")} minPresenceAhead={60} style={styles.sectionTitle}>SAL — Avanzamento Lavori ({salList.length})</Text>
             <View style={styles.sectionLine} />
             {graficoSal(kit, salList, imponibile)}
             <View style={styles.table}>
@@ -1225,7 +1188,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
         {/* ─── PERSONALE CANTIERE ─── */}
         {mostra("risorse") && !perCliente && campoAssignments.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>Personale Cantiere ({campoAssignments.length})</Text>
+            <Text minPresenceAhead={60} style={styles.sectionTitle}>Personale Cantiere ({campoAssignments.length})</Text>
             <View style={styles.sectionLine} />
             <View style={styles.table}>
               <View style={styles.tableHeader}>
@@ -1266,7 +1229,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
         {/* ─── GIORNALE LAVORI ─── */}
         {mostra("giornale") && giornaleLavori.length > 0 && (
           <>
-            <Text id={ancoraDi("Giornale Lavori")} style={styles.sectionTitle}>Giornale Lavori ({giornaleLavori.length} giornate)</Text>
+            <Text id={ancoraDi("Giornale Lavori")} minPresenceAhead={60} style={styles.sectionTitle}>Giornale Lavori ({giornaleLavori.length} giornate)</Text>
             <View style={styles.sectionLine} />
             {giornaleLavori.map((g: any, idx: number) => (
               <View key={idx} style={[styles.infoBox, { marginBottom: 6 }]} wrap={false}>
@@ -1316,7 +1279,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
         {/* ─── VARIANTI / ORDINI DI VARIAZIONE ─── */}
         {mostra("sal") && varianti.length > 0 && (
           <>
-            <Text id={ancoraDi("Varianti")} style={styles.sectionTitle}>Varianti ({varianti.length})</Text>
+            <Text id={ancoraDi("Varianti")} minPresenceAhead={60} style={styles.sectionTitle}>Varianti ({varianti.length})</Text>
             <View style={styles.sectionLine} />
             <View style={styles.table}>
               <View style={styles.tableHeader}>
@@ -1365,7 +1328,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
         {/* ─── DIARIO COMMESSA (Eventi + Comunicazioni) ─── */}
         {mostra("diario") && (diaryEvents.length > 0 || diaryMessages.length > 0) && (
           <>
-            <Text style={styles.sectionTitle}>
+            <Text minPresenceAhead={60} style={styles.sectionTitle}>
               Diario Commessa ({diaryEvents.length + diaryMessages.length} registrazioni)
             </Text>
             <View style={styles.sectionLine} />
@@ -1443,7 +1406,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
         {/* ─── NOTE INTERNE ─── */}
         {mostra("diario") && order?.internal_notes ? (
           <>
-            <Text style={styles.sectionTitle}>Note Interne</Text>
+            <Text minPresenceAhead={60} style={styles.sectionTitle}>Note Interne</Text>
             <View style={styles.sectionLine} />
             <View style={[styles.infoBox, { backgroundColor: C.amberBg }]}>
               <Text style={{ fontSize: 8, color: C.gray700, lineHeight: 1.5 }}>
@@ -1455,24 +1418,8 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
 
         {dati && !perCliente && sezioneCompletezza(kit, sezioni, dati.nonLette)}
 
-        {/* ─── FOOTER ─── */}
-        {misureVeste ? (
-          <>
-            <Text fixed style={{ position: "absolute", top: 841.89 - misureVeste.ingombro - 12, left: 40, right: 40, fontSize: 6.5, color: C.gray500, textAlign: "center" }}>{rigaRiferimento}</Text>
-            <PieSocietario righe={[]} margine={40} companyId={companyId} />
-          </>
-        ) : (
-        <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>{companyName ?? "Edilizia in Cloud"}{perCliente ? "" : " — Documento riservato"}</Text>
-          <Text style={styles.footerText}>{orderCode} · {format(new Date(), "dd/MM/yyyy", { locale: it })}</Text>
-          <Text
-            style={styles.footerText}
-            render={({ pageNumber, totalPages }: { pageNumber: number; totalPages: number }) =>
-              `Pag. ${pageNumber} / ${totalPages}`
-            }
-          />
-        </View>
-        )}
+        {/* ─── PIÈ: quello della veste o i dati dell'azienda, e la riga di riferimento ─── */}
+        <PiedeDocumento righe={righePiede} companyId={companyId} riferimento={rigaRiferimento} />
 
       </Page>
     </Document>
