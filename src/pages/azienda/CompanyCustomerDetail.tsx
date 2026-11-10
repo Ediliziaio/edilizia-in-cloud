@@ -646,7 +646,8 @@ export default function CompanyCustomerDetail() {
             }[t.key] ?? 0,
           }))}
         >
-          <CustomerBusinessTabs
+          {/* Su schermo stretto le sezioni stanno sotto: qui non si montano due volte. */}
+          {!schermoStretto && <CustomerBusinessTabs
             customerId={customer.id}
             companyId={effectiveCompany?.id ?? ""}
             customerFullName={fullName}
@@ -663,7 +664,7 @@ export default function CompanyCustomerDetail() {
             onCreateAppointment={() => setAppointmentDialogOpen(true)}
             /* dataWarnings volutamente OMESSO: l'alert apparirebbe duplicato
                per ogni pannello aperto. Resta nella vista mobile sotto. */
-          />
+          />}
         </PannelloLateraleScheda>
       </div>
 
