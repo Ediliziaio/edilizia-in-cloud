@@ -52,7 +52,7 @@ function monta(ui: React.ReactNode, percorso: string, rotta: string) {
       <MemoryRouter initialEntries={[percorso]}>
         <Routes>
           <Route path={rotta} element={ui} />
-          <Route path="/azienda/render/planimetrie/:id" element={<p>Scheda della pianta</p>} />
+          <Route path="/azienda/planimetrie/:id" element={<p>Scheda della pianta</p>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -67,7 +67,7 @@ beforeEach(() => {
 describe("Modifica la pianta", () => {
   it("apre la versione corrente e, dopo una modifica, salva una versione nuova con la versione attesa", async () => {
     archivio.salvaNuovaVersione.mockResolvedValue(4);
-    monta(<RenderPlanimetriaModifica />, "/azienda/render/planimetrie/p1/modifica", "/azienda/render/planimetrie/:id/modifica");
+    monta(<RenderPlanimetriaModifica />, "/azienda/planimetrie/p1/modifica", "/azienda/planimetrie/:id/modifica");
     expect(screen.getByText("Bilocale di esempio")).toBeTruthy();
     expect(screen.getAllByText("Camera").length).toBeGreaterThan(0);
     const salva = screen.getByRole("button", { name: /Salva/ }) as HTMLButtonElement;
@@ -91,7 +91,7 @@ describe("Modifica la pianta", () => {
   it("se qualcun altro ha salvato nel frattempo non sovrascrive e propone di ricaricare", async () => {
     const { messaggioErrorePlanimetria } = await import("@/lib/planimetrie/archivio");
     archivio.salvaNuovaVersione.mockRejectedValue(new Error(messaggioErrorePlanimetria({ code: "40001" })));
-    monta(<RenderPlanimetriaModifica />, "/azienda/render/planimetrie/p1/modifica", "/azienda/render/planimetrie/:id/modifica");
+    monta(<RenderPlanimetriaModifica />, "/azienda/planimetrie/p1/modifica", "/azienda/planimetrie/:id/modifica");
     fireEvent.click(vocePanello("Camera"));
     const nome = await screen.findByLabelText("Nome della stanza");
     fireEvent.change(nome, { target: { value: "Studio" } });
@@ -165,7 +165,7 @@ describe("Nuova pianta", () => {
       error: null,
     });
     archivio.creaPlanimetria.mockResolvedValue("nuova-2");
-    monta(<RenderPlanimetriaNuova />, "/azienda/render/planimetrie/nuova?da=testo", "/azienda/render/planimetrie/nuova");
+    monta(<RenderPlanimetriaNuova />, "/azienda/planimetrie/nuova?da=testo", "/azienda/planimetrie/nuova");
     fireEvent.change(screen.getByLabelText("Com'è la casa?"), { target: { value: "Bilocale di 50 mq con bagno e camera" } });
     fireEvent.click(screen.getByRole("button", { name: /Ricava la pianta/ }));
     expect(await screen.findByText("Controlla la pianta e salvala")).toBeTruthy();
@@ -186,7 +186,7 @@ describe("Nuova pianta", () => {
       },
       error: null,
     });
-    monta(<RenderPlanimetriaNuova />, "/azienda/render/planimetrie/nuova?da=sopralluogo", "/azienda/render/planimetrie/nuova");
+    monta(<RenderPlanimetriaNuova />, "/azienda/planimetrie/nuova?da=sopralluogo", "/azienda/planimetrie/nuova");
     expect(screen.getByText("Pianta dal sopralluogo")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Le misure, stanza per stanza"), { target: { value: "Cucina 3,20 per 4,10\nBagno 2,10 x 2,40" } });
     fireEvent.click(screen.getByRole("button", { name: /Ricava la pianta/ }));
@@ -197,7 +197,7 @@ describe("Nuova pianta", () => {
   it("crediti finiti: frase semplice e «Disegnala a mano»", async () => {
     const risposta = new Response(JSON.stringify({ success: false, codice: "crediti", messaggio: "Crediti AI esauriti" }), { status: 402 });
     archivio.invoke.mockResolvedValue({ data: null, error: Object.assign(new Error("non-2xx"), { context: risposta }) });
-    monta(<RenderPlanimetriaNuova />, "/azienda/render/planimetrie/nuova?da=testo", "/azienda/render/planimetrie/nuova");
+    monta(<RenderPlanimetriaNuova />, "/azienda/planimetrie/nuova?da=testo", "/azienda/planimetrie/nuova");
     fireEvent.change(screen.getByLabelText("Com'è la casa?"), { target: { value: "Trilocale di 75 mq" } });
     fireEvent.click(screen.getByRole("button", { name: /Ricava la pianta/ }));
     const avviso = await screen.findByRole("alert");

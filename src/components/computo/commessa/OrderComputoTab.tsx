@@ -8,6 +8,7 @@
  * dati da lavoro pubblico con il quadro economico, esportazione Excel e PDF.
  */
 import { useState } from "react";
+import { PlanimetrieAssociate } from "@/components/planimetrie/PlanimetrieAssociate";
 import { toast } from "sonner";
 import { CheckCircle2, FileDown, FileSpreadsheet, Loader2, Lock, Map as IconaPianta, Search, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -129,15 +130,15 @@ function LavoroPubblico({ computo, voci, bloccato, onSalva }: {
   );
 }
 
-export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAmounts = true, orderLabel }: {
-  orderId: string; companyId: string; canEdit: boolean; canViewAmounts?: boolean; orderLabel?: string | null;
+export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAmounts = true, orderLabel, computoInizialeId, soloEsistenti = false }: {
+  orderId: string; companyId: string; canEdit: boolean; canViewAmounts?: boolean; orderLabel?: string | null; computoInizialeId?: string; soloEsistenti?: boolean;
 }) {
   const confirm = useConfirm();
   const { data: computi = [], isLoading, error } = useComputiCommessa(orderId, companyId);
   // Le perizie di variante non approvate stanno nella scheda «Varianti».
   const attivi = computi.filter(c => c.stato !== "archiviato" && (!c.variante_di || c.stato === "contrattuale"));
-  const [sceltoId, setSceltoId] = useState<string | null>(null);
-  const computo = attivi.find(c => c.id === sceltoId) ?? attivi[0] ?? null;
+  const [sceltoId, setSceltoId] = useState<string | null>(computoInizialeId ?? null);
+  const computo = attivi.find(c => c.id === sceltoId) ?? (sceltoId ? null : attivi[0]) ?? null;
   const letto = computoLetto(computo);
   const { data: voci = [], isLoading: vociLoading } = useVociComputo(computo?.id, letto);
   const modifica = useModificaComputo(orderId, companyId);
@@ -188,6 +189,7 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
 
   if (isLoading) return <div className="flex items-center gap-2 p-4 text-sm text-slate-600"><Loader2 className="h-4 w-4 animate-spin" />Carico il computo…</div>;
   if (error) return <p role="alert" className="rounded-lg border border-rose-300 bg-rose-50 p-4 text-sm">Computo non disponibile: {(error as Error).message}</p>;
+  if (!computo && soloEsistenti) return <p role="status" className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">{sceltoId ? "Questo computo non è disponibile fra i documenti attivi della commessa." : "Questa commessa non ha un computo associato."}</p>;
 
   const salva = (m: ModificaComputo) => computo && modifica.mutate({ id: computo.id, modifica: m }, {
     onError: e => toast.error(e instanceof Error ? e.message : "Salvataggio non riuscito."),
@@ -325,7 +327,7 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
                 <span className="text-emerald-800">bloccato: è la base contrattuale della commessa.</span>
                 <Button type="button" size="sm" variant="ghost" onClick={() => cambiaStato("verificato")}>Sblocca</Button>
               </>}
-              {computo.stato !== "contrattuale" && <Button type="button" size="sm" variant="outline" onClick={() => setNuovo(true)}>Carica un nuovo computo</Button>}
+              {!soloEsistenti && computo.stato !== "contrattuale" && <Button type="button" size="sm" variant="outline" onClick={() => setNuovo(true)}>Carica un nuovo computo</Button>}
               {computo.stato === "bozza" && (
                 <Button type="button" size="sm" variant="ghost" className="text-rose-700" onClick={async () => {
                   if (await confirm({ title: "Scartare questo computo?", description: "Si cancellano le voci lette e le righe di misura. Il file originale resta nell'archivio dei computi.", confirmLabel: "Scarta", variant: "destructive" })) {
@@ -337,6 +339,8 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
           )}
         </CardContent>
       </Card>
+
+      <PlanimetrieAssociate companyId={companyId} tipo="computo" schedaId={computo.id} />
 
       {letto && canViewAmounts && voci.length > 0 && (
         <LavoroPubblico key={[computo.id, computo.stazione_appaltante, computo.cig, computo.cup, computo.ribasso_percentuale].join("|")} computo={computo} voci={voci} bloccato={bloccato} onSalva={salva} />

@@ -9,6 +9,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { AlertTriangle, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { numeroVoce, type VoceComputo } from "@/lib/computo/alberoComputo";
 import { righeCambiate, type ConfrontoRiga } from "@/lib/planimetrie/computo";
@@ -28,35 +29,40 @@ function Pianta({ pianta, confronto, voci, computo, computi, orderId, canEdit, o
   const perizia = usePeriziaDaPianta(orderId);
   const [tutte, setTutte] = useState(false);
   const cambiate = righeCambiate(confronto);
+  const [selezionate, setSelezionate] = useState<Set<string>>(new Set());
+  const varianteAperta = computi.find(c => c.variante_di === computo.id && (c.stato === "bozza" || c.stato === "verificato"));
+  const confermate = cambiate.length ? confronto.filter(c => selezionate.has(c.misura.id)) : confronto;
   const visibili = tutte ? cambiate : cambiate.slice(0, 8);
   const perVoce = new Map(voci.map(v => [v.id, v]));
   const versioni = [...new Set(confronto.map(c => c.misura.versione))].sort((a, b) => a - b);
   const contrattuale = computo.stato === "contrattuale";
   const inCorso = aggiorna.isPending || perizia.isPending;
+  const selezionabile = canEdit && (!contrattuale || (computo.lavoro_pubblico && !!varianteAperta));
 
   const aggiornaOra = async () => {
+    if (!confermate.length) return;
     const ok = await confirm({
       title: "Aggiornare le quantità dalla pianta?",
       description: cambiate.length
-        ? `Cambiano ${cambiate.length === 1 ? "1 riga di misura" : `${cambiate.length} righe di misura`} e le quantità e gli importi delle loro voci, come nel confronto. Le altre righe del computo non si toccano.`
+        ? `Aggiorni ${confermate.length} righe selezionate e le quantità e gli importi delle loro voci, come nel confronto. Le altre righe del computo non si toccano.`
         : "Le quantità usate dal computo sono uguali nella pianta nuova: le righe ricordano solo la versione nuova.",
       confirmLabel: "Aggiorna",
     });
     if (!ok) return;
-    aggiorna.mutate({ confronto, versione: pianta.versioneCorrente, voci }, {
+    aggiorna.mutate({ confronto: confermate, versione: pianta.versioneCorrente, voci }, {
       onSuccess: () => toast.success("Quantità aggiornate dalla pianta"),
       onError: e => toast.error(e instanceof Error ? e.message : "Aggiornamento non riuscito."),
     });
   };
   const portaInPerizia = async () => {
-    const aperta = computi.find(c => c.variante_di === computo.id && (c.stato === "bozza" || c.stato === "verificato"));
+    if (!varianteAperta || !confermate.length) return;
     const ok = await confirm({
       title: "Portare le differenze nella perizia di variante?",
-      description: `${aperta ? `Le righe cambiano nella perizia «${aperta.titolo || `n. ${aperta.numero_variante}`}», ancora da approvare.` : "Si crea una perizia di variante, copia del computo contrattuale, e lì cambiano le righe."} Il computo contrattuale resta com'è finché la perizia non è approvata.`,
+      description: `Le ${confermate.length} righe selezionate cambiano nella perizia esistente «${varianteAperta.titolo || `n. ${varianteAperta.numero_variante}`}», ancora da approvare. Il computo contrattuale resta com'è.`,
       confirmLabel: "Porta nella perizia",
     });
     if (!ok) return;
-    perizia.mutate({ computo, computi, voci, confronto, versione: pianta.versioneCorrente, titoloPianta: pianta.titolo }, {
+    perizia.mutate({ computo, computi, voci, confronto: confermate, versione: pianta.versioneCorrente, titoloPianta: pianta.titolo }, {
       onSuccess: r => {
         toast.success(r.aggiornate ? `Perizia di variante aggiornata: ${r.aggiornate === 1 ? "1 riga" : `${r.aggiornate} righe`} dalla pianta` : "La perizia di variante ha già queste quantità");
         if (r.nonTrovate.length) toast.warning(`Non ritrovate nella perizia: ${r.nonTrovate.slice(0, 3).join(", ")}${r.nonTrovate.length > 3 ? "…" : ""}. Correggile a mano nella scheda Varianti.`);
@@ -79,7 +85,7 @@ function Pianta({ pianta, confronto, voci, computo, computi, orderId, canEdit, o
           <table className="w-full min-w-[30rem] text-xs">
             <caption className="sr-only">Confronto delle quantità con la pianta nuova</caption>
             <thead className="bg-slate-100 text-slate-600">
-              <tr><th className="px-2 py-1 text-left font-medium">Voce</th><th className="px-2 py-1 text-left font-medium">Riga</th>
+              <tr>{selezionabile && <th className="w-9 px-2 py-1"><Checkbox aria-label="Seleziona tutte le misure cambiate" checked={cambiate.length > 0 && cambiate.every(c => selezionate.has(c.misura.id))} disabled={inCorso} onCheckedChange={(v) => setSelezionate(v === true ? new Set(cambiate.map(c => c.misura.id)) : new Set())} /></th>}<th className="px-2 py-1 text-left font-medium">Voce</th><th className="px-2 py-1 text-left font-medium">Riga</th>
                 <th className="px-2 py-1 text-right font-medium">Prima</th><th className="px-2 py-1 text-right font-medium">Adesso</th>
                 <th className="px-2 py-1 text-right font-medium">Differenza</th></tr>
             </thead>
@@ -88,6 +94,7 @@ function Pianta({ pianta, confronto, voci, computo, computi, orderId, canEdit, o
                 const v = perVoce.get(c.misura.voceId);
                 return (
                   <tr key={c.misura.id} className="border-t">
+                    {selezionabile && <td className="px-2 py-1"><Checkbox aria-label={`Seleziona misura ${c.misura.descrizione || c.misura.id}`} checked={selezionate.has(c.misura.id)} disabled={inCorso} onCheckedChange={(valore) => setSelezionate((precedenti) => { const nuove = new Set(precedenti); if (valore === true) nuove.add(c.misura.id); else nuove.delete(c.misura.id); return nuove; })} /></td>}
                     <td className="px-2 py-1 font-semibold tabular-nums">{v ? numeroVoce(v) : "—"}</td>
                     <td className="px-2 py-1">{c.misura.descrizione || "—"}
                       {c.mancanti.length > 0 && <span className="block text-amber-800">non c'è più nella pianta: la riga andrebbe a zero</span>}
@@ -104,9 +111,10 @@ function Pianta({ pianta, confronto, voci, computo, computi, orderId, canEdit, o
         </div>
       )}
       {cambiate.length > visibili.length && <Button type="button" size="sm" variant="ghost" onClick={() => setTutte(true)}>Mostra tutte ({cambiate.length})</Button>}
+      {selezionabile && cambiate.length > 0 && <p className="text-xs text-amber-950">Selezionate {confermate.length} di {cambiate.length} righe. Le misure stimate e le righe non più presenti nella pianta richiedono la tua verifica.</p>}
 
       {canEdit && !contrattuale && (
-        <Button type="button" size="sm" onClick={aggiornaOra} disabled={inCorso}>
+        <Button type="button" size="sm" onClick={aggiornaOra} disabled={inCorso || !confermate.length}>
           {aggiorna.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1 h-4 w-4" />}
           {cambiate.length ? "Aggiorna le quantità" : "Segna come aggiornate"}
         </Button>
@@ -114,9 +122,9 @@ function Pianta({ pianta, confronto, voci, computo, computi, orderId, canEdit, o
       {contrattuale && (
         <div className="space-y-2 text-sm text-slate-700">
           <p>Il computo è <strong>contrattuale</strong>: la pianta nuova non lo cambia.
-            {computo.lavoro_pubblico ? " Le differenze si portano in una perizia di variante, da approvare." : " Per usare la pianta nuova va prima sbloccato (Sblocca, con il motivo), se il libretto delle misure è ancora vuoto."}</p>
-          {canEdit && computo.lavoro_pubblico && cambiate.length > 0 && (
-            <Button type="button" size="sm" onClick={portaInPerizia} disabled={inCorso}>
+            {computo.lavoro_pubblico ? varianteAperta ? " Le differenze selezionate si applicano alla perizia di variante già aperta, da approvare." : " Per applicare le differenze serve una perizia di variante già esistente e modificabile." : " Per usare la pianta nuova va prima sbloccato (Sblocca, con il motivo), se il libretto delle misure è ancora vuoto."}</p>
+          {canEdit && computo.lavoro_pubblico && varianteAperta && cambiate.length > 0 && (
+            <Button type="button" size="sm" onClick={portaInPerizia} disabled={inCorso || !confermate.length}>
               {perizia.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Porta le differenze nella perizia di variante
             </Button>
           )}
@@ -133,7 +141,7 @@ export default function PiantaCambiata({ cambiate, ...props }: Props & { cambiat
       <h4 className="flex items-center gap-2 text-sm font-semibold text-amber-950"><AlertTriangle className="h-4 w-4" />
         {cambiate.length === 1 ? "La pianta è cambiata" : "Le piante sono cambiate"}: il computo non si aggiorna da solo.</h4>
       {cambiate.map(c => (
-        <Pianta key={c.pianta.id} pianta={c.pianta} confronto={c.confronto} {...props} />
+        <Pianta key={`${c.pianta.id}:${c.pianta.versioneCorrente}`} pianta={c.pianta} confronto={c.confronto} {...props} />
       ))}
     </section>
   );

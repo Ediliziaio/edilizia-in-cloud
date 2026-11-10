@@ -7,16 +7,18 @@
  * - `useAggiungiMisureDaPianta`: le righe nuove di «Prendi dalla pianta».
  * - `useAggiornaMisureDaPianta`: aggiorna le righe alla versione nuova, solo su conferma.
  * - `usePeriziaDaPianta`: computo contrattuale, la pianta non lo cambia: le differenze
- *   vanno nella perizia di variante (quella aperta, o una nuova).
+ *   vanno soltanto in una perizia di variante già aperta.
  *
- * Le scritture sono più chiamate in fila (righe, poi la voce): se la voce non si
- * aggiorna, le righe appena create si tolgono. Il blocco del contrattuale lo fa il
- * database (trigger di 20281023053000), qui si evita solo di provarci.
+ * Gli aggiornamenti delle misure esistenti sono atomici, con controllo della
+ * versione e dei valori mostrati. Le nuove misure di «Prendi dalla pianta»
+ * conservano il proprio recupero in caso d'errore. Il contrattuale è bloccato
+ * anche nel database.
  */
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { VoceComputo } from "@/lib/computo/alberoComputo";
 import { caricaVersione, chiaviPlanimetrie } from "@/lib/planimetrie/archivio";
+import { scriviMisureAtomiche } from "@/lib/planimetrie/aggiornaMisureAtomiche";
 import {
   confrontaRighe, valoreChiavi, voceDopo,
   type ConfrontoRiga, type MisuraConPianta, type RigaDaPianta,
@@ -103,6 +105,7 @@ export function usePianteDelComputo(voci: readonly VoceComputo[]) {
 function invalida(qc: ReturnType<typeof useQueryClient>, uploadId: string | undefined) {
   return Promise.all([
     qc.invalidateQueries({ queryKey: ["computo-commessa-voci", uploadId] }),
+    qc.invalidateQueries({ queryKey: ["computo-commessa"] }),
     qc.invalidateQueries({ queryKey: ["planimetrie", "del-computo"] }),
   ]);
 }
@@ -151,49 +154,29 @@ export function useAggiungiMisureDaPianta(uploadId: string | undefined) {
 }
 
 /** Righe alla versione nuova e voci ricalcolate. Le righe uguali cambiano solo la versione. */
-async function scriviAggiornamento(confronto: readonly ConfrontoRiga[], versione: number, voci: ReadonlyMap<string, VoceComputo>, idMisura = (c: ConfrontoRiga) => c.misura.id) {
-  const perVoce = new Map<string, number>();
-  for (const c of confronto) {
-    const { error } = await supabase.from("computo_voci_misure")
-      .update({ quantita: c.nuova, planimetria_versione: versione } as never).eq("id", idMisura(c));
-    if (error) throw new Error(messaggio(error, "Righe di misura non aggiornate: riprova tra qualche secondo."));
-    perVoce.set(c.misura.voceId, (perVoce.get(c.misura.voceId) ?? 0) + c.differenza);
-  }
-  for (const [voceId, differenza] of perVoce) {
-    const v = voci.get(voceId);
-    if (v && differenza !== 0) await aggiornaVoce(v, differenza);
-  }
-}
-
 export function useAggiornaMisureDaPianta(uploadId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ confronto, versione, voci }: { confronto: ConfrontoRiga[]; versione: number; voci: VoceComputo[] }) =>
-      scriviAggiornamento(confronto, versione, new Map(voci.map(v => [v.id, v]))),
+      scriviMisureAtomiche(uploadId ?? "", confronto, versione, new Map(voci.map(v => [v.id, v]))),
     onSettled: () => invalida(qc, uploadId),
   });
 }
 
 /**
  * Computo contrattuale: le differenze della pianta vanno nella perizia di variante.
- * Usa quella aperta sul computo o ne crea una; nella copia ritrova le righe per
+ * Usa quella già aperta sul computo; nella copia ritrova le righe per
  * pianta e chiavi oppure, se la copia non le ha (variante creata prima della
  * migrazione che le copia), per posizione e descrizione.
  */
 export function usePeriziaDaPianta(orderId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ computo, computi, voci, confronto, versione, titoloPianta }: {
+    mutationFn: async ({ computo, computi, voci, confronto, versione }: {
       computo: ComputoCommessa; computi: ComputoCommessa[]; voci: VoceComputo[]; confronto: ConfrontoRiga[]; versione: number; titoloPianta: string;
     }) => {
-      let varianteId = computi.find(c => c.variante_di === computo.id && (c.stato === "bozza" || c.stato === "verificato"))?.id;
-      if (!varianteId) {
-        const { data, error } = await supabase.rpc("computo_crea_variante", {
-          p_upload_id: computo.id, p_titolo: "", p_motivo: `Pianta «${titoloPianta}» cambiata (versione ${versione}): quantità aggiornate dalla pianta.`,
-        });
-        if (error) throw new Error(error.message);
-        varianteId = data as string;
-      }
+      const varianteId = computi.find(c => c.variante_di === computo.id && (c.stato === "bozza" || c.stato === "verificato"))?.id;
+      if (!varianteId) throw new Error("Per applicare le differenze serve una perizia di variante già esistente e ancora modificabile.");
       const { data: righe, error } = await supabase.from("computo_voci_estratte")
         .select("id, voce_origine_id, quantita, prezzo_unitario_computo, unita_misura, is_detrazione, misure:computo_voci_misure(id, ordine, descrizione, quantita, planimetria_id, planimetria_versione, planimetria_chiavi)")
         .eq("computo_upload_id", varianteId);
@@ -205,6 +188,7 @@ export function usePeriziaDaPianta(orderId: string) {
 
       const daScrivere: ConfrontoRiga[] = [];
       const idInVariante = new Map<ConfrontoRiga, string>();
+      const atteseInVariante = new Map<ConfrontoRiga, { piantaId: string | null; versione: number | null }>();
       const vociCopia = new Map<string, VoceComputo>();
       const nonTrovate: string[] = [];
       // Due righe uguali (stessa descrizione e quantità) non devono finire sulla stessa copia.
@@ -222,16 +206,10 @@ export function usePeriziaDaPianta(orderId: string) {
         const riga: ConfrontoRiga = { ...c, vecchia: Number(misura.quantita ?? 0), differenza, misura: { ...c.misura, voceId: copia.id } };
         daScrivere.push(riga);
         idInVariante.set(riga, misura.id);
+        atteseInVariante.set(riga, { piantaId: misura.planimetria_id ?? null, versione: misura.planimetria_versione ?? null });
         vociCopia.set(copia.id, copia);
       }
-      // Le righe copiate senza riferimento alla pianta lo riprendono adesso.
-      for (const riga of daScrivere) {
-        const { error: e } = await supabase.from("computo_voci_misure").update({
-          planimetria_id: riga.misura.planimetriaId, planimetria_chiavi: riga.misura.chiavi,
-        } as never).eq("id", idInVariante.get(riga)!).is("planimetria_id", null);
-        if (e) throw new Error("Perizia di variante non aggiornata: riprova tra qualche secondo.");
-      }
-      await scriviAggiornamento(daScrivere, versione, vociCopia, r => idInVariante.get(r)!);
+      await scriviMisureAtomiche(varianteId, daScrivere, versione, vociCopia, r => idInVariante.get(r)!, r => atteseInVariante.get(r)!);
       return { varianteId, aggiornate: daScrivere.length, nonTrovate };
     },
     onSettled: () => Promise.all([

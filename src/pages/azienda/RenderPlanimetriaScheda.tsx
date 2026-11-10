@@ -1,10 +1,12 @@
 import { MaterialiProgetto } from "@/components/planimetrie/MaterialiProgetto";
+import { AssociazioniPiantaPanel, CollegamentiProgetto } from "@/components/planimetrie/CollegamentiPianta";
+import { accessiCollegamenti, useCollegamentiPiante, type TipoCollegamento } from "@/lib/planimetrie/collegamenti";
 import { controlliDalDocumento } from "../../../shared/planimetrie/letturaDocumento.ts";
 import { AnteprimaPianta } from "@/components/planimetrie/AnteprimaPianta";
 import { creaAnteprimaPianta } from "@/lib/planimetrie/anteprime";
 import { ambitoGeometriaDelPiano } from "../../../shared/planimetrie/materialiProgetto.ts";
 /**
- * Render AI → Planimetrie → una pianta: le sue stanze, il 3D e i render fatti.
+ * Planimetrie → una pianta: le sue stanze, il 3D e i render fatti.
  *
  * Da ogni stanza: «Fai il render di questa stanza». Si sceglie lo stato (com'è oggi o il
  * progetto) e, se ci sono più piani, il piano. Le misure stimate dall'AI si vedono come
@@ -35,7 +37,7 @@ import { VerifichePianta } from "@/components/planimetrie/VerifichePianta";
 import { pianiDaPlanimetria, pianteDaPlanimetria } from "@/lib/planimetrie/tred";
 import { usePlanimetria } from "@/lib/planimetrie/archivio";
 import { usePermissions } from "@/hooks/usePermissions";
-import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
+import { percorsiPlanimetrie, ritornoProgettoValido } from "@/lib/planimetrie/render/percorsi";
 import { useRenderDellaPianta } from "@/lib/planimetrie/render/renderDallaPianta";
 import { ambitiDi } from "../../../shared/planimetrie/modello.ts";
 import { statoPerAmbito, vincoliDellaStanza } from "../../../shared/render-planimetria/vincoli.ts";
@@ -59,6 +61,8 @@ export default function RenderPlanimetriaScheda() {
   const chiudiGalleria = () => setParams((p) => { const n = new URLSearchParams(p); n.delete("galleria"); return n; }, { replace: true });
   const permessi = usePermissions();
   const { data, isLoading, error } = usePlanimetria(id);
+  const collegamenti = useCollegamentiPiante(data?.riga.company_id, data ? [data.riga] : [], accessiCollegamenti(permessi));
+  const [gestisciCollegamenti, setGestisciCollegamenti] = useState<{ tipo?: TipoCollegamento } | null>(null);
   const { data: renders = [] } = useRenderDellaPianta(id);
   const documento = data?.versione.documento;
   const livelloId = params.get("livello");
@@ -158,10 +162,12 @@ export default function RenderPlanimetriaScheda() {
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-12 max-md:space-y-3">
       <TestataPlanimetrie
-        indietro={percorsiPlanimetrie.elenco}
+        indietro={ritornoProgettoValido(params.get("torna")) ?? percorsiPlanimetrie.elenco}
         titolo={data.riga.titolo}
         sottotitolo={`Versione ${data.versione.numero}`}
       />
+
+      <CollegamentiProgetto riga={data.riga} mappa={collegamenti.data} onAssocia={(tipo) => setGestisciCollegamenti({ tipo })} />
 
       {/* Azioni: una sola in evidenza (modificare), le altre sullo stesso piano e leggibili; sul telefono solo le icone. */}
       <div className="flex flex-wrap items-center gap-2 max-md:flex-nowrap" role="toolbar" aria-label="Azioni sulla pianta">
@@ -442,6 +448,7 @@ export default function RenderPlanimetriaScheda() {
           </div>
         </section>
       )}
+      {gestisciCollegamenti && <AssociazioniPiantaPanel riga={data.riga} mappa={collegamenti.data} anteprima={anteprima2D} tipoIniziale={gestisciCollegamenti.tipo} onChiudi={() => setGestisciCollegamenti(null)} />}
     </div>
   );
 }

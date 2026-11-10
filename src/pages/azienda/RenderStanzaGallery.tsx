@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { renderPlanOrigin } from "@/lib/render/renderPlanOrigin";
 import { useQuery } from "@tanstack/react-query";
 import { Sofa } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +19,7 @@ type StanzaConfig = {
   stile_target?: string;
   intensita?: string;
   pavimento_attivo?: boolean;
+  planimetria?: unknown;
 };
 
 type StanzaGalleryRow = {
@@ -65,16 +67,18 @@ export default function RenderStanzaGallery() {
   });
 
   const items = useMemo<UnifiedRenderGalleryItem[]>(() => gallery.map((item) => {
+    const origin = renderPlanOrigin(item.config);
     const summaryValues = item.config_summary ? Object.values(item.config_summary) : [];
     const tags = compact([
       item.config?.tipo_stanza,
       item.config?.stile_target,
       item.config?.intensita,
       ...summaryValues.slice(0, 2),
+      origin ? "Da planimetria" : null,
     ]);
     return {
       id: item.id,
-      title: item.config?.tipo_stanza ? `Restyling ${item.config.tipo_stanza.replace(/_/g, " ")}` : "Render stanza",
+      title: origin?.roomName ?? (item.config?.tipo_stanza ? `Restyling ${item.config.tipo_stanza.replace(/_/g, " ")}` : "Render stanza"),
       date: item.created_at,
       detailPath: `/azienda/render/stanza/gallery/${item.id}`,
       imageUrl: item.result_urls?.[0] ?? null,

@@ -32,7 +32,7 @@ describe("la pianta dell'unità", () => {
   it("c'è: si apre, e non si propone di crearne un'altra", () => {
     m.piante = [{ id: "p1", titolo: "Pianta A1", versione_corrente: 3 }];
     disegna();
-    expect(screen.getByRole("link", { name: "Pianta A1" })).toHaveAttribute("href", "/azienda/render/planimetrie/p1");
+    expect(screen.getByRole("link", { name: "Pianta A1" })).toHaveAttribute("href", "/azienda/planimetrie/p1");
     expect(screen.queryByRole("link", { name: /Disegna/ })).not.toBeInTheDocument();
   });
 

@@ -1,4 +1,7 @@
 import { classificaBozzeRender } from "@/lib/render/renderDrafts";
+import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
+import { getRenderDetailPath } from "@/lib/render/renderNavigation";
+import { loadRenderPlanOrigins, type RenderPlanOrigin } from "@/lib/render/renderPlanOrigin";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -69,6 +72,7 @@ interface RecentRender {
   contact_id: string | null;
   opportunity_id: string | null;
   meta: RenderGalleryMeta;
+  planOrigin?: RenderPlanOrigin;
 }
 
 const categories: RenderCategory[] = [
@@ -110,21 +114,6 @@ const categories: RenderCategory[] = [
     group: "interni",
     groupLabel: "Interni",
     tags: ["soggiorno", "cucina", "arredo", "illuminazione"],
-  },
-  {
-    // Non è un tipo di render: è la pianta da cui partono i render delle stanze
-    // (render_type resta «stanza»). Planimetrie, fase 5b.
-    id: "planimetrie",
-    title: "Planimetrie",
-    description: "Disegna la pianta o falla leggere all'AI, poi fai il render di ogni stanza con le sue misure",
-    icon: LayoutPanelTop,
-    color: "bg-fuchsia-50 text-fuchsia-600",
-    path: "/azienda/render/planimetrie",
-    active: true,
-    badge: "Nuovo",
-    group: "interni",
-    groupLabel: "Interni",
-    tags: ["pianta", "planimetria", "catastale", "misure", "3d"],
   },
   {
     id: "pavimento",
@@ -289,7 +278,6 @@ const statusLabel: Record<string, string> = {
 };
 
 const typeLabel = Object.fromEntries(categories.map((cat) => [cat.id, cat.title])) as Record<string, string>;
-const typePath = Object.fromEntries(categories.map((cat) => [cat.id, cat.path])) as Record<string, string>;
 
 function formatType(value: string) {
   return typeLabel[value] ?? value.replace(/_/g, " ");
@@ -319,10 +307,11 @@ export default function RenderCategoryHub() {
       if (error) throw error;
 
       const rows = await classificaBozzeRender((data ?? []) as unknown as Omit<RecentRender, "meta">[], companyId);
-      const maps = await loadRenderGalleryMeta(rows);
+      const [maps, origins] = await Promise.all([loadRenderGalleryMeta(rows), loadRenderPlanOrigins(rows, companyId)]);
       return rows.map((row) => ({
         ...row,
         meta: resolveRenderGalleryMeta(row, maps),
+        planOrigin: origins[row.id],
       }));
     },
     enabled: !!companyId,
@@ -381,13 +370,14 @@ export default function RenderCategoryHub() {
           scritta «Render AI» sopra il titolo e la frase sotto; titolo a 24px
           (era 30, più grande di ogni altra pagina). */}
       <div>
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between max-md:flex-row max-md:items-center max-md:justify-between max-md:gap-2">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between max-md:gap-2">
           <div className="flex items-start gap-3">
             <div>
               <h1 className="text-2xl font-bold text-slate-950 max-md:text-lg">Centro render</h1>
             </div>
           </div>
-          <div className="flex shrink-0 flex-col items-stretch gap-2 md:flex-row md:items-center">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild variant="outline" size="sm"><Link to={percorsiPlanimetrie.elenco}><LayoutPanelTop className="mr-1.5 h-4 w-4" />Planimetrie e progetti</Link></Button>
             <RenderCreditsWidget />
             {/* Il catalogo foto dei prodotti: prima stava tra le impostazioni dei preventivi. */}
             {(permessi.isAdmin || permessi.canViewSettingsCustomization) && (
@@ -668,14 +658,14 @@ export default function RenderCategoryHub() {
               const typeColor = categories.find((cat) => cat.id === item.render_type)?.color ?? "bg-muted text-foreground";
               const status = normalizeRenderStatus(item.status);
               return (
-                <Link key={`${item.render_type}-${item.id}`} to={`${typePath[item.render_type] ?? "/azienda/render"}/gallery/${item.id}`} aria-label={`Apri render ${formatType(item.render_type)} del ${formatRenderDate(item.created_at)}`} className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><Card
+                <Link key={`${item.render_type}-${item.id}`} to={getRenderDetailPath(item.render_type, item.id)} aria-label={`Apri render ${item.planOrigin?.roomName ?? formatType(item.render_type)}${item.planOrigin ? ` da planimetria${item.planOrigin.projectTitle ? ` ${item.planOrigin.projectTitle}` : ""}` : ""} del ${formatRenderDate(item.created_at)}`} className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><Card
                   className="overflow-hidden cursor-pointer hover:border-primary/40 hover:shadow-md transition-all"
                 >
                   <div className="aspect-video bg-muted overflow-hidden">
                     {item.result_url ? (
                       <img
                         src={item.result_url}
-                        alt={`Render ${formatType(item.render_type)}`}
+                        alt={`Render ${item.planOrigin?.roomName ?? formatType(item.render_type)}`}
                         className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
                         loading="lazy"
                         decoding="async"
@@ -687,6 +677,14 @@ export default function RenderCategoryHub() {
                     )}
                   </div>
                   <CardContent className="p-3 space-y-2 max-md:space-y-1 max-md:p-2">
+                    {item.planOrigin && (
+                      <div>
+                        <p className="truncate text-sm font-semibold">{item.planOrigin.roomName}</p>
+                        <p className="truncate text-xs text-muted-foreground" title={item.planOrigin.projectTitle}>
+                          Da planimetria · {item.planOrigin.projectTitle ?? `versione ${item.planOrigin.version}`}
+                        </p>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between gap-2 max-md:gap-1">
                       <Badge variant="secondary" className={`${typeColor} text-[10px] border-0 max-md:min-w-0 max-md:truncate max-md:px-1.5`}>
                         {formatType(item.render_type)}

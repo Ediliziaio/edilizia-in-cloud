@@ -67,7 +67,7 @@ export default function VociImpiantiDallaPianta({ uploadId, companyId, orderId, 
   const { data: piante = [] } = useElencoPlanimetrie(aperta ? companyId : null);
   const diCommessa = piante.filter((p) => p.order_id === orderId);
   const [piantaScelta, setPiantaScelta] = useState<string | null>(null);
-  const piantaId = piantaScelta ?? diCommessa[0]?.id ?? (piante.length === 1 ? piante[0].id : null);
+  const piantaId = piantaScelta ?? piante.find((p) => p.computo_upload_id === uploadId)?.id ?? diCommessa[0]?.id ?? (piante.length === 1 ? piante[0].id : null);
   const { data: pianta, isLoading } = usePlanimetria(piantaId);
   const documento = pianta?.versione.documento;
   const stati = documento ? statiDellaPianta(documento) : [];
@@ -108,7 +108,7 @@ export default function VociImpiantiDallaPianta({ uploadId, companyId, orderId, 
             <label className="text-xs font-medium" htmlFor="vi-pianta">Pianta</label>
             <select id="vi-pianta" className={selezione} value={piantaId ?? ""} onChange={(e) => setPiantaScelta(e.target.value || null)}>
               {!piantaId && <option value="">Scegli…</option>}
-              {piante.map((p) => <option key={p.id} value={p.id}>{p.titolo}{p.order_id === orderId ? " (di questa commessa)" : ""}</option>)}
+              {piante.map((p) => <option key={p.id} value={p.id}>{p.titolo}{p.computo_upload_id === uploadId ? " (associata a questo computo)" : p.order_id === orderId ? " (di questa commessa)" : ""}</option>)}
             </select>
           </div>
           <div className="space-y-1">

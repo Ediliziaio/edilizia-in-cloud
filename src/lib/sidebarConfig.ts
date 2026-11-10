@@ -46,6 +46,7 @@ import {
   Star,
   Calculator,
   ShoppingCart,
+  LayoutPanelTop,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
@@ -261,6 +262,9 @@ export const macroAreas: MacroArea[] = [
       { title: "Pubblicità", url: "/azienda/marketing/pubblicita", icon: Megaphone, permissionKey: "canViewMarketingDashboard", groupLabel: "Marketing" },
       { title: "Gestione Social", url: "/azienda/marketing/social", icon: Share2, permissionKey: "canViewMarketingDashboard" },
       { title: "Reputazione", url: "/azienda/marketing/reputazione", icon: Star, permissionKey: "canViewReputazione" },
+      // Progettazione: funzioni autonome collegate ai preventivi e ai render delle stanze.
+      { title: "Planimetrie", url: "/azienda/planimetrie", icon: LayoutPanelTop, permissionKey: "canViewRenderAi", featureKey: "render_ai", groupLabel: "Progettazione" },
+      { title: "Render AI", url: "/azienda/render", icon: Image, permissionKey: "canViewRenderAi", featureKey: "render_ai" },
       // 2026-04-27: voce "Fotovoltaico" rimossa dalla sidebar.
       // L'accesso al modulo passa ora dall'Hub Preventivi → tab "Moduli Vendita"
       // (gated dal feature flag modulo_fotovoltaico_attivo). La route resta
@@ -269,7 +273,7 @@ export const macroAreas: MacroArea[] = [
     ],
   },
 
-  // 6. Automazioni & AI — Email · SMS · WhatsApp stub · Automazioni · Agenti · Render
+  // 6. Automazioni & AI — comunicazione, automazioni e agenti
   {
     id: "area_automazioni",
     title: "Automazioni & AI",
@@ -287,7 +291,6 @@ export const macroAreas: MacroArea[] = [
       { title: "Centralino", url: "/azienda/centralino", icon: PhoneCall, permissionKey: "canViewMarketingAiAgent", featureKey: "ai_agents" },
       // ─── Altri tool AI ───
       { title: "Agenti AI", url: "/azienda/agenti-ai", icon: Bot, permissionKey: "canViewMarketingAiAgent", featureKey: "ai_agents", groupLabel: "Altri tool AI" },
-      { title: "Render AI", url: "/azienda/render", icon: Image, permissionKey: "canViewRenderAi", featureKey: "render_ai" },
     ],
   },
 

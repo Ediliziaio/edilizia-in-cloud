@@ -23,6 +23,7 @@ export interface CollegamentiPlanimetria {
   surveyId?: string | null;
   contactId?: string | null;
 }
+export interface AssociazioniPlanimetria extends CollegamentiPlanimetria { customerId?: string | null }
 
 /** Riga di `planimetrie`. */
 export interface RigaPlanimetria {
@@ -36,6 +37,7 @@ export interface RigaPlanimetria {
   computo_upload_id: string | null;
   survey_id: string | null;
   contact_id: string | null;
+  customer_id: string | null;
   versione_corrente: number;
   created_by: string | null;
   created_at: string;
@@ -60,7 +62,7 @@ export interface VersionePlanimetria extends InfoVersione {
   quantita: MappaQuantita | null;
 }
 
-export interface FiltroPlanimetrie extends CollegamentiPlanimetria {
+export interface FiltroPlanimetrie extends AssociazioniPlanimetria {
   /** Anche le archiviate (default no). */
   archiviate?: boolean;
 }
@@ -74,7 +76,7 @@ export const chiaviPlanimetrie = {
   versione: (id: string | null | undefined, numero: number | null | undefined) => ["planimetrie", "versione", id, numero] as const,
 };
 
-const COLONNE_RIGA = "id, company_id, titolo, descrizione, stato, order_id, quote_id, computo_upload_id, survey_id, contact_id, versione_corrente, created_by, created_at, updated_at, deleted_at";
+const COLONNE_RIGA = "id, company_id, titolo, descrizione, stato, order_id, quote_id, computo_upload_id, survey_id, contact_id, customer_id, versione_corrente, created_by, created_at, updated_at, deleted_at";
 const COLONNE_INFO = "id, planimetria_id, numero, schema_versione, origine, nota, created_by, created_at";
 
 /** Messaggio per il titolare, a partire dall'errore del database. */
@@ -111,6 +113,7 @@ export async function elencaPlanimetrie(companyId: string, filtro: FiltroPlanime
   if (filtro.computoUploadId) q = q.eq("computo_upload_id", filtro.computoUploadId);
   if (filtro.surveyId) q = q.eq("survey_id", filtro.surveyId);
   if (filtro.contactId) q = q.eq("contact_id", filtro.contactId);
+  if (filtro.customerId) q = q.eq("customer_id", filtro.customerId);
   const { data, error } = await q.order("updated_at", { ascending: false });
   if (error) throw new Error("Elenco delle piante non disponibile: riprova tra qualche secondo.");
   return (data ?? []) as unknown as RigaPlanimetria[];
@@ -202,7 +205,8 @@ export async function salvaNuovaVersione(input: SalvataggioVersione): Promise<nu
 /** Titolo, descrizione, stato e collegamenti (non il disegno: quello è una versione). */
 export async function aggiornaDatiPlanimetria(
   id: string,
-  dati: { titolo?: string; descrizione?: string | null; stato?: StatoPlanimetria } & CollegamentiPlanimetria,
+  dati: { titolo?: string; descrizione?: string | null; stato?: StatoPlanimetria } & AssociazioniPlanimetria,
+  attesa?: { companyId: string; updatedAt: string },
 ): Promise<void> {
   const riga: Record<string, unknown> = {};
   if (dati.titolo !== undefined) {
@@ -216,8 +220,12 @@ export async function aggiornaDatiPlanimetria(
   if (dati.computoUploadId !== undefined) riga.computo_upload_id = dati.computoUploadId;
   if (dati.surveyId !== undefined) riga.survey_id = dati.surveyId;
   if (dati.contactId !== undefined) riga.contact_id = dati.contactId;
-  const { error } = await supabase.from("planimetrie" as never).update(riga as never).eq("id", id);
+  if (dati.customerId !== undefined) riga.customer_id = dati.customerId;
+  let query = supabase.from("planimetrie" as never).update(riga as never).eq("id", id);
+  if (attesa) query = query.eq("company_id", attesa.companyId).eq("updated_at", attesa.updatedAt);
+  const { data, error } = await query.select("id").maybeSingle();
   if (error) throw new Error(messaggioErrorePlanimetria(error));
+  if (!data) throw new Error("Pianta non aggiornata. Potrebbe essere cambiata nel frattempo: ricarica e riprova.");
 }
 
 // ─── Hook ────────────────────────────────────────────────────────────────────

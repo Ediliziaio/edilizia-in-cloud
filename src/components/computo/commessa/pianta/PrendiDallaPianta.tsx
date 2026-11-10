@@ -30,10 +30,11 @@ export default function PrendiDallaPianta({ voce, uploadId, companyId, orderId, 
   voce: VoceComputo; uploadId: string; companyId: string; orderId: string; aperta: boolean; onChiudi: () => void;
 }) {
   const { data: piante = [], isLoading: elencoInCaricamento, error: erroreElenco } = useElencoPlanimetrie(aperta ? companyId : null);
-  const diCommessa = piante.filter(p => p.order_id === orderId);
-  const altre = piante.filter(p => p.order_id !== orderId);
+  const delComputo = piante.filter(p => p.computo_upload_id === uploadId);
+  const diCommessa = piante.filter(p => p.order_id === orderId && p.computo_upload_id !== uploadId);
+  const altre = piante.filter(p => p.order_id !== orderId && p.computo_upload_id !== uploadId);
   const [piantaScelta, setPiantaScelta] = useState<string | null>(null);
-  const piantaId = piantaScelta ?? diCommessa[0]?.id ?? (piante.length === 1 ? piante[0].id : null);
+  const piantaId = piantaScelta ?? delComputo[0]?.id ?? diCommessa[0]?.id ?? (piante.length === 1 ? piante[0].id : null);
   const { data: pianta, isLoading: piantaInCaricamento, error: errorePianta } = usePlanimetria(piantaId);
   const documento = pianta?.versione.documento;
   const mappa = documento ? calcolaQuantita(documento) : null;
@@ -92,6 +93,7 @@ export default function PrendiDallaPianta({ voce, uploadId, companyId, orderId, 
               <Label htmlFor="pianta-scelta">1. Quale pianta</Label>
               <select id="pianta-scelta" className={selezione} value={piantaId ?? ""} onChange={e => cambiaPianta(e.target.value)}>
                 {!piantaId && <option value="" disabled>Scegli la pianta</option>}
+                {delComputo.length > 0 && <optgroup label="Associate a questo computo">{delComputo.map(p => <option key={p.id} value={p.id}>{p.titolo}</option>)}</optgroup>}
                 {diCommessa.length > 0 && <optgroup label="Di questa commessa">{diCommessa.map(p => <option key={p.id} value={p.id}>{p.titolo}</option>)}</optgroup>}
                 {altre.length > 0 && <optgroup label={diCommessa.length ? "Altre piante" : "Piante dell'azienda"}>{altre.map(p => <option key={p.id} value={p.id}>{p.titolo}</option>)}</optgroup>}
               </select>

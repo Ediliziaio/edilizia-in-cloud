@@ -1,4 +1,5 @@
 import { costoDaSottrarreAlSaldo, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
+import { PlanimetrieAssociate } from "@/components/planimetrie/PlanimetrieAssociate";
 import { IncarichiCantiere } from '@/components/sicurezza/IncarichiCantiere';
 import type { Tables, TablesUpdate } from "@/integrations/supabase/types";
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
@@ -1655,6 +1656,7 @@ function OrderDetailInner() {
           {/* Tab: Panoramica */}
           <TabsContent value="panoramica" className="order-detail-tab-panel space-y-4 mt-4">
             <OrderViewTransition viewKey="panoramica">
+            <PlanimetrieAssociate companyId={companyId} tipo="commessa" schedaId={id} />
             {isMobile && <div className="rounded-xl border bg-card px-3 py-2">{statoCommessa}</div>}
             {contractLink.data?.workflow_kind !== "intervento" && <ContractInterventions key={id} orderId={id!} />}
             {orderAlerts.length > 0 && <section aria-labelledby="order-attention-title" className="rounded-xl border border-orange-200 bg-white">

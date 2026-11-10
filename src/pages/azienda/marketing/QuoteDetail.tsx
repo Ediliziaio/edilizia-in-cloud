@@ -1,4 +1,6 @@
 import { QuoteConversionSummary } from "@/components/marketing/preventivi/QuoteConversionSummary";
+import { idComputoNativo, percorsoComputoNativo } from "@/lib/computo/percorsiComputo";
+import { PlanimetrieAssociate } from "@/components/planimetrie/PlanimetrieAssociate";
 import { separaVoci } from "../../../../supabase/functions/_shared/destinazioneVocePreventivo";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useState } from "react";
@@ -524,6 +526,9 @@ export default function QuoteDetail() {
           </>
         }
       />
+
+      <PlanimetrieAssociate companyId={companyId} tipo="preventivo" schedaId={id} />
+      {permessi.canEditPreventivi && idComputoNativo(quote.source) && <Button variant="outline" onClick={() => navigate(percorsoComputoNativo(idComputoNativo(quote.source)!))}><FileText className="mr-2 h-4 w-4" />Apri computo del preventivo</Button>}
 
       {/* Pianta o computo cambiati dopo il preventivo: quantità da aggiornare (o revisione). */}
       {id && companyId && !rigaDiModulo && (

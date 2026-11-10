@@ -17,14 +17,19 @@ let computo: ComputoCommessa;
 let voci: VoceComputo[];
 let cambiate: Array<{ pianta: { id: string; titolo: string; versioneCorrente: number }; confronto: ConfrontoRiga[] }>;
 let origine: Origine | null;
+let piantaAssociata: string | null = null;
+let varianteAperta = false;
 
 const trilocale = JSON.parse(readFileSync(join(process.cwd(), "shared/planimetrie/esempi/trilocale.json"), "utf8"));
 
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "c1" }, user: { id: "u1" } }) }));
+// Il pannello dei collegamenti ha test dedicati con QueryClient e casi di accesso.
+// Qui restano isolate le misure e le revisioni del computo.
+vi.mock("@/components/planimetrie/PlanimetrieAssociate", () => ({ PlanimetrieAssociate: (): null => null }));
 vi.mock("@/hooks/useComputoCommessa", () => ({
   computoInLettura: () => false,
   computoLetto: () => true,
-  useComputiCommessa: () => ({ data: [computo], isLoading: false, error: null as Error | null }),
+  useComputiCommessa: () => ({ data: varianteAperta ? [computo, { ...computo, id: "variante-1", variante_di: computo.id, stato: "bozza" }] : [computo], isLoading: false, error: null as Error | null }),
   useVociComputo: () => ({ data: voci, isLoading: false }),
   useModificaComputo: () => ({ mutate: vi.fn(), mutateAsync: vi.fn() }),
   useScartaComputo: () => ({ mutate: vi.fn() }),
@@ -44,11 +49,11 @@ vi.mock("@/hooks/useComputoPianta", () => ({
 }));
 vi.mock("@/lib/planimetrie/archivio", () => ({
   useElencoPlanimetrie: () => ({ data: [
-    { id: "p9", titolo: "Pianta di un'altra commessa", order_id: "o9" },
+    { id: "p9", titolo: "Pianta di un'altra commessa", order_id: "o9", computo_upload_id: piantaAssociata === "p9" ? "k1" : null },
     { id: "p1", titolo: "Rilievo appartamento", order_id: "o1" },
   ], isLoading: false, error: null as Error | null }),
   usePlanimetria: (id: string | null) => ({
-    data: id === "p1" ? { riga: { id: "p1" }, versione: { numero: 3, created_at: "2026-10-30T10:00:00Z", documento: trilocale } } : undefined,
+    data: id === "p1" || id === piantaAssociata ? { riga: { id }, versione: { numero: 3, created_at: "2026-10-30T10:00:00Z", documento: trilocale } } : undefined,
     isLoading: false, error: null as Error | null,
   }),
 }));
@@ -85,6 +90,8 @@ beforeEach(() => {
   voci = [voce(1, {}), voce(2, { quantita: 5, importo_computo: 50, misure: [rigaDaPianta] })];
   cambiate = [];
   origine = "rilevata";
+  piantaAssociata = null;
+  varianteAperta = false;
 });
 
 describe("righe di misura prese dalla pianta", () => {
@@ -108,6 +115,14 @@ describe("righe di misura prese dalla pianta", () => {
 });
 
 describe("«Prendi dalla pianta»", () => {
+  it("propone la planimetria associata al computo prima di quella generica della commessa", () => {
+    piantaAssociata = "p9";
+    render(<OrderComputoTab orderId="o1" companyId="c1" canEdit />);
+    apriVoce2();
+    fireEvent.click(screen.getByRole("button", { name: "Prendi dalla pianta" }));
+    expect(screen.getByLabelText("1. Quale pianta")).toHaveValue("p9");
+    expect(screen.getByRole("group", { name: "Associate a questo computo" })).toHaveTextContent("Pianta di un'altra commessa");
+  });
   it("parte dalla pianta della commessa, si scelgono le stanze e nascono le righe", () => {
     render(<OrderComputoTab orderId="o1" companyId="c1" canEdit />);
     apriVoce2();
@@ -161,6 +176,8 @@ describe("«La pianta è cambiata»", () => {
     expect(riga).toHaveTextContent("5,00");
     expect(riga).toHaveTextContent("6,50");
     expect(riga).toHaveTextContent("+1,50");
+    expect(within(avviso).getByRole("button", { name: "Aggiorna le quantità" })).toBeDisabled();
+    fireEvent.click(within(avviso).getByRole("checkbox", { name: "Seleziona misura Bagno — pavimento" }));
     fireEvent.click(within(avviso).getByRole("button", { name: "Aggiorna le quantità" }));
     await vi.waitFor(() => expect(conferma).toHaveBeenCalled());
     expect(aggiorna).not.toHaveBeenCalled();
@@ -172,16 +189,27 @@ describe("«La pianta è cambiata»", () => {
 
   it("computo contrattuale: niente aggiornamento, le differenze vanno nella perizia di variante", async () => {
     computo.stato = "contrattuale";
+    varianteAperta = true;
     cambiate = [{ pianta: { id: "p1", titolo: "Rilievo appartamento", versioneCorrente: 2 }, confronto: [confrontoBagno] }];
     vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<OrderComputoTab orderId="o1" companyId="c1" canEdit />);
     const avviso = screen.getByRole("status", { name: "La pianta è cambiata" });
     expect(within(avviso).queryByRole("button", { name: "Aggiorna le quantità" })).toBeNull();
     expect(avviso).toHaveTextContent("la pianta nuova non lo cambia");
+    fireEvent.click(within(avviso).getByRole("checkbox", { name: "Seleziona misura Bagno — pavimento" }));
     fireEvent.click(within(avviso).getByRole("button", { name: "Porta le differenze nella perizia di variante" }));
     await vi.waitFor(() => expect(perizia).toHaveBeenCalled());
     expect(perizia.mock.calls[0][0]).toMatchObject({ versione: 2, titoloPianta: "Rilievo appartamento" });
     expect(aggiorna).not.toHaveBeenCalled();
+  });
+
+  it("non crea una perizia quando il computo contrattuale non ne ha una aperta", () => {
+    computo.stato = "contrattuale";
+    cambiate = [{ pianta: { id: "p1", titolo: "Rilievo appartamento", versioneCorrente: 2 }, confronto: [confrontoBagno] }];
+    render(<OrderComputoTab orderId="o1" companyId="c1" canEdit />);
+    expect(screen.getByText(/serve una perizia di variante già esistente/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Porta le differenze nella perizia di variante" })).not.toBeInTheDocument();
+    expect(perizia).not.toHaveBeenCalled();
   });
 
   it("contrattuale senza contabilità dei lavori pubblici: spiega che va sbloccato", () => {
