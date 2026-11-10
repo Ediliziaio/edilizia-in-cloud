@@ -9,7 +9,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { FileInput, Plus, Printer, Trash2, Undo2 } from "lucide-react";
+import { Download, FileInput, Lock, Plus, Printer, Trash2, Undo2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFiscalPeriod } from "@/hooks/useFiscalPeriod";
@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
+import { scaricaCsv } from "@/lib/csv";
 import { FiscalSectionHeader } from "@/components/fatturazione/FiscalSectionLayout";
 import { FiscalQueryState } from "@/components/fatturazione/FiscalQueryState";
 import { bilancioCee, bilancioDiVerifica, htmlBilancioCee, htmlBilancioVerifica, saldiPerConto } from "@/lib/contabilita/bilancioCee";
@@ -28,6 +29,8 @@ import { contoAPartite, htmlMastrino, mastrino, partitario } from "@/lib/contabi
 import {
   controllaBozza,
   costruisciGiornale,
+  csvGiornale,
+  csvPianoDeiConti,
   htmlLibroGiornale,
   importo,
   type ContoContabile,
@@ -110,7 +113,7 @@ export default function ContabilitaGenerale() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const richiesta = p.params.get("vista");
-  const vista = richiesta === "conti" || richiesta === "giornale" || richiesta === "bilancio" || richiesta === "mastrini" || richiesta === "iva"
+  const vista = richiesta === "conti" || richiesta === "giornale" || richiesta === "bilancio" || richiesta === "mastrini" || richiesta === "iva" || richiesta === "fine"
     ? richiesta : "scritture";
   const conti = useConti(companyId);
 
@@ -130,10 +133,11 @@ export default function ContabilitaGenerale() {
         }
       />
       <div className="flex flex-wrap gap-2">
-        {([["scritture", "Scritture"], ["giornale", "Libro giornale"], ["mastrini", "Mastrini e partitari"], ["iva", "Liquidazione IVA"], ["bilancio", "Bilancio"], ["conti", "Piano dei conti"]] as const).map(([k, l]) => (
+        {([["scritture", "Scritture"], ["giornale", "Libro giornale"], ["mastrini", "Mastrini e partitari"], ["iva", "Liquidazione IVA"], ["bilancio", "Bilancio"], ["fine", "Fine anno e chiusura"], ["conti", "Piano dei conti"]] as const).map(([k, l]) => (
           <Button key={k} size="sm" variant={vista === k ? "default" : "outline"} onClick={() => p.set({ vista: k })}>{l}</Button>
         ))}
       </div>
+      <StatoEsercizio companyId={companyId} anno={p.anno} />
       {conti.isLoading || conti.isError ? (
         <FiscalQueryState loading={conti.isLoading} error={conti.isError} onRetry={() => void conti.refetch()} />
       ) : (conti.data ?? []).length === 0 ? (
@@ -144,6 +148,8 @@ export default function ContabilitaGenerale() {
         <Mastrini companyId={companyId!} anno={p.anno} conti={conti.data!} />
       ) : vista === "iva" ? (
         <LiquidazioneIva companyId={companyId!} anno={p.anno} />
+      ) : vista === "fine" ? (
+        <FineAnno companyId={companyId!} anno={p.anno} />
       ) : vista === "bilancio" ? (
         <Bilancio companyId={companyId!} anno={p.anno} conti={conti.data!} />
       ) : (
@@ -221,7 +227,10 @@ function PianoDeiConti({ companyId, conti }: { companyId: string; conti: ContoCo
             Solo i conti da confermare ({daConfermare.length})
           </label>
         ) : <span />}
-        <Button size="sm" onClick={() => setApri(true)}><Plus className="mr-1 h-4 w-4" />Nuovo conto</Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => scaricaCsv("piano-dei-conti", csvPianoDeiConti(conti))}><Download className="mr-1 h-4 w-4" />Esporta</Button>
+          <Button size="sm" onClick={() => setApri(true)}><Plus className="mr-1 h-4 w-4" />Nuovo conto</Button>
+        </div>
       </div>
       <div className="overflow-x-auto rounded-xl border">
         <table className="w-full text-sm">
@@ -295,6 +304,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
   const [storno, setStorno] = useState<Scrittura | null>(null);
   // Un esercizio vero ha migliaia di scritture: a video le prime, la stampa le ha tutte.
   const [mostra, setMostra] = useState(300);
+  const [definitiva, setDefinitiva] = useState(false);
   const nomi = useMemo(() => new Map(conti.map((c) => [c.id, `${c.codice} ${c.descrizione}`])), [conti]);
   // Fatture emesse e ricevute, incassi e pagamenti, movimenti di prima nota e F24 pagati
   // dell'esercizio diventano scritture.
@@ -306,14 +316,14 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
       const { data, error } = await db.rpc("contabilita_genera_da_documenti", { p_company: companyId, p_anno: anno });
       if (error) throw error;
       return data as {
-        fatture_emesse: number; fatture_ricevute: number; incassi: number; pagamenti: number; altre?: number; movimenti?: number; giroconti_saltati?: number;
+        fatture_emesse: number; fatture_ricevute: number; incassi: number; pagamenti: number; altre?: number; movimenti?: number; giroconti_saltati?: number; cedolini?: number;
         saltate_solo_testata: number; gia_generate: number; errori: string[];
       };
     },
     onSuccess: (r) => {
-      const nuove = r.fatture_emesse + r.fatture_ricevute + r.incassi + r.pagamenti + (r.altre ?? 0) + (r.movimenti ?? 0);
+      const nuove = r.fatture_emesse + r.fatture_ricevute + r.incassi + r.pagamenti + (r.altre ?? 0) + (r.movimenti ?? 0) + (r.cedolini ?? 0);
       const dettagli = [
-        `${r.fatture_emesse} fatture emesse, ${r.fatture_ricevute} ricevute, ${r.incassi} incassi, ${r.pagamenti} pagamenti${r.altre ? `, ${r.altre} ritenute subite` : ""}${r.movimenti ? `, ${r.movimenti} movimenti di prima nota e F24` : ""}`,
+        `${r.fatture_emesse} fatture emesse, ${r.fatture_ricevute} ricevute, ${r.incassi} incassi, ${r.pagamenti} pagamenti${r.altre ? `, ${r.altre} ritenute subite` : ""}${r.movimenti ? `, ${r.movimenti} movimenti di prima nota e F24` : ""}${r.cedolini ? `, ${r.cedolini} mesi di cedolini` : ""}`,
         r.giroconti_saltati ? `${r.giroconti_saltati} giroconti fra conti propri non registrati` : "",
         r.gia_generate ? `${r.gia_generate} già registrati` : "",
         r.saltate_solo_testata ? `${r.saltate_solo_testata} saltati: senza imponibile (solo testata) o senza la loro fattura in contabilità` : "",
@@ -355,6 +365,15 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
         </span>
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={apriStampa}><Printer className="mr-1 h-4 w-4" />Stampa libro giornale</Button>
+          {giornale ? (
+            <>
+              <Button size="sm" variant="outline" onClick={() => setDefinitiva(true)}><Lock className="mr-1 h-4 w-4" />Stampa definitiva</Button>
+              <Button size="sm" variant="outline" onClick={() => scaricaCsv(`libro-giornale-${anno}`, csvGiornale(elenco, conti))}
+                title="Una riga per movimento, col codice del conto: per il programma dello studio">
+                <Download className="mr-1 h-4 w-4" />Esporta per lo studio
+              </Button>
+            </>
+          ) : null}
           <Button size="sm" variant="outline" onClick={() => genera.mutate()} disabled={genera.isPending}>
             <FileInput className="mr-1 h-4 w-4" />{genera.isPending ? "Generazione…" : "Genera dai documenti"}
           </Button>
@@ -429,6 +448,8 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
         </div>
       ) : null}
 
+      <StampaDefinitiva open={definitiva} onOpenChange={setDefinitiva} companyId={companyId} anno={anno}
+        onStampa={(dal, al) => setStampa(htmlLibroGiornale({ azienda: intestazioneDa(anagrafica.data), scritture: elenco, conti, dal, al, definitiva: true }))} />
       <NuovaScrittura open={nuova} onOpenChange={setNuova} companyId={companyId} conti={conti}
         onFatto={() => void qc.invalidateQueries({ queryKey: chiave(companyId, "scritture") })} />
       <StornaScrittura scrittura={storno} onClose={() => setStorno(null)}
@@ -894,6 +915,281 @@ function LiquidazioneIva({ companyId, anno }: { companyId: string; anno: number 
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+interface StatoEsercizioRiga { anno: number; chiuso_il: string | null; stampato_fino_al: string | null; stampe: Array<{ dal: string; al: string; scritture: number; il: string }> }
+
+function useEsercizio(companyId: string | undefined, anno: number) {
+  return useQuery({
+    queryKey: chiave(companyId, "esercizio", anno),
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await db.from("contabilita_esercizi").select("anno, chiuso_il, stampato_fino_al, stampe")
+        .eq("company_id", companyId).eq("anno", anno).maybeSingle();
+      if (error) throw error;
+      return (data ?? null) as StatoEsercizioRiga | null;
+    },
+  });
+}
+
+/** Una riga sopra le viste: l'esercizio è chiuso, o il giornale è stampato in definitivo fino a…. */
+function StatoEsercizio({ companyId, anno }: { companyId: string | undefined; anno: number }) {
+  const e = useEsercizio(companyId, anno).data;
+  if (!e || (!e.chiuso_il && !e.stampato_fino_al)) return null;
+  return (
+    <p className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+      <Lock className="h-4 w-4 text-slate-500" />
+      {e.chiuso_il
+        ? `Esercizio ${anno} chiuso il ${dataIt(e.chiuso_il.slice(0, 10))}: non si registra più niente con data ${anno}.`
+        : `Libro giornale stampato in definitivo fino al ${dataIt(e.stampato_fino_al!)}: le nuove scritture vanno dopo quel giorno.`}
+    </p>
+  );
+}
+
+/** Stampa definitiva: fissa il giorno, poi apre la stampa del tratto nuovo (numeri e riporto dall'inizio dell'anno). */
+function StampaDefinitiva({ open, onOpenChange, companyId, anno, onStampa }: {
+  open: boolean; onOpenChange: (v: boolean) => void; companyId: string; anno: number; onStampa: (dal: string, al: string) => void;
+}) {
+  const qc = useQueryClient();
+  const esercizio = useEsercizio(companyId, anno).data;
+  const fineAnno = `${anno}-12-31`;
+  const [al, setAl] = useState(() => (oggi() < fineAnno ? oggi() : fineAnno));
+  const dal = esercizio?.stampato_fino_al
+    ? new Date(Date.parse(`${esercizio.stampato_fino_al}T12:00:00Z`) + 86400000).toISOString().slice(0, 10)
+    : `${anno}-01-01`;
+  const fissa = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await db.rpc("contabilita_stampa_definitiva", { p_company: companyId, p_anno: anno, p_al: al });
+      if (error) throw error;
+      return data as { dal: string; al: string; scritture: number };
+    },
+    onSuccess: (r) => {
+      toast.success("Libro giornale stampato in definitivo", { description: `${r.scritture} scritture dal ${dataIt(r.dal)} al ${dataIt(r.al)}: quei giorni ora sono bloccati.` });
+      void qc.invalidateQueries({ queryKey: chiave(companyId, "esercizio", anno) });
+      onOpenChange(false);
+      onStampa(r.dal, r.al);
+    },
+    onError: (e) => toast.error("Stampa definitiva non fatta", { description: e instanceof Error ? e.message : String(e) }),
+  });
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle>Stampa definitiva del libro giornale</DialogTitle></DialogHeader>
+        <div className="space-y-3 text-sm">
+          <p>
+            Si stampano le scritture dal <strong>{dataIt(dal)}</strong> al giorno che scegli, con la numerazione e il riporto
+            dall'inizio dell'esercizio. Dopo, <strong>nessuna scrittura potrà avere una data fino a quel giorno</strong>:
+            le correzioni andranno registrate dopo.
+          </p>
+          <div className="space-y-1">
+            <Label>Fino al</Label>
+            <Input type="date" value={al} min={dal} max={oggi() < fineAnno ? oggi() : fineAnno} onChange={(e) => setAl(e.target.value)} />
+          </div>
+          {esercizio?.stampe?.length ? (
+            <p className="text-xs text-muted-foreground">
+              Stampe già fatte: {esercizio.stampe.map((x) => `${dataIt(x.dal)}–${dataIt(x.al)}`).join(", ")}.
+            </p>
+          ) : null}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
+          <Button onClick={() => fissa.mutate()} disabled={fissa.isPending || !al || al < dal}>Blocca e stampa</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+interface QuotaAmmortamento { cespite: string; codice: string | null; costo: number; aliquota: number; fondo_inizio: number; quota: number; residuo: number }
+interface EsitoFineAnno {
+  ammortamenti: QuotaAmmortamento[]; totale_ammortamenti: number; retribuzioni: number; tfr: number;
+  ammortamenti_registrati: boolean; tfr_registrato: boolean;
+}
+interface EsitoChiusura {
+  utile: number; conti_economici: number; conti_patrimoniali: number; apertura_gia_presente: boolean;
+  iva_non_liquidata?: number; ammortamenti_da_registrare?: boolean; tfr_da_registrare?: boolean;
+}
+
+/**
+ * Fine anno: ammortamenti dei cespiti (dal registro del Controllo di gestione) e TFR dai
+ * cedolini, poi la chiusura dell'esercizio con la riapertura dei conti al 1° gennaio.
+ */
+function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
+  const qc = useQueryClient();
+  const esercizio = useEsercizio(companyId, anno);
+  const chiuso = !!esercizio.data?.chiuso_il;
+  const [conferma, setConferma] = useState(false);
+  const [riapri, setRiapri] = useState(false);
+  const [motivo, setMotivo] = useState("");
+  const fine = useQuery({
+    queryKey: chiave(companyId, "fine-anno", anno),
+    queryFn: async () => {
+      const { data, error } = await db.rpc("contabilita_fine_anno", { p_company: companyId, p_anno: anno, p_anteprima: true });
+      if (error) throw error;
+      return data as EsitoFineAnno;
+    },
+  });
+  const chiusura = useQuery({
+    queryKey: chiave(companyId, "chiusura", anno),
+    enabled: !chiuso,
+    queryFn: async () => {
+      const { data, error } = await db.rpc("contabilita_chiudi_esercizio", { p_company: companyId, p_anno: anno, p_anteprima: true });
+      if (error) throw error;
+      return data as EsitoChiusura;
+    },
+  });
+  const aggiorna = (): void => { void qc.invalidateQueries({ queryKey: chiave(companyId) }); };
+  const registraFine = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await db.rpc("contabilita_fine_anno", { p_company: companyId, p_anno: anno, p_anteprima: false });
+      if (error) throw error;
+      return data as EsitoFineAnno & { registrate: string[] };
+    },
+    onSuccess: (r) => {
+      toast.success(r.registrate.length ? `Registrati: ${r.registrate.join(" e ")}` : "Niente di nuovo da registrare");
+      aggiorna();
+    },
+    onError: (e) => toast.error("Scritture di fine anno non registrate", { description: e instanceof Error ? e.message : String(e) }),
+  });
+  const chiudi = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await db.rpc("contabilita_chiudi_esercizio", { p_company: companyId, p_anno: anno, p_anteprima: false });
+      if (error) throw error;
+      return data as EsitoChiusura & { apertura_registrata: boolean };
+    },
+    onSuccess: (r) => {
+      toast.success(`Esercizio ${anno} chiuso`, {
+        description: `${r.utile >= 0 ? "Utile" : "Perdita"} ${euro(Math.abs(r.utile))}. ${r.apertura_registrata
+          ? `Conti riaperti al 01/01/${anno + 1}.` : `Il ${anno + 1} aveva già una scrittura di apertura: non ne è stata fatta un'altra.`}`,
+        duration: 12000,
+      });
+      setConferma(false);
+      aggiorna();
+    },
+    onError: (e) => toast.error("Esercizio non chiuso", { description: e instanceof Error ? e.message : String(e) }),
+  });
+  const riapriM = useMutation({
+    mutationFn: async () => {
+      const { error } = await db.rpc("contabilita_riapri_esercizio", { p_company: companyId, p_anno: anno, p_motivo: motivo });
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success(`Esercizio ${anno} riaperto: chiusura e apertura stornate`); setRiapri(false); setMotivo(""); aggiorna(); },
+    onError: (e) => toast.error("Esercizio non riaperto", { description: e instanceof Error ? e.message : String(e) }),
+  });
+
+  if (fine.isLoading || fine.isError) {
+    return <FiscalQueryState loading={fine.isLoading} error={fine.isError} onRetry={() => void fine.refetch()} />;
+  }
+  const f = fine.data!;
+  const daRegistrare = (f.totale_ammortamenti > 0 && !f.ammortamenti_registrati) || (f.tfr > 0 && !f.tfr_registrato);
+  return (
+    <div className="space-y-4">
+      <section className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold">1. Ammortamenti e TFR al 31/12/{anno}</h3>
+          <Button size="sm" variant="outline" disabled={chiuso || !daRegistrare || registraFine.isPending} onClick={() => registraFine.mutate()}>
+            {registraFine.isPending ? "Registrazione…" : "Registra"}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          I cespiti sono quelli del registro in Controllo di gestione: quote costanti, metà nel primo anno, fino a esaurire il costo.
+          Il TFR è un tredicesimo e mezzo delle retribuzioni lorde dei cedolini ({euro(f.retribuzioni)}), senza rivalutazione.
+        </p>
+        <div className="overflow-x-auto rounded-xl border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
+              <tr><th className="p-2">Cespite</th><th className="p-2 text-right">Costo</th><th className="p-2 text-right">Aliquota</th><th className="p-2 text-right">Fondo a inizio anno</th><th className="p-2 text-right">Quota {anno}</th><th className="p-2 text-right">Residuo</th></tr>
+            </thead>
+            <tbody>
+              {f.ammortamenti.length === 0 ? (
+                <tr><td colSpan={6} className="p-4 text-center text-muted-foreground">Nessun cespite da ammortizzare nel {anno}.</td></tr>
+              ) : f.ammortamenti.map((q, i) => (
+                <tr key={`${q.codice ?? ""}-${i}`} className="border-t">
+                  <td className="p-2">{q.codice ? <span className="mr-2 font-mono text-xs">{q.codice}</span> : null}{q.cespite}</td>
+                  <td className="p-2 text-right tabular-nums">{euro(q.costo)}</td>
+                  <td className="p-2 text-right tabular-nums">{q.aliquota}%</td>
+                  <td className="p-2 text-right tabular-nums text-muted-foreground">{euro(q.fondo_inizio)}</td>
+                  <td className="p-2 text-right font-medium tabular-nums">{euro(q.quota)}</td>
+                  <td className="p-2 text-right tabular-nums">{euro(q.residuo)}</td>
+                </tr>
+              ))}
+              <tr className="border-t bg-muted/30 font-medium">
+                <td className="p-2">Totale ammortamenti {f.ammortamenti_registrati ? "· registrati" : ""}</td>
+                <td colSpan={3} /><td className="p-2 text-right tabular-nums">{euro(f.totale_ammortamenti)}</td><td />
+              </tr>
+              <tr className="border-t font-medium">
+                <td className="p-2">Accantonamento TFR {f.tfr_registrato ? "· registrato" : ""}</td>
+                <td colSpan={3} /><td className="p-2 text-right tabular-nums">{euro(f.tfr)}</td><td />
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Ratei, risconti e rimanenze finali si registrano con «Nuova scrittura» (causali Rateo, Risconto, Rettifica).
+        </p>
+      </section>
+
+      <section className="space-y-2 rounded-xl border p-4">
+        <h3 className="text-sm font-semibold">2. Chiusura dell'esercizio {anno}</h3>
+        {chiuso ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+            <span>Chiuso il {dataIt(esercizio.data!.chiuso_il!.slice(0, 10))}. Costi e ricavi sono girati sull'utile, i conti sono riaperti al 01/01/{anno + 1}.</span>
+            <Button size="sm" variant="outline" onClick={() => setRiapri(true)}>Riapri l'esercizio</Button>
+          </div>
+        ) : chiusura.isLoading || chiusura.isError ? (
+          <FiscalQueryState loading={chiusura.isLoading} error={chiusura.isError} onRetry={() => void chiusura.refetch()} />
+        ) : (
+          <div className="space-y-2 text-sm">
+            <p>
+              {chiusura.data!.utile >= 0 ? "Utile" : "Perdita"} dell'esercizio: <strong>{euro(Math.abs(chiusura.data!.utile))}</strong>
+              {" "}· {chiusura.data!.conti_economici} conti economici da chiudere · {chiusura.data!.conti_patrimoniali} conti patrimoniali da riaprire
+              {chiusura.data!.apertura_gia_presente ? ` · il ${anno + 1} ha già la sua apertura (non se ne farà un'altra)` : ""}.
+            </p>
+            {(chiusura.data!.iva_non_liquidata ?? 0) !== 0 || chiusura.data!.ammortamenti_da_registrare || chiusura.data!.tfr_da_registrare ? (
+              <ul className="list-disc rounded-lg border border-amber-200 bg-amber-50 py-2 pl-6 pr-3 text-amber-900">
+                {(chiusura.data!.iva_non_liquidata ?? 0) !== 0 ? <li>C'è IVA non ancora liquidata: registra la liquidazione dell'ultimo periodo (la chiusura la rifiuta).</li> : null}
+                {chiusura.data!.ammortamenti_da_registrare ? <li>Ammortamenti non registrati.</li> : null}
+                {chiusura.data!.tfr_da_registrare ? <li>Accantonamento TFR non registrato.</li> : null}
+              </ul>
+            ) : null}
+            <p className="text-xs text-muted-foreground">
+              Prima di chiudere: tutto generato dai documenti, liquidazioni IVA registrate, ammortamenti e TFR fatti, ratei e risconti scritti.
+              Dopo, l'anno è bloccato: per correggere si riapre.
+            </p>
+            <Button size="sm" onClick={() => setConferma(true)} disabled={chiudi.isPending || (chiusura.data!.iva_non_liquidata ?? 0) !== 0}>Chiudi l'esercizio {anno}</Button>
+          </div>
+        )}
+      </section>
+
+      <Dialog open={conferma} onOpenChange={setConferma}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Chiudere l'esercizio {anno}?</DialogTitle></DialogHeader>
+          <p className="text-sm">
+            Costi e ricavi del {anno} si girano sull'utile al 31/12, i conti patrimoniali si riaprono al 01/01/{anno + 1} (il risultato fra gli utili portati a nuovo) e
+            nel {anno} non si potrà più registrare niente finché non lo riapri.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConferma(false)}>Annulla</Button>
+            <Button onClick={() => chiudi.mutate()} disabled={chiudi.isPending}>{chiudi.isPending ? "Chiusura…" : "Chiudi"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={riapri} onOpenChange={setRiapri}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Riaprire l'esercizio {anno}?</DialogTitle></DialogHeader>
+          <div className="space-y-2 text-sm">
+            <p>Chiusura e apertura vengono stornate (restano nel giornale) e il {anno} torna modificabile.</p>
+            <Label>Motivo</Label>
+            <Input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Fattura arrivata dopo la chiusura" />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRiapri(false)}>Annulla</Button>
+            <Button onClick={() => riapriM.mutate()} disabled={riapriM.isPending || !motivo.trim()}>Riapri</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

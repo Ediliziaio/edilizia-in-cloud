@@ -25,8 +25,12 @@ export interface SaldoConto {
 
 export function saldiPerConto(scritture: readonly Scrittura[], conti: readonly ContoContabile[], finoAl?: string): SaldoConto[] {
   const tot = new Map<string, { d: number; a: number }>();
+  // L'epilogo di chiusura azzera costi e ricavi sull'utile: il bilancio dell'anno si legge senza,
+  // e senza i suoi storni (riapertura).
+  const chiusure = new Set(scritture.filter((s) => s.origine === "chiusura").map((s) => s.id));
   for (const s of scritture) {
     if (finoAl && s.data_registrazione > finoAl) continue;
+    if (chiusure.has(s.id) || (s.storno_di && chiusure.has(s.storno_di))) continue;
     for (const r of s.contabilita_righe ?? []) {
       const t = tot.get(r.conto_id) ?? { d: 0, a: 0 };
       t.d += cent(Number(r.dare) || 0);
@@ -247,7 +251,7 @@ export function htmlBilancioCee(d: { azienda: AziendaIntestazione; bilancio: Bil
     ].filter(Boolean).join(" "),
     azienda: d.azienda,
     colonne: [
-      { intestazione: "Voce", valore: (r) => (r.livello === "voce" ? `   ${r.etichetta}` : r.etichetta), larghezza: "78%" },
+      { intestazione: "Voce", valore: (r) => (r.livello === "voce" ? `\u00a0\u00a0\u00a0${r.etichetta}` : r.etichetta), larghezza: "78%" },
       { intestazione: "Importo", valore: (r) => euro(r.valore), allinea: "destra", compatta: true, larghezza: "22%" },
     ],
     righe,

@@ -68,6 +68,8 @@ export interface DocumentoContabile<R> {
   riepilogo?: readonly { etichetta: string; valore: string }[];
   /** Quando la tabella è vuota: perché, in italiano. */
   vuoto?: string;
+  /** Il piè di pagina, quando il documento è un libro tenuto qui (libro giornale, mastrini). */
+  piede?: string;
   /** Righe da evidenziare: i subtotali dentro l'elenco. */
   evidenzia?: (riga: R) => boolean;
 }
@@ -215,6 +217,6 @@ ${riepilogo}
 
 ${totali}
 
-<div class="piede">${esc(AVVERTENZA_DOCUMENTO)}</div>
+<div class="piede">${esc(d.piede ?? AVVERTENZA_DOCUMENTO)}</div>
 </div></body></html>`;
 }

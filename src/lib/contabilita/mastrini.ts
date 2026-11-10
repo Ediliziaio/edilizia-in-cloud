@@ -9,7 +9,7 @@
  */
 import { htmlDocumentoContabile, type AziendaIntestazione } from "./documentoContabile";
 import { periodoInLettere } from "./registroPrimaNota";
-import type { ContoContabile, Scrittura } from "./libroGiornale";
+import { PIEDE_LIBRO, type ContoContabile, type Scrittura } from "./libroGiornale";
 
 const cent = (n: number) => Math.round((Number(n) || 0) * 100);
 
@@ -126,6 +126,7 @@ export function htmlMastrino(d: {
     periodo: periodoInLettere(d.dal, d.al),
     sottotitolo: `${d.conto.codice} ${d.conto.descrizione}${d.soggetto ? ` · ${d.soggetto}` : ""}: movimenti in ordine di data con il saldo progressivo.`,
     azienda: d.azienda,
+    piede: PIEDE_LIBRO,
     riepilogo: [
       { etichetta: "Movimenti", valore: String(m.movimenti.length) },
       { etichetta: "Totale dare", valore: euro(m.dare) },

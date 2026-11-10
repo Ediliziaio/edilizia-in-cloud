@@ -76,3 +76,15 @@ describe("bilancio dalle scritture", () => {
     expect(b.vociNonIndicate).toEqual(expect.arrayContaining(["C.E. ?", "C.E. B7"]));
   });
 });
+
+describe("chiusura dell'esercizio", () => {
+  it("il bilancio dell'anno si legge senza l'epilogo di chiusura né il suo storno", () => {
+    const utileConto = c("utile", "10.05", "passivo", "SPP", "A.IX");
+    const prima = bilancioCee(saldiPerConto(scritture, conti));
+    const chiusura: Scrittura = { ...s([["ricavi", 10000, 0], ["interessiAttivi", 30, 0], ["materiali", 0, 4000], ["ammortamento", 0, 500], ["interessiPassivi", 0, 130], ["utile", 0, 5400]], "2026-12-31"), origine: "chiusura" };
+    const storno: Scrittura = { ...s([["ricavi", 0, 10000], ["utile", 5400, 0], ["interessiAttivi", 0, 30], ["materiali", 4000, 0], ["ammortamento", 500, 0], ["interessiPassivi", 130, 0]], "2026-12-31"), origine: "storno", storno_di: chiusura.id };
+    const dopo = bilancioCee(saldiPerConto([...scritture, chiusura, storno], [...conti, utileConto]));
+    expect(dopo.utile).toBe(prima.utile);
+    expect(bilancioCee(saldiPerConto([...scritture, chiusura], [...conti, utileConto])).utile).toBe(prima.utile);
+  });
+});

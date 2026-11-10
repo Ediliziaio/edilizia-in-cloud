@@ -166,25 +166,41 @@ const dataIT = (iso: string): string => {
   return d && m && y ? `${d}/${m}/${y}` : iso;
 };
 
-/** Il foglio A4 del libro giornale del periodo. */
+/** Il piè di pagina dei libri tenuti qui: non è il prospetto «da consegnare» degli altri fogli. */
+export const PIEDE_LIBRO =
+  "Contabilità in partita doppia tenuta con Edilizia in Cloud: scritture numerate per esercizio, sempre in quadratura, corrette solo per storno.";
+
+/**
+ * Il foglio A4 del libro giornale. Le righe sono quelle con data fra `dal` e `al`, ma numeri e
+ * progressivi vengono dall'intero esercizio: una stampa da aprile continua la numerazione e
+ * porta il riporto dei totali di gennaio–marzo. `definitiva` la intesta come stampa definitiva.
+ */
 export function htmlLibroGiornale(d: {
   azienda: AziendaIntestazione;
   scritture: readonly Scrittura[];
   conti: readonly ContoContabile[];
   dal: string;
   al: string;
+  definitiva?: boolean;
 }): string {
-  const g = costruisciGiornale(d.scritture, d.conti);
+  const tutto = costruisciGiornale(d.scritture, d.conti);
+  const prima = tutto.righe.filter((r) => r.data < d.dal);
+  const righe = tutto.righe.filter((r) => r.data >= d.dal && r.data <= d.al);
+  const riporto = prima.length ? prima[prima.length - 1].progressivoDare : 0;
+  const totale = righe.length ? righe[righe.length - 1].progressivoDare : riporto;
+  const scritture = righe.filter((r) => r.primaDellaScrittura).length;
   return htmlDocumentoContabile<RigaGiornale>({
-    titolo: "Libro giornale",
+    titolo: d.definitiva ? "Libro giornale — stampa definitiva" : "Libro giornale",
     periodo: periodoInLettere(d.dal, d.al),
     sottotitolo:
       "Scritture in partita doppia in ordine di data, numerate per esercizio. Ogni scrittura quadra; le correzioni sono storni, non cancellazioni.",
     azienda: d.azienda,
+    piede: PIEDE_LIBRO,
     riepilogo: [
-      { etichetta: "Scritture", valore: String(g.scritture) },
-      { etichetta: "Totale dare", valore: euro(g.totaleDare) },
-      { etichetta: "Totale avere", valore: euro(g.totaleAvere) },
+      { etichetta: "Scritture", valore: String(scritture) },
+      ...(riporto ? [{ etichetta: "Riporto (dare = avere)", valore: euro(riporto) }] : []),
+      { etichetta: "Progressivo dare", valore: euro(totale) },
+      { etichetta: "Progressivo avere", valore: euro(totale) },
     ],
     colonne: [
       { intestazione: "Rigo", valore: (x) => String(x.progressivo), allinea: "destra", compatta: true, larghezza: "5%" },
@@ -196,11 +212,59 @@ export function htmlLibroGiornale(d: {
       { intestazione: "Dare", valore: (x) => euro(x.dare), allinea: "destra", compatta: true, larghezza: "11%" },
       { intestazione: "Avere", valore: (x) => euro(x.avere), allinea: "destra", compatta: true, larghezza: "11%" },
     ],
-    righe: g.righe,
+    righe,
     totali: [
-      { etichetta: "Totale dare", valore: euro(g.totaleDare) },
-      { etichetta: "Totale avere", valore: euro(g.totaleAvere), forte: true },
+      ...(riporto ? [{ etichetta: "Riporto", valore: euro(riporto) }] : []),
+      { etichetta: "Totale dare del periodo", valore: euro(Math.round((totale - riporto) * 100) / 100) },
+      { etichetta: "Progressivo dare e avere", valore: euro(totale), forte: true },
     ],
     vuoto: "Nessuna scrittura in questo periodo.",
   });
+}
+
+/** Una cella CSV: separatore «;», decimali con la virgola, testo fra virgolette se serve. */
+const cella = (v: string | number | null | undefined): string => {
+  if (v === null || v === undefined) return "";
+  const t = typeof v === "number" ? v.toFixed(2).replace(".", ",") : String(v);
+  return /[";\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+};
+
+/**
+ * Il libro giornale per il programma dello studio: una riga per movimento, con il codice del
+ * conto, in CSV all'italiana (i programmi di contabilità lo importano con un tracciato
+ * configurabile). Il numero è quello del giornale; la registrazione resta nella sua colonna.
+ */
+export function csvGiornale(scritture: readonly Scrittura[], conti: readonly ContoContabile[]): string {
+  const perId = new Map(conti.map((c) => [c.id, c]));
+  const ordinate = [...scritture].sort((a, b) =>
+    a.data_registrazione.localeCompare(b.data_registrazione) || a.esercizio - b.esercizio || a.numero - b.numero);
+  const giornale = new Map<string, number>();
+  const perEsercizio = new Map<number, number>();
+  for (const s of ordinate) {
+    const n = (perEsercizio.get(s.esercizio) ?? 0) + 1;
+    perEsercizio.set(s.esercizio, n);
+    giornale.set(s.id, n);
+  }
+  const righe = [["Esercizio", "N. giornale", "N. registrazione", "Data", "Causale", "Descrizione", "N. documento", "Data documento",
+    "Codice conto", "Conto", "Descrizione riga", "Dare", "Avere", "Origine"].join(";")];
+  for (const s of ordinate) {
+    for (const r of [...(s.contabilita_righe ?? [])].sort((a, b) => a.riga - b.riga)) {
+      const c = perId.get(r.conto_id);
+      righe.push([
+        s.esercizio, giornale.get(s.id), s.numero, dataIT(s.data_registrazione), s.causale, s.descrizione, s.documento_numero,
+        s.documento_data ? dataIT(s.documento_data) : "", c?.codice, c?.descrizione, r.descrizione,
+        Number(r.dare) || 0, Number(r.avere) || 0, s.origine,
+      ].map((v) => cella(v as string | number | null | undefined)).join(";"));
+    }
+  }
+  return righe.join("\r\n");
+}
+
+/** Il piano dei conti in CSV, con la voce CEE e il ruolo: per allinearlo a quello dello studio. */
+export function csvPianoDeiConti(conti: readonly ContoContabile[]): string {
+  const perId = new Map(conti.map((c) => [c.id, c]));
+  return [["Codice", "Descrizione", "Mastro", "Natura", "Sezione CEE", "Voce CEE", "Movimentabile", "Ruolo"].join(";"),
+    ...conti.map((c) => [c.codice, c.descrizione, c.mastro_id ? perId.get(c.mastro_id)?.codice : "", c.natura, c.sezione_cee,
+      c.voce_cee, c.movimentabile ? "sì" : "no", c.codice_standard].map((v) => cella(v as string | null)).join(";")),
+  ].join("\r\n");
 }

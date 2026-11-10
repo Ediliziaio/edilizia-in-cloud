@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   controllaBozza,
   costruisciGiornale,
+  csvGiornale,
+  csvPianoDeiConti,
   htmlLibroGiornale,
   importo,
   type ContoContabile,
@@ -89,5 +91,26 @@ describe("libro giornale", () => {
     expect(html).toContain("Libro giornale");
     expect(html).toContain("05.01 Conto 05.01");
     expect(html).toContain("122,00");
+  });
+  it("la stampa di un periodo continua numeri e progressivi dell'esercizio", () => {
+    const html = htmlLibroGiornale({
+      azienda: { ragione_sociale: "Prova srl" },
+      scritture: [s(1, "2026-01-10", [["clienti", 122, 0], ["ricavi", 0, 122]]), s(2, "2026-04-02", [["clienti", 10, 0], ["ricavi", 0, 10]])],
+      conti, dal: "2026-04-01", al: "2026-06-30", definitiva: true,
+    });
+    expect(html).toContain("stampa definitiva");
+    expect(html).toContain("2/2026");
+    expect(html).not.toContain("1/2026");
+    expect(html).toContain("Riporto");
+    expect(html).toContain("132,00");
+    expect(html).toContain("partita doppia tenuta con Edilizia in Cloud");
+  });
+  it("esporta giornale e piano dei conti in CSV per lo studio", () => {
+    const csv = csvGiornale([s(1, "2026-01-10", [["clienti", 122.5, 0], ["ricavi", 0, 122.5]])], conti);
+    const righe = csv.split("\r\n");
+    expect(righe).toHaveLength(3);
+    expect(righe[1]).toContain(";10/01/2026;");
+    expect(righe[1]).toContain(";122,50;0,00;");
+    expect(csvPianoDeiConti(conti).split("\r\n")[0]).toContain("Voce CEE");
   });
 });
