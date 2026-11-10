@@ -3,7 +3,7 @@
  * da fare, il tasto che la fa. Il sollecito apre l'email o WhatsApp già
  * scritti: parte solo quando chi lo legge preme invia.
  */
-import { AlertCircle, FileSignature, LifeBuoy, Mail, MessageSquare, Phone } from "lucide-react";
+import { AlertCircle, FileSignature, LifeBuoy, Mail, MessageSquare, Phone, Receipt } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { testoSollecito, type AzioneSuggerita } from "@/lib/clienti/cosaFareAdesso";
@@ -12,7 +12,7 @@ import { euro } from "@/lib/clienti/schedaCliente";
 const giorni = (n: number) => (n === 1 ? "1 giorno" : `${n} giorni`);
 
 export function CosaFareAdesso({
-  azioni, cliente, azienda, email, telefono, waHref, onEmail, onApri,
+  azioni, cliente, azienda, email, telefono, waHref, onEmail, onApri, pannelloScaduto = "rate", etichettaScaduto = "Vedi rate",
 }: {
   azioni: AzioneSuggerita[];
   cliente: string;
@@ -22,6 +22,9 @@ export function CosaFareAdesso({
   waHref: string | null;
   onEmail: (oggetto: string, testo: string) => void;
   onApri: (pannello: string) => void;
+  /** Il committente fattura a rendiconto: lo scaduto si guarda fra le fatture, non fra le rate. */
+  pannelloScaduto?: string;
+  etichettaScaduto?: string;
 }) {
   const navigate = useNavigate();
   if (azioni.length === 0) return null;
@@ -52,8 +55,37 @@ export function CosaFareAdesso({
                       </a>
                     </Button>
                   )}
-                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => onApri("rate")}>Vedi rate</Button>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => onApri(pannelloScaduto)}>{etichettaScaduto}</Button>
                 </div>
+              </div>
+            );
+          }
+          if (a.tipo === "da_rendicontare" || a.tipo === "rendiconto_fermo") {
+            return (
+              <div key={a.tipo} className="flex flex-wrap items-center gap-2 px-1 py-1.5">
+                <Receipt className="h-4 w-4 shrink-0 text-indigo-600" />
+                <p className="min-w-0 flex-1 basis-[15rem] text-sm">
+                  {a.tipo === "da_rendicontare"
+                    ? <><span className="font-medium">{euro(a.importo)} confermati</span><span className="text-muted-foreground"> da chiudere in un rendiconto</span></>
+                    : <><span className="font-medium">Rendiconto N. {a.numero}</span><span className="text-muted-foreground"> senza risposta da {giorni(a.giorni)}</span></>}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {a.tipo === "rendiconto_fermo" && telefono && (
+                    <Button asChild size="sm" variant="outline" className="h-7 gap-1 text-xs">
+                      <a href={`tel:${telefono}`}><Phone className="h-3.5 w-3.5" /> Richiama</a>
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => onApri("rendiconti")}>Vedi rendiconti</Button>
+                </div>
+              </div>
+            );
+          }
+          if (a.tipo === "contratto") {
+            return (
+              <div key="contratto" className="flex flex-wrap items-center gap-2 px-1 py-1.5">
+                <FileSignature className="h-4 w-4 shrink-0 text-orange-600" />
+                <p className="min-w-0 flex-1 basis-[15rem] text-sm font-medium">{a.testo}</p>
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => onApri("contratti")}>Vedi contratti</Button>
               </div>
             );
           }

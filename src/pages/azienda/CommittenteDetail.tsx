@@ -34,7 +34,8 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/hooks/use-toast";
 import { logger } from "@/utils/logger";
 import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
-import { euro, type SchedaCliente } from "@/lib/clienti/schedaCliente";
+import { euro, oggiRoma, type SchedaCliente } from "@/lib/clienti/schedaCliente";
+import { azioniCommittente, type NumeriCommittente } from "@/lib/appalto/numeriScheda";
 import { contrattoDiOggi } from "@/lib/appalto/contratti";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,9 +70,10 @@ import { CustomerActivityTimeline } from "@/components/clients/CustomerActivityT
 import { CustomerComposeBar } from "@/components/clients/CustomerComposeBar";
 import { CustomerBusinessTabs } from "@/components/clients/CustomerBusinessTabs";
 import { KpiCard } from "@/components/clients/KpiCard";
-import { RigaNumeri } from "@/components/clients/RigaNumeri";
+import { RigaNumeri, type NumeroScheda } from "@/components/clients/RigaNumeri";
+import { CosaFareAdesso } from "@/components/clients/CosaFareAdesso";
 import { TestataScheda } from "@/components/clients/TestataScheda";
-import { AzioniContattoScheda, AzioniContattoSchedaMobile, IconaScheda } from "@/components/clients/AzioniContattoScheda";
+import { AzioniContattoScheda, AzioniContattoSchedaMobile, IconaScheda, linkWhatsApp } from "@/components/clients/AzioniContattoScheda";
 import { AiCallButton } from "@/components/telephony/AiCallButton";
 import { PannelloLateraleScheda, type SezioneLaterale } from "@/components/clients/PannelloLateraleScheda";
 import { VoceEliminaCliente } from "@/components/clients/VoceEliminaCliente";
@@ -294,6 +296,17 @@ export default function CommittenteDetail() {
         .limit(100);
       if (error) throw error;
       return (data ?? []) as unknown as Lavoro[];
+    },
+  });
+
+  const numeriCommittente = useQuery({
+    queryKey: ["appalto-sal", id, "numeri-scheda", companyId],
+    enabled: !!companyId && !!id && vedeImporti,
+    staleTime: 60_000,
+    queryFn: async (): Promise<NumeriCommittente> => {
+      const { data, error } = await (supabase as any).rpc("scheda_committente_numeri", { p_committente_id: id, p_company_id: companyId });
+      if (error) throw error;
+      return data as NumeriCommittente;
     },
   });
 
@@ -697,34 +710,48 @@ export default function CommittenteDetail() {
     </div>
   );
 
-  const numeri = [
+  const nC = numeriCommittente.data;
+  const inAttesa = numeriCommittente.isLoading ? "…" : "—";
+  const quanto = (v: number | null | undefined) => (v == null ? inAttesa : euro(Number(v)));
+  // Finché i numeri non ci sono, la riga sotto non deve dire niente: «rendiconti chiusi» accanto a «—» sembrerebbe zero.
+  const sotto = (testo: string) => (numeriCommittente.isError ? "non disponibile, riprova" : nC ? testo : undefined);
+  const numeroContratto = {
+    label: "Contratto", icon: FileSignature, iconColor: "text-orange-500", largo: true,
+    value: contratti.isLoading ? "…" : contrattoInCorso?.nome ?? "Nessuno",
+    sub: !contrattoInCorso ? "Da scrivere"
+      : [contrattoInCorso.valido_al ? `scade il ${giornoIT(contrattoInCorso.valido_al)}` : "senza scadenza",
+         elencoContratti.length > 1 ? `${elencoContratti.length} contratti` : ""].filter(Boolean).join(" · "),
+    onClick: () => apriSezione("contratti"),
+  };
+  const commesseTesto = elencoLavori.length === 1 ? "1 commessa" : `${elencoLavori.length} commesse`;
+  const numeri: Array<NumeroScheda & { icon: typeof Euro; iconColor: string }> = vedeImporti ? [
+    numeroContratto,
+    { label: "Rendicontato", icon: ClipboardList, iconColor: "text-blue-500", value: quanto(nC?.rendicontato), sub: lavori.isLoading ? undefined : commesseTesto, onClick: () => apriSezione("commesse") },
     {
-      label: "Contratto", icon: FileSignature, iconColor: "text-orange-500", largo: true,
-      value: contratti.isLoading ? "…" : contrattoInCorso?.nome ?? "Nessuno",
-      sub: !contrattoInCorso ? "Da scrivere"
-        : [contrattoInCorso.valido_al ? `scade il ${giornoIT(contrattoInCorso.valido_al)}` : "senza scadenza",
-           elencoContratti.length > 1 ? `${elencoContratti.length} contratti` : ""].filter(Boolean).join(" · "),
-      onClick: () => apriSezione("contratti"),
+      label: "Da fatturare", icon: Receipt, iconColor: "text-indigo-500", value: quanto(nC?.da_fatturare),
+      sub: sotto(Number(nC?.da_rendicontare ?? 0) > 0 ? `+ ${euro(Number(nC?.da_rendicontare))} da rendicontare` : "rendiconti chiusi"),
+      onClick: () => apriSezione("rendiconti"),
     },
     {
-      label: "Pagamento", icon: CreditCard, iconColor: "text-emerald-500",
-      value: contrattoInCorso ? `${contrattoInCorso.giorni_pagamento} gg` : "—",
-      sub: contrattoInCorso ? `ritenuta ${formatDecimalIT(contrattoInCorso.ritenuta_pct, { minDecimals: 0 })} %` : "Dal contratto",
-      onClick: () => apriSezione("contratti"),
+      label: "Da incassare", icon: CreditCard, iconColor: Number(nC?.scaduto ?? 0) > 0 ? "text-red-500" : "text-emerald-500", value: quanto(nC?.da_incassare),
+      sub: nC && nC.da_incassare == null ? "serve il permesso sulla fatturazione" : sotto(Number(nC?.scaduto ?? 0) > 0 ? `di cui ${euro(Number(nC?.scaduto))} scaduti` : "fatture emesse"),
+      tono: Number(nC?.scaduto ?? 0) > 0 ? "rosso" : undefined,
+      onClick: () => apriSezione("documenti"),
     },
-    {
-      label: "Commesse", icon: ClipboardList, iconColor: "text-blue-500",
-      value: lavori.isLoading ? "…" : elencoLavori.length,
-      sub: elencoLavori.length === 0 ? "Nessun lavoro" : `l'ultima del ${new Date(elencoLavori[0].created_at).toLocaleDateString("it-IT")}`,
-      onClick: () => apriSezione("commesse"),
-    },
-    {
-      label: "Listino", icon: Euro, iconColor: "text-violet-500",
-      value: !vedeImporti ? "—" : tariffeInUso.length,
-      sub: !vedeImporti ? "Prezzi riservati" : tariffeInUso.length === 1 ? "voce concordata" : "voci concordate",
-      onClick: () => apriSezione("listino"),
-    },
+    { label: "Ritenute", icon: Euro, iconColor: "text-violet-500", value: quanto(nC?.ritenute), sub: sotto("trattenute a garanzia"), onClick: () => apriSezione("rendiconti") },
+  ] : [
+    numeroContratto,
+    { label: "Pagamento", icon: CreditCard, iconColor: "text-emerald-500", value: contrattoInCorso ? `${contrattoInCorso.giorni_pagamento} gg` : "—", sub: contrattoInCorso ? `ritenuta ${formatDecimalIT(contrattoInCorso.ritenuta_pct, { minDecimals: 0 })} %` : "Dal contratto", onClick: () => apriSezione("contratti") },
+    { label: "Commesse", icon: ClipboardList, iconColor: "text-blue-500", value: lavori.isLoading ? "…" : elencoLavori.length, sub: elencoLavori.length === 0 ? "Nessun lavoro" : `l'ultima del ${new Date(elencoLavori[0].created_at).toLocaleDateString("it-IT")}`, onClick: () => apriSezione("commesse") },
+    { label: "Listino", icon: Euro, iconColor: "text-violet-500", value: "—", sub: "Prezzi riservati", onClick: () => apriSezione("listino") },
   ];
+  const azioni = azioniCommittente(vedeImporti ? nC : null, contrattoInCorso, oggiRoma(), !contratti.isLoading && !contratti.isError);
+  // da_incassare null = non si possono leggere le fatture: «—» e nessun sollecito, non «€ 0».
+  const apriSollecito = (oggetto: string, testo: string) => {
+    const html = testo.split("\n\n").map((p) => `<p>${p.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>")}</p>`).join("");
+    setComposeContext({ mode: "new", initialTo: email ? [email] : undefined, initialSubject: oggetto, initialBodyHtml: html, storicoScheda: true });
+    setComposeOpen(true);
+  };
 
   const contenutoSezione = (chiave: string) => {
     if (chiave === "contratti") return pannelloContratti;
@@ -840,10 +867,22 @@ export default function CommittenteDetail() {
 
         <div className="mt-2 grid grid-cols-2 gap-2 md:hidden">
           {numeri.map((n) => (
-            <KpiCard key={n.label} icon={n.icon} iconColor={n.iconColor} label={n.label} value={n.value} subtext={n.sub} onClick={n.onClick} />
+            <KpiCard key={n.label} icon={n.icon} iconColor={n.iconColor} label={n.label} value={n.value} subtext={n.sub} tono={n.tono} onClick={n.onClick} />
           ))}
         </div>
         <RigaNumeri numeri={numeri} />
+        <CosaFareAdesso
+          azioni={azioni}
+          cliente={nome}
+          azienda={effectiveCompany?.name ?? ""}
+          email={email}
+          telefono={c.phone}
+          waHref={linkWhatsApp(c.phone)}
+          onEmail={apriSollecito}
+          onApri={apriSezione}
+          pannelloScaduto="documenti"
+          etichettaScaduto="Vedi fatture"
+        />
       </div>
 
       <div className="flex flex-col gap-3 lg:h-[calc(100dvh-14rem)] lg:flex-row lg:gap-4">

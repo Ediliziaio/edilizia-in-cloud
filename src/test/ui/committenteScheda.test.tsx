@@ -17,6 +17,7 @@ const stato = vi.hoisted(() => ({
   tabelle: {} as Record<string, unknown[]>,
   scheda: {} as Record<string, unknown>,
   storico: [] as unknown[],
+  numeri: null as unknown,
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
@@ -46,7 +47,7 @@ vi.mock("@/integrations/supabase/client", () => {
     return q;
   };
   const rpc = (nome: string) => {
-    const dati: unknown = nome === "scheda_cliente" ? stato.scheda : nome === "conversazione_timeline" ? stato.storico : [];
+    const dati: unknown = nome === "scheda_cliente" ? stato.scheda : nome === "conversazione_timeline" ? stato.storico : nome === "scheda_committente_numeri" ? stato.numeri : [];
     return Promise.resolve({ data: dati, error: null as unknown });
   };
   return { supabase: {
@@ -88,6 +89,7 @@ beforeEach(() => {
   stato.importi = true;
   stato.modulo = true;
   stato.storico = [];
+  stato.numeri = { rendicontato: 12840, da_rendicontare: 900, da_fatturare: 12198, ritenute: 642, da_incassare: 5000, scaduto: 1200, scaduto_giorni: 12, rendiconti_in_attesa: 1, rendiconto_fermo_numero: 3, rendiconto_fermo_giorni: 9 };
   stato.tabelle = { profiles: [committente], appalto_contratti: [contratto], appalto_tariffe: [tariffa], orders: [lavoro] };
   stato.scheda = {
     ordini: [], anagrafica: null, preventivi: [], ticket: [], interventi: [], appuntamenti: [], rate: [], da_incassare: [],
@@ -250,4 +252,22 @@ it("le voci spente dalla sostituzione non contano e si vedono solo a richiesta",
   expect(screen.queryByText("Voce vecchia")).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Mostra 1 voce fuori uso" }));
   expect(screen.getByText("Voce vecchia")).toBeVisible();
+});
+
+it("in testata i soldi veri del committente, e cosa fare adesso", async () => {
+  mostra();
+  const incassare = (await screen.findAllByText("Da incassare")).find((e) => e.tagName === "SPAN" && e.closest("button"))!.closest("button")!;
+  await waitFor(() => expect(incassare).toHaveTextContent("€ 5.000"));
+  expect(incassare).toHaveTextContent("di cui € 1.200 scaduti");
+  expect(screen.getByRole("button", { name: /Sollecito per email/ })).toBeInTheDocument();
+  expect(screen.getByText("Rendiconto N. 3")).toBeInTheDocument();
+  expect(screen.getByText("€ 900 confermati")).toBeInTheDocument();
+});
+
+it("senza il permesso sugli importi niente soldi in testata e niente solleciti", async () => {
+  stato.importi = false;
+  mostra();
+  expect((await screen.findAllByText("Pagamento")).length).toBeGreaterThan(0);
+  expect(screen.queryByText("Rendicontato")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Sollecito per email/ })).not.toBeInTheDocument();
 });
