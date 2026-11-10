@@ -25,12 +25,50 @@ const ROOT = join(__dirname, "../../..");
 const DIR = join(ROOT, "supabase/migrations");
 const leggi = (f: string) => readFileSync(join(DIR, f), "utf8");
 
-const CORREZIONE = "20290214100000_cancelli_blocco_restrictive.sql";
+const CORREZIONE = "20290216090000_cancelli_blocco_restrictive.sql";
 const correzione = leggi(CORREZIONE);
 
-/** Chi e' il soggetto di una policy: azienda, utente, ruolo, servizio. */
-const SOGGETTO =
-  /company_id|auth\.uid|user_id|has_role|is_super_admin|has_permission|auth\.role|created_by|owner|jwt|service_role|is_platform_staff|admin_ha_uno_di/i;
+/**
+ * La forma pericolosa non e' «una policy senza company_id scritto dentro»:
+ * un'autorizzazione puo' passare da una funzione che guarda un'entita'
+ * collegata, ed e' legittima. Il 10/11/2026 la prima versione di questo test
+ * segnalava `sal_voci_sottofasi_scrittura`, che invece il soggetto ce l'ha:
+ * `puo_modificare_commessa(s.order_id)`, cioe' il permesso su quella commessa.
+ *
+ * Quello che non va bene e' un `for all` PERMISSIVE il cui USING e' SOLO uno o
+ * piu' cancelli negati — «non sei bloccato», «non sei solo-campo» — e nient'
+ * altro: non dice chi puo', dice solo chi non puo', e in OR con le policy per
+ * azienda le annulla. Si riconosce togliendo i cancelli noti dal corpo: se non
+ * resta nessuna condizione, non c'era nessun soggetto.
+ */
+const CANCELLI = /(utente_bloccato|e_solo_campo|utente_e_cliente_esterno)\s*\(\s*\)/gi;
+
+/**
+ * Il soggetto puo' stare anche nel RUOLO, non solo nella condizione: una
+ * policy `for all to service_role using (true)` non e' aperta a nessuno che
+ * non sia il servizio. Pericolose sono solo quelle concesse a una platea
+ * larga — `authenticated`, `public`, o nessun `to`.
+ */
+function platealarga(corpo: string): boolean {
+  const m = corpo.match(/\bto\s+([a-z_][a-z_,\s]*?)\s*(?:using|with\s+check|$)/i);
+  if (!m) return true; // nessun `to`: vale per tutti i ruoli
+  const ruoli = m[1].split(",").map((r) => r.trim().toLowerCase()).filter(Boolean);
+  return ruoli.some((r) => r === "authenticated" || r === "public");
+}
+
+/** Il corpo senza i cancelli negati: se non resta niente, non c'era nessun soggetto. */
+function restaQualcosa(corpo: string): boolean {
+  const resto = corpo
+    // Prima il `to <ruoli>`: il ruolo l'ha gia' guardato platealarga, e se lo
+    // si togliesse dopo `using` la parola «authenticated» resterebbe nel
+    // corpo e farebbe sembrare che un soggetto ci sia.
+    .replace(/\bto\s+[a-z_][a-z_,\s]*?(?=using|with\s+check|$)/gi, " ")
+    .replace(/\busing\b|\bwith\s+check\b/gi, " ")
+    .replace(CANCELLI, " ")
+    .replace(/\bselect\b|\bpublic\b|\bas\b|\band\b|\bor\b|\bnot\b|\btrue\b/gi, " ")
+    .replace(/[()\s.,]/g, "");
+  return resto.length > 0;
+}
 
 type Policy = { file: string; nome: string; tabella: string; restrictive: boolean; corpo: string };
 
@@ -53,8 +91,10 @@ function policyPerTutto(): Policy[] {
   return tutte;
 }
 
-/** La forma pericolosa: `for all` PERMISSIVE con un cancello e nessun soggetto. */
-const cancelliAperti = policyPerTutto().filter((p) => !p.restrictive && !SOGGETTO.test(p.corpo));
+/** La forma pericolosa: `for all` PERMISSIVE il cui USING e' solo cancelli negati. */
+const cancelliAperti = policyPerTutto().filter(
+  (p) => !p.restrictive && platealarga(p.corpo) && !restaQualcosa(p.corpo),
+);
 
 describe("Nessun cancello resta PERMISSIVE for all", () => {
   it("ne trova almeno quelli già noti: se l'elenco si svuota, il test non guarda più niente", () => {
