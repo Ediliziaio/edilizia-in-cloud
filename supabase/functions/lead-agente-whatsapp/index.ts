@@ -109,20 +109,39 @@ Deno.serve(async (req) => {
   if (conversazione?.bot_in_pausa) return json({ ok: true, skipped: "in_pausa" });
 
   // ── Turno ───────────────────────────────────────────────────────────────
-  if (!(await prendiTurno(admin, filtroConv))) return json({ ok: true, skipped: "turno_occupato" });
+  const turno = await prendiTurno(admin, filtroConv);
+  if (!turno) return json({ ok: true, skipped: "turno_occupato" });
 
   try {
     let risposte = 0;
+    let restano = false;
     for (let ripresa = 0; ripresa < MAX_RIPRESE; ripresa++) {
       const esito = await unGiro(admin, { companyId, numeroId: numero.id, agente, config, contatto, destinatario, messageId: body.message_id ?? null });
       if (esito === "inviata") risposte++;
-      if (esito === "fermo") break;
+      if (esito === "fermo") { restano = false; break; }
       // Prima di lasciare il turno: è arrivato altro mentre si rispondeva?
-      if (!(await ciSonoMessaggiSenzaRisposta(admin, companyId, numero.id, contatto.id))) break;
+      restano = await ciSonoMessaggiSenzaRisposta(admin, companyId, numero.id, contatto.id);
+      if (!restano) break;
     }
-    return json({ ok: true, risposte });
+    // Si esce con un messaggio del lead ancora senza risposta: finiti i tre
+    // giri, oppure tre «niente»/«rifare» di fila. Fino al 10/11/2026 qui si
+    // usciva con ok:true e risposte:0, indistinguibile da un successo: il lead
+    // non riceveva niente e nessuno lo sapeva. Chi era uscito con
+    // «turno_occupato» contava su questo giro, quindi non lo riprende nessuno.
+    if (restano) {
+      console.error(JSON.stringify({ level: "error", fn: "lead-agente-whatsapp", msg: "giri finiti con un messaggio del lead senza risposta", contatto: contatto.id, risposte }));
+      await avvisaUtenti(
+        { admin, companyId, contactId: contatto.id, config, contatto: { first_name: contatto.first_name, last_name: contatto.last_name, phone: contatto.phone }, waNumberId: numero.id },
+        "Assistente WhatsApp: un messaggio è rimasto senza risposta",
+        "Il lead ha scritto e l'assistente non è riuscito a chiudere il giro. Rispondi tu da Conversazioni.",
+      );
+    }
+    return json({ ok: true, risposte, senza_risposta: restano });
   } finally {
-    await admin.from("conversazioni").update({ bot_occupato_fino: null }).match(filtroConv);
+    // Solo il proprio turno: se questo giro ha sforato i due minuti, il turno
+    // può già essere di un'altra invocazione, e azzerarlo le farebbe girare
+    // accanto una terza — due risposte allo stesso lead e due prenotazioni.
+    await admin.from("conversazioni").update({ bot_occupato_fino: null }).match(filtroConv).eq("bot_occupato_fino", turno);
   }
 });
 
@@ -144,7 +163,14 @@ async function unGiro(admin: Admin, g: {
   const { data: righe, error: eStoria } = await admin
     .from("whatsapp_messages")
     .select("id, direction, message_type, content_text, created_at")
-    .eq("company_id", g.companyId).eq("contact_id", g.contatto.id)
+    // Anche il numero, non solo il contatto (10/11/2026): senza, nella storia
+    // entravano i messaggi dello stesso contatto sugli altri numeri WhatsApp
+    // dell'azienda — un invio marketing o un promemoria diventavano un turno
+    // «assistant» e il modello rispondeva come se l'avesse scritto lui. Peggio:
+    // se l'ultimo messaggio della storia mescolata era in uscita, il giro
+    // usciva con «niente» mentre il controllo sul solo numero diceva che un
+    // messaggio senza risposta c'era: tre giri a vuoto e poi silenzio.
+    .eq("company_id", g.companyId).eq("wa_number_id", g.numeroId).eq("contact_id", g.contatto.id)
     .order("created_at", { ascending: false })
     .limit(40);
   if (eStoria) throw new Error(`storia: ${eStoria.message}`);
@@ -259,8 +285,14 @@ async function unGiro(admin: Admin, g: {
   // (Le azioni fatte dagli strumenti restano: il giro nuovo le vede nella scheda.)
   if (await entrataPiuRecente(admin, g.companyId, g.numeroId, g.contatto.id, ultimoEntrata.created_at)) return "rifare";
 
+  // sanitizeAnswer toglie la riga di apertura quando sembra un ragionamento
+  // («Okay, ho capito…», «Analizzo:…»). Su una chat WhatsApp, dove il prompt
+  // impone messaggi brevi, quella riga è spesso TUTTO il messaggio: il filtro
+  // lo svuotava, isFullyChainOfThought diventava vero e la frase buona — con
+  // dentro gli orari — finiva nel cestino, mentre al lead non arrivava niente.
+  // Qui, se ripulire non lascia niente, vale il testo com'era (10/11/2026).
   const pulito = sanitizeAnswer(testoFinale ?? "");
-  const risposta = pulito.isFullyChainOfThought ? "" : (pulito.cleaned || testoFinale || "").trim();
+  const risposta = (pulito.cleaned || testoFinale || "").trim();
   if (!risposta) {
     await avvisaUtenti(ctx, "Assistente WhatsApp: risposta vuota", "Un lead ha scritto ma l'assistente non ha prodotto una risposta. Rispondi tu da Conversazioni.");
     return "fermo";
@@ -334,19 +366,23 @@ async function scriviRiepilogo(admin: Admin, r: {
 
 // ── Turno e messaggi nuovi ──────────────────────────────────────────────────
 
-async function prendiTurno(admin: Admin, filtro: Record<string, string>): Promise<boolean> {
+/** La scadenza scritta sul turno preso, da riconoscere al rilascio; null se non l'ha preso. */
+async function prendiTurno(admin: Admin, filtro: Record<string, string>): Promise<string | null> {
   const ora = new Date();
+  const scadenza = new Date(ora.getTime() + DURATA_TURNO_MS).toISOString();
   const { data, error } = await admin
     .from("conversazioni")
-    .update({ bot_occupato_fino: new Date(ora.getTime() + DURATA_TURNO_MS).toISOString() })
+    .update({ bot_occupato_fino: scadenza })
     .match(filtro)
     .or(`bot_occupato_fino.is.null,bot_occupato_fino.lt."${ora.toISOString()}"`)
-    .select("id");
+    .select("id, bot_occupato_fino");
   if (error) {
     console.error("[lead-agente] turno:", error.message);
-    return false;
+    return null;
   }
-  return Array.isArray(data) && data.length > 0;
+  // Il valore riletto dal database, non quello mandato: il confronto al
+  // rilascio deve usare la stessa scrittura che il database ha salvato.
+  return Array.isArray(data) && data.length > 0 ? (data[0].bot_occupato_fino ?? scadenza) : null;
 }
 
 async function entrataPiuRecente(admin: Admin, companyId: string, numeroId: string, contactId: string, dopo: string): Promise<boolean> {
