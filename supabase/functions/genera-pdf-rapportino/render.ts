@@ -1,6 +1,10 @@
 import { normalizzaModelloPdf } from "../_shared/modelliPdfOperativi.ts";
 import { valoreInTesto, valoriDaStampare, type ValoreCampo } from "../_shared/moduliCantiere.ts";
 import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFImage } from "https://esm.sh/pdf-lib@1.17.1";
+// Il carattere del piè proprio (EB Garamond, Impresa Vulcano). Nel browser e nei test Vite usa il pacchetto locale
+// (alias in vite.config.ts e vitest.config.ts): lo stesso fontkit 2.0.4 che genera-pos usa già.
+// fontkit si carica solo quando serve (dentro fontDelPiede): se non arriva, Times; le altre aziende non lo toccano.
+import { fontPiedeBase64, misurePiede, personalizzazioneDocumento, testoRigaPiede } from "../_shared/personalizzazioneDocumenti.ts";
 import { compilatoDa, bloccoFasi, dayLabel, inchiostroSu, oraBreve, oreBrevi, record, reportSummary, rows, text, timestamp, type FaseBlocco, type PdfContext } from "./model.ts";
 
 /** Keep paragraph breaks; replace unsupported glyphs explicitly instead of crashing. */
@@ -44,7 +48,15 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
   const r = ctx.report, summary = reportSummary(r), order = record(r.ordine);
   const warnings = [...ctx.warnings];
 
-  const W = 595.28, H = 841.89, M = modello.margine ? modello.margine * 72 / 25.4 : 36, CW = W - M * 2, bottom = 72;
+  const W = 595.28, H = 841.89, M = modello.margine ? modello.margine * 72 / 25.4 : 36, CW = W - M * 2;
+  // Il piè proprio (oggi solo Impresa Vulcano, 10/11/2026): le sue quattro righe al posto dei dati azienda, in EB
+  // Garamond. Per tutte le altre `piede` è null e il documento resta quello di sempre, byte per byte.
+  const veste = personalizzazioneDocumento(text(ctx.company.id) || text(r.company_id));
+  const misure = misurePiede(veste, CW);
+  const piede = misure && veste.piedeRighe ? { misure, righe: veste.piedeRighe, ...await fontDelPiede(pdf) } : null;
+  // Sopra il piè proprio, «Rif./Generato» in piccolo (e la nota di pagina, se c'è): il contenuto resta sopra di loro.
+  const sopraPiede = piede ? piede.misure.ingombro + 4 : 0;
+  const bottom = piede ? Math.max(72, Math.ceil(sopraPiede + 6 + (modello.notaPagina ? 8 : 0) + 8)) : 72;
   const ink = rgb(.11, .15, .21), muted = rgb(.40, .44, .50), faint = rgb(.60, .64, .69), line = rgb(.88, .90, .92), pale = modello.coloreRiquadri ? rgb(parseInt(modello.coloreRiquadri.slice(1, 3), 16) / 255, parseInt(modello.coloreRiquadri.slice(3, 5), 16) / 255, parseInt(modello.coloreRiquadri.slice(5, 7), 16) / 255) : rgb(.955, .964, .974), white = rgb(1, 1, 1);
   const green = rgb(.10, .50, .32), greenPale = rgb(.89, .96, .92), amber = rgb(.62, .40, .05), amberPale = rgb(1, .96, .86), red = rgb(.68, .17, .14), redPale = rgb(.99, .92, .91);
   const mix = (a: Rgb, b: Rgb, t: number) => rgb(a.red * (1 - t) + b.red * t, a.green * (1 - t) + b.green * t, a.blue * (1 - t) + b.blue * t);
@@ -573,7 +585,22 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
     [companyName, text(ctx.company.legal_address), [text(ctx.company.legal_postal_code), text(ctx.company.legal_city), text(ctx.company.legal_province)].filter(Boolean).join(" "), ctx.company.vat_number ? `P.IVA ${text(ctx.company.vat_number)}` : ""].filter(Boolean).join(" | "),
     [text(ctx.company.phone), text(ctx.company.email)].filter(Boolean).join(" | "),
   ];
-  pages.forEach((p, index) => {
+  if (piede) {
+    disegnaPiedeProprio(pages, piede, veste.piedeColore, {
+      W, CW, numerazione: modello.numerazione,
+      dopo: (p) => {
+        // Rif. ed edizione restano: dicono quale edizione del rapportino si ha in mano. Piccoli, in grigio, sopra il piè.
+        page = p;
+        T(`Rif. ${shortId} | Edizione ${ctx.revision}`, M, sopraPiede, 6, regular, muted);
+        const generato = `Generato ${timestamp(ctx.generatedAt)}${ctx.branding.hidePoweredBy ? "" : ` | ${ctx.branding.platformName || "Edilizia in Cloud"}`}`;
+        T(generato, W - M - larghezza(generato, 6), sopraPiede, 6, regular, muted);
+        if (modello.notaPagina) {
+          const size = Math.min(6, CW / Math.max(1, larghezza(modello.notaPagina, 1)));
+          T(modello.notaPagina, M, sopraPiede + 8, size, regular, muted);
+        }
+      },
+    });
+  } else pages.forEach((p, index) => {
     page = p; rule(60);
     T(`Rif. ${shortId} | Edizione ${ctx.revision}`, M, 48, 6.6, regular, muted);
     const generato = `Generato ${timestamp(ctx.generatedAt)}${ctx.branding.hidePoweredBy ? "" : ` | ${ctx.branding.platformName || "Edilizia in Cloud"}`}`;
@@ -593,6 +620,119 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
   pdf.setAuthor(companyName);
   pdf.setSubject(`Rapportino ${reportId}; edizione ${ctx.revision}; ${summary.statusLabel}`);
   return { bytes: await pdf.save(), warnings: [...new Set(warnings)], pageCount: pages.length };
+}
+
+/**
+ * EB Garamond incorporato, o Times se il file non arriva o fontkit non lo legge: il documento esce comunque.
+ * `vero`: è il carattere proprio, che scrive anche ciò che Times (WinAnsi) non ha.
+ */
+async function fontDelPiede(pdf: PDFDocument): Promise<{ font: PDFFont; vero: boolean }> {
+  try {
+    const base64 = await fontPiedeBase64();
+    if (base64) {
+      creaFont = (await import("https://esm.sh/fontkit@2.0.4")).create;
+      pdf.registerFontkit(fontkitPerPdfLib as unknown as Parameters<PDFDocument["registerFontkit"]>[0]);
+      // Solo i glifi usati: pochi kB invece di 490.
+      const font = await pdf.embedFont(Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)), { subset: true });
+      return { font, vero: true };
+    }
+  } catch { /* si ripiega su Times */ }
+  return { font: await pdf.embedFont(StandardFonts.TimesRoman), vero: false };
+}
+
+/**
+ * pdf-lib è fatto per @pdf-lib/fontkit, ma il sottoinsieme che quello produce per EB Garamond è rotto: il PDF si apre
+ * e il testo si copia, ma metà delle lettere non si vede (provato il 10/11/2026 con pdftoppm). fontkit 2 lo fa giusto;
+ * gli manca solo `encodeStream()`, sostituito da `encode()`. Qui il ponte: un flusso finto che dà tutto in una volta.
+ */
+let creaFont: unknown = null;
+interface SottoinsiemeFontkit { encode(): Uint8Array; encodeStream?: () => unknown }
+const fontkitPerPdfLib = {
+  create(byte: Uint8Array) {
+    // I tipi di fontkit chiedono un Buffer di Node; legge anche un Uint8Array, che è ciò che pdf-lib gli passa.
+    const font = (creaFont as unknown as (b: Uint8Array) => { createSubset(): SottoinsiemeFontkit })(byte);
+    const crea = font.createSubset.bind(font);
+    font.createSubset = () => {
+      const sottoinsieme = crea();
+      sottoinsieme.encodeStream = () => {
+        const ascolti: Record<string, (v?: unknown) => void> = {};
+        let partito = false;
+        const flusso = {
+          on(evento: string, fn: (v?: unknown) => void) {
+            ascolti[evento] = fn;
+            // pdf-lib registra data, end ed error in fila: si parte quando ha finito.
+            if (!partito) {
+              partito = true;
+              queueMicrotask(() => {
+                try { ascolti.data?.(sottoinsieme.encode()); ascolti.end?.(); } catch (e) { ascolti.error?.(e); }
+              });
+            }
+            return flusso;
+          },
+        };
+        return flusso;
+      };
+      return sottoinsieme;
+    };
+    return font;
+  },
+};
+
+const coloreHex = (hex: string) => {
+  const n = parseInt(hex.replace("#", ""), 16);
+  return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
+};
+
+/**
+ * Il piè proprio, come `disegnaPiedeJsPdf` per i documenti jsPDF: righe centrate senza filetto, il titolo più grande,
+ * le altre che scendono insieme di corpo se la più lunga non sta nella larghezza utile, l'email sottolineata nel suo
+ * colore; sotto, «Pag. n / m». Coordinate pdf-lib: dal fondo del foglio verso l'alto.
+ */
+function disegnaPiedeProprio(
+  pages: ReturnType<PDFDocument["getPages"]>,
+  piede: { misure: NonNullable<ReturnType<typeof misurePiede>>; righe: NonNullable<ReturnType<typeof personalizzazioneDocumento>["piedeRighe"]>; font: PDFFont; vero: boolean },
+  colorePiede: string | null,
+  o: { W: number; CW: number; numerazione: boolean; dopo: (p: ReturnType<PDFDocument["getPages"]>[number]) => void },
+) {
+  const { misure: m, righe, font } = piede;
+  const colore = coloreHex(colorePiede ?? "#1C1650");
+  // Times scrive solo WinAnsi: il «–» sì, il resto che non ha diventa «?» invece di far fallire il documento.
+  const scritta = (t: string) => piede.vero ? t : t.normalize("NFC").replace(/[^\x20-\x7E\xA0-\xFF‘’“”…€–—]/gu, "?");
+  let corpo = m.corpo;
+  const piuLunga = Math.max(...righe.filter((r) => !r.titolo).map((r) => font.widthOfTextAtSize(scritta(testoRigaPiede(r)), corpo)));
+  if (piuLunga > o.CW) corpo = (corpo * o.CW) / piuLunga;
+  // La linea di base di ogni riga: dal fondo delle righe verso l'alto, a circa un quarto di riga dal fondo della sua.
+  const basi: number[] = [];
+  let fondo = m.fondoRigheDalFondo;
+  for (let i = righe.length - 1; i >= 0; i--) {
+    const alta = righe[i].titolo ? m.rigaTitolo : corpo * 1.25;
+    basi[i] = fondo + alta * 0.27;
+    fondo += alta;
+  }
+  pages.forEach((p, index) => {
+    righe.forEach((riga, i) => {
+      const c = riga.titolo ? m.corpoTitolo : corpo;
+      const pezzi = riga.parti.map((parte) => {
+        const testo = scritta(parte.testo);
+        return { ...parte, testo, larghezza: font.widthOfTextAtSize(testo, c) };
+      });
+      let x = o.W / 2 - pezzi.reduce((s, parte) => s + parte.larghezza, 0) / 2;
+      for (const parte of pezzi) {
+        const col = parte.colore ? coloreHex(parte.colore) : colore;
+        p.drawText(parte.testo, { x, y: basi[i], size: c, font, color: col });
+        if (parte.sottolineato) {
+          const yy = basi[i] - c * 0.12;
+          p.drawLine({ start: { x, y: yy }, end: { x: x + parte.larghezza, y: yy }, thickness: c * 0.05, color: col });
+        }
+        x += parte.larghezza;
+      }
+    });
+    if (o.numerazione) {
+      const pagina = `Pag. ${index + 1} / ${pages.length}`;
+      p.drawText(pagina, { x: o.W / 2 - font.widthOfTextAtSize(pagina, m.corpoPagina) / 2, y: m.cimaPaginaDalFondo - m.corpoPagina * 0.8, size: m.corpoPagina, font, color: colore });
+    }
+    o.dopo(p);
+  });
 }
 
 /** Un numero valido (≥ 0) o null: l'avanzamento generale di un rapportino senza fasi. */

@@ -11,6 +11,7 @@ export default defineConfig({
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
   },
   resolve: {
-    alias: { "https://esm.sh/pdf-lib@1.17.1": "pdf-lib", "@": path.resolve(__dirname, "./src") },
+    alias: { "https://esm.sh/pdf-lib@1.17.1": "pdf-lib",
+      "https://esm.sh/fontkit@2.0.4": "fontkit", "@": path.resolve(__dirname, "./src") },
   },
 });

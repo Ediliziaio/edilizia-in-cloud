@@ -1,4 +1,6 @@
 /** POST { rapportino_id }. Operational report, private assets, immutable editions. */
+// 10/11/2026: il piè proprio di Impresa Vulcano (EB Garamond, quattro righe centrate) entra anche in rapportino e
+// fine lavori, vedi render.ts. Il commento serve anche a far ripubblicare la funzione al CI.
 import { normalizzaModelloPdf } from "../_shared/modelliPdfOperativi.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
