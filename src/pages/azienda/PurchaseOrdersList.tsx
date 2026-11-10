@@ -33,6 +33,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { CampoNumeroNuovoOda } from "@/components/orders/CampoNumeroNuovoOda";
+import { messaggioErroreNumeroOda, numeroManualeOda } from "@/lib/acquisti/numerazioneOda";
 import {
   Select,
   SelectContent,
@@ -414,6 +416,8 @@ export default function PurchaseOrdersList() {
   // passaggi successivi (chi compra al banco non deve "inviare" niente).
   const [newOrigine, setNewOrigine] = useState<OdaOrigine | null>(null);
   const [newRiferimento, setNewRiferimento] = useState("");
+  // Numero scritto a mano (null = quello proposto) e il proposto, per capire se è stato cambiato.
+  const [newNumero, setNewNumero] = useState<{ scritto: string | null; anteprima: string | null }>({ scritto: null, anteprima: null });
   // Null e' una scelta legittima: scorte di magazzino e attrezzatura non
   // hanno una commessa, e non devono fingerne una.
   const [newOrderId, setNewOrderId] = useState<string | null>(null);
@@ -858,6 +862,7 @@ export default function PurchaseOrdersList() {
         origine: newOrigine,
         supplier_reference: newRiferimento.trim() || null,
         order_id: newOrderId,
+        oda_number: numeroManualeOda(newNumero.scritto, newNumero.anteprima),
       },
       {
         onSuccess: (data: { id: string }) => {
@@ -868,10 +873,14 @@ export default function PurchaseOrdersList() {
           setNewOrigine(null);
           setNewRiferimento("");
           setNewOrderId(null);
+          setNewNumero({ scritto: null, anteprima: null });
           navigate(`/azienda/ordini-acquisto/${data.id}`);
         },
-        onError: () => {
-          sonnerToast.error("Errore nella creazione dell'ordine. Riprova.");
+        onError: (errore: unknown) => {
+          const manuale = numeroManualeOda(newNumero.scritto, newNumero.anteprima);
+          sonnerToast.error(manuale && (errore as { code?: string } | null)?.code === "23505"
+            ? messaggioErroreNumeroOda(errore, manuale)
+            : "Errore nella creazione dell'ordine. Riprova.");
         },
       },
     );
@@ -1782,6 +1791,11 @@ export default function PurchaseOrdersList() {
             </div>
             <div className="space-y-4 border-t border-slate-100 pt-4">
               <h3 className="text-sm font-semibold text-slate-900">3. {newOrigine === "negozio" ? "Riferimento e magazzino" : "Consegna e riferimenti"} <span className="font-normal text-slate-400">· facoltativi</span></h3>
+            <CampoNumeroNuovoOda
+              supplierId={newSupplierId || null}
+              value={newNumero.scritto}
+              onChange={(scritto, anteprima) => setNewNumero({ scritto, anteprima })}
+            />
             {/* Chi ha comprato online o al banco ha gia' un numero d'ordine o
                 uno scontrino: chiederlo qui evita di doverlo cercare dopo. */}
             {newOrigine && ODA_ORIGINE_INFO[newOrigine].riferimentoLabel && (

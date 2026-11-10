@@ -1,4 +1,5 @@
 import { isTipoFornitore } from "@/lib/fornitori/tipiFornitore";
+import { erroreFormatoOda, erroreProssimoOda } from "@/lib/acquisti/numerazioneOda";
 import type { Json } from "@/integrations/supabase/types";
 
 /** Ruoli dei referenti: a chi va l'ordine, a chi la fattura, chi riceve il camion. */
@@ -87,6 +88,9 @@ export interface Supplier {
   ritiro_indirizzo?: string | null;
   ritiro_citta?: string | null;
   ritiro_note?: string | null;
+  /** Numerazione propria degli ordini: null = quella dell'azienda. */
+  oda_prossimo?: number | null;
+  oda_formato?: string | null;
 }
 
 export interface SupplierFormData {
@@ -133,6 +137,12 @@ export interface SupplierFormData {
   ritiro_indirizzo: string;
   ritiro_citta: string;
   ritiro_note: string;
+  /** Gli ordini a questo fornitore hanno una numerazione loro. */
+  oda_numerazione_propria: boolean;
+  oda_formato: string;
+  oda_prossimo: string;
+  /** Il fornitore l'aveva già quando si è aperta la scheda: spegnerla va salvato. */
+  oda_numerazione_iniziale: boolean;
 }
 
 export const emptyForm: SupplierFormData = {
@@ -177,6 +187,10 @@ export const emptyForm: SupplierFormData = {
   ritiro_indirizzo: "",
   ritiro_citta: "",
   ritiro_note: "",
+  oda_numerazione_propria: false,
+  oda_formato: "{n}",
+  oda_prossimo: "",
+  oda_numerazione_iniziale: false,
 };
 
 export function normalizeSupplierName(name: string) {
@@ -260,6 +274,10 @@ export function supplierToForm(s: Supplier): SupplierFormData {
     ritiro_indirizzo: s.ritiro_indirizzo ?? "",
     ritiro_citta: s.ritiro_citta ?? "",
     ritiro_note: s.ritiro_note ?? "",
+    oda_numerazione_propria: s.oda_prossimo != null,
+    oda_formato: s.oda_formato?.trim() || "{n}",
+    oda_prossimo: s.oda_prossimo == null ? "" : String(s.oda_prossimo),
+    oda_numerazione_iniziale: s.oda_prossimo != null,
   };
 }
 
@@ -357,7 +375,25 @@ export function validaDettagliFornitore(form: SupplierFormData): string | null {
     (!Number.isInteger(rating) || rating < 1 || rating > 5)
   )
     return "La valutazione va da 1 a 5 stelle.";
+  if (form.oda_numerazione_propria) {
+    const f = erroreFormatoOda(form.oda_formato);
+    if (f) return `Numerazione degli ordini: ${f.charAt(0).toLowerCase()}${f.slice(1)}`;
+    const p = erroreProssimoOda(form.oda_prossimo);
+    if (p) return `Numerazione degli ordini: ${p.charAt(0).toLowerCase()}${p.slice(1)}`;
+  }
   return null;
+}
+
+/**
+ * Le colonne della numerazione propria si scrivono solo se la si usa o la si
+ * spegne: chi non la tocca non manda colonne che il database potrebbe non avere
+ * ancora, e una scheda caricata senza quei campi non la cancella.
+ */
+function payloadNumerazioneOda(data: SupplierFormData): { oda_formato?: string | null; oda_prossimo?: number | null } {
+  if (data.oda_numerazione_propria) {
+    return { oda_formato: data.oda_formato.trim() || "{n}", oda_prossimo: Number(data.oda_prossimo.trim()) };
+  }
+  return data.oda_numerazione_iniziale ? { oda_formato: null, oda_prossimo: null } : {};
 }
 
 /** Campi espliciti: non sovrascrive metadati del magazzino o altri dati non presenti nel modulo. */
@@ -411,6 +447,7 @@ export function payloadFornitore(data: SupplierFormData) {
     ritiro_indirizzo: normalizeOptional(data.ritiro_indirizzo),
     ritiro_citta: normalizeOptional(data.ritiro_citta),
     ritiro_note: normalizeOptional(data.ritiro_note),
+    ...payloadNumerazioneOda(data),
   };
 }
 

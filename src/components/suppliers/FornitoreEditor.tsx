@@ -21,6 +21,7 @@ import { campiDaTrovato } from "@/lib/indirizzi/ricercaIndirizzi";
 import { Label } from "@/components/ui/label";
 import { INFO_TIPO_FORNITORE, TIPI_FORNITORE, isTipoFornitore, proponiTipo } from "@/lib/fornitori/tipiFornitore";
 import { Checkbox } from "@/components/ui/checkbox";
+import { erroreFormatoOda, erroreProssimoOda, formattaNumeroOda } from "@/lib/acquisti/numerazioneOda";
 import {
   Select,
   SelectContent,
@@ -1052,6 +1053,59 @@ function FornitoreDialogAperta({
                       ))}
                     </select>
                   </div>
+                </div>
+                <div className="mt-4 rounded-lg border border-dashed p-3">
+                  <label
+                    htmlFor="oda_numerazione_propria"
+                    className="flex cursor-pointer items-start gap-2 text-sm font-medium"
+                  >
+                    <Checkbox
+                      id="oda_numerazione_propria"
+                      className="mt-0.5"
+                      checked={formData.oda_numerazione_propria}
+                      onCheckedChange={(c) =>
+                        updateField("oda_numerazione_propria", c === true)
+                      }
+                    />
+                    <span>
+                      Numerazione propria degli ordini
+                      <span className="block text-xs font-normal text-muted-foreground">
+                        Gli ordini a questo fornitore seguono questa
+                        numerazione, non quella dell’azienda.
+                      </span>
+                    </span>
+                  </label>
+                  {formData.oda_numerazione_propria && (
+                    <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_9rem]">
+                      <div className="space-y-1">
+                        <Label htmlFor="oda_formato">Formato</Label>
+                        <Input
+                          id="oda_formato"
+                          value={formData.oda_formato}
+                          maxLength={40}
+                          placeholder="{n}"
+                          onChange={(e) => updateField("oda_formato", e.target.value)}
+                        />
+                        <p className="text-[11px] text-muted-foreground">
+                          {"{n}"} il numero, {"{n:4}"} con gli zeri, {"{anno}"}, {"{aa}"}.
+                          {!erroreFormatoOda(formData.oda_formato) && !erroreProssimoOda(formData.oda_prossimo) && (
+                            <> Il prossimo sarà <span className="font-mono font-semibold text-foreground">{formattaNumeroOda(formData.oda_formato, Number(formData.oda_prossimo))}</span>.</>
+                          )}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="oda_prossimo">Prossimo numero</Label>
+                        <Input
+                          id="oda_prossimo"
+                          inputMode="numeric"
+                          className="text-right tabular-nums"
+                          placeholder="Es. 1"
+                          value={formData.oda_prossimo}
+                          onChange={(e) => updateField("oda_prossimo", e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

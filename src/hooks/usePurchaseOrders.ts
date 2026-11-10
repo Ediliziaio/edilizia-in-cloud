@@ -113,6 +113,8 @@ export function usePurchaseOrders() {
       supplier_reference?: string | null;
       /** Commessa per cui si compra. Null = acquisto generico (magazzino). */
       order_id?: string | null;
+      /** Numero scritto a mano. Vuoto = lo assegna il database (generate_oda_number). */
+      oda_number?: string | null;
     }) => {
       const {data:fornitore,error:erroreFornitore}=await supabase.from("suppliers").select("payment_method,termini_giorni,termini_fine_mese").eq("id",params.supplier_id).eq("company_id",companyId!).single();
       if(erroreFornitore) throw erroreFornitore;
@@ -131,6 +133,7 @@ export function usePurchaseOrders() {
           origine: params.origine || "email",
           supplier_reference: params.supplier_reference || null,
           order_id: params.order_id || null,
+          ...(params.oda_number?.trim() ? { oda_number: params.oda_number.trim() } : {}),
           created_by: user?.id,
         } as any)
         .select()
@@ -143,7 +146,11 @@ export function usePurchaseOrders() {
       refreshMaterialQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.all });
     },
-    onError: (e) => toast.error("Errore", { description: String(e) }),
+    onError: (e) => {
+      // Numero già usato: lo dice chi ha chiamato, con il numero.
+      if ((e as { code?: string } | null)?.code === "23505") return;
+      toast.error("Errore", { description: (e as { message?: string } | null)?.message ?? String(e) });
+    },
   });
 
   const updateStatusMutation = useMutation({

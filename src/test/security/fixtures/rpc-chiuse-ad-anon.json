@@ -1832,7 +1832,15 @@
 {
 "fn": "generate_oda_number",
 "body": {
-"p_company_id": null
+"p_company_id": null,
+"p_supplier_id": null
+}
+},
+{
+"fn": "anteprima_numero_oda",
+"body": {
+"p_company_id": null,
+"p_supplier_id": null
 }
 },
 {

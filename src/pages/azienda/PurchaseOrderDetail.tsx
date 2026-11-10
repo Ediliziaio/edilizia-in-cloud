@@ -6,6 +6,7 @@ import { OdaFornitoreCard } from "@/components/orders/OdaFornitoreCard";
 import { OdaDettagliCard } from "@/components/orders/OdaDettagliCard";
 import { applicaDettagliOda } from "@/lib/orders/dettagliDocumentoOda";
 import { OdaNoteCard } from "@/components/orders/OdaNoteCard";
+import { NumeroOdaModificabile } from "@/components/orders/NumeroOdaModificabile";
 import { PurchaseOrderItemRow } from "@/components/orders/PurchaseOrderItemRow";
 import { totaliRigheOda } from "@/lib/orders/articoloAcquisto";
 import { OrdinaComunqueDialog } from "@/components/orders/OrdinaComunqueDialog";
@@ -394,7 +395,7 @@ export default function PurchaseOrderDetail() {
             </span>
           </>
         }
-        title={`OdA ${order.oda_number}`}
+        title={<NumeroOdaModificabile odaId={order.id} companyId={order.company_id} numero={order.oda_number} puoModificare={canEdit} />}
         subtitle={supplier?.name ? `Fornitore: ${supplier.name}` : undefined}
         icon={<ClipboardList className="h-5 w-5" />}
         actions={

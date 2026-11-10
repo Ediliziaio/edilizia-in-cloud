@@ -87681,6 +87681,8 @@ export type Database = {
           min_order_amount: number | null
           name: string
           notes: string | null
+          oda_formato: string | null
+          oda_prossimo: number | null
           payment_method: string | null
           phone: string | null
           postal_code: string | null
@@ -87731,6 +87733,8 @@ export type Database = {
           min_order_amount?: number | null
           name: string
           notes?: string | null
+          oda_formato?: string | null
+          oda_prossimo?: number | null
           payment_method?: string | null
           phone?: string | null
           postal_code?: string | null
@@ -87781,6 +87785,8 @@ export type Database = {
           min_order_amount?: number | null
           name?: string
           notes?: string | null
+          oda_formato?: string | null
+          oda_prossimo?: number | null
           payment_method?: string | null
           phone?: string | null
           postal_code?: string | null
@@ -103374,7 +103380,10 @@ export type Database = {
         Args: { p_month: number; p_year: number }
         Returns: number
       }
-      generate_oda_number: { Args: { p_company_id: string }; Returns: string }
+      generate_oda_number: {
+        Args: { p_company_id: string; p_supplier_id?: string }
+        Returns: string
+      }
       generate_quote_number: { Args: { p_company_id: string }; Returns: string }
       generate_referral_code_secure: { Args: never; Returns: string }
       generate_rfq_number: { Args: { p_company_id: string }; Returns: string }
