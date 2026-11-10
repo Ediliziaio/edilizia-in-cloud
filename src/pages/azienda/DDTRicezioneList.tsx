@@ -50,8 +50,6 @@ import {
   ArrowRight,
   AlertTriangle,
   Paperclip,
-  ShieldCheck,
-  Clock,
   Download,
   ChevronDown,
   FileSpreadsheet,
@@ -73,7 +71,10 @@ import {
   DDT_STATO_META,
 } from "@/components/ddt/DDTStatusBadge";
 import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
-import { DocumentiInIngresso } from "@/components/ddt/DocumentiInIngresso";
+import { RigaDocumentoInIngresso } from "@/components/ddt/DocumentiInIngresso";
+import { useDocumentiInIngresso } from "@/hooks/useDocumentiInIngresso";
+import { STATO_DOCUMENTO } from "@/hooks/useDocumentiDDT";
+import type { DocumentoPersistente } from "@/lib/ddt/documentiPersistenti";
 import { BolleInBloccoDialog } from "@/components/ddt/BolleInBloccoDialog";
 import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
 import { useToast } from "@/hooks/use-toast";
@@ -97,16 +98,19 @@ import {
   OperationalPagination,
 } from "@/components/orders/OperationalBoard";
 import { usePermissions } from "@/hooks/usePermissions";
-import { riepilogoQuantitaDDT,destinazioneConsegneDDT,magazziniConsegneDDT } from "@/lib/ddt/riepilogoConsegne";
+import {
+  riepilogoQuantitaDDT,
+  destinazioneConsegneDDT,
+  magazziniConsegneDDT,
+} from "@/lib/ddt/riepilogoConsegne";
 import {
   inOperationalPeriod,
   operationalPage,
   operationalPeriod,
   updateOperationalParams,
 } from "@/lib/orders/operationalFilters";
-import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 
-type FilterKey = "tutti" | DDTStato;
+type FilterKey = "tutti" | "da_registrare" | DDTStato;
 type SortDirection = "asc" | "desc";
 type DDTSortKey =
   | "numero"
@@ -120,12 +124,41 @@ type DDTSortKey =
 
 const FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: "tutti", label: "Tutti" },
+  { key: "da_registrare", label: "Da registrare" },
   { key: "atteso", label: "Attesi" },
   { key: "parziale", label: "Parziali" },
   { key: "ricevuto", label: "Ricevuti" },
   { key: "verificato", label: "Verificati" },
   { key: "non_conforme", label: "Non conformi" },
 ];
+
+function getSortValue(d: DDTRicezioneWithJoins, key: DDTSortKey) {
+  const po = d.purchase_orders;
+  switch (key) {
+    case "numero":
+      return d.numero_ddt;
+    case "data":
+      return new Date(d.data_ricezione ?? 0).getTime();
+    case "fornitore":
+      return fornitoreNomeDi(d) ?? po?.oda_number ?? "";
+    case "corriere":
+      return d.corriere ?? "";
+    case "magazzino":
+      return magazziniConsegneDDT(d);
+    case "allegati":
+      return (d.attachments?.length ?? 0) + (d.ddt_file_url ? 1 : 0);
+    case "quantita":
+      return d.ricezione_esplicita
+        ? riepilogoQuantitaDDT(d)
+        : Number(d.quantita_ricevuta ?? 0);
+    case "stato":
+      return (
+        DDT_STATO_META[d.stato as keyof typeof DDT_STATO_META]?.label ?? d.stato
+      );
+    default:
+      return "";
+  }
+}
 
 function compareSortValues(
   a: string | number | null | undefined,
@@ -237,7 +270,7 @@ export default function DDTRicezioneList() {
     update({ stato: v, focus: null, ambito: "all" });
   const search = params.get("ddt_cerca") ?? "";
   const setSearch = (v: string) => update({ cerca: v });
-  const view = params.get("ddt_vista") === "elenco" ? "elenco" : "pipeline";
+  const view = params.get("ddt_vista") === "pipeline" ? "pipeline" : "elenco";
   const archive = useOperationalArchive(
     "ddt_ambito",
     params.has("ddt_stato") || view === "elenco" ? "all" : "active",
@@ -254,6 +287,7 @@ export default function DDTRicezioneList() {
   const [newOpen, setNewOpen] = useState(false);
   const [bloccoOpen, setBloccoOpen] = useState(false);
   const movement = usePipelineTransition({ kind: "ddt", enabled: canCreate });
+  const ingresso = useDocumentiInIngresso(canCreate);
 
   const [sort, setSort] = useState<{
     key: DDTSortKey;
@@ -310,7 +344,11 @@ export default function DDTRicezioneList() {
           stage: stage(d),
           href: `/azienda/ddt/${d.id}`,
           damages: d.has_damages,
-          quantity: Number(d.quantita_ricevuta),
+          quantity: d.ricezione_esplicita
+            ? d.consegne?.some((c) => c.tipo === "ingresso")
+              ? 1
+              : 0
+            : Number(d.quantita_ricevuta),
         },
         target,
       );
@@ -362,8 +400,7 @@ export default function DDTRicezioneList() {
       });
     }
 
-    if (filterOrder === "none")
-      list = list.filter((d) => !commessaIdDi(d));
+    if (filterOrder === "none") list = list.filter((d) => !commessaIdDi(d));
     else if (filterOrder !== "all")
       list = list.filter((d) => commessaIdDi(d) === filterOrder);
     if (filterSupplier !== "all") {
@@ -372,35 +409,6 @@ export default function DDTRicezioneList() {
     list = list.filter((d) =>
       inOperationalPeriod(d.data_ricezione, filterPeriodo),
     );
-
-    const getSortValue = (d: (typeof ddtList)[number], key: DDTSortKey) => {
-      const po = d.purchase_orders;
-      switch (key) {
-        case "numero":
-          return d.numero_ddt;
-        case "data":
-          return new Date(d.data_ricezione ?? 0).getTime();
-        case "fornitore":
-          return fornitoreNomeDi(d) ?? po?.oda_number ?? "";
-        case "corriere":
-          return d.corriere ?? "";
-        case "magazzino":
-          return magazziniConsegneDDT(d);
-        case "allegati":
-          return (d.attachments?.length ?? 0) + (d.ddt_file_url ? 1 : 0);
-        case "quantita":
-          return d.ricezione_esplicita
-            ? riepilogoQuantitaDDT(d)
-            : Number(d.quantita_ricevuta ?? 0);
-        case "stato":
-          return (
-            DDT_STATO_META[d.stato as keyof typeof DDT_STATO_META]?.label ??
-            d.stato
-          );
-        default:
-          return "";
-      }
-    };
 
     return [...list].sort((a, b) => {
       const result = compareSortValues(
@@ -419,8 +427,50 @@ export default function DDTRicezioneList() {
           ? ["atteso", "parziale"].includes(stage(d))
           : stage(d) === "ricevuto")),
   );
-  const page = operationalPage(params.get("ddt_pagina"), filtered.length);
-  const visible = filtered.slice((page - 1) * 25, page * 25);
+  const pendingBase = ingresso.documenti.filter((j) => {
+    if (archive.scope === "history" || filterSupplier !== "all" || focus)
+      return false;
+    if (filterOrder === "none" && j.order_id) return false;
+    if (
+      filterOrder !== "all" &&
+      filterOrder !== "none" &&
+      j.order_id !== filterOrder
+    )
+      return false;
+    if (!inOperationalPeriod(j.created_at, filterPeriodo)) return false;
+    const q = search.trim().toLowerCase();
+    return (
+      !q ||
+      `${j.files.map((f) => f.name).join(" ")} ${STATO_DOCUMENTO[j.status]} ${j.source}`
+        .toLowerCase()
+        .includes(q)
+    );
+  });
+  const pending = ["tutti", "da_registrare"].includes(tab) ? pendingBase : [];
+  type ListRow =
+    | { tipo: "ddt"; ddt: DDTRicezioneWithJoins }
+    | { tipo: "documento"; documento: DocumentoPersistente };
+  const rows: ListRow[] = [
+    ...filtered.map((ddt): ListRow => ({ tipo: "ddt", ddt })),
+    ...pending.map((documento): ListRow => ({ tipo: "documento", documento })),
+  ];
+  const rowSortValue = (r: ListRow) =>
+    r.tipo === "ddt"
+      ? getSortValue(r.ddt, sort.key)
+      : sort.key === "data"
+        ? new Date(r.documento.created_at).getTime()
+        : sort.key === "numero"
+          ? r.documento.files[0]?.name
+          : sort.key === "stato"
+            ? STATO_DOCUMENTO[r.documento.status]
+            : "";
+  rows.sort(
+    (a, b) =>
+      compareSortValues(rowSortValue(a), rowSortValue(b)) *
+      (sort.direction === "asc" ? 1 : -1),
+  );
+  const page = operationalPage(params.get("ddt_pagina"), rows.length);
+  const visibleRows = rows.slice((page - 1) * 25, page * 25);
 
   // Export
   const buildExportRows = () => {
@@ -597,20 +647,6 @@ export default function DDTRicezioneList() {
     }
   };
 
-  const counts = Object.fromEntries(
-    FILTERS.map((f) => [
-      f.key,
-      f.key === "tutti"
-        ? baseFiltered.length
-        : baseFiltered.filter((d) => stage(d) === f.key).length,
-    ]),
-  ) as Record<FilterKey, number>;
-  const kpis = {
-    pending: counts.atteso + counts.parziale,
-    verify: counts.ricevuto,
-    verified: counts.verificato,
-    damaged: counts.non_conforme,
-  };
   const columns = [
     {
       id: "atteso",
@@ -686,7 +722,8 @@ export default function DDTRicezioneList() {
         )}
       </div>
       <p className="mt-2 text-xs font-medium">
-        {ddt.ricezione_esplicita ? "Consegne" : "Quantità ricevuta"}: {riepilogoQuantitaDDT(ddt)}
+        {ddt.ricezione_esplicita ? "Consegne" : "Quantità ricevuta"}:{" "}
+        {riepilogoQuantitaDDT(ddt)}
       </p>
       {ddt.has_damages && (
         <p className="mt-2 flex items-center gap-1 text-xs font-medium text-rose-700">
@@ -739,7 +776,12 @@ export default function DDTRicezioneList() {
           </DropdownMenu>
 
           {canCreate && (
-            <Button variant="outline" size="sm" className="shrink-0" onClick={() => setBloccoOpen(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={() => setBloccoOpen(true)}
+            >
               <span className="hidden sm:inline">Carica più bolle</span>
               <span className="sm:hidden">Più bolle</span>
             </Button>
@@ -760,53 +802,6 @@ export default function DDTRicezioneList() {
         </div>
       </div>
 
-      {canCreate && <DocumentiInIngresso />}
-
-      <section
-        aria-label="Riepilogo DDT"
-        className="grid grid-cols-2 gap-3 sm:grid-cols-4"
-      >
-        <OperationalKpiCard
-          icon={Clock}
-          label="Da ricevere"
-          value={kpis.pending}
-          hint="attesi e parziali"
-          tone="amber"
-          isLoading={isLoading}
-          active={focus === "pendenti"}
-          onClick={() => update({ stato: null, focus: "pendenti" })}
-        />
-        <OperationalKpiCard
-          icon={FileCheck}
-          label="Da verificare"
-          value={kpis.verify}
-          hint="ricevuti, controllo da completare"
-          tone="blue"
-          isLoading={isLoading}
-          active={focus === "verifica"}
-          onClick={() => update({ stato: null, focus: "verifica" })}
-        />
-        <OperationalKpiCard
-          icon={ShieldCheck}
-          label="Verificati"
-          value={kpis.verified}
-          hint="senza danni segnalati"
-          tone="green"
-          isLoading={isLoading}
-          active={tab === "verificato"}
-          onClick={() => setTab("verificato")}
-        />
-        <OperationalKpiCard
-          icon={AlertTriangle}
-          label="Non conformi / danni"
-          value={kpis.damaged}
-          hint="documenti con criticità"
-          tone={kpis.damaged ? "red" : "slate"}
-          isLoading={isLoading}
-          active={tab === "non_conforme"}
-          onClick={() => setTab("non_conforme")}
-        />
-      </section>
       <section
         aria-label="Filtri DDT"
         className="space-y-2 rounded-xl border bg-white p-2.5 shadow-sm"
@@ -896,16 +891,17 @@ export default function DDTRicezioneList() {
               >
                 {f.key === "non_conforme" ? "Non conformi / danni" : f.label}{" "}
                 <span className="ml-1 rounded-full bg-slate-100 px-1.5 text-[10px]">
-                  {
-                    baseFiltered.filter(
-                      (d) =>
-                        (f.key === "tutti" || stage(d) === f.key) &&
-                        inOperationalScope(
-                          stage(d) === "verificato",
-                          archive.scope,
-                        ),
-                    ).length
-                  }
+                  {baseFiltered.filter(
+                    (d) =>
+                      (f.key === "tutti" || stage(d) === f.key) &&
+                      inOperationalScope(
+                        stage(d) === "verificato",
+                        archive.scope,
+                      ),
+                  ).length +
+                    (f.key === "tutti" || f.key === "da_registrare"
+                      ? pendingBase.length
+                      : 0)}
                 </span>
               </button>
             ))}
@@ -933,23 +929,61 @@ export default function DDTRicezioneList() {
               archive.setScope(v, ["ddt_stato", "ddt_focus", "ddt_pagina"])
             }
             active={
-              baseFiltered.filter((d) => stage(d) !== "verificato").length
+              baseFiltered.filter((d) => stage(d) !== "verificato").length +
+              pendingBase.length
             }
             history={
               baseFiltered.filter((d) => stage(d) === "verificato").length
             }
           />
           <span>
-            {filtered.length} di {ddtList.length} DDT
+            {rows.length} documenti · {pending.length} da registrare
             {focus === "pendenti"
               ? " · Attesi e parziali"
               : focus === "verifica"
                 ? " · Ricevuti da verificare"
                 : ""}
           </span>
-          <span>Le esportazioni includono tutti i DDT filtrati.</span>
+          <span>Le esportazioni includono i DDT registrati filtrati.</span>
         </div>
       </section>
+
+      {canCreate && ingresso.ripresaLocale.queueCount > 0 && (
+        <p
+          role="status"
+          className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"
+        >
+          {ingresso.ripresaLocale.queueCount} invii conservati su questo
+          dispositivo. Lascia aperta la pagina per completarli.{" "}
+          {ingresso.ripresaLocale.failedCount > 0 && (
+            <Button
+              variant="link"
+              size="sm"
+              onClick={() => void ingresso.ripresaLocale.retry()}
+            >
+              Riprova invii
+            </Button>
+          )}
+        </p>
+      )}
+      {canCreate && ingresso.query.isError && (
+        <p role="alert" className="rounded-lg border p-3 text-sm">
+          Le letture in ingresso non sono aggiornate. I documenti già caricati
+          restano disponibili.{" "}
+          <Button
+            variant="link"
+            size="sm"
+            onClick={() => void ingresso.query.refetch()}
+          >
+            Riprova letture
+          </Button>
+        </p>
+      )}
+      {canCreate && ingresso.query.isLoading && (
+        <p role="status" className="text-sm text-muted-foreground">
+          Caricamento documenti in lettura…
+        </p>
+      )}
 
       {/* ─── List ─────────────────────────────────────────────── */}
       {isError ? (
@@ -974,7 +1008,7 @@ export default function DDTRicezioneList() {
             </div>
           ))}
         </div>
-      ) : filtered.length === 0 ? (
+      ) : rows.length === 0 ? (
         <EmptyState
           hasFilter={activeFiltersCount > 0}
           canCreate={canCreate && availablePOs.length > 0}
@@ -982,8 +1016,38 @@ export default function DDTRicezioneList() {
             if (canCreate) setNewOpen(true);
           }}
         />
-      ) : view === "pipeline" ? (
+      ) : view === "pipeline" && tab !== "da_registrare" ? (
         <>
+          {pending.length > 0 && (
+            <OperationalTable label="Documenti da registrare">
+              <thead>
+                <tr>
+                  <th>Documento</th>
+                  <th>Stato</th>
+                  <th>Data</th>
+                  <th>Fornitore</th>
+                  <th>OdA</th>
+                  <th>Commessa</th>
+                  <th>Corriere</th>
+                  <th>Destinazione</th>
+                  <th>Allegati</th>
+                  <th>Q.tà</th>
+                  <th>Azioni</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pending.map((j) => (
+                  <RigaDocumentoInIngresso
+                    key={j.id}
+                    documento={j}
+                    apri={ingresso.apri}
+                    riprova={ingresso.riprova}
+                    riprovando={ingresso.riprovando}
+                  />
+                ))}
+              </tbody>
+            </OperationalTable>
+          )}
           <OperationalBoard
             label="Pipeline DDT"
             onOpen={(ddt) => navigate(`/azienda/ddt/${ddt.id}`)}
@@ -1004,6 +1068,12 @@ export default function DDTRicezioneList() {
                   active={sort.key === "numero"}
                   direction={sort.direction}
                   onClick={() => handleSort("numero")}
+                />
+                <SortableTh
+                  label="Stato"
+                  active={sort.key === "stato"}
+                  direction={sort.direction}
+                  onClick={() => handleSort("stato")}
                 />
                 <SortableTh
                   label="Data"
@@ -1045,17 +1115,22 @@ export default function DDTRicezioneList() {
                   onClick={() => handleSort("quantita")}
                   align="right"
                 />
-                <SortableTh
-                  label="Stato"
-                  active={sort.key === "stato"}
-                  direction={sort.direction}
-                  onClick={() => handleSort("stato")}
-                />
                 <th scope="col">Azioni</th>
               </tr>
             </thead>
             <tbody>
-              {visible.map((ddt) => {
+              {visibleRows.map((row) => {
+                if (row.tipo === "documento")
+                  return (
+                    <RigaDocumentoInIngresso
+                      key={row.documento.id}
+                      documento={row.documento}
+                      apri={ingresso.apri}
+                      riprova={ingresso.riprova}
+                      riprovando={ingresso.riprovando}
+                    />
+                  );
+                const ddt = row.ddt;
                 const po = ddt.purchase_orders;
                 const attachCount =
                   (ddt.attachments?.length ?? 0) + (ddt.ddt_file_url ? 1 : 0);
@@ -1077,6 +1152,47 @@ export default function DDTRicezioneList() {
                           {ddt.numero_ddt}
                         </Link>
                       </div>
+                    </td>
+                    <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                      {canCreate ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-auto gap-1 px-1"
+                              disabled={movement.saving}
+                              aria-label={`Gestisci stato DDT ${ddt.numero_ddt}`}
+                            >
+                              <DDTStatusBadge stato={ddt.stato} size="sm" />
+                              <ChevronDown className="h-3 w-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="start"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <DropdownMenuLabel>Cambia stato</DropdownMenuLabel>
+                            {FILTERS.filter(
+                              (f) =>
+                                !["tutti", "da_registrare"].includes(f.key),
+                            ).map((f) => (
+                              <DropdownMenuItem
+                                key={f.key}
+                                disabled={stage(ddt) === f.key}
+                                onSelect={() => moveDocument(ddt.id, f.key)}
+                              >
+                                {f.label}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        <DDTStatusBadge stato={ddt.stato} size="sm" />
+                      )}
+                      {ddt.has_damages && (
+                        <AlertTriangle className="ml-1 inline-block h-3 w-3 text-rose-500" />
+                      )}
                     </td>
                     <td className="p-3 text-muted-foreground text-xs">
                       {ddt.data_ricezione
@@ -1138,7 +1254,9 @@ export default function DDTRicezioneList() {
                           {magazziniConsegneDDT(ddt)}
                         </span>
                       ) : (
-                        <span className="text-muted-foreground">{magazziniConsegneDDT(ddt)}</span>
+                        <span className="text-muted-foreground">
+                          {magazziniConsegneDDT(ddt)}
+                        </span>
                       )}
                     </td>
                     <td className="p-3 text-center">
@@ -1151,14 +1269,8 @@ export default function DDTRicezioneList() {
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
                     </td>
-                    <td className="p-3 text-right font-medium">
+                    <td className="min-w-48 max-w-64 whitespace-normal p-3 text-right text-xs font-medium">
                       {riepilogoQuantitaDDT(ddt)}
-                    </td>
-                    <td className="p-3">
-                      <DDTStatusBadge stato={ddt.stato} size="sm" />
-                      {ddt.has_damages && (
-                        <AlertTriangle className="h-3 w-3 text-rose-500 inline-block ml-1" />
-                      )}
                     </td>
                     <td>
                       <Button
@@ -1180,17 +1292,34 @@ export default function DDTRicezioneList() {
           </OperationalTable>
           <OperationalPagination
             page={page}
-            total={filtered.length}
+            total={rows.length}
             onChange={(v) => update({ pagina: String(v) })}
             label="Pagine DDT"
           />
         </>
       )}
 
+      {canCreate && ingresso.query.hasNextPage && (
+        <Button
+          variant="outline"
+          disabled={ingresso.query.isFetchingNextPage}
+          onClick={() => void ingresso.query.fetchNextPage()}
+        >
+          {ingresso.query.isFetchingNextPage
+            ? "Caricamento…"
+            : ingresso.query.isFetchNextPageError
+              ? "Riprova a caricare altri documenti"
+              : "Carica altri documenti da registrare"}
+        </Button>
+      )}
+      {ingresso.dialog}
+
       {/* ─── New DDT Wizard ─────────────────────────────────── */}
       {movement.dialog}
       {canCreate && <NewDDTDialog open={newOpen} onOpenChange={setNewOpen} />}
-      {canCreate && bloccoOpen && <BolleInBloccoDialog open onOpenChange={setBloccoOpen} />}
+      {canCreate && bloccoOpen && (
+        <BolleInBloccoDialog open onOpenChange={setBloccoOpen} />
+      )}
     </div>
   );
 }

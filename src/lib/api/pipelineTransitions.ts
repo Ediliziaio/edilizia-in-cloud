@@ -48,6 +48,19 @@ export async function savePipelineTransition(
       throw new Error("Impossibile verificare le risposte dei fornitori");
     responses = result.data?.length ?? 0;
   }
+  let receivedQuantity = Number(row.quantita_ricevuta ?? 0);
+  if (plan.kind === "ddt" && row.ricezione_esplicita) {
+    const deliveries = await db
+      .from("ddt_consegne")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("ddt_id", row.id)
+      .eq("tipo", "ingresso")
+      .limit(1);
+    if (deliveries.error)
+      throw new Error("Impossibile verificare le consegne della bolla");
+    receivedQuantity = deliveries.data?.length ? 1 : 0;
+  }
   const fresh: PipelineDocument = {
     ...plan.document,
     status: currentStatus,
@@ -59,7 +72,7 @@ export async function savePipelineTransition(
     ),
     responses,
     damages: row.has_damages,
-    quantity: Number(row.quantita_ricevuta ?? 0),
+    quantity: receivedQuantity,
   };
   const checked = planPipelineTransition(plan.kind, fresh, plan.target);
   if (checked?.action !== "save" || checked.status !== plan.status)

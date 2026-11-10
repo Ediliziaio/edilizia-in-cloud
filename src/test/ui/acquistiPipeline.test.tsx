@@ -151,7 +151,7 @@ function Dove() {
   );
 }
 
-function disegna(percorso = "/azienda/ordini?tab=acquisto") {
+function disegna(percorso = "/azienda/ordini?tab=acquisto&vista=pipeline&oda_ambito=active") {
   return render(
     <QueryClientProvider
       client={
@@ -204,6 +204,12 @@ describe("Commesse › Acquisti: la pipeline", () => {
     stato.rpc.mockReset();
   });
 
+  it("apre l’elenco quando la vista non è specificata", () => {
+    disegna("/azienda/ordini?tab=acquisto");
+    expect(screen.getByRole("table", { name: "Elenco ordini d’acquisto" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Colonna Da ordinare" })).not.toBeInTheDocument();
+  });
+
   it("apre sugli acquisti operativi e permette di consultare lo storico", () => {
     disegna();
     expect(
@@ -224,7 +230,7 @@ describe("Commesse › Acquisti: la pipeline", () => {
   });
 
   it("la pipeline mostra tutte le fasi quando si include lo storico", async () => {
-    disegna("/azienda/ordini?tab=acquisto&oda_ambito=all");
+    disegna("/azienda/ordini?tab=acquisto&vista=pipeline&oda_ambito=all");
     const daOrdinare = screen.getByRole("region", {
       name: "Colonna Da ordinare",
     });

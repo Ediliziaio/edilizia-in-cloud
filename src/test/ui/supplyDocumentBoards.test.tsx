@@ -11,6 +11,7 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import SupplierRfqsList from "@/pages/azienda/SupplierRfqsList";
 import DDTRicezioneList from "@/pages/azienda/DDTRicezioneList";
+import type { DocumentoPersistente } from "@/lib/ddt/documentiPersistenti";
 import type { SupplierRfq, ContatoriRichiesta } from "@/hooks/useSupplierRfqs";
 import type { DDTRicezioneWithJoins, DDTStato } from "@/hooks/useDDTRicezione";
 
@@ -20,13 +21,15 @@ vi.mock("@/contexts/AuthContext", () => ({
 
 vi.mock("@/hooks/usePipelineTransition", () => ({
   usePipelineTransition: () => ({
-    request: vi.fn(),
+    request: state.transition,
     saving: false,
     dialog: null as React.ReactNode,
   }),
 }));
 
 const state = vi.hoisted(() => ({
+  jobs: [] as DocumentoPersistente[],
+  transition: vi.fn(),
   rfqs: [] as SupplierRfq[],
   counters: {} as Record<string, ContatoriRichiesta>,
   ddt: [] as DDTRicezioneWithJoins[],
@@ -74,6 +77,21 @@ vi.mock("@/hooks/useDDTRicezione", () => ({
     refetch: vi.fn(),
   }),
 }));
+vi.mock("@/hooks/useDocumentiDDT", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/hooks/useDocumentiDDT")
+  >("@/hooks/useDocumentiDDT");
+  return {
+    ...actual,
+    useDocumentiDDT: () => ({
+      data: state.jobs,
+      isLoading: false,
+      isError: false,
+      hasNextPage: false,
+      refetch: vi.fn(),
+    }),
+  };
+});
 vi.mock("@/hooks/usePurchaseOrders", () => ({
   usePurchaseOrders: () => ({ orders: [{ id: "po1", status: "inviato" }] }),
 }));
@@ -178,6 +196,8 @@ beforeEach(() => {
   state.readonly = false;
   state.costs = true;
   state.error = false;
+  state.jobs = [];
+  state.transition.mockClear();
   state.create.mockClear();
   state.csv.mockClear();
   state.xlsx.mockClear();
@@ -316,7 +336,7 @@ describe("DDT", () => {
       ddt("c", "verificato", { has_damages: true }),
       ddt("d", "non_conforme"),
     ];
-    open(<DDTRicezioneList />, "/azienda/ordini?tab=ddt");
+    open(<DDTRicezioneList />, "/azienda/ordini?tab=ddt&ddt_vista=pipeline");
     expect(
       within(screen.getByRole("region", { name: "Colonna Attesi" })).getByText(
         "DDT-a",
@@ -328,7 +348,7 @@ describe("DDT", () => {
       ).getByText("DDT-c"),
     ).toBeInTheDocument();
     fireEvent.click(
-      within(screen.getByRole("region", { name: "Riepilogo DDT" })).getByRole(
+      within(screen.getByRole("group", { name: "Stato DDT" })).getByRole(
         "button",
         { name: /Non conformi \/ danni/i },
       ),
@@ -454,5 +474,81 @@ describe("Colonne dell’elenco documenti", () => {
       "href",
       "/azienda/ordini/c1",
     );
+  });
+});
+
+describe("Elenco DDT operativo", () => {
+  it("parte dall’elenco, mostra Stato nella seconda colonna e apre le azioni dalla riga", async () => {
+    state.ddt = [ddt("stato", "ricevuto")];
+    open(<DDTRicezioneList />, "/azienda/ordini?tab=ddt");
+    const table = screen.getByRole("table", { name: "Elenco DDT" });
+    expect(within(table).getAllByRole("columnheader")[1]).toHaveAccessibleName(
+      "Stato",
+    );
+    expect(
+      screen.queryByRole("region", { name: "Riepilogo DDT" }),
+    ).not.toBeInTheDocument();
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: "Gestisci stato DDT DDT-stato" }),
+      { key: "Enter", code: "Enter" },
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Verificati" }),
+    );
+    expect(state.transition).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "stato", status: "ricevuto" }),
+      "verificato",
+    );
+  });
+  it("mostra i documenti da registrare nella stessa tabella senza ripetere i già registrati", () => {
+    const base = {
+      company_id: "co",
+      created_by: "u",
+      order_id: null,
+      source: "whatsapp" as const,
+      files: [
+        {
+          name: "Nuova-bolla.pdf",
+          mime: "application/pdf",
+          path: "co/u/originale",
+        },
+      ],
+      result: null,
+      created_at: "2026-11-10T12:00:00Z",
+      updated_at: "2026-11-10T12:00:00Z",
+    };
+    state.jobs = [
+      { ...base, id: "in-arrivo", status: "review" },
+      {
+        ...base,
+        id: "gia-registrato",
+        status: "registered",
+        ddt_id: "gia",
+        files: [{ ...base.files[0], name: "File-gia-registrato.pdf" }],
+      },
+    ] as DocumentoPersistente[];
+    state.ddt = [ddt("gia", "ricevuto")];
+    open(<DDTRicezioneList />, "/azienda/ordini?tab=ddt");
+    const table = screen.getByRole("table", { name: "Elenco DDT" });
+    expect(within(table).getByText("Nuova-bolla.pdf")).toBeInTheDocument();
+    expect(
+      within(table).getByText("Da controllare in ufficio"),
+    ).toBeInTheDocument();
+    expect(
+      within(table).getByRole("button", { name: "Controlla e registra" }),
+    ).toBeEnabled();
+    expect(
+      screen.queryByText("File-gia-registrato.pdf"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "Stato DDT" })).getByRole(
+        "button",
+        { name: /^Da registrare/ },
+      ),
+    );
+    expect(screen.getByText("Nuova-bolla.pdf")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "DDT-gia" }),
+    ).not.toBeInTheDocument();
   });
 });

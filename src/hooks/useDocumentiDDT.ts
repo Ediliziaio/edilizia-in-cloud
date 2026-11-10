@@ -21,6 +21,7 @@ export function useDocumentiDDT(
   soloMiei = false,
   orderId?: string,
   includiRegistrati = true,
+  enabled = true,
 ) {
   const { effectiveCompany, profile, user } = useAuth();
   const companyId = soloMiei ? profile?.company_id : effectiveCompany?.id;
@@ -33,7 +34,7 @@ export function useDocumentiDDT(
       orderId,
       includiRegistrati,
     ],
-    enabled: !!companyId && !!user?.id,
+    enabled: enabled && !!companyId && !!user?.id,
     initialPageParam: undefined as Cursor | undefined,
     queryFn: async ({ pageParam }): Promise<Page> => {
       let q = documentiDb

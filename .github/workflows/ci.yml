@@ -31,6 +31,35 @@ env:
   SUPABASE_PROJECT_ID: rsbrguhkodgnqfomrevo
 
 jobs:
+  frontend-build:
+    name: Frontend production build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        id: bun
+        continue-on-error: true
+        with:
+          bun-version: '1.4.4'
+      - name: Install Bun from npm if GitHub download fails
+        if: steps.bun.outcome == 'failure'
+        run: npm install --global bun@1.4.4
+      - name: Install frozen dependencies
+        run: bun install --frozen-lockfile
+      - name: Build application and prerender public routes
+        run: npm run build
+      - name: Verify prerendered routes
+        run: npm run prerender:verify
+      - name: Save build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-${{ github.sha }}
+          path: dist
+          retention-days: 3
+
   # ─────────────────────────────────────────────────────────────────────────
   # 1. TypeScript check (frontend)
   # ─────────────────────────────────────────────────────────────────────────
@@ -305,6 +334,7 @@ jobs:
           bunx vitest run --maxWorkers=1
           src/test/logic/sidebarPreview.test.ts
           src/test/logic/sidebarMenuStability.test.ts
+          src/test/ui/sidebarState.test.tsx
 
       - name: Run confirmed catalogue variants regression tests
         run: >-

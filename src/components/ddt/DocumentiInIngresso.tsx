@@ -1,16 +1,10 @@
-import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { FileText, Loader2, RefreshCw, Smartphone } from "lucide-react";
-import { toast } from "sonner";
-import { useAuth } from "@/contexts/AuthContext";
+import { FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { useDocumentiDDT, STATO_DOCUMENTO } from "@/hooks/useDocumentiDDT";
-import { useOfflineSync } from "@/hooks/campo/useOfflineSync";
+import { STATO_DOCUMENTO } from "@/hooks/useDocumentiDDT";
 import {
-  documentiDb,
-  avviaLetturaPersistente,
   leggiPersistente,
   type DocumentoPersistente,
 } from "@/lib/ddt/documentiPersistenti";
@@ -28,7 +22,7 @@ import {
 import { preparaDocumento } from "@/lib/ddt/preparaDocumento";
 import { BolleInBloccoDialog } from "./BolleInBloccoDialog";
 
-function RevisioneDocumento({
+export function RevisioneDocumento({
   documento,
   onClose,
 }: {
@@ -119,196 +113,107 @@ function RevisioneDocumento({
   );
 }
 
-export function DocumentiInIngresso() {
-  const { effectiveCompany } = useAuth();
-  const ripresaLocale = useOfflineSync({
-    companyId: effectiveCompany?.id ?? null,
-  });
-  const [mostraTutti, setMostraTutti] = useState(false);
-  const query = useDocumentiDDT(false, undefined, mostraTutti);
-  const qc = useQueryClient();
-  const [aperto, setAperto] = useState<DocumentoPersistente | null>(null);
-  const [riprovando, setRiprovando] = useState<string | null>(null);
-  const documenti = query.data ?? [];
-  const inAttesa = documenti.filter(
-    (j) => !["registered", "split"].includes(j.status),
-  );
-  const daMostrare = mostraTutti ? documenti : inAttesa;
-  const riprova = async (j: DocumentoPersistente) => {
-    setRiprovando(j.id);
-    try {
-      const { error } = await documentiDb.rpc("ddt_documento_ritenta", {
-        p_id: j.id,
-      });
-      if (error) throw error;
-      void avviaLetturaPersistente(j.id).catch(() => {});
-      await qc.invalidateQueries({ queryKey: ["ddt-documenti"] });
-      toast.success("Lettura rimessa in coda");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Non riesco a riprovare");
-    } finally {
-      setRiprovando(null);
-    }
-  };
+/** Le letture non ancora registrate condividono l’elenco con i DDT, senza duplicare i registrati. */
+export function RigaDocumentoInIngresso({
+  documento: j,
+  apri,
+  riprova,
+  riprovando,
+}: {
+  documento: DocumentoPersistente;
+  apri: (j: DocumentoPersistente) => void;
+  riprova: (j: DocumentoPersistente) => Promise<void>;
+  riprovando: string | null;
+}) {
+  const inLettura = ["queued", "processing"].includes(j.status);
   return (
-    <section
-      className="overflow-hidden rounded-2xl border bg-card shadow-sm"
-      aria-label="Documenti in ingresso"
+    <tr
+      className="border-b bg-amber-50/30 hover:bg-amber-50/60"
+      data-documento-id={j.id}
     >
-      {ripresaLocale.queueCount > 0 && (
-        <p className="border-b bg-amber-50 p-3 text-xs text-amber-900">
-          {ripresaLocale.queueCount} invii conservati su questo dispositivo.
-          Lascia aperta questa pagina per completarli.{" "}
-          {ripresaLocale.failedCount > 0 && (
-            <button
-              type="button"
-              className="underline"
-              onClick={() => void ripresaLocale.retry()}
+      <td className="p-3">
+        <div className="flex items-start gap-2">
+          <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0 max-w-64">
+            <p
+              className="truncate text-sm font-medium"
+              title={j.files.map((f) => f.name).join(", ")}
             >
-              Riprova
-            </button>
-          )}
-        </p>
-      )}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 p-4">
-        <div>
-          <h2 className="flex items-center gap-2 font-semibold">
-            <Smartphone className="h-4 w-4 text-orange-600" />
-            Documenti in ingresso{" "}
-            <span className="rounded-full bg-orange-100 px-2 text-xs text-orange-900">
-              {daMostrare.length}
-              {query.hasNextPage ? "+" : ""}
-            </span>
-          </h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Da app, caricamento e WhatsApp. Controlla il documento, poi conferma
-            separatamente i materiali consegnati.
-          </p>
+              {j.files[0]?.name ?? "Documento"}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {j.source === "campo"
+                ? "App cantiere"
+                : j.source === "whatsapp"
+                  ? "WhatsApp"
+                  : "Caricamento ufficio"}
+            </p>
+            {j.last_error && (
+              <p className="mt-1 whitespace-normal text-xs text-rose-700">
+                {j.last_error}
+              </p>
+            )}
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setMostraTutti((v) => !v)}
+      </td>
+      <td className="p-3">
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium ${j.status === "error" ? "bg-rose-100 text-rose-800" : inLettura ? "bg-blue-50 text-blue-800" : "bg-amber-100 text-amber-900"}`}
+        >
+          {inLettura && <Loader2 className="h-3 w-3 animate-spin" />}
+          {STATO_DOCUMENTO[j.status]}
+        </span>
+      </td>
+      <td className="p-3 text-xs text-muted-foreground">
+        {new Date(j.created_at).toLocaleDateString("it-IT")}
+      </td>
+      <td className="p-3 text-xs text-muted-foreground">Da riconoscere</td>
+      <td className="p-3 text-muted-foreground">—</td>
+      <td className="p-3 text-xs">
+        {j.order_id ? (
+          <Link
+            to={`/azienda/ordini/${j.order_id}`}
+            className="text-primary hover:underline"
           >
-            {mostraTutti ? "Solo da gestire" : "Anche registrati"}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            aria-label="Aggiorna documenti in ingresso"
-            onClick={() => void query.refetch()}
-          >
-            <RefreshCw
-              className={query.isFetching ? "h-4 w-4 animate-spin" : "h-4 w-4"}
-            />
-          </Button>
-        </div>
-      </div>
-      {query.isError && !documenti.length ? (
-        <p role="alert" className="p-4 text-sm text-destructive">
-          Elenco non disponibile. Riprova ad aggiornare.
-        </p>
-      ) : query.isLoading ? (
-        <p className="p-4 text-sm text-muted-foreground">Caricamento…</p>
-      ) : !daMostrare.length ? (
-        <p className="p-4 text-sm text-muted-foreground">
-          Nessun documento in attesa. Le letture continuano anche quando chiudi
-          la pagina.
-        </p>
-      ) : (
-        <ul className="max-h-96 divide-y overflow-y-auto">
-          {daMostrare.map((j) => (
-            <li key={j.id} className="flex flex-wrap items-center gap-3 p-4">
-              <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
-              <div className="min-w-0 flex-1">
-                <p
-                  className="truncate text-sm font-medium"
-                  title={j.files.map((f) => f.name).join(", ")}
-                >
-                  {j.files[0]?.name}
-                  {j.files.length > 1 ? ` · ${j.files.length} allegati` : ""}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {j.source === "campo"
-                    ? "App cantiere"
-                    : j.source === "whatsapp"
-                      ? "WhatsApp"
-                      : "Caricamento ufficio"}{" "}
-                  · {STATO_DOCUMENTO[j.status]} ·{" "}
-                  {new Date(j.created_at).toLocaleString("it-IT")}
-                </p>
-                {j.last_error && (
-                  <p className="mt-1 text-xs text-amber-800">{j.last_error}</p>
-                )}
-              </div>
-              {["queued", "processing"].includes(j.status) ? (
-                <Loader2
-                  aria-label="Lettura in corso"
-                  className="h-4 w-4 animate-spin text-muted-foreground"
-                />
-              ) : j.status === "split" ? (
-                <span className="text-xs text-muted-foreground">
-                  {j.split_ids?.length ?? 0} bolle separate
-                </span>
-              ) : j.status === "registered" && j.ddt_id ? (
-                <Button variant="outline" size="sm" asChild>
-                  <Link to={`/azienda/ddt/${j.ddt_id}`}>Apri DDT</Link>
-                </Button>
-              ) : (
-                <div className="flex gap-2">
-                  {j.status === "error" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={riprovando === j.id}
-                      onClick={() => void riprova(j)}
-                    >
-                      Rileggi
-                    </Button>
-                  )}
-                  <Button size="sm" onClick={() => setAperto(j)}>
-                    {j.status === "error"
-                      ? "Compila a mano"
-                      : "Controlla e registra"}
-                  </Button>
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-      {query.isError && !!documenti.length && (
-        <p role="alert" className="px-4 py-2 text-sm text-amber-800">
-          Aggiornamento non riuscito. I documenti già caricati restano
-          disponibili.
-        </p>
-      )}
-      {query.hasNextPage && (
-        <div className="border-t p-3">
-          <Button
-            variant="outline"
-            className="w-full"
-            disabled={query.isFetchingNextPage}
-            onClick={() => void query.fetchNextPage()}
-          >
-            {query.isFetchingNextPage
-              ? "Caricamento…"
-              : query.isFetchNextPageError
-                ? "Riprova a caricare altri documenti"
-                : "Carica altri documenti"}
-          </Button>
-        </div>
-      )}
-      {aperto && (
-        <RevisioneDocumento
-          documento={aperto}
-          onClose={() => {
-            setAperto(null);
-            void query.refetch();
-          }}
-        />
-      )}
-    </section>
+            Commessa assegnata
+          </Link>
+        ) : (
+          <span className="text-muted-foreground">Da associare</span>
+        )}
+      </td>
+      <td className="p-3 text-muted-foreground">—</td>
+      <td className="p-3 text-xs text-muted-foreground">Da confermare</td>
+      <td className="p-3 text-center text-xs">{j.files.length}</td>
+      <td className="p-3 text-right text-xs text-muted-foreground">
+        Da confermare
+      </td>
+      <td className="p-3">
+        {inLettura ? (
+          <span className="text-xs text-muted-foreground">
+            Analisi in corso…
+          </span>
+        ) : (
+          <div className="flex gap-2">
+            {j.status === "error" && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={riprovando === j.id}
+                onClick={() => void riprova(j)}
+              >
+                {riprovando === j.id ? "Rilettura…" : "Rileggi"}
+              </Button>
+            )}
+            <Button
+              variant={j.status === "error" ? "outline" : "default"}
+              size="sm"
+              onClick={() => apri(j)}
+            >
+              {j.status === "error" ? "Compila a mano" : "Controlla e registra"}
+            </Button>
+          </div>
+        )}
+      </td>
+    </tr>
   );
 }
