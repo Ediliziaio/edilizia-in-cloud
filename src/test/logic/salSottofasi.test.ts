@@ -155,9 +155,9 @@ describe("PDF del verbale: le sottofasi sotto la loro fase", () => {
   it("righe rientrate, nell'ordine, con quantità e importi; il totale resta quello delle fasi", () => {
     const html = buildSalHtml(sal(), null, company, null, undefined, 6000, null, { vociPrecedenti: { "primo solaio": 6000 }, sottofasiPrecedenti: { s1: 60, s2: 60 } });
     expect(html.indexOf("Getto")).toBeLessThan(html.indexOf("Travi"));
-    expect(html).toContain("30 / 40 m³");
+    expect(html).toContain("30 su 40 m³");
     expect(html).toContain("&lt;b&gt;");
-    expect(html).toContain('class="riga-sottofase"');
+    expect(html).toContain('class="riga-sottofase');
     // Getto: 60% di 8000 = 4800 precedente, 1200 questo SAL
     expect(html).toContain("4.800,00");
     expect(html).toContain("1.200,00");
@@ -165,6 +165,6 @@ describe("PDF del verbale: le sottofasi sotto la loro fase", () => {
 
   it("verbale breve: senza dettaglio, nessuna riga di sottofase", () => {
     const html = buildSalHtml(sal(), null, company, null, undefined, 0, null, { dettaglioSottofasi: false });
-    expect(html).not.toContain('class="riga-sottofase"');
+    expect(html).not.toContain('class="riga-sottofase');
   });
 });

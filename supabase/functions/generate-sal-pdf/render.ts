@@ -220,25 +220,29 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
       const pPct = d.sottofase_id != null && precSotto[d.sottofase_id] != null ? Number(precSotto[d.sottofase_id]) : null;
       const pImp = imp != null && pPct != null ? Math.round(imp * pPct) / 100 : null;
       const quota = cum != null && pImp != null ? Math.round((cum - pImp) * 100) / 100 : null;
-      const qta = d.quantita_contratto ? ` <span style="color:var(--muted);">· ${fmtQ(d.quantita_a_oggi)} / ${fmtQ(d.quantita_contratto)}${d.unita ? ` ${escHtml(d.unita)}` : ""}</span>` : "";
+      const qta = d.quantita_contratto ? `<div class="qta">${fmtQ(d.quantita_a_oggi)} su ${fmtQ(d.quantita_contratto)}${d.unita ? ` ${escHtml(d.unita)}` : ""}</div>` : "";
+      // Uno zero si legge come un trattino: le righe ferme non fanno rumore, quelle che si muovono saltano all'occhio.
+      const eur = (n: number | null) => n == null ? "" : Math.abs(n) < 0.005 ? "—" : fmtEur(n);
+      const muove = quota != null ? Math.abs(quota) >= 0.005 : false;
       return `
-    <tr class="riga-sottofase">
+    <tr class="riga-sottofase${muove ? " muove" : ""}">
       <td></td>
-      <td class="voce" style="padding-left:12pt;">– ${escHtml(d.descrizione)}${qta}</td>
+      <td class="voce">${escHtml(d.descrizione)}${qta}</td>
       <td class="num">${imp != null ? fmtEur(imp) : ""}</td>
       ${perVoceAffidabile ? `<td class="num">${pPct != null ? pct(pPct) : ""}</td>` : ""}
       <td class="num">${pct(Number(d.percentuale_avanzamento))}</td>
-      <td class="num">${cum != null ? fmtEur(cum) : ""}</td>
-      ${perVoceAffidabile ? `<td class="num">${pImp != null ? fmtEur(pImp) : ""}</td><td class="num">${quota != null ? fmtEur(quota) : ""}</td>` : ""}
+      <td class="num">${eur(cum)}</td>
+      ${perVoceAffidabile ? `<td class="num">${eur(pImp)}</td><td class="num quota">${eur(quota)}</td>` : ""}
     </tr>`;
     }).join("");
   const th = (t: string, al = "right", w = "") => `<th style="text-align:${al};padding-left:4pt;padding-right:4pt;${w ? `width:${w};` : ""}">${t}</th>`;
+  const conDettaglio = (v: SalVoce) => extra.dettaglioSottofasi !== false && (v.sal_voci_sottofasi?.length ?? 0) > 0;
   const vociHtml = righe.map((r, i) => `
-    <tr>
+    <tr${conDettaglio(r.v) ? ` class="riga-fase"` : ""}>
       <td class="num" style="text-align:center;color:var(--muted);">${i + 1}</td>
       <td class="voce">${escHtml(r.v.descrizione)}${r.v.note ? `<div class="nota" style="margin-top:2px;">${escHtml(r.v.note)}</div>` : ""}</td>
       <td class="num">${fmtEur(r.contr)}</td>
-      ${perVoceAffidabile ? `<td class="num" style="color:var(--muted);">${pct(r.pPct)}</td>` : ""}
+      ${perVoceAffidabile ? `<td class="num">${pct(r.pPct)}</td>` : ""}
       <td class="num">
         <div style="display:flex;align-items:center;gap:4px;justify-content:flex-end;">
           <div style="position:relative;width:36px;height:5px;background:var(--line);border-radius:3px;overflow:hidden;">
@@ -249,7 +253,7 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
         </div>
       </td>
       <td class="num">${fmtEur(r.cum)}</td>
-      ${perVoceAffidabile ? `<td class="num" style="color:var(--muted);">${fmtEur(r.p)}</td>` : ""}
+      ${perVoceAffidabile ? `<td class="num">${fmtEur(r.p)}</td>` : ""}
       ${perVoceAffidabile ? `<td class="num" style="font-weight:700;">${fmtEur(r.quota)}</td>` : ""}
     </tr>${righeSottofasi(r.v)}`).join("");
 
@@ -288,7 +292,12 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
     @media print { .page { padding: 0; max-width: none; } }
     table { width:100%; border-collapse:collapse; } td { overflow-wrap:break-word; word-break:normal; hyphens:manual; vertical-align:top; } thead { display:table-header-group; } tr { break-inside:avoid; }
     td.voce { min-width: 140px; }
-    tr.riga-sottofase td { font-size: ${pagina.nota}pt; color: var(--muted); padding-top: 1pt; padding-bottom: 1pt; }
+    /* Leggibilità (10/11/2026): fasi su una fascia, sottofasi in inchiostro e appena più piccole, la quota che si muove in grassetto. */
+    table.doc-tabella tr.riga-fase td { background: var(--soft); font-weight: 600; border-top: .75pt solid var(--line); }
+    table.doc-tabella tr.riga-sottofase td { font-size: ${pagina.corpo - 0.5}pt; color: var(--ink); padding-top: 3pt; padding-bottom: 3pt; }
+    table.doc-tabella tr.riga-sottofase td.voce { padding-left: 14pt; }
+    table.doc-tabella tr.riga-sottofase .qta { font-size: ${pagina.nota}pt; color: var(--muted); margin-top: 1pt; }
+    table.doc-tabella tr.riga-sottofase.muove td.quota { font-weight: 700; }
     a { overflow-wrap:anywhere; }
     .nota { font-size: ${pagina.nota}pt; color: var(--muted); }
     table.doc-tabella tr.forte td { font-weight: 700; }

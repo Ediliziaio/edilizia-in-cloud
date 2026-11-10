@@ -13,6 +13,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { allegatiDaTesto, fotoNelPeriodo, MASSIMO_FOTO_VERBALE } from "@/lib/orders/fotoVerbaleSal";
 import { cn } from "@/lib/utils";
 
+/** Gli allegati che di solito accompagnano un SAL: un clic e sono nell'elenco. */
+const ALLEGATI_SOLITI = ["Libretto delle misure", "Computo metrico", "Certificato di pagamento", "Giornale dei lavori"];
+
 interface Foto { id: string; taken_at: string; descrizione: string | null; url: string | null }
 
 export function VerbaleSalDialog({ numero, orderId, companyId, dal, al, inCorso, conSottofasi = false, onGenera, onClose }: {
@@ -69,24 +72,48 @@ export function VerbaleSalDialog({ numero, orderId, companyId, dal, al, inCorso,
       <DialogContent className="flex max-h-[90dvh] flex-col overflow-hidden p-0 sm:max-w-2xl">
         <DialogHeader className="shrink-0 border-b p-4 pr-10">
           <DialogTitle>Verbale SAL n. {numero}</DialogTitle>
-          <DialogDescription>Scegli cosa accompagna il verbale. Foto e allegati stanno in una pagina a sé, dopo le firme.</DialogDescription>
+          <DialogDescription>Scegli il verbale e cosa lo accompagna. Foto e allegati sono facoltativi e stanno in una pagina a sé, dopo le firme.</DialogDescription>
         </DialogHeader>
-        <div className="min-h-0 space-y-4 overflow-y-auto p-4">
+        <div className="min-h-0 space-y-5 overflow-y-auto p-4">
           {conSottofasi && (
-            <label className="flex items-start gap-2 rounded-md border p-3 text-sm">
-              <input type="checkbox" className="mt-0.5" checked={dettaglio} onChange={(e) => setDettaglio(e.target.checked)} />
-              <span><span className="font-medium">Dettaglio sottofasi</span><span className="block text-xs text-muted-foreground">Sotto ogni fase le sue lavorazioni, con quantità e avanzamento. Spento, il verbale breve: una riga per fase.</span></span>
-            </label>
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">Che verbale stampare</legend>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {([
+                  [true, "Completo", "Ogni fase con sotto le sue lavorazioni: quantità, avanzamento, importi."],
+                  [false, "Breve", "Una riga per fase: per il committente che vuole solo i numeri."],
+                ] as const).map(([valore, titolo, spiegazione]) => (
+                  <button key={titolo} type="button" aria-pressed={dettaglio === valore} onClick={() => setDettaglio(valore)}
+                    className={cn("rounded-md border p-3 text-left text-sm transition-colors", dettaglio === valore ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:bg-muted")}>
+                    <span className="block font-medium">{titolo}</span>
+                    <span className="block text-xs text-muted-foreground">{spiegazione}</span>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
           )}
           <div className="space-y-2">
-            <p className="text-sm font-medium">Foto del cantiere · {scelte.length} di {MASSIMO_FOTO_VERBALE}</p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium">Foto del cantiere <span className="font-normal text-muted-foreground">· facoltative · {scelte.length} di {MASSIMO_FOTO_VERBALE}</span></p>
+              {periodo.length > 0 && (
+                <span className="flex gap-1">
+                  <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => setScelte(periodo.slice(0, MASSIMO_FOTO_VERBALE).map((f) => f.id))}>Quelle del periodo</Button>
+                  {scelte.length > 0 && <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setScelte([])}>Nessuna</Button>}
+                </span>
+              )}
+            </div>
             {foto.isLoading ? <p role="status" className="text-sm text-muted-foreground">Carico le foto…</p>
               : foto.isError ? <p role="alert" className="text-sm text-destructive">Foto non disponibili: il verbale si può stampare lo stesso. <Button variant="outline" size="sm" onClick={() => void foto.refetch()}>Riprova</Button></p>
               : !foto.data?.length ? <p className="text-sm text-muted-foreground">Nessuna foto su questa commessa.</p>
               : <>{griglia("Nel periodo di questo SAL", periodo)}{griglia("Altre foto della commessa", altre)}</>}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="verbale-allegati">Allegati al verbale · uno per riga</Label>
+            <Label htmlFor="verbale-allegati">Allegati al verbale <span className="font-normal text-muted-foreground">· facoltativi · uno per riga</span></Label>
+            <div className="flex flex-wrap gap-1">
+              {ALLEGATI_SOLITI.filter((a) => !allegatiDaTesto(allegati).includes(a)).map((a) => (
+                <Button key={a} type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAllegati((t) => (t.trim() ? `${t.trimEnd()}\n${a}` : a))}>+ {a}</Button>
+              ))}
+            </div>
             <Textarea id="verbale-allegati" rows={3} value={allegati} onChange={(e) => setAllegati(e.target.value)} placeholder={"Libretto delle misure\nComputo metrico"} />
             <p className="text-xs text-muted-foreground">Nel verbale compare l'elenco: i documenti vanno mandati insieme.</p>
           </div>
