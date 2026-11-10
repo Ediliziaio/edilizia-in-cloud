@@ -9,7 +9,7 @@
  *   RISK_REVERSAL) + swipe file di annunci edilizia performanti.
  */
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import {
   BookOpen,
   CheckCircle2,
@@ -153,6 +153,7 @@ const EXAMPLE_OFFERS: Array<{ title: string; text: string }> = [
 // ════════════════════════════════════════════════════════════════════
 
 export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, currentOffer }: Props) {
+  const fieldId = useId();
   const [offer, setOffer] = useState("");
   const [extraHint, setExtraHint] = useState("");
   const [showHint, setShowHint] = useState(false);
@@ -221,10 +222,11 @@ export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, curre
           </div>
         </div>
 
-        <Label className="mb-1 block text-xs font-semibold text-slate-700">
+        <Label htmlFor={`${fieldId}-offerta`} className="mb-1 block text-xs font-semibold text-slate-700">
           La tua offerta (sconto, promozione, garanzia, caratteristiche premium):
         </Label>
         <Textarea
+          id={`${fieldId}-offerta`}
           value={offer}
           onChange={(e) => setOffer(e.target.value.slice(0, 1500))}
           placeholder="Es. Sconto web 30% valido fino al 31 ottobre. Bonus serramenti 65% in detrazione fiscale. Posa qualificata con installatori certificati. Made in Italy con garanzia 10 anni. Sopralluogo gratuito in 48h."
@@ -236,6 +238,8 @@ export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, curre
           <button
             type="button"
             onClick={() => setShowParams((v) => !v)}
+            aria-expanded={showParams}
+            aria-controls={`${fieldId}-elementi`}
             className="inline-flex items-center gap-1 text-blue-700 hover:underline"
           >
             {showParams ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
@@ -245,7 +249,7 @@ export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, curre
 
         {/* Elementi educational */}
         {showParams && (
-          <div className="mt-3 rounded-xl border border-blue-200 bg-white p-3">
+          <div id={`${fieldId}-elementi`} className="mt-3 rounded-xl border border-blue-200 bg-white p-3">
             <p className="mb-2 text-xs font-semibold uppercase text-blue-900">Elementi forti da inserire</p>
             <div className="grid gap-2 sm:grid-cols-2">
               {OFFER_PARAMS.map((p) => (
@@ -283,6 +287,8 @@ export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, curre
         <button
           type="button"
           onClick={() => setShowHint((v) => !v)}
+          aria-expanded={showHint}
+          aria-controls={`${fieldId}-indicazioni`}
           className="mt-3 inline-flex items-center gap-1 text-xs text-slate-600 hover:text-slate-900"
         >
           {showHint ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
@@ -290,6 +296,8 @@ export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, curre
         </button>
         {showHint && (
           <Input
+            id={`${fieldId}-indicazioni`}
+            aria-label="Indicazioni aggiuntive per il testo"
             value={extraHint}
             onChange={(e) => setExtraHint(e.target.value.slice(0, 200))}
             placeholder="Es. tono lusso premium / molto diretto / parla a clienti senza budget"

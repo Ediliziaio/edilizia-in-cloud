@@ -7,7 +7,7 @@
  * ordinare. Niente è obbligatorio tranne cliente e oggetto: l'ufficio riempie
  * quel che sa al momento della chiamata e completa dopo.
  */
-import { useState, useRef } from "react";
+import { useState, useRef, useId } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -55,9 +55,16 @@ interface NuovoTicketFormProps {
   variant?: "page" | "dialog";
   /** Creato il ticket: la pagina naviga, il popup chiude e naviga. */
   onCreated?: (ticketId: string) => void;
+  onPendingChange?: (pending: boolean) => void;
 }
 
-export function NuovoTicketForm({ initial, variant = "page", onCreated }: NuovoTicketFormProps) {
+export function NuovoTicketForm({ initial, variant = "page", onCreated, onPendingChange }: NuovoTicketFormProps) {
+  const fieldId = useId();
+  const pendingRef = useRef(false);
+  const createdTicketRef = useRef<string | null>(null);
+  const messageSentRef = useRef(false);
+  const filesProgressRef = useRef(new Map<File, { path: string; messageSent: boolean }>());
+  const [createdTicketId, setCreatedTicketId] = useState<string | null>(null);
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
@@ -168,62 +175,77 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated }: NuovoT
       if (durataOre && (!Number.isFinite(durataNum) || (durataNum ?? 0) <= 0)) {
         throw new Error("Inserisci una durata intervento valida.");
       }
-      const { data: ticket, error: ticketError } = await supabase
-        .from("tickets")
-        .insert({
-          company_id: effectiveCompany.id,
-          customer_id: customerId,
-          order_id: (orderId && orderId !== "none") ? orderId : null,
-          subject,
-          priority,
-          tipo,
-          status: "aperto" as const,
-          assigned_to: tecnicoId || null,
-          squadra_id: squadraId || null,
-          a_pagamento: aPagamento,
-          motivo_gratuito: aPagamento ? null : motivoGratuito,
-          merce_stato: serveMerce ? merceStato : null,
-          merce_mancante:
-            serveMerce && merceStato === "arrivata_parziale" && merceMancante.trim()
-              ? merceMancante.trim()
-              : null,
-          merce_richiesta: serveMerce,
-          importo_preventivato: aPagamento && importoPreventivato ? Number(importoPreventivato) : null,
-          indirizzo_intervento: indirizzoIntervento.trim() || null,
-          data_intervento_prevista: dataInterventoPrevista ? new Date(dataInterventoPrevista).toISOString() : null,
-          durata_ore: durataNum,
-          note_tecnico: noteTecnico.trim() || null,
-          impianto_id: impiantoId && impiantoId !== "__none__" ? impiantoId : null,
-        } as never)
-        .select("id")
-        .single();
-      if (ticketError) throw ticketError;
+      let ticketId = createdTicketRef.current;
+      if (!ticketId) {
+        const { data: ticket, error: ticketError } = await supabase
+          .from("tickets")
+          .insert({
+            company_id: effectiveCompany.id,
+            customer_id: customerId,
+            order_id: (orderId && orderId !== "none") ? orderId : null,
+            subject,
+            priority,
+            tipo,
+            status: "aperto" as const,
+            assigned_to: tecnicoId || null,
+            squadra_id: squadraId || null,
+            a_pagamento: aPagamento,
+            motivo_gratuito: aPagamento ? null : motivoGratuito,
+            merce_stato: serveMerce ? merceStato : null,
+            merce_mancante:
+              serveMerce && merceStato === "arrivata_parziale" && merceMancante.trim()
+                ? merceMancante.trim()
+                : null,
+            merce_richiesta: serveMerce,
+            importo_preventivato: aPagamento && importoPreventivato ? Number(importoPreventivato) : null,
+            indirizzo_intervento: indirizzoIntervento.trim() || null,
+            data_intervento_prevista: dataInterventoPrevista ? new Date(dataInterventoPrevista).toISOString() : null,
+            durata_ore: durataNum,
+            note_tecnico: noteTecnico.trim() || null,
+            impianto_id: impiantoId && impiantoId !== "__none__" ? impiantoId : null,
+          } as never)
+          .select("id")
+          .single();
+        if (ticketError) throw ticketError;
+        if (!ticket?.id) throw new Error("Il server non ha restituito l’ID del ticket.");
+        ticketId = ticket.id;
+        createdTicketRef.current = ticketId;
+        setCreatedTicketId(ticketId);
+      }
 
-      if (message.trim()) {
+      if (message.trim() && !messageSentRef.current) {
         const { error: msgError } = await supabase
           .from("ticket_messages")
-          .insert({ ticket_id: ticket.id, sender_id: user.id, message: message.trim() });
+          .insert({ ticket_id: ticketId, sender_id: user.id, message: message.trim() });
         if (msgError) throw msgError;
+        messageSentRef.current = true;
       }
 
       for (const file of pendingFiles) {
-        const path = `${ticket.id}/${crypto.randomUUID()}-${file.name}`;
-        const { error: upErr } = await supabase.storage
-          .from("ticket-attachments")
-          .upload(path, file, { contentType: file.type });
-        if (upErr) throw upErr;
+        let progress = filesProgressRef.current.get(file);
+        if (progress?.messageSent) continue;
+        if (!progress) {
+          const path = `${ticketId}/${crypto.randomUUID()}-${file.name}`;
+          const { error: upErr } = await supabase.storage
+            .from("ticket-attachments")
+            .upload(path, file, { contentType: file.type });
+          if (upErr) throw upErr;
+          progress = { path, messageSent: false };
+          filesProgressRef.current.set(file, progress);
+        }
         const { data: signedData } = await supabase.storage
           .from("ticket-attachments")
-          .createSignedUrl(path, 60 * 60 * 24);
+          .createSignedUrl(progress.path, 60 * 60 * 24);
         const { error: msgErr } = await supabase
           .from("ticket_messages")
           .insert({
-            ticket_id: ticket.id,
+            ticket_id: ticketId,
             sender_id: user.id,
             message: `📎 ${file.name}`,
-            attachment_url: signedData?.signedUrl || path,
+            attachment_url: signedData?.signedUrl || progress.path,
           });
         if (msgErr) throw msgErr;
+        filesProgressRef.current.set(file, { ...progress, messageSent: true });
       }
 
       try {
@@ -235,7 +257,7 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated }: NuovoT
         if ((az as { ticket_playbook_auto_apply?: boolean } | null)?.ticket_playbook_auto_apply) {
           await applyPlaybookToTicket({
             companyId: effectiveCompany.id,
-            ticketId: ticket.id,
+            ticketId,
             category: null,
             baseDate: new Date(),
             assignedTo: tecnicoId || null,
@@ -245,7 +267,7 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated }: NuovoT
         console.error("Flusso assistenza non applicato:", e);
       }
 
-      return ticket.id as string;
+      return ticketId;
     },
     onSuccess: (ticketId) => {
       toast({ title: "Ticket creato", description: "Creato con successo." });
@@ -261,23 +283,34 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated }: NuovoT
       finish(ticketId);
     },
     onError: (err: Error) => {
-      toast({ title: "Errore", description: err.message || "Impossibile creare il ticket.", variant: "destructive" });
+      toast({ title: createdTicketRef.current ? "Ticket creato, completamento non riuscito" : "Errore", description: err.message || "Impossibile creare il ticket.", variant: "destructive" });
+    },
+    onSettled: () => {
+      pendingRef.current = false;
+      onPendingChange?.(false);
     },
   });
 
   const canSubmit = customerId && subject.trim();
   const submitLabel = createMutation.isPending
     ? undefined
-    : "Crea ticket";
+    : createdTicketId ? "Completa ticket" : "Crea ticket";
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" aria-busy={createMutation.isPending}>
+      {createdTicketId && createMutation.isError && (
+        <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          Il ticket è già stato creato. Riprova per completare messaggio e allegati senza crearne un altro.
+          I contenuti ancora da inviare restano in questo modulo finché non lo chiudi.
+        </div>
+      )}
+      <fieldset disabled={createMutation.isPending || Boolean(createdTicketId)} className="space-y-4">
       {/* Cliente */}
       <div className="space-y-2">
-        <Label>Cliente *</Label>
+        <Label htmlFor={`${fieldId}-customerId`}>Cliente *</Label>
         <div className="flex gap-2">
           <Select value={customerId} onValueChange={(v) => { setCustomerId(v); setOrderId(""); }}>
-            <SelectTrigger className="flex-1"><SelectValue placeholder="Seleziona cliente..." /></SelectTrigger>
+            <SelectTrigger id={`${fieldId}-customerId`} className="flex-1"><SelectValue placeholder="Seleziona cliente..." /></SelectTrigger>
             <SelectContent>
               {customers.map((c) => (
                 <SelectItem key={c.id} value={c.id}>
@@ -295,9 +328,9 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated }: NuovoT
       {/* Ordine collegato */}
       {customerId && (
         <div className="space-y-2">
-          <Label>Commessa collegata (opzionale)</Label>
+          <Label htmlFor={`${fieldId}-orderId`}>Commessa collegata (opzionale)</Label>
           <Select value={orderId} onValueChange={setOrderId}>
-            <SelectTrigger><SelectValue placeholder="Nessuna commessa" /></SelectTrigger>
+            <SelectTrigger id={`${fieldId}-orderId`}><SelectValue placeholder="Nessuna commessa" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Nessuna commessa</SelectItem>
               {orders.map((o) => (
@@ -312,16 +345,16 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated }: NuovoT
 
       {/* Oggetto */}
       <div className="space-y-2">
-        <Label>Oggetto *</Label>
-        <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Es. Caldaia che non parte" />
+        <Label htmlFor={`${fieldId}-subject`}>Oggetto *</Label>
+        <Input id={`${fieldId}-subject`} value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Es. Caldaia che non parte" />
       </div>
 
       {/* Tipo + Priorità affiancati */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
-          <Label>Tipo</Label>
+          <Label htmlFor={`${fieldId}-tipo`}>Tipo</Label>
           <Select value={tipo} onValueChange={setTipo}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger id={`${fieldId}-tipo`}><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="supporto">Supporto</SelectItem>
               <SelectItem value="intervento">Intervento tecnico</SelectItem>
@@ -330,9 +363,9 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated }: NuovoT
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Priorità</Label>
+          <Label htmlFor={`${fieldId}-priority`}>Priorità</Label>
           <Select value={priority} onValueChange={(v) => setPriority(v as TicketPriority)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger id={`${fieldId}-priority`}><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="bassa">Bassa</SelectItem>
               <SelectItem value="normale">Normale</SelectItem>
@@ -352,9 +385,9 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated }: NuovoT
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label className="text-xs">Assegna a un operaio</Label>
+            <Label htmlFor={`${fieldId}-tecnicoId`} className="text-xs">Assegna a un operaio</Label>
             <Select value={tecnicoId || "__none__"} onValueChange={(v) => setTecnicoId(v === "__none__" ? "" : v)}>
-              <SelectTrigger><SelectValue placeholder="Nessuno" /></SelectTrigger>
+              <SelectTrigger id={`${fieldId}-tecnicoId`}><SelectValue placeholder="Nessuno" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">Nessuno</SelectItem>
                 {tecnici.map((t) => (
@@ -364,9 +397,9 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated }: NuovoT
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label className="flex items-center gap-1 text-xs"><Users className="h-3 w-3" /> Oppure a una squadra</Label>
+            <Label htmlFor={`${fieldId}-squadraId`} className="flex items-center gap-1 text-xs"><Users className="h-3 w-3" /> Oppure a una squadra</Label>
             <Select value={squadraId || "__none__"} onValueChange={(v) => setSquadraId(v === "__none__" ? "" : v)}>
-              <SelectTrigger><SelectValue placeholder="Nessuna squadra" /></SelectTrigger>
+              <SelectTrigger id={`${fieldId}-squadraId`}><SelectValue placeholder="Nessuna squadra" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">Nessuna squadra</SelectItem>
                 {squadre.map((s) => (
@@ -379,12 +412,12 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated }: NuovoT
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label className="text-xs">Data e ora prevista</Label>
-            <Input type="datetime-local" value={dataInterventoPrevista} onChange={(e) => setDataInterventoPrevista(e.target.value)} />
+            <Label htmlFor={`${fieldId}-dataInterventoPrevista`} className="text-xs">Data e ora prevista</Label>
+            <Input id={`${fieldId}-dataInterventoPrevista`} type="datetime-local" value={dataInterventoPrevista} onChange={(e) => setDataInterventoPrevista(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Durata stimata (ore)</Label>
-            <Input type="number" min="0.5" step="0.5" value={durataOre} onChange={(e) => setDurataOre(e.target.value)} placeholder="Es. 2" />
+            <Label htmlFor={`${fieldId}-durataOre`} className="text-xs">Durata stimata (ore)</Label>
+            <Input id={`${fieldId}-durataOre`} type="number" min="0.5" step="0.5" value={durataOre} onChange={(e) => setDurataOre(e.target.value)} placeholder="Es. 2" />
           </div>
         </div>
 
@@ -395,9 +428,9 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated }: NuovoT
 
         {customerId && impianti.length > 0 && (
           <div className="space-y-1.5">
-            <Label className="text-xs">Impianto collegato</Label>
+            <Label htmlFor={`${fieldId}-impiantoId`} className="text-xs">Impianto collegato</Label>
             <Select value={impiantoId} onValueChange={setImpiantoId}>
-              <SelectTrigger><SelectValue placeholder="Nessun impianto" /></SelectTrigger>
+              <SelectTrigger id={`${fieldId}-impiantoId`}><SelectValue placeholder="Nessun impianto" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">Nessun impianto</SelectItem>
                 {impianti.map((im) => (
@@ -411,8 +444,8 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated }: NuovoT
         )}
 
         <div className="space-y-1.5">
-          <Label className="text-xs">Note per chi interviene</Label>
-          <Textarea value={noteTecnico} onChange={(e) => setNoteTecnico(e.target.value)} rows={2} placeholder="Istruzioni, accessi, materiali…" />
+          <Label htmlFor={`${fieldId}-noteTecnico`} className="text-xs">Note per chi interviene</Label>
+          <Textarea id={`${fieldId}-noteTecnico`} value={noteTecnico} onChange={(e) => setNoteTecnico(e.target.value)} rows={2} placeholder="Istruzioni, accessi, materiali…" />
         </div>
       </div>
 
@@ -420,23 +453,23 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated }: NuovoT
       <div className="space-y-3 rounded-xl border border-border bg-muted/40 p-3">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <Label className="text-sm font-semibold">Intervento a pagamento</Label>
+            <Label htmlFor={`${fieldId}-aPagamento`} className="text-sm font-semibold">Intervento a pagamento</Label>
             <p className="text-xs text-muted-foreground">Se è in garanzia lascialo spento: resta scritto perché non si fattura.</p>
           </div>
-          <Switch checked={aPagamento} onCheckedChange={setAPagamento} />
+          <Switch id={`${fieldId}-aPagamento`} checked={aPagamento} onCheckedChange={setAPagamento} />
         </div>
         {aPagamento ? (
           <div className="space-y-2">
-            <Label className="text-xs">Importo preventivato (€)</Label>
-            <Input type="number" min="0" step="0.01" inputMode="decimal" value={importoPreventivato}
+            <Label htmlFor={`${fieldId}-importoPreventivato`} className="text-xs">Importo preventivato (€)</Label>
+            <Input id={`${fieldId}-importoPreventivato`} type="number" min="0" step="0.01" inputMode="decimal" value={importoPreventivato}
                    onChange={(e) => setImportoPreventivato(e.target.value)}
                    placeholder="Es. 150,00 — lascia vuoto se ancora da quantificare" />
           </div>
         ) : (
           <div className="space-y-2">
-            <Label className="text-xs">Perché non si paga</Label>
+            <Label htmlFor={`${fieldId}-motivoGratuito`} className="text-xs">Perché non si paga</Label>
             <Select value={motivoGratuito} onValueChange={setMotivoGratuito}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger id={`${fieldId}-motivoGratuito`}><SelectValue /></SelectTrigger>
               <SelectContent>
                 {TICKET_MOTIVI_GRATUITO.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
               </SelectContent>
@@ -449,17 +482,17 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated }: NuovoT
       <div className="space-y-3 rounded-xl border border-border bg-muted/40 p-3">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <Label className="text-sm font-semibold">Serve della merce</Label>
+            <Label htmlFor={`${fieldId}-serveMerce`} className="text-sm font-semibold">Serve della merce</Label>
             <p className="text-xs text-muted-foreground">Accendilo se l'intervento aspetta materiale: potrai filtrare i ticket per merce.</p>
           </div>
-          <Switch checked={serveMerce} onCheckedChange={setServeMerce} />
+          <Switch id={`${fieldId}-serveMerce`} checked={serveMerce} onCheckedChange={setServeMerce} />
         </div>
         {serveMerce && (
           <div className="space-y-3">
             <div className="space-y-2">
-              <Label className="text-xs">A che punto è</Label>
+              <Label htmlFor={`${fieldId}-merceStato`} className="text-xs">A che punto è</Label>
               <Select value={merceStato} onValueChange={(v) => setMerceStato(v as TicketMerceStato)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${fieldId}-merceStato`}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {TICKET_MERCE_STATI.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
                 </SelectContent>
@@ -473,8 +506,8 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated }: NuovoT
             )}
             {merceStato === "arrivata_parziale" && (
               <div className="space-y-2">
-                <Label className="text-xs text-red-600">Che cosa manca *</Label>
-                <Textarea value={merceMancante} onChange={(e) => setMerceMancante(e.target.value)}
+                <Label htmlFor={`${fieldId}-merceMancante`} className="text-xs text-red-600">Che cosa manca *</Label>
+                <Textarea id={`${fieldId}-merceMancante`} value={merceMancante} onChange={(e) => setMerceMancante(e.target.value)}
                           placeholder="Es. mancano 2 maniglie e la guarnizione inferiore" rows={2}
                           className="border-red-200 focus-visible:ring-red-400" />
               </div>
@@ -485,14 +518,14 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated }: NuovoT
 
       {/* Messaggio */}
       <div className="space-y-2">
-        <Label>Messaggio iniziale (opzionale)</Label>
-        <Textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Descrivi il problema o la richiesta..." rows={3} />
+        <Label htmlFor={`${fieldId}-message`}>Messaggio iniziale (opzionale)</Label>
+        <Textarea id={`${fieldId}-message`} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Descrivi il problema o la richiesta..." rows={3} />
       </div>
 
       {/* Allegati */}
       <div className="space-y-2">
-        <Label>Allegati (opzionale)</Label>
-        <input ref={fileInputRef} type="file" multiple onChange={handleFileSelect} className="hidden" accept={ACCEPTED_FORMATS} />
+        <Label htmlFor={`${fieldId}-attachments`}>Allegati (opzionale)</Label>
+        <input id={`${fieldId}-attachments`} ref={fileInputRef} type="file" multiple onChange={handleFileSelect} className="hidden" accept={ACCEPTED_FORMATS} />
         <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={pendingFiles.length >= MAX_FILES}>
           <Paperclip className="h-4 w-4 mr-2" /> Allega file
         </Button>
@@ -502,7 +535,7 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated }: NuovoT
               <div key={`${f.name}-${i}`} className="flex items-center gap-2 text-sm p-2 rounded border bg-muted/30">
                 <span className="truncate flex-1">{f.name}</span>
                 <span className="text-xs text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
-                <Button type="button" variant="ghost" size="icon" className="h-9 w-9 md:h-6 md:w-6 text-destructive" onClick={() => setPendingFiles(prev => prev.filter((_, j) => j !== i))}><X className="h-3 w-3" /></Button>
+                <Button type="button" variant="ghost" size="icon" className="h-9 w-9 md:h-6 md:w-6 text-destructive" aria-label={`Rimuovi allegato ${f.name}`} onClick={() => setPendingFiles(prev => prev.filter((_, j) => j !== i))}><X className="h-3 w-3" /></Button>
               </div>
             ))}
             <p className="text-xs text-muted-foreground">{pendingFiles.length}/{MAX_FILES} file — max 10MB ciascuno</p>
@@ -510,10 +543,16 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated }: NuovoT
         )}
       </div>
 
+      </fieldset>
       <Button
         className={variant === "dialog" ? "w-full" : "w-full"}
         disabled={!canSubmit || createMutation.isPending}
-        onClick={() => createMutation.mutate()}
+        onClick={() => {
+          if (!canSubmit || pendingRef.current) return;
+          pendingRef.current = true;
+          onPendingChange?.(true);
+          createMutation.mutate();
+        }}
       >
         {createMutation.isPending ? (<><Loader2 className="h-4 w-4 animate-spin mr-2" /> Creazione...</>) : submitLabel}
       </Button>

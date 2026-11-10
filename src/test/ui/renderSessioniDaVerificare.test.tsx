@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { Image } from "lucide-react";
@@ -24,6 +24,10 @@ afterEach(cleanup);
 
 it("Mostra da verificare include le attese storiche e le elaborazioni, esclude completate e appena create", () => {
   render(<MemoryRouter><RenderModuleHubPage moduleId="infissi" moduleName="Infissi" breadcrumbLabel="Infissi" badgeLabel="Infissi" title="Render infissi" description="Prova" icon={Image} accentClassName="" iconBgClassName="" workflow={[]} qualityCards={[]} emptyTitle="Vuoto" emptyDescription="Nessun render" galleryPath="/render" /></MemoryRouter>);
+  expect(screen.getByRole("link", { name: /Apri sessione Infissi.*Completato/ })).toHaveAttribute("href", "/render/completed");
+  expect(screen.getAllByRole("link", { name: /^Apri sessione/ })).toHaveLength(4);
+  expect(screen.getByLabelText("Cerca sessioni render")).toBeInTheDocument();
+  expect(screen.getByRole("combobox", { name: "Filtra sessioni render per stato" })).toBeInTheDocument();
   expect(screen.getByText("Foto appena caricata")).toBeInTheDocument();
   expect(screen.getByText(/questa età non misura il tempo di elaborazione/)).toBeInTheDocument();
   expect(screen.queryByText(/Ultimo avvio/)).not.toBeInTheDocument();
@@ -37,6 +41,9 @@ it("Mostra da verificare include le attese storiche e le elaborazioni, esclude c
 it("una lettura fallita non invita a creare il primo render e permette di riprovare", () => {
   queryState.error = true;
   render(<MemoryRouter><RenderModuleHubPage moduleId="infissi" moduleName="Infissi" breadcrumbLabel="Infissi" badgeLabel="Infissi" title="Render infissi" description="Prova" icon={Image} accentClassName="" iconBgClassName="" workflow={[]} qualityCards={[]} emptyTitle="Nessun render salvato" emptyDescription="Nessun render" newPath="/nuovo" /></MemoryRouter>);
+  for (const name of ["Render recenti", "Completati", "In attesa o elaborazione", "Collegati CRM"]) {
+    expect(within(screen.getByRole("group", { name })).getByText("—")).toBeInTheDocument();
+  }
   expect(screen.getByRole("alert")).toHaveTextContent("Impossibile caricare le sessioni render");
   expect(screen.queryByText("Nessun render salvato")).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Riprova caricamento" }));

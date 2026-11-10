@@ -1051,9 +1051,9 @@ function CustomersListInner() {
                 tone="text-blue-100"
               />
               <NavyStatCard
-                label="Solo anagrafica"
+                label="Senza accesso al portale"
                 value={stats?.portal_disabled ?? 0}
-                sub="senza portale"
+                sub="clienti con accesso disattivato"
                 icon={ShieldOff}
                 tone="text-blue-100"
               />
@@ -1147,7 +1147,7 @@ function CustomersListInner() {
           !quickFiltersOpen && "max-sm:hidden",
         )}>
           <Select value={filterSalesperson} onValueChange={wrapSet(setFilterSalesperson)}>
-            <SelectTrigger className="w-full h-10 sm:h-9 sm:w-[180px] min-w-0">
+            <SelectTrigger aria-label="Filtra clienti per venditore" className="w-full h-10 sm:h-9 sm:w-[180px] min-w-0">
               <div className="flex items-center gap-2 min-w-0">
                 <UserCheck className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <SelectValue placeholder="Venditore" />
@@ -1165,7 +1165,7 @@ function CustomersListInner() {
           </Select>
 
           <Select value={filterOrders} onValueChange={wrapSet(setFilterOrders)}>
-            <SelectTrigger className="w-full h-10 sm:h-9 sm:w-[160px] min-w-0">
+            <SelectTrigger aria-label="Filtra clienti per presenza di ordini" className="w-full h-10 sm:h-9 sm:w-[160px] min-w-0">
               <div className="flex items-center gap-2 min-w-0">
                 <ClipboardList className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <SelectValue placeholder="Ordini" />

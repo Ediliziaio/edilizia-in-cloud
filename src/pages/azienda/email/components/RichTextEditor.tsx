@@ -8,6 +8,7 @@
  * Output: chiama onChange(html, text) ad ogni modifica (debounced 100ms).
  */
 import { useEffect, useRef, useState } from "react";
+import DOMPurify from "dompurify";
 import { Button } from "@/components/ui/button";
 import {
   Bold, Italic, Underline, List, ListOrdered, Link as LinkIcon,
@@ -21,18 +22,20 @@ interface RichTextEditorProps {
   placeholder?: string;
   className?: string;
   rows?: number;
+  ariaLabel?: string;
 }
 
 export function RichTextEditor({
-  value, onChange, placeholder = "Scrivi…", className, rows = 12,
+  value, onChange, placeholder = "Scrivi…", className, rows = 12, ariaLabel = "Messaggio",
 }: RichTextEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
 
   // Inizializza/aggiorna content solo se diverso (evita perdita cursore)
   useEffect(() => {
-    if (editorRef.current && editorRef.current.innerHTML !== value) {
-      editorRef.current.innerHTML = value || "";
+    const safeHtml = DOMPurify.sanitize(value || "");
+    if (editorRef.current && editorRef.current.innerHTML !== safeHtml) {
+      editorRef.current.innerHTML = safeHtml;
     }
   }, [value]);
 
@@ -44,7 +47,8 @@ export function RichTextEditor({
 
   const handleInput = () => {
     if (!editorRef.current) return;
-    const html = editorRef.current.innerHTML;
+    const html = DOMPurify.sanitize(editorRef.current.innerHTML);
+    if (editorRef.current.innerHTML !== html) editorRef.current.innerHTML = html;
     const text = editorRef.current.innerText;
     onChange(html, text);
   };
@@ -83,6 +87,9 @@ export function RichTextEditor({
         <div
           ref={editorRef}
           contentEditable
+          role="textbox"
+          aria-label={ariaLabel}
+          aria-multiline="true"
           onInput={handleInput}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
@@ -115,6 +122,7 @@ function ToolbarBtn({
       onClick={onClick}
       className={cn("tap-compact h-9 w-9 sm:h-7 sm:w-7", className)}
       title={title}
+      aria-label={title}
     >
       <Icon className="h-3.5 w-3.5" />
     </Button>

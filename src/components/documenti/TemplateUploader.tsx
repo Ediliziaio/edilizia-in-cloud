@@ -106,37 +106,47 @@ export function TemplateUploader({ onUpload, isLoading }: TemplateUploaderProps)
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
-        onClick={() => inputRef.current?.click()}
       >
         <input
           ref={inputRef}
           type="file"
           accept=".pdf,.docx"
           className="hidden"
+          aria-label="Documento template"
           onChange={handleInputChange}
         />
 
-        {file ? (
-          <div className="flex items-center justify-center gap-3">
-            <FileText className="h-8 w-8 text-green-600" />
-            <div className="text-left">
-              <p className="font-medium text-slate-800">{file.name}</p>
-              <p className="text-sm text-slate-500">{formatFileSize(file.size)}</p>
+        <button
+          type="button"
+          aria-label={file ? "Cambia documento template" : "Seleziona documento template"}
+          onClick={() => inputRef.current?.click()}
+          className="w-full rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          {file ? (
+            <div className="flex items-center justify-center gap-3">
+              <FileText className="h-8 w-8 text-green-600" />
+              <div className="text-left">
+                <p className="font-medium text-slate-800">{file.name}</p>
+                <p className="text-sm text-slate-500">{formatFileSize(file.size)}</p>
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); setFile(null); }}
-              className="ml-2 text-slate-400 hover:text-red-500"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <Upload className="h-10 w-10 text-slate-400 mx-auto" />
-            <p className="font-medium text-slate-700">Trascina qui il documento o clicca per selezionare</p>
-            <p className="text-sm text-slate-400">PDF o DOCX, max 10 MB</p>
-          </div>
+          ) : (
+            <div className="space-y-2">
+              <Upload className="h-10 w-10 text-slate-400 mx-auto" />
+              <p className="font-medium text-slate-700">Trascina qui il documento o clicca per selezionare</p>
+              <p className="text-sm text-slate-400">PDF o DOCX, max 10 MB</p>
+            </div>
+          )}
+        </button>
+        {file && (
+          <button
+            type="button"
+            aria-label={`Rimuovi documento template ${file.name}`}
+            onClick={() => { setFile(null); if (inputRef.current) inputRef.current.value = ''; }}
+            className="mt-3 rounded p-1 text-slate-500 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <X className="h-5 w-5" />
+          </button>
         )}
       </div>
 

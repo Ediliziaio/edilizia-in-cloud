@@ -29,11 +29,11 @@ export function OrderDetailNavigation({operational=false,conCosti=true}:{operati
               key={tab.value}
               value={tab.value}
               aria-label={tab.label}
-              className="min-h-11 min-w-0 flex-1 flex-col gap-0.5 whitespace-normal px-1 py-1.5 text-[11px] leading-tight sm:gap-1 sm:py-2 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-800 sm:flex-row sm:gap-1.5 sm:px-3 sm:text-sm"
+              className="min-h-11 min-w-0 flex-1 flex-col gap-0.5 whitespace-normal px-1 py-1.5 text-[11px] leading-tight sm:gap-1 sm:py-2 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-800 lg:flex-row lg:gap-1.5 lg:px-3 sm:text-sm"
             >
               <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <span className="sm:hidden">{tab.shortLabel}</span>
-              <span className="hidden sm:inline">{tab.label}</span>
+              <span className="2xl:hidden">{tab.shortLabel}</span>
+              <span className="hidden 2xl:inline">{tab.label}</span>
             </TabsTrigger>
           );
         })}

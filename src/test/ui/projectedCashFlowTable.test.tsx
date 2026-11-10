@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { DatiRendicontoCassa } from '@/hooks/controlloGestione/useRendicontoCassa';
 
@@ -80,14 +80,19 @@ describe('rendiconto di cassa', () => {
     expect(screen.getAllByText('Totale incassi').length).toBeGreaterThan(0);
   });
 
-  it('un clic su un importo apre i movimenti che lo compongono', () => {
+  it('un clic su un importo apre i movimenti e la chiusura restituisce il focus', async () => {
     apri();
     const riga = screen.getByText('Da clienti (fatture e rate delle commesse)').closest('tr')!;
-    fireEvent.click(within(riga).getAllByRole('button', { name: '5.000 €' })[0]);
+    const origin = within(riga).getByRole('button', { name: 'Apri il dettaglio di Da clienti (fatture e rate delle commesse) · novembre 2026: 5.000 €' });
+    origin.focus();
+    fireEvent.click(origin);
     const pannello = screen.getByRole('dialog');
     expect(within(pannello).getByText('Rata SAL 2')).toBeInTheDocument();
     expect(within(pannello).getByText('Previsto')).toBeInTheDocument();
     expect(within(pannello).getByRole('link', { name: 'Apri' })).toHaveAttribute('href', '/azienda/ordini/o1');
+    fireEvent.click(within(pannello).getByRole('button', { name: /Chiudi|Close/ }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(origin).toHaveFocus());
   });
 
   it('l\'interruttore degli incassi scaduti cambia la previsione e il link al Previsionale', () => {
@@ -98,7 +103,7 @@ describe('rendiconto di cassa', () => {
     expect(link).toHaveAttribute('href', '/azienda/previsionale?incassi-scaduti=1');
     const riga = screen.getByText('Da clienti (fatture e rate delle commesse)').closest('tr')!;
     // L'incasso scaduto cade oggi (ottobre).
-    expect(within(riga).getAllByRole('button', { name: '1.000 €' }).length).toBeGreaterThan(0);
+    expect(within(riga).getByRole('button', { name: 'Apri il dettaglio di Da clienti (fatture e rate delle commesse) · ottobre 2026: 1.000 €' })).toBeInTheDocument();
   });
 
   it('esporta la tabella completa', () => {
@@ -126,5 +131,6 @@ describe('rendiconto di cassa', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Mese successivo' }));
     expect(screen.getByRole('combobox', { name: 'Mese' })).toHaveTextContent('novembre · Previsione');
     expect(screen.getAllByText('5.000 €').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Apri il dettaglio di Da clienti (fatture e rate delle commesse) · novembre 2026: 5.000 €' })).toBeInTheDocument();
   });
 });

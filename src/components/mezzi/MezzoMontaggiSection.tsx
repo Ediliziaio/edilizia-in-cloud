@@ -1,3 +1,4 @@
+import { useDialogFocusReturn } from "@/hooks/useDialogFocusReturn";
 /**
  * Attrezzature a quantità (ponteggi in m², transenne a pezzi, reti in metri):
  * quanto è montato e dove, quanto resta in magazzino. Si monta una parte su un
@@ -34,6 +35,7 @@ interface Props {
 }
 
 export function MezzoMontaggiSection({ mezzoId, companyId, unita, totale, puoModificare }: Props) {
+  const deleteFocus = useDialogFocusReturn();
   const { data: righe = [], isLoading, error, refetch } = useMezzoAllocazioni(mezzoId);
   const elimina = useEliminaAllocazione();
   const [monta, setMonta] = useState(false);
@@ -145,7 +147,7 @@ export function MezzoMontaggiSection({ mezzoId, companyId, unita, totale, puoMod
       {rientro && <DialogRientro allocazione={rientro} unita={unita} onClose={() => setRientro(null)} />}
 
       <AlertDialog open={!!daEliminare} onOpenChange={(o) => !o && setDaEliminare(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent {...deleteFocus}>
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare questo montaggio?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -171,6 +173,7 @@ function DialogMonta({ mezzoId, companyId, unita, disponibile, onClose }: {
   mezzoId: string; companyId: string; unita: string | null; disponibile: number; onClose: () => void;
 }) {
   const monta = useMontaQuantita(mezzoId);
+  const focusReturn = useDialogFocusReturn();
   const [orderId, setOrderId] = useState<string | null>(null);
   const [altroPosto, setAltroPosto] = useState(false);
   const [luogo, setLuogo] = useState("");
@@ -194,7 +197,7 @@ function DialogMonta({ mezzoId, companyId, unita, disponibile, onClose }: {
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md" onInteractOutside={(e) => e.preventDefault()}>
+      <DialogContent {...focusReturn} className="max-w-md" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>Monta su un cantiere</DialogTitle>
           <DialogDescription>In magazzino ce ne sono {formatQuantita(disponibile, unita)}.</DialogDescription>
@@ -249,6 +252,7 @@ function DialogMonta({ mezzoId, companyId, unita, disponibile, onClose }: {
 }
 
 function DialogRientro({ allocazione, unita, onClose }: { allocazione: AllocazioneConCantiere; unita: string | null; onClose: () => void }) {
+  const focusReturn = useDialogFocusReturn();
   const rientro = useRientroQuantita();
   const [quantita, setQuantita] = useState(String(allocazione.quantita).replace(".", ","));
   const [data, setData] = useState(oggiIso());
@@ -267,7 +271,7 @@ function DialogRientro({ allocazione, unita, onClose }: { allocazione: Allocazio
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-sm">
+      <DialogContent {...focusReturn} className="max-w-sm">
         <DialogHeader>
           <DialogTitle>Rientro in magazzino</DialogTitle>
           <DialogDescription>

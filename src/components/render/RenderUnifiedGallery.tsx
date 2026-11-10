@@ -149,6 +149,8 @@ export function RenderUnifiedGallery({
   const contactOptions = useMemo(() => uniqueOptions(items, "contactId", "contactName"), [items]);
   const opportunityOptions = useMemo(() => uniqueOptions(items, "opportunityId", "opportunityName"), [items]);
 
+  const statsAvailable = !isLoading && !error;
+
   const stats = useMemo(() => ({
     total: items.length,
     visible: filtered.length,
@@ -308,7 +310,7 @@ export function RenderUnifiedGallery({
       <section className="rounded-2xl border bg-[linear-gradient(135deg,#f8fbff_0%,#eef6ff_52%,#ffffff_100%)] p-5 shadow-sm">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-start gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate(backPath)}>
+            <Button variant="ghost" size="icon" aria-label="Torna alla panoramica render" onClick={() => navigate(backPath)}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
@@ -338,9 +340,9 @@ export function RenderUnifiedGallery({
             { label: "Collegati CRM", value: stats.linked, icon: Link2 },
             { label: "Contatti", value: stats.contacts, icon: UserRound },
           ].map(({ label, value, icon: Icon }) => (
-            <div key={label} className="rounded-xl border bg-white/85 p-3 shadow-sm">
+            <div key={label} role="group" aria-label={label} className="rounded-xl border bg-white/85 p-3 shadow-sm">
               <Icon className={`mb-2 h-4 w-4 ${accentClassName}`} />
-              <p className="text-2xl font-bold leading-none">{value}</p>
+              <p className="text-2xl font-bold leading-none">{statsAvailable ? value : "—"}</p>
               <p className="mt-1 text-xs text-muted-foreground">{label}</p>
             </div>
           ))}
@@ -366,6 +368,7 @@ export function RenderUnifiedGallery({
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
+                  aria-label="Cerca nella galleria render"
                   placeholder={searchPlaceholder}
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
@@ -373,28 +376,28 @@ export function RenderUnifiedGallery({
                 />
               </div>
               <Select value={creatorFilter} onValueChange={setCreatorFilter}>
-                <SelectTrigger><SelectValue placeholder="Creato da" /></SelectTrigger>
+                <SelectTrigger aria-label="Filtra render per autore"><SelectValue placeholder="Creato da" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutti gli autori</SelectItem>
                   {creatorOptions.map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={contactFilter} onValueChange={setContactFilter}>
-                <SelectTrigger><SelectValue placeholder="Contatto" /></SelectTrigger>
+                <SelectTrigger aria-label="Filtra render per contatto"><SelectValue placeholder="Contatto" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutti i contatti</SelectItem>
                   {contactOptions.map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={opportunityFilter} onValueChange={setOpportunityFilter}>
-                <SelectTrigger><SelectValue placeholder="Opportunita" /></SelectTrigger>
+                <SelectTrigger aria-label="Filtra render per opportunità"><SelectValue placeholder="Opportunita" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutte opportunita</SelectItem>
                   {opportunityOptions.map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={linkFilter} onValueChange={setLinkFilter}>
-                <SelectTrigger><SelectValue placeholder="CRM" /></SelectTrigger>
+                <SelectTrigger aria-label="Filtra render per collegamento CRM"><SelectValue placeholder="CRM" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutti CRM</SelectItem>
                   <SelectItem value="linked">Collegati</SelectItem>
@@ -510,7 +513,7 @@ export function RenderUnifiedGallery({
                     {item.tags && item.tags.length > 0 && (
                       <div className="flex flex-wrap gap-1.5">
                         {item.tags.slice(0, 4).map((tag) => (
-                          <Badge key={tag} variant="outline" className="text-[10px] capitalize">
+                          <Badge key={tag} variant="outline" className="text-[10px]">
                             {tag.replace(/_/g, " ")}
                           </Badge>
                         ))}

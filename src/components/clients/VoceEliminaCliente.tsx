@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { logger } from "@/utils/logger";
 import { queryKeys } from "@/lib/queryKeys";
+import { usePermissions } from "@/hooks/usePermissions";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -19,6 +20,7 @@ export function VoceEliminaCliente({
   chi = "cliente",
   tornaA = "/azienda/clienti",
   avviso,
+  disabled = false,
 }: {
   id: string;
   /** Quante commesse ha: con almeno una non si può eliminare. */
@@ -27,15 +29,19 @@ export function VoceEliminaCliente({
   tornaA?: string;
   /** Una frase in più nella conferma: cosa sparisce insieme. */
   avviso?: string;
+  disabled?: boolean;
 }) {
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [inCorso, setInCorso] = useState(false);
+  const permissions = usePermissions();
+  const bloccato = disabled || permissions.isLoading || permissions.solaLettura;
   const Chi = chi === "cliente" ? "Cliente" : "Committente";
   const quanteCommesse = `${commesse} ${commesse === 1 ? "ordine associato" : "ordini associati"}`;
 
   const elimina = async () => {
+    if (bloccato || inCorso) return;
     if (commesse > 0) {
       toast({ title: "Impossibile eliminare", description: `Il ${chi} ha ${quanteCommesse}. Elimina prima gli ordini.`, variant: "destructive" });
       return;
@@ -72,7 +78,7 @@ export function VoceEliminaCliente({
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <DropdownMenuItem onSelect={(e) => e.preventDefault()} disabled={inCorso} className="text-destructive focus:text-destructive">
+        <DropdownMenuItem onSelect={(e) => e.preventDefault()} disabled={bloccato || inCorso} className="text-destructive focus:text-destructive">
           <Trash2 className="h-3.5 w-3.5 mr-2" /> Elimina {chi}
         </DropdownMenuItem>
       </AlertDialogTrigger>
@@ -88,7 +94,7 @@ export function VoceEliminaCliente({
         <AlertDialogFooter>
           <AlertDialogCancel>Annulla</AlertDialogCancel>
           {commesse === 0 && (
-            <AlertDialogAction onClick={elimina} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction disabled={bloccato || inCorso} onClick={elimina} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               {inCorso ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Elimina
             </AlertDialogAction>

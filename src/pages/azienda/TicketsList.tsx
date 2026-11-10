@@ -793,7 +793,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
         </div>
         <div className="flex flex-wrap items-center gap-2 max-sm:hidden sm:contents">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="flex-1 sm:h-9 sm:w-auto sm:flex-none"><SelectValue placeholder="Stato" /></SelectTrigger>
+            <SelectTrigger aria-label="Filtra assistenze per stato" className="flex-1 sm:h-9 sm:w-auto sm:flex-none"><SelectValue placeholder="Stato" /></SelectTrigger>
             <SelectContent className="max-h-[380px]">
               <SelectItem value="all">Tutti gli stati ({statusCounts.all})</SelectItem>
               {TICKET_FASI.map((fase) => {
@@ -817,7 +817,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
             </SelectContent>
           </Select>
           <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-            <SelectTrigger className="flex-1 sm:h-9 sm:w-auto sm:flex-none"><SelectValue placeholder="Priorità" /></SelectTrigger>
+            <SelectTrigger aria-label="Filtra assistenze per priorità" className="flex-1 sm:h-9 sm:w-auto sm:flex-none"><SelectValue placeholder="Priorità" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tutte le priorità</SelectItem>
               <SelectItem value="urgente">🔴 Urgente</SelectItem>
@@ -827,7 +827,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
             </SelectContent>
           </Select>
           <Select value={assegnatoFilter} onValueChange={setAssegnatoFilter}>
-            <SelectTrigger className="flex-1 sm:h-9 sm:w-auto sm:flex-none"><SelectValue placeholder="Assegnato a" /></SelectTrigger>
+            <SelectTrigger aria-label="Filtra assistenze per assegnatario" className="flex-1 sm:h-9 sm:w-auto sm:flex-none"><SelectValue placeholder="Assegnato a" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="tutti">Tutti (assegnato o no)</SelectItem>
               <SelectItem value="unassigned">Non assegnato</SelectItem>
@@ -1411,7 +1411,7 @@ function DesktopTicketRow({
       </TableCell>
       <TableCell>
         <Button variant="ghost" size="icon" asChild>
-          <Link to={`/azienda/assistenza/${ticket.id}`}>
+          <Link to={`/azienda/assistenza/${ticket.id}`} aria-label={`Apri assistenza: ${ticket.subject}`}>
             <ChevronRight className="h-4 w-4" />
           </Link>
         </Button>

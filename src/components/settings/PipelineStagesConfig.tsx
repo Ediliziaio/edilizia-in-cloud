@@ -32,6 +32,15 @@ interface Stage {
   stalled_threshold_days: number | null;
 }
 
+// L’ordine è quello dell’array: le posizioni salvate possono avere intervalli.
+function stesseFasi(prima: Stage[], dopo: Stage[]) {
+  return prima.length === dopo.length && prima.every((fase, indice) => {
+    const altra = dopo[indice];
+    return fase.id === altra.id && fase.name === altra.name && fase.auto_status === altra.auto_status &&
+      fase.win_probability === altra.win_probability && fase.stalled_threshold_days === altra.stalled_threshold_days;
+  });
+}
+
 type StageUpdatePayload = {
   name: string;
   position: number;
@@ -273,6 +282,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
   const [isSaving, setIsSaving] = useState(false);
+  const aggiungiFaseRef = useRef<HTMLButtonElement>(null);
   const chiaveFasi = ["pipeline_stages", pipelineId, companyId] as const;
   const [guidaAperta, setGuidaAperta] = useState(false);
   const idGuida = `guida-fasi-${pipelineId}`;
@@ -307,7 +317,10 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
   );
 
   /** Applica una modifica alla bozza (partendo dalle fasi salvate se ancora non ce n'è una). */
-  const modifica = (cambia: (fasi: Stage[]) => Stage[]) => setBozza((corrente) => cambia(corrente ?? salvate));
+  const modifica = (cambia: (fasi: Stage[]) => Stage[]) => setBozza((corrente) => {
+    const aggiornata = cambia(corrente ?? salvate);
+    return stesseFasi(aggiornata, salvate) ? null : aggiornata;
+  });
 
   // Dopo «Aggiungi» o una freccia: dove torna il focus (il nome della fase nuova, la freccia appena premuta),
   // quale riga si illumina un attimo, e cosa sente chi usa il lettore di schermo.
@@ -583,7 +596,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
             <span>Guida<span className="max-sm:hidden"> alle colonne</span></span>
           </Button>
           {puoModificare && (
-            <Button disabled={isSaving} variant="outline" size="sm" onClick={handleAdd} className="max-md:h-11">
+            <Button ref={aggiungiFaseRef} disabled={isSaving} variant="outline" size="sm" onClick={handleAdd} className="max-md:h-11">
               <Plus /> Aggiungi una fase
             </Button>
           )}
@@ -677,9 +690,14 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
         {puoModificare && (hasChanges || isSaving) && (
           <div className="sticky bottom-0 z-10 -mx-6 -mb-6 flex flex-wrap items-center justify-between gap-2 rounded-b-lg border-t bg-card px-6 py-3">
             <span role="status" className="text-sm text-muted-foreground">Modifiche non salvate</span>
+            <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={() => { setBozza(null); aggiungiFaseRef.current?.focus(); }} disabled={isSaving} className="max-md:h-11">
+              Annulla modifiche
+            </Button>
             <Button size="sm" onClick={handleSave} disabled={!hasChanges || isSaving} className="max-md:h-11">
               {isSaving && <Loader2 className="animate-spin" />} Salva le fasi
             </Button>
+            </div>
           </div>
         )}
       </CardContent>

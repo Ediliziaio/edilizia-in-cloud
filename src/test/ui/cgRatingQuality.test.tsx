@@ -35,3 +35,19 @@ describe('Rating: testi per il titolare',()=>{
   expect(screen.getByText('Punteggio pieno: fino a 1,5%')).toBeInTheDocument();
  });
 });
+
+
+describe('Rating: importi ricevuti dal database', () => {
+ it.each([
+  ['1346331.55 €', '1.346.331,55 €'],
+  ['1.233.948,32 €', '1.233.948,32 €'],
+  ['-1.233.948,32 €', '-1.233.948,32 €'],
+  ['1234 €', '1.234,00 €'],
+  ['1.234 €', '1.234 €'],
+ ])('preserva il valore di %s', (received, expected) => {
+  state.data = { anno: 2026, classe: 'AAA', livello: 'molto_basso', score: 95,
+   attendibile: false, motivi: [`Differenza: ${received}`], indicatori: [] } as RatingResult;
+  render(<MemoryRouter><TabRatingBancario anno={2026} /></MemoryRouter>);
+  expect(screen.getByText(`Differenza: ${expected}`)).toBeInTheDocument();
+ });
+});

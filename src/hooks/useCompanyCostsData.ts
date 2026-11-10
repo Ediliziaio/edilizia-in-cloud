@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { leggiCostiAzienda } from "@/lib/finance/leggiCostiAzienda";
 import { useQuery } from "@tanstack/react-query";
 import { format, isWithinInterval, startOfMonth, endOfMonth, addMonths, addDays, subMonths, startOfYear, endOfYear, parseISO, startOfDay, endOfDay } from "date-fns";
 import { it } from "date-fns/locale";
@@ -65,20 +66,8 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   // Query costs with supplier join
   const costsQuery = useQuery({
-    queryKey: [...queryKeys.costs.list(companyId), dateFrom, dateTo],
-    queryFn: async () => {
-      let query = supabase
-        .from("company_costs")
-        .select("*, order:orders(id, order_code), supplier:suppliers(id, name, product_category, vat_rate)")
-        .eq("company_id", companyId!)
-        .order("due_date", { ascending: true })
-        .limit(1000);
-      if (dateFrom) query = query.gte("due_date", dateFrom);
-      if (dateTo) query = query.lte("due_date", dateTo);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
-    },
+    queryKey: [...queryKeys.costs.list(companyId), dateFrom, dateTo, "complete"],
+    queryFn: () => leggiCostiAzienda(companyId!, dateFrom, dateTo),
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
@@ -867,8 +856,5 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     breakEvenData: margineReale
       ? calculateBreakEven(fixedCosts, monthlyRevenue, margineReale.commessaMedia, margineReale.marginePerc, true)
       : calculateBreakEven(fixedCosts, monthlyRevenue),
-    // La query costi ha .limit(1000): se torna esattamente 1000 righe i
-    // totali potrebbero essere PARZIALI — il chiamante mostra un avviso.
-    costsTruncated: costs.length >= 1000,
   };
 }

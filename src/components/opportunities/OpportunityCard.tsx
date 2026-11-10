@@ -1,6 +1,6 @@
 import { memo, useState, useMemo, forwardRef } from "react";
 import { differenceInDays } from "date-fns";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useSortable } from "@dnd-kit/sortable";
 import { Phone, Mail, Tag, StickyNote, Calendar, ListTodo, Folder, Trash2, UserCircle, Clock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -183,7 +183,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
         <div className="flex items-center gap-1.5 min-w-0">
           {!isOverlay && onSelect && (
             <div onClick={handleCheckboxChange} onPointerDown={(e) => e.stopPropagation()} className="shrink-0">
-              <Checkbox checked={!!selected} className="h-3.5 w-3.5" />
+              <Checkbox aria-label={`Seleziona opportunità: ${displayName}`} checked={!!selected} className="h-3.5 w-3.5" />
             </div>
           )}
           <p className="text-xs font-semibold leading-tight truncate flex-1 min-w-0">{displayName}</p>
@@ -256,20 +256,21 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
             {/* checkbox visibile anche su mobile: senza, la selezione multipla (BulkEditSheet) era impossibile da telefono */}
             {!isOverlay && onSelect && (
               <div onClick={handleCheckboxChange} onPointerDown={(e) => e.stopPropagation()} className="pt-0.5">
-                <Checkbox checked={!!selected} className="h-4 w-4" />
+                <Checkbox aria-label={`Seleziona opportunità: ${displayName}`} checked={!!selected} className="h-4 w-4" />
               </div>
             )}
             {contact ? (
               <div className="flex items-center gap-1 min-w-0">
                 <LeadTemperatureBadge lastActivityAt={contact.last_activity_at} hasOpenOpportunity createdAt={contact.created_at} compact />
-                <p
+                <Link
+                  to={`${routePrefix}/contatti/${contact.id}`}
                   className="text-[11px] md:text-xs font-bold leading-tight truncate min-w-0 flex-1 cursor-pointer hover:underline"
                   title={displayName}
-                  onClick={(e) => { e.stopPropagation(); navigate(`${routePrefix}/contatti/${contact.id}`); }}
+                  onClick={(e) => e.stopPropagation()}
                   onPointerDown={(e) => e.stopPropagation()}
                 >
                   {displayName}
-                </p>
+                </Link>
               </div>
             ) : (
               <p className="text-[11px] md:text-xs font-bold leading-tight truncate min-w-0" title={displayName}>{displayName}</p>
@@ -345,6 +346,8 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
               <Tooltip key={i}>
                 <TooltipTrigger asChild>
                   <button
+                    type="button"
+                    aria-label={`${tooltip}: ${displayName}`}
                     onClick={action}
                     onPointerEnter={anteprima ? (e) => misuraRiquadro(e.currentTarget) : undefined}
                     onFocus={anteprima ? (e) => misuraRiquadro(e.currentTarget) : undefined}

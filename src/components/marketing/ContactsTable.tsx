@@ -1,5 +1,5 @@
 import { memo, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { Trash2, Pencil, ChevronUp, ChevronDown, ListChecks, Loader2 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
@@ -164,7 +164,7 @@ function SortIcon({ field, currentField, direction }: { field: string; currentFi
   );
 }
 
-function renderStaticCell(col: { key: string; label: string }, c: MarketingContact, cls: string, navigate: ReturnType<typeof useNavigate>, routePrefix: string) {
+function renderStaticCell(col: { key: string; label: string }, c: MarketingContact, cls: string, routePrefix: string) {
   const fullName = `${c.first_name} ${c.last_name || ""}`.trim();
   switch (col.key) {
     case "name":
@@ -174,15 +174,15 @@ function renderStaticCell(col: { key: string; label: string }, c: MarketingConta
             <div className={`h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-semibold text-white shrink-0 ${getAvatarColor(fullName)}`}>
               {getInitials(c.first_name, c.last_name)}
             </div>
-            <span
+            <Link
+              to={`${routePrefix}/contatti/${c.id}`}
               className="font-medium text-sm text-primary hover:underline cursor-pointer"
               onClick={(event) => {
                 event.stopPropagation();
-                navigate(`${routePrefix}/contatti/${c.id}`);
               }}
             >
               {fullName}
-            </span>
+            </Link>
           </div>
         </TableCell>
       );
@@ -350,7 +350,7 @@ export const ContactsTable = memo(function ContactsTable({
           <TableHeader>
             <TableRow>
               <TableHead className={`w-[40px] ${borderClass}`}>
-                <Checkbox checked={allSelected} onCheckedChange={onToggleAll} />
+                <Checkbox aria-label="Seleziona i contatti di questa pagina" checked={allSelected} onCheckedChange={onToggleAll} />
               </TableHead>
               {visibleCols.map((col, i) => {
                 const isLast = i === visibleCols.length - 1;
@@ -359,14 +359,14 @@ export const ContactsTable = memo(function ContactsTable({
                   <TableHead
                     key={col.key}
                     className={`py-2 ${!isLast ? borderClass : ""} ${sortable ? "cursor-pointer select-none hover:bg-muted/50" : ""} ${perLarghezza[col.key] ?? ""}`}
-                    onClick={() => sortable && handleSort(col)}
+                    aria-sort={col.sortField === sortField ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}
                   >
-                    <div className="flex items-center text-xs">
+                    {sortable ? <button type="button" onClick={() => handleSort(col)} className="flex w-full items-center text-left text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                       {col.label}
-                      {sortable && col.sortField && (
-                        <SortIcon field={col.sortField} currentField={sortField} direction={sortDirection} />
-                      )}
-                    </div>
+                      {col.sortField && <SortIcon field={col.sortField} currentField={sortField} direction={sortDirection} />}
+                    </button> : <div className="flex items-center text-xs">
+                      {col.label}
+                    </div>}
                   </TableHead>
                 );
               })}
@@ -392,6 +392,7 @@ export const ContactsTable = memo(function ContactsTable({
                 >
                   <TableCell className={`py-1.5 ${borderClass}`}>
                     <Checkbox
+                      aria-label={`Seleziona ${`${c.first_name} ${c.last_name || ""}`.trim()}`}
                       checked={selectedIds.has(c.id)}
                       onClick={(event) => event.stopPropagation()}
                       onCheckedChange={() => onToggleSelect(c.id)}
@@ -408,14 +409,15 @@ export const ContactsTable = memo(function ContactsTable({
                       return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{val}</TableCell>;
                     }
 
-                    return renderStaticCell(col, c, cls, navigate, routePrefix);
+                    return renderStaticCell(col, c, cls, routePrefix);
                   })}
                   <TableCell className="py-1.5">
                     {canEdit && (
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                      className="h-6 w-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                      aria-label={`Modifica contatto: ${`${c.first_name} ${c.last_name || ""}`.trim()}`}
                       onClick={(event) => {
                         event.stopPropagation();
                         onEdit(c);
@@ -437,7 +439,7 @@ export const ContactsTable = memo(function ContactsTable({
         <div className="flex items-center gap-2 text-muted-foreground">
           <span>Righe per pagina</span>
           <Select value={String(pageSize)} onValueChange={(v) => onPageSizeChange(Number(v))}>
-            <SelectTrigger className="w-[70px] h-8">
+            <SelectTrigger aria-label="Contatti per pagina" className="w-[70px] h-8">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -449,8 +451,8 @@ export const ContactsTable = memo(function ContactsTable({
         </div>
         <div className="flex items-center gap-2">
           <span className="text-muted-foreground">Pagina {page} di {totalPages}</span>
-          <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>Prec</Button>
-          <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>Succ</Button>
+          <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>Precedenti</Button>
+          <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>Successive</Button>
         </div>
       </div>
     </div>

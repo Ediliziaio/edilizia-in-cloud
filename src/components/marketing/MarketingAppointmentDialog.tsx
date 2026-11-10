@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription as AlertDialogDesc, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle as AlertDialogTitleComp } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
@@ -154,6 +154,7 @@ export default function MarketingAppointmentDialog({
   const [internalNotes, setInternalNotes] = useState("");
   const [showInternalNotes, setShowInternalNotes] = useState(false);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
@@ -607,7 +608,7 @@ export default function MarketingAppointmentDialog({
   }, [appleSync, googleSync]);
 
   const handleSave = async () => {
-    if (saving) return; // guard sincrono contro doppio-click prima del re-render
+    if (savingRef.current || solaLettura) return;
     const isBlocked = activeTab === "blocked";
 
     if (!calendarId || calendarId === "none") {
@@ -636,6 +637,7 @@ export default function MarketingAppointmentDialog({
     }
     if (!companyId || !user) return;
 
+    savingRef.current = true;
     setSaving(true);
     try {
       let savedAppointmentId: string | null = appointment?.id || null;
@@ -773,6 +775,7 @@ export default function MarketingAppointmentDialog({
     } catch (e: any) {
       toast({ title: "Errore", description: e.message, variant: "destructive" });
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -780,7 +783,8 @@ export default function MarketingAppointmentDialog({
   // Annulla, non elimina: resta nello storico come «annullato» (si ritrova nel
   // filtro «Annullati» della lista) e viene tolto dai calendari esterni.
   const handleDelete = async () => {
-    if (!appointment?.id || !companyId) return;
+    if (savingRef.current || solaLettura || !appointment?.id || !companyId) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       await syncDeletedAppointment(appointment.id);
@@ -795,6 +799,7 @@ export default function MarketingAppointmentDialog({
     } catch (e: unknown) {
       toast({ title: "Errore nell'eliminazione", description: e instanceof Error ? e.message : "Problema temporaneo. Riprova.", variant: "destructive" });
     } finally {
+      savingRef.current = false;
       setSaving(false);
       setDeleteConfirmOpen(false);
     }
@@ -804,7 +809,7 @@ export default function MarketingAppointmentDialog({
 
   return (
     <>
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => { if (!savingRef.current) onOpenChange(next); }}>
       <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
@@ -819,6 +824,7 @@ export default function MarketingAppointmentDialog({
           </DialogDescription>
         </DialogHeader>
 
+        <fieldset disabled={saving} aria-busy={saving} className="contents">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "appointment" | "blocked")}>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="appointment" className="gap-1.5">
@@ -849,7 +855,7 @@ export default function MarketingAppointmentDialog({
                 <div className="space-y-2">
                   <Label>Calendario *</Label>
                   <Select value={calendarId} onValueChange={setCalendarId} disabled={calendars.length === 0}>
-                    <SelectTrigger><SelectValue placeholder="Seleziona calendario" /></SelectTrigger>
+                    <SelectTrigger aria-label="Calendario *"><SelectValue placeholder="Seleziona calendario" /></SelectTrigger>
                     <SelectContent>
                       {calendars.map((c) => (
                         <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
@@ -1031,7 +1037,7 @@ export default function MarketingAppointmentDialog({
                     <span className="text-[10px] text-muted-foreground font-normal max-sm:hidden max-md:text-[11px]">(staff interno)</span>
                   </Label>
                   <Select value={assignedTo} onValueChange={setAssignedTo}>
-                    <SelectTrigger><SelectValue placeholder="Non assegnato" /></SelectTrigger>
+                    <SelectTrigger aria-label="Venditore assegnato"><SelectValue placeholder="Non assegnato" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Non assegnato</SelectItem>
                       {users.map((u) => (
@@ -1117,6 +1123,7 @@ export default function MarketingAppointmentDialog({
                           type="button"
                           variant="outline"
                           role="combobox"
+                          aria-label="Cliente (contatto CRM) *"
                           aria-expanded={contactPickerOpen}
                           className={cn("w-full justify-between", !selectedContact && "text-muted-foreground")}
                         >
@@ -1343,7 +1350,7 @@ export default function MarketingAppointmentDialog({
               <div className="space-y-2">
                 <Label>Calendario *</Label>
                 <Select value={calendarId} onValueChange={setCalendarId}>
-                  <SelectTrigger><SelectValue placeholder="Seleziona calendario" /></SelectTrigger>
+                  <SelectTrigger aria-label="Calendario *"><SelectValue placeholder="Seleziona calendario" /></SelectTrigger>
                   <SelectContent>
                     {calendars.map((c) => (
                       <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
@@ -1404,6 +1411,7 @@ export default function MarketingAppointmentDialog({
             </div>
           </TabsContent>
         </Tabs>
+        </fieldset>
 
         <DialogFooter className="flex-col gap-3 sm:flex-row sm:items-center sm:gap-2 mt-4">
           <div className="flex flex-wrap items-center gap-2 sm:mr-auto">
@@ -1418,7 +1426,7 @@ export default function MarketingAppointmentDialog({
               <>
                 <Label className="text-xs text-muted-foreground whitespace-nowrap">Stato:</Label>
                 <Select value={status} onValueChange={handleStatusSelect}>
-                  <SelectTrigger className="h-8 w-[170px] text-xs">
+                  <SelectTrigger aria-label="Stato appuntamento" className="h-8 w-[170px] text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1436,7 +1444,7 @@ export default function MarketingAppointmentDialog({
           </div>
 
           <div className="flex gap-2 max-sm:w-full">
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving} className="max-sm:hidden">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
               Annulla
             </Button>
             <Button onClick={handleSave} disabled={saving || solaLettura || calendars.length === 0 || !!timeError} title={bloccoTitle} className="gap-2 max-sm:flex-1">

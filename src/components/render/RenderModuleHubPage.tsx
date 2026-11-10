@@ -206,6 +206,8 @@ export function RenderModuleHubPage({
   });
   const staleSessions = sessions.filter((item) => isRenderStale(item.status, item.created_at));
 
+  const statsAvailable = Boolean(companyId) && !isLoading && !isError;
+
   const statCards = [
     { label: "Render recenti", value: stats.total, icon: GalleryHorizontalEnd },
     { label: "Completati", value: stats.completed, icon: CheckCircle2 },
@@ -282,9 +284,9 @@ export function RenderModuleHubPage({
             </div>
             <div className="mt-4 grid grid-cols-2 gap-2">
               {statCards.map(({ label, value, icon: Icon }) => (
-                <div key={label} className="rounded-xl border bg-slate-50/80 p-3">
+                <div key={label} role="group" aria-label={label} className="rounded-xl border bg-slate-50/80 p-3">
                   <Icon className={`mb-2 h-4 w-4 ${accentClassName}`} />
-                  <p className="text-xl font-bold leading-none">{value}</p>
+                  <p className="text-xl font-bold leading-none">{statsAvailable ? value : "—"}</p>
                   <p className="mt-1 text-[11px] text-muted-foreground">{label}</p>
                 </div>
               ))}
@@ -297,7 +299,7 @@ export function RenderModuleHubPage({
           su mobile si arriva subito a "Render recenti" e "Sessioni". */}
       <section className="hidden md:block">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          Qualita del workflow
+          Come funziona
         </h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {workflow.map(({ icon: Icon, title: stepTitle, description: stepDescription }) => (
@@ -390,7 +392,7 @@ export function RenderModuleHubPage({
         </section>
       )}
 
-      {staleSessions.length > 0 && (
+      {statsAvailable && staleSessions.length > 0 && (
         <Card className="border-orange-200 bg-orange-50/75">
           <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between max-md:flex-row max-md:items-center max-md:gap-2 max-md:px-3 max-md:py-2">
             <div className="flex items-start gap-3 max-md:min-w-0 max-md:gap-2">
@@ -434,11 +436,12 @@ export function RenderModuleHubPage({
                   value={sessionSearch}
                   onChange={(event) => setSessionSearch(event.target.value)}
                   className="pl-9"
+                  aria-label="Cerca sessioni render"
                   placeholder="Cerca sessioni..."
                 />
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger><SelectValue placeholder="Stato" /></SelectTrigger>
+                <SelectTrigger aria-label="Filtra sessioni render per stato"><SelectValue placeholder="Stato" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutti gli stati</SelectItem>
                   <SelectItem value="stale">Da verificare</SelectItem>
@@ -450,7 +453,7 @@ export function RenderModuleHubPage({
                 </SelectContent>
               </Select>
               <Select value={crmFilter} onValueChange={setCrmFilter}>
-                <SelectTrigger className="max-sm:hidden"><SelectValue placeholder="CRM" /></SelectTrigger>
+                <SelectTrigger aria-label="Filtra sessioni render per collegamento CRM" className="max-sm:hidden"><SelectValue placeholder="CRM" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutti CRM</SelectItem>
                   <SelectItem value="linked">Collegati</SelectItem>
@@ -506,11 +509,9 @@ export function RenderModuleHubPage({
               const Icon = cfg.icon;
               const resultUrl = session.result_url ?? session.result_urls?.[0] ?? null;
               const path = detailPath(session.id);
-              return (
+              const content = (
                 <Card
-                  key={session.id}
-                  className="cursor-pointer transition-colors hover:border-primary/40 hover:bg-muted/20"
-                  onClick={() => path && navigate(path)}
+                  className="transition-colors hover:border-primary/40 hover:bg-muted/20"
                 >
                   <CardContent className="grid gap-3 p-3 sm:grid-cols-[96px_minmax(0,1fr)_auto] sm:items-center max-sm:grid-cols-[64px_minmax(0,1fr)] max-sm:items-center max-sm:gap-2.5 max-sm:p-2">
                     <div className="h-20 overflow-hidden rounded-xl bg-muted sm:h-16 max-sm:h-12 max-sm:rounded-lg">
@@ -567,6 +568,16 @@ export function RenderModuleHubPage({
                   </CardContent>
                 </Card>
               );
+              return path ? (
+                <Link
+                  key={session.id}
+                  to={path}
+                  aria-label={`Apri sessione ${moduleName} del ${getRenderDate(session.created_at)} · ${cfg.label}`}
+                  className="block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  {content}
+                </Link>
+              ) : <div key={session.id}>{content}</div>;
             })}
           </div>
         )}

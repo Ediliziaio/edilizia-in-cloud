@@ -833,7 +833,7 @@ function MarketingOpportunitiesContent() {
         <div className="flex shrink-0 items-center gap-1.5">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant={viewMode === "kanban" ? "secondary" : "ghost"} size="icon" className="hidden md:inline-flex h-8 w-8" onClick={() => setViewMode("kanban")}>
+              <Button aria-label="Vista griglia" aria-pressed={viewMode === "kanban"} variant={viewMode === "kanban" ? "secondary" : "ghost"} size="icon" className="hidden md:inline-flex h-8 w-8" onClick={() => setViewMode("kanban")}>
                 <LayoutGrid className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
@@ -841,7 +841,7 @@ function MarketingOpportunitiesContent() {
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant={viewMode === "list" ? "secondary" : "ghost"} size="icon" className="hidden md:inline-flex h-8 w-8" onClick={() => setViewMode("list")}>
+              <Button aria-label="Vista lista" aria-pressed={viewMode === "list"} variant={viewMode === "list" ? "secondary" : "ghost"} size="icon" className="hidden md:inline-flex h-8 w-8" onClick={() => setViewMode("list")}>
                 <List className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
@@ -850,6 +850,8 @@ function MarketingOpportunitiesContent() {
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
+                aria-label={layout === "mini" ? "Vista estesa" : "Vista compatta"}
+                aria-pressed={layout === "mini"}
                 variant={layout === "mini" ? "secondary" : "ghost"}
                 size="icon"
                 className="hidden lg:inline-flex h-8 w-8"

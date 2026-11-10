@@ -36,6 +36,7 @@ import {
   type MezzoConAssegnazione, type MezzoDisponibilita, type MezzoInventario,
 } from "@/types/mezzi";
 import { cn } from "@/lib/utils";
+import { useDialogFocusReturn } from "@/hooks/useDialogFocusReturn";
 
 const TUTTE = "__tutte__";
 
@@ -50,7 +51,7 @@ function ElencoInventari() {
   const navigate = useNavigate();
   const perms = usePermissions();
   const puoModificare = (perms.canEditMezzi || perms.isAdmin) && !perms.solaLettura;
-  const { data: inventari = [], isLoading } = useInventari();
+  const { data: inventari = [], isLoading, error, refetch } = useInventari();
   const [nuovo, setNuovo] = useState(false);
 
   return (
@@ -72,9 +73,15 @@ function ElencoInventari() {
         )}
       </div>
 
+      {error && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          <p>Impossibile aggiornare gli inventari. L’eventuale elenco è l’ultimo caricato.</p>
+          <Button variant="outline" onClick={() => void refetch()} aria-label="Riprova caricamento inventari">Riprova</Button>
+        </div>
+      )}
       {isLoading ? (
         <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-      ) : inventari.length === 0 ? (
+      ) : inventari.length === 0 ? error ? null : (
         <div className="rounded-2xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground max-sm:py-5">
           <ClipboardCheck className="mx-auto mb-2 h-8 w-8 opacity-40 max-sm:hidden" />
           Nessun inventario fatto finora.
@@ -111,6 +118,7 @@ function ElencoInventari() {
 }
 
 function DialogNuovoGiro({ onClose, onCreato }: { onClose: () => void; onCreato: (id: string) => void }) {
+  const focusReturn = useDialogFocusReturn();
   const crea = useCreaInventario();
   const { data: categorie = [] } = useMezziCategorie();
   const oggi = oggiIso();
@@ -135,7 +143,7 @@ function DialogNuovoGiro({ onClose, onCreato }: { onClose: () => void; onCreato:
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent {...focusReturn} className="max-w-md">
         <DialogHeader>
           <DialogTitle>Nuovo giro di inventario</DialogTitle>
           <DialogDescription>Scegli cosa contare: l'elenco di quello che manca si costruisce da qui.</DialogDescription>

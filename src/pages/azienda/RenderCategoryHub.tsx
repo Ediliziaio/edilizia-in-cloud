@@ -2,7 +2,7 @@ import { classificaBozzeRender } from "@/lib/render/renderDrafts";
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
 import { getRenderDetailPath } from "@/lib/render/renderNavigation";
 import { loadRenderPlanOrigins, type RenderPlanOrigin } from "@/lib/render/renderPlanOrigin";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
@@ -196,12 +196,12 @@ const categories: RenderCategory[] = [
   {
     id: "ristrutturazioni",
     title: "Ristrutturazioni",
-    description: "Orchestra più sistemi nello stesso render senza conflitti",
+    description: "Coordina più interventi nello stesso render",
     icon: Hammer,
     color: "bg-indigo-50 text-indigo-600",
     path: "/azienda/render/ristrutturazioni",
     active: true,
-    badge: "Motore",
+    badge: "Attivo",
     group: "multi",
     groupLabel: "Multi-sistema",
     tags: ["bagno", "facciata", "pavimento", "coordinato"],
@@ -214,7 +214,7 @@ const categories: RenderCategory[] = [
     color: "bg-lime-50 text-lime-700",
     path: "/azienda/render/pavimenti-esterni",
     active: true,
-    badge: "Motore",
+    badge: "Attivo",
     group: "outdoor",
     groupLabel: "Outdoor",
     tags: ["gres outdoor", "deck", "carrabile", "coping"],
@@ -227,7 +227,7 @@ const categories: RenderCategory[] = [
     color: "bg-green-50 text-green-700",
     path: "/azienda/render/giardini",
     active: true,
-    badge: "Motore",
+    badge: "Attivo",
     group: "outdoor",
     groupLabel: "Outdoor",
     tags: ["prato", "aiuole", "siepi", "camminamenti"],
@@ -240,7 +240,7 @@ const categories: RenderCategory[] = [
     color: "bg-slate-100 text-slate-700",
     path: "/azienda/render/porte-blindate",
     active: true,
-    badge: "Motore",
+    badge: "Attivo",
     group: "aperture",
     groupLabel: "Aperture",
     tags: ["blindata", "rasomuro", "fiancoluce", "maniglia"],
@@ -253,7 +253,7 @@ const categories: RenderCategory[] = [
     color: "bg-violet-50 text-violet-600",
     path: "/azienda/render/porte-interne",
     active: true,
-    badge: "Motore",
+    badge: "Attivo",
     group: "aperture",
     groupLabel: "Aperture",
     tags: ["scorrevole", "rasomuro", "vetrata", "doppia anta"],
@@ -288,6 +288,7 @@ export default function RenderCategoryHub() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const { isScopriPlan } = useSubscriptionLimits();
+  const categorySearchRef = useRef<HTMLInputElement>(null);
   const [categorySearch, setCategorySearch] = useState("");
   const [groupFilter, setGroupFilter] = useState<CategoryGroup>("all");
   const [recentTypeFilter, setRecentTypeFilter] = useState("all");
@@ -317,6 +318,8 @@ export default function RenderCategoryHub() {
     enabled: !!companyId,
     retry: 1,
   });
+
+  const recentStatsAvailable = Boolean(companyId) && !isLoading && !recentError;
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -400,8 +403,8 @@ export default function RenderCategoryHub() {
         <Card className="border-slate-200 bg-gradient-to-br from-white to-slate-50/80 shadow-sm">
           <CardContent className="p-4 flex items-center gap-3">
             <GalleryHorizontalEnd className="h-5 w-5 text-orange-500" />
-            <div>
-              <p className="text-2xl font-bold">{recentRenders.length}</p>
+            <div role="group" aria-label="Render recenti">
+              <p className="text-2xl font-bold">{recentStatsAvailable ? recentRenders.length : "—"}</p>
               <p className="text-xs text-muted-foreground">render recenti</p>
             </div>
           </CardContent>
@@ -409,8 +412,8 @@ export default function RenderCategoryHub() {
         <Card className="border-slate-200 bg-gradient-to-br from-white to-slate-50/80 shadow-sm">
           <CardContent className="p-4 flex items-center gap-3">
             <CheckCircle2 className="h-5 w-5 text-green-600" />
-            <div>
-              <p className="text-2xl font-bold">{stats.completed}</p>
+            <div role="group" aria-label="Completati">
+              <p className="text-2xl font-bold">{recentStatsAvailable ? stats.completed : "—"}</p>
               <p className="text-xs text-muted-foreground">completati</p>
             </div>
           </CardContent>
@@ -418,8 +421,8 @@ export default function RenderCategoryHub() {
         <Card className="border-slate-200 bg-gradient-to-br from-white to-slate-50/80 shadow-sm">
           <CardContent className="p-4 flex items-center gap-3">
             <Clock className="h-5 w-5 text-amber-600" />
-            <div>
-              <p className="text-2xl font-bold">{stats.processing}</p>
+            <div role="group" aria-label="In attesa o elaborazione">
+              <p className="text-2xl font-bold">{recentStatsAvailable ? stats.processing : "—"}</p>
               <p className="text-xs text-muted-foreground">in attesa o elaborazione</p>
             </div>
           </CardContent>
@@ -427,15 +430,15 @@ export default function RenderCategoryHub() {
         <Card className="border-slate-200 bg-gradient-to-br from-white to-slate-50/80 shadow-sm">
           <CardContent className="p-4 flex items-center gap-3">
             <Link2 className="h-5 w-5 text-blue-600" />
-            <div>
-              <p className="text-2xl font-bold">{stats.linked}</p>
+            <div role="group" aria-label="Collegati a CRM">
+              <p className="text-2xl font-bold">{recentStatsAvailable ? stats.linked : "—"}</p>
               <p className="text-xs text-muted-foreground">collegati a CRM</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {stats.stale > 0 && (
+      {recentStatsAvailable && stats.stale > 0 && (
         <Card className="border-orange-200 bg-orange-50/75">
           <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between max-md:flex-row max-md:items-center max-md:gap-2 max-md:px-3 max-md:py-2">
             <div className="flex items-start gap-3 max-md:min-w-0 max-md:gap-2">
@@ -460,13 +463,13 @@ export default function RenderCategoryHub() {
           una frase promozionale e «N in corso · N da verificare» ripeteva i
           numeri qui sopra e l'avviso arancione. */}
 
-      <section className="space-y-4 max-md:space-y-2">
+      <section aria-labelledby="render-moduli-title" className="space-y-4 max-md:space-y-2">
         {/* Da 768 titolo e ricerca in una riga, senza la frase e senza la card
             attorno alla ricerca; il menu categoria sparisce da 640 perché lì ci
             sono già le pillole qui sotto (erano entrambi visibili). */}
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between max-md:gap-2">
           <div>
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
+            <h2 id="render-moduli-title" className="text-sm font-semibold text-muted-foreground uppercase tracking-wider max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
               Moduli render
             </h2>
           </div>
@@ -474,14 +477,16 @@ export default function RenderCategoryHub() {
             <div className="relative flex-1 max-md:min-w-0">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
+                ref={categorySearchRef}
                 value={categorySearch}
                 onChange={(event) => setCategorySearch(event.target.value)}
+                aria-label="Cerca moduli render"
                 placeholder="Cerca modulo, materiale, ambiente..."
                 className="pl-9"
               />
             </div>
             <Select value={groupFilter} onValueChange={(value) => setGroupFilter(value as CategoryGroup)}>
-              <SelectTrigger className="sm:hidden max-md:w-[130px] max-md:shrink-0">
+              <SelectTrigger aria-label="Filtra moduli render per categoria" className="sm:hidden max-md:w-[130px] max-md:shrink-0">
                 <SelectValue placeholder="Categoria" />
               </SelectTrigger>
               <SelectContent>
@@ -500,6 +505,7 @@ export default function RenderCategoryHub() {
           {(Object.keys(groupLabels) as CategoryGroup[]).map((group) => (
             <Button
               key={group}
+              aria-pressed={groupFilter === group}
               variant={groupFilter === group ? "default" : "outline"}
               size="sm"
               onClick={() => setGroupFilter(group)}
@@ -533,7 +539,7 @@ export default function RenderCategoryHub() {
                       }>
                         {cat.badge}
                       </Badge>
-                      <span className="text-[11px] text-muted-foreground">{count} recenti</span>
+                      <span className="text-[11px] text-muted-foreground">{recentStatsAvailable ? count : "—"} recenti</span>
                     </div>
                   </div>
                   <div className="max-md:min-w-0">
@@ -543,7 +549,7 @@ export default function RenderCategoryHub() {
                     </div>
                     <p className="text-sm text-muted-foreground mt-1 leading-relaxed max-md:hidden">{cat.description}</p>
                     <p className="hidden text-[11px] leading-tight text-muted-foreground max-md:block">
-                      {cat.active ? `${count} recenti` : cat.badge}
+                      {cat.active ? `${recentStatsAvailable ? count : "—"} recenti` : cat.badge}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-1.5 max-md:hidden">
@@ -558,6 +564,19 @@ export default function RenderCategoryHub() {
             );
           })}
         </div>
+        {filteredCategories.length === 0 && (
+          <Card>
+            <CardContent className="py-10 text-center">
+              <p role="status" className="font-medium">Nessun modulo con questi filtri</p>
+              <p className="mt-1 text-sm text-muted-foreground">Modifica la ricerca o scegli un’altra categoria.</p>
+              <Button variant="outline" className="mt-4" onClick={() => {
+                setCategorySearch("");
+                setGroupFilter("all");
+                categorySearchRef.current?.focus();
+              }}>Mostra tutto</Button>
+            </CardContent>
+          </Card>
+        )}
       </section>
 
       <section className="space-y-4 max-md:space-y-2">
@@ -571,7 +590,7 @@ export default function RenderCategoryHub() {
           </div>
           <div className="grid gap-2 sm:grid-cols-3 md:w-[480px] max-md:grid-cols-2">
             <Select value={recentTypeFilter} onValueChange={setRecentTypeFilter}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Filtra render recenti per tipo">
                 <SelectValue placeholder="Tipo render" />
               </SelectTrigger>
               <SelectContent>
@@ -584,7 +603,7 @@ export default function RenderCategoryHub() {
               </SelectContent>
             </Select>
             <Select value={recentStatusFilter} onValueChange={setRecentStatusFilter}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Filtra render recenti per stato">
                 <SelectValue placeholder="Stato" />
               </SelectTrigger>
               <SelectContent>
@@ -598,7 +617,7 @@ export default function RenderCategoryHub() {
               </SelectContent>
             </Select>
             <Select value={crmFilter} onValueChange={setCrmFilter}>
-              <SelectTrigger className="max-md:hidden">
+              <SelectTrigger aria-label="Filtra render recenti per collegamento CRM" className="max-md:hidden">
                 <SelectValue placeholder="CRM" />
               </SelectTrigger>
               <SelectContent>

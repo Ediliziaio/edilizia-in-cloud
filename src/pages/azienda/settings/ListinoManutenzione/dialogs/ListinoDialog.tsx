@@ -3,7 +3,8 @@
  * Estratto da ListinoManutenzione.tsx (MP-IMP-001 Fase 5).
  * Etichette collegate ai campi; una modifica che il database ignora senza errore non si annuncia più come «aggiornata».
  */
-import { useId, useState } from "react";
+import { useId, useState, useRef } from "react";
+import { useDialogFocusReturn } from "@/hooks/useDialogFocusReturn";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,9 @@ export function ListinoDialog({
   onSaved: () => void;
 }) {
   const idBase = useId();
+  const focusReturn = useDialogFocusReturn();
+  const pendingRef = useRef(false);
+  const handleClose = () => { if (!pendingRef.current) onClose(); };
   const [impiantoId, setImpiantoId] = useState(editing?.tipo_impianto_id ?? "");
   const [interventoId, setInterventoId] = useState(editing?.tipo_intervento_id ?? "");
   const [prezzo, setPrezzo] = useState(String(editing?.prezzo_base ?? ""));
@@ -40,9 +44,11 @@ export function ListinoDialog({
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
+    if (pendingRef.current) return;
     if (!impiantoId) { toast.error("Scegli un tipo di impianto"); return; }
     if (!interventoId) { toast.error("Scegli un tipo di intervento"); return; }
     if (!prezzo.trim() || isNaN(parseFloat(prezzo))) { toast.error("Inserisci un prezzo valido"); return; }
+    pendingRef.current = true;
     setSaving(true);
     try {
       const payload = {
@@ -68,24 +74,26 @@ export function ListinoDialog({
         if (error) throw error;
       }
       toast.success(editing ? "Prezzo aggiornato" : "Prezzo creato");
+      pendingRef.current = false;
       onSaved(); onClose();
     } catch (err: unknown) {
       toast.error(testoErrore(err, "Prezzo non salvato."));
     } finally {
+      pendingRef.current = false;
       setSaving(false);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={(value) => { if (!value) handleClose(); }}>
+      <DialogContent {...focusReturn} className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editing ? "Modifica prezzo di manutenzione" : "Nuovo prezzo di manutenzione"}</DialogTitle>
           <DialogDescription>
             Il prezzo di un intervento su un impianto (per esempio Manutenzione ordinaria su una Caldaia).
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        <fieldset disabled={saving} className="min-w-0 space-y-4">
           <div>
             <Label htmlFor={`${idBase}-impianto`}>Tipo di impianto *</Label>
             <Select value={impiantoId} onValueChange={setImpiantoId} disabled={!!editing}>
@@ -162,9 +170,9 @@ export function ListinoDialog({
               {attivo ? "Visibile in preventivi e interventi" : "Nascosto (bozza)"}
             </span>
           </div>
-        </div>
+        </fieldset>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button variant="outline" disabled={saving} onClick={handleClose}>Annulla</Button>
           <Button onClick={handleSave} disabled={saving}>
             {saving ? "Salvataggio..." : "Salva"}
           </Button>

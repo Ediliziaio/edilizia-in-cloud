@@ -12,6 +12,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const state = vi.hoisted(() => ({
   calls: [] as string[],
   fail: false,
+  rejected: false,
+  failRejected: false,
   company: "company-a",
   permission: true,
 }));
@@ -63,8 +65,8 @@ vi.mock("@/integrations/supabase/client", () => ({
                     ],
                   },
                 ]
-              : [],
-          error: state.fail ? { message: "network failed" } : null,
+              : table === "documenti_fiscali" && state.rejected ? [{ id: "s" }] : [],
+          error: state.fail || (table === "documenti_fiscali" && state.failRejected) ? { message: "network failed" } : null,
         }).then(resolve);
       };
       return chain;
@@ -108,6 +110,8 @@ function setup(url = "/azienda/documenti?tab=fiscalita&anno=2026&mese=10") {
 beforeEach(() => {
   state.calls = [];
   state.fail = false;
+  state.rejected = false;
+  state.failRejected = false;
   state.company = "company-a";
   state.permission = true;
 });
@@ -119,14 +123,29 @@ describe("registro fiscale reale, senza scritture", () => {
     expect(screen.queryByText("0%")).toBeNull();
     expect(screen.queryByText(/^IVA documentale /)).toBeNull();
     expect(screen.getByText("0 documenti da verificare")).toBeVisible();
+    // documenti_fiscali serve al controllo scarti, non carica un altro modulo.
     expect(new Set(state.calls)).toEqual(
-      new Set(["fatture_vendite_iva", "fatture_ricevute_periodo_iva"]),
+      new Set(["documenti_fiscali", "fatture_vendite_iva", "fatture_ricevute_periodo_iva"]),
     );
     fireEvent.click(screen.getByRole("tab", { name: "Registro acquisti" }));
     expect(screen.getByTestId("url").textContent).toContain(
       "registro=acquisti",
     );
     expect(screen.getByTestId("url").textContent).toContain("anno=2026");
+  });
+  it("esclude dal registro una fattura presente nell'elenco scarti", async () => {
+    state.rejected = true;
+    setup();
+    expect(await screen.findByText(/Nessun documento corrisponde al periodo/)).toBeVisible();
+    expect(screen.queryByText("FPR 1")).toBeNull();
+    expect(screen.queryByText("22%")).toBeNull();
+  });
+  it("un errore nel controllo scarti impedisce di mostrare un registro incompleto", async () => {
+    state.failRejected = true;
+    setup();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Dati fiscali non disponibili");
+    expect(screen.queryByText("FPR 1")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Esporta CSV" })).toBeNull();
   });
   it("does not show zero totals or empty records when loading fails", async () => {
     state.fail = true;

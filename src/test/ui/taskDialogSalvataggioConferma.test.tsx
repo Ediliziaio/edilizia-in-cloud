@@ -1,0 +1,101 @@
+import type { ComponentProps } from "react";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { TaskDialog } from "@/components/tasks/TaskDialog";
+const state = vi.hoisted(() => ({ insert: vi.fn(), remove: vi.fn(), eq: vi.fn(), result: null as Promise<unknown> | null, error: vi.fn(), log: vi.fn() }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company-demo" }, user: { id: "me" }, profile: { first_name: "Demo", last_name: "Utente" } }) }));
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ onlyAssigned: false }) }));
+vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
+vi.mock("@/hooks/useCompanyStaffUsers", () => ({ useCompanyStaffUsers: () => ({ data: [] as unknown[] }) }));
+vi.mock("@/hooks/useTaskStatuses", async () => { const { DEFAULT_TASK_STATUS_DEFINITIONS } = await import("@/lib/taskStatuses"); return { useTaskStatuses: () => ({ statuses: DEFAULT_TASK_STATUS_DEFINITIONS }) }; });
+vi.mock("@/components/tasks/TaskTemplatePicker", () => ({ TaskTemplatePicker: (): null => null }));
+vi.mock("@/components/shared/EntityCustomFieldsSection", () => ({ EntityCustomFieldsSection: (): null => null }));
+vi.mock("@/lib/taskActivityLog", () => ({ logTaskActivity: state.log, describeTaskChanges: () => "modificata" }));
+vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: [] as unknown[] }), useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
+vi.mock("sonner", () => ({ toast: { error: state.error, success: vi.fn(), warning: vi.fn() } }));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => {
+  const q: Record<string, unknown> = {};
+  q.insert = (payload: unknown) => { state.insert(payload); return q; };
+  q.delete = () => { state.remove(); return q; };
+  q.update = () => q;
+  q.eq = (...args: unknown[]) => { state.eq(...args); return q; };
+  q.select = () => q;
+  q.single = () => state.result;
+  q.then = (ok: (value: unknown) => unknown) => state.result!.then(ok);
+  return q;
+} } }));
+const task: NonNullable<ComponentProps<typeof TaskDialog>["task"]> = { id: "task-demo", title: "Task dimostrativo", notes: "", status: "da_fare", priority: "normale", due_date: null, assigned_to: null, order_id: null, stock_item_id: null, cost_id: null, contact_id: null, opportunity_id: null, ticket_id: null, category: "generale" };
+beforeEach(() => {
+  state.insert.mockClear(); state.remove.mockClear(); state.eq.mockClear(); state.error.mockClear(); state.log.mockReset().mockResolvedValue(undefined);
+  state.result = Promise.resolve({ data: { id: "task-demo", title: "Task dimostrativo" }, error: null });
+  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+});
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+function setup(editing = false) {
+  const close = vi.fn(), saved = vi.fn();
+  render(<MemoryRouter><TaskDialog open onOpenChange={close} onSaved={saved} task={editing ? task : undefined} defaultOrderId="order-demo" defaultCategory="ordini" /></MemoryRouter>);
+  return { close, saved };
+}
+it("nomina i selettori e protegge il salvataggio e il collegamento alla commessa", async () => {
+  let finish!: (value: unknown) => void;
+  state.result = new Promise(resolve => { finish = resolve; });
+  const { close, saved } = setup();
+  expect(screen.getByRole("button", { name: "Crea attività" })).toBeDisabled();
+  expect(screen.getByRole("combobox", { name: "Assegna a" })).toBeInTheDocument();
+  expect(screen.getByRole("combobox", { name: "Priorità" })).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Titolo *"), { target: { value: "Task dimostrativo" } });
+  fireEvent.click(screen.getByRole("button", { name: "Crea attività" }));
+  await waitFor(() => expect(state.insert).toHaveBeenCalledTimes(1));
+  expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ company_id: "company-demo", order_id: "order-demo" }));
+  expect(screen.getByLabelText("Titolo *")).toBeDisabled();
+  fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+  fireEvent.click(screen.getByRole("button", { name: "Salvataggio..." }));
+  expect(close).not.toHaveBeenCalled();
+  expect(state.insert).toHaveBeenCalledTimes(1);
+  finish({ data: { id: "task-demo", title: "Task dimostrativo" }, error: null });
+  await waitFor(() => expect(saved).toHaveBeenCalledTimes(1));
+  expect(close).toHaveBeenCalledWith(false);
+});
+it("l'eliminazione richiede conferma e Annulla non scrive dati", async () => {
+  setup(true);
+  const remove = screen.getByRole("button", { name: "Elimina" });
+  remove.focus(); fireEvent.click(remove);
+  const confirm = await screen.findByRole("alertdialog");
+  expect(state.remove).not.toHaveBeenCalled();
+  fireEvent.click(within(confirm).getByRole("button", { name: "Annulla" }));
+  await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+  await waitFor(() => expect(remove).toHaveFocus());
+  expect(state.remove).not.toHaveBeenCalled();
+  fireEvent.click(remove);
+  fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Elimina definitivamente" }));
+  await waitFor(() => expect(state.remove).toHaveBeenCalledTimes(1));
+  expect(state.eq).toHaveBeenCalledWith("company_id", "company-demo");
+  expect(state.eq).toHaveBeenCalledWith("id", "task-demo");
+});
+it("un errore conserva la bozza e permette di riprovare", async () => {
+  state.result = Promise.resolve({ data: null, error: { message: "offline" } });
+  const { close, saved } = setup();
+  fireEvent.change(screen.getByLabelText("Titolo *"), { target: { value: "Da conservare" } });
+  fireEvent.click(screen.getByRole("button", { name: "Crea attività" }));
+  await waitFor(() => expect(state.error).toHaveBeenCalled());
+  expect(screen.getByLabelText("Titolo *")).toHaveValue("Da conservare");
+  expect(screen.getByRole("button", { name: "Crea attività" })).toBeEnabled();
+  expect(close).not.toHaveBeenCalled(); expect(saved).not.toHaveBeenCalled();
+});
+
+it("checklist e ripetizione restano modificabili nella sola bozza con controlli nominati", () => {
+  setup();
+  fireEvent.change(screen.getByRole("textbox", { name: "Testo del nuovo elemento checklist" }), { target: { value: "Controlla misure" } });
+  fireEvent.click(screen.getByRole("button", { name: "Aggiungi elemento alla checklist" }));
+  expect(screen.getByRole("textbox", { name: "Elemento checklist 1" })).toHaveValue("Controlla misure");
+  expect(screen.queryByRole("checkbox")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Rimuovi elemento checklist 1" }));
+  expect(screen.queryByRole("textbox", { name: "Elemento checklist 1" })).toBeNull();
+  const advanced = screen.getByRole("button", { name: "Collegamenti e opzioni" });
+  if (advanced.getAttribute("aria-expanded") === "false") fireEvent.click(advanced);
+  fireEvent.click(screen.getByRole("switch", { name: "Ripetizione" }));
+  expect(screen.getByRole("combobox", { name: "Ogni" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Termina il (opz.)" })).toBeInTheDocument();
+  expect(state.insert).not.toHaveBeenCalled();
+});

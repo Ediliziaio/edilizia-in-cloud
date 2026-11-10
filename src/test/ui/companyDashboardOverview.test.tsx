@@ -116,6 +116,7 @@ function apri() {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.permissions.solaLettura = false;
+  mocks.permissions.isAdmin = false;
   mocks.regia.mockReturnValue(dati());
 });
 
@@ -211,4 +212,13 @@ describe("panoramica operativa azienda", () => {
       screen.getByRole("button", { name: "Aggiorna" }),
     ).toBeInTheDocument();
   });
+});
+
+it("la sola lettura prevale anche per un amministratore nella regia operativa", () => {
+  mocks.permissions.isAdmin = true;
+  mocks.permissions.solaLettura = true;
+  apri();
+  expect(screen.queryByRole("button", { name: "Sposta la fine lavori" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Segna finita" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Cantieri" })).toBeEnabled();
 });

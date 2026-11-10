@@ -1,0 +1,21 @@
+import { afterEach, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { StepUpload } from "@/components/shared/import-wizard/StepUpload";
+afterEach(cleanup);
+it("segnala formato e dimensioni non validi anche col trascinamento senza avanzare", () => {
+  const onFileChange = vi.fn();
+  render(<StepUpload objectType="contacts" file={null} onFileChange={onFileChange} importMode="create" onImportModeChange={vi.fn()} />);
+  const dropzone = screen.getByRole("button", { name: "Seleziona un file CSV o Excel" });
+  fireEvent.drop(dropzone, { dataTransfer: { files: [new File(["test"], "test.pdf")] } });
+  expect(screen.getByRole("alert")).toHaveTextContent("Formato non supportato");
+  const large = new File(["a"], "grande.csv");
+  Object.defineProperty(large, "size", { value: 30 * 1024 * 1024 + 1 });
+  fireEvent.drop(dropzone, { dataTransfer: { files: [large] } });
+  expect(screen.getByRole("alert")).toHaveTextContent("supera 30 MB");
+  expect(onFileChange).not.toHaveBeenCalled();
+  const valid = new File(["nome\nDemo"], "demo.CSV");
+  fireEvent.drop(dropzone, { dataTransfer: { files: [valid] } });
+  expect(onFileChange).toHaveBeenCalledExactlyOnceWith(valid);
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(screen.getByRole("combobox", { name: "Seleziona come importare contatti" })).toBeInTheDocument();
+});

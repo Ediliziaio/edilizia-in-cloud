@@ -6,8 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Eraser, Check, X, Loader2 } from "lucide-react";
-import { uploadMedia } from "@/lib/api/surveys";
-import { supabase } from "@/integrations/supabase/client";
+import { uploadMedia, updateSurvey } from "@/lib/api/surveys";
 import { toast } from "sonner";
 
 export interface SignaturePadProps {
@@ -19,6 +18,7 @@ export interface SignaturePadProps {
 
 export function SignaturePad({ surveyId, signerName, onConfirm, onCancel }: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const confirmingRef = useRef(false);
   const [drawing, setDrawing] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -60,6 +60,7 @@ export function SignaturePad({ surveyId, signerName, onConfirm, onCancel }: Sign
   };
 
   const handleDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (confirmingRef.current) return;
     e.preventDefault();
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
@@ -70,7 +71,7 @@ export function SignaturePad({ surveyId, signerName, onConfirm, onCancel }: Sign
   };
 
   const handleMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!drawing) return;
+    if (!drawing || confirmingRef.current) return;
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
     const { x, y } = getPos(e);
@@ -82,6 +83,7 @@ export function SignaturePad({ surveyId, signerName, onConfirm, onCancel }: Sign
   const handleUp = () => setDrawing(false);
 
   const clear = () => {
+    if (confirmingRef.current) return;
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
@@ -91,11 +93,13 @@ export function SignaturePad({ surveyId, signerName, onConfirm, onCancel }: Sign
   };
 
   const confirm = async () => {
+    if (confirmingRef.current) return;
     const canvas = canvasRef.current;
     if (!canvas || !hasDrawn) {
       toast.error("Firma assente. Disegna sopra per firmare.");
       return;
     }
+    confirmingRef.current = true;
     setUploading(true);
     try {
       const blob: Blob = await new Promise((resolve, reject) =>
@@ -104,20 +108,20 @@ export function SignaturePad({ surveyId, signerName, onConfirm, onCancel }: Sign
       const file = new File([blob], `firma-${Date.now()}.png`, { type: "image/png" });
       const media = await uploadMedia(surveyId, file, { type: "signature" });
       const now = new Date().toISOString();
-      // Aggiorna la riga surveys con signature_url + nome + timestamp
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from("surveys").update({
+      // L’API condivisa verifica che il server confermi l’aggiornamento.
+      await updateSurvey(surveyId, {
         client_signature_url: media.url,
         client_signature_name: name || null,
         client_signature_at: now,
         signed_at: now,
         status: "signed",
-      }).eq("id", surveyId);
+      });
       toast.success("Firma registrata");
       onConfirm?.(media.url, now);
     } catch (e) {
       toast.error("Salvataggio firma fallito", { description: e instanceof Error ? e.message : String(e) });
     } finally {
+      confirmingRef.current = false;
       setUploading(false);
     }
   };
@@ -125,7 +129,7 @@ export function SignaturePad({ surveyId, signerName, onConfirm, onCancel }: Sign
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
       <div className="p-3 border-b flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={onCancel} disabled={uploading}>
+        <Button variant="ghost" size="icon" aria-label="Annulla firma" onClick={() => { if (!confirmingRef.current) onCancel?.(); }} disabled={uploading}>
           <X className="h-4 w-4" />
         </Button>
         <div className="flex-1">
@@ -140,6 +144,7 @@ export function SignaturePad({ surveyId, signerName, onConfirm, onCancel }: Sign
           <input
             type="text"
             value={name}
+            disabled={uploading}
             onChange={(e) => setName(e.target.value)}
             placeholder="Es. Mario Rossi"
             className="mt-1 w-full h-9 rounded-md border px-2.5 text-sm"
@@ -150,12 +155,14 @@ export function SignaturePad({ surveyId, signerName, onConfirm, onCancel }: Sign
       <div className="flex-1 relative bg-white p-3">
         <canvas
           ref={canvasRef}
+          aria-label="Riquadro per la firma"
+          aria-busy={uploading}
           onPointerDown={handleDown}
           onPointerMove={handleMove}
           onPointerUp={handleUp}
           onPointerLeave={handleUp}
           className="w-full h-full border-2 border-dashed border-muted-foreground/30 rounded-lg touch-none cursor-crosshair"
-          style={{ touchAction: "none" }}
+          style={{ touchAction: "none", pointerEvents: uploading ? "none" : "auto" }}
         />
       </div>
 
@@ -170,7 +177,7 @@ export function SignaturePad({ surveyId, signerName, onConfirm, onCancel }: Sign
           className="ml-auto gap-2 bg-emerald-600 hover:bg-emerald-700"
         >
           {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-          Conferma firma
+          {uploading ? "Registrazione…" : "Conferma firma"}
         </Button>
       </div>
     </div>

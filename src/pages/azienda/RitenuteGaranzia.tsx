@@ -7,7 +7,7 @@
 // esiste perche' senza nessuno le va a riprendere: svincolo previsto,
 // scaduto da svincolare, fideiussione come alternativa.
 // ============================================================================
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -601,6 +601,7 @@ function NuovaRitenutaDialog({
   onCreated: () => void;
 }) {
   const permissions = usePermissions();
+  const formId = useId();
   const [direzione, setDirezione] = useState<"attiva" | "passiva">("attiva");
   const [orderId, setOrderId] = useState<string>("");
   // Una ritenuta passiva vive sul contratto di subappalto oppure, se il
@@ -742,12 +743,12 @@ function NuovaRitenutaDialog({
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label>Direzione</Label>
+            <Label htmlFor={`${formId}-direzione`}>Direzione</Label>
             <Select
               value={direzione}
               onValueChange={(v) => setDirezione(v as "attiva" | "passiva")}
             >
-              <SelectTrigger>
+              <SelectTrigger id={`${formId}-direzione`}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -762,7 +763,7 @@ function NuovaRitenutaDialog({
           </div>
           {direzione === "passiva" && (
             <div className="space-y-1.5">
-              <Label>Contratto di subappalto</Label>
+              <Label htmlFor={`${formId}-contratto`}>Contratto di subappalto</Label>
               <Select
                 value={contrattoId || "nessuno"}
                 onValueChange={(v) => {
@@ -783,7 +784,7 @@ function NuovaRitenutaDialog({
                     );
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger id={`${formId}-contratto`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -805,9 +806,9 @@ function NuovaRitenutaDialog({
           )}
           {(direzione === "attiva" || !contrattoId) && (
             <div className="space-y-1.5">
-              <Label>Commessa</Label>
+              <Label htmlFor={`${formId}-commessa`}>Commessa</Label>
               <Select value={orderId} onValueChange={setOrderId}>
-                <SelectTrigger>
+                <SelectTrigger id={`${formId}-commessa`}>
                   <SelectValue placeholder="Scegli la commessa" />
                 </SelectTrigger>
                 <SelectContent>
@@ -822,10 +823,11 @@ function NuovaRitenutaDialog({
             </div>
           )}
           <div className="space-y-1.5">
-            <Label>
+            <Label htmlFor={`${formId}-controparte`}>
               {direzione === "attiva" ? "Committente" : "Subappaltatore"}
             </Label>
             <Input
+              id={`${formId}-controparte`}
               value={controparte}
               onChange={(e) => setControparte(e.target.value)}
               placeholder="Nome"
@@ -833,18 +835,20 @@ function NuovaRitenutaDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Importo trattenuto (€)</Label>
+              <Label htmlFor={`${formId}-importo`}>Importo trattenuto (€)</Label>
               <Input
                 inputMode="decimal"
+                id={`${formId}-importo`}
                 value={importo}
                 onChange={(e) => setImporto(e.target.value)}
                 placeholder="es. 7.500"
               />
             </div>
             <div className="space-y-1.5">
-              <Label>% applicata</Label>
+              <Label htmlFor={`${formId}-percentuale`}>% applicata</Label>
               <Input
                 inputMode="decimal"
+                id={`${formId}-percentuale`}
                 value={percentuale}
                 onChange={(e) => setPercentuale(e.target.value)}
                 placeholder="5"
@@ -852,9 +856,10 @@ function NuovaRitenutaDialog({
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label>Svincolo previsto</Label>
+            <Label htmlFor={`${formId}-svincolo`}>Svincolo previsto</Label>
             <Input
               type="date"
+              id={`${formId}-svincolo`}
               value={svincoloPrevisto}
               onChange={(e) => setSvincoloPrevisto(e.target.value)}
             />

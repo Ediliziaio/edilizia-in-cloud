@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  STATI_MANUTENZIONE, STATO_MANUT_META, etichettaScadenza, type StatoManutenzione,
+  STATI_MANUTENZIONE, STATO_MANUT_META, type StatoManutenzione,
 } from "@/lib/manutenzione/statoManutenzione";
 
 export type PrioritaManutenzione = "alta" | "media" | "bassa" | null;
@@ -35,12 +35,13 @@ export interface ImpiantoStato {
   priorita: PrioritaManutenzione;
 }
 
-function Card({ im, onOpen, onPianifica, onCompleta, busy }: {
+function Card({ im, onOpen, onPianifica, onCompleta, busy, solaLettura }: {
   im: ImpiantoStato;
   onOpen: (id: string) => void;
   onPianifica: (impiantoId: string) => void;
   onCompleta: (impiantoId: string) => void;
   busy: boolean;
+  solaLettura: boolean;
 }) {
   const meta = STATO_MANUT_META[im.stato];
   const cliente = [im.customer?.first_name, im.customer?.last_name].filter(Boolean).join(" ");
@@ -63,11 +64,11 @@ function Card({ im, onOpen, onPianifica, onCompleta, busy }: {
       </button>
       {im.prossimoPianoId && (
         <div className="mt-2 flex gap-1.5">
-          <Button size="sm" variant="outline" className="h-7 flex-1 text-xs" disabled={busy}
+          <Button size="sm" variant="outline" className="h-7 flex-1 text-xs" disabled={busy || solaLettura}
                   onClick={() => onPianifica(im.id)}>
             {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Pianifica"}
           </Button>
-          <Button size="sm" className="h-7 flex-1 text-xs" disabled={busy}
+          <Button size="sm" className="h-7 flex-1 text-xs" disabled={busy || solaLettura}
                   onClick={() => onCompleta(im.id)}>
             Completa
           </Button>
@@ -78,13 +79,14 @@ function Card({ im, onOpen, onPianifica, onCompleta, busy }: {
 }
 
 export function ManutenzionePipeline({
-  impianti, onOpen, onPianifica, onCompleta, busy = false,
+  impianti, onOpen, onPianifica, onCompleta, busy = false, solaLettura = false,
 }: {
   impianti: ImpiantoStato[];
   onOpen: (id: string) => void;
   onPianifica: (impiantoId: string) => void;
   onCompleta: (impiantoId: string) => void;
   busy?: boolean;
+  solaLettura?: boolean;
 }) {
   const perStato: Record<StatoManutenzione, ImpiantoStato[]> = {
     scaduta: [], in_scadenza: [], in_regola: [], senza_piano: [],
@@ -109,7 +111,7 @@ export function ManutenzionePipeline({
                 <p className="py-8 text-center text-xs text-muted-foreground">Niente qui</p>
               ) : (
                 lista.map((im) => (
-                  <Card key={im.id} im={im} onOpen={onOpen} onPianifica={onPianifica} onCompleta={onCompleta} busy={busy} />
+                  <Card key={im.id} im={im} onOpen={onOpen} onPianifica={onPianifica} onCompleta={onCompleta} busy={busy} solaLettura={solaLettura} />
                 ))
               )}
             </div>

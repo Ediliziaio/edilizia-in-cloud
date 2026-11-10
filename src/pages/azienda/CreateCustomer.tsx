@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { logger } from "@/utils/logger";
 import { useNavigate } from "react-router-dom";
 import {
@@ -7,6 +7,7 @@ import {
   FileCheck2, FileWarning,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/contexts/AuthContext";
 import { DocumentiClienteInput } from "@/components/clients/DocumentiClienteInput";
 import { caricaDocumentiCliente, contaFileDocumentiCliente, type FileDocumentiCliente } from "@/lib/clienti/documentiCliente";
@@ -47,6 +48,8 @@ export default function CreateCustomer() {
   const { effectiveCompany, user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const permissions = usePermissions();
+  const canCreate = !permissions.isLoading && !permissions.solaLettura && (permissions.isAdmin || permissions.canEditCustomers);
 
   // Toggle portale a livello company (letto dal contesto)
   const companyPortalEnabled = (effectiveCompany as { customer_portal_enabled?: boolean } | null)
@@ -85,6 +88,8 @@ export default function CreateCustomer() {
   const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const pendingRef = useRef(false);
+  const createdRef = useRef(false);
   // Duplicati: si avvisa e si chiede conferma, non si blocca. Le omonimie
   // esistono e due aziende possono davvero condividere un centralino.
   const [duplicatiAccettati, setDuplicatiAccettati] = useState(false);
@@ -179,6 +184,7 @@ export default function CreateCustomer() {
   const shouldRequireEmail = companyPortalEnabled && createPortalAccount;
 
   const canSubmit =
+    canCreate && !showSuccessDialog &&
     (isBusiness ? businessName.trim().length > 0 : (firstName.trim().length > 0 && lastName.trim().length > 0)) &&
     (!shouldRequireEmail || email.trim().length > 0) &&
     !emailError &&
@@ -190,6 +196,7 @@ export default function CreateCustomer() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canCreate || pendingRef.current || createdRef.current) return;
 
     if (isBusiness) {
       if (!businessName.trim()) {
@@ -243,6 +250,7 @@ export default function CreateCustomer() {
       return;
     }
 
+    pendingRef.current = true;
     setIsSubmitting(true);
 
     try {
@@ -314,6 +322,7 @@ export default function CreateCustomer() {
       setGeneratedPassword(data.password ?? null);
       setPortalWasCreated(!!data.portal_account_created);
       setEmailWasSent(!!data.welcome_email_sent);
+      createdRef.current = true;
       setShowSuccessDialog(true);
     } catch (e) {
       logger.error("Create customer error:", e);
@@ -323,6 +332,7 @@ export default function CreateCustomer() {
         variant: "destructive",
       });
     } finally {
+      pendingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -351,7 +361,8 @@ export default function CreateCustomer() {
           variant="ghost"
           size="icon"
           className="hidden md:inline-flex shrink-0"
-          onClick={() => navigate(-1)}
+          disabled={isSubmitting || showSuccessDialog}
+          onClick={() => { if (!pendingRef.current && !createdRef.current) navigate(-1); }}
           aria-label="Torna indietro"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -367,8 +378,11 @@ export default function CreateCustomer() {
         </div>
       </div>
 
+      {permissions.solaLettura && (
+        <Alert><AlertDescription>La modalità sola lettura non consente di creare clienti.</AlertDescription></Alert>
+      )}
       <form onSubmit={handleSubmit}>
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <fieldset disabled={isSubmitting || showSuccessDialog} className="min-w-0 grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Colonna principale */}
           <div className="lg:col-span-8 space-y-6">
             {/* Dati anagrafici */}
@@ -604,6 +618,7 @@ export default function CreateCustomer() {
               <CardContent>
                 <Textarea
                   id="notes"
+                  aria-label="Note interne"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Preferenze, note di lavorazione, referenze..."
@@ -816,7 +831,7 @@ export default function CreateCustomer() {
               </CardContent>
             </Card>
           </div>
-        </div>
+        </fieldset>
       </form>
 
       {/* Success Dialog */}

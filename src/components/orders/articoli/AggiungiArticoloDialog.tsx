@@ -388,7 +388,7 @@ export function AggiungiArticoloDialog({
         ) : !scelta ? (
           <>
             <Command shouldFilter={false} className="rounded-md border">
-              <CommandInput ref={campoRicerca} autoFocus value={testo} onValueChange={setTesto} placeholder="Cerca o scrivi il nome dell'articolo…" />
+              <CommandInput aria-label="Cerca o scrivi il nome dell’articolo" ref={campoRicerca} autoFocus value={testo} onValueChange={setTesto} placeholder="Cerca o scrivi il nome dell'articolo…" />
               <CommandList className="max-h-[min(26rem,55vh)] max-sm:max-h-none">
                 {erroreCatalogo && <p role="alert" className="px-3 py-2 text-xs text-red-700">Catalogo non disponibile. Chiudi e riapri per riprovare.</p>}
                 <CommandGroup heading="In magazzino">

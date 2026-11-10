@@ -335,7 +335,7 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
                         {event.description || event.event_type || event.action}
                       </p>
                       <Badge variant="outline" className="text-[10px]">
-                        {event.target_table || "HR"}
+                        {({ hr_richieste: "Richieste", hr_giornate: "Presenze", hr_profili: "Profili", hr_sedi: "Sedi" } as Record<string, string>)[event.target_table ?? ""] || "Personale"}
                       </Badge>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">

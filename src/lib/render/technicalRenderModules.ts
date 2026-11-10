@@ -72,7 +72,7 @@ export const technicalRenderModuleSpecs: Record<TechnicalRenderModuleId, Technic
     configTitle: "Configura ristrutturazione coordinata",
     resultTitle: "Render ristrutturazione completato",
     galleryTitle: "Render ristrutturazioni salvati, coordinati per sistemi e CRM.",
-    galleryDescription: "Controlla interventi multi-sistema, autore, data e collegamenti commerciali senza mostrare il prompt.",
+    galleryDescription: "Ritrova gli interventi coordinati, l’autore, la data e i collegamenti commerciali di ogni proposta.",
     accentClassName: "text-indigo-600",
     buttonClassName: "bg-indigo-600 hover:bg-indigo-700",
     presets: [
@@ -100,7 +100,7 @@ export const technicalRenderModuleSpecs: Record<TechnicalRenderModuleId, Technic
     configTitle: "Configura pavimentazione esterna",
     resultTitle: "Render pavimento esterno completato",
     galleryTitle: "Render pavimenti esterni salvati, filtrabili per materiale e CRM.",
-    galleryDescription: "Vedi subito materiale, target area, autore e collegamenti commerciali di ogni proposta hardscape.",
+    galleryDescription: "Ritrova materiale, area di intervento, autore e collegamenti commerciali di ogni proposta di pavimentazione esterna.",
     accentClassName: "text-lime-700",
     buttonClassName: "bg-lime-700 hover:bg-lime-800",
     presets: [

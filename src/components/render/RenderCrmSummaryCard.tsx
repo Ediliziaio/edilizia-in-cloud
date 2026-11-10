@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { BriefcaseBusiness, ExternalLink, Link2, UserRound } from "lucide-react";
@@ -48,6 +48,7 @@ export function RenderCrmSummaryCard({
   editable = false,
 }: RenderCrmSummaryCardProps) {
   const queryClient = useQueryClient();
+  const pendingRef = useRef(false);
   const [currentContactId, setCurrentContactId] = useState<string | null>(contactId ?? null);
   const [currentOpportunityId, setCurrentOpportunityId] = useState<string | null>(opportunityId ?? null);
 
@@ -88,7 +89,9 @@ export function RenderCrmSummaryCard({
         .eq("id", sessionId);
       if (error) throw error;
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, next) => {
+      setCurrentContactId(next.contactId);
+      setCurrentOpportunityId(next.opportunityId);
       toast.success("Collegamento CRM aggiornato");
       await queryClient.invalidateQueries({ queryKey: ["render-crm-summary"] });
       await queryClient.invalidateQueries({ queryKey: ["linked-renders"] });
@@ -96,13 +99,17 @@ export function RenderCrmSummaryCard({
     onError: () => {
       toast.error("Non sono riuscito ad aggiornare il collegamento CRM");
     },
+    onSettled: () => { pendingRef.current = false; },
   });
 
   const persistLink = (nextContactId: string | null, nextOpportunityId: string | null) => {
-    setCurrentContactId(nextContactId);
-    setCurrentOpportunityId(nextOpportunityId);
+    if (pendingRef.current) return;
     if (canPersist) {
+      pendingRef.current = true;
       linkMutation.mutate({ contactId: nextContactId, opportunityId: nextOpportunityId });
+    } else {
+      setCurrentContactId(nextContactId);
+      setCurrentOpportunityId(nextOpportunityId);
     }
   };
 
@@ -135,7 +142,7 @@ export function RenderCrmSummaryCard({
                 <div className="mt-1 flex items-center justify-between gap-2 max-md:mt-0 max-md:min-w-0">
                   <p className="truncate text-sm font-medium max-md:text-[13px]">{meta.contactName}</p>
                   <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
-                    <Link to={`/azienda/marketing/contatti/${currentContactId}`}>
+                    <Link aria-label={`Apri contatto ${meta.contactName}`} to={`/azienda/marketing/contatti/${currentContactId}`}>
                       <ExternalLink className="h-3.5 w-3.5" />
                     </Link>
                   </Button>
@@ -169,9 +176,13 @@ export function RenderCrmSummaryCard({
             <RenderCrmLinker
               contactId={currentContactId}
               opportunityId={currentOpportunityId}
+              onLinksChange={persistLink}
+              disabled={linkMutation.isPending}
               onContactChange={(next) => persistLink(next, null)}
               onOpportunityChange={(next) => persistLink(currentContactId, next)}
             />
+            {linkMutation.isPending && <p role="status" className="px-2 pb-2 text-xs text-muted-foreground">Aggiornamento collegamento CRM…</p>}
+            {linkMutation.isError && <p role="alert" className="px-2 pb-2 text-xs text-destructive">Non è stato possibile confermare il collegamento CRM. Visualizzi ancora i collegamenti precedenti; riprova.</p>}
             {!canPersist && (
               <p className="px-2 pb-2 text-xs text-muted-foreground">
                 Collegamento modificabile solo quando il render e la tabella sorgente sono disponibili.

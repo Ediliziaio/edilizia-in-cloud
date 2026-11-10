@@ -58,6 +58,16 @@ export default function FirmaCliente() {
     );
   }
 
+  if (detail.survey.client_signature_at || detail.survey.status === "signed") {
+    return (
+      <div className="mx-auto flex max-w-md flex-col items-center gap-3 p-6 text-center">
+        <h1 className="text-lg font-semibold">Sopralluogo già firmato</h1>
+        <p className="text-sm text-muted-foreground">Questo rilievo ha già una firma registrata. Apri il dettaglio per consultarla.</p>
+        <Button variant="outline" onClick={() => navigate(`/azienda/sopralluoghi/${id}`)}>Torna al sopralluogo</Button>
+      </div>
+    );
+  }
+
   return (
     <SignaturePad
       surveyId={id}

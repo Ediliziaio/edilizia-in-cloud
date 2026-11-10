@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { CalendarDays, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -26,6 +27,7 @@ const DATE_PRESETS: { value: CruscottoDatePreset; label: string }[] = [
 ];
 
 export const CruscottoFilters = memo(function CruscottoFilters({ filters, onUpdate, compact, className }: Props) {
+  const isMobile = useIsMobile();
   return (
     <div className={cn("flex min-w-0 flex-wrap items-center gap-2", compact ? "py-1.5" : "py-3", className)}>
       <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -34,6 +36,7 @@ export const CruscottoFilters = memo(function CruscottoFilters({ filters, onUpda
         {DATE_PRESETS.map(p => (
           <Button
             key={p.value}
+            aria-pressed={filters.datePreset === p.value}
             variant={filters.datePreset === p.value ? "default" : "ghost"}
             size="sm"
             className="h-7 shrink-0 px-2.5 text-xs"
@@ -47,12 +50,12 @@ export const CruscottoFilters = memo(function CruscottoFilters({ filters, onUpda
       {filters.datePreset === "custom" && (
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs">
+            <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" aria-label={`Intervallo personalizzato: dal ${format(filters.dateFrom, "dd MMM yyyy", { locale: it })} al ${format(filters.dateTo, "dd MMM yyyy", { locale: it })}`}>
               <CalendarDays className="h-3.5 w-3.5" />
               {format(filters.dateFrom, "dd MMM", { locale: it })} – {format(filters.dateTo, "dd MMM", { locale: it })}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
+          <PopoverContent className="max-h-[var(--radix-popover-content-available-height)] w-auto overflow-y-auto p-0" align="start">
             <Calendar
               mode="range"
               selected={{ from: filters.dateFrom, to: filters.dateTo }}
@@ -60,7 +63,7 @@ export const CruscottoFilters = memo(function CruscottoFilters({ filters, onUpda
                 if (range?.from) onUpdate({ dateFrom: range.from, dateTo: range.to || range.from });
               }}
               locale={it}
-              numberOfMonths={2}
+              numberOfMonths={isMobile ? 1 : 2}
               className="pointer-events-auto"
             />
           </PopoverContent>

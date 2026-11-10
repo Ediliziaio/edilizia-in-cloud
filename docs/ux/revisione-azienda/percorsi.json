@@ -1,0 +1,4268 @@
+[
+  {
+    "path": "/azienda/marketing/automazioni/nuova",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 578,
+    "type": "Pagina",
+    "element": "{\n          <ProtectedRoute allowedRoles={[...COMPANY_ROLES]}>\n            <ErrorBoundary title=\"Errore nel builder automazioni\">\n              {withCompanyPermission(\"canViewMarketingAutomations\", <MarketingAutomationBuilder />)}\n            </Error",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/automazioni/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 588,
+    "type": "Pagina",
+    "element": "{\n          <ProtectedRoute allowedRoles={[...COMPANY_ROLES]}>\n            <ErrorBoundary title=\"Errore nel builder automazioni\">\n              {withCompanyPermission(\"canViewMarketingAutomations\", <MarketingAutomationBuilder />)}\n            </Error",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/render/infissi/embed",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 603,
+    "type": "Pagina",
+    "element": "{\n          <ProtectedRoute allowedRoles={[...COMPANY_ROLES]}>\n            <ErrorBoundary title=\"Errore nel render builder\">\n              {withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderNew /></FeatureRoute>)}\n ",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 615,
+    "type": "Pagina",
+    "element": "{\n          <ProtectedRoute allowedRoles={[...COMPANY_ROLES]}>\n            <CompanyAppGuard>\n              <ErrorBoundary title=\"Errore nell'area azienda\">\n                <BillingActivationGuard>\n                  <CompanyLayout />\n                <",
+    "status": "PARZIALE",
+    "notes": "Dashboard iniziale: quattro filtri Agenda e apertura/chiusura verificati; guardia admin sola lettura coperta da fixture. Nessuna azione reale su commesse/attività."
+  },
+  {
+    "path": "/azienda",
+    "index": true,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 629,
+    "type": "Pagina",
+    "element": "{<AziendaIndex />}",
+    "status": "PARZIALE",
+    "notes": "Dashboard iniziale: quattro filtri Agenda e apertura/chiusura verificati; guardia admin sola lettura coperta da fixture. Nessuna azione reale su commesse/attività."
+  },
+  {
+    "path": "/azienda/onboarding/vertical",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 630,
+    "type": "Pagina",
+    "element": "{<ErrorBoundary title=\"Errore nel caricamento onboarding settore\"><OnboardingVertical /></ErrorBoundary>}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/cruscotto",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 631,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewCruscotto\", <CruscottoDashboardPage />)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/cruscotto/gestisci",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 632,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewCruscotto\", <CruscottoHub />)}",
+    "status": "PARZIALE",
+    "notes": "Hub e creazione: fonte, nome, libreria/ricerca vuota e clone senza record visitati. Mobile corretto, dialog focus/Esc verificati. Clonazione layout, errore/retry e doppio Invio in fixture; nessuna dashboard reale creata. Permessi, errori elenco e builder da approfondire."
+  },
+  {
+    "path": "/azienda/cruscotto/aziendale",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 633,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewCruscotto\", <CruscottoAziendale />)}",
+    "status": "PARZIALE",
+    "notes": "Viste iniziali, filtri periodo, calendario desktop/mobile, tooltip e dettaglio Venduto visitati. Errori quattro dettagli in fixture, focus ritorno verificato. Calcoli non modificati; ulteriori azioni e combinazioni da collaudare."
+  },
+  {
+    "path": "/azienda/controllo-gestione/*",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 638,
+    "type": "Pagina",
+    "element": "{\n            withCompanyPermission(\n              \"canViewControlloGestione\",\n              <FeatureRoute featureKey=\"controllo_gestione_v1\">\n                <ControlloGestione />\n              </FeatureRoute>\n            )\n          }",
+    "status": "PARZIALE",
+    "notes": "Dashboard caricata; avviso dati da riconciliare visibile. Schede interne non ancora collaudate."
+  },
+  {
+    "path": "/azienda/upgrade",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 651,
+    "type": "Pagina",
+    "element": "{isIOSNativePlatform ? <IosBillingBlocked /> : <UpgradePage />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/preview-demo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 653,
+    "type": "Pagina",
+    "element": "{<DemoPreviewShowcase />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/dashboards",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 658,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewCruscotto\", <FeatureRoute featureKey=\"dashboard_builder_v1\"><ErrorBoundary title=\"Errore dashboards\"><DashboardsList /></ErrorBoundary></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/dashboards/nuova",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 659,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewCruscotto\", <FeatureRoute featureKey=\"dashboard_builder_v1\"><ErrorBoundary title=\"Errore builder\"><DashboardBuilder /></ErrorBoundary></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Builder nuovo aperto senza salvataggio: canvas vuoto, impostazioni, label e layout desktop/mobile. Header Salva corretto, strumenti sotto canvas su mobile. Nessun widget con dati reali aggiunto; autosave edit, salvataggio e ruoli ancora da approfondire."
+  },
+  {
+    "path": "/azienda/dashboards/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 660,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewCruscotto\", <FeatureRoute featureKey=\"dashboard_builder_v1\"><ErrorBoundary title=\"Errore dashboard\"><DashboardView /></ErrorBoundary></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/dashboards/:id/modifica",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 661,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewCruscotto\", <FeatureRoute featureKey=\"dashboard_builder_v1\"><ErrorBoundary title=\"Errore builder\"><DashboardBuilder /></ErrorBoundary></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/commesse",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 662,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/ordini\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/commesse/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 663,
+    "type": "Reindirizzamento",
+    "element": "{<LegacyCommessaRedirect />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/commesse/:id/diario",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 664,
+    "type": "Reindirizzamento",
+    "element": "{<LegacyCommessaDiaryRedirect />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/commesse/:id/modifica",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 665,
+    "type": "Reindirizzamento",
+    "element": "{<LegacyCommessaEditRedirect />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/ordini",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 666,
+    "type": "Pagina",
+    "element": "{withCompanyPermissionOrCommercialista(\"canViewOrders\", <ErrorBoundary title=\"Errore nel caricamento commesse\"><OrdersList /></ErrorBoundary>, vedeOrdiniOAcquisti)}",
+    "status": "PARZIALE",
+    "notes": "Aperte le 10 sezioni; alcuni stati di caricamento richiedono controllo successivo. Modulo nuovo DDT aperto e annullato. Nessun invio, acquisto o approvazione."
+  },
+  {
+    "path": "/azienda/cantieri-oggi",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 668,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/ordini?tab=oggi\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/ordini/nuovo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 669,
+    "type": "Pagina",
+    "element": "{withCompanyPermissionOrCommercialista(\"canEditOrders\", <CommercialistaWriteGuard fallback=\"/azienda/ordini\"><ErrorBoundary title=\"Errore nella creazione commessa\"><CreateOrder /></ErrorBoundary></CommercialistaWriteGuard>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/ordini/nuovo-lavoro-appaltatore",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 670,
+    "type": "Pagina",
+    "element": "{withCompanyPermissionOrCommercialista(\"canEditOrders\", <CommercialistaWriteGuard fallback=\"/azienda/ordini\"><FeatureRoute featureKey=\"appaltatore_module\"><ErrorBoundary title=\"Errore nella creazione lavoro appaltatore\"><CreateLavoroAppaltatore /></E",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/ordini/simulatore",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 671,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewOrders\", <ErrorBoundary title=\"Errore nel simulatore\"><SimulatoreOperazione /></ErrorBoundary>, (p) => p.isAdmin || p.canViewMargins)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/ordini/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 672,
+    "type": "Pagina",
+    "element": "{withCompanyPermissionOrCommercialista(\"canViewOrders\", <ErrorBoundary title=\"Errore nel dettaglio commessa\"><OrderDetail /></ErrorBoundary>)}",
+    "status": "PARZIALE",
+    "notes": "Collaudo in corso su GUIDA-DEMO-COMMESSA-001 (dati dimostrativi). Panoramica e Cantiere caricate. Header: Contatta correttamente disabilitato senza recapiti. Nuova attività aperta/annullata con collegamento commessa precompilato. Navigazione verificata a 375/768/1280/1920 CSS px senza overflow. Altri workflow/varianti contrattuali e sottoviste da completare."
+  },
+  {
+    "path": "/azienda/ordini/:id/diario",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 673,
+    "type": "Pagina",
+    "element": "{withCompanyPermissionOrCommercialista(\"canViewOrders\", <ErrorBoundary title=\"Errore nel diario commessa\"><OrderDiaryPage /></ErrorBoundary>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/ordini/:id/modifica",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 674,
+    "type": "Pagina",
+    "element": "{withCompanyPermissionOrCommercialista(\"canEditOrders\", <CommercialistaOrderEditGuard><EditOrder /></CommercialistaOrderEditGuard>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/magazzino",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 675,
+    "type": "Pagina",
+    "element": "{withCompanyPermissionOrCommercialista(\"canViewWarehouse\", <ErrorBoundary title=\"Errore nel caricamento magazzino\"><Warehouse /></ErrorBoundary>)}",
+    "status": "PARZIALE",
+    "notes": "Schermata principale esaminata; nomi del filtro magazzino e interruttore prelievo corretti. Nessun carico, scarico o cambio impostazioni eseguito."
+  },
+  {
+    "path": "/azienda/magazzino/gestione",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 676,
+    "type": "Pagina",
+    "element": "{withCompanyPermissionOrCommercialista(\"canEditWarehouse\", <CommercialistaWriteGuard fallback=\"/azienda/magazzino\"><WarehouseManager /></CommercialistaWriteGuard>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/manodopera",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 679,
+    "type": "Pagina",
+    "element": "{<ErrorBoundary title=\"Errore in Manodopera e Mezzi\"><ManodoperaPage /></ErrorBoundary>}",
+    "status": "PARZIALE",
+    "notes": "Schermata iniziale Operai aperta; altre schede e flussi ancora da controllare."
+  },
+  {
+    "path": "/azienda/manodopera/operai/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 680,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewOperai\", <ErrorBoundary title=\"Errore nella scheda dell'operaio\"><OperaioDetail /></ErrorBoundary>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/mezzi",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 681,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/manodopera?tab=mezzi\" replace />}",
+    "status": "PARZIALE",
+    "notes": "Redirect verificato verso manodopera?tab=mezzi. Elenco mezzi: ricerca vuota ripristinata, raggruppamenti Per tipo/Dove sono; Nuovo mezzo aperto/annullato, nessun upload/scansione. Associazione nome Cantiere aggiunta nel selettore condiviso. Attrezzature ancora in collaudo; errori/permessi/form mutazioni con fixture da completare."
+  },
+  {
+    "path": "/azienda/mezzi/inventario",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 683,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMezzi\", <ErrorBoundary title=\"Errore nell'inventario\"><MezziInventario /></ErrorBoundary>)}",
+    "status": "PARZIALE",
+    "notes": "Elenco e Nuovo giro aperto/annullato senza Inizia/scanner. Fix falso vuoto su errore lettura, retry e focus ritornoNuovo giro; errore riprodotto in fixtureprima. 3testgreen, lint0/0. Dettaglio inventario non visitato; creazione/conta/chiusura non eseguite."
+  },
+  {
+    "path": "/azienda/mezzi/inventario/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 684,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMezzi\", <ErrorBoundary title=\"Errore nell'inventario\"><MezziInventario /></ErrorBoundary>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/mezzi/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 685,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMezzi\", <ErrorBoundary title=\"Errore nella scheda del mezzo\"><MezzoDetail /></ErrorBoundary>)}",
+    "status": "PARZIALE",
+    "notes": "Mezzo esplicitamente DEMO: tutte8schede iniziali aperte desktop, mobile375 senza overflow (2schede nascoste per sceltaesistente). Nessuna modifica/assegnazione/km/foto/documento/eliminazione. Varianti attrezzatura/quantità, dialog/stati/permessi ancora da completare. 13file116testMezzi passati."
+  },
+  {
+    "path": "/azienda/calendario",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 686,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewCalendar\", <ErrorBoundary title=\"Errore nel caricamento calendario\"><Calendar /></ErrorBoundary>)}",
+    "status": "PARZIALE",
+    "notes": "Verificate viste Mese, Gantt, Squadre e persone, Carico; aperto e annullato Nuovo appuntamento. Etichette controllate in UI; salvataggio e sola lettura simulati nei test. Nessun trascinamento o modifica persistente."
+  },
+  {
+    "path": "/azienda/clienti",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 687,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewCustomers\", <ErrorBoundary title=\"Errore nel caricamento clienti\"><CustomersList /></ErrorBoundary>)}",
+    "status": "PARZIALE",
+    "notes": "Elenco e indicatori esaminati. Corretta etichetta del conteggio portale e nomi dei filtri. Dettagli e moduli ancora da esaminare."
+  },
+  {
+    "path": "/azienda/clienti/nuovo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 688,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canEditCustomers\", <CreateCustomer />)}",
+    "status": "PARZIALE",
+    "notes": "Persona/azienda/committente visitati senza dati immessi, mobile375 senza overflow. Note nominate; creazione protetta da doppio invio e readonly, campi/back bloccati pending, errore conserva e consente retry:3test. Nessun cliente/account/email/file reale. Altre varianti documenti/duplicati/portale da ampliare."
+  },
+  {
+    "path": "/azienda/clienti/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 689,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewCustomers\", <ErrorBoundary title=\"Errore nel dettaglio cliente\"><CompanyCustomerDetail /></ErrorBoundary>)}",
+    "status": "PARZIALE",
+    "notes": "Scheda Demo osservata: otto sezioni iniziali su mobile e desktop, mobile375 senza overflow, pannello accessibile/focus alla chiusura. Errori cliente e riepilogo, blocco cancellazione senza dati e readonly anagrafica/elimina in fixture. Comunicazioni, altre azioni e componenti inline ancora da approfondire; nessun invio, modifica cliente o cancellazione reale."
+  },
+  {
+    "path": "/azienda/committenti/numeri",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 694,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewOrderAmounts\", <FeatureRoute featureKey=\"appaltatore_module\"><ErrorBoundary title=\"Errore nei numeri dell'appalto\"><NumeriAppalto /></ErrorBoundary></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/committenti/:id/contratto/:contrattoId",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 695,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canEditCustomers\", <FeatureRoute featureKey=\"appaltatore_module\"><ErrorBoundary title=\"Errore nel contratto\"><ContrattoCommittentePagina /></ErrorBoundary></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/committenti/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 696,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewCustomers\", <FeatureRoute featureKey=\"appaltatore_module\"><ErrorBoundary title=\"Errore nella scheda committente\"><CommittenteDetail /></ErrorBoundary></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/assistenza-lavori",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 703,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/assistenza\" replace />}",
+    "status": "PARZIALE",
+    "notes": "Redirect verificato verso Assistenza unificata. Nessuna modifica ticket esistente."
+  },
+  {
+    "path": "/azienda/assistenza",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 706,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewTickets\", <ErrorBoundary title=\"Errore nel caricamento assistenza\"><AssistenzaPage /></ErrorBoundary>, (p) => p.canViewTickets || p.canViewManutenzione)}",
+    "status": "PARZIALE",
+    "notes": "SchedeAssistenza/Manutenzioni, elencoAssistenza e NuovoTicketDialog letti (Supporto/Intervento, pagamento e merceincompleta in bozza poiChiudi). Label18campi+file e focusDialog corretti; verificaUI Ticket nuova versione in corso. DettaglioTicket nonaperto poiché mount aggiorna ticket_read_status; usarefixture peresiti. Nessun ticket/invio/ordine/file creato. Rischio retryparziale dopo ticketinsert da riprodurre e correggere."
+  },
+  {
+    "path": "/azienda/assistenza/nuovo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 707,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canEditTickets\", <ErrorBoundary title=\"Errore nella creazione ticket\"><CreateCompanyTicket /></ErrorBoundary>)}",
+    "status": "PARZIALE",
+    "notes": "Pagina standalone aperta: heading e nomi campi verificati, nessun invio reale. Guardia back durante salvataggio e ripresa parziale in fixture; altre varianti profonde da verificare."
+  },
+  {
+    "path": "/azienda/assistenza/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 708,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewTickets\", <ErrorBoundary title=\"Errore nel dettaglio ticket\"><TicketDetail /></ErrorBoundary>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/assistenza/:id/chiudi",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 709,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canEditTickets\", <FeatureRoute featureKey=\"cantieri_avanzati\"><ChiusuraIntervento /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/interventi",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 711,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/assistenza?tipo=intervento\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/interventi/nuovo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 712,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/assistenza/nuovo?tipo=intervento\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/interventi/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 713,
+    "type": "Reindirizzamento",
+    "element": "{<InterventoDetailRedirect />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/interventi/:id/chiudi",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 714,
+    "type": "Reindirizzamento",
+    "element": "{<InterventoChiusuraRedirect />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/manutenzione",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 716,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/assistenza?vista=manutenzioni\" replace />}",
+    "status": "PARZIALE",
+    "notes": "VistaunificataManutenzioni elenco/filtri/kanban. FiltroInRegola vuoto corretto, radiovista già accessibili; filtri senza pressed e ricercasenzaNome residui. NuovoImpianto3passi+Piano/PrimoIntervento/Contratto visitati usandoClienteDemo eInfissi soltanto in bozza;Chiudi resetta, nessunSalva. Label20campiuseId/descrizione/focus corretti e tutti verificati UI, nativecheckbox giànominate. Flow salvataggioparziale e ruoli/errori/mobile ancora da verificare."
+  },
+  {
+    "path": "/azienda/manutenzione/impianto/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 717,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewManutenzione\", <FeatureRoute featureKey=\"cantieri_avanzati\"><ImpiantoDetail /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Lettura scheda con dati tecnici/contratto/piano; nessuna azione fatturazione, comunicazione,archiviazione,esecuzione. Modali/stati/ruoli/mobile non ancora collaudati. Iconaback senzaNome; altri comandi icona hanno title, verificare nome AX prima di dichiararli tutti senzaetichetta."
+  },
+  {
+    "path": "/azienda/impianti/:impiantoId/storico",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 718,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewManutenzione\", <FeatureRoute featureKey=\"cantieri_avanzati\"><StoricoImpianto /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/previsionale",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 719,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewForecast\", <CashFlowForecast />)}",
+    "status": "PARZIALE",
+    "notes": "Caricate tutte le quattro schede Panoramica, Scenari, Movimenti e Da sistemare. Non alterate date o simulazioni persistenti; filtri avanzati e dettagli ancora da verificare."
+  },
+  {
+    "path": "/azienda/costi",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 720,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewCosts\", <ErrorBoundary title=\"Errore nel caricamento costi\"><CompanyCosts /></ErrorBoundary>)}",
+    "status": "PARZIALE",
+    "notes": "Aperte le 5 schede; esaminati elenchi spese, personale e pianificazione. Confermato e rimosso taglio a 1000 costi: la lista variabili passa da 535 a 596 voci nel dataset demo. Nessun costo scritto."
+  },
+  {
+    "path": "/azienda/analisi-acquisti",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 721,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewCosts\", <ErrorBoundary title=\"Errore nell'analisi acquisti\"><AnalisiAcquisti /></ErrorBoundary>)}",
+    "status": "PARZIALE",
+    "notes": "Panoramica caricata ed esaminata. Altre schede e filtri ancora da verificare."
+  },
+  {
+    "path": "/azienda/attivita",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 723,
+    "type": "Pagina",
+    "element": "{<AttivitaRouter />}",
+    "status": "PARZIALE",
+    "notes": "Dashboard: filtri riepilogo, ricerca, raggruppamento, crea/annulla, collegamenti, anteprima approvazioni 2/5 su mobile. Regia: aperte le 5 viste. Nessun salvataggio o approvazione reale. 375/768/1280/1920 senza overflow. Varianti staff ancora da controllare."
+  },
+  {
+    "path": "/azienda/timbrature-personali",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 726,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/attivita?tab=timbrature\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/ferie-personali",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 727,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/attivita?tab=ferie\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/cedolini-personali",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 728,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/attivita?tab=cedolini\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/errori",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 729,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/ordini?tab=anomalie\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/chat",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 736,
+    "type": "Pagina",
+    "element": "{<ChatHub />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/silvio-ai",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 737,
+    "type": "Pagina",
+    "element": "{<SilvioAIPage />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/contenuti-multimediali",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 741,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketing\", <ContenutiMultimediali />, canAccessMediaLibrary)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/azioni-proposte",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 747,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketing\", <AzioniProposteAi />)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/azioni-proposte/audit-log",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 748,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsSecurity\", <ActionProposalsAuditLog />)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/email-triage",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 750,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingEmail\", <EmailTriagePage />)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/email",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 752,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingEmail\", <EmailClientPage />)}",
+    "status": "PARZIALE",
+    "notes": "Casella e compositore condiviso aperti; CC/Ccn, nomi accessibili e validazione senza destinatari verificati. Un account demo segnala riconnessione necessaria. Nessun invio o modifica delle credenziali."
+  },
+  {
+    "path": "/azienda/email/ai",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 754,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingEmail\", <EmailAiSettingsPage />)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/email/documenti",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 755,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingEmail\", <DocumentiDaConfermarePage />)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/sopralluoghi",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 757,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSopralluoghi\", <SopralluoghiList />)}",
+    "status": "PARZIALE",
+    "notes": "10/11: pipeline7 ed Elenco aperti desktop/mobile375, nessun overflow. Dettaglio record con clienteDEMO consultato. Nessun cambio fase, invio, PDF o cancellazione. Residui filtri completi/ruoli/stati e flussi conmock."
+  },
+  {
+    "path": "/azienda/sopralluoghi/nuovo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 758,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSopralluoghi\", <SolaLetturaWriteGuard fallback=\"/azienda/sopralluoghi\"><NuovoSopralluogo /></SolaLetturaWriteGuard>)}",
+    "status": "PARZIALE",
+    "notes": "Tre passi desktop/mobile375: 11modelli, tre modalità di collegamento, luogo/incaricato e calendario italiano. Nessun contatto selezionato o record creato. Ritorno intestazione ora nome coerente con passo/uscita; test creazione10passati. Residui altrevarianti/validazioni confixture."
+  },
+  {
+    "path": "/azienda/sopralluoghi/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 759,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSopralluoghi\", <SopralluogoEditor />)}",
+    "status": "PARZIALE",
+    "notes": "RecordclienteDEMO consultato, NON firmato: il vecchio titolo Firma registrata era generico; body mostraNessuna firma. Titolo oraFirma clientequandoassente. Tre schede desktop/mobile, zerooverflow. Nessuna modifica, documento/foto oPDF. Residui editorautosave/aree/elementi/ruoli dafixture."
+  },
+  {
+    "path": "/azienda/sopralluoghi/:id/firma",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 760,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSopralluoghi\", <FirmaCliente />)}",
+    "status": "PARZIALE",
+    "notes": "Pagina aperta su recordDEMOsenza firma e annullata senza disegnare/inviare. ErroreDBprimaignorato daSignaturePad: riprodotto3testfalliti, corretto conupdateSurveyAPIverificata. Guardiarefdoppioinvio/nome/chiusura e recordgiàfirmato protetto confixture. Nessuna firma reale. Residui API/storage e dispositivireali."
+  },
+  {
+    "path": "/azienda/impostazioni/serramenti",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 765,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/impostazioni/template-preventivi?tab=moduli-vendita&modulo=serramenti\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/integrazioni/email-callback",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 767,
+    "type": "Pagina",
+    "element": "{<EmailOAuthCallbackPage />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/integrazioni/calendar-callback",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 770,
+    "type": "Pagina",
+    "element": "{<CalendarOAuthCallbackPage />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/integrazioni/gbp-callback",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 773,
+    "type": "Pagina",
+    "element": "{<GbpOAuthCallbackPage />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/integrazioni/google-ads-callback",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 774,
+    "type": "Pagina",
+    "element": "{<GoogleAdsOAuthCallbackPage />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/integrazioni/fic-callback",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 776,
+    "type": "Pagina",
+    "element": "{<FicOAuthCallbackPage />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/ai-memoria",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 779,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/impostazioni/ai-memoria\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/profilo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 780,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/impostazioni/mio-profilo\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/personale",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 782,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewPersone\", <FeatureRoute featureKey=\"hr_personale\"><PersonalePage /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Aperte tutte le 12 sezioni, compreso menu Altro. Regia, organigramma, profili, timbrature, richieste e candidati con dati caricati. Presenze e alcune sottoviste documenti/cedolini ancora parziali. Nuovo ufficio aperto e annullato. Nessuna azione HR eseguita."
+  },
+  {
+    "path": "/azienda/personale/portale",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 786,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canManagePortal\", <FeatureRoute featureKey=\"hr_personale\"><PortalePage key=\"portale-library\" mode=\"library\" /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Catalogo anteprima admin caricato: 3 corsi disponibili; aperto solo GUIDADEMO senza contenuti, panoramica e lezione. Nessun completamento o presa visione. Note/chiarimenti/attestato davano soltanto toast di successo senza effetti: ora disabilitati con spiegazione; Registro presa visione resta attivo e verificato. Navigazione reale sposta il contenuto fuori da main in un overlay: il main vuoto non è crash. Restano lezioni con materiali, quiz, avanzamento, mobile e ruoli effettivi da collaudare."
+  },
+  {
+    "path": "/azienda/corsi",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 790,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canCreateCourses\", <FeatureRoute featureKey=\"hr_personale\"><PortalePage key=\"portale-builder\" mode=\"builder\" /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Sei schede caricate: Corsi, Builder (GUIDADEMO), Procedure (11 materiali), Accessi, Persone (vuoto), Riepilogo. Corretto uso contatori del corso (56/41%) al posto delle iscrizioni effettive; ora KPI, schede, dettaglio e percorsi obbligatori usano la stessa lettura paginata e mostrano 0/0% coerenti. Errori non diventano zero; prova errore e retry con mock. Modulo materiale aperto/annullato, Tipo e Modulo collegato etichettati. Nuovo corso e template non cliccati: creano bozze immediatamente. Nessuna pubblicazione, assegnazione o modifica accessi."
+  },
+  {
+    "path": "/azienda/formazione",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 794,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewFormazione\", <FormazioneDipendente />)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/personale/timbratura",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 795,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewPersone\", <FeatureRoute featureKey=\"hr_personale\"><TimbraturaKiosk /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/come-stiamo-andando",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 800,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/cruscotto/aziendale\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/tesoreria",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 801,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewTesoreria\", <FeatureRoute featureKey=\"tesoreria\"><Tesoreria /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Panoramica caricata ed esaminata. Altre schede e dialog ancora da collaudare; nessuna sincronizzazione o riconciliazione avviata."
+  },
+  {
+    "path": "/azienda/fatturazione",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 805,
+    "type": "Reindirizzamento",
+    "element": "{<RimandoConParametri to=\"/azienda/documenti\" />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/fatturazione/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 808,
+    "type": "Reindirizzamento",
+    "element": "{<RimandoFatturaImportata />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/scadenzario",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 813,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewScadenzario\", <ErrorBoundary title=\"Errore nel caricamento scadenzario\"><FeatureRoute featureKey=\"fatturazione\"><Scadenzario /></FeatureRoute></ErrorBoundary>)}",
+    "status": "PARZIALE",
+    "notes": "Aperte le 7 schede. Verificato bug Da incassare/Da pagare e corretto: 72 incassi aperti, nessuna riga saldata nella vista. Errori lista/riepilogo e export simulati nei test, senza movimenti reali."
+  },
+  {
+    "path": "/azienda/documenti",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 817,
+    "type": "Pagina",
+    "element": "{withCompanyPermissionOrCommercialista(\"canViewBilling\", <FeatureRoute featureKey=\"documenti\"><DocumentiFiscaliList /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Lista fatture, riepilogo mensile e cestino esaminati. Verificate etichette anni e formato 6,2M. Nessun documento emesso, modificato, inviato o eliminato."
+  },
+  {
+    "path": "/azienda/documenti/nuovo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 818,
+    "type": "Pagina",
+    "element": "{withCompanyPermissionOrCommercialista(\"canViewBilling\", <CommercialistaWriteGuard fallback=\"/azienda/documenti\"><FeatureRoute featureKey=\"documenti\"><BillingModeGuard requiredMode=\"native\"><EditorDocumento /></BillingModeGuard></FeatureRoute></Comme",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/documenti/cassetto-sdi",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 819,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/documenti?tab=sdi\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/documenti/fatture-ricevute",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 822,
+    "type": "Pagina",
+    "element": "{withCompanyPermissionOrCommercialista(\"canViewBilling\", <FeatureRoute featureKey=\"documenti\"><FattureRicevutePage /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Elenco caricato e indicatori esaminati. Moduli, filtri e dettagli ancora da collaudare."
+  },
+  {
+    "path": "/azienda/documenti/tipi-fornitori",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 823,
+    "type": "Pagina",
+    "element": "{withCompanyPermissionOrCommercialista(\"canViewBilling\", <FeatureRoute featureKey=\"documenti\"><TipiFornitoriPage /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/documenti/emesse-importate",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 825,
+    "type": "Pagina",
+    "element": "{withCompanyPermissionOrCommercialista(\"canViewBilling\", <FeatureRoute featureKey=\"documenti\"><FattureEmesseImportate /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/documenti/ddt",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 826,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/documenti?tipo=ddt\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/documenti/incassi",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 827,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/documenti?tab=incassi\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/documenti/registro-iva",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 828,
+    "type": "Pagina",
+    "element": "{withCompanyPermissionOrCommercialista(\"canViewBilling\", <FeatureRoute featureKey=\"documenti\"><RegistroIVA /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Workspace Fiscalità: Vendite vuoto, Acquisti e Tutti novembre 2026 caricati con documento GUIDADEMO. Aperta e annullata dichiarazione data ricezione. Errore lookup scarti corretto; errori/retry/esclusione verificati con mock, non forzati sul servizio reale. Restano filtri completi, export e altri periodi."
+  },
+  {
+    "path": "/azienda/documenti/anagrafiche",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 829,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/documenti?tab=rubrica\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/documenti/anagrafiche/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 830,
+    "type": "Pagina",
+    "element": "{withCompanyPermissionOrCommercialista(\"canViewBilling\", <FeatureRoute featureKey=\"documenti\"><AnagraficaDetail /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/documenti/proforma",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 831,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/documenti?tipo=proforma\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/documenti/preventivi/pipeline",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 832,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/documenti?tipo=preventivo\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/documenti/note-credito",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 833,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/documenti?tipo=nota_credito\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/documenti/report",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 834,
+    "type": "Pagina",
+    "element": "{withCompanyPermissionOrCommercialista(\"canViewBilling\", <FeatureRoute featureKey=\"documenti\"><ReportFatturazione /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/documenti/importata/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 836,
+    "type": "Pagina",
+    "element": "{withCompanyPermissionOrCommercialista(\"canViewBilling\", <FeatureRoute featureKey=\"documenti\"><DettaglioFatturaImportata /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/documenti/:id/dettaglio",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 837,
+    "type": "Pagina",
+    "element": "{withCompanyPermissionOrCommercialista(\"canViewBilling\", <FeatureRoute featureKey=\"documenti\"><DocumentoDetail /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/documenti/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 838,
+    "type": "Pagina",
+    "element": "{withCompanyPermissionOrCommercialista(\"canViewBilling\", <CommercialistaDocumentEditorGuard><FeatureRoute featureKey=\"documenti\"><BillingModeGuard requiredMode=\"native\"><EditorDocumento /></BillingModeGuard></FeatureRoute></CommercialistaDocumentEdit",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/prima-nota",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 841,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewPrimaNota\", <ErrorBoundary title=\"Errore nel caricamento prima nota\"><FeatureRoute featureKey=\"tesoreria\"><PrimaNota /></FeatureRoute></ErrorBoundary>)}",
+    "status": "PARZIALE",
+    "notes": "Lista, periodo e riepilogo esaminati. Aggiunti nomi a ricerca, direzione e date. Nessun movimento creato o eliminato."
+  },
+  {
+    "path": "/azienda/ordini-acquisto",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 844,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/ordini?tab=acquisto\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/controllo-documento/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 845,
+    "type": "Pagina",
+    "element": "{withCompanyPermissionOrCommercialista(\"canViewOrders\", <ControlloDocumentoFornitore />, vedeOrdiniOAcquisti)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/ordini-acquisto/:odaId",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 846,
+    "type": "Pagina",
+    "element": "{withCompanyPermissionOrCommercialista(\"canViewOrders\", <PurchaseOrderDetail />, vedeOrdiniOAcquisti)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/ordini-acquisto/:odaId/arrivo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 847,
+    "type": "Pagina",
+    "element": "{withCompanyPermissionOrCommercialista(\"canViewOrders\", <ArrivoPosizioniPage />, vedeOrdiniOAcquisti)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/fabbisogno-materiali",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 848,
+    "type": "Pagina",
+    "element": "{withCompanyPermissionOrCommercialista(\"canViewOrders\", <ErrorBoundary title=\"Errore nel fabbisogno materiali\"><FabbisognoMateriali /></ErrorBoundary>, vedeOrdiniOAcquisti)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/richieste-offerta",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 851,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/ordini?tab=offerte\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/richieste-offerta/:rfqId",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 852,
+    "type": "Pagina",
+    "element": "{withCompanyPermissionOrCommercialista(\"canViewOrders\", <SupplierRfqDetail />, vedeOrdiniOAcquisti)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/acquisti-da-fare",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 855,
+    "type": "Reindirizzamento",
+    "element": "{<AcquistiDaFareRedirect />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/scomposizioni",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 856,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewOrders\", <ErrorBoundary title=\"Errore nelle scomposizioni\"><ScomposizioniVoce /></ErrorBoundary>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/ddt",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 857,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/ordini?tab=ddt\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/ddt/:ddtId",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 858,
+    "type": "Pagina",
+    "element": "{withCompanyPermissionOrCommercialista(\"canViewOrders\", <ErrorBoundary title=\"Errore nel dettaglio DDT\"><DDTRicezioneDetail /></ErrorBoundary>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/sicurezza-cantiere",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 860,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSicurezzaCantiere\", <FeatureRoute featureKey=\"cantieri_avanzati\"><SicurezzaCantiere /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Otto schede con contenuti reali aperte: POS14, Documenti8, SDS vuoto, Figure vuoto, DUVRI vuoto, Verbali vuoto, Subappaltatori122, Scadenze vuoto. Moduli upload/SDS/figura/DUVRI/verbale/subappaltatore/adempimento aperti e annullati. Label e Annulla corretti nei moduli legacy; guard upload con 2 test e UI375. Nessuna generazione/caricamento/salvataggio. Dettagli POS, profili, filtri/permessi/errori e flussi rimanenti ancora da verificare. Mobile nasconde Figure/DUVRI/Subappaltatori per scelta esistente."
+  },
+  {
+    "path": "/azienda/sicurezza-cantiere/pos/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 861,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSicurezzaCantiere\", <FeatureRoute featureKey=\"cantieri_avanzati\"><ErrorBoundary title=\"Errore nel POS\"><PosEditor /></ErrorBoundary></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "POS GUIDA DEMO aperto da tastiera; tutte11 sezioni espanse. 4 selettori e input allegati nominati; associazioni confermate. Riferimento PSC e upload preset verificati con sola bozza locale poi annullata (dirtyfalse, pscfalse). Nessun salvataggio, approvazione, firma o generazione. 32 test pertinenti passati; flussi restanti non collaudati."
+  },
+  {
+    "path": "/azienda/giornale-lavori",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 862,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewGiornaleLavori\", <FeatureRoute featureKey=\"cantieri_avanzati\"><GiornaleLavori /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/subappaltatori",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 863,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/manodopera?tab=subappaltatori\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/subappaltatori/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 864,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSubappaltatori\", <FeatureRoute featureKey=\"cantieri_avanzati\"><SubappaltatoreDetail /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marginalita",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 865,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/ordini?tab=marginalita\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/automazioni",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 867,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewAutomazioni\", <AutomazioniUnified />)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/automazioni-task",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 870,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/automazioni\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/assistente-ai",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 875,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/impostazioni/ai-memoria?tab=chat\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/agenti-ai",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 878,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingAiAgent\", <FeatureRoute featureKey=\"ai_agents\"><AgentiAIPage /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/centralino",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 879,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingAiAgent\", <FeatureRoute featureKey=\"ai_agents\"><Centralino /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/agenti-ai/:agentId",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 880,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingAiAgent\", <FeatureRoute featureKey=\"ai_agents\"><AgentDetailPage /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/render",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 883,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderCategoryHub /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Centro render caricato: 15 moduli visibili, riepilogo ultimi 48 render, 31 completati. Aperto Infissi e poi Bagno dai percorsi osservati. Restano filtri categorie/stati, altri moduli e flussi con file da verificare. Nessuna generazione o upload."
+  },
+  {
+    "path": "/azienda/render/infissi",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 885,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderHub /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Hub caricato: 22 sessioni, 20 completate. Sessioni trasformate da card cliccabili in link reali con nome contestuale e focus visibile; Invio ha aperto il dettaglio esistente. Filtri ricerca/stato/CRM nominati. Confronto estetico, altri filtri e richieste in errore solo parziali."
+  },
+  {
+    "path": "/azienda/render/infissi/new",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 886,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderNew /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Step 1/7 aperto e richiuso, Analizza ambiente disabilitato senza foto. Nessun file, ripristino sessione o analisi AI eseguito. Passi successivi non collaudati."
+  },
+  {
+    "path": "/azienda/render/infissi/gallery",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 887,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderGallery /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Caricati 37 elementi. Ricerca senza risultati e Mostra tutto verificati desktop; a 375 px filtro CRM Collegati dà 0, Mostra 0 chiude e stato vuoto corretto, reset ripristina elenco, nessun overflow. Ricerca e quattro filtri desktop nominati, ritorno icona nominato. Download, altri filtri e errori da collaudare."
+  },
+  {
+    "path": "/azienda/render/infissi/gallery/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 888,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderGalleryDetail /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Dettaglio completato aperto da galleria e da link sessione tramite Invio. Slider confronto nominato, freccia destra 50→55 e sinistra→50. Pannello CRM aperto/richiuso senza selezioni: Contatto/Opportunità associati e ritorno nominato. Correzione concorrente disassociazione e protezione scrittura provate con mock, non su dati reali. Nessuna condivisione, download, modifica CRM."
+  },
+  {
+    "path": "/azienda/render/bagno",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 890,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderBagnoHub /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Hub caricato: 14 sessioni, 6 completate; link sessioni e filtri condivisi presenti. Aperto Nuovo render e ritornato. Galleria/dettagli e altri stati ancora da collaudare."
+  },
+  {
+    "path": "/azienda/render/bagno/new",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 891,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderBagnoNew /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Step 1/4 caricato, analisi AI disabilitata senza foto. Secondo contesto RenderCrmLinker aperto/richiuso: Contatto/Opportunità riconosciuti. Nessun upload o generazione; passi successivi non visitati."
+  },
+  {
+    "path": "/azienda/render/bagno/gallery",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 892,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderBagnoGallery /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/render/bagno/gallery/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 893,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderBagnoGalleryDetail /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/render/pavimento",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 895,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderPavimentoHub /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Hub caricato:2 sessioni completate. Aperto nuovo configuratore e galleria; collegamenti e filtri condivisi presenti. Altri stati e responsive specifici da verificare."
+  },
+  {
+    "path": "/azienda/render/pavimento/new",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 896,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderPavimentoNew /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Step1/4 caricato, Analizza con AI e configura disabilitato senza foto; ritorno verificato. Nessun file/generazione, passi successivi da collaudare."
+  },
+  {
+    "path": "/azienda/render/pavimento/gallery",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 897,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderPavimentoGallery /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Galleria caricata con2 elementi, primo dettaglio aperto. Filtri/errori/responsive specifici ancora parziali."
+  },
+  {
+    "path": "/azienda/render/pavimento/gallery/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 898,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderPavimentoGalleryDetail /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Dettaglio completato caricato, configurazione pavimento e confronto nominato presenti, ritorno nominato confermato. Configurazione avanzata, PDF, download, condivisione e modifica CRM non collaudati su dati reali. Osservati nomi grezzi e capitalizzazione note nella configurazione."
+  },
+  {
+    "path": "/azienda/render/facciata",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 899,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderFacciataHub /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Hub caricato:4 sessioni completate. Aperto nuovo configuratore, galleria e dettaglio. Filtri e collegamenti condivisi presenti. Altri stati e responsive specifici ancora da verificare."
+  },
+  {
+    "path": "/azienda/render/facciata/new",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 900,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderFacciataNew /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Primo passo1/5 caricato. Upload inizialmente solo Card cliccabile e input display:none: reso pulsante nativo con nome e focus visibile, confermato Tab da Indietro. Nessun file/AI; passi successivi non collaudati. Screenshot del modulo vuoto salvato."
+  },
+  {
+    "path": "/azienda/render/facciata/gallery",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 901,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderFacciataGallery /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "4 elementi caricati, primo dettaglio aperto. Osservati enum grezzi inglesi (residential, Entire Facade) da tradurre nella sola vista; nessuna modifica alle configurazioni. Filtri completi/errori/responsive specifici da verificare."
+  },
+  {
+    "path": "/azienda/render/facciata/gallery/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 902,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderFacciataGalleryDetail /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Dettaglio completato caricato: confronto nominato, analisi edificio e scelte presenti. Ritorno nominato e verificato. Osservate analisi e zone in inglese non tradotte (excellent, smooth cement render, entire facade). Download/condivisione/CRM non eseguiti."
+  },
+  {
+    "path": "/azienda/render/persiane",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 904,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderPersianeHub /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Hub caricato: 5 sessioni, 4 completate, una fallita. Link della sessione fallita aperto da tastiera/navigazione. Nuovo configuratore e galleria aperti. Ripresi dopo integrazione main e nuovo login; altri filtri e responsive specifici parziali."
+  },
+  {
+    "path": "/azienda/render/persiane/new",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 905,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderPersianeNew /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Step 1/5: caricamento desktop era div cliccabile senza Sfoglia e input nascosto; trasformato in pulsante nativo nominato, Tab verificato anche dopo aggiornamento main. Analisi disabilitata senza foto. Nessun file o AI; passi successivi non collaudati."
+  },
+  {
+    "path": "/azienda/render/persiane/gallery",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 906,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderPersianeGallery /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Galleria caricata con 4 render, primo dettaglio completato aperto. Filtri e ricerca condivisi presenti; specifiche combinazioni e responsive da verificare."
+  },
+  {
+    "path": "/azienda/render/persiane/gallery/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 907,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderPersianeGalleryDetail /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Dettagli completato e fallito caricati. Ritorno alla galleria nominato e verificato. Riutilizzate le etichette italiane del configuratore per orientamento, posizione, apertura e oscurante: confermati valori noti e fallback incerti in UI. Descrizioni AI libere e altri codici restano in lingua originale. Nessun download, condivisione, retry/generazione o collegamento CRM eseguito."
+  },
+  {
+    "path": "/azienda/render/tetto",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 909,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderTettoHub /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Hub caricato: 3 sessioni, 2 completate. Nuovo configuratore, galleria e dettaglio completato visitati. Filtri/link condivisi presenti; altri filtri e responsive specifici ancora da verificare."
+  },
+  {
+    "path": "/azienda/render/tetto/new",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 910,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderTettoNew /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Step 1/4 caricato: Sfoglia file presente, Continua con la configurazione disabilitato senza foto. Nessun file, generazione o modifica CRM. Passi successivi da collaudare con fixture."
+  },
+  {
+    "path": "/azienda/render/tetto/gallery",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 911,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderTettoGallery /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Galleria caricata con 2 render, primo dettaglio aperto. Filtri/errori/responsive specifici parziali."
+  },
+  {
+    "path": "/azienda/render/tetto/gallery/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 912,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderTettoGalleryDetail /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Dettaglio completato caricato: originale/render, CRM e configurazione sintetica presenti. Ritorno nominato confermato. Download usa testo inglese mentre altri moduli usano Scarica render: rilievo di coerenza aperto. Nessun download/condivisione/CRM eseguito."
+  },
+  {
+    "path": "/azienda/render/pergole",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 914,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderPergoleHub /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Hub caricato: 2 sessioni completate. Nuovo configuratore, galleria e dettaglio letti. Presentazione ora in italiano con Spazio di installazione; filtri/link condivisi presenti. Altri stati e responsive specifici da verificare."
+  },
+  {
+    "path": "/azienda/render/pergole/new",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 915,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderPergoleNew /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Step 1/4 caricato: Sfoglia presente, Continua con la configurazione disabilitato senza foto. Nessun file o generazione. Passi successivi da collaudare con fixture."
+  },
+  {
+    "path": "/azienda/render/pergole/gallery",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 916,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderPergoleGallery /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "2 render caricati, primo dettaglio aperto. Filtri/errori/responsive specifici parziali."
+  },
+  {
+    "path": "/azienda/render/pergole/gallery/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 917,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderPergoleGalleryDetail /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Dettaglio completato con struttura, copertura, chiusure e installazione letto; ritorno nominato presente. Download uniformato a Scarica render come gli altri moduli. Nessuna condivisione, file o modifica CRM."
+  },
+  {
+    "path": "/azienda/render/piscine",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 919,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderPiscineHub /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Hub caricato: 2 sessioni completate. Nuovo configuratore, galleria e dettaglio letti. Come funziona e Spazio disponibile confermati dopo uniformazione dei testi. Altri stati e responsive specifici da verificare."
+  },
+  {
+    "path": "/azienda/render/piscine/new",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 920,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderPiscineNew /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Step 1/4 caricato: Sfoglia presente, Continua con la configurazione disabilitato senza foto. Nessun file/AI, passi successivi da collaudare."
+  },
+  {
+    "path": "/azienda/render/piscine/gallery",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 921,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderPiscineGallery /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "2 render caricati, primo dettaglio aperto. Filtri/errori/responsive specifici parziali."
+  },
+  {
+    "path": "/azienda/render/piscine/gallery/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 922,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderPiscineGalleryDetail /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Dettaglio completato con piscina, acqua/bordo, rivestimento/solarium e inserimento letto. Ritorno nominato e Scarica render confermati. Nessun download/condivisione o modifica CRM."
+  },
+  {
+    "path": "/azienda/render/verifica-completa",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 924,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <VerificaRenderCompleta />)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/render/stanza",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 925,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderStanzaHub /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Hub caricato: 24 sessioni, 11 completate; filtri e link condivisi presenti. Aperto nuovo configuratore e galleria. Restano ricerca, altri filtri e responsive specifici; copy con jargon inglese da uniformare."
+  },
+  {
+    "path": "/azienda/render/stanza/new",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 926,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderStanzaNew /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Step1/4 caricato; Carica e configura disabilitato senza foto. Nessun file o generazione. Passi successivi ancora non visitati."
+  },
+  {
+    "path": "/azienda/render/stanza/gallery",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 927,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderStanzaGallery /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Galleria caricata con22 elementi. Aperto primo dettaglio completato, poi stato fallito da collegamento osservato nel centro render. Restano filtri completi, errore query e responsive specifico."
+  },
+  {
+    "path": "/azienda/render/stanza/gallery/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 928,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderStanzaGalleryDetail /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Dettaglio completato con scelte/interventi e cursore nominato caricato. Dettaglio fallito mostra errore specifico e originale, senza azioni di condivisione. Ritorno alla galleria nominato e verificato nello stato fallito. Nessun retry, file, modifica CRM o generazione. Mancanza recupero diretto dal fallimento registrata come osservazione."
+  },
+  {
+    "path": "/azienda/planimetrie",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 930,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderPlanimetrieHub /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/planimetrie/nuova",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 931,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderPlanimetriaNuova /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/planimetrie/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 932,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderPlanimetriaScheda /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/planimetrie/:id/modifica",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 933,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderPlanimetriaModifica /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/planimetrie/:id/stanza/:localeId",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 934,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderPlanimetriaStanza /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/render/planimetrie/*",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 935,
+    "type": "Reindirizzamento",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><LegacyPlanimetrieRedirect /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/render/ristrutturazioni",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 936,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderTechnicalModuleHub moduleId=\"ristrutturazioni\" /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base 033e0b7dd: panoramica 2/2, nuova prima fase senza caricamento, galleria 2 e dettaglio completato letti. Nessun invio, generazione, PDF o collegamento CRM eseguito. Residui: fasi successive, mobile, errore e azioni."
+  },
+  {
+    "path": "/azienda/render/ristrutturazioni/new",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 937,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderTechnicalModuleNew moduleId=\"ristrutturazioni\" /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base 033e0b7dd: panoramica 2/2, nuova prima fase senza caricamento, galleria 2 e dettaglio completato letti. Nessun invio, generazione, PDF o collegamento CRM eseguito. Residui: fasi successive, mobile, errore e azioni."
+  },
+  {
+    "path": "/azienda/render/ristrutturazioni/gallery",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 938,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderTechnicalModuleGallery moduleId=\"ristrutturazioni\" /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base 033e0b7dd: panoramica 2/2, nuova prima fase senza caricamento, galleria 2 e dettaglio completato letti. Nessun invio, generazione, PDF o collegamento CRM eseguito. Residui: fasi successive, mobile, errore e azioni."
+  },
+  {
+    "path": "/azienda/render/ristrutturazioni/gallery/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 939,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderTechnicalModuleGalleryDetail moduleId=\"ristrutturazioni\" /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base 033e0b7dd: panoramica 2/2, nuova prima fase senza caricamento, galleria 2 e dettaglio completato letti. Nessun invio, generazione, PDF o collegamento CRM eseguito. Residui: fasi successive, mobile, errore e azioni."
+  },
+  {
+    "path": "/azienda/render/pavimenti-esterni",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 940,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderTechnicalModuleHub moduleId=\"pavimenti-esterni\" /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base 033e0b7dd: panoramica, nuova fase Foto senza caricamento, galleria (2 esterni, 2 giardini, 1 porta blindata), dettaglio completato letti. Nessun invio, generazione, export o scrittura CRM. Residui: fasi successive, filtri completi, mobile e stati errore."
+  },
+  {
+    "path": "/azienda/render/pavimenti-esterni/new",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 941,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderTechnicalModuleNew moduleId=\"pavimenti-esterni\" /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base 033e0b7dd: panoramica, nuova fase Foto senza caricamento, galleria (2 esterni, 2 giardini, 1 porta blindata), dettaglio completato letti. Nessun invio, generazione, export o scrittura CRM. Residui: fasi successive, filtri completi, mobile e stati errore."
+  },
+  {
+    "path": "/azienda/render/pavimenti-esterni/gallery",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 942,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderTechnicalModuleGallery moduleId=\"pavimenti-esterni\" /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base 033e0b7dd: panoramica, nuova fase Foto senza caricamento, galleria (2 esterni, 2 giardini, 1 porta blindata), dettaglio completato letti. Nessun invio, generazione, export o scrittura CRM. Residui: fasi successive, filtri completi, mobile e stati errore."
+  },
+  {
+    "path": "/azienda/render/pavimenti-esterni/gallery/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 943,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderTechnicalModuleGalleryDetail moduleId=\"pavimenti-esterni\" /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base 033e0b7dd: panoramica, nuova fase Foto senza caricamento, galleria (2 esterni, 2 giardini, 1 porta blindata), dettaglio completato letti. Nessun invio, generazione, export o scrittura CRM. Residui: fasi successive, filtri completi, mobile e stati errore."
+  },
+  {
+    "path": "/azienda/render/giardini",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 944,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderTechnicalModuleHub moduleId=\"giardini\" /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base 033e0b7dd: panoramica, nuova fase Foto senza caricamento, galleria (2 esterni, 2 giardini, 1 porta blindata), dettaglio completato letti. Nessun invio, generazione, export o scrittura CRM. Residui: fasi successive, filtri completi, mobile e stati errore."
+  },
+  {
+    "path": "/azienda/render/giardini/new",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 945,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderTechnicalModuleNew moduleId=\"giardini\" /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base 033e0b7dd: panoramica, nuova fase Foto senza caricamento, galleria (2 esterni, 2 giardini, 1 porta blindata), dettaglio completato letti. Nessun invio, generazione, export o scrittura CRM. Residui: fasi successive, filtri completi, mobile e stati errore."
+  },
+  {
+    "path": "/azienda/render/giardini/gallery",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 946,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderTechnicalModuleGallery moduleId=\"giardini\" /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base 033e0b7dd: panoramica, nuova fase Foto senza caricamento, galleria (2 esterni, 2 giardini, 1 porta blindata), dettaglio completato letti. Nessun invio, generazione, export o scrittura CRM. Residui: fasi successive, filtri completi, mobile e stati errore."
+  },
+  {
+    "path": "/azienda/render/giardini/gallery/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 947,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderTechnicalModuleGalleryDetail moduleId=\"giardini\" /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base 033e0b7dd: panoramica, nuova fase Foto senza caricamento, galleria (2 esterni, 2 giardini, 1 porta blindata), dettaglio completato letti. Nessun invio, generazione, export o scrittura CRM. Residui: fasi successive, filtri completi, mobile e stati errore."
+  },
+  {
+    "path": "/azienda/render/porte-blindate",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 948,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderTechnicalModuleHub moduleId=\"porte-blindate\" /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base 033e0b7dd: panoramica, nuova fase Foto senza caricamento, galleria (2 esterni, 2 giardini, 1 porta blindata), dettaglio completato letti. Nessun invio, generazione, export o scrittura CRM. Residui: fasi successive, filtri completi, mobile e stati errore."
+  },
+  {
+    "path": "/azienda/render/porte-blindate/new",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 949,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderTechnicalModuleNew moduleId=\"porte-blindate\" /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base 033e0b7dd: panoramica, nuova fase Foto senza caricamento, galleria (2 esterni, 2 giardini, 1 porta blindata), dettaglio completato letti. Nessun invio, generazione, export o scrittura CRM. Residui: fasi successive, filtri completi, mobile e stati errore."
+  },
+  {
+    "path": "/azienda/render/porte-blindate/gallery",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 950,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderTechnicalModuleGallery moduleId=\"porte-blindate\" /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base 033e0b7dd: panoramica, nuova fase Foto senza caricamento, galleria (2 esterni, 2 giardini, 1 porta blindata), dettaglio completato letti. Nessun invio, generazione, export o scrittura CRM. Residui: fasi successive, filtri completi, mobile e stati errore."
+  },
+  {
+    "path": "/azienda/render/porte-blindate/gallery/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 951,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderTechnicalModuleGalleryDetail moduleId=\"porte-blindate\" /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base 033e0b7dd: panoramica, nuova fase Foto senza caricamento, galleria (2 esterni, 2 giardini, 1 porta blindata), dettaglio completato letti. Nessun invio, generazione, export o scrittura CRM. Residui: fasi successive, filtri completi, mobile e stati errore."
+  },
+  {
+    "path": "/azienda/render/porte-interne",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 952,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderTechnicalModuleHub moduleId=\"porte-interne\" /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base 033e0b7dd: panoramica e nuova fase Foto desktop/mobile375, galleria mobile1, dettaglio completato mobile letto, nessuna eccedenza orizzontale. Preparazione condivisione aperta, nessun destinatario né invio; rimasta occupata nel browser incorporato, rientro in galleria riuscito. Residui: fasi successive, filtri completi, desktop galleria/dettaglio, errore e condivisione su telefono reale."
+  },
+  {
+    "path": "/azienda/render/porte-interne/new",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 953,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderTechnicalModuleNew moduleId=\"porte-interne\" /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base 033e0b7dd: panoramica e nuova fase Foto desktop/mobile375, galleria mobile1, dettaglio completato mobile letto, nessuna eccedenza orizzontale. Preparazione condivisione aperta, nessun destinatario né invio; rimasta occupata nel browser incorporato, rientro in galleria riuscito. Residui: fasi successive, filtri completi, desktop galleria/dettaglio, errore e condivisione su telefono reale."
+  },
+  {
+    "path": "/azienda/render/porte-interne/gallery",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 954,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderTechnicalModuleGallery moduleId=\"porte-interne\" /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base 033e0b7dd: panoramica e nuova fase Foto desktop/mobile375, galleria mobile1, dettaglio completato mobile letto, nessuna eccedenza orizzontale. Preparazione condivisione aperta, nessun destinatario né invio; rimasta occupata nel browser incorporato, rientro in galleria riuscito. Residui: fasi successive, filtri completi, desktop galleria/dettaglio, errore e condivisione su telefono reale."
+  },
+  {
+    "path": "/azienda/render/porte-interne/gallery/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 955,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewRenderAi\", <FeatureRoute featureKey=\"render_ai\"><RenderTechnicalModuleGalleryDetail moduleId=\"porte-interne\" /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base 033e0b7dd: panoramica e nuova fase Foto desktop/mobile375, galleria mobile1, dettaglio completato mobile letto, nessuna eccedenza orizzontale. Preparazione condivisione aperta, nessun destinatario né invio; rimasta occupata nel browser incorporato, rientro in galleria riuscito. Residui: fasi successive, filtri completi, desktop galleria/dettaglio, errore e condivisione su telefono reale."
+  },
+  {
+    "path": "/azienda/call-center",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 957,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewCallcenterDashboard\", <CallCenterDashboard />)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 960,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingDashboard\", <MarketingDashboard />)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/contatti",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 961,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingContacts\", <FeatureRoute featureKey=\"crm_modulo\"><MarketingContacts /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Tabella con ricerca/filtri e paginazione esaminata; link, ordinamento e selezione etichettati. Aperte Liste (vuoto), Nuova lista e Nuovo contatto, annullati. Importazione controllata ai passi Avvia/Carica senza file né scritture. Mappatura/review, export, selezione massiva e schede contatto restano da verificare."
+  },
+  {
+    "path": "/azienda/marketing/contatti/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 962,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingContacts\", <FeatureRoute featureKey=\"crm_modulo\"><MarketingContactDetail /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/opportunita",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 963,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingOpportunities\", <FeatureRoute featureKey=\"crm_modulo\"><MarketingOpportunities /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Caricate viste Kanban e lista; aperto/annullato Nuova opportunità, controllate etichette. Corrette azioni/navigazione card e guard creazione; test automatici per creazione contatto+opportunità e doppio invio. Non eseguiti drag/drop, eliminazioni, salvataggi reali. Dettagli, filtri e azioni massive da completare."
+  },
+  {
+    "path": "/azienda/marketing/attivita",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 964,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/attivita?fonte=marketing\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/calendario",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 965,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingAppointments\", <FeatureRoute featureKey=\"crm_modulo\"><MarketingCalendar /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Mese caricato con 17 appuntamenti; aperti Appuntamento e Tempo bloccato, annullati. Nomi selettori controllati. Modulo a 375 CSS px effettivi senza overflow, footer raggiungibile con tastiera. Test guard salvataggio. Elenco, giorno/settimana, filtri e impostazioni ancora da completare; nessuna sincronizzazione o prenotazione reale."
+  },
+  {
+    "path": "/azienda/marketing/automazioni",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 968,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/automazioni\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/agente-ai/*",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 969,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/agenti-ai\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/agente-interno/*",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 970,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/agenti-ai\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/email",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 971,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingEmail\", <FeatureRoute featureKey=\"email_marketing\"><EmailMarketing /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/email/campagna/:id/editor",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 972,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingEmail\", <FeatureRoute featureKey=\"email_marketing\"><CampaignEditor /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/email/campagna/:id/builder",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 973,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingEmail\", <FeatureRoute featureKey=\"email_marketing\"><DragDropEmailBuilder /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/email/campagna/:id/impostazioni",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 974,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingEmail\", <FeatureRoute featureKey=\"email_marketing\"><CampaignSendSettings /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/whatsapp",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 976,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/whatsapp\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/whatsapp",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 978,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingWhatsapp\", <FeatureRoute featureKey=\"whatsapp\"><WhatsAppHubPage /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/whatsapp/numeri/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 980,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingWhatsapp\", <FeatureRoute featureKey=\"whatsapp\"><WANumberDetailPage /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/whatsapp/broadcast",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 981,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingWhatsapp\", <FeatureRoute featureKey=\"whatsapp\"><BroadcastListPage /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/whatsapp/broadcast/nuovo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 982,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingWhatsapp\", <FeatureRoute featureKey=\"whatsapp\"><BroadcastCreatePage /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/whatsapp/broadcast/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 983,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingWhatsapp\", <FeatureRoute featureKey=\"whatsapp\"><BroadcastDetailPage /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/lead-forms",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 985,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/impostazioni/lead-forms\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/facebook-forms",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 986,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/impostazioni/lead-forms\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/reportistica",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 987,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingReports\", <FeatureRoute featureKey=\"marketing_reporting\"><ReportisticaPage /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "10/11: cinque areeCRM/Callcenter/Venditori/Meta/Google aperte. Nessunexport o campagne/ricarichi. Googlemostra account non collegato; realdati esterni non verificabili senza collegamento. Residui sottoschede, periodi, metriche/fixture/errori e mobile."
+  },
+  {
+    "path": "/azienda/marketing/google-ads",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 988,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/marketing/reportistica?tab=google-ads\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/pubblicita",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 989,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingDashboard\", <ErrorBoundary title=\"Errore nel caricamento pubblicità\"><AdsManagerBeta /></ErrorBoundary>)}",
+    "status": "PARZIALE",
+    "notes": "Tour 5 passi e 4 schede iniziali lette. Wizard avanzato Meta passi 1–5 percorso con soli valori locali, uscita Torna alle campagne senza salvataggio. Riprodotto https:// falsamente valido e Continua abilitato; validatore già esistente estratto e riutilizzato per hint, riepilogo e fallback legacy. 6 test dedicati passati, verifica UI negativo/positivo. Nessuna AI, upload, bozza persistita, collegamento o pubblicazione. Residui: campi non associati in wizard/studio/Spend Guard, prontezza fuorviante rispetto asset non generati, flussi Google/ruoli/errori/mobile da collaudare."
+  },
+  {
+    "path": "/azienda/marketing/social",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 990,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingDashboard\", <SocialManagerBeta />)}",
+    "status": "PARZIALE",
+    "notes": "Aperte tutte le 6 viste desktop (compositore/calendario/griglia/messaggi/statistiche/galleria); statistiche correttamente nessun account collegato e media/messaggi demo solo Demo Azienda. Nessuna risposta, post, programmazione, upload, AI o collegamento. Pulsanti navigazione con aria-pressed aggiunto. Compositore/calendario mobile375 senza overflow, tre schede intenzionali su telefono. 17 file/173 test Social+Ads passati; mancano flussi reali account/ruoli/errori e dialog operativi."
+  },
+  {
+    "path": "/azienda/marketing/reputazione",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 991,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewReputazione\", <ReputationManager />)}",
+    "status": "PARZIALE",
+    "notes": "Cinque schede iniziali lette, Dashboard mobile375 senza overflow (solo3 schede telefono per scelta esistente). Fix upsert link: conflitto ignora duplicati e preserva active/slug/settings; query legge slug effettivo, copy disabilitato se inactive/errore/caricamento. Esempi review/campagne/eventi limitati Demo; fallback locale filtra solo ID esempi noti, successo DB vuoto autorevole aziende reali. 5 test passati, due regressioni riprodotte prima. Label7select+link e pressed3filtri verificati. Nessun invio/AI/copia link/attivazione manuale. ATTENZIONE comportamento preesistente al mount: tentativo upsert automatico active=true eseguito aprendo pagina prima fix; esito remoto non verificato, nessun ripristino arbitrario. Predisposizione automatica nuovo link ancora presente. Ruoli/errori complessivi/workflow invii da collaudare."
+  },
+  {
+    "path": "/azienda/marketing/ads",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 992,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/marketing/pubblicita\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/meta-ads",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 993,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/marketing/pubblicita\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/sms",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 994,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/sms\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/sms",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 997,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSmsMarketing\", <FeatureRoute featureKey=\"sms_marketing\"><SmsPage /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/sms/invio",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 998,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSmsMarketing\", <FeatureRoute featureKey=\"sms_marketing\"><SmsPage defaultTab=\"invia\" /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/sms/storico",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 999,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSmsMarketing\", <FeatureRoute featureKey=\"sms_marketing\"><SmsPage defaultTab=\"storico\" /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/sms/automazioni",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1000,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSmsMarketing\", <FeatureRoute featureKey=\"sms_marketing\"><SmsPage defaultTab=\"automazioni\" /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/sms-marketing",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1001,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/sms?tab=panoramica\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/sms-marketing/campagne",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1002,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/sms?tab=campagne\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/sms-marketing/contatti",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1003,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/sms?tab=contatti\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/sms-marketing/template",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1004,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/sms?tab=template\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/analisi-preventivi",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1005,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/marketing/preventivi?tab=analisi\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/sales-os",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1006,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSalesOs\", <FeatureRoute featureKey=\"sales_os\"><SalesOSDashboard /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "10/11: cinque schedePipeline/Ferme/Lead/Analisi/Config aperte. Dodici numeri+textareaFonti senza etichetta accessibile, associati conuseId; intestazioniFase/Soglia/LivelloICP italiane. Venti test logica/contratti passati. Lint5errori/2warning identiciaHEAD, nessunaregola nuova. Nessunpeso, ricalcolo o API mutati. Residui filtri completi, persistenza/mock, errore e mobile; refetchConfig può sovrascriverebozza da valutare."
+  },
+  {
+    "path": "/azienda/marketing/fotovoltaico",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1011,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canViewMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_fotovoltaico_attivo\">\n              <ErrorBoundary title=\"Errore modulo Fotovoltaico\"><FotovoltaicoIndex /></ErrorBoundary>\n ",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/fotovoltaico/nuovo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1019,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canEditMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_fotovoltaico_attivo\">\n              <ErrorBoundary title=\"Errore wizard Fotovoltaico\"><FotovoltaicoWizard /></ErrorBoundary>\n",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/fotovoltaico/componenti",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1028,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canViewMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_fotovoltaico_attivo\">\n              <ErrorBoundary title=\"Errore Componenti FV\"><ComponentiFv /></ErrorBoundary>\n            ",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/fotovoltaico/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1036,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canViewMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_fotovoltaico_attivo\">\n              <ErrorBoundary title=\"Errore dettaglio Fotovoltaico\"><FotovoltaicoDettaglio /></ErrorBoun",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/fotovoltaico/:id/modifica",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1044,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canEditMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_fotovoltaico_attivo\">\n              <ErrorBoundary title=\"Errore wizard Fotovoltaico\"><FotovoltaicoWizard /></ErrorBoundary>\n",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/serramenti",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1055,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canViewMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_serramenti_attivo\"><ErrorBoundary title=\"Errore modulo Serramenti\"><SerramentiIndex /></ErrorBoundary></FeatureRoute>,\n      ",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/serramenti/nuovo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1061,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canEditMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_serramenti_attivo\"><ErrorBoundary title=\"Errore wizard Serramenti\"><SerramentiWizard /></ErrorBoundary></FeatureRoute>,\n     ",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/serramenti/:id/modifica",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1067,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canEditMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_serramenti_attivo\"><ErrorBoundary title=\"Errore wizard Serramenti\"><SerramentiWizard /></ErrorBoundary></FeatureRoute>,\n     ",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/ristrutturazione",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1074,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canViewMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_ristrutturazione_attivo\"><ErrorBoundary title=\"Errore modulo Ristrutturazione\"><RistrutturazioneIndex /></ErrorBoundary></Fea",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/ristrutturazione/listino",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1080,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canViewMarketingOpportunities\",\n            <SoloTabletDesktop avviso=\"Listini e modelli si gestiscono da tablet o computer.\" torna=\"/azienda/marketing/preventivi\"><FeatureRoute featureKey=\"modulo_ristr",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/ristrutturazione/nuovo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1086,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canEditMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_ristrutturazione_attivo\"><ErrorBoundary title=\"Errore wizard Ristrutturazione\"><RistrutturazioneWizard /></ErrorBoundary></Fe",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/ristrutturazione/:id/modifica",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1092,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canEditMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_ristrutturazione_attivo\"><ErrorBoundary title=\"Errore wizard Ristrutturazione\"><RistrutturazioneWizard /></ErrorBoundary></Fe",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/bagni",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1099,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canViewMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_bagni_attivo\"><ErrorBoundary title=\"Errore modulo Bagni\"><BagniIndex /></ErrorBoundary></FeatureRoute>,\n          )\n        }",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/bagni/listino",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1105,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canViewMarketingOpportunities\",\n            <SoloTabletDesktop avviso=\"Listini e modelli si gestiscono da tablet o computer.\" torna=\"/azienda/marketing/preventivi\"><FeatureRoute featureKey=\"modulo_bagni",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/bagni/nuovo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1111,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canEditMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_bagni_attivo\"><ErrorBoundary title=\"Errore wizard Bagni\"><BagniWizard /></ErrorBoundary></FeatureRoute>,\n          )\n        ",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/bagni/:id/modifica",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1117,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canEditMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_bagni_attivo\"><ErrorBoundary title=\"Errore wizard Bagni\"><BagniWizard /></ErrorBoundary></FeatureRoute>,\n          )\n        ",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/tetti",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1124,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canViewMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_tetti_attivo\"><ErrorBoundary title=\"Errore modulo Tetti\"><TettiIndex /></ErrorBoundary></FeatureRoute>,\n          )\n        }",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/tetti/listino",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1130,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canViewMarketingOpportunities\",\n            <SoloTabletDesktop avviso=\"Listini e modelli si gestiscono da tablet o computer.\" torna=\"/azienda/marketing/preventivi\"><FeatureRoute featureKey=\"modulo_tetti",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/tetti/nuovo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1136,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canEditMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_tetti_attivo\"><ErrorBoundary title=\"Errore wizard Tetti\"><TettiWizard /></ErrorBoundary></FeatureRoute>,\n          )\n        ",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/tetti/:id/modifica",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1142,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canEditMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_tetti_attivo\"><ErrorBoundary title=\"Errore wizard Tetti\"><TettiWizard /></ErrorBoundary></FeatureRoute>,\n          )\n        ",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/climatizzazione",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1149,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canViewMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_climatizzazione_attivo\"><ErrorBoundary title=\"Errore modulo Climatizzazione\"><ClimatizzazioneIndex /></ErrorBoundary></Featur",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/climatizzazione/listino",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1155,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canViewMarketingOpportunities\",\n            <SoloTabletDesktop avviso=\"Listini e modelli si gestiscono da tablet o computer.\" torna=\"/azienda/marketing/preventivi\"><FeatureRoute featureKey=\"modulo_clima",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/climatizzazione/nuovo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1161,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canEditMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_climatizzazione_attivo\"><ErrorBoundary title=\"Errore wizard Climatizzazione\"><ClimatizzazioneWizard /></ErrorBoundary></Featu",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/climatizzazione/:id/modifica",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1167,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canEditMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_climatizzazione_attivo\"><ErrorBoundary title=\"Errore wizard Climatizzazione\"><ClimatizzazioneWizard /></ErrorBoundary></Featu",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/elettrico",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1174,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canViewMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_elettrico_attivo\"><ErrorBoundary title=\"Errore modulo Elettrico\"><ElettricoIndex /></ErrorBoundary></FeatureRoute>,\n         ",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/elettrico/listino",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1180,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canViewMarketingOpportunities\",\n            <SoloTabletDesktop avviso=\"Listini e modelli si gestiscono da tablet o computer.\" torna=\"/azienda/marketing/preventivi\"><FeatureRoute featureKey=\"modulo_elett",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/elettrico/nuovo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1186,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canEditMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_elettrico_attivo\"><ErrorBoundary title=\"Errore wizard Elettrico\"><ElettricoWizard /></ErrorBoundary></FeatureRoute>,\n        ",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/elettrico/:id/modifica",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1192,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canEditMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_elettrico_attivo\"><ErrorBoundary title=\"Errore wizard Elettrico\"><ElettricoWizard /></ErrorBoundary></FeatureRoute>,\n        ",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/termoidraulico",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1199,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canViewMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_termoidraulico_attivo\"><ErrorBoundary title=\"Errore modulo Termoidraulico\"><TermoidraulicoIndex /></ErrorBoundary></FeatureRo",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/termoidraulico/listino",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1205,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canViewMarketingOpportunities\",\n            <SoloTabletDesktop avviso=\"Listini e modelli si gestiscono da tablet o computer.\" torna=\"/azienda/marketing/preventivi\"><FeatureRoute featureKey=\"modulo_termo",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/termoidraulico/nuovo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1211,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canEditMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_termoidraulico_attivo\"><ErrorBoundary title=\"Errore wizard Termoidraulico\"><TermoidraulicoWizard /></ErrorBoundary></FeatureR",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/termoidraulico/:id/modifica",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1217,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canEditMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_termoidraulico_attivo\"><ErrorBoundary title=\"Errore wizard Termoidraulico\"><TermoidraulicoWizard /></ErrorBoundary></FeatureR",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/pavimenti",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1224,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canViewMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_pavimenti_attivo\"><ErrorBoundary title=\"Errore modulo Pavimenti\"><PavimentiIndex /></ErrorBoundary></FeatureRoute>,\n         ",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/pavimenti/listino",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1230,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canViewMarketingOpportunities\",\n            <SoloTabletDesktop avviso=\"Listini e modelli si gestiscono da tablet o computer.\" torna=\"/azienda/marketing/preventivi\"><FeatureRoute featureKey=\"modulo_pavim",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/pavimenti/nuovo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1236,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canEditMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_pavimenti_attivo\"><ErrorBoundary title=\"Errore wizard Pavimenti\"><PavimentiWizard /></ErrorBoundary></FeatureRoute>,\n        ",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/pavimenti/:id/modifica",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1242,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canEditMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_pavimenti_attivo\"><ErrorBoundary title=\"Errore wizard Pavimenti\"><PavimentiWizard /></ErrorBoundary></FeatureRoute>,\n        ",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/piscine",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1249,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canViewMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_piscine_attivo\"><ErrorBoundary title=\"Errore modulo Piscine\"><PiscineIndex /></ErrorBoundary></FeatureRoute>,\n          )\n   ",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/piscine/listino",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1255,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canViewMarketingOpportunities\",\n            <SoloTabletDesktop avviso=\"Listini e modelli si gestiscono da tablet o computer.\" torna=\"/azienda/marketing/preventivi\"><FeatureRoute featureKey=\"modulo_pisci",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/piscine/nuovo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1261,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canEditMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_piscine_attivo\"><ErrorBoundary title=\"Errore wizard Piscine\"><PiscineWizard /></ErrorBoundary></FeatureRoute>,\n          )\n  ",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/piscine/:id/modifica",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1267,
+    "type": "Pagina",
+    "element": "{\n          withCompanyPermission(\n            \"canEditMarketingOpportunities\",\n            <FeatureRoute featureKey=\"modulo_piscine_attivo\"><ErrorBoundary title=\"Errore wizard Piscine\"><PiscineWizard /></ErrorBoundary></FeatureRoute>,\n          )\n  ",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/preventivi",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1273,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewPreventivi\", <FeatureRoute featureKey=\"preventivi_crm\"><Preventivi /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Aperte Lista, Approvazioni sconto (vuoto caricato), Analisi AI (0 accettati nel periodo), scelta nuovo preventivo con 14 aree abilitate. Analisi AI non eseguita manualmente. Menu riga, filtri, cestino e moduli specifici da completare."
+  },
+  {
+    "path": "/azienda/marketing/preventivi/approvazioni",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1274,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/marketing/preventivi?tab=approvazioni\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/preventivi/nuovo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1275,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canEditPreventivi\", <FeatureRoute featureKey=\"preventivi_crm\"><QuoteBuilder /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Aperti tre passi vuoti, selettore prodotti caricato e chiuso. Salvataggi finali correttamente disabilitati senza cliente e voci. Label anagrafica/offerta/note e switch finanziamento corretti. Nessun contatto selezionato, nessuna bozza remota salvata. Pricing, invio, firme e salvataggi restano da verificare in test dedicati."
+  },
+  {
+    "path": "/azienda/marketing/preventivi/computo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1276,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canEditPreventivi\", <FeatureRoute featureKey=\"preventivi_crm\"><ComputoPreventivo /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/preventivi/simulazione-ai",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1277,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canEditPreventivi\", <QuoteAiSimulationPage />)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/preventivi/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1278,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewPreventivi\", <FeatureRoute featureKey=\"preventivi_crm\"><QuoteDetail /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/preventivi/:id/modifica",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1279,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canEditPreventivi\", <FeatureRoute featureKey=\"preventivi_crm\"><QuoteBuilder /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/simulatore",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1280,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingOpportunities\", <FeatureRoute featureKey=\"simulatore\"><SimulatoreIndex /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Lista caricata con 2 simulazioni; aperto Nuova simulazione e annullato, Crea e apri disabilitato senza nome. Editor, scenari, filtri e menu riga ancora da completare."
+  },
+  {
+    "path": "/azienda/marketing/simulatore/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1281,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingOpportunities\", <FeatureRoute featureKey=\"simulatore\"><SimulatoreEditor /></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/firma-elettronica",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1284,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/firma-elettronica\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/marketing/preventivi/:id/margini",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1287,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewCosts\", <FeatureRoute featureKey=\"preventivi_crm\"><QuoteMargini /></FeatureRoute>, (p) => p.isAdmin || p.canViewMargins || p.canViewCosts)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1289,
+    "type": "Pagina",
+    "element": "{<SettingsLayout />}",
+    "status": "PARZIALE",
+    "notes": "Hub impostazioni osservato su mobile dal rimando SoloTabletDesktop, sezioni aperte e nessun dialog. La limitazione del listino su telefono è intenzionale. Percorsi figli hanno copertura separata."
+  },
+  {
+    "path": "/azienda/impostazioni",
+    "index": true,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1291,
+    "type": "Pagina",
+    "element": "{<SettingsIndexRoute />}",
+    "status": "PARZIALE",
+    "notes": "Hub impostazioni osservato su mobile dal rimando SoloTabletDesktop, sezioni aperte e nessun dialog. La limitazione del listino su telefono è intenzionale. Percorsi figli hanno copertura separata."
+  },
+  {
+    "path": "/azienda/impostazioni/mio-profilo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1293,
+    "type": "Pagina",
+    "element": "{<MioProfilo />}",
+    "status": "PARZIALE",
+    "notes": "10/11 base 033e0b7dd: Profilo, Sicurezza, Calendari, Email aperte desktop; freccia destra da Calendari seleziona Email e aggiorna URL. Nessun cambio profilo/password/2FA/OAuth. Residui mobile, caricamento/errore, tre contesti azienda/campo/admin e salvataggi mock completi."
+  },
+  {
+    "path": "/azienda/impostazioni/ai-memoria",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1296,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsCustomization\", <AIPersonasHub />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Quattro schedeMemoria/Chat/Mappa/Conversazioni aperte. Nessuna richiestaAI, memoria/sessione modificata. Memoria637comandiDOM, elenco non paginato, querylimit1000: miglioramento da valutare. Residui moduli, ricerca completa, errori, grafomobile e interazioni."
+  },
+  {
+    "path": "/azienda/impostazioni/ai-personas",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1297,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/impostazioni/ai-memoria?tab=chat\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/ai-automazioni",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1299,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsCustomization\", <SettingsAIAutomazioni />)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/silvio-commesse",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1301,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsOrders\", <SettingsSilvioCommesse />)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/notifiche",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1303,
+    "type": "Pagina",
+    "element": "{<SettingsNotifiche />}",
+    "status": "PARZIALE",
+    "notes": "10/11 base 033e0b7dd: lettura sezioni Avvisi, silenzio, messaggi amministratore, canali, preferenze e programmati; 13 switch presenti. Nessun interruttore modificato. Residui salvataggio/errori/autosave con mock, mobile e viste secondarie."
+  },
+  {
+    "path": "/azienda/impostazioni/profilo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1305,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsProfile\", <SettingsProfile />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base 033e0b7dd: lettura dati generali/fiscali/contatti/sedi, logo, recensioni, portale e bonus. Salva dati inizialmente disabilitato, campi etichettati. Nessuna scrittura. Test settingsProfileSafety inclusi nel cumulativo. Residui sottosezioni, salvataggi recensioni/logo, mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/catalogo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1306,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"../listino\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/listino",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1307,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsPricing\", <SoloTabletDesktop avviso=\"Listini e modelli si gestiscono da tablet o computer.\"><SettingsCatalog /></SoloTabletDesktop>)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Listino prodotti caricato, 11aree presenti; nuovo prodotto4modalità prezzo solo locali. Materiali19, schedaGUIDADEMOaperta/chiusa. FocusEscapealla riga corretto; guardie richieste/chiusura con6test passati. Residui editorfamiglie altre4fasi, tuttearee, filtri completi e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/catalogo-render",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1308,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsCustomization\", <SettingsCatalogoRender />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Sei categorie Bagno/Pavimenti/Porte/Infissi/Stanze/Esterni selezionate, stato pressed corretto; stato senza foto osservato. Nessun upload. Residui errore distinto da vuoto, filtrocategoria, validazione upload/mock e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/listino/import",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1309,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canEditSettingsPricing\", <SoloTabletDesktop avviso=\"Listini e modelli si gestiscono da tablet o computer.\"><SettingsCatalogImport /></SoloTabletDesktop>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/catalogo/import",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1310,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"../listino/import\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/listino/famiglie",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1311,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"../listino?tab=famiglie\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/listino/famiglie/nuova",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1312,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canEditSettingsPricing\", <SoloTabletDesktop avviso=\"Listini e modelli si gestiscono da tablet o computer.\"><SettingsFamilyEditor /></SoloTabletDesktop>)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Passo1 quattro modalità prezzo provate localmente; campi base nominati, Crea disabilitato senza nome. Ritorno a Listino confermato dopo transizione lenta. Nessun prodotto/file salvato. Altri4steprichiedonoID: da testare confixture."
+  },
+  {
+    "path": "/azienda/impostazioni/listino/famiglie/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1313,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsPricing\", <SoloTabletDesktop avviso=\"Listini e modelli si gestiscono da tablet o computer.\"><SettingsFamilyEditor /></SoloTabletDesktop>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/bundle-serramentista",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1314,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsBundle\", <SettingsBundle />)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/bundle",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1315,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsBundle\", <SettingsBundle />)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/tariffe",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1316,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsPricing\", <SoloTabletDesktop avviso=\"Listini e modelli si gestiscono da tablet o computer.\"><SettingsTariffe /></SoloTabletDesktop>)}",
+    "status": "PARZIALE",
+    "notes": " Aggiunta verifica: Impianti/Interventi/Prezzi visitati, tre moduli vuoti aperti/annullati e nomi campi/focus verificati. Sola lettura globale prevale su admin; close e campi protetti durante save in fixture."
+  },
+  {
+    "path": "/azienda/impostazioni/listino-manutenzione",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1318,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"../tariffe?tab=manutenzione\" replace />}",
+    "status": "PARZIALE",
+    "notes": "Alias verificato: desktop → tariffe?tab=manutenzione con scheda Impianti; mobile → hub impostazioni per guardia SoloTabletDesktop prevista, non errore di routing. Nessuna patch alla route."
+  },
+  {
+    "path": "/azienda/impostazioni/finanziamenti",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1326,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsFinanziamenti\", <SettingsFinanziamenti />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Elenco3 letto, nessuna disattivazione/eliminazione/duplicazione. Nuovo passi1/2 locale, calcolatore e dettaglio demo visitati. Residui filtri, import/persistenza con fixture, errori e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/finanziamenti/nuova",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1327,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canEditSettingsFinanziamenti\", <SettingsFinanziamentiNuova />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Passi1/2: esistente/nuova finanziaria, nome fake locale per avanzare, modalitàCSV/PDFlette senza file o AI. Avanti bloccato senza file. Bozza svuotata prima uscita. Nessuna finanziaria/tabella creata. Step3 e parsing/salvataggio/errori da fixture."
+  },
+  {
+    "path": "/azienda/impostazioni/finanziamenti/calcolatore",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1328,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsFinanziamenti\", <SettingsFinanziamentiCalcolatore />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: TabellaAI demo selezionata, importo esempio10000/durata24; calcolo e confronto5durate visualizzati, avviso differenza fra totale fonte e somma visibile. Nessuna offerta/domanda o scrittura. Residui range, arrotondamenti/calcoliunit, altre fonti e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/finanziamenti/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1329,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsFinanziamenti\", <SettingsFinanziamentiDetail />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Dettaglio tabellaAI demo, 12righe, quattro schedeRighe/Calcolatore/Confronto/Allegati lette. Nessuna modifica, allegato, duplicazione o disattivazione. Residui errori e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/listini-serramenti/fornitori",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1331,
+    "type": "Pagina",
+    "element": "{\n              withCompanyPermission(\"canViewSettingsPricing\", <FeatureRoute featureKey=\"listini_serramenti_avanzati\">\n                <ErrorBoundary title=\"Errore listini serramenti\">\n                  <ListiniFornitoriPage />\n                </Err",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/listini-serramenti/matrice",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1341,
+    "type": "Pagina",
+    "element": "{\n              withCompanyPermission(\"canViewSettingsPricing\", <FeatureRoute featureKey=\"listini_serramenti_avanzati\">\n                <ErrorBoundary title=\"Errore matrice listini\">\n                  <MatriceListiniPage />\n                </ErrorBou",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/margini",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1351,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewCosts\", <SettingsMargini />)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/scontistica",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1352,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsScontistica\", <SettingsScontistica />)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/approvazioni",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1353,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewCosts\", <SettingsApprovazioni />)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/contratti-e-condizioni",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1355,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewCondizioni\", <SettingsCondizioni />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Quattro schede lette: Modelli16/Clausole7 dopo caricamento, Firma preventivo, Firma elettronica. Nessuna clausola modificata o firma/FEA attivata. Contatori inizialmente0/0 durante caricamento da valutare. Residui editor, salvataggi/mock, errori e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/contratti-e-condizioni/modello/:id",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1357,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewCondizioni\", <SettingsCondizioniModello />)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/condizioni-firma",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1359,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/impostazioni/contratti-e-condizioni?scheda=firma\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/stati-ordine",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1360,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsOrders\", <SettingsOrderStatus />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Ricontrollo nuova base: editor stati e sezioni pronti/cliente/cantiere caricati. Nessun ordine, icona, colore, visibilità o default cambiati. Comandi icona/colore ripetuti senza contesto da valutare. Residui bozze/mock/errori e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/cartelle-documenti",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1361,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsOrders\", <SettingsCartelleDocumenti />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Elenco cartelle e azioni con nome contestuale letti; campo nuova cartella presente. Nessun ordinamento, visibilità o archivio modificato. settingsFoldersSafety nel cumulativo. Residui moduli, scritture mock e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/fornitori",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1362,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsSuppliers\", <SettingsSuppliers />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Anagrafica48italiani/0esteri, quattro schede iniziali lette; Nuovo aperto/annullato, sezioni e campi nominati. Nessun export/unione/scrittura. Ordini/pagamenti e provenienze da riconfermare dopo caricamento. Test fornitori/report inclusi nel cumulativo. Residui dettaglio/ruoli/contratti/import, filtri/errori e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/qr-codici",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1363,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsOrders\", <SettingsQrCodici />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Quattro schede lette: QR con link, Scansioni, Per fornitore, Prova. Nuovo QR aperto/annullato, selettori nominati. Nessun QR creato, scansione o camera avviata. settingsQrCodiciSolaLettura nel cumulativo. Residui dati filtrati, errori, export e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/categorie-costi",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1364,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewCosts\", <SettingsCostCategories />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: FiltriTutte/Inuso/Inutilizzate→21/7/14righe provati; mancava aria-pressed, aggiunto easserzioni nel test esistente. Nessuna categoria cambiata. Residui editor/import/export/errori e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/automazioni-finanza",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1365,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewCosts\", <SettingsFinanceAutomation />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Sezione Avvisi scadenze letta, nessun interruttore o salvataggio effettuato. Test settingsFinanceSafety nel cumulativo. Residui validazioni/mock/errori/mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/tag",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1366,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsCustomization\", <SettingsTags />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Campo nuovo, ricerca, palette nominata e tag esistenti letti senza modifiche. Test settingsTagsSafety nel cumulativo. Residui filtri, salvataggi/errori, uso colori e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/motivi-perdita",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1367,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsCustomization\", <SettingsMotiviPerdita />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Sezioni motivi azienda/standard e campo nuovo nominato letti, nessun motivo salvato. settingsLossReasonsSafety nel cumulativo. Residui aggiunta/rimozione mock, errore e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/campi-personalizzati",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1368,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsCustomization\", <SettingsCustomFields />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Quattro schede lette; nuovo aperto/annullato, tipi disponibili letti, tipo elenco mostra opzioni nominate, poi ripristinato Testo breve. Nessun campo creato/ripristinato/eliminato o catalogo aggiornato. Test settingsCustomizationSafety nel cumulativo. Residui tutti tipi/oggetti, formule, errori/mock e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/sequenze",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1369,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsCustomization\", <SettingsPipelines />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Elenco1 e sei fasi aperti. Aggiunta fase locale e rimozione senza server: falso dirty riprodotto/corretto. Annulla modifiche aggiunto e provato, ritorno focus al comando Aggiungi una fase. Due test passati; nessuna fase persistita. Residui nuova pipeline, salvataggi mock, errori, mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/calendari",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1370,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsCustomization\", <SettingsMarketingCalendars />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Ricontrollo nuova base: Calendari/Orari/Spostamenti/Collegamenti caricate, providerGoogle/Outlook/Apple visti senzaOAuth. Nessun calendario, orario, evento, accesso o regola modificati. Test calendar safety/persistence nel cumulativo. Residui editor, prenotazione reale conmock e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/calendari-lavori",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1371,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsOrders\", <SettingsCalendariLavori />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Due schede Squadre/Google Calendar lette; nuova squadra esterna aperta/annullata, campi nominati. Nessun accesso concesso né OAuth. Google: stato senza calendario collegato. Residui salvataggi, errori, calendari collegati e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/rapportini-cantiere",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1372,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsOrders\", <SettingsRapportiniCantiere />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Ricontrollo nuova base: sei schede Chi compila/Ore/Contenuti/Voci/Verbali/Giornale caricate. Avviso modalità non scelta è informativo, non errore. Nessuna scelta operativa salvata. Residui tutti controlli, bozze/mock/errori e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/modelli-fasi",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1373,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsOrders\", <SettingsModelliFasi />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Ricontrollo nuova base: lavori, modelli, regole commessa, avanzamento e ruoli cantiere letti. Nessun modello copiato o configurazione modificata. Test settingsFasiPagina nel cumulativo. Residui editor/mock/errori e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/modelli-pagamento",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1374,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsOrders\", <SettingsModelliPagamento />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Nuovo aperto: rate30/70; aggiunta locale rata0e rimozione ripristinano due rate, annullamento riuscito senza server. Campi/rate/preavvisi nominati. Nessun modello/default o evento cambiato. Residui salvataggio/errori/mock, altri eventi, preview e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/commesse-generali",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1375,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsOrders\", <SettingsCommesseGenerali />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Tre modelli di lavoro visualizzati. Nessun pulsante selezionato (cambio configurazione aziendale). Residui persistenza mock, errori e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/acquisti-materiali",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1376,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsOrders\", <SettingsAcquistiMateriali />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Sezioni validazione tecnico, fabbisogno, conferma fornitore e numerazione lette; nessun interruttore cambiato. Residui numerazione dopo query, salvataggi/errori e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/persone",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1378,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsPeople\", <SettingsPeople />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Sei categorie Utenti/Dipendenti/Venditori/Subappaltatori/Team/Commercialista lette solo come struttura. Nessun nominativo/salario/recapito copiato, invito o permesso cambiato. Residui sottoschede, moduli e azioni conmock, errori e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/utenti",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1380,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/impostazioni/persone?tab=utenti\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/utenti/:userId",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1381,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsPeople\", <SettingsUserDetail />)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/venditori",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1382,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/impostazioni/persone?tab=venditori\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/staff",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1383,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/impostazioni/persone?tab=staff\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/sedi",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1384,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsPeople\", <SettingsSedi />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Ricontrollo nuova base: elenco1, nuovo aperto/annullato; campi nominati, colori con solo codicehex da migliorare. Nessuna sede, indirizzo, geocodifica o colore salvati. Residui editing/salvataggio/errori/mock e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/documenti-azienda",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1385,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsProfile\", <SettingsDocumentiAzienda />)}",
+    "status": "PARZIALE",
+    "notes": "10/11: elenco6 con3 gruppi letto, nuova scheda aperta e annullata desktop/mobile375. Tre select associate; azioni modifica/elimina con nome documento. Creazione/rinnovo: 4 test mock doppio salvataggio/chiusura e errore+retry passati. Nessuna scrittura o file reale. Residui: storico, rinnovo UI, bulk, errori lettura, AI, filtri e altri stati."
+  },
+  {
+    "path": "/azienda/impostazioni/team",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1386,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/impostazioni/persone?tab=team\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/sicurezza-privacy",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1388,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsSecurity\", <SettingsSecurityHub />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Quattro schede Accessi/Registro/Regole/Privacy e Privacy Consensi/I miei dati/Storico lette. Nessuna sessione chiusa, protezione, consenso o richiesta GDPR modificati; nessun export/cancellazione. Residui sottoschede accessi, filtri/log/azioni conmock e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/esporta-dati",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1389,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsSecurity\", <SettingsEsportaDati />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Vista archivio17elenchi letta, nessuna esportazione effettuata o dati scaricati. Residui completezza, errori e mock della generazione zip/mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/sicurezza",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1391,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/impostazioni/mio-profilo?tab=sicurezza\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/security-dashboard",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1392,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/impostazioni/sicurezza-privacy?tab=dashboard\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/attivita",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1393,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/impostazioni/sicurezza-privacy?tab=attivita\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/integrazioni",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1397,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsIntegrations\", <SoloTabletDesktop avviso=\"Le integrazioni si gestiscono da tablet o computer.\"><SettingsIntegrations /></SoloTabletDesktop>)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Nove integrazioni visibili, sei filtri categoria provati conpressed e subset corretto. Nessun OAuth, collegamento/disconnessione o pagamento. Residui dettagli provider, stato errore/retry, callback specifici e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/whatsapp-bot",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1398,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsIntegrations\", <SettingsWhatsAppBot />)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/lead-forms",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1399,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsIntegrations\", <FacebookFormsPage />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Vista collegamenti e rientro lead letta; nessun import contatti, salvataggio instradamento o collegamento avviato. Residui editor/mock/errori e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/crediti",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1402,
+    "type": "Reindirizzamento",
+    "element": "{<SettingsCreditsRedirect />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/api",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1406,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsIntegrations\", <SettingsApiKeys />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Vista controlli senza leggere chiavi; nuova chiave aperta/annullata, nome/scadenza e gruppi permessi nominati. Nessun permesso selezionato, segreto generato/coperto o chiave creata/revocata. Residui validazioni/mock, conteggi/log e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/webhook",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1407,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsIntegrations\", <SettingsWebhooks />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Stato nessun webhook, nuovo aperto/annullato: campi/eventi nominati, Prova e Crea disabilitati senza requisiti. UI dichiara eventi automatici non operativi salvo Prova. Nessun evento/chiave/endpoint o invio creato. Test webhook safety/persistence nel cumulativo. Residui validazioni/mock, storici e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/dominio-email",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1408,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingEmail\", <SettingsEmailDomain />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Vista iniziale dominio facoltativo letta; nessun dominio o email di prova inviati, nessuna verificaDNS avviata. Residui wizard/mock/errori e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/preferenze-email",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1409,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingEmail\", <SettingsEmailPreferences />)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/privacy",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1410,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/impostazioni/sicurezza-privacy?tab=privacy\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/branding",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1411,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsCustomization\", <SettingsBranding />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Ricontrollo nuova base: Aspetto/Piattaforma/Accesso e Indirizzo web caricate. Nessun logo/immagine/colore/dominio modificati o verificati. Test settingsBrandingSafety nel cumulativo. Residui controlli/upload conmock/errori e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/modelli-pdf",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1412,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsOrders\", <SoloTabletDesktop avviso=\"Listini e modelli si gestiscono da tablet o computer.\"><SettingsModelliPdf /></SoloTabletDesktop>)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Otto tipologie selezionate in sola lettura. Ordini, richieste, servizi, trasporti, economia, fine lavori, contratti intestazioni confermate; Rapportino giornaliero momentaneamente in caricamento da riconfermare. Nessun preset, condizione o salvataggio toccato. Test settingsModelliPdf nel cumulativo. Residui singoli controlli/anteprima/PDF, errori e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/template-preventivi",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1413,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsPricing\", <SoloTabletDesktop avviso=\"Listini e modelli si gestiscono da tablet o computer.\"><SettingsQuoteTemplates /></SoloTabletDesktop>)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Quattro schedeGenerico/Computo/Moduli14aree/Varianti lette. Nuovo scelta blueprint aperta/annullata, nessuna creazione o applicazione. Residui editor/computo/14moduli, salvataggi/mock e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/ai-test-lab",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1415,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewMarketingAiAgent\", <AITestLab />)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/firma-elettronica",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1416,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/impostazioni/contratti-e-condizioni?scheda=firma-elettronica\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/sopralluoghi",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1418,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsCustomization\", <SettingsSopralluoghi />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Nuovo da zero e copia da serie aperti: campi nominati, Crea/Copia disabilitati senza requisiti. Annullamento confermato dopo timeout del tool. Nessun modello creato/copiato. Test settingsSopralluoghiModelli nel cumulativo. Residui editor esistente, schema completo, preview e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/fatturazione",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1422,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewBilling\", <SettingsFatturazioneUnified />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Nativa8schede e programmaesterno3schede aperte in sola lettura. Cambio scheda verificato nel codice come URL, nessun cambio modalità persistito. NessunSDI/AdE/OAuth/export avviato. Test readonly nel cumulativo. Residui campi/validazioni/errori/persistenza conmock e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/banca",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1424,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewTesoreria\", <SettingsBanca />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Elenco collegamenti sola lettura. Nessun collegamento, refresh movimenti, consenso o disconnessione avviati. Comandi ripetuti senza contesto banca/collegamento: da migliorare. Residui dialog/mock/errori e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/fatturazione-nativa",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1425,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/impostazioni/fatturazione?tab=nativa\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/impostazioni/abbonamento",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1427,
+    "type": "Pagina",
+    "element": "{\n              isIOSNativePlatform\n                ? <IosBillingBlocked />\n                // Piano e Pagamenti restano dell'amministratore. Chi ha solo\n                // Fatturazione entra nella sola scheda Crediti (controllo interno).\n           ",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Tre schede Piano/Pagamenti/Crediti caricate. Informazioni fiscali, storico, saldi servizi, ricarica automatica e consumi presenti. Nessuna transazione, cambio piano/carta, export o ricarica. Residui controlli dettagliati, errori/mock e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/form-builder",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1437,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsCustomization\", <SettingsFormBuilder />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Elenco2moduli, nuovo aperto/annullato; editorGUIDADEMO3campi e3schede letti. Aggiunta locale quarto campo, Scarta ripristina3senzaAPI né avviso. Provenienze aperta, caricamento completo da riconfermare. Nessuna pubblicazione/invio/creazione. Residui campi/tipi/preview/validazione/errori e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/numeri-telefono",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1438,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewSettingsIntegrations\", <SettingsPhoneNumbers />)}",
+    "status": "PARZIALE",
+    "notes": "10/11 base033e0b7dd: Vista inizialeKYC/numero letta, nessun dato identità/file o validazione, acquisto o portabilità eseguiti. Residui moduli/mock, stato errore e mobile."
+  },
+  {
+    "path": "/azienda/impostazioni/telefonia",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1440,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/impostazioni/numeri-telefono\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/ritenute-garanzia",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1443,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewOrders\", <FeatureRoute featureKey=\"ritenute_garanzia\"><ErrorBoundary title=\"Errore nel caricamento ritenute\"><RitenuteGaranzia /></ErrorBoundary></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Nel workspace Fiscalità caricati riepiloghi e prima lista; nuovo modulo aperto nelle direzioni attiva e passiva e annullato. Associate le 7 etichette, compresi contratto e controparte dinamica, confermate in UI. Nessuna registrazione o svincolo; dettagli, storico, filtri completi e responsive da verificare."
+  },
+  {
+    "path": "/azienda/foto-cantiere",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1444,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/ordini\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/gantt-ordini",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1445,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda/calendario?view=gantt\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/contabilita-fiscale",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1446,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewPrimaNota\", <FeatureRoute featureKey=\"contabilita_fiscale\"><ErrorBoundary title=\"Errore nella contabilità fiscale\"><ContabilitaFiscale /></ErrorBoundary></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Nel workspace Fiscalità aperte le quattro viste: Liquidazione IVA (12 periodi, dettaglio ottobre e LIPE), Registro F24 (1 voce novembre), Ritenute bancarie (vuoto), Impostazioni IVA (campi etichettati). Nuovo F24 aperto e annullato; corrette 5 etichette e confermate in UI. Nessuna conferma liquidazione, generazione, pagamento o modifica impostazioni; responsive e dettagli ulteriori da verificare."
+  },
+  {
+    "path": "/azienda/archivio-sostitutivo",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1447,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewPrimaNota\", <FeatureRoute featureKey=\"archivio_sostitutivo\"><ErrorBoundary title=\"Errore nell'archivio sostitutivo\"><ArchivioSostitutivo /></ErrorBoundary></FeatureRoute>)}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/firma-elettronica",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1450,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canViewFirmaElettronica\", <FeatureRoute featureKey=\"firma_fea\"><FirmaElettronicaHub /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Archivio caricato (12 documenti), quattro schede aperte: moduli custom e template vuoti, firmatari consultati. Identificazione: modulo vuoto aperto/annullato; dieci campi associati alle etichette e confermati in UI. Nessun dato personale inserito, documento caricato, firma o revoca eseguita. Filtri, download, responsive e altri stati da verificare."
+  },
+  {
+    "path": "/azienda/firma-elettronica/nuovo-template",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1451,
+    "type": "Pagina",
+    "element": "{withCompanyPermission(\"canEditSettingsCustomization\", <FeatureRoute featureKey=\"firma_fea\"><NuovoTemplate /></FeatureRoute>)}",
+    "status": "PARZIALE",
+    "notes": "Primo passo del wizard aperto, caricamento inizialmente disabilitato. Selezione file resa pulsante reale con focus visibile; rimozione separata e nominata, input azzerato per riselezionare lo stesso file. In UI pulsante riconosciuto e Tab passa a Nome template. Nessun upload reale: passi Configura campi e Riepilogo non raggiunti; test file in memoria in corso."
+  },
+  {
+    "path": "/azienda/*",
+    "index": false,
+    "source": "src/routes/companyRoutes.tsx",
+    "line": 1459,
+    "type": "Reindirizzamento",
+    "element": "{<Navigate to=\"/azienda\" replace />}",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/controllo-gestione/dashboard",
+    "index": false,
+    "source": "src/pages/azienda/ControlloGestione.tsx",
+    "line": 66,
+    "type": "Scheda con URL",
+    "status": "PARZIALE",
+    "notes": "Dashboard caricata: indicatori e avvisi di dati non riconciliati, rating indicato provvisorio. Non invocato Assistente CFO. Dettagli e filtri da completare."
+  },
+  {
+    "path": "/azienda/controllo-gestione/ce",
+    "index": false,
+    "source": "src/pages/azienda/ControlloGestione.tsx",
+    "line": 67,
+    "type": "Scheda con URL",
+    "status": "PARZIALE",
+    "notes": "Caricate Consuntivo, Mensile e Confronto 2024–2026. Provato filtro Singolo mese (novembre) con valori diversi e mese attivo. Dettagli ricavi aperti da tastiera in Mensile gennaio e Consuntivo novembre; dati caricati e focus ripristinato in entrambi i contesti dopo chiusura. Export/stampa, altre voci e stati errore da completare. Nessuna cifra modificata."
+  },
+  {
+    "path": "/azienda/controllo-gestione/sp",
+    "index": false,
+    "source": "src/pages/azienda/ControlloGestione.tsx",
+    "line": 68,
+    "type": "Scheda con URL",
+    "status": "PARZIALE",
+    "notes": "Stato patrimoniale caricato, voci e differenza impieghi/fonti visibili; note sulla provenienza dei dati e collegamento al patrimonio. Confronto multi-anno/stampa/export da completare."
+  },
+  {
+    "path": "/azienda/controllo-gestione/cash-flow",
+    "index": false,
+    "source": "src/pages/azienda/ControlloGestione.tsx",
+    "line": 69,
+    "type": "Scheda con URL",
+    "status": "PARZIALE",
+    "notes": "Rendiconto annuale caricato: saldi, consuntivo/in corso/previsione e ipotesi esplicite. Dettaglio incassi aperto da tastiera su desktop (gennaio) e mobile 375 CSS px (novembre), focus restituito al pulsante. Nessun overflow mobile. Pulsanti nominati per voce/mese/importo. 9 test del rendiconto passati; voci manuali e export reale da completare."
+  },
+  {
+    "path": "/azienda/controllo-gestione/pfn-debiti",
+    "index": false,
+    "source": "src/pages/azienda/ControlloGestione.tsx",
+    "line": 70,
+    "type": "Scheda con URL",
+    "status": "PARZIALE",
+    "notes": "PFN, debiti/liquidità e mutui caricati; letti chiarimenti su scadenzario e copertura. Form finanziamento e dettagli conti/aging da completare."
+  },
+  {
+    "path": "/azienda/controllo-gestione/commesse",
+    "index": false,
+    "source": "src/pages/azienda/ControlloGestione.tsx",
+    "line": 71,
+    "type": "Scheda con URL",
+    "status": "PARZIALE",
+    "notes": "Caricata analisi 116 commesse. Provati filtri: Da completare 54, Assistenza 21, Completate 41, Tutte 116 (atteso caricamento query). Provati Valore, Incidenza manodopera, Prima le perdite: cambia prima commessa coerentemente. Link veri disponibili da tastiera. Export e dettagli da completare. Nessun costo/margine modificato."
+  },
+  {
+    "path": "/azienda/controllo-gestione/prodotti",
+    "index": false,
+    "source": "src/pages/azienda/ControlloGestione.tsx",
+    "line": 72,
+    "type": "Scheda con URL",
+    "status": "PARZIALE",
+    "notes": "Caricate entrambe le viste Margine e Costo listino/reale. Provati i 4 raggruppamenti fase/fornitore/prodotto/categoria: didascalie e righe cambiano coerentemente. Export e dettagli ancora da completare."
+  },
+  {
+    "path": "/azienda/controllo-gestione/budget",
+    "index": false,
+    "source": "src/pages/azienda/ControlloGestione.tsx",
+    "line": 73,
+    "type": "Scheda con URL",
+    "status": "PARZIALE",
+    "notes": "Budget/consuntivo/previsione caricati, avviso budget storico visibile. Nessuna cifra editata. Editing e export da completare."
+  },
+  {
+    "path": "/azienda/controllo-gestione/indici",
+    "index": false,
+    "source": "src/pages/azienda/ControlloGestione.tsx",
+    "line": 74,
+    "type": "Scheda con URL",
+    "status": "PARZIALE",
+    "notes": "Indici caricati con avviso provvisorio e periodo anno corrente esplicito. Nessun calcolo di business modificato. Dettagli e navigazione da completare."
+  },
+  {
+    "path": "/azienda/controllo-gestione/health",
+    "index": false,
+    "source": "src/pages/azienda/ControlloGestione.tsx",
+    "line": 75,
+    "type": "Scheda con URL",
+    "status": "PARZIALE",
+    "notes": "Controllo dati e moduli patrimonio/cespiti/riconciliazione aperti. Non inseriti valori o beni. Stati errore e mutazioni da completare."
+  },
+  {
+    "path": "/azienda/controllo-gestione/piano",
+    "index": false,
+    "source": "src/pages/azienda/ControlloGestione.tsx",
+    "line": 76,
+    "type": "Scheda con URL",
+    "status": "PARZIALE",
+    "notes": "Piano e proiezioni caricati; provati Base/Aggressivo/Prudente e partenza dal 2026 stimato (fine piano 2031). Aperto editor senza muovere cursori. Corretto menu scenari standard ignorato e sincronizzati i pulsanti; verificato in UI menu Aggressivo/titolo/pulsante e ritorno Prudente/Predefinito. Test su scenario custom, reset simulazione, debounce e risposta tardiva passati. Slider ora nominati con unità. Nessuno scenario o dato salvato; simulazione live non invocata."
+  },
+  {
+    "path": "/azienda/controllo-gestione/rating",
+    "index": false,
+    "source": "src/pages/azienda/ControlloGestione.tsx",
+    "line": 77,
+    "type": "Scheda con URL",
+    "status": "PARZIALE",
+    "notes": "Rating provvisorio e indicatori caricati. Corretto avviso importo già italiano che diventava 1.233.948,32,00 €. Verificata in UI resa corretta 1.233.948,32 €. Test su vecchi importi e formati già italiani passati. Nessun punteggio alterato."
+  },
+  {
+    "path": "/azienda/controllo-gestione/pacchetto-banca",
+    "index": false,
+    "source": "src/pages/azienda/ControlloGestione.tsx",
+    "line": 78,
+    "type": "Scheda con URL",
+    "status": "PARZIALE",
+    "notes": "Vista caricata con elenco vuoto e stato BOZZA esplicito per dati da riconciliare. Generazione non eseguita: persisterebbe un nuovo pacchetto."
+  },
+  {
+    "path": "/azienda/controllo-gestione/configurazione",
+    "index": false,
+    "source": "src/pages/azienda/ControlloGestione.tsx",
+    "line": 79,
+    "type": "Scheda con URL",
+    "status": "PARZIALE",
+    "notes": "Classificazioni e provenienze caricate, letti criteri anti doppio conteggio. Nessuna categoria o aliquota modificata. Moduli e filtri da completare."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=cantiere&vista_cantiere=lavorazioni",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 4,
+    "type": "Scheda con query",
+    "element": "Lavorazioni",
+    "status": "PARZIALE",
+    "notes": "Caricate 2 fasi/2 sottofasi, budget e consuntivi, assegnazioni e mezzi (vuoto, storico 2). Pannelli piegati, form, avanzamenti e ditte/contratti ancora da verificare. Nessuna modifica."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=cantiere&vista_cantiere=cronoprogramma",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 5,
+    "type": "Scheda con query",
+    "element": "Cronoprogramma",
+    "status": "PARZIALE",
+    "notes": "GUIDA DEMO: dati caricati, periodo 28/11–07/12, fasi/sottofasi e avviso fase senza date. Tabella/scale/PDF/responsive ancora da verificare."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=cantiere&vista_cantiere=sopralluoghi",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 6,
+    "type": "Scheda con query",
+    "element": "Rilievi e sopralluoghi",
+    "status": "PARZIALE",
+    "notes": "Lista di 7 bozze caricata. Nuovo, dettagli e Porta misure ancora da verificare. Nessuna bozza creata o misura trasferita."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=cantiere&vista_cantiere=ufficio",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 7,
+    "type": "Scheda con query",
+    "element": "Ufficio",
+    "status": "PARZIALE",
+    "notes": "Caricate 5 attività, 1 completata. Nuova attività d’ufficio aperta e annullata; campi nominati e modulo a 375 CSS px senza overflow, azioni finali raggiungibili. Save protetto da guard/fieldset, errore/retry e doppio submit verificati con API simulate. Nessuna attività reale creata/avviata/completata."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=cantiere&vista_cantiere=squadra",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 8,
+    "type": "Scheda con query",
+    "element": "Ore e persone",
+    "status": "PARZIALE",
+    "notes": "GUIDA DEMO: zero ore nel periodo; aperto e annullato Inserisci ore, controlli data/persone/ore nominati e conferma vuota disabilitata. Nessuna registrazione."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=cantiere&vista_cantiere=diario",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 10,
+    "type": "Scheda con query",
+    "element": "Rapportini",
+    "status": "PARZIALE",
+    "notes": "GUIDA DEMO: 4 rapportini caricati, 3 da approvare, zero ore, foto vuote. Dettagli, scrittura/esportazione e accordion ancora da verificare; nessuna approvazione."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=cantiere&vista_cantiere=giornale",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 11,
+    "type": "Scheda con query",
+    "element": "Giornale lavori",
+    "status": "PARZIALE",
+    "notes": "GUIDA DEMO: elenco vuoto e nuovo report aperto/chiuso; correzione associazioni label e cursore verificata. 14 test pertinenti passati; nessuna scrittura/firma/GPS."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=cantiere&vista_cantiere=collaudo",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 12,
+    "type": "Scheda con query",
+    "element": "Consegna e assistenza",
+    "status": "PARZIALE",
+    "notes": "GUIDA DEMO: verbale esistente e assistenza vuota; nuovo verbale aperto/chiuso, campi e requisiti di congelamento verificati, azioni dipendenti dalla bozza disabilitate. Nessuna bozza salvata/firma."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=cantiere&vista_cantiere=sicurezza",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 13,
+    "type": "Scheda con query",
+    "element": "Sicurezza",
+    "status": "PARZIALE",
+    "notes": "GUIDA DEMO: riepilogo, POS, Documenti (3 viste), Persone/imprese (4 viste), Mezzi/prodotti aperti; solo lettura. Nomi archivio corretti e confermati. Pannelli e flussi ancora parziali. Ripresi dopo login Prodotti/SDS (1 prodotto fittizio), Controlli (9 promemoria) e Verbali vuoto. Azioni Carica/Aggiorna con contesto documento corrette; nuova label da riconfermare in UI."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=finanza&vista_economia=rendiconto",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 19,
+    "type": "Scheda con query",
+    "element": "Rendiconto",
+    "status": "DA VERIFICARE",
+    "notes": ""
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=finanza&vista_economia=margini",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 20,
+    "type": "Scheda con query",
+    "element": "Margini e costi",
+    "status": "PARZIALE",
+    "notes": "GUIDA DEMO: conto economico, stime mezzi/struttura, errori e previsione cassa caricati; spiegazioni delle basi di calcolo lette. Download e moduli da collaudare."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=finanza&vista_economia=pagamenti",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 21,
+    "type": "Scheda con query",
+    "element": "Incassi",
+    "status": "PARZIALE",
+    "notes": "GUIDA DEMO: 3 rate non incassate e 2 SAL bozza caricati. Cambia piano aperto/annullato con avviso sostituzione e conferma disabilitata senza selezione. Nessun incasso/piano cambiato."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=finanza&vista_economia=varianti",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 22,
+    "type": "Scheda con query",
+    "element": "Varianti",
+    "status": "PARZIALE",
+    "notes": "GUIDA DEMO: 2 bozze (+10/-5), riepilogo separa approvate/da approvare. Nuova variante aperta/chiusa al primo passo, nessun salvataggio/PDF/invio."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=finanza&vista_economia=sal",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 23,
+    "type": "Scheda con query",
+    "element": "SAL al cliente",
+    "status": "PARZIALE",
+    "notes": "GUIDA DEMO: 2 SAL bozza con importi cumulativi/certificato caricati; nuovo SAL aperto/annullato con voci nominate. Nessuna emissione, rata o fattura creata; PDF e dettagli da verificare."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=finanza&vista_economia=documenti",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 24,
+    "type": "Scheda con query",
+    "element": "Fatture al cliente",
+    "status": "PARZIALE",
+    "notes": "GUIDA DEMO: 2 documenti bozza caricati. Crea fattura aperto/annullato, nomi clausole/pagamento e stati selezionati corretti e confermati. 375 CSS senza overflow e footer raggiungibile, 29 test pertinenti passati. Nessuna bozza creata/anteprima fiscale inviata."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=articoli&vista_materiali=articoli",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 28,
+    "type": "Scheda con query",
+    "element": "Articoli e misure",
+    "status": "PARZIALE",
+    "notes": "GUIDA DEMO: 5 materiali per fase, stati/quantità/prezzi e provenienza letti. Aggiungi articolo: ricerca e scelta da magazzino aperte, annullate senza prelievo; nome ricerca corretto e confermato. Filtri/sort/misure/computo ancora da collaudare."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=articoli&vista_materiali=offerte",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 29,
+    "type": "Scheda con query",
+    "element": "Richieste d’offerta",
+    "status": "PARZIALE",
+    "notes": "GUIDA DEMO: richiesta esistente con offerta caricata. Nuova richiesta aperta/annullata: date, articoli e fornitori con label. Nessuna creazione/invio; dettaglio richiesta da verificare."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=articoli&vista_materiali=acquisti",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 30,
+    "type": "Scheda con query",
+    "element": "Ordini d’acquisto",
+    "status": "PARZIALE",
+    "notes": "GUIDA DEMO: 3 OdA, riconciliazione e avvisi caricati. Nuovo ordine aperto/annullato con modalità, fornitore, righe e importi; creazione bozza vuota disabilitata. Nessun acquisto."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=articoli&vista_materiali=bolle",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 31,
+    "type": "Scheda con query",
+    "element": "Bolle e DDT",
+    "status": "PARZIALE",
+    "notes": "GUIDA DEMO: 2 bolle da verificare e 1 DDT cliente bozza caricati. Dettagli/upload/verifica ancora da controllare; nessuna ricezione."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=articoli&vista_materiali=magazzino",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 32,
+    "type": "Scheda con query",
+    "element": "Magazzino e seriali",
+    "status": "PARZIALE",
+    "notes": "GUIDA DEMO: 2 materiali in cantiere, uscita e seriale non abbinato caricati. Gestisci seriali aperto/chiuso: nome input corretto e confermato. Nessuna assegnazione/scansione."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=costi&vista_costi=tutte",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 37,
+    "type": "Scheda con query",
+    "element": "Tutte",
+    "status": "PARZIALE",
+    "notes": "GUIDA DEMO: 2 uscite, una scaduta; importi/stati e distinzione IVA caricati. Nessun pagamento registrato; filtri ed errori da collaudare."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=costi&vista_costi=fornitori",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 38,
+    "type": "Scheda con query",
+    "element": "Fornitori",
+    "status": "PARZIALE",
+    "notes": "GUIDA DEMO: fattura verificata collegata a OdA, da pagare, caricata. Upload e dettagli da verificare; nessun pagamento."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=costi&vista_costi=subappaltatori",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 39,
+    "type": "Scheda con query",
+    "element": "Subappaltatori",
+    "status": "PARZIALE",
+    "notes": "GUIDA DEMO: stato senza contratti costi con rimando a Lavorazioni. Sicurezza segnala impresa collegata: distinguere contesto anagrafico/contratti, senza inferire errore dai soli conteggi."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=costi&vista_costi=manodopera",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 40,
+    "type": "Scheda con query",
+    "element": "Manodopera",
+    "status": "PARZIALE",
+    "notes": "GUIDA DEMO: zero ore e 3 rapportini in attesa, scostamento non calcolato fino verifica; link tariffe/rapportini/budget presenti, non ancora seguiti."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=costi&vista_costi=altri",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 41,
+    "type": "Scheda con query",
+    "element": "Altri costi",
+    "status": "PARZIALE",
+    "notes": "GUIDA DEMO: costo simulato caricato. Nuovo costo aperto/annullato, campi nominati, conferma vuota disabilitata. Nessuna spesa creata."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=panoramica",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 93,
+    "type": "Scheda con query",
+    "element": "Panoramica",
+    "status": "PARZIALE",
+    "notes": "Caricata scheda della commessa dimostrativa: attenzioni, cliente, lavoro, note, date, appuntamenti e documenti. Nessuna approvazione, fattura, incasso, comunicazione o file modificato. Moduli e menu ancora da completare."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=cantiere",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 94,
+    "type": "Scheda con query",
+    "element": "Cantiere",
+    "status": "PARZIALE",
+    "notes": "Lavorazioni, Rilievi e sopralluoghi, Ufficio caricate; Cronoprogramma aperto ma prima lettura ancora sulla vista precedente. Resto sottoviste da completare."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=articoli",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 95,
+    "type": "Scheda con query",
+    "element": "Articoli e Materiali",
+    "status": "PARZIALE",
+    "notes": "GUIDA DEMO: sotto-viste aperte; vedere voci specifiche e limiti. Non collaudata ogni azione."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=costi",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 96,
+    "type": "Scheda con query",
+    "element": "Fatture e costi",
+    "status": "PARZIALE",
+    "notes": "GUIDA DEMO: sotto-viste aperte; vedere voci specifiche e limiti. Non collaudata ogni azione."
+  },
+  {
+    "path": "/azienda/ordini/:id?tab=finanza",
+    "index": false,
+    "source": "src/lib/orders/detailNavigation.ts",
+    "line": 97,
+    "type": "Scheda con query",
+    "element": "Economia e pagamenti",
+    "status": "PARZIALE",
+    "notes": "GUIDA DEMO: sotto-viste aperte; vedere voci specifiche e limiti. Non collaudata ogni azione."
+  }
+]

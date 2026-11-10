@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { F24Entry, TRIBUTI_PREDEFINITI } from "@/hooks/useF24";
 import { formatCurrency } from "@/lib/formatters";
 import { fiscalAmountTotal } from "@/lib/fatturazione/fiscalWorkspace";
@@ -125,6 +125,7 @@ export function F24Generator({
   onAnteprima,
   onSegnaPagato,
 }: Props) {
+  const formId = useId();
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState("tutti"),
     [search, setSearch] = useState(""),
@@ -308,14 +309,14 @@ export function F24Generator({
           <h3 className="text-sm font-semibold">Nuovo F24</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5 sm:col-span-2">
-              <Label>Tributo</Label>
+              <Label htmlFor={`${formId}-tributo`}>Tributo</Label>
               <Select
                 value={form.tributo_code}
                 onValueChange={(v) =>
                   setForm((f) => ({ ...f, tributo_code: v }))
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger id={`${formId}-tributo`}>
                   <SelectValue placeholder="Seleziona tributo..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -329,8 +330,9 @@ export function F24Generator({
             </div>
 
             <div className="space-y-1.5">
-              <Label>Importo (€)</Label>
+              <Label htmlFor={`${formId}-importo`}>Importo (€)</Label>
               <Input
+                id={`${formId}-importo`}
                 type="number"
                 step="0.01"
                 min="0"
@@ -343,8 +345,9 @@ export function F24Generator({
             </div>
 
             <div className="space-y-1.5">
-              <Label>Data scadenza</Label>
+              <Label htmlFor={`${formId}-scadenza`}>Data scadenza</Label>
               <Input
+                id={`${formId}-scadenza`}
                 type="date"
                 value={form.data_scadenza}
                 onChange={(e) =>
@@ -354,13 +357,13 @@ export function F24Generator({
             </div>
 
             <div className="space-y-1.5">
-              <Label>Mese di riferimento</Label>
+              <Label htmlFor={`${formId}-mese`}>Mese di riferimento</Label>
               <Select
                 value={form.mese}
                 disabled={!!periodMonth}
                 onValueChange={(v) => setForm((f) => ({ ...f, mese: v }))}
               >
-                <SelectTrigger>
+                <SelectTrigger id={`${formId}-mese`}>
                   <SelectValue placeholder="Seleziona mese..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -377,10 +380,11 @@ export function F24Generator({
             </div>
 
             <div className="space-y-1.5 sm:col-span-2">
-              <Label>
+              <Label htmlFor={`${formId}-riferimento`}>
                 Riferimento al prospetto del consulente (obbligatorio)
               </Label>
               <Textarea
+                id={`${formId}-riferimento`}
                 placeholder="Note aggiuntive..."
                 value={form.note}
                 onChange={(e) =>

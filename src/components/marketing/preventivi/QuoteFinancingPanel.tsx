@@ -144,7 +144,7 @@ export function QuoteFinancingPanel({ quoteTotal, value, onChange }: Props) {
             Proposta di Finanziamento
           </span>
           <div className="flex items-center gap-2">
-            <Switch checked={enabled} onCheckedChange={setEnabled} />
+            <Switch aria-label="Includi proposta di finanziamento" checked={enabled} onCheckedChange={setEnabled} />
             {/* Telefono: basta l'interruttore, la scritta mandava il titolo su due righe. */}
             <Label className="text-sm max-sm:hidden">{enabled ? "Inclusa nel preventivo" : "Non inclusa"}</Label>
           </div>

@@ -101,6 +101,7 @@ export function ProviderChoiceDialog({ open, onOpenChange, onConfirm }: Props) {
             <button
               type="button"
               onClick={() => setMode("quick")}
+              aria-pressed={mode === "quick"}
               className={cn(
                 "flex items-start gap-3 rounded-xl border p-3 text-left",
                 mode === "quick"
@@ -128,6 +129,7 @@ export function ProviderChoiceDialog({ open, onOpenChange, onConfirm }: Props) {
             <button
               type="button"
               onClick={() => setMode("advanced")}
+              aria-pressed={mode === "advanced"}
               className={cn(
                 "flex items-start gap-3 rounded-xl border p-3 text-left",
                 mode === "advanced"
@@ -160,6 +162,7 @@ export function ProviderChoiceDialog({ open, onOpenChange, onConfirm }: Props) {
           <button
             type="button"
             onClick={() => setSelected("meta")}
+            aria-pressed={selected === "meta"}
             className={cn(
               "rounded-2xl border p-5 text-left transition",
               selected === "meta"
@@ -203,6 +206,7 @@ export function ProviderChoiceDialog({ open, onOpenChange, onConfirm }: Props) {
           <button
             type="button"
             onClick={() => setSelected("google")}
+            aria-pressed={selected === "google"}
             className={cn(
               "rounded-2xl border p-5 text-left transition",
               selected === "google"
@@ -262,6 +266,7 @@ export function ProviderChoiceDialog({ open, onOpenChange, onConfirm }: Props) {
                     key={channel.value}
                     type="button"
                     onClick={() => setGoogleChannel(channel.value)}
+                    aria-pressed={active}
                     className={cn(
                       "flex items-start gap-3 rounded-lg border p-3 text-left transition",
                       active ? "border-amber-400 bg-white shadow-sm" : "border-slate-200 bg-white/60 hover:bg-white",
