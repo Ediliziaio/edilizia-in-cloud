@@ -22,7 +22,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 function monta(file = new File(["foto"], "pianta.png", { type: "image/png" })) {
-  render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={["/azienda/render/planimetrie/nuova?da=documento"]}><RenderPlanimetriaNuova /></MemoryRouter></QueryClientProvider>);
+  render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={["/azienda/planimetrie/nuova?da=documento"]}><RenderPlanimetriaNuova /></MemoryRouter></QueryClientProvider>);
   fireEvent.change(screen.getByLabelText("PDF o foto della pianta"), { target: { files: [file] } });
   return screen.getByRole("button", { name: "Ricava la pianta" }) as HTMLButtonElement;
 }

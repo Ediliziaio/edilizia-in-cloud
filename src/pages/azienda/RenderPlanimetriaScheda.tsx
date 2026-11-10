@@ -1,10 +1,12 @@
 import { MaterialiProgetto } from "@/components/planimetrie/MaterialiProgetto";
+import { CollegamentiPiantaDialog, RiferimentiPianta } from "@/components/planimetrie/CollegamentiPianta";
+import { accessiCollegamenti, useCollegamentiPiante } from "@/lib/planimetrie/collegamenti";
 import { controlliDalDocumento } from "../../../shared/planimetrie/letturaDocumento.ts";
 import { AnteprimaPianta } from "@/components/planimetrie/AnteprimaPianta";
 import { creaAnteprimaPianta } from "@/lib/planimetrie/anteprime";
 import { ambitoGeometriaDelPiano } from "../../../shared/planimetrie/materialiProgetto.ts";
 /**
- * Render AI → Planimetrie → una pianta: le sue stanze, il 3D e i render fatti.
+ * Planimetrie → una pianta: le sue stanze, il 3D e i render fatti.
  *
  * Da ogni stanza: «Fai il render di questa stanza». Si sceglie lo stato (com'è oggi o il
  * progetto) e, se ci sono più piani, il piano. Le misure stimate dall'AI si vedono come
@@ -59,6 +61,8 @@ export default function RenderPlanimetriaScheda() {
   const chiudiGalleria = () => setParams((p) => { const n = new URLSearchParams(p); n.delete("galleria"); return n; }, { replace: true });
   const permessi = usePermissions();
   const { data, isLoading, error } = usePlanimetria(id);
+  const collegamenti = useCollegamentiPiante(data?.riga.company_id, data ? [data.riga] : [], accessiCollegamenti(permessi));
+  const [gestisciCollegamenti, setGestisciCollegamenti] = useState(false);
   const { data: renders = [] } = useRenderDellaPianta(id);
   const documento = data?.versione.documento;
   const livelloId = params.get("livello");
@@ -162,6 +166,11 @@ export default function RenderPlanimetriaScheda() {
         titolo={data.riga.titolo}
         sottotitolo={`Versione ${data.versione.numero}`}
       />
+
+      <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-3" aria-label="Collegamenti del progetto">
+        <div className="min-w-0 space-y-2"><h2 className="text-sm font-semibold">Collegamenti del progetto</h2><RiferimentiPianta riga={data.riga} mappa={collegamenti.data} /></div>
+        {!permessi.solaLettura && <Button variant="outline" size="sm" onClick={() => setGestisciCollegamenti(true)}>Associa</Button>}
+      </section>
 
       {/* Azioni: una sola in evidenza (modificare), le altre sullo stesso piano e leggibili; sul telefono solo le icone. */}
       <div className="flex flex-wrap items-center gap-2 max-md:flex-nowrap" role="toolbar" aria-label="Azioni sulla pianta">
@@ -442,6 +451,7 @@ export default function RenderPlanimetriaScheda() {
           </div>
         </section>
       )}
+      {gestisciCollegamenti && <CollegamentiPiantaDialog riga={data.riga} mappa={collegamenti.data} onChiudi={() => setGestisciCollegamenti(false)} />}
     </div>
   );
 }

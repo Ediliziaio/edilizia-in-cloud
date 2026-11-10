@@ -1,4 +1,5 @@
 import { classificaBozzeRender } from "@/lib/render/renderDrafts";
+import { loadRenderPlanOrigins, type RenderPlanOrigin } from "@/lib/render/renderPlanOrigin";
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -92,6 +93,7 @@ type RecentRenderRow = {
   contact_id: string | null;
   opportunity_id: string | null;
   meta: RenderGalleryMeta;
+  planOrigin?: RenderPlanOrigin;
 };
 
 const getRenderDate = (value: string) => {
@@ -147,10 +149,11 @@ export function RenderModuleHubPage({
 
       if (error) throw error;
       const rows = await classificaBozzeRender((data ?? []) as unknown as Omit<RecentRenderRow, "meta">[], companyId);
-      const metaMaps = await loadRenderGalleryMeta(rows);
+      const [metaMaps, origins] = await Promise.all([loadRenderGalleryMeta(rows), loadRenderPlanOrigins(rows, companyId)]);
       return rows.map((row) => ({
         ...row,
         meta: resolveRenderGalleryMeta(row, metaMaps),
+        planOrigin: origins[row.id],
       }));
     },
     enabled: !!companyId,
@@ -181,6 +184,8 @@ export function RenderModuleHubPage({
         session.meta.createdByName,
         session.meta.contactName,
         session.meta.opportunityName,
+        session.planOrigin?.roomName,
+        session.planOrigin?.projectTitle,
       ].filter(Boolean).join(" ").toLowerCase();
 
       return (!needle || haystack.includes(needle)) &&
@@ -191,7 +196,7 @@ export function RenderModuleHubPage({
   }, [crmFilter, sessionSearch, sessions, statusFilter]);
 
   const completedPreviews = sessions
-    .filter((item) => normalizeRenderStatus(item.status) === "completed" && item.result_url)
+    .filter((item) => normalizeRenderStatus(item.status) === "completed" && (item.result_url || item.result_urls?.[0]))
     .slice(0, 6);
 
   const detailPath = (id: string) => galleryPath ? `${galleryPath}/${id}` : null;
@@ -353,7 +358,7 @@ export function RenderModuleHubPage({
                 // tecnici che salvano l'array invece di result_url singolo.
                 // Skip tile se nessuno dei due è disponibile (era un tile
                 // rotto con src vuoto e bordo grigio = confonde l'utente).
-                const previewUrl = item.result_url ?? (item as any).result_urls?.[0] ?? null;
+                const previewUrl = item.result_url ?? item.result_urls?.[0] ?? null;
                 if (!previewUrl) return null;
                 return (
                   <button
@@ -365,12 +370,13 @@ export function RenderModuleHubPage({
                   >
                     <img
                       src={previewUrl}
-                      alt={`Render ${moduleName}`}
+                      alt={`Render ${item.planOrigin?.roomName ?? moduleName}`}
                       className={`h-full w-full ${imageFit === "contain" ? "object-contain" : "object-cover"} transition-transform duration-300 group-hover:scale-105`}
                       loading="lazy"
                       decoding="async"
                     />
                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3 max-md:p-2">
+                      {item.planOrigin && <p className="truncate text-sm font-semibold text-white">{item.planOrigin.roomName} · Da planimetria</p>}
                       <p className="text-xs font-medium text-white max-md:text-[11px]">{getRenderDate(item.created_at)}</p>
                       <Badge className="mt-1 border-0 bg-white/90 text-[10px] text-slate-900 max-md:hidden">
                         {moduleName}
@@ -498,7 +504,7 @@ export function RenderModuleHubPage({
               const status = normalizeRenderStatus(session.status);
               const cfg = STATUS_CONFIG[status];
               const Icon = cfg.icon;
-              const resultUrl = session.result_url;
+              const resultUrl = session.result_url ?? session.result_urls?.[0] ?? null;
               const path = detailPath(session.id);
               return (
                 <Card
@@ -524,6 +530,7 @@ export function RenderModuleHubPage({
                     </div>
 
                     <div className="min-w-0">
+                      {session.planOrigin && <p className="mb-1 truncate text-sm font-semibold">{session.planOrigin.roomName} · {session.planOrigin.projectTitle ?? "Da planimetria"}</p>}
                       <div className="flex flex-wrap items-center gap-1.5">
                         <Badge variant={cfg.color} className="h-5 gap-1 text-xs">
                           <Icon className="h-2.5 w-2.5" />

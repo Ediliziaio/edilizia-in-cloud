@@ -17,6 +17,7 @@ let computo: ComputoCommessa;
 let voci: VoceComputo[];
 let cambiate: Array<{ pianta: { id: string; titolo: string; versioneCorrente: number }; confronto: ConfrontoRiga[] }>;
 let origine: Origine | null;
+let piantaAssociata: string | null = null;
 
 const trilocale = JSON.parse(readFileSync(join(process.cwd(), "shared/planimetrie/esempi/trilocale.json"), "utf8"));
 
@@ -44,11 +45,11 @@ vi.mock("@/hooks/useComputoPianta", () => ({
 }));
 vi.mock("@/lib/planimetrie/archivio", () => ({
   useElencoPlanimetrie: () => ({ data: [
-    { id: "p9", titolo: "Pianta di un'altra commessa", order_id: "o9" },
+    { id: "p9", titolo: "Pianta di un'altra commessa", order_id: "o9", computo_upload_id: piantaAssociata === "p9" ? "k1" : null },
     { id: "p1", titolo: "Rilievo appartamento", order_id: "o1" },
   ], isLoading: false, error: null as Error | null }),
   usePlanimetria: (id: string | null) => ({
-    data: id === "p1" ? { riga: { id: "p1" }, versione: { numero: 3, created_at: "2026-10-30T10:00:00Z", documento: trilocale } } : undefined,
+    data: id === "p1" || id === piantaAssociata ? { riga: { id }, versione: { numero: 3, created_at: "2026-10-30T10:00:00Z", documento: trilocale } } : undefined,
     isLoading: false, error: null as Error | null,
   }),
 }));
@@ -85,6 +86,7 @@ beforeEach(() => {
   voci = [voce(1, {}), voce(2, { quantita: 5, importo_computo: 50, misure: [rigaDaPianta] })];
   cambiate = [];
   origine = "rilevata";
+  piantaAssociata = null;
 });
 
 describe("righe di misura prese dalla pianta", () => {
@@ -108,6 +110,14 @@ describe("righe di misura prese dalla pianta", () => {
 });
 
 describe("«Prendi dalla pianta»", () => {
+  it("propone la planimetria associata al computo prima di quella generica della commessa", () => {
+    piantaAssociata = "p9";
+    render(<OrderComputoTab orderId="o1" companyId="c1" canEdit />);
+    apriVoce2();
+    fireEvent.click(screen.getByRole("button", { name: "Prendi dalla pianta" }));
+    expect(screen.getByLabelText("1. Quale pianta")).toHaveValue("p9");
+    expect(screen.getByRole("group", { name: "Associate a questo computo" })).toHaveTextContent("Pianta di un'altra commessa");
+  });
   it("parte dalla pianta della commessa, si scelgono le stanze e nascono le righe", () => {
     render(<OrderComputoTab orderId="o1" companyId="c1" canEdit />);
     apriVoce2();

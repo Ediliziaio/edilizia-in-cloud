@@ -74,12 +74,11 @@ const MOBILE_HIDDEN_AREAS = new Set<string>(["area_automazioni"]);
 
 /**
  * Le voci che restano anche dentro una sezione nascosta (richieste utente del
- * 2026-09-25): Render AI — dal telefono in cantiere si fa la foto e si genera
- * il render; Centralino — disponibilità, tastierino e storico chiamate;
+ * 2026-09-25): Centralino — disponibilità, tastierino e storico chiamate;
  * Automazioni (08/11/2026) — l'elenco dei flussi. Restano fuori agenti AI,
- * WhatsApp e SMS.
+ * WhatsApp e SMS. Planimetrie e Render AI sono in Marketing & Vendita → Progettazione.
  */
-const MOBILE_VISIBLE_IN_HIDDEN_AREAS = new Set<string>(["/azienda/render", "/azienda/centralino", "/azienda/automazioni"]);
+const MOBILE_VISIBLE_IN_HIDDEN_AREAS = new Set<string>(["/azienda/centralino", "/azienda/automazioni"]);
 
 /**
  * Palette per macroArea — ogni sezione ha il suo colore identificativo.

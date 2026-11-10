@@ -8,6 +8,7 @@ import { Route, Navigate, useLocation, useParams } from "react-router-dom";
 // "Cannot access before initialization" nei componenti) segnala un falso positivo.
 import { COMPANY_ROLES, withCompanyPermission } from "./company/_shared";
 import { AcquistiDaFareRedirect } from "./company/AcquistiDaFareRedirect";
+import { LegacyPlanimetrieRedirect } from "./company/LegacyPlanimetrieRedirect";
 import type { Permissions } from "@/hooks/usePermissions";
 import { canAccessMediaLibrary } from "@/lib/mediaLibrary";
 import { useAuth, COMPANY_CHOSEN_KEY } from "@/contexts/AuthContext";
@@ -925,11 +926,13 @@ export default function CompanyRoutesContainer() {
         <Route path="render/stanza/new" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderStanzaNew /></FeatureRoute>)} />
         <Route path="render/stanza/gallery" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderStanzaGallery /></FeatureRoute>)} />
         <Route path="render/stanza/gallery/:id" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderStanzaGalleryDetail /></FeatureRoute>)} />
-        <Route path="render/planimetrie" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetrieHub /></FeatureRoute>)} />
-        <Route path="render/planimetrie/nuova" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetriaNuova /></FeatureRoute>)} />
-        <Route path="render/planimetrie/:id" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetriaScheda /></FeatureRoute>)} />
-        <Route path="render/planimetrie/:id/modifica" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetriaModifica /></FeatureRoute>)} />
-        <Route path="render/planimetrie/:id/stanza/:localeId" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetriaStanza /></FeatureRoute>)} />
+        {/* Planimetrie autonome; stessi permessi e collegamenti alle generazioni delle stanze. */}
+        <Route path="planimetrie" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetrieHub /></FeatureRoute>)} />
+        <Route path="planimetrie/nuova" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetriaNuova /></FeatureRoute>)} />
+        <Route path="planimetrie/:id" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetriaScheda /></FeatureRoute>)} />
+        <Route path="planimetrie/:id/modifica" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetriaModifica /></FeatureRoute>)} />
+        <Route path="planimetrie/:id/stanza/:localeId" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetriaStanza /></FeatureRoute>)} />
+        <Route path="render/planimetrie/*" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><LegacyPlanimetrieRedirect /></FeatureRoute>)} />
         <Route path="render/ristrutturazioni" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleHub moduleId="ristrutturazioni" /></FeatureRoute>)} />
         <Route path="render/ristrutturazioni/new" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleNew moduleId="ristrutturazioni" /></FeatureRoute>)} />
         <Route path="render/ristrutturazioni/gallery" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGallery moduleId="ristrutturazioni" /></FeatureRoute>)} />

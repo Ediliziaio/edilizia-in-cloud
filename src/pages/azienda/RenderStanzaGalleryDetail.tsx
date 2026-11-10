@@ -1,4 +1,5 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
+import { renderPlanOrigin } from "@/lib/render/renderPlanOrigin";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -13,7 +14,7 @@ import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
 import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import {
   ArrowLeft, Download, Share2, MessageCircle, Loader2, Sofa,
-  CheckCircle2, XCircle, Zap, Clock,
+  CheckCircle2, XCircle, Zap, Clock, LayoutPanelTop,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -35,7 +36,7 @@ export default function RenderStanzaGalleryDetail() {
   const companyId = effectiveCompany?.id;
 
   const { data: session, isLoading } = useQuery({
-    queryKey: ["render-stanza-session-detail", id],
+    queryKey: ["render-stanza-session-detail", companyId, id],
     queryFn: async () => {
       if (!id || !companyId) return null;
       const { data, error } = await supabase
@@ -127,6 +128,7 @@ export default function RenderStanzaGalleryDetail() {
     STATUS_CONFIG.pending;
   const StatusIcon = statusCfg.icon;
   const config = session.config as (Record<string, unknown> & { tipo_stanza?: string; stile_target?: string; intensita?: string }) | null;
+  const origin = renderPlanOrigin(config);
   const activeChoices = config
     ? Object.entries(config)
       .filter(([, value]) => value && typeof value === "object" && "attivo" in (value as Record<string, unknown>) && (value as Record<string, unknown>).attivo)
@@ -141,7 +143,7 @@ export default function RenderStanzaGalleryDetail() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-xl font-bold max-md:text-lg">Dettaglio render stanza</h1>
+          <h1 className="text-xl font-bold max-md:text-lg">{origin ? `Render · ${origin.roomName}` : "Dettaglio render stanza"}</h1>
           <p className="text-sm text-muted-foreground max-md:text-[11px]">
             {format(new Date(session.created_at), "d MMMM yyyy, HH:mm", { locale: it })}
           </p>
@@ -151,6 +153,13 @@ export default function RenderStanzaGalleryDetail() {
           {statusCfg.label}
         </Badge>
       </div>
+
+      {origin && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/30 p-3">
+          <p className="text-sm text-muted-foreground">{origin.roomName} · Da planimetria, versione {origin.version}</p>
+          <Button asChild variant="outline" size="sm"><Link to={origin.projectPath}><LayoutPanelTop className="mr-2 h-4 w-4" />Apri planimetria</Link></Button>
+        </div>
+      )}
 
       {/* Processing state */}
       {session.status === "processing" && (

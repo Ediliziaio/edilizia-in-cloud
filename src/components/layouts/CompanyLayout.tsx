@@ -272,6 +272,7 @@ const SCOPRI_LOCKED_ROUTES = [
   "/azienda/manodopera",
   "/azienda/sicurezza-cantiere",
   "/azienda/render",
+  "/azienda/planimetrie",
   "/azienda/agenti-ai",
   "/azienda/automazioni",
 ];

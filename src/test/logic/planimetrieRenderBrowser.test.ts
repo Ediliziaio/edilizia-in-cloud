@@ -12,7 +12,7 @@ describe("render dalla pianta — browser", () => {
 
   it("indirizzi delle pagine", () => {
     expect(percorsiPlanimetrie.renderStanza("p1", "l 1", { livelloId: "pt", ambito: "progetto:A" }))
-      .toBe("/azienda/render/planimetrie/p1/stanza/l%201?livello=pt&ambito=progetto%3AA");
-    expect(percorsiPlanimetrie.nuova("documento")).toBe("/azienda/render/planimetrie/nuova?da=documento");
+      .toBe("/azienda/planimetrie/p1/stanza/l%201?livello=pt&ambito=progetto%3AA");
+    expect(percorsiPlanimetrie.nuova("documento")).toBe("/azienda/planimetrie/nuova?da=documento");
   });
 });

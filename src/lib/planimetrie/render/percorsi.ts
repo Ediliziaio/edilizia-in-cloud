@@ -1,5 +1,5 @@
 /**
- * Planimetrie nella sezione Render AI (fase 5b): gli indirizzi delle pagine.
+ * Planimetrie è uno spazio autonomo, collegato ai render delle sue stanze.
  *
  * Un solo posto per gli ingressi che portano ad altre fasi: «Disegna» apre l'editor
  * (fase 2, `RenderPlanimetriaNuova` e `RenderPlanimetriaModifica`), «Carica PDF o foto» e
@@ -7,7 +7,14 @@
  */
 export type ModoNuovaPianta = "disegno" | "documento" | "testo" | "sopralluogo";
 
-const BASE = "/azienda/render/planimetrie";
+const BASE = "/azienda/planimetrie";
+const BASE_LEGACY = "/azienda/render/planimetrie";
+
+/** Mantiene preferiti, PDF e link già inviati, compresi piano, variante e stanza. */
+export function percorsoPlanimetriaAttuale(pathname: string, search = "", hash = ""): string {
+  const path = pathname === BASE_LEGACY || pathname.startsWith(`${BASE_LEGACY}/`) ? BASE + pathname.slice(BASE_LEGACY.length) : BASE;
+  return `${path}${search}${hash}`;
+}
 
 export const percorsiPlanimetrie = {
   elenco: BASE,
