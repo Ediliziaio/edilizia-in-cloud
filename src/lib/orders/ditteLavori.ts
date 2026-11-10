@@ -107,6 +107,61 @@ export function elencoLavoriDitta(
     });
 }
 
+/** Un affidamento di una voce a una ditta (subappalto_affidamenti), quanto serve al contratto. */
+export interface AffidamentoPerContratto {
+  id: string;
+  voce_id: string;
+  subappaltatore_id: string;
+  quantita: number;
+  prezzo_unitario: number | null;
+  origine_prezzo: "listino_ditta" | "costo_aziendale" | "manuale";
+  comprende: "posa" | "fornitura_e_posa";
+  stato: "bozza" | "a_contratto";
+  contratto_id?: string | null;
+}
+
+/**
+ * Lotto 5 (10/11/2026): l'elenco del contratto dalle voci affidate alla ditta, non da tutte le voci delle
+ * sue fasi. Entrano le quote libere (in bozza) e quelle già di questo contratto; quantità e prezzo sono
+ * quelli della quota. Il venduto non c'è: non esce mai dall'impresa. Vuoto se la ditta non ha affidamenti.
+ */
+export function elencoDaAffidamenti(
+  fasi: Array<{ id: string; name: string; position?: number | null }>,
+  voci: VoceLavoro[],
+  affidamenti: ReadonlyArray<AffidamentoPerContratto>,
+  anagraficaId: string | null,
+  contrattoId: string | null,
+): RigaElencoLavori[] {
+  if (!anagraficaId) return [];
+  const voce = new Map(voci.map((v) => [v.id, v]));
+  const fase = new Map(fasi.map((f) => [f.id, f]));
+  return affidamenti
+    .filter((a) => a.subappaltatore_id === anagraficaId && (a.stato === "bozza" || (!!contrattoId && a.contratto_id === contrattoId)))
+    .flatMap((a) => {
+      const v = voce.get(a.voce_id);
+      return v ? [{ a, v, f: fase.get(v.phase_id) }] : [];
+    })
+    .sort((x, y) => (x.f?.position ?? 0) - (y.f?.position ?? 0) || (x.v.position ?? 0) - (y.v.position ?? 0))
+    .map(({ a, v, f }) => {
+      const prezzo = Number(a.prezzo_unitario) || 0;
+      return {
+        fase: f?.name ?? "Altri lavori",
+        descrizione: v.descrizione,
+        unita: v.unita,
+        quantita: Number(a.quantita) || 0,
+        prezzo,
+        importo: centesimi((Number(a.quantita) || 0) * prezzo),
+        codice: v.origine_codice ?? null,
+        fase_id: v.phase_id,
+        sottofase_id: v.subphase_id ?? null,
+        voce_id: v.id,
+        affidamento_id: a.id,
+        comprende: a.comprende,
+        origine: a.origine_prezzo,
+      };
+    });
+}
+
 /** Dal primo inizio all'ultima fine delle fasi affidate: le date del contratto. */
 export function periodoFasi(fasi: Array<{ id: string; start_date?: string | null; end_date?: string | null }>, faseIds: string[]) {
   const scelte = fasi.filter((f) => faseIds.includes(f.id));
@@ -173,6 +228,9 @@ export function elencoDaSalvare(righe: RigaElencoLavori[]): RigaElencoLavori[] {
       ...(r.codice != null ? { codice: r.codice } : {}),
       ...(r.fase_id ? { fase_id: r.fase_id } : {}),
       ...(r.sottofase_id ? { sottofase_id: r.sottofase_id } : {}),
+      ...(r.voce_id ? { voce_id: r.voce_id } : {}),
+      ...(r.affidamento_id ? { affidamento_id: r.affidamento_id } : {}),
+      ...(r.comprende ? { comprende: r.comprende } : {}),
     }))
     .filter((r) => r.descrizione && r.quantita > 0);
 }

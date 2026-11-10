@@ -104,7 +104,7 @@ describe("regole delle commesse", () => {
   });
 
   it("assegnazioni di cantiere: azienda e ruoli dalle funzioni, senza sottoquery su profiles e user_roles", () => {
-    const testo = regole.match(/alter policy oca_select on public\.order_campo_assignments[\s\S]*?\n  \);/)![0];
+    const testo = regole.match(/alter policy oca_select on public\.order_campo_assignments[\s\S]*?\n {2}\);/)![0];
     expect(testo).not.toMatch(/from public\.profiles|from public\.user_roles/);
     expect(testo).toMatch(/\(select public\.get_user_company_id\(\(select auth\.uid\(\)\)\)\)/);
     expect(testo).toMatch(/'company_admin'::public\.app_role[\s\S]*'company_staff'::public\.app_role[\s\S]*'super_admin'::public\.app_role/);

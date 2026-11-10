@@ -65,7 +65,7 @@ type AnyRow = any;
 async function fetchProduttori(): Promise<{ produttori: Produttore[]; totals: { produttori: number; rivenditori: number; comped: number } }> {
   // parent_company_id / reseller_billing_mode / billing_comped / whitelabel_tier non
   // sono nei tipi generati (migration recente) → client non tipizzato.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const sb = supabase;
 
   // PERF: 5 round-trip sequenziali → 3 livelli. I ruoli produttore_admin non
@@ -695,7 +695,7 @@ function ProduttorePiani({ produttoreId }: { produttoreId: string }) {
     queryKey: ["admin-produttore-plans", produttoreId],
     staleTime: 60_000,
     queryFn: async (): Promise<CustomPlan[]> => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const sb = supabase;
       const { data, error } = await sb
         .from("subscription_plans")

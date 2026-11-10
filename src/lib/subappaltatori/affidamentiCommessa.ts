@@ -29,6 +29,8 @@ export interface AffidamentoChiFaCosa {
   origine_prezzo: "listino_ditta" | "costo_aziendale" | "manuale";
   comprende: "posa" | "fornitura_e_posa";
   stato: "bozza" | "a_contratto";
+  /** Il contratto che la contiene (lotto 5): una quota a contratto si cambia dal contratto. */
+  contratto_id?: string | null;
 }
 
 /** La chiave della cache degli affidamenti di una commessa. */

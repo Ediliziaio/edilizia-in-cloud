@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import {render,screen,fireEvent,waitFor,cleanup} from "@testing-library/react";
-import {describe,it,expect,vi,beforeEach,afterEach} from "vitest";
+import {it,expect,vi,beforeEach,afterEach} from "vitest";
 const m=vi.hoisted(()=>({upload:vi.fn(),remove:vi.fn(),signed:vi.fn(),success:vi.fn(),error:vi.fn()}));
 vi.mock("@/integrations/supabase/client",()=>({supabase:{storage:{from:()=>({upload:m.upload,remove:m.remove,createSignedUrl:m.signed})}}}));
 vi.mock("sonner",()=>({toast:{success:m.success,error:m.error}}));

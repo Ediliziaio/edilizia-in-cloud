@@ -15,7 +15,6 @@ import { useState, useEffect } from "react";
 import type { LucideIcon } from "lucide-react";
 import { blogIndice as blogPosts } from "@/data/blogIndice";
 import { BlogCover } from "@/components/blog/BlogCover";
-import type { JSX } from "react";
 
 // ── Catalogo settori per cross-linking ──────────────────────────────────────
 const ALL_SECTORS = [

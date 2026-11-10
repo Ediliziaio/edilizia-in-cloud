@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
-import { EVENTI_RATA, GRUPPI_EVENTO, type GruppoEvento } from "@/lib/orders/rateEventi";
+import { EVENTI_RATA, GRUPPI_EVENTO } from "@/lib/orders/rateEventi";
 import { useModelliPagamento } from "@/hooks/useModelliPagamento";
 import {
   MAX_NOME_RATA_PIANO, MAX_RATE_PIANO, cambiaModo, leggiPianoPagamento, partenzeDelModulo, pianoCompleto,

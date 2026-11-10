@@ -48,4 +48,45 @@ describe("elenco dei lavori del contratto (Dimora, 31/10/2026)", () => {
     expect(screen.getByDisplayValue("Tramezzi")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Battiscopa")).toBeInTheDocument();
   });
+
+  it("dalle voci affidate (lotto 5): da dove viene il prezzo e cosa comprende; un prezzo cambiato diventa «a mano» e gli id restano", () => {
+    const affidate: RigaElencoLavori[] = [
+      { fase: "Intonaci", descrizione: "Intonaco civile", unita: "mq", quantita: 300, prezzo: 14, importo: 4200, voce_id: "v1", affidamento_id: "a1", comprende: "posa", origine: "listino_ditta" },
+      { fase: "Intonaci", descrizione: "Rasatura", unita: "mq", quantita: 10, prezzo: 8, importo: 80, voce_id: "v2", affidamento_id: "a2", comprende: "fornitura_e_posa", origine: "costo_aziendale" },
+    ];
+    const salva = vi.fn();
+    function ProvaAffidate() {
+      const [righe, setRighe] = useState(affidate.map((r) => ({ ...r })));
+      return <ElencoLavoriDialog titolo="Nuovo contratto" righe={righe} onRighe={setRighe} dalleVoci={affidate} fasi={["Intonaci"]} daAffidamenti
+        tariffe={[]} dittaId="d1" varianti={[]} importoPattuito={null} salvando={false}
+        etichettaSalva="Crea il contratto in bozza" onSalva={() => salva(righe)} onChiudi={vi.fn()} />;
+    }
+    render(<ProvaAffidate />);
+    expect(screen.getByText(/solo posa · prezzo:/)).toBeInTheDocument();
+    expect(screen.getByText("listino della ditta")).toBeInTheDocument();
+    expect(screen.getByText("costo nostro, non della ditta")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Riprendi le voci affidate" })).toBeInTheDocument();
+    const p = screen.getByLabelText("Prezzo della riga 1");
+    fireEvent.change(p, { target: { value: "13,5" } }); fireEvent.blur(p);
+    expect(screen.getAllByText("a mano")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Crea il contratto in bozza" }));
+    const [salvate] = salva.mock.calls[0] as [RigaElencoLavori[]];
+    expect(salvate[0]).toMatchObject({ prezzo: 13.5, importo: 4050, affidamento_id: "a1", voce_id: "v1", comprende: "posa" });
+  });
+
+  it("una voce affidata senza prezzo non entra nel contratto: il salvataggio resta spento finché non c'è", () => {
+    const riga: RigaElencoLavori = { fase: "Sottofondi", descrizione: "Massetto", unita: "mq", quantita: 100, prezzo: 0, importo: 0, affidamento_id: "a3", origine: "manuale" };
+    function ProvaSenza() {
+      const [righe, setRighe] = useState([{ ...riga }]);
+      return <ElencoLavoriDialog titolo="Nuovo contratto" righe={righe} onRighe={setRighe} dalleVoci={[riga]} fasi={["Sottofondi"]} daAffidamenti
+        tariffe={[]} dittaId="d1" varianti={[]} importoPattuito={null} salvando={false}
+        etichettaSalva="Crea il contratto in bozza" onSalva={vi.fn()} onChiudi={vi.fn()} />;
+    }
+    render(<ProvaSenza />);
+    expect(screen.getByRole("alert").textContent).toMatch(/voce affidata è senza prezzo/);
+    expect(screen.getByRole("button", { name: "Crea il contratto in bozza" })).toBeDisabled();
+    const p = screen.getByLabelText("Prezzo della riga 1");
+    fireEvent.change(p, { target: { value: "12" } }); fireEvent.blur(p);
+    expect(screen.getByRole("button", { name: "Crea il contratto in bozza" })).toBeEnabled();
+  });
 });

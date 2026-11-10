@@ -12,7 +12,7 @@ import { StatoSalvataggio } from "@/components/impostazioni/StatoSalvataggio";
  */
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { ArrowUpRight, Info, Loader2, Save, Users, CalendarDays, ListChecks, ClipboardCheck } from "lucide-react";
+import { ArrowUpRight, Info, Loader2, Users, CalendarDays, ListChecks, ClipboardCheck } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";

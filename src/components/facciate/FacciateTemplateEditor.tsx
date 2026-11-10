@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { TemplateRowsEditor, TemplateSectionCard } from "@/components/preventivi/TemplateContentControls";
 import { Switch } from "@/components/ui/switch";
-import { Eye, EyeOff, Images, Loader2, Save, Wand2 } from "lucide-react";
+import { Eye, Images, Loader2, Save, Wand2 } from "lucide-react";
 import { templateEditorLayout, TemplateEditorNavigation, TemplateEditorSaveBar, TemplateEditorWorkspace } from "@/components/preventivi/TemplateEditorLayout";
 import { COVER_PRESETS } from "@/components/termoidraulico/coverPresets";
 import { TemplateCoverStylePicker, TemplateCoverTextFields } from "@/components/preventivi/TemplateCoverControls";

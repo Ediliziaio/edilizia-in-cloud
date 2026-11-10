@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   htmlToRichBlocks,
   decodeHtmlEntities,
-  richBlocksToPlainText,
 } from "@/lib/ristrutturazione/richTextPdf";
 
 describe("richTextPdf — htmlToRichBlocks", () => {

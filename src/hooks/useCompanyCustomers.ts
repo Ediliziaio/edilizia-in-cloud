@@ -70,7 +70,7 @@ export function useCompanyCustomers(companyId: string | null | undefined, enable
           }).rpc("get_company_customers", { p_company_id: companyId });
 
           if (!error && Array.isArray(data)) {
-            // eslint-disable-next-line no-console
+             
             console.info(`[EIC picker] clienti azienda ${companyId}: ${data.length} (via RPC)`);
             return data as CompanyCustomer[];
           }
@@ -118,7 +118,7 @@ export function useCompanyCustomers(companyId: string | null | undefined, enable
         // nella Nuova Commessa: es. commessa intestata a un dipendente).
         if (ruoliLeggibili) {
           const filtrati = profili.filter((p) => clienti.has(p.id));
-          // eslint-disable-next-line no-console
+           
           console.info(`[EIC picker] clienti azienda ${companyId}: ${filtrati.length} (via fallback profiles+user_roles). RPC aveva fallito: ${rpcErrMsg || "n/d"}`);
           return filtrati.map((p) => ({ id: p.id, first_name: p.first_name, last_name: p.last_name, email: p.email }));
         }
@@ -129,7 +129,7 @@ export function useCompanyCustomers(companyId: string | null | undefined, enable
       // ── Strategia 3: lista vuota (graceful) ────────────────────────────
       // Non lanciamo errore: l'utente vede dropdown vuoto MA può sempre
       // cliccare "+" per crearne uno nuovo. Più resiliente del throw originale.
-      // eslint-disable-next-line no-console
+       
       console.warn(`[EIC picker] NESSUN cliente mostrato per azienda ${companyId}. Sia la RPC sia il fallback hanno fallito. Ultimo errore RPC: ${rpcErrMsg || "n/d"}`);
       return [];
     },

@@ -71,8 +71,12 @@ describe("promptAgenteLead", () => {
 
   it("senza nome né risposte non scrive segnaposto", () => {
     const p = promptAgenteLead({ ...BASE, contatto: { nome: null, cognome: null }, qualificazione: {}, faseAttuale: null });
-    expect(p).not.toContain("null");
-    expect(p).not.toContain("undefined");
+    // Parola intera: il 10/11/2026 questo controllo si è acceso su «annullato»,
+    // che «null» ce l'ha dentro. Cercare il segnaposto come sottostringa vieta
+    // all'italiano parole legittime; quello che non deve comparire è il valore
+    // `null` per conto suo.
+    expect(p).not.toMatch(/\bnull\b/);
+    expect(p).not.toMatch(/\bundefined\b/);
   });
 });
 

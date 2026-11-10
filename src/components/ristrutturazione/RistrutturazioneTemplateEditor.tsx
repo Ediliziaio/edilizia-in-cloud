@@ -35,7 +35,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
-  Save, Loader2, Upload, Image as ImageIcon, Plus, Trash2, GripVertical,
+  Save, Loader2, Image as ImageIcon, Trash2,
   Palette, FileText, Sparkles, ListChecks, Clock, Building2,
   Eye, EyeOff, BadgeEuro, AlertTriangle, FileSearch, Route, Percent,
   Wand2, Check, ListOrdered,} from "lucide-react";
@@ -45,11 +45,9 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { CondizioniContratto } from "@/components/preventivi/CondizioniContratto";
 import { OrdineCapitoli } from "@/components/preventivi/OrdineCapitoli";
@@ -58,7 +56,6 @@ import { PAGINE_EDITOR_EDILI } from "@/components/preventivi/pagineEditor";
 import { tipografiaDaModello } from "@/components/preventivi/pdf/temaDocumento";
 
 /** Blocco della libreria Template offerte → testo semplice per la textarea. */
-import { Slider } from "@/components/ui/slider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { RichTextEditorSafe } from "@/components/ui/rich-text-editor-safe";
@@ -77,7 +74,7 @@ import {
   type RstTemplatePatch,
 } from "@/hooks/useRistrutturazioneProgetto";
 import type {
-  RstTemplatePdf, RstListItem, RstFaqItem, RstTestimonianza, RstCronoFase,
+  RstTemplatePdf, RstListItem, RstFaqItem, RstCronoFase,
   RstProgetto, RstComputoVoce,
 } from "@/types/ristrutturazione";
 import {

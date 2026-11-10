@@ -115,7 +115,7 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
   // scadenza precedente restavano nel form.
   useEffect(() => {
     if (open) reset();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [open]);
 
   const isValid = description.trim() && Number(amount) > 0 && dueDate;

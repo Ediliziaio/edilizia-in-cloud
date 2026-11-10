@@ -1,5 +1,5 @@
 import { beforeAll,afterAll,beforeEach,afterEach,it,expect } from 'vitest';
-import { createDailyHoursDatabase,HC,HU,HO,HE,HJ } from '../fixtures/dailyHoursDatabase';
+import { createDailyHoursDatabase,HC,HO,HE,HJ } from '../fixtures/dailyHoursDatabase';
 import { assertDailyHoursCompany,dailyHoursError,dailyHoursLines,type DailyHoursRecord } from '@/lib/orders/dailyHours';
 let db:Awaited<ReturnType<typeof createDailyHoursDatabase>>;
 beforeAll(async()=>{db=await createDailyHoursDatabase();},60000);afterAll(async()=>{await db?.close();});

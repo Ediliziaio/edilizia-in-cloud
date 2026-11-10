@@ -6,7 +6,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useCompanyAnagraficaForTemplate } from "@/hooks/useCompanyAnagraficaForTemplate";
 import { useTemplatePdf } from "@/lib/serramenti/queries";
-import { SERRAMENTI_TEMPLATE_MODULES, findSerramentiTemplateModule, createSerramentiModuleTemplate, type SerramentiTemplateModuleId } from "@/lib/moduli-vendita/serramentiTemplateModules";
+import { SERRAMENTI_TEMPLATE_MODULES, findSerramentiTemplateModule, type SerramentiTemplateModuleId } from "@/lib/moduli-vendita/serramentiTemplateModules";
 import { loadLocalSerramentiTemplate, saveLocalSerramentiTemplate } from "@/lib/moduli-vendita/localSerramentiTemplates";
 import { refreshCombinatoVisuals } from "@/lib/moduli-vendita/serramentiVisualRefresh";
 import type { SrTemplatePdfRow } from "@/types/serramenti";

@@ -65,7 +65,7 @@ describe("2.3 · il permesso, non solo l'azienda", () => {
   it("create_order_atomic non prende più l'identità dal parametro", () => {
     // era COALESCE(p_user_id, auth.uid()): bastava passare l'uuid di un
     // super_admin per superare il controllo di autorizzazione
-    expect(permessi).toMatch(/'v_caller_id  := COALESCE\(auth\.uid\(\), p_user_id\);'/);
+    expect(permessi).toMatch(/'v_caller_id {2}:= COALESCE\(auth\.uid\(\), p_user_id\);'/);
     expect(permessi).toMatch(/elevazione di privilegi/);
   });
 

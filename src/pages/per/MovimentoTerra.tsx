@@ -1,6 +1,6 @@
 import {
-  Truck, Fuel, Clock, TrendingUp, Smartphone, Wallet, FileText,
-  TrendingDown, Send, Camera, Sparkles, Receipt, Users, Warehouse, FolderOpen, BarChart3,
+  Truck, Fuel, Clock, TrendingUp, Wallet, FileText,
+  TrendingDown, Send, Camera, Sparkles, Receipt, Warehouse, FolderOpen, BarChart3,
 } from "lucide-react";
 import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipoPageTemplate";
 

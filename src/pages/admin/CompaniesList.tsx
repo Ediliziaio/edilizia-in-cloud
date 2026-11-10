@@ -26,7 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { format, differenceInDays, formatDistanceToNow } from "date-fns";
+import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { sectorLabels, statusConfig, sectors } from "@/lib/companyUtils";
 import type { CompanyStatus } from "@/types/auth";
