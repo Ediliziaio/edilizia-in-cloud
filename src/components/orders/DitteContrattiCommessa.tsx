@@ -28,6 +28,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
 import { conIva, prezzoValidoIl, variantiPerSquadre, vociListinoPerDitta, type VarianteCostoDitta } from "@/lib/orders/costoDitta";
 import { useAssegnaAlleFasi } from "@/hooks/useAssegnaAlleFasi";
+import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
 import {
   type SottofaseLavoro, contrattoDellaDitta, contrattoPerFase, costoFaseDitta, dittaProposta, elencoDaSalvare, elencoLavoriDitta, periodoFasi, prezzoListinoPerDitta,
   rigaElencoRicalcolata, schedeSicurezzaDitta,
@@ -148,8 +149,8 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
   const invalida = () => {
     void qc.invalidateQueries({ queryKey: ["ditte-contratti-commessa", companyId, orderId] });
     void qc.invalidateQueries({ queryKey: chiaveVociPreviste(companyId, orderId) });
-    void qc.invalidateQueries({ queryKey: ["order-work-phases"] });
-    void qc.invalidateQueries({ queryKey: ["order-assignments"] });
+    // Le fasi della commessa (ditte, previsti, voci): le chiavi vere, come useAssegnaAlleFasi.
+    refreshWorkQueries(qc, orderId, companyId);
   };
 
   const d = dati.data;
@@ -179,14 +180,17 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
         const ditta = d!.ditte.find((x) => x.id === r.dittaId);
         const previsto = r.costo > 0 ? conIva(r.costo, ditta?.vat_rate ?? 0) : 0;
         if (!r.assegnate.length) {
+          // Sempre «preventivo»: così il previsto segue le voci anche se arrivano dopo (prima, a 0 €, restava 0 per sempre).
           const { error } = await db.from("order_external_teams").insert({
             order_id: orderId, external_team_id: r.dittaId, phase_id: r.f.id, total_cost: 0, cost_preventivo: previsto, is_paid: false,
-            ...(previsto > 0 ? { costo_origine: "preventivo" } : {}),
+            costo_origine: "preventivo",
           });
-          if (error) throw error;
+          if (error) throw new Error(error.code === "42501" ? "non hai il permesso di assegnare le ditte alle fasi" : error.message);
         } else {
-          const { error } = await db.from("order_external_teams").update({ cost_preventivo: previsto, costo_origine: "preventivo" }).eq("id", r.senzaPrevisto[0].id);
+          const { data: toccate, error } = await db.from("order_external_teams").update({ cost_preventivo: previsto, costo_origine: "preventivo" }).eq("id", r.senzaPrevisto[0].id).select("id");
           if (error) throw error;
+          // Nessuna riga toccata = la regola di accesso l'ha esclusa: non è salvato, e lo si dice.
+          if (!toccate?.length) throw new Error("non hai il permesso di scrivere il costo previsto delle ditte");
         }
         fatteApplica.n += 1;
       }
@@ -213,13 +217,19 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
 
   return (
     <div className="space-y-5">
+      {tariffe.isError && (
+        <p role="alert" className="text-sm text-destructive">
+          Il listino manodopera non si è caricato: senza, non si aggiungono voci e non si collegano al listino.{" "}
+          <button type="button" className="underline" onClick={() => void tariffe.refetch()}>Riprova</button>
+        </p>
+      )}
       {/* Lotto 3 (10/11/2026): senza la voce del listino il prezzo della ditta non arriva al contratto. */}
       {listaVoci.some((v) => !v.tariffa_id) && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           <span className="min-w-0 flex-1">
             {listaVoci.filter((v) => !v.tariffa_id).length} voci su {listaVoci.length} non sono collegate al listino: per quelle il contratto non trova il prezzo della ditta.
           </span>
-          <Button size="sm" variant="outline" className="bg-white" disabled={tariffe.isLoading} onClick={() => setAbbinaAperto(true)}>Collega al listino</Button>
+          <Button size="sm" variant="outline" className="bg-white" disabled={tariffe.isLoading || tariffe.isError} onClick={() => setAbbinaAperto(true)}>Collega al listino</Button>
         </div>
       )}
       {abbinaAperto && (
@@ -283,7 +293,8 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
                 </div>
               </div>
               {vociAperte === r.f.id && (
-                <VociFase orderId={orderId} companyId={companyId} fase={r.f} voci={listaVoci.filter((v) => v.phase_id === r.f.id)} tariffe={tariffe.data ?? []} caricoTariffe={tariffe.isLoading} onCambio={invalida} />
+                <VociFase orderId={orderId} companyId={companyId} fase={r.f} voci={listaVoci.filter((v) => v.phase_id === r.f.id)} tariffe={tariffe.data ?? []} caricoTariffe={tariffe.isLoading} onCambio={invalida}
+                  ditta={r.assegnate[0] ? { squadraId: r.assegnate[0].external_team_id, anagraficaId: d.ditte.find((x) => x.id === r.assegnate[0].external_team_id)?.subappaltatore_id ?? null } : null} />
               )}
             </li>
           ))}
@@ -340,15 +351,17 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
 }
 
 /** Le voci di una fase, con l'aggiunta dal listino manodopera. */
-function VociFase({ orderId, companyId, fase, voci, tariffe, caricoTariffe, onCambio }: {
+function VociFase({ orderId, companyId, fase, voci, tariffe, caricoTariffe, onCambio, ditta = null }: {
   orderId: string; companyId: string; fase: Fase;
+  /** La ditta che fa la fase: le sue voci proprie si propongono, quelle delle altre ditte mai. */
+  ditta?: { squadraId: string | null; anagraficaId: string | null } | null;
   voci: Array<{ id: string; descrizione: string; unita: string | null; quantita: number; costo_manodopera: number; origine: string; origine_codice: string | null }>;
   tariffe: Tariffa[]; caricoTariffe: boolean; onCambio: () => void;
 }) {
   const [cerca, setCerca] = useState("");
   const [scelta, setScelta] = useState<Tariffa | null>(null);
   const [quantita, setQuantita] = useState("1");
-  const trovate = cerca.trim().length < 2 ? [] : tariffe
+  const trovate = cerca.trim().length < 2 ? [] : vociListinoPerDitta(tariffe, ditta)
     .filter((t) => `${t.codice ?? ""} ${t.nome}`.toLowerCase().includes(cerca.trim().toLowerCase())).slice(0, 8);
   const q = Number(quantita.replace(",", "."));
   const aggiungi = useMutation({
@@ -400,9 +413,9 @@ function VociFase({ orderId, companyId, fase, voci, tariffe, caricoTariffe, onCa
           <Input aria-label={`Cerca nel listino per ${fase.name}`} placeholder={caricoTariffe ? "Carico il listino…" : "Cerca nel listino (nome o codice)"} value={scelta ? `${scelta.codice ? `${scelta.codice} · ` : ""}${scelta.nome}` : cerca}
             onChange={(e) => { setScelta(null); setCerca(e.target.value); }} className="h-9" />
           {!scelta && trovate.length > 0 && (
-            <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover text-sm shadow" role="listbox">
+            <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover text-sm shadow" aria-label="Voci trovate nel listino">
               {trovate.map((t) => (
-                <li key={t.id} role="option" aria-selected={false}>
+                <li key={t.id}>
                   <button type="button" className="flex w-full justify-between gap-2 px-2 py-1.5 text-left hover:bg-muted" onClick={() => setScelta(t)}>
                     <span className="min-w-0 truncate">{t.codice ? `${t.codice} · ` : ""}{t.nome}</span>
                     <span className="shrink-0 tabular-nums text-muted-foreground">{formatCurrency(t.costo)}/{t.unita}</span>
@@ -487,11 +500,14 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
   };
   /** Numero proposto per un contratto nuovo: codice commessa e progressivo (es. O-0001/S02). Si cambia da «Modifica». */
   const numeroNuovoContratto = async (): Promise<string | null> => {
-    const [{ data: ord }, { count }] = await Promise.all([
+    const [{ data: ord }, { data: esistenti }] = await Promise.all([
       db.from("orders").select("order_code").eq("id", orderId).maybeSingle(),
-      db.from("contratti_subappalto").select("id", { count: "exact", head: true }).eq("order_id", orderId).eq("company_id", companyId),
+      db.from("contratti_subappalto").select("numero_contratto").eq("order_id", orderId).eq("company_id", companyId),
     ]);
-    return ord?.order_code ? `${ord.order_code}/S${String((count ?? 0) + 1).padStart(2, "0")}` : null;
+    // Il più alto già usato + 1, non quanti sono: dopo un contratto cancellato il conteggio ridava un numero esistente.
+    const usati = ((esistenti ?? []) as Array<{ numero_contratto: string | null }>)
+      .map((c) => Number(/\/S(\d+)$/.exec(c.numero_contratto ?? "")?.[1] ?? 0));
+    return ord?.order_code ? `${ord.order_code}/S${String(Math.max(0, ...usati) + 1).padStart(2, "0")}` : null;
   };
   const salva = useMutation({
     mutationFn: async (righeScelte: RigaElencoLavori[]) => {
@@ -719,10 +735,11 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
       chiavi.set(nuova, chiaveRiga(r));
       return nuova;
     }));
-  // «1.234,5» all'italiana; «14.5» col punto resta 14,5 (non 145).
+  // «1.234,5» all'italiana; «14.5» col punto resta 14,5 (non 145); «1.500» col solo punto delle migliaia è 1500.
   const numero = (v: string) => {
     const t = v.trim().replace(/\s|€/g, "");
-    return Math.max(0, Number(t.includes(",") ? t.replace(/\./g, "").replace(",", ".") : t) || 0);
+    const senzaMigliaia = !t.includes(",") && /^\d{1,3}(\.\d{3})+$/.test(t) ? t.replace(/\./g, "") : t;
+    return Math.max(0, Number(senzaMigliaia.includes(",") ? senzaMigliaia.replace(/\./g, "").replace(",", ".") : senzaMigliaia) || 0);
   };
   const aggiungiDalListino = (t: Tariffa) => {
     const { prezzo } = prezzoListinoPerDitta(t, dittaId, varianti);
@@ -762,7 +779,7 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
                     <OfficeSelect
                       label={`Lavorazione della riga ${i + 1}`}
                       value={r.fase}
-                      onValueChange={(v) => cambia(i, { fase: v })}
+                      onValueChange={(v) => cambia(i, { fase: v, fase_id: null, sottofase_id: null })}
                       className="mb-1 h-7 max-w-full rounded-lg px-1 text-xs text-muted-foreground"
                       options={fasiScelta.map((f) => ({ value: f, label: f }))}
                     />
@@ -807,11 +824,11 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
           <div className="relative min-w-[16rem] flex-1">
             <Input aria-label="Cerca nel listino per il contratto" placeholder="Cerca nel listino (nome o codice)" value={cerca} onChange={(e) => setCerca(e.target.value)} className="h-9" />
             {trovate.length > 0 && (
-              <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover text-sm shadow" role="listbox">
+              <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover text-sm shadow" aria-label="Voci trovate nel listino">
                 {trovate.map((t) => {
                   const p = prezzoListinoPerDitta(t, dittaId, varianti);
                   return (
-                    <li key={t.id} role="option" aria-selected={false}>
+                    <li key={t.id}>
                       <button type="button" className="flex w-full justify-between gap-2 px-2 py-1.5 text-left hover:bg-muted" onClick={() => aggiungiDalListino(t)}>
                         <span className="min-w-0 truncate">{t.codice ? `${t.codice} · ` : ""}{t.nome}</span>
                         <span className="shrink-0 tabular-nums text-muted-foreground">{formatCurrency(p.prezzo)}/{t.unita}{p.concordato ? " · concordato" : ""}</span>

@@ -120,7 +120,12 @@ export function AbbinaListinoDialog({ orderId, companyId, codiceCommessa, voci, 
           </DialogDescription>
         </DialogHeader>
 
-        {ricordati.isLoading ? <p className="text-sm text-muted-foreground"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" />Caricamento…</p> : (
+        {ricordati.isLoading ? <p className="text-sm text-muted-foreground"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" />Caricamento…</p> : ricordati.isError ? (
+          <p role="alert" className="text-sm text-destructive">
+            Non riesco a leggere gli abbinamenti già fatti.{" "}
+            <button type="button" className="underline" onClick={() => void ricordati.refetch()}>Riprova</button>
+          </p>
+        ) : (
           <ul className="divide-y rounded-md border">
             {daFare.map((v) => {
               const p = proposte.find((x) => x.voceId === v.id);
@@ -155,12 +160,13 @@ export function AbbinaListinoDialog({ orderId, companyId, codiceCommessa, voci, 
                     )}
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
-                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { setCercaVoce(cercaVoce === v.id ? null : v.id); setCerca(""); }}>
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" aria-label={`${scelta ? "Cambia" : "Scegli"} la voce del listino per ${v.descrizione}`} onClick={() => { setCercaVoce(cercaVoce === v.id ? null : v.id); setCerca(""); }}>
                       {scelta ? "Cambia" : "Scegli"}
                     </Button>
                     {!scelta && canEditSettingsPricing && (
                       <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" disabled={aggiungi.isPending || !unitaPerListino(v.unita)}
                         title={unitaPerListino(v.unita) ? "La voce diventa una voce del listino" : `Il listino non ha l'unità «${v.unita ?? ""}»`}
+                        aria-label={`Aggiungi al listino ${v.descrizione}`}
                         onClick={() => aggiungi.mutate(v)}>
                         <Plus className="mr-1 h-3 w-3" />Al listino
                       </Button>

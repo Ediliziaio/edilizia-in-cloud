@@ -3,7 +3,6 @@ import { ListinoDitta } from "@/components/subappaltatori/ListinoDitta";
 import { puoConsultareSalSub } from "@/lib/permessi/contabilitaSubappalto";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { SALContabilita, RitenuteContabilita } from "@/components/subappaltatori/ContabilitaSubappalto";
-import { euroSub } from "@/lib/subappaltatori/lavoriMisure";
 import { SchedaCommessaDialog } from "@/components/sicurezza/SchedaCommessaDialog";
 import { PercorsiSubappaltatore } from "@/components/subappaltatori/PercorsiSubappaltatore";
 import { LavoriMisureSubDialog } from "@/components/subappaltatori/LavoriMisureSubDialog";
@@ -678,6 +677,8 @@ export default function SubappaltatoreDetail() {
         .from("sal_subappaltatori")
         .update({ stato: "verificato" })
         .eq("id", salId)
+        // Solo da ricevuto o contestato: un SAL già pagato non torna «verificato» (lista ferma su un'altra scheda).
+        .in("stato", ["ricevuto", "contestato"])
         .select("id");
       if (error) throw error;
       if (!data?.length) throw new Error("SAL non approvato: non hai il permesso, o è già cambiato. Ricarica la pagina.");
@@ -698,6 +699,7 @@ export default function SubappaltatoreDetail() {
         .from("sal_subappaltatori")
         .update({ stato: "contestato", note_contestazione: note } as never)
         .eq("id", id)
+        .in("stato", ["ricevuto", "verificato"])
         .select("id");
       if (error) throw error;
       if (!data?.length) throw new Error("SAL non contestato: non hai il permesso, o è già cambiato. Ricarica la pagina.");
@@ -708,6 +710,9 @@ export default function SubappaltatoreDetail() {
       setContestaId(null);
       setContestaNote("");
       queryClient.invalidateQueries({ queryKey: ['sal-sub', contratto?.id] });
+      // La contestazione annulla la ritenuta del SAL (trigger): anche il registro delle ritenute si rilegge.
+      queryClient.invalidateQueries({ queryKey: ['ritenute-sub', contratto?.id] });
+      queryClient.invalidateQueries({ queryKey: ['ritenute-sub-tutte', id] });
       queryClient.invalidateQueries({ queryKey: chiaviContratti.salTutti(id) });
       queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
     },
@@ -1378,11 +1383,12 @@ export default function SubappaltatoreDetail() {
                 />
               </div>
             </div>
-            {salForm.importo_lordo && parseFloat(salForm.importo_lordo) > 0 && (
+            {salForm.importo_lordo && parseDecimalIT(salForm.importo_lordo) > 0 && (
               <div className="bg-muted rounded-lg p-3 text-sm space-y-1">
                 {(() => {
-                  const lordo = parseFloat(salForm.importo_lordo) || 0;
-                  const pct = parseFloat(salForm.ritenuta_pct) || 0;
+                  // Come il salvataggio: «1.234,56» è milleduecento, non 1,23.
+                  const lordo = parseDecimalIT(salForm.importo_lordo) || 0;
+                  const pct = parseDecimalIT(salForm.ritenuta_pct) || 0;
                   const ritenuta = Math.round(lordo * pct / 100 * 100) / 100;
                   const netto = Math.round((lordo - ritenuta) * 100) / 100;
                   return (

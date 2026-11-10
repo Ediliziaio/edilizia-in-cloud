@@ -30,7 +30,7 @@ import {
 import {
   HardHat, Plus, Search, FileText, FileX2, AlertTriangle, Phone, ExternalLink, Loader2, Mail, ShieldCheck, Trash2, CheckCircle2, XCircle, X, Building2,
 } from 'lucide-react';
-import type { SubappaltatoreConDashboard, StatoContratto } from '@/types/subappaltatori';
+import type { SubappaltatoreConDashboard } from '@/types/subappaltatori';
 import { OperationalKpiCard } from '@/components/orders/OperationalKpiCard';
 import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from '@/components/mobile/FiltriMobile';
 import { DATA_MASSIMA, dataPlausibile } from '@/lib/dataPlausibile';
@@ -56,19 +56,6 @@ const VISTE_TELEFONO: ReadonlySet<VistaDitte> = new Set(['lavoro', 'zona']);
 function oggiLocale() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function StatoBadge({ stato }: { stato: StatoContratto | null }) {
-  const map: Record<string, { label: string; className: string }> = {
-    bozza:      { label: 'Bozza',      className: 'bg-slate-400 text-white' },
-    attivo:     { label: 'Attivo',     className: 'bg-blue-600 text-white' },
-    completato: { label: 'Completato', className: 'bg-green-600 text-white' },
-    risolto:    { label: 'Risolto',    className: 'bg-purple-600 text-white' },
-    sospeso:    { label: 'Sospeso',    className: 'bg-amber-500 text-white' },
-  };
-  if (!stato) return null;
-  const cfg = map[stato] ?? { label: stato, className: 'bg-slate-400 text-white' };
-  return <Badge className={`text-xs ${cfg.className}`}>{cfg.label}</Badge>;
 }
 
 function AttivoBadge({ attivo }: { attivo: boolean | null }) {

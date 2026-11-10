@@ -305,6 +305,44 @@ Migrazioni `20290213210000_subappalto_affidamenti` e `20290213210100`, applicate
   previsto della ditta 875 €, oltre la quantità rifiutato, voce/fase a contratto bloccate, quota a
   contratto non modificabile, cliente rifiutato e senza lettura.
 
+## 5-quater. Collaudo dei subappalti (10/11/2026, sera)
+
+Due revisori indipendenti (commessa → ditte → contratto; scheda subappaltatore → contratti,
+misure, SAL), più il controllo dei dati veri (15 controlli: 14 coerenti; l'unico scarto è un contratto
+in bozza di Dimora con due varianti, che è il caso «corrispettivo ≠ tabella» del lotto 5).
+
+**Corretto nell'interfaccia (pubblicato):**
+- «Assegna ditte e costi»: la ditta nasce sempre «dal preventivo» (prima, a 0 €, il previsto non seguiva
+  più le voci); se la regola d'accesso non lascia scrivere lo dice invece di «salvato».
+- Dopo assegnazioni e voci la commessa si aggiorna (chiavi di cache sbagliate).
+- Numero del contratto: il più alto usato + 1 (prima poteva ripetere un numero dopo una cancellazione).
+- Riga dell'elenco spostata in un'altra fase: l'importo va alla fase nuova.
+- «Aggiungi dal listino» sulla fase: mai le voci proprie di un'altra ditta.
+- Prezzi «1.500» = 1500; anteprima del SAL a mano letta all'italiana.
+- Listino o abbinamenti che non si caricano: avviso e «Riprova»; nomi accessibili sui pulsanti ripetuti.
+- Contratto firmato: dal modulo non si riscrivono più commessa, lavori, ritenuta, garanzie, penali,
+  pagamenti; commessa non cambiabile con SAL o ritenute; eliminazione bloccata anche con ritenute, e
+  se il controllo non riesce non elimina.
+- SAL: «Approva» e «Contesta» solo dagli stati giusti (un SAL pagato non torna indietro); dopo la
+  contestazione il registro ritenute si rilegge.
+
+**Pronta ma NON applicata (serve il via di Florin):** la migrazione con le stesse protezioni nel
+database — il controllo automatico l'ha fermata perché tocca regole di accesso in produzione. Il file
+è nella cartella delle note della sessione (`20290213220000_subappalto_protezioni.DA_APPROVARE.sql`),
+fuori da `supabase/migrations/` perché al push si applicherebbe da sola. Contiene: contratto firmato e
+SAL protetti anche dalle scritture dirette; eliminazione di contratti con SAL/ritenute/fatture
+bloccata nel database (oggi la cascata porta via i SAL); SAL oltre importo + oneri rifiutato; ditte
+sulla fase scrivibili da chi ha commesse + costi (oggi solo l'amministratore: per gli altri
+«Assegna ditte e costi» non salva).
+
+**Decisioni per Florin:**
+- DURC: oggi blocca solo il SAL scritto a mano. Bloccarlo anche nei SAL dalle misure e nei pagamenti
+  fermerebbe subito Bonarrigo (14 contratti aperti, nessun DURC caricato).
+- 14 ritenute di Bonarrigo del 06/11 (146.158,52 €) senza commessa, mentre il loro contratto ce l'ha:
+  da ricollegare (dati del cliente, registro fiscale).
+- Reinvio in firma: il link vecchio si annulla prima di sapere se il nuovo parte; per invertirlo serve
+  cambiare `subappalto_firma_annulla` (escludere la richiesta nuova).
+
 ## 6. I numeri di oggi (produzione, 10/11/2026)
 
 | | Bonarrigo | Dimora | Demo 2 | Scavolo |
