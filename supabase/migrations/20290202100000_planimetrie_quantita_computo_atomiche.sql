@@ -28,14 +28,14 @@ BEGIN
   END IF;
   SELECT * INTO u FROM public.computo_uploads WHERE id = p_upload_id FOR UPDATE;
   IF NOT FOUND OR u.stato NOT IN ('bozza', 'verificato') THEN
-    RAISE EXCEPTION 'Il computo non è modificabile. Riapri il confronto.' USING ERRCODE = '40001';
+    RAISE EXCEPTION 'Il computo non è modificabile. Riapri il confronto.' USING ERRCODE = 'PT409';
   END IF;
   -- Ordine stabile dei lock; verifica anche quantità e prezzi mostrati nel confronto.
   FOR attesa IN SELECT * FROM jsonb_to_recordset(p_voci) AS x(id uuid, quantita numeric, prezzo numeric) ORDER BY id LOOP
     SELECT * INTO v FROM public.computo_voci_estratte
       WHERE id = attesa.id AND computo_upload_id = u.id AND company_id = u.company_id FOR UPDATE;
     IF NOT FOUND OR v.quantita IS DISTINCT FROM attesa.quantita OR v.prezzo_unitario_computo IS DISTINCT FROM attesa.prezzo THEN
-      RAISE EXCEPTION 'Una voce è cambiata nel frattempo. Ricarica il computo e ripeti il confronto.' USING ERRCODE = '40001';
+      RAISE EXCEPTION 'Una voce è cambiata nel frattempo. Ricarica il computo e ripeti il confronto.' USING ERRCODE = 'PT409';
     END IF;
     IF NOT EXISTS (SELECT 1 FROM jsonb_array_elements(p_righe) x WHERE x->>'voce_id' = v.id::text) THEN
       RAISE EXCEPTION 'Voce senza misure selezionate.' USING ERRCODE = '22023';
@@ -55,7 +55,7 @@ BEGIN
     PERFORM 1 FROM public.planimetrie p WHERE p.id = r.pianta_id AND p.company_id = u.company_id
       AND p.deleted_at IS NULL AND p.versione_corrente = r.versione FOR SHARE;
     IF NOT FOUND THEN
-      RAISE EXCEPTION 'La planimetria è cambiata o non è disponibile. Riapri il confronto.' USING ERRCODE = '40001';
+      RAISE EXCEPTION 'La planimetria è cambiata o non è disponibile. Riapri il confronto.' USING ERRCODE = 'PT409';
     END IF;
     SELECT mi.* INTO m FROM public.computo_voci_misure mi JOIN public.computo_voci_estratte ve ON ve.id = mi.voce_id
       WHERE mi.id = r.id AND mi.voce_id = r.voce_id AND mi.company_id = u.company_id
@@ -63,7 +63,7 @@ BEGIN
     IF NOT FOUND OR m.quantita IS DISTINCT FROM r.vecchia OR m.planimetria_versione IS DISTINCT FROM r.vecchia_versione
        OR m.planimetria_id IS DISTINCT FROM r.vecchia_pianta OR (m.planimetria_id IS NOT NULL AND m.planimetria_id <> r.pianta_id)
        OR (m.planimetria_id IS NOT NULL AND to_jsonb(m.planimetria_chiavi) IS DISTINCT FROM r.chiavi) THEN
-      RAISE EXCEPTION 'Una misura è cambiata nel frattempo. Ricarica il computo e ripeti il confronto.' USING ERRCODE = '40001';
+      RAISE EXCEPTION 'Una misura è cambiata nel frattempo. Ricarica il computo e ripeti il confronto.' USING ERRCODE = 'PT409';
     END IF;
     UPDATE public.computo_voci_misure SET quantita = r.nuova, planimetria_versione = r.versione,
       planimetria_id = r.pianta_id, planimetria_chiavi = ARRAY(SELECT jsonb_array_elements_text(r.chiavi)) WHERE id = m.id;
