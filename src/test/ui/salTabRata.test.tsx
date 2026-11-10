@@ -8,6 +8,7 @@ const stato = vi.hoisted(() => ({
   sal: [] as Array<Record<string, unknown>>, salMatura: "emesso" as string,
   update: vi.fn(), sostituisci: vi.fn(), conferma: vi.fn(),
   canEdit:true,readError:false,save:vi.fn(),
+  fasi: [] as Array<Record<string, unknown>>,
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/components/ui/confirm-dialog", () => ({ useConfirm: () => stato.conferma }));
@@ -20,7 +21,7 @@ vi.mock("@/integrations/supabase/client", () => {
   const costruisci = (tabella: string) => {
     const lettura: Record<string, unknown> = {
       then: (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) =>
-        Promise.resolve({ data: tabella === "sal_records" ? stato.sal : [], error: stato.readError?new Error("rete non disponibile"):null }).then(ok, ko),
+        Promise.resolve({ data: tabella === "sal_records" ? stato.sal : tabella === "order_work_phases" ? stato.fasi : [], error: stato.readError?new Error("rete non disponibile"):null }).then(ok, ko),
     };
     for (const metodo of ["select", "eq", "order"]) lettura[metodo] = () => lettura;
     lettura.update = (valori: Record<string, unknown>) => {
@@ -56,7 +57,7 @@ const disegna = (installments: Installment[] = rate()) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
-  stato.sal = []; stato.salMatura = "emesso";
+  stato.sal = []; stato.salMatura = "emesso"; stato.fasi = [];
   stato.canEdit=true;stato.readError=false;stato.save.mockResolvedValue({id:"draft"});
   stato.conferma.mockResolvedValue(true);
 });
@@ -185,5 +186,52 @@ describe("SAL: controlli operativi e bozza",()=>{
     expect(await screen.findByText("Le voci non sono state salvate")).toBeInTheDocument();
     expect(screen.getByRole("textbox",{name:"Descrizione *"})).toHaveValue("Opere");
     expect(stato.save).toHaveBeenCalledWith(expect.anything(),expect.objectContaining({lines:[expect.objectContaining({importo_contrattuale:"1000,00",percentuale_avanzamento:"50"})]}));
+  });
+});
+
+describe("SAL standard, lotto 1: il verbale nasce dalle fasi", () => {
+  const conFasi = () => {
+    stato.fasi = [
+      { id: "f1", name: "Demolizioni", status: "completata", percentuale: 100, importo_venduto: 2000 },
+      { id: "f2", name: "Massetti", status: "in_corso", percentuale: 40, importo_venduto: 4000 },
+    ];
+    stato.sal = [{
+      id: "s1", numero_sal: 1, data_emissione: "2026-10-01", stato: "emesso", importo_totale: 4400, note: null, installment_id: null,
+      sal_voci: [
+        { id: "v1", descrizione: "Demolizioni", importo_contrattuale: 2000, percentuale_avanzamento: 100, importo_sal: 2000, note: null, fase_id: "f1" },
+        { id: "v2", descrizione: "Massetti", importo_contrattuale: 4000, percentuale_avanzamento: 60, importo_sal: 2400, note: null, fase_id: "f2" },
+      ],
+    }];
+  };
+
+  it("si compila da solo, collegato alle fasi, e non parte sotto il SAL precedente", async () => {
+    conFasi();
+    disegna([]);
+    await screen.findByText("SAL #1");
+    fireEvent.click(screen.getByRole("button", { name: /Nuovo verbale/ }));
+    await waitFor(() => expect(screen.getByLabelText("Descrizione *", { selector: "#sal-desc-1" })).toHaveValue("Massetti"));
+    // il cantiere dice 40%, il SAL 1 ha già certificato 60%: si riparte da 60
+    expect(screen.getByLabelText("Avanzamento cumulativo (%)", { selector: "#sal-pct-1" })).toHaveValue("60");
+    expect(screen.getAllByText("SAL n. 1: 60%").length).toBe(1);
+    expect(screen.getByText("Massetti", { selector: "span" })).toBeInTheDocument();
+  });
+
+  it("una voce che scende si salva solo come rettifica dichiarata, e porta la sua fase", async () => {
+    conFasi();
+    disegna([]);
+    await screen.findByText("SAL #1");
+    fireEvent.click(screen.getByRole("button", { name: /Nuovo verbale/ }));
+    const pct = await screen.findByDisplayValue("60");
+    fireEvent.change(pct, { target: { value: "50" } });
+    fireEvent.click(screen.getByRole("button", { name: "Controlla riepilogo" }));
+    expect(await screen.findByText(/Massetti: dal 60% al 50%/)).toBeInTheDocument();
+    const salva = screen.getByRole("button", { name: "Salva bozza SAL" });
+    expect(salva).toBeDisabled();
+    fireEvent.click(screen.getByLabelText(/È una rettifica/));
+    expect(salva).toBeEnabled();
+    fireEvent.click(salva);
+    await waitFor(() => expect(stato.save).toHaveBeenCalled());
+    const righe = stato.save.mock.calls[0][1].lines as Array<{ descrizione: string; fase_id?: string }>;
+    expect(righe.map((r) => [r.descrizione, r.fase_id])).toEqual([["Demolizioni", "f1"], ["Massetti", "f2"]]);
   });
 });

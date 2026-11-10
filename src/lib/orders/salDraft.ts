@@ -1,5 +1,5 @@
-export interface SalDraftLine {descrizione:string;importo_contrattuale:string;percentuale_avanzamento:string;note:string}
-export interface SalPreparedLine {descrizione:string;importo_contrattuale:number;percentuale_avanzamento:number;note:string|null}
+export interface SalDraftLine {descrizione:string;importo_contrattuale:string;percentuale_avanzamento:string;note:string;fase_id?:string|null}
+export interface SalPreparedLine {descrizione:string;importo_contrattuale:number;percentuale_avanzamento:number;note:string|null;fase_id?:string|null}
 export function salNumber(text: string): number | null {
   if (!/^\d+(?:[.,]\d{1,2})?$/.test(text.trim())) return null;
   const value=Number(text.trim().replace(",","."));
@@ -15,7 +15,10 @@ export function prepareSalLines(lines:readonly SalDraftLine[],contractNet?:numbe
     if(!line.descrizione.trim())throw new Error(`Voce ${index+1}: scrivi la descrizione o rimuovi la riga.`);
     if(amount===null)throw new Error(`Voce ${index+1}: inserisci l'importo contrattuale netto, anche zero se previsto.`);
     if(percentage===null || percentage>100)throw new Error(`Voce ${index+1}: l'avanzamento deve essere tra 0 e 100%.`);
-    return {descrizione:line.descrizione.trim(),importo_contrattuale:amount,percentuale_avanzamento:percentage,note:line.note.trim() || null};
+    const row:SalPreparedLine={descrizione:line.descrizione.trim(),importo_contrattuale:amount,percentuale_avanzamento:percentage,note:line.note.trim() || null};
+    // La fase da cui nasce la voce (SAL standard, lotto 1): solo se c'è, così le voci libere restano come prima.
+    if(line.fase_id)row.fase_id=line.fase_id;
+    return row;
   });
   const total=rows.reduce((cents,row)=>cents+Math.round(salLineAmount(row.importo_contrattuale,row.percentuale_avanzamento)*100),0)/100;
   const contractual=rows.reduce((cents,row)=>cents+Math.round(row.importo_contrattuale*100),0)/100;

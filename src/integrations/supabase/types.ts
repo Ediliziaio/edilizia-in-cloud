@@ -75971,6 +75971,7 @@ export type Database = {
         Row: {
           created_at: string
           descrizione: string
+          fase_id: string | null
           id: string
           importo_contrattuale: number
           importo_sal: number | null
@@ -75981,6 +75982,7 @@ export type Database = {
         Insert: {
           created_at?: string
           descrizione: string
+          fase_id?: string | null
           id?: string
           importo_contrattuale?: number
           importo_sal?: number | null
@@ -75991,6 +75993,7 @@ export type Database = {
         Update: {
           created_at?: string
           descrizione?: string
+          fase_id?: string | null
           id?: string
           importo_contrattuale?: number
           importo_sal?: number | null
@@ -75999,6 +76002,13 @@ export type Database = {
           sal_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "sal_voci_fase_id_fkey"
+            columns: ["fase_id"]
+            isOneToOne: false
+            referencedRelation: "order_work_phases"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "sal_voci_sal_id_fkey"
             columns: ["sal_id"]

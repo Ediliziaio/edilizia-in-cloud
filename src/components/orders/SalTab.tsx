@@ -17,7 +17,7 @@ import {
 import { Plus, FileBarChart2, Loader2, Download, Trash2, Sparkles, Wand2, Banknote, Check, Clock, ListChecks } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { maturatoPrecedente, nettoSal } from "@/lib/orders/salNetto";
-import { vociSalDaFasi, type FasePerSal } from "@/lib/orders/salDaFasi";
+import { vociSalDaFasi, collegaVociAFasi, percentualiPrecedenti, percentualePrecedenteVoce, vociSottoIlPrecedente, type FasePerSal } from "@/lib/orders/salDaFasi";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 import type { Installment } from "@/lib/orderUtils";
 import { queryKeys } from "@/lib/queryKeys";
@@ -42,6 +42,7 @@ interface SalVoce {
   percentuale_avanzamento: number;
   importo_sal: number;
   note: string | null;
+  fase_id?: string | null;
 }
 
 interface SalRecord {
@@ -95,6 +96,8 @@ interface VoceForm {
   importo_contrattuale: string;
   percentuale_avanzamento: string;
   note: string;
+  /** Fase della commessa da cui nasce la voce; assente = voce libera. */
+  fase_id?: string | null;
 }
 
 const emptyVoce = (): VoceForm => ({
@@ -118,6 +121,9 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   // Il modello: le rate nascono dal contratto, ogni SAL certifica la sua rata.
   const [rataCollegata, setRataCollegata] = useState<string>("");
   const [voci, setVoci] = useState<VoceForm[]>([emptyVoce()]);
+  // Una voce sotto il SAL precedente abbassa il certificato: si salva solo se dichiarata rettifica.
+  const [rettifica, setRettifica] = useState(false);
+
   const [isExporting, setIsExporting] = useState(false);
   const [exportingSalId, setExportingSalId] = useState<string | null>(null);
   const [printHtml, setPrintHtml] = useState<string | null>(null);
@@ -131,7 +137,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
     queryFn: async () => {
       const { data, error, count } = await supabase
         .from("sal_records")
-        .select("*, sal_voci(id, descrizione, importo_contrattuale, percentuale_avanzamento, importo_sal, note), sal_certificati(*)",{count:"exact"})
+        .select("*, sal_voci(id, descrizione, importo_contrattuale, percentuale_avanzamento, importo_sal, note, fase_id), sal_certificati(*)",{count:"exact"})
         .eq("order_id", orderId)
         .eq("company_id", companyId)
         .order("numero_sal", { ascending: false });
@@ -149,17 +155,19 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   // Fasi di lavorazione della commessa: per compilare il verbale dall'avanzamento
   // dichiarato in cantiere (nome, % e venduto). importo_venduto può tornare null
   // senza il permesso sugli importi: in quel caso la % arriva lo stesso.
+  const leggiFasi = async (): Promise<FasePerSal[]> => {
+    const { data, error } = await supabase
+      .from("order_work_phases")
+      .select("id, name, status, percentuale, importo_venduto")
+      .eq("order_id", orderId).eq("company_id",companyId).order("position");
+    if (error) throw error;
+    // importo_venduto non è nei tipi generati: la lettura torna tipata come errore, si passa da unknown.
+    return (data || []) as unknown as FasePerSal[];
+  };
+  const chiaveFasi = ["sal-fasi-commessa", orderId, companyId];
   const { data: fasiSal = [], isError: fasiError, refetch: refetchFasi } = useQuery<FasePerSal[]>({
-    queryKey: ["sal-fasi-commessa", orderId, companyId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_work_phases")
-        .select("name, status, percentuale, importo_venduto")
-        .eq("order_id", orderId).eq("company_id",companyId).order("position");
-      if (error) throw error;
-      // importo_venduto non è nei tipi generati: la lettura torna tipata come errore, si passa da unknown.
-      return (data || []) as unknown as FasePerSal[];
-    },
+    queryKey: chiaveFasi,
+    queryFn: leggiFasi,
     enabled: !!orderId && !!companyId && dialogOpen,
   });
 
@@ -187,12 +195,12 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
         toast.info("L'AI non ha trovato voci da suggerire");
         return;
       }
-      setVoci(voci_suggerite.map((v) => ({
+      setVoci(collegaVociAFasi(voci_suggerite.map((v) => ({
         descrizione: v.descrizione ?? "",
         importo_contrattuale: String(v.importo_contrattuale ?? 0),
         percentuale_avanzamento: String(v.perc_suggerita ?? 0),
         note: "",
-      })));
+      })), fasiSal));
       const noteDraft = data?.suggerimenti?.note_sal_draft;
       if (noteDraft && !note) setNote(noteDraft);
       toast.success(
@@ -207,6 +215,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   const createSalMutation = useMutation({
     mutationFn: async () => {
       if(!permissions.canEditOrders || !review || blocked || saveBlocked)throw new Error("Controlla lo storico e il riepilogo prima di salvare.");
+      if(vociInDiscesa.length>0 && !rettifica)throw new Error("Alcune voci scendono sotto il SAL precedente: conferma che è una rettifica o correggi le percentuali.");
       if(rataCollegata && (!(installments??[]).some(i=>i.id===rataCollegata) || salList.some(s=>s.installment_id===rataCollegata)))
         throw new Error("La rata non è disponibile o ha già un verbale SAL.");
       return saveSalDraft(supabase,{orderId,companyId,number:numeroNuovoSal((installments??[]).find(i=>i.id===rataCollegata)??null,salList),
@@ -214,7 +223,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
     },
     onSuccess: () => {
       toast.success("Bozza SAL salvata. Nessuna fattura o email generata.");
-      refreshSal();setDialogOpen(false);setNote("");setRataCollegata("");setVoci([emptyVoce()]);setReview(false);
+      refreshSal();setDialogOpen(false);setNote("");setRataCollegata("");setVoci([emptyVoce()]);setReview(false);setRettifica(false);
     },
     onError: (error:Error) => {
       setFormError(error.message);setSaveBlocked(error instanceof SalSaveError && error.uncertain);
@@ -293,6 +302,11 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   const rataScelta = (installments ?? []).find((i) => i.id === rataCollegata) ?? null;
   const numeroNuovo = numeroNuovoSal(rataScelta, salList);
   const precedenteNuovo = maturatoPrecedente({ id: "nuovo", numero_sal: numeroNuovo }, salList);
+  // Il verbale è cumulativo: ogni voce riparte dalla % del SAL emesso prima di questo.
+  const precedentiVoci = percentualiPrecedenti(numeroNuovo, salList);
+  const vociInDiscesa = vociSottoIlPrecedente(voci, precedentiVoci);
+  const nomeFase = (id?: string | null) => (id ? fasiSal.find((f) => f.id === id)?.name ?? null : null);
+
   const listIssues=salListIssues(salList);
   const blocked=isLoading || isError || isFetching || listIssues.length>0;
   const refreshSal=()=>{
@@ -304,7 +318,17 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   const openComposer=(installmentId="")=>{
     if(!permissions.canEditOrders || blocked)return;
     if(saveBlocked){toast.error("Un salvataggio precedente resta da verificare: ricarica lo storico prima di creare un altro SAL.");return;}
-    draftRevision.current++;setNote("");setVoci([emptyVoce()]);setRataCollegata(installmentId);setReview(false);setFormError("");setDialogOpen(true);
+    draftRevision.current++;const apertura=draftRevision.current;setNote("");setVoci([emptyVoce()]);setRataCollegata(installmentId);setReview(false);setRettifica(false);setFormError("");setDialogOpen(true);
+    // Il verbale nasce dalle fasi della commessa: appena arrivano, la bozza ancora
+    // intatta si compila (nome, venduto, % dal cantiere ma mai sotto il SAL
+    // precedente). Se nel frattempo l'ufficio ha scritto qualcosa, non si tocca.
+    const numero=numeroNuovoSal((installments??[]).find(i=>i.id===installmentId)??null,salList);
+    void queryClient.fetchQuery({queryKey:chiaveFasi,queryFn:leggiFasi}).then(fasi=>{
+      if(draftRevision.current!==apertura)return;
+      const daFasi=vociSalDaFasi(fasi,percentualiPrecedenti(numero,salList));
+      if(!daFasi.length)return;
+      draftRevision.current++;setVoci(daFasi);
+    }).catch(()=>{/* fasi non disponibili: il modulo lo dice e si compila a mano */});
   };
   const reviewDraft=()=>{
     try{prepareSalLines(voci,orderTotalAmount);setFormError("");setReview(true);}
@@ -733,12 +757,12 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
               <FileBarChart2 className="h-5 w-5" aria-hidden="true" />
               {review ? "Controlla il SAL" : "Nuova bozza SAL"}
             </DialogTitle>
-            <DialogDescription>Indica l'avanzamento complessivo fino a oggi, non solo quello di questo periodo. Si salva una bozza: nessuna fattura o invio automatico.</DialogDescription>
+            <DialogDescription>Le voci nascono dalle fasi della commessa. Indica l'avanzamento complessivo fino a oggi, non solo quello di questo periodo. Si salva una bozza: nessuna fattura o invio automatico.</DialogDescription>
           </DialogHeader>
 
           <div className="min-h-0 overflow-y-auto p-4 space-y-4">
           {formError && <p role="alert" className="text-sm text-destructive">{formError}</p>}
-          {review && <Button variant="outline" size="sm" disabled={createSalMutation.isPending} onClick={()=>setReview(false)}>Modifica bozza</Button>}
+          {review && <Button variant="outline" size="sm" disabled={createSalMutation.isPending} onClick={()=>{setReview(false);setRettifica(false);}}>Modifica bozza</Button>}
           <fieldset className="space-y-4 min-w-0" disabled={review || createSalMutation.isPending || !permissions.canEditOrders}>
             <p className="rounded-lg border bg-muted/20 p-3 text-sm">Stato iniziale: <strong>Bozza</strong>. L'emissione è un passaggio successivo, dopo la verifica delle voci.</p>
 
@@ -799,7 +823,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={async () => { const v=vociSalDaFasi(fasiSal);if(!v.length)return;
+                    onClick={async () => { const v=vociSalDaFasi(fasiSal,precedentiVoci);if(!v.length)return;
                       const hasInput=voci.some(v=>v.descrizione.trim() || v.importo_contrattuale.trim());
                       if(hasInput && !(await confirm({title:"Sostituire le voci della bozza?",description:"I dati già scritti saranno sostituiti dalle lavorazioni della commessa.",confirmLabel:"Usa le fasi"})))return;
                       draftRevision.current++;setVoci(v); }}
@@ -858,6 +882,9 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                       placeholder="es. Fondazioni, Muratura, Impianti..."
                       className="h-8 text-sm"
                     />
+                    <p className="text-[11px] text-muted-foreground">
+                      {v.fase_id ? <>Fase: <span className="font-medium text-foreground">{nomeFase(v.fase_id) ?? "della commessa"}</span></> : "Voce libera, fuori dalle fasi"}
+                    </p>
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     <div className="space-y-1">
@@ -881,6 +908,12 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                         placeholder="0"
                         className="h-8 text-sm"
                       />
+                      {(() => {
+                        const prima = percentualePrecedenteVoce(v, precedentiVoci);
+                        if (prima === null || precedentiVoci.numero === null) return null;
+                        const scende = vociInDiscesa.some((d) => d.descrizione === v.descrizione.trim() && d.precedente === prima);
+                        return <p className={`text-[11px] ${scende ? "font-medium text-amber-700" : "text-muted-foreground"}`}>SAL n. {precedentiVoci.numero}: {prima}%{scende ? " · scende" : ""}</p>;
+                      })()}
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">Importo SAL</Label>
@@ -932,6 +965,19 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
               />
             </div>
           </fieldset>
+          {review && vociInDiscesa.length > 0 && (
+            <div role="alert" className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+              <p className="font-medium">Queste voci scendono sotto il SAL n. {precedentiVoci.numero}:</p>
+              <ul className="list-disc pl-5 text-xs">
+                {vociInDiscesa.map((d, i) => <li key={i}>{d.descrizione}: dal {d.precedente}% al {d.attuale}%</li>)}
+              </ul>
+              <p className="text-xs">Il verbale è cumulativo: abbassare una voce riduce il già certificato. Salvalo solo se è una rettifica.</p>
+              <label className="flex items-center gap-2 text-xs font-medium">
+                <input type="checkbox" checked={rettifica} onChange={(e) => setRettifica(e.target.checked)} disabled={createSalMutation.isPending} />
+                È una rettifica: le percentuali più basse sono corrette
+              </label>
+            </div>
+          )}
           <p className="text-xs text-muted-foreground">Gli acconti e le fatture già emesse vanno verificati prima di fatturare la quota nuova. Il SAL non li riconcilia automaticamente.</p>
           </div>
 
@@ -940,7 +986,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
             <Button
               className="h-auto min-h-11 whitespace-normal"
               onClick={() => {if(!review){reviewDraft();return;}if(saving.current)return;saving.current=true;createSalMutation.mutate();}}
-              disabled={createSalMutation.isPending || aiSuggestMutation.isPending || blocked || saveBlocked || !permissions.canEditOrders}
+              disabled={createSalMutation.isPending || aiSuggestMutation.isPending || blocked || saveBlocked || !permissions.canEditOrders || (review && vociInDiscesa.length > 0 && !rettifica)}
             >
               {createSalMutation.isPending ? (
                 <><Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" /> Salvataggio...</>
