@@ -195,12 +195,14 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
       reference_number?: string;
       supplier_id?: string | null;
       order_id?: string | null;
+      /** Incasso di una fattura emessa: chiude anche la fattura e la sua scadenza. */
+      invoice_id?: string | null;
       account_label?: string;
       attachment_url?: string;
       attachment_name?: string;
       notes?: string;
     }) => {
-      const { error } = await supabase.from("prima_nota_entries").insert({
+      const { data: riga, error } = await supabase.from("prima_nota_entries").insert({
         company_id: companyId!,
         direction: params.direction,
         category: params.category,
@@ -211,19 +213,52 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
         reference_number: params.reference_number || null,
         supplier_id: params.supplier_id || null,
         order_id: params.order_id || null,
+        invoice_id: params.invoice_id || null,
         account_label: params.account_label || "banca",
         attachment_url: params.attachment_url || null,
         attachment_name: params.attachment_name || null,
         notes: params.notes || null,
         is_auto: false,
         created_by: (await supabase.auth.getUser()).data.user?.id,
-      });
+      }).select("id").single();
       if (error) throw error;
+      // L'incasso di una fattura passa anche dal registro dei pagamenti, come la
+      // riconciliazione bancaria: lì i trigger ricalcolano pagato, stato e scadenze.
+      // Se non riesce, si toglie la riga appena scritta: niente incasso a metà.
+      if (params.invoice_id && riga?.id) {
+        const { error: errPagamento } = await supabase.from("invoice_payments").insert({
+          invoice_id: params.invoice_id,
+          company_id: companyId!,
+          amount: params.amount,
+          payment_date: params.entry_date,
+          payment_method: params.payment_method || null,
+          reference: `prima_nota:${riga.id}`,
+          notes: "Incasso registrato dalla Prima nota",
+        } as never);
+        if (errPagamento) {
+          // Il delete che le regole d'accesso non lasciano fare non dà errore: tocca
+          // zero righe. Si controlla, così una riga rimasta a metà non passa in silenzio
+          // (e chi riprova non la duplica senza saperlo).
+          const { data: tolte } = await supabase.from("prima_nota_entries").delete().eq("id", riga.id).select("id");
+          if (!tolte || tolte.length === 0) {
+            throw new Error(
+              "La fattura non è stata aggiornata (manca il permesso sugli incassi) e la riga di prima nota è rimasta: " +
+              "non riprovare, chiedi a un amministratore di registrare l'incasso dalla fattura e di togliere la riga.",
+            );
+          }
+          throw errPagamento;
+        }
+      }
     },
-    onSuccess: () => {
-      toast.success("Registrazione creata");
+    onSuccess: (_d, params) => {
+      toast.success(params.invoice_id ? "Incasso registrato e fattura aggiornata" : "Registrazione creata");
       queryClient.invalidateQueries({ queryKey: queryKeys.primaNota.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.summary(companyId) });
+      if (params.invoice_id) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.invoices.all });
+        queryClient.invalidateQueries({ queryKey: queryKeys.scadenzario.all });
+        queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.scadenze(companyId) });
+      }
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });

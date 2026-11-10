@@ -35,6 +35,20 @@ function orderCustName(o: OrderOption | null | undefined): string {
   return `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim();
 }
 
+/** Fattura emessa con qualcosa ancora da incassare. */
+interface FatturaAperta {
+  id: string;
+  invoice_number: string | null;
+  issue_date: string | null;
+  client_company_name: string | null;
+  total: number | null;
+  paid_amount: number | null;
+  order_id: string | null;
+}
+const residuo = (f: FatturaAperta) => Math.max(0, Math.round(((f.total ?? 0) - (f.paid_amount ?? 0)) * 100) / 100);
+const euro = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
+const dataIt = (d: string | null) => (d ? d.split("-").reverse().join("/") : "");
+
 interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -49,6 +63,7 @@ interface Props {
     account_label?: string;
     supplier_id?: string | null;
     order_id?: string | null;
+    invoice_id?: string | null;
     attachment_url?: string;
     attachment_name?: string;
     notes?: string;
@@ -71,6 +86,9 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
   const [notes, setNotes] = useState("");
   const [supplierId, setSupplierId] = useState("");
   const [orderId, setOrderId] = useState("");
+  const [invoiceId, setInvoiceId] = useState("");
+  const [fatture, setFatture] = useState<FatturaAperta[]>([]);
+  const [fatturaOpen, setFatturaOpen] = useState(false);
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -102,6 +120,24 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
       }
       if (data) setOrders(data as unknown as OrderOption[]);
     });
+    // Le fatture emesse ancora da incassare: dall'incasso si sceglie la fattura,
+    // e la fattura porta con sé cliente, commessa e importo.
+    supabase.from("invoices")
+      .select("id, invoice_number, issue_date, client_company_name, total, paid_amount, order_id")
+      .eq("company_id", companyId)
+      .eq("document_type", "invoice")
+      .not("status", "in", "(paid,cancelled,credited,draft)")
+      .is("deleted_at", null)
+      .order("issue_date", { ascending: false })
+      .limit(1000)
+      .then(({ data, error }) => {
+        if (!alive) return;
+        if (error) {
+          console.warn("[NewEntryDialog] invoices fetch error:", error.message);
+          return;
+        }
+        setFatture(((data ?? []) as FatturaAperta[]).filter((f) => residuo(f) > 0));
+      });
     return () => { alive = false; };
   }, [open, companyId]);
 
@@ -117,7 +153,25 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
     setNotes("");
     setSupplierId("");
     setOrderId("");
+    setInvoiceId("");
     setAttachmentFile(null);
+  };
+
+  // La categoria decide il verso: un incasso entra, un pagamento esce.
+  const scegliCategoria = (v: string) => {
+    setCategory(v);
+    if (v === "incasso") setDirection("entrata");
+    else if (v === "fornitore") setDirection("uscita");
+    if (v !== "incasso") setInvoiceId("");
+  };
+
+  const scegliFattura = (f: FatturaAperta) => {
+    setInvoiceId(f.id);
+    setAmount(String(residuo(f)));
+    if (f.order_id) setOrderId(f.order_id);
+    setDescription(`Incasso fattura ${f.invoice_number ?? ""}${f.client_company_name ? ` - ${f.client_company_name}` : ""}`.trim());
+    setReference(`Fatt. ${f.invoice_number ?? ""}`.trim());
+    setFatturaOpen(false);
   };
 
   // Reset all'APERTURA: con dialog controllato Radix non invoca onOpenChange quando il
@@ -128,12 +182,17 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const isValid = description.trim() && Number(amount) > 0 && entryDate;
   const showSupplier = category === "fornitore";
   const showOrder = category === "incasso";
 
   const selectedSupplier = suppliers.find((s) => s.id === supplierId);
   const selectedOrder = orders.find((o) => o.id === orderId);
+  const fatturaScelta = fatture.find((f) => f.id === invoiceId);
+  // Più del residuo non si incassa: l'eccedenza farebbe risultare pagata una fattura
+  // con un importo che non torna, e il cliente in credito senza che nessuno lo sappia.
+  const oltreResiduo = !!fatturaScelta && Number(amount) > residuo(fatturaScelta) + 0.005;
+  const isValid = description.trim() && Number(amount) > 0 && entryDate && !oltreResiduo
+    && (!invoiceId || direction === "entrata");
 
   const handleConfirm = async () => {
     if (attachmentFile && !companyId) {
@@ -175,6 +234,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
       account_label: accountLabel,
       supplier_id: supplierId || null,
       order_id: orderId || null,
+      invoice_id: invoiceId || null,
       attachment_url: attachmentUrl,
       attachment_name: attachmentName,
       notes: notes || undefined,
@@ -202,7 +262,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
             </div>
             <div className="space-y-2">
               <Label>Categoria</Label>
-              <Select value={category} onValueChange={setCategory}>
+              <Select value={category} onValueChange={scegliCategoria}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {CATEGORIES.map((c) => (
@@ -241,6 +301,56 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
                   </Command>
                 </PopoverContent>
               </Popover>
+            </div>
+          )}
+
+          {/* Fattura da incassare: porta cliente, commessa e importo */}
+          {showOrder && (
+            <div className="space-y-2">
+              <Label>Fattura incassata</Label>
+              <Popover open={fatturaOpen} onOpenChange={setFatturaOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+                    <span className="truncate">
+                      {fatturaScelta
+                        ? `${fatturaScelta.invoice_number ?? "—"} · ${fatturaScelta.client_company_name ?? "cliente non indicato"}`
+                        : fatture.length > 0 ? "Scegli cliente e fattura..." : "Nessuna fattura da incassare"}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[min(32rem,90vw)] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Cerca cliente o numero..." />
+                    <CommandList>
+                      <CommandEmpty>Nessuna fattura trovata.</CommandEmpty>
+                      <CommandGroup>
+                        {fatture.map((f) => (
+                          <CommandItem key={f.id} value={`${f.invoice_number ?? ""} ${f.client_company_name ?? ""} ${f.id}`} onSelect={() => scegliFattura(f)}>
+                            <Check className={cn("mr-2 h-4 w-4 shrink-0", invoiceId === f.id ? "opacity-100" : "opacity-0")} />
+                            <span className="min-w-0 flex-1 truncate">
+                              <span className="font-mono text-xs mr-2">{f.invoice_number}</span>
+                              {f.client_company_name}
+                              <span className="text-muted-foreground"> · {dataIt(f.issue_date)}</span>
+                            </span>
+                            <span className="ml-2 shrink-0 tabular-nums text-xs">{euro(residuo(f))}</span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+              {fatturaScelta ? (
+                <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <span>Cliente: <span className="text-foreground">{fatturaScelta.client_company_name ?? "non indicato"}</span> · da incassare {euro(residuo(fatturaScelta))}</span>
+                  <button type="button" className="underline" onClick={() => setInvoiceId("")}>Togli</button>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">Senza fattura l'incasso resta solo in Prima nota: non chiude né la fattura né la scadenza.</p>
+              )}
+              {oltreResiduo && <p className="text-xs text-destructive">L'importo supera quanto resta da incassare su questa fattura.</p>}
+              {invoiceId && direction !== "entrata" && <p className="text-xs text-destructive">L'incasso di una fattura è un'entrata.</p>}
             </div>
           )}
 
