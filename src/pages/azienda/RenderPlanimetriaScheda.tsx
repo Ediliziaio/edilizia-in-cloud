@@ -1,6 +1,6 @@
 import { MaterialiProgetto } from "@/components/planimetrie/MaterialiProgetto";
-import { CollegamentiPiantaDialog, RiferimentiPianta } from "@/components/planimetrie/CollegamentiPianta";
-import { accessiCollegamenti, useCollegamentiPiante } from "@/lib/planimetrie/collegamenti";
+import { AssociazioniPiantaPanel, CollegamentiProgetto } from "@/components/planimetrie/CollegamentiPianta";
+import { accessiCollegamenti, useCollegamentiPiante, type TipoCollegamento } from "@/lib/planimetrie/collegamenti";
 import { controlliDalDocumento } from "../../../shared/planimetrie/letturaDocumento.ts";
 import { AnteprimaPianta } from "@/components/planimetrie/AnteprimaPianta";
 import { creaAnteprimaPianta } from "@/lib/planimetrie/anteprime";
@@ -62,7 +62,7 @@ export default function RenderPlanimetriaScheda() {
   const permessi = usePermissions();
   const { data, isLoading, error } = usePlanimetria(id);
   const collegamenti = useCollegamentiPiante(data?.riga.company_id, data ? [data.riga] : [], accessiCollegamenti(permessi));
-  const [gestisciCollegamenti, setGestisciCollegamenti] = useState(false);
+  const [gestisciCollegamenti, setGestisciCollegamenti] = useState<{ tipo?: TipoCollegamento } | null>(null);
   const { data: renders = [] } = useRenderDellaPianta(id);
   const documento = data?.versione.documento;
   const livelloId = params.get("livello");
@@ -167,10 +167,7 @@ export default function RenderPlanimetriaScheda() {
         sottotitolo={`Versione ${data.versione.numero}`}
       />
 
-      <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-3" aria-label="Collegamenti del progetto">
-        <div className="min-w-0 space-y-2"><h2 className="text-sm font-semibold">Collegamenti del progetto</h2><RiferimentiPianta riga={data.riga} mappa={collegamenti.data} /></div>
-        {!permessi.solaLettura && <Button variant="outline" size="sm" onClick={() => setGestisciCollegamenti(true)}>Associa</Button>}
-      </section>
+      <CollegamentiProgetto riga={data.riga} mappa={collegamenti.data} onAssocia={(tipo) => setGestisciCollegamenti({ tipo })} />
 
       {/* Azioni: una sola in evidenza (modificare), le altre sullo stesso piano e leggibili; sul telefono solo le icone. */}
       <div className="flex flex-wrap items-center gap-2 max-md:flex-nowrap" role="toolbar" aria-label="Azioni sulla pianta">
@@ -451,7 +448,7 @@ export default function RenderPlanimetriaScheda() {
           </div>
         </section>
       )}
-      {gestisciCollegamenti && <CollegamentiPiantaDialog riga={data.riga} mappa={collegamenti.data} onChiudi={() => setGestisciCollegamenti(false)} />}
+      {gestisciCollegamenti && <AssociazioniPiantaPanel riga={data.riga} mappa={collegamenti.data} anteprima={anteprima2D} tipoIniziale={gestisciCollegamenti.tipo} onChiudi={() => setGestisciCollegamenti(null)} />}
     </div>
   );
 }

@@ -23,7 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { usePermissions } from "@/hooks/usePermissions";
 import { accessiCollegamenti, useCollegamentiPiante } from "@/lib/planimetrie/collegamenti";
 import { filtraElencoPiante, STATI_PIANTA, type FiltriElencoPiante } from "@/lib/planimetrie/elenco";
-import { CollegamentiPiantaDialog, RiferimentiPianta } from "@/components/planimetrie/CollegamentiPianta";
+import { AssociazioniPiantaPanel, RiferimentiPianta } from "@/components/planimetrie/CollegamentiPianta";
 import { AnteprimaPianta } from "@/components/planimetrie/AnteprimaPianta";
 import { PIANTE_PER_PAGINA, useAnteprimePlanimetrie } from "@/lib/planimetrie/anteprime";
 import { TestataPlanimetrie } from "@/components/planimetrie/render/TestataPlanimetrie";
@@ -156,7 +156,7 @@ export default function RenderPlanimetrieHub() {
             {ultimaPagina > 0 && <nav aria-label="Pagine dell'archivio" className="flex items-center justify-between gap-3"><Button variant="outline" disabled={paginaCorrente === 0} onClick={() => setPagina(paginaCorrente - 1)}>Precedenti</Button><span className="text-sm text-muted-foreground">Pagina {paginaCorrente + 1} di {ultimaPagina + 1}</span><Button variant="outline" disabled={paginaCorrente === ultimaPagina} onClick={() => setPagina(paginaCorrente + 1)}>Successive</Button></nav>}
           </>}
       </section>
-      {daCollegare && <CollegamentiPiantaDialog key={daCollegare.id} riga={daCollegare} mappa={collegamenti.data} onChiudi={() => setDaCollegare(null)} />}
+      {daCollegare && <AssociazioniPiantaPanel key={daCollegare.id} riga={daCollegare} mappa={collegamenti.data} anteprima={anteprime.data?.[daCollegare.id]} onChiudi={() => setDaCollegare(null)} />}
     </div>
   );
 }

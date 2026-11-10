@@ -6,11 +6,11 @@ import type { Permissions } from "@/hooks/usePermissions";
 
 export const TIPI_COLLEGAMENTO = ["contatto", "cliente", "preventivo", "commessa", "computo"] as const;
 export type TipoCollegamento = typeof TIPI_COLLEGAMENTO[number];
-export interface SceltaCollegamento { id: string; nome: string; percorso?: string }
+export interface SceltaCollegamento { id: string; nome: string; titolo?: string; sottotitolo?: string; percorso?: string }
 export type MappaCollegamenti = Record<TipoCollegamento, Record<string, SceltaCollegamento>>;
 export const DEFINIZIONI_COLLEGAMENTI = {
-  contatto: { titolo: "Contatto CRM", colonna: "contact_id", campo: "contactId", tabella: "marketing_contacts", colonne: "id,first_name,last_name,company_name", cerca: ["first_name", "last_name", "company_name"], base: "/azienda/marketing/contatti" },
-  cliente: { titolo: "Cliente", colonna: "customer_id", campo: "customerId", tabella: "profiles", colonne: "id,first_name,last_name,business_name", cerca: ["first_name", "last_name", "business_name"], base: "/azienda/clienti" },
+  contatto: { titolo: "Contatto CRM", colonna: "contact_id", campo: "contactId", tabella: "marketing_contacts", colonne: "id,first_name,last_name,company_name,email", cerca: ["first_name", "last_name", "company_name", "email"], base: "/azienda/marketing/contatti" },
+  cliente: { titolo: "Cliente", colonna: "customer_id", campo: "customerId", tabella: "profiles", colonne: "id,first_name,last_name,business_name,email", cerca: ["first_name", "last_name", "business_name"], base: "/azienda/clienti" },
   preventivo: { titolo: "Preventivo", colonna: "quote_id", campo: "quoteId", tabella: "quotes", colonne: "id,quote_number,title", cerca: ["quote_number", "title"], base: "/azienda/marketing/preventivi" },
   commessa: { titolo: "Commessa", colonna: "order_id", campo: "orderId", tabella: "orders", colonne: "id,order_code,description", cerca: ["order_code", "description"], base: "/azienda/ordini" },
   computo: { titolo: "Computo metrico", colonna: "computo_upload_id", campo: "computoUploadId", tabella: "computo_uploads", colonne: "id,titolo,file_name", cerca: ["titolo", "file_name"], base: "" },
@@ -27,7 +27,14 @@ export function sceltaDaRiga(tipo: TipoCollegamento, row: Record<string, unknown
     : tipo === "commessa" ? [testo("order_code"), testo("description")].filter(Boolean).join(" · ")
       : tipo === "computo" ? testo("titolo") || testo("file_name")
       : testo("business_name") || testo("company_name") || nomePersona;
-  return { id: String(row.id), nome: nome || DEFINIZIONI_COLLEGAMENTI[tipo].titolo, ...(tipo === "computo" ? {} : { percorso: `${DEFINIZIONI_COLLEGAMENTI[tipo].base}/${row.id}` }) };
+  const titolo = tipo === "preventivo" ? testo("quote_number") : tipo === "commessa" ? testo("order_code") : "";
+  const sottotitolo = tipo === "preventivo" ? testo("title") : tipo === "commessa" ? testo("description")
+    : tipo === "computo" ? testo("titolo") && testo("file_name") !== testo("titolo") ? testo("file_name") : "" : testo("email");
+  return {
+    id: String(row.id), nome: nome || DEFINIZIONI_COLLEGAMENTI[tipo].titolo,
+    ...(titolo ? { titolo } : {}), ...(sottotitolo ? { sottotitolo } : {}),
+    ...(tipo === "computo" ? {} : { percorso: `${DEFINIZIONI_COLLEGAMENTI[tipo].base}/${row.id}` }),
+  };
 }
 
 export const haCollegamenti = (riga: RigaPlanimetria) => TIPI_COLLEGAMENTO.some((tipo) => Boolean(riga[DEFINIZIONI_COLLEGAMENTI[tipo].colonna]));
