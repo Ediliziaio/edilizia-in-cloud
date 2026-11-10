@@ -1,4 +1,4 @@
-import type { DocumentoOperativo } from "./modello";
+import { dataIt, type DocumentoOperativo } from "./modello";
 import type { RapportinoCompleto } from "@/hooks/useRapportiniMese";
 import { personeDi, statoDi } from "@/lib/orders/rapportiniMese";
 import { campoWorkDay } from "@/lib/campo/workDay";
@@ -20,7 +20,8 @@ export function rapportoEconomiaDaRapportini(
     luogo: unica?.work_address,
     note: null,
     righe: approvati.flatMap((r) => {
-      const gruppo = `${r.data_lavoro} - ${r.order?.order_code || ""} - ${r.descrizione_lavori || "Intervento"}`;
+      // La data come la legge il committente, gg/mm/aaaa (10/11/2026: usciva «2026-11-02»).
+      const gruppo = `${dataIt(r.data_lavoro)} - ${r.order?.order_code || ""} - ${r.descrizione_lavori || "Intervento"}`;
       const manodopera = personeDi(r)
         .filter((p) => p.ore > 0)
         .map((p) => ({

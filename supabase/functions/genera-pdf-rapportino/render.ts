@@ -274,16 +274,29 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
   const logo = modello.mostraLogo && ctx.branding.logoUrl ? await embed(ctx.branding.logoUrl, "logo") : null;
   const companyName = text(ctx.company.name) || "Impresa";
   const logoW = 66;
-  if (logo) {
+  // Logo grande della veste (Impresa Vulcano, 10/11/2026): il suo logo è largo (6:1) e nel riquadro da 66 punti non si
+  // leggeva. Prende la larghezza che la testata lascia libera accanto a titolo e data, fino al massimo della veste, e
+  // contiene già il nome: il nome scritto non si ripete. Per chi non ha una veste il riquadro resta quello di sempre.
+  const logoGrande = logo && veste.logoAltezza && veste.logoLarghezzaMax
+    ? { w: Math.min(veste.logoLarghezzaMax + 12, CW - 250), h: Math.min(veste.logoAltezza + 8, fasciaH - 16) }
+    : null;
+  if (logo && logoGrande) {
+    const d = logo.scaleToFit(logoGrande.w - 12, logoGrande.h - 8);
+    const cima = H - (fasciaH - logoGrande.h) / 2;
+    rbox(M, cima, d.width + 12, logoGrande.h, 7, white);
+    page.drawImage(logo, { x: M + 6, y: cima - logoGrande.h / 2 - d.height / 2, ...d });
+  } else if (logo) {
     rbox(M, H - 12, logoW, 44, 7, white);
     const d = logo.scaleToFit((logoW - 10) * modello.scalaLogo / 100, 36 * modello.scalaLogo / 100);
     page.drawImage(logo, { x: M + (logoW - d.width) / 2, y: H - 12 - 22 - d.height / 2, ...d });
   }
-  const xNome = M + (logo ? logoW + 14 : 0);
-  const larghezzaNome = 275 - (logo ? logoW + 14 : 0);
-  const righeNome = wrap(companyName, bold, 13, larghezzaNome).slice(0, 2);
-  let yNome = H - 26;
-  righeNome.forEach(l => { T(l, xNome, yNome, 13, bold, onAccent); yNome -= 15; });
+  if (!logoGrande) {
+    const xNome = M + (logo ? logoW + 14 : 0);
+    const larghezzaNome = 275 - (logo ? logoW + 14 : 0);
+    const righeNome = wrap(companyName, bold, 13, larghezzaNome).slice(0, 2);
+    let yNome = H - 26;
+    righeNome.forEach(l => { T(l, xNome, yNome, 13, bold, onAccent); yNome -= 15; });
+  }
   const xDestra = W - M;
   const etichetta = title.toUpperCase();
   const sizeTitolo = Math.min(8, 440 / Math.max(1, larghezza(etichetta, 1, bold)));

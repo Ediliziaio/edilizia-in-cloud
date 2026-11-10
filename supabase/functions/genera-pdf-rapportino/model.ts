@@ -164,7 +164,8 @@ export function bloccoFasi(report: RecordData, nomiFasi: ReadonlyMap<string, str
       id,
       nome: text(v.nome) || text(v.name) || nomiFasi.get(text(v.phase_id)) || "Lavorazione non identificata",
       percentuale: percentuale !== null && percentuale <= 100 ? percentuale : null,
-      ore: number(v.ore),
+      // Zero ore non sono ore dichiarate: «0 h dichiarate» sulla scheda non diceva niente (10/11/2026).
+      ore: number(v.ore) || null,
       materiali,
       foto,
       campi: valori.filter(c => !!c.phase_id && c.phase_id === text(v.phase_id)),

@@ -20,9 +20,9 @@
  * Fase 5 del Modulo Appaltatori (28/10/2026) — vedi docs/piano-commessa-appalto.md.
  */
 import React from "react";
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
 import { PieSocietario } from "@/components/preventivi/pdf/FoglioCondizioniPDF";
-import { margineInferiorePiede } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
+import { margineInferiorePiede, personalizzazioneDocumento } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
 import { riepilogoRendiconto, type CantiereDelRendiconto } from "@/lib/appalto/fattura";
 import type { CantiereAllegato } from "@/lib/appalto/giornaleAllegato";
 
@@ -269,6 +269,19 @@ const etichettaUnita = (v: string): string => ({
   km: "km", mq: "m²", ml: "m", mc: "m³", kg: "kg", cad: "cad", corpo: "a corpo",
 }[v] ?? v);
 
+/**
+ * Le etichette che il database scrive nelle note per uso interno: al committente non dicono niente
+ * («Voce del rapportino» sulle voci libere, 10/11/2026). Tutto il resto della nota (la persona) resta.
+ */
+const NOTE_INTERNE = new Set(["voce del rapportino", "voce libera del rapportino"]);
+
+/** La nota di una riga come la legge il committente: null se è vuota o è un'etichetta interna. */
+export function notaPerCommittente(nota: string | null | undefined): string | null {
+  const t = String(nota ?? "").trim();
+  if (!t || NOTE_INTERNE.has(t.toLowerCase())) return null;
+  return t;
+}
+
 const giornoIT = (iso: string): string => {
   const [a, m, g] = iso.split("-");
   return g && m && a ? `${g}/${m}/${a}` : iso;
@@ -334,6 +347,13 @@ export function RendicontoAppaltoPDF({
 }: RendicontoAppaltoPDFProps) {
   const righeTotali = cantieri.reduce((s, c) => s + c.righe.length, 0);
   const riepilogo = riepilogoRendiconto(cantieri);
+  // Testata (10/11/2026): mancavano logo e nome di chi manda il rendiconto. Con la veste propria (Vulcano) il logo
+  // è grande e contiene già il nome; per le altre il logo piccolo accanto alla ragione sociale, come nel DDT.
+  const veste = personalizzazioneDocumento(companyId);
+  const logoGrande = veste.logoAltezza && veste.logoLarghezzaMax && azienda.logo_url
+    ? { width: veste.logoLarghezzaMax, height: veste.logoAltezza, objectFit: "contain" as const, objectPositionX: 0 }
+    : null;
+  const sedeAzienda = indirizzo(azienda).join(" · ");
 
   return (
     <Document
@@ -344,6 +364,21 @@ export function RendicontoAppaltoPDF({
       <Page size="A4" style={[styles.page, { paddingBottom: margineInferiorePiede(companyId, 70) }]} wrap>
         {/* I dati dell'azienda sono in fondo, uguali a tutti i documenti (09/11/2026). Il piè sta per primo. */}
         <PieSocietario righe={societarie.length ? societarie : [azienda.name]} margine={40} companyId={companyId} />
+
+        {/* 1. Testata: chi manda il rendiconto */}
+        <View style={styles.header}>
+          {logoGrande ? (
+            <Image src={azienda.logo_url!} style={logoGrande} />
+          ) : (
+            <View style={styles.headerLeft}>
+              {azienda.logo_url ? <Image src={azienda.logo_url} style={styles.logo} /> : null}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.companyName}>{azienda.name}</Text>
+                {sedeAzienda ? <Text style={styles.companyMeta}>{sedeAzienda}</Text> : null}
+              </View>
+            </View>
+          )}
+        </View>
 
         {/* 2. Titolo */}
         <View style={styles.docBlock}>
@@ -454,9 +489,10 @@ export function RendicontoAppaltoPDF({
               <View key={r.id} style={styles.tr} wrap={false}>
                 <Text style={[styles.td, styles.cData]}>{giornoIT(r.data)}</Text>
                 <View style={styles.cDesc}>
-                  <Text style={styles.td}>{r.note ? `${r.descrizione} · ${r.note}` : r.descrizione}</Text>
+                  {/* La persona (la nota) una volta sola, sotto la voce: prima usciva anche in coda alla descrizione. */}
+                  <Text style={styles.td}>{r.descrizione}</Text>
                   {r.extra_contratto ? <Text style={styles.extra}>Fuori contratto</Text> : null}
-                  {r.note ? <Text style={[styles.infoLine, { fontSize: 7 }]}>{r.note}</Text> : null}
+                  {notaPerCommittente(r.note) ? <Text style={[styles.infoLine, { fontSize: 7 }]}>{notaPerCommittente(r.note)}</Text> : null}
                 </View>
                 <Text style={[styles.td, styles.cUm]}>{etichettaUnita(r.unita_misura)}</Text>
                 <Text style={[styles.td, styles.cQta]}>{quantita(r.quantita)}</Text>

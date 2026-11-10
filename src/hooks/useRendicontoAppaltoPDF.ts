@@ -106,7 +106,7 @@ export function useRendicontoAppaltoPDF() {
         }
 
         const orderIds = [...new Set(righe.map((r) => r.order_id))];
-        const [cantieriRes, committenteRes, contrattoRes, societari] = await Promise.all([
+        const [cantieriRes, committenteRes, contrattoRes, societari, logoRes] = await Promise.all([
           supabase.from("orders").select("id, order_code, description").in("id", orderIds),
           supabase
             .from("profiles")
@@ -120,6 +120,8 @@ export function useRendicontoAppaltoPDF() {
             .maybeSingle(),
           // `companies` non ha address/city: la lettura falliva e in testata restava il solo nome (09/11/2026).
           caricaDatiSocietari(supabase, effectiveCompany.id),
+          // Il logo in testata (10/11/2026): il rendiconto usciva senza, e senza nome dell'impresa.
+          supabase.from("companies").select("logo_url").eq("id", effectiveCompany.id).maybeSingle(),
         ]);
 
         const cantieri = raggruppaPerCantiere(righe, (cantieriRes.data ?? []) as Array<{
@@ -150,7 +152,10 @@ export function useRendicontoAppaltoPDF() {
             periodoDal: sal.periodo_dal,
             periodoAl: sal.periodo_al,
             statoEtichetta: STATI_SAL[sal.stato]?.etichetta ?? sal.stato,
-            azienda: { name: societari?.ragioneSociale || effectiveCompany.name || "—" },
+            azienda: {
+              name: societari?.ragioneSociale || effectiveCompany.name || "—",
+              logo_url: (logoRes.data as { logo_url?: string | null } | null)?.logo_url ?? null,
+            },
             societarie: righeSocietarie(societari),
             companyId: effectiveCompany.id,
             committente: {

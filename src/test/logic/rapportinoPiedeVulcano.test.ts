@@ -130,3 +130,61 @@ describe("Le altre aziende: rapportino e fine lavori identici a prima", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 });
+
+/** Un PNG pieno, delle misure date: il logo largo di Vulcano è 1624×263. */
+async function pngPieno(w: number, h: number): Promise<Uint8Array> {
+  const { deflateSync } = await import("node:zlib");
+  const crcTab = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+  const crc = (b: Buffer) => { let c = 0xffffffff; for (const x of b) c = crcTab[(c ^ x) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const pezzo = (tipo: string, dati: Buffer) => {
+    const t = Buffer.concat([Buffer.from(tipo), dati]);
+    const l = Buffer.alloc(4); l.writeUInt32BE(dati.length);
+    const c = Buffer.alloc(4); c.writeUInt32BE(crc(t));
+    return Buffer.concat([l, t, c]);
+  };
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2;
+  const riga = Buffer.alloc(1 + w * 3, 0x30);
+  riga[0] = 0;
+  const grezzo = Buffer.concat(Array.from({ length: h }, () => riga));
+  return new Uint8Array(Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), pezzo("IHDR", ihdr), pezzo("IDAT", deflateSync(grezzo)), pezzo("IEND", Buffer.alloc(0))]));
+}
+
+describe("Testata e fasi del rapportino (10/11/2026)", () => {
+  const conLogo = (companyId: string, nome: string) => ({
+    ...contesto(companyId, false, nome),
+    branding: { primaryColor: "#123456", logoUrl: "logo.png" },
+  });
+
+  it("Vulcano: il logo largo usa la larghezza della veste e il nome non si ripete", async () => {
+    fontVero();
+    const logo = await pngPieno(1624, 263);
+    const disegni = vi.spyOn(PDFPage.prototype, "drawImage");
+    const testi = vi.spyOn(PDFPage.prototype, "drawText");
+    await renderRapportino(conLogo(VULCANO, "Impresa Vulcano s.r.l."), async (_r: string, k: string) => (k === "logo" ? logo : null));
+    const d = disegni.mock.calls[0][1]!;
+    expect(d.width!).toBeGreaterThan(250);
+    expect(d.width! / d.height!).toBeCloseTo(1624 / 263, 1);
+    // Il nome scritto in testata (corpo 13) non c'è più: il logo lo contiene.
+    expect(testi.mock.calls.some(([t, o]) => t === "Impresa Vulcano s.r.l." && o?.size === 13)).toBe(false);
+  });
+
+  it("le altre aziende: logo nel riquadro di sempre e nome accanto", async () => {
+    fontVero();
+    const logo = await pngPieno(1624, 263);
+    const disegni = vi.spyOn(PDFPage.prototype, "drawImage");
+    const testi = vi.spyOn(PDFPage.prototype, "drawText");
+    await renderRapportino(conLogo(ALFA, "Impresa Alfa"), async (_r: string, k: string) => (k === "logo" ? logo : null));
+    expect(disegni.mock.calls[0][1]!.width!).toBeLessThanOrEqual(56);
+    expect(testi.mock.calls.some(([t, o]) => t === "Impresa Alfa" && o?.size === 13)).toBe(true);
+  });
+
+  it("una fase senza ore non dichiara «0 h»", async () => {
+    fontVero();
+    const testi = vi.spyOn(PDFPage.prototype, "drawText");
+    const ctx = contesto(ALFA, false, "Impresa Alfa");
+    ctx.report = { ...ctx.report, descrizione_lavori: "Breve", fasi_lavorate: [{ phase_id: "f1", nome: "Intonaci", ore: 0 }, { phase_id: "f2", nome: "Rasatura", ore: 3 }] } as typeof ctx.report;
+    await renderRapportino(ctx, async (): Promise<null> => null);
+    const dichiarate = testi.mock.calls.map(([t]) => t).filter((t) => t.includes("dichiarate su questa lavorazione"));
+    expect(dichiarate).toEqual(["3 h dichiarate su questa lavorazione"]);
+  });
+});

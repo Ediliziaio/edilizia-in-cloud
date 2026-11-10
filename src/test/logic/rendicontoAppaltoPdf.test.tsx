@@ -8,7 +8,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { RendicontoAppaltoPDF } from "@/components/orders/RendicontoAppaltoPDF";
+import { RendicontoAppaltoPDF, notaPerCommittente } from "@/components/orders/RendicontoAppaltoPDF";
 import { raggruppaPerCantiere, type RigaDaStampare } from "@/lib/appalto/fattura";
 import { giornaleDaAllegare, type CantiereAllegato, type RigaGiornaleDb } from "@/lib/appalto/giornaleAllegato";
 
@@ -217,5 +217,60 @@ describe("il giornale allegato al rendiconto", () => {
   it("una pagina di un giorno non rendicontato resta fuori", () => {
     const allegato = giornaleDaAllegare(RIGHE, [firmata("o1", "2026-09-07", "Giusta"), firmata("o1", "2026-09-08", "Fuori")], nomi);
     expect(allegato.flatMap((c) => c.giornate.map((g) => g.lavorazioni))).toEqual(["Giusta"]);
+  });
+});
+
+describe("il rendiconto dalla simulazione su Impresa Vulcano (10/11/2026)", () => {
+  const VULCANO = "7c87c209-7868-42d0-ad98-6c95ac6de196";
+  // PNG 1×1: basta per vedere se il logo entra nel documento.
+  const LOGO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+  const conNota = (descrizione: string, note: string | null): RigaDaStampare => ({ ...riga("o1", "2026-11-03", descrizione, "ora", 32, 8, 256), note });
+
+  async function stampa(righe: RigaDaStampare[], opz: { companyId?: string; logo?: string | null } = {}) {
+    const totale = righe.reduce((s, r) => s + r.importo, 0);
+    const buffer = await renderToBuffer(
+      RendicontoAppaltoPDF({
+        numero: 3, periodoDal: "2026-11-01", periodoAl: "2026-11-30", statoEtichetta: "Bozza",
+        azienda: { name: "Impresa Vulcano s.r.l.", logo_url: opz.logo ?? null },
+        committente: { ragione_sociale: "Condominio Aurora" },
+        cantieri: raggruppaPerCantiere(righe, CANTIERI),
+        totale, ritenutaPct: 0, ritenuta: 0, netto: totale, companyId: opz.companyId ?? null,
+      }),
+    );
+    const pdf = await getDocument({ data: new Uint8Array(buffer) }).promise;
+    const text = (await (await pdf.getPage(1)).getTextContent()).items.map((it) => ("str" in it ? it.str : "")).join(" ").replace(/\s+/g, " ");
+    return { text, raw: Buffer.from(buffer).toString("latin1") };
+  }
+
+  it("il nome della persona esce una volta sola", async () => {
+    const { text } = await stampa([conNota("Capocantiere — ora", "Marco Colombo")]);
+    expect(text.match(/Marco Colombo/g)).toHaveLength(1);
+    expect(text).not.toContain("ora · Marco Colombo");
+    expect(text).toContain("Capocantiere — ora");
+  });
+
+  it("l'etichetta interna «Voce del rapportino» non arriva al committente", async () => {
+    const { text } = await stampa([conNota("Nolo ponteggio", "Voce del rapportino")]);
+    expect(text).toContain("Nolo ponteggio");
+    expect(text).not.toContain("Voce del rapportino");
+    expect(notaPerCommittente("Voce del rapportino")).toBeNull();
+    expect(notaPerCommittente("  voce libera del rapportino ")).toBeNull();
+    expect(notaPerCommittente("Marco Colombo")).toBe("Marco Colombo");
+    expect(notaPerCommittente(null)).toBeNull();
+  });
+
+  it("in testata il nome dell'impresa, e il logo quando c'è", async () => {
+    const senza = await stampa([RIGHE[0]]);
+    expect(senza.text.indexOf("Impresa Vulcano s.r.l.")).toBeLessThan(senza.text.indexOf("Rendiconto lavori in appalto"));
+    expect(senza.raw).not.toContain("/Subtype /Image");
+    const altra = await stampa([RIGHE[0]], { logo: LOGO });
+    expect(altra.raw).toContain("/Subtype /Image");
+    // Con la veste di Vulcano il logo è grande e contiene già il nome: il nome scritto non si ripete in testata.
+    const vulcano = await stampa([RIGHE[0]], { logo: LOGO, companyId: VULCANO });
+    expect(vulcano.raw).toContain("/Subtype /Image");
+    // Il testo prima del titolo, dopo il numero di pagina del piè: è la testata.
+    const testata = (t: string) => t.slice(t.indexOf("Pag. 1 / 1"), t.indexOf("Rendiconto lavori in appalto"));
+    expect(testata(altra.text)).toContain("Impresa Vulcano s.r.l.");
+    expect(testata(vulcano.text)).not.toContain("Impresa Vulcano s.r.l.");
   });
 });

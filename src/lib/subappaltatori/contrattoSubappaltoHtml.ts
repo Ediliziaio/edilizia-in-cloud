@@ -14,6 +14,7 @@
  * DURC, art. 17 c. 6 lett. a-ter DPR 633/1972 (reverse charge in edilizia).
  */
 import { testoPiano } from "../../../supabase/functions/_shared/condizioniArchivio";
+import { conPunto } from "../../../supabase/functions/_shared/punteggiatura";
 
 /**
  * Una riga dell'elenco dei lavori (Allegato A, 31/10/2026): la voce del computo
@@ -216,7 +217,7 @@ export function articoliContratto(d: DatiContrattoSubappalto): ArticoloContratto
     { titolo: "Obblighi dell'Affidataria", paragrafi: [
       "L'Affidataria consegna al Subappaltatore l'elenco dei lavori o il computo metrico e, dove previsti, i disegni tecnici delle forniture, delle demolizioni e costruzioni, degli impianti e degli arredi.",
       "Restano a carico dell'Affidataria la fornitura di acqua ed energia elettrica e la realizzazione dei progetti.",
-      `Per l'Affidataria il referente è ${t(d.responsabileImpresa) || "________________________"}.`,
+      `Per l'Affidataria il referente è ${conPunto(t(d.responsabileImpresa) || "________________________")}`,
     ] },
     { titolo: "Obblighi del Subappaltatore", paragrafi: [
       "Il Subappaltatore esegue i lavori a perfetta regola d'arte, con la migliore diligenza professionale, con mezzi e maestranze propri dotati di adeguata capacità tecnica e a proprio rischio. Garantisce che materiali e macchinari impiegati sono conformi alle norme di legge e di sicurezza e che le opere sono idonee allo scopo, che dichiara di conoscere.",
@@ -303,7 +304,7 @@ export function articoliContratto(d: DatiContrattoSubappalto): ArticoloContratto
       "Se gli indici ISTAT dei materiali da costruzione aumentano del 10% o più rispetto alla data dell'offerta, le parti si incontrano per concordare un adeguamento proporzionale dei prezzi.",
     ] },
     { titolo: "Trattamento dei dati personali", paragrafi: [
-      `Le parti, titolari autonomi, trattano i dati personali scambiati ai sensi del Regolamento (UE) 2016/679 solo per l'esecuzione del contratto e gli obblighi di legge collegati, per la durata del rapporto e poi per gli obblighi di legge. Titolare per l'Affidataria: ${A}.`,
+      `Le parti, titolari autonomi, trattano i dati personali scambiati ai sensi del Regolamento (UE) 2016/679 solo per l'esecuzione del contratto e gli obblighi di legge collegati, per la durata del rapporto e poi per gli obblighi di legge. Titolare per l'Affidataria: ${conPunto(A)}`,
     ] },
   ];
   if (t(d.note)) art.push({ titolo: "Altre pattuizioni", paragrafi: [t(d.note)] });
@@ -410,7 +411,7 @@ export function costruisciContrattoSubappaltoHtml(d: DatiContrattoSubappalto): s
     <div><strong>Impresa affidataria</strong><br>${esc(d.committente.ragioneSociale)}<br>P.IVA ${esc(d.committente.partitaIva || "—")}<br>${esc(d.committente.indirizzo)}${d.committente.rappresentante ? `<br>rappresentata da ${esc(d.committente.rappresentante)}` : ""}</div>
     <div><strong>Subappaltatore</strong><br>${esc(d.subappaltatore.ragioneSociale)}<br>P.IVA ${esc(d.subappaltatore.partitaIva || "—")}<br>${esc(d.subappaltatore.indirizzo)}${d.subappaltatore.pec ? `<br>PEC ${esc(d.subappaltatore.pec)}` : ""}</div>
   </div>
-  <p>Committente (cliente finale dell'opera): ${esc(d.commessa.cliente || "—")}. Cantiere: ${esc(d.commessa.indirizzoCantiere || "—")}. Lavori dal ${dataContratto(d.dataInizio)} al ${dataContratto(d.dataFinePrevista)}.</p>
+  <p>Committente (cliente finale dell'opera): ${esc(conPunto(d.commessa.cliente || "—"))} Cantiere: ${esc(conPunto(d.commessa.indirizzoCantiere || "—"))} Lavori dal ${dataContratto(d.dataInizio)} al ${dataContratto(d.dataFinePrevista)}.</p>
   <table class="eco">
     ${rigaEco("Lavori", euroContratto(eco.lavori))}
     ${eco.oneri > 0 ? rigaEco("Oneri della sicurezza", euroContratto(eco.oneri)) : ""}

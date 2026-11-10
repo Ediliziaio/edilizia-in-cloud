@@ -5,6 +5,8 @@
  * chiedo». Il testo si compone dai dati della commessa: stesso formato di quello dell'AI, così il PDF è uno solo. Le
  * condizioni le attacca in coda chi chiama, parola per parola, dal modello di «Contratti e condizioni».
  */
+import { conPunto } from "./punteggiatura.ts";
+
 export interface CommessaPerContratto {
   description?: string | null;
   work_description?: string | null;
@@ -31,8 +33,8 @@ export function contrattoStandardMd(o: CommessaPerContratto): string {
       : "Le date di inizio e di fine dei lavori si concordano per iscritto prima dell'avvio del cantiere.";
   return [
     "# CONTRATTO D'APPALTO",
-    `## Oggetto dei lavori\nCon il presente contratto il Committente affida all'Appaltatore, che accetta, l'esecuzione dei seguenti lavori: ${oggetto || "come da Allegato A"}.${dettaglio && dettaglio !== oggetto ? ` ${dettaglio}.`.replace(/\.\.$/, ".") : ""} Le singole lavorazioni sono elencate nell'Allegato A, parte integrante del contratto.`,
-    `## Luogo dei lavori\nI lavori si eseguono in ${luogo || "luogo da indicare a cura delle parti"}.`,
+    `## Oggetto dei lavori\nCon il presente contratto il Committente affida all'Appaltatore, che accetta, l'esecuzione dei seguenti lavori: ${conPunto(oggetto || "come da Allegato A")}${dettaglio && dettaglio !== oggetto ? ` ${conPunto(dettaglio)}` : ""} Le singole lavorazioni sono elencate nell'Allegato A, parte integrante del contratto.`,
+    `## Luogo dei lavori\nI lavori si eseguono in ${conPunto(luogo || "luogo da indicare a cura delle parti")}`,
     "## Corrispettivo\nIl corrispettivo e le scadenze di pagamento sono quelli indicati nel riquadro «Corrispettivo e pagamenti». I prezzi delle singole lavorazioni sono quelli dell'Allegato A.",
     `## Tempi di esecuzione\n${tempi}`,
   ].join("\n\n");

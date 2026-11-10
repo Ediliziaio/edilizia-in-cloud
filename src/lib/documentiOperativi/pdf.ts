@@ -18,6 +18,7 @@ import {
   importoRiga,
   euro,
   numeroIt,
+  oreIt,
   dataIt,
   documentoIncompleto,
 } from "./modello";
@@ -198,7 +199,16 @@ export function creaPdfOperativo(
       : d.tipo === "trasporti"
         ? [
             d.periodo || "Da indicare",
-            `${d.righe.length} viaggi - ${numeroIt(d.righe.reduce((s, r) => s + (r.oreUomo || 0), 0))} ore uomo - ${numeroIt(d.righe.reduce((s, r) => s + (r.oreMezzo || 0), 0))} ore mezzo`,
+            // Le ore solo se ci sono: «0 ore uomo» non dice niente (10/11/2026).
+            (() => {
+              const oreUomo = d.righe.reduce((s, r) => s + (r.oreUomo || 0), 0);
+              const oreMezzo = d.righe.reduce((s, r) => s + (r.oreMezzo || 0), 0);
+              return [
+                `${d.righe.length} ${d.righe.length === 1 ? "viaggio" : "viaggi"}`,
+                oreUomo > 0 ? `${numeroIt(oreUomo)} ore uomo` : null,
+                oreMezzo > 0 ? `${numeroIt(oreMezzo)} ore mezzo` : null,
+              ].filter(Boolean).join(" - ");
+            })(),
             d.commessa,
           ]
         : [
@@ -352,13 +362,13 @@ export function creaPdfOperativo(
         title: "ORE UOMO",
         width: 16,
         align: "right",
-        value: (r) => numeroIt(r.oreUomo || 0),
+        value: (r) => safe(oreIt(r.oreUomo)),
       },
       {
         title: "ORE MEZZO",
         width: 16,
         align: "right",
-        value: (r) => numeroIt(r.oreMezzo || 0),
+        value: (r) => safe(oreIt(r.oreMezzo)),
       },
       { title: "DDT", width: 19, value: (r) => r.ddt || "-" },
       {

@@ -11,6 +11,7 @@
 
 import { annoItaliano, dataItalianaBreve } from "./dataItaliana.ts";
 import { leggiValoriContratto, formattaValoriContratto } from './campiContratto.ts';
+import { senzaPuntoDoppio } from "./punteggiatura.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseClient = any;
@@ -215,7 +216,7 @@ const FRASE_PAGAMENTI_DI_PRIMA = /Il pagamento avviene secondo il piano concorda
  */
 export function substituteMergeTags(text: string | null | undefined, ctx: MergeContext): string {
   if (!text) return "";
-  return text.replace(FRASE_PAGAMENTI_DI_PRIMA, "{{preventivo.frase_pagamenti}}").replace(TAG_RE, (match, key: string) => {
+  return text.replace(FRASE_PAGAMENTI_DI_PRIMA, "{{preventivo.frase_pagamenti}}").replace(TAG_RE, (match, key: string, offset: number, tutto: string) => {
     const parts = key.split(".");
     if (parts.length !== 2) return ""; // formato non valido
     const [group, field] = parts;
@@ -225,7 +226,8 @@ export function substituteMergeTags(text: string | null | undefined, ctx: MergeC
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const value = (groupObj as any)[field];
     if (value === null || value === undefined) return "";
-    return String(value);
+    // «{{azienda.ragione_sociale}}.» con «… s.r.l.»: un punto solo (10/11/2026).
+    return senzaPuntoDoppio(String(value), tutto.slice(offset + match.length));
   });
 }
 

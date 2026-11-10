@@ -30,7 +30,8 @@ export const STANDARD_DOCUMENTI: Record<
   },
   trasporti: {
     titoloPdf: "RAPPORTO TRASPORTI",
-    destinatario: "COMMITTENTE",
+    // Il rapporto va a chi ha fatto i viaggi, che lo conferma e poi fattura: è il trasportatore (10/11/2026).
+    destinatario: "TRASPORTATORE",
     destinazione: "PERIODO",
     condizioni: "Conferma del rapporto",
   },
@@ -41,4 +42,4 @@ export const STANDARD_DOCUMENTI: Record<
     condizioni: "Conferma delle quantità",
   },
 };
-export const DOCUMENTI_STANDARD_VERSIONE = "2026-11-06-modelli-impaginazione";
+export const DOCUMENTI_STANDARD_VERSIONE = "2026-11-10-trasportatore-ore-vuote";

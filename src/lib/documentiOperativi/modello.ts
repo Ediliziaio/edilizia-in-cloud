@@ -100,6 +100,9 @@ export const dataIt = (v?: string | null) =>
     : testo(v);
 export const numeroIt = (v: number) =>
   v.toLocaleString("it-IT", { maximumFractionDigits: 2 });
+/** Le ore di un viaggio: «—» se non ci sono, non «0» (10/11/2026). */
+export const oreIt = (v?: number | null) =>
+  v != null && Number.isFinite(v) && v > 0 ? numeroIt(v) : "—";
 export const euro = (v: number) =>
   `${v.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 export const importoRiga = (r: RigaDocumentoOperativo) =>
@@ -267,8 +270,8 @@ export function celleRiga(
       dataIt(r.data),
       [r.carico, r.scarico].filter(Boolean).join(" → ") || r.descrizione,
       r.mezzo || "—",
-      numeroIt(r.oreUomo ?? 0),
-      numeroIt(r.oreMezzo ?? 0),
+      oreIt(r.oreUomo),
+      oreIt(r.oreMezzo),
       r.ddt || "—",
       r.prezzo == null && r.importo == null
         ? "Da definire"
