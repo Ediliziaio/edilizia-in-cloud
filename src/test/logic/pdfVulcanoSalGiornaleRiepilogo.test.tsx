@@ -129,7 +129,7 @@ describe("Giornale dei lavori", () => {
         q.then = (ok: (r: unknown) => unknown) => Promise.resolve({ data: tabelle[t] ?? [], error: null }).then(ok);
         return q;
       },
-      storage: { from: () => ({ createSignedUrls: async () => ({ data: [], error: null }) }) },
+      storage: { from: () => ({ createSignedUrls: async () => ({ data: [] as unknown[], error: null as unknown }) }) },
     };
     const [g] = await leggiGiornateDocumento(db, { companyId: VULCANO, orderId: "o" });
     expect(g.firmato_da).toBe("Marco Bianchi");
@@ -167,12 +167,12 @@ const dati = {
   errori: [], noteCantiere: [], nonLette: [],
 } as unknown as DatiRiepilogo;
 const props = (companyId: string, o: Record<string, unknown> = {}) => ({
-  order: { id: "o", company_id: companyId, order_code: "VUL-2026-14", description: "Ristrutturazione condominio Via Roma", total_amount: 38000, vat_rate: 10, client_name: "Condominio Roma 12", indirizzo_lavori: "Via Roma 12, Vanzaghello", current_status_id: null, created_at: null, ...o },
+  order: { id: "o", company_id: companyId, order_code: "VUL-2026-14", description: "Ristrutturazione condominio Via Roma", total_amount: 38000, vat_rate: 10, client_name: "Condominio Roma 12", indirizzo_lavori: "Via Roma 12, Vanzaghello", current_status_id: null as string | null, created_at: null as string | null, ...o },
   items: [
     { id: "i1", name: "Guaina bituminosa 4 mm", quantity: 120, unita_misura: "mq", unit_price: 18, natura_riga: "materiale", status: "da_ordinare" },
     { id: "i2", name: "Posa impermeabilizzazione", quantity: 1, unit_price: 4200, natura_riga: "lavorazione" },
   ],
-  statuses: [],
+  statuses: [] as unknown[],
   companyName: "Impresa Vulcano s.r.l.",
   dati,
 });
