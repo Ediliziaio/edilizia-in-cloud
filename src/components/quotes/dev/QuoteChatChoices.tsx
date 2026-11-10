@@ -16,7 +16,7 @@ export function QuoteChatChoices({ choices, selectedId, active, busy, draftText 
         <span className="quote-choice-icon" aria-hidden="true">{selectedId === choice.id ? <Check size={14} /> : <ArrowUpRight size={14} />}</span><span>{choice.label}</span>
       </button>)}
     </div>
-    {active && !selectedId && <button type="button" className="quote-choice-custom" aria-label="Un’altra soluzione? Scrivila tu" disabled={busy} onClick={onCustomize}>Altra risposta</button>}
+    {active && !selectedId && <button type="button" className="quote-choice-custom" aria-label="Un’altra soluzione? Scrivila tu" disabled={busy} onClick={onCustomize}>Rispondo io</button>}
     {active && !selectedId && !!draftText.trim() && <p className="quote-choice-note">La scelta si aggiunge al testo che hai scritto, senza inviarlo.</p>}
   </div>;
 }

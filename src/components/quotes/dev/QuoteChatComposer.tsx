@@ -7,11 +7,13 @@ import { QuoteVoiceDialog, type QuoteAudioTranscriber } from './QuoteVoiceDialog
 import type { QuoteDossierPage } from '@/lib/preventivi/quoteDossier';
 
 export type QuoteComposerAction = 'formulas' | 'quantity' | 'estimate' | 'review' | 'models' | 'budget' | 'vision' | 'example' | 'project' | 'tax' | 'schedule' | 'planning';
-export function QuoteChatComposer({ value, onValueChange, onSubmit, onStop, onAttachPlan, onAction, busy, disabled, real, hasPlan, hasLines, transcribe, onEvidence, planningEnabled }: {
+export function QuoteChatComposer({ value, onValueChange, onSubmit, onStop, onAttachPlan, onAction, busy, disabled, real, hasPlan, hasLines, transcribe, onEvidence, planningEnabled, strumentiAI = false }: {
   value: string; onValueChange: (text: string) => void; onSubmit: () => void; onStop: () => void; onAttachPlan: () => void; onAction: (action: QuoteComposerAction) => void;
   busy: boolean; disabled?: boolean; real: boolean; hasPlan: boolean; hasLines: boolean; transcribe?: QuoteAudioTranscriber;
   onEvidence?: (page: QuoteDossierPage) => boolean;
   planningEnabled?: boolean;
+  /** Modello e costi AI: solo nel laboratorio di sviluppo. */
+  strumentiAI?: boolean;
 }) {
   const [panel, setPanel] = useState<'materials' | 'voice' | null>(null);
   const locked = busy || disabled;
@@ -42,7 +44,7 @@ export function QuoteChatComposer({ value, onValueChange, onSubmit, onStop, onAt
           {planningEnabled && item('Trasferte, risorse e scadenze · scenari locali', 'planning', CheckCheck)}
           {real && item('Cronoprogramma preliminare con AI', 'schedule', CheckCheck)}
           {hasLines && <>{real && item('Proponi formule con AI', 'formulas', WandSparkles)}{item('Calcola quantità', 'quantity', Calculator)}{item('Stime indicative', 'estimate', Wallet)}{item('Verifica computo', 'review', CheckCheck)}<DropdownMenuSeparator /></>}
-          {real && <>{item('Budget preliminare con AI', 'budget', Sparkles)}{hasPlan && item('Analizza immagine con AI · invia copia a OpenRouter', 'vision', ScanLine)}{item('Modello e costi AI', 'models', SlidersHorizontal)}</>}
+          {real && <>{item('Budget preliminare con AI', 'budget', Sparkles)}{hasPlan && item('Analizza immagine con AI', 'vision', ScanLine)}{strumentiAI && item('Modello e costi AI', 'models', SlidersHorizontal)}</>}
           {!real && item('Leggi immagine di esempio (OCR reale)', 'example', ScanLine)}
         </DropdownMenuContent>
       </DropdownMenu>

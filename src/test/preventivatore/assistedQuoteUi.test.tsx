@@ -172,7 +172,7 @@ describe("Conversazione e voci: due tab nello stesso spazio", () => {
     expect(screen.getByRole('log')).not.toHaveTextContent('Riscontro OpenRouter'); expect(screen.getByRole('log')).not.toHaveTextContent('token input');
     expect(screen.getByText('Quale regione e prezzario?')).toBeVisible(); expect(screen.getByRole('button', { name: 'Completa' })).toBeVisible();
     expect(screen.queryByText('Per proseguire')).not.toBeInTheDocument(); expect(screen.queryByText('Scegli come proseguire')).not.toBeInTheDocument();
-    expect(screen.getByText(/Nessuna modifica alle voci o al parziale/)).not.toBeVisible(); expect(screen.getByText('Dettagli del turno').closest('details')).not.toHaveAttribute('open');
+    expect(screen.getByText(/Nessuna modifica alle voci o al parziale/)).not.toBeVisible(); expect(screen.getByText('Dettagli della risposta').closest('details')).not.toHaveAttribute('open');
     expect(call).toHaveBeenCalledOnce();
   });
   it('offre il prezzario richiesto senza inviare all’AI né perdere la bozza scritta', async () => {
@@ -183,9 +183,20 @@ describe("Conversazione e voci: due tab nello stesso spazio", () => {
     expect(input).toHaveValue('Appartamento al secondo piano, finiture medie'); expect(call).toHaveBeenCalledOnce();
     expect(await screen.findByRole('region', { name: 'Selezione prezzario' })).toBeVisible();
   });
+  it('chi usa l’azienda non vede modello, fornitore né costi dell’AI', async () => {
+    const call = vi.fn<QuoteChatTransport>().mockImplementation(async r => response(r));
+    render(<Workspace companyId={companyId} onBack={vi.fn()} simulated={false} transport={call} />);
+    expect(screen.queryByLabelText('Dettagli modello AI')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Modello e costi AI' })).not.toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/Sonnet|GPT|OpenRouter|USD/);
+    send('Mostra strumenti AI');
+    await waitFor(() => expect(call).toHaveBeenCalledOnce());
+    expect(screen.queryByRole('button', { name: /^Usa GPT/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('log')).not.toHaveTextContent(/Sonnet|GPT|OpenRouter|USD/);
+  });
   it('scegliere un modello dai pulsanti non cancella il messaggio ancora da inviare', () => {
     const call = vi.fn<QuoteChatTransport>();
-    render(<Workspace companyId={companyId} onBack={vi.fn()} simulated={false} transport={call} />);
+    render(<Workspace companyId={companyId} onBack={vi.fn()} simulated={false} strumentiAI transport={call} />);
     const input = screen.getByRole('textbox', { name: 'Messaggio all’assistente preventivi' });
     fireEvent.change(input, { target: { value: 'Descrizione lunga del progetto non ancora inviata' } });
     fireEvent.click(screen.getByRole('button', { name: 'Modello e costi AI' }));
@@ -195,7 +206,7 @@ describe("Conversazione e voci: due tab nello stesso spazio", () => {
   });
   it('budget preliminare resta fuori dalle voci anche se il provider propone una riga', async () => {
     const call = vi.fn<QuoteChatTransport>().mockImplementation(async r => ({ ...response(r), turn: { ...response(r).turn, preliminaryBudget: { scope: 'Scenario sintetico', currency: 'EUR', assumptions: ['Solo dati di test'], exclusions: [], groups: [{ label: 'Gruppo di prova', low: 100, high: 200, basis: 'Valori sintetici, non tariffe' }] } } }));
-    render(<Workspace companyId={companyId} onBack={vi.fn()} simulated={false} transport={call} />);
+    render(<Workspace companyId={companyId} onBack={vi.fn()} simulated={false} strumentiAI transport={call} />);
     send('Prepara un budget preliminare per un bagno');
     await waitFor(() => expect(screen.getAllByRole('region', { name: 'Budget preliminare AI separato dal computo' })).toHaveLength(2));
     expect(call.mock.calls[0][0].advanced).toEqual({ model: 'anthropic/claude-sonnet-5.5', mode: 'budget' });
@@ -333,7 +344,7 @@ describe("Conversazione e voci: due tab nello stesso spazio", () => {
   });
   it("non chiama il provider durante digitazione e usa un solo turno per Invio", async () => {
     const call = vi.fn<QuoteChatTransport>().mockImplementation(async r => response(r));
-    render(<Workspace companyId={companyId} onBack={vi.fn()} simulated={false} transport={call} />);
+    render(<Workspace companyId={companyId} onBack={vi.fn()} simulated={false} strumentiAI transport={call} />);
     fireEvent.change(screen.getByRole("textbox", { name: "Messaggio all’assistente preventivi" }), { target: { value: "Un lavoro non previsto da un modello" } });
     expect(call).not.toHaveBeenCalled(); fireEvent.click(screen.getByRole("button", { name: "Invia messaggio" }));
     await waitFor(() => expect(screen.getByRole("log")).toHaveTextContent("Servono misure confermate"));

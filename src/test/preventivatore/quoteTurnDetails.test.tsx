@@ -15,7 +15,7 @@ describe('Conversazione essenziale, dettagli disponibili', () => {
   it('ricevuta nulla non crea un blocco inutile', () => { const view = render(<QuoteTurnDetails onReview={vi.fn()} />); expect(view.container).toBeEmptyDOMElement(); });
   it('raccoglie ricevuta no-op e verifiche in un solo dettaglio inizialmente chiuso', () => {
     render(<QuoteTurnDetails warnings={['La superficie delle pareti va rilevata.']} receipt={noop} onReview={vi.fn()} />);
-    const summary = screen.getByText('Dettagli del turno'); expect(summary.closest('details')).not.toHaveAttribute('open'); expect(screen.getByText('1 da verificare')).toBeVisible();
+    const summary = screen.getByText('Dettagli della risposta'); expect(summary.closest('details')).not.toHaveAttribute('open'); expect(screen.getByText('1 punto da controllare')).toBeVisible();
     expect(screen.getByText(/Nessuna modifica alle voci/)).not.toBeVisible();
     fireEvent.click(summary); expect(screen.getByText('La superficie delle pareti va rilevata.')).toBeVisible(); expect(screen.getByText(/Nessuna modifica alle voci/)).toBeVisible();
   });
@@ -26,7 +26,7 @@ describe('Conversazione essenziale, dettagli disponibili', () => {
   it('mantiene formule proposte distinte dalle quantità applicate', () => { render(<QuoteTurnDetails receipt="Salvate 2 proposte di formula da confermare. Quantità precedenti conservate." onReview={vi.fn()} />); expect(screen.getByText('2 formule da confermare')).toBeVisible(); });
   it('non ripete titolo e spiegazione generica sotto le scelte', () => {
     render(<QuoteChatChoices hideCaption choices={[{ id: 'full', label: 'Completa', reply: 'Ristrutturazione completa' }]} active busy={false} onChoose={vi.fn()} onCustomize={vi.fn()} />);
-    expect(screen.queryByText('Scegli come proseguire')).not.toBeInTheDocument(); expect(screen.queryByText(/Gli importi richiedono/)).not.toBeInTheDocument(); expect(screen.getByRole('button', { name: 'Un’altra soluzione? Scrivila tu' })).toHaveTextContent('Altra risposta');
+    expect(screen.queryByText('Scegli come proseguire')).not.toBeInTheDocument(); expect(screen.queryByText(/Gli importi richiedono/)).not.toBeInTheDocument(); expect(screen.getByRole('button', { name: 'Un’altra soluzione? Scrivila tu' })).toHaveTextContent('Rispondo io');
   });
   it('non nasconde l’avviso sul testo ancora da inviare e conserva le scelte superate', () => {
     const p = { choices: [{ id: 'full', label: 'Completa', reply: 'Completa' }], busy: false, onChoose: vi.fn(), onCustomize: vi.fn(), hideCaption: true };
