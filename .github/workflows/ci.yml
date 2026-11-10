@@ -33,7 +33,12 @@ env:
 jobs:
   frontend-build:
     name: Frontend production build
-    runs-on: ubuntu-latest
+    # Playwright 1.60 del lockfile usa i browser distribuiti per Ubuntu 24.04.
+    runs-on: ubuntu-24.04
+    env:
+      # Identificazione pubblica del frontend, sempre soggetta a RLS. Nessuna chiave server.
+      VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://rsbrguhkodgnqfomrevo.supabase.co' }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_DA4gwckTQ2eiYjDKvfVO4Q_sEKCmyKH' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -49,6 +54,8 @@ jobs:
         run: npm install --global bun@1.4.4
       - name: Install frozen dependencies
         run: bun install --frozen-lockfile
+      - name: Install supported browser and system libraries
+        run: npx --no-install playwright install --with-deps chromium-headless-shell
       - name: Build application and prerender public routes
         run: npm run build
       - name: Verify prerendered routes
