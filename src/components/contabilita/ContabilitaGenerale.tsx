@@ -9,7 +9,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Printer, Trash2, Undo2 } from "lucide-react";
+import { FileInput, Plus, Printer, Trash2, Undo2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFiscalPeriod } from "@/hooks/useFiscalPeriod";
@@ -262,6 +262,31 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
   const [stampa, setStampa] = useState<string | null>(null);
   const [storno, setStorno] = useState<Scrittura | null>(null);
   const nomi = useMemo(() => new Map(conti.map((c) => [c.id, `${c.codice} ${c.descrizione}`])), [conti]);
+  // Fatture emesse e ricevute, incassi e pagamenti dell'esercizio diventano scritture.
+  // Lo fa il database (contabilita_genera_da_documenti): un documento genera al più
+  // una scrittura, quindi rilanciarlo aggiunge solo quello che manca.
+  const genera = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await db.rpc("contabilita_genera_da_documenti", { p_company: companyId, p_anno: anno });
+      if (error) throw error;
+      return data as {
+        fatture_emesse: number; fatture_ricevute: number; incassi: number; pagamenti: number;
+        saltate_solo_testata: number; gia_generate: number; errori: string[];
+      };
+    },
+    onSuccess: (r) => {
+      const nuove = r.fatture_emesse + r.fatture_ricevute + r.incassi + r.pagamenti;
+      const dettagli = [
+        `${r.fatture_emesse} fatture emesse, ${r.fatture_ricevute} ricevute, ${r.incassi} incassi, ${r.pagamenti} pagamenti`,
+        r.gia_generate ? `${r.gia_generate} già registrati` : "",
+        r.saltate_solo_testata ? `${r.saltate_solo_testata} saltati: senza imponibile (solo testata) o senza la loro fattura in contabilità` : "",
+        r.errori.length ? `${r.errori.length} non registrati: ${r.errori.slice(0, 3).join("; ")}` : "",
+      ].filter(Boolean).join(" · ");
+      (r.errori.length ? toast.warning : toast.success)(`${nuove} scritture generate`, { description: dettagli, duration: 12000 });
+      void qc.invalidateQueries({ queryKey: chiave(companyId, "scritture") });
+    },
+    onError: (e) => toast.error("Scritture non generate", { description: e instanceof Error ? e.message : String(e) }),
+  });
   const stornate = useMemo(() => new Set((scritture.data ?? []).map((s) => s.storno_di).filter(Boolean)), [scritture.data]);
 
   if (scritture.isLoading || scritture.isError) {
@@ -293,6 +318,9 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
         </span>
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={apriStampa}><Printer className="mr-1 h-4 w-4" />Stampa libro giornale</Button>
+          <Button size="sm" variant="outline" onClick={() => genera.mutate()} disabled={genera.isPending}>
+            <FileInput className="mr-1 h-4 w-4" />{genera.isPending ? "Generazione…" : "Genera dai documenti"}
+          </Button>
           <Button size="sm" onClick={() => setNuova(true)}><Plus className="mr-1 h-4 w-4" />Nuova scrittura</Button>
         </div>
       </div>
@@ -322,7 +350,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
       ) : (
         <div className="space-y-2">
           {elenco.length === 0 ? (
-            <p className="rounded-xl border p-4 text-sm text-muted-foreground">Nessuna scrittura nel {anno}. Le scritture automatiche da fatture e incassi arriveranno nella prossima fase: per ora si registrano a mano.</p>
+            <p className="rounded-xl border p-4 text-sm text-muted-foreground">Nessuna scrittura nel {anno}. «Genera dai documenti» registra fatture, incassi e pagamenti dell'esercizio; le altre operazioni si registrano con «Nuova scrittura».</p>
           ) : elenco.map((s) => {
             const tot = s.contabilita_righe.reduce((t, r) => t + Number(r.dare || 0), 0);
             return (
