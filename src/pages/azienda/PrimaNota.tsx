@@ -8,11 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { ArrowDownLeft, ArrowUpRight, BookOpen, Bot, ChevronLeft, ChevronRight, Download, ExternalLink, FileSpreadsheet, FileText, Loader2, MoreHorizontal, Plus, Printer, RefreshCw, Search, Trash2, TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, BookOpen, Bot, ChevronLeft, ChevronRight, Download, ExternalLink, FileSpreadsheet, FileText, Loader2, MoreHorizontal, Pencil, Plus, Printer, RefreshCw, Search, Trash2, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { usePrimaNota } from "@/hooks/usePrimaNota";
+import { perchePrimaNotaNonModificabile, usePrimaNota, type PrimaNotaEntry } from "@/hooks/usePrimaNota";
 import { AllegatoPrimaNota } from "@/components/prima-nota/AllegatoPrimaNota";
 import NewEntryDialog from "@/components/prima-nota/NewEntryDialog";
 import { TablePagination } from "@/components/ui/table-pagination";
@@ -103,6 +103,8 @@ function PrimaNotaInner() {
   const [direction, setDirection] = useState<"entrata" | "uscita" | "">("");
   const [search, setSearch] = useState("");
   const [newOpen, setNewOpen] = useState(false);
+  // La registrazione da modificare: lo stesso modulo della nuova, già compilato.
+  const [daModificare, setDaModificare] = useState<PrimaNotaEntry | null>(null);
   const [autoView, setAutoView] = useState<"tutte" | "auto" | "manuali">("tutte");
 
   const isAutoFilter = autoView === "auto" ? true : autoView === "manuali" ? false : null;
@@ -123,7 +125,7 @@ function PrimaNotaInner() {
   // Chi cerca un nome non sa in che mese sta: la ricerca guarda tutte le date, non il periodo aperto.
   const cercaSuTutteLeDate = search.trim() !== "";
 
-  const { entries, isLoading, totalCount, totalPages, saldo, isSaldoLoading, monthlyChart, create, remove, updateNotes, fetchAllForExport } = usePrimaNota({
+  const { entries, isLoading, totalCount, totalPages, saldo, isSaldoLoading, monthlyChart, create, remove, update, updateNotes, fetchAllForExport } = usePrimaNota({
     fromDate: cercaSuTutteLeDate ? undefined : fromDate,
     toDate: cercaSuTutteLeDate ? undefined : toDate,
     direction: direction || undefined,
@@ -507,7 +509,8 @@ function PrimaNotaInner() {
               categoria e metodo; importo colorato). Via freccia e cestino. */}
           <div className="sm:hidden divide-y">
             {entriesWithBalance.map((e) => (
-              <div key={e.id} className="flex items-center gap-2.5 px-3 py-2.5">
+              <div key={e.id} className={`flex items-center gap-2.5 px-3 py-2.5${perchePrimaNotaNonModificabile(e) ? "" : " cursor-pointer active:bg-muted/50"}`}
+                onClick={() => { if (!perchePrimaNotaNonModificabile(e)) setDaModificare(e); }}>
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-semibold leading-tight truncate">{e.description}</p>
                   <AllegatoPrimaNota url={e.attachment_url} nome={e.attachment_name} />
@@ -606,7 +609,19 @@ function PrimaNotaInner() {
                       titolo={`${format(new Date(e.entry_date), "dd/MM/yyyy", { locale: it })} · ${e.description}`}
                       onSalva={(nota) => updateNotes(e.id, nota)}
                     />
-                    {!e.is_auto && (
+                    {!perchePrimaNotaNonModificabile(e) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                        aria-label="Modifica movimento di prima nota"
+                        title="Modifica"
+                        onClick={() => setDaModificare(e)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {!e.is_auto && !e.documento_fiscale_id && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -616,7 +631,7 @@ function PrimaNotaInner() {
                           if (
                             await confirm({
                               title: "Eliminare il movimento?",
-                              description: `Il movimento da ${formatCurrency(e.amount)} verrà rimosso definitivamente dalla prima nota. L'operazione non può essere annullata.`,
+                              description: `Il movimento da ${formatCurrency(e.amount)} verrà rimosso definitivamente dalla prima nota.${e.invoice_id ? " La fattura collegata tornerà da incassare." : ""} L'operazione non può essere annullata.`,
                               confirmLabel: "Elimina",
                               variant: "destructive",
                             })
@@ -713,6 +728,13 @@ function PrimaNotaInner() {
         onOpenChange={setNewOpen}
         onConfirm={(p) => create.mutate(p, { onSuccess: () => setNewOpen(false) })}
         isPending={create.isPending}
+      />
+      <NewEntryDialog
+        open={!!daModificare}
+        entry={daModificare}
+        onOpenChange={(v) => { if (!v) setDaModificare(null); }}
+        onConfirm={(dati) => daModificare && update.mutate({ id: daModificare.id, dati, prima: daModificare }, { onSuccess: () => setDaModificare(null) })}
+        isPending={update.isPending}
       />
     </div>
   );
