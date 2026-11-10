@@ -26,7 +26,8 @@ describe("Collegamento al progetto originale", () => {
     monta(tipo);
     expect(await screen.findByRole("link", { name: "Apri planimetria Villa associata" })).toHaveAttribute("href", "/azienda/planimetrie/p1");
     expect(mock.carica).toHaveBeenCalledWith("azienda-A", tipo, "scheda-1", 0);
-    expect(screen.queryByRole("button", { name: /crea|nuov|associa/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^(crea|nuov|associa)/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Fascicolo PDF Villa associata" })).toHaveAttribute("href", "/azienda/planimetrie/p1?esporta=fascicolo");
   });
 
   it("senza accesso a Render AI non mostra né carica il progetto", () => {

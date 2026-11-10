@@ -10,6 +10,25 @@ export type ModoNuovaPianta = "disegno" | "documento" | "testo" | "sopralluogo";
 const BASE = "/azienda/planimetrie";
 const BASE_LEGACY = "/azienda/render/planimetrie";
 
+export function ritornoProgettoValido(value: string | null | undefined): string | null {
+  if (!value || !value.startsWith("/azienda/")) return null;
+  try {
+    const u = new URL(value, "https://app.invalid");
+    const uuid = "[0-9a-fA-F-]{36}";
+    const scheda = new RegExp(`^/azienda/(?:clienti|ordini)/${uuid}$|^/azienda/marketing/preventivi/${uuid}$`).test(u.pathname);
+    const computo = u.pathname === "/azienda/marketing/preventivi/computo" && /^[0-9a-f-]{36}$/i.test(u.searchParams.get("bozza") ?? "") && u.searchParams.get("esistente") === "1";
+    return u.origin === "https://app.invalid" && (scheda || computo) ? `${u.pathname}${u.search}${u.hash}` : null;
+  } catch { return null; }
+}
+
+export function percorsoProgettoAssociato(id: string, torna?: string, fascicolo = false): string {
+  const q = new URLSearchParams();
+  const ritorno = ritornoProgettoValido(torna);
+  if (ritorno) q.set("torna", ritorno);
+  if (fascicolo) q.set("esporta", "fascicolo");
+  return `${BASE}/${id}${q.size ? `?${q}` : ""}`;
+}
+
 /** Mantiene preferiti, PDF e link già inviati, compresi piano, variante e stanza. */
 export function percorsoPlanimetriaAttuale(pathname: string, search = "", hash = ""): string {
   const path = pathname === BASE_LEGACY || pathname.startsWith(`${BASE_LEGACY}/`) ? BASE + pathname.slice(BASE_LEGACY.length) : BASE;

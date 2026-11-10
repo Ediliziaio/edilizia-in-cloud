@@ -7,13 +7,15 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { anomalieCollegamenti, filtroContesto, scelteConRiferimenti, type FiltroCollegamento } from "@/lib/planimetrie/coerenzaCollegamenti";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import type { AnteprimaPianta } from "@/lib/planimetrie/anteprime";
 import { useDebounce } from "@/hooks/useDebounce";
 import { usePermissions } from "@/hooks/usePermissions";
 import { aggiornaDatiPlanimetria, chiaviPlanimetrie, type AssociazioniPlanimetria, type RigaPlanimetria } from "@/lib/planimetrie/archivio";
-import { accessiCollegamenti, cercaCollegamentiPianta, DEFINIZIONI_COLLEGAMENTI, TIPI_COLLEGAMENTO, type MappaCollegamenti, type SceltaCollegamento, type TipoCollegamento } from "@/lib/planimetrie/collegamenti";
+import { accessiCollegamenti, caricaContestoCollegamenti, cercaCollegamentiPianta, DEFINIZIONI_COLLEGAMENTI, TIPI_COLLEGAMENTO, type MappaCollegamenti, type SceltaCollegamento, type TipoCollegamento } from "@/lib/planimetrie/collegamenti";
 
 export function RiferimentiPianta({ riga, mappa }: { riga: RigaPlanimetria; mappa?: MappaCollegamenti }) {
   const permessi = usePermissions();
@@ -68,16 +70,17 @@ export function CollegamentiProgetto({ riga, mappa, onAssocia }: {
   </section>;
 }
 
-function DettaglioAssociazione({ tipo, companyId, value, salvata, modificata, disabled, onChange }: {
+function DettaglioAssociazione({ tipo, companyId, value, salvata, modificata, disabled, filtro, onChange }: {
   tipo: TipoCollegamento; companyId: string; value: SceltaCollegamento | null; salvata: SceltaCollegamento | null;
-  modificata: boolean; disabled: boolean; onChange: (value: SceltaCollegamento | null) => void;
+  modificata: boolean; disabled: boolean; filtro?: FiltroCollegamento; onChange: (value: SceltaCollegamento | null) => void;
 }) {
   const [inRicerca, setInRicerca] = useState(false);
+  const [tutte, setTutte] = useState(false);
   const [testo, setTesto] = useState("");
   const ricerca = useDebounce(testo, 250);
   const { data = [], isFetching, isError, refetch } = useQuery({
-    queryKey: ["planimetrie-scelta-collegamento", companyId, tipo, ricerca],
-    queryFn: () => cercaCollegamentiPianta(companyId, tipo, ricerca),
+    queryKey: ["planimetrie-scelta-collegamento", companyId, tipo, ricerca, tutte ? null : filtro ?? null],
+    queryFn: () => filtro && !tutte ? cercaCollegamentiPianta(companyId, tipo, ricerca, filtro) : cercaCollegamentiPianta(companyId, tipo, ricerca),
     enabled: inRicerca && !disabled && !!companyId,
     staleTime: 30_000,
     retry: 1,
@@ -94,6 +97,7 @@ function DettaglioAssociazione({ tipo, companyId, value, salvata, modificata, di
     </div>
 
     {inRicerca ? <>
+      {filtro && <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/40 px-3 py-2"><p className="text-xs text-muted-foreground">{tutte ? "Tutte le schede dell’azienda" : filtro.descrizione}</p><Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setTutte((v) => !v)}>{tutte ? "Solo collegate" : "Mostra tutte"}</Button></div>}
       <div className="relative mb-4 shrink-0">
         <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
         <Input aria-label={`Cerca ${titolo}`} placeholder={presentazione.ricerca} value={testo} onChange={(event) => setTesto(event.target.value)} disabled={disabled} className="h-10 pl-9" />
@@ -147,9 +151,21 @@ export function AssociazioniPiantaPanel({ riga: corrente, mappa, anteprima, tipo
     return [tipo, id ? mappa?.[tipo][id] ?? { id, nome: `${DEFINIZIONI_COLLEGAMENTI[tipo].titolo} collegato` } : null];
   })) as Record<TipoCollegamento, SceltaCollegamento | null>);
   const [scelte, setScelte] = useState(iniziali);
+  const chiaveScelte = TIPI_COLLEGAMENTO.map((tipo) => accessi[tipo] ? scelte[tipo]?.id ?? null : null);
+  const contesto = useQuery({
+    queryKey: ["planimetrie", "contesto-associazioni", riga.company_id, chiaveScelte],
+    enabled: chiaveScelte.some(Boolean),
+    queryFn: () => caricaContestoCollegamenti(riga.company_id, scelte, accessi),
+    staleTime: 30_000,
+    retry: 1,
+  });
+  const complete = scelteConRiferimenti(scelte, contesto.data ?? mappa);
+  const avvisi = anomalieCollegamenti(complete);
+  const firmaAvvisi = JSON.stringify([chiaveScelte, avvisi]);
+  const [verificati, setVerificati] = useState("");
   const dettagli = (tipo: TipoCollegamento, scelta: SceltaCollegamento | null) => scelta ? mappa?.[tipo][scelta.id] ?? scelta : null;
   const cambiati = TIPI_COLLEGAMENTO.filter((tipo) => accessi[tipo] && (scelte[tipo]?.id ?? null) !== (iniziali[tipo]?.id ?? null));
-  const puoSalvare = !permessi.solaLettura && cambiati.length > 0;
+  const puoSalvare = !permessi.solaLettura && cambiati.length > 0 && !contesto.isFetching && !contesto.error && (!avvisi.length || verificati === firmaAvvisi);
   const salva = useMutation({
     mutationFn: async () => {
       if (!puoSalvare) return;
@@ -190,11 +206,13 @@ export function AssociazioniPiantaPanel({ riga: corrente, mappa, anteprima, tipo
           })}
         </nav>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-5 sm:p-6">
-          {tipoAttivo ? <DettaglioAssociazione key={tipoAttivo} tipo={tipoAttivo} companyId={riga.company_id} value={dettagli(tipoAttivo, scelte[tipoAttivo])} salvata={dettagli(tipoAttivo, iniziali[tipoAttivo])} modificata={cambiati.includes(tipoAttivo)} disabled={solaLettura} onChange={(value) => setScelte((prev) => ({ ...prev, [tipoAttivo]: value }))} />
+          {tipoAttivo ? <DettaglioAssociazione key={tipoAttivo} tipo={tipoAttivo} companyId={riga.company_id} value={dettagli(tipoAttivo, scelte[tipoAttivo])} salvata={dettagli(tipoAttivo, iniziali[tipoAttivo])} modificata={cambiati.includes(tipoAttivo)} disabled={solaLettura} filtro={filtroContesto(tipoAttivo, complete)} onChange={(value) => setScelte((prev) => ({ ...prev, [tipoAttivo]: value }))} />
             : <p className="text-sm text-muted-foreground">Non hai accesso alle schede associabili a questo progetto.</p>}
         </div>
       </div>
       <div className="shrink-0 space-y-3 border-t bg-background px-5 py-4 sm:px-6">
+        {contesto.error && <div role="alert" className="flex items-center justify-between gap-2 text-xs text-destructive"><span>Non riesco a verificare i riferimenti selezionati.</span><Button variant="outline" size="sm" onClick={() => contesto.refetch()}>Riprova</Button></div>}
+        {avvisi.length > 0 && <div className="max-h-40 space-y-2 overflow-y-auto rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950"><details><summary className="cursor-pointer font-semibold">{avvisi.length} {avvisi.length === 1 ? "collegamento da verificare" : "collegamenti da verificare"}</summary><ul className="mt-2 max-h-20 list-inside list-disc space-y-1 overflow-y-auto">{avvisi.map((avviso) => <li key={avviso}>{avviso}</li>)}</ul></details>{!permessi.solaLettura && <label className="flex cursor-pointer items-start gap-2 pt-1"><Checkbox checked={verificati === firmaAvvisi} disabled={salva.isPending || contesto.isFetching} onCheckedChange={(v) => setVerificati(v === true ? firmaAvvisi : "")} /><span>Ho verificato e confermo questi collegamenti</span></label>}</div>}
         {salva.error && <p role="alert" className="rounded-lg bg-destructive/5 p-3 text-sm text-destructive">{salva.error instanceof Error ? salva.error.message : "Salvataggio non riuscito."}</p>}
         {cambiati.length > 0 && <div className="max-h-20 overflow-y-auto text-xs sm:max-h-28" aria-label="Modifiche da salvare"><p className="mb-2 font-medium">{cambiati.length} {cambiati.length === 1 ? "modifica da salvare" : "modifiche da salvare"}</p><div className="flex flex-wrap gap-1.5">{cambiati.map((tipo) => <Badge key={tipo} variant="outline" className="max-w-full font-normal" title={`${DEFINIZIONI_COLLEGAMENTI[tipo].titolo}: ${scelte[tipo]?.nome ?? "Rimuovi associazione"}`}><span className="truncate">{DEFINIZIONI_COLLEGAMENTI[tipo].titolo}: {scelte[tipo]?.nome ?? "Rimuovi associazione"}</span></Badge>)}</div></div>}
         <div className="flex flex-wrap items-center justify-between gap-3">

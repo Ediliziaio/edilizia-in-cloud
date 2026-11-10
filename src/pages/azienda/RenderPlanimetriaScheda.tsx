@@ -37,7 +37,7 @@ import { VerifichePianta } from "@/components/planimetrie/VerifichePianta";
 import { pianiDaPlanimetria, pianteDaPlanimetria } from "@/lib/planimetrie/tred";
 import { usePlanimetria } from "@/lib/planimetrie/archivio";
 import { usePermissions } from "@/hooks/usePermissions";
-import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
+import { percorsiPlanimetrie, ritornoProgettoValido } from "@/lib/planimetrie/render/percorsi";
 import { useRenderDellaPianta } from "@/lib/planimetrie/render/renderDallaPianta";
 import { ambitiDi } from "../../../shared/planimetrie/modello.ts";
 import { statoPerAmbito, vincoliDellaStanza } from "../../../shared/render-planimetria/vincoli.ts";
@@ -162,7 +162,7 @@ export default function RenderPlanimetriaScheda() {
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-12 max-md:space-y-3">
       <TestataPlanimetrie
-        indietro={percorsiPlanimetrie.elenco}
+        indietro={ritornoProgettoValido(params.get("torna")) ?? percorsiPlanimetrie.elenco}
         titolo={data.riga.titolo}
         sottotitolo={`Versione ${data.versione.numero}`}
       />

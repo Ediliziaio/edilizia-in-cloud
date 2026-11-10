@@ -17,6 +17,7 @@
  * finestra dell'articolo è quella di OrderItemsList (soloFinestra).
  */
 import { MaterialiDaRegolarizzare } from "@/components/orders/materiali/MaterialiDaRegolarizzare";
+import { ApriComputoCommessa } from "@/components/computo/commessa/ApriComputoCommessa";
 import { RevisioneTecnico } from "./RevisioneTecnico";
 import { revisioneTecnico } from "@/lib/distinta/revisioneTecnico";
 import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
@@ -872,6 +873,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
             </div>
           )}
           <div className="flex flex-wrap gap-1.5 sm:ml-auto">
+            <ApriComputoCommessa orderId={orderId} orderLabel={orderCode} />
             {/* Da telefono solo «Aggiungi articolo»: computo, tavole e filtri sono lavoro da scrivania. */}
             <span className="contents max-md:hidden">{silvio}</span>
             {puoScrivere && (

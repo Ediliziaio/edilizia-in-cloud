@@ -6,10 +6,10 @@ import { AssociazioniPiantaPanel, CollegamentiProgetto } from "@/components/plan
 import type { RigaPlanimetria } from "@/lib/planimetrie/archivio";
 import type { MappaCollegamenti } from "@/lib/planimetrie/collegamenti";
 
-const mock = vi.hoisted(() => ({ salva: vi.fn(), cerca: vi.fn(), solaLettura: false }));
+const mock = vi.hoisted(() => ({ salva: vi.fn(), cerca: vi.fn(), contesto: vi.fn(), solaLettura: false }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewRenderAi: true, canViewCustomers: true, canViewMarketingContacts: true, canViewPreventivi: true, canViewOrders: true, solaLettura: mock.solaLettura }) }));
 vi.mock("@/lib/planimetrie/archivio", async (original) => ({ ...await original<typeof import("@/lib/planimetrie/archivio")>(), aggiornaDatiPlanimetria: mock.salva }));
-vi.mock("@/lib/planimetrie/collegamenti", async (original) => ({ ...await original<typeof import("@/lib/planimetrie/collegamenti")>(), cercaCollegamentiPianta: mock.cerca }));
+vi.mock("@/lib/planimetrie/collegamenti", async (original) => ({ ...await original<typeof import("@/lib/planimetrie/collegamenti")>(), cercaCollegamentiPianta: mock.cerca, caricaContestoCollegamenti: mock.contesto }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }));
 
 const riga: RigaPlanimetria = { id: "p1", company_id: "azienda-A", titolo: "Villa", stato: "bozza", descrizione: null, contact_id: "contatto-1", customer_id: "cliente-1", quote_id: null, order_id: null, survey_id: null, computo_upload_id: null, versione_corrente: 1, created_by: "u1", created_at: "2026-11-10", updated_at: "prima", deleted_at: null };
@@ -22,6 +22,7 @@ beforeEach(() => {
   mock.solaLettura = false;
   mock.salva.mockResolvedValue(undefined);
   mock.cerca.mockResolvedValue([]);
+  mock.contesto.mockResolvedValue({ cliente: {}, contatto: {}, preventivo: {}, commessa: {}, computo: {} });
 });
 
 describe("Associazioni nel contesto della planimetria", () => {
@@ -31,6 +32,7 @@ describe("Associazioni nel contesto della planimetria", () => {
     expect(screen.getByRole("button", { name: "Salva associazioni" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Scollega Cliente" }));
     expect(screen.getByText("L’associazione verrà rimossa")).toBeInTheDocument();
+    await vi.waitFor(() => expect(screen.getByRole("button", { name: "Salva associazioni" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Salva associazioni" }));
     await vi.waitFor(() => expect(chiudi).toHaveBeenCalledOnce());
     expect(mock.salva).toHaveBeenCalledWith("p1", { customerId: null }, { companyId: "azienda-A", updatedAt: "prima" });
@@ -47,6 +49,7 @@ describe("Associazioni nel contesto della planimetria", () => {
     fireEvent.click(screen.getByRole("button", { name: "Associa preventivo" }));
     fireEvent.click(await screen.findByRole("button", { name: "Seleziona OFF-2 · Villa" }));
     expect(screen.getByLabelText("Modifiche da salvare")).toHaveTextContent("2 modifiche da salvare");
+    await vi.waitFor(() => expect(screen.getByRole("button", { name: "Salva associazioni" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Salva associazioni" }));
     await vi.waitFor(() => expect(chiudi).toHaveBeenCalledOnce());
     expect(mock.salva).toHaveBeenCalledWith("p1", { customerId: "cliente-2", quoteId: "q2" }, { companyId: "azienda-A", updatedAt: "prima" });
@@ -96,5 +99,26 @@ describe("Associazioni nel contesto della planimetria", () => {
     fireEvent.click(screen.getByRole("button", { name: "Modifica associazione Cliente" }));
     expect(associa).toHaveBeenCalledWith("cliente");
     expect(mock.salva).not.toHaveBeenCalled();
+  });
+
+  it("cerca prima i preventivi del contatto selezionato e permette di vedere tutte le schede", async () => {
+    monta(<AssociazioniPiantaPanel riga={riga} tipoIniziale="preventivo" onChiudi={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Associa preventivo" }));
+    await vi.waitFor(() => expect(mock.cerca).toHaveBeenCalledWith("azienda-A", "preventivo", "", expect.objectContaining({ colonna: "contact_id", id: "contatto-1" })));
+    fireEvent.click(screen.getByRole("button", { name: "Mostra tutte" }));
+    await vi.waitFor(() => expect(mock.cerca).toHaveBeenLastCalledWith("azienda-A", "preventivo", ""));
+    expect(mock.salva).not.toHaveBeenCalled();
+  });
+
+  it("richiede una conferma esplicita sui riferimenti discordanti e conserva gli altri collegamenti", async () => {
+    mock.contesto.mockResolvedValue({ cliente: {}, contatto: {}, preventivo: {}, computo: {}, commessa: { o1: { id: "o1", nome: "Commessa", riferimenti: { clienteId: "cliente-diverso" } } } });
+    monta(<AssociazioniPiantaPanel riga={{ ...riga, order_id: "o1" }} tipoIniziale="contatto" onChiudi={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Scollega Contatto CRM" }));
+    const conferma = await screen.findByRole("checkbox", { name: "Ho verificato e confermo questi collegamenti" });
+    expect(screen.getByRole("button", { name: "Salva associazioni" })).toBeDisabled();
+    fireEvent.click(conferma);
+    await vi.waitFor(() => expect(screen.getByRole("button", { name: "Salva associazioni" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Salva associazioni" }));
+    await vi.waitFor(() => expect(mock.salva).toHaveBeenCalledWith("p1", { contactId: null }, { companyId: "azienda-A", updatedAt: "prima" }));
   });
 });

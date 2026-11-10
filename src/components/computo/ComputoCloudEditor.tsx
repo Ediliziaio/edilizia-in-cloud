@@ -7,7 +7,7 @@ import { creaBackupComputo } from "@/lib/computo/backupComputo";
 import { leggiBozzaComputo, type BozzaComputo } from "@/lib/computo/editorNativo";
 import { ConflittoComputoCloud, improntaComputo, leggiComputoCloud, preparaAllegatiCloud, salvaComputoCloud } from "@/lib/computo/cloudComputo";
 
-type Props = Omit<ComponentProps<typeof ComputoNativoEditor>, "cloud"> & { companyId: string; draftId: string };
+type Props = Omit<ComponentProps<typeof ComputoNativoEditor>, "cloud"> & { companyId: string; draftId: string; soloEsistente?: boolean };
 type Stato = { pronto: boolean; errore: string; conflitto: boolean; epoch: number; serverJson: string | null };
 type Salvataggio = { stato: "fermo" | "in-corso" | "errore"; alle?: Date; errore?: string };
 
@@ -27,7 +27,7 @@ const ATTESA_SALVATAGGIO_MS = 1500;
  * letta, e se nel frattempo un altro dispositivo ha salvato la sua, il
  * salvataggio si ferma invece di sovrascriverla.
  */
-export default function ComputoCloudEditor({ companyId, draftId, ...props }: Props) {
+export default function ComputoCloudEditor({ companyId, draftId, soloEsistente = false, ...props }: Props) {
   const { storageKey } = props;
   const [stato, setStato] = useState<Stato>({ pronto: false, errore: "", conflitto: false, epoch: 0, serverJson: null });
   const [corrente, setCorrente] = useState<BozzaComputo | null>(null);
@@ -57,6 +57,7 @@ export default function ComputoCloudEditor({ companyId, draftId, ...props }: Pro
     try {
       const remoto = await leggiComputoCloud(companyId, draftId);
       if (!attivo()) return;
+      if (soloEsistente && !remoto) throw new Error("Il computo collegato non è più disponibile nel gestionale. Torna al preventivo e verifica il riferimento.");
       let locale: BozzaComputo | null = null;
       const raw = localStorage.getItem(storageKey);
       if (raw) locale = leggiBozzaComputo(raw);
@@ -91,7 +92,7 @@ export default function ComputoCloudEditor({ companyId, draftId, ...props }: Pro
     } catch (e) {
       if (attivo()) setStato(s => ({ ...s, errore: e instanceof Error ? e.message : "Il gestionale non risponde.", conflitto: false }));
     } finally { if (attivo()) setCaricando(false); }
-  }, [companyId, draftId, storageKey, markerKey, marca]);
+  }, [companyId, draftId, storageKey, markerKey, marca, soloEsistente]);
   useEffect(() => { let attivo = true; void carica(false, () => attivo); return () => { attivo = false; }; }, [carica]);
 
   const salvaOra = useCallback(async (bozza: BozzaComputo): Promise<void> => {
@@ -164,7 +165,7 @@ export default function ComputoCloudEditor({ companyId, draftId, ...props }: Pro
         flushSync(() => setStato(s => ({ ...s, pronto: false })));
         void carica();
       }}><CloudDownload className="mr-1 h-4 w-4" />{stato.conflitto ? "Scarica la mia copia e riapri quella salvata" : "Riprova"}</Button>
-      {!stato.pronto && <Button variant="ghost" size="sm" disabled={caricando} onClick={() => setStato(s => ({ ...s, pronto: true }))}>Continua con la copia su questo computer</Button>}
+      {!soloEsistente && !stato.pronto && <Button variant="ghost" size="sm" disabled={caricando} onClick={() => setStato(s => ({ ...s, pronto: true }))}>Continua con la copia su questo computer</Button>}
     </div>}
     {!stato.pronto ? <p role="status" className="flex items-center gap-2 py-6 text-sm"><Loader2 className="h-4 w-4 animate-spin" />Apro il computo…</p>
       : <fieldset disabled={caricando} className="min-w-0"><ComputoNativoEditor key={stato.epoch} {...props} cloud={{ onChange, status: testoStato }} /></fieldset>}
