@@ -31,6 +31,7 @@ import { turniPerLlm, type RigaMessaggio } from "../_shared/storiaWhatsApp.ts";
 import { promptAgenteLead } from "../_shared/promptAgenteLead.ts";
 import { messaggiRiepilogo, notaRiepilogo } from "../_shared/riepilogoChatLead.ts";
 import { avvisaUtenti, specificheStrumenti, trovaStrumento, type CtxAgente } from "./strumenti.ts";
+import { rispostaDelModello } from "./giroStrumenti.ts";
 
 interface Richiesta {
   message_id?: string;
@@ -211,13 +212,11 @@ async function unGiro(admin: Admin, g: {
   };
 
   try {
-    for (let giro = 0; giro < MAX_GIRI_STRUMENTI; giro++) {
-      const msg = await chiedi("auto", 600);
-      if (!msg.tool_calls?.length) { testoFinale = msg.content ?? null; break; }
-      conv.push(msg);
-      // In ordine, non in parallelo: una prenotazione e lo spostamento di fase
-      // non devono pestarsi.
-      for (const tc of msg.tool_calls) {
+    testoFinale = await rispostaDelModello({
+      maxGiri: MAX_GIRI_STRUMENTI,
+      chiedi,
+      annotaRichiesta: (msg) => { conv.push(msg as ChatMessage); },
+      esegui: async (tc) => {
         const strumento = trovaStrumento(tc.function.name, g.config);
         let args: Record<string, unknown> = {};
         try { args = JSON.parse(tc.function.arguments || "{}"); } catch { /* argomenti vuoti */ }
@@ -240,11 +239,9 @@ async function unGiro(admin: Admin, g: {
           tokens_completion: 0,
         });
         conv.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(esito) });
-      }
-    }
-    // Finiti i giri con gli strumenti senza un testo: un ultimo giro senza
-    // strumenti, così il lead riceve comunque una risposta.
-    if (!testoFinale) testoFinale = (await chiedi("none", 400)).content ?? null;
+        return esito;
+      },
+    });
   } catch (err) {
     if (err instanceof InsufficientCreditsError) {
       // Al lead non si scrive dei crediti: si avvisa il team.

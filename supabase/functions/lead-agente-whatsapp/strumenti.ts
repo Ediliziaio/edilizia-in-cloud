@@ -233,6 +233,13 @@ const orariLiberi: Strumento = {
 
     const [y, m, d] = primo.split("-").map(Number);
     const giorni: Array<{ data: string; giorno: string; orari: string[] }> = [];
+    // Le fasce che hanno davvero orari, per non lasciare il modello a indovinare
+    // perché la fascia chiesta è vuota. Il 09/11/2026 un lead ha chiesto la sera:
+    // il «Calendario Giusy» chiude alle 17 e la sera (dalle 18) non può avere
+    // orari, ma lo strumento rispondeva solo «nessun orario libero» e
+    // l'assistente glielo girava come «è tutto pieno», tre volte di fila, finché
+    // il lead si è stancato. La fascia chiusa non è una fascia piena.
+    const fasceConOrari = new Set<Fascia>();
     let calendarioNome = "";
     for (let i = 0; i < ctx.config.giorniProposta && giorni.length < 3; i++) {
       const dataIso = new Date(Date.UTC(y, m - 1, d + i, 12)).toISOString().slice(0, 10);
@@ -241,18 +248,23 @@ const orariLiberi: Strumento = {
       const { attivi, nome, slot } = await slotLiberiSuCalendari(ctx, calendari, dataIso);
       if (!attivi) return { ok: false, errore: "calendario_non_valido", messaggio: showroom ? "I calendari di questo showroom non sono attivi." : "Il calendario delle chiamate non è attivo." };
       calendarioNome = nome;
+      for (const s of slot) fasceConOrari.add(fasciaDi(s));
       const orari = (fascia ? slot.filter((s) => fasciaDi(s) === fascia) : slot).slice(0, 6);
       if (orari.length) giorni.push({ data: dataIso, giorno: dataEstesa(dataIso), orari });
     }
+    const altre = [...fasceConOrari].filter((f) => f !== fascia);
     return {
       ok: true,
       per: showroom ? `appuntamento nello showroom di ${showroom.nome}` : "telefonata con il consulente",
       calendario: showroom ? showroom.nome : calendarioNome,
       fascia: fascia ?? "tutte",
       giorni,
+      fasce_con_orari: [...fasceConOrari],
       nota: giorni.length
         ? "Proponi al cliente al massimo 3 orari per messaggio, presi da questo elenco."
-        : "Nessun orario libero nei prossimi giorni in questa fascia: proponi un'altra fascia o passa a un operatore.",
+        : altre.length
+          ? `In questa fascia non si fissano appuntamenti. Ci sono orari solo ${altre.join(" e ")}: dillo al cliente così, senza dire che è «pieno» o «esaurito», e proponi una di queste fasce.`
+          : "Nessun orario libero nei prossimi giorni: proponi un'altra fascia o passa a un operatore.",
     };
   },
 };
