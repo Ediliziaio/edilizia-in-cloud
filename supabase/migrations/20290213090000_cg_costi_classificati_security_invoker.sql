@@ -1,0 +1,36 @@
+-- v_cg_costi_classificati torna a rispettare la RLS (10/11/2026).
+--
+-- La vista era stata messa in sicurezza il 27/02/2028 insieme ad altre cinque
+-- (20280227000001_viste_security_invoker). Tre migrazioni successive l'hanno
+-- però ricreata con CREATE OR REPLACE VIEW, e CREATE OR REPLACE VIEW azzera
+-- le opzioni della vista: security_invoker è sparito senza che niente lo
+-- dicesse. L'ultima a farlo è 20290116140000_costi_classificati_per_tutti.
+--
+-- Effetto misurato oggi in produzione, con il token di un utente di Ener
+-- Italia dentro una transazione annullata:
+--   select count(*), count(distinct company_id) from v_cg_costi_classificati
+--   → 3.119 righe di 10 aziende diverse, nessuna delle quali la sua.
+-- Sono i costi del controllo di gestione (company_costs, fatture_ricevute,
+-- bank_transactions): importi, date e categorie di spesa di ogni azienda
+-- della piattaforma, leggibili via API da qualunque utente loggato.
+--
+-- Le cinque tabelle sorgente hanno tutte RLS attiva e policy per
+-- authenticated (bank_reconciliations 3, bank_transactions 6,
+-- cg_classificazione_voci 6, company_costs 12, fatture_ricevute 5), quindi
+-- security_invoker non toglie niente a chi ha diritto di vedere: le edge
+-- function girano da service_role, che la RLS non la guarda comunque.
+--
+-- Verificato dopo l'ALTER, sempre in transazioni annullate:
+--   · utente di Ener Italia, senza can_view_costs → 0 righe (prima 3.119)
+--   · amministratore di Demo Azienda 2, con can_view_costs → 1.220 righe,
+--     una sola azienda, zero righe altrui: la pagina del controllo di
+--     gestione continua a funzionare.
+--
+-- Nota per la prossima volta: `alter view … set (security_invoker = on)` non
+-- sopravvive a un `create or replace view`. Chi ricrea una di queste viste
+-- deve rimettere l'opzione nella stessa migrazione. Le altre cinque sono
+-- ancora a posto (v_ordine_marginalita la porta scritta come
+-- `security_invoker=true`, che è equivalente).
+alter view public.v_cg_costi_classificati set (security_invoker = on);
+
+notify pgrst, 'reload schema';
