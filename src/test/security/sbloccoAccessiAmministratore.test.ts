@@ -29,6 +29,11 @@ const MIGRAZIONE = readFileSync(
   resolve(RADICE, "supabase/migrations/20290131120000_sblocco_accessi_amministratore.sql"),
   "utf8",
 );
+/** Il seguito: lo sblocco marca i tentativi, così vale anche per chi conta da solo. */
+const MIGRAZIONE_ANNULLA = readFileSync(
+  resolve(RADICE, "supabase/migrations/20290212100000_sblocco_accessi_annulla_tentativi.sql"),
+  "utf8",
+);
 const PAGINA = readFileSync(
   resolve(RADICE, "src/pages/azienda/settings/SettingsSecurityDashboard.tsx"),
   "utf8",
@@ -39,12 +44,12 @@ const EDGE = readFileSync(
 );
 
 /** Il corpo di una funzione SQL, dal `create` al `$$;` che la chiude. */
-function corpoFunzione(nome: string): string {
-  const inizio = MIGRAZIONE.indexOf(`create or replace function public.${nome}`);
+function corpoFunzione(nome: string, sorgente: string = MIGRAZIONE): string {
+  const inizio = sorgente.indexOf(`create or replace function public.${nome}`);
   expect(inizio, `la migrazione non crea ${nome}`).toBeGreaterThan(-1);
-  const fine = MIGRAZIONE.indexOf("\n$$;", inizio);
+  const fine = sorgente.indexOf("\n$$;", inizio);
   expect(fine, `non trovo la fine di ${nome}`).toBeGreaterThan(inizio);
-  return MIGRAZIONE.slice(inizio, fine);
+  return sorgente.slice(inizio, fine);
 }
 
 describe("sblocco degli accessi: i permessi", () => {
@@ -140,5 +145,47 @@ describe("il riepilogo degli accessi dice il vero", () => {
 
   it("spiega che il blocco è sul computer, non sulla persona", () => {
     expect(PAGINA).toMatch(/sul computer, non sulla persona/);
+  });
+});
+
+describe("lo sblocco vale anche per chi conta senza leggere i punti di ripartenza", () => {
+  const sblocco = corpoFunzione("sblocca_accesso", MIGRAZIONE_ANNULLA);
+
+  it("marca come annullati i tentativi che il blocco stava contando", () => {
+    // Il punto di ripartenza in `login_lock_resets` lo guarda solo il conteggio
+    // nuovo. La versione di `check-login-security` in produzione conta da sé le
+    // righe `invalid_credentials`: senza questa marcatura l'amministratore
+    // premerebbe «Sblocca», l'elenco direbbe «fatto» e la persona resterebbe
+    // fuori fino alla fine della finestra.
+    expect(sblocco).toMatch(/update public\.login_attempts/);
+    expect(sblocco).toMatch(/set failure_reason = 'invalid_credentials_sbloccato'/);
+    expect(sblocco).toMatch(/and failure_reason = 'invalid_credentials'/);
+  });
+
+  it("marca solo quella email da quell'indirizzo, e solo i tentativi falliti", () => {
+    const corpoUpdate = sblocco.slice(sblocco.indexOf("update public.login_attempts"));
+    expect(corpoUpdate).toMatch(/where email = p_email/);
+    expect(corpoUpdate).toMatch(/and ip_address = v_ip/);
+    expect(corpoUpdate).toMatch(/and success = false/);
+  });
+
+  it("continua a non cancellare niente e a non inventare un accesso riuscito", () => {
+    expect(sblocco).not.toMatch(/delete\s+from\s+public\.login_attempts/i);
+    expect(sblocco).not.toMatch(/insert into public\.login_attempts/i);
+    expect(sblocco).toMatch(/insert into public\.login_lock_resets/);
+  });
+
+  it("scrive nel registro quanti tentativi ha annullato", () => {
+    expect(sblocco).toMatch(/get diagnostics v_annullati = row_count/);
+    expect(sblocco).toMatch(/'tentativi_annullati', v_annullati/);
+  });
+
+  it("resta chiusa ad anon come la prima versione", () => {
+    expect(MIGRAZIONE_ANNULLA).toMatch(
+      /revoke all on function public\.sblocca_accesso\(text, text\) from public, anon;/,
+    );
+    expect(MIGRAZIONE_ANNULLA).toMatch(
+      /grant execute on function public\.sblocca_accesso\(text, text\) to authenticated, service_role;/,
+    );
   });
 });
