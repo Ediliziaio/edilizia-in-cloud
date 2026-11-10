@@ -32,6 +32,7 @@ import { promptAgenteLead } from "../_shared/promptAgenteLead.ts";
 import { messaggiRiepilogo, notaRiepilogo } from "../_shared/riepilogoChatLead.ts";
 import { avvisaUtenti, specificheStrumenti, trovaStrumento, type CtxAgente } from "./strumenti.ts";
 import { rispostaDelModello } from "./giroStrumenti.ts";
+import { adessoRoma, appuntamentoDaFare, dataRomaOggi } from "./appuntamentoCorrente.ts";
 
 interface Richiesta {
   message_id?: string;
@@ -189,7 +190,7 @@ async function unGiro(admin: Admin, g: {
   const turni = turniPerLlm(utili, 24);
   if (!ultimoEntrata || !turni.length || turni[turni.length - 1].role !== "user") return "niente";
 
-  const [{ data: azienda }, { data: calendario }, { data: opp }, { data: qualifica }] = await Promise.all([
+  const [{ data: azienda }, { data: calendario }, { data: opp }, { data: qualifica }, { data: appuntamenti }] = await Promise.all([
     admin.from("companies").select("name").eq("id", g.companyId).maybeSingle(),
     admin.from("marketing_calendars").select("name").eq("id", g.config.calendarioId).maybeSingle(),
     admin.from("marketing_opportunities")
@@ -197,6 +198,17 @@ async function unGiro(admin: Admin, g: {
       .eq("company_id", g.companyId).eq("contact_id", g.contatto.id).eq("status", "open").is("deleted_at", null)
       .order("created_at", { ascending: false }).limit(1),
     admin.from("marketing_contacts").select("qualificazione_json").eq("id", g.contatto.id).maybeSingle(),
+    // L'appuntamento vero, letto adesso dal calendario: senza, il modello lo
+    // deduce dalla chat, e la chat non sa cosa è successo dopo. In prova il
+    // 10/11/2026 un contatto si è sentito rispondere «vedo che hai già un
+    // appuntamento per lunedì 28 settembre alle 13:00»: di un mese e mezzo
+    // prima, e annullato — l'annullamento non passa da WhatsApp.
+    admin.from("appointments")
+      .select("appointment_date, appointment_time, calendar_id, marketing_calendars(name)")
+      .eq("company_id", g.companyId).eq("contact_id", g.contatto.id)
+      .gte("appointment_date", dataRomaOggi())
+      .not("status", "in", '("annullato","cancelled")')
+      .order("appointment_date").order("appointment_time").limit(5),
   ]);
   // deno-lint-ignore no-explicit-any
   const faseAttuale = ((opp?.[0] as any)?.marketing_pipeline_stages?.name as string | undefined) ?? null;
@@ -211,6 +223,8 @@ async function unGiro(admin: Admin, g: {
     faseAttuale,
     calendarioNome: String(calendario?.name ?? "calendario delle chiamate"),
     showroom: g.config.showroom.map((x) => ({ nome: x.nome, indirizzo: x.indirizzo })),
+    // deno-lint-ignore no-explicit-any
+    appuntamento: appuntamentoDaFare((appuntamenti ?? []) as any[], adessoRoma()),
   });
 
   const ctx: CtxAgente = {
