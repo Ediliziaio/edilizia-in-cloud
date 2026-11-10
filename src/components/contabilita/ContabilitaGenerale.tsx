@@ -24,6 +24,7 @@ import { FiscalSectionHeader } from "@/components/fatturazione/FiscalSectionLayo
 import { FiscalQueryState } from "@/components/fatturazione/FiscalQueryState";
 import { bilancioCee, bilancioDiVerifica, htmlBilancioCee, htmlBilancioVerifica, saldiPerConto } from "@/lib/contabilita/bilancioCee";
 import type { AziendaIntestazione } from "@/lib/contabilita/documentoContabile";
+import { contoAPartite, htmlMastrino, mastrino, partitario } from "@/lib/contabilita/mastrini";
 import {
   controllaBozza,
   costruisciGiornale,
@@ -82,15 +83,24 @@ function useScritture(companyId: string | undefined, anno: number) {
     queryKey: chiave(companyId, "scritture", anno),
     enabled: !!companyId,
     queryFn: async () => {
-      const { data, error } = await db
-        .from("contabilita_scritture")
-        .select("id, esercizio, numero, data_registrazione, causale, descrizione, documento_numero, documento_data, origine, storno_di, contabilita_righe(riga, conto_id, dare, avere, descrizione)")
-        .eq("company_id", companyId)
-        .eq("esercizio", anno)
-        .order("numero", { ascending: false })
-        .limit(5000);
-      if (error) throw error;
-      return (data ?? []) as Scrittura[];
+      // PostgREST restituisce al più mille righe per chiamata: un esercizio di un'impresa
+      // vera ne ha migliaia (Bonarrigo 2025: oltre 3.500), e giornale e bilancio senza le
+      // altre sarebbero sbagliati senza dirlo. Si legge a pagine finché non finiscono.
+      const PAGINA = 1000;
+      const tutte: Scrittura[] = [];
+      for (let da = 0; ; da += PAGINA) {
+        const { data, error } = await db
+          .from("contabilita_scritture")
+          .select("id, esercizio, numero, data_registrazione, causale, descrizione, documento_numero, documento_data, origine, storno_di, contabilita_righe(riga, conto_id, dare, avere, descrizione)")
+          .eq("company_id", companyId)
+          .eq("esercizio", anno)
+          .order("numero", { ascending: false })
+          .range(da, da + PAGINA - 1);
+        if (error) throw error;
+        tutte.push(...((data ?? []) as Scrittura[]));
+        if ((data ?? []).length < PAGINA) break;
+      }
+      return tutte;
     },
   });
 }
@@ -100,7 +110,8 @@ export default function ContabilitaGenerale() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const richiesta = p.params.get("vista");
-  const vista = richiesta === "conti" || richiesta === "giornale" || richiesta === "bilancio" ? richiesta : "scritture";
+  const vista = richiesta === "conti" || richiesta === "giornale" || richiesta === "bilancio" || richiesta === "mastrini" || richiesta === "iva"
+    ? richiesta : "scritture";
   const conti = useConti(companyId);
 
   return (
@@ -119,7 +130,7 @@ export default function ContabilitaGenerale() {
         }
       />
       <div className="flex flex-wrap gap-2">
-        {([["scritture", "Scritture"], ["giornale", "Libro giornale"], ["bilancio", "Bilancio"], ["conti", "Piano dei conti"]] as const).map(([k, l]) => (
+        {([["scritture", "Scritture"], ["giornale", "Libro giornale"], ["mastrini", "Mastrini e partitari"], ["iva", "Liquidazione IVA"], ["bilancio", "Bilancio"], ["conti", "Piano dei conti"]] as const).map(([k, l]) => (
           <Button key={k} size="sm" variant={vista === k ? "default" : "outline"} onClick={() => p.set({ vista: k })}>{l}</Button>
         ))}
       </div>
@@ -129,6 +140,10 @@ export default function ContabilitaGenerale() {
         <PianoVuoto companyId={companyId!} />
       ) : vista === "conti" ? (
         <PianoDeiConti companyId={companyId!} conti={conti.data!} />
+      ) : vista === "mastrini" ? (
+        <Mastrini companyId={companyId!} anno={p.anno} conti={conti.data!} />
+      ) : vista === "iva" ? (
+        <LiquidazioneIva companyId={companyId!} anno={p.anno} />
       ) : vista === "bilancio" ? (
         <Bilancio companyId={companyId!} anno={p.anno} conti={conti.data!} />
       ) : (
@@ -278,8 +293,11 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
   const [nuova, setNuova] = useState(false);
   const [stampa, setStampa] = useState<string | null>(null);
   const [storno, setStorno] = useState<Scrittura | null>(null);
+  // Un esercizio vero ha migliaia di scritture: a video le prime, la stampa le ha tutte.
+  const [mostra, setMostra] = useState(300);
   const nomi = useMemo(() => new Map(conti.map((c) => [c.id, `${c.codice} ${c.descrizione}`])), [conti]);
-  // Fatture emesse e ricevute, incassi e pagamenti dell'esercizio diventano scritture.
+  // Fatture emesse e ricevute, incassi e pagamenti, movimenti di prima nota e F24 pagati
+  // dell'esercizio diventano scritture.
   // Lo fa il database (contabilita_genera_da_documenti): un documento genera al più
   // una scrittura viva, quindi rilanciarlo aggiunge solo quello che manca; tutto in
   // ordine di data, così i numeri seguono il calendario.
@@ -288,14 +306,15 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
       const { data, error } = await db.rpc("contabilita_genera_da_documenti", { p_company: companyId, p_anno: anno });
       if (error) throw error;
       return data as {
-        fatture_emesse: number; fatture_ricevute: number; incassi: number; pagamenti: number; altre?: number;
+        fatture_emesse: number; fatture_ricevute: number; incassi: number; pagamenti: number; altre?: number; movimenti?: number; giroconti_saltati?: number;
         saltate_solo_testata: number; gia_generate: number; errori: string[];
       };
     },
     onSuccess: (r) => {
-      const nuove = r.fatture_emesse + r.fatture_ricevute + r.incassi + r.pagamenti + (r.altre ?? 0);
+      const nuove = r.fatture_emesse + r.fatture_ricevute + r.incassi + r.pagamenti + (r.altre ?? 0) + (r.movimenti ?? 0);
       const dettagli = [
-        `${r.fatture_emesse} fatture emesse, ${r.fatture_ricevute} ricevute, ${r.incassi} incassi, ${r.pagamenti} pagamenti${r.altre ? `, ${r.altre} ritenute subite` : ""}`,
+        `${r.fatture_emesse} fatture emesse, ${r.fatture_ricevute} ricevute, ${r.incassi} incassi, ${r.pagamenti} pagamenti${r.altre ? `, ${r.altre} ritenute subite` : ""}${r.movimenti ? `, ${r.movimenti} movimenti di prima nota e F24` : ""}`,
+        r.giroconti_saltati ? `${r.giroconti_saltati} giroconti fra conti propri non registrati` : "",
         r.gia_generate ? `${r.gia_generate} già registrati` : "",
         r.saltate_solo_testata ? `${r.saltate_solo_testata} saltati: senza imponibile (solo testata) o senza la loro fattura in contabilità` : "",
         r.errori.length ? `${r.errori.length} non registrati: ${r.errori.slice(0, 3).join("; ")}` : "",
@@ -352,7 +371,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
             <tbody>
               {g.righe.length === 0 ? (
                 <tr><td colSpan={6} className="p-4 text-center text-muted-foreground">Nessuna scrittura nel {anno}.</td></tr>
-              ) : g.righe.map((r) => (
+              ) : g.righe.slice(0, mostra * 5).map((r) => (
                 <tr key={r.progressivo} className={r.primaDellaScrittura ? "border-t" : ""}>
                   <td className="p-2 font-mono text-xs">{r.primaDellaScrittura ? r.numero : ""}</td>
                   <td className="p-2">{r.primaDellaScrittura ? dataIt(r.data) : ""}</td>
@@ -369,7 +388,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
         <div className="space-y-2">
           {elenco.length === 0 ? (
             <p className="rounded-xl border p-4 text-sm text-muted-foreground">Nessuna scrittura nel {anno}. «Genera dai documenti» registra fatture, incassi e pagamenti dell'esercizio; le altre operazioni si registrano con «Nuova scrittura».</p>
-          ) : elenco.map((s) => {
+          ) : elenco.slice(0, mostra).map((s) => {
             const tot = s.contabilita_righe.reduce((t, r) => t + Number(r.dare || 0), 0);
             return (
               <details key={s.id} className="rounded-xl border p-3 text-sm">
@@ -403,6 +422,12 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
           })}
         </div>
       )}
+      {(giornale ? g.righe.length > mostra * 5 : elenco.length > mostra) ? (
+        <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground">
+          <span>{giornale ? `Righe ${mostra * 5} di ${g.righe.length}` : `Scritture ${mostra} di ${elenco.length}`}: la stampa le contiene tutte.</span>
+          <Button size="sm" variant="outline" onClick={() => setMostra((n) => n + 300)}>Mostra altre</Button>
+        </div>
+      ) : null}
 
       <NuovaScrittura open={nuova} onOpenChange={setNuova} companyId={companyId} conti={conti}
         onFatto={() => void qc.invalidateQueries({ queryKey: chiave(companyId, "scritture") })} />
@@ -656,5 +681,219 @@ function ModificaConto({ conto, onClose, onFatto }: { conto: ContoContabile | nu
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Mastrino di un conto e, per clienti e fornitori, il partitario: quanto deve o avanza ognuno. */
+function Mastrini({ companyId, anno, conti }: { companyId: string; anno: number; conti: ContoContabile[] }) {
+  const scritture = useScritture(companyId, anno);
+  const anagrafica = useAnagraficaAzienda();
+  const [contoId, setContoId] = useState("");
+  const [soggetto, setSoggetto] = useState<string | null>(null);
+  const [stampa, setStampa] = useState<string | null>(null);
+  const [mostra, setMostra] = useState(500);
+  const movimentati = useMemo(() => {
+    const usati = new Set((scritture.data ?? []).flatMap((s) => s.contabilita_righe.map((r) => r.conto_id)));
+    return conti.filter((c) => c.movimentabile && usati.has(c.id));
+  }, [scritture.data, conti]);
+  if (scritture.isLoading || scritture.isError) {
+    return <FiscalQueryState loading={scritture.isLoading} error={scritture.isError} onRetry={() => void scritture.refetch()} />;
+  }
+  const elenco = scritture.data ?? [];
+  const conto = movimentati.find((c) => c.id === contoId) ?? movimentati.find((c) => contoAPartite(c)) ?? movimentati[0];
+  if (!conto) return <p className="rounded-xl border p-4 text-sm text-muted-foreground">Nessun conto movimentato nel {anno}.</p>;
+  const aPartite = contoAPartite(conto) && soggetto === null;
+  const partite = aPartite ? partitario(elenco, conto.id) : [];
+  const m = aPartite ? null : mastrino(elenco, conto.id, soggetto ?? undefined);
+  const saldoTesto = (n: number) => (n === 0 ? euro(0) : `${euro(Math.abs(n))} ${n > 0 ? "D" : "A"}`);
+  return (
+    <div className="space-y-3">
+      {stampa && (
+        <PrintPreviewModal open onOpenChange={(v) => { if (!v) setStampa(null); }} htmlContent={stampa}
+          title="Mastrino — anteprima di stampa" fileName={`mastrino-${conto.codice}-${anno}`} soloPdf />
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <Select value={conto.id} onValueChange={(v) => { setContoId(v); setSoggetto(null); setMostra(500); }}>
+          <SelectTrigger className="h-8 w-80" aria-label="Conto"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {movimentati.map((c) => <SelectItem key={c.id} value={c.id}>{c.codice} {c.descrizione}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        {soggetto !== null ? (
+          <Button size="sm" variant="outline" onClick={() => setSoggetto(null)}>← Tutti i soggetti</Button>
+        ) : null}
+        {!aPartite ? (
+          <Button size="sm" variant="outline" className="ml-auto" onClick={() => setStampa(htmlMastrino({
+            azienda: intestazioneDa(anagrafica.data), scritture: elenco, conto, soggetto: soggetto ?? undefined,
+            dal: `${anno}-01-01`, al: `${anno}-12-31`,
+          }))}><Printer className="mr-1 h-4 w-4" />Stampa {soggetto ? "scheda" : "mastrino"}</Button>
+        ) : null}
+      </div>
+      {aPartite ? (
+        <div className="overflow-x-auto rounded-xl border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
+              <tr><th className="p-2">{conto.codice_standard === "13.04" || /fornitor/i.test(conto.descrizione) ? "Fornitore" : "Cliente"}</th><th className="p-2 text-right">Movimenti</th><th className="p-2 text-right">Dare</th><th className="p-2 text-right">Avere</th><th className="p-2 text-right">Saldo</th></tr>
+            </thead>
+            <tbody>
+              {partite.map((x) => (
+                <tr key={x.soggetto} className="cursor-pointer border-t hover:bg-muted/40" onClick={() => setSoggetto(x.soggetto)}>
+                  <td className="p-2">{x.soggetto}</td>
+                  <td className="p-2 text-right tabular-nums text-muted-foreground">{x.movimenti}</td>
+                  <td className="p-2 text-right tabular-nums">{euro(x.dare)}</td>
+                  <td className="p-2 text-right tabular-nums">{euro(x.avere)}</td>
+                  <td className="p-2 text-right font-medium tabular-nums">{saldoTesto(x.saldo)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : m ? (
+        <>
+          <p className="text-sm text-muted-foreground">
+            {soggetto ? `${soggetto} · ` : ""}{m.movimenti.length} movimenti · dare {euro(m.dare)} · avere {euro(m.avere)} · saldo {saldoTesto(m.saldo)}
+          </p>
+          <div className="overflow-x-auto rounded-xl border">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
+                <tr><th className="p-2">Data</th><th className="p-2">N.</th><th className="p-2">Causale</th><th className="p-2">Descrizione</th><th className="p-2 text-right">Dare</th><th className="p-2 text-right">Avere</th><th className="p-2 text-right">Saldo</th></tr>
+              </thead>
+              <tbody>
+                {m.movimenti.slice(0, mostra).map((x, i) => (
+                  <tr key={`${x.scritturaId}-${i}`} className="border-t">
+                    <td className="p-2">{dataIt(x.data)}</td>
+                    <td className="p-2 font-mono text-xs">{x.numero}</td>
+                    <td className="p-2">{x.causale}</td>
+                    <td className="p-2 text-muted-foreground">{x.descrizione}</td>
+                    <td className="p-2 text-right tabular-nums">{x.dare ? euro(x.dare) : ""}</td>
+                    <td className="p-2 text-right tabular-nums">{x.avere ? euro(x.avere) : ""}</td>
+                    <td className="p-2 text-right tabular-nums">{saldoTesto(x.saldo)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {m.movimenti.length > mostra ? (
+            <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground">
+              <span>Movimenti {mostra} di {m.movimenti.length}: la stampa li contiene tutti.</span>
+              <Button size="sm" variant="outline" onClick={() => setMostra((n) => n + 500)}>Mostra altri</Button>
+            </div>
+          ) : null}
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+const MESI = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
+
+/** I periodi IVA dell'anno: dodici mesi o quattro trimestri. */
+function periodiIva(anno: number, trimestrale: boolean) {
+  const fine = (m: number) => new Date(Date.UTC(anno, m, 0)).toISOString().slice(0, 10);
+  const mm = (m: number) => String(m).padStart(2, "0");
+  return trimestrale
+    ? [1, 2, 3, 4].map((t) => ({ dal: `${anno}-${mm(t * 3 - 2)}-01`, al: fine(t * 3), nome: `${t}° trimestre ${anno}` }))
+    : MESI.map((nome, i) => ({ dal: `${anno}-${mm(i + 1)}-01`, al: fine(i + 1), nome: `${nome} ${anno}` }));
+}
+
+interface EsitoLiquidazione {
+  iva_vendite: number; iva_acquisti: number; saldo: number; credito_precedente: number; compensato: number;
+  da_versare: number; a_credito: number; gia_liquidato: boolean; sotto_minimo?: boolean;
+}
+
+/**
+ * Liquidazione IVA in contabilità: l'IVA su vendite e su acquisti del periodo si gira su
+ * Erario c/IVA (contabilita_liquida_iva). L'importo si legge dalle scritture: un documento
+ * non ancora registrato non c'è, quindi prima si genera dai documenti.
+ */
+function LiquidazioneIva({ companyId, anno }: { companyId: string; anno: number }) {
+  const qc = useQueryClient();
+  const [trimestrale, setTrimestrale] = useState(false);
+  const periodi = periodiIva(anno, trimestrale);
+  const esiti = useQuery({
+    queryKey: chiave(companyId, "liquidazioni-iva", anno, trimestrale),
+    queryFn: async () => {
+      const risultati: EsitoLiquidazione[] = [];
+      for (const per of periodi) {
+        const { data, error } = await db.rpc("contabilita_liquida_iva", { p_company: companyId, p_dal: per.dal, p_al: per.al, p_anteprima: true });
+        if (error) throw error;
+        risultati.push(data as EsitoLiquidazione);
+      }
+      return risultati;
+    },
+  });
+  const registra = useMutation({
+    mutationFn: async (per: { dal: string; al: string }) => {
+      const { data, error } = await db.rpc("contabilita_liquida_iva", { p_company: companyId, p_dal: per.dal, p_al: per.al, p_anteprima: false });
+      if (error) throw error;
+      return data as EsitoLiquidazione;
+    },
+    onSuccess: (r) => {
+      toast.success("Liquidazione registrata", {
+        description: r.da_versare > 0 ? `IVA da versare ${euro(r.da_versare)}: il pagamento dell'F24 la chiude.` : `IVA a credito ${euro(r.a_credito)}.`,
+      });
+      void qc.invalidateQueries({ queryKey: chiave(companyId) });
+    },
+    onError: (e) => toast.error("Liquidazione non registrata", { description: e instanceof Error ? e.message : String(e) }),
+  });
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-3 text-sm">
+        <Select value={trimestrale ? "t" : "m"} onValueChange={(v) => setTrimestrale(v === "t")}>
+          <SelectTrigger className="h-8 w-40" aria-label="Periodicità"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="m">Mensile</SelectItem>
+            <SelectItem value="t">Trimestrale</SelectItem>
+          </SelectContent>
+        </Select>
+        <span className="text-muted-foreground">
+          Gli importi sono l'IVA non ancora liquidata a fine periodo: genera prima dai documenti. Il credito di un periodo abbatte il debito dei successivi; sotto 25,82 € il debito passa al periodo dopo.
+        </span>
+      </div>
+      {esiti.isLoading || esiti.isError ? (
+        <FiscalQueryState loading={esiti.isLoading} error={esiti.isError} onRetry={() => void esiti.refetch()} />
+      ) : (
+        <div className="overflow-x-auto rounded-xl border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
+              <tr><th className="p-2">Periodo</th><th className="p-2 text-right">IVA vendite</th><th className="p-2 text-right">IVA acquisti</th><th className="p-2 text-right">Credito precedente usato</th><th className="p-2 text-right">Da versare</th><th className="p-2 text-right">A credito</th><th className="p-2" /></tr>
+            </thead>
+            <tbody>
+              {periodi.map((per, i) => {
+                const r = esiti.data?.[i];
+                if (!r) return null;
+                const vuoto = r.iva_vendite === 0 && r.iva_acquisti === 0;
+                // In ordine: il credito di un periodo entra nel successivo solo se è registrato.
+                const primaInSospeso = periodi.slice(0, i).some((_, j) => {
+                  const q = esiti.data?.[j];
+                  return q && !q.gia_liquidato && !q.sotto_minimo && (q.iva_vendite !== 0 || q.iva_acquisti !== 0);
+                });
+                return (
+                  <tr key={per.dal} className="border-t">
+                    <td className="p-2 capitalize">{per.nome}</td>
+                    <td className="p-2 text-right tabular-nums">{euro(r.iva_vendite)}</td>
+                    <td className="p-2 text-right tabular-nums">{euro(r.iva_acquisti)}</td>
+                    <td className="p-2 text-right tabular-nums text-muted-foreground">{r.compensato ? euro(r.compensato) : ""}</td>
+                    <td className="p-2 text-right font-medium tabular-nums">{r.da_versare ? euro(r.da_versare) : ""}</td>
+                    <td className="p-2 text-right tabular-nums">{r.a_credito ? euro(r.a_credito) : ""}</td>
+                    <td className="p-2 text-right">
+                      {r.gia_liquidato ? (
+                        <span className="rounded bg-emerald-50 px-1.5 text-xs text-emerald-800">registrata</span>
+                      ) : vuoto ? null : r.sotto_minimo ? (
+                        <span className="text-xs text-muted-foreground" title="Sotto 25,82 € non si versa">passa al periodo dopo</span>
+                      ) : (
+                        <Button size="sm" variant="outline" disabled={registra.isPending || primaInSospeso}
+                          title={primaInSospeso ? "Prima registra i periodi precedenti" : undefined}
+                          onClick={() => registra.mutate(per)}>Registra</Button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
