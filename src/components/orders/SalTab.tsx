@@ -34,7 +34,7 @@ import {VerbaleSalDialog} from "./VerbaleSalDialog";
 import {CertificatoSal} from "./CertificatoSal";
 import {certificatoDelSal,certificatoBloccato, certificatoPrecedente, leggiImportoItaliano} from "@/lib/orders/salCertificato";
 import {giornoLocale} from "@/lib/orders/cronoprogramma";
-import {certificatoNelModulo, rataProposta, vociCheCambiano} from "@/lib/orders/salNuovoVerbale";
+import {arrotondamentoAbituale, certificatoNelModulo, rataProposta, vociCheCambiano, type Arrotondamento} from "@/lib/orders/salNuovoVerbale";
 import {conPercentuale, conQuantita, percentualeFaseDaSottofasi, type SottofasePerSal, type SottofaseSalDraft} from "@/lib/orders/salSottofasi";
 
 interface SalVoceSottofase {
@@ -169,6 +169,8 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   const [certRitenuta, setCertRitenuta] = useState("");
   const [certAltre, setCertAltre] = useState("");
   const [certNota, setCertNota] = useState("");
+  // null = come il certificato prima (chi arrotonda a 100 € lo fa ogni volta).
+  const [certArrotonda, setCertArrotonda] = useState<Arrotondamento | null>(null);
 
   const [isExporting, setIsExporting] = useState(false);
   const [exportingSalId, setExportingSalId] = useState<string | null>(null);
@@ -416,12 +418,13 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   const vociInDiscesa = vociSottoIlPrecedente(voci, precedentiVoci);
   // Il certificato nello stesso modulo: ritenuta del certificato prima, acconti = già maturato.
   const certificatoPrima = certificatoPrecedente({ numero_sal: numeroNuovo }, salList);
+  const arrotondamento: Arrotondamento = certArrotonda ?? arrotondamentoAbituale(certificatoPrima);
   const ritenutaScritta = certRitenuta.trim() ? leggiImportoItaliano(certRitenuta) : null;
   const altreScritte = certAltre.trim() ? leggiImportoItaliano(certAltre) : null;
   const certificatoValido = (ritenutaScritta === null || (Number.isFinite(ritenutaScritta) && ritenutaScritta >= 0 && ritenutaScritta <= 100))
     && (altreScritte === null || (Number.isFinite(altreScritte) && altreScritte >= 0));
   const certificatoNuovo = certificatoValido
-    ? certificatoNelModulo({ cumulativo: totalDialogImporto, precedente: certificatoPrima, giaMaturato: precedenteNuovo, ritenutaPct: ritenutaScritta, altreDetrazioni: altreScritte, nota: certNota })
+    ? certificatoNelModulo({ cumulativo: totalDialogImporto, precedente: certificatoPrima, giaMaturato: precedenteNuovo, ritenutaPct: ritenutaScritta, altreDetrazioni: altreScritte, nota: certNota, arrotonda: arrotondamento })
     : null;
   const vociNascoste = mostraTutte ? 0 : voci.filter((v) => v.fase_id && fasiInvariate.has(v.fase_id)).length;
   const nomeFase = (id?: string | null) => (id ? fasiSal.find((f) => f.id === id)?.name ?? null : null);
@@ -441,7 +444,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
     const rata=installmentId || rataProposta(installments??[],salList);
     const haCertificati=salList.some(s=>certificatoDelSal(s.sal_certificati));
     draftRevision.current++;const apertura=draftRevision.current;setNote("");setVoci([emptyVoce()]);setRataCollegata(rata);setReview(false);setRettifica(false);setFormError("");
-    setFasiInvariate(new Set());setMostraTutte(false);setConCertificato(haCertificati);setCertRitenuta("");setCertAltre("");setCertNota("");setDialogOpen(true);
+    setFasiInvariate(new Set());setMostraTutte(false);setConCertificato(haCertificati);setCertRitenuta("");setCertAltre("");setCertNota("");setCertArrotonda(null);setDialogOpen(true);
     // Il verbale nasce dalle fasi della commessa: appena arrivano, la bozza ancora
     // intatta si compila (nome, venduto, % dal cantiere ma mai sotto il SAL
     // precedente). Se nel frattempo l'ufficio ha scritto qualcosa, non si tocca.
@@ -1155,6 +1158,16 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                         onChange={(e) => {draftRevision.current++;setCertNota(e.target.value);}} />
                     </div>
                   </div>
+                  <div className="flex flex-wrap items-center gap-1 text-xs">
+                    <span className="mr-1 text-muted-foreground">Arrotonda il netto</span>
+                    {([0, 10, 100] as const).map((passo) => (
+                      <button key={passo} type="button" aria-pressed={arrotondamento === passo}
+                        onClick={() => {draftRevision.current++;setCertArrotonda(passo);}}
+                        className={`rounded-md border px-2 py-1 ${arrotondamento === passo ? "border-primary bg-primary/10 font-medium text-primary" : "hover:bg-muted"}`}>
+                        {passo === 0 ? "No" : `a ${passo} €`}
+                      </button>
+                    ))}
+                  </div>
                   {certificatoNuovo ? (
                     <dl aria-label="Certificato di pagamento" className="space-y-0.5 text-sm">
                       {([
@@ -1163,6 +1176,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                         ...(certificatoNuovo.recupero_anticipazione > 0 ? [["Recupero anticipazione", -certificatoNuovo.recupero_anticipazione] as [string, number]] : []),
                         ...(certificatoNuovo.altre_detrazioni > 0 ? [["Altre detrazioni", -certificatoNuovo.altre_detrazioni] as [string, number]] : []),
                         ["Acconti già certificati", -certificatoNuovo.acconti_precedenti],
+                        ...(Number(certificatoNuovo.rinviato) > 0 ? [["Rinviato al prossimo certificato", -Number(certificatoNuovo.rinviato)] as [string, number]] : []),
                       ] as Array<[string, number]>).map(([t, v]) => (
                         <div key={t} className="flex justify-between text-muted-foreground"><dt>{t}</dt><dd className="tabular-nums">{formatCurrency(v)}</dd></div>
                       ))}
@@ -1170,7 +1184,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                       <div className="flex justify-between text-muted-foreground"><dt>Con l'IVA {vatRate}%</dt><dd className="tabular-nums">{formatCurrency(rataDaSal(certificatoNuovo.netto, vatRate))}</dd></div>
                     </dl>
                   ) : <p role="alert" className="text-xs text-destructive">Ritenuta tra 0 e 100%, detrazioni non negative.</p>}
-                  <p className="text-[11px] text-muted-foreground">Gli acconti sono il netto dei certificati prima{certificatoPrima ? "" : " (o il cumulativo dei SAL emessi)"}: non si riscrivono a mano. Si cambia dopo dalla scheda del SAL, finché la rata non è fatturata.</p>
+                  <p className="text-[11px] text-muted-foreground">Gli acconti sono il netto dei certificati prima{certificatoPrima ? "" : " (o il cumulativo dei SAL emessi)"}: non si riscrivono a mano. Quello che l'arrotondamento toglie torna nel certificato dopo.</p>
                 </>
               )}
             </div>
