@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { BriefcaseBusiness, ExternalLink, Link2, UserRound } from "lucide-react";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { loadRenderGalleryMeta, resolveRenderGalleryMeta } from "@/lib/render/renderGalleryMeta";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
 type RenderSessionTable =
@@ -21,14 +22,6 @@ type RenderSessionTable =
   | "render_pergole_sessions"
   | "render_piscine_sessions"
   | "render_technical_sessions";
-
-type RenderLinkUpdateClient = {
-  from: (table: RenderSessionTable) => {
-    update: (values: { contact_id: string | null; opportunity_id: string | null }) => {
-      eq: (column: "id", value: string) => PromiseLike<{ error: { message?: string } | null }>;
-    };
-  };
-};
 
 interface RenderCrmSummaryCardProps {
   createdBy?: string | null;
@@ -48,15 +41,14 @@ export function RenderCrmSummaryCard({
   editable = false,
 }: RenderCrmSummaryCardProps) {
   const queryClient = useQueryClient();
-  const [currentContactId, setCurrentContactId] = useState<string | null>(contactId ?? null);
-  const [currentOpportunityId, setCurrentOpportunityId] = useState<string | null>(opportunityId ?? null);
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const sourceKey = JSON.stringify([sessionId, contactId, opportunityId]);
+  const [savedLink, setSavedLink] = useState<{ sourceKey: string; contactId: string | null; opportunityId: string | null } | null>(null);
+  const currentContactId = savedLink?.sourceKey === sourceKey ? savedLink.contactId : contactId ?? null;
+  const currentOpportunityId = savedLink?.sourceKey === sourceKey ? savedLink.opportunityId : opportunityId ?? null;
 
-  useEffect(() => {
-    setCurrentContactId(contactId ?? null);
-    setCurrentOpportunityId(opportunityId ?? null);
-  }, [contactId, opportunityId]);
-
-  const canPersist = editable && Boolean(sessionId && sessionTable);
+  const canPersist = editable && Boolean(companyId && sessionId && sessionTable);
   const hasAny = Boolean(createdBy || currentContactId || currentOpportunityId);
   const source = useMemo(
     () => ({
@@ -68,30 +60,32 @@ export function RenderCrmSummaryCard({
   );
 
   const { data: meta } = useQuery({
-    queryKey: ["render-crm-summary", source.created_by, source.contact_id, source.opportunity_id],
+    queryKey: ["render-crm-summary", companyId, source.created_by, source.contact_id, source.opportunity_id],
     queryFn: async () => {
       const maps = await loadRenderGalleryMeta([source]);
       return resolveRenderGalleryMeta(source, maps);
     },
-    enabled: hasAny,
+    enabled: hasAny && !!companyId,
   });
 
   const linkMutation = useMutation({
     mutationFn: async (next: { contactId: string | null; opportunityId: string | null }) => {
-      if (!sessionId || !sessionTable) return;
-      const { error } = await (supabase as unknown as RenderLinkUpdateClient)
-        .from(sessionTable)
+      if (!companyId || !sessionId || !sessionTable) throw new Error("Render non disponibile");
+      const { data, error } = await supabase
+        .from(sessionTable as never)
         .update({
           contact_id: next.contactId,
           opportunity_id: next.opportunityId,
-        })
-        .eq("id", sessionId);
-      if (error) throw error;
+        } as never)
+        .eq("company_id", companyId)
+        .eq("id", sessionId).select("id").maybeSingle();
+      if (error || !data) throw error || new Error("Collegamento non aggiornato");
     },
-    onSuccess: async () => {
+    onSuccess: async (_, next) => {
+      setSavedLink({ sourceKey, contactId: next.contactId, opportunityId: next.opportunityId });
       toast.success("Collegamento CRM aggiornato");
       await queryClient.invalidateQueries({ queryKey: ["render-crm-summary"] });
-      await queryClient.invalidateQueries({ queryKey: ["linked-renders"] });
+      await Promise.all(["linked-renders", "render-history", "render-stored-session"].map((key) => queryClient.invalidateQueries({ queryKey: [key] })));
     },
     onError: () => {
       toast.error("Non sono riuscito ad aggiornare il collegamento CRM");
@@ -99,9 +93,7 @@ export function RenderCrmSummaryCard({
   });
 
   const persistLink = (nextContactId: string | null, nextOpportunityId: string | null) => {
-    setCurrentContactId(nextContactId);
-    setCurrentOpportunityId(nextOpportunityId);
-    if (canPersist) {
+    if (canPersist && !linkMutation.isPending) {
       linkMutation.mutate({ contactId: nextContactId, opportunityId: nextOpportunityId });
     }
   };
@@ -165,7 +157,7 @@ export function RenderCrmSummaryCard({
         )}
 
         {editable && (
-          <div className="rounded-lg border bg-background p-2">
+          <fieldset disabled={!canPersist || linkMutation.isPending} className="rounded-lg border bg-background p-2 disabled:opacity-60">
             <RenderCrmLinker
               contactId={currentContactId}
               opportunityId={currentOpportunityId}
@@ -182,7 +174,7 @@ export function RenderCrmSummaryCard({
                 Salvataggio collegamento...
               </Badge>
             )}
-          </div>
+          </fieldset>
         )}
       </CardContent>
     </Card>

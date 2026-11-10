@@ -1,21 +1,15 @@
+import { useRenderHistory } from "@/lib/render/renderHistory";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
-import { supabase } from "@/integrations/supabase/client";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { RecentRendersPanel } from "@/components/render/RecentRendersPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { classificaBozzeRender } from "@/lib/render/renderDrafts";
-import { loadRenderGalleryMeta, resolveRenderGalleryMeta } from "@/lib/render/renderGalleryMeta";
-import { loadRenderPlanOrigins } from "@/lib/render/renderPlanOrigin";
-import { normalizeRenderStatus } from "@/lib/render/renderStatus";
-import type { RecentRender } from "@/lib/render/recentRenders";
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
 import { ArrowUpRight, Bath, Building2, DoorOpen, Grid3X3, Hammer, Home, Image, LayoutPanelTop, PanelLeftClose, Plus, Search, ShieldCheck, Sofa, Sun, TreePine, Waves, type LucideIcon } from "lucide-react";
 
@@ -238,28 +232,8 @@ export default function RenderCategoryHub() {
   const [categorySearch, setCategorySearch] = useState("");
   const [groupFilter, setGroupFilter] = useState<CategoryGroup>("all");
 
-  const { data: recentRenders = [], isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: ["render-unified-recent", companyId],
-    queryFn: async () => {
-      if (!companyId) return [] as RecentRender[];
-      const { data, error: fetchError } = await supabase
-        .from("company_renders_recent" as never)
-        .select("id,status,result_url,result_urls,created_at,render_type,created_by,contact_id,opportunity_id" as never)
-        .eq("company_id", companyId)
-        .order("created_at", { ascending: false })
-        .limit(48);
-      if (fetchError) throw fetchError;
-      const rows = await classificaBozzeRender((data ?? []) as unknown as Omit<RecentRender, "meta">[], companyId);
-      const [maps, origins] = await Promise.all([loadRenderGalleryMeta(rows), loadRenderPlanOrigins(rows, companyId)]);
-      return rows.map((row) => ({ ...row, meta: resolveRenderGalleryMeta(row, maps), planOrigin: origins[row.id] }));
-    },
-    enabled: !!companyId && !isScopriPlan,
-    retry: 1,
-    refetchInterval: (query) => query.state.data?.some((item) => {
-      const status = normalizeRenderStatus(item.status);
-      return status === "processing" || status === "pending";
-    }) ? 15_000 : false,
-  });
+  const history = useRenderHistory(companyId, undefined, !isScopriPlan);
+  const recentRenders = history.items;
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -287,7 +261,7 @@ export default function RenderCategoryHub() {
         <Button size="sm" className="px-2.5 text-xs sm:px-3 sm:text-sm" onClick={openModulePicker}><Plus className="mr-1.5 h-4 w-4" />Nuovo render</Button>
       </div>
     </header>
-    <RecentRendersPanel key={companyId} items={recentRenders} modules={categories} isLoading={isLoading} isFetching={isFetching} error={error} onRefresh={() => { void refetch(); }} onNewRender={openModulePicker} />
+    <RecentRendersPanel key={companyId} items={recentRenders} modules={categories} isLoading={history.isLoading} isFetching={history.isFetching} error={history.isError && !history.items.length ? history.error : null} onRefresh={() => { void history.refetch(); }} companyId={companyId} total={history.total} hasMore={history.hasNextPage} loadingMore={history.isFetchingNextPage} moreError={history.isFetchNextPageError} scanning={history.scanAll} onLoadMore={() => { void history.fetchNextPage(); }} onExpandHistory={history.expandHistory} onNewRender={openModulePicker} />
     <Dialog open={modulePicker} onOpenChange={setModulePicker}>
       <DialogContent className="max-h-[85dvh] max-w-4xl overflow-y-auto">
         <DialogHeader><DialogTitle>Che cosa vuoi trasformare?</DialogTitle><DialogDescription>Scegli un ambiente o un intervento per iniziare il render.</DialogDescription></DialogHeader>

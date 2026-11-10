@@ -25,3 +25,13 @@ export function filtraElencoPiante(righe: RigaPlanimetria[], filtri: FiltriElenc
   }).sort((a, b) => filtri.ordine === "nome" ? a.titolo.localeCompare(b.titolo, "it")
     : filtri.ordine === "meno_recenti" ? a.updated_at.localeCompare(b.updated_at) : b.updated_at.localeCompare(a.updated_at));
 }
+
+export function leggiFiltriElenco(params: URLSearchParams): FiltriElencoPiante & { pagina: number } {
+  const stato = params.get("stato"); const collegamento = params.get("collegamento"); const ordine = params.get("ordine"); const page = Number(params.get("pagina") || 1);
+  return { stato: ["bozza", "in_uso", "archiviata"].includes(stato || "") ? stato as FiltriElencoPiante["stato"] : "attive", ricerca: params.get("q") || "", collegamento: ["collegate", "libere", ...TIPI_COLLEGAMENTO].includes(collegamento || "") ? collegamento as FiltriElencoPiante["collegamento"] : "tutti", ordine: ordine === "nome" || ordine === "meno_recenti" ? ordine : "recenti", pagina: Number.isInteger(page) && page > 0 && page < 1000000 ? page - 1 : 0 };
+}
+export function scriviFiltriElenco(params: URLSearchParams, patch: Partial<FiltriElencoPiante & { pagina: number }>) {
+  const next = new URLSearchParams(params); const values = { ...leggiFiltriElenco(params), ...patch };
+  for (const [key, value, defaultValue] of [["q", values.ricerca, ""], ["stato", values.stato, "attive"], ["collegamento", values.collegamento, "tutti"], ["ordine", values.ordine, "recenti"], ["pagina", String(values.pagina + 1), "1"]]) { if (value === defaultValue) next.delete(key); else next.set(key, value); }
+  return next;
+}

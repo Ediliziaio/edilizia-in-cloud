@@ -1,6 +1,6 @@
 import type { RenderGalleryMeta } from "./renderGalleryMeta";
 import type { RenderPlanOrigin } from "./renderPlanOrigin";
-import { normalizeRenderStatus } from "./renderStatus";
+import { isRenderStale, normalizeRenderStatus } from "./renderStatus";
 
 export interface RecentRender {
   id: string;
@@ -16,15 +16,16 @@ export interface RecentRender {
   planOrigin?: RenderPlanOrigin;
 }
 
-export type RecentRenderStatus = "all" | "completed" | "active" | "draft" | "failed";
+export type RecentRenderStatus = "all" | "completed" | "active" | "draft" | "failed" | "stale";
 
 export function recentRenderImage(item: Pick<RecentRender, "result_url" | "result_urls">): string | null {
   if (item.result_url?.trim()) return item.result_url;
   return item.result_urls?.find((url) => typeof url === "string" && url.trim()) ?? null;
 }
 
-export function matchesRecentStatus(item: Pick<RecentRender, "status">, filter: RecentRenderStatus): boolean {
+export function matchesRecentStatus(item: Pick<RecentRender, "status"> & { created_at?: string }, filter: RecentRenderStatus): boolean {
   const status = normalizeRenderStatus(item.status);
+  if (filter === "stale") return isRenderStale(item.status, item.created_at);
   return filter === "all" || (filter === "active" ? status === "pending" || status === "processing" : status === filter);
 }
 
