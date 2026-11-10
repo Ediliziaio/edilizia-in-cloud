@@ -62,7 +62,16 @@ Difetti visti su una commessa vera con computo a misura, da sistemare insieme:
   volte un importo: non c'era niente da escludere. Il calcolo sta in `src/lib/orders/salSottofasi.ts`.
   La % della fase con sottofasi è la loro media pesata, con due decimali, mai sotto quella già
   certificata.
-- Restano C (il nuovo verbale in un passaggio) e D.
+- **10/11/2026, lotto C fatto** (`src/lib/orders/salNuovoVerbale.ts`): rata proposta (la prima «al
+  SAL» libera), voci uguali al SAL precedente nascoste con «Mostra tutte le voci», certificato di
+  pagamento nello stesso modulo (acceso se l'azienda ne ha già fatti), «Salva ed emetti». Le
+  scritture restano tre chiamate in fila (bozza, certificato, emissione): se la seconda o la terza
+  non riesce, la bozza resta e il messaggio dice cosa fare dalla scheda.
+- **Non fatto, di proposito:** l'arrotondamento automatico del netto. Messo nelle altre detrazioni,
+  che sono cumulative, il certificato dopo non lo restituirebbe al cliente: serve una colonna a sé
+  in `sal_certificati` letta da `certificatoProposto`. Per ora l'arrotondamento si scrive a mano.
+  Non fatto neanche l'avviso «eseguito non ancora certificato».
+- Resta D (le sottofasi seguono il verbale emesso).
 
 ## Lotti
 

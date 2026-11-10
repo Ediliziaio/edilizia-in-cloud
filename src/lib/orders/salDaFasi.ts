@@ -45,6 +45,7 @@ export interface VoceSalDraft {
 export interface VoceSalSalvata {
   descrizione: string;
   percentuale_avanzamento: number;
+  importo_contrattuale?: number | null;
   fase_id?: string | null;
   sal_voci_sottofasi?: ReadonlyArray<{ sottofase_id: string | null; percentuale_avanzamento: number }> | null;
 }
@@ -66,6 +67,8 @@ export interface PercentualiPrecedenti {
   perNome: Map<string, number>;
   /** % certificate per sottofase (dal dettaglio dei verbali del 10/11/2026 in poi). */
   perSottofase: Map<string, number>;
+  /** Importo contrattuale per fase nel SAL precedente: una variante lo cambia anche a % ferma. */
+  importoPerFase?: Map<string, number>;
 }
 
 /**
@@ -80,15 +83,17 @@ export function percentualiPrecedenti(numeroNuovo: number, tutti: ReadonlyArray<
   const perFase = new Map<string, number>();
   const perNome = new Map<string, number>();
   const perSottofase = new Map<string, number>();
+  const importoPerFase = new Map<string, number>();
   for (const v of prec?.sal_voci ?? []) {
     const pct = Number(v.percentuale_avanzamento) || 0;
     if (v.fase_id) perFase.set(v.fase_id, pct);
+    if (v.fase_id && v.importo_contrattuale != null) importoPerFase.set(v.fase_id, Number(v.importo_contrattuale));
     else perNome.set(chiaveNome(v.descrizione), pct);
     for (const d of v.sal_voci_sottofasi ?? []) {
       if (d.sottofase_id) perSottofase.set(d.sottofase_id, Number(d.percentuale_avanzamento) || 0);
     }
   }
-  return { numero: prec?.numero_sal ?? null, perFase, perNome, perSottofase };
+  return { numero: prec?.numero_sal ?? null, perFase, perNome, perSottofase, importoPerFase };
 }
 
 const VUOTE: PercentualiPrecedenti = { numero: null, perFase: new Map(), perNome: new Map(), perSottofase: new Map() };

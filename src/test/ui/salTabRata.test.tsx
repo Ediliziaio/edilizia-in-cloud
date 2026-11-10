@@ -209,6 +209,8 @@ describe("SAL standard, lotto 1: il verbale nasce dalle fasi", () => {
     disegna([]);
     await screen.findByText("SAL #1");
     fireEvent.click(screen.getByRole("button", { name: /Nuovo verbale/ }));
+    // Massetti è uguale al SAL 1: per default non si mostra (lotto C), ma si salva così.
+    fireEvent.click(await screen.findByRole("button", { name: "Mostra tutte le voci" }));
     await waitFor(() => expect(screen.getByLabelText("Descrizione *", { selector: "#sal-desc-1" })).toHaveValue("Massetti"));
     // il cantiere dice 40%, il SAL 1 ha già certificato 60%: si riparte da 60
     expect(screen.getByLabelText("Avanzamento cumulativo (%)", { selector: "#sal-pct-1" })).toHaveValue("60");
@@ -221,6 +223,7 @@ describe("SAL standard, lotto 1: il verbale nasce dalle fasi", () => {
     disegna([]);
     await screen.findByText("SAL #1");
     fireEvent.click(screen.getByRole("button", { name: /Nuovo verbale/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mostra tutte le voci" }));
     const pct = await screen.findByDisplayValue("60");
     fireEvent.change(pct, { target: { value: "50" } });
     fireEvent.click(screen.getByRole("button", { name: "Controlla riepilogo" }));
