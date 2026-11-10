@@ -236,7 +236,8 @@ describe("Impaginazione dei modelli operativi", () => {
       azienda,
     ).output();
     expect(raw.match(/Totale intervento/g)).toHaveLength(2);
-    expect(raw).toContain("Totale periodo");
+    // Stile unico (10/11/2026): le etichette dei riquadri sono in maiuscolo.
+    expect(raw).toContain("TOTALE PERIODO");
     expect(raw).toContain("01/11 - Ripristino");
     expect(raw).toContain("02/11 - Finiture");
   });

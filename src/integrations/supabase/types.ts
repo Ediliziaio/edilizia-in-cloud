@@ -21235,6 +21235,7 @@ export type Database = {
           recurrence: string
           recurrence_auto: boolean
           recurrence_end_date: string | null
+          ripartizione_categorie: Json
           sede_id: string | null
           supplier_id: string | null
           ticket_id: string | null
@@ -21267,6 +21268,7 @@ export type Database = {
           recurrence?: string
           recurrence_auto?: boolean
           recurrence_end_date?: string | null
+          ripartizione_categorie?: Json
           sede_id?: string | null
           supplier_id?: string | null
           ticket_id?: string | null
@@ -21299,6 +21301,7 @@ export type Database = {
           recurrence?: string
           recurrence_auto?: boolean
           recurrence_end_date?: string | null
+          ripartizione_categorie?: Json
           sede_id?: string | null
           supplier_id?: string | null
           ticket_id?: string | null
@@ -36787,6 +36790,7 @@ export type Database = {
           purchase_order_id: string | null
           riepilogo_iva: Json | null
           righe: Json | null
+          conti_righe: Json
           sdi_id_trasmissione: string | null
           sdi_progressivo: string | null
           sottocategoria_ai: string | null
@@ -36835,6 +36839,7 @@ export type Database = {
           purchase_order_id?: string | null
           riepilogo_iva?: Json | null
           righe?: Json | null
+          conti_righe?: Json
           sdi_id_trasmissione?: string | null
           sdi_progressivo?: string | null
           sottocategoria_ai?: string | null
@@ -36883,6 +36888,7 @@ export type Database = {
           purchase_order_id?: string | null
           riepilogo_iva?: Json | null
           righe?: Json | null
+          conti_righe?: Json
           sdi_id_trasmissione?: string | null
           sdi_progressivo?: string | null
           sottocategoria_ai?: string | null
@@ -76018,6 +76024,66 @@ export type Database = {
           },
         ]
       }
+      sal_voci_sottofasi: {
+        Row: {
+          created_at: string
+          descrizione: string
+          id: string
+          importo_contrattuale: number | null
+          importo_sal: number | null
+          percentuale_avanzamento: number
+          posizione: number
+          quantita_a_oggi: number | null
+          quantita_contratto: number | null
+          sottofase_id: string | null
+          unita: string | null
+          voce_id: string
+        }
+        Insert: {
+          created_at?: string
+          descrizione: string
+          id?: string
+          importo_contrattuale?: number | null
+          importo_sal?: number | null
+          percentuale_avanzamento: number
+          posizione?: number
+          quantita_a_oggi?: number | null
+          quantita_contratto?: number | null
+          sottofase_id?: string | null
+          unita?: string | null
+          voce_id: string
+        }
+        Update: {
+          created_at?: string
+          descrizione?: string
+          id?: string
+          importo_contrattuale?: number | null
+          importo_sal?: number | null
+          percentuale_avanzamento?: number
+          posizione?: number
+          quantita_a_oggi?: number | null
+          quantita_contratto?: number | null
+          sottofase_id?: string | null
+          unita?: string | null
+          voce_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sal_voci_sottofasi_sottofase_id_fkey"
+            columns: ["sottofase_id"]
+            isOneToOne: false
+            referencedRelation: "order_work_subphases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_voci_sottofasi_voce_id_fkey"
+            columns: ["voce_id"]
+            isOneToOne: false
+            referencedRelation: "sal_voci"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sales_playbook_completions: {
         Row: {
           company_id: string
@@ -88916,6 +88982,7 @@ export type Database = {
       }
       tariffa_costi_varianti: {
         Row: {
+          subappaltatore_id: string | null
           attivo: boolean
           company_id: string
           costo: number
@@ -88935,6 +89002,7 @@ export type Database = {
           valid_to: string | null
         }
         Insert: {
+          subappaltatore_id?: string | null
           attivo?: boolean
           company_id: string
           costo?: number
@@ -88954,6 +89022,7 @@ export type Database = {
           valid_to?: string | null
         }
         Update: {
+          subappaltatore_id?: string | null
           attivo?: boolean
           company_id?: string
           costo?: number
@@ -89026,6 +89095,7 @@ export type Database = {
       }
       tariffe_aziendali: {
         Row: {
+          subappaltatore_id: string | null
           attiva: boolean | null
           attivo: boolean | null
           categoria_prodotto: string | null
@@ -89056,6 +89126,7 @@ export type Database = {
           vertical_associato: string | null
         }
         Insert: {
+          subappaltatore_id?: string | null
           attiva?: boolean | null
           attivo?: boolean | null
           categoria_prodotto?: string | null
@@ -89086,6 +89157,7 @@ export type Database = {
           vertical_associato?: string | null
         }
         Update: {
+          subappaltatore_id?: string | null
           attiva?: boolean | null
           attivo?: boolean | null
           categoria_prodotto?: string | null

@@ -121,7 +121,8 @@ export function useRendicontoAppaltoPDF() {
           // `companies` non ha address/city: la lettura falliva e in testata restava il solo nome (09/11/2026).
           caricaDatiSocietari(supabase, effectiveCompany.id),
           // Il logo in testata (10/11/2026): il rendiconto usciva senza, e senza nome dell'impresa.
-          supabase.from("companies").select("logo_url").eq("id", effectiveCompany.id).maybeSingle(),
+          // Col colore principale: l'accento dello stile unico dei documenti (10/11/2026).
+          supabase.from("companies").select("logo_url, brand_primary_color").eq("id", effectiveCompany.id).maybeSingle(),
         ]);
 
         const cantieri = raggruppaPerCantiere(righe, (cantieriRes.data ?? []) as Array<{
@@ -155,6 +156,7 @@ export function useRendicontoAppaltoPDF() {
             azienda: {
               name: societari?.ragioneSociale || effectiveCompany.name || "—",
               logo_url: (logoRes.data as { logo_url?: string | null } | null)?.logo_url ?? null,
+              colore: (logoRes.data as { brand_primary_color?: string | null } | null)?.brand_primary_color ?? null,
             },
             societarie: righeSocietarie(societari),
             companyId: effectiveCompany.id,

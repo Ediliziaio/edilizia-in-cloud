@@ -44,6 +44,8 @@ export interface PrimaNotaEntry {
   supplier_id: string | null;
   cost_id: string | null;
   scadenza_id: string | null;
+  documento_fiscale_id?: string | null;
+  bank_transaction_id?: string | null;
   order_item_id: string | null;
   account_label: string | null;
   is_auto: boolean;
@@ -58,6 +60,36 @@ export interface PrimaNotaEntry {
   orders?: { order_code: string } | null;
   /** Fattura/NC nativa che ha generato la registrazione (incasso fattura) */
   documenti_fiscali?: { id: string; numero: string | null; tipo: string } | null;
+}
+
+/**
+ * Perché una registrazione non si modifica da qui (le stesse regole di
+ * `prima_nota_modificabile` nel database): ha un suo percorso. `null` = si modifica.
+ */
+export function perchePrimaNotaNonModificabile(e: Pick<PrimaNotaEntry, "is_auto" | "cost_id" | "documento_fiscale_id" | "bank_transaction_id">): string | null {
+  if (e.is_auto) return "È una registrazione automatica: si cambia dal documento che l'ha creata.";
+  if (e.documento_fiscale_id) return "È l'incasso di una fattura emessa dal programma: si annulla dalla fattura.";
+  if (e.bank_transaction_id) return "Viene dalla riconciliazione bancaria: si cambia da Tesoreria.";
+  if (e.cost_id) return "È il pagamento di un costo: si cambia dal costo.";
+  return null;
+}
+
+/** I campi del modulo di registrazione, gli stessi per una nuova e per una modifica. */
+export interface DatiRegistrazione {
+  direction: "entrata" | "uscita";
+  category: string;
+  description: string;
+  amount: number;
+  entry_date: string;
+  payment_method?: string;
+  reference_number?: string;
+  account_label?: string;
+  supplier_id?: string | null;
+  order_id?: string | null;
+  invoice_id?: string | null;
+  attachment_url?: string;
+  attachment_name?: string;
+  notes?: string;
 }
 
 export interface PrimaNotaSaldo {
@@ -314,17 +346,65 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
     onError: (e) => toast.error("Nota non salvata", { description: String(e) }),
   });
 
+  // Modifica (10/11/2026): la registrazione e l'incasso della sua fattura cambiano insieme
+  // (prima_nota_modifica): importo, data e metodo seguono; la fattura si può cambiare o togliere.
+  const invalidaIncassi = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.primaNota.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.summary(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.invoices.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.scadenzario.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.scadenze(companyId) });
+  };
+  const rpc = supabase as unknown as {
+    rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: Record<string, unknown> | null; error: { message: string } | null }>;
+  };
+  /** Una fattura di Fatture in Cloud cambiata qui va cambiata anche lì: lo si dice, non lo si indovina. */
+  const tocca_fattureincloud = async (ids: Array<string | null | undefined>) => {
+    const validi = ids.filter((x): x is string => !!x);
+    if (!validi.length) return false;
+    const { data } = await supabase.from("invoices").select("id").in("id", validi).eq("external_provider", "fattureincloud");
+    return (data ?? []).length > 0;
+  };
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, dati, prima }: { id: string; dati: DatiRegistrazione; prima?: Pick<PrimaNotaEntry, "amount" | "entry_date" | "invoice_id"> }) => {
+      const { data, error } = await rpc.rpc("prima_nota_modifica", { p_id: id, p_dati: dati });
+      if (error) throw new Error(error.message);
+      const esito = (data ?? {}) as { esito?: string; invoice_id?: string | null; invoice_id_prima?: string | null };
+      // L'avviso per Fatture in Cloud solo se l'incasso è cambiato davvero (importo, data o fattura).
+      const incassoCambiato = !prima || Number(prima.amount) !== Number(dati.amount) || prima.entry_date !== dati.entry_date
+        || (prima.invoice_id ?? null) !== (dati.invoice_id ?? null);
+      return { esito: esito.esito ?? "modificata", fic: incassoCambiato && await tocca_fattureincloud([esito.invoice_id, esito.invoice_id_prima]) };
+    },
+    onSuccess: ({ esito, fic }) => {
+      const dettaglio = {
+        fattura_collegata: "La fattura risulta incassata.",
+        fattura_cambiata: "L'incasso è passato sull'altra fattura; la precedente torna da incassare.",
+        fattura_tolta: "La fattura torna da incassare.",
+      }[esito];
+      toast.success("Registrazione modificata", {
+        description: [dettaglio, fic ? "La fattura viene da Fatture in Cloud: aggiorna l'incasso anche lì." : ""].filter(Boolean).join(" ") || undefined,
+      });
+      invalidaIncassi();
+    },
+    onError: (e) => toast.error("Registrazione non modificata", { description: e instanceof Error ? e.message : String(e) }),
+  });
+
+  // Elimina insieme all'incasso della sua fattura: prima la fattura restava «pagata» senza movimento.
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("prima_nota_entries").delete().eq("id", id);
-      if (error) throw error;
+      const { data, error } = await rpc.rpc("prima_nota_elimina", { p_id: id });
+      if (error) throw new Error(error.message);
+      const esito = (data ?? {}) as { incassi_tolti?: number; invoice_id?: string | null };
+      return { tolti: Number(esito.incassi_tolti ?? 0), fic: (esito.incassi_tolti ?? 0) > 0 && await tocca_fattureincloud([esito.invoice_id]) };
     },
-    onSuccess: () => {
-      toast.success("Registrazione eliminata");
-      queryClient.invalidateQueries({ queryKey: queryKeys.primaNota.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.summary(companyId) });
+    onSuccess: ({ tolti, fic }) => {
+      toast.success("Registrazione eliminata", tolti > 0
+        ? { description: `La fattura torna da incassare.${fic ? " Viene da Fatture in Cloud: togli l'incasso anche lì." : ""}` }
+        : undefined);
+      invalidaIncassi();
     },
-    onError: (e) => toast.error("Errore", { description: String(e) }),
+    onError: (e) => toast.error("Registrazione non eliminata", { description: e instanceof Error ? e.message : String(e) }),
   });
 
   const totalCount = entriesQuery.data?.totalCount ?? 0;
@@ -343,6 +423,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
     monthlyChart: monthlyChartQuery.data,
     create: createMutation,
     remove: deleteMutation,
+    update: updateMutation,
     fetchAllForExport,
   };
 }

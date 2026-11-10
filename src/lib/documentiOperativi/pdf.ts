@@ -1,7 +1,6 @@
 import { jsPDF } from "jspdf";
 import {
   normalizzaModelloPdf,
-  rgbModello,
   type ModelloPdf,
 } from "../../../supabase/functions/_shared/modelliPdfOperativi";
 import { STANDARD_DOCUMENTI } from "./standard";
@@ -17,6 +16,7 @@ import {
   totaliDocumento,
   importoRiga,
   euro,
+  importoIt,
   numeroIt,
   oreIt,
   dataIt,
@@ -24,9 +24,28 @@ import {
 } from "./modello";
 
 import { disegnaPiedeJsPdf, fontPiedeBase64, limiteContenutoJsPdf, personalizzazioneDocumento, puntiInMm } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
+import {
+  accentoDocumento,
+  colore,
+  pagina,
+  rgb255,
+  riquadro as stileRiquadro,
+  sezione as stileSezione,
+  tabella as stileTabella,
+  testata as stileTestata,
+} from "../../../supabase/functions/_shared/stileDocumenti";
 
-/** Layout comune, derivato dai cinque modelli operativi: identità aziendale,
- * fascia titolo, anagrafiche affiancate, tabella e riepiloghi. */
+type Rgb = [number, number, number];
+/** Le misure dello stile sono in punti; il documento è in millimetri. */
+const mm = puntiInMm;
+
+/**
+ * I cinque documenti operativi (ordine fornitore, RDO, ordine servizi, rapporto trasporti, lavori in economia) nello
+ * stile unico dei documenti (`_shared/stileDocumenti.ts`, 10/11/2026): logo a sinistra su bianco, titolo a destra,
+ * filetto d'accento; titoli di sezione, tabelle, riquadri e piè uguali a quelli degli altri documenti. Restano le
+ * scelte dei Modelli PDF: titolo, testi, carattere, colore (diventa l'accento), margini, dimensione del testo, scala
+ * del logo, colore dei riquadri, numerazione, nota di pagina, firma.
+ */
 export function creaPdfOperativo(
   d: DocumentoOperativo,
   a: AziendaDocumento,
@@ -40,33 +59,30 @@ export function creaPdfOperativo(
   };
   if (!modello.mostraLogo) logo = undefined;
   const veste = personalizzazioneDocumento(a.id);
-  const logoGrande = logo && veste.logoAltezza && veste.logoLarghezzaMax
-    ? { larghezza: puntiInMm(veste.logoLarghezzaMax), altezza: puntiInMm(veste.logoAltezza) }
-    : null;
+  const logoDellaVeste = Boolean(logo && veste.logoAltezza && veste.logoLarghezzaMax);
   // Logo grande e carattere proprio pesano: si comprime solo chi li ha.
-  const pdf = new jsPDF({ unit: "mm", format: "a4", compress: Boolean(logoGrande) });
+  const pdf = new jsPDF({ unit: "mm", format: "a4", compress: logoDellaVeste });
   pdf.setProperties({
     title: `${modello.titolo || TITOLI[d.tipo]} ${d.numero}`,
     author: a.business_name || a.name,
     subject: modello.titolo || TITOLI[d.tipo],
   });
-  const left = modello.margine || 14,
+  const left = modello.margine || mm(pagina.margineLaterale),
     width = 210 - left * 2,
     // Col piè proprio (Vulcano, quattro righe) il contenuto si ferma più in alto.
-    bottom = limiteContenutoJsPdf(veste, width, 268),
-    navy: [number, number, number] = modello.colore
-      ? rgbModello(modello.colore)
-      : [31, 58, 93];
-  const riquadro = modello.coloreRiquadri
-    ? rgbModello(modello.coloreRiquadri)
-    : ([241, 244, 248] as [number, number, number]);
-  const testoFascia: [number, number, number] =
-    navy[0] * 0.299 + navy[1] * 0.587 + navy[2] * 0.114 > 165
-      ? ([28, 40, 57] as [number, number, number])
-      : ([255, 255, 255] as [number, number, number]);
-  const accentInk: [number, number, number] = testoFascia[0] === 28 ? ([31, 58, 93] as [number, number, number]) : navy;
+    bottom = limiteContenutoJsPdf(veste, width, 268);
+  const INCHIOSTRO = rgb255(colore.inchiostro),
+    TENUE = rgb255(colore.testoTenue),
+    LINEA = rgb255(colore.linea),
+    FONDO_INTESTAZIONE = rgb255(colore.fondoIntestazione),
+    // Il colore dei riquadri scelto nei Modelli PDF resta; altrimenti il fondo tenue dello stile.
+    FONDO = rgb255(modello.coloreRiquadri || colore.fondoTenue),
+    ACCENTO = rgb255(accentoDocumento({
+      coloreVeste: veste.piedeColore,
+      coloreAzienda: modello.colore || a.brand_primary_color,
+    }));
+  const corpo = modello.dimensioneTesto || pagina.corpo;
   const standard = STANDARD_DOCUMENTI[d.tipo];
-  let y = 14;
   const safe = (v: string) =>
     v
       .replace(/\u00a0/g, " ")
@@ -74,109 +90,126 @@ export function creaPdfOperativo(
       .replace(/→/g, "> ")
       .replace(/[‘’]/g, "'")
       .replace(/[“”]/g, '"');
-  const font = (size = 8.5, bold = false, muted = false) => {
+  const font = (size: number, bold = false, tinta: Rgb = INCHIOSTRO) => {
     pdf.setFont(modello.carattere, bold ? "bold" : "normal");
     pdf.setFontSize(size);
-    pdf.setTextColor(
-      ...(muted ? ([99, 115, 137] as [number, number, number]) : ([28, 40, 57] as [number, number, number])),
-    );
+    pdf.setTextColor(...tinta);
   };
   const lines = (value: string, w: number) =>
     pdf.splitTextToSize(safe(value), w) as string[];
+  /** Altezza di una riga di testo, in mm. */
+  const passo = (size: number, interlinea: number = pagina.interlinea) => mm(size * interlinea);
+  const filetto = (tinta: Rgb, spessore: number, x1: number, y1: number, x2: number, y2: number) => {
+    pdf.setDrawColor(...tinta);
+    pdf.setLineWidth(mm(spessore));
+    pdf.line(x1, y1, x2, y2);
+  };
+  const pad = mm(stileRiquadro.padding);
+  const disegnaRiquadro = (x: number, yy: number, w: number, h: number) => {
+    pdf.setFillColor(...FONDO);
+    pdf.setDrawColor(...LINEA);
+    pdf.setLineWidth(mm(stileRiquadro.bordo));
+    pdf.roundedRect(x, yy, w, h, mm(stileRiquadro.raggio), mm(stileRiquadro.raggio), "FD");
+  };
+  const etichetta = (t: string, x: number, base: number, align: "left" | "right" = "left") => {
+    font(stileRiquadro.etichettaCorpo, false, TENUE);
+    pdf.text(safe(t).toUpperCase(), x, base, { align, charSpace: mm(0.5) });
+  };
+  const titolo = safe(modello.titolo || standard.titoloPdf);
+  const sottotitolo = [`N. ${safe(d.numero)}`, d.data ? dataIt(d.data) : ""].filter(Boolean).join(" · ");
+  let y = mm(pagina.margineAlto);
+
+  /** Testata: logo a sinistra su bianco, titolo e numero · data a destra, filetto d'accento sotto. */
   const head = () => {
-    y = 12;
-    if (modello.mostraLogo) {
-      if (logo) {
-        const info = pdf.getImageProperties(logo);
-        const w = logoGrande
-          ? Math.min(logoGrande.larghezza, (logoGrande.altezza * info.width) / info.height)
-          : (Math.min(62, (17 * info.width) / info.height) * modello.scalaLogo) /
-            100;
-        pdf.addImage(
-          logo,
-          info.fileType,
-          left,
-          y,
-          w,
-          (w * info.height) / info.width,
-        );
-      } else {
-        // Nessun logo di un'altra azienda: marchio testuale dell'azienda corrente.
-        pdf.setFillColor(...navy);
-        const logoScale = modello.scalaLogo / 100;
-        pdf.roundedRect(left, y, 12 * logoScale, 12 * logoScale, 1, 1, "F");
-        font(13 * logoScale, true);
-        pdf.setTextColor(...testoFascia);
-        const initials = (a.business_name || a.name)
-          .split(/\s+/)
-          .slice(0, 2)
-          .map((v) => v[0])
-          .join("")
-          .toUpperCase();
-        pdf.text(safe(initials), left + 6 * logoScale, y + 8 * logoScale, {
-          align: "center",
-        });
-        font(12, true);
-        pdf.text(
-          lines(a.business_name || a.name, 115).slice(0, 2),
-          left + 12 * logoScale + 4,
-          y + 6,
-        );
-      }
+    const top = mm(pagina.margineAlto);
+    let hSx = 0,
+      wSx = 0;
+    let immagine: { tipo: string; w: number; h: number } | null = null;
+    let ragione: string[] = [];
+    const passoRagione = passo(stileTestata.ragioneSocialeCorpo, 1.2);
+    if (logo) {
+      const info = pdf.getImageProperties(logo);
+      const scala = logoDellaVeste ? 1 : modello.scalaLogo / 100;
+      const maxH = mm(logoDellaVeste ? veste.logoAltezza! : stileTestata.logoAltezza) * scala;
+      const maxW = mm(logoDellaVeste ? veste.logoLarghezzaMax! : stileTestata.logoLarghezzaMax) * scala;
+      const rapporto = info.width / info.height;
+      wSx = Math.min(maxW, maxH * rapporto);
+      hSx = wSx / rapporto;
+      immagine = { tipo: info.fileType, w: wSx, h: hSx };
+    } else if (modello.mostraLogo) {
+      // Senza logo: la ragione sociale, in grassetto.
+      font(stileTestata.ragioneSocialeCorpo, true);
+      ragione = lines(a.business_name || a.name, width * 0.5).slice(0, 2);
+      wSx = Math.max(...ragione.map((r) => pdf.getTextWidth(r)));
+      hSx = ragione.length * passoRagione;
     }
-    y = logoGrande ? 12 + logoGrande.altezza + 3 : modello.mostraLogo ? 28 : 12;
-    pdf.setFillColor(...navy);
-    pdf.roundedRect(left, y, width, 10, 0.6, 0.6, "F");
-    font(11.5);
-    pdf.setTextColor(...testoFascia);
-    const title = modello.titolo || standard.titoloPdf;
-    const reference = `N. ${safe(d.numero)}${d.data ? ` del ${dataIt(d.data)}` : ""}`;
-    // Due righe nella fascia per titoli/riferimenti lunghi, senza sovrapposizioni.
-    const titleWidth = pdf.getTextWidth(title);
-    pdf.setFontSize(8);
-    const compact = titleWidth + pdf.getTextWidth(reference) > width - 10;
-    pdf.setFontSize(11.5);
-    if (compact) {
-      pdf.setFontSize(10);
-      const titleFit = pdf.getTextWidth(title);
-      if (titleFit > width - 6) pdf.setFontSize((10 * (width - 6)) / titleFit);
-      pdf.text(title, left + 3, y + 4);
-      pdf.setFontSize(7.5);
-      pdf.text(reference, left + width - 3, y + 8, { align: "right" });
-    } else {
-      pdf.text(title, left + 3, y + 6.5);
-      pdf.setFontSize(8);
-      pdf.text(reference, left + width - 3, y + 6.5, { align: "right" });
+    const wDx = Math.max(50, width - wSx - 8);
+    let corpoTitolo: number = stileTestata.titoloCorpo;
+    font(corpoTitolo, true);
+    let righeTitolo = lines(titolo, wDx);
+    if (righeTitolo.length > 2) {
+      corpoTitolo = 11;
+      font(corpoTitolo, true);
+      righeTitolo = lines(titolo, wDx).slice(0, 3);
     }
-    y += 16;
+    const passoTitolo = passo(corpoTitolo, 1.2);
+    const hDx = righeTitolo.length * passoTitolo + passo(stileTestata.sottotitoloCorpo, 1.3);
+    const fondo = top + Math.max(hSx, hDx);
+    if (immagine) pdf.addImage(logo!, immagine.tipo, left, fondo - immagine.h, immagine.w, immagine.h);
+    else if (ragione.length) {
+      font(stileTestata.ragioneSocialeCorpo, true);
+      ragione.forEach((r, i) => pdf.text(r, left, fondo - hSx + passoRagione * (i + 0.78)));
+    }
+    font(corpoTitolo, true);
+    const inizioDx = fondo - hDx;
+    righeTitolo.forEach((r, i) =>
+      pdf.text(r, left + width, inizioDx + passoTitolo * (i + 0.78), { align: "right" }),
+    );
+    font(stileTestata.sottotitoloCorpo, false, TENUE);
+    pdf.text(sottotitolo, left + width, fondo - 0.8, { align: "right" });
+    const yFiletto = fondo + mm(stileTestata.filettoDistanza);
+    filetto(ACCENTO, stileTestata.filettoSpessore, left, yFiletto, left + width, yFiletto);
+    y = yFiletto + mm(stileTestata.spazioDopo);
+  };
+  const nuovaPagina = () => {
+    pdf.addPage();
+    head();
   };
   const ensure = (h: number) => {
-    if (y + h > bottom) {
-      pdf.addPage();
-      head();
-    }
+    if (y + h > bottom) nuovaPagina();
   };
-  const paragraph = (text: string, size = 8.5, bold = false) => {
-    size = modello.dimensioneTesto || size;
-    const lead = Math.max(4.3, size * 0.5);
-    font(size, bold);
+  /** Testo di corpo (9,5 pt, o la dimensione scelta nei Modelli PDF); `nota`: 8 pt tenue. */
+  const paragraph = (text: string, nota = false) => {
+    const size = nota ? pagina.nota : corpo;
+    const tinta = nota ? TENUE : INCHIOSTRO;
+    const l = passo(size);
+    font(size, false, tinta);
     for (const line of lines(text, width)) {
-      ensure(lead + 0.5);
-      font(size, bold);
-      pdf.text(line, left, y);
-      y += lead;
+      ensure(l);
+      font(size, false, tinta);
+      pdf.text(line, left, y + l * 0.72);
+      y += l;
     }
-    y += 2;
+    y += 1.5;
+  };
+  /** Titolo di sezione a una quota data, in una colonna: restituisce dove comincia il contenuto. */
+  const titoloSezioneA = (title: string, x: number, w: number, yy: number) => {
+    yy += mm(stileSezione.spazioPrima);
+    font(stileSezione.corpo, true, ACCENTO);
+    const base = yy + mm(stileSezione.corpo) * 0.75;
+    pdf.text(safe(title).toUpperCase(), x, base, { charSpace: mm(stileSezione.spaziatura) });
+    const yLinea = base + 1.3;
+    filetto(LINEA, stileSezione.filetto, x, yLinea, x + w, yLinea);
+    return yLinea + mm(stileSezione.spazioDopo);
   };
   const section = (title: string) => {
-    ensure(10);
-    font(8.5, false);
-    pdf.setTextColor(...accentInk);
-    pdf.text(safe(title), left, y);
-    y += 5;
+    ensure(mm(stileSezione.spazioPrima) + 14);
+    y = titoloSezioneA(title, left, width, y);
   };
   head();
   if (modello.introduzione) paragraph(modello.introduzione);
+
+  // Anagrafiche: due riquadri affiancati.
   const cardWidth = (width - 4) / 2;
   const recipient = [
     d.destinatario.nome,
@@ -217,26 +250,28 @@ export function creaPdfOperativo(
               ? `Commessa ${d.commessa}`
               : null,
           ];
+  const passoValore = passo(stileRiquadro.valoreCorpo, 1.3);
+  const altoEtichetta = mm(stileRiquadro.etichettaCorpo) + 1.8;
   const cardLines = (values: (string | null | undefined | false)[]) =>
     values
       .filter((v): v is string => !!v)
-      .flatMap((v) => lines(v, cardWidth - 6));
-  font(9, true);
+      .flatMap((v) => lines(v, cardWidth - 2 * pad));
+  font(stileRiquadro.valoreCorpo, true);
   const l = cardLines(recipient),
     r = cardLines(destination);
-  const cardH = Math.max(25, 12 + Math.max(l.length, r.length) * 4);
+  const cardH = 2 * pad + altoEtichetta + Math.max(1, l.length, r.length) * passoValore;
   [0, 1].forEach((i) => {
     const x = left + i * (cardWidth + 4);
-    pdf.setDrawColor(210, 219, 231);
-    pdf.roundedRect(x, y, cardWidth, cardH, 0.6, 0.6);
-    font(7, false, true);
-    pdf.text(i === 0 ? standard.destinatario : rightTitle, x + 3, y + 5);
+    disegnaRiquadro(x, y, cardWidth, cardH);
+    etichetta(i === 0 ? standard.destinatario : rightTitle, x + pad, y + pad + mm(stileRiquadro.etichettaCorpo) * 0.75);
     (i === 0 ? l : r).forEach((v, n) => {
-      font(n === 0 ? 9 : 8, n === 0);
-      pdf.text(v, x + 3, y + 11 + n * 4);
+      font(stileRiquadro.valoreCorpo, n === 0);
+      pdf.text(v, x + pad, y + pad + altoEtichetta + passoValore * (n + 0.75));
     });
   });
   y += cardH + 4;
+
+  // Dati dell'ordine: un riquadro a tre colonne.
   const meta: [string, string][] =
     d.tipo === "richiesta"
       ? [
@@ -258,44 +293,44 @@ export function creaPdfOperativo(
           ],
         ];
   if (d.tipo !== "trasporti" && d.tipo !== "economia") {
-    const mh =
-      Math.max(...meta.map(([, v]) => lines(v, width / 3 - 7).length)) * 4 + 8;
-    pdf.setFillColor(...riquadro);
-    pdf.rect(left, y, width, mh, "F");
-    meta.forEach(([k, v], i) => {
-      font(6.5, false, true);
-      pdf.text(k, left + (i * width) / 3 + 3, y + 4);
-      font(8);
-      pdf.text(lines(v, width / 3 - 7), left + (i * width) / 3 + 3, y + 8);
-    });
+    const colW = width / 3;
+    font(stileRiquadro.valoreCorpo);
+    const valori = meta.map(([, v]) => lines(v, colW - 2 * pad));
+    const altoRiga = (n: number) => altoEtichetta + n * passoValore;
+    const primaRiga = altoRiga(Math.max(...valori.map((v) => v.length)));
+    const secondaRiga = d.tipo === "servizi" ? 2.5 + altoRiga(1) : 0;
+    const mh = 2 * pad + primaRiga + secondaRiga;
+    disegnaRiquadro(left, y, width, mh);
+    const colonna = (k: string, v: string[], i: number, yy: number) => {
+      const x = left + i * colW + pad;
+      etichetta(k, x, yy + mm(stileRiquadro.etichettaCorpo) * 0.75);
+      font(stileRiquadro.valoreCorpo);
+      v.forEach((riga, n) => pdf.text(riga, x, yy + altoEtichetta + passoValore * (n + 0.75)));
+    };
+    meta.forEach(([k], i) => colonna(k, valori[i], i, y + pad));
     if (d.tipo === "servizi") {
       [
         ["Inizio lavori", dataIt(d.inizioLavori) || "Da indicare"],
         ["Fine lavori", dataIt(d.fineLavori) || "Da indicare"],
-      ].forEach(([k, v], i) => {
-        font(6.5, false, true);
-        pdf.text(k, left + (i * width) / 3 + 3, y + mh - 5);
-        font(8);
-        pdf.text(v, left + (i * width) / 3 + 3, y + mh - 1);
-      });
+      ].forEach(([k, v], i) => colonna(k, [v], i, y + pad + primaRiga + 2.5));
     }
-    y += mh + 5;
+    y += mh + 4;
   }
   if (d.riferimento && d.tipo !== "servizi")
-    paragraph(`Riferimento: ${d.riferimento}`, 8);
+    paragraph(`Riferimento: ${d.riferimento}`, true);
   if (d.codiceCliente)
-    paragraph(`Nostro codice cliente: ${d.codiceCliente}`, 8);
+    paragraph(`Nostro codice cliente: ${d.codiceCliente}`, true);
   if (d.referenteEmail || d.referenteTelefono)
     paragraph(
       `Referente fornitore: ${[d.referente, d.referenteEmail, d.referenteTelefono].filter(Boolean).join(" - ")}`,
-      8,
+      true,
     );
   if (d.tipo === "richiesta")
     paragraph(
       `Vi chiediamo la vostra migliore offerta per la fornitura qui sotto. Compilate le colonne vuote e rimandateci questo foglio, oppure inviateci la vostra offerta con il riferimento ${d.numero}.`,
-      8.5,
     );
   if (d.tipo === "economia") {
+    // I numeri chiave del periodo: quattro riquadri; il totale ha il valore nell'accento.
     const categorie = [
       { titolo: "Manodopera", match: /manodopera|operaio/i },
       { titolo: "Materiali", match: /material/i },
@@ -311,19 +346,16 @@ export function creaPdfOperativo(
       titolo: "Totale periodo",
       totale: totaliDocumento(d).imponibile,
     });
+    const w = (width - 9) / 4;
+    const hNumero = passo(stileRiquadro.numeroCorpo, 1.2);
+    const hStat = 2 * pad + altoEtichetta + hNumero + passo(pagina.nota, 1.3);
+    ensure(hStat + 4);
     stats.forEach((c, i) => {
-      const x = left + (i * (width + 3)) / 4;
-      const w = (width - 9) / 4;
-      pdf.setFillColor(...(i === 3 ? navy : ([243, 245, 248] as [number, number, number])));
-      pdf.roundedRect(x, y, w, 21, 0.6, 0.6, "F");
-      font(7, false, true);
-      if (i === 3) pdf.setTextColor(...testoFascia);
-      pdf.text(c.titolo, x + 2, y + 5);
-      font(11, true);
-      if (i === 3) pdf.setTextColor(...testoFascia);
-      pdf.text(euro(c.totale), x + 2, y + 12);
-      font(6.5, false, true);
-      if (i === 3) pdf.setTextColor(...testoFascia);
+      const x = left + i * (w + 3);
+      disegnaRiquadro(x, y, w, hStat);
+      etichetta(c.titolo, x + pad, y + pad + mm(stileRiquadro.etichettaCorpo) * 0.75);
+      font(stileRiquadro.numeroCorpo, i === 3, i === 3 ? ACCENTO : INCHIOSTRO);
+      pdf.text(euro(c.totale), x + pad, y + pad + altoEtichetta + hNumero * 0.75);
       const entries =
         i < 3
           ? d.righe.filter((r) => categorie[i].match.test(r.descrizione))
@@ -334,9 +366,10 @@ export function creaPdfOperativo(
           : i === 0
             ? `${numeroIt(entries.reduce((sum, r) => sum + (r.unita.toLowerCase() === "h" ? r.quantita : 0), 0))} ore`
             : `${entries.length} voci`;
-      pdf.text(detail, x + 2, y + 17);
+      font(pagina.nota, false, TENUE);
+      pdf.text(detail, x + pad, y + hStat - pad);
     });
-    y += 27;
+    y += hStat + 5;
   }
   type Col = {
     title: string;
@@ -346,18 +379,15 @@ export function creaPdfOperativo(
     blank?: boolean;
   };
   const emptyPrices = d.tipo === "richiesta" || senzaPrezzi(d);
-  const money = (v: number) =>
-    v.toLocaleString("it-IT", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
+  const money = importoIt;
   let cols: Col[];
   if (d.tipo === "trasporti")
     cols = [
-      { title: "DATA", width: 20, value: (r) => dataIt(r.data) },
-      { title: "CARICO", width: 32, value: (r) => r.carico || r.descrizione },
-      { title: "SCARICO", width: 32, value: (r) => r.scarico || "-" },
-      { title: "MEZZO", width: 23, value: (r) => r.mezzo || "-" },
+      // DATA a 23: a 9 pt la data intera sta in una riga.
+      { title: "DATA", width: 23, value: (r) => dataIt(r.data) },
+      { title: "CARICO", width: 31, value: (r) => r.carico || r.descrizione },
+      { title: "SCARICO", width: 31, value: (r) => r.scarico || "-" },
+      { title: "MEZZO", width: 22, value: (r) => r.mezzo || "-" },
       {
         title: "ORE UOMO",
         width: 16,
@@ -390,7 +420,8 @@ export function creaPdfOperativo(
     const descWidth =
       182 -
       (economy ? 0 : 8) -
-      13 -
+      // U.M. a 18: a 9 pt «sacchi» o «mq/mese» stanno in una riga.
+      18 -
       14 -
       24 -
       25 -
@@ -415,7 +446,7 @@ export function creaPdfOperativo(
         width: descWidth,
         value: (r) => [r.descrizione, r.nota].filter(Boolean).join("\n"),
       },
-      { title: "U.M.", width: 13, value: (r) => r.unita },
+      { title: "U.M.", width: 18, value: (r) => r.unita },
       {
         title: "Q.TÀ",
         width: 14,
@@ -474,122 +505,132 @@ export function creaPdfOperativo(
   cols.forEach((c) => {
     c.width *= width / 182;
   });
+  // Tabella: intestazione su fondo grigio, righe separate da un filetto, niente bordi verticali.
+  const padX = mm(stileTabella.paddingOrizzontale);
+  const rigaMin = mm(stileTabella.altezzaRigaMin);
+  const passoRiga = passo(stileTabella.corpo, 1.3);
+  const padY = 1.2;
+  const passoIntestazione = passo(stileTabella.intestazioneCorpo, 1.2);
+  font(stileTabella.intestazioneCorpo, true);
+  const titoliColonne = cols.map((c) => lines(c.title, Math.max(4, c.width - 2 * padX)));
+  const altoIntestazione = Math.max(
+    rigaMin,
+    Math.max(...titoliColonne.map((t) => t.length)) * passoIntestazione + 2 * padY + 1,
+  );
   const tableHeader = () => {
-    ensure(10);
-    pdf.setFillColor(...riquadro);
-    pdf.rect(left, y, width, 7, "F");
-    font(6.8);
-    pdf.setTextColor(...accentInk);
+    ensure(altoIntestazione + rigaMin);
+    pdf.setFillColor(...FONDO_INTESTAZIONE);
+    pdf.rect(left, y, width, altoIntestazione, "F");
+    font(stileTabella.intestazioneCorpo, true, TENUE);
     let x = left;
-    cols.forEach((c) => {
-      const ls = lines(c.title, c.width - 2);
-      pdf.text(ls, c.align ? x + c.width - 1.5 : x + 1.5, y + 3.1, {
-        align: c.align || "left",
-      });
+    cols.forEach((c, i) => {
+      const t = titoliColonne[i];
+      const inizio = y + (altoIntestazione - t.length * passoIntestazione) / 2;
+      t.forEach((riga, n) =>
+        pdf.text(riga, c.align ? x + c.width - padX : x + padX, inizio + passoIntestazione * (n + 0.75), {
+          align: c.align || "left",
+        }),
+      );
       x += c.width;
     });
-    pdf.setDrawColor(...navy);
-    pdf.line(left, y + 7, left + width, y + 7);
-    y += 7;
+    y += altoIntestazione;
+  };
+  /** Raggruppamento dentro la tabella (lavori in economia): riga su fondo tenue, grassetto. */
+  const rigaGruppo = (t: string) => {
+    font(stileTabella.corpo, true);
+    const testo = lines(t, width - 2 * padX);
+    const h = Math.max(rigaMin, testo.length * passoRiga + 2 * padY);
+    pdf.setFillColor(...rgb255(colore.fondoTenue));
+    pdf.rect(left, y, width, h, "F");
+    testo.forEach((riga, n) => pdf.text(riga, left + padX, y + padY + passoRiga * (n + 0.72)));
+    y += h;
+    filetto(LINEA, stileTabella.filetto, left, y, left + width, y);
   };
   let groupTotal = 0,
     currentGroup = "";
+  /** Riga del totale: grassetto, filetto inchiostro sopra. */
   const groupFooter = () => {
     if (currentGroup) {
-      ensure(8);
-      font(8, true);
-      pdf.text(
-        `Totale intervento  ${euro(groupTotal)}`,
-        left + width - 2,
-        y + 4,
-        { align: "right" },
-      );
-      y += 10;
+      ensure(rigaMin);
+      filetto(INCHIOSTRO, stileTabella.filettoTotale, left, y, left + width, y);
+      font(stileTabella.corpo, true);
+      const base = y + rigaMin / 2 + mm(stileTabella.corpo) * 0.3;
+      pdf.text("Totale intervento", left + padX, base);
+      pdf.text(euro(groupTotal), left + width - padX, base, { align: "right" });
+      y += rigaMin + 3;
     }
   };
-  if (d.tipo !== "economia") tableHeader();
+  tableHeader();
   d.righe.forEach((row, index) => {
     if (d.tipo === "economia" && (index === 0 || row.gruppo !== currentGroup)) {
       groupFooter();
       currentGroup = row.gruppo || "Lavori in economia";
       groupTotal = 0;
-      ensure(22);
-      section(currentGroup);
-      tableHeader();
+      if (y + 2 * rigaMin > bottom) {
+        nuovaPagina();
+        tableHeader();
+      }
+      rigaGruppo(currentGroup);
     }
-    font(8);
-    const cells = cols.map((c) => lines(c.value(row, index), c.width - 3));
-    const h = Math.max(9, Math.max(...cells.map((c) => c.length)) * 3.7 + 4);
+    font(stileTabella.corpo);
+    const cells = cols.map((c) => lines(c.value(row, index), c.width - 2 * padX));
+    const count = Math.max(1, ...cells.map((c) => c.length));
+    const h = Math.max(rigaMin, count * passoRiga + 2 * padY);
     const reserveSubtotal =
       d.tipo === "economia" &&
       (index === d.righe.length - 1 ||
         d.righe[index + 1]?.gruppo !== row.gruppo)
-        ? 10
+        ? rigaMin
         : 0;
     if (y + h + reserveSubtotal > bottom) {
-      pdf.addPage();
-      head();
-      if (currentGroup) section(`${currentGroup} (segue)`);
+      nuovaPagina();
       tableHeader();
+      if (currentGroup) rigaGruppo(`${currentGroup} (segue)`);
     }
     // Ogni riga resta intera quando possibile; descrizioni molto lunghe proseguono con testata ripetuta.
-    const count = Math.max(1, ...cells.map((c) => c.length));
     let segmentStart = y;
+    let riga = y + padY;
     for (let n = 0; n < count; n++) {
-      if (y + 7 > bottom) {
-        pdf.addPage();
-        head();
+      if (riga + passoRiga + padY > bottom) {
+        nuovaPagina();
         tableHeader();
         segmentStart = y;
-      }
-      if (modello.righeAlternate && index % 2 === 1) {
-        pdf.setFillColor(...riquadro);
-        pdf.rect(
-          left,
-          y,
-          width,
-          n === count - 1 ? Math.max(6.7, 9 - (count - 1) * 3.7) : 3.7,
-          "F",
-        );
+        riga = y + padY;
       }
       let x = left;
       cols.forEach((c, i) => {
         if (cells[i][n]) {
-          font(8);
+          font(stileTabella.corpo);
           pdf.text(
             cells[i][n],
-            c.align ? x + c.width - 1.5 : x + 1.5,
-            y + 4.5,
+            c.align ? x + c.width - padX : x + padX,
+            riga + passoRiga * 0.72,
             { align: c.align || "left" },
           );
         }
         x += c.width;
       });
-      y += 3.7;
+      riga += passoRiga;
     }
-    y = Math.max(y + 3, segmentStart + 9);
+    y = Math.max(riga + padY, segmentStart + rigaMin);
     let x = left;
     cols.forEach((c) => {
-      if (c.blank) {
-        pdf.setDrawColor(141, 154, 171);
-        pdf.line(x + 2, y - 2, x + c.width - 2, y - 2);
-      }
+      if (c.blank) filetto(TENUE, 0.5, x + padX, y - 1.6, x + c.width - padX, y - 1.6);
       x += c.width;
     });
-    pdf.setDrawColor(222, 228, 237);
-    pdf.line(left, y, left + width, y);
+    filetto(LINEA, stileTabella.filetto, left, y, left + width, y);
     groupTotal += importoRiga(row);
   });
   groupFooter();
-  y += 5;
-  ensure(35);
+
+  // Pagamento a sinistra, riepilogo (o le voci da indicare) a destra.
+  ensure(40);
   const sy = y;
+  let fine = y;
   const payX = d.tipo === "richiesta" ? left + width / 2 + 2 : left;
-  font(8.5);
-  pdf.setTextColor(...accentInk);
-  pdf.text("Pagamento", payX, y);
-  y += 5;
-  const payWidth = d.tipo === "richiesta" ? width / 2 - 4 : width - 76;
+  const payWidth =
+    d.tipo === "richiesta" ? width / 2 - 2 : emptyPrices ? width - 92 : width - 80;
+  let py = titoloSezioneA("Pagamento", payX, payWidth, sy);
   const pay = [
     d.tipo === "richiesta" ? "Condizione concordata con voi:" : "",
     d.pagamento || "Da definire con il fornitore",
@@ -598,50 +639,55 @@ export function creaPdfOperativo(
     d.banca,
     d.iban,
   ].filter(Boolean) as string[];
+  const passoCorpo = passo(corpo);
   pay.forEach((t) => {
-    font(8.5);
+    font(corpo);
     const ls = lines(t, payWidth);
-    pdf.text(ls, payX, y);
-    y += ls.length * 4 + 1;
+    ls.forEach((riga, n) => pdf.text(riga, payX, py + passoCorpo * (n + 0.72)));
+    py += ls.length * passoCorpo + 1;
   });
   if (d.tipo === "richiesta") {
-    font(7, false, true);
-    pdf.text(
-      lines(
-        "Se per questa fornitura ne proponete una diversa, indicatela qui:",
-        payWidth,
-      ),
-      payX,
-      y + 2,
-    );
-    pdf.setDrawColor(141, 154, 171);
-    pdf.line(payX, y + 14, payX + payWidth, y + 14);
-    y += 18;
+    font(pagina.nota, false, TENUE);
+    const ls = lines("Se per questa fornitura ne proponete una diversa, indicatela qui:", payWidth);
+    ls.forEach((riga, n) => pdf.text(riga, payX, py + 1 + passo(pagina.nota) * (n + 0.72)));
+    py += 1 + ls.length * passo(pagina.nota) + 9;
+    filetto(TENUE, 0.5, payX, py, payX + payWidth, py);
+    py += 3;
   }
+  fine = Math.max(fine, py);
   if (d.tipo !== "richiesta" && !senzaPrezzi(d)) {
+    // Il riepilogo: imponibile e IVA, poi la riga del totale col valore nell'accento.
     const t = totaliDocumento(d);
-    const x = left + width - 66;
-    let ty = sy;
-    (d.tipo === "economia"
-      ? []
-      : [
-          ["Imponibile", euro(t.imponibile)],
-          [
-            d.inversioneContabile ? "IVA inv. contabile" : "IVA",
-            d.inversioneContabile ? "-" : euro(t.iva),
-          ],
-        ]
-    ).forEach(([k, v]) => {
-      font(8, false, true);
-      pdf.text(k, x + 2, ty + 4);
-      font(8.5);
-      pdf.text(v, left + width - 2, ty + 4, { align: "right" });
-      ty += 6;
+    const tw = 72;
+    const tx = left + width - tw;
+    const ty = sy + mm(stileSezione.spazioPrima);
+    const voci: [string, string][] =
+      d.tipo === "economia"
+        ? []
+        : [
+            ["Imponibile", euro(t.imponibile)],
+            [
+              d.inversioneContabile ? "IVA inv. contabile" : "IVA",
+              d.inversioneContabile ? "-" : euro(t.iva),
+            ],
+          ];
+    const passoTotale = passo(stileRiquadro.numeroCorpo, 1.2);
+    const hTot = 2 * pad + voci.length * passoValore + (voci.length ? 3 : 0) + passoTotale;
+    disegnaRiquadro(tx, ty, tw, hTot);
+    let by = ty + pad;
+    voci.forEach(([k, v]) => {
+      etichetta(k, tx + pad, by + passoValore * 0.72);
+      font(stileRiquadro.valoreCorpo);
+      pdf.text(v, tx + tw - pad, by + passoValore * 0.72, { align: "right" });
+      by += passoValore;
     });
-    pdf.setFillColor(...navy);
-    pdf.rect(x, ty, 66, 8, "F");
-    font(9, true);
-    pdf.setTextColor(...testoFascia);
+    if (voci.length) {
+      by += 1;
+      filetto(INCHIOSTRO, stileTabella.filettoTotale, tx + pad, by, tx + tw - pad, by);
+      by += 2;
+    }
+    const base = by + passoTotale * 0.75;
+    font(corpo, true);
     pdf.text(
       documentoIncompleto(d)
         ? "Totale parziale"
@@ -650,78 +696,79 @@ export function creaPdfOperativo(
           : d.tipo === "trasporti"
             ? "Totale"
             : "Totale ordine",
-      x + 2,
-      ty + 5,
+      tx + pad,
+      base,
     );
-    pdf.text(euro(t.totale), left + width - 2, ty + 5, { align: "right" });
-    y = Math.max(y, ty + 10);
+    font(stileRiquadro.numeroCorpo, true, ACCENTO);
+    pdf.text(euro(t.totale), tx + tw - pad, base, { align: "right" });
+    fine = Math.max(fine, ty + hTot + 2);
+    y = fine;
     if (documentoIncompleto(d))
-      paragraph("Da completare: totali delle sole voci valorizzate.", 8);
+      paragraph("Da completare: totali delle sole voci valorizzate.", true);
+    fine = y;
   } else if (emptyPrices) {
     const x = d.tipo === "richiesta" ? left : left + width - 86;
-    font(8);
-    pdf.setTextColor(...accentInk);
-    pdf.text(
+    const w = d.tipo === "richiesta" ? width / 2 - 6 : 86;
+    let oy = titoloSezioneA(
       d.tipo === "richiesta"
         ? "Da indicare nella vostra offerta"
         : "Da indicare nella vostra conferma",
       x,
+      w,
       sy,
     );
     [
       "Tempi di consegna",
       "Validità dell'offerta",
       "Trasporto e scarico inclusi?",
-    ].forEach((t, i) => {
-      font(7.5);
-      pdf.text(t, x, sy + 7 + i * 8);
-      pdf.setDrawColor(141, 154, 171);
-      pdf.line(x + 42, sy + 8 + i * 8, x + 86, sy + 8 + i * 8);
+    ].forEach((t) => {
+      font(corpo);
+      pdf.text(t, x, oy + 4);
+      filetto(TENUE, 0.5, x + 46, oy + 4.6, x + w, oy + 4.6);
+      oy += 7.5;
     });
-    y = Math.max(y, sy + 29);
+    fine = Math.max(fine, oy);
   }
-  y += 5;
+  y = fine + 2;
   if (d.tipo === "servizi") {
-    ensure(24);
     section("Prima di entrare in cantiere ci servono");
     paragraph(
       "- DURC in corso di validità e visura camerale.\n- POS o documentazione di sicurezza richiesta per il lavoro.\n- Elenco delle persone e dei mezzi che verranno in cantiere.",
-      8,
     );
   }
   if (d.note) {
     section("Note");
-    paragraph(d.note, 8);
+    paragraph(d.note);
   }
   if (d.noteConsegna) {
     section("Istruzioni di consegna / accesso");
-    paragraph(d.noteConsegna, 8);
+    paragraph(d.noteConsegna);
   }
   // Le istruzioni e le firme formano un blocco: niente pagina finale con sole firme.
-  font(8);
+  font(corpo);
   const altezzaCondizioni =
-    lines(condizioniDocumento(d), width).length * 4.3 + 31;
+    lines(condizioniDocumento(d), width).length * passoCorpo + 36;
   ensure(Math.min(altezzaCondizioni, bottom - 52));
   section(standard.condizioni);
-  paragraph(condizioniDocumento(d), 8);
+  paragraph(condizioniDocumento(d));
   if (modello.conclusione) {
-    font(8);
+    font(corpo);
     ensure(
       Math.min(
-        lines(modello.conclusione, width).length * 4.3 + 30,
+        lines(modello.conclusione, width).length * passoCorpo + 30,
         bottom - 52,
       ),
     );
-    paragraph(modello.conclusione, 8);
+    paragraph(modello.conclusione);
   }
   if (modello.mostraFirma) {
-    ensure(23);
-    y += 12;
-    pdf.setDrawColor(141, 154, 171);
-    pdf.line(left, y, left + width / 2 - 5, y);
-    pdf.line(left + width / 2 + 5, y, left + width, y);
-    font(7, false, true);
-    pdf.text(safe(a.business_name || a.name), left, y + 4, { maxWidth: 86 });
+    // Firme: una riga inchiostro, sotto la didascalia tenue.
+    ensure(24);
+    y += 14;
+    filetto(INCHIOSTRO, 0.5, left, y, left + width / 2 - 5, y);
+    filetto(INCHIOSTRO, 0.5, left + width / 2 + 5, y, left + width, y);
+    font(pagina.nota, false, TENUE);
+    pdf.text(safe(a.business_name || a.name), left, y + 4, { maxWidth: width / 2 - 5 });
     pdf.text(
       modello.etichettaFirma ||
         (d.tipo === "richiesta"
@@ -731,7 +778,7 @@ export function creaPdfOperativo(
             : "Per accettazione - timbro e firma del fornitore"),
       left + width / 2 + 5,
       y + 4,
-      { maxWidth: 86 },
+      { maxWidth: width / 2 - 5 },
     );
   }
   const foot = a.righeSocietarie?.length ? a.righeSocietarie : footerAzienda(a);
@@ -739,26 +786,30 @@ export function creaPdfOperativo(
     pdf.addFileToVFS("EBGaramond-Regular.ttf", a.fontPiede);
     pdf.addFont("EBGaramond-Regular.ttf", "EBGaramond", "normal");
   }
-  for (let page = 1; page <= pdf.getNumberOfPages(); page++) {
+  const pagine = pdf.getNumberOfPages();
+  for (let page = 1; page <= pagine; page++) {
     pdf.setPage(page);
+    const numeroPagina = modello.numerazione ? `Pag. ${page} / ${pagine}` : "";
     if (veste.piedeRighe) {
       // Il piè dell'esempio del titolare (10/11/2026): niente filetto, righe proprie, sotto la pagina.
       disegnaPiedeJsPdf(pdf, veste, {
         font: a.fontPiede ? "EBGaramond" : modello.carattere,
         pulisci: a.fontPiede ? undefined : safe,
         larghezzaUtile: width,
-        pagina: modello.numerazione ? `Pagina ${page} di ${pdf.getNumberOfPages()}` : "",
+        pagina: numeroPagina,
       });
       if (modello.notaPagina) {
-        font(6.5, false, true);
+        font(6.5, false, TENUE);
         pdf.text(safe(modello.notaPagina), left, 291, { maxWidth: width / 2 - 20 });
       }
       continue;
     }
-    pdf.setDrawColor(210, 219, 231);
-    pdf.line(left, 278, left + width, 278);
+    // Piè: le righe societarie centrate, 7 pt tenue; sotto il numero di pagina.
+    const basePagina = 290;
+    const passoPiede = passo(7, 1.35);
+    const ultimaRiga = modello.numerazione ? basePagina - passoPiede - 0.6 : basePagina;
     foot.forEach((line, i) => {
-      font(7, false, true);
+      font(7, false, TENUE);
       if (a.fontPiede && veste.piedeColore) {
         pdf.setFont("EBGaramond", "normal");
         pdf.setTextColor(veste.piedeColore);
@@ -766,30 +817,25 @@ export function creaPdfOperativo(
       const content = safe(line),
         tw = pdf.getTextWidth(content);
       if (tw > width) pdf.setFontSize((7 * width) / tw);
-      pdf.text(content, 105, 282 + i * 4, { align: "center" });
+      pdf.text(content, 105, ultimaRiga - (foot.length - 1 - i) * passoPiede, { align: "center" });
     });
-    font(7, false, true);
     if (modello.notaPagina) {
+      font(6.5, false, TENUE);
       const note = safe(modello.notaPagina);
       const max = width / 2 - (modello.numerazione ? 18 : 0);
       pdf.setFontSize(
-        Math.min(7, (7 * max) / Math.max(1, pdf.getTextWidth(note))),
+        Math.min(6.5, (6.5 * max) / Math.max(1, pdf.getTextWidth(note))),
       );
-      pdf.text(note, left, 291);
-      font(7, false, true);
+      pdf.text(note, left, basePagina);
     }
-    if (modello.numerazione)
-      pdf.text(
-        `Pagina ${page} di ${pdf.getNumberOfPages()}`,
-        105,
-        291,
-        {
-          align: "center",
-        },
-      );
+    if (numeroPagina) {
+      font(7, false, TENUE);
+      pdf.text(numeroPagina, 105, basePagina, { align: "center" });
+    }
   }
   return pdf;
 }
+
 
 export async function generaPdfOperativo(
   d: DocumentoOperativo,

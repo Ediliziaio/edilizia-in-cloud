@@ -32,7 +32,18 @@ export interface RigaElencoLavori {
   /** Da dove viene la riga: servono a riprendere l'avanzamento del cantiere nei SAL della ditta. */
   fase_id?: string | null;
   sottofase_id?: string | null;
+  /** Lotto 5 (10/11/2026): la riga viene da un affidamento della ditta (subappalto_affidamenti). */
+  voce_id?: string | null;
+  affidamento_id?: string | null;
+  /** Cosa comprende il prezzo: nel contratto si scrive, perché cambia chi compra i materiali. */
+  comprende?: "posa" | "fornitura_e_posa" | null;
+  /** Da dove viene il prezzo proposto: solo nella finestra, non si salva nel contratto. */
+  origine?: "listino_ditta" | "costo_aziendale" | "manuale" | null;
 }
+
+/** «solo posa» / «fornitura e posa», come si scrive nel contratto. */
+export const testoComprende = (c: RigaElencoLavori["comprende"]) =>
+  c === "posa" ? "solo posa" : c === "fornitura_e_posa" ? "fornitura e posa" : "";
 
 export interface DatiContrattoSubappalto {
   numero: string | null;
@@ -45,7 +56,7 @@ export interface DatiContrattoSubappalto {
   /** Aliquota IVA della ditta: 0 = reverse charge (il caso normale nel subappalto edile). */
   ivaPct?: number;
   /** Logo dell'impresa affidataria (Impostazioni → Profilo aziendale), già letto come data URL. */
-  veste?: { logoUrl: string | null; companyId?: string | null };
+  veste?: { logoUrl: string | null; companyId?: string | null; colore?: string | null };
   commessa: { codice: string; descrizione: string; indirizzoCantiere: string; cliente: string };
   descrizioneLavori: string;
   importo: number;
@@ -428,7 +439,7 @@ export function costruisciContrattoSubappaltoHtml(d: DatiContrattoSubappalto): s
   <h1>ALLEGATO A – ELENCO DEI LAVORI</h1>
   <p class="sotto">Commessa ${esc(d.commessa.codice)}${codiciElenco(d.elencoLavori).riferimento ? ` · dal preventivo ${esc(codiciElenco(d.elencoLavori).riferimento)}` : ""} · ${esc(d.subappaltatore.ragioneSociale)} · prezzi IVA esclusa</p>
   <table class="elenco"><thead><tr><th>Descrizione</th><th>U.M.</th><th>Quantità</th><th>Prezzo unitario</th><th>Importo</th></tr></thead><tbody>
-  ${elencoPerFase(d.elencoLavori).map((g) => `<tr class="fase"><td colspan="4">${esc(g.fase)}</td><td class="n">${euroContratto(g.totale)}</td></tr>${g.righe.map((r) => `<tr><td>${codiciElenco(d.elencoLavori!).perRiga && r.codice ? `${esc(r.codice)} · ` : ""}${esc(r.descrizione)}</td><td>${esc(r.unita ?? "")}</td><td class="n">${quantitaContratto(r.quantita)}</td><td class="n">${euroContratto(r.prezzo)}</td><td class="n">${euroContratto(r.importo)}</td></tr>`).join("")}`).join("")}
+  ${elencoPerFase(d.elencoLavori).map((g) => `<tr class="fase"><td colspan="4">${esc(g.fase)}</td><td class="n">${euroContratto(g.totale)}</td></tr>${g.righe.map((r) => `<tr><td>${codiciElenco(d.elencoLavori!).perRiga && r.codice ? `${esc(r.codice)} · ` : ""}${esc(r.descrizione)}${r.comprende ? ` <em>(${testoComprende(r.comprende)})</em>` : ""}</td><td>${esc(r.unita ?? "")}</td><td class="n">${quantitaContratto(r.quantita)}</td><td class="n">${euroContratto(r.prezzo)}</td><td class="n">${euroContratto(r.importo)}</td></tr>`).join("")}`).join("")}
   <tr class="tot"><td colspan="4">Totale lavori</td><td class="n">${euroContratto(totaleElencoLavori(d.elencoLavori))}</td></tr>
   </tbody></table>
   <div class="firme"><div>L'Affidataria</div><div>Il Subappaltatore, per accettazione</div></div>

@@ -32,8 +32,23 @@ import {saveSalDraft,SalSaveError} from "@/lib/orders/saveSalDraft";
 import {SalPlanInfo} from "./SalPlanInfo";
 import {VerbaleSalDialog} from "./VerbaleSalDialog";
 import {CertificatoSal} from "./CertificatoSal";
-import {certificatoDelSal,certificatoBloccato, certificatoPrecedente} from "@/lib/orders/salCertificato";
+import {certificatoDelSal,certificatoBloccato, certificatoPrecedente, leggiImportoItaliano} from "@/lib/orders/salCertificato";
 import {giornoLocale} from "@/lib/orders/cronoprogramma";
+import {certificatoNelModulo, rataProposta, vociCheCambiano} from "@/lib/orders/salNuovoVerbale";
+import {conPercentuale, conQuantita, percentualeFaseDaSottofasi, type SottofasePerSal, type SottofaseSalDraft} from "@/lib/orders/salSottofasi";
+
+interface SalVoceSottofase {
+  id: string;
+  sottofase_id: string | null;
+  posizione: number;
+  descrizione: string;
+  unita: string | null;
+  quantita_contratto: number | null;
+  quantita_a_oggi: number | null;
+  importo_contrattuale: number | null;
+  percentuale_avanzamento: number;
+  importo_sal: number | null;
+}
 
 interface SalVoce {
   id: string;
@@ -43,6 +58,7 @@ interface SalVoce {
   importo_sal: number;
   note: string | null;
   fase_id?: string | null;
+  sal_voci_sottofasi?: SalVoceSottofase[] | null;
 }
 
 interface SalRecord {
@@ -98,7 +114,29 @@ interface VoceForm {
   note: string;
   /** Fase della commessa da cui nasce la voce; assente = voce libera. */
   fase_id?: string | null;
+  /** Dettaglio per sottofase: la % della voce è la loro media pesata. */
+  sottofasi?: SottofaseSalDraft[];
 }
+
+// Letture delle sottofasi e delle voci della commessa: un tipo minimo, perché i tipi generati
+// non hanno order_work_phase_voci e quelli delle sottofasi fanno esplodere il compilatore.
+interface LetturaSemplice {
+  select: (colonne: string) => LetturaSemplice;
+  in: (colonna: string, valori: string[]) => LetturaSemplice;
+  eq: (colonna: string, valore: string) => LetturaSemplice;
+  not: (colonna: string, operatore: string, valore: null) => LetturaSemplice;
+  order: (colonna: string) => LetturaSemplice;
+  range: (da: number, a: number) => PromiseLike<{ data: unknown[] | null; error: unknown }>;
+}
+const leggiTabella = (tabella: string) => (supabase as unknown as { from: (t: string) => LetturaSemplice }).from(tabella);
+
+/** Le fasi uguali al SAL precedente: nel modulo stanno nascoste, e si salvano così. */
+const fasiSenzaCambi = (voci: ReadonlyArray<VoceForm>, prec: ReturnType<typeof percentualiPrecedenti>) => {
+  const cambia = vociCheCambiano(voci, prec);
+  return new Set(voci.flatMap((v, i) => (!cambia[i] && v.fase_id ? [v.fase_id] : [])));
+};
+
+const fmtQ = (n: number | null | undefined) => n == null ? "" : Number(n).toLocaleString("it-IT", { maximumFractionDigits: 3 });
 
 const emptyVoce = (): VoceForm => ({
   descrizione: "",
@@ -123,6 +161,14 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   const [voci, setVoci] = useState<VoceForm[]>([emptyVoce()]);
   // Una voce sotto il SAL precedente abbassa il certificato: si salva solo se dichiarata rettifica.
   const [rettifica, setRettifica] = useState(false);
+  // Lotto C (10/11/2026): le voci che non cambiano dal SAL precedente stanno nascoste (si salvano lo stesso),
+  // e il certificato di pagamento si compila nello stesso modulo.
+  const [fasiInvariate, setFasiInvariate] = useState<Set<string>>(new Set());
+  const [mostraTutte, setMostraTutte] = useState(false);
+  const [conCertificato, setConCertificato] = useState(false);
+  const [certRitenuta, setCertRitenuta] = useState("");
+  const [certAltre, setCertAltre] = useState("");
+  const [certNota, setCertNota] = useState("");
 
   const [isExporting, setIsExporting] = useState(false);
   const [exportingSalId, setExportingSalId] = useState<string | null>(null);
@@ -137,7 +183,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
     queryFn: async () => {
       const { data, error, count } = await supabase
         .from("sal_records")
-        .select("*, sal_voci(id, descrizione, importo_contrattuale, percentuale_avanzamento, importo_sal, note, fase_id), sal_certificati(*)",{count:"exact"})
+        .select("*, sal_voci(id, descrizione, importo_contrattuale, percentuale_avanzamento, importo_sal, note, fase_id, sal_voci_sottofasi(id, sottofase_id, posizione, descrizione, unita, quantita_contratto, quantita_a_oggi, importo_contrattuale, percentuale_avanzamento, importo_sal)), sal_certificati(*)",{count:"exact"})
         .eq("order_id", orderId)
         .eq("company_id", companyId)
         .order("numero_sal", { ascending: false });
@@ -162,7 +208,36 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
       .eq("order_id", orderId).eq("company_id",companyId).order("position");
     if (error) throw error;
     // importo_venduto non è nei tipi generati: la lettura torna tipata come errore, si passa da unknown.
-    return (data || []) as unknown as FasePerSal[];
+    const fasi = (data || []) as unknown as FasePerSal[];
+    // Le sottofasi vanno nel verbale come dettaglio (10/11/2026). Se non si leggono, il verbale resta per fase.
+    const ids = fasi.map((f) => f.id).filter((x): x is string => !!x);
+    if (!ids.length) return fasi;
+    try {
+      const sotto: Array<SottofasePerSal & { phase_id: string }> = [];
+      for (let da = 0; ; da += 1000) {
+        const r = await leggiTabella("order_work_subphases").select("id, phase_id, name, position, peso, fatta, percentuale, quantita_fatta")
+          .in("phase_id", ids).order("position").range(da, da + 999);
+        if (r.error) throw r.error;
+        sotto.push(...((r.data ?? []) as Array<SottofasePerSal & { phase_id: string }>));
+        if ((r.data?.length ?? 0) < 1000) break;
+      }
+      // Importi e quantità del contratto dalle voci della commessa; senza permesso sugli importi restano le %.
+      const vociPerSottofase = new Map<string, Array<{ quantita: number | null; unita: string | null; importo: number | null }>>();
+      for (let da = 0; ; da += 1000) {
+        const r = await leggiTabella("order_work_phase_voci").select("subphase_id, quantita, unita, importo")
+          .eq("order_id", orderId).eq("company_id", companyId).not("subphase_id", "is", null).range(da, da + 999);
+        if (r.error) break;
+        for (const v of (r.data ?? []) as Array<{ subphase_id: string; quantita: number | null; unita: string | null; importo: number | null }>) {
+          const l = vociPerSottofase.get(v.subphase_id) ?? [];
+          l.push({ quantita: v.quantita, unita: v.unita, importo: v.importo });
+          vociPerSottofase.set(v.subphase_id, l);
+        }
+        if ((r.data?.length ?? 0) < 1000) break;
+      }
+      return fasi.map((f) => ({ ...f, sottofasi: sotto.filter((x) => x.phase_id === f.id).map((x) => ({ ...x, voci: vociPerSottofase.get(x.id) ?? [] })) }));
+    } catch {
+      return fasi;
+    }
   };
   const chiaveFasi = ["sal-fasi-commessa", orderId, companyId];
   const { data: fasiSal = [], isError: fasiError, refetch: refetchFasi } = useQuery<FasePerSal[]>({
@@ -195,6 +270,8 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
         toast.info("L'AI non ha trovato voci da suggerire");
         return;
       }
+      // Le voci dell'AI sono nuove: si mostrano tutte.
+      setFasiInvariate(new Set());
       setVoci(collegaVociAFasi(voci_suggerite.map((v) => ({
         descrizione: v.descrizione ?? "",
         importo_contrattuale: String(v.importo_contrattuale ?? 0),
@@ -213,16 +290,37 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   });
 
   const createSalMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async ({emetti}:{emetti:boolean}) => {
       if(!permissions.canEditOrders || !review || blocked || saveBlocked)throw new Error("Controlla lo storico e il riepilogo prima di salvare.");
       if(vociInDiscesa.length>0 && !rettifica)throw new Error("Alcune voci scendono sotto il SAL precedente: conferma che è una rettifica o correggi le percentuali.");
       if(rataCollegata && (!(installments??[]).some(i=>i.id===rataCollegata) || salList.some(s=>s.installment_id===rataCollegata)))
         throw new Error("La rata non è disponibile o ha già un verbale SAL.");
-      return saveSalDraft(supabase,{orderId,companyId,number:numeroNuovoSal((installments??[]).find(i=>i.id===rataCollegata)??null,salList),
+      if(conCertificato && !certificatoNuovo)throw new Error("Controlla ritenuta e detrazioni del certificato.");
+      if(emetti && !salMatura)throw new Error("Regola di maturazione del SAL non verificata: salva la bozza ed emettila dalla scheda.");
+      const numero=numeroNuovoSal((installments??[]).find(i=>i.id===rataCollegata)??null,salList);
+      if(emetti){const problema=salEmissionIssue({id:"nuovo",numero_sal:numero,stato:"bozza"},salList);if(problema)throw new Error(problema);}
+      const {id}=await saveSalDraft(supabase,{orderId,companyId,number:numero,
         date:giornoLocale(new Date().toISOString()),note,installmentId:rataCollegata||null,lines:voci,contractNet:orderTotalAmount});
+      // La bozza c'è: da qui in poi un errore non la annulla (rifarla creerebbe un doppione), lo si dice.
+      const avvisi:string[]=[];
+      let certificatoOk=true;
+      if(conCertificato && certificatoNuovo){
+        const {error}=await (supabase as never as {from:(t:string)=>{upsert:(r:unknown)=>PromiseLike<{error:{message:string}|null}>}})
+          .from("sal_certificati").upsert({sal_id:id,order_id:orderId,company_id:companyId,...certificatoNuovo});
+        if(error){certificatoOk=false;avvisi.push(`Certificato non salvato (${error.message}): aggiungilo dalla scheda del SAL.`);}
+      }
+      let emesso=false;
+      if(emetti && certificatoOk){
+        const {data,error}=await supabase.from("sal_records").update({stato:"emesso",data_emissione:giornoLocale(new Date().toISOString())})
+          .eq("id",id).eq("order_id",orderId).eq("company_id",companyId).eq("stato","bozza").select("id,stato");
+        if(error || data?.length!==1)avvisi.push("Il SAL è salvato in bozza ma non emesso: emettilo dalla scheda.");
+        else emesso=true;
+      }else if(emetti)avvisi.push("Il SAL resta in bozza finché il certificato non è salvato.");
+      return {id,emesso,avvisi};
     },
-    onSuccess: () => {
-      toast.success("Bozza SAL salvata. Nessuna fattura o email generata.");
+    onSuccess: ({emesso,avvisi}) => {
+      if(avvisi.length)avvisi.forEach(a=>toast.warning(a,{duration:9000}));
+      else toast.success(emesso ? "SAL emesso. Nessuna fattura o email generata." : "Bozza SAL salvata. Nessuna fattura o email generata.");
       refreshSal();setDialogOpen(false);setNote("");setRataCollegata("");setVoci([emptyVoce()]);setReview(false);setRettifica(false);
     },
     onError: (error:Error) => {
@@ -257,12 +355,12 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
     onError:(error:Error)=>{toast.error(error.message);refreshSal();},
   });
 
-  const handleExportPdf = async (sal: SalRecord, fotoIds: string[] = [], allegati: string[] = []) => {
+  const handleExportPdf = async (sal: SalRecord, fotoIds: string[] = [], allegati: string[] = [], dettaglioSottofasi = true) => {
     setIsExporting(true);
     setExportingSalId(sal.id);
     try {
       const { data, error } = await supabase.functions.invoke("generate-sal-pdf", {
-        body: { sal_id: sal.id, company_id: companyId, prepare_signature:false, foto_ids: fotoIds, allegati },
+        body: { sal_id: sal.id, company_id: companyId, prepare_signature:false, foto_ids: fotoIds, allegati, dettaglio_sottofasi: dettaglioSottofasi },
       });
       if (error) {
         const detail = error.context ? await error.context.json?.().catch((): null => null) : null;
@@ -285,6 +383,17 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
     setVoci((prev) => prev.map((v, i) => (i === index ? { ...v, [field]: value } : v)));
   };
 
+  // Una sottofase cambia: la % della fase è la loro media (pesata sugli importi o sul peso).
+  const updateSottofase = (index: number, j: number, campo: "percentuale" | "quantita", valore: string) => {
+    draftRevision.current++;
+    setVoci((prev) => prev.map((v, i) => {
+      if (i !== index || !v.sottofasi) return v;
+      const sottofasi = v.sottofasi.map((d, k) => (k !== j ? d : campo === "quantita" ? conQuantita(d, valore) : conPercentuale(d, valore)));
+      const media = percentualeFaseDaSottofasi(sottofasi);
+      return { ...v, sottofasi, percentuale_avanzamento: media != null ? String(media) : v.percentuale_avanzamento };
+    }));
+  };
+
   const addVoce = () => {draftRevision.current++;setVoci((prev) => [...prev, emptyVoce()]);};
 
   const removeVoce = (index: number) => {
@@ -305,6 +414,16 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   // Il verbale è cumulativo: ogni voce riparte dalla % del SAL emesso prima di questo.
   const precedentiVoci = percentualiPrecedenti(numeroNuovo, salList);
   const vociInDiscesa = vociSottoIlPrecedente(voci, precedentiVoci);
+  // Il certificato nello stesso modulo: ritenuta del certificato prima, acconti = già maturato.
+  const certificatoPrima = certificatoPrecedente({ numero_sal: numeroNuovo }, salList);
+  const ritenutaScritta = certRitenuta.trim() ? leggiImportoItaliano(certRitenuta) : null;
+  const altreScritte = certAltre.trim() ? leggiImportoItaliano(certAltre) : null;
+  const certificatoValido = (ritenutaScritta === null || (Number.isFinite(ritenutaScritta) && ritenutaScritta >= 0 && ritenutaScritta <= 100))
+    && (altreScritte === null || (Number.isFinite(altreScritte) && altreScritte >= 0));
+  const certificatoNuovo = certificatoValido
+    ? certificatoNelModulo({ cumulativo: totalDialogImporto, precedente: certificatoPrima, giaMaturato: precedenteNuovo, ritenutaPct: ritenutaScritta, altreDetrazioni: altreScritte, nota: certNota })
+    : null;
+  const vociNascoste = mostraTutte ? 0 : voci.filter((v) => v.fase_id && fasiInvariate.has(v.fase_id)).length;
   const nomeFase = (id?: string | null) => (id ? fasiSal.find((f) => f.id === id)?.name ?? null : null);
 
   const listIssues=salListIssues(salList);
@@ -318,21 +437,26 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   const openComposer=(installmentId="")=>{
     if(!permissions.canEditOrders || blocked)return;
     if(saveBlocked){toast.error("Un salvataggio precedente resta da verificare: ricarica lo storico prima di creare un altro SAL.");return;}
-    draftRevision.current++;const apertura=draftRevision.current;setNote("");setVoci([emptyVoce()]);setRataCollegata(installmentId);setReview(false);setRettifica(false);setFormError("");setDialogOpen(true);
+    // Senza una rata scelta si propone la prima che il piano aspetta da un SAL: «Nessuna» resta una scelta.
+    const rata=installmentId || rataProposta(installments??[],salList);
+    const haCertificati=salList.some(s=>certificatoDelSal(s.sal_certificati));
+    draftRevision.current++;const apertura=draftRevision.current;setNote("");setVoci([emptyVoce()]);setRataCollegata(rata);setReview(false);setRettifica(false);setFormError("");
+    setFasiInvariate(new Set());setMostraTutte(false);setConCertificato(haCertificati);setCertRitenuta("");setCertAltre("");setCertNota("");setDialogOpen(true);
     // Il verbale nasce dalle fasi della commessa: appena arrivano, la bozza ancora
     // intatta si compila (nome, venduto, % dal cantiere ma mai sotto il SAL
     // precedente). Se nel frattempo l'ufficio ha scritto qualcosa, non si tocca.
-    const numero=numeroNuovoSal((installments??[]).find(i=>i.id===installmentId)??null,salList);
+    const numero=numeroNuovoSal((installments??[]).find(i=>i.id===rata)??null,salList);
     void queryClient.fetchQuery({queryKey:chiaveFasi,queryFn:leggiFasi}).then(fasi=>{
       if(draftRevision.current!==apertura)return;
-      const daFasi=vociSalDaFasi(fasi,percentualiPrecedenti(numero,salList));
+      const prec=percentualiPrecedenti(numero,salList);
+      const daFasi=vociSalDaFasi(fasi,prec);
       if(!daFasi.length)return;
-      draftRevision.current++;setVoci(daFasi);
+      draftRevision.current++;setVoci(daFasi);setFasiInvariate(fasiSenzaCambi(daFasi,prec));
     }).catch(()=>{/* fasi non disponibili: il modulo lo dice e si compila a mano */});
   };
   const reviewDraft=()=>{
     try{prepareSalLines(voci,orderTotalAmount);setFormError("");setReview(true);}
-    catch(e){setFormError(e instanceof Error ? e.message : "Controlla le voci del SAL.");}
+    catch(e){setFormError(e instanceof Error ? e.message : "Controlla le voci del SAL.");setMostraTutte(true);}
   };
 
   // ── Avanzamento incassi (piano rate della commessa) ─────────────────
@@ -709,14 +833,25 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                         </tr>
                       </thead>
                       <tbody>
-                        {sal.sal_voci.map((v) => (
+                        {sal.sal_voci.flatMap((v) => [
                           <tr key={v.id} className="border-b last:border-0">
-                            <td className="p-2">{v.descrizione}</td>
+                            <td className={`p-2${v.sal_voci_sottofasi?.length ? " font-medium" : ""}`}>{v.descrizione}</td>
                             <td className="p-2 text-right">{formatCurrency(v.importo_contrattuale)}</td>
                             <td className="p-2 text-right">{v.percentuale_avanzamento}%</td>
                             <td className="p-2 text-right font-medium">{formatCurrency(v.importo_sal)}</td>
-                          </tr>
-                        ))}
+                          </tr>,
+                          ...[...(v.sal_voci_sottofasi ?? [])].sort((a, b) => a.posizione - b.posizione).map((d) => (
+                            <tr key={d.id} className="border-b text-muted-foreground last:border-0">
+                              <td className="py-1 pl-6 pr-2">
+                                {d.descrizione}
+                                {d.quantita_contratto ? <span className="ml-1 tabular-nums">· {fmtQ(d.quantita_a_oggi)} / {fmtQ(d.quantita_contratto)} {d.unita ?? ""}</span> : null}
+                              </td>
+                              <td className="py-1 px-2 text-right">{d.importo_contrattuale != null ? formatCurrency(d.importo_contrattuale) : ""}</td>
+                              <td className="py-1 px-2 text-right">{d.percentuale_avanzamento}%</td>
+                              <td className="py-1 px-2 text-right">{d.importo_contrattuale != null ? formatCurrency(d.importo_sal ?? 0) : ""}</td>
+                            </tr>
+                          )),
+                        ])}
                       </tbody>
                       <tfoot>
                         <tr className="bg-muted/30 font-semibold">
@@ -775,7 +910,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={() => {draftRevision.current++;setRataCollegata("");}}
+                    onClick={() => {draftRevision.current++;setRataCollegata("");setFasiInvariate(new Set());}}
                     className={`px-3 py-1.5 rounded-lg border text-sm transition-colors ${
                       rataCollegata === ""
                         ? "border-primary bg-primary/10 text-primary font-medium"
@@ -789,7 +924,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                       key={inst.position}
                       type="button"
                       disabled={!inst.id || salList.some(s=>s.installment_id===inst.id)}
-                      onClick={() => {draftRevision.current++;if(inst.id)setRataCollegata(inst.id);}}
+                      onClick={() => {draftRevision.current++;if(inst.id){setRataCollegata(inst.id);setFasiInvariate(new Set());}}}
                       className={`px-3 py-1.5 rounded-lg border text-sm transition-colors disabled:opacity-50 ${
                         rataCollegata === inst.id
                           ? "border-primary bg-primary/10 text-primary font-medium"
@@ -826,7 +961,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                     onClick={async () => { const v=vociSalDaFasi(fasiSal,precedentiVoci);if(!v.length)return;
                       const hasInput=voci.some(v=>v.descrizione.trim() || v.importo_contrattuale.trim());
                       if(hasInput && !(await confirm({title:"Sostituire le voci della bozza?",description:"I dati già scritti saranno sostituiti dalle lavorazioni della commessa.",confirmLabel:"Usa le fasi"})))return;
-                      draftRevision.current++;setVoci(v); }}
+                      draftRevision.current++;setVoci(v);setFasiInvariate(fasiSenzaCambi(v,precedentiVoci)); }}
                     disabled={fasiSal.length === 0}
                     className="gap-1"
                     title="Compila le voci dalle fasi di lavorazione: descrizione e % di avanzamento dichiarate in cantiere"
@@ -859,7 +994,13 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
               {fasiError && <p role="alert" className="text-xs text-destructive">Fasi non disponibili: compila a mano o <button type="button" className="underline" onClick={()=>void refetchFasi()}>riprova le fasi</button>.</p>}
               <p className="text-xs text-muted-foreground">Le percentuali arrivano dal cantiere; gli importi sono il venduto netto delle lavorazioni, non il costo degli operai. Completa gli importi mancanti prima di salvare.</p>
 
-              {voci.map((v, i) => (
+              {vociNascoste > 0 && (
+                <p className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+                  {vociNascoste === 1 ? "1 voce è uguale" : `${vociNascoste} voci sono uguali`} al SAL n. {precedentiVoci.numero}: non le mostro, e si salvano così.{" "}
+                  <button type="button" className="font-medium text-foreground underline" onClick={() => setMostraTutte(true)}>Mostra tutte le voci</button>
+                </p>
+              )}
+              {voci.map((v, i) => !mostraTutte && v.fase_id && fasiInvariate.has(v.fase_id) ? null : (
                 <div key={i} className="border rounded-lg p-3 space-y-2 relative">
                   {voci.length > 1 && (
                     <Button
@@ -907,6 +1048,8 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                         onChange={(e) => updateVoce(i, "percentuale_avanzamento", e.target.value)}
                         placeholder="0"
                         className="h-8 text-sm"
+                        readOnly={!!v.sottofasi?.length}
+                        title={v.sottofasi?.length ? "Media delle sottofasi: si cambia dalle sottofasi qui sotto" : undefined}
                       />
                       {(() => {
                         const prima = percentualePrecedenteVoce(v, precedentiVoci);
@@ -922,6 +1065,39 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                       </div>
                     </div>
                   </div>
+                  {!!v.sottofasi?.length && (
+                    <div className="rounded-md border bg-muted/20">
+                      <p className="border-b px-2 py-1 text-[11px] font-medium text-muted-foreground">Sottofasi · la % della fase è la loro media{v.sottofasi.every((d) => d.importo_contrattuale) ? " pesata sugli importi" : ""}</p>
+                      <ul className="divide-y">
+                        {v.sottofasi.map((d, j) => {
+                          const prima = d.sottofase_id ? precedentiVoci.perSottofase.get(d.sottofase_id) ?? null : null;
+                          const pct = Number(String(d.percentuale_avanzamento).replace(",", "."));
+                          const scende = prima != null && Number.isFinite(pct) && pct < prima;
+                          return (
+                            <li key={d.sottofase_id ?? j} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-1.5 text-xs">
+                              <span className="min-w-0 flex-1 truncate" title={d.descrizione}>{d.descrizione}</span>
+                              {d.importo_contrattuale != null && <span className="tabular-nums text-muted-foreground">{formatCurrency(d.importo_contrattuale)}</span>}
+                              {d.quantita_contratto ? (
+                                <span className="flex items-center gap-1">
+                                  <Input inputMode="decimal" className="h-7 w-20 text-xs" value={d.quantita_a_oggi} aria-label={`Quantità a oggi di ${d.descrizione}`}
+                                    onChange={(e) => updateSottofase(i, j, "quantita", e.target.value)} />
+                                  <span className="text-muted-foreground">/ {fmtQ(d.quantita_contratto)} {d.unita ?? ""}</span>
+                                </span>
+                              ) : null}
+                              <span className="flex items-center gap-1">
+                                <Input inputMode="decimal" className="h-7 w-16 text-xs" value={d.percentuale_avanzamento} aria-label={`Avanzamento di ${d.descrizione}`}
+                                  onChange={(e) => updateSottofase(i, j, "percentuale", e.target.value)} />
+                                <span className="text-muted-foreground">%</span>
+                              </span>
+                              {prima != null && precedentiVoci.numero != null && (
+                                <span className={scende ? "font-medium text-amber-700" : "text-muted-foreground"}>SAL n. {precedentiVoci.numero}: {prima}%{scende ? " · scende" : ""}</span>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  )}
                   <div className="space-y-1">
                     <Label htmlFor={`sal-note-${i}`} className="text-xs">Note voce · visibili al cliente</Label>
                     <Input
@@ -949,6 +1125,53 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                     <span>{formatCurrency(nettoSal(totalDialogImporto, precedenteNuovo).daFatturare)}</span>
                   </div>
                 </div>
+              )}
+            </div>
+
+            {/* Certificato di pagamento: nello stesso modulo, non più un passaggio a parte (lotto C). */}
+            <div className="space-y-2 rounded-lg border p-3">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input type="checkbox" checked={conCertificato} onChange={(e) => {draftRevision.current++;setConCertificato(e.target.checked);}} />
+                Certificato di pagamento
+              </label>
+              {conCertificato && (
+                <>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="cert-nuovo-ritenuta" className="text-xs">Ritenuta di garanzia %</Label>
+                      <Input id="cert-nuovo-ritenuta" inputMode="decimal" className="h-8 text-sm" value={certRitenuta}
+                        placeholder={String(certificatoNuovo?.ritenuta_pct ?? certificatoPrima?.ritenuta_pct ?? 10)}
+                        onChange={(e) => {draftRevision.current++;setCertRitenuta(e.target.value);}} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="cert-nuovo-altre" className="text-xs">Altre detrazioni (totale a oggi)</Label>
+                      <Input id="cert-nuovo-altre" inputMode="decimal" className="h-8 text-sm" value={certAltre}
+                        placeholder={String(certificatoPrima?.altre_detrazioni ?? 0)}
+                        onChange={(e) => {draftRevision.current++;setCertAltre(e.target.value);}} />
+                    </div>
+                    <div className="col-span-2 space-y-1 sm:col-span-1">
+                      <Label htmlFor="cert-nuovo-nota" className="text-xs">Motivo delle detrazioni</Label>
+                      <Input id="cert-nuovo-nota" className="h-8 text-sm" value={certNota} placeholder={certificatoPrima?.altre_detrazioni_nota ?? ""}
+                        onChange={(e) => {draftRevision.current++;setCertNota(e.target.value);}} />
+                    </div>
+                  </div>
+                  {certificatoNuovo ? (
+                    <dl aria-label="Certificato di pagamento" className="space-y-0.5 text-sm">
+                      {([
+                        ["Lavori a tutto il SAL", certificatoNuovo.lavori_contrattuali + certificatoNuovo.varianti],
+                        [`Ritenuta ${certificatoNuovo.ritenuta_pct.toLocaleString("it-IT")}%`, -certificatoNuovo.ritenuta],
+                        ...(certificatoNuovo.recupero_anticipazione > 0 ? [["Recupero anticipazione", -certificatoNuovo.recupero_anticipazione] as [string, number]] : []),
+                        ...(certificatoNuovo.altre_detrazioni > 0 ? [["Altre detrazioni", -certificatoNuovo.altre_detrazioni] as [string, number]] : []),
+                        ["Acconti già certificati", -certificatoNuovo.acconti_precedenti],
+                      ] as Array<[string, number]>).map(([t, v]) => (
+                        <div key={t} className="flex justify-between text-muted-foreground"><dt>{t}</dt><dd className="tabular-nums">{formatCurrency(v)}</dd></div>
+                      ))}
+                      <div className="flex justify-between font-semibold"><dt>Netto del certificato</dt><dd className="tabular-nums">{formatCurrency(certificatoNuovo.netto)}</dd></div>
+                      <div className="flex justify-between text-muted-foreground"><dt>Con l'IVA {vatRate}%</dt><dd className="tabular-nums">{formatCurrency(rataDaSal(certificatoNuovo.netto, vatRate))}</dd></div>
+                    </dl>
+                  ) : <p role="alert" className="text-xs text-destructive">Ritenuta tra 0 e 100%, detrazioni non negative.</p>}
+                  <p className="text-[11px] text-muted-foreground">Gli acconti sono il netto dei certificati prima{certificatoPrima ? "" : " (o il cumulativo dei SAL emessi)"}: non si riscrivono a mano. Si cambia dopo dalla scheda del SAL, finché la rata non è fatturata.</p>
+                </>
               )}
             </div>
 
@@ -985,8 +1208,9 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
             <Button className="h-auto min-h-11 whitespace-normal" variant="outline" disabled={createSalMutation.isPending} onClick={() => {draftRevision.current++;setDialogOpen(false);}}>Annulla</Button>
             <Button
               className="h-auto min-h-11 whitespace-normal"
-              onClick={() => {if(!review){reviewDraft();return;}if(saving.current)return;saving.current=true;createSalMutation.mutate();}}
-              disabled={createSalMutation.isPending || aiSuggestMutation.isPending || blocked || saveBlocked || !permissions.canEditOrders || (review && vociInDiscesa.length > 0 && !rettifica)}
+              variant={review ? "outline" : "default"}
+              onClick={() => {if(!review){reviewDraft();return;}if(saving.current)return;saving.current=true;createSalMutation.mutate({emetti:false});}}
+              disabled={createSalMutation.isPending || aiSuggestMutation.isPending || blocked || saveBlocked || !permissions.canEditOrders || (review && vociInDiscesa.length > 0 && !rettifica) || (review && conCertificato && !certificatoNuovo)}
             >
               {createSalMutation.isPending ? (
                 <><Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" /> Salvataggio...</>
@@ -994,6 +1218,20 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                 review ? "Salva bozza SAL" : "Controlla riepilogo"
               )}
             </Button>
+            {review && (
+              <Button
+                className="h-auto min-h-11 whitespace-normal"
+                onClick={async () => {
+                  if (saving.current) return;
+                  const ok = await confirm({ title: `Emettere il SAL n. ${numeroNuovo}?`, description: "Il verbale esce dalla bozza insieme al suo certificato. La rata può maturare secondo la regola aziendale, ma non viene creata una fattura, inviata un'email o registrato un incasso.", confirmLabel: "Emetti" });
+                  if (!ok || saving.current) return;
+                  saving.current = true; createSalMutation.mutate({ emetti: true });
+                }}
+                disabled={createSalMutation.isPending || blocked || saveBlocked || !permissions.canEditOrders || !salMatura || (vociInDiscesa.length > 0 && !rettifica) || (conCertificato && !certificatoNuovo) || !!salEmissionIssue({ id: "nuovo", numero_sal: numeroNuovo, stato: "bozza" }, salList)}
+              >
+                Salva ed emetti
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1004,7 +1242,8 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
         const precedente = salList.find((x) => x.numero_sal < verbaleDi.numero_sal && x.stato !== "bozza");
         return <VerbaleSalDialog numero={verbaleDi.numero_sal} orderId={orderId} companyId={companyId}
           dal={precedente?.data_emissione ?? null} al={verbaleDi.data_emissione} inCorso={isExporting}
-          onGenera={(fotoIds, allegati) => void handleExportPdf(verbaleDi, fotoIds, allegati)} onClose={() => setVerbaleDi(null)} />;
+          conSottofasi={(verbaleDi.sal_voci ?? []).some((v) => (v.sal_voci_sottofasi?.length ?? 0) > 0)}
+          onGenera={(fotoIds, allegati, dettaglio) => void handleExportPdf(verbaleDi, fotoIds, allegati, dettaglio)} onClose={() => setVerbaleDi(null)} />;
       })()}
       {printHtml && (
         <PrintPreviewModal

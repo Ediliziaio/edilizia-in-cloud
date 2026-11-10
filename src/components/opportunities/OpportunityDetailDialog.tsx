@@ -262,7 +262,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   useEffect(() => {
     azzeraMotivoPerdita();
     setShowLostDialog(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [opportunity?.id]);
   // Il motivo che risulta scritto adesso: prima quello appena scelto, poi
   // quello salvato (lost_reason e la vecchia loss_reason delle importazioni).

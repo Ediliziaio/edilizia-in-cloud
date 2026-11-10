@@ -18,4 +18,3 @@ export function isValidHttpsUrl(value: string | null | undefined): boolean {
     return false;
   }
 }
-

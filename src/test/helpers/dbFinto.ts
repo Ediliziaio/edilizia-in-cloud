@@ -239,6 +239,24 @@ export class QueryFinta {
     return this;
   }
 
+  /** `like` di PostgREST: `%` qualsiasi sequenza, `_` un carattere; null non corrisponde mai. */
+  like(colonna: string, schema: string): this {
+    return this.somiglia(colonna, schema, "");
+  }
+
+  ilike(colonna: string, schema: string): this {
+    return this.somiglia(colonna, schema, "i");
+  }
+
+  private somiglia(colonna: string, schema: string, flag: string): this {
+    const re = new RegExp(
+      `^${schema.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/%/g, ".*").replace(/_/g, ".")}$`,
+      `s${flag}`,
+    );
+    this.condizioni.push((r) => typeof r[colonna] === "string" && re.test(r[colonna] as string));
+    return this;
+  }
+
   gt(colonna: string, valore: unknown): this {
     this.condizioni.push((r) => { const c = confronta(r[colonna], valore); return c !== null && c > 0; });
     return this;

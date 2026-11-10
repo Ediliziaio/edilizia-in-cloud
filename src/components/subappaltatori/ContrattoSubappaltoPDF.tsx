@@ -4,134 +4,124 @@
  * congelato all'invio: chi firma vede esattamente questo, e il PDF firmato
  * (timbro su ogni pagina + certificato) si costruisce su questi byte.
  *
- * Impaginato del 31/10/2026 (Dimora Torino): logo dell'impresa in testata, un
- * blu uguale per tutti, le due parti con tutti i dati, il cantiere, il riquadro economico
+ * Impaginato del 31/10/2026 (Dimora Torino): logo dell'impresa in testata, le
+ * due parti con tutti i dati, il cantiere, il riquadro economico
  * (IVA o reverse charge, ritenuta, netto ai SAL) prima degli articoli, e
- * l'elenco completo dei lavori in Allegato A come nell'ordine.
+ * l'elenco completo dei lavori in Allegato A come nell'ordine. Dal 10/11/2026 con lo
+ * stile unico dei documenti (stileDocumentoPdf).
  */
-import { PieSocietario } from "@/components/preventivi/pdf/FoglioCondizioniPDF";
-import { margineInferiorePiede, personalizzazioneDocumento } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
-import { Document, Font, Image, Page, StyleSheet, Text, View, pdf } from "@react-pdf/renderer";
+import { Document, Font, Page, StyleSheet, Text, View, pdf } from "@react-pdf/renderer";
 import {
   articoliContratto, articoliDaApprovare, dataContratto, elencoPerFase, euroContratto, quantitaContratto,
-  codiciElenco, elencoCantiereSenzaCifre, riepilogoEconomicoContratto, totaleElencoLavori, type DatiContrattoSubappalto,
+  codiciElenco, elencoCantiereSenzaCifre, riepilogoEconomicoContratto, testoComprende, totaleElencoLavori, type DatiContrattoSubappalto,
 } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
+import {
+  Firme, PiedeDocumento, TestataDocumento, TitoloSezione, accentoPdf, colore, margineInferioreDocumento, pagina, riquadro, st, tabella,
+} from "@/components/documenti/stileDocumentoPdf";
 
 Font.registerHyphenationCallback((word) => [word]);
 
-/** Un blu uguale per tutte le aziende (31/10/2026): il colore del marchio non sempre si legge su un contratto. */
-export const BLU = "#2b6cb0";
-/** Il colore mescolato col bianco: fondi chiari per righe e riquadri. */
-export function chiaro(hex: string, quanto: number): string {
-  const n = parseInt(hex.slice(1), 16);
-  const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => Math.round(v + (255 - v) * quanto));
-  return `#${c.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
-}
-
+/**
+ * Lo stile unico dei documenti (10/11/2026, stileDocumenti.ts): logo su bianco a sinistra, titolo a destra, filetto
+ * d'accento; parti e cantiere in riquadri tenui; il riquadro economico come tabella col netto nell'accento; l'elenco
+ * dei lavori con l'intestazione grigia e le fasi su righe tenui. Prima: un blu uguale per tutti e fasce piene.
+ */
 export const stiliContratto = StyleSheet.create({
-  pagina: { paddingTop: 92, paddingBottom: 66, paddingHorizontal: 44, fontSize: 9.2, fontFamily: "Helvetica", lineHeight: 1.45, color: "#1f2937" },
-  testata: { position: "absolute", top: 24, left: 44, right: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingBottom: 8, borderBottomWidth: 1.5 },
-  logo: { maxHeight: 40, maxWidth: 150, objectFit: "contain" },
-  nomeTestata: { fontSize: 13, fontFamily: "Helvetica-Bold" },
-  datiTestata: { fontSize: 7.5, color: "#4b5563", textAlign: "right", lineHeight: 1.35 },
-  fascia: { paddingVertical: 9, paddingHorizontal: 12, borderRadius: 3, marginBottom: 12 },
-  titolo: { fontSize: 14, fontFamily: "Helvetica-Bold", color: "#fff", letterSpacing: 3 },
-  sottoTitolo: { fontSize: 8.5, color: "#fff", marginTop: 2 },
+  pagina: { ...st.pagina, paddingTop: pagina.margineAlto },
   parti: { flexDirection: "row", gap: 10, marginBottom: 10 },
-  parte: { flex: 1, borderWidth: 0.75, borderColor: "#d1d5db", borderTopWidth: 3, borderRadius: 3, padding: 8 },
-  etichetta: { fontSize: 7, letterSpacing: 1.2, color: "#6b7280", marginBottom: 3 },
-  nome: { fontSize: 10.5, fontFamily: "Helvetica-Bold", marginBottom: 2 },
-  riga: { fontSize: 8.5 },
-  bold: { fontFamily: "Helvetica-Bold" },
-  cantiere: { borderRadius: 3, padding: 8, marginBottom: 10, flexDirection: "row", flexWrap: "wrap" },
-  cella: { width: "50%", fontSize: 8.5, marginBottom: 2, paddingRight: 8 },
-  economico: { borderWidth: 0.75, borderColor: "#d1d5db", borderRadius: 3, marginBottom: 12 },
-  ecoRiga: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3.5, paddingHorizontal: 9, borderBottomWidth: 0.5, borderBottomColor: "#e5e7eb" },
-  ecoTotale: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, paddingHorizontal: 9 },
-  ecoNota: { fontSize: 7.8, color: "#4b5563", paddingHorizontal: 9, paddingVertical: 5 },
-  art: { fontFamily: "Helvetica-Bold", marginTop: 9, marginBottom: 2.5, fontSize: 9.8 },
+  parte: { ...st.riquadro, flex: 1 },
+  etichetta: st.rEtichetta,
+  nome: st.rNome,
+  riga: st.rRiga,
+  bold: st.bold,
+  cantiere: { ...st.riquadro, marginBottom: 4, flexDirection: "row", flexWrap: "wrap" },
+  cella: { width: "50%", fontSize: tabella.corpo, marginBottom: 2, paddingRight: 8, color: colore.inchiostro },
+  economico: { marginBottom: 4 },
+  ecoRiga: { ...st.tRiga, justifyContent: "space-between", paddingHorizontal: tabella.paddingOrizzontale },
+  ecoTotale: { ...st.tTotale, justifyContent: "space-between", paddingHorizontal: tabella.paddingOrizzontale },
+  ecoNota: { ...st.nota, paddingTop: 5 },
+  art: { fontFamily: "Helvetica-Bold", marginTop: 9, marginBottom: 2.5, fontSize: pagina.corpo, color: colore.inchiostro },
   para: { marginBottom: 3, textAlign: "justify" },
-  firme: { flexDirection: "row", gap: 30, marginTop: 30 },
-  firma: { flex: 1, borderTopWidth: 0.75, borderTopColor: "#374151", paddingTop: 4, textAlign: "center", fontSize: 8.5 },
-  luogo: { marginTop: 22, fontSize: 8.5 },
-  clausole: { marginTop: 16, fontSize: 8.2, padding: 8, borderRadius: 3 },
-  piede: { position: "absolute", bottom: 22, left: 44, right: 44, flexDirection: "row", justifyContent: "space-between", fontSize: 7.2, color: "#6b7280", borderTopWidth: 0.5, borderTopColor: "#d1d5db", paddingTop: 5 },
+  luogo: { marginTop: 22, fontSize: pagina.nota, color: colore.testoTenue },
+  clausole: { ...st.riquadro, marginTop: 16, fontSize: pagina.nota, lineHeight: 1.4 },
   // Allegato A: l'elenco dei lavori.
-  allegatoTitolo: { fontSize: 12, fontFamily: "Helvetica-Bold", marginBottom: 2 },
-  allegatoSotto: { fontSize: 8.5, color: "#4b5563", marginBottom: 8 },
-  tRiga: { flexDirection: "row", borderBottomWidth: 0.4, borderBottomColor: "#e5e7eb", paddingVertical: 3 },
-  tTesta: { flexDirection: "row", paddingVertical: 4, fontFamily: "Helvetica-Bold", color: "#fff", fontSize: 8 },
-  tFase: { flexDirection: "row", paddingVertical: 3.5, marginTop: 5, fontFamily: "Helvetica-Bold" },
-  cCod: { width: 46, paddingHorizontal: 4, fontSize: 7.5, color: "#4b5563" },
-  cDesc: { flex: 1, paddingHorizontal: 4 },
+  allegatoTitolo: { fontSize: 12, fontFamily: "Helvetica-Bold", color: colore.inchiostro, marginBottom: 2 },
+  allegatoSotto: { ...st.nota, marginBottom: 8 },
+  tRiga: { ...st.tRiga },
+  tTesta: { ...st.tTesta },
+  tFase: { ...st.tGruppo },
+  tTotale: { ...st.tTotale, marginTop: 4 },
+  cCod: { width: 46, paddingHorizontal: 4, fontSize: 7.5, color: colore.testoTenue },
+  cDesc: { flex: 1, paddingHorizontal: tabella.paddingOrizzontale },
   cUm: { width: 40, paddingHorizontal: 2, textAlign: "center" },
   cNum: { width: 52, paddingHorizontal: 3, textAlign: "right" },
   cPrz: { width: 64, paddingHorizontal: 3, textAlign: "right" },
-  cImp: { width: 72, paddingHorizontal: 4, textAlign: "right" },
+  cImp: { width: 72, paddingHorizontal: tabella.paddingOrizzontale, textAlign: "right" },
+  th: { fontSize: tabella.intestazioneCorpo, fontFamily: "Helvetica-Bold", color: colore.testoTenue, textTransform: "uppercase" },
+  td: { fontSize: tabella.corpo, color: colore.inchiostro },
 });
 
 const s = stiliContratto;
 
-export function RigaEco({ label, valore, forte, colore }: { label: string; valore: string; forte?: boolean; colore?: string }) {
+export function RigaEco({ label, valore, forte, colore: tinta }: { label: string; valore: string; forte?: boolean; colore?: string }) {
   return (
     <View style={s.ecoRiga}>
-      <Text style={forte ? s.bold : {}}>{label}</Text>
-      <Text style={[forte ? s.bold : {}, colore ? { color: colore } : {}]}>{valore}</Text>
+      <Text style={[s.td, forte ? s.bold : {}]}>{label}</Text>
+      <Text style={[s.td, forte ? s.bold : {}, tinta ? { color: tinta } : {}]}>{valore}</Text>
+    </View>
+  );
+}
+
+/** Il netto, il totale da pagare: riga di chiusura, il valore nell'accento. */
+export function RigaEcoTotale({ label, valore, accento }: { label: string; valore: string; accento: string }) {
+  return (
+    <View style={s.ecoTotale}>
+      <Text style={[s.td, s.bold]}>{label}</Text>
+      <Text style={{ fontSize: riquadro.valoreCorpo + 1, fontFamily: "Helvetica-Bold", color: accento }}>{valore}</Text>
     </View>
   );
 }
 
 export function ContrattoSubappaltoPDF({ d }: { d: DatiContrattoSubappalto }) {
-  const veste = personalizzazioneDocumento(d.veste?.companyId);
-  const logoGrande = veste.logoAltezza && veste.logoLarghezzaMax && d.veste?.logoUrl ? { maxHeight: veste.logoAltezza, maxWidth: veste.logoLarghezzaMax } : null;
+  const companyId = d.veste?.companyId ?? null;
+  const accento = accentoPdf(companyId, d.veste?.colore);
   const articoli = articoliContratto(d);
   const eco = riepilogoEconomicoContratto(d);
-  const c = BLU;
-  const tenue = chiaro(c, 0.9);
   const a = d.committente;
   const sub = d.subappaltatore;
   const elenco = d.elencoLavori ?? [];
   const totaleElenco = totaleElencoLavori(elenco);
   const elencoDiverso = elenco.length > 0 && Math.abs(totaleElenco - eco.lavori) > 0.005;
   const codici = codiciElenco(elenco);
+  // Il piè: i dati societari; senza, quelli dell'impresa che prima stavano in testata (09/11/2026 → 10/11/2026).
+  const righePiede = d.societarie?.length ? d.societarie : [
+    a.ragioneSociale,
+    a.indirizzo,
+    [a.partitaIva && `P.IVA ${a.partitaIva}`, a.telefono && `Tel. ${a.telefono}`, a.email].filter(Boolean).join(" · "),
+  ].filter((r): r is string => !!r);
+  const pieConVeste = d.societarie?.length ? companyId : null;
+  // Senza dati societari il piè diceva anche di che contratto si tratta: resta, come riga di riferimento.
+  const riferimento = d.societarie?.length ? null : `${a.ragioneSociale} · Contratto di subappalto${d.numero ? ` ${d.numero}` : ""} · ${d.commessa.codice}`;
   return (
     <Document title={`Contratto di subappalto ${d.numero ?? ""}`.trim()} author={a.ragioneSociale} producer="Edilizia in Cloud">
-      <Page size="A4" style={[s.pagina, { paddingBottom: margineInferiorePiede(d.societarie?.length ? d.veste?.companyId : null, 66) }, logoGrande ? { paddingTop: 98 } : {}]}>
+      <Page size="A4" style={[s.pagina, { paddingBottom: margineInferioreDocumento(pieConVeste, righePiede.length, !!riferimento) }]}>
         {/* Il piè sta per primo: dopo un contenuto su più fogli react-pdf lo disegnava fuori pagina. */}
-        {d.societarie?.length ? <PieSocietario righe={d.societarie} margine={44} companyId={d.veste?.companyId} /> : (
-          <View style={s.piede} fixed>
-            <Text>{`${a.ragioneSociale} · Contratto di subappalto${d.numero ? ` ${d.numero}` : ""} · ${d.commessa.codice}`}</Text>
-            <Text render={({ pageNumber, totalPages }) => `Pagina ${pageNumber} di ${totalPages}`} />
-          </View>
-        )}
-        {/* Testata su ogni pagina: logo (o nome) e dati dell'impresa. */}
-        <View style={logoGrande ? [s.testata, { borderBottomColor: c, top: 18 }] : [s.testata, { borderBottomColor: c }]} fixed>
-          {d.veste?.logoUrl ? <Image src={d.veste.logoUrl} style={logoGrande ? [s.logo, logoGrande] : s.logo} /> : <Text style={[s.nomeTestata, { color: c }]}>{a.ragioneSociale}</Text>}
-          <View style={logoGrande ? { maxWidth: 160 } : undefined}>
-            <Text style={[s.datiTestata, s.bold]}>{a.ragioneSociale}</Text>
-            {!!a.indirizzo && <Text style={s.datiTestata}>{a.indirizzo}</Text>}
-            <Text style={s.datiTestata}>{[a.partitaIva && `P.IVA ${a.partitaIva}`, a.telefono && `Tel. ${a.telefono}`].filter(Boolean).join(" · ")}</Text>
-            {!!a.email && <Text style={s.datiTestata}>{a.email}</Text>}
-          </View>
-        </View>
-
-        <View style={[s.fascia, { backgroundColor: c }]}>
-          <Text style={s.titolo}>CONTRATTO DI SUBAPPALTO</Text>
-          <Text style={s.sottoTitolo}>
-            {[d.numero && `N. ${d.numero}`, `stipulato il ${dataContratto(d.dataStipula)}`, d.commessa.codice && `commessa ${d.commessa.codice}`].filter(Boolean).join("  ·  ")}
-          </Text>
-        </View>
+        <PiedeDocumento righe={righePiede} companyId={pieConVeste} riferimento={riferimento} />
+        {/* Testata su ogni foglio: logo (o nome) e il titolo. */}
+        <TestataDocumento fixed logo={d.veste?.logoUrl} ragioneSociale={a.ragioneSociale} companyId={companyId} accento={accento}
+          titolo="Contratto di subappalto"
+          sotto={[[d.numero && `N. ${d.numero}`, `stipulato il ${dataContratto(d.dataStipula)}`].filter(Boolean).join(" · "), d.commessa.codice && `Commessa ${d.commessa.codice}`]} />
 
         <View style={s.parti}>
-          <View style={[s.parte, { borderTopColor: c }]}>
-            <Text style={s.etichetta}>IMPRESA AFFIDATARIA</Text>
+          <View style={s.parte}>
+            <Text style={s.etichetta}>Impresa affidataria</Text>
             <Text style={s.nome}>{a.ragioneSociale || "—"}</Text>
             <Text style={s.riga}>P.IVA {a.partitaIva || "—"}{a.codiceFiscale && a.codiceFiscale !== a.partitaIva ? ` · C.F. ${a.codiceFiscale}` : ""}</Text>
             {!!a.indirizzo && <Text style={s.riga}>Sede: {a.indirizzo}</Text>}
             {!!a.rappresentante && <Text style={s.riga}>Rappresentata da {a.rappresentante}</Text>}
           </View>
-          <View style={[s.parte, { borderTopColor: c }]}>
-            <Text style={s.etichetta}>SUBAPPALTATORE</Text>
+          <View style={s.parte}>
+            <Text style={s.etichetta}>Subappaltatore</Text>
             <Text style={s.nome}>{sub.ragioneSociale || "—"}</Text>
             <Text style={s.riga}>P.IVA {sub.partitaIva || "________________"}{sub.codiceFiscale ? ` · C.F. ${sub.codiceFiscale}` : ""}</Text>
             <Text style={s.riga}>Sede: {sub.indirizzo || "________________________________"}</Text>
@@ -141,7 +131,7 @@ export function ContrattoSubappaltoPDF({ d }: { d: DatiContrattoSubappalto }) {
           </View>
         </View>
 
-        <View style={[s.cantiere, { backgroundColor: tenue }]}>
+        <View style={s.cantiere}>
           <Text style={s.cella}><Text style={s.bold}>Commessa </Text>{d.commessa.codice || "—"}{d.commessa.descrizione ? ` · ${d.commessa.descrizione}` : ""}</Text>
           <Text style={s.cella}><Text style={s.bold}>Committente </Text>{d.commessa.cliente || "—"}</Text>
           <Text style={s.cella}><Text style={s.bold}>Cantiere </Text>{d.commessa.indirizzoCantiere || "—"}</Text>
@@ -150,10 +140,7 @@ export function ContrattoSubappaltoPDF({ d }: { d: DatiContrattoSubappalto }) {
 
         {/* Riquadro economico: quanto vale, come si fattura, quanto si paga. */}
         <View style={s.economico} wrap={false}>
-          <View style={[s.ecoTotale, { backgroundColor: c }]}>
-            <Text style={[s.bold, { color: "#fff" }]}>Corrispettivo e pagamenti</Text>
-            <Text style={{ color: "#fff", fontSize: 8 }}>importi in euro</Text>
-          </View>
+          <TitoloSezione accento={accento}>Corrispettivo e pagamenti · importi in euro</TitoloSezione>
           <RigaEco label={elenco.length ? `Lavori (Allegato A, ${elenco.length} voci${elencoDiverso ? `, a listino ${euroContratto(totaleElenco)}` : ""})` : "Lavori"} valore={euroContratto(eco.lavori)} />
           {eco.oneri > 0 && <RigaEco label="Oneri della sicurezza (non soggetti a ribasso)" valore={euroContratto(eco.oneri)} />}
           <RigaEco label="Imponibile" valore={euroContratto(eco.imponibile)} forte />
@@ -162,11 +149,8 @@ export function ContrattoSubappaltoPDF({ d }: { d: DatiContrattoSubappalto }) {
             valore={eco.reverseCharge ? "reverse charge" : euroContratto(eco.iva)}
           />
           {!eco.reverseCharge && <RigaEco label="Totale fattura" valore={euroContratto(eco.totaleFattura)} forte />}
-          {eco.ritenutaPct > 0 && <RigaEco label={`Ritenuta di garanzia ${eco.ritenutaPct}% (svincolo dopo ${d.durataGaranziaMesi} mesi)`} valore={`- ${euroContratto(eco.ritenuta)}`} colore="#b91c1c" />}
-          <View style={[s.ecoTotale, { backgroundColor: tenue }]}>
-            <Text style={s.bold}>{eco.ritenutaPct > 0 ? "Da pagare ai SAL, al netto della ritenuta" : "Da pagare ai SAL"}</Text>
-            <Text style={s.bold}>{euroContratto(eco.nettoAiSal)}</Text>
-          </View>
+          {eco.ritenutaPct > 0 && <RigaEco label={`Ritenuta di garanzia ${eco.ritenutaPct}% (svincolo dopo ${d.durataGaranziaMesi} mesi)`} valore={`- ${euroContratto(eco.ritenuta)}`} colore={colore.avviso} />}
+          <RigaEcoTotale label={eco.ritenutaPct > 0 ? "Da pagare ai SAL, al netto della ritenuta" : "Da pagare ai SAL"} valore={euroContratto(eco.nettoAiSal)} accento={accento} />
           <Text style={s.ecoNota}>
             <Text style={s.bold}>Modalità di pagamento: </Text>
             {d.modalitaPagamento?.trim() || "SAL dell'elenco pagamenti allegato; fattura pagata entro 7 giorni lavorativi dalla consegna nel cassetto fiscale dell'Affidataria."}
@@ -178,7 +162,7 @@ export function ContrattoSubappaltoPDF({ d }: { d: DatiContrattoSubappalto }) {
           <View key={art.titolo} wrap>
             {/* Il titolo sta col suo primo paragrafo: mai da solo in fondo al foglio. */}
             <View wrap={false}>
-              <Text style={[s.art, { color: c }]}>Art. {i + 1} – {art.titolo}</Text>
+              <Text style={s.art}>Art. {i + 1} – {art.titolo}</Text>
               <Text style={s.para}>{art.paragrafi[0]}</Text>
             </View>
             {art.paragrafi.slice(1).map((p, j) => <Text key={j} style={s.para}>{p}</Text>)}
@@ -187,61 +171,52 @@ export function ContrattoSubappaltoPDF({ d }: { d: DatiContrattoSubappalto }) {
 
         <View wrap={false}>
           <Text style={s.luogo}>Luogo e data ______________________________</Text>
-          <View style={s.firme}>
-            <Text style={s.firma}>L'Affidataria{a.rappresentante ? ` (${a.rappresentante})` : ""}</Text>
-            <Text style={s.firma}>Il Subappaltatore</Text>
-          </View>
+          <Firme voci={[`L'Affidataria${a.rappresentante ? ` (${a.rappresentante})` : ""}`, "Il Subappaltatore"]} />
         </View>
         <View wrap={false}>
-          <Text style={[s.clausole, { backgroundColor: tenue }]}>
+          <Text style={s.clausole}>
             Ai sensi degli artt. 1341 e 1342 c.c. il Subappaltatore approva specificamente: {articoliDaApprovare(articoli)}.
           </Text>
-          <View style={s.firme}>
-            <Text style={{ flex: 1 }} />
-            <Text style={s.firma}>Il Subappaltatore</Text>
-          </View>
+          <Firme voci={["", "Il Subappaltatore"]} />
         </View>
 
         {elenco.length > 0 && (
           <View break>
-            <Text style={[s.allegatoTitolo, { color: c }]}>ALLEGATO A – ELENCO DEI LAVORI</Text>
+            <Text style={s.allegatoTitolo}>Allegato A – Elenco dei lavori</Text>
             <Text style={s.allegatoSotto}>
               Commessa {d.commessa.codice}{codici.riferimento ? ` · dal preventivo ${codici.riferimento}` : ""} · {sub.ragioneSociale} · {elenco.length} voci · prezzi IVA esclusa{eco.reverseCharge ? ", fatturazione in reverse charge" : ""}
             </Text>
-            <View style={[s.tTesta, { backgroundColor: c }]} fixed>
-              {codici.perRiga && <Text style={s.cCod}>Codice</Text>}<Text style={s.cDesc}>Descrizione</Text><Text style={s.cUm}>U.M.</Text>
-              <Text style={s.cNum}>Quantità</Text><Text style={s.cPrz}>Prezzo</Text><Text style={s.cImp}>Importo</Text>
+            <View style={s.tTesta} fixed>
+              {codici.perRiga && <Text style={[s.th, s.cCod]}>Codice</Text>}<Text style={[s.th, s.cDesc]}>Descrizione</Text><Text style={[s.th, s.cUm]}>U.M.</Text>
+              <Text style={[s.th, s.cNum]}>Quantità</Text><Text style={[s.th, s.cPrz]}>Prezzo</Text><Text style={[s.th, s.cImp]}>Importo</Text>
             </View>
             {elencoPerFase(elenco).map((g) => (
               <View key={g.fase}>
-                <View style={[s.tFase, { backgroundColor: tenue }]} wrap={false} minPresenceAhead={30}>
-                  <Text style={s.cDesc}>{g.fase}</Text><Text style={s.cImp}>{euroContratto(g.totale)}</Text>
+                <View style={s.tFase} wrap={false} minPresenceAhead={30}>
+                  <Text style={[s.td, s.bold, s.cDesc]}>{g.fase}</Text><Text style={[s.td, s.bold, s.cImp]}>{euroContratto(g.totale)}</Text>
                 </View>
                 {g.righe.map((r, i) => (
                   <View key={i} style={s.tRiga} wrap={false}>
                     {codici.perRiga && <Text style={s.cCod}>{r.codice ?? ""}</Text>}
-                    <Text style={s.cDesc}>{r.descrizione}</Text>
-                    <Text style={s.cUm}>{r.unita ?? ""}</Text>
-                    <Text style={s.cNum}>{quantitaContratto(r.quantita)}</Text>
-                    <Text style={s.cPrz}>{euroContratto(r.prezzo)}</Text>
-                    <Text style={s.cImp}>{euroContratto(r.importo)}</Text>
+                    <Text style={[s.td, s.cDesc]}>{r.descrizione}{r.comprende ? ` (${testoComprende(r.comprende)})` : ""}</Text>
+                    <Text style={[s.td, s.cUm]}>{r.unita ?? ""}</Text>
+                    <Text style={[s.td, s.cNum]}>{quantitaContratto(r.quantita)}</Text>
+                    <Text style={[s.td, s.cPrz]}>{euroContratto(r.prezzo)}</Text>
+                    <Text style={[s.td, s.cImp]}>{euroContratto(r.importo)}</Text>
                   </View>
                 ))}
               </View>
             ))}
-            <View style={[s.tFase, { backgroundColor: c, marginTop: 8 }]} wrap={false}>
-              <Text style={[s.cDesc, { color: "#fff" }]}>Totale lavori (imponibile)</Text>
-              <Text style={[s.cImp, { color: "#fff" }]}>{euroContratto(totaleElenco)}</Text>
+            <View style={s.tTotale} wrap={false}>
+              <Text style={[s.td, s.bold, s.cDesc]}>Totale lavori (imponibile)</Text>
+              <Text style={[s.td, s.bold, s.cImp, { color: accento }]}>{euroContratto(totaleElenco)}</Text>
             </View>
             {elencoDiverso && (
               <Text style={[s.allegatoSotto, { marginTop: 6 }]}>
                 Corrispettivo pattuito nel contratto: {euroContratto(eco.lavori)}. Si contabilizzano le quantità eseguite ai prezzi unitari di questo elenco.
               </Text>
             )}
-            <View style={s.firme} wrap={false}>
-              <Text style={s.firma}>L'Affidataria</Text>
-              <Text style={s.firma}>Il Subappaltatore, per accettazione</Text>
-            </View>
+            <Firme voci={["L'Affidataria", "Il Subappaltatore, per accettazione"]} />
           </View>
         )}
 
@@ -255,35 +230,30 @@ export async function generaPdfContrattoSubappalto(d: DatiContrattoSubappalto): 
   return pdf(<ContrattoSubappaltoPDF d={d} />).toBlob();
 }
 
-const sCantiere = StyleSheet.create({
-  pagina: { padding: 40, fontSize: 10, fontFamily: "Helvetica" },
-  titolo: { fontSize: 16, fontFamily: "Helvetica-Bold", color: "#2b6cb0", marginBottom: 4 },
-  sotto: { fontSize: 9, color: "#555", marginBottom: 14 },
-  fase: { backgroundColor: "#f0f0f0", padding: 4, fontFamily: "Helvetica-Bold", marginTop: 8 },
-  riga: { flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: "#bbb", paddingVertical: 3 },
-  desc: { flex: 1, paddingRight: 8 },
-  um: { width: 50 },
-  qta: { width: 60, textAlign: "right" },
-});
-
-/** Elenco dei lavori senza cifre, da lasciare in cantiere. */
+/** Elenco dei lavori senza cifre, da lasciare in cantiere: stessa testata e stessa tabella dei documenti. */
 export async function generaPdfElencoCantiere(d: DatiContrattoSubappalto): Promise<Blob> {
   const gruppi = elencoCantiereSenzaCifre(d);
+  const companyId = d.veste?.companyId ?? null;
+  const accento = accentoPdf(companyId, d.veste?.colore);
+  const righePiede = [d.committente.ragioneSociale].filter(Boolean);
   return pdf(
     <Document title={`Elenco lavori ${d.commessa.codice}`} author={d.committente.ragioneSociale} producer="Edilizia in Cloud">
-      <Page size="A4" style={sCantiere.pagina}>
-        <Text style={sCantiere.titolo}>ELENCO LAVORI</Text>
-        <Text style={sCantiere.sotto}>
-          {[d.committente.ragioneSociale, `ditta ${d.subappaltatore.ragioneSociale}`, `commessa ${d.commessa.codice}`, d.commessa.indirizzoCantiere && `cantiere ${d.commessa.indirizzoCantiere}`].filter(Boolean).join(" · ")}
-        </Text>
+      <Page size="A4" style={[s.pagina, { paddingBottom: margineInferioreDocumento(null, righePiede.length) }]}>
+        <PiedeDocumento righe={righePiede} />
+        <TestataDocumento logo={d.veste?.logoUrl} ragioneSociale={d.committente.ragioneSociale} companyId={companyId} accento={accento}
+          titolo="Elenco lavori"
+          sotto={[[`ditta ${d.subappaltatore.ragioneSociale}`, `commessa ${d.commessa.codice}`].join(" · "), d.commessa.indirizzoCantiere && `cantiere ${d.commessa.indirizzoCantiere}`]} />
+        <View style={s.tTesta} fixed>
+          <Text style={[s.th, s.cDesc]}>Descrizione</Text><Text style={[s.th, { width: 50 }]}>U.M.</Text><Text style={[s.th, { width: 60, textAlign: "right", paddingRight: 6 }]}>Quantità</Text>
+        </View>
         {gruppi.map((g) => (
           <View key={g.fase}>
-            <Text style={sCantiere.fase}>{g.fase}</Text>
+            <View style={s.tFase} wrap={false} minPresenceAhead={30}><Text style={[s.td, s.bold, s.cDesc]}>{g.fase}</Text></View>
             {g.righe.map((r, i) => (
-              <View key={i} style={sCantiere.riga} wrap={false}>
-                <Text style={sCantiere.desc}>{r.descrizione}</Text>
-                <Text style={sCantiere.um}>{r.unita}</Text>
-                <Text style={sCantiere.qta}>{r.quantita}</Text>
+              <View key={i} style={s.tRiga} wrap={false}>
+                <Text style={[s.td, s.cDesc]}>{r.descrizione}</Text>
+                <Text style={[s.td, { width: 50 }]}>{r.unita}</Text>
+                <Text style={[s.td, { width: 60, textAlign: "right", paddingRight: 6 }]}>{r.quantita}</Text>
               </View>
             ))}
           </View>

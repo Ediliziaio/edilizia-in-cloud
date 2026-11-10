@@ -26,18 +26,22 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/formatters";
 import { costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
-import { conIva, type VarianteCostoDitta } from "@/lib/orders/costoDitta";
+import { conIva, prezzoValidoIl, variantiPerSquadre, vociListinoPerDitta, type VarianteCostoDitta } from "@/lib/orders/costoDitta";
 import { useAssegnaAlleFasi } from "@/hooks/useAssegnaAlleFasi";
+import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
 import {
-  type SottofaseLavoro, contrattoDellaDitta, contrattoPerFase, costoFaseDitta, dittaProposta, elencoDaSalvare, elencoLavoriDitta, periodoFasi, prezzoListinoPerDitta,
+  type SottofaseLavoro, contrattoDellaDitta, contrattoPerFase, costoFaseDitta, dittaProposta, elencoDaAffidamenti, elencoDaSalvare, elencoLavoriDitta, periodoFasi, prezzoListinoPerDitta,
   rigaElencoRicalcolata, schedeSicurezzaDitta,
   type FaseStorica, type SchedaSicurezza,
 } from "@/lib/orders/ditteLavori";
 import { vesteContratto } from "@/lib/subappaltatori/vesteContratto";
 import { modelloPredefinitoDellAzienda } from "../../../supabase/functions/_shared/condizioniArchivio";
 import { caricaDatiSocietari, righeSocietarie } from "../../../supabase/functions/_shared/datiSocietari";
-import { clausoleArchivioDelContratto, totaleElencoLavori, unisciArticoliPersonalizzati, type DatiContrattoSubappalto, type RigaElencoLavori } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
+import { clausoleArchivioDelContratto, testoComprende, totaleElencoLavori, unisciArticoliPersonalizzati, type DatiContrattoSubappalto, type RigaElencoLavori } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
 import { OfficeSelect } from "./OfficeSelect";
+import { AbbinaListinoDialog } from "./AbbinaListinoDialog";
+import { AffidaVociDialog, useAffidamentiCommessa } from "./AffidaVociDialog";
+import { chiaveAffidamenti } from "@/lib/subappaltatori/affidamentiCommessa";
 
 // Tabelle recenti, non ancora tutte nei tipi generati.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -46,7 +50,7 @@ const db = supabase as any;
 interface Fase { id: string; name: string; position: number | null; start_date: string | null; end_date: string | null }
 interface Assegnazione { id: string; external_team_id: string | null; phase_id: string | null; cost_preventivo: number | null; vat_rate: number | null }
 interface Ditta { id: string; name: string; vat_rate: number | null; subappaltatore_id: string | null; is_active?: boolean | null }
-interface Tariffa { id: string; nome: string; codice: string | null; unita: string; costo: number }
+interface Tariffa { id: string; nome: string; codice: string | null; unita: string; costo: number; external_team_id?: string | null; subappaltatore_id?: string | null }
 interface Contratto { id: string; subappaltatore_id: string; stato: string; numero_contratto: string | null; importo_contrattuale: number; firmato_il: string | null; elenco_lavori: unknown }
 /** La scheda sicurezza della ditta: è lei che il contratto nomina, e ha i dati per il PDF. */
 interface SchedaSic extends SchedaSicurezza { ragione_sociale: string; piva: string | null; indirizzo: string | null; email: string | null; pec: string | null }
@@ -91,6 +95,7 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
   const qc = useQueryClient();
   const { canViewSubappaltatoriAmministrazione, solaLettura } = usePermissions();
   const voci = useVociPrevisteFasi(orderId, true);
+  const affidamenti = useAffidamentiCommessa(orderId);
   const dati = useQuery({
     queryKey: ["ditte-contratti-commessa", companyId, orderId],
     queryFn: async () => {
@@ -101,7 +106,7 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
         // Le fasi date alle ditte nelle altre commesse: chi fa sempre quel lavoro.
         db.from("order_external_teams").select("external_team_id, fase:order_work_phases(name), ordine:orders!inner(company_id)")
           .eq("ordine.company_id", companyId).neq("order_id", orderId).not("phase_id", "is", null).limit(3000),
-        db.from("tariffa_costi_varianti").select("tariffa_id, external_team_id, costo, is_default, attivo, sort_order").eq("company_id", companyId),
+        db.from("tariffa_costi_varianti").select("tariffa_id, external_team_id, subappaltatore_id, costo, is_default, attivo, sort_order, valid_from, valid_to, created_at").eq("company_id", companyId),
         db.from("contratti_subappalto").select("id, subappaltatore_id, stato, numero_contratto, importo_contrattuale, firmato_il, elenco_lavori").eq("order_id", orderId).eq("company_id", companyId),
         db.from("subappaltatori_sicurezza").select(COLONNE_SCHEDA).eq("company_id", companyId).not("campo_subappaltatore_id", "is", null),
         db.from("order_work_phases").select("id, sottofasi:order_work_subphases(id, phase_id, name, position)").eq("order_id", orderId),
@@ -115,7 +120,9 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
         storico: ((storico.data ?? []) as Array<{ external_team_id: string | null; fase: { name: string } | null }>)
           .filter((s) => s.external_team_id && s.fase?.name)
           .map((s) => ({ external_team_id: s.external_team_id!, fase: s.fase!.name })) as FaseStorica[],
-        varianti: (varianti.data ?? []) as VarianteCostoDitta[],
+        // Il prezzo scritto sull'anagrafica della ditta vale anche per la sua squadra.
+        // Solo i prezzi accesi e validi oggi, come in «Aggiungi manodopera» e nel database.
+        varianti: variantiPerSquadre(((varianti.data ?? []) as VarianteCostoDitta[]).filter((v) => v.attivo !== false && prezzoValidoIl(v)), (ditte.data ?? []) as Ditta[]),
         contratti: (contratti.data ?? []) as Contratto[],
         schede: (schede.data ?? []) as SchedaSic[],
       };
@@ -126,7 +133,7 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<Tariffa[]> => {
       const { data, error } = await db.from("tariffe_aziendali")
-        .select("id, nome, codice, unita, unita_fatturazione, prezzo_costo, costo_interno, costo_default, attiva, attivo")
+        .select("id, nome, codice, unita, unita_fatturazione, prezzo_costo, costo_interno, costo_default, attiva, attivo, external_team_id, subappaltatore_id")
         .eq("company_id", companyId).order("nome").limit(5000);
       if (error) throw error;
       return ((data ?? []) as Array<Record<string, unknown>>)
@@ -134,17 +141,21 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
         .map((t) => ({
           id: t.id as string, nome: (t.nome as string) ?? "", codice: (t.codice as string | null) ?? null,
           unita: unitaTariffa(t as never), costo: costoTariffa(t as never) ?? 0,
+          external_team_id: (t.external_team_id as string | null) ?? null, subappaltatore_id: (t.subappaltatore_id as string | null) ?? null,
         }));
     },
   });
 
   const [scelte, setScelte] = useState<Record<string, string>>({});
   const [vociAperte, setVociAperte] = useState<string | null>(null);
+  const [abbinaAperto, setAbbinaAperto] = useState(false);
+  const [affidaAperto, setAffidaAperto] = useState(false);
   const invalida = () => {
     void qc.invalidateQueries({ queryKey: ["ditte-contratti-commessa", companyId, orderId] });
     void qc.invalidateQueries({ queryKey: chiaveVociPreviste(companyId, orderId) });
-    void qc.invalidateQueries({ queryKey: ["order-work-phases"] });
-    void qc.invalidateQueries({ queryKey: ["order-assignments"] });
+    void qc.invalidateQueries({ queryKey: chiaveAffidamenti(orderId) });
+    // Le fasi della commessa (ditte, previsti, voci): le chiavi vere, come useAssegnaAlleFasi.
+    refreshWorkQueries(qc, orderId, companyId);
   };
 
   const d = dati.data;
@@ -174,14 +185,17 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
         const ditta = d!.ditte.find((x) => x.id === r.dittaId);
         const previsto = r.costo > 0 ? conIva(r.costo, ditta?.vat_rate ?? 0) : 0;
         if (!r.assegnate.length) {
+          // Sempre «preventivo»: così il previsto segue le voci anche se arrivano dopo (prima, a 0 €, restava 0 per sempre).
           const { error } = await db.from("order_external_teams").insert({
             order_id: orderId, external_team_id: r.dittaId, phase_id: r.f.id, total_cost: 0, cost_preventivo: previsto, is_paid: false,
-            ...(previsto > 0 ? { costo_origine: "preventivo" } : {}),
+            costo_origine: "preventivo",
           });
-          if (error) throw error;
+          if (error) throw new Error(error.code === "42501" ? "non hai il permesso di assegnare le ditte alle fasi" : error.message);
         } else {
-          const { error } = await db.from("order_external_teams").update({ cost_preventivo: previsto, costo_origine: "preventivo" }).eq("id", r.senzaPrevisto[0].id);
+          const { data: toccate, error } = await db.from("order_external_teams").update({ cost_preventivo: previsto, costo_origine: "preventivo" }).eq("id", r.senzaPrevisto[0].id).select("id");
           if (error) throw error;
+          // Nessuna riga toccata = la regola di accesso l'ha esclusa: non è salvato, e lo si dice.
+          if (!toccate?.length) throw new Error("non hai il permesso di scrivere il costo previsto delle ditte");
         }
         fatteApplica.n += 1;
       }
@@ -208,6 +222,38 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
 
   return (
     <div className="space-y-5">
+      {listaVoci.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border px-3 py-2 text-sm">
+          <span className="min-w-0 flex-1">Chi fa cosa: affida fasi o singole voci alle ditte, anche dividendo la quantità, col prezzo del loro listino.</span>
+          <Button size="sm" onClick={() => setAffidaAperto(true)}>Affida le voci alle ditte</Button>
+        </div>
+      )}
+      {affidaAperto && (
+        <AffidaVociDialog orderId={orderId} companyId={companyId} fasi={d.fasi}
+          voci={listaVoci.map((v) => ({ id: v.id, phase_id: v.phase_id, descrizione: v.descrizione, unita: v.unita, quantita: v.quantita, importo: v.importo, costo_materiali: v.costo_materiali }))}
+          onChiudi={() => setAffidaAperto(false)} onCambio={invalida} />
+      )}
+      {tariffe.isError && (
+        <p role="alert" className="text-sm text-destructive">
+          Il listino manodopera non si è caricato: senza, non si aggiungono voci e non si collegano al listino.{" "}
+          <button type="button" className="underline" onClick={() => void tariffe.refetch()}>Riprova</button>
+        </p>
+      )}
+      {/* Lotto 3 (10/11/2026): senza la voce del listino il prezzo della ditta non arriva al contratto. */}
+      {listaVoci.some((v) => !v.tariffa_id) && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <span className="min-w-0 flex-1">
+            {listaVoci.filter((v) => !v.tariffa_id).length} voci su {listaVoci.length} non sono collegate al listino: per quelle il contratto non trova il prezzo della ditta.
+          </span>
+          <Button size="sm" variant="outline" className="bg-white" disabled={tariffe.isLoading || tariffe.isError} onClick={() => setAbbinaAperto(true)}>Collega al listino</Button>
+        </div>
+      )}
+      {abbinaAperto && (
+        <AbbinaListinoDialog orderId={orderId} companyId={companyId}
+          voci={listaVoci.map((v) => ({ id: v.id, phase_id: v.phase_id, descrizione: v.descrizione, unita: v.unita, origine_codice: v.origine_codice ?? null, tariffa_id: v.tariffa_id, quantita: v.quantita, importo: v.importo }))}
+          fasi={d.fasi} listino={tariffe.data ?? []}
+          onChiudi={() => setAbbinaAperto(false)} onFatto={() => { setAbbinaAperto(false); invalida(); }} />
+      )}
       <section aria-label="Fasi, voci e ditte" className="space-y-2">
         <p className="text-xs text-muted-foreground">Qui trovi le squadre esterne già collegate alle ditte. Se hai appena creato un subappaltatore e non compare, usa «Assegna» sulla fase e scegli «Ditta»: quel percorso crea anche il collegamento operativo. Poi riapri questo pannello.</p>
         <ul className="divide-y rounded-lg border">
@@ -263,7 +309,8 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
                 </div>
               </div>
               {vociAperte === r.f.id && (
-                <VociFase orderId={orderId} companyId={companyId} fase={r.f} voci={listaVoci.filter((v) => v.phase_id === r.f.id)} tariffe={tariffe.data ?? []} caricoTariffe={tariffe.isLoading} onCambio={invalida} />
+                <VociFase orderId={orderId} companyId={companyId} fase={r.f} voci={listaVoci.filter((v) => v.phase_id === r.f.id)} tariffe={tariffe.data ?? []} caricoTariffe={tariffe.isLoading} onCambio={invalida}
+                  ditta={r.assegnate[0] ? { squadraId: r.assegnate[0].external_team_id, anagraficaId: d.ditte.find((x) => x.id === r.assegnate[0].external_team_id)?.subappaltatore_id ?? null } : null} />
               )}
             </li>
           ))}
@@ -289,15 +336,22 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
           <p className="text-sm text-muted-foreground">Assegna prima le ditte alle fasi.</p>
         ) : (
           <ul className="divide-y rounded-lg border">
-            {ditteCommessa.map((x) => (
+            {ditteCommessa.map((x) => {
+              const ditta: Ditta = d.ditte.find((t) => t.id === x.id) ?? { id: x.id, name: nomeDitta(x.id), vat_rate: 0, subappaltatore_id: null };
+              const contratto = contrattoDellaDitta(ditta.subappaltatore_id ?? null, d.contratti, d.schede);
+              // Lotto 5: se la ditta ha voci affidate, il contratto nasce da quelle (con le loro quantità e i loro prezzi),
+              // non da tutte le voci delle sue fasi, che possono essere divise con altre ditte.
+              const dalleQuote = elencoDaAffidamenti(d.fasi, listaVoci, affidamenti.data ?? [], ditta.subappaltatore_id ?? null, contratto?.id ?? null);
+              return (
               <ContrattoDitta
                 key={x.id}
                 orderId={orderId}
                 companyId={companyId}
-                ditta={d.ditte.find((t) => t.id === x.id) ?? { id: x.id, name: nomeDitta(x.id), vat_rate: 0, subappaltatore_id: null }}
+                ditta={ditta}
                 fasi={d.fasi}
                 assegnazioni={d.assegnazioni.filter((a) => a.external_team_id === x.id && a.phase_id)}
-                elenco={elencoLavoriDitta(d.fasi, listaVoci, x.fasi, x.id, d.varianti, {
+                daAffidamenti={dalleQuote.length > 0}
+                elenco={dalleQuote.length ? dalleQuote : elencoLavoriDitta(d.fasi, listaVoci, x.fasi, x.id, d.varianti, {
                   sottofasi: d.sottofasi,
                   // Il previsto delle assegnazioni è con l'IVA della ditta: nel contratto va senza.
                   previstoFase: new Map(d.assegnazioni.filter((a) => a.external_team_id === x.id && a.phase_id)
@@ -305,13 +359,14 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
                 })}
                 periodo={periodoFasi(d.fasi, x.fasi)}
                 nomiFasi={d.fasi.filter((f) => x.fasi.includes(f.id)).map((f) => f.name)}
-                contratto={contrattoDellaDitta(d.ditte.find((t) => t.id === x.id)?.subappaltatore_id ?? null, d.contratti, d.schede)}
-                schede={schedeSicurezzaDitta(d.ditte.find((t) => t.id === x.id)?.subappaltatore_id ?? null, d.schede, orderId)}
+                contratto={contratto}
+                schede={schedeSicurezzaDitta(ditta.subappaltatore_id ?? null, d.schede, orderId)}
                 tariffe={tariffe.data ?? []}
                 varianti={d.varianti}
                 onCambio={invalida}
               />
-            ))}
+              );
+            })}
           </ul>
         )}
       </section>
@@ -320,15 +375,17 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
 }
 
 /** Le voci di una fase, con l'aggiunta dal listino manodopera. */
-function VociFase({ orderId, companyId, fase, voci, tariffe, caricoTariffe, onCambio }: {
+function VociFase({ orderId, companyId, fase, voci, tariffe, caricoTariffe, onCambio, ditta = null }: {
   orderId: string; companyId: string; fase: Fase;
+  /** La ditta che fa la fase: le sue voci proprie si propongono, quelle delle altre ditte mai. */
+  ditta?: { squadraId: string | null; anagraficaId: string | null } | null;
   voci: Array<{ id: string; descrizione: string; unita: string | null; quantita: number; costo_manodopera: number; origine: string; origine_codice: string | null }>;
   tariffe: Tariffa[]; caricoTariffe: boolean; onCambio: () => void;
 }) {
   const [cerca, setCerca] = useState("");
   const [scelta, setScelta] = useState<Tariffa | null>(null);
   const [quantita, setQuantita] = useState("1");
-  const trovate = cerca.trim().length < 2 ? [] : tariffe
+  const trovate = cerca.trim().length < 2 ? [] : vociListinoPerDitta(tariffe, ditta)
     .filter((t) => `${t.codice ?? ""} ${t.nome}`.toLowerCase().includes(cerca.trim().toLowerCase())).slice(0, 8);
   const q = Number(quantita.replace(",", "."));
   const aggiungi = useMutation({
@@ -380,9 +437,9 @@ function VociFase({ orderId, companyId, fase, voci, tariffe, caricoTariffe, onCa
           <Input aria-label={`Cerca nel listino per ${fase.name}`} placeholder={caricoTariffe ? "Carico il listino…" : "Cerca nel listino (nome o codice)"} value={scelta ? `${scelta.codice ? `${scelta.codice} · ` : ""}${scelta.nome}` : cerca}
             onChange={(e) => { setScelta(null); setCerca(e.target.value); }} className="h-9" />
           {!scelta && trovate.length > 0 && (
-            <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover text-sm shadow" role="listbox">
+            <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover text-sm shadow" aria-label="Voci trovate nel listino">
               {trovate.map((t) => (
-                <li key={t.id} role="option" aria-selected={false}>
+                <li key={t.id}>
                   <button type="button" className="flex w-full justify-between gap-2 px-2 py-1.5 text-left hover:bg-muted" onClick={() => setScelta(t)}>
                     <span className="min-w-0 truncate">{t.codice ? `${t.codice} · ` : ""}{t.nome}</span>
                     <span className="shrink-0 tabular-nums text-muted-foreground">{formatCurrency(t.costo)}/{t.unita}</span>
@@ -402,8 +459,10 @@ function VociFase({ orderId, companyId, fase, voci, tariffe, caricoTariffe, onCa
 }
 
 /** Il contratto di una ditta: crearlo in bozza con l'elenco dei lavori, aggiornarlo, scaricare il PDF. */
-function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, contratto, schede, tariffe, varianti, onCambio, fasi = [], assegnazioni = [] }: {
+function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, contratto, schede, tariffe, varianti, onCambio, fasi = [], assegnazioni = [], daAffidamenti = false }: {
   orderId: string; companyId: string; ditta: Ditta; elenco: RigaElencoLavori[];
+  /** L'elenco viene dalle voci affidate alla ditta (lotto 5), non da tutte le voci delle sue fasi. */
+  daAffidamenti?: boolean;
   /** Tutte le fasi della commessa e le assegnazioni di questa ditta: il contratto firmato diventa il loro previsto. */
   fasi?: Fase[]; assegnazioni?: Assegnazione[];
   periodo: { dal: string | null; al: string | null }; nomiFasi: string[]; contratto: Contratto | null; schede: SchedaSic[];
@@ -467,11 +526,14 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
   };
   /** Numero proposto per un contratto nuovo: codice commessa e progressivo (es. O-0001/S02). Si cambia da «Modifica». */
   const numeroNuovoContratto = async (): Promise<string | null> => {
-    const [{ data: ord }, { count }] = await Promise.all([
+    const [{ data: ord }, { data: esistenti }] = await Promise.all([
       db.from("orders").select("order_code").eq("id", orderId).maybeSingle(),
-      db.from("contratti_subappalto").select("id", { count: "exact", head: true }).eq("order_id", orderId).eq("company_id", companyId),
+      db.from("contratti_subappalto").select("numero_contratto").eq("order_id", orderId).eq("company_id", companyId),
     ]);
-    return ord?.order_code ? `${ord.order_code}/S${String((count ?? 0) + 1).padStart(2, "0")}` : null;
+    // Il più alto già usato + 1, non quanti sono: dopo un contratto cancellato il conteggio ridava un numero esistente.
+    const usati = ((esistenti ?? []) as Array<{ numero_contratto: string | null }>)
+      .map((c) => Number(/\/S(\d+)$/.exec(c.numero_contratto ?? "")?.[1] ?? 0));
+    return ord?.order_code ? `${ord.order_code}/S${String(Math.max(0, ...usati) + 1).padStart(2, "0")}` : null;
   };
   const salva = useMutation({
     mutationFn: async (righeScelte: RigaElencoLavori[]) => {
@@ -509,7 +571,8 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
         await db.from("subappaltatori_sicurezza").delete().eq("id", schedaCreata.id).eq("company_id", companyId);
         schedaCreata.id = null;
       }
-      if (error) throw new Error(error.code === "23514" ? "Il contratto ha una base lavori registrata: l'importo si cambia con «Variante», da «Condizioni e firma»." : error.message);
+      // 23514 viene anche dal database che aggancia le voci affidate (quantità oltre la voce, ditta sbagliata): il suo messaggio dice già cosa non va.
+      if (error) throw new Error(error.code === "23514" && /misure o SAL/.test(error.message) ? "Il contratto ha una base lavori registrata: l'importo si cambia con «Variante», da «Condizioni e firma»." : error.message);
       if (contratto && !(toccate as unknown[] | null)?.length) throw new Error("Il contratto è cambiato nel frattempo (firmato o non più in bozza): ricarica la pagina e riprova.");
       return { baseRegistrata };
     },
@@ -594,7 +657,7 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium">{ditta.name}</p>
         <p className="text-xs text-muted-foreground">
-          {nomiFasi.join(", ")} · {elenco.length} {elenco.length === 1 ? "lavoro" : "lavori"} · {formatCurrency(totale)}
+          {daAffidamenti ? "Voci affidate" : nomiFasi.join(", ")} · {elenco.length} {elenco.length === 1 ? "lavoro" : "lavori"} · {formatCurrency(totale)}
         </p>
         {contratto && (
           <p className="mt-0.5 text-xs">
@@ -652,9 +715,11 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
           righe={bozzaElenco}
           onRighe={setBozzaElenco}
           dalleVoci={elenco}
+          daAffidamenti={daAffidamenti}
           fasi={nomiFasi}
           tariffe={tariffe}
           dittaId={ditta.id}
+          anagraficaId={ditta.subappaltatore_id}
           varianti={varianti}
           importoPattuito={senzaElenco ? Number(contratto?.importo_contrattuale) || 0 : null}
           salvando={salva.isPending}
@@ -669,6 +734,10 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
 
 // Una chiave fissa per riga nella finestra: senza, togliere una riga o scrivere nella descrizione
 // rimontava gli input. Non si salva: elencoDaSalvare tiene solo i campi del contratto.
+const ORIGINE_PREZZO: Record<NonNullable<RigaElencoLavori["origine"]>, string> = {
+  listino_ditta: "listino della ditta", costo_aziendale: "costo nostro, non della ditta", manuale: "a mano",
+};
+
 const chiavi = new WeakMap<RigaElencoLavori, string>();
 let contaChiavi = 0;
 const conChiave = (r: RigaElencoLavori): RigaElencoLavori => { const c = { ...r }; chiavi.set(c, `r${++contaChiavi}`); return c; };
@@ -680,26 +749,33 @@ const chiaveRiga = (r: RigaElencoLavori) => chiavi.get(r) ?? "";
  * aggiungono dal listino (col prezzo concordato con la ditta, se c'è, altrimenti il costo del listino) o a
  * mano. Le voci della commessa non cambiano: l'elenco è quello del contratto.
  */
-export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, tariffe, dittaId, varianti, importoPattuito, salvando, etichettaSalva, onSalva, onChiudi }: {
+export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, tariffe, dittaId, anagraficaId = null, varianti, importoPattuito, salvando, etichettaSalva, onSalva, onChiudi, daAffidamenti = false }: {
   titolo: string; righe: RigaElencoLavori[]; onRighe: (r: RigaElencoLavori[]) => void; dalleVoci: RigaElencoLavori[];
+  /** «dalleVoci» sono le voci affidate alla ditta (lotto 5). */
+  daAffidamenti?: boolean;
   fasi: string[]; tariffe: Tariffa[]; dittaId: string; varianti: VarianteCostoDitta[];
+  /** L'anagrafica della ditta: le sue voci proprie si propongono, quelle delle altre ditte no. */
+  anagraficaId?: string | null;
   importoPattuito: number | null; salvando: boolean; etichettaSalva: string; onSalva: () => void; onChiudi: () => void;
 }) {
   const [cerca, setCerca] = useState("");
   const [faseNuova, setFaseNuova] = useState(fasi[0] ?? "Altri lavori");
-  const trovate = cerca.trim().length < 2 ? [] : tariffe
+  const trovate = cerca.trim().length < 2 ? [] : vociListinoPerDitta(tariffe, { squadraId: dittaId, anagraficaId })
     .filter((t) => `${t.codice ?? ""} ${t.nome}`.toLowerCase().includes(cerca.trim().toLowerCase())).slice(0, 8);
   const cambia = (i: number, patch: Partial<RigaElencoLavori>) =>
     onRighe(righe.map((r, j) => {
       if (j !== i) return r;
-      const nuova = rigaElencoRicalcolata({ ...r, ...patch });
+      // Un prezzo cambiato qui non è più quello proposto: diventa «a mano» (lo stesso fa il database).
+      const origine = patch.prezzo != null && r.origine && Number(patch.prezzo) !== Number(r.prezzo) ? "manuale" as const : r.origine;
+      const nuova = rigaElencoRicalcolata({ ...r, ...patch, origine });
       chiavi.set(nuova, chiaveRiga(r));
       return nuova;
     }));
-  // «1.234,5» all'italiana; «14.5» col punto resta 14,5 (non 145).
+  // «1.234,5» all'italiana; «14.5» col punto resta 14,5 (non 145); «1.500» col solo punto delle migliaia è 1500.
   const numero = (v: string) => {
     const t = v.trim().replace(/\s|€/g, "");
-    return Math.max(0, Number(t.includes(",") ? t.replace(/\./g, "").replace(",", ".") : t) || 0);
+    const senzaMigliaia = !t.includes(",") && /^\d{1,3}(\.\d{3})+$/.test(t) ? t.replace(/\./g, "") : t;
+    return Math.max(0, Number(senzaMigliaia.includes(",") ? senzaMigliaia.replace(/\./g, "").replace(",", ".") : senzaMigliaia) || 0);
   };
   const aggiungiDalListino = (t: Tariffa) => {
     const { prezzo } = prezzoListinoPerDitta(t, dittaId, varianti);
@@ -708,7 +784,9 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
   };
   const totale = totaleElencoLavori(elencoDaSalvare(righe));
   // Una voce misurata a 0 € entra nel contratto gratis: lo si dice prima di salvare. Le sottofasi «a corpo» a 0 sono comprese.
-  const senzaPrezzo = righe.filter((x) => Number(x.quantita) > 0 && !(Number(x.prezzo) > 0) && !/corpo/i.test(x.unita ?? "")).length;
+  const senzaPrezzo = righe.filter((x) => !x.affidamento_id && Number(x.quantita) > 0 && !(Number(x.prezzo) > 0) && !/corpo/i.test(x.unita ?? "")).length;
+  // Una voce affidata senza prezzo non entra nel contratto (domanda 2 del piano, approvata il 10/11/2026): si scrive il prezzo o si toglie la riga.
+  const affidateSenzaPrezzo = righe.filter((x) => x.affidamento_id && Number(x.quantita) > 0 && !(Number(x.prezzo) > 0)).length;
   const fasiScelta = [...new Set([...fasi, ...righe.map((r) => r.fase), "Altri lavori"])];
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onChiudi(); }}>
@@ -719,6 +797,7 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
             Lavori, quantità e prezzi che la ditta accetta (Allegato A del contratto), senza IVA. Le voci della commessa non cambiano.
           </DialogDescription>
         </DialogHeader>
+        {affidateSenzaPrezzo > 0 && <p role="alert" className="rounded-md bg-red-50 px-2 py-1 text-xs text-red-900">{affidateSenzaPrezzo === 1 ? "Una voce affidata è" : `${affidateSenzaPrezzo} voci affidate sono`} senza prezzo: la ditta non ce l'ha a listino. Scrivi il prezzo concordato, o togli la riga, per salvare il contratto.</p>}
         {senzaPrezzo > 0 && <p role="status" className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900">{senzaPrezzo === 1 ? "Una riga è" : `${senzaPrezzo} righe sono`} senza prezzo: nel contratto varrebbero 0 €. Scrivi il prezzo qui sotto.</p>}
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full min-w-[640px] text-sm">
@@ -739,11 +818,17 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
                     <OfficeSelect
                       label={`Lavorazione della riga ${i + 1}`}
                       value={r.fase}
-                      onValueChange={(v) => cambia(i, { fase: v })}
+                      onValueChange={(v) => cambia(i, { fase: v, fase_id: null, sottofase_id: null })}
                       className="mb-1 h-7 max-w-full rounded-lg px-1 text-xs text-muted-foreground"
                       options={fasiScelta.map((f) => ({ value: f, label: f }))}
                     />
                     <Input aria-label={`Descrizione della riga ${i + 1}`} value={r.descrizione} onChange={(e) => cambia(i, { descrizione: e.target.value })} className="h-8" />
+                    {r.affidamento_id && (
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        Voce affidata{r.comprende ? ` · ${testoComprende(r.comprende)}` : ""}
+                        {r.origine && <> · prezzo: <span className={r.origine === "costo_aziendale" ? "text-amber-800" : undefined}>{ORIGINE_PREZZO[r.origine]}</span></>}
+                      </p>
+                    )}
                   </td>
                   <td className="px-1 py-1.5">
                     <Input aria-label={`Unità della riga ${i + 1}`} value={r.unita ?? ""} onChange={(e) => cambia(i, { unita: e.target.value || null })} className="mt-8 h-8" />
@@ -784,11 +869,11 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
           <div className="relative min-w-[16rem] flex-1">
             <Input aria-label="Cerca nel listino per il contratto" placeholder="Cerca nel listino (nome o codice)" value={cerca} onChange={(e) => setCerca(e.target.value)} className="h-9" />
             {trovate.length > 0 && (
-              <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover text-sm shadow" role="listbox">
+              <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover text-sm shadow" aria-label="Voci trovate nel listino">
                 {trovate.map((t) => {
                   const p = prezzoListinoPerDitta(t, dittaId, varianti);
                   return (
-                    <li key={t.id} role="option" aria-selected={false}>
+                    <li key={t.id}>
                       <button type="button" className="flex w-full justify-between gap-2 px-2 py-1.5 text-left hover:bg-muted" onClick={() => aggiungiDalListino(t)}>
                         <span className="min-w-0 truncate">{t.codice ? `${t.codice} · ` : ""}{t.nome}</span>
                         <span className="shrink-0 tabular-nums text-muted-foreground">{formatCurrency(p.prezzo)}/{t.unita}{p.concordato ? " · concordato" : ""}</span>
@@ -807,8 +892,10 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
             <Plus className="mr-1 h-4 w-4" />Computo a corpo
           </Button>
           <Button type="button" size="sm" variant="ghost" onClick={() => onRighe(dalleVoci.map(conChiave))}
-            title="Rimette le voci delle fasi affidate alla ditta, coi prezzi del listino. Le modifiche fatte qui si perdono.">
-            Riprendi le voci delle fasi
+            title={daAffidamenti
+              ? "Rimette le voci affidate alla ditta in «Chi fa cosa», con le loro quantità e i loro prezzi. Le modifiche fatte qui si perdono."
+              : "Rimette le voci delle fasi affidate alla ditta, coi prezzi del listino. Le modifiche fatte qui si perdono."}>
+            {daAffidamenti ? "Riprendi le voci affidate" : "Riprendi le voci delle fasi"}
           </Button>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
@@ -820,7 +907,7 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
           </p>
           <div className="flex gap-2">
             <Button variant="outline" disabled={salvando} onClick={onChiudi}>Annulla</Button>
-            <Button disabled={salvando || !elencoDaSalvare(righe).length} onClick={onSalva}>
+            <Button disabled={salvando || !elencoDaSalvare(righe).length || affidateSenzaPrezzo > 0} onClick={onSalva}>
               {salvando && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{etichettaSalva}
             </Button>
           </div>

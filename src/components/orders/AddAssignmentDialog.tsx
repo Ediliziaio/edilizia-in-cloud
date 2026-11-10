@@ -12,7 +12,7 @@ import { plannedLaborCost } from "@/lib/orders/laborEconomics";
 import type { ExecutorOption, ExecutorType, PhaseAssignment, AddAssignmentPayload } from "@/hooks/useOrderWorkPhases";
 import { oggiRoma, useSquadre, useSquadreCommessa, useSquadraSuCommessa, messaggioErroreOperai } from "@/hooks/useOperai";
 import { costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
-import { conIva, costoDaVoci, ivaDitta, quantitaDellaTariffa, type OrigineCostoDitta } from "@/lib/orders/costoDitta";
+import { conIva, costoDaVoci, ivaDitta, prezzoValidoIl, quantitaDellaTariffa, variantiPerSquadre, vociListinoPerDitta, type OrigineCostoDitta } from "@/lib/orders/costoDitta";
 import { useVociPrevisteFasi } from "@/hooks/useVociPrevisteFasi";
 import { validWorkDates as validCrewDates } from "@/lib/orders/workPlanning";
 import { Button } from "@/components/ui/button";
@@ -67,6 +67,8 @@ interface TariffaManodopera {
   attivo: boolean | null;
   /** Listino della singola squadra (null = listino aziendale generico). */
   external_team_id: string | null;
+  /** Voce propria di un subappaltatore scritta sulla sua anagrafica (10/11/2026). */
+  subappaltatore_id: string | null;
 }
 
 export function AddAssignmentDialog({
@@ -137,7 +139,7 @@ export function AddAssignmentDialog({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("tariffe_aziendali")
-        .select("id, nome, unita, unita_fatturazione, prezzo_costo, costo_interno, costo_default, prezzo_vendita, attiva, attivo, external_team_id")
+        .select("id, nome, unita, unita_fatturazione, prezzo_costo, costo_interno, costo_default, prezzo_vendita, attiva, attivo, external_team_id, subappaltatore_id")
         .eq("company_id", companyId)
         .order("nome");
       if (error) throw error;
@@ -157,29 +159,32 @@ export function AddAssignmentDialog({
   const squadraSelezionata = tipo === "esterno" ? executorId : "";
   /** Varianti di costo per squadra: "questa lavorazione, fatta da questa
       squadra, costa X". Una sola query per company: la tabella e' piccola. */
-  const { data: varianti = [], isError: variantiError, isFetching: variantiFetching, refetch: refetchVarianti } = useQuery({
+  const { data: variantiLette = [], isError: variantiError, isFetching: variantiFetching, refetch: refetchVarianti } = useQuery({
     queryKey: ["tariffa-costi-varianti", companyId],
     enabled: open && tipo === "esterno" && canViewCosts && !!companyId,
     staleTime: 5 * 60 * 1000,
-    queryFn: async (): Promise<Array<{ id: string; tariffa_id: string; external_team_id: string | null; nome: string; costo: number | null; is_default: boolean | null; attivo: boolean | null; sort_order: number | null }>> => {
+    queryFn: async (): Promise<Array<{ id: string; tariffa_id: string; external_team_id: string | null; subappaltatore_id: string | null; nome: string; costo: number | null; is_default: boolean | null; attivo: boolean | null; sort_order: number | null; valid_from: string | null; valid_to: string | null; created_at: string | null }>> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("tariffa_costi_varianti")
-        .select("id, tariffa_id, external_team_id, nome, costo, is_default, attivo, sort_order")
+        .select("id, tariffa_id, external_team_id, subappaltatore_id, nome, costo, is_default, attivo, sort_order, valid_from, valid_to, created_at")
         .eq("company_id", companyId);
       if (error) throw error;
       return data ?? [];
     },
   });
+  // Il prezzo scritto sull'anagrafica della ditta vale per la ditta scelta, che sia una squadra o la
+  // sola anagrafica (opzione «subappaltatore:…»).
+  // Solo i prezzi che valgono oggi: un listino della ditta chiuso non si propone più.
+  const varianti = variantiPerSquadre(variantiLette.filter((v) => prezzoValidoIl(v)), (ditteQuery.data ?? []).map((o) => ({ id: o.id, subappaltatore_id: o.anagraficaId ?? null })));
   /** Variante scelta a mano quando la squadra ne ha piu' d'una. */
   const [varianteId, setVarianteId] = useState("");
 
-  const tariffeAttive = tariffe
-    .filter((t) => t.attiva ?? t.attivo ?? true)
-    .filter((t) => !t.external_team_id || t.external_team_id === squadraSelezionata)
+  const anagraficaSelezionata = squadraSelezionata ? ditteQuery.data?.find((o) => o.id === squadraSelezionata)?.anagraficaId ?? null : null;
+  const tariffeAttive = vociListinoPerDitta(tariffe.filter((t) => t.attiva ?? t.attivo ?? true), squadraSelezionata ? { squadraId: squadraSelezionata, anagraficaId: anagraficaSelezionata } : null)
     .sort((a, b) => {
-      const pa = a.external_team_id ? 0 : 1;
-      const pb = b.external_team_id ? 0 : 1;
+      const pa = a.external_team_id || a.subappaltatore_id ? 0 : 1;
+      const pb = b.external_team_id || b.subappaltatore_id ? 0 : 1;
       return pa !== pb ? pa - pb : a.nome.localeCompare(b.nome);
     });
   const tariffaSel = tariffeAttive.find((t) => t.id === tariffaId) ?? null;
@@ -188,7 +193,8 @@ export function AddAssignmentDialog({
   const variantiSquadra = tariffaSel && squadraSelezionata
     ? varianti
         .filter((v) => v.tariffa_id === tariffaSel.id && v.external_team_id === squadraSelezionata && v.attivo !== false)
-        .sort((a, b) => Number(b.is_default ?? false) - Number(a.is_default ?? false) || (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        .sort((a, b) => Number(b.is_default ?? false) - Number(a.is_default ?? false) || (a.sort_order ?? 0) - (b.sort_order ?? 0)
+          || String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")))
     : [];
   const varianteSel = variantiSquadra.find((v) => v.id === varianteId) ?? variantiSquadra[0] ?? null;
   /** Il costo che vale davvero: variante della squadra se c'e', altrimenti base. */

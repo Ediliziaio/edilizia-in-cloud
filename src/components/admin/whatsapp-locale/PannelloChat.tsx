@@ -65,7 +65,7 @@ export default function PannelloChat({ chatId, stato, assegnatoA, onCambiato }: 
     queryKey: ["openwa", "staff"],
     staleTime: 10 * 60_000,
     queryFn: async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       // Due query: la FK di user_roles punta ad auth.users, non a profiles, e
       // l'embed "profiles:user_id(...)" rispondeva PGRST200 — errore che veniva
       // inghiottito, cosi' "Chi la segue" era sempre vuoto.

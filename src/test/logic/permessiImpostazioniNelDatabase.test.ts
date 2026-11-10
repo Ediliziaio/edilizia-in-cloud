@@ -243,7 +243,7 @@ describe("4. companies: una regola per modificare, e le colonne di piattaforma p
   it("le colonne che il Profilo aziendale e il Marchio scrivono non sono tra quelle protette (la scansione qui sopra non vede i payload costruiti con lo spread)", () => {
     const piattaforma = elenco("solo_piattaforma");
     const amministratore = elenco("solo_amministratore");
-    const profilo = leggi("src/components/settings/CompanyProfileForm.tsx").match(/const values = \{([\s\S]*?)\n  \};/);
+    const profilo = leggi("src/components/settings/CompanyProfileForm.tsx").match(/const values = \{([\s\S]*?)\n {2}\};/);
     expect(profilo, "l'oggetto values del Profilo").not.toBeNull();
     const colonneProfilo = [...profilo![1].matchAll(/\b([a-z][a-z0-9_]*):/g)].map((x) => x[1]);
     expect(colonneProfilo).toContain("order_code_prefix");

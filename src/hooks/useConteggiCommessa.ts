@@ -31,7 +31,7 @@ export function useConteggiCommessa(orderId: string | undefined, companyId: stri
     retry: false,
     queryFn: async ({ signal }) => {
       // La funzione non è ancora nei tipi generati.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const { data, error } = await withHeavyDatabaseRead(
         (requestSignal) => (supabase as any).rpc("ordine_conteggi_viste", { p_order_id: orderId }).abortSignal(requestSignal),
         "Conteggi commessa", 8000, signal,

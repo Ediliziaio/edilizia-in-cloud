@@ -9,6 +9,7 @@
  * dice, sulla riga della ditta, da dove viene il numero.
  */
 import { formatCurrency } from "@/lib/formatters";
+import { oggiInItalia } from "../../../shared/silvio-commessa/date.ts";
 
 export type OrigineCostoDitta = "listino" | "preventivo" | "manuale";
 
@@ -23,10 +24,43 @@ export interface VoceCostoDitta {
 export interface VarianteCostoDitta {
   tariffa_id: string;
   external_team_id: string | null;
+  /** Il subappaltatore (anagrafica) a cui vale: dal 10/11/2026 il listino della ditta sta qui, anche senza squadra. */
+  subappaltatore_id?: string | null;
   costo: number | null;
   is_default?: boolean | null;
   attivo?: boolean | null;
   sort_order?: number | null;
+  /** Da quando a quando vale il prezzo (aaaa-mm-gg). Vuoto = da sempre / per sempre. */
+  valid_from?: string | null;
+  valid_to?: string | null;
+  /** Ultimo criterio di scelta, come nel database: a parità vince il prezzo più vecchio. */
+  created_at?: string | null;
+}
+
+/**
+ * Il prezzo vale quel giorno? Un listino della ditta chiuso (valid_to passato) o non ancora
+ * cominciato non si propone (10/11/2026: prima le date non le guardava nessuno).
+ */
+export function prezzoValidoIl(v: { valid_from?: string | null; valid_to?: string | null }, giorno: string = oggiInItalia()): boolean {
+  return (!v.valid_from || v.valid_from <= giorno) && (!v.valid_to || v.valid_to >= giorno);
+}
+
+/**
+ * Le voci del listino che si possono proporre per una ditta: quelle aziendali (di nessuno) e le
+ * voci proprie di QUELLA ditta, scritte sulla sua squadra o sulla sua anagrafica. Mai le voci
+ * proprie di un'altra ditta: il prezzo di Rossi non si suggerisce quando il lavoro lo fa Bianchi.
+ * Senza ditta: solo le voci aziendali.
+ */
+export function vociListinoPerDitta<T extends { external_team_id?: string | null; subappaltatore_id?: string | null }>(
+  voci: ReadonlyArray<T>,
+  ditta: { squadraId?: string | null; anagraficaId?: string | null } | null,
+): T[] {
+  return voci.filter((t) => {
+    if (!t.external_team_id && !t.subappaltatore_id) return true;
+    if (!ditta) return false;
+    return (!!ditta.squadraId && t.external_team_id === ditta.squadraId)
+      || (!!ditta.anagraficaId && t.subappaltatore_id === ditta.anagraficaId);
+  });
 }
 
 const numero = (v: unknown) => {
@@ -50,10 +84,41 @@ export function varianteDellaSquadra(
   varianti: ReadonlyArray<VarianteCostoDitta>,
   tariffaId: string,
   squadraId: string,
+  giorno: string = oggiInItalia(),
 ): VarianteCostoDitta | null {
   return varianti
-    .filter((v) => v.tariffa_id === tariffaId && v.external_team_id === squadraId && v.attivo !== false && v.costo != null)
-    .sort((a, b) => Number(b.is_default ?? false) - Number(a.is_default ?? false) || (a.sort_order ?? 0) - (b.sort_order ?? 0))[0] ?? null;
+    .filter((v) => v.tariffa_id === tariffaId && v.external_team_id === squadraId && v.attivo !== false && v.costo != null && prezzoValidoIl(v, giorno))
+    .sort((a, b) => Number(b.is_default ?? false) - Number(a.is_default ?? false) || (a.sort_order ?? 0) - (b.sort_order ?? 0)
+      || String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")))[0] ?? null;
+}
+
+/**
+ * Il prezzo della ditta sta sull'anagrafica del subappaltatore (`subappaltatore_id`), la commessa
+ * ragiona per squadra (`external_team_id`). Qui ogni prezzo scritto sull'anagrafica vale anche per
+ * le squadre di quella ditta, così chi cerca per squadra (varianteDellaSquadra) lo trova. Un prezzo
+ * scritto proprio sulla squadra resta suo e non si copia sulle altre squadre della stessa ditta,
+ * se una squadra ha già il suo prezzo per quella voce.
+ */
+export function variantiPerSquadre<V extends VarianteCostoDitta>(
+  varianti: ReadonlyArray<V>,
+  squadre: ReadonlyArray<{ id: string; subappaltatore_id: string | null }>,
+): V[] {
+  const squadreDi = new Map<string, string[]>();
+  for (const s of squadre) {
+    if (!s.subappaltatore_id) continue;
+    squadreDi.set(s.subappaltatore_id, [...(squadreDi.get(s.subappaltatore_id) ?? []), s.id]);
+  }
+  // Conta solo un prezzo della squadra che vale oggi: uno chiuso o spento non deve nascondere quello della ditta.
+  const proprie = new Set(varianti.filter((v) => v.external_team_id && v.attivo !== false && prezzoValidoIl(v)).map((v) => `${v.tariffa_id}|${v.external_team_id}`));
+  const out: V[] = [...varianti];
+  for (const v of varianti) {
+    if (!v.subappaltatore_id) continue;
+    for (const squadraId of squadreDi.get(v.subappaltatore_id) ?? []) {
+      if (squadraId === v.external_team_id || proprie.has(`${v.tariffa_id}|${squadraId}`)) continue;
+      out.push({ ...v, external_team_id: squadraId });
+    }
+  }
+  return out;
 }
 
 /**

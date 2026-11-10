@@ -164,7 +164,7 @@ export default function AdminSettingsAIRouter() {
     queryKey: ["ai-router-configs"],
     queryFn: async () => {
       const { data, error } = await supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         .from("ai_router_config")
         .select("*")
         .order("estimated_cost_per_million", { ascending: true });
@@ -451,7 +451,7 @@ function TaskEnabledSwitch({ config }: { config: RouterConfig }) {
   const toggle = useMutation({
     mutationFn: async (enabled: boolean) => {
       const { error } = await supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         .from("ai_router_config")
         .update({ enabled })
         .eq("id", config.id);
@@ -480,7 +480,7 @@ function EditTaskDialog({
     queryKey: ["admin", "ai-model-catalog-valid"],
     queryFn: async () => {
       const { data, error } = await supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         .from("ai_model_catalog")
         .select("model_id")
         .eq("status", "active")
@@ -514,7 +514,7 @@ function EditTaskDialog({
         );
       }
       const { error } = await supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         .from("ai_router_config")
         .update({
           primary_model: primary,

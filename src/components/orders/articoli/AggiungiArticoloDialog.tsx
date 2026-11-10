@@ -141,7 +141,7 @@ export function AggiungiArticoloDialog({
     if (azzera === ultimoAzzera.current) return;
     ultimoAzzera.current = azzera;
     // L'elenco ha deciso il doppione: l'inserimento è finito, si torna a cercare.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     torna();
   }, [azzera]);
 

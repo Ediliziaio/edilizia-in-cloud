@@ -11,6 +11,7 @@ vi.mock("@/contexts/BillingModeContext", () => ({ useBillingMode: () => state })
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => state.isMobile }));
 vi.mock("@/pages/azienda/settings/SettingsBilling", () => ({ default: () => <p>Provider</p> }));
 vi.mock("@/pages/azienda/fatturazione/ImpostazioniFatturazione", () => ({ default: () => <><label htmlFor="billing-name">Ragione sociale</label><input id="billing-name" /><button>Salva configurazione</button></> }));
+vi.mock("@/components/contabilita/ContabilitaInCasa", () => ({ ContabilitaInCasa: () => <p>Contabilità generale in casa</p> }));
 function View() { return <MemoryRouter initialEntries={["/azienda/impostazioni/fatturazione?tab=nativa"]}><SettingsFatturazioneUnified /></MemoryRouter>; }
 beforeEach(() => { state.isNative = false; state.isChosen = true; state.isLoading = false; state.isMobile = false; });
 afterEach(cleanup);

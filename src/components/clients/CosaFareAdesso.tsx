@@ -95,7 +95,12 @@ export function CosaFareAdesso({
                 <FileSignature className="h-4 w-4 shrink-0 text-violet-600" />
                 <p className="min-w-0 flex-1 basis-[15rem] text-sm">
                   <span className="font-medium">Preventivo {a.numero ?? ""}</span>
-                  <span className="text-muted-foreground"> senza risposta da {giorni(a.giorni)}{a.totale ? ` · ${euro(a.totale)}` : ""}</span>
+                  <span className="text-muted-foreground">
+                    {a.scadutoIl
+                      ? ` scaduto il ${a.scadutoIl.slice(8, 10)}/${a.scadutoIl.slice(5, 7)}/${a.scadutoIl.slice(0, 4)} senza risposta: da richiamare`
+                      : ` senza risposta da ${giorni(a.giorni)}`}
+                    {a.totale ? ` · ${euro(a.totale)}` : ""}
+                  </span>
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {telefono && (

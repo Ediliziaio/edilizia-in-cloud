@@ -22,6 +22,7 @@ import { CollegamentiFattura } from "@/components/fatturazione/CollegamentiFattu
 import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
 import { NoteInterneFattura } from "@/components/fatturazione/NoteInterneFattura";
 import { ContoDiCosto } from "@/components/fatturazione/ContoDiCosto";
+import { ContoRigaMenu, ProposteContiRighe, useContiRighe } from "@/components/fatturazione/ContoPerRiga";
 import {
   etichettaAliquota,
   nomeNatura,
@@ -87,7 +88,7 @@ async function leggiDettaglio(fatturaId: string, companyId: string): Promise<Det
   const { data: f, error } = await db
     .from("fatture_ricevute")
     .select(
-      "id, prima_nota_id, verifica_manuale, rettifica_motivo, note_interne, pagata_il, cedente_ragione_sociale, cedente_piva, cedente_cf, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, righe, riepilogo_iva, stato, xml_url, xml_bytes, purchase_order_id, company_cost_id, fornitore_id, order_id_suggerito, order_match_confidenza, contratto_subappalto_id, categoria_ai, sottocategoria_ai, ai_riassunto, anomalie_rilevate, note, piano_pagamento, condizioni_pagamento, ritenuta_importo, ritenuta_aliquota, ritenuta_tipo, cassa_previdenziale, bollo_importo, trattenuta_garanzia, netto_a_pagare",
+      "id, prima_nota_id, verifica_manuale, rettifica_motivo, note_interne, pagata_il, cedente_ragione_sociale, cedente_piva, cedente_cf, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, righe, conti_righe, riepilogo_iva, stato, xml_url, xml_bytes, purchase_order_id, company_cost_id, fornitore_id, order_id_suggerito, order_match_confidenza, contratto_subappalto_id, categoria_ai, sottocategoria_ai, ai_riassunto, anomalie_rilevate, note, piano_pagamento, condizioni_pagamento, ritenuta_importo, ritenuta_aliquota, ritenuta_tipo, cassa_previdenziale, bollo_importo, trattenuta_garanzia, netto_a_pagare",
     )
     .eq("id", fatturaId)
     .eq("company_id", companyId)
@@ -118,7 +119,7 @@ async function leggiDettaglio(fatturaId: string, companyId: string): Promise<Det
   // fiscale, e l'altro identificativo che non contraddice la fattura (come
   // receipt_supplier_check, che altrimenti rifiuta il collegamento).
   let candidatiFornitore: Dettaglio["candidatiFornitore"] = [];
-  let schedeDiscordanti: Dettaglio["schedeDiscordanti"] = [];
+  const schedeDiscordanti: Dettaglio["schedeDiscordanti"] = [];
   let daCollegareStessoCedente: string[] = [];
   const piva = chiaveFiscale(f.cedente_piva);
   const cf = chiaveFiscale(f.cedente_cf);
@@ -269,6 +270,13 @@ export function RiepilogoFatturaRicevuta({
   const f = d?.fattura;
   const righe = useMemo(() => righeLeggibili(f?.righe), [f?.righe]);
   const aliquote = useMemo(() => riepilogoIvaLeggibile(f?.riepilogo_iva, righe), [f?.riepilogo_iva, righe]);
+  // Il conto di costo riga per riga: dove una fattura mette insieme costi diversi.
+  const contiSalvati = useMemo(() => {
+    const c = f?.conti_righe;
+    return c && typeof c === "object" && !Array.isArray(c) ? (c as Record<string, string>) : {};
+  }, [f?.conti_righe]);
+  const contiRighe = useContiRighe({ companyId: companyId ?? "", fatturaId: String(f?.id ?? ""), salvati: contiSalvati, righe, onCambiato: aggiorna });
+  const contiPerRiga = !!f && permessi.canViewCosts && !permessi.solaLettura && f.stato !== "rifiutata" && righe.length > 1;
   const nota = String(f?.tipo_documento ?? "") === "TD04";
   const haXml = !!f && (Number(f.xml_bytes) > 0 || !!f.xml_url);
   const imponibile = f?.imponibile_totale != null ? Number(f.imponibile_totale) : aliquote.reduce((s, a) => s + a.imponibile, 0);
@@ -521,6 +529,7 @@ export function RiepilogoFatturaRicevuta({
                 <p className="text-sm text-muted-foreground">Il dettaglio delle righe non è arrivato con questa fattura: ci sono solo i totali.</p>
               ) : (
                 <>
+                {contiPerRiga ? <ProposteContiRighe conti={contiRighe} /> : null}
                 {/* Sul telefono un elenco: in tabella la descrizione finiva su una colonna di tre parole. */}
                 <ul className="divide-y rounded-lg border sm:hidden">
                   {righe.map((r, i) => (
@@ -535,6 +544,7 @@ export function RiepilogoFatturaRicevuta({
                         </span>
                         <span className="font-medium text-foreground tabular-nums">{formatCurrency(r.imponibile)}</span>
                       </p>
+                      {contiPerRiga && r.imponibile !== 0 ? <div className="mt-1.5"><ContoRigaMenu chiave={r.chiave} conti={contiRighe} /></div> : null}
                     </li>
                   ))}
                 </ul>
@@ -547,6 +557,7 @@ export function RiepilogoFatturaRicevuta({
                         <th className="px-2 py-1.5 text-right font-medium">Prezzo</th>
                         <th className="px-2 py-1.5 text-right font-medium">Importo</th>
                         <th className="px-2 py-1.5 text-right font-medium">IVA</th>
+                        {contiPerRiga ? <th className="px-2 py-1.5 text-left font-medium">Conto di costo</th> : null}
                       </tr>
                     </thead>
                     <tbody>
@@ -559,6 +570,7 @@ export function RiepilogoFatturaRicevuta({
                           <td className="px-2 py-1.5 text-right text-muted-foreground" title={nomeNatura(r.natura) ?? undefined}>
                             {r.aliquota ? `${String(r.aliquota).replace(".", ",")}%` : r.natura?.toUpperCase().startsWith("N6") ? "RC" : r.natura ? r.natura : "0%"}
                           </td>
+                          {contiPerRiga ? <td className="px-2 py-1">{r.imponibile !== 0 ? <ContoRigaMenu chiave={r.chiave} conti={contiRighe} /> : null}</td> : null}
                         </tr>
                       ))}
                     </tbody>

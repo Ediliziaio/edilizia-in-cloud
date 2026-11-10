@@ -183,7 +183,11 @@ import {
   Settings2,
   Lock,
   Sparkles,
+  FileSignature,
 } from "lucide-react";
+import { VociContrattoDialog } from "@/components/marketing/preventivi/VociContrattoDialog";
+import { useListinoCommittente } from "@/hooks/useListinoCommittente";
+import { clienteDaCollegare, datiClienteDaProfilo, righeDaContratto } from "@/lib/preventivi/preventiviCommittente";
 import {
   QuotePageHeader,
   QuoteCard,
@@ -523,6 +527,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   // entry point "+ Aggiungi voce" che apre la macchina a stati
   // Macrocategoria → Prodotto → Configura.
   const [addItemOpen, setAddItemOpen] = useState(false);
+  const [vociContrattoOpen, setVociContrattoOpen] = useState(false);
   const [addItemTab, setAddItemTab] = useState<"prodotti" | "manodopera" | "servizi">("prodotti");
   const preventivatoreUnifiedOn = isPreventivatoreUnifiedOn();
 
@@ -1021,6 +1026,14 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     },
   });
 
+  // Il committente del preventivo (10/11/2026): quello arrivato dalla scheda o quello salvato. Se ha un contratto
+  // in corso, «Dal contratto» mette nel preventivo le voci del suo listino.
+  const clienteDelPreventivo = isEdit
+    ? ((existingQuote as { customer_id?: string | null } | undefined)?.customer_id ?? null)
+    : (clienteDaUrl?.id ?? null);
+  const { data: listinoCommittente } = useListinoCommittente(clienteDelPreventivo, companyId);
+  const vociDalContratto = listinoCommittente?.tariffe ?? [];
+
   // Auto-select contact from URL param
   const contattoDaUrlApplicatoRef = useRef(false);
   useEffect(() => {
@@ -1089,18 +1102,16 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       return;
     }
     // Nessun contatto collegato: i dati del cliente riempiono comunque il preventivo.
+    // Un committente senza referente ha «—» come nome e un'email segnaposto: non finiscono nel preventivo.
     clienteDaUrlApplicatoRef.current = true;
-    const nome = `${clienteDaUrl.first_name || ""} ${clienteDaUrl.last_name || ""}`.trim();
-    if (nome) setClientName(nome);
-    if (clienteDaUrl.email) setClientEmail(clienteDaUrl.email);
-    if (clienteDaUrl.phone) setClientPhone(clienteDaUrl.phone);
-    if (clienteDaUrl.business_name) setClientCompany(clienteDaUrl.business_name);
-    if (clienteDaUrl.fiscal_code) setClientFiscalCode(clienteDaUrl.fiscal_code);
-    if (clienteDaUrl.vat_number) setClientVatNumber(clienteDaUrl.vat_number);
-    const indirizzo = [clienteDaUrl.address, clienteDaUrl.postal_code, clienteDaUrl.city, clienteDaUrl.province]
-      .filter(Boolean)
-      .join(", ");
-    if (indirizzo) setClientAddress(indirizzo);
+    const dati = datiClienteDaProfilo(clienteDaUrl);
+    if (dati.clientName) setClientName(dati.clientName);
+    if (dati.clientEmail) setClientEmail(dati.clientEmail);
+    if (dati.clientPhone) setClientPhone(dati.clientPhone);
+    if (dati.clientCompany) setClientCompany(dati.clientCompany);
+    if (dati.clientFiscalCode) setClientFiscalCode(dati.clientFiscalCode);
+    if (dati.clientVatNumber) setClientVatNumber(dati.clientVatNumber);
+    if (dati.clientAddress) setClientAddress(dati.clientAddress);
     // `handleContactSelect` è dichiarata più sotto nel corpo: l'effect gira dopo
     // il render, quindi al momento della chiamata esiste.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2077,6 +2088,9 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     // Le condizioni riscritte per questo preventivo: colonna del 27/10/2026, che i tipi generati non conoscono
     // ancora. Si scrive qui, fuori dal corpo tipizzato, invece di aspettare la rigenerazione dei tipi.
     (quoteData as Record<string, unknown>).condizioni_testo = condizioniTesto;
+    // Aperto dalla scheda di un cliente o di un committente: il preventivo resta suo, e compare nel suo storico
+    // anche senza email e senza contatto CRM (colonna del 10/11/2026, tipi non ancora rigenerati).
+    Object.assign(quoteData as Record<string, unknown>, clienteDaCollegare(isEdit, clienteDaUrl));
     return quoteData;
   };
   // Le righe come le salva `save_quote_items_atomic`: la riga «Sconto» col prezzo negativo (05/10/2026).
@@ -2862,6 +2876,11 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                       <Button type="button" size="sm" variant="outline" className="max-sm:flex-1" onClick={() => {setAddItemTab("servizi"); setAddItemOpen(true);}}>
                         <Plus className="h-4 w-4 mr-1" /> Servizi
                       </Button>
+                      {vociDalContratto.length > 0 && (
+                        <Button type="button" size="sm" variant="outline" className="max-sm:flex-1" onClick={() => setVociContrattoOpen(true)}>
+                          <FileSignature className="h-4 w-4 mr-1" /> Dal contratto
+                        </Button>
+                      )}
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="outline" size="sm" className="max-sm:w-9 max-sm:shrink-0 max-sm:px-0" aria-label="Altro">
@@ -2917,6 +2936,11 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                       <Button onClick={() => setSearchOpen(true)} size="sm">
                         <Plus className="h-4 w-4 mr-1" /> Dal listino
                       </Button>
+                      {vociDalContratto.length > 0 && (
+                        <Button type="button" size="sm" variant="outline" onClick={() => setVociContrattoOpen(true)}>
+                          <FileSignature className="h-4 w-4 mr-1" /> Dal contratto
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -4220,6 +4244,16 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
               return base;
             });
           }}
+        />
+      )}
+
+      {vociDalContratto.length > 0 && (
+        <VociContrattoDialog
+          open={vociContrattoOpen}
+          onClose={() => setVociContrattoOpen(false)}
+          contratto={listinoCommittente?.contratto ?? null}
+          tariffe={vociDalContratto}
+          onAggiungi={(scelte) => setItems((prev) => [...prev, ...righeDaContratto(scelte, { iva: ivaPredefinita(), ordine: prev.length })])}
         />
       )}
 

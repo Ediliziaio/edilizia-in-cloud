@@ -16,7 +16,6 @@ import {
   daysBetween,
   projectForecast,
   rateMutui,
-  toCents,
   type ForecastMovement,
   type MutuoCG,
 } from "@/lib/finance/forecastLedger";

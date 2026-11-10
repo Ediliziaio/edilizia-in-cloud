@@ -407,6 +407,23 @@ export function ContrattiSubappalto({
         modalita_pagamento: form.modalita_pagamento.trim() || null, penali: form.penali.trim() || null,
         garanzie: form.garanzie.trim() || null, note: form.note.trim() || null,
       };
+      if (orig?.firmato_il) {
+        // Firmato: le condizioni pattuite non si riscrivono (collaudo 10/11/2026). Restano date, stato, referenti e note.
+        const testo = (v: unknown) => (v == null || v === "" ? null : String(v).trim());
+        const cambiate = (["order_id", "numero_contratto", "descrizione_lavori", "ritenuta_garanzia_pct", "durata_garanzia_mesi", "data_stipula",
+          "obblighi", "modalita_pagamento", "penali", "garanzie"] as const)
+          .filter((k) => testo((campi as Record<string, unknown>)[k]) !== testo((orig as unknown as Record<string, unknown>)[k]));
+        if (cambiate.length) throw new Error("Il contratto è firmato: commessa, numero, lavori, ritenuta, garanzie, penali e pagamenti non si riscrivono. Qui cambi date, stato, referenti e note; il resto con una variante.");
+      }
+      if (orig && orig.order_id !== campi.order_id) {
+        // Con SAL o ritenute la commessa non si sposta: resterebbero sulla vecchia.
+        const [{ count: sal, error: e1 }, { count: rit, error: e2 }] = await Promise.all([
+          supabase.from("sal_subappaltatori" as never).select("id", { count: "exact", head: true }).eq("contratto_id", orig.id),
+          supabase.from("ritenute_garanzia" as never).select("id", { count: "exact", head: true }).eq("contratto_id", orig.id),
+        ]);
+        if (e1 || e2) throw new Error("Non riesco a controllare SAL e ritenute del contratto: riprova.");
+        if ((sal ?? 0) > 0 || (rit ?? 0) > 0) throw new Error("Il contratto ha già SAL o ritenute su questa commessa: la commessa non si cambia.");
+      }
       const q = dialog?.id
         ? supabase.from("contratti_subappalto" as never).update(campi as never).eq("id", dialog.id).select("id").single()
         : supabase.from("contratti_subappalto" as never).insert(campi as never).select("id").single();
@@ -552,11 +569,14 @@ export function ContrattiSubappalto({
   const eliminaContratto = useMutation({
     mutationFn: async (c: ContrattoCompleto) => {
       if (c.firmato_il) throw new Error("Il contratto è firmato: non si elimina. Segnalo come «Risolto» dallo stato lavori.");
-      const [{ count: sal }, { count: fatt }] = await Promise.all([
+      const [{ count: sal, error: e1 }, { count: fatt, error: e2 }, { count: rit, error: e3 }] = await Promise.all([
         supabase.from("sal_subappaltatori" as never).select("id", { count: "exact", head: true }).eq("contratto_id", c.id),
         supabase.from("fatture_ricevute" as never).select("id", { count: "exact", head: true }).eq("contratto_subappalto_id", c.id),
+        supabase.from("ritenute_garanzia" as never).select("id", { count: "exact", head: true }).eq("contratto_id", c.id),
       ]);
-      if ((sal ?? 0) > 0 || (fatt ?? 0) > 0) throw new Error("Ci sono SAL o fatture collegati: non si elimina. Segnalo come «Risolto» dallo stato lavori.");
+      // Un controllo che non riesce non vale «zero»: i SAL se ne andrebbero col contratto (collaudo 10/11/2026).
+      if (e1 || e2 || e3) throw new Error("Non riesco a controllare SAL, fatture e ritenute del contratto: non lo elimino. Riprova.");
+      if ((sal ?? 0) > 0 || (fatt ?? 0) > 0 || (rit ?? 0) > 0) throw new Error("Ci sono SAL, fatture o ritenute collegati: non si elimina. Segnalo come «Risolto» dallo stato lavori.");
       const { data, error } = await supabase.from("contratti_subappalto" as never).delete().eq("id", c.id).eq("company_id", companyId).select("id");
       if (error) {
         if (error.code === "23503") throw new Error("Il contratto ha già una base lavori o misure registrate: resta nello storico. Segnalo come «Risolto» dallo stato lavori.");

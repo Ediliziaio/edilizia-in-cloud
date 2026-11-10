@@ -7,7 +7,8 @@
  * fatta?» — e ogni riga porta la sua data, la quantità, il prezzo concordato e
  * l'importo. Il margine e i costi interni non ci sono: non sono affari suoi.
  *
- * Layout A4 verticale, palette coerente con OrdinePDF e ShipmentDDTPDF.
+ * Layout A4 verticale con lo stile unico dei documenti (10/11/2026, stileDocumenti.ts):
+ * logo su bianco e titolo in testata, riquadri tenui, tabelle grigie, il netto nell'accento.
  *
  *  1. In fondo a ogni pagina: i dati societari
  *  2. Titolo: Rendiconto n. X, periodo, stato
@@ -20,191 +21,55 @@
  * Fase 5 del Modulo Appaltatori (28/10/2026) — vedi docs/piano-commessa-appalto.md.
  */
 import React from "react";
-import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
-import { PieSocietario } from "@/components/preventivi/pdf/FoglioCondizioniPDF";
-import { margineInferiorePiede, personalizzazioneDocumento } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
+import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { riepilogoRendiconto, type CantiereDelRendiconto } from "@/lib/appalto/fattura";
 import type { CantiereAllegato } from "@/lib/appalto/giornaleAllegato";
-
-const C = {
-  navy: "#1E3A5F",
-  orange: "#F97316",
-  gray50: "#f9fafb",
-  gray100: "#f3f4f6",
-  gray200: "#e5e7eb",
-  gray500: "#6b7280",
-  gray700: "#374151",
-  gray900: "#111827",
-  white: "#ffffff",
-};
+import {
+  Firme, PiedeDocumento, TestataDocumento, TitoloSezione, accentoPdf, colore, margineInferioreDocumento, pagina, riquadro, st, tabella,
+} from "@/components/documenti/stileDocumentoPdf";
 
 const styles = StyleSheet.create({
-  page: {
-    fontFamily: "Helvetica",
-    fontSize: 9,
-    color: C.gray900,
-    backgroundColor: C.white,
-    padding: 40,
-    paddingBottom: 70,
-  },
+  page: st.pagina,
 
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 16,
-    paddingBottom: 12,
-    borderBottom: `2pt solid ${C.navy}`,
-  },
-  headerLeft: { flexDirection: "row", alignItems: "flex-start", gap: 10, flex: 1 },
-  logo: { width: 50, height: 50, objectFit: "contain" },
-  companyName: { fontSize: 14, fontFamily: "Helvetica-Bold", color: C.navy, marginBottom: 2 },
-  companyMeta: { fontSize: 8, color: C.gray700, lineHeight: 1.4 },
-
-  docBlock: {
-    backgroundColor: C.gray50,
-    border: `0.5pt solid ${C.gray200}`,
-    borderRadius: 4,
-    padding: 12,
-    marginBottom: 14,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  docTitle: { fontSize: 16, fontFamily: "Helvetica-Bold", color: C.navy },
-  docNumber: { fontSize: 14, fontFamily: "Helvetica-Bold", color: C.orange },
-  docMeta: { fontSize: 8, color: C.gray500, marginTop: 2 },
-
-  row2: { flexDirection: "row", gap: 10, marginBottom: 14 },
+  row2: { flexDirection: "row", gap: 10, marginBottom: 4 },
   col: { flex: 1 },
-  sectionTitle: {
-    fontSize: 7,
-    fontFamily: "Helvetica-Bold",
-    color: C.gray500,
-    textTransform: "uppercase" as const,
-    marginBottom: 4,
-    letterSpacing: 0.5,
-  },
-  infoBox: {
-    backgroundColor: C.gray50,
-    border: `0.5pt solid ${C.gray200}`,
-    borderRadius: 4,
-    padding: 10,
-    minHeight: 70,
-  },
-  infoName: { fontSize: 10, fontFamily: "Helvetica-Bold", color: C.gray900, marginBottom: 4 },
-  infoLine: { fontSize: 8, color: C.gray700, lineHeight: 1.4 },
+  infoBox: { ...st.riquadro, minHeight: 70 },
+  infoName: st.rNome,
+  infoLine: { fontSize: pagina.nota + 0.5, color: colore.inchiostro, lineHeight: 1.4 },
+  infoTenue: { fontSize: pagina.nota - 1, color: colore.testoTenue, lineHeight: 1.35 },
 
-  /* Un cantiere */
-  cantiere: { marginBottom: 12 },
-  cantiereHead: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: C.navy,
-    paddingVertical: 5,
-    paddingHorizontal: 8,
-    borderTopLeftRadius: 3,
-    borderTopRightRadius: 3,
-  },
-  cantiereNome: { fontSize: 9, fontFamily: "Helvetica-Bold", color: C.white },
-  cantiereDesc: { fontSize: 7, color: "#cbd5e1" },
-
-  thead: {
-    flexDirection: "row",
-    backgroundColor: C.gray100,
-    borderBottom: `0.5pt solid ${C.gray200}`,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-  },
-  tr: {
-    flexDirection: "row",
-    borderBottom: `0.25pt solid ${C.gray200}`,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-  },
-  th: { fontSize: 7, fontFamily: "Helvetica-Bold", color: C.gray500, textTransform: "uppercase" as const },
-  td: { fontSize: 8, color: C.gray900 },
-  cData: { width: "11%" },
+  thead: { ...st.tTesta },
+  tr: { ...st.tRiga },
+  gruppo: { ...st.tGruppo, justifyContent: "space-between", paddingHorizontal: tabella.paddingOrizzontale },
+  th: { ...st.tTestaTesto, paddingHorizontal: 0 },
+  td: { fontSize: tabella.corpo, color: colore.inchiostro },
+  cData: { width: "11%", paddingLeft: tabella.paddingOrizzontale },
   cDesc: { width: "41%", paddingRight: 4 },
   cUm: { width: "12%" },
   cQta: { width: "10%", textAlign: "right" as const },
   cPrezzo: { width: "13%", textAlign: "right" as const },
-  cImporto: { width: "13%", textAlign: "right" as const },
+  cImporto: { width: "13%", textAlign: "right" as const, paddingRight: tabella.paddingOrizzontale },
+  rDesc: { width: "52%", paddingRight: 4, paddingLeft: tabella.paddingOrizzontale },
 
-  subtotale: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 8,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    backgroundColor: C.gray50,
-  },
-  subtotaleLabel: { fontSize: 8, color: C.gray500 },
-  subtotaleValore: { fontSize: 9, fontFamily: "Helvetica-Bold", color: C.gray900 },
+  subtotale: { ...st.tTotale, justifyContent: "flex-end", gap: 8, paddingHorizontal: tabella.paddingOrizzontale, marginBottom: 6 },
 
-  riquadroOre: { marginBottom: 14 },
   numeri: { flexDirection: "row", gap: 8, marginBottom: 8 },
-  numero: { flex: 1, backgroundColor: C.gray50, border: `0.5pt solid ${C.gray200}`, borderRadius: 4, padding: 8 },
-  numeroEtichetta: { fontSize: 7, color: C.gray500, textTransform: "uppercase" as const },
-  numeroValore: { fontSize: 14, fontFamily: "Helvetica-Bold", color: C.navy, marginTop: 2 },
-  rDesc: { width: "52%", paddingRight: 4 },
+  numero: { ...st.riquadro, flex: 1, padding: 8 },
+  numeroEtichetta: { ...st.rEtichetta, marginBottom: 2 },
 
-  extra: { fontSize: 7, color: C.orange, fontFamily: "Helvetica-Bold" },
+  extra: { fontSize: 7, color: colore.avviso, fontFamily: "Helvetica-Bold" },
 
   /* Totali */
-  totali: {
-    marginTop: 6,
-    alignSelf: "flex-end",
-    width: "55%",
-    border: `0.5pt solid ${C.gray200}`,
-    borderRadius: 4,
-    overflow: "hidden",
-  },
-  totaleRiga: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderBottom: `0.25pt solid ${C.gray200}`,
-  },
-  totaleNetto: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 7,
-    paddingHorizontal: 10,
-    backgroundColor: C.navy,
-  },
-  totaleLabel: { fontSize: 9, color: C.gray700 },
-  totaleValore: { fontSize: 9, fontFamily: "Helvetica-Bold", color: C.gray900 },
-  nettoLabel: { fontSize: 10, fontFamily: "Helvetica-Bold", color: C.white },
-  nettoValore: { fontSize: 12, fontFamily: "Helvetica-Bold", color: C.white },
+  totali: { marginTop: 6, alignSelf: "flex-end", width: "55%" },
+  totaleRiga: { ...st.tRiga, justifyContent: "space-between", paddingHorizontal: tabella.paddingOrizzontale },
+  totaleNetto: { ...st.tTotale, justifyContent: "space-between", paddingHorizontal: tabella.paddingOrizzontale, paddingVertical: 5 },
+  totaleLabel: { fontSize: tabella.corpo, color: colore.inchiostro },
+  totaleValore: { fontSize: tabella.corpo, fontFamily: "Helvetica-Bold", color: colore.inchiostro },
+  nettoLabel: { fontSize: tabella.corpo + 1, fontFamily: "Helvetica-Bold", color: colore.inchiostro },
 
-  note: {
-    marginTop: 14,
-    backgroundColor: C.gray50,
-    border: `0.5pt solid ${C.gray200}`,
-    borderRadius: 4,
-    padding: 10,
-  },
-  noteTesto: { fontSize: 8, color: C.gray700, lineHeight: 1.4 },
-
-  firme: { flexDirection: "row", gap: 24, marginTop: 24 },
-  firma: { flex: 1 },
-  firmaLinea: { borderTop: `0.5pt solid ${C.gray500}`, marginTop: 28, paddingTop: 3 },
-  firmaLabel: { fontSize: 7, color: C.gray500 },
-
-  footer: {
-    position: "absolute",
-    bottom: 28,
-    left: 40,
-    right: 40,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    borderTop: `0.5pt solid ${C.gray200}`,
-    paddingTop: 6,
-  },
-  footerText: { fontSize: 7, color: C.gray500 },
+  note: { ...st.riquadro, marginTop: 14 },
+  noteTesto: { fontSize: pagina.corpo - 1, color: colore.inchiostro, lineHeight: 1.4 },
+  giornata: { ...st.riquadro, marginBottom: 6 },
 });
 
 /* ── Props ──────────────────────────────────────────────────────────── */
@@ -221,6 +86,8 @@ export interface RendicontoAzienda {
   email?: string | null;
   pec?: string | null;
   logo_url?: string | null;
+  /** Il colore principale dell'azienda: l'accento del documento, se si legge su bianco. */
+  colore?: string | null;
 }
 
 export interface RendicontoCommittente {
@@ -320,8 +187,14 @@ const indirizzo = (a: {
   return lines;
 };
 
-function Numero({ etichetta, valore }: { etichetta: string; valore: string }) {
-  return <View style={styles.numero}><Text style={styles.numeroEtichetta}>{etichetta}</Text><Text style={styles.numeroValore}>{valore}</Text></View>;
+/** Un numero chiave: riquadro tenue, valore 14 pt; quello che conta di più nell'accento. */
+function Numero({ etichetta, valore, accento }: { etichetta: string; valore: string; accento?: string }) {
+  return (
+    <View style={styles.numero}>
+      <Text style={styles.numeroEtichetta}>{etichetta}</Text>
+      <Text style={[st.rNumero, accento ? { color: accento } : {}]}>{valore}</Text>
+    </View>
+  );
 }
 
 /* ── Il documento ───────────────────────────────────────────────────── */
@@ -347,13 +220,15 @@ export function RendicontoAppaltoPDF({
 }: RendicontoAppaltoPDFProps) {
   const righeTotali = cantieri.reduce((s, c) => s + c.righe.length, 0);
   const riepilogo = riepilogoRendiconto(cantieri);
-  // Testata (10/11/2026): mancavano logo e nome di chi manda il rendiconto. Con la veste propria (Vulcano) il logo
-  // è grande e contiene già il nome; per le altre il logo piccolo accanto alla ragione sociale, come nel DDT.
-  const veste = personalizzazioneDocumento(companyId);
-  const logoGrande = veste.logoAltezza && veste.logoLarghezzaMax && azienda.logo_url
-    ? { width: veste.logoLarghezzaMax, height: veste.logoAltezza, objectFit: "contain" as const, objectPositionX: 0 }
-    : null;
-  const sedeAzienda = indirizzo(azienda).join(" · ");
+  // Lo stile unico (10/11/2026): il logo su bianco a sinistra, senza ripetere il nome; senza logo il nome. La veste
+  // propria (Vulcano) decide la misura del logo e il piè.
+  const accento = accentoPdf(companyId, azienda.colore);
+  const righePiede = societarie.length ? societarie : [azienda.name];
+  const margineBasso = margineInferioreDocumento(companyId, righePiede.length);
+  const sotto = [
+    `N° ${numero} · dal ${giornoIT(periodoDal)} al ${giornoIT(periodoAl)}`,
+    `${righeTotali} ${righeTotali === 1 ? "voce" : "voci"} su ${cantieri.length} ${cantieri.length === 1 ? "cantiere" : "cantieri"}`,
+  ];
 
   return (
     <Document
@@ -361,91 +236,60 @@ export function RendicontoAppaltoPDF({
       author={azienda.name}
       subject={`Rendiconto n. ${numero} dal ${giornoIT(periodoDal)} al ${giornoIT(periodoAl)}`}
     >
-      <Page size="A4" style={[styles.page, { paddingBottom: margineInferiorePiede(companyId, 70) }]} wrap>
+      <Page size="A4" style={[styles.page, { paddingBottom: margineBasso }]} wrap>
         {/* I dati dell'azienda sono in fondo, uguali a tutti i documenti (09/11/2026). Il piè sta per primo. */}
-        <PieSocietario righe={societarie.length ? societarie : [azienda.name]} margine={40} companyId={companyId} />
+        <PiedeDocumento righe={righePiede} companyId={companyId} />
 
-        {/* 1. Testata: chi manda il rendiconto */}
-        <View style={styles.header}>
-          {logoGrande ? (
-            <Image src={azienda.logo_url!} style={logoGrande} />
-          ) : (
-            <View style={styles.headerLeft}>
-              {azienda.logo_url ? <Image src={azienda.logo_url} style={styles.logo} /> : null}
-              <View style={{ flex: 1 }}>
-                <Text style={styles.companyName}>{azienda.name}</Text>
-                {sedeAzienda ? <Text style={styles.companyMeta}>{sedeAzienda}</Text> : null}
-              </View>
-            </View>
-          )}
-        </View>
-
-        {/* 2. Titolo */}
-        <View style={styles.docBlock}>
-          <View>
-            <Text style={styles.docTitle}>Rendiconto lavori in appalto</Text>
-            <Text style={styles.docMeta}>
-              Periodo dal {giornoIT(periodoDal)} al {giornoIT(periodoAl)} · {righeTotali}{" "}
-              {righeTotali === 1 ? "voce" : "voci"} su {cantieri.length}{" "}
-              {cantieri.length === 1 ? "cantiere" : "cantieri"}
-            </Text>
-          </View>
-          <View style={{ alignItems: "flex-end" }}>
-            <Text style={styles.docNumber}>N° {numero}</Text>
-            <Text style={styles.docMeta}>{statoEtichetta}</Text>
-          </View>
-        </View>
+        {/* 1-2. Testata: chi manda il rendiconto, e che rendiconto è */}
+        <TestataDocumento logo={azienda.logo_url} ragioneSociale={azienda.name} companyId={companyId} accento={accento}
+          titolo="Rendiconto lavori in appalto" sotto={sotto} stato={statoEtichetta} />
 
         {/* 3. Committente e contratto */}
         <View style={styles.row2}>
-          <View style={styles.col}>
-            <Text style={styles.sectionTitle}>Committente</Text>
-            <View style={styles.infoBox}>
-              <Text style={styles.infoName}>{committente.ragione_sociale}</Text>
-              {indirizzo(committente).map((l, i) => (
-                <Text key={i} style={styles.infoLine}>
-                  {l}
-                </Text>
-              ))}
-              <Text style={styles.infoLine}>
-                {[
-                  committente.vat_number ? `P.IVA ${committente.vat_number}` : null,
-                  committente.fiscal_code && committente.fiscal_code !== committente.vat_number
-                    ? `CF ${committente.fiscal_code}`
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
+          <View style={[styles.col, styles.infoBox]}>
+            <Text style={st.rEtichetta}>Committente</Text>
+            <Text style={styles.infoName}>{committente.ragione_sociale}</Text>
+            {indirizzo(committente).map((l, i) => (
+              <Text key={i} style={styles.infoLine}>
+                {l}
               </Text>
-            </View>
+            ))}
+            <Text style={styles.infoLine}>
+              {[
+                committente.vat_number ? `P.IVA ${committente.vat_number}` : null,
+                committente.fiscal_code && committente.fiscal_code !== committente.vat_number
+                  ? `CF ${committente.fiscal_code}`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </Text>
           </View>
-          <View style={styles.col}>
-            <Text style={styles.sectionTitle}>Contratto e riferimenti</Text>
-            <View style={styles.infoBox}>
-              {contrattoNome ? <Text style={styles.infoName}>{contrattoNome}</Text> : null}
-              {riferimentoCommittente ? (
-                <Text style={styles.infoLine}>Vs. riferimento: {riferimentoCommittente}</Text>
-              ) : null}
-              {ritenutaPct > 0 ? (
-                <Text style={styles.infoLine}>
-                  Ritenuta a garanzia {quantita(ritenutaPct)}% come da contratto
-                </Text>
-              ) : null}
+          <View style={[styles.col, styles.infoBox]}>
+            <Text style={st.rEtichetta}>Contratto e riferimenti</Text>
+            {contrattoNome ? <Text style={styles.infoName}>{contrattoNome}</Text> : null}
+            {riferimentoCommittente ? (
+              <Text style={styles.infoLine}>Vs. riferimento: {riferimentoCommittente}</Text>
+            ) : null}
+            {ritenutaPct > 0 ? (
               <Text style={styles.infoLine}>
-                Prezzi come da listino concordato. Il dettaglio sotto è raggruppato per cantiere.
+                Ritenuta a garanzia {quantita(ritenutaPct)}% come da contratto
               </Text>
-            </View>
+            ) : null}
+            <Text style={styles.infoTenue}>
+              Prezzi come da listino concordato. Il dettaglio sotto è raggruppato per cantiere.
+            </Text>
           </View>
         </View>
 
         {/* Quanto si è lavorato: la prima cosa che il committente controlla. */}
-        <View style={styles.riquadroOre} wrap={false}>
-          <Text style={styles.sectionTitle}>Riepilogo del periodo</Text>
+        <View wrap={false}>
+          <TitoloSezione accento={accento}>Riepilogo del periodo</TitoloSezione>
           <View style={styles.numeri}>
             {riepilogo.ore > 0 ? <Numero etichetta="Ore lavorate" valore={quantita(riepilogo.ore)} /> : null}
             {riepilogo.giornate > 0 ? <Numero etichetta="Giornate" valore={quantita(riepilogo.giornate)} /> : null}
             <Numero etichetta={cantieri.length === 1 ? "Cantiere" : "Cantieri"} valore={String(cantieri.length)} />
-            <Numero etichetta="Totale" valore={`€ ${soldi(totale)}`} />
+            <Numero etichetta="Totale" valore={`€ ${soldi(totale)}`} accento={accento} />
           </View>
           <View style={styles.thead}>
             <Text style={[styles.th, styles.rDesc]}>Voce</Text>
@@ -465,24 +309,23 @@ export function RendicontoAppaltoPDF({
           ))}
         </View>
 
-        {/* 4. Un blocco per cantiere */}
-        {cantieri.map((c) => (
-          <View key={c.orderId} style={styles.cantiere} wrap>
-            <View style={styles.cantiereHead}>
-              <View>
-                <Text style={styles.cantiereNome}>{c.etichetta}</Text>
-                {c.codice && c.descrizione ? <Text style={styles.cantiereDesc}>{c.descrizione}</Text> : null}
-              </View>
-              <Text style={styles.cantiereNome}>€ {soldi(c.totale)}</Text>
-            </View>
-
-            <View style={styles.thead} fixed={false}>
+        {/* 4. Il dettaglio: un raggruppamento per cantiere, riga tenue e non più fascia piena */}
+        {cantieri.map((c, i) => (
+          <View key={c.orderId} wrap style={i === 0 ? { marginTop: 14 } : undefined}>
+            <View style={styles.thead} minPresenceAhead={40}>
               <Text style={[styles.th, styles.cData]}>Data</Text>
               <Text style={[styles.th, styles.cDesc]}>Descrizione</Text>
               <Text style={[styles.th, styles.cUm]}>U.m.</Text>
               <Text style={[styles.th, styles.cQta]}>Q.tà</Text>
               <Text style={[styles.th, styles.cPrezzo]}>Prezzo</Text>
               <Text style={[styles.th, styles.cImporto]}>Importo</Text>
+            </View>
+            <View style={styles.gruppo} wrap={false}>
+              <View style={{ flex: 1, paddingRight: 8 }}>
+                <Text style={st.tGruppoTesto}>{c.etichetta}</Text>
+                {c.codice && c.descrizione ? <Text style={[styles.infoTenue, { paddingHorizontal: tabella.paddingOrizzontale }]}>{c.descrizione}</Text> : null}
+              </View>
+              <Text style={st.tGruppoTesto}>€ {soldi(c.totale)}</Text>
             </View>
 
             {c.righe.map((r) => (
@@ -492,7 +335,7 @@ export function RendicontoAppaltoPDF({
                   {/* La persona (la nota) una volta sola, sotto la voce: prima usciva anche in coda alla descrizione. */}
                   <Text style={styles.td}>{r.descrizione}</Text>
                   {r.extra_contratto ? <Text style={styles.extra}>Fuori contratto</Text> : null}
-                  {notaPerCommittente(r.note) ? <Text style={[styles.infoLine, { fontSize: 7 }]}>{notaPerCommittente(r.note)}</Text> : null}
+                  {notaPerCommittente(r.note) ? <Text style={styles.infoTenue}>{notaPerCommittente(r.note)}</Text> : null}
                 </View>
                 <Text style={[styles.td, styles.cUm]}>{etichettaUnita(r.unita_misura)}</Text>
                 <Text style={[styles.td, styles.cQta]}>{quantita(r.quantita)}</Text>
@@ -504,9 +347,9 @@ export function RendicontoAppaltoPDF({
               </View>
             ))}
 
-            <View style={styles.subtotale}>
-              <Text style={styles.subtotaleLabel}>Totale {c.etichetta}</Text>
-              <Text style={styles.subtotaleValore}>€ {soldi(c.totale)}</Text>
+            <View style={styles.subtotale} wrap={false}>
+              <Text style={styles.totaleValore}>Totale {c.etichetta}</Text>
+              <Text style={styles.totaleValore}>€ {soldi(c.totale)}</Text>
             </View>
           </View>
         ))}
@@ -525,59 +368,42 @@ export function RendicontoAppaltoPDF({
           ) : null}
           <View style={styles.totaleNetto}>
             <Text style={styles.nettoLabel}>Netto da fatturare</Text>
-            <Text style={styles.nettoValore}>€ {soldi(netto)}</Text>
+            <Text style={[st.rNumero, { color: accento }]}>€ {soldi(netto)}</Text>
           </View>
         </View>
 
         {/* 6. Note e firme */}
         {note ? (
           <View style={styles.note} wrap={false}>
-            <Text style={styles.sectionTitle}>Note</Text>
+            <Text style={st.rEtichetta}>Note</Text>
             <Text style={styles.noteTesto}>{note}</Text>
           </View>
         ) : null}
 
-        <View style={styles.firme} wrap={false}>
-          <View style={styles.firma}>
-            <View style={styles.firmaLinea}>
-              <Text style={styles.firmaLabel}>{azienda.name}</Text>
-            </View>
-          </View>
-          <View style={styles.firma}>
-            <View style={styles.firmaLinea}>
-              <Text style={styles.firmaLabel}>
-                {committente.ragione_sociale} — per accettazione
-              </Text>
-            </View>
-          </View>
-        </View>
+        <Firme voci={[azienda.name, `${committente.ragione_sociale} — per accettazione`]} style={{ marginTop: 40 }} />
       </Page>
 
       {/* Allegato: le pagine firmate del giornale dei giorni rendicontati. Niente importi. */}
       {giornale.length > 0 ? (
-        <Page size="A4" style={[styles.page, { paddingBottom: margineInferiorePiede(companyId, 70) }]} wrap>
-          <PieSocietario righe={societarie.length ? societarie : [azienda.name]} margine={40} companyId={companyId} />
-          <View style={styles.docBlock}>
-            <View>
-              <Text style={styles.docTitle}>Allegato: giornale dei lavori</Text>
-              <Text style={styles.docMeta}>Rendiconto n. {numero} · pagine firmate dei giorni rendicontati</Text>
-            </View>
-          </View>
-          {giornale.map((c) => (
-            <View key={c.orderId} style={{ marginBottom: 12 }}>
-              <Text style={styles.sectionTitle}>{c.nome}</Text>
+        <Page size="A4" style={[styles.page, { paddingBottom: margineBasso }]} wrap>
+          <PiedeDocumento righe={righePiede} companyId={companyId} />
+          <TestataDocumento logo={azienda.logo_url} ragioneSociale={azienda.name} companyId={companyId} accento={accento}
+            titolo="Allegato: giornale dei lavori" sotto={[`Rendiconto n. ${numero} · pagine firmate dei giorni rendicontati`]} />
+          {giornale.map((c, i) => (
+            <View key={c.orderId} style={{ marginBottom: 6 }}>
+              <TitoloSezione accento={accento} primo={i === 0}>{c.nome}</TitoloSezione>
               {c.giornate.map((g) => (
-                <View key={g.data} style={styles.note}>
-                  <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9, marginBottom: 2 }}>
+                <View key={g.data} style={styles.giornata} wrap={false}>
+                  <Text style={{ fontFamily: "Helvetica-Bold", fontSize: riquadro.valoreCorpo - 1, color: colore.inchiostro, marginBottom: 2 }}>
                     {giornoIT(g.data)}{g.meteo ? ` · ${g.meteo}` : ""}{g.personale != null ? ` · ${g.personale} persone` : ""}
                   </Text>
                   <Text style={styles.noteTesto}>{g.lavorazioni}</Text>
                   {g.materiali ? <Text style={styles.noteTesto}>Materiali: {g.materiali}</Text> : null}
-                  {g.firmatoDa ? <Text style={{ fontSize: 7, color: C.gray500, marginTop: 2 }}>Firmata da {g.firmatoDa}{g.firmatoIl ? ` il ${giornoIT(g.firmatoIl.slice(0, 10))}` : ""}</Text> : null}
+                  {g.firmatoDa ? <Text style={[styles.infoTenue, { marginTop: 2 }]}>Firmata da {g.firmatoDa}{g.firmatoIl ? ` il ${giornoIT(g.firmatoIl.slice(0, 10))}` : ""}</Text> : null}
                 </View>
               ))}
               {c.senzaPagina.length > 0 ? (
-                <Text style={{ fontSize: 8, color: C.gray500 }}>Giorni senza pagina firmata: {c.senzaPagina.map(giornoIT).join(", ")}</Text>
+                <Text style={st.nota}>Giorni senza pagina firmata: {c.senzaPagina.map(giornoIT).join(", ")}</Text>
               ) : null}
             </View>
           ))}

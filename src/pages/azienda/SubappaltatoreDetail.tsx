@@ -1,8 +1,8 @@
 import { SalPaymentDialog } from "@/components/subappaltatori/SalPaymentDialog";
+import { ListinoDitta } from "@/components/subappaltatori/ListinoDitta";
 import { puoConsultareSalSub } from "@/lib/permessi/contabilitaSubappalto";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { SALContabilita, RitenuteContabilita } from "@/components/subappaltatori/ContabilitaSubappalto";
-import { euroSub } from "@/lib/subappaltatori/lavoriMisure";
 import { SchedaCommessaDialog } from "@/components/sicurezza/SchedaCommessaDialog";
 import { PercorsiSubappaltatore } from "@/components/subappaltatori/PercorsiSubappaltatore";
 import { LavoriMisureSubDialog } from "@/components/subappaltatori/LavoriMisureSubDialog";
@@ -146,7 +146,7 @@ export default function SubappaltatoreDetail() {
   const [contrattoDaAprire, setContrattoDaAprire] = useState<string | null>(() => parametri.get('tab') === 'contabilita' ? null : parametri.get('contratto'));
   const [tabAttiva, setTabAttiva] = useState(() => {
     const scheda = parametri.get('tab');
-    return scheda === 'contratto' || scheda === 'contabilita' ? scheda : 'anagrafica';
+    return scheda === 'contratto' || scheda === 'contabilita' || scheda === 'listino' ? scheda : 'anagrafica';
   });
   const [commessaPopup, setCommessaPopup] = useState<string | null>(null);
   const [vistaContabilita, setVistaContabilita] = useState('sal');
@@ -605,10 +605,9 @@ export default function SubappaltatoreDetail() {
     stato: 'ricevuto' as StatoSALSub,
   });
 
-  // DURC bloccante: senza documento valido niente nuovi SAL e niente
-  // pagamenti. Gli alert c'erano già ma erano solo grafica — e il sito
-  // promette il "blocco automatico con DURC non valido".
-  const durcBloccante = (): string | null => {
+  // DURC: un AVVISO, non un blocco (Florin, 10/11/2026: «il DURC non deve bloccare i SAL»). Si vede
+  // nella finestra del SAL e dopo il salvataggio; SAL e pagamenti si registrano comunque.
+  const avvisoDurc = (): string | null => {
     const daDocumenti = [
       ...documenti.filter((d) => d.tipo === 'durc' && d.data_scadenza).map((d) => d.data_scadenza as string),
       ...documentiCompliance.filter((d) => d.tipo === 'durc' && d.scadenza).map((d) => d.scadenza as string),
@@ -618,10 +617,10 @@ export default function SubappaltatoreDetail() {
     // sulla scheda è rimasta la data vecchia (prima vinceva sempre la scheda e SAL e pagamenti restavano bloccati).
     const tutte = [...(sub?.durc_scadenza ? [sub.durc_scadenza] : []), ...daDocumenti].sort();
     const scad = tutte.length ? tutte[tutte.length - 1] : null;
-    if (!scad) return 'DURC mancante: carica il DURC con la data di scadenza prima di procedere.';
+    if (!scad) return 'DURC mancante: il SAL si registra, ma chiedi il DURC alla ditta e caricalo con la data di scadenza.';
     const oggi = new Date(); oggi.setHours(0, 0, 0, 0);
     if (new Date(scad) < oggi) {
-      return `DURC scaduto il ${new Date(scad).toLocaleDateString('it-IT')}: rinnovalo prima di procedere.`;
+      return `DURC scaduto il ${new Date(scad).toLocaleDateString('it-IT')}: il SAL si registra, ma chiedi alla ditta il DURC nuovo.`;
     }
     return null;
   };
@@ -630,8 +629,6 @@ export default function SubappaltatoreDetail() {
   const saveSalMutation = useMutation({
     mutationFn: async () => {
       if (!contratto?.id) throw new Error('Contratto non trovato');
-      const bloccoDurc = durcBloccante();
-      if (bloccoDurc) throw new Error(bloccoDurc);
       const importoLordo = parseDecimalIT(salForm.importo_lordo);
       if (!(importoLordo > 0)) throw new Error('Scrivi l\'importo del SAL');
       // Lo 0% è una ritenuta valida: prima `|| 5` la trasformava in 5%.
@@ -651,6 +648,8 @@ export default function SubappaltatoreDetail() {
     },
     onSuccess: () => {
       toast.success('SAL e relativa garanzia registrati');
+      const durc = avvisoDurc();
+      if (durc) toast.warning(durc);
       setSalRichiestaId(crypto.randomUUID());
       if (contratto?.order_id) void queryClient.invalidateQueries({ queryKey: ['order-subcontract-statistics', contratto.order_id, companyId] });
       queryClient.invalidateQueries({ queryKey: ['sal-sub', contratto?.id] });
@@ -677,6 +676,8 @@ export default function SubappaltatoreDetail() {
         .from("sal_subappaltatori")
         .update({ stato: "verificato" })
         .eq("id", salId)
+        // Solo da ricevuto o contestato: un SAL già pagato non torna «verificato» (lista ferma su un'altra scheda).
+        .in("stato", ["ricevuto", "contestato"])
         .select("id");
       if (error) throw error;
       if (!data?.length) throw new Error("SAL non approvato: non hai il permesso, o è già cambiato. Ricarica la pagina.");
@@ -697,6 +698,7 @@ export default function SubappaltatoreDetail() {
         .from("sal_subappaltatori")
         .update({ stato: "contestato", note_contestazione: note } as never)
         .eq("id", id)
+        .in("stato", ["ricevuto", "verificato"])
         .select("id");
       if (error) throw error;
       if (!data?.length) throw new Error("SAL non contestato: non hai il permesso, o è già cambiato. Ricarica la pagina.");
@@ -707,6 +709,9 @@ export default function SubappaltatoreDetail() {
       setContestaId(null);
       setContestaNote("");
       queryClient.invalidateQueries({ queryKey: ['sal-sub', contratto?.id] });
+      // La contestazione annulla la ritenuta del SAL (trigger): anche il registro delle ritenute si rilegge.
+      queryClient.invalidateQueries({ queryKey: ['ritenute-sub', contratto?.id] });
+      queryClient.invalidateQueries({ queryKey: ['ritenute-sub-tutte', id] });
       queryClient.invalidateQueries({ queryKey: chiaviContratti.salTutti(id) });
       queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
     },
@@ -816,6 +821,7 @@ export default function SubappaltatoreDetail() {
           <TabsTrigger value="lavori" className="shrink-0 py-2">Commesse</TabsTrigger>
           <TabsTrigger value="contratto" className="shrink-0 py-2">Contratti</TabsTrigger>
           <TabsTrigger value="contabilita" className="shrink-0 py-2">Contabilità</TabsTrigger>
+          {permessi.canViewCosts && <TabsTrigger value="listino" className="shrink-0 py-2">Listino</TabsTrigger>}
         </TabsList>
 
         {/* ─── Tab 1: Anagrafica ─────────────────────────────────────────────── */}
@@ -1053,6 +1059,15 @@ export default function SubappaltatoreDetail() {
             onApriCommessa={(oid) => {if (schedaCommessa) navigate(`/azienda/ordini/${oid}`); else setCommessaPopup(oid);}}
             onApriContratto={(cid) => { setContrattoSelId(cid); setContrattoDaAprire(cid); setTabAttiva('contratto'); }} />
         </TabsContent>
+
+        {/* ─── Listino della ditta (10/11/2026): i suoi prezzi sulle voci dell'azienda ─── */}
+        {permessi.canViewCosts && (
+          <TabsContent value="listino" className="mt-4 max-sm:mt-3">
+            {sub.campo_subappaltatore_id
+              ? <ListinoDitta companyId={companyId} anagraficaId={sub.campo_subappaltatore_id} nomeDitta={sub.ragione_sociale} />
+              : <p className="text-sm text-muted-foreground">Questa scheda non è ancora collegata alla ditta: il listino vale per la ditta in tutte le commesse, quindi prima va collegata (Panoramica → «Collega app cantiere»).</p>}
+          </TabsContent>
+        )}
 
         {/* ─── Tab 2: Contratto ──────────────────────────────────────────────── */}
         <TabsContent value="contratto" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
@@ -1330,6 +1345,9 @@ export default function SubappaltatoreDetail() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {avvisoDurc() && (
+              <p role="status" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">{avvisoDurc()}</p>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>N. SAL</Label>
@@ -1367,11 +1385,12 @@ export default function SubappaltatoreDetail() {
                 />
               </div>
             </div>
-            {salForm.importo_lordo && parseFloat(salForm.importo_lordo) > 0 && (
+            {salForm.importo_lordo && parseDecimalIT(salForm.importo_lordo) > 0 && (
               <div className="bg-muted rounded-lg p-3 text-sm space-y-1">
                 {(() => {
-                  const lordo = parseFloat(salForm.importo_lordo) || 0;
-                  const pct = parseFloat(salForm.ritenuta_pct) || 0;
+                  // Come il salvataggio: «1.234,56» è milleduecento, non 1,23.
+                  const lordo = parseDecimalIT(salForm.importo_lordo) || 0;
+                  const pct = parseDecimalIT(salForm.ritenuta_pct) || 0;
                   const ritenuta = Math.round(lordo * pct / 100 * 100) / 100;
                   const netto = Math.round((lordo - ritenuta) * 100) / 100;
                   return (

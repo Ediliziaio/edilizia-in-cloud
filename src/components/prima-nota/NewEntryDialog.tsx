@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import type { DatiRegistrazione, PrimaNotaEntry } from "@/hooks/usePrimaNota";
 
 const CATEGORIES = [
   { value: "incasso", label: "Incasso cliente" },
@@ -52,26 +53,13 @@ const dataIt = (d: string | null) => (d ? d.split("-").reverse().join("/") : "")
 interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  onConfirm: (params: {
-    direction: "entrata" | "uscita";
-    category: string;
-    description: string;
-    amount: number;
-    entry_date: string;
-    payment_method?: string;
-    reference_number?: string;
-    account_label?: string;
-    supplier_id?: string | null;
-    order_id?: string | null;
-    invoice_id?: string | null;
-    attachment_url?: string;
-    attachment_name?: string;
-    notes?: string;
-  }) => void;
+  onConfirm: (params: DatiRegistrazione) => void;
   isPending: boolean;
+  /** La registrazione da modificare: il modulo si apre già compilato. Assente = nuova registrazione. */
+  entry?: PrimaNotaEntry | null;
 }
 
-export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPending }: Props) {
+export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPending, entry = null }: Props) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -136,10 +124,17 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
           console.warn("[NewEntryDialog] invoices fetch error:", error.message);
           return;
         }
-        setFatture(((data ?? []) as FatturaAperta[]).filter((f) => residuo(f) > 0));
+        const aperte = ((data ?? []) as FatturaAperta[]).filter((f) => residuo(f) > 0);
+        // In modifica la fattura già collegata resta nell'elenco anche se risulta pagata: il
+        // pagamento è proprio quello di questa registrazione.
+        const collegata = entry?.invoice_id;
+        if (!collegata || aperte.some((f) => f.id === collegata)) { setFatture(aperte); return; }
+        supabase.from("invoices").select("id, invoice_number, issue_date, client_company_name, total, paid_amount, order_id")
+          .eq("id", collegata).maybeSingle()
+          .then(({ data: f }) => { if (alive) setFatture(f ? [f as FatturaAperta, ...aperte] : aperte); });
       });
     return () => { alive = false; };
-  }, [open, companyId]);
+  }, [open, companyId, entry?.invoice_id]);
 
   const reset = () => {
     setDirection("uscita");
@@ -157,6 +152,10 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
     setAttachmentFile(null);
   };
 
+  // In modifica, quello che questa registrazione ha già messo sulla sua fattura torna disponibile.
+  const residuoPer = (f: FatturaAperta) =>
+    Math.round((residuo(f) + (entry && entry.invoice_id === f.id ? Number(entry.amount) || 0 : 0)) * 100) / 100;
+
   // La categoria decide il verso: un incasso entra, un pagamento esce.
   const scegliCategoria = (v: string) => {
     setCategory(v);
@@ -167,7 +166,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
 
   const scegliFattura = (f: FatturaAperta) => {
     setInvoiceId(f.id);
-    setAmount(String(residuo(f)));
+    setAmount(String(residuoPer(f)));
     if (f.order_id) setOrderId(f.order_id);
     setDescription(`Incasso fattura ${f.invoice_number ?? ""}${f.client_company_name ? ` - ${f.client_company_name}` : ""}`.trim());
     setReference(`Fatt. ${f.invoice_number ?? ""}`.trim());
@@ -178,9 +177,24 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
   // parent setta open=true → il vecchio handleOpen non scattava e la registrazione
   // precedente restava nel form (rischio doppioni/valori sbagliati).
   useEffect(() => {
-    if (open) reset();
+    if (!open) return;
+    reset();
+    if (entry) {
+      setDirection(entry.direction);
+      setCategory(entry.category || "altro");
+      setDescription(entry.description ?? "");
+      setAmount(String(entry.amount ?? ""));
+      setEntryDate(entry.entry_date);
+      setMethod(entry.payment_method || "");
+      setReference(entry.reference_number ?? "");
+      setAccountLabel(entry.account_label || "banca");
+      setNotes(entry.notes ?? "");
+      setSupplierId(entry.supplier_id ?? "");
+      setOrderId(entry.order_id ?? "");
+      setInvoiceId(entry.invoice_id ?? "");
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, entry?.id]);
 
   const showSupplier = category === "fornitore";
   const showOrder = category === "incasso";
@@ -190,7 +204,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
   const fatturaScelta = fatture.find((f) => f.id === invoiceId);
   // Più del residuo non si incassa: l'eccedenza farebbe risultare pagata una fattura
   // con un importo che non torna, e il cliente in credito senza che nessuno lo sappia.
-  const oltreResiduo = !!fatturaScelta && Number(amount) > residuo(fatturaScelta) + 0.005;
+  const oltreResiduo = !!fatturaScelta && Number(amount) > residuoPer(fatturaScelta) + 0.005;
   const isValid = description.trim() && Number(amount) > 0 && entryDate && !oltreResiduo
     && (!invoiceId || direction === "entrata");
 
@@ -229,15 +243,16 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
       description: description.trim(),
       amount: Number(amount),
       entry_date: entryDate,
-      payment_method: method,
+      payment_method: method || undefined,
       reference_number: reference || undefined,
       account_label: accountLabel,
       supplier_id: supplierId || null,
       order_id: orderId || null,
       invoice_id: invoiceId || null,
-      attachment_url: attachmentUrl,
-      attachment_name: attachmentName,
-      notes: notes || undefined,
+      // In modifica, senza un file nuovo l'allegato resta quello di prima.
+      ...(attachmentUrl ? { attachment_url: attachmentUrl, attachment_name: attachmentName } : {}),
+      // In modifica le note si mandano anche vuote: è così che si cancellano.
+      notes: entry ? notes : notes || undefined,
     });
   };
 
@@ -245,7 +260,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nuova Registrazione</DialogTitle>
+          <DialogTitle>{entry ? "Modifica registrazione" : "Nuova Registrazione"}</DialogTitle>
         </DialogHeader>
         {/* Mobile: via riferimento e note; metodo accanto al conto. */}
         <div className="space-y-4 max-sm:space-y-3">
@@ -333,7 +348,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
                               {f.client_company_name}
                               <span className="text-muted-foreground"> · {dataIt(f.issue_date)}</span>
                             </span>
-                            <span className="ml-2 shrink-0 tabular-nums text-xs">{euro(residuo(f))}</span>
+                            <span className="ml-2 shrink-0 tabular-nums text-xs">{euro(residuoPer(f))}</span>
                           </CommandItem>
                         ))}
                       </CommandGroup>
@@ -343,7 +358,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
               </Popover>
               {fatturaScelta ? (
                 <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                  <span>Cliente: <span className="text-foreground">{fatturaScelta.client_company_name ?? "non indicato"}</span> · da incassare {euro(residuo(fatturaScelta))}</span>
+                  <span>Cliente: <span className="text-foreground">{fatturaScelta.client_company_name ?? "non indicato"}</span> · da incassare {euro(residuoPer(fatturaScelta))}</span>
                   <button type="button" className="underline" onClick={() => setInvoiceId("")}>Togli</button>
                 </div>
               ) : (
@@ -404,7 +419,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
             <div className="space-y-2 max-sm:hidden">
               <Label>Metodo</Label>
               <Select value={method} onValueChange={setMethod}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Non indicato" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="bonifico">Bonifico</SelectItem>
                   <SelectItem value="contanti">Contanti</SelectItem>
@@ -427,7 +442,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
             <div className="space-y-2 sm:hidden">
               <Label>Metodo</Label>
               <Select value={method} onValueChange={setMethod}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Non indicato" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="bonifico">Bonifico</SelectItem>
                   <SelectItem value="contanti">Contanti</SelectItem>
@@ -453,6 +468,9 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
           {/* Attachment */}
           <div className="space-y-2">
             <Label>Allegato<span className="max-sm:hidden"> (opzionale)</span></Label>
+            {entry?.attachment_name && !attachmentFile ? (
+              <p className="text-xs text-muted-foreground">Allegato attuale: {entry.attachment_name}. Scegli un file solo per sostituirlo.</p>
+            ) : null}
             {attachmentFile ? (
               <div className="flex items-center gap-2 p-2 rounded-lg border bg-muted/30">
                 <Paperclip className="h-4 w-4 text-muted-foreground" />
@@ -494,7 +512,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
             disabled={isPending || isUploading || !isValid}
             onClick={handleConfirm}
           >
-            {isPending || isUploading ? "Salvataggio..." : "Registra"}
+            {isPending || isUploading ? "Salvataggio..." : entry ? "Salva modifiche" : "Registra"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { NewPreventivoMenu } from "@/components/marketing/preventivi/NewPreventivoMenu";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { linkPreventivo, etichettaTipoPreventivo } from "@/lib/preventivi/linkPreventivo";
 

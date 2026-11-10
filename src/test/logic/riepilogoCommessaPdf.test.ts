@@ -9,7 +9,11 @@ import {
 function testo(v: unknown): string {
   if (typeof v === "string" || typeof v === "number") return String(v);
   if (Array.isArray(v)) return v.map(testo).join(" ");
-  if (isValidElement<{ children?: unknown }>(v)) return testo(v.props.children);
+  if (isValidElement<Record<string, unknown>>(v)) {
+    // Testata, piè ed etichette dello stile unico (10/11/2026) portano il testo nelle proprietà, non nei figli.
+    const p = v.props;
+    return [p.ragioneSociale, p.titolo, p.sotto, p.stato, p.testo, p.righe, p.riferimento, p.children].map(testo).join(" ");
+  }
   return "";
 }
 const leggi = (doc: unknown) => testo(doc).replace(/\s+/g, " ");

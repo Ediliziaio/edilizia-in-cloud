@@ -63,7 +63,7 @@ describe("0.3 · la liquidazione legge le fatture, non i nomi dei conti", () => 
 
   it("l'IVA in scissione dei pagamenti non è debito di chi emette", () => {
     expect(migrazione).toMatch(/FILTER \(WHERE esigibilita <> 'S'\)/);
-    expect(migrazione).toMatch(/FILTER \(WHERE esigibilita =  'S'\)/);
+    expect(migrazione).toMatch(/FILTER \(WHERE esigibilita = {2}'S'\)/);
   });
 
   it("un documento senza riepilogo IVA non sparisce dal calcolo", () => {

@@ -777,6 +777,27 @@ describe("automation audit regressions", () => {
     expect(dispatched[4]).toBe(item);
     expect(eq(mock.calls.find(q => q.table === "ai_agents")!, "company_id")).toBe("company");
   });
+  // 10/11/2026: gli agenti creati dalla pagina Agenti AI stanno in
+  // `ai_agents_v2`, non in `ai_agents` (vuota su tutta la piattaforma). Qui si
+  // guardava solo la vecchia: su Il Bagno Group il nodo «Bot AI prenotazione —
+  // Giusy» rispondeva «Agente AI non trovato per questa azienda».
+  it("AI finds an agent that only exists in ai_agents_v2", async () => {
+    let router: any;
+    const mock = db(q => ({
+      data: q.table === "marketing_contacts" ? { id, first_name: "Mario", email: "mario@example.it" }
+        : q.table === "ai_agents_v2" ? { id: chosen, system_prompt: "Sei Giusy del bagno." }
+        : null,
+    }));
+    const worker = load("executeAction", {
+      aiRouterComplete: async (params: any) => { router = params; return { content: "SUBJECT: Prova\nBODY: Testo" }; },
+      resolveContactText: async (_db: any, text: string) => text,
+      executeSendEmail: async () => ({ success: true }),
+      queueSafeId: () => "test", Deno: { env: { get: () => "https://invalid.example" } },
+    });
+    expect((await worker(mock, { item_id: "esegui_agente_ai", agent_id: chosen }, id, "company", item)).success).toBe(true);
+    expect(router.messages[0].content).toContain("Sei Giusy del bagno.");
+    expect(eq(mock.calls.find(q => q.table === "ai_agents_v2")!, "company_id")).toBe("company");
+  });
   it("AI cannot invoke a missing/foreign agent or bypass SMS opt-out", async () => {
     let calls = 0;
     const worker = load("executeAction", {

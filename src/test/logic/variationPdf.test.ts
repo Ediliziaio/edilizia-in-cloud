@@ -8,7 +8,7 @@ describe("Documento di anteprima variante",()=>{
   it("gestisce più pagine e non include note riservate o una firma inesistente",async()=>{
     const prepared=prepareVariation({...emptyVariationDraft(),kind:"riduzione",title:"DEMO - Riduzione e sostituzione pavimento",phase:"Pavimenti e rivestimenti",description:"Il cliente richiede una superficie ridotta rispetto al contratto originario.\n\n"+Array.from({length:18},(_,i)=>`${i+1}. Area ${i+1}: rimozione della voce prevista, mantenendo la preparazione del sottofondo. La posa e le superfici effettive saranno concordate prima dell'avvio.`).join("\n\n"),amount:"1250,50",days:"2",dayUnit:"lavorativi",requester:"Cliente DEMO",internalNotes:"SEGRETO_NON_ESPORTARE"});
     const pdf=await variationPreviewPdf(prepared,{orderCode:"DEMO-ORD-001",customerName:"Cliente DEMO",currentNet:22000,vatRate:10});
-    const source=pdf.output();expect(pdf.getNumberOfPages()).toBeGreaterThan(1);expect(source).not.toContain("SEGRETO_NON_ESPORTARE");expect(source).toContain("Non salvata, non inviata, non firmata");
+    const source=pdf.output();expect(pdf.getNumberOfPages()).toBeGreaterThan(1);expect(source).not.toContain("SEGRETO_NON_ESPORTARE");expect(source).toContain("NON SALVATA, NON INVIATA, NON FIRMATA");
     if(process.env.VARIATION_PDF_PROOF)writeFileSync(process.env.VARIATION_PDF_PROOF,Buffer.from(pdf.output("arraybuffer")));
   });
   it("crea una proposta offline completa con firma a mano, senza token o finta approvazione",async()=>{
@@ -25,7 +25,7 @@ describe("Documento di anteprima variante",()=>{
     expect(parti.righe.map(r=>r.importo)).toEqual([222,660]);
     const pdf=await variationProposalPdf(prepareVariation(draft),{companyName:"Impresa Vulcano S.r.l.",companyDetails:"Via Marconi 35, Lonate Pozzolo\nP.IVA 06923340969",customerName:"Giulia Longo",customerAddress:"Via Mazzolari 3, Magnago",siteAddress:"Via Mazzolari 3, Magnago",orderCode:"ORD-2026-034",currentNet:22133,vatRate:22,proposalNumber:7,proposalRegisteredAt:"2026-11-03T08:30:00Z",archivedOriginal:true,parti});
     const t=pdf.output();
-    for(const x of ["Demolizione pavimento","IMPORTO","222,00","Materiali scelti dal committente","Pagamento dei lavori extra","Firma cliente per approvazione","OdV #7","VARIANTE AL CONTRATTO","Preventivo PRE-2026-015"])expect(t).toContain(x);
+    for(const x of ["Demolizione pavimento","IMPORTO","222,00","Materiali scelti dal committente","Pagamento dei lavori extra","Firma cliente per approvazione","OdV #7","Variante al contratto","Preventivo PRE-2026-015"])expect(t).toContain(x);
     expect(t).toContain(CONDIZIONI_STANDARD_VARIANTE[0].slice(0,40));
     expect(t).not.toContain("Dettaglio economico");
     if(process.env.VARIATION_TABLE_PDF_PROOF)writeFileSync(process.env.VARIATION_TABLE_PDF_PROOF,Buffer.from(pdf.output("arraybuffer")));

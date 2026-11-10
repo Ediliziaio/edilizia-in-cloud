@@ -265,12 +265,12 @@ describe("il rendiconto dalla simulazione su Impresa Vulcano (10/11/2026)", () =
     expect(senza.raw).not.toContain("/Subtype /Image");
     const altra = await stampa([RIGHE[0]], { logo: LOGO });
     expect(altra.raw).toContain("/Subtype /Image");
-    // Con la veste di Vulcano il logo è grande e contiene già il nome: il nome scritto non si ripete in testata.
     const vulcano = await stampa([RIGHE[0]], { logo: LOGO, companyId: VULCANO });
     expect(vulcano.raw).toContain("/Subtype /Image");
-    // Il testo prima del titolo, dopo il numero di pagina del piè: è la testata.
+    // Lo stile unico (10/11/2026): col logo il nome scritto non si ripete in testata, per nessuna azienda (sta nel
+    // logo e nel piè). Il testo prima del titolo, dopo il numero di pagina del piè, è la testata.
     const testata = (t: string) => t.slice(t.indexOf("Pag. 1 / 1"), t.indexOf("Rendiconto lavori in appalto"));
-    expect(testata(altra.text)).toContain("Impresa Vulcano s.r.l.");
+    expect(testata(altra.text)).not.toContain("Impresa Vulcano s.r.l.");
     expect(testata(vulcano.text)).not.toContain("Impresa Vulcano s.r.l.");
   });
 });

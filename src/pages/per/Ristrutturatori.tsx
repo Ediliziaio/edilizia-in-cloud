@@ -1,5 +1,5 @@
 import {
-  FileText, Calculator, FolderOpen, Users, Clock, TrendingUp, ClipboardList, MapPin, Shield,
+  FileText, Calculator, FolderOpen, Users, TrendingUp, ClipboardList, MapPin, Shield,
   TrendingDown, Send, Camera, Sparkles, Receipt, Wallet, Warehouse, BarChart3,
 } from "lucide-react";
 import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipoPageTemplate";

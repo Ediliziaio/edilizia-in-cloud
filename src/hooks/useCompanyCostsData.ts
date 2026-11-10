@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { leggiCostiAzienda } from "@/lib/finance/leggiCostiAzienda";
+import { categorieDelCosto } from "@/lib/costi/partiPerCategoria";
 import { useQuery } from "@tanstack/react-query";
 import { format, isWithinInterval, startOfMonth, endOfMonth, addMonths, addDays, subMonths, startOfYear, endOfYear, parseISO, startOfDay, endOfDay } from "date-fns";
 import { it } from "date-fns/locale";
@@ -378,7 +379,8 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
     if (categoryFilter !== "all") {
       if (categoryFilter === "none") filtered = filtered.filter((c: any) => !c.category);
-      else filtered = filtered.filter((c: any) => c.category === categoryFilter);
+      // Una fattura divisa per categoria si trova anche per una sua parte.
+      else filtered = filtered.filter((c: any) => c.category === categoryFilter || categorieDelCosto(c).includes(categoryFilter));
     }
 
     if (methodFilter !== "all") {
@@ -436,7 +438,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     }
     if (categoryFilter !== "all") {
       if (categoryFilter === "none") filtered = filtered.filter((c) => !c.category);
-      else filtered = filtered.filter((c) => c.category === categoryFilter);
+      else filtered = filtered.filter((c) => c.category === categoryFilter || categorieDelCosto(c).includes(categoryFilter));
     }
     // I costi che vengono dalle commesse non hanno un metodo di pagamento:
     // con un metodo scelto escono, con «senza metodo» restano.

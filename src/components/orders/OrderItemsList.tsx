@@ -38,7 +38,6 @@ import { ArticleCombobox, ArticleTemplateData } from "./ArticleCombobox";
 import { SupplierSelect } from "./SupplierSelect";
 import { formatCurrency } from "@/lib/formatters";
 import { VAT_RATES } from "@/lib/vatUtils";
-import type { StockItem } from "@/types/warehouse";
 import {
   Popover,
   PopoverContent,

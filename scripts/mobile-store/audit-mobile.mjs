@@ -319,7 +319,7 @@ async function captureFullPageClipped(page, outPath) {
 async function auditWithScroll(page) {
   const result = await page.evaluate(async (auditFnStr) => {
     // ricostruisce la fn
-    // eslint-disable-next-line no-new-func
+     
     const runAudit = new Function("return (" + auditFnStr + ")()");
     const merged = {
       viewport: { w: window.innerWidth, h: window.innerHeight },

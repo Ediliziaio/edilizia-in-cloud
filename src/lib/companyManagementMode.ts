@@ -3,7 +3,7 @@ import type { Permissions } from '@/hooks/usePermissions';
 export type CompanyManagementMode = 'complete' | 'accounting';
 const accountingAreas = [
   'attivita','email','chat','cruscotto','documenti','fatturazione','tesoreria',
-  'scadenzario','prima-nota','costi','previsionale','controllo-gestione',
+  'scadenzario','prima-nota','contabilita-generale','costi','previsionale','controllo-gestione',
   'analisi-acquisti','clienti','contenuti-multimediali',
 ];
 const accountingSettings = new Set([

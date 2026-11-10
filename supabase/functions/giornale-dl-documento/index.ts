@@ -1,3 +1,4 @@
+// 10/11/2026: stile unico dei documenti (_shared/stileDocumenti.ts): testata col logo a sinistra e il titolo a destra, filetto d'accento, tabelle e riquadri tenui, dati societari nel piè; accento dal colore della veste o del marchio (_shared/coloreMarchioAzienda.ts).
 // 10/11/2026: il giornale esce con la veste propria dell'azienda (_shared/vesteHtml.ts), senza emoji e col ruolo vero di chi firma (_shared/documentoGiornale.ts, datiDocumentoGiornale.ts).
 /**
  * La pagina firmata del giornale per chi ha il link (direzione lavori): niente login,
@@ -8,6 +9,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { leggiAziendaDocumento } from "../_shared/aziendaDocumento.ts";
+import { leggiColoreMarchio } from "../_shared/coloreMarchioAzienda.ts";
 import { buildGiornaleHtml } from "../_shared/documentoGiornale.ts";
 import { leggiGiornateDocumento } from "../_shared/datiDocumentoGiornale.ts";
 import { improntaTokenDl, tokenDlBenFormato } from "../_shared/linkGiornaleDl.ts";
@@ -35,12 +37,14 @@ Deno.serve(async (req) => {
     const pagina = giornate[0];
     if (!pagina || pagina.stato !== "firmata") return json({ error: "Documento non disponibile" }, 404);
 
-    const [{ data: commessa }, azienda, branding] = await Promise.all([
+    const [{ data: commessa }, anagrafica, branding, coloreMarchio] = await Promise.all([
       supabase.from("orders").select("description, order_code").eq("id", pagina.order_id).maybeSingle(),
       leggiAziendaDocumento(supabase, invio.company_id),
       getBrandingForCompany(supabase, invio.company_id),
+      leggiColoreMarchio(supabase, invio.company_id),
     ]);
-    if (!azienda) return json({ error: "Documento non disponibile" }, 404);
+    if (!anagrafica) return json({ error: "Documento non disponibile" }, 404);
+    const azienda = { ...anagrafica, colore_marchio: coloreMarchio };
 
     const piede = branding.hidePoweredBy ? branding.platformName : `${branding.platformName} — ${branding.siteUrl.replace("https://", "")}`;
     return json({ html: buildGiornaleHtml(giornate, commessa, azienda, piede, invio.company_id), data_lavori: pagina.data_lavori });

@@ -1,3 +1,4 @@
+import { chiaveRiga } from "./contoPerRiga";
 import { TIPI_DOCUMENTO } from "./fatturaRicevutaHtml";
 
 /**
@@ -22,6 +23,8 @@ export interface RigaLeggibile {
   imponibile: number;
   aliquota: number | null;
   natura: string | null;
+  /** Il numero della riga nell'XML (o la posizione): la chiave del conto di costo per riga. */
+  chiave: string;
 }
 
 export interface AliquotaLeggibile {
@@ -66,8 +69,9 @@ export function nomeNatura(codice: string | null | undefined): string | null {
 export function righeLeggibili(righe: unknown): RigaLeggibile[] {
   if (!Array.isArray(righe)) return [];
   return righe
-    .filter((r): r is Record<string, unknown> => !!r && typeof r === "object")
-    .map((r) => {
+    .map((r, indice) => ({ r, indice }))
+    .filter((x): x is { r: Record<string, unknown>; indice: number } => !!x.r && typeof x.r === "object")
+    .map(({ r, indice }) => {
       const quantita = numero(r.quantita);
       const prezzoUnitario = numero(r.prezzo_unitario);
       const imponibile = numero(r.imponibile) ?? (quantita != null && prezzoUnitario != null ? tondo(quantita * prezzoUnitario) : 0);
@@ -78,6 +82,7 @@ export function righeLeggibili(righe: unknown): RigaLeggibile[] {
         imponibile,
         aliquota: numero(r.aliquota_iva),
         natura: testo(r.natura_iva) || null,
+        chiave: chiaveRiga(r, indice),
       };
     })
     .filter((r) => r.descrizione !== "" || r.imponibile !== 0);

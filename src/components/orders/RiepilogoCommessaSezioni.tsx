@@ -7,7 +7,8 @@ import { asseTempo, cassaPerMese, orePerSettimana, periodoFase, tempoTrascorso, 
  * Sezioni del PDF «Riepilogo commessa» oltre a quelle storiche di OrdinePDF.
  * Sono funzioni chiamate direttamente, non componenti: restituiscono gli elementi
  * che OrdinePDF mette nella pagina. Stili e formati arrivano da lì in `kit`,
- * così i due file non si importano a vicenda.
+ * così i due file non si importano a vicenda. Dal 10/11/2026 i colori di `kit.C` sono quelli dello stile unico dei
+ * documenti (OrdinePDF, tavolozza): accento, grigi, nessun fondo colorato; `serie2` è la seconda serie dei grafici.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export interface KitPdf {
@@ -66,7 +67,7 @@ function tabella(kit: KitPdf, nome: string | null, colonne: Colonna[], righe: Ce
           </View>
         ))}
         {chiusura && (
-          <View style={[styles.tableRow, { backgroundColor: kit.C.gray100, borderTop: `1pt solid ${kit.C.gray300}` }]} wrap={false}>
+          <View style={[styles.tableRow, styles.tableTotal ?? {}]} wrap={false}>
             {colonne.map((c, i) => <Text key={c.titolo} style={[styles.tableCell, cella(c), { fontFamily: "Helvetica-Bold" }]}>{chiusura[i] == null ? "" : String(chiusura[i])}</Text>)}
           </View>
         )}
@@ -120,7 +121,7 @@ export function sezioneGrafici(kit: KitPdf, dossier: DossierEconomico, mostraMar
                 <Text style={[styles.financialValue, { fontSize: 7 }]}>{fmt(r.consuntivo)}</Text>
               </View>
               {r.preventivo != null && <View style={{ marginBottom: 1 }}>{barra(kit, (r.preventivo / massimo) * 100, C.gray300, 3)}</View>}
-              {barra(kit, (r.consuntivo / massimo) * 100, r.preventivo != null && r.consuntivo > r.preventivo ? C.red : C.orange, 3)}
+              {barra(kit, (r.consuntivo / massimo) * 100, r.preventivo != null && r.consuntivo > r.preventivo ? C.red : (C.serie2 ?? C.orange), 3)}
             </View>
           ))}
           <Text style={{ fontSize: 6, color: C.gray500 }}>Barra grigia: preventivo. Arancione: consuntivo (rossa se lo supera).</Text>
@@ -198,7 +199,7 @@ export function sezioneGraficiCosti(kit: KitPdf, dossier: DossierEconomico) {
               return (
                 <React.Fragment key={m.mese}>
                   <Rect x={centro - barra2} y={y(m.entrate)} width={barra2} height={Math.max(0, y(0) - y(m.entrate))} fill={C.green} />
-                  <Rect x={centro} y={y(m.uscite)} width={barra2} height={Math.max(0, y(0) - y(m.uscite))} fill={C.orange} />
+                  <Rect x={centro} y={y(m.uscite)} width={barra2} height={Math.max(0, y(0) - y(m.uscite))} fill={C.serie2 ?? C.orange} />
                 </React.Fragment>
               );
             })}
@@ -208,7 +209,7 @@ export function sezioneGraficiCosti(kit: KitPdf, dossier: DossierEconomico) {
             {mesi.map((m, i) => <Text key={m.mese} style={{ flex: 1, fontSize: 5.5, color: C.gray500, textAlign: "center" }}>{i % salto === 0 ? m.etichetta : ""}</Text>)}
           </View>
           <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
-            {[[C.green, "Entrate"], [C.orange, "Uscite"], [C.navy, "Saldo progressivo"]].map(([colore, nome]) => (
+            {[[C.green, "Entrate"], [C.serie2 ?? C.orange, "Uscite"], [C.navy, "Saldo progressivo"]].map(([colore, nome]) => (
               <View key={nome} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
                 <View style={{ width: 6, height: 6, backgroundColor: colore }} />
                 <Text style={{ fontSize: 6, color: C.gray500 }}>{nome}</Text>
@@ -300,7 +301,7 @@ export function sezioneCronoprogramma(kit: KitPdf, dati: DatiRiepilogo, ordine: 
                 {etichettaRiga(f.name ?? "—")}
                 <View style={{ flex: 1, position: "relative", height: 11 }}>
                   {griglia(11)}
-                  {barra(f.inizio, f.fine, p, inRitardo ? C.red : p >= 100 ? C.green : C.orange, 7, 11)}
+                  {barra(f.inizio, f.fine, p, inRitardo ? C.red : p >= 100 ? C.green : (C.serie2 ?? C.orange), 7, 11)}
                 </View>
               </View>
               {sotto.map((s: any) => (
@@ -325,7 +326,7 @@ export function sezioneCronoprogramma(kit: KitPdf, dati: DatiRiepilogo, ordine: 
           </View>
         ))}
         <View style={{ flexDirection: "row", gap: 8, marginTop: 5 }}>
-          {[[C.green, "Fase finita"], [C.orange, "Parte eseguita"], [C.gray300, "Da eseguire"], [C.red, "In ritardo / oggi"]].map(([colore, nome]) => (
+          {[[C.green, "Fase finita"], [C.serie2 ?? C.orange, "Parte eseguita"], [C.gray300, "Da eseguire"], [C.red, "In ritardo / oggi"]].map(([colore, nome]) => (
             <View key={nome} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
               <View style={{ width: 6, height: 6, backgroundColor: colore }} />
               <Text style={{ fontSize: 6, color: C.gray500 }}>{nome}</Text>
@@ -401,7 +402,7 @@ export function sezioneProgramma(kit: KitPdf, dati: DatiRiepilogo, persone: Reco
                 <Text style={{ fontSize: 7, color: C.gray700 }}>{data(fine)}</Text>
               </View>
               <View style={{ flex: 1.1, flexDirection: "row", alignItems: "center", gap: 3, paddingRight: 6 }}>
-                <View style={{ flex: 1 }}>{barra(kit, p, p >= 100 ? C.green : C.orange)}</View>
+                <View style={{ flex: 1 }}>{barra(kit, p, p >= 100 ? C.green : (C.serie2 ?? C.orange))}</View>
                 <Text style={{ fontSize: 6.5, color: C.gray700, width: 19, textAlign: "right" }}>{`${p}%`}</Text>
               </View>
               {conti && <Text style={[styles.tableCell, { flex: 1, textAlign: "right" }]}>{soldi(e?.venduto)}</Text>}

@@ -1,6 +1,7 @@
 import type {SupabaseClient} from "@supabase/supabase-js";
 import type {Database} from "@/integrations/supabase/types";
 import {prepareSalLines,type SalDraftLine} from "./salDraft";
+import {preparaSottofasi} from "./salSottofasi";
 export class SalSaveError extends Error {
   constructor(message:string,readonly uncertain:boolean=false){super(message);this.name="SalSaveError";}
 }
@@ -9,6 +10,9 @@ export async function saveSalDraft(client:SupabaseClient<Database>,input:{orderI
   if(!input.orderId||!input.companyId||!Number.isInteger(input.number)||input.number<1||input.number>2_147_483_647)throw new SalSaveError("Commessa o numero SAL non valido.");
   if(!/^\d{4}-\d{2}-\d{2}$/.test(input.date)||!Number.isFinite(Date.parse(input.date))||new Date(input.date).toISOString().slice(0,10)!==input.date)throw new SalSaveError("Data SAL non valida.");
   const prepared=prepareSalLines(input.lines,input.contractNet);
+  // Il dettaglio per sottofase (10/11/2026): si controlla prima di scrivere, e non entra nei totali.
+  const voceIds=prepared.rows.map(()=>crypto.randomUUID());
+  const dettaglio=input.lines.flatMap((line,i)=>line.sottofasi?.length ? preparaSottofasi(line.sottofasi,`Voce ${i+1}`).map(d=>({...d,voce_id:voceIds[i]})) : []);
   const id=crypto.randomUUID();
   try{
   const {data,error}=await client.from("sal_records").insert({id,company_id:input.companyId,order_id:input.orderId,numero_sal:input.number,data_emissione:input.date,stato:"bozza",importo_totale:prepared.total,note:input.note.trim()||null,installment_id:input.installmentId}).select("id,company_id,order_id,stato").single();
@@ -18,8 +22,13 @@ export async function saveSalDraft(client:SupabaseClient<Database>,input:{orderI
   if(error && codice) throw new SalSaveError(`SAL non salvato: ${error.message||"il database l'ha rifiutato"}`);
   if(error || data?.id!==id || data.company_id!==input.companyId || data.order_id!==input.orderId || data.stato!=="bozza")
     throw new SalSaveError("Salvataggio non confermato: controlla l'elenco SAL prima di riprovare, per evitare duplicati.",true);
-  const result=await client.from("sal_voci").insert(prepared.rows.map(row=>({...row,sal_id:id}))).select("id,importo_sal");
-  if(result.error || result.data?.length!==prepared.rows.length || Math.round((result.data??[]).reduce((sum,row)=>sum+Number(row.importo_sal),0)*100)!==Math.round(prepared.total*100)){
+  const result=await client.from("sal_voci").insert(prepared.rows.map((row,i)=>({...row,id:voceIds[i],sal_id:id}))).select("id,importo_sal");
+  let vociOk=!result.error && result.data?.length===prepared.rows.length && Math.round((result.data??[]).reduce((sum,row)=>sum+Number(row.importo_sal),0)*100)===Math.round(prepared.total*100);
+  if(vociOk && dettaglio.length){
+    const sotto=await client.from("sal_voci_sottofasi").insert(dettaglio).select("id");
+    vociOk=!sotto.error && sotto.data?.length===dettaglio.length;
+  }
+  if(!vociOk){
     // Only the freshly created draft, never an issued/approved document. Confirm cleanup receipt.
     const cleanup=await client.from("sal_records").delete().eq("id",id).eq("company_id",input.companyId).eq("order_id",input.orderId).eq("stato","bozza").select("id");
     if(cleanup.error || cleanup.data?.length!==1)throw new SalSaveError("Le voci non sono confermate e la bozza resta da verificare. Non crearne un'altra: aggiorna lo storico.",true);

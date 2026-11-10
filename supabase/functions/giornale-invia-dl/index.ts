@@ -1,3 +1,4 @@
+// 10/11/2026: ripubblicata perché importa _shared/documentoGiornale.ts, cambiato (stile unico dei documenti: _shared/stileDocumenti.ts, vesteHtml.ts).
 // 10/11/2026: ripubblicata perché importa _shared/documentoGiornale.ts, cambiato (veste propria, niente emoji, ruolo di chi firma).
 /**
  * «Invia alla direzione lavori»: spedisce il link a una pagina firmata del giornale.

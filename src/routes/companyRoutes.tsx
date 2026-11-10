@@ -416,6 +416,7 @@ const ReportFatturazione = lazy(() => import("@/pages/azienda/fatturazione/Repor
 // v8.6.57 — ImpostazioniFatturazione ora caricato da SettingsFatturazioneUnified
 // (wrapper con tabs). Non più import diretto qui per evitare duplicato chunk.
 const PrimaNota = lazy(() => import("@/pages/azienda/PrimaNota"));
+const ContabilitaGeneralePagina = lazy(() => import("@/pages/azienda/ContabilitaGeneralePagina"));
 const PersonalePage = lazy(() => import("@/pages/azienda/personale/PersonalePage"));
 const PortalePage = lazy(() => import("@/pages/azienda/personale/PortalePage"));
 const FormazioneDipendente = lazy(() => import("@/pages/azienda/formazione/FormazioneDipendente"));
@@ -839,6 +840,7 @@ export default function CompanyRoutesContainer() {
 
         {/* Prima nota — gated: tesoreria (stesso dominio finanziario) */}
         <Route path="prima-nota" element={withCompanyPermission("canViewPrimaNota", <ErrorBoundary title="Errore nel caricamento prima nota"><FeatureRoute featureKey="tesoreria"><PrimaNota /></FeatureRoute></ErrorBoundary>)} />
+        <Route path="contabilita-generale" element={withCompanyPermission("canViewPrimaNota", <FeatureRoute featureKey="contabilita_fiscale"><ErrorBoundary title="Errore nella contabilità generale"><ContabilitaGeneralePagina /></ErrorBoundary></FeatureRoute>)} />
         {/* Stessa guardia della lista (OrCommercialista): prima il commercialista
             vedeva il tab ODA ma prendeva 403 aprendo un dettaglio. */}
         <Route path="ordini-acquisto" element={<Navigate to="/azienda/ordini?tab=acquisto" replace />} />

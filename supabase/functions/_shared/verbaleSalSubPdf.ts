@@ -1,525 +1,370 @@
+/**
+ * Il PDF del verbale SAL di un subappaltatore.
+ *
+ * 10/11/2026: rifatto nello stile unico dei documenti (stileDocumenti.ts), come il verbale SAL del
+ * committente: testata con il logo a sinistra e il titolo a destra, i tre numeri che contano in
+ * riquadri (lordo, ritenuta, netto), la tabella dei lavori misurati, il benestare alla fatturazione,
+ * le firme con il timbro. Prima ogni sezione aveva un paragrafo di avvertenze grigie e le righe
+ * «non registrato» riempivano il foglio: ora si mostra solo quello che c'è, e le avvertenze sono una.
+ * I conti (verificaVerbaleSalSub, benestareFatturazione, quadro delle garanzie) non cambiano.
+ */
 import pdfMake from "pdfmake";
 import vfs from "pdfmake-fonts";
 import { benestareFatturazione, type VerbaleSalSub, verificaVerbaleSalSub } from "./verbaleSalSub.ts";
+import { colore, pagina, riquadro, sezione, tabella, testata } from "./stileDocumenti.ts";
 pdfMake.addVirtualFileSystem(vfs);
+
+// «always»: senza, in italiano 4000 resta senza il punto delle migliaia.
 const euro = (n: unknown) =>
-  Number(n).toLocaleString("it-IT", { style: "currency", currency: "EUR" });
+  Number(n).toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" } as Intl.NumberFormatOptions);
+const quantita = (n: unknown) =>
+  Number(n).toLocaleString("it-IT", { maximumFractionDigits: 3, useGrouping: "always" } as Intl.NumberFormatOptions);
 const data = (s: string) =>
   /^\d{4}-\d{2}-\d{2}/.test(s)
     ? s.slice(0, 10).split("-").reverse().join("/")
     : s;
+const ACCENTO = colore.accentoPredefinito;
+
+const STATI: Record<string, { testo: string; colore: string }> = {
+  ricevuto: { testo: "Da verificare", colore: colore.avviso },
+  verificato: { testo: "Verificato", colore: colore.positivo },
+  pagato: { testo: "Pagato", colore: colore.positivo },
+  contestato: { testo: "Contestato", colore: "#B91C1C" },
+};
+
 /** logoImpresa: data URL PNG/JPEG del logo; resta fuori dal modello salvato del verbale. */
-export function layoutVerbaleSalSub(d: VerbaleSalSub, logoImpresa: string | null = null) {
+// deno-lint-ignore no-explicit-any
+export function layoutVerbaleSalSub(d: VerbaleSalSub, logoImpresa: string | null = null): any {
   const r = verificaVerbaleSalSub(d);
-  const titolo = (t: string) => ({
-    text: t,
+  const benestare = benestareFatturazione(d, r);
+  const logo = typeof logoImpresa === "string" && /^data:image\/(png|jpeg);base64,/.test(logoImpresa) ? logoImpresa : null;
+  const stato = STATI[d.sal.stato] ?? { testo: d.sal.stato, colore: colore.testoTenue };
+
+  const titoloSezione = (t: string) => ({
+    text: t.toUpperCase(),
     style: "sezione",
     headlineLevel: 1,
-    margin: [0, 16, 0, 6],
+    margin: [0, sezione.spazioPrima, 0, sezione.spazioDopo],
   });
-  const nota = (t: string) => ({
-    text: t,
-    color: "#64748b",
-    fontSize: 8,
-    margin: [0, 5, 0, 5],
-  });
-  const riga = (
-    a: string,
-    b: string,
-  ) => [{ text: a, color: "#475569" }, {
-    text: b,
-    bold: true,
-    alignment: "right",
-  }];
-  const intestazioneTesto = [
-    { text: d.impresa.ragione_sociale, style: "impresa" },
-    {
-      text: [
-        d.impresa.partita_iva ? `P.IVA ${d.impresa.partita_iva}` : "",
-        d.impresa.indirizzo,
-      ].filter(Boolean).join(" · "),
-      fontSize: 8,
-      color: "#475569",
-    },
+  // Una funzione, non un oggetto: pdfmake scrive le posizioni dentro il nodo, e un nodo riusato disegna righe vaganti.
+  const filettoSezione = () => ({ canvas: [{ type: "line", x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: sezione.filetto, lineColor: colore.linea }], margin: [0, -4, 0, 6] });
+  const nota = (t: string, extra: Record<string, unknown> = {}) => ({ text: t, style: "nota", margin: [0, 3, 0, 3], ...extra });
+  const etichetta = (t: string) => ({ text: t.toUpperCase(), style: "etichetta" });
+  // Solo le righe che hanno un valore: niente «non registrato».
+  const righe = (...v: Array<string | null | undefined | false>) => v.filter((x): x is string => !!x && !!x.trim());
+  const sezioneIntera = (titolo: string, corpo: unknown[]) => ({ unbreakable: true, stack: [titoloSezione(titolo), filettoSezione(), ...corpo] });
+  const layoutTabella = {
+    hLineWidth: (i: number, node: { table: { body: unknown[] } }) => (i === 0 ? 0 : i === node.table.body.length ? tabella.filettoTotale : tabella.filetto),
+    vLineWidth: () => 0,
+    hLineColor: () => colore.linea,
+    paddingLeft: () => tabella.paddingOrizzontale,
+    paddingRight: () => tabella.paddingOrizzontale,
+    paddingTop: () => 4,
+    paddingBottom: () => 4,
+  };
+  const th = (t: string, alignment = "left") => ({ text: t.toUpperCase(), style: "th", alignment, fillColor: colore.fondoIntestazione });
+  const riga = (a: string, b: string, forte = false) => [
+    { text: a, bold: forte },
+    { text: b, alignment: "right", bold: forte, noWrap: true },
   ];
-  const logo = typeof logoImpresa === "string" && /^data:image\/(png|jpeg);base64,/.test(logoImpresa) ? logoImpresa : null;
-  const benestare = benestareFatturazione(d, r);
-  const contenuto: any[] = [
-    logo
-      ? {
+  const box = (stack: unknown[], fill: string = colore.fondoTenue) => ({
+    table: { widths: ["*"], body: [[{ stack, fillColor: fill, margin: [riquadro.padding - 4, riquadro.padding - 4, riquadro.padding - 4, riquadro.padding - 4] }]] },
+    layout: { hLineWidth: () => riquadro.bordo, vLineWidth: () => riquadro.bordo, hLineColor: () => colore.linea, vLineColor: () => colore.linea },
+  });
+
+  // ── Testata: logo (o ragione sociale) a sinistra, titolo e stato a destra, filetto d'accento.
+  const testataSinistra = logo
+    ? { image: logo, fit: [testata.logoLarghezzaMax, testata.logoAltezza], width: testata.logoLarghezzaMax }
+    : { width: "*", stack: [{ text: d.impresa.ragione_sociale, fontSize: testata.ragioneSocialeCorpo, bold: true }] };
+  const contenuto: unknown[] = [
+    {
+      columns: [
+        testataSinistra,
+        {
+          width: "*",
+          alignment: "right",
+          stack: [
+            { text: "Verbale SAL del subappaltatore", fontSize: testata.titoloCorpo, bold: true },
+            { text: `SAL n. ${d.sal.numero_sal} · ${data(d.sal.data_emissione)} · lavori dal ${data(d.periodo_dal)} al ${data(d.periodo_al)}`, fontSize: testata.sottotitoloCorpo, color: colore.testoTenue, margin: [0, 3, 0, 4] },
+            { text: stato.testo.toUpperCase(), fontSize: 7, bold: true, color: stato.colore },
+          ],
+        },
+      ],
+      columnGap: 12,
+    },
+    { canvas: [{ type: "line", x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: testata.filettoSpessore, lineColor: ACCENTO }], margin: [0, testata.filettoDistanza, 0, testata.spazioDopo - 4] },
+
+    // ── Le parti e il contratto.
+    box([
+      {
         columns: [
-          { stack: intestazioneTesto, width: "*" },
-          { image: logo, fit: [150, 48], alignment: "right", width: 160 },
+          { stack: [etichetta("Impresa affidataria"), { text: d.impresa.ragione_sociale, bold: true, margin: [0, 2, 0, 1] },
+            ...righe(d.impresa.partita_iva && `P.IVA ${d.impresa.partita_iva}`, d.impresa.indirizzo, d.contratto.responsabile_impresa && `Referente: ${d.contratto.responsabile_impresa}`).map((t) => ({ text: t, color: colore.testoTenue }))] },
+          { stack: [etichetta("Subappaltatore"), { text: d.sub.ragione_sociale, bold: true, margin: [0, 2, 0, 1] },
+            ...righe(d.sub.piva && `P.IVA ${d.sub.piva}`, d.sub.indirizzo, (d.contratto.referente_subappaltatore || d.sub.responsabile) && `Referente: ${d.contratto.referente_subappaltatore || d.sub.responsabile}`).map((t) => ({ text: t, color: colore.testoTenue }))] },
         ],
-        columnGap: 12,
-      }
-      : { stack: intestazioneTesto },
-    {
-      canvas: [{ type: "line", x1: 0, y1: 4, x2: 515, y2: 4, lineWidth: 2, lineColor: "#17324f" }],
-      margin: [0, 6, 0, 0],
-    },
-    {
-      text: "VERBALE RIEPILOGATIVO SAL SUBAPPALTO",
-      style: "titolo",
-      margin: [0, 20, 0, 5],
-    },
-    {
-      text: `SAL n. ${d.sal.numero_sal} · ${data(d.sal.data_emissione)} · ${
-        r.bozza ? "BOZZA / DA VERIFICARE" : "RIEPILOGO DEL SAL REGISTRATO"
-      }`,
-      bold: true,
-      color: r.bozza ? "#b45309" : "#1e3a5f",
-    },
-    nota(
-      `Generato il ${
-        new Date(d.generato_il).toLocaleString("it-IT", {
-          timeZone: "Europe/Rome",
-        })
-      }. Stato acquisito dal sistema: ${d.sal.stato}. Questo documento non registra nuove approvazioni, firme, fatture o pagamenti.`,
-    ),
-    titolo("1 · Parti, contratto e cantiere"),
-    {
-      table: {
-        widths: ["*", "*"],
-        body: [
-          [{ text: "IMPRESA AFFIDATARIA", style: "etichetta" }, {
-            text: "SUBAPPALTATORE",
-            style: "etichetta",
-          }],
-          [d.impresa.ragione_sociale, d.sub.ragione_sociale],
-          [
-            `P.IVA ${d.impresa.partita_iva || "non registrata"}`,
-            `P.IVA ${d.sub.piva || "non registrata"}`,
-          ],
-          [d.impresa.indirizzo, d.sub.indirizzo || "Indirizzo non registrato"],
-          [
-            `Referente: ${
-              d.contratto.responsabile_impresa || "Non registrato"
-            }`,
-            `Referente: ${
-              d.contratto.referente_subappaltatore || d.sub.responsabile ||
-              "Non registrato"
-            }`,
-          ],
+        columnGap: 18,
+      },
+      { canvas: [{ type: "line", x1: 0, y1: 0, x2: 495, y2: 0, lineWidth: 0.5, lineColor: colore.linea }], margin: [0, 8, 0, 6] },
+      {
+        columns: [
+          { stack: [etichetta("Contratto"), { text: d.contratto.numero_contratto ? `n. ${d.contratto.numero_contratto}` : "Contratto di subappalto", margin: [0, 2, 0, 0] }] },
+          { stack: [etichetta("Commessa"), { text: [d.commessa.order_code, d.commessa.description].filter(Boolean).join(" — ") || "—", margin: [0, 2, 0, 0] }] },
+          ...(d.commessa.work_address ? [{ stack: [etichetta("Cantiere"), { text: d.commessa.work_address, margin: [0, 2, 0, 0] }] }] : []),
         ],
+        columnGap: 18,
       },
-      layout: "lightHorizontalLines",
-    },
+    ]),
+
+    // ── I tre numeri che contano.
     {
-      text: `Contratto: ${d.contratto.numero_contratto || d.contratto.id}`,
-      margin: [0, 10, 0, 3],
-    },
-    {
-      text: `Commessa: ${d.commessa.order_code || d.commessa.id} · ${
-        d.commessa.description || ""
-      }`,
-    },
-    {
-      text: `Cantiere: ${
-        d.commessa.work_address || "Indirizzo non registrato"
-      }`,
-    },
-    {
-      text: `Periodo indicato per il verbale: ${data(d.periodo_dal)} — ${
-        data(d.periodo_al)
-      }`,
-      margin: [0, 6, 0, 0],
-    },
-    titolo("2 · Lavori e informazioni disponibili"),
-    { text: d.contratto.descrizione_lavori },
-    ...(d.lavori?.length
-      ? [
-        nota(
-          "Rilevazioni interne riconosciute e collegate a questo SAL. Le quantità sono del periodo e valorizzate ai prezzi acquisiti nella base lavori. Per i lavori a corpo 1 quota equivale al 100% del lavoro. La verifica registrata non sostituisce una sottoscrizione del verbale.",
-        ),
-        {
-          table: {
-            headerRows: 1,
-            keepWithHeaderRows: 1,
-            widths: ["*", 45, 62, 32, 60, 60],
-            body: [
-              [
-                "Lavorazione / rilievo",
-                "Dichiarata",
-                "Riconosciuta",
-                "Unità",
-                "Prezzo unitario",
-                "Importo",
-              ].map((text) => ({ text, bold: true })),
-              ...d.lavori.map(
-                (l) => [
-                  `${l.descrizione}\n${
-                    data(l.data_rilievo)
-                  } · Base rev. ${l.revisione_quadro}`,
-                  String(l.quantita_dichiarata),
-                  String(l.quantita_riconosciuta),
-                  l.unita,
-                  euro(l.prezzo_unitario),
-                  euro(l.importo),
-                ],
-              ),
-            ],
-          },
-          layout: "lightHorizontalLines",
-          fontSize: 8,
-        },
-        ...d.lavori.map((l) =>
-          nota(
-            `Rif. misura ${l.misura_id} · ${l.riferimento} · Verifica: ${l.nota_verifica} · Registrata il ${
-              new Date(l.verificato_il).toLocaleString("it-IT", {
-                timeZone: "Europe/Rome",
-              })
-            } · Attore ${l.verificato_da}`,
-          )
-        ),
-      ]
-      : [
-        nota(
-          "Descrizione tratta dal contratto. Questo SAL storico contiene importi aggregati: non sono registrate righe di misurazione, quantità o percentuali certificate. Il periodo e le osservazioni del verbale sono integrazioni dell'operatore, non misure validate automaticamente.",
-        ),
-      ]),
-    { text: d.sal.note || "Nessuna nota associata al SAL." },
-    ...(d.sal.note_contestazione
-      ? [{
-        text: `Contestazione registrata: ${d.sal.note_contestazione}`,
-        color: "#b91c1c",
-        margin: [0, 6, 0, 0],
-      }]
-      : []),
-    titolo("3 · Riepilogo economico"),
-    {
-      table: {
-        widths: ["*", 125],
-        body: [
-          riga(
-            "Importo contrattuale (oneri esclusi)",
-            euro(d.contratto.importo_contrattuale),
-          ),
-          riga(
-            "Oneri di sicurezza contrattuali separati",
-            euro(d.contratto.oneri_sicurezza),
-          ),
-          riga("Importo lordo del SAL del periodo", euro(r.lordo)),
-          riga(
-            `Ritenuta registrata (${d.sal.ritenuta_pct}%)`,
-            euro(r.ritenuta),
-          ),
-          [{ text: "NETTO DEL SAL", bold: true, color: "#1e3a5f" }, {
-            text: euro(r.netto),
-            bold: true,
-            alignment: "right",
-            color: "#1e3a5f",
-          }],
-        ],
-      },
-      layout: "lightHorizontalLines",
-    },
-    nota(
-      "Importi del SAL come registrati, al netto dell'IVA. Il netto non coincide automaticamente con una somma esigibile o con il residuo da pagare: verificare condizioni, fatture, acconti, compensazioni e pagamenti. Recuperi di acconti e allocazioni di pagamenti parziali non risultano in questo modello storico.",
-    ),
-    {
-      table: {
-        widths: ["*", 125],
-        body: [
-          riga(
-            "SAL precedenti riconosciuti (verificati/pagati)",
-            euro(r.precedenteRiconosciuto),
-          ),
-          riga(
-            "Cumulativo riconosciuto incluso questo SAL, se verificato/pagato",
-            euro(r.cumulativoRiconosciuto),
-          ),
-        ],
-      },
-      layout: "lightHorizontalLines",
-    },
-    nota(
-      `I SAL sono trattati come importi del periodo secondo il registro esistente. I SAL ricevuti o contestati non entrano nel cumulativo riconosciuto. ${
-        d.lavori?.length
-          ? "Il SAL corrente coincide con il totale delle misure collegate; i SAL precedenti mantengono la loro base storica."
-          : "Non è stata eseguita una riconciliazione con il computo o le quantità."
-      }`,
-    ),
-    {
-      unbreakable: true,
-      margin: [0, 12, 0, 0],
-      table: {
-        widths: ["*"],
-        body: [[{
-          fillColor: benestare.autorizzato ? "#ecfdf5" : "#fffbeb",
-          margin: [10, 8, 10, 8],
-          stack: [
-            { text: benestare.titolo.toUpperCase(), bold: true, fontSize: 10, color: benestare.autorizzato ? "#047857" : "#b45309" },
-            { text: benestare.testo, margin: [0, 4, 0, 4] },
-            ...(benestare.righe.length
-              ? [{
-                table: {
-                  widths: ["*", 110],
-                  body: benestare.righe.map(([a, b], i) => [
-                    { text: a, bold: i === benestare.righe.length - 1, color: "#334155" },
-                    { text: b, bold: i === benestare.righe.length - 1, alignment: "right" },
-                  ]),
-                },
-                layout: "noBorders",
-                margin: [0, 2, 0, 4],
-              }]
-              : []),
-            ...benestare.istruzioni.map((t) => ({ text: `• ${t}`, fontSize: 8, color: "#475569", margin: [0, 1, 0, 1] })),
-          ],
-        }]],
-      },
-      layout: { hLineColor: () => (benestare.autorizzato ? "#6ee7b7" : "#fcd34d"), vLineColor: () => (benestare.autorizzato ? "#6ee7b7" : "#fcd34d") },
-    },
-    {
-      unbreakable: true,
-      pageBreak: "before",
-      stack: [
-        titolo("4 · Garanzie e ritenute"),
-        {
-          text:
-            `Aliquota del SAL: ${d.sal.ritenuta_pct}% · Ritenuta del periodo: ${
-              euro(r.ritenuta)
-            }. Aliquota nel contratto corrente: ${
-              d.contratto.ritenuta_garanzia_pct == null
-                ? "non registrata"
-                : `${d.contratto.ritenuta_garanzia_pct}%`
-            }.`,
-        },
-        nota(
-          "La percentuale è quella registrata nel SAL: non viene sostituita automaticamente da un'aliquota standard o da successive modifiche del contratto.",
-        ),
+      columns: [
+        box([etichetta("Lavori di questo SAL"), { text: euro(r.lordo), fontSize: riquadro.numeroCorpo, margin: [0, 3, 0, 0] }, { text: "lordo, IVA esclusa", style: "nota" }]),
+        box([etichetta(`Ritenuta di garanzia ${d.sal.ritenuta_pct}%`), { text: euro(r.ritenuta), fontSize: riquadro.numeroCorpo, margin: [0, 3, 0, 0] }, { text: "si paga allo svincolo", style: "nota" }]),
+        box([etichetta("Netto del SAL"), { text: euro(r.netto), fontSize: riquadro.numeroCorpo, bold: true, color: ACCENTO, margin: [0, 3, 0, 0] }, { text: "imponibile della fattura", style: "nota" }]),
       ],
+      columnGap: 8,
+      margin: [0, 10, 0, 0],
     },
-    ...(d.contratto.ritenuta_garanzia_pct != null &&
-        Number(d.contratto.ritenuta_garanzia_pct) !== Number(d.sal.ritenuta_pct)
-      ? [
-        nota(
-          "Attenzione: aliquota del SAL diversa dal contratto corrente. Verificare l'accordo applicabile al periodo.",
-        ),
-      ]
-      : []),
-    ...(d.garanzie
-      ? [
-        {
-          table: {
-            widths: ["*", 125],
-            body: [
-              riga(
-                "Ritenute dei SAL riconosciuti fino a questo numero",
-                euro(r.garanzie.maturate),
-              ),
-              riga(
-                "Registro: ancora trattenute sui SAL riconosciuti",
-                euro(r.garanzie.trattenute),
-              ),
-              riga(
-                "Registro: svincolate sui SAL riconosciuti",
-                euro(r.garanzie.svincolate),
-              ),
-              riga(
-                "Registro: indicate come perse sui SAL riconosciuti",
-                euro(r.garanzie.perse),
-              ),
-              riga(
-                "Registro: garanzie con fideiussione sui SAL riconosciuti",
-                euro(r.garanzie.fideiussioni),
-              ),
-            ],
-          },
-          layout: "lightHorizontalLines",
-        },
-        nota(
-          "Quadro acquisito alla generazione e limitato ai SAL fino a questo numero. Le righe ricevute o contestate non concorrono alle somme riconosciute. Svincolata non significa pagata: lo svincolo non aumenta automaticamente il netto del SAL né registra un bonifico. La fideiussione resta distinta dalle somme trattenute in denaro.",
-        ),
-      ]
-      : []),
-    {
-      text: d.contratto.garanzie ||
-        "Condizioni specifiche di garanzia e svincolo non registrate nel contratto.",
-    },
-    nota(
-      `Durata contrattuale registrata: ${
-        d.contratto.durata_garanzia_mesi == null
-          ? "non disponibile"
-          : `${d.contratto.durata_garanzia_mesi} mesi`
-      }. Fine lavori effettiva: ${
-        d.contratto.data_fine_effettiva
-          ? data(d.contratto.data_fine_effettiva)
-          : "non registrata"
-      }. Fine lavori prevista: ${
-        d.contratto.data_fine_prevista
-          ? data(d.contratto.data_fine_prevista)
-          : "non registrata"
-      }. Le date previste del registro sono promemoria: non autorizzano uno svincolo automatico.`,
-    ),
-    ...r.garanzie.avvisi.map((t) => ({ ...nota(t), color: "#b45309" })),
-    ...(d.garanzie_non_attribuite
-      ? [
-        nota(
-          `${d.garanzie_non_attribuite} garanzie del contratto senza SAL collegato sono escluse da questo riepilogo: verificarne l'attribuzione nel registro.`,
-        ),
-      ]
-      : []),
-    ...(d.garanzie?.length
-      ? [{
-        table: {
-          headerRows: 1,
-          keepWithHeaderRows: 1,
-          widths: [32, "*", 65, 100],
-          body: [
-            [
-              "SAL",
-              "Registro / natura",
-              "Importo",
-              "Svincolo previsto / effettivo",
-            ].map((text) => ({ text, bold: true })),
-            ...d.garanzie.map((g) => [
-              String(
-                g.sal_id === d.sal.id
-                  ? d.sal.numero_sal
-                  : d.precedenti.find((s) => s.id === g.sal_id)?.numero_sal,
-              ),
-              `${g.stato}${
-                g.fideiussione ? " · fideiussione" : " · denaro"
-              }\nRif. ${g.id}${g.note ? `\n${g.note}` : ""}`,
-              euro(g.importo),
-              `${
-                g.data_svincolo_prevista
-                  ? data(g.data_svincolo_prevista)
-                  : "Non prevista"
-              } / ${
-                g.data_svincolo_effettiva
-                  ? data(g.data_svincolo_effettiva)
-                  : "Non registrato"
-              }`,
-            ]),
-          ],
-        },
-        layout: "lightHorizontalLines",
-        fontSize: 8,
-      }]
-      : [
-        nota(
-          "Nessuna registrazione di garanzia collegata a questi SAL acquisita dal registro.",
-        ),
-      ]),
-    titolo("5 · Condizioni e registrazioni"),
-    {
-      text: d.contratto.modalita_pagamento ||
-        "Modalità di pagamento non registrate nel contratto.",
-    },
-    ...(d.sal.stato === "pagato"
-      ? [
-        {
-          text: `Registrazione storica di pagamento: ${
-            d.sal.data_pagamento ? data(d.sal.data_pagamento) : "data assente"
-          } · ${d.sal.payment_method || "metodo assente"} · ${
-            d.sal.payment_reference || "riferimento assente"
-          }`,
-        },
-        nota(
-          "La registrazione sul SAL non costituisce prova di riconciliazione bancaria.",
-        ),
-      ]
-      : []),
-    {
-      // Keep short notes with their heading; long notes may flow across pages.
-      unbreakable: (d.nota_verbale || "").length < 1200,
-      stack: [
-        titolo("6 · Osservazioni e riserve riportate nel verbale"),
-        {
-          text: d.nota_verbale ||
-            "Nessuna integrazione inserita per questo verbale.",
-        },
-      ],
-    },
-    ...(d.allegati.length
-      ? [
-        {
-          table: {
-            headerRows: 2,
-            keepWithHeaderRows: 1,
-            widths: ["*", 65, 45],
-            body: [
-              [{ ...titolo("7 · Documenti allegati"), colSpan: 3 }, {}, {}],
-              [{ text: "Documento / revisione", bold: true }, {
-                text: "Stato fonte",
-                bold: true,
-              }, { text: "Pagine", bold: true }],
-              ...d.allegati.map(
-                (a) => [
-                  `${a.titolo}${
-                    a.revisione ? ` · Rev. ${a.revisione}` : ""
-                  }\n${a.file_name}`,
-                  a.stato,
-                  String(a.pagine),
-                ],
-              ),
-            ],
-          },
-          layout: "lightHorizontalLines",
-        },
-        ...d.allegati.map((a) => nota(`${a.file_name} · SHA-256 ${a.sha256}`)),
-        nota(
-          "Le copie sono accodate al verbale. Gli originali sono conservati nel pacchetto ZIP: le firme digitali degli allegati vanno controllate sui file originali, non sulle pagine ricopiate nel PDF composto. Il loro inserimento non attesta validità, completezza o verifica tecnica.",
-        ),
-      ]
-      : [
-        {
-          unbreakable: true,
-          stack: [
-            titolo("7 · Documenti allegati"),
-            nota(
-              "Nessun documento selezionato. Il verbale non dichiara allegati assenti come acquisiti o verificati.",
-            ),
-          ],
-        },
-      ]),
-    {
-      unbreakable: true,
-      stack: [
-        titolo("8 · Sottoscrizioni da acquisire"),
-        {
-          text:
-            `Impresa affidataria${benestare.autorizzato ? " (per il benestare alla fatturazione)" : ""}: _______________________    Data: ______________\n\nSubappaltatore: __________________________    Data: ______________`,
-          margin: [0, 8, 0, 8],
-        },
-        nota(
-          "Spazi per eventuali sottoscrizioni. Nessuna firma o accettazione viene aggiunta automaticamente dal sistema.",
-        ),
-      ],
-    },
+
+    // ── I lavori.
+    titoloSezione("Lavori del periodo"),
+    filettoSezione(),
+    { text: d.contratto.descrizione_lavori, margin: [0, 0, 0, 6] },
   ];
+
+  if (d.lavori?.length) {
+    const totale = d.lavori.reduce((s, l) => s + Number(l.importo), 0);
+    contenuto.push({
+      table: {
+        headerRows: 1,
+        keepWithHeaderRows: 1,
+        widths: ["*", 70, 62, 70],
+        body: [
+          [th("Lavorazione"), th("Quantità", "right"), th("Prezzo", "right"), th("Importo", "right")],
+          ...d.lavori.map((l) => [
+            {
+              stack: [
+                { text: l.descrizione },
+                { text: `rilievo del ${data(l.data_rilievo)}${l.riferimento ? ` · ${l.riferimento}` : ""}`, style: "nota" },
+              ],
+            },
+            {
+              stack: [
+                { text: `${quantita(l.quantita_riconosciuta)} ${l.unita}`, alignment: "right", noWrap: true },
+                // La quantità dichiarata dal subappaltatore si mostra solo se diversa da quella riconosciuta.
+                ...(Number(l.quantita_dichiarata) !== Number(l.quantita_riconosciuta)
+                  ? [{ text: `dichiarata ${quantita(l.quantita_dichiarata)}`, style: "nota", alignment: "right" }]
+                  : []),
+              ],
+            },
+            { text: euro(l.prezzo_unitario), alignment: "right", noWrap: true },
+            { text: euro(l.importo), alignment: "right", noWrap: true },
+          ]),
+          [{ text: "Totale lavori del SAL", bold: true }, "", "", { text: euro(totale), bold: true, alignment: "right", noWrap: true }],
+        ],
+      },
+      layout: layoutTabella,
+    });
+    contenuto.push(nota("Quantità riconosciute dall'impresa dopo la verifica delle misure, ai prezzi del contratto. Per i lavori a corpo 1 quota vale il 100% del lavoro."));
+  }
+  if (d.sal.note) contenuto.push({ text: d.sal.note, margin: [0, 4, 0, 0] });
+  if (d.sal.note_contestazione) contenuto.push({ text: `Contestazione: ${d.sal.note_contestazione}`, color: STATI.contestato.colore, margin: [0, 6, 0, 0] });
+
+  // ── Il riepilogo del contratto.
+  const contratto = Number(d.contratto.importo_contrattuale) + Number(d.contratto.oneri_sicurezza);
+  const riconosciuto = ["verificato", "pagato"].includes(d.sal.stato);
+  contenuto.push(sezioneIntera("Riepilogo del contratto", [
+    {
+      table: {
+        widths: ["*", 120],
+        body: [
+          riga("Importo del contratto (lavori)", euro(d.contratto.importo_contrattuale)),
+          ...(Number(d.contratto.oneri_sicurezza) > 0 ? [riga("Oneri della sicurezza", euro(d.contratto.oneri_sicurezza))] : []),
+          riga("SAL precedenti riconosciuti", euro(r.precedenteRiconosciuto)),
+          riga(riconosciuto ? "Questo SAL" : "Questo SAL (entra nel cumulativo dopo la verifica)", euro(r.lordo)),
+          riga(riconosciuto ? "Lavori riconosciuti a tutto questo SAL" : "Lavori riconosciuti finora", euro(r.cumulativoRiconosciuto), true),
+          // Lavori più oneri meno il riconosciuto; oltre il contratto si dice, non si nasconde.
+          ...(contratto > 0
+            ? [contratto - Number(r.cumulativoRiconosciuto) >= 0
+              ? riga("Resta del contratto (lavori e oneri)", euro(contratto - Number(r.cumulativoRiconosciuto)))
+              : riga("Oltre il contratto (lavori e oneri)", euro(Number(r.cumulativoRiconosciuto) - contratto), true)]
+            : []),
+        ],
+      },
+      layout: layoutTabella,
+    },
+  ]));
+
+  // ── Il benestare alla fatturazione.
+  contenuto.push({
+    unbreakable: true,
+    margin: [0, 14, 0, 0],
+    table: {
+      widths: ["*"],
+      body: [[{
+        fillColor: benestare.autorizzato ? "#ECFDF5" : "#FFFBEB",
+        margin: [10, 8, 10, 8],
+        stack: [
+          { text: benestare.titolo.toUpperCase(), bold: true, fontSize: 9, color: benestare.autorizzato ? colore.positivo : colore.avviso },
+          { text: benestare.testo, margin: [0, 4, 0, 4] },
+          ...(benestare.righe.length
+            ? [{
+              table: {
+                widths: ["*", 110],
+                body: benestare.righe.map(([a, b], i) => [
+                  { text: a, bold: i === benestare.righe.length - 1 },
+                  { text: b, bold: i === benestare.righe.length - 1, alignment: "right", noWrap: true },
+                ]),
+              },
+              layout: "noBorders",
+              margin: [0, 2, 0, 4],
+            }]
+            : []),
+          ...benestare.istruzioni.map((t) => ({ text: `• ${t}`, fontSize: pagina.nota, margin: [0, 1, 0, 1] })),
+        ],
+      }]],
+    },
+    layout: { hLineColor: () => (benestare.autorizzato ? "#6EE7B7" : "#FCD34D"), vLineColor: () => (benestare.autorizzato ? "#6EE7B7" : "#FCD34D") },
+  });
+
+  // ── Garanzie: solo quello che c'è.
+  const garanzie: unknown[] = [];
+  const aliquotaContratto = d.contratto.ritenuta_garanzia_pct;
+  if (aliquotaContratto != null && Number(aliquotaContratto) !== Number(d.sal.ritenuta_pct)) {
+    garanzie.push(nota(`La ritenuta di questo SAL (${d.sal.ritenuta_pct}%) è diversa da quella del contratto (${aliquotaContratto}%): verificare l'accordo valido per il periodo.`, { color: colore.avviso }));
+  }
+  if (d.garanzie) {
+    const voci: Array<[string, number]> = [
+      ["Ritenute maturate sui SAL riconosciuti", r.garanzie.maturate],
+      ["Ancora trattenute", r.garanzie.trattenute],
+      ["Svincolate", r.garanzie.svincolate],
+      ["Perse", r.garanzie.perse],
+      ["Coperte da fideiussione", r.garanzie.fideiussioni],
+    ];
+    const conValore = voci.filter(([, v], i) => i === 0 || Math.abs(Number(v)) >= 0.005);
+    garanzie.push({ table: { widths: ["*", 120], body: conValore.map(([a, v]) => riga(a, euro(v))) }, layout: layoutTabella });
+  }
+  if (d.contratto.garanzie) garanzie.push({ text: d.contratto.garanzie, margin: [0, 6, 0, 0] });
+  const date = righe(
+    d.contratto.durata_garanzia_mesi != null && `durata ${d.contratto.durata_garanzia_mesi} mesi`,
+    d.contratto.data_fine_effettiva && `fine lavori ${data(d.contratto.data_fine_effettiva)}`,
+    !d.contratto.data_fine_effettiva && d.contratto.data_fine_prevista && `fine lavori prevista ${data(d.contratto.data_fine_prevista)}`,
+  );
+  if (date.length) garanzie.push(nota(`Garanzia: ${date.join(" · ")}.`));
+  for (const a of r.garanzie.avvisi) garanzie.push(nota(a, { color: colore.avviso }));
+  if (d.garanzie_non_attribuite) garanzie.push(nota(`${d.garanzie_non_attribuite} garanzie del contratto non sono collegate a un SAL e restano fuori da questo riepilogo.`));
+  if (d.garanzie?.length) {
+    const numeroSal = (id: string | null) => (id === d.sal.id ? d.sal.numero_sal : d.precedenti.find((s) => s.id === id)?.numero_sal);
+    garanzie.push({
+      table: {
+        headerRows: 1,
+        keepWithHeaderRows: 1,
+        widths: [32, "*", 70, 110],
+        body: [
+          [th("SAL"), th("Stato"), th("Importo", "right"), th("Svincolo", "right")],
+          ...d.garanzie.map((g) => [
+            String(numeroSal(g.sal_id) ?? "—"),
+            { stack: [{ text: `${g.stato}${g.fideiussione ? " · fideiussione" : ""}` }, ...(g.note ? [{ text: g.note, style: "nota" }] : [])] },
+            { text: euro(g.importo), alignment: "right", noWrap: true },
+            { text: g.data_svincolo_effettiva ? `svincolata il ${data(g.data_svincolo_effettiva)}` : g.data_svincolo_prevista ? `prevista il ${data(g.data_svincolo_prevista)}` : "—", alignment: "right" },
+          ]),
+        ],
+      },
+      layout: layoutTabella,
+      margin: [0, 6, 0, 0],
+    });
+  }
+  if (garanzie.length) contenuto.push(sezioneIntera("Garanzie", garanzie));
+
+  // ── Pagamento: le condizioni, e il pagamento registrato se c'è.
+  const pagamento: unknown[] = [];
+  // Col benestare le condizioni di pagamento sono già lì dentro.
+  if (d.contratto.modalita_pagamento && !benestare.autorizzato) pagamento.push({ text: d.contratto.modalita_pagamento });
+  if (d.sal.stato === "pagato") {
+    pagamento.push({
+      text: `Pagato${d.sal.data_pagamento ? ` il ${data(d.sal.data_pagamento)}` : ""}${d.sal.payment_method ? ` · ${d.sal.payment_method}` : ""}${d.sal.payment_reference ? ` · rif. ${d.sal.payment_reference}` : ""}.`,
+      margin: [0, 4, 0, 0],
+    });
+  }
+  if (pagamento.length) contenuto.push(sezioneIntera("Pagamento", pagamento));
+
+  // ── Osservazioni del verbale: le note lunghe possono scorrere tra le pagine.
+  if (d.nota_verbale?.trim()) {
+    contenuto.push({ unbreakable: d.nota_verbale.length < 1200, stack: [titoloSezione("Osservazioni e riserve"), filettoSezione(), { text: d.nota_verbale }] });
+  }
+
+  // ── Allegati.
+  if (d.allegati.length) {
+    contenuto.push(titoloSezione("Allegati"), filettoSezione());
+    contenuto.push({
+      table: {
+        headerRows: 1,
+        keepWithHeaderRows: 1,
+        widths: ["*", 70, 40],
+        body: [
+          [th("Documento"), th("Stato"), th("Pagine", "right")],
+          ...d.allegati.map((a) => [
+            { stack: [{ text: `${a.titolo}${a.revisione ? ` · rev. ${a.revisione}` : ""}` }, { text: a.file_name, style: "nota" }] },
+            a.stato,
+            { text: String(a.pagine), alignment: "right" },
+          ]),
+        ],
+      },
+      layout: layoutTabella,
+    });
+    contenuto.push(nota("Le copie sono in coda al verbale; gli originali, con le eventuali firme digitali, sono nel pacchetto ZIP."));
+  }
+
+  // ── Firme.
+  const firma = (ruolo: string) => ({
+    stack: [
+      { text: ruolo.toUpperCase(), style: "etichetta" },
+      { canvas: [{ type: "line", x1: 0, y1: 34, x2: 230, y2: 34, lineWidth: 0.5, lineColor: colore.inchiostro }] },
+      { text: "Firma e timbro · luogo e data", style: "nota", margin: [0, 3, 0, 0] },
+    ],
+  });
+  contenuto.push({
+    unbreakable: true,
+    margin: [0, 18, 0, 0],
+    stack: [
+      { text: "Questo verbale riepiloga il SAL registrato: non è una fattura e non registra pagamenti.", style: "nota", margin: [0, 0, 0, 12] },
+      { columns: [firma(benestare.autorizzato ? "L'impresa affidataria (benestare)" : "L'impresa affidataria"), firma("Il subappaltatore")], columnGap: 30 },
+    ],
+  });
+
+  const piede = [d.impresa.ragione_sociale, d.impresa.partita_iva ? `P.IVA ${d.impresa.partita_iva}` : null, d.impresa.indirizzo].filter(Boolean).join(" · ");
+  const generato = new Date(d.generato_il).toLocaleString("it-IT", { timeZone: "Europe/Rome", dateStyle: "short", timeStyle: "short" });
   return {
     pageSize: "A4",
-    pageMargins: [40, 35, 40, 45],
-    defaultStyle: { font: "Roboto", fontSize: 9, lineHeight: 1.15 },
+    pageMargins: [pagina.margineLaterale, pagina.margineAlto, pagina.margineLaterale, 52],
+    defaultStyle: { font: "Roboto", fontSize: pagina.corpo - 0.5, lineHeight: 1.2, color: colore.inchiostro },
     info: {
       title: `Verbale SAL subappalto ${d.sal.numero_sal}`,
       author: d.impresa.ragione_sociale,
       creator: d.versione,
     },
-    watermark: r.bozza
-      ? { text: "BOZZA", color: "gray", opacity: 0.1 }
-      : undefined,
-    pageBreakBefore: (node: any, container: any) =>
-      node.headlineLevel === 1 &&
-      container.getFollowingNodesOnPage().length === 0,
+    watermark: r.bozza ? { text: "BOZZA", color: "gray", opacity: 0.06 } : undefined,
+    pageBreakBefore: (
+      // deno-lint-ignore no-explicit-any
+      node: any,
+      // deno-lint-ignore no-explicit-any
+      container: any,
+    ) => node.headlineLevel === 1 && container.getFollowingNodesOnPage().length === 0,
     content: contenuto,
     styles: {
-      titolo: { fontSize: 17, bold: true, color: "#17324f" },
-      impresa: { fontSize: 14, bold: true, color: "#17324f" },
-      sezione: { fontSize: 11, bold: true, color: "#17324f" },
-      etichetta: { fontSize: 8, bold: true, color: "#64748b" },
+      sezione: { fontSize: sezione.corpo, bold: true, color: ACCENTO, characterSpacing: sezione.spaziatura },
+      etichetta: { fontSize: riquadro.etichettaCorpo, color: colore.testoTenue, characterSpacing: 0.4 },
+      nota: { fontSize: pagina.nota, color: colore.testoTenue },
+      th: { fontSize: tabella.intestazioneCorpo, bold: true, color: colore.testoTenue },
     },
     footer: (p: number, n: number) => ({
-      text: `${
-        d.commessa.order_code || "Commessa"
-      } · SAL ${d.sal.numero_sal} · ${d.versione} · ${p}/${n}`,
-      fontSize: 7,
-      color: "#64748b",
-      alignment: "center",
-      margin: [30, 12, 30, 0],
+      margin: [pagina.margineLaterale, 10, pagina.margineLaterale, 0],
+      stack: [
+        { text: `${d.commessa.order_code || "Commessa"} · SAL ${d.sal.numero_sal} · generato il ${generato} · ${d.versione}`, fontSize: 6.5, color: colore.testoTenue, alignment: "center" },
+        { text: piede, fontSize: 7, color: colore.testoTenue, alignment: "center", margin: [0, 2, 0, 0] },
+        { text: `Pag. ${p} / ${n}`, fontSize: 7, color: colore.testoTenue, alignment: "center" },
+      ],
     }),
   };
 }

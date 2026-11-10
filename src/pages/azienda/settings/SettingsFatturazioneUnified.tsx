@@ -20,6 +20,7 @@ import { useBillingMode } from "@/contexts/BillingModeContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ComeFatturi } from "@/components/fatturazione/ComeFatturi";
 import { vaiAllaScelta } from "@/lib/fatturazione/sceltaCheFatturi";
+import { ContabilitaInCasa } from "@/components/contabilita/ContabilitaInCasa";
 
 // Code-split: le due schede sono pesanti. Carico solo quella che si vede.
 const SettingsBilling = lazy(() => import("@/pages/azienda/settings/SettingsBilling"));
@@ -124,6 +125,9 @@ export default function SettingsFatturazioneUnified() {
           </fieldset>
         </TabsContent>
       </Tabs>
+
+      {/* La partita doppia: solo per chi tiene la contabilità in casa (docs/piano-contabilita-un-posto-solo.md). */}
+      <ContabilitaInCasa />
     </div>
   );
 }

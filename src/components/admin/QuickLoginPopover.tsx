@@ -221,7 +221,7 @@ export function QuickLoginPopover() {
         return risultati;
       }
 
-      let roleUserIds: string[] | null = null;
+      const roleUserIds: string[] | null = null;
 
       // Build profiles query with server-side filtering + limit
       let profilesQuery = supabase

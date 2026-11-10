@@ -1583,11 +1583,15 @@ function NomeVoce({
         <span className={`inline-flex h-4 shrink-0 items-center rounded px-1.5 text-[10px] font-medium ${tipoBadgeClass(t.tipo)}`}>
           {tipoLabel(t.tipo)}
         </span>
-        {t.external_team_id && (
+        {t.external_team_id ? (
           <Badge variant="secondary" className="h-4 shrink-0 px-1.5 text-[10px] font-normal">
             {squadraName?.[t.external_team_id] ?? "Squadra"}
           </Badge>
-        )}
+        ) : t.subappaltatore_id ? (
+          <Badge variant="secondary" className="h-4 shrink-0 px-1.5 text-[10px] font-normal">
+            Voce di un subappaltatore
+          </Badge>
+        ) : null}
         {t.vertical_associato && (
           <Badge variant="outline" className="h-4 shrink-0 px-1.5 text-[10px] font-normal">
             {t.vertical_associato}
@@ -1970,7 +1974,7 @@ export default function SettingsTariffe() {
       return loadCatalogPages<Tariffa>(async (from, to) => {
       const { data, error } = await supabase
         .from("tariffe_aziendali")
-        .select("id, company_id, nome, descrizione, tipo, unita, unita_fatturazione, prezzo_vendita, prezzo_costo, costo_interno, costo_default, vertical_associato, piano_base, prezzo_piano_aggiuntivo, attivo, external_team_id, codice, fonte, incidenza_manodopera_pct, custom_field_values, prezzo_modo, ricarico_pct")
+        .select("id, company_id, nome, descrizione, tipo, unita, unita_fatturazione, prezzo_vendita, prezzo_costo, costo_interno, costo_default, vertical_associato, piano_base, prezzo_piano_aggiuntivo, attivo, external_team_id, subappaltatore_id, codice, fonte, incidenza_manodopera_pct, custom_field_values, prezzo_modo, ricarico_pct")
         .eq("company_id", companyId)
         .order("nome").order("id").range(from, to);
         return { data: data as unknown as Tariffa[], error };
@@ -2122,6 +2126,7 @@ export default function SettingsTariffe() {
         attivo: t.attivo !== false,
         attiva: t.attivo !== false,
         external_team_id: t.external_team_id ?? null,
+        subappaltatore_id: t.subappaltatore_id ?? null,
         fonte: t.fonte ?? null,
         incidenza_manodopera_pct: t.incidenza_manodopera_pct ?? null,
         custom_field_values: t.custom_field_values ?? {},
@@ -2211,7 +2216,8 @@ export default function SettingsTariffe() {
       if (statoFilter === "archiviate" && (t.attivo !== false || lavorazioneStandardDaCompletare(t))) return false;
       if (statoFilter === "standard" && !lavorazioneStandardDaCompletare(t)) return false;
       // listino per squadra
-      if (squadraFilter === "generico" && t.external_team_id) return false;
+      // Una voce propria di un subappaltatore (sulla sua anagrafica) non è del listino generico.
+      if (squadraFilter === "generico" && (t.external_team_id || t.subappaltatore_id)) return false;
       if (squadraFilter !== "tutte" && squadraFilter !== "generico" && t.external_team_id !== squadraFilter) return false;
       // vertical
       if (!tariffaNellArea(t.vertical_associato, verticalFilter, currentVertical)) return false;

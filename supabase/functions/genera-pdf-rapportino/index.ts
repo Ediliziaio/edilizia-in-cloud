@@ -3,6 +3,9 @@
 // fine lavori, vedi render.ts. Il commento serve anche a far ripubblicare la funzione al CI.
 // 10/11/2026 (secondo giro): logo grande della veste nella testata (Vulcano, il logo largo non si leggeva) e niente
 // «0 h dichiarate» sulle fasi senza ore, vedi render.ts e model.ts.
+// 10/11/2026 (terzo giro): rapportino e fine lavori nello stile unico dei documenti (_shared/stileDocumenti.ts):
+// logo a sinistra su bianco senza fascia né riquadro, titolo a destra, filetto d'accento, sezioni, tabelle, riquadri e
+// piè uguali agli altri documenti. Vedi render.ts.
 import { normalizzaModelloPdf } from "../_shared/modelliPdfOperativi.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";

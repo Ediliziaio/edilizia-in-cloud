@@ -13,6 +13,7 @@ import CompanyCustomerDetail from "@/pages/azienda/CompanyCustomerDetail";
 
 const stato = vi.hoisted(() => ({
   importi: true,
+  preventivi: false,
   modulo: true,
   tabelle: {} as Record<string, unknown[]>,
   scheda: {} as Record<string, unknown>,
@@ -24,7 +25,7 @@ vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ effectiveCompany: { id: "company", name: "Demo" }, user: { id: "titolare" }, userRoles: ["company_admin"], role: "company_admin" }),
 }));
 vi.mock("@/hooks/usePermissions", () => ({
-  usePermissions: () => ({ isAdmin: false, canEditCustomers: true, canViewOrderAmounts: stato.importi, isLoading: false }),
+  usePermissions: () => ({ isAdmin: false, canEditCustomers: true, canViewOrderAmounts: stato.importi, canEditPreventivi: stato.preventivi, isLoading: false }),
 }));
 vi.mock("@/hooks/useFeatureFlags", () => ({
   useFeatureFlags: () => ({ isFeatureEnabled: () => stato.modulo, isLoading: false }),
@@ -87,6 +88,7 @@ const lavoro = {
 
 beforeEach(() => {
   stato.importi = true;
+  stato.preventivi = false;
   stato.modulo = true;
   stato.storico = [];
   stato.numeri = { rendicontato: 12840, da_rendicontare: 900, da_fatturare: 12198, ritenute: 642, da_incassare: 5000, scaduto: 1200, scaduto_giorni: 12, rendiconti_in_attesa: 1, rendiconto_fermo_numero: 3, rendiconto_fermo_giorni: 9 };
@@ -270,4 +272,26 @@ it("senza il permesso sugli importi niente soldi in testata e niente solleciti",
   expect((await screen.findAllByText("Pagamento")).length).toBeGreaterThan(0);
   expect(screen.queryByText("Rendicontato")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /Sollecito per email/ })).not.toBeInTheDocument();
+});
+
+it("dalla scheda si fa un nuovo preventivo al committente, col preventivatore classico", async () => {
+  stato.preventivi = true;
+  mostra();
+  const [pulsante] = await screen.findAllByRole("button", { name: /Nuovo preventivo/ });
+  fireEvent.click(pulsante);
+  // Il preventivatore non è montato nel test: la rotta resta vuota, la scheda se ne va.
+  await waitFor(() => expect(screen.queryByRole("heading", { level: 1, name: "Edil Rossi S.r.l." })).not.toBeInTheDocument());
+});
+
+it("i preventivi stanno nel loro pannello, e lo scaduto senza risposta è da richiamare", async () => {
+  stato.tabelle.quotes = [
+    { id: "q1", quote_number: "PRV/2026/7", title: "Cappotto", total: 8400, status: "inviata", created_at: "2026-09-01T09:00:00Z", sent_at: "2026-09-01T09:00:00Z",
+      expires_at: "2026-10-01", signed_at: null, revision_number: null, parent_quote_id: null, refused_motivo: null, refused_reason: null, variante_id: null, version: 1, source: null },
+  ];
+  mostra();
+  expect(await screen.findByText(/scaduto il 01\/10\/2026 senza risposta: da richiamare/)).toBeInTheDocument();
+  expect(screen.getByText("Preventivo PRV/2026/7")).toBeInTheDocument();
+  await apri("Preventivi");
+  expect(await screen.findByRole("list", { name: "Preventivi del committente" })).toBeInTheDocument();
+  expect(screen.getAllByText("Scaduto").length).toBeGreaterThan(0);
 });

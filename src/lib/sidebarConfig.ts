@@ -47,6 +47,7 @@ import {
   Calculator,
   ShoppingCart,
   LayoutPanelTop,
+  BookOpenCheck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
@@ -73,6 +74,8 @@ export interface NavItem {
   demoCompanyOnly?: boolean;
   /** Visibile solo se l'utente ha accesso a più aziende (console agenzia). */
   multiCompanyOnly?: boolean;
+  /** Visibile solo con «Contabilità generale in casa» accesa (companies.contabilita_generale_attiva). */
+  soloConContabilitaGenerale?: boolean;
   category?: "internal" | "marketing";
   subcategory?: string;
   groupLabel?: string;
@@ -192,6 +195,8 @@ export const macroAreas: MacroArea[] = [
       { title: "Prima Nota", url: "/azienda/prima-nota", icon: BookOpen, permissionKey: "canViewPrimaNota", featureKey: "prima_nota", groupLabel: "Contabilità" },
       { title: "Tesoreria", url: "/azienda/tesoreria", icon: Landmark, permissionKey: "canViewTesoreria", featureKey: "tesoreria" },
       { title: "Costi", url: "/azienda/costi", icon: TrendingDown, permissionKey: "canViewCosts", moduleKey: "forecast" },
+      // La partita doppia, prima dentro Fatture → Fiscalità (docs/piano-contabilita-un-posto-solo.md).
+      { title: "Contabilità generale", url: "/azienda/contabilita-generale", icon: BookOpenCheck, permissionKey: "canViewPrimaNota", featureKey: "contabilita_fiscale", soloConContabilitaGenerale: true },
       { title: "Analisi Acquisti", url: "/azienda/analisi-acquisti", icon: BarChart3, permissionKey: "canViewCosts", moduleKey: "forecast" },
       { title: "Previsionale", url: "/azienda/previsionale", icon: TrendingUp, permissionKey: "canViewForecast", moduleKey: "forecast" },
     ],

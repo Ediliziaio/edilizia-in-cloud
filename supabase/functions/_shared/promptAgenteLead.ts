@@ -45,6 +45,17 @@ export interface DatiPromptLead {
   calendarioNome: string;
   /** Showroom dove il cliente può chiedere di venire; vuoto = solo chiamate. */
   showroom?: Array<{ nome: string; indirizzo: string | null }>;
+  /**
+   * L'appuntamento che il contatto ha DAVVERO davanti a sé adesso, o null.
+   *
+   * Senza questo l'assistente lo deduce dalla chat, e la chat non sa cosa è
+   * successo dopo. Il 10/11/2026, in prova: un contatto scrive «vorrei fissare
+   * un appuntamento» e si sente rispondere «vedo che hai già un appuntamento
+   * per lunedì 28 settembre alle 13:00» — un appuntamento di un mese e mezzo
+   * prima, per giunta annullato. Nella chat la conferma c'era; l'annullamento
+   * no, perché non passa da WhatsApp.
+   */
+  appuntamento?: { quando: string; dove: string | null } | null;
 }
 
 export function promptAgenteLead(d: DatiPromptLead): string {
@@ -59,6 +70,9 @@ export function promptAgenteLead(d: DatiPromptLead): string {
       : "L'origine del contatto non è indicata nel CRM.",
     risposte ? `Risposte già date dal contatto: ${risposte}. Non rifare queste domande.` : "",
     d.faseAttuale ? `Fase attuale dell'opportunità: ${d.faseAttuale}.` : "",
+    d.appuntamento
+      ? `Appuntamento già fissato, ancora da fare: ${d.appuntamento.quando}${d.appuntamento.dove ? ` (${d.appuntamento.dove})` : ""}. Questo è l'unico valido: se nella chat se ne nominano altri, sono passati o annullati.`
+      : "Il contatto NON ha nessun appuntamento fissato in questo momento. Se nella chat più vecchia se ne parla, era un altro: o è già passato o è stato annullato. Non dirgli che ne ha uno.",
   ].filter(Boolean).join("\n");
 
   const showroom = (d.showroom ?? []).filter((x) => x.nome.trim());

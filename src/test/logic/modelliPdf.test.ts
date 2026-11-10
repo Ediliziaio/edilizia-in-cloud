@@ -164,9 +164,10 @@ describe("Impaginazione personalizzata", () => {
         expect(output.match(/NOTA AZIENDALE DI PROVA/g)).toHaveLength(
           pdf.getNumberOfPages(),
         );
-        expect(output).not.toContain("Pagina 1 di");
+        expect(output).not.toContain("Pag. 1 /");
         if (tipo !== "trasporti") expect(output).toContain("Articolo nuovo 35");
-        else expect(output).toContain("Magazzino principale");
+        // Stile unico (10/11/2026): righe a 9 pt, il luogo di carico può andare a capo nella sua colonna.
+        else expect(output).toMatch(/\(Magazzino( principale)?\) Tj/);
       }
     },
   );

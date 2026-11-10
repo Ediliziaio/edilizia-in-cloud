@@ -1,5 +1,5 @@
 import {
-  Wrench, Package, Clock, FileText, BarChart3, Smartphone,
+  Wrench, Package, Clock, BarChart3, Smartphone,
   Wallet, TrendingDown, Send, Camera, Sparkles, Receipt, Users, Warehouse, FolderOpen,
 } from "lucide-react";
 import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipoPageTemplate";

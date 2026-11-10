@@ -38,6 +38,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { useCompanyCostsData, type UnifiedCost } from "@/hooks/useCompanyCostsData";
+import { partiPerCategoria } from "@/lib/costi/partiPerCategoria";
 import { EMPLOYEE_PROJECTION_MONTHS, computeCostiSenzaScadenza } from "@/lib/costsUtils";
 import { MonthPicker, type PeriodMode } from "./MonthPicker";
 import { NavyStatCard } from "@/components/costi/KpiCard";
@@ -149,8 +150,11 @@ export function buildCostsOverview(allCosts: UnifiedCost[], month: Date, mode: P
     if (isWithinInterval(due, prev)) totalePrec += amount;
     const bucket = trendMap.get(format(startOfMonth(due), "yyyy-MM"));
     if (bucket) {
-      if (macroVoce(c) === "Personale") bucket.personale += amount;
-      else bucket.altro += amount;
+      // Una fattura divisa per categoria (conti per riga) si conta per parti.
+      for (const p of partiPerCategoria(c, amount)) {
+        if (macroVoce({ ...c, category: p.categoria ?? "" }) === "Personale") bucket.personale += p.importo;
+        else bucket.altro += p.importo;
+      }
     }
   }
 
@@ -158,19 +162,21 @@ export function buildCostsOverview(allCosts: UnifiedCost[], month: Date, mode: P
   let totalePeriodo = 0;
   let pagatoPeriodo = 0;
   for (const c of inPeriod) {
-    const nome = macroVoce(c);
     const amount = Number(c.amount) || 0;
     totalePeriodo += amount;
     if (c.is_paid) pagatoPeriodo += amount;
-    let v = byVoce.get(nome);
-    if (!v) {
-      v = { nome, totale: 0, pagato: 0, count: 0, costs: [] };
-      byVoce.set(nome, v);
+    // Una fattura divisa per categoria entra in ogni voce con la sua parte.
+    for (const p of partiPerCategoria(c, amount)) {
+      const nome = macroVoce({ ...c, category: p.categoria ?? "" });
+      let v = byVoce.get(nome);
+      if (!v) {
+        v = { nome, totale: 0, pagato: 0, count: 0, costs: [] };
+        byVoce.set(nome, v);
+      }
+      v.totale += p.importo;
+      if (c.is_paid) v.pagato += p.importo;
+      if (!v.costs.includes(c)) { v.count += 1; v.costs.push(c); }
     }
-    v.totale += amount;
-    if (c.is_paid) v.pagato += amount;
-    v.count += 1;
-    v.costs.push(c);
   }
 
   const voci = Array.from(byVoce.values()).sort((a, b) => b.totale - a.totale);

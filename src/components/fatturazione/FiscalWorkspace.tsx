@@ -3,7 +3,7 @@ import { Suspense, type ReactNode } from "react";
 // il nuovo tentativo la sezione finiva su «Errore nel caricamento fiscale».
 import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { useSearchParams, useLocation, Navigate } from "react-router-dom";
-import { ReceiptText, Calculator, ShieldCheck, Archive, BookOpenCheck } from "lucide-react";
+import { ReceiptText, Calculator, ShieldCheck, Archive } from "lucide-react";
 import { RequireCompanyPermission } from "@/components/auth/RequireCompanyPermission";
 import { FeatureRoute } from "@/components/auth/FeatureRoute";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -20,14 +20,12 @@ import {
 const Registro = lazy(() => import("@/pages/azienda/fatturazione/RegistroIVA"));
 const Contabilita = lazy(() => import("@/pages/azienda/ContabilitaFiscale"));
 const Ritenute = lazy(() => import("@/pages/azienda/RitenuteGaranzia"));
-const Generale = lazy(() => import("@/components/contabilita/ContabilitaGenerale"));
 const ArchivioFiscale = lazy(
   () => import("@/pages/azienda/ArchivioSostitutivo"),
 );
 const sections = [
   ["iva", "Registro IVA", ReceiptText],
   ["contabilita", "Liquidazione IVA e F24", Calculator],
-  ["generale", "Contabilità generale", BookOpenCheck],
   ["ritenute", "Ritenute di garanzia", ShieldCheck],
   ["archivio", "Archivio fiscale", Archive],
 ] as const;
@@ -117,6 +115,14 @@ export default function FiscalWorkspace({
   defaultSection = "iva",
 }: { defaultSection?: FiscalSection } = {}) {
   const { params, set, anno, mese, tipo, trimestre } = useFiscalPeriod();
+  // La Contabilità generale sta nel menu Contabilità (10/11/2026): il vecchio indirizzo porta lì.
+  if (params.get("sezione") === "generale") {
+    const resto = new URLSearchParams(params);
+    resto.delete("tab");
+    resto.delete("sezione");
+    const q = resto.toString();
+    return <Navigate to={`/azienda/contabilita-generale${q ? `?${q}` : ""}`} replace />;
+  }
   const section = params.has("sezione")
     ? fiscalSection(params)
     : defaultSection;
@@ -202,8 +208,6 @@ export default function FiscalWorkspace({
                 <Registro embedded />
               ) : section === "contabilita" ? (
                 <Contabilita embedded />
-              ) : section === "generale" ? (
-                <Generale />
               ) : section === "ritenute" ? (
                 <Ritenute embedded />
               ) : (

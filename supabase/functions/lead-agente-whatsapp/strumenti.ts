@@ -17,6 +17,7 @@ import type { ConfigAgenteLead, ShowroomAgenteLead } from "../_shared/agenteLead
 import { dataEstesa, sincronizzaCalendariEsterni } from "../_shared/appuntamentiPubblici.ts";
 import { dataRoma, prenotaSuCalendario, slotLiberiCalendario, STATI_CHE_LIBERANO } from "../_shared/calendarioPrenotazione.ts";
 import { fasciaDi, type Fascia } from "../_shared/calendarioSlot.ts";
+import { campiona, dateDiChiusura, type RigaFestivita } from "./orariProposta.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 
 export interface CtxAgente {
@@ -32,6 +33,8 @@ export interface CtxAgente {
   riepilogo?: { esito: string; opportunityId: string | null } | null;
   /** Numero WhatsApp aziendale da cui scrivere agli avvisi alle persone del team. */
   waNumberId?: string | null;
+  /** I giorni di chiusura dell'azienda, letti una volta sola per giro. */
+  chiusure?: Set<string> | null;
 }
 
 export type EsitoStrumento = Record<string, unknown> & { ok: boolean };
@@ -157,19 +160,65 @@ async function aggiungiTag(ctx: CtxAgente, tag: string | null): Promise<void> {
   await ctx.admin.from("marketing_contacts").update({ tags: [...tags, tag] }).eq("id", ctx.contactId);
 }
 
-/** Il prossimo appuntamento del contatto su questi calendari, se c'è. */
+/**
+ * I giorni di chiusura dell'azienda (`hr_festivita`), letti una volta per giro.
+ *
+ * Le fasce dei calendari sono settimanali: il 25 dicembre è un mercoledì come
+ * gli altri, quindi l'assistente proponeva e confermava appuntamenti in un
+ * giorno in cui non c'è nessuno. Con sette giorni di proposta più sette di
+ * tolleranza la finestra è di due settimane: fra inizio dicembre e Natale il
+ * caso era praticamente garantito (10/11/2026).
+ */
+async function giorniDiChiusura(ctx: CtxAgente): Promise<Set<string>> {
+  if (ctx.chiusure) return ctx.chiusure;
+  let chiuso = new Set<string>();
+  try {
+    const { data } = await ctx.admin.from("hr_festivita").select("data, ricorrente").eq("company_id", ctx.companyId);
+    const anno = Number(dataRoma(ctx.adesso).slice(0, 4));
+    chiuso = dateDiChiusura((data ?? []) as RigaFestivita[], [anno, anno + 1]);
+  } catch (e) {
+    // Meglio proporre un giorno di chiusura che non proporre niente.
+    console.warn("[lead-agente] festività non lette:", String(e).slice(0, 120));
+  }
+  ctx.chiusure = chiuso;
+  return chiuso;
+}
+
+/**
+ * Il prossimo appuntamento del contatto su questi calendari, se c'è.
+ *
+ * Conta solo quello ancora da fare. Il filtro era sulla sola data, e gli
+ * appuntamenti passati qui non si chiudono mai (su Il Bagno Group gli stati
+ * sono «confermato» e «annullato», nessun «concluso»): così la chiamata delle
+ * 09:00 risultava «già prenotata» anche alle 18:00, e al lead che scriveva
+ * «non mi hanno chiamato, rifacciamo?» l'assistente rispondeva che un
+ * appuntamento ce l'aveva già. Peggio: con sposta=true annullava quello
+ * passato, falsando lo storico (10/11/2026).
+ */
 async function appuntamentoInCorso(ctx: CtxAgente, calendari: string[]): Promise<{ id: string; calendar_id: string; appointment_date: string; appointment_time: string } | null> {
+  const oggi = dataRoma(ctx.adesso);
   const { data } = await ctx.admin
     .from("appointments")
     .select("id, calendar_id, appointment_date, appointment_time")
     .eq("company_id", ctx.companyId)
     .eq("contact_id", ctx.contactId)
     .in("calendar_id", calendari)
-    .gte("appointment_date", dataRoma(ctx.adesso))
+    .gte("appointment_date", oggi)
     .not("status", "in", FILTRO_ANNULLATI)
     .order("appointment_date").order("appointment_time")
-    .limit(1);
-  return data?.[0] ?? null;
+    .limit(10);
+  const adessoRoma = oraRoma(ctx.adesso);
+  type Riga = { id: string; calendar_id: string; appointment_date: string; appointment_time: string };
+  const futuri = ((data ?? []) as Riga[])
+    .filter((a) => a.appointment_date > oggi || String(a.appointment_time ?? "").slice(0, 5) >= adessoRoma);
+  return futuri[0] ?? null;
+}
+
+/** "14:05" nell'ora di Roma. */
+function oraRoma(adesso: Date): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Rome", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).format(adesso);
 }
 
 function giornoDa(arg: unknown, adesso: Date): string | null {
@@ -180,6 +229,21 @@ function giornoDa(arg: unknown, adesso: Date): string | null {
   if (v === "dopodomani") return dataRoma(adesso, 2);
   if (DATA_ISO.test(v) && v >= oggi) return v;
   return null;
+}
+
+/**
+ * L'ultima data prenotabile: la stessa per chi propone e per chi prenota.
+ *
+ * `giornoDa` accettava qualunque data futura, mentre `controllaPrenotazione`
+ * si ferma a `giorniProposta + 7`. Al lead che chiedeva «si può il 18
+ * dicembre?» l'assistente leggeva orari veri, li proponeva, il lead diceva sì
+ * — e prenota_chiamata rispondeva «fuori_orizzonte: richiama orari_liberi»,
+ * cioè rifai la chiamata che ti ha dato quella data. Un giro chiuso che
+ * bruciava i cinque tentativi e perdeva l'appuntamento dopo il sì
+ * (10/11/2026).
+ */
+function ultimaDataPrenotabile(ctx: CtxAgente): string {
+  return dataRoma(ctx.adesso, ctx.config.giorniProposta + 7);
 }
 
 // ── orari_liberi ────────────────────────────────────────────────────────────
@@ -224,6 +288,15 @@ const orariLiberi: Strumento = {
   async handler(ctx, args) {
     const primo = giornoDa(args.giorno, ctx.adesso);
     if (!primo) return { ok: false, errore: "giorno_non_valido", messaggio: "Giorno non valido o già passato." };
+    const ultima = ultimaDataPrenotabile(ctx);
+    if (primo > ultima) {
+      return {
+        ok: false,
+        errore: "troppo_lontano",
+        ultima_data_prenotabile: ultima,
+        messaggio: `Si prenota solo fino al ${dataEstesa(ultima)}. Proponi al cliente un orario entro quella data, e digli che per un periodo più avanti lo richiama un consulente.`,
+      };
+    }
     const fascia = (["mattina", "pomeriggio", "sera"] as const).includes(args.fascia as Fascia) ? (args.fascia as Fascia) : null;
     const showroom = args.showroom ? trovaShowroom(ctx, args.showroom) : null;
     if (args.showroom && !showroom) {
@@ -231,8 +304,29 @@ const orariLiberi: Strumento = {
     }
     const calendari = showroom ? showroom.calendari : [ctx.config.calendarioId];
 
+    // Un calendario a cui nessuno ha impostato gli orari di apertura non può
+    // dare un appuntamento, mai, e non è la stessa cosa di «è pieno». Il
+    // 10/11/2026 erano 21 calendari attivi su tutta la piattaforma, tre con
+    // una pagina di prenotazione pubblica. Senza questo controllo l'assistente
+    // dice al cliente che non c'è posto e nessuno scopre che manca un
+    // orario di apertura.
+    const { data: finestre } = await ctx.admin
+      .from("marketing_calendar_availability")
+      .select("calendar_id")
+      .in("calendar_id", calendari).eq("is_enabled", true).limit(1);
+    if (!finestre?.length) {
+      return {
+        ok: false,
+        errore: "calendario_senza_orari",
+        messaggio: showroom
+          ? `Nessuno ha impostato gli orari di apertura dei calendari dello showroom di ${showroom.nome}: non dire al cliente che è pieno. Usa passa_a_operatore dicendo che il calendario non ha orari.`
+          : "Nessuno ha impostato gli orari di apertura del calendario delle chiamate: non dire al cliente che è pieno. Usa passa_a_operatore dicendo che il calendario non ha orari.",
+      };
+    }
+
+    const chiusure = await giorniDiChiusura(ctx);
     const [y, m, d] = primo.split("-").map(Number);
-    const giorni: Array<{ data: string; giorno: string; orari: string[] }> = [];
+    const giorni: Array<{ data: string; giorno: string; orari: string[]; orari_totali: number }> = [];
     // Le fasce che hanno davvero orari, per non lasciare il modello a indovinare
     // perché la fascia chiesta è vuota. Il 09/11/2026 un lead ha chiesto la sera:
     // il «Calendario Giusy» chiude alle 17 e la sera (dalle 18) non può avere
@@ -245,12 +339,16 @@ const orariLiberi: Strumento = {
       const dataIso = new Date(Date.UTC(y, m - 1, d + i, 12)).toISOString().slice(0, 10);
       const settimana = giornoSettimana(dataIso);
       if (ctx.config.soloFeriali && (settimana === 0 || settimana === 6)) continue;
+      if (chiusure.has(dataIso)) continue;
       const { attivi, nome, slot } = await slotLiberiSuCalendari(ctx, calendari, dataIso);
       if (!attivi) return { ok: false, errore: "calendario_non_valido", messaggio: showroom ? "I calendari di questo showroom non sono attivi." : "Il calendario delle chiamate non è attivo." };
       calendarioNome = nome;
       for (const s of slot) fasceConOrari.add(fasciaDi(s));
-      const orari = (fascia ? slot.filter((s) => fasciaDi(s) === fascia) : slot).slice(0, 6);
-      if (orari.length) giorni.push({ data: dataIso, giorno: dataEstesa(dataIso), orari });
+      const dellaFascia = fascia ? slot.filter((s) => fasciaDi(s) === fascia) : slot;
+      const orari = campiona(dellaFascia, 6);
+      if (orari.length) {
+        giorni.push({ data: dataIso, giorno: dataEstesa(dataIso), orari, orari_totali: dellaFascia.length });
+      }
     }
     const altre = [...fasceConOrari].filter((f) => f !== fascia);
     return {
@@ -260,8 +358,9 @@ const orariLiberi: Strumento = {
       fascia: fascia ?? "tutte",
       giorni,
       fasce_con_orari: [...fasceConOrari],
+      ultima_data_prenotabile: ultima,
       nota: giorni.length
-        ? "Proponi al cliente al massimo 3 orari per messaggio, presi da questo elenco."
+        ? "Proponi al cliente al massimo 3 orari per messaggio, presi da questo elenco. Dove «orari_totali» è più alto di quanti ne vedi, l'elenco è un campione della giornata: se il cliente chiede un'altra ora, richiama orari_liberi su quel giorno invece di dirgli che non c'è posto."
         : altre.length
           ? `In questa fascia non si fissano appuntamenti. Ci sono orari solo ${altre.join(" e ")}: dillo al cliente così, senza dire che è «pieno» o «esaurito», e proponi una di queste fasce.`
           : "Nessun orario libero nei prossimi giorni: proponi un'altra fascia o passa a un operatore.",
@@ -278,8 +377,19 @@ function controllaPrenotazione(ctx: CtxAgente, args: Record<string, unknown>): {
   const ora = String(args.ora ?? "").trim().slice(0, 5);
   if (!DATA_ISO.test(data) || !ORA.test(ora)) return { ok: false, errore: "formato", messaggio: "Servono data YYYY-MM-DD e ora HH:MM." };
   const oggi = dataRoma(ctx.adesso);
-  const ultimo = dataRoma(ctx.adesso, ctx.config.giorniProposta + 7);
-  if (data < oggi || data > ultimo) return { ok: false, errore: "fuori_orizzonte", messaggio: "Questa data non è tra quelle prenotabili: richiama orari_liberi." };
+  const ultimo = ultimaDataPrenotabile(ctx);
+  if (data < oggi) return { ok: false, errore: "data_passata", messaggio: "Questa data è già passata: richiama orari_liberi." };
+  // Dire «richiama orari_liberi» e basta mandava il modello a rifare la
+  // chiamata che gli aveva dato quella data: adesso orari_liberi si ferma allo
+  // stesso limite, e qui si dice qual è.
+  if (data > ultimo) {
+    return {
+      ok: false,
+      errore: "fuori_orizzonte",
+      ultima_data_prenotabile: ultimo,
+      messaggio: `Si prenota solo fino al ${dataEstesa(ultimo)}. Proponi al cliente un orario entro quella data, e digli che per un periodo più avanti lo richiama un consulente.`,
+    };
+  }
   const settimana = giornoSettimana(data);
   if (ctx.config.soloFeriali && (settimana === 0 || settimana === 6)) {
     return { ok: false, errore: "giorno_non_feriale", messaggio: "Si prenota solo dal lunedì al venerdì." };
@@ -313,6 +423,10 @@ async function prenota(ctx: CtxAgente, p: {
   femminile: boolean;
   faseId: string | null;
 }): Promise<EsitoStrumento> {
+  if ((await giorniDiChiusura(ctx)).has(p.data)) {
+    return { ok: false, errore: "giorno_di_chiusura", messaggio: "Quel giorno l'azienda è chiusa: richiama orari_liberi e proponi un altro giorno." };
+  }
+
   const giaFissato = await appuntamentoInCorso(ctx, p.calendari);
   if (giaFissato && !p.sposta) {
     return {
@@ -351,29 +465,44 @@ async function prenota(ctx: CtxAgente, p: {
   if (!esito || !esito.ok) return { ok: false, errore: esito?.motivo ?? "non_libero", messaggio: esito?.messaggio ?? "Questo orario non è più libero." };
   ctx.prenotazioniNelGiro++;
 
-  const { data: cal } = await ctx.admin.from("marketing_calendars").select("name, owner_id").eq("id", calendarioUsato).maybeSingle();
-  // Spostamento: quello di prima si annulla solo dopo che il nuovo c'è.
-  if (giaFissato) {
-    const { data: calPrima } = await ctx.admin.from("marketing_calendars").select("owner_id").eq("id", giaFissato.calendar_id).maybeSingle();
-    await ctx.admin.from("appointments").update({ status: "annullato" }).eq("id", giaFissato.id).eq("company_id", ctx.companyId);
-    await sincronizzaCalendariEsterni({ azione: "delete-event", appointmentId: giaFissato.id, companyId: ctx.companyId, userId: calPrima?.owner_id ?? null });
+  // Da qui in poi l'appuntamento ESISTE: è nel calendario di EiC e
+  // prenotaSuCalendario l'ha già spinto su Google. Tutto ciò che segue è di
+  // contorno — fase, tag, avvisi — e se qualcosa qui dentro lancia non deve
+  // tornare «errore_interno» al modello, che direbbe al cliente di non essere
+  // riuscito a fissare: il consulente aspetterebbe e il cliente non si
+  // presenterebbe (10/11/2026).
+  let nomeCalendario: string | null = null;
+  let fase = false;
+  let guai: string | null = null;
+  try {
+    const { data: cal } = await ctx.admin.from("marketing_calendars").select("name, owner_id").eq("id", calendarioUsato).maybeSingle();
+    nomeCalendario = cal?.name ?? null;
+    // Spostamento: quello di prima si annulla solo dopo che il nuovo c'è.
+    if (giaFissato) {
+      const { data: calPrima } = await ctx.admin.from("marketing_calendars").select("owner_id").eq("id", giaFissato.calendar_id).maybeSingle();
+      await ctx.admin.from("appointments").update({ status: "annullato" }).eq("id", giaFissato.id).eq("company_id", ctx.companyId);
+      await sincronizzaCalendariEsterni({ azione: "delete-event", appointmentId: giaFissato.id, companyId: ctx.companyId, userId: calPrima?.owner_id ?? null });
+    }
+
+    fase = await spostaFase(ctx, p.faseId);
+    await aggiungiTag(ctx, ctx.config.tagPrenotato);
+    await unisciQualificazione(ctx, { appuntamento: { data: p.data, ora: p.ora, tipo: p.tipo, appointment_id: esito.appointmentId } });
+
+    const cosaMaiuscola = p.cosa.charAt(0).toUpperCase() + p.cosa.slice(1);
+    const dove = nomeCalendario ? ` (${nomeCalendario})` : "";
+    const o = p.femminile ? "a" : "o";
+    ctx.riepilogo = { esito: `${cosaMaiuscola} ${giaFissato ? `spostat${o} a` : `fissat${o} per`} ${esito.quando}${dove}`, opportunityId: opp?.id ?? null };
+    await avvisaUtenti(
+      ctx,
+      `WhatsApp: ${p.cosa} ${giaFissato ? `spostat${o}` : `fissat${o}`} con ${nome}`,
+      `${esito.quando}${dove}. L'ha fissat${o} l'assistente WhatsApp: il riepilogo della chat è negli appunti dell'opportunità.`,
+      cal?.owner_id ? [cal.owner_id] : [],
+    );
+  } catch (e) {
+    guai = String(e).slice(0, 200);
+    console.error(JSON.stringify({ level: "error", fn: "lead-agente-whatsapp", msg: "appuntamento fissato ma il contorno è fallito", appointmentId: esito.appointmentId, errore: guai }));
   }
-
-  const fase = await spostaFase(ctx, p.faseId);
-  await aggiungiTag(ctx, ctx.config.tagPrenotato);
-  await unisciQualificazione(ctx, { appuntamento: { data: p.data, ora: p.ora, tipo: p.tipo, appointment_id: esito.appointmentId } });
-
-  const cosaMaiuscola = p.cosa.charAt(0).toUpperCase() + p.cosa.slice(1);
-  const dove = cal?.name ? ` (${cal.name})` : "";
-  const o = p.femminile ? "a" : "o";
-  ctx.riepilogo = { esito: `${cosaMaiuscola} ${giaFissato ? `spostat${o} a` : `fissat${o} per`} ${esito.quando}${dove}`, opportunityId: opp?.id ?? null };
-  await avvisaUtenti(
-    ctx,
-    `WhatsApp: ${p.cosa} ${giaFissato ? `spostat${o}` : `fissat${o}`} con ${nome}`,
-    `${esito.quando}${dove}. L'ha fissat${o} l'assistente WhatsApp: il riepilogo della chat è negli appunti dell'opportunità.`,
-    cal?.owner_id ? [cal.owner_id] : [],
-  );
-  return { ok: true, quando: esito.quando, data: p.data, ora: p.ora, dove: cal?.name ?? null, spostata: Boolean(giaFissato), fase_spostata: fase };
+  return { ok: true, quando: esito.quando, data: p.data, ora: p.ora, dove: nomeCalendario, spostata: Boolean(giaFissato), fase_spostata: fase, ...(guai ? { avviso_interno: guai } : {}) };
 }
 
 const prenotaChiamata: Strumento = {

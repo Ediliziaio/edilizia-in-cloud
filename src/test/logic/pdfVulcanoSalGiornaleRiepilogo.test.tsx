@@ -13,7 +13,7 @@ import { ruoloFirmatario, leggiGiornateDocumento } from "../../../supabase/funct
 import { vesteHtml } from "../../../supabase/functions/_shared/vesteHtml";
 import { senzaEmoji } from "../../../supabase/functions/_shared/senzaEmoji";
 import { createOrdinePDFDocument } from "@/components/orders/OrdinePDF";
-import { PieSocietario } from "@/components/preventivi/pdf/FoglioCondizioniPDF";
+import { PiedeDocumento, TestataDocumento } from "@/components/documenti/stileDocumentoPdf";
 import type { DatiRiepilogo } from "@/lib/orders/riepilogoCommessaDati";
 
 const VULCANO = "7c87c209-7868-42d0-ad98-6c95ac6de196";
@@ -52,7 +52,7 @@ describe("SAL: veste di Vulcano e colonna Voce", () => {
     const html = buildSalHtml(sal(ALTRA), order, azienda, null, "Edilizia in Cloud", 16000, null, extra);
     expect(html).not.toContain("piede-proprio");
     expect(html).not.toContain("EB Garamond");
-    expect(html).toContain("max-height:60px;max-width:180px");
+    expect(html).toContain("height:44pt;width:auto;max-width:200pt;");
     expect(vesteHtml(ALTRA, 182)).toMatchObject({ attiva: false, css: "", apri: "", chiudi: "", stileLogo: null });
   });
 
@@ -97,7 +97,7 @@ describe("Giornale dei lavori", () => {
     expect(v).toContain("height:55pt");
     const a = buildGiornaleHtml([giornata()], null, azienda, "EiC", ALTRA);
     expect(a).not.toContain("piede-proprio");
-    expect(a).toContain("Pagina \" counter(page)");
+    expect(a).toContain("\"Pag. \" counter(page)");
   });
 
   it("ruoloFirmatario: per utente, per nome in qualunque ordine, mai indovinato", () => {
@@ -149,7 +149,11 @@ describe("Giornale dei lavori", () => {
 function testo(v: unknown): string {
   if (typeof v === "string" || typeof v === "number") return String(v);
   if (Array.isArray(v)) return v.map(testo).join(" ");
-  if (isValidElement<{ children?: unknown }>(v)) return testo(v.props.children);
+  if (isValidElement<Record<string, unknown>>(v)) {
+    // Testata, piè ed etichette dello stile unico (10/11/2026) portano il testo nelle proprietà, non nei figli.
+    const p = v.props;
+    return [p.ragioneSociale, p.titolo, p.sotto, p.stato, p.testo, p.righe, p.riferimento, p.children].map(testo).join(" ");
+  }
   return "";
 }
 const leggi = (doc: unknown) => testo(doc).replace(/\s+/g, " ");
@@ -204,11 +208,16 @@ describe("Riepilogo commessa", () => {
   it("Vulcano: piè proprio e logo grande; la riga di riferimento dice «riservato» solo all'interno", () => {
     const cliente = createOrdinePDFDocument({ ...props(VULCANO), perCliente: true });
     const interno = createOrdinePDFDocument(props(VULCANO));
-    expect(trova(cliente, PieSocietario)).toBe(true);
-    expect(trova(createOrdinePDFDocument(props(ALTRA)), PieSocietario)).toBe(false);
+    // Lo stile unico (10/11/2026): lo stesso piè per tutti, quello della veste per chi ce l'ha.
+    expect(trova(cliente, PiedeDocumento)).toBe(true);
+    expect(trova(createOrdinePDFDocument(props(ALTRA)), PiedeDocumento)).toBe(true);
     expect(leggi(cliente)).not.toContain("Documento riservato");
     expect(leggi(interno)).toContain("Documento riservato · VUL-2026-14");
-    expect(JSON.stringify(cliente, (_k, v) => (typeof v === "string" && v.length > 200 ? "…" : v))).toContain('"height":55,"width":340');
+    // Il logo della testata prende la misura della veste: 55 × 340 punti.
+    expect(trova(cliente, TestataDocumento)).toBe(true);
+    const logo = (id: string) => JSON.stringify(TestataDocumento({ logo: "data:image/png;base64,x", ragioneSociale: "", titolo: "", accento: "#000000", companyId: id }));
+    expect(logo(VULCANO)).toContain('"maxHeight":55,"maxWidth":340');
+    expect(logo(ALTRA)).toContain('"maxHeight":44,"maxWidth":200');
   });
 
   it.runIf(!!DIR)("PDF di prova", async () => {
