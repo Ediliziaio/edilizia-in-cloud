@@ -76,7 +76,7 @@ interface WarehouseStockTabProps {
 }
 
 export default function WarehouseStockTab({ warehouseFilter = null, actionRequest = null, readOnly = false }: WarehouseStockTabProps) {
-  const { effectiveCompany, user } = useAuth();
+  const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
   const { defaultWarehouse } = useWarehouses(true);
@@ -120,11 +120,13 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
   const [uscitaOpen, setUscitaOpen] = useState(false);
   const [zonesDialogOpen, setZonesDialogOpen] = useState(false);
 
-  useEffect(() => {
-    if (!actionRequest || readOnly) return;
-    if (actionRequest.type === "receive") setCaricoOpen(true);
-    if (actionRequest.type === "ship") setUscitaOpen(true);
-  }, [actionRequest, readOnly]);
+  const requestKey = actionRequest ? `${actionRequest.type}:${actionRequest.nonce}` : null;
+  const [handledRequestKey, setHandledRequestKey] = useState<string | null>(null);
+  if (requestKey !== handledRequestKey) {
+    setHandledRequestKey(requestKey);
+    if (!readOnly && actionRequest?.type === "receive") setCaricoOpen(true);
+    if (!readOnly && actionRequest?.type === "ship") setUscitaOpen(true);
+  }
 
   // DnD sensors — require 8px movement before activating to avoid interfering with clicks
   const sensors = useSensors(
