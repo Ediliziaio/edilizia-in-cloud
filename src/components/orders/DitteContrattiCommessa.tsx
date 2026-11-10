@@ -38,6 +38,7 @@ import { modelloPredefinitoDellAzienda } from "../../../supabase/functions/_shar
 import { caricaDatiSocietari, righeSocietarie } from "../../../supabase/functions/_shared/datiSocietari";
 import { clausoleArchivioDelContratto, totaleElencoLavori, unisciArticoliPersonalizzati, type DatiContrattoSubappalto, type RigaElencoLavori } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
 import { OfficeSelect } from "./OfficeSelect";
+import { AbbinaListinoDialog } from "./AbbinaListinoDialog";
 
 // Tabelle recenti, non ancora tutte nei tipi generati.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -142,6 +143,7 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
 
   const [scelte, setScelte] = useState<Record<string, string>>({});
   const [vociAperte, setVociAperte] = useState<string | null>(null);
+  const [abbinaAperto, setAbbinaAperto] = useState(false);
   const invalida = () => {
     void qc.invalidateQueries({ queryKey: ["ditte-contratti-commessa", companyId, orderId] });
     void qc.invalidateQueries({ queryKey: chiaveVociPreviste(companyId, orderId) });
@@ -210,6 +212,21 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
 
   return (
     <div className="space-y-5">
+      {/* Lotto 3 (10/11/2026): senza la voce del listino il prezzo della ditta non arriva al contratto. */}
+      {listaVoci.some((v) => !v.tariffa_id) && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <span className="min-w-0 flex-1">
+            {listaVoci.filter((v) => !v.tariffa_id).length} voci su {listaVoci.length} non sono collegate al listino: per quelle il contratto non trova il prezzo della ditta.
+          </span>
+          <Button size="sm" variant="outline" className="bg-white" disabled={tariffe.isLoading} onClick={() => setAbbinaAperto(true)}>Collega al listino</Button>
+        </div>
+      )}
+      {abbinaAperto && (
+        <AbbinaListinoDialog orderId={orderId} companyId={companyId}
+          voci={listaVoci.map((v) => ({ id: v.id, phase_id: v.phase_id, descrizione: v.descrizione, unita: v.unita, origine_codice: v.origine_codice ?? null, tariffa_id: v.tariffa_id, quantita: v.quantita, importo: v.importo }))}
+          fasi={d.fasi} listino={tariffe.data ?? []}
+          onChiudi={() => setAbbinaAperto(false)} onFatto={() => { setAbbinaAperto(false); invalida(); }} />
+      )}
       <section aria-label="Fasi, voci e ditte" className="space-y-2">
         <p className="text-xs text-muted-foreground">Qui trovi le squadre esterne già collegate alle ditte. Se hai appena creato un subappaltatore e non compare, usa «Assegna» sulla fase e scegli «Ditta»: quel percorso crea anche il collegamento operativo. Poi riapri questo pannello.</p>
         <ul className="divide-y rounded-lg border">
