@@ -2045,6 +2045,8 @@ function PageDropOverlay({
   onDragStateChange: (dragging: boolean) => void;
 }) {
   useEffect(() => {
+    // Qui il rilascio vale per tutta la pagina: il livello comune si fa da parte.
+    document.body.setAttribute("data-rilascio-pagina", "");
     let dragCounter = 0;
     const onDragEnter = (e: DragEvent) => {
       if (!e.dataTransfer?.types.includes("Files")) return;
@@ -2071,6 +2073,7 @@ function PageDropOverlay({
     window.addEventListener("dragover", onDragOver);
     window.addEventListener("drop", onDrop);
     return () => {
+      document.body.removeAttribute("data-rilascio-pagina");
       window.removeEventListener("dragenter", onDragEnter);
       window.removeEventListener("dragleave", onDragLeave);
       window.removeEventListener("dragover", onDragOver);

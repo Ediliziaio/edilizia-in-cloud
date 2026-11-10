@@ -922,6 +922,7 @@ export default function VerticalWizardAiDialog<T>(
                     accept="image/png,image/jpeg,application/pdf,.dwg"
                     className="hidden"
                     aria-label="Allega rilievo tecnico"
+                    data-rilascio="senza-filtro"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) void attach(file);

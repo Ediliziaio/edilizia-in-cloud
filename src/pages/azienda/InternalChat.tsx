@@ -2918,6 +2918,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                 ref={attachInputRef}
                 type="file"
                 className="hidden"
+                data-rilascio={isSilvioChannel ? "no" : undefined}
                 accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
                 onChange={handleAttachment}
               />
@@ -2925,6 +2926,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                 ref={silvioImageInputRef}
                 type="file"
                 className="hidden"
+                data-rilascio={isSilvioChannel ? undefined : "no"}
                 accept="image/*,.pdf"
                 onChange={(e) => {
                   const file = e.target.files?.[0];

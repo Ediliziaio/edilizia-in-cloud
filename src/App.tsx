@@ -25,6 +25,7 @@ const MobileBootstrap = isNative
   ? lazy(() => import("@/components/mobile/MobileBootstrap"))
   : (() => null) as React.FC;
 import { Toaster as Sonner } from "@/components/ui/sonner";
+import { RilascioFileGlobale } from "@/components/shared/RilascioFileGlobale";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryCache, MutationCache } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
@@ -587,6 +588,7 @@ const App = () => (
      <ConfirmProvider>
       {/* mobileOffset: i toast non coprono la bottom nav mobile (h-16 + safe-area) né il composer chat */}
       <Sonner mobileOffset={{ bottom: 88 }} />
+      <RilascioFileGlobale />
       <BrowserRouter>
         <BootGuardDismiss />
         <SubdomainTitleSetter />
