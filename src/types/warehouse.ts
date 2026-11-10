@@ -1,7 +1,7 @@
 import { differenceInDays } from "date-fns";
 import { Package, ShoppingCart, Truck, CheckCircle2 } from "lucide-react";
 
-export type OrderItemStatus = "da_ordinare" | "ordinato" | "in_arrivo" | "in_magazzino" | "prenotato" | "installato";
+export type OrderItemStatus = "da_ordinare" | "ordinato" | "in_arrivo" | "in_magazzino" | "in_cantiere" | "prenotato" | "installato";
 
 export interface WarehouseItem {
   id: string;
@@ -70,6 +70,7 @@ export const STATUS_CONFIG: Record<OrderItemStatus, {
     bgColor: "bg-green-50/50 dark:bg-green-950/20",
     icon: Package,
   },
+  in_cantiere: {label:"In Cantiere",color:"text-teal-700",bgColor:"bg-teal-50/50 dark:bg-teal-950/20",icon:CheckCircle2},
   prenotato: {
     label: "Prenotato",
     color: "text-purple-600",
@@ -97,7 +98,7 @@ export function getDaysUntilPosa(item: WarehouseItem): number | null {
 
 /** True if item is urgent: posa <= 7 days away and status is not ready */
 export function isItemUrgent(item: WarehouseItem): boolean {
-  if (item.status === "in_magazzino" || item.status === "installato") return false;
+  if (item.status === "in_magazzino" || item.status === "in_cantiere" || item.status === "installato") return false;
   const daysUntil = getDaysUntilPosa(item);
   if (daysUntil === null) return false;
   return daysUntil <= 7 && daysUntil >= 0;
@@ -105,7 +106,7 @@ export function isItemUrgent(item: WarehouseItem): boolean {
 
 /** True if item is critical: posa <= 3 days away and status is not ready */
 export function isItemCritical(item: WarehouseItem): boolean {
-  if (item.status === "in_magazzino" || item.status === "installato") return false;
+  if (item.status === "in_magazzino" || item.status === "in_cantiere" || item.status === "installato") return false;
   const daysUntil = getDaysUntilPosa(item);
   if (daysUntil === null) return false;
   return daysUntil <= 3 && daysUntil >= 0;
@@ -120,7 +121,7 @@ export function getUrgencyLabel(daysUntil: number): string {
 
 /** True if item is overdue: posa date is in the past and status is not ready */
 export function isItemOverdue(item: WarehouseItem): boolean {
-  if (item.status === "in_magazzino" || item.status === "installato") return false;
+  if (item.status === "in_magazzino" || item.status === "in_cantiere" || item.status === "installato") return false;
   const daysUntil = getDaysUntilPosa(item);
   if (daysUntil === null) return false;
   return daysUntil < 0;
@@ -147,6 +148,8 @@ export interface StockItem {
   description: string | null;
   quantity: number;
   unit_cost: number;
+  prezzo_da_definire?: boolean;
+  unita_misura?: string | null;
   vat_rate: number | null;
   supplier_id: string | null;
   section_id: string | null;

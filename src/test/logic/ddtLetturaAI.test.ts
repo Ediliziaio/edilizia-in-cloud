@@ -261,3 +261,9 @@ describe("I vincoli del database detti in italiano", () => {
     expect(messaggioBolla({}, "fallback")).toBe("fallback");
   });
 });
+
+it("una nota senza codice, quantità, unità o prezzo resta nelle note e non diventa merce", () => {
+  const letta = leggiDDTdaAI({righe_merce:[{descrizione:"Chiusino",quantita:1,unita_misura:"pz"},{descrizione:"MATERIALE CARICATO DA SAURO",quantita:null}]});
+  expect(letta.righe).toHaveLength(1);expect(letta.note).toContain("MATERIALE CARICATO DA SAURO");
+  expect(leggiDDTdaAI({righe_merce:[{descrizione:"MATERIALE CARICATO DA SAURO",codice_articolo:"SERV",quantita:1}]}).righe).toHaveLength(1);
+});

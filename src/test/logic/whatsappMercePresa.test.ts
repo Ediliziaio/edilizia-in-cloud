@@ -1,12 +1,12 @@
+import { Blob as NodeBlob } from "node:buffer";
+import { webcrypto } from "node:crypto";
 // src/test/logic/whatsappMercePresa.test.ts
 /**
- * Bolla e scontrino mandati dall'operaio su WhatsApp fanno la stessa strada
- * dell'app Campo (18/10/2026): finiscono in «Merce presa» sul cantiere
- * confermato, l'ufficio li verifica e diventano costo della commessa e, se ha
- * pagato l'operaio, il suo rimborso. La foto passa nel deposito dei documenti
- * di cantiere. Ufficio e amministratore restano sui percorsi di prima.
+ * Il DDT entra nell'archivio comune e attende il controllo dell'ufficio,
+ * senza creare costi o rimborsi. Lo scontrino mantiene il percorso «Merce
+ * presa», distinguendo il pagamento dell'operaio dal conto aziendale.
  */
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { DbMinimo } from "../helpers/edgeFinto";
@@ -20,6 +20,7 @@ let ctx: ToolCtx;
 let caricati: string[];
 
 beforeEach(() => {
+  vi.stubGlobal("crypto",webcrypto);
   db = new DbMinimo();
   caricati = [];
   db.tabelle.orders = [{ id: "ordine", company_id: "company", order_code: "ORD-7", description: "Villa Rossi", status: "confermato", deleted_at: null }];
@@ -27,7 +28,7 @@ beforeEach(() => {
   db.rpcs.campo_acquisto_registra_whatsapp = () => "acquisto-1";
   (db as unknown as { storage: unknown }).storage = {
     from: (bucket: string) => ({
-      download: async () => ({ data: new Blob(["foto"], { type: "image/jpeg" }), error: null as null }),
+      download: async () => ({ data: new NodeBlob([new Uint8Array([255,216,255,224,0,1,2,3])], { type: "image/jpeg" }), error: null as null }),
       upload: async (path: string) => { caricati.push(`${bucket}:${path}`); return { data: { path }, error: null as null }; },
     }),
   };
@@ -41,25 +42,15 @@ beforeEach(() => {
 const chiamata = () => db.rpcChiamate.find((c) => c.nome === "campo_acquisto_registra_whatsapp")!.args;
 
 describe("la bolla dell'operaio", () => {
-  it("va in Merce presa sul cantiere confermato, a nome del dipendente, con la foto", async () => {
-    const esito = await caricaDDT(ctx, {
-      numero_ddt: "123", fornitore: "Fornitore Demo", data_ddt: "18/10/2026", order_id: "ordine",
-      righe: [{ descrizione: "Cemento", quantita: 10, unita_misura: "sacchi" }], riferimento_ordine: "ODA-9",
-    });
+  it("conserva il DDT nella coda comune sul cantiere, senza costi, rimborsi o magazzino", async () => {
+    const esito = await caricaDDT(ctx, {numero_ddt:"123",fornitore:"Fornitore Demo",order_id:"ordine",righe:[{descrizione:"Cemento",quantita:10,unita_misura:"sacchi"}]});
     expect(esito.ok).toBe(true);
-    expect(chiamata()).toMatchObject({
-      p_company_id: "company", p_user_id: null, p_employee_id: "emp", p_order_id: "ordine",
-      p_modalita: "ritiro_ordine", p_tipo_documento: "bolla", p_numero: "123", p_data: "2026-10-18",
-      p_righe: [{ descrizione: "Cemento", quantita: 10, unita: "sacchi" }],
-    });
-    expect(chiamata().p_lettura).toMatchObject({ fonte: "whatsapp", messaggio: "messaggio-1", riferimento_ordine: "ODA-9" });
-    expect(caricati).toHaveLength(1);
-    expect(caricati[0]).toMatch(/^campo-rapportini:company\/ordine\/acquisti\/.+\.jpg$/);
-    expect(chiamata().p_foto_path).toBe(caricati[0].split(":")[1]);
-    expect(esito.user_message).toContain("messa su Villa Rossi · ORD-7");
-    expect(esito.user_message).toContain("diventa costo della commessa");
-    // Il carico di magazzino resta per l'ufficio: dall'operaio non parte.
-    expect(db.scritture.filter((w) => w.tabella === "email_ddt_carico" || w.tabella === "email_documento_estratto")).toHaveLength(0);
+    expect(db.tabelle.ddt_document_jobs).toHaveLength(1);
+    expect(db.tabelle.ddt_document_jobs[0]).toMatchObject({company_id:"company",created_by:null,employee_id:"emp",order_id:"ordine",status:"queued",source:"whatsapp",files:[{bucket:"ddt-documenti",path:expect.stringMatching(/^company\/null\/[^/]+\/1-originale\.jpg$/)}]});
+    expect(db.rpcChiamate).toHaveLength(0); expect(caricati).toHaveLength(1);
+    expect(caricati[0]).toBe(`ddt-documenti:${(db.tabelle.ddt_document_jobs[0].files as Array<{ path: string }>)[0].path}`);
+    expect(esito.user_message).toContain("Documenti in ingresso");
+    expect(db.scritture.every(w=>w.tabella==="ddt_document_jobs")).toBe(true);
   });
 
   it("senza cantiere non registra niente e dice cosa fare", async () => {
@@ -68,10 +59,16 @@ describe("la bolla dell'operaio", () => {
     expect(db.rpcChiamate).toHaveLength(0);
   });
 
-  it("riporta all'operaio il motivo scritto dal database («già caricato da…»)", async () => {
-    db.rpc = (async () => ({ data: null as null, error: { code: "P0001", message: "Questo documento è già stato caricato da Luca il 17/10: non serve rimandarlo." } })) as unknown as DbMinimo["rpc"];
-    const esito = await caricaDDT(ctx, { numero_ddt: "123", fornitore: "Fornitore Demo", order_id: "ordine" });
-    expect(esito).toMatchObject({ ok: false, user_message: "Questo documento è già stato caricato da Luca il 17/10: non serve rimandarlo." });
+  it("due conferme dello stesso originale riconducono allo stesso documento", async () => {
+    const args={numero_ddt:"123",fornitore:"Fornitore Demo",order_id:"ordine"};
+    const a=await caricaDDT(ctx,args),b=await caricaDDT(ctx,args);
+    expect(a.ok).toBe(true);expect(b.ok).toBe(true);expect(db.tabelle.ddt_document_jobs).toHaveLength(1);
+    expect(db.rpcChiamate).toHaveLength(0);
+  });
+  it("rifiuta il cantiere di un altro operaio e un allegato fuori azienda",async()=>{
+    expect((await caricaDDT(ctx,{numero_ddt:"123",fornitore:"Demo",order_id:"altro"})).ok).toBe(false);
+    expect((await caricaDDT({...ctx,mediaCorrente:{storagePath:"altra/foto.jpg",url:"",tipo:"image"}},{numero_ddt:"123",fornitore:"Demo",order_id:"ordine"})).ok).toBe(false);
+    expect(db.tabelle.ddt_document_jobs ?? []).toHaveLength(0);
   });
 });
 

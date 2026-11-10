@@ -12,7 +12,7 @@
  * mobile fluido (un solo Sheet, scan continuo, niente passaggi inutili).
  */
 
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
@@ -91,7 +91,16 @@ interface RelatedOrderOption {
   description: string | null;
 }
 
-export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps) {
+export function CaricoRapidoSheet(props: CaricoRapidoSheetProps) {
+  const { effectiveCompany } = useAuth();
+  // Ogni apertura e cambio azienda inizia un nuovo carico, senza residui del
+  // documento precedente (lotto, ubicazione, foto e righe comprese).
+  return props.open ? (
+    <CaricoRapidoSession key={effectiveCompany?.id ?? "nessuna-azienda"} {...props} />
+  ) : null;
+}
+
+function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -175,7 +184,9 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
   // non trovato→crea) prima di aggiungere. Default ON (richiesta utente).
   const [confirmEachScan, setConfirmEachScan] = useState(true);
   const [supplierId, setSupplierId] = useState<string | undefined>();
-  const [warehouseId, setWarehouseId] = useState<string | undefined>();
+  const [selectedWarehouseId, setWarehouseId] = useState<string | undefined>();
+  const warehouseId = selectedWarehouseId
+    ?? (warehouses.find((w) => w.is_default) ?? warehouses[0])?.id;
   const [relatedOrderIds, setRelatedOrderIds] = useState<string[]>([]);
   const [orderSearch, setOrderSearch] = useState("");
   const [ddtFile, setDdtFile] = useState<File | null>(null);
@@ -219,7 +230,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
   const [manualSectionOpen, setManualSectionOpen] = useState(false);
   const [productPhotos, setProductPhotos] = useState<File[]>([]);
   const [entries, setEntries] = useState<BatchScanEntry[]>([]);
-  const [insertedAt, setInsertedAt] = useState(() => new Date());
+  const [insertedAt] = useState(() => new Date());
   const insertedBy = user?.email ?? "utente corrente";
 
   // ── Inline create-from-no-match ─────────────────────────────────
@@ -233,34 +244,6 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
     | ((value: { stockItemId: string; itemName: string; trackingMode: "fungible" | "serialized" } | null) => void)
     | null
   >(null);
-
-  // Default warehouse: il primo `is_default` o il primo della lista.
-  useEffect(() => {
-    if (!warehouseId && warehouses.length > 0) {
-      const def = warehouses.find((w) => w.is_default) ?? warehouses[0];
-      setWarehouseId(def.id);
-    }
-  }, [warehouses, warehouseId]);
-
-  // Reset state quando si chiude lo sheet.
-  useEffect(() => {
-    if (open) {
-      setInsertedAt(new Date());
-    }
-    if (!open) {
-      setStep("context");
-      setReceiveMode("scan");
-      setSupplierId(undefined);
-      setRelatedOrderIds([]);
-      setOrderSearch("");
-      setDdtFile(null);
-      setNotes("");
-      setProductPhotos([]);
-      setEntries([]);
-      batchCarico.reset();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
 
   const supplierObj = useMemo(
     () => suppliers.find((s) => s.id === supplierId),
@@ -476,6 +459,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
       const { data, error } = await supabase.functions.invoke("ai-ddt-analyzer", {
         body: {
           file_base64: fileBase64,
+          file_name: ddtFile.name,
           mime: ddtFile.type || "image/jpeg",
           company_id: companyId,
           warehouse_id: warehouseId ?? null,

@@ -1177,3 +1177,7 @@ verify_jwt = false
 
 [functions.support-message-notify]
 verify_jwt = false
+
+# Autenticazione nel corpo: JWT utente e appartenenza aziendale oppure segreto cron.
+[functions.ddt-documenti-processa]
+verify_jwt = false

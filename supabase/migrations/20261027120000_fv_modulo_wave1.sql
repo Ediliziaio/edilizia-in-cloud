@@ -804,4 +804,31 @@ UPDATE public.fv_incentivi_catalogo SET
   non_cumulabile_con = ARRAY['DETR_50_PRIMA','DETR_36_SECONDA','REDDITO_ENERGETICO']::text[]
   WHERE codice = 'TRANSIZIONE_5_0';
 
+-- Sicurezza dei cataloghi anche nelle ricostruzioni da zero.
+DO $$
+DECLARE
+  t text;
+  tbls text[] := ARRAY[
+    'fv_incentivi_catalogo','fv_solar_api_cache','fv_pvgis_cache',
+    'fv_parametri_calcolo','fv_profili_autoconsumo'
+  ];
+BEGIN
+  FOREACH t IN ARRAY tbls LOOP
+    -- Nelle ricostruzioni queste tabelle nascono in ottobre; la stessa
+    -- protezione viene applicata anche dalla loro migrazione di creazione.
+    IF to_regclass(format('public.%I', t)) IS NULL THEN CONTINUE; END IF;
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', t);
+    -- Policy SELECT pubblica (lettura per tutti — sono dati di riferimento)
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public'
+      AND tablename=t AND policyname=t || '_public_read') THEN
+      EXECUTE format(
+        'CREATE POLICY %I ON public.%I FOR SELECT TO anon, authenticated USING (true);',
+        t || '_public_read', t
+      );
+    END IF;
+    -- NESSUNA policy INSERT/UPDATE/DELETE → default deny per anon/authenticated.
+    -- service_role bypassa RLS e mantiene il controllo completo (cache/seed).
+  END LOOP;
+END $$;
+
 COMMIT;

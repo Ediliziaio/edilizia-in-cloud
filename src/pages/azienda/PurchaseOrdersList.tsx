@@ -1,4 +1,3 @@
-import { useIsMobile } from "@/hooks/use-mobile";
 import { FornitoreCombobox } from "@/components/orders/FornitoreCombobox";
 import { useOperationalViewMemory } from "@/hooks/useOperationalViewMemory";
 import {
@@ -383,9 +382,7 @@ export default function PurchaseOrdersList() {
     },
     [setParams],
   );
-  // Da telefono la tabella non ci sta: sempre la pipeline a schede.
-  const isMobile = useIsMobile();
-  const vistaPrincipale = isMobile ? "pipeline" : filtri.vista;
+  const vistaPrincipale = filtri.vista;
   const archive = useOperationalArchive(
     "oda_ambito",
     filtri.stato || vistaPrincipale === "elenco" ? "all" : "active",
@@ -928,6 +925,53 @@ export default function PurchaseOrdersList() {
       onClick={() => navigate(`/azienda/ordini-acquisto/${o.id}`)}
     >
       <td className="p-3 font-mono text-xs font-medium">{o.oda_number}</td>
+      <td className="p-3" onClick={(e) => e.stopPropagation()}>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {puoAgire ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto gap-1 px-1"
+                  disabled={odaMovement.saving || o.status === "annullato"}
+                  aria-label={`Gestisci stato ordine ${o.oda_number}: ${STATUS_LABELS[o.status] || o.status}`}
+                >
+                  <QuoteChip
+                    variant={STATUS_CHIP_VARIANT[o.status] || "default"}
+                  >
+                    {STATUS_LABELS[o.status] || o.status}
+                  </QuoteChip>
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <DropdownMenuItem
+                  disabled={o.status !== "bozza"}
+                  onSelect={() =>
+                    movePurchaseDocument(`oda:${o.id}`, "ordinato")
+                  }
+                >
+                  Ordine inviato
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => navigate(`/azienda/ordini-acquisto/${o.id}`)}
+                >
+                  Ricezioni e DDT
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <QuoteChip variant={STATUS_CHIP_VARIANT[o.status] || "default"}>
+              {STATUS_LABELS[o.status] || o.status}
+            </QuoteChip>
+          )}
+          <VerificationBadge result={o.last_verification?.result} />
+        </div>
+      </td>
       <td className="p-3">
         <div className="flex items-center gap-1.5">
           <Truck className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -941,14 +985,6 @@ export default function PurchaseOrdersList() {
       </td>
       <td className="p-3 text-muted-foreground">
         {format(new Date(o.issue_date), "dd/MM/yyyy", { locale: it })}
-      </td>
-      <td className="p-3">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <QuoteChip variant={STATUS_CHIP_VARIANT[o.status] || "default"}>
-            {STATUS_LABELS[o.status] || o.status}
-          </QuoteChip>
-          <VerificationBadge result={o.last_verification?.result} />
-        </div>
       </td>
       <td className="p-3">
         <Arrivato o={o} />
@@ -1113,7 +1149,7 @@ export default function PurchaseOrdersList() {
       {/* Vista e filtri comuni: valgono per la pipeline e per l'elenco, e stanno nell'URL. */}
       <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="max-md:hidden">
+          <div>
           <OperationalViewSwitch
             value={vistaPrincipale}
             onChange={(v) =>
@@ -1122,7 +1158,7 @@ export default function PurchaseOrdersList() {
                   const next = scriviFiltroAcquisti(
                     before,
                     "vista",
-                    v === "pipeline" ? null : v,
+                    v === "elenco" ? null : v,
                   );
                   next.set("oda_ambito", archive.scope);
                   return next;
@@ -1557,13 +1593,13 @@ export default function PurchaseOrdersList() {
             <thead>
               <tr className="border-b bg-muted/50">
                 <th className="text-left p-3 font-medium">N° OdA</th>
+                <th className="text-left p-3 font-medium">Stato</th>
                 <th className="text-left p-3 font-medium">Fornitore</th>
                 <th className="text-left p-3 font-medium">Commessa</th>
                 {/* La colonna "Destinazione" e' stata tolta: su 41 ordini nessuno
                   aveva il magazzino impostato, quindi diceva "Da decidere" 41
                   volte su 41. Il dato resta nel dettaglio, dove si imposta. */}
                 <th className="text-left p-3 font-medium">Data</th>
-                <th className="text-left p-3 font-medium">Stato</th>
                 <th className="text-left p-3 font-medium">Arrivato</th>
                 {vedeCosti && (
                   <th className="text-right p-3 font-medium">Totale</th>

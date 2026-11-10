@@ -76,7 +76,7 @@ interface WarehouseStockTabProps {
 }
 
 export default function WarehouseStockTab({ warehouseFilter = null, actionRequest = null, readOnly = false }: WarehouseStockTabProps) {
-  const { effectiveCompany, user } = useAuth();
+  const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
   const { defaultWarehouse } = useWarehouses(true);
@@ -120,11 +120,13 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
   const [uscitaOpen, setUscitaOpen] = useState(false);
   const [zonesDialogOpen, setZonesDialogOpen] = useState(false);
 
-  useEffect(() => {
-    if (!actionRequest || readOnly) return;
-    if (actionRequest.type === "receive") setCaricoOpen(true);
-    if (actionRequest.type === "ship") setUscitaOpen(true);
-  }, [actionRequest, readOnly]);
+  const requestKey = actionRequest ? `${actionRequest.type}:${actionRequest.nonce}` : null;
+  const [handledRequestKey, setHandledRequestKey] = useState<string | null>(null);
+  if (requestKey !== handledRequestKey) {
+    setHandledRequestKey(requestKey);
+    if (!readOnly && actionRequest?.type === "receive") setCaricoOpen(true);
+    if (!readOnly && actionRequest?.type === "ship") setUscitaOpen(true);
+  }
 
   // DnD sensors — require 8px movement before activating to avoid interfering with clicks
   const sensors = useSensors(
@@ -1351,8 +1353,8 @@ const DraggableStockRow = memo(function DraggableStockRow({
         </div>
         <InArrivoNota inArrivo={inArrivo} />
       </TableCell>
-      <TableCell className="text-right">{formatCurrency(item.unit_cost)}</TableCell>
-      <TableCell className="text-right">{formatCurrency(item.unit_cost * item.quantity)}</TableCell>
+      <TableCell className="text-right">{item.prezzo_da_definire ? <span className="text-xs text-amber-700">Da definire</span> : formatCurrency(item.unit_cost)}</TableCell>
+      <TableCell className="text-right">{item.prezzo_da_definire ? <span className="text-xs text-muted-foreground">Da valorizzare</span> : formatCurrency(item.unit_cost * item.quantity)}</TableCell>
       <TableCell>{supplierName}</TableCell>
       <TableCell className="text-center">{item.min_stock_level || "—"}</TableCell>
       <TableCell className="text-right">
@@ -1533,9 +1535,9 @@ const StockItemMobileCard = memo(function StockItemMobileCard({
         <div className="flex items-center justify-between text-[11px] text-muted-foreground border-t pt-2">
           <span className="truncate flex-1">{supplierName}</span>
           <div className="flex items-center gap-3 shrink-0">
-            <span>{formatCurrency(item.unit_cost)}/u</span>
+            <span>{item.prezzo_da_definire ? "Prezzo da definire" : `${formatCurrency(item.unit_cost)}/${item.unita_misura || "u"}`}</span>
             <span className="font-medium text-foreground">
-              {formatCurrency(item.unit_cost * item.quantity)}
+              {item.prezzo_da_definire ? "Da valorizzare" : formatCurrency(item.unit_cost * item.quantity)}
             </span>
           </div>
         </div>

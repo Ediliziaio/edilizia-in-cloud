@@ -5,8 +5,8 @@
  * e non vista costa più di trenta secondi di controllo.
  */
 import type { DDTRigaNuova } from "@/hooks/useDDTRicezione";
-import type { LetturaDDT } from "@/lib/ddt/letturaAI";
-import { abbinaFornitore, type FornitoreInRubrica } from "@/lib/ddt/abbinaFornitore";
+import { leggiDDTdaAI, type LetturaDDT } from "@/lib/ddt/letturaAI";
+import { normalizzaPiva, abbinaFornitore, type FornitoreInRubrica } from "@/lib/ddt/abbinaFornitore";
 
 /** Il limite di `ddt-ai-extract`. */
 export const MAX_BYTE_BOLLA = 18 * 1024 * 1024;
@@ -37,6 +37,11 @@ export interface BollaLetta {
   fornitoreLetto: string | null;
   abbinatoPer: string | null;
   orderId: string | null;
+  warehouseId?: string | null;
+  purchaseOrderId?: string | null;
+  ddtCreatoId?: string;
+  /** Lettura durevole condivisa con app e WhatsApp. */
+  documentoJobId?: string;
   destinazione: "magazzino" | "cantiere";
   righe: DDTRigaNuova[];
   confidenza: number | null;
@@ -88,6 +93,15 @@ export function conLettura(b: BollaLetta, letta: LetturaDDT, grezzo: unknown, ru
   };
 }
 
+/** Rilegge solo l'anagrafica: non spende altra AI e non sovrascrive le correzioni dell'utente. */
+export function riabbinaFornitori(bolle: BollaLetta[], rubrica: FornitoreInRubrica[]): BollaLetta[] {
+  return bolle.map(b => {
+    if (b.supplierId || b.stato !== "letta" || !b.grezzo) return b;
+    const trovato = abbinaFornitore(leggiDDTdaAI(b.grezzo), rubrica);
+    return trovato ? { ...b, supplierId: trovato.id, abbinatoPer: trovato.motivo } : b;
+  });
+}
+
 const numeroPulito = (n: string) => n.trim().toUpperCase().replace(/[\s./_-]/g, "");
 
 /**
@@ -109,7 +123,7 @@ export function doppioni(bolle: ReadonlyArray<BollaLetta>, esistenti: ReadonlySe
   for (const b of bolle) {
     const k = chiaveBolla(b.supplierId, b.numero, b.data);
     if (!k) { esito.set(b.id, null); continue; }
-    esito.set(b.id, esistenti.has(k) ? "gia_presente" : viste.has(k) ? "nel_mucchio" : null);
+    esito.set(b.id, b.ddtCreatoId ? null : esistenti.has(k) ? "gia_presente" : viste.has(k) ? "nel_mucchio" : null);
     viste.add(k);
   }
   return esito;
@@ -121,6 +135,8 @@ export function problemiBloccanti(b: BollaLetta): string[] {
   if (!b.numero.trim()) p.push("manca il numero");
   if (!b.data) p.push("manca la data");
   if (b.destinazione === "cantiere" && !b.orderId) p.push("in cantiere serve la commessa");
+  if (b.righe.some(r => r.quantita != null && (!Number.isFinite(r.quantita) || r.quantita < 0))) p.push("quantità non valida nelle righe");
+  if (b.righe.some(r => r.prezzo_unitario != null && (!Number.isFinite(r.prezzo_unitario) || r.prezzo_unitario < 0))) p.push("prezzo non valido nelle righe");
   return p;
 }
 
@@ -177,7 +193,7 @@ const parole = (t: string) => new Set(pulito(t).split(/[^a-z0-9àèéìòù]+/).
 export function quantitaAPezzi(r: Pick<RigaDaCaricare, "quantita" | "unita_misura">): boolean {
   const q = Number(r.quantita);
   if (!Number.isInteger(q) || q <= 0) return false;
-  return ["", "pz", "pz.", "n", "n.", "nr", "nr.", "pezzi", "pezzo"].includes(pulito(r.unita_misura));
+  return ["cad", "cad.", "pz", "pz.", "n", "n.", "nr", "nr.", "pezzi", "pezzo"].includes(pulito(r.unita_misura));
 }
 
 /**
@@ -215,7 +231,38 @@ export interface SceltaCarico { riga_id: string; stock_item_id?: string; nuovo?:
 /** Quello che entra subito, senza chiedere. */
 export function scelteCerte(righe: ReadonlyArray<RigaDaCaricare>, articoli: ReadonlyArray<ArticoloMagazzino>): SceltaCarico[] {
   return righe.flatMap((r) => {
-    const a = quantitaAPezzi(r) ? articoloCerto(r, articoli) : null;
+    const servizio = /\b(costi? (?:di )?pulizia|spese (?:di )?trasporto|manodopera|servizio di|canone (?:di )?noleggio)\b/i.test(r.descrizione);
+    const a = !servizio && quantitaAPezzi(r) ? articoloCerto(r, articoli) : null;
     return a ? [{ riga_id: r.id, stock_item_id: a.id }] : [];
   });
+}
+
+/** Resi, noleggi e destinazioni miste richiedono la scelta delle righe e della destinazione. */
+export function richiedeCaricoManuale(documento: Record<string, unknown> | null): boolean {
+  if (!documento) return false;
+  const intestazione = documento.intestazione as Record<string, unknown> | undefined;
+  const riferimenti = documento.riferimenti as Record<string, unknown> | undefined;
+  const causale = String(intestazione?.causale ?? "");
+  const note = String(riferimenti?.note_libere ?? "");
+  return /\b(reso|resi|restituzione|restituzioni|noleggio|rientro)\b/i.test(causale)
+    || /^merce in entrata$/i.test(causale.trim())
+    || (/cantiere/i.test(note) && /magazzino/i.test(note));
+}
+
+export type ModificheBolle = Pick<Partial<BollaLetta>, "supplierId" | "orderId" | "destinazione" | "warehouseId">;
+/** Una modifica massiva non cambia documenti già registrati o ancora in lettura. */
+export function modificaBolleSelezionate(bolle: BollaLetta[], ids: ReadonlySet<string>, patch: ModificheBolle): BollaLetta[] {
+  return bolle.map(b => {
+    if (!ids.has(b.id) || b.stato !== "letta" || b.esito === "salvata" || b.ddtCreatoId) return b;
+    const cambiaAssociazione = (patch.supplierId !== undefined && patch.supplierId !== b.supplierId) || (patch.orderId !== undefined && patch.orderId !== b.orderId);
+    return { ...b, ...patch, ...(Object.hasOwn(patch, "supplierId") ? { abbinatoPer: null } : {}), ...(cambiaAssociazione ? {purchaseOrderId:null,righe:b.righe.map(r=>({...r,purchase_order_item_id: null as string | null,abbinamento: null as "auto" | "manuale" | null}))} : {}) };
+  });
+}
+
+/** Un'associazione manuale non deve nascondere una P.IVA in contrasto con l'originale. */
+export function conflittoFornitore(b: BollaLetta, rubrica: FornitoreInRubrica[]): boolean {
+  if (!b.supplierId || !b.grezzo) return false;
+  const letta = normalizzaPiva(leggiDDTdaAI(b.grezzo).fornitorePiva);
+  const scelta = normalizzaPiva(rubrica.find(f => f.id === b.supplierId)?.vat_number);
+  return !!letta && !!scelta && letta !== scelta;
 }

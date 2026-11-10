@@ -64,7 +64,7 @@ export interface Posizione {
   quantita: number;
 }
 
-export type OrderItemStatus = 'da_ordinare' | 'ordinato' | 'in_produzione' | 'in_lavorazione' | 'in_arrivo' | 'in_magazzino' | 'installato';
+export type OrderItemStatus = 'da_ordinare' | 'ordinato' | 'in_produzione' | 'in_lavorazione' | 'in_arrivo' | 'in_magazzino' | 'in_cantiere' | 'installato';
 
 export const PAYMENT_METHODS = [
   { value: "bonifico_unico", label: "Bonifico unico" },
@@ -80,11 +80,14 @@ export interface OrderItem {
   name: string;
   description?: string;
   quantity: number;
+  quantity_received?: number;
   status: OrderItemStatus;
   position: number;
   supplier_id?: string;
   supplier_name?: string;
   purchase_price?: number;
+  prezzo_da_definire?: boolean;
+  ddt_riga_origine_id?: string | null;
   vat_rate?: number;
   stock_item_id?: string;
   attachments?: OrderItemAttachment[];
@@ -238,6 +241,11 @@ export const STATUS_CONFIG: Record<OrderItemStatus, { label: string; badgeColor:
     label: "In Magazzino", 
     badgeColor: "bg-emerald-500 text-white hover:bg-emerald-500",
     borderColor: "border-l-4 border-l-emerald-500 bg-emerald-50 dark:bg-emerald-950/20"
+  },
+  in_cantiere: {
+    label: "In Cantiere",
+    badgeColor: "bg-teal-600 text-white hover:bg-teal-600",
+    borderColor: "border-l-4 border-l-teal-500 bg-teal-50 dark:bg-teal-950/20"
   },
   installato: { 
     label: "Installato", 
@@ -2034,7 +2042,7 @@ export function OrderItemsList({
                         const isPast = diffDays < 0;
                         const isImminent = diffDays >= 0 && diffDays <= 3;
                         // Merce già in viaggio o arrivata: la data prevista non è più un allarme.
-                        const isInArrival = ["in_arrivo", "in_magazzino", "disponibile", "installato"].includes(item.status);
+                        const isInArrival = ["in_arrivo", "in_magazzino", "in_cantiere", "disponibile", "installato"].includes(item.status);
                         // Highlight giallo se prossima/imminente, rosso se scaduta
                         // e status non è ancora in_arrivo (auto-suggest), grigio normale altrimenti
                         const colorClass = isPast && !isInArrival
@@ -2099,8 +2107,10 @@ export function OrderItemsList({
                       })()}
                     </div>
 
+                    {item.ddt_riga_origine_id && <p className="text-xs text-muted-foreground">Materiale da DDT · ricevuto {Number(item.quantity_received ?? 0).toLocaleString("it-IT")} {item.unita_misura || ""}</p>}
                     {/* Colonna 3 — costo e pagamento, allineati a destra */}
                     <div className="flex min-w-0 flex-col gap-1 text-sm lg:items-end lg:text-right">
+                      {canViewCosts && item.prezzo_da_definire && <p className="text-xs font-medium text-amber-700">Prezzo da definire con il fornitore</p>}
                       {canViewCosts && item.purchase_price != null && item.purchase_price > 0 && (
                         <p className="font-semibold tabular-nums text-slate-900 dark:text-slate-100">
                           {formatCurrency(item.purchase_price * item.quantity)}

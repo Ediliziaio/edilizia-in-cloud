@@ -52,21 +52,31 @@ function caseExecutor(): Set<string> {
   return out;
 }
 
-/** Tutto il testo dove può vivere un emettitore di eventi. */
-function testoEmettitori(): string {
-  const pezzi: string[] = [];
-  const migDir = join(ROOT, "supabase/migrations");
-  for (const f of readdirSync(migDir)) {
-    if (f.endsWith(".sql")) pezzi.push(readFileSync(join(migDir, f), "utf8"));
-  }
+/** Legge una sorgente alla volta, senza concatenare migliaia di file in memoria. */
+function eventiConEmettitore(): Set<string> {
+  const mancanti = new Set(eventiCanonici().values());
+  const trovati = new Set<string>();
+  const letterali = /(['"])([a-z_]+)\1/g;
+  const esamina = (testo: string) => {
+    for (const m of testo.matchAll(letterali)) {
+      if (mancanti.delete(m[2])) trovati.add(m[2]);
+    }
+  };
+  // Gli eventi applicativi si trovano qui: non serve leggere prima tutto lo storico SQL.
   const fnDir = join(ROOT, "supabase/functions");
   for (const d of readdirSync(fnDir, { withFileTypes: true })) {
     if (!d.isDirectory()) continue;
     try {
-      pezzi.push(readFileSync(join(fnDir, d.name, "index.ts"), "utf8"));
+      esamina(readFileSync(join(fnDir, d.name, "index.ts"), "utf8"));
     } catch { /* function senza index */ }
+    if (!mancanti.size) return trovati;
   }
-  return pezzi.join("\n");
+  const migDir = join(ROOT, "supabase/migrations");
+  for (const f of readdirSync(migDir)) {
+    if (f.endsWith(".sql")) esamina(readFileSync(join(migDir, f), "utf8"));
+    if (!mancanti.size) break;
+  }
+  return trovati;
 }
 
 describe("coerenza catalogo ↔ executor ↔ emettitori", () => {
@@ -120,12 +130,12 @@ describe("coerenza catalogo ↔ executor ↔ emettitori", () => {
   });
 
   it("ogni evento canonico mappato ha un emettitore da qualche parte", () => {
-    const testo = testoEmettitori();
+    const emessi = eventiConEmettitore();
     const senzaEmettitore: string[] = [];
     for (const [ita, canonico] of eventiCanonici()) {
       // Il canonico deve comparire come letterale in una migration (trigger DB)
       // o in una edge function (emettitore applicativo/cron).
-      if (!testo.includes(`'${canonico}'`) && !testo.includes(`"${canonico}"`)) {
+      if (!emessi.has(canonico)) {
         senzaEmettitore.push(`${ita} → ${canonico}`);
       }
     }

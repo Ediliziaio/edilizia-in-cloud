@@ -8,8 +8,10 @@ import {
   within,
 } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import SupplierRfqsList from "@/pages/azienda/SupplierRfqsList";
 import DDTRicezioneList from "@/pages/azienda/DDTRicezioneList";
+import type { DocumentoPersistente } from "@/lib/ddt/documentiPersistenti";
 import type { SupplierRfq, ContatoriRichiesta } from "@/hooks/useSupplierRfqs";
 import type { DDTRicezioneWithJoins, DDTStato } from "@/hooks/useDDTRicezione";
 
@@ -19,13 +21,15 @@ vi.mock("@/contexts/AuthContext", () => ({
 
 vi.mock("@/hooks/usePipelineTransition", () => ({
   usePipelineTransition: () => ({
-    request: vi.fn(),
+    request: state.transition,
     saving: false,
     dialog: null as React.ReactNode,
   }),
 }));
 
 const state = vi.hoisted(() => ({
+  jobs: [] as DocumentoPersistente[],
+  transition: vi.fn(),
   rfqs: [] as SupplierRfq[],
   counters: {} as Record<string, ContatoriRichiesta>,
   ddt: [] as DDTRicezioneWithJoins[],
@@ -33,6 +37,12 @@ const state = vi.hoisted(() => ({
   costs: true,
   error: false,
   create: vi.fn(),
+  csv: vi.fn(),
+  xlsx: vi.fn(),
+}));
+vi.mock("@/lib/csvExport", () => ({
+  exportToCSV: state.csv,
+  exportToXLSX: state.xlsx,
 }));
 vi.mock("@/hooks/usePermissions", () => ({
   usePermissions: () => ({
@@ -67,6 +77,21 @@ vi.mock("@/hooks/useDDTRicezione", () => ({
     refetch: vi.fn(),
   }),
 }));
+vi.mock("@/hooks/useDocumentiDDT", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/hooks/useDocumentiDDT")
+  >("@/hooks/useDocumentiDDT");
+  return {
+    ...actual,
+    useDocumentiDDT: () => ({
+      data: state.jobs,
+      isLoading: false,
+      isError: false,
+      hasNextPage: false,
+      refetch: vi.fn(),
+    }),
+  };
+});
 vi.mock("@/hooks/usePurchaseOrders", () => ({
   usePurchaseOrders: () => ({ orders: [{ id: "po1", status: "inviato" }] }),
 }));
@@ -79,12 +104,19 @@ function Url() {
   const location = useLocation();
   return <output data-testid="url">{location.search}</output>;
 }
+const clients: QueryClient[] = [];
 function open(node: React.ReactNode, url: string) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  });
+  clients.push(client);
   render(
-    <MemoryRouter initialEntries={[url]}>
-      {node}
-      <Url />
-    </MemoryRouter>,
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[url]}>
+        {node}
+        <Url />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 function rfq(
@@ -164,10 +196,16 @@ beforeEach(() => {
   state.readonly = false;
   state.costs = true;
   state.error = false;
+  state.jobs = [];
+  state.transition.mockClear();
   state.create.mockClear();
+  state.csv.mockClear();
+  state.xlsx.mockClear();
 });
 afterEach(() => {
   cleanup();
+  for (const client of clients) client.clear();
+  clients.length = 0;
   vi.useRealTimers();
 });
 describe("Richieste d’offerta", () => {
@@ -180,14 +218,10 @@ describe("Richieste d’offerta", () => {
     open(<SupplierRfqsList />, "/azienda/ordini?tab=offerte");
     expect(screen.getByText("Materiale a")).toBeInTheDocument();
     expect(screen.queryByText("Materiale b")).not.toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Elenco" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Elenco" }));
     expect(screen.queryByText("Materiale b")).not.toBeInTheDocument();
     expect(screen.getByTestId("url")).toHaveTextContent("rdo_ambito=active");
-    fireEvent.click(
-      screen.getByRole("button", { name: "Pipeline" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Pipeline" }));
     fireEvent.click(
       within(
         screen.getByRole("group", { name: "Ambito richieste d’offerta" }),
@@ -196,9 +230,7 @@ describe("Richieste d’offerta", () => {
     expect(screen.queryByText("Materiale a")).not.toBeInTheDocument();
     expect(screen.getByText("Materiale b")).toBeInTheDocument();
     expect(screen.getByTestId("url")).toHaveTextContent("rdo_ambito=history");
-    fireEvent.click(
-      screen.getByRole("button", { name: "Elenco" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Elenco" }));
     expect(
       screen.getByRole("table", { name: "Elenco richieste d’offerta" }),
     ).toBeInTheDocument();
@@ -304,7 +336,7 @@ describe("DDT", () => {
       ddt("c", "verificato", { has_damages: true }),
       ddt("d", "non_conforme"),
     ];
-    open(<DDTRicezioneList />, "/azienda/ordini?tab=ddt");
+    open(<DDTRicezioneList />, "/azienda/ordini?tab=ddt&ddt_vista=pipeline");
     expect(
       within(screen.getByRole("region", { name: "Colonna Attesi" })).getByText(
         "DDT-a",
@@ -316,7 +348,7 @@ describe("DDT", () => {
       ).getByText("DDT-c"),
     ).toBeInTheDocument();
     fireEvent.click(
-      within(screen.getByRole("region", { name: "Riepilogo DDT" })).getByRole(
+      within(screen.getByRole("group", { name: "Stato DDT" })).getByRole(
         "button",
         { name: /Non conformi \/ danni/i },
       ),
@@ -363,6 +395,54 @@ describe("DDT", () => {
 });
 
 describe("Colonne dell’elenco documenti", () => {
+  it("l'elenco e il CSV mantengono quote, unità e destinazioni delle consegne miste", async () => {
+    state.ddt = [
+      ddt("misto", "ricevuto", {
+        ricezione_esplicita: true,
+        quantita_ricevuta: 308,
+        warehouse_id: null,
+        destinazione: "cantiere",
+        consegne: [
+          {
+            tipo: "ingresso",
+            destinazione: "cantiere",
+            quantita: 2.5,
+            unita_misura: "mq",
+          },
+          {
+            tipo: "ingresso",
+            destinazione: "magazzino",
+            quantita: 3.25,
+            unita_misura: "mq",
+            warehouses: { name: "Principale" },
+          },
+        ],
+      }),
+    ];
+    open(<DDTRicezioneList />, "/azienda/ordini?tab=ddt&ddt_vista=elenco");
+    expect(
+      screen.getByRole("cell", {
+        name: "Cantiere: 2,5 mq · Magazzino: 3,25 mq",
+      }),
+    ).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole("button", { name: "Esporta" }), {
+      key: "Enter",
+      code: "Enter",
+    });
+    fireEvent.click(await screen.findByRole("menuitem", { name: /CSV/ }));
+    expect(state.csv).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          numero_ddt: "DDT-misto",
+          quantita: "Cantiere: 2,5 mq · Magazzino: 3,25 mq",
+          destinazione: "Cantiere e magazzino",
+          magazzino: "Principale",
+        }),
+      ],
+      expect.any(Array),
+      expect.any(String),
+    );
+  });
   it("separa numero e oggetto della richiesta d’offerta", () => {
     state.rfqs = [rfq("table")];
     open(<SupplierRfqsList />, "/azienda/ordini?tab=offerte&rdo_vista=elenco");
@@ -394,5 +474,81 @@ describe("Colonne dell’elenco documenti", () => {
       "href",
       "/azienda/ordini/c1",
     );
+  });
+});
+
+describe("Elenco DDT operativo", () => {
+  it("parte dall’elenco, mostra Stato nella seconda colonna e apre le azioni dalla riga", async () => {
+    state.ddt = [ddt("stato", "ricevuto")];
+    open(<DDTRicezioneList />, "/azienda/ordini?tab=ddt");
+    const table = screen.getByRole("table", { name: "Elenco DDT" });
+    expect(within(table).getAllByRole("columnheader")[1]).toHaveAccessibleName(
+      "Stato",
+    );
+    expect(
+      screen.queryByRole("region", { name: "Riepilogo DDT" }),
+    ).not.toBeInTheDocument();
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: /^Gestisci stato DDT DDT-stato:/ }),
+      { key: "Enter", code: "Enter" },
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Verificati" }),
+    );
+    expect(state.transition).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "stato", status: "ricevuto" }),
+      "verificato",
+    );
+  });
+  it("mostra i documenti da registrare nella stessa tabella senza ripetere i già registrati", () => {
+    const base = {
+      company_id: "co",
+      created_by: "u",
+      order_id: null as string | null,
+      source: "whatsapp" as const,
+      files: [
+        {
+          name: "Nuova-bolla.pdf",
+          mime: "application/pdf",
+          path: "co/u/originale",
+        },
+      ],
+      result: null as Record<string, unknown> | null,
+      created_at: "2026-11-10T12:00:00Z",
+      updated_at: "2026-11-10T12:00:00Z",
+    };
+    state.jobs = [
+      { ...base, id: "in-arrivo", status: "review" },
+      {
+        ...base,
+        id: "gia-registrato",
+        status: "registered",
+        ddt_id: "gia",
+        files: [{ ...base.files[0], name: "File-gia-registrato.pdf" }],
+      },
+    ] as DocumentoPersistente[];
+    state.ddt = [ddt("gia", "ricevuto")];
+    open(<DDTRicezioneList />, "/azienda/ordini?tab=ddt");
+    const table = screen.getByRole("table", { name: "Elenco DDT" });
+    expect(within(table).getByText("Nuova-bolla.pdf")).toBeInTheDocument();
+    expect(
+      within(table).getByText("Da controllare in ufficio"),
+    ).toBeInTheDocument();
+    expect(
+      within(table).getByRole("button", { name: "Controlla e registra" }),
+    ).toBeEnabled();
+    expect(
+      screen.queryByText("File-gia-registrato.pdf"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "Stato DDT" })).getByRole(
+        "button",
+        { name: /^Da registrare/ },
+      ),
+    );
+    expect(screen.getByText("Nuova-bolla.pdf")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "DDT-gia" }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -37,7 +37,7 @@ export function normalizzaPiva(v: string | null | undefined): string | null {
 export function normalizzaNome(v: string | null | undefined): string {
   return String(v ?? "")
     .toLowerCase()
-    .replace(/[.,'"()]/g, " ")
+    .replace(/[.,'"()·—–-]/g, " ")
     // In fondo al nome: «S.r.I.» o «S.r.1» sono una «l» letta male dalla scansione, e «S.r.l.s.» è una forma sola.
     .replace(/\bs\s*r\s*[li1](\s*s)?\s*$/, " ")
     .replace(/\b(s\s*r\s*l|s\s*p\s*a|s\s*n\s*c|s\s*a\s*s|societa|soc|snc|sas|srls|spa|srl)\b/g, " ")
@@ -63,14 +63,14 @@ export function abbinaFornitore(
   const cf = String(letto.fornitoreCodiceFiscale ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   if (cf.length >= 11) {
     const perCf = rubrica.filter(
-      (f) => String(f.fiscal_code ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "") === cf,
+      (f) => String(f.fiscal_code ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "") === cf && (!piva || !normalizzaPiva(f.vat_number) || normalizzaPiva(f.vat_number) === piva),
     );
     if (perCf.length === 1) return { id: perCf[0].id, motivo: "codice fiscale" };
   }
 
   const nome = normalizzaNome(letto.fornitoreNome);
   if (nome.length >= 3) {
-    const perNome = rubrica.filter((f) => normalizzaNome(f.name) === nome);
+    const perNome = rubrica.filter((f) => normalizzaNome(f.name) === nome && (!piva || !normalizzaPiva(f.vat_number) || normalizzaPiva(f.vat_number) === piva));
     if (perNome.length === 1) return { id: perNome[0].id, motivo: "ragione sociale" };
   }
 
