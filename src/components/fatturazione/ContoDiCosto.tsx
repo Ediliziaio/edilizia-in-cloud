@@ -18,21 +18,14 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { CATEGORIE_DI_BASE } from "@/lib/fatturazione/contoPerRiga";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 /** Quella che il database usa quando nessuno ha scelto (contabilizza_fattura_ricevuta). */
 export const CATEGORIA_PREDEFINITA = "materiali";
 
-/**
- * Le categorie di base, per l'azienda che non ne ha create di sue: senza, il menu
- * mostrava solo «materiali» e non si poteva cambiare niente. Sono i nomi della
- * classificazione automatica delle fatture, così restano gli stessi.
- */
-export const CATEGORIE_DI_BASE = [
-  "materiali", "materiali_edili", "subappalti", "consulenze_professionali", "noli_attrezzature",
-  "carburanti", "trasporti", "utenze", "manutenzioni", "assicurazioni", "affitti", "servizi_generali",
-  "provvigioni", "personale", "tasse_imposte", "spese_bancarie", "altro",
-];
+// Le categorie di base stanno in lib/fatturazione/contoPerRiga (le usa anche il conto per riga).
+export { CATEGORIE_DI_BASE };
 
 export function ContoDiCosto({ companyId, fatturaId, costoId, attuale, onCambiato }: {
   companyId: string;

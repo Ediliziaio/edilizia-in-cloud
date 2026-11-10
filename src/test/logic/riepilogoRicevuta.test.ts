@@ -11,7 +11,7 @@ describe("righe di una fattura ricevuta, da qualunque importatore", () => {
     const r = righeLeggibili([
       { numero_linea: 1, descrizione: "Posa cartongesso", quantita: "12.50", prezzo_unitario: "20.00", imponibile: "250.00", aliquota_iva: "0.00", natura_iva: "N6.3" },
     ]);
-    expect(r).toEqual([{ descrizione: "Posa cartongesso", quantita: 12.5, prezzoUnitario: 20, imponibile: 250, aliquota: 0, natura: "N6.3" }]);
+    expect(r).toEqual([{ descrizione: "Posa cartongesso", quantita: 12.5, prezzoUnitario: 20, imponibile: 250, aliquota: 0, natura: "N6.3", chiave: "1" }]);
   });
 
   it("forma di Fatture in Cloud: aliquota numero, niente natura", () => {
