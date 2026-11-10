@@ -14,7 +14,10 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useElencoPlanimetrie, usePlanimetria } from "@/lib/planimetrie/archivio";
+import { caricaVersione, useElencoPlanimetrie, usePlanimetria } from "@/lib/planimetrie/archivio";
+import { ControlloUsoBloccato } from "@/components/planimetrie/ControlloPrimaDellUso";
+import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
+import { controlloPrimaDellUso, esigiVerificaDocumento } from "../../../../../shared/planimetrie/verificaDocumento.ts";
 import { statiDellaPianta } from "@/lib/planimetrie/computo";
 import { vociDallaPianta, type ProposteVoce } from "@/lib/planimetrie/listinoImpianti";
 import { calcolaQuantita } from "../../../../../shared/planimetrie/quantita.ts";
@@ -28,6 +31,7 @@ function useCreaVoci(uploadId: string, companyId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ voci, planimetriaId, versione, ordineDa }: { voci: DaCreare[]; planimetriaId: string; versione: number; ordineDa: number }) => {
+      esigiVerificaDocumento((await caricaVersione(planimetriaId, versione)).documento, "computo");
       const create: string[] = [];
       try {
         for (const [i, { p, prezzo }] of voci.entries()) {
@@ -70,11 +74,13 @@ export default function VociImpiantiDallaPianta({ uploadId, companyId, orderId, 
   const piantaId = piantaScelta ?? piante.find((p) => p.computo_upload_id === uploadId)?.id ?? diCommessa[0]?.id ?? (piante.length === 1 ? piante[0].id : null);
   const { data: pianta, isLoading } = usePlanimetria(piantaId);
   const documento = pianta?.versione.documento;
+  const verificata = !!documento && controlloPrimaDellUso(documento, "computo").ok;
   const stati = documento ? statiDellaPianta(documento) : [];
   const [statoScelto, setStatoScelto] = useState<string | null>(null);
   // di partenza il progetto (il lavoro da fare), se c'è
   const stato = stati.find((s) => s.chiave === statoScelto) ?? stati.find((s) => s.proposta) ?? stati[0] ?? null;
-  const proposte = useMemo(() => (documento && stato ? vociDallaPianta(calcolaQuantita(documento), stato.chiave) : []), [documento, stato]);
+  const quantita = useMemo(() => documento ? calcolaQuantita(documento) : null, [documento]);
+  const proposte = quantita && stato ? vociDallaPianta(quantita, stato.chiave) : [];
   const [prezzi, setPrezzi] = useState<Record<string, string>>({});
   const [esclusi, setEsclusi] = useState<Set<string>>(new Set());
   const prezzoDi = (p: ProposteVoce) => {
@@ -87,7 +93,7 @@ export default function VociImpiantiDallaPianta({ uploadId, companyId, orderId, 
   const crea = useCreaVoci(uploadId, companyId);
 
   const conferma = () => {
-    if (!pianta || !scelte.length) return;
+    if (!pianta || !scelte.length || !verificata) return;
     crea.mutate({ voci: scelte.map((p) => ({ p, prezzo: prezzoDi(p) })), planimetriaId: pianta.riga.id, versione: pianta.versione.numero, ordineDa }, {
       onSuccess: (n) => { toast.success(`${n} voci impianti aggiunte`, { description: "Sono legate alla pianta: se la cambi, il computo te lo dice." }); onChiudi(); },
       onError: (e) => toast.error(e instanceof Error ? e.message : "Voci non create."),
@@ -146,9 +152,10 @@ export default function VociImpiantiDallaPianta({ uploadId, companyId, orderId, 
               </table>
             </div>
           )}
+        {documento && <ControlloUsoBloccato documento={documento} uso="computo" modifica={piantaId ? percorsiPlanimetrie.modifica(piantaId) : undefined} />}
         <DialogFooter className="items-center gap-3">
           {scelte.length > 0 && <span className="text-sm">Totale <strong>{euro(totale)}</strong></span>}
-          <Button disabled={!scelte.length || crea.isPending} onClick={conferma}>
+          <Button disabled={!scelte.length || crea.isPending || !verificata} onClick={conferma}>
             {crea.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}Aggiungi {scelte.length} voci
           </Button>
         </DialogFooter>

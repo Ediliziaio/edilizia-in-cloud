@@ -102,7 +102,7 @@ describe("risposta della generazione con l'AI", () => {
 
   it("controlla il file prima di mandarlo", () => {
     expect(fileNonValido({ type: "application/pdf", size: 1000 })).toBeNull();
-    expect(fileNonValido({ type: "image/heic", size: 1000 })).toMatch(/PDF o una foto/);
+    expect(fileNonValido({ type: "image/heic", size: 1000 })).toBeNull();
     expect(fileNonValido({ type: "image/jpeg", size: 11 * 1024 * 1024 })).toMatch(/troppo grande/);
   });
 });

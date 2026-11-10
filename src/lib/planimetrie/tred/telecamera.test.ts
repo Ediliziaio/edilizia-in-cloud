@@ -44,6 +44,21 @@ describe("telecamere", () => {
 });
 
 describe("metadati del fotogramma", () => {
+  it("mantiene la parte visibile di una finestra laterale che attraversa il piano degli occhi", () => {
+    const a = apertureDelLocale(pianta, "l3").find((a) => a.id === "f4")!;
+    const c = a.angoli[0].map((v, k) => (v + a.angoli[2][k]) / 2) as [number, number, number];
+    const dx = a.angoli[1][0] - a.angoli[0][0], dz = a.angoli[1][2] - a.angoli[0][2], lungo = Math.hypot(dx, dz);
+    const locale = pianta.locali.find((l) => l.id === "l3")!;
+    const pos = [-1, 1].map((s) => [c[0] - dz / lungo * .3 * s, 1.6, c[2] + dx / lungo * .3 * s] as [number, number, number]).find((p) => puntoNelPoligono(v2(p[0] * 100, p[2] * 100), locale.contorno))!;
+    const t = { posizione: pos, guarda: [pos[0] + dx / lungo, pos[1], pos[2] + dz / lungo] as [number, number, number], fov: 78 };
+    expect(a.angoli.some((p) => proietta(t, 1.5, p).profondita < .05)).toBe(true);
+    expect(a.angoli.some((p) => proietta(t, 1.5, p).profondita > .05)).toBe(true);
+    const m = metadatiFotogramma(pianta, "l3", t, { larghezza: 1536, altezza: 1024 })!;
+    expect(m.aperture_visibili.map((a) => a.id)).toContain("f4");
+    const q = m.aperture_visibili.find((a) => a.id === "f4")!.riquadro;
+    expect(q.x0).toBeGreaterThanOrEqual(0); expect(q.x1).toBeLessThanOrEqual(1);
+    expect(q.x1).toBeGreaterThan(q.x0);
+  });
   it("aperture del locale: il soggiorno ha ingresso, due finestre, portafinestra e due porte", () => {
     const ids = apertureDelLocale(pianta, "l1").map((a) => a.id).sort();
     expect(ids).toEqual(["a1", "f1", "f2", "p2", "p3", "pf1"]);

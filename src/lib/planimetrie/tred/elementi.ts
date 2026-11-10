@@ -7,6 +7,7 @@
  */
 import { CostruttoreMesh } from "./costruttore";
 import { CAMPI, definizioneCampo, disegnoCampo, eCampo } from "../campiSport";
+import type { V3 } from "./tipi";
 
 export interface Blocco {
   materiale: string;
@@ -28,22 +29,26 @@ interface ModelloElemento {
 }
 
 const b = (materiale: string, x: number, z: number, y: number, l: number, p: number, h: number): Blocco => ({ materiale, x, z, y, l, p, h });
+const bordoVasca = (l: number, p: number, y: number, h: number, z = 0): Blocco[] => {
+  const s = Math.min(.055, l / 6, p / 6);
+  return [b("ceramica", -l / 2 + s / 2, z, y, s, p, h), b("ceramica", l / 2 - s / 2, z, y, s, p, h), b("ceramica", 0, z - p / 2 + s / 2, y, l - 2 * s, s, h), b("ceramica", 0, z + p / 2 - s / 2, y, l - 2 * s, s, h)];
+};
 
 export const MODELLI: Record<string, ModelloElemento> = {
   wc: {
     nome: "WC",
     misure: { l: 0.38, p: 0.55, h: 0.4 },
-    blocchi: (l, p, h) => [b("ceramica", 0, 0.05 * p, 0, l * 0.9, p * 0.9, h), b("ceramica", 0, -p / 2 + 0.08, h, l, 0.16, 0.38)],
+    blocchi: (l, p, h) => [b("ceramica", 0, .05 * p, 0, l * .6, p * .65, h * .65), ...bordoVasca(l * .9, p * .75, h * .65, h * .35, .1 * p), b("ceramica", 0, -p / 2 + .08, h, l, .16, .38)],
   },
   bidet: {
     nome: "Bidet",
     misure: { l: 0.38, p: 0.52, h: 0.4 },
-    blocchi: (l, p, h) => [b("ceramica", 0, 0, 0, l * 0.9, p, h)],
+    blocchi: (l, p, h) => [b("ceramica", 0, 0, 0, l * .65, p * .7, h * .65), ...bordoVasca(l * .9, p, h * .65, h * .35), b("metallo", 0, -p * .38, h, .035, .035, .1)],
   },
   lavabo: {
     nome: "Lavabo",
     misure: { l: 0.6, p: 0.45, h: 0.85 },
-    blocchi: (l, p, h) => [b("laccato", 0, -0.02, 0, l * 0.9, p * 0.85, h - 0.15), b("ceramica", 0, 0, h - 0.15, l, p, 0.15)],
+    blocchi: (l, p, h) => [b("laccato", 0, -.02, 0, l * .9, p * .85, h - .15), b("ceramica", 0, 0, h - .15, l, p, .025), ...bordoVasca(l, p, h - .125, .125)],
   },
   doccia: {
     nome: "Doccia",
@@ -93,6 +98,14 @@ export const MODELLI: Record<string, ModelloElemento> = {
       return [b("legno", 0, 0, h - 0.04, l, p, 0.04), ...gambe];
     },
   },
+  scrivania: {
+    nome: "Scrivania",
+    misure: { l: 1.2, p: 0.6, h: 0.75 },
+    blocchi: (l, p, h) => {
+      const g = Math.min(.05, l / 8, p / 8), piano = Math.min(.04, h / 5);
+      return [b("laccato", 0, 0, h - piano, l, p, piano), ...[-1, 1].flatMap((x) => [-1, 1].map((z) => b("laccato", x * (l / 2 - g), z * (p / 2 - g), 0, g, g, h - piano)))];
+    },
+  },
   sedia: {
     nome: "Sedia",
     misure: { l: 0.45, p: 0.5, h: 0.9 },
@@ -107,6 +120,11 @@ export const MODELLI: Record<string, ModelloElemento> = {
     nome: "Frigorifero",
     misure: { l: 0.6, p: 0.65, h: 1.85 },
     blocchi: (l, p, h) => [b("metallo", 0, 0, 0, l, p, h)],
+  },
+  lavatrice: {
+    nome: "Lavatrice",
+    misure: { l: .6, p: .6, h: .85 },
+    blocchi: (l, p, h) => [b("laccato", 0, 0, 0, l, p, h), b("metallo", 0, p / 2 + .002, h * .87, l * .9, .008, h * .08), b("vetro", 0, p / 2 + .004, h * .25, l * .65, .012, h * .45)],
   },
   // ─── nuovi arredi ───
   divano_angolare: {
@@ -135,7 +153,10 @@ export const MODELLI: Record<string, ModelloElemento> = {
   libreria: {
     nome: "Libreria",
     misure: { l: 1.6, p: 0.35, h: 2.0 },
-    blocchi: (l, p, h) => [b("legno", 0, 0, 0, l, p, h)],
+    blocchi: (l, p, h) => {
+      const s = Math.min(.025, l / 10, p / 5, h / 10), ripiani = Math.max(2, Math.round(h / .4));
+      return [b("legno", -l / 2 + s / 2, 0, 0, s, p, h), b("legno", l / 2 - s / 2, 0, 0, s, p, h), ...Array.from({ length: ripiani + 1 }, (_, i) => b("legno", 0, 0, (h - s) * i / ripiani, l - 2 * s, p, s))];
+    },
   },
   tavolo_rotondo: {
     nome: "Tavolo rotondo",
@@ -405,6 +426,24 @@ export function modelloElemento(tipo: string): ModelloElemento {
   return parola ? MODELLI[parola] : GENERICO;
 }
 
+/** Vaschetta e piedistallo distinguibili da un mobile, negli stessi ingombri del simbolo. */
+function costruisciSanitario(tipo: "wc" | "bidet", centro: { x: number; z: number }, r: number, l: number, p: number, h: number, costruttore: (materiale: string) => CostruttoreMesh) {
+  const c = costruttore("ceramica"), cos = Math.cos(r), sin = Math.sin(r), zc = tipo === "wc" ? p * .06 : 0;
+  const mondo = (x: number, z: number, y: number): V3 => [centro.x + x * cos - z * sin, y, centro.z + x * sin + z * cos];
+  const normale = (x: number, z: number): V3 => [x * cos - z * sin, 0, x * sin + z * cos];
+  const anello = (rx: number, rz: number, y: number) => Array.from({ length: 20 }, (_, i) => mondo(rx * Math.cos(i * Math.PI / 10), zc + rz * Math.sin(i * Math.PI / 10), y));
+  const base = anello(l * .28, p * .29, 0), esterno = anello(l * (tipo === "wc" ? .45 : .5), p * (tipo === "wc" ? .44 : .5), h), interno = anello(l * .32, p * .29, h), fondo = anello(l * .21, p * .20, h * .52);
+  for (let i = 0; i < 20; i++) {
+    const j = (i + 1) % 20, angolo = (i + .5) * Math.PI / 10, nx = Math.cos(angolo), nz = Math.sin(angolo);
+    c.poligono([base[i], base[j], esterno[j], esterno[i]], normale(nx, nz));
+    c.poligono([esterno[i], esterno[j], interno[j], interno[i]], [0, 1, 0]);
+    c.poligono([interno[i], interno[j], fondo[j], fondo[i]], normale(-nx, -nz));
+  }
+  c.poligono(fondo, [0, 1, 0]);
+  if (tipo === "wc") c.scatola(centro.x, centro.z, h, l, .16, .38, r, 0, -p / 2 + .08);
+  else costruttore("metallo").scatola(centro.x, centro.z, h, .035, .035, .1, r, 0, -p * .38);
+}
+
 /**
  * Costruisce l'elemento in un costruttore per materiale.
  * Misure in metri; rotazione in radianti (in senso orario sulla pianta, cioè dall'asse x verso z).
@@ -421,6 +460,7 @@ export function costruisciElemento(
   const l = misure.l ?? modello.misure.l;
   const p = misure.p ?? modello.misure.p;
   const h = misure.h ?? modello.misure.h;
+  if (modello === MODELLI.wc || modello === MODELLI.bidet) return costruisciSanitario(modello === MODELLI.wc ? "wc" : "bidet", centro, rotazione, l, p, h, costruttore);
   for (const bl of modello.blocchi(l, p, h, { senzaCabina: misure.senzaCabina, interpiano: misure.interpiano })) {
     costruttore(bl.materiale).scatola(centro.x, centro.z, bl.y, bl.l, bl.p, bl.h, rotazione, bl.x, bl.z, bl.girata ?? 0);
   }

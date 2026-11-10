@@ -10,6 +10,7 @@ import type { InfoGenerazione } from "../../../../supabase/functions/planimetria
 import { applicaMisuraLocale } from "../../../../supabase/functions/planimetria-genera/costruisci.ts";
 import { validaPlanimetria } from "../../../../shared/planimetrie/modello.ts";
 import type { Planimetria } from "./adattatore";
+import { erroreDocumento, MASSIMO_DOCUMENTO_BYTES, ritaglioPixel, type RitaglioPianta } from "@/lib/planimetrie/documentoImmagine";
 
 export type { InfoGenerazione };
 
@@ -17,12 +18,13 @@ export type IngressoAI = "documento" | "schizzo" | "descrizione" | "rilievo";
 
 export const MIME_AMMESSI = ["image/png", "image/jpeg", "image/webp", "application/pdf"];
 /** Il file va alla funzione dentro la richiesta: oltre questa misura conviene una foto più leggera. */
-export const MASSIMO_BYTES = 10 * 1024 * 1024;
+export const MASSIMO_BYTES = MASSIMO_DOCUMENTO_BYTES;
 
 export interface RichiestaAI {
   company_id: string;
   ingresso: IngressoAI;
   testo?: string;
+  nota?: string;
   file_base64?: string;
   mime?: string;
   larghezza?: number;
@@ -55,11 +57,7 @@ export type EsitoAI =
 const A_MANO = "Puoi sempre disegnarla a mano.";
 
 /** Controlla il file prima di mandarlo: una frase semplice se non va. */
-export function fileNonValido(file: { type: string; size: number }): string | null {
-  if (!MIME_AMMESSI.includes(file.type)) return "Carica un PDF o una foto (JPG o PNG).";
-  if (file.size > MASSIMO_BYTES) return "Il file è troppo grande (massimo 10 MB): prova con una foto più leggera.";
-  return null;
-}
+export const fileNonValido = erroreDocumento;
 
 /**
  * Legge la risposta della funzione. `corpo` è il JSON della risposta (anche quando lo
@@ -187,7 +185,7 @@ export const misuraRuotata = (larghezza: number, altezza: number, r: Rotazione) 
  * Riduce, raddrizza (rotazione scelta da chi carica) e, se il fondo è scuro, inverte i colori.
  * Accetta anche una pagina di PDF già disegnata (`sorgente` canvas). Se qualcosa non va: null.
  */
-export async function preparaImmagine(file: Blob, rotazione: Rotazione = 0, sorgente?: HTMLCanvasElement): Promise<ImmaginePreparata | null> {
+export async function preparaImmagine(file: Blob, rotazione: Rotazione = 0, sorgente?: HTMLCanvasElement, ritaglio?: RitaglioPianta | null): Promise<ImmaginePreparata | null> {
   if (!sorgente && !file.type.startsWith("image/")) return null;
   const url = sorgente ? null : URL.createObjectURL(file);
   try {
@@ -200,7 +198,8 @@ export async function preparaImmagine(file: Blob, rotazione: Rotazione = 0, sorg
       await new Promise<void>((ok, ko) => { img.onload = () => ok(); img.onerror = () => ko(new Error("immagine")); img.src = url!; });
       disegno = img; w0 = img.naturalWidth; h0 = img.naturalHeight;
     }
-    const ridotta0 = misuraRidotta(w0, h0);
+    const taglio = ritaglioPixel(w0, h0, ritaglio);
+    const ridotta0 = misuraRidotta(taglio.width, taglio.height);
     const m = misuraRuotata(ridotta0.larghezza, ridotta0.altezza, rotazione);
     const canvas = document.createElement("canvas");
     canvas.width = m.larghezza;
@@ -211,7 +210,7 @@ export async function preparaImmagine(file: Blob, rotazione: Rotazione = 0, sorg
     ctx.fillRect(0, 0, m.larghezza, m.altezza);
     ctx.translate(m.larghezza / 2, m.altezza / 2);
     ctx.rotate((rotazione * Math.PI) / 180);
-    ctx.drawImage(disegno, -ridotta0.larghezza / 2, -ridotta0.altezza / 2, ridotta0.larghezza, ridotta0.altezza);
+    ctx.drawImage(disegno, taglio.x, taglio.y, taglio.width, taglio.height, -ridotta0.larghezza / 2, -ridotta0.altezza / 2, ridotta0.larghezza, ridotta0.altezza);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     const pixel = ctx.getImageData(0, 0, m.larghezza, m.altezza);
     const invertita = daInvertire(luminanzaMedia(pixel.data));
@@ -221,7 +220,7 @@ export async function preparaImmagine(file: Blob, rotazione: Rotazione = 0, sorg
       ctx.putImageData(pixel, 0, 0);
     }
     const quadrato = serveQuadrato(m.larghezza, m.altezza);
-    const cambiata = !!sorgente || rotazione !== 0 || ridotta0.larghezza !== w0 || quadrato;
+    const cambiata = !!sorgente || !!ritaglio || rotazione !== 0 || ridotta0.larghezza !== w0 || quadrato;
     if (!invertita && !cambiata) return { file, mime: file.type, larghezza: w0, altezza: h0, invertita: false };
     let uscita: HTMLCanvasElement = canvas;
     let larghezzaFinale = m.larghezza;
@@ -274,4 +273,12 @@ export async function paginaPdf(file: Blob, pagina: number): Promise<{ canvas: H
   } finally {
     void caricamento.destroy();
   }
+}
+
+/** L'anteprima mostra lo stesso ritaglio e orientamento che riceverà il motore. */
+export async function anteprimaFoglio(file: File, pagina: number, rotazione: Rotazione, ritaglio: RitaglioPianta | null) {
+  const pdf = file.type === "application/pdf" ? await paginaPdf(file, pagina) : null;
+  const pronta = await preparaImmagine(file, rotazione, pdf?.canvas, ritaglio);
+  if (!pronta) throw new Error("Il documento non si legge: scegli una foto o un PDF valido.");
+  return { file: pronta.file, pagine: pdf?.pagine ?? 1 };
 }

@@ -10,15 +10,32 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { riepilogoVerifiche, verificaPianta, type Verifica } from "../../../shared/planimetrie/verifiche.ts";
 import type { Planimetria } from "../../../shared/planimetrie/modello.ts";
+import { controlloPrimaDellUso } from "../../../shared/planimetrie/verificaDocumento.ts";
+import { useControlloPrimaDellUso } from "@/hooks/useVerificaPlanimetria";
 
 const NOMI = { rai: "Aeroilluminazione 1/8", altezza: "Altezza", superficie: "Superficie minima", bagno: "Bagno", alloggio: "Alloggio", interferenza: "Interferenza", scala: "Scala", contenimento: "Muro di contenimento", serramento: "Serramento", tetto: "Tetto" } as const;
 
-export function VerifichePianta({ documento, titolo, ambito, nomeStato }: { documento: Planimetria; titolo: string; ambito: string; nomeStato: string }) {
+export function VerifichePianta({ documento, titolo, ambito, nomeStato, modifica }: { documento: Planimetria; titolo: string; ambito: string; nomeStato: string; modifica?: string }) {
   const { effectiveCompany } = useAuth();
   const [aperto, setAperto] = useState(false);
   const [pdf, setPdf] = useState(false);
-  const verifiche = useMemo(() => verificaPianta(documento, ambito), [documento, ambito]);
+  const controllo = useMemo(() => controlloPrimaDellUso(documento, "pdf"), [documento]);
+  const { primaDi, dialogo } = useControlloPrimaDellUso(documento, modifica);
+  const verifiche = useMemo(() => controllo.ok ? verificaPianta(documento, ambito) : [], [documento, ambito, controllo.ok]);
   const r = riepilogoVerifiche(verifiche);
+  const notaAmbito = documento.ambitoDocumento === "ambiente" ? "Singolo ambiente: le verifiche dell’intero alloggio sono escluse." : documento.ambitoDocumento === "alloggio" ? "Alloggio completo: sono incluse superficie e dotazioni dell’alloggio." : "Ambito non specificato: indica nell’editor se la pianta rappresenta un singolo ambiente o l’alloggio completo.";
+  if (!controllo.ok) return <section aria-label="Verifiche della pianta" className="space-y-3">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Verifiche della pianta</h2>
+      <Button size="sm" variant="outline" onClick={() => primaDi("pdf", () => undefined)}><Download className="mr-1.5 h-4 w-4" />Relazione PDF</Button>
+    </div>
+    <Card><CardContent className="space-y-2 p-4 text-sm">
+      <p className="flex items-center gap-2 font-medium text-amber-800"><TriangleAlert className="h-4 w-4" />Verifiche in attesa del controllo del disegno</p>
+      <p className="text-muted-foreground">Misure e aperture sono ancora da verificare. Gli esiti di conformità e la relazione PDF saranno disponibili dopo il controllo, per evitare valutazioni basate su dati incerti.</p>
+      <p className="text-xs text-muted-foreground">{notaAmbito}</p>
+    </CardContent></Card>
+    {dialogo}
+  </section>;
   if (!verifiche.length) return null;
   const problemi = verifiche.filter((v) => v.esito !== "ok");
   const mostrate: Verifica[] = aperto ? [...problemi, ...verifiche.filter((v) => v.esito === "ok")] : problemi.slice(0, 6);
@@ -27,7 +44,7 @@ export function VerifichePianta({ documento, titolo, ambito, nomeStato }: { docu
     setPdf(true);
     try {
       const { pdfVerifiche } = await import("@/lib/planimetrie/verifichePdf");
-      const dati = await pdfVerifiche({ titolo, stato: nomeStato, azienda: effectiveCompany?.name ?? undefined, verifiche });
+      const dati = await pdfVerifiche({ documento, titolo, stato: nomeStato, azienda: effectiveCompany?.name ?? undefined, verifiche });
       const url = URL.createObjectURL(new Blob([new Uint8Array(dati).buffer as ArrayBuffer], { type: "application/pdf" }));
       const a = document.createElement("a");
       a.href = url;
@@ -52,6 +69,7 @@ export function VerifichePianta({ documento, titolo, ambito, nomeStato }: { docu
       </div>
       <Card>
         <CardContent className="space-y-3 p-4">
+          <p className="text-xs text-muted-foreground">{notaAmbito}</p>
           <div className="flex flex-wrap gap-4 text-sm">
             <span className="flex items-center gap-1.5 text-emerald-700"><CheckCircle2 className="h-4 w-4" />{r.ok} conformi</span>
             <span className="flex items-center gap-1.5 text-amber-700"><TriangleAlert className="h-4 w-4" />{r.attenzione} da verificare</span>

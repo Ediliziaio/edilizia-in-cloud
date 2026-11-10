@@ -30,6 +30,17 @@ export async function sorgentePerFascicolo(companyId: string, percorso: string |
   return foto.dati;
 }
 
+/** Foto del rilievo salvata con la pianta, nel suo bucket privato. */
+export async function documentoOriginalePerFascicolo(companyId: string, percorso?: string): Promise<Uint8Array | null> {
+  if (!percorso) return null;
+  if (!percorso.startsWith(`${companyId}/ricalco/`) || percorso.includes("..")) throw new Error("Documento originale non disponibile per questa azienda.");
+  const { data, error } = await supabase.storage.from("planimetrie").createSignedUrl(percorso, 600);
+  if (error || !data?.signedUrl) throw new Error("Documento originale non disponibile: riprova l'esportazione.");
+  const foto = await caricaLogo(data.signedUrl, 20_000);
+  if (!foto) throw new Error("Non riesco a leggere il documento originale della pianta.");
+  return foto.dati;
+}
+
 /** Per i prodotti aziendali si conserva la tavola fotografica usata allora, anche se il catalogo cambia. */
 export async function campioniPersonaliPerFascicolo(companyId: string, config: Record<string, unknown> | null | undefined): Promise<Uint8Array[]> {
   if (!Array.isArray(config?.catalogo_reference_ids) || !config.catalogo_reference_ids.length) return [];

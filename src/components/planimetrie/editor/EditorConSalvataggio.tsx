@@ -22,7 +22,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { EffettoPrezzo } from "../EffettoPrezzo";
 import { effettoSulPrezzo, useRigheCollegate } from "@/lib/planimetrie/effettoPrezzo";
 import { calcolaQuantita } from "../../../../shared/planimetrie/quantita.ts";
-import { controlliDalDocumento } from "../../../../shared/planimetrie/letturaDocumento.ts";
+import type { SorgenteDocumentoPianta } from "../ConfrontoDocumentoPianta";
 
 interface Props {
   companyId: string;
@@ -43,6 +43,7 @@ interface Props {
   avvisi?: string[];
   /** Un riquadro sopra il disegno, per esempio la conferma della scala. */
   sopra?: ReactNode;
+  sorgenteDocumento?: SorgenteDocumentoPianta;
 }
 
 export function EditorConSalvataggio({
@@ -57,9 +58,10 @@ export function EditorConSalvataggio({
   origine = "manuale",
   avvisi: avvisiPassati,
   sopra,
+  sorgenteDocumento,
 }: Props) {
   const navigate = useNavigate();
-  const avvisi = avvisiPassati ?? (iniziale ? controlliDalDocumento(iniziale) : []);
+  const avvisi = avvisiPassati ?? [];
   const queryClient = useQueryClient();
   const ricalcoArchivio = useMemo(() => archivioRicalco(companyId), [companyId]);
   const [titolo, setTitolo] = useState(titoloProposto);
@@ -77,6 +79,7 @@ export function EditorConSalvataggio({
   const [conflitto, setConflitto] = useState<string | null>(null);
   const documento = useRef<Planimetria | null>(null);
   const cambi = useRef(0);
+  const sorgenteCaricata = useRef<Promise<string> | null>(null);
   const [modificata, setModificata] = useState(!planimetriaId && !!iniziale);
 
   const nuova = !planimetriaId;
@@ -106,11 +109,20 @@ export function EditorConSalvataggio({
   const salva = async () => {
     if (!documento.current) return;
     setSalvando(true);
+    let daSalvare = documento.current;
+    try {
+      if (sorgenteDocumento && daSalvare.letturaDocumento && !daSalvare.letturaDocumento.sorgente) {
+        sorgenteCaricata.current ??= ricalcoArchivio.carica(new File([sorgenteDocumento.file], sorgenteDocumento.nome, { type: sorgenteDocumento.file.type }));
+        let percorso: string;
+        try { percorso = await sorgenteCaricata.current; } catch (e) { sorgenteCaricata.current = null; throw e; }
+        daSalvare = { ...daSalvare, letturaDocumento: { ...daSalvare.letturaDocumento, sorgente: { percorso, nome: sorgenteDocumento.nome.slice(0, 250) } } };
+      }
+    } catch (e) { setSalvando(false); toast.error(e instanceof Error ? e.message : "Foto originale non salvata: riprova."); return; }
     const esito = await salvaPianta(
       { crea: creaPlanimetria, salva: salvaNuovaVersione },
       {
         companyId,
-        documento: documento.current,
+        documento: daSalvare,
         planimetriaId,
         titolo,
         versioneAttesa,
@@ -189,7 +201,7 @@ export function EditorConSalvataggio({
 
       {sopra}
 
-      <EditorPlanimetria className="min-h-0 flex-1" piantaIniziale={iniziale} onChange={suCambio} ricalco={ricalcoArchivio} soloVista={solaLettura || undefined} />
+      <EditorPlanimetria className="min-h-0 flex-1" piantaIniziale={iniziale} onChange={suCambio} ricalco={ricalcoArchivio} sorgenteDocumento={sorgenteDocumento} soloVista={solaLettura || undefined} />
     </div>
   );
 }

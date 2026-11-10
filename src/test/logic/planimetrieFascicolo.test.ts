@@ -16,6 +16,18 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: (tabella: s
 }, storage: { from: (bucket: string) => ({ createSignedUrl: async (path: string) => { query.firmate.push(`${bucket}/${path}`); return { data: { signedUrl: "https://esempio.invalid/foto-firmata" }, error: null as null }; } }) } } }));
 
 describe("fascicolo completo della casa", () => {
+  it("sceglie l'ultimo render completato per ciascuna stanza senza eliminare lo storico", () => {
+    const doc = structuredClone(bilocale) as unknown as Planimetria;
+    const l = doc.livelli[0];
+    const render = (id: string, locale: string, data: string, extra = {}): RenderDellaPianta => ({ id, status: "completed", created_at: data, saved_to_gallery: true, result_urls: [id], planimetria: { planimetria_id: "casa", versione: 3, livello_id: l.id, ambito: "fatto", locale_id: locale, partenza: "vista_3d", ...extra } });
+    const lista = [render("prima", l.fatto.locali[0].id, "2026-11-06T10:00:00Z"), render("seconda-stanza", l.fatto.locali[1].id, "2026-11-06T10:01:00Z"), render("nuova", l.fatto.locali[0].id, "2026-11-10T10:00:00Z"), render("altra-versione", l.fatto.locali[0].id, "2026-11-11T10:00:00Z", { versione: 4 }), { ...render("fallita", l.fatto.locali[0].id, "2026-11-12T10:00:00Z"), status: "error" }];
+    const originale = structuredClone(lista);
+    const ultimi = contenutoFascicolo(doc, 3, "fatto", lista, "ultimi")[0].stanze;
+    expect(ultimi[0].renders.map((r) => r.id)).toEqual(["nuova"]);
+    expect(ultimi[1].renders.map((r) => r.id)).toEqual(["seconda-stanza"]);
+    expect(contenutoFascicolo(doc, 3, "fatto", lista, "tutti")[0].stanze[0].renders.map((r) => r.id)).toEqual(["prima", "nuova"]);
+    expect(lista).toEqual(originale);
+  });
   it("mantiene tutte le stanze anche senza render e non mescola versioni o progetti", () => {
     const doc = structuredClone(bilocale) as unknown as Planimetria;
     const l = doc.livelli[0], stanza = l.fatto.locali[0];

@@ -16,7 +16,7 @@ export function ritornoProgettoValido(value: string | null | undefined): string 
   try {
     const u = new URL(value, "https://app.invalid");
     const uuid = "[0-9a-fA-F-]{36}";
-    const scheda = new RegExp(`^/azienda/(?:clienti|ordini)/${uuid}$|^/azienda/marketing/preventivi/${uuid}$`).test(u.pathname);
+    const scheda = new RegExp(`^/azienda/(?:clienti|ordini)/${uuid}$|^/azienda/marketing/(?:preventivi|contatti)/${uuid}$`).test(u.pathname);
     const computo = u.pathname === "/azienda/marketing/preventivi/computo" && /^[0-9a-f-]{36}$/i.test(u.searchParams.get("bozza") ?? "") && u.searchParams.get("esistente") === "1";
     return u.origin === "https://app.invalid" && (scheda || computo || isRenderDetailPath(u.pathname) || u.pathname === BASE || !!renderArchiveReturn(value, "")) ? `${u.pathname}${u.search}${u.hash}` : null;
   } catch { return null; }

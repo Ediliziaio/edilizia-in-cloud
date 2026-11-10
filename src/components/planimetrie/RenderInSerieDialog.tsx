@@ -1,3 +1,5 @@
+import { controlloPrimaDellUso } from "../../../shared/planimetrie/verificaDocumento.ts";
+import { ControlloUsoBloccato } from "./ControlloPrimaDellUso";
 import { QualitaRender } from "@/components/render/QualitaRender";
 import { materialiDelProgetto, descrizionePavimento } from "../../../shared/planimetrie/materialiProgetto.ts";
 /**
@@ -109,7 +111,7 @@ export function RenderInSerieDialog({ aperto, onChiudi, planimetriaId, versione,
   }, [righe, planimetriaId, companyId, queryClient]);
 
   const parti = async (soloFalliti = false) => {
-    if (!companyId || !user || !lavori.length) return;
+    if (!companyId || !user || !lavori.length || !controlloPrimaDellUso(documento, "render").ok) return;
     annullato.current = false;
     const daAvviare = soloFalliti ? (righe ?? []).filter((r) => r.stato === "fallito").map((r) => r.lavoro) : lavori;
     const iniziali: Riga[] = daAvviare.map((lavoro) => ({ lavoro, stato: "in_coda" }));
@@ -143,10 +145,10 @@ export function RenderInSerieDialog({ aperto, onChiudi, planimetriaId, versione,
   return (
     <Dialog open={aperto} onOpenChange={(v) => { if (!v) onChiudi(); }}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl">
-        <DialogHeader>
+        <DialogHeader><ControlloUsoBloccato documento={documento} uso="render" modifica={`/azienda/planimetrie/${planimetriaId}/modifica`} />
           <DialogTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" />{soloStanza ? "Più stili per questa stanza" : "Render di tutte le stanze"}</DialogTitle>
           <DialogDescription>
-            Si parte dalla vista 3D dentro ogni stanza: misure, porte, finestre e arredi della pianta restano dove sono. Un render costa un credito; se non riesce il credito torna.
+            Si parte dalla vista 3D dentro ogni stanza: misure, porte, finestre e arredi della pianta restano dove sono. Le tende si applicano alle finestre visibili nell'inquadratura. Un render costa un credito; se non riesce il credito torna.
           </DialogDescription>
         </DialogHeader>
 

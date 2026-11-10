@@ -4,12 +4,15 @@
  */
 import type { Verifica } from "../../../shared/planimetrie/verifiche.ts";
 import { riepilogoVerifiche } from "../../../shared/planimetrie/verifiche.ts";
+import type { Planimetria } from "../../../shared/planimetrie/modello.ts";
+import { esigiVerificaDocumento } from "../../../shared/planimetrie/verificaDocumento.ts";
 
 const MM = 72 / 25.4;
 const NOMI = { rai: "Aeroilluminazione", altezza: "Altezza", superficie: "Superficie", bagno: "Bagno", alloggio: "Alloggio", interferenza: "Interferenza", scala: "Scala", contenimento: "Contenimento", serramento: "Serramento", tetto: "Tetto" } as const;
 const ESITI = { ok: "Conforme", attenzione: "Da verificare", non_conforme: "Non conforme" } as const;
 
-export async function pdfVerifiche(d: { titolo: string; stato: string; azienda?: string; verifiche: Verifica[] }): Promise<Uint8Array> {
+export async function pdfVerifiche(d: { documento: Planimetria; titolo: string; stato: string; azienda?: string; verifiche: Verifica[] }): Promise<Uint8Array> {
+  esigiVerificaDocumento(d.documento, "pdf");
   const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
   const doc = await PDFDocument.create();
   doc.setTitle(`${d.titolo} — verifiche igienico-sanitarie`);
@@ -30,6 +33,7 @@ export async function pdfVerifiche(d: { titolo: string; stato: string; azienda?:
   y -= 16;
   testo(`${d.stato}. DM 5 luglio 1975 e regolamenti edilizi tipici. Controllo di massima: la verifica vera la firma il tecnico.`, M, 8.5, font, grigio);
   if (d.azienda) { y -= 11; testo(d.azienda, M, 8.5, font, grigio); }
+  if (d.documento.ambitoDocumento) { y -= 11; testo(d.documento.ambitoDocumento === "ambiente" ? "Singolo ambiente: verifiche dell'intero alloggio escluse." : "Alloggio completo.", M, 8.5, font, grigio); }
   const r = riepilogoVerifiche(d.verifiche);
   y -= 20;
   testo(`Conformi: ${r.ok}    Da verificare: ${r.attenzione}    Non conformi: ${r.nonConformi}`, M, 10.5, bold);

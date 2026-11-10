@@ -1,4 +1,5 @@
 import { asRecord } from "./renderSessionData";
+import { renderVisibleNotes } from "./renderVisibleNotes";
 import {
   roomVisualChoices,
   type RoomVisualGroup,
@@ -298,7 +299,7 @@ export function savedRenderChoices(config: unknown): SavedRenderChoice[] {
     }
     for (const [key, entry] of Object.entries(record)) {
       if (INTERNAL.test(key)) continue;
-      const text = LABELS[key] ? readable(entry) : null;
+      const text = LABELS[key] ? readable(key === "note_libere" ? renderVisibleNotes(entry) : entry) : null;
       if (text !== null) {
         const color =
           typeof entry === "string" &&

@@ -464,7 +464,7 @@ export function giraApertura(pianta: Pianta, id: string): Pianta {
     aperture: pianta.aperture.map((a) => {
       if (a.id !== id) return a;
       const i = ordine.findIndex((v) => v.cerniera === a.verso.cerniera && v.lato === a.verso.lato);
-      return { ...a, verso: ordine[(i + 1) % ordine.length] };
+      return { ...a, verso: ordine[(i + 1) % ordine.length], versoDaVerificare: false };
     }),
   };
 }

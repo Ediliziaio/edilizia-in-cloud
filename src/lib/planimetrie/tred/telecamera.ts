@@ -269,6 +269,8 @@ export interface MetadatiFotogramma {
   };
   telecamera: Telecamera3D & { larghezza_px: number; altezza_px: number };
   vista: Vista3D;
+  /** La cattura può nascondere gli arredi: in quel caso non si inviano istruzioni che li aggiungano. */
+  arredi_inclusi?: boolean;
   /** Aperture del locale che cadono nell'inquadratura. */
   aperture_visibili: {
     id: string;
@@ -303,8 +305,20 @@ export function metadatiFotogramma(
   const aperture = apertureDelLocale(pianta, localeId, vista);
   const visibili: MetadatiFotogramma["aperture_visibili"] = [];
   for (const a of aperture) {
-    const pr = a.angoli.map((p) => proietta(telecamera, aspetto, p));
-    if (pr.some((p) => p.profondita <= 0.05)) continue;
+    // Un vano laterale può attraversare il piano della telecamera: si ritaglia
+    // la parte davanti agli occhi, senza scartare tutta la finestra visibile.
+    const davanti: V3[] = [];
+    for (let i = 0; i < a.angoli.length; i++) {
+      const p = a.angoli[i], q = a.angoli[(i + 1) % a.angoli.length];
+      const dp = proietta(telecamera, aspetto, p).profondita, dq = proietta(telecamera, aspetto, q).profondita;
+      if (dp >= .05) davanti.push(p);
+      if ((dp >= .05) !== (dq >= .05)) {
+        const t = (.05 - dp) / (dq - dp);
+        davanti.push(p.map((v, k) => v + (q[k] - v) * t) as V3);
+      }
+    }
+    if (davanti.length < 3) continue;
+    const pr = davanti.map((p) => proietta(telecamera, aspetto, p));
     const xs = pr.map((p) => p.x);
     const ys = pr.map((p) => p.y);
     const x0 = Math.max(-1, Math.min(...xs));

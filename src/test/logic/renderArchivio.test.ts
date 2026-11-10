@@ -15,12 +15,20 @@ import {
   savedRenderChoices,
   savedRenderSamples,
 } from "@/lib/render/renderSavedChoices";
+
 import { loadRenderHistoryPage } from "@/lib/render/renderHistory";
 import { appendRenderMetadataPages } from "@/lib/render/renderPdf";
 import {
   leggiFiltriElenco,
   scriviFiltriElenco,
 } from "@/lib/planimetrie/elenco";
+
+it("le scelte mostrano le richieste conservando privata la legenda automatica del fotogramma", () => {
+  const note = savedRenderChoices({ note_libere: "AUTHORITATIVE SOURCE FIXTURE POSITIONS: WC at 65%\nRovere naturale, lascia la disposizione." });
+  expect(note.find((n) => n.label === "Note")?.value).toBe("Rovere naturale, lascia la disposizione.");
+  expect(savedRenderChoices({ note_libere: "AUTHORITATIVE SOURCE FIXTURE POSITIONS: WC at 65%" })).toEqual([]);
+});
+
 const db = vi.hoisted(() => ({
   from: vi.fn(),
   eq: vi.fn(),

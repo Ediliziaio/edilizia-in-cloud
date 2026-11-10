@@ -7,6 +7,7 @@
 // ancora, all'utente arriva una frase semplice, non la pianta rotta.
 
 import { verificaApertureDocumento } from "./verificaAperture.ts";
+import { collegaControlliDocumento } from "./controlliDocumento.ts";
 import type { PiantaGenerata } from "./generazione.ts";
 import { controllaGenerata, type ProblemaGenerazione } from "./controlloAI.ts";
 import { costruisciPiani, ErroreCostruzione } from "./costruisci.ts";
@@ -132,7 +133,8 @@ function leggi(testo: string, req: RichiestaGenerazione): Lettura {
       altezzaImmagine: req.file?.altezza ?? null,
       sorgentePath: req.sorgentePath ?? null,
     });
-    const g = req.ingresso === "documento" ? controllaScala(controllaSuperfici(costruita)) : costruita;
+    const conControlli = ["documento", "schizzo"].includes(req.ingresso) ? collegaControlliDocumento(costruita, risposta) : costruita;
+    const g = req.ingresso === "documento" ? controllaScala(controllaSuperfici(conControlli)) : conControlli;
     if (pulita.scartati.length) g.generazione.avvisi.push(`Ho tolto dalle stanze ciò che sembrava un arredo: ${pulita.scartati.slice(0, 6).join(", ")}.`);
     if (pulita.rinominati.length) g.generazione.avvisi.push(`Ho dato un nome alle sigle del disegno: ${pulita.rinominati.slice(0, 6).join(", ")}. Controlla che siano giuste.`);
     return { pianta: g, errori: controllaGenerata(g.planimetria), nonLeggibile: null };
@@ -158,9 +160,17 @@ export async function generaPlanimetria(
   const consegna = async (pianta: PiantaGenerata, providerDisponibile = true): Promise<EsitoGenerazione> => {
     const verifica = await verificaApertureDocumento(pianta, req, chiama, providerDisponibile ? (opzioni.tempoMassimoMs ?? 140_000) - (ora() - inizio) : 0, ora);
     if (verifica.tentativo) tentativi.push(verifica.tentativo);
-    const p = verifica.pianta;
+    let p = verifica.pianta;
+    if (["documento", "schizzo"].includes(req.ingresso)) {
+      const verifiche = [...(p.planimetria.letturaDocumento?.verifiche ?? [])];
+      for (const l of p.planimetria.livelli) for (const a of l.fatto.aperture) {
+        if (a.tipo === "finestra" || a.manovra !== "battente" || a.verso || verifiche.some((v) => v.riferimento?.livelloId === l.id && v.riferimento.oggettoId === a.id && v.riferimento.campo === "verso")) continue;
+        verifiche.push({ id: `verso-${l.id}-${a.id}`, tipo: "quota", descrizione: `Verso di apertura della ${a.tipo === "portafinestra" ? "portafinestra" : a.tipo === "finestra" ? "finestra" : "porta"} non riconosciuto: verifica cardine e lato sul documento o sul posto.`, riferimento: { livelloId: l.id, tipo: "apertura", oggettoId: a.id, campo: "verso" } });
+      }
+      p = { ...p, planimetria: { ...p.planimetria, letturaDocumento: { avvisiIniziali: [], superficiScritteMq: {}, ...p.planimetria.letturaDocumento, verifiche } } };
+    }
     const planimetria = ["documento", "schizzo"].includes(req.ingresso)
-      ? { ...p.planimetria, letturaDocumento: { avvisiIniziali: p.generazione.avvisi.slice(0, 100).map((s) => s.slice(0, 4000)), superficiScritteMq: { ...p.generazione.superfici_scritte } } }
+      ? { ...p.planimetria, letturaDocumento: { ...p.planimetria.letturaDocumento, avvisiIniziali: p.generazione.avvisi.slice(0, 100).map((s) => s.slice(0, 4000)), superficiScritteMq: { ...p.generazione.superfici_scritte } } }
       : p.planimetria;
     return { ok: true, pianta: { ...p, planimetria }, tentativi };
   };

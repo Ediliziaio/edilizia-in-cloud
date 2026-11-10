@@ -4,6 +4,12 @@ import { estraiJson } from "./rispostaAI.ts";
 import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
 import { vincoliDellaStanza } from "../../../shared/render-planimetria/vincoli.ts";
 
+function evidenzaCompatibile(tipo: string, evidenza: unknown): boolean {
+  return evidenza === "vano_interrotto"
+    || (["porta", "portafinestra"].includes(tipo) && evidenza === "simbolo_porta")
+    || (["finestra", "portafinestra"].includes(tipo) && evidenza === "simbolo_finestra");
+}
+
 /** Il revisore vede il documento originale e i segmenti candidati, mai la precedente risposta AI.
  * Può solo confermare o escludere: non può spostare, ridimensionare o aggiungere un'apertura. */
 export function messaggiVerificaAperture(g: PiantaGenerata, req: RichiestaGenerazione): Messaggio[] {
@@ -21,6 +27,7 @@ Rispondi SOLO JSON: {"aperture":[{"tipo":"porta|finestra|portafinestra|varco","d
   return [
     { role: "system", content: conRegoleDocumento(`Controlli esclusivamente porte e finestre su una planimetria. Le aperture elencate sono IPOTESI, anche sbagliate: non fidarti del tipo né del loro numero. Per ogni id guarda il segmento da–a sul documento ORIGINALE. Con sistema "immagine" le coordinate x e y vanno da 0 a 1000 sui due assi dell'intera immagine, senza ruotarla. Con sistema "metri" sono uno schema dello schizzo (x verso destra, y verso il basso), NON pixel: identifica il vano dalla stanza e dal lato corrispondenti sul foglio, senza pretendere che lo schizzo sia in scala. Se non puoi riconoscere quella posizione sul foglio, rispondi incerta.
 Conferma solo un vano realmente riconoscibile fra gli stipiti: interruzione del muro, simbolo di porta con anta/arco, oppure simbolo di serramento inserito nello spessore del muro. TV, mobili, divani, lavabi, docce, radiatori, retini, quote, cartigli e frecce NON sono aperture. Una linea parallela a un muro continuo non prova una finestra. Non dedurre una porta per collegare stanze, né una finestra perché la stanza dovrebbe avere luce.
+Negli schizzi a mano una portafinestra può essere indicata da un vano con una o due ante/archetti e dalla dicitura «P. finestra» o «portafinestra»: il simbolo_porta è una prova valida anche per una portafinestra. La scritta senza un vano o ante riconoscibili non basta. Quote e note di impianti restano escluse.
 Se un simbolo non è leggibile, il tipo non coincide o il vano è su un altro lato, esito "incerta" o "assente". Nel dubbio NON confermare. Non aggiungere id, non correggere coordinate e non completare parti fuori immagine. Rispondi SOLO JSON: {"verifiche":[{"id":"a1","esito":"visibile|assente|incerta","evidenza":"vano_interrotto|simbolo_porta|simbolo_finestra|nessuna"}]}. Una verifica per ogni id.`) },
     { role: "user", content: [
       { type: "text", text: `Confronta queste ipotesi con il file allegato: ${JSON.stringify(g.generazione.aperture_sorgente ?? [])}\nStanze toccate dai candidati (pareti numerate lungo il contorno): ${JSON.stringify(contesto)}` },
@@ -39,7 +46,7 @@ export function confrontaRilievoAperture(g: PiantaGenerata, risposta: unknown): 
     if (!v || typeof v !== "object") return false;
     const a = v as Record<string, unknown>;
     return typeof a.tipo === "string" && ["porta", "finestra", "portafinestra", "varco"].includes(a.tipo) && coppia(a.da) && coppia(a.a)
-      && (a.evidenza === "vano_interrotto" || (a.tipo === "porta" && a.evidenza === "simbolo_porta") || (["finestra", "portafinestra"].includes(a.tipo) && a.evidenza === "simbolo_finestra"));
+      && evidenzaCompatibile(a.tipo, a.evidenza);
   });
   const sorgenti = g.generazione.aperture_sorgente ?? [];
   const distanza = (a: [number, number], b: [number, number]) => Math.hypot(a[0] - b[0], a[1] - b[1]);
@@ -67,7 +74,7 @@ export function applicaVerificaAperture(g: PiantaGenerata, risposta: unknown, co
   for (const livello of g.planimetria.livelli) for (const a of livello.fatto.aperture) {
     const righe = verifiche.filter((v): v is Record<string, unknown> => !!v && typeof v === "object" && (v as Record<string, unknown>).id === a.id);
     const v = righe.length === 1 ? righe[0] : null;
-    const prova = v?.evidenza === "vano_interrotto" || (a.tipo === "porta" && v?.evidenza === "simbolo_porta") || (["finestra", "portafinestra"].includes(a.tipo) && v?.evidenza === "simbolo_finestra");
+    const prova = evidenzaCompatibile(a.tipo, v?.evidenza);
     if (controllate && v?.esito === "visibile" && prova) accettate.add(a.id);
     else if (controllate && v?.esito === "assente") escluse++;
     else dubbie++;

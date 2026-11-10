@@ -47,8 +47,14 @@ export function descrizionePavimento(p: ConfigPavimentoStanza): string {
 /** Un formato in centimetri aggiorna anche le misure dei listoni in millimetri. */
 export function cambiaFormatoPavimento(p: ConfigPavimentoStanza, formato: string): ConfigPavimentoStanza {
   const parsed = formato.trim().replace(/,/g, ".").match(/^(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)$/i);
-  const parquet = p.tipo?.startsWith("parquet_");
+  const parquet = p.tipo?.startsWith("parquet_") || p.effetto_visivo === "legno";
   return { ...p, formato_piastrella: formato, ...(parquet && parsed && Number(parsed[1]) > 0 && Number(parsed[2]) > 0 ? { larghezza_listello_mm: Number(parsed[1]) * 10, lunghezza_listello_mm: Number(parsed[2]) * 10 } : {}) };
+}
+
+/** Ripara le vecchie copie dei listoni mantenendo il formato scelto dall'utente. */
+export function materialiCoerentiDaSalvare(m: MaterialiProgetto): MaterialiProgetto {
+  const formato = m.pavimento?.formato_piastrella;
+  return formato ? { ...m, pavimento: cambiaFormatoPavimento(m.pavimento!, formato) } : m;
 }
 
 export function statoConMateriali(s: StatoPianta, materiali: MaterialiProgetto): StatoPianta {

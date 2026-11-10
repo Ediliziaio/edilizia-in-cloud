@@ -1,3 +1,4 @@
+import { esigiVerificaDocumento } from "../../shared/planimetrie/verificaDocumento.ts";
 /**
  * Computo di commessa ↔ piante (fase 4 delle Planimetrie).
  *
@@ -20,7 +21,7 @@ import type { VoceComputo } from "@/lib/computo/alberoComputo";
 import { caricaVersione, chiaviPlanimetrie } from "@/lib/planimetrie/archivio";
 import { scriviMisureAtomiche } from "@/lib/planimetrie/aggiornaMisureAtomiche";
 import {
-  confrontaRighe, valoreChiavi, voceDopo,
+  confrontaRighe, esigiUnitaRighePianta, valoreChiavi, voceDopo,
   type ConfrontoRiga, type MisuraConPianta, type RigaDaPianta,
 } from "@/lib/planimetrie/computo";
 import type { Origine } from "../../shared/planimetrie/modello.ts";
@@ -134,6 +135,9 @@ export function useAggiungiMisureDaPianta(uploadId: string | undefined) {
   return useMutation({
     mutationFn: async ({ voce, companyId, planimetriaId, versione, righe }: NuoveMisureDaPianta) => {
       if (!righe.length) throw new Error("Scegli almeno un locale.");
+      const documento = (await caricaVersione(planimetriaId, versione)).documento;
+      esigiVerificaDocumento(documento, "computo");
+      esigiUnitaRighePianta(voce.unita_misura, righe, calcolaQuantita(documento));
       const da = Math.max(0, ...voce.misure.map(m => m.ordine)) + 1;
       const { data, error } = await supabase.from("computo_voci_misure").insert(righe.map((r, i) => ({
         company_id: companyId, voce_id: voce.id, ordine: da + i, descrizione: r.descrizione, quantita: r.quantita,
@@ -157,8 +161,10 @@ export function useAggiungiMisureDaPianta(uploadId: string | undefined) {
 export function useAggiornaMisureDaPianta(uploadId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ confronto, versione, voci }: { confronto: ConfrontoRiga[]; versione: number; voci: VoceComputo[] }) =>
-      scriviMisureAtomiche(uploadId ?? "", confronto, versione, new Map(voci.map(v => [v.id, v]))),
+    mutationFn: async ({ confronto, versione, voci }: { confronto: ConfrontoRiga[]; versione: number; voci: VoceComputo[] }) => {
+      for (const id of new Set(confronto.map((c) => c.misura.planimetriaId))) esigiVerificaDocumento((await caricaVersione(id, versione)).documento, "computo");
+      return scriviMisureAtomiche(uploadId ?? "", confronto, versione, new Map(voci.map(v => [v.id, v])));
+    },
     onSettled: () => invalida(qc, uploadId),
   });
 }
@@ -175,6 +181,7 @@ export function usePeriziaDaPianta(orderId: string) {
     mutationFn: async ({ computo, computi, voci, confronto, versione }: {
       computo: ComputoCommessa; computi: ComputoCommessa[]; voci: VoceComputo[]; confronto: ConfrontoRiga[]; versione: number; titoloPianta: string;
     }) => {
+      for (const id of new Set(confronto.map((c) => c.misura.planimetriaId))) esigiVerificaDocumento((await caricaVersione(id, versione)).documento, "computo");
       const varianteId = computi.find(c => c.variante_di === computo.id && (c.stato === "bozza" || c.stato === "verificato"))?.id;
       if (!varianteId) throw new Error("Per applicare le differenze serve una perizia di variante già esistente e ancora modificabile.");
       const { data: righe, error } = await supabase.from("computo_voci_estratte")

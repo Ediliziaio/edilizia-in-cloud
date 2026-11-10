@@ -34,6 +34,11 @@ describe("Flusso del progetto sulle schede esistenti", () => {
     expect(url.searchParams.get("esporta")).toBe("fascicolo");
     expect(ritornoProgettoValido(url.searchParams.get("torna"))).toBe(torna);
   });
+  it("torna al contatto CRM da cui si è aperta la planimetria", () => {
+    const torna = `/azienda/marketing/contatti/${uuid}`;
+    const url = new URL(percorsoProgettoAssociato("p1", torna), "https://app.invalid");
+    expect(url.searchParams.get("torna")).toBe(torna);
+  });
   it.each(["https://evil.example/", "//evil.example/azienda/ordini/x", "/azienda/ordini/../../login", "javascript:alert(1)"])("rifiuta il percorso di ritorno estraneo %s", (torna) => {
     expect(ritornoProgettoValido(torna)).toBeNull();
   });

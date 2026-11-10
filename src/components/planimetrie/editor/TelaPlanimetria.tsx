@@ -22,6 +22,8 @@ import { dist, direzione, lunghezzaMuro, puntoSulMuro, sulSegmento, type Agganci
 import { latoEsterno } from "../../../../shared/planimetrie/serramenti.ts";
 import { scriviMetri, scriviMq } from "./misure";
 import { SimboloArredo } from "./SimboloArredo";
+import { EvidenzaVerificaPianta } from "./EvidenzaVerificaPianta";
+import type { VerificaLettura } from "../../../../shared/planimetrie/letturaTipi.ts";
 
 export interface Camera {
   /** pixel per centimetro */
@@ -71,6 +73,7 @@ interface Props extends Gestori {
   latiModificabili: ReadonlySet<string>;
   vista: Vista;
   selezione: Selezione | null;
+  verificaEvidenziata?: VerificaLettura;
   /** Più oggetti selezionati insieme (arredi, quote, testi). */
   gruppo?: { elementi: string[]; quote: string[]; testi: string[] };
   /** Linee stimate degli impianti (percorso a squadra), da mostrare tratteggiate. */
@@ -108,7 +111,7 @@ const SELEZIONE = "#2563eb";
 export const COLORI_LINEE: Record<string, string> = { elettrica: "#dc2626", acqua: "#2563eb", scarico: "#92400e", frigorifera: "#0891b2", condensa: "#65a30d", riscaldamento: "#ea580c" };
 
 export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPlanimetria(
-    { pianta, dati, latiModificabili, misureSoloSelezione, vista, selezione, gruppo, lineeImpianti, sfondo, camera, larghezza, altezza, sovrapposizioni, inModifica, className, ...gestori },
+    { pianta, dati, latiModificabili, misureSoloSelezione, vista, selezione, verificaEvidenziata, gruppo, lineeImpianti, sfondo, camera, larghezza, altezza, sovrapposizioni, inModifica, className, ...gestori },
     ref,
   ) {
     const px = (n: number) => n / camera.s; // n pixel in cm
@@ -471,6 +474,7 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
             </text>
           ))}
 
+          <EvidenzaVerificaPianta pianta={pianta} verifica={verificaEvidenziata} scala={camera.s} />
           {/* maniglie agli estremi della parete selezionata */}
           {selezione?.tipo === "muro" &&
             (() => {
