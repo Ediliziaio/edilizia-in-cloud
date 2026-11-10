@@ -2789,9 +2789,22 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
         if (ncfg.agent_id) {
           const agentId = rv(String(ncfg.agent_id));
           if (!UUID_RE.test(agentId)) return { success: false, error: "ID dell’agente AI non valido" };
-          const { data: agent, error: agentError } = await supabase.from("ai_agents")
+          // Prima la tabella vecchia, poi `ai_agents_v2`: gli agenti creati
+          // dalla pagina Agenti AI stanno solo lì, e fino al 10/11/2026 qui si
+          // guardava soltanto `ai_agents` — vuota su tutta la piattaforma.
+          // Il Bagno Group aveva messo in «DVS 4 · Bot AI su WhatsApp» l'id di
+          // «Giusy — WhatsApp DVS»: tre esecuzioni, tre «Agente AI non trovato
+          // per questa azienda» il 30/10/2026, e il nodo è stato tolto.
+          const { data: agenteVecchio, error: agentError } = await supabase.from("ai_agents")
             .select("id, system_prompt").eq("id", agentId).eq("company_id", companyId).maybeSingle();
           if (agentError) return { success: false, error: agentError.message };
+          let agent = agenteVecchio;
+          if (!agent) {
+            const { data: agenteV2, error: erroreV2 } = await supabase.from("ai_agents_v2")
+              .select("id, system_prompt").eq("id", agentId).eq("company_id", companyId).maybeSingle();
+            if (erroreV2) return { success: false, error: erroreV2.message };
+            agent = agenteV2;
+          }
           if (!agent) return { success: false, error: "Agente AI non trovato per questa azienda" };
           agentPrompt = String(agent.system_prompt ?? "").trim();
           if (!agentPrompt) return { success: false, error: "L’agente AI non ha istruzioni configurate" };

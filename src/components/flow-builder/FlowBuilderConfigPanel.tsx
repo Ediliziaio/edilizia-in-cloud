@@ -780,13 +780,32 @@ function ConfigField({
   });
 
   // Calendari di prenotazione (trigger degli appuntamenti): con più marchi
+  // Gli agenti stanno in due tabelle: `ai_agents` (la vecchia, oggi vuota su
+  // tutta la piattaforma) e `ai_agents_v2` (quella che la pagina Agenti AI
+  // crea e mostra). Fino al 10/11/2026 qui si leggeva solo la vecchia, quindi
+  // la tendina diceva sempre «Nessun agente disponibile nell'azienda» e il
+  // nodo «Genera e invia con agente AI» non si poteva configurare. Su Il Bagno
+  // Group il nodo era stato salvato lo stesso con l'id di «Giusy — WhatsApp
+  // DVS» (che sta in v2) e il motore rispondeva «Agente AI non trovato per
+  // questa azienda», tre volte il 30/10/2026, finché il nodo è stato tolto.
   const { data: automationAgents = [], isError: agentsUnavailable } = useQuery({
     queryKey: ["flow-ai-agents", companyId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("ai_agents").select("id, name")
-        .eq("company_id", companyId!).order("name");
-      if (error) throw error;
-      return data ?? [];
+      const [vecchi, nuovi] = await Promise.all([
+        supabase.from("ai_agents").select("id, name").eq("company_id", companyId!),
+        supabase.from("ai_agents_v2" as never).select("id, nome").eq("company_id", companyId!),
+      ]);
+      if (vecchi.error) throw vecchi.error;
+      if (nuovi.error) throw nuovi.error;
+      const elenco = [
+        ...((vecchi.data ?? []) as Array<{ id: string; name: string | null }>).map((a) => ({ id: a.id, name: a.name ?? "Agente" })),
+        ...((nuovi.data ?? []) as unknown as Array<{ id: string; nome: string | null }>).map((a) => ({ id: a.id, name: a.nome ?? "Agente" })),
+      ];
+      // Un id può stare in tutte e due: si tiene una riga sola.
+      const visti = new Set<string>();
+      return elenco
+        .filter((a) => !visti.has(a.id) && visti.add(a.id))
+        .sort((a, b) => a.name.localeCompare(b.name, "it"));
     },
     enabled: !!companyId && ["agent_id", "ai_agent_id"].includes(field.id),
     staleTime: 60_000,
