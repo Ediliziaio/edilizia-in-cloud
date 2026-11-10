@@ -250,9 +250,9 @@ Ogni lotto si pubblica da solo, con i test e una prova sui dati veri.
 | **3. Abbinamento voci ↔ listino** ✅ 10/11 (senza AI) | «Collega al listino» in «Ditte e contratti»: proposte per stesso codice, come l'ultima volta (`product_aliases`, `learned_from='voce_computo'`), stessa descrizione unica; unità diverse = da guardare; scelta a mano con ricerca; «Al listino» crea la voce dal computo (col permesso listino); `voci_abbina_listino` scrive e ricorda (R3) | fatto: Villa Ida 252 voci su 643 si collegano da sole per codice; Cagliari L1/L2 e Courmayeur 0 (i loro codici non sono nel listino: si collegano a mano, poi si ricordano). Prova in transazione annullata con un amministratore di Bonarrigo, 6 casi su 6. **Resta: la proposta per significato con l'AI** — il listino di Bonarrigo non ha gli embedding; serve generarli (costo AI) |
 | **4. Affidamento per voce** ✅ 10/11 (database + finestra «Affida le voci alle ditte») | `subappalto_affidamenti`, funzioni, «Chi fa cosa», quote di quantità, «senza ditta», ditta sulla fase calcolata (R1, R6, R13, R15) | due affidamenti in parallelo: uno fallisce; l'esempio 7 fasi × 5 voci con 3 ditte torna al centesimo; fase con voce a contratto non cancellabile |
 | **5. Contratto dagli affidamenti** ✅ 10/11 (senza «ricorda nel listino») | prezzi proposti con l'origine, «ricorda nel listino», margini interni con «comprende» (R9, R10), corrispettivo calcolato (R7, R8), PDF «Lavori affidati» | PDF di O-0001 di Dimora; utente senza permesso sui costi: nessuna cifra di venduto in nessuna risposta; database, finestra e PDF uguali al centesimo |
-| **6. Firma → quadro → misure → costi** | fotografia all'invio (R5), quadro con `voce_id` alla firma, previsto e consuntivo per fase, Margini e controllo di gestione | contratto Demo 2 firmato in una transazione annullata: quadro, misura, SAL e consuntivo della fase coerenti |
-| **7. Listino da Excel e PDF** | finestra di abbinamento, controllo dei prezzi fuori scala (R17) | un listino vero di una ditta, riga per riga |
-| **8. Varianti** | voce cambiata → «da rivedere» (R12), «Proponi variante» per riga, nuova revisione del quadro | variante di quantità su una voce con misure: le misure restano valide, l'importo segue |
+| **6. Firma → quadro → misure → costi** ✅ 10/11 | fotografia all'invio (R5), quadro con `voce_id` alla firma, previsto e consuntivo per fase, Margini e controllo di gestione | contratto Demo 2 firmato in una transazione annullata: quadro, misura, SAL e consuntivo della fase coerenti |
+| **7. Listino da Excel e PDF** ✅ 10/11 | finestra di abbinamento, controllo dei prezzi fuori scala (R17) | un listino vero di una ditta, riga per riga |
+| **8. Varianti** ✅ 10/11 | voce cambiata → «da rivedere» (R12), «Proponi variante» per riga, nuova revisione del quadro | variante di quantità su una voce con misure: le misure restano valide, l'importo segue |
 | **9. Collaudo a schermo** | Bonarrigo e Dimora, due ruoli (con e senza costi), telefono | visto a schermo, non solo nei test |
 
 L'import (lotto 7) è stato spostato dopo il contratto: il listino si costruisce già con
@@ -418,3 +418,49 @@ Prossimo: lotto 5, il contratto nasce dagli affidamenti della ditta e il PDF «L
 - Non fatto: «ricorda nel listino di Rossi» dalla finestra del contratto (si fa dal listino della ditta);
   il controllo «prezzo > 0» è nella finestra, non nel database. Restano: lotto 6 (firma → quadro, misure, SAL,
   costi), 7 (import Excel/PDF del listino), 8 (varianti), 9 (prova a schermo su una commessa vera).
+
+## 5-septies. Lotti 6, 7 e 8 (10/11/2026, notte)
+
+**Lotto 6 — firma, quadro, misure** (`20290216130000_subappalto_firma_e_quadro_voci`, applicata e riallineata).
+- Contratto in firma (richiesta `pending`/`otp_verified`): dal browser non cambiano lavori, importo e condizioni
+  («annulla la richiesta di firma e rimandalo»); una nota sì. `contratto_in_firma()` dice solo sì/no.
+- Il quadro lavori tiene `voce_commessa_id` e `affidamento_id` (prima `subappalto_quadro_registra` li buttava);
+  «Imposta elenco lavori» li riprende dall'Allegato A. Una voce di un'altra commessa è rifiutata.
+- Previsto della fase: lo tengono gli affidamenti a prezzo di contratto (lotto 4); il consuntivo resta quello
+  di oggi (fatture e costi ripartiti per ditta sulla fase). «Porta il previsto al contratto» non compare più
+  per i contratti nati dagli affidamenti (lo rimetterebbe all'elenco firmato, sbagliando dopo una variante).
+- Provato con un utente vero della Demo 2: in firma bloccato, nota libera, firma → firmato, quadro col
+  collegamento, misura riconosciuta, SAL dalle misure 18,00 € (2 × 9).
+
+**Lotto 7 — listino della ditta da file** (`ImportaListinoDittaDialog`, `importaListinoDitta.ts`).
+- Scheda subappaltatore → Listino → «Carica listino»: Excel e CSV letti nel browser (intestazione cercata
+  nelle prime 30 righe, numeri all'italiana), PDF e Word con l'AI dell'«Importa voci» del computo.
+- Abbinamento: stesso codice, poi stesso nome (voci aziendali e voci sue della stessa ditta, mai quelle delle
+  altre); unità diverse, prezzi fuori scala (meno di 1/5 o più di 5 volte il costo nostro, R17), doppioni e
+  righe senza prezzo restano «Non caricare» finché qualcuno non sceglie. Il resto diventa voce nuova della ditta.
+- Si salva in un colpo: voci nuove, poi tutti i prezzi con `listino_ditta_salva`; se i prezzi non entrano le
+  voci nuove si tolgono. Mai provato con un listino vero di una ditta né con un PDF reale (lotto 9).
+
+**Lotto 8 — variante sulle voci** (`20290216140000_subappalto_variante_voci`, `VarianteVociDialog`).
+- Contratto firmato con voci affidate → «Variante sulle voci»: nuova quantità (e prezzo se la voce non è
+  misurata), voce a 0 esce (se senza misure), quote in bozza della ditta entrano. In un passaggio: quote,
+  importo (Σ differenze al centesimo), nuova revisione del quadro con gli stessi id (le misure restano
+  valide), registro varianti. Mai sotto il misurato, mai oltre la voce della commessa, mai sotto i SAL.
+- «Chi fa cosa»: una voce scesa sotto l'affidato (variante del computo) è in rosso «da rivedere» (R12).
+- Provato con un utente vero: 1.080 → 1.071 → 1.085 → 1.071 €, sotto il misurato / prezzo su voce misurata /
+  oltre la voce rifiutati, misura ancora valida, previsto della fase che segue (1.071 €).
+
+**Revisione indipendente dei lotti 5-8** (stessa notte): 7 difetti, nessuno sui dati (affidamenti vuoti in
+produzione). Corretti con `20290216150000_subappalto_correzioni_revisione` e nel codice, ognuno provato con
+un utente vero in transazione annullata:
+- contratto non firmato spostato su un'altra commessa/ditta con voci affidate → rifiutato (prima le quote
+  restavano bloccate sulla commessa vecchia);
+- prezzi delle righe affidate al centesimo (il contratto li propone arrotondati; 12,345 rifiutato con un
+  messaggio): con 4 decimali il quadro non si costruiva e la variante restava senza strada;
+- contratto con misure o SAL ma non firmato: le voci affidate non si riscrivono dall'elenco (variante);
+- contratto «Risolto»: le quote si fermano al misurato riconosciuto (30 su 120 mq), senza misure tornano in bozza;
+- in firma bloccati anche numero, date, note e referenti; il reinvio in firma annulla la richiesta vecchia
+  PRIMA di scrivere sul contratto (prima falliva se le clausole del modello erano cambiate);
+- `contratto_in_firma` risponde solo a chi lavora nell'azienda del contratto.
+Resta noto: un contratto con più di 100 righe ha il quadro raggruppato per fase, senza collegamento alle
+voci affidate: la «Variante sulle voci» lì risponde «rifai l'elenco lavori» (si usa la variante a importo).

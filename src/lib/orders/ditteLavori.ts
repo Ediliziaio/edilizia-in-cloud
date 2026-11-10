@@ -143,7 +143,8 @@ export function elencoDaAffidamenti(
     })
     .sort((x, y) => (x.f?.position ?? 0) - (y.f?.position ?? 0) || (x.v.position ?? 0) - (y.v.position ?? 0))
     .map(({ a, v, f }) => {
-      const prezzo = Number(a.prezzo_unitario) || 0;
+      // Nel contratto il prezzo va al centesimo (il quadro lavori e le varianti lo vogliono così): 12,345 → 12,35.
+      const prezzo = centesimi(Number(a.prezzo_unitario) || 0);
       return {
         fase: f?.name ?? "Altri lavori",
         descrizione: v.descrizione,

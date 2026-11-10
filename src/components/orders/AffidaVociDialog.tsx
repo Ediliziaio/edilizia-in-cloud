@@ -216,6 +216,7 @@ export function AffidaVociDialog({ orderId, companyId, voci, fasi, onChiudi, onC
                                 <p className="text-[11px] text-muted-foreground">
                                   {qt(Number(v.quantita))} {v.unita ?? ""} · venduto {formatCurrency(Number(v.importo) || 0)}
                                   {!s.piena && s.affidata > 0 && <> · <span className="text-amber-800">restano {qt(s.residua)} {v.unita ?? ""}</span></>}
+                                  {s.oltre > 0.0005 && <> · <span className="font-medium text-red-700">affidati {qt(s.oltre)} {v.unita ?? ""} più della voce: da rivedere (togli una quota, o variante del contratto)</span></>}
                                   {s.margine != null && <> · margine <span className={s.margine < 0 ? "text-destructive" : ""}>{formatCurrency(s.margine)}</span></>}
                                 </p>
                                 <div className="mt-1 flex flex-wrap gap-1">

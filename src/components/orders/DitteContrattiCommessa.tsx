@@ -41,7 +41,8 @@ import { clausoleArchivioDelContratto, testoComprende, totaleElencoLavori, unisc
 import { OfficeSelect } from "./OfficeSelect";
 import { AbbinaListinoDialog } from "./AbbinaListinoDialog";
 import { AffidaVociDialog, useAffidamentiCommessa } from "./AffidaVociDialog";
-import { chiaveAffidamenti } from "@/lib/subappaltatori/affidamentiCommessa";
+import { VarianteVociDialog } from "./VarianteVociDialog";
+import { chiaveAffidamenti, type AffidamentoChiFaCosa } from "@/lib/subappaltatori/affidamentiCommessa";
 
 // Tabelle recenti, non ancora tutte nei tipi generati.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -351,6 +352,8 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
                 fasi={d.fasi}
                 assegnazioni={d.assegnazioni.filter((a) => a.external_team_id === x.id && a.phase_id)}
                 daAffidamenti={dalleQuote.length > 0}
+                quote={(affidamenti.data ?? []).filter((a) => a.subappaltatore_id === ditta.subappaltatore_id && (a.stato === "bozza" || (!!contratto && a.contratto_id === contratto.id)))}
+                vociCommessa={listaVoci}
                 elenco={dalleQuote.length ? dalleQuote : elencoLavoriDitta(d.fasi, listaVoci, x.fasi, x.id, d.varianti, {
                   sottofasi: d.sottofasi,
                   // Il previsto delle assegnazioni è con l'IVA della ditta: nel contratto va senza.
@@ -459,7 +462,9 @@ function VociFase({ orderId, companyId, fase, voci, tariffe, caricoTariffe, onCa
 }
 
 /** Il contratto di una ditta: crearlo in bozza con l'elenco dei lavori, aggiornarlo, scaricare il PDF. */
-function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, contratto, schede, tariffe, varianti, onCambio, fasi = [], assegnazioni = [], daAffidamenti = false }: {
+function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, contratto, schede, tariffe, varianti, onCambio, fasi = [], assegnazioni = [], daAffidamenti = false, quote = [], vociCommessa = [] }: {
+  /** Le quote della ditta (nel contratto e in bozza) e le voci della commessa: per la variante sulle voci (lotto 8). */
+  quote?: AffidamentoChiFaCosa[]; vociCommessa?: Array<{ id: string; descrizione: string; unita: string | null; quantita: number }>;
   orderId: string; companyId: string; ditta: Ditta; elenco: RigaElencoLavori[];
   /** L'elenco viene dalle voci affidate alla ditta (lotto 5), non da tutte le voci delle sue fasi. */
   daAffidamenti?: boolean;
@@ -477,7 +482,8 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
     .reduce((t, a) => t + (Number(a.cost_preventivo) || 0) / (1 + (Number(a.vat_rate) || 0) / 100), 0);
   const fasiSenzaDitta = pattuito ? [...pattuito.perFase.keys()].filter((id) => !assegnazioni.some((a) => a.phase_id === id)) : [];
   const totalePattuito = pattuito ? [...pattuito.perFase.values()].reduce((t, v) => t + v, 0) : 0;
-  const daAllineare = !!pattuito && pattuito.perFase.size > 0 && Math.abs(totalePattuito - previstoOra) >= 1;
+  // Con le voci affidate il previsto segue gli affidamenti (anche dopo una variante): niente «porta al contratto».
+  const daAllineare = !daAffidamenti && !!pattuito && pattuito.perFase.size > 0 && Math.abs(totalePattuito - previstoOra) >= 1;
   const qcRiga = useQueryClient();
   const assegnaFasi = useAssegnaAlleFasi(orderId);
   const allinea = useMutation({
@@ -505,6 +511,8 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
   const elencoSalvato = contratto && Array.isArray(contratto.elenco_lavori) ? (contratto.elenco_lavori as RigaElencoLavori[]) : [];
   // L'elenco si rivede prima di salvarlo (Dimora, 31/10/2026): null = finestra chiusa.
   const [bozzaElenco, setBozzaElenco] = useState<RigaElencoLavori[] | null>(null);
+  const [varianteAperta, setVarianteAperta] = useState(false);
+  const conQuoteNelContratto = !!contratto?.firmato_il && quote.some((a) => a.contratto_id === contratto.id);
   const apriElenco = () => setBozzaElenco((elencoSalvato.length ? elencoSalvato : elenco).map(conChiave));
   /** La scheda sicurezza per un contratto nuovo: se la ditta non ce l'ha, la si crea dalla scheda del campo. */
   // La scheda creata qui per un contratto nuovo: se poi il contratto non si salva va tolta, altrimenti
@@ -666,7 +674,7 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
             {diverso && <span className="ml-1 text-amber-800">· i lavori ora valgono {formatCurrency(totale)}</span>}
           </p>
         )}
-        {contratto?.firmato_il && <p className="mt-0.5 text-xs text-muted-foreground">Contratto firmato: lavori e prezzi non si modificano più. Per cambiare l'importo usa «Variante» da «Condizioni e firma».</p>}
+        {contratto?.firmato_il && <p className="mt-0.5 text-xs text-muted-foreground">Contratto firmato: lavori e prezzi non si modificano più. {conQuoteNelContratto ? "Per cambiare quantità o voci usa «Variante sulle voci»." : "Per cambiare l'importo usa «Variante» da «Condizioni e firma»."}</p>}
         {!ditta.subappaltatore_id && <p className="mt-0.5 text-xs text-amber-800">Collega la ditta a un subappaltatore per fare il contratto.</p>}
         {daAllineare && (
           <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-amber-800">
@@ -691,6 +699,9 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
             {!contratto ? "Crea contratto…" : "Lavori e prezzi…"}
           </Button>
         )}
+        {conQuoteNelContratto && (
+          <Button size="sm" variant="outline" onClick={() => setVarianteAperta(true)}>Variante sulle voci</Button>
+        )}
         {contratto && (
           <Button size="sm" variant="outline" disabled={scarica.isPending} onClick={() => scarica.mutate()}>
             {scarica.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileText className="mr-1 h-4 w-4" />}PDF
@@ -709,6 +720,10 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
           </Button>
         )}
       </div>
+      {varianteAperta && contratto && (
+        <VarianteVociDialog companyId={companyId} contrattoId={contratto.id} nomeDitta={ditta.name} importo={Number(contratto.importo_contrattuale) || 0}
+          quote={quote} voci={vociCommessa} onChiudi={() => setVarianteAperta(false)} onFatto={() => { setVarianteAperta(false); onCambio(); }} />
+      )}
       {bozzaElenco && (
         <ElencoLavoriDialog
           titolo={`${contratto ? "Lavori e prezzi del contratto" : "Nuovo contratto"} · ${ditta.name}`}

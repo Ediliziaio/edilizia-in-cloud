@@ -61,3 +61,15 @@ describe("chi fa cosa: la commessa", () => {
     expect(d.get("bianchi")).toEqual({ voci: 1, venduto: 2871.43, costo: 1600, aContratto: 1 });
   });
 });
+
+describe("voce scesa sotto l'affidato (R12, lotto 8)", () => {
+  it("la quantità affidata in più si vede, e la voce resta piena", () => {
+    const s = statoVoce(
+      { id: "v", phase_id: "f", descrizione: "Intonaco", unita: "mq", quantita: 400, importo: 11400, costo_materiali: 0 },
+      [{ id: "a", voce_id: "v", subappaltatore_id: "rossi", quantita: 420, prezzo_unitario: 14, origine_prezzo: "listino_ditta", comprende: "posa", stato: "a_contratto" }],
+    );
+    expect(s.oltre).toBe(20);
+    expect(s.residua).toBe(0);
+    expect(s.piena).toBe(true);
+  });
+});

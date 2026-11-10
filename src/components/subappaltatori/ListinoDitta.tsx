@@ -11,7 +11,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { History, Loader2, Plus, Search } from "lucide-react";
+import { FileUp, History, Loader2, Plus, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +28,7 @@ import { parseAssignmentAmount } from "@/lib/orders/assignmentAmounts";
 import { vociListinoPerDitta } from "@/lib/orders/costoDitta";
 import { prezziPerVoce, righeDaSalvare, scartoDalCosto, type PrezzoDitta } from "@/lib/subappaltatori/listinoDitta";
 import { oggiInItalia } from "../../../shared/silvio-commessa/date.ts";
+import { ImportaListinoDittaDialog } from "./ImportaListinoDittaDialog";
 
 // Colonne recenti (subappaltatore_id): passiamo dal client non tipizzato come il resto del modulo.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -92,6 +93,7 @@ export function ListinoDitta({ companyId, anagraficaId, nomeDitta }: { companyId
   const [soloConPrezzo, setSoloConPrezzo] = useState(false);
   const [storiaAperta, setStoriaAperta] = useState(false);
   const [voceNuova, setVoceNuova] = useState(false);
+  const [caricaFile, setCaricaFile] = useState(false);
 
   // I prezzi del giorno da cui valgono le modifiche: è lo stesso giorno su cui ragiona listino_ditta_salva.
   const perVoce = useMemo(() => prezziPerVoce(dati.data?.prezzi ?? [], validoDal), [dati.data, validoDal]);
@@ -143,7 +145,11 @@ export function ListinoDitta({ companyId, anagraficaId, nomeDitta }: { companyId
           </p>
         </div>
         {puoScrivere && (
-          <Button size="sm" variant="outline" onClick={() => setVoceNuova(true)}><Plus className="mr-1 h-4 w-4" />Voce sua</Button>
+          <>
+            <Button size="sm" variant="outline" disabled={Object.keys(modifiche).length > 0} title={Object.keys(modifiche).length ? "Salva prima le modifiche a mano" : undefined}
+              onClick={() => setCaricaFile(true)}><FileUp className="mr-1 h-4 w-4" />Carica listino</Button>
+            <Button size="sm" variant="outline" onClick={() => setVoceNuova(true)}><Plus className="mr-1 h-4 w-4" />Voce sua</Button>
+          </>
         )}
       </div>
 
@@ -237,6 +243,18 @@ export function ListinoDitta({ companyId, anagraficaId, nomeDitta }: { companyId
         </div>
       )}
 
+      {caricaFile && (
+        <ImportaListinoDittaDialog companyId={companyId} anagraficaId={anagraficaId} nomeDitta={nomeDitta} voci={voci} validoDal={validoDal}
+          onChiudi={() => setCaricaFile(false)}
+          onFatto={() => {
+            setCaricaFile(false);
+            void qc.invalidateQueries({ queryKey: chiave });
+            void qc.invalidateQueries({ queryKey: ["tariffa-costi-varianti", companyId] });
+            void qc.invalidateQueries({ queryKey: ["ditte-contratti-commessa", companyId] });
+            void qc.invalidateQueries({ queryKey: ["tariffe-manodopera", companyId] });
+            void qc.invalidateQueries({ queryKey: ["listino-manodopera-voci", companyId] });
+          }} />
+      )}
       {voceNuova && (
         <VoceSuaDialog companyId={companyId} anagraficaId={anagraficaId} nomeDitta={nomeDitta} validoDal={validoDal}
           onChiudi={() => setVoceNuova(false)}
