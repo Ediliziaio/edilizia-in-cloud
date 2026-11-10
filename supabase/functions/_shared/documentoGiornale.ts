@@ -7,6 +7,8 @@
  * è l'unico che conosce i fogli veri. Sullo schermo resta «Giornata N di M».
  */
 import { eventiPerTipo, oraBreve, problemaAperto, type EventoGiornale } from "./eventiGiornale.ts";
+import { vesteHtml } from "./vesteHtml.ts";
+import { senzaEmoji } from "./senzaEmoji.ts";
 
 /** Oltre, il documento diventa un album: il giornale le conta e ne mostra le prime. */
 export const MAX_FOTO_PER_GIORNATA = 12;
@@ -60,6 +62,8 @@ export interface GiornataDocumento {
   pm_signature_hash?: string | null;
   /** Nome di chi ha firmato la pagina. */
   firmatario?: string;
+  /** Il ruolo di chi ha firmato in fondo alla pagina (`firmato_da`), dalla sua scheda dipendente; assente = «Firma». */
+  firmato_da_ruolo?: string | null;
   /** Indirizzi firmati ("" = non leggibile, si salta). */
   foto_link?: string[];
   eventi?: EventoGiornale[];
@@ -84,12 +88,13 @@ export interface AziendaDocumentoGiornale {
   email?: string | null;
 }
 
+// Senza emoji (10/11/2026): in stampa non escono, e su un documento di cantiere non stanno bene.
 const METEO_LABEL: Record<string, string> = {
-  soleggiato: "☀️ Soleggiato",
-  nuvoloso: "🌤 Nuvoloso",
-  pioggia: "🌧 Pioggia",
-  neve: "❄️ Neve",
-  "vento forte": "💨 Vento forte",
+  soleggiato: "Soleggiato",
+  nuvoloso: "Nuvoloso",
+  pioggia: "Pioggia",
+  neve: "Neve",
+  "vento forte": "Vento forte",
 };
 
 const TITOLETTO = "font-size:8pt;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;";
@@ -151,12 +156,29 @@ function annotazioniHtml(annotazioni: AnnotazioneDocumento[]): string {
           </div>`;
 }
 
+/**
+ * `companyId`: per la veste propria dell'azienda (logo grande e piè, vesteHtml). Il documento esce senza emoji:
+ * nemmeno quelle scritte nel testo delle giornate (meteo, lavorazioni, note).
+ */
 export function buildGiornaleHtml(
   entries: GiornataDocumento[],
   order: CommessaDocumento | null,
   azienda: AziendaDocumentoGiornale,
   brandFooter?: string,
+  companyId?: string | null,
 ): string {
+  return senzaEmoji(htmlGiornale(entries, order, azienda, brandFooter, companyId));
+}
+
+function htmlGiornale(
+  entries: GiornataDocumento[],
+  order: CommessaDocumento | null,
+  azienda: AziendaDocumentoGiornale,
+  brandFooter: string | undefined,
+  companyId: string | null | undefined,
+): string {
+  // A4 meno 1,5 cm per lato, i margini di @page.
+  const veste = vesteHtml(companyId, 210 - 30);
   const colore = azienda.colore_primario || "#0ea5e9";
   const title = order
     ? `Giornale dei Lavori — ${order.order_code ? `#${order.order_code} ` : ""}${order.description}`
@@ -176,8 +198,8 @@ export function buildGiornaleHtml(
           ${statoHtml(e)}
           <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:10px;font-size:8.5pt;color:#475569;">
             ${e.condizioni_meteo ? `<span>${METEO_LABEL[e.condizioni_meteo] || escHtml(e.condizioni_meteo)}</span>` : ""}
-            ${e.temperatura ? `<span>🌡 ${escHtml(e.temperatura)}</span>` : ""}
-            ${e.personale_presente != null ? `<span>👷 ${e.personale_presente} operai</span>` : ""}
+            ${e.temperatura ? `<span>Temperatura: ${escHtml(e.temperatura)}</span>` : ""}
+            ${e.personale_presente != null ? `<span>${e.personale_presente} ${e.personale_presente === 1 ? "operaio" : "operai"}</span>` : ""}
           </div>
           ${persone.length ? blocco("Presenti", `<div style="font-size:9.5pt;color:#1e293b;">${persone.map((p) => `${escHtml(p.nome)}${oreTesto(p.ore)}`).join(", ")}</div>`) : ""}
           ${e.lavorazioni_eseguite ? blocco("Lavorazioni eseguite", `<div style="font-size:9.5pt;color:#1e293b;white-space:pre-wrap;line-height:1.5;">${escHtml(e.lavorazioni_eseguite)}</div>`) : ""}
@@ -186,7 +208,7 @@ export function buildGiornaleHtml(
           ${e.note ? blocco("Note", `<div style="font-size:9pt;color:#475569;font-style:italic;white-space:pre-wrap;">${escHtml(e.note)}</div>`) : ""}
           ${fotoHtml((e.foto_link ?? []).filter(Boolean))}
           ${e.firmato_da ? `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed #e2e8f0;font-size:8.5pt;color:#475569;">
-            ✍️ Capocantiere: <strong>${escHtml(e.firmato_da)}</strong>${e.firmato_il ? ` — ${fmtData(e.firmato_il)}` : ""}
+            ${escHtml(e.firmato_da_ruolo?.trim() || "Firma")}: <strong>${escHtml(e.firmato_da)}</strong>${e.firmato_il ? ` — ${fmtData(e.firmato_il)}` : ""}
           </div>` : ""}
           ${annotazioniHtml(e.annotazioni ?? [])}
         </div>
@@ -214,11 +236,11 @@ export function buildGiornaleHtml(
       body { margin: 0; }
       .page { padding: 0 !important; max-width: none !important; }
     }
-    .page { max-width: 794px; margin: 0 auto; padding: 32px; }
+    .page { max-width: 794px; margin: 0 auto; padding: 32px; }${veste.css}
   </style>
 </head>
 <body>
-<div class="page">
+${veste.apri}<div class="page">
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid ${colore};">
     <div>
       <div style="font-size:14pt;font-weight:700;color:${colore};">${escHtml(azienda.ragione_sociale)}</div>
@@ -227,7 +249,7 @@ export function buildGiornaleHtml(
       ${azienda.telefono ? `<div style="font-size:8pt;color:#64748b;">Tel. ${escHtml(azienda.telefono)}</div>` : ""}
       ${azienda.email ? `<div style="font-size:8pt;color:#64748b;">${escHtml(azienda.email)}</div>` : ""}
     </div>
-    ${azienda.logo_url ? `<img src="${escHtml(azienda.logo_url)}" alt="Logo azienda" style="max-height:60px;max-width:180px;object-fit:contain;" />` : ""}
+    ${azienda.logo_url ? `<img src="${escHtml(azienda.logo_url)}" alt="Logo azienda" style="${veste.stileLogo ?? "max-height:60px;max-width:180px;object-fit:contain;"}" />` : ""}
   </div>
 
   <div style="text-align:center;margin-bottom:24px;">
@@ -244,9 +266,9 @@ export function buildGiornaleHtml(
 
   ${entries.length > 0
     ? `<div style="background:#f1f5f9;border-radius:6px;padding:10px 14px;margin-bottom:20px;display:flex;gap:24px;font-size:8.5pt;color:#475569;">
-    <span>📅 Dal <strong>${fmtData(entries[entries.length - 1].data_lavori)}</strong> al <strong>${fmtData(entries[0].data_lavori)}</strong></span>
-    <span>👷 Tot. operai: <strong>${entries.reduce((s, e) => s + (e.personale_presente ?? 0), 0)}</strong> giornate</span>
-    ${entries[0].avanzamento_percentuale != null ? `<span>📊 Ultimo avanzamento: <strong>${entries[0].avanzamento_percentuale}%</strong></span>` : ""}
+    <span>Dal <strong>${fmtData(entries[entries.length - 1].data_lavori)}</strong> al <strong>${fmtData(entries[0].data_lavori)}</strong></span>
+    <span>Tot. operai: <strong>${entries.reduce((s, e) => s + (e.personale_presente ?? 0), 0)}</strong> giornate</span>
+    ${entries[0].avanzamento_percentuale != null ? `<span>Ultimo avanzamento: <strong>${entries[0].avanzamento_percentuale}%</strong></span>` : ""}
   </div>`
     : ""}
 
@@ -255,11 +277,11 @@ export function buildGiornaleHtml(
   ${entries.length === 0 ? `<div style="text-align:center;padding:40px;color:#94a3b8;font-size:10pt;">Nessun report disponibile per i parametri selezionati.</div>` : ""}
 
   <div style="margin-top:40px;padding-top:12px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:7pt;color:#94a3b8;">
-    <div>${escHtml(azienda.ragione_sociale)}${azienda.partita_iva ? ` — P.IVA ${escHtml(azienda.partita_iva)}` : ""}</div>
+    <div>${veste.attiva ? "" : `${escHtml(azienda.ragione_sociale)}${azienda.partita_iva ? ` — P.IVA ${escHtml(azienda.partita_iva)}` : ""}`}</div>
     <div style="color:${colore};">${escHtml(brandFooter || "Edilizia in Cloud")}</div>
   </div>
 </div>
-</body>
+${veste.chiudi}</body>
 </html>`;
 }
 

@@ -1,3 +1,4 @@
+// 10/11/2026: il giornale esce con la veste propria dell'azienda (_shared/vesteHtml.ts), senza emoji e col ruolo vero di chi firma (_shared/documentoGiornale.ts, datiDocumentoGiornale.ts).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
@@ -104,7 +105,7 @@ Deno.serve(async (req) => {
       ? branding.platformName
       : `${branding.platformName} — ${branding.siteUrl.replace("https://", "")}`;
 
-    const html = buildGiornaleHtml(giornate, order, azienda, brandFooter);
+    const html = buildGiornaleHtml(giornate, order, azienda, brandFooter, company_id);
 
     // Build filename
     const today = new Date().toISOString().split("T")[0].replace(/-/g, "");

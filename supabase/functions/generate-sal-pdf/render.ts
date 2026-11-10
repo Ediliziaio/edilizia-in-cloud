@@ -1,4 +1,5 @@
 import {nettoSal} from "../_shared/salNetto.ts";
+import { vesteHtml } from "../_shared/vesteHtml.ts";
 function escHtml(s: string | null | undefined): string {
   if (!s) return "";
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
@@ -179,25 +180,29 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
   const sommaPrec = Math.round(righe.reduce((s, r) => s + r.p, 0) * 100) / 100;
   const perVoceAffidabile = conPrecedente && Math.abs(sommaPrec - previous) <= 0.01;
 
-  const th = (t: string, al = "right", w = "") => `<th style="padding:7px 8px;text-align:${al};font-size:7.5pt;font-weight:600;text-transform:uppercase;letter-spacing:.3px;${w ? `width:${w};` : ""}">${t}</th>`;
+  // La colonna «Voce» prende tutto quello che resta (10/11/2026): le altre hanno larghezze strette e numeri su una riga
+  // sola. Prima, con tutte le colonne, alla voce restavano un centinaio di pixel e «overflow-wrap:anywhere» spezzava
+  // le parole a metà («Impermeabiliz zazione»).
+  const th = (t: string, al = "right", w = "") => `<th style="padding:6px 5px;text-align:${al};font-size:7pt;font-weight:600;text-transform:uppercase;letter-spacing:.2px;${w ? `width:${w};` : ""}">${t}</th>`;
+  const num = "padding:6px 5px;text-align:right;white-space:nowrap;";
   const vociHtml = righe.map((r, i) => `
     <tr style="background:${i % 2 === 1 ? "#f8fafc" : "white"};border-bottom:1px solid #eef2f7;">
-      <td style="padding:7px 8px;font-size:8pt;color:#64748b;text-align:center;">${i + 1}</td>
-      <td style="padding:7px 8px;font-size:8.5pt;">${escHtml(r.v.descrizione)}${r.v.note ? `<div style="font-size:7pt;color:#94a3b8;font-style:italic;margin-top:2px;">${escHtml(r.v.note)}</div>` : ""}</td>
-      <td style="padding:7px 8px;text-align:right;font-size:8.5pt;">${fmtEur(r.contr)}</td>
-      ${perVoceAffidabile ? `<td style="padding:7px 8px;text-align:right;font-size:8pt;color:#64748b;">${pct(r.pPct)}</td>` : ""}
-      <td style="padding:7px 8px;font-size:8.5pt;">
-        <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;">
-          <div style="position:relative;width:54px;height:7px;background:#e2e8f0;border-radius:4px;overflow:hidden;">
+      <td style="padding:6px 4px;font-size:8pt;color:#64748b;text-align:center;">${i + 1}</td>
+      <td class="voce" style="padding:6px 6px;font-size:8.5pt;">${escHtml(r.v.descrizione)}${r.v.note ? `<div style="font-size:7pt;color:#94a3b8;font-style:italic;margin-top:2px;">${escHtml(r.v.note)}</div>` : ""}</td>
+      <td style="${num}font-size:8pt;">${fmtEur(r.contr)}</td>
+      ${perVoceAffidabile ? `<td style="${num}font-size:7.5pt;color:#64748b;">${pct(r.pPct)}</td>` : ""}
+      <td style="padding:6px 5px;font-size:8pt;white-space:nowrap;">
+        <div style="display:flex;align-items:center;gap:4px;justify-content:flex-end;">
+          <div style="position:relative;width:36px;height:6px;background:#e2e8f0;border-radius:4px;overflow:hidden;">
             ${perVoceAffidabile ? `<div style="position:absolute;left:0;top:0;bottom:0;width:${r.pPct}%;background:#94a3b8;"></div>` : ""}
             <div style="position:absolute;left:${perVoceAffidabile ? r.pPct : 0}%;top:0;bottom:0;width:${Number(r.v.percentuale_avanzamento) - (perVoceAffidabile ? r.pPct : 0)}%;background:${colore};"></div>
           </div>
-          <span style="font-weight:600;min-width:34px;text-align:right;">${pct(Number(r.v.percentuale_avanzamento))}</span>
+          <span style="font-weight:600;min-width:30px;text-align:right;">${pct(Number(r.v.percentuale_avanzamento))}</span>
         </div>
       </td>
-      <td style="padding:7px 8px;text-align:right;font-size:8.5pt;">${fmtEur(r.cum)}</td>
-      ${perVoceAffidabile ? `<td style="padding:7px 8px;text-align:right;font-size:8.5pt;color:#64748b;">${fmtEur(r.p)}</td>` : ""}
-      ${perVoceAffidabile ? `<td style="padding:7px 8px;text-align:right;font-size:8.5pt;font-weight:700;color:${colore};">${fmtEur(r.quota)}</td>` : ""}
+      <td style="${num}font-size:8pt;">${fmtEur(r.cum)}</td>
+      ${perVoceAffidabile ? `<td style="${num}font-size:8pt;color:#64748b;">${fmtEur(r.p)}</td>` : ""}
+      ${perVoceAffidabile ? `<td style="${num}font-size:8pt;font-weight:700;color:${colore};">${fmtEur(r.quota)}</td>` : ""}
     </tr>`).join("");
 
   const statoLabel = STATO_LABELS[sal.stato] || sal.stato.toUpperCase();
@@ -209,6 +214,8 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
   const restaDaEseguire = Math.max(0, Math.round((totaleContrattuale - economic.totale) * 100) / 100);
   const etichetta = (t: string) => `<div style="font-size:7pt;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">${t}</div>`;
   const campo = (t: string, v: string | null | undefined) => v ? `<div style="margin-bottom:6px;">${etichetta(t)}<div style="font-size:9pt;color:#0f172a;">${v}</div></div>` : "";
+  // La veste propria (Vulcano): logo grande, piè in EB Garamond su ogni foglio. Larghezza utile: A4 meno 1,4 cm per lato.
+  const veste = vesteHtml(sal.company_id, 210 - 28);
   const rigaRiep = (t: string, v: number, stile = "") => `<tr style="border-bottom:1px solid #eef2f7;${stile}"><td style="padding:6px 10px;font-size:9pt;">${t}</td><td style="padding:6px 10px;text-align:right;font-size:9pt;white-space:nowrap;">${fmtEur(v)}</td></tr>`;
 
   return `<!DOCTYPE html>
@@ -221,16 +228,19 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
     body { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 9.5pt; color: #1e293b; background: white; }
     @media print { body { margin: 0; } @page { margin: 1.4cm; size: A4; } }
     .page { max-width: 794px; margin: 0 auto; padding: 28px 30px; }
-    table { width:100%; border-collapse:collapse; } td { overflow-wrap:anywhere; vertical-align:top; } thead { display:table-header-group; } tr { break-inside:avoid; }
+    @media print { .page { padding: 0; max-width: none; } }
+    table { width:100%; border-collapse:collapse; } td { overflow-wrap:break-word; word-break:normal; hyphens:manual; vertical-align:top; } thead { display:table-header-group; } tr { break-inside:avoid; }
+    td.voce { min-width: 140px; }
+    a { overflow-wrap:anywhere; }${veste.css}
     .riquadro { border:1px solid #e2e8f0; border-radius:8px; padding:12px 14px; }
   </style>
 </head>
 <body>
-<div class="page">
+${veste.apri}<div class="page">
 
   <!-- Intestazione: impresa e logo -->
   <div style="display:flex;align-items:center;gap:16px;padding-bottom:14px;border-bottom:3px solid ${colore};">
-    ${azienda.logo_url ? `<img src="${escHtml(azienda.logo_url)}" alt="Logo" style="max-height:60px;max-width:180px;object-fit:contain;" />` : ""}
+    ${azienda.logo_url ? `<img src="${escHtml(azienda.logo_url)}" alt="Logo" style="${veste.stileLogo ?? "max-height:60px;max-width:180px;object-fit:contain;"}" />` : ""}
     <div>
       <div style="font-size:13pt;font-weight:700;color:#0f172a;">${escHtml(azienda.ragione_sociale)}</div>
       <div style="font-size:7.5pt;color:#64748b;margin-top:2px;line-height:1.5;">
@@ -272,20 +282,20 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
   <table style="border:1px solid #e2e8f0;margin-bottom:6px;">
     <thead>
       <tr style="background:${colore};color:white;">
-        ${th("N.", "center", "26px")}${th("Voce / lavorazione", "left")}${th("Importo contratto", "right", "92px")}
-        ${perVoceAffidabile ? th("% prec.", "right", "50px") : ""}${th("Avanzamento", "right", "104px")}${th("A tutto il SAL", "right", "88px")}
-        ${perVoceAffidabile ? th("Precedente", "right", "84px") + th("Questo SAL", "right", "84px") : ""}
+        ${th("N.", "center", "20px")}${th("Voce / lavorazione", "left")}${th("Importo contratto", "right", "72px")}
+        ${perVoceAffidabile ? th("% prec.", "right", "36px") : ""}${th("Avanzamento", "right", "76px")}${th("A tutto il SAL", "right", "72px")}
+        ${perVoceAffidabile ? th("Precedente", "right", "70px") + th("Questo SAL", "right", "70px") : ""}
       </tr>
     </thead>
     <tbody>${vociHtml}</tbody>
     <tfoot>
       <tr style="background:#f1f5f9;font-weight:700;border-top:2px solid #cbd5e1;">
         <td></td><td style="padding:8px;font-size:9pt;">TOTALE</td>
-        <td style="padding:8px;text-align:right;font-size:9pt;">${fmtEur(totaleContrattuale)}</td>
+        <td style="padding:8px 5px;text-align:right;font-size:8.5pt;white-space:nowrap;">${fmtEur(totaleContrattuale)}</td>
         ${perVoceAffidabile ? `<td></td>` : ""}
-        <td style="padding:8px;text-align:right;font-size:9pt;">${pct(percMedia)}</td>
-        <td style="padding:8px;text-align:right;font-size:9pt;">${fmtEur(totaleSal)}</td>
-        ${perVoceAffidabile ? `<td style="padding:8px;text-align:right;font-size:9pt;color:#64748b;">${fmtEur(sommaPrec)}</td><td style="padding:8px;text-align:right;font-size:9pt;color:${colore};">${fmtEur(economic.daFatturare)}</td>` : ""}
+        <td style="padding:8px 5px;text-align:right;font-size:8.5pt;white-space:nowrap;">${pct(percMedia)}</td>
+        <td style="padding:8px 5px;text-align:right;font-size:8.5pt;white-space:nowrap;">${fmtEur(totaleSal)}</td>
+        ${perVoceAffidabile ? `<td style="padding:8px 5px;text-align:right;font-size:8.5pt;white-space:nowrap;color:#64748b;">${fmtEur(sommaPrec)}</td><td style="padding:8px 5px;text-align:right;font-size:8.5pt;white-space:nowrap;color:${colore};">${fmtEur(economic.daFatturare)}</td>` : ""}
       </tr>
     </tfoot>
   </table>
@@ -337,11 +347,11 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
 
   <!-- Piè di pagina -->
   <div style="margin-top:30px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:7pt;color:#94a3b8;">
-    <div>${escHtml(azienda.ragione_sociale)}${azienda.partita_iva ? ` — P.IVA ${escHtml(azienda.partita_iva)}` : ""} · SAL n. ${sal.numero_sal} del ${fmtDate(sal.data_emissione)}</div>
+    <div>${veste.attiva ? "" : `${escHtml(azienda.ragione_sociale)}${azienda.partita_iva ? ` — P.IVA ${escHtml(azienda.partita_iva)}` : ""} · `}SAL n. ${sal.numero_sal} del ${fmtDate(sal.data_emissione)}</div>
     <div style="color:${colore};">${escHtml(brandFooter) || "Edilizia in Cloud"}</div>
   </div>
 
 </div>
-</body>
+${veste.chiudi}</body>
 </html>`;
 }

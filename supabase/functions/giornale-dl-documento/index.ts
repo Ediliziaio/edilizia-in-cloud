@@ -1,3 +1,4 @@
+// 10/11/2026: il giornale esce con la veste propria dell'azienda (_shared/vesteHtml.ts), senza emoji e col ruolo vero di chi firma (_shared/documentoGiornale.ts, datiDocumentoGiornale.ts).
 /**
  * La pagina firmata del giornale per chi ha il link (direzione lavori): niente login,
  * il token vale 30 giorni. Restituisce HTML dentro un JSON: storage e funzioni servono
@@ -42,7 +43,7 @@ Deno.serve(async (req) => {
     if (!azienda) return json({ error: "Documento non disponibile" }, 404);
 
     const piede = branding.hidePoweredBy ? branding.platformName : `${branding.platformName} — ${branding.siteUrl.replace("https://", "")}`;
-    return json({ html: buildGiornaleHtml(giornate, commessa, azienda, piede), data_lavori: pagina.data_lavori });
+    return json({ html: buildGiornaleHtml(giornate, commessa, azienda, piede, invio.company_id), data_lavori: pagina.data_lavori });
   } catch (e) {
     console.error("giornale-dl-documento error:", e);
     return json({ error: "Errore interno" }, 500);

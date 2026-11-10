@@ -65,6 +65,8 @@ export async function leggiGiornateDocumento(
 
   const idsNomi = [...new Set([
     ...giornate.map((g) => g.pm_signed_by),
+    // La firma automatica scrive in firmato_da l'id dell'utente, non il nome.
+    ...giornate.map((g) => (g.firmato_da && UUID.test(g.firmato_da.trim()) ? g.firmato_da.trim() : null)),
     ...annotazioni.map((a) => a.autore_id),
     ...rapportini.map((r) => r.user_id),
   ].filter((x): x is string => !!x))];
@@ -83,20 +85,73 @@ export async function leggiGiornateDocumento(
     return paths.map((_, i) => (firmati[i]?.signedUrl as string | undefined) ?? null);
   });
 
+  const ruoli = await ruoliFirmatari(supabase, filtro.companyId);
+
   let k = 0;
   return giornate.map((g) => {
+    const firmaUtente = g.firmato_da && UUID.test(g.firmato_da.trim()) ? g.firmato_da.trim() : null;
+    const firmatoDa = firmaUtente ? nomi[firmaUtente] ?? null : g.firmato_da;
     const delGiorno = rapportini.filter((r) => r.order_id === g.order_id && r.data_lavoro === g.data_lavori);
     const note: AnnotazioneDocumento[] = annotazioni.filter((a) => a.giornale_id === g.id)
       .map((a) => ({ testo: a.testo, created_at: a.created_at, autore: (a.autore_id && nomi[a.autore_id]) || "" }));
     return {
       ...g,
       firmatario: (g.pm_signed_by && nomi[g.pm_signed_by]) || undefined,
+      firmato_da: firmatoDa,
+      firmato_da_ruolo: ruoloFirmatario(ruoli, { userId: firmaUtente, nome: firmatoDa }),
       foto_link: (g.giornale_foto ?? []).map(() => link[k++] ?? ""),
       eventi: eventi.filter((e) => e.giornale_id === g.id),
       annotazioni: note,
       persone: personeDelGiorno(delGiorno, nomi).map((p) => ({ nome: p.nome, ore: p.ore })),
     };
   });
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export interface RuoloDipendente { user_id: string | null; first_name: string | null; last_name: string | null; qualifica: string | null; role_type: string | null }
+
+/** Le categorie di `role_type` non sono un ruolo da scrivere sotto una firma; i nomi di mestiere sì («Capoposa»). */
+const CATEGORIE_GENERICHE = new Set(["operaio", "staff_interno", "impiegato", "subappaltatore", "worker", "staff"]);
+const normaNome = (s: string | null | undefined) => (s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+
+/**
+ * Il ruolo di chi firma la giornata, dalla sua scheda dipendente: per utente, se la firma l'ha messa l'app, o per nome
+ * e cognome scritti a mano (in un ordine o nell'altro). La qualifica, o il mestiere di role_type; altrimenti null e il
+ * documento scrive «Firma». Mai un ruolo indovinato: due schede con lo stesso nome e ruoli diversi = null.
+ */
+export function ruoloFirmatario(dipendenti: RuoloDipendente[], chi: { userId?: string | null; nome?: string | null }): string | null {
+  const ruoloDi = (d: RuoloDipendente) => {
+    const q = d.qualifica?.trim();
+    if (q && !/da confermare/i.test(q)) return q;
+    const t = d.role_type?.trim();
+    return t && !CATEGORIE_GENERICHE.has(t.toLowerCase()) ? t : null;
+  };
+  const unico = (lista: RuoloDipendente[]) => {
+    const r = [...new Set(lista.map(ruoloDi).filter((x): x is string => !!x))];
+    return r.length === 1 ? r[0] : null;
+  };
+  if (chi.userId) {
+    const r = unico(dipendenti.filter((d) => d.user_id === chi.userId));
+    if (r) return r;
+  }
+  const nome = normaNome(chi.nome);
+  if (!nome) return null;
+  return unico(dipendenti.filter((d) => {
+    const n = normaNome(d.first_name), c = normaNome(d.last_name);
+    return !!(n || c) && (nome === `${n} ${c}`.trim() || nome === `${c} ${n}`.trim());
+  }));
+}
+
+/** Le schede dipendente dell'azienda, per i ruoli di chi firma. Se non si leggono, il documento scrive «Firma». */
+async function ruoliFirmatari(supabase: Db, companyId: string): Promise<RuoloDipendente[]> {
+  const { data, error } = await supabase.from("employees")
+    .select("user_id, first_name, last_name, qualifica, role_type").eq("company_id", companyId).limit(2000);
+  if (error) {
+    console.error("[datiDocumentoGiornale] ruoli dei firmatari non letti:", error.message);
+    return [];
+  }
+  return (data ?? []) as RuoloDipendente[];
 }
 
 type RapportinoDoc = RapportinoPresenze & { order_id: string; data_lavoro: string };

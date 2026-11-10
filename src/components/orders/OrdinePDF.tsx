@@ -9,6 +9,8 @@ import { Document, Image, Page, Text, View, StyleSheet } from "@react-pdf/render
 import { format } from "date-fns";
 import { quantitaConUnita, totaleQuantita } from "@/lib/orders/unitaDocumento";
 import { it } from "date-fns/locale";
+import { PieSocietario } from "@/components/preventivi/pdf/FoglioCondizioniPDF";
+import { margineInferiorePiede, misurePiede, personalizzazioneDocumento } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
 
 /* ── Palette ─────────────────────────────────────────────── */
 
@@ -411,6 +413,21 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
   const currentStatusPos = currentStatus?.position ?? 0;
 
   const orderCode = order?.order_code ?? "ORD";
+  // La veste propria dell'azienda (Vulcano, 10/11/2026): logo grande e piè proprio su ogni foglio.
+  const companyId: string | null = order?.company_id ?? null;
+  const veste = personalizzazioneDocumento(companyId);
+  const logoGrande = !!(veste.logoAltezza && veste.logoLarghezzaMax && dati?.azienda?.logo);
+  const misureVeste = misurePiede(veste, 595.28 - 80);
+  // Sopra il piè proprio una riga di riferimento: commessa e data, e «Documento riservato» solo per la versione interna.
+  const rigaRiferimento = `${perCliente ? "" : "Documento riservato · "}${orderCode} · ${format(new Date(), "dd/MM/yyyy", { locale: it })}`;
+  const paginaStile = misureVeste ? [styles.page, { paddingBottom: margineInferiorePiede(companyId, 60, 595.28 - 80) + 12 }] : styles.page;
+  // Nella versione per il cliente quello che non c'è non si scrive: niente «Non impostata» né bollino vuoto.
+  const tempistiche = ([
+    ["Data posa prevista", order?.expected_date],
+    ["Arrivo merce", order?.warehouse_arrival_date],
+    ["Inizio lavori", order?.work_start_date],
+    ["Fine lavori", order?.work_end_date],
+  ] as Array<[string, string | null | undefined]>).filter(([, v]) => !perCliente || !!v);
   const printDate = format(new Date(), "dd/MM/yyyy HH:mm", { locale: it });
 
   // Campo assignments
@@ -467,12 +484,14 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
 
   return (
     <Document title={`Commessa ${orderCode}`} author={companyName ?? "Edilizia in Cloud"}>
-      <Page size="A4" style={styles.page} wrap>
+      <Page size="A4" style={paginaStile} wrap>
 
         {/* ─── HEADER ─── */}
         <View style={styles.header} fixed>
-          <View style={{ flexDirection: "row", gap: 8, alignItems: "center", maxWidth: "62%" }}>
-            {dati?.azienda?.logo && <Image src={dati.azienda.logo} style={{ maxHeight: 38, maxWidth: 90, objectFit: "contain" }} />}
+          <View style={logoGrande ? { flexDirection: "column", gap: 4, maxWidth: "70%" } : { flexDirection: "row", gap: 8, alignItems: "center", maxWidth: "62%" }}>
+            {dati?.azienda?.logo && (logoGrande
+              ? <Image src={dati.azienda.logo} style={{ height: veste.logoAltezza!, width: veste.logoLarghezzaMax!, objectFit: "contain", objectPositionX: 0 }} />
+              : <Image src={dati.azienda.logo} style={{ maxHeight: 38, maxWidth: 90, objectFit: "contain" }} />)}
             <View>
             <Text style={styles.companyName}>{dati?.azienda?.nome ?? companyName ?? "Edilizia in Cloud"}</Text>
             {(dati?.azienda?.righe ?? []).map((riga) => <Text key={riga} style={{ fontSize: 6.5, color: C.gray500, marginTop: 1 }}>{riga}</Text>)}
@@ -481,7 +500,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
           </View>
           <View>
             <Text style={styles.orderCode}>{orderCode}</Text>
-            <Text style={styles.orderDate}>Creato il {fmtDate(order?.created_at)}</Text>
+            {(!perCliente || order?.created_at) && <Text style={styles.orderDate}>Creato il {fmtDate(order?.created_at)}</Text>}
             <Text style={[styles.orderDate, { marginTop: 1 }]}>Stampato il {printDate}</Text>
           </View>
         </View>
@@ -491,11 +510,13 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
           <Text style={{ fontSize: 13, fontFamily: "Helvetica-Bold", color: C.gray900 }}>
             {order?.description ?? "Commessa senza descrizione"}
           </Text>
+          {currentStatus?.name ? (
           <View style={{ flexDirection: "row", gap: 6, marginTop: 4, alignItems: "center" }}>
             <View style={{ backgroundColor: C.orange, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 }}>
               <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: C.white }}>{currentStatusName}</Text>
             </View>
           </View>
+          ) : null}
         </View>
 
         {/* ─── KPI STRIP ─── */}
@@ -510,10 +531,12 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
             <Text style={styles.kpiLabel}>Margine</Text>
           </View>
           )}
+          {!perCliente && (
           <View style={[styles.kpiBox, { backgroundColor: C.cyanBg }]}>
             <Text style={[styles.kpiValue, { color: C.cyan }]}>{itemsInstallati}/{items.length}</Text>
             <Text style={styles.kpiLabel}>Articoli Installati</Text>
           </View>
+          )}
           <View style={[styles.kpiBox, { backgroundColor: incassato >= installmentsTotal && installmentsTotal > 0 ? C.greenBg : C.amberBg }]}>
             <Text style={[styles.kpiValue, { color: incassato >= installmentsTotal && installmentsTotal > 0 ? C.green : C.amber }]}>{fmt(incassato)}</Text>
             <Text style={styles.kpiLabel}>Incassato</Text>
@@ -557,20 +580,17 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
             {indirizzoCliente && <Text style={[styles.valueNormal, { marginTop: 3, color: C.gray500, fontSize: 8 }]}>{indirizzoCliente}</Text>}
           </View>
           {/* Tempistiche */}
+          {tempistiche.length > 0 && (
           <View style={[styles.infoBox, styles.col]}>
             <Text style={[styles.label, { marginBottom: 4 }]}>TEMPISTICHE</Text>
-            {[
-              ["Data posa prevista", order?.expected_date],
-              ["Arrivo merce", order?.warehouse_arrival_date],
-              ["Inizio lavori", order?.work_start_date],
-              ["Fine lavori", order?.work_end_date],
-            ].map(([lbl, val]: any, idx: number) => (
+            {tempistiche.map(([lbl, val], idx: number) => (
               <View key={idx} style={styles.financialRow}>
                 <Text style={[styles.financialLabel, { fontSize: 7 }]}>{lbl}</Text>
                 <Text style={[styles.valueNormal, { fontSize: 8 }]}>{fmtDate(val)}</Text>
               </View>
             ))}
           </View>
+          )}
           {/* Capocantiere / Campo */}
           <View style={[styles.infoBox, styles.col]}>
             <Text style={[styles.label, { marginBottom: 4 }]}>CANTIERE</Text>
@@ -600,12 +620,14 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
                   : "No"}
               </Text>
             </View>
+            {(!perCliente || !!order?.payment_type) && (
             <View style={styles.financialRow}>
               <Text style={[styles.financialLabel, { fontSize: 7 }]}>Pagamento</Text>
               <Text style={[styles.valueNormal, { fontSize: 8 }]}>
                 {order?.payment_type === "unica_soluzione" ? "Unica sol." : order?.payment_type === "rate" ? "Rate" : order?.payment_type ?? "—"}
               </Text>
             </View>
+            )}
           </View>
         </View>
 
@@ -644,7 +666,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
                 <Text style={[styles.tableHeaderText, { flex: 0.5, textAlign: "center" }]}>Sc.%</Text>
                 {showCosts && <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>Costo Acq.</Text>}
                 <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>Tot. Vendita</Text>
-                <Text style={[styles.tableHeaderText, { flex: 0.8, textAlign: "center" }]}>Stato</Text>
+                {!perCliente && <Text style={[styles.tableHeaderText, { flex: 0.8, textAlign: "center" }]}>Stato</Text>}
                 {!perCliente && <Text style={[styles.tableHeaderText, { flex: 0.6, textAlign: "center" }]}>Pag.</Text>}
               </View>
               {items.map((item: any, idx: number) => {
@@ -676,9 +698,12 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
                     <Text style={[styles.tableCell, { flex: 0.5, textAlign: "center" }]}>{discount > 0 ? `${discount}%` : "—"}</Text>
                     {showCosts && <Text style={[styles.tableCell, { flex: 1, textAlign: "right" }]}>{fmt(purchasePrice)}</Text>}
                     <Text style={[styles.tableCell, { flex: 1, textAlign: "right", fontFamily: "Helvetica-Bold" }]}>{fmt(totalVendita)}</Text>
+                    {/* Lo stato d'acquisto («Da ordinare», «In arrivo»...) è un dato interno: al cliente non va. */}
+                    {!perCliente && (
                     <View style={{ flex: 0.8, alignItems: "center" }}>
                       <Text style={[{ fontSize: 6, padding: "1 4", borderRadius: 6 }, statusInfo.style]}>{statusInfo.label}</Text>
                     </View>
+                    )}
                     {!perCliente && (
                     <View style={{ flex: 0.6, alignItems: "center" }}>
                       <Text style={[{ fontSize: 6, padding: "1 4", borderRadius: 6 }, item.is_paid ? { backgroundColor: C.greenBg, color: C.green } : { backgroundColor: C.redBg, color: C.red }]}>
@@ -700,9 +725,11 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
                 <Text style={{ flex: 0.5 }} />
                 {showCosts && <Text style={[styles.tableCell, { flex: 1, textAlign: "right", fontFamily: "Helvetica-Bold" }]}>{fmt(costoMateriali)}</Text>}
                 <Text style={[styles.tableCell, { flex: 1, textAlign: "right", fontFamily: "Helvetica-Bold", color: C.navy }]}>{fmt(totaleVendita)}</Text>
+                {!perCliente && (
                 <Text style={[styles.tableCell, { flex: 0.8, textAlign: "center", fontFamily: "Helvetica-Bold", fontSize: 7 }]}>
                   {itemsInstallati}/{items.length}
                 </Text>
+                )}
                 {!perCliente && (
                 <Text style={[styles.tableCell, { flex: 0.6, textAlign: "center", fontFamily: "Helvetica-Bold", fontSize: 7 }]}>
                   {itemsPagati}/{items.length}
@@ -1278,7 +1305,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
                 )}
                 {g.firmato_da && (
                   <Text style={{ fontSize: 7, color: C.green, marginTop: 2 }}>
-                    Firmato da {g.firmato_da} il {fmtDate(g.firmato_il)}
+                    Firmato da {g.firmato_da}{g.firmato_il ? ` il ${fmtDate(g.firmato_il)}` : ""}
                   </Text>
                 )}
               </View>
@@ -1429,8 +1456,14 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
         {dati && !perCliente && sezioneCompletezza(kit, sezioni, dati.nonLette)}
 
         {/* ─── FOOTER ─── */}
+        {misureVeste ? (
+          <>
+            <Text fixed style={{ position: "absolute", top: 841.89 - misureVeste.ingombro - 12, left: 40, right: 40, fontSize: 6.5, color: C.gray500, textAlign: "center" }}>{rigaRiferimento}</Text>
+            <PieSocietario righe={[]} margine={40} companyId={companyId} />
+          </>
+        ) : (
         <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>{companyName ?? "Edilizia in Cloud"} — Documento riservato</Text>
+          <Text style={styles.footerText}>{companyName ?? "Edilizia in Cloud"}{perCliente ? "" : " — Documento riservato"}</Text>
           <Text style={styles.footerText}>{orderCode} · {format(new Date(), "dd/MM/yyyy", { locale: it })}</Text>
           <Text
             style={styles.footerText}
@@ -1439,6 +1472,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
             }
           />
         </View>
+        )}
 
       </Page>
     </Document>

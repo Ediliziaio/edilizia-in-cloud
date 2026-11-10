@@ -1,3 +1,4 @@
+// 10/11/2026: veste propria dell'azienda nel verbale (logo grande, piè proprio: _shared/vesteHtml.ts) e colonna «Voce» che non spezza le parole (render.ts).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
