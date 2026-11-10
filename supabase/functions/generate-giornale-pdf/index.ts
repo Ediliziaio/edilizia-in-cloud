@@ -1,9 +1,11 @@
+// 10/11/2026: stile unico dei documenti (_shared/stileDocumenti.ts): testata col logo a sinistra e il titolo a destra, filetto d'accento, tabelle e riquadri tenui, dati societari nel piè; accento dal colore della veste o del marchio (_shared/coloreMarchioAzienda.ts).
 // 10/11/2026: il giornale esce con la veste propria dell'azienda (_shared/vesteHtml.ts), senza emoji e col ruolo vero di chi firma (_shared/documentoGiornale.ts, datiDocumentoGiornale.ts).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { leggiAziendaDocumento } from "../_shared/aziendaDocumento.ts";
+import { leggiColoreMarchio } from "../_shared/coloreMarchioAzienda.ts";
 import { buildGiornaleHtml } from "../_shared/documentoGiornale.ts";
 import { leggiGiornateDocumento } from "../_shared/datiDocumentoGiornale.ts";
 
@@ -90,7 +92,8 @@ Deno.serve(async (req) => {
     }
 
     // Fetch company info
-    const azienda = await leggiAziendaDocumento(supabase, company_id);
+    const [anagrafica, coloreMarchio] = await Promise.all([leggiAziendaDocumento(supabase, company_id), leggiColoreMarchio(supabase, company_id)]);
+    const azienda = anagrafica ? { ...anagrafica, colore_marchio: coloreMarchio } : null;
 
     if (!azienda) {
       return new Response(JSON.stringify({ error: "Dati dell'azienda non trovati" }), {

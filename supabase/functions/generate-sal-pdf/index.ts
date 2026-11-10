@@ -1,9 +1,11 @@
+// 10/11/2026: stile unico dei documenti (_shared/stileDocumenti.ts): testata col logo a sinistra e il titolo a destra, filetto d'accento, tabelle e riquadri tenui, dati societari nel piè; accento dal colore della veste o del marchio (_shared/coloreMarchioAzienda.ts).
 // 10/11/2026: veste propria dell'azienda nel verbale (logo grande, piè proprio: _shared/vesteHtml.ts) e colonna «Voce» che non spezza le parole (render.ts).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { leggiAziendaDocumento } from "../_shared/aziendaDocumento.ts";
+import { leggiColoreMarchio } from "../_shared/coloreMarchioAzienda.ts";
 
 import {buildSalHtml,chiaveVoce,type ContrattoSal,type SalExtra,type SalRecord} from "./render.ts";
 import {maturatoPrecedente} from "../_shared/salNetto.ts";
@@ -116,8 +118,9 @@ Deno.serve(async (req) => {
     if(contrattoError && !["42P01","PGRST205"].includes(contrattoError.code ?? ""))throw new Error("Dati del contratto del SAL non verificabili");
     const contratto=(contrattoSal ?? null) as ContrattoSal|null;
 
-    // Fetch azienda
-    const azienda = await leggiAziendaDocumento(supabase, company_id);
+    // Fetch azienda (e il colore del marchio, per l'accento se l'anagrafica non ne ha uno)
+    const [anagrafica, coloreMarchio] = await Promise.all([leggiAziendaDocumento(supabase, company_id), leggiColoreMarchio(supabase, company_id)]);
+    const azienda = anagrafica ? { ...anagrafica, colore_marchio: coloreMarchio } : null;
 
     if (!azienda) {
       return new Response(JSON.stringify({ error: "Dati dell'azienda non trovati" }), {

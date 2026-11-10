@@ -141,7 +141,7 @@ describe("giornale-dl-documento", () => {
     expect(r.status).toBe(200);
     const { html } = await r.json() as { html: string };
     expect(html).toContain("Precisazione");
-    expect(html).toContain("<strong>Firmata</strong>");
+    expect(html).toContain('<span class="doc-etichetta ok">Firmata</span>');
   });
 
   it("una bozza non esce nemmeno col token", async () => {
@@ -229,7 +229,7 @@ describe("documento del giornale", () => {
 
   it("numeri di pagina dalla stampa del browser", () => {
     const html = buildGiornaleHtml([base], null, azienda);
-    expect(html).toContain('content: "Pagina " counter(page) " di " counter(pages)');
+    expect(html).toContain('"Pag. " counter(page) " / " counter(pages)');
     expect(html).toContain("@bottom-center");
   });
 

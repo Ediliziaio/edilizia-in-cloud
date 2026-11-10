@@ -1,5 +1,6 @@
 import {nettoSal} from "../_shared/salNetto.ts";
-import { vesteHtml } from "../_shared/vesteHtml.ts";
+import { accentoHtml, piedeSocietarioCss, vesteHtml } from "../_shared/vesteHtml.ts";
+import { cssDocumento, pagina, testata } from "../_shared/stileDocumenti.ts";
 function escHtml(s: string | null | undefined): string {
   if (!s) return "";
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
@@ -51,6 +52,8 @@ interface Azienda {
   ragione_sociale: string;
   partita_iva: string | null;
   colore_primario: string | null;
+  /** Il colore del marchio scelto in «Brand & Azienda» (coloreMarchioAzienda), se l'anagrafica non ne ha uno. */
+  colore_marchio?: string | null;
   logo_url: string | null;
   indirizzo?: string | null;
   citta?: string | null;
@@ -89,18 +92,18 @@ export function buildContrattoHtml(c: ContrattoSal, daFatturare: number): string
   if(![c.lordo,c.ritenuta,c.recupero_anticipazione,c.netto].every(v=>Number.isFinite(n(v))))throw new Error("Importi del SAL di contratto non validi");
   if(Math.abs(n(c.lordo)-daFatturare)>0.01)throw new Error("Lordo del SAL di contratto diverso dalla quota nuova: verificare lo storico");
   if(Math.abs(n(c.lordo)-n(c.ritenuta)-n(c.recupero_anticipazione)-n(c.netto))>0.01)throw new Error("Netto del SAL di contratto non coerente");
-  const riga=(etichetta:string,valore:number,forte=false)=>`<tr style="border-bottom:1px solid #f1f5f9;${forte?"font-weight:700;":""}"><td style="padding:6px 10px;font-size:9pt;">${etichetta}</td><td style="padding:6px 10px;text-align:right;font-size:9pt;">${fmtEur(valore)}</td></tr>`;
+  const riga=(etichetta:string,valore:number,classe="")=>`<tr${classe ? ` class="${classe}"` : ""}><td>${etichetta}</td><td class="num">${fmtEur(valore)}</td></tr>`;
   const iva=c.split_payment ? "Fattura in scissione dei pagamenti (art. 17-ter DPR 633/72): l'IVA è versata dal committente." : c.reverse_charge ? "Fattura in inversione contabile (art. 17, c. 6, DPR 633/72): senza IVA." : "";
   return `
-  <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;margin:0 0 20px;">
+  <table class="doc-tabella" style="margin:0 0 14pt;">
     <tbody>
-      ${riga("Lavori di questo SAL",n(c.lordo),true)}
+      ${riga("Lavori di questo SAL",n(c.lordo),"forte")}
       ${riga(`Ritenuta di garanzia ${fmtPct(c.ritenuta_pct)}`,-n(c.ritenuta))}
       ${n(c.recupero_anticipazione)!==0 ? riga(`Recupero dell'anticipazione ${fmtPct(c.recupero_pct)}`,-n(c.recupero_anticipazione)) : ""}
-      ${riga("Netto da liquidare",n(c.netto),true)}
+      ${riga("Netto da liquidare",n(c.netto),"totale")}
     </tbody>
   </table>
-  ${iva ? `<p style="margin:-12px 0 20px;font-size:8pt;color:#64748b;">${escHtml(iva)}</p>` : ""}`;
+  ${iva ? `<p class="nota" style="margin:-8pt 0 14pt;">${escHtml(iva)}</p>` : ""}`;
 }
 
 const STATO_LABELS: Record<string, string> = {
@@ -130,26 +133,30 @@ export interface SalExtra {
 
 export interface FotoVerbale { url: string; data: string | null; didascalia: string | null }
 
-/** Una pagina a sé dopo le firme: il verbale resta leggibile anche senza. */
-export function buildFotoEAllegatiHtml(foto: FotoVerbale[], allegati: string[], colore: string): string {
+/** Una pagina a sé dopo le firme: il verbale resta leggibile anche senza. Titoli e filetti dello stile unico (cssDocumento). */
+export function buildFotoEAllegatiHtml(foto: FotoVerbale[], allegati: string[], _accento?: string): string {
   if (!foto.length && !allegati.length) return "";
-  const titolo = (t: string) => `<div style="font-size:9pt;font-weight:700;color:${colore};text-transform:uppercase;letter-spacing:.5px;padding-bottom:4px;border-bottom:1.5px solid ${colore};margin-bottom:10px;">${t}</div>`;
+  const titolo = (t: string) => `<div class="doc-sezione">${t}</div>`;
   const celle = foto.map((f, i) => `
     <figure style="margin:0;break-inside:avoid;">
-      <img src="${escHtml(f.url)}" alt="Foto ${i + 1}" style="width:100%;height:180px;object-fit:cover;border-radius:4px;border:1px solid #e2e8f0;display:block;" />
-      <figcaption style="font-size:7.5pt;color:#64748b;margin-top:3px;">${[`Foto ${i + 1}`, f.data ? fmtDate(f.data) : null, f.didascalia ? escHtml(f.didascalia) : null].filter(Boolean).join(" · ")}</figcaption>
+      <img src="${escHtml(f.url)}" alt="Foto ${i + 1}" style="width:100%;height:180px;object-fit:cover;border-radius:3pt;border:.75pt solid var(--line);display:block;" />
+      <figcaption class="nota" style="margin-top:3px;">${[`Foto ${i + 1}`, f.data ? fmtDate(f.data) : null, f.didascalia ? escHtml(f.didascalia) : null].filter(Boolean).join(" · ")}</figcaption>
     </figure>`).join("");
   return `
-  <div style="break-before:page;padding-top:4px;">
+  <div style="break-before:page;">
     ${foto.length ? `${titolo("Documentazione fotografica")}<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:18px;">${celle}</div>` : ""}
-    ${allegati.length ? `${titolo("Allegati al verbale")}<ol style="margin:0 0 14px 18px;font-size:9pt;line-height:1.7;">${allegati.map((a) => `<li>${escHtml(a)}</li>`).join("")}</ol>` : ""}
+    ${allegati.length ? `${titolo("Allegati al verbale")}<ol style="margin:0 0 14px 18px;line-height:1.7;">${allegati.map((a) => `<li>${escHtml(a)}</li>`).join("")}</ol>` : ""}
   </div>`;
 }
 
 export const chiaveVoce = (d: string | null | undefined) => (d ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 
+/** Margini del foglio dello stile unico, in punti; la larghezza utile in mm serve alla veste. */
+const MARGINE_LATERALE_MM = (pagina.margineLaterale * 25.4) / 72;
+
 export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azienda, signatureUrl?: string | null, brandFooter?: string, previous=0, contratto: ContrattoSal | null = null, extra: SalExtra = {}): string {
-  const colore = /^#[a-f0-9]{6}$/i.test(azienda.colore_primario??"") ? azienda.colore_primario! : "#0ea5e9";
+  // L'accento dello stile unico (10/11/2026): il colore della veste, poi quello dell'azienda, poi il predefinito.
+  const colore = accentoHtml(sal.company_id, azienda.colore_primario, azienda.colore_marchio);
   const voci: SalVoce[] = sal.sal_voci || [];
   if(!voci.length || voci.some(v=>!v.descrizione?.trim() || !Number.isFinite(Number(v.importo_sal)) || Number(v.importo_sal)<0 || !Number.isFinite(Number(v.importo_contrattuale)) || Number(v.importo_contrattuale)<0 || !Number.isFinite(Number(v.percentuale_avanzamento)) || Number(v.percentuale_avanzamento)<0 || Number(v.percentuale_avanzamento)>100 || Math.floor((Math.round(Number(v.importo_contrattuale)*100)*Math.round(Number(v.percentuale_avanzamento)*100)+5_000)/10_000)!==Math.round(Number(v.importo_sal)*100)))throw new Error("Voci SAL incomplete o non valide");
   if(!["bozza","emesso","approvato","firmato"].includes(sal.stato)||!Number.isInteger(sal.numero_sal)||sal.numero_sal<1)throw new Error("Stato o numerazione SAL non validi");
@@ -183,40 +190,47 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
   // La colonna «Voce» prende tutto quello che resta (10/11/2026): le altre hanno larghezze strette e numeri su una riga
   // sola. Prima, con tutte le colonne, alla voce restavano un centinaio di pixel e «overflow-wrap:anywhere» spezzava
   // le parole a metà («Impermeabiliz zazione»).
-  const th = (t: string, al = "right", w = "") => `<th style="padding:6px 5px;text-align:${al};font-size:7pt;font-weight:600;text-transform:uppercase;letter-spacing:.2px;${w ? `width:${w};` : ""}">${t}</th>`;
-  const num = "padding:6px 5px;text-align:right;white-space:nowrap;";
+  const th = (t: string, al = "right", w = "") => `<th style="text-align:${al};padding-left:4pt;padding-right:4pt;${w ? `width:${w};` : ""}">${t}</th>`;
   const vociHtml = righe.map((r, i) => `
-    <tr style="background:${i % 2 === 1 ? "#f8fafc" : "white"};border-bottom:1px solid #eef2f7;">
-      <td style="padding:6px 4px;font-size:8pt;color:#64748b;text-align:center;">${i + 1}</td>
-      <td class="voce" style="padding:6px 6px;font-size:8.5pt;">${escHtml(r.v.descrizione)}${r.v.note ? `<div style="font-size:7pt;color:#94a3b8;font-style:italic;margin-top:2px;">${escHtml(r.v.note)}</div>` : ""}</td>
-      <td style="${num}font-size:8pt;">${fmtEur(r.contr)}</td>
-      ${perVoceAffidabile ? `<td style="${num}font-size:7.5pt;color:#64748b;">${pct(r.pPct)}</td>` : ""}
-      <td style="padding:6px 5px;font-size:8pt;white-space:nowrap;">
+    <tr>
+      <td class="num" style="text-align:center;color:var(--muted);">${i + 1}</td>
+      <td class="voce">${escHtml(r.v.descrizione)}${r.v.note ? `<div class="nota" style="margin-top:2px;">${escHtml(r.v.note)}</div>` : ""}</td>
+      <td class="num">${fmtEur(r.contr)}</td>
+      ${perVoceAffidabile ? `<td class="num" style="color:var(--muted);">${pct(r.pPct)}</td>` : ""}
+      <td class="num">
         <div style="display:flex;align-items:center;gap:4px;justify-content:flex-end;">
-          <div style="position:relative;width:36px;height:6px;background:#e2e8f0;border-radius:4px;overflow:hidden;">
-            ${perVoceAffidabile ? `<div style="position:absolute;left:0;top:0;bottom:0;width:${r.pPct}%;background:#94a3b8;"></div>` : ""}
-            <div style="position:absolute;left:${perVoceAffidabile ? r.pPct : 0}%;top:0;bottom:0;width:${Number(r.v.percentuale_avanzamento) - (perVoceAffidabile ? r.pPct : 0)}%;background:${colore};"></div>
+          <div style="position:relative;width:36px;height:5px;background:var(--line);border-radius:3px;overflow:hidden;">
+            ${perVoceAffidabile ? `<div style="position:absolute;left:0;top:0;bottom:0;width:${r.pPct}%;background:var(--muted);"></div>` : ""}
+            <div style="position:absolute;left:${perVoceAffidabile ? r.pPct : 0}%;top:0;bottom:0;width:${Number(r.v.percentuale_avanzamento) - (perVoceAffidabile ? r.pPct : 0)}%;background:var(--accent);"></div>
           </div>
-          <span style="font-weight:600;min-width:30px;text-align:right;">${pct(Number(r.v.percentuale_avanzamento))}</span>
+          <span style="min-width:30px;text-align:right;">${pct(Number(r.v.percentuale_avanzamento))}</span>
         </div>
       </td>
-      <td style="${num}font-size:8pt;">${fmtEur(r.cum)}</td>
-      ${perVoceAffidabile ? `<td style="${num}font-size:8pt;color:#64748b;">${fmtEur(r.p)}</td>` : ""}
-      ${perVoceAffidabile ? `<td style="${num}font-size:8pt;font-weight:700;color:${colore};">${fmtEur(r.quota)}</td>` : ""}
+      <td class="num">${fmtEur(r.cum)}</td>
+      ${perVoceAffidabile ? `<td class="num" style="color:var(--muted);">${fmtEur(r.p)}</td>` : ""}
+      ${perVoceAffidabile ? `<td class="num" style="font-weight:700;">${fmtEur(r.quota)}</td>` : ""}
     </tr>`).join("");
 
   const statoLabel = STATO_LABELS[sal.stato] || sal.stato.toUpperCase();
-  const statoColor = ["approvato","firmato"].includes(sal.stato) ? "#16a34a" : sal.stato === "emesso" ? colore : "#94a3b8";
+  const statoOk = ["approvato","firmato"].includes(sal.stato);
   const aliquota = Number.isFinite(Number(extra.aliquotaIva)) && extra.aliquotaIva != null ? Number(extra.aliquotaIva) : null;
   const ivaQuota = aliquota != null && !contratto?.reverse_charge ? Math.round(economic.daFatturare * aliquota) / 100 : null;
   const contrattoTot = Number(extra.importoContratto) > 0 ? Number(extra.importoContratto) : null;
   // Sulle voci del verbale, non sull'importo della commessa: le varianti approvate entrano come voci e l'importo della commessa non le comprende.
   const restaDaEseguire = Math.max(0, Math.round((totaleContrattuale - economic.totale) * 100) / 100);
-  const etichetta = (t: string) => `<div style="font-size:7pt;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">${t}</div>`;
-  const campo = (t: string, v: string | null | undefined) => v ? `<div style="margin-bottom:6px;">${etichetta(t)}<div style="font-size:9pt;color:#0f172a;">${v}</div></div>` : "";
-  // La veste propria (Vulcano): logo grande, piè in EB Garamond su ogni foglio. Larghezza utile: A4 meno 1,4 cm per lato.
-  const veste = vesteHtml(sal.company_id, 210 - 28);
-  const rigaRiep = (t: string, v: number, stile = "") => `<tr style="border-bottom:1px solid #eef2f7;${stile}"><td style="padding:6px 10px;font-size:9pt;">${t}</td><td style="padding:6px 10px;text-align:right;font-size:9pt;white-space:nowrap;">${fmtEur(v)}</td></tr>`;
+  const etichetta = (t: string) => `<div class="etichetta">${t}</div>`;
+  const campo = (t: string, v: string | null | undefined) => v ? `<div style="margin-bottom:6pt;">${etichetta(t)}<div class="valore">${v}</div></div>` : "";
+  // La veste propria (Vulcano): logo grande, piè in EB Garamond su ogni foglio. Larghezza utile: A4 meno i margini laterali.
+  const veste = vesteHtml(sal.company_id, 210 - 2 * MARGINE_LATERALE_MM);
+  // Il piè dello stile unico per chi non ha una veste: i dati societari, che con il logo non stanno più nella testata.
+  const piede = veste.attiva ? "" : piedeSocietarioCss([
+    [azienda.ragione_sociale, azienda.partita_iva ? `P.IVA ${azienda.partita_iva}` : ""].filter(Boolean).join(" — "),
+    [indirizzo, azienda.telefono ? `Tel. ${azienda.telefono}` : "", azienda.email ?? ""].filter(Boolean).join(" · "),
+  ]);
+  const rigaRiep = (t: string, v: number, classe = "") => `<tr${classe ? ` class="${classe}"` : ""}><td>${t}</td><td class="num">${fmtEur(v)}</td></tr>`;
+  const logo = azienda.logo_url
+    ? `<img src="${escHtml(azienda.logo_url)}" alt="Logo" style="${veste.stileLogo ?? `height:${testata.logoAltezza}pt;width:auto;max-width:${testata.logoLarghezzaMax}pt;`}" />`
+    : `<div class="ragione">${escHtml(azienda.ragione_sociale)}</div>`;
 
   return `<!DOCTYPE html>
 <html lang="it">
@@ -225,44 +239,39 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
   <title>SAL n. ${sal.numero_sal}${order?.order_code ? ` · ${escHtml(order.order_code)}` : ""}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    body { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 9.5pt; color: #1e293b; background: white; }
-    @media print { body { margin: 0; } @page { margin: 1.4cm; size: A4; } }
+    body { font-family: Helvetica, "Helvetica Neue", Arial, sans-serif; font-size: ${pagina.corpo}pt; line-height: ${pagina.interlinea}; color: var(--ink); background: white; }
+    @page { size: A4; margin: ${pagina.margineAlto}pt ${pagina.margineLaterale}pt; }
+    @media print { body { margin: 0; } }
     .page { max-width: 794px; margin: 0 auto; padding: 28px 30px; }
     @media print { .page { padding: 0; max-width: none; } }
     table { width:100%; border-collapse:collapse; } td { overflow-wrap:break-word; word-break:normal; hyphens:manual; vertical-align:top; } thead { display:table-header-group; } tr { break-inside:avoid; }
     td.voce { min-width: 140px; }
-    a { overflow-wrap:anywhere; }${veste.css}
-    .riquadro { border:1px solid #e2e8f0; border-radius:8px; padding:12px 14px; }
+    a { overflow-wrap:anywhere; }
+    .nota { font-size: ${pagina.nota}pt; color: var(--muted); }
+    table.doc-tabella tr.forte td { font-weight: 700; }
+    table.doc-tabella td.num { font-variant-numeric: tabular-nums; }
+    .riferimenti { margin-top: 24pt; font-size: 6.5pt; color: var(--muted); }
+    ${cssDocumento(colore)}
+    .doc-testata .logo { flex-shrink: 0; }${piede}${veste.css}
   </style>
 </head>
 <body>
 ${veste.apri}<div class="page">
 
-  <!-- Intestazione: impresa e logo -->
-  <div style="display:flex;align-items:center;gap:16px;padding-bottom:14px;border-bottom:3px solid ${colore};">
-    ${azienda.logo_url ? `<img src="${escHtml(azienda.logo_url)}" alt="Logo" style="${veste.stileLogo ?? "max-height:60px;max-width:180px;object-fit:contain;"}" />` : ""}
-    <div>
-      <div style="font-size:13pt;font-weight:700;color:#0f172a;">${escHtml(azienda.ragione_sociale)}</div>
-      <div style="font-size:7.5pt;color:#64748b;margin-top:2px;line-height:1.5;">
-        ${[azienda.partita_iva ? `P.IVA ${escHtml(azienda.partita_iva)}` : "", escHtml(indirizzo), azienda.telefono ? `Tel. ${escHtml(azienda.telefono)}` : "", escHtml(azienda.email)].filter(Boolean).join(" · ")}
-      </div>
+  <!-- Testata dello stile unico: logo a sinistra su bianco, titolo a destra, filetto d'accento -->
+  <div class="doc-testata">
+    <div class="logo">${logo}</div>
+    <div class="titolo">
+      <h1>Verbale di stato avanzamento lavori</h1>
+      <div class="sotto">SAL n. ${sal.numero_sal} · ${sal.stato === "bozza" ? "Bozza del" : "Emesso il"} ${fmtDate(sal.data_emissione)}${periodo ? ` · ${periodo}` : ""}</div>
+      <div style="margin-top:4pt;"><span class="doc-etichetta${statoOk ? " ok" : ""}">${statoLabel}</span></div>
     </div>
-  </div>
-
-  <!-- Titolo -->
-  <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin:18px 0 14px;">
-    <div>
-      <div style="font-size:8pt;font-weight:600;color:${colore};text-transform:uppercase;letter-spacing:1px;">Verbale di stato avanzamento lavori</div>
-      <div style="font-size:20pt;font-weight:800;color:#0f172a;line-height:1.15;margin-top:2px;">SAL n. ${sal.numero_sal}</div>
-      <div style="font-size:8.5pt;color:#475569;margin-top:3px;">${sal.stato === "bozza" ? "Bozza del" : "Emesso il"} ${fmtDate(sal.data_emissione)}${periodo ? ` · ${periodo}` : ""}</div>
-    </div>
-    <div style="display:inline-block;background:${statoColor};color:white;font-size:7.5pt;font-weight:700;padding:5px 11px;border-radius:999px;letter-spacing:.6px;">${statoLabel}</div>
   </div>
 
   <!-- Dati della commessa -->
-  <div class="riquadro" style="display:flex;gap:18px;margin-bottom:14px;background:#f8fafc;">
+  <div class="doc-riquadro" style="display:flex;gap:18pt;margin-bottom:10pt;">
     <div style="flex:1;min-width:0;">
-      ${campo("Committente", cliente ? `${escHtml(cliente)}${order?.customer?.address ? `<div style="font-size:8pt;color:#64748b;">${escHtml(order.customer.address)}</div>` : ""}` : null)}
+      ${campo("Committente", cliente ? `${escHtml(cliente)}${order?.customer?.address ? `<div class="nota">${escHtml(order.customer.address)}</div>` : ""}` : null)}
       ${campo("Cantiere", indirizzoCantiere ? escHtml(indirizzoCantiere) : null)}
     </div>
     <div style="flex:1;min-width:0;">
@@ -272,16 +281,16 @@ ${veste.apri}<div class="page">
   </div>
 
   <!-- Numeri chiave -->
-  <div style="display:flex;gap:10px;margin-bottom:14px;">
-    <div class="riquadro" style="flex:1;">${etichetta("Lavori a tutto il presente SAL")}<div style="font-size:13pt;font-weight:700;">${fmtEur(economic.totale)}</div><div style="font-size:7.5pt;color:#64748b;">${pct(percMedia)} delle voci</div></div>
-    <div class="riquadro" style="flex:1;">${etichetta("SAL precedenti")}<div style="font-size:13pt;font-weight:700;color:#64748b;">${fmtEur(economic.precedente)}</div></div>
-    <div class="riquadro" style="flex:1;border-color:${colore};background:${colore}12;">${etichetta(economic.daFatturare<0 ? "Rettifica da verificare" : "Importo di questo SAL")}<div style="font-size:13pt;font-weight:800;color:${colore};">${fmtEur(economic.daFatturare)}</div><div style="font-size:7.5pt;color:#64748b;">IVA esclusa</div></div>
+  <div style="display:flex;gap:8pt;margin-bottom:6pt;">
+    <div class="doc-riquadro" style="flex:1;">${etichetta("Lavori a tutto il presente SAL")}<div class="numero">${fmtEur(economic.totale)}</div><div class="nota">${pct(percMedia)} delle voci</div></div>
+    <div class="doc-riquadro" style="flex:1;">${etichetta("SAL precedenti")}<div class="numero">${fmtEur(economic.precedente)}</div></div>
+    <div class="doc-riquadro" style="flex:1;">${etichetta(economic.daFatturare<0 ? "Rettifica da verificare" : "Importo di questo SAL")}<div class="numero conta" style="font-weight:700;">${fmtEur(economic.daFatturare)}</div><div class="nota">IVA esclusa</div></div>
   </div>
 
   <!-- Voci -->
-  <table style="border:1px solid #e2e8f0;margin-bottom:6px;">
+  <table class="doc-tabella" style="margin-top:${12}pt;margin-bottom:6pt;">
     <thead>
-      <tr style="background:${colore};color:white;">
+      <tr>
         ${th("N.", "center", "20px")}${th("Voce / lavorazione", "left")}${th("Importo contratto", "right", "72px")}
         ${perVoceAffidabile ? th("% prec.", "right", "36px") : ""}${th("Avanzamento", "right", "76px")}${th("A tutto il SAL", "right", "72px")}
         ${perVoceAffidabile ? th("Precedente", "right", "70px") + th("Questo SAL", "right", "70px") : ""}
@@ -289,67 +298,62 @@ ${veste.apri}<div class="page">
     </thead>
     <tbody>${vociHtml}</tbody>
     <tfoot>
-      <tr style="background:#f1f5f9;font-weight:700;border-top:2px solid #cbd5e1;">
-        <td></td><td style="padding:8px;font-size:9pt;">TOTALE</td>
-        <td style="padding:8px 5px;text-align:right;font-size:8.5pt;white-space:nowrap;">${fmtEur(totaleContrattuale)}</td>
+      <tr class="totale">
+        <td></td><td>TOTALE</td>
+        <td class="num">${fmtEur(totaleContrattuale)}</td>
         ${perVoceAffidabile ? `<td></td>` : ""}
-        <td style="padding:8px 5px;text-align:right;font-size:8.5pt;white-space:nowrap;">${pct(percMedia)}</td>
-        <td style="padding:8px 5px;text-align:right;font-size:8.5pt;white-space:nowrap;">${fmtEur(totaleSal)}</td>
-        ${perVoceAffidabile ? `<td style="padding:8px 5px;text-align:right;font-size:8.5pt;white-space:nowrap;color:#64748b;">${fmtEur(sommaPrec)}</td><td style="padding:8px 5px;text-align:right;font-size:8.5pt;white-space:nowrap;color:${colore};">${fmtEur(economic.daFatturare)}</td>` : ""}
+        <td class="num">${pct(percMedia)}</td>
+        <td class="num">${fmtEur(totaleSal)}</td>
+        ${perVoceAffidabile ? `<td class="num">${fmtEur(sommaPrec)}</td><td class="num">${fmtEur(economic.daFatturare)}</td>` : ""}
       </tr>
     </tfoot>
   </table>
-  ${perVoceAffidabile ? `<p style="font-size:7pt;color:#94a3b8;margin-bottom:14px;">Barra: in grigio l'avanzamento dei SAL precedenti, a colore quello maturato con questo SAL.</p>` : `<div style="height:8px;"></div>`}
+  ${perVoceAffidabile ? `<p class="nota" style="margin-bottom:14pt;">Barra: in grigio l'avanzamento dei SAL precedenti, a colore quello maturato con questo SAL.</p>` : `<div style="height:8px;"></div>`}
 
   <!-- Riepilogo economico -->
-  <div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:14px;">
-    <table style="flex:1.3;border:1px solid #e2e8f0;">
+  <div style="display:flex;gap:14pt;align-items:flex-start;margin-bottom:10pt;">
+    <table class="doc-tabella" style="flex:1.3;">
       <tbody>
         ${rigaRiep("Lavori eseguiti a tutto il presente SAL", economic.totale)}
         ${rigaRiep("A dedurre: SAL precedenti", -economic.precedente)}
-        ${rigaRiep(economic.daFatturare<0 ? "Rettifica da verificare" : "Quota nuova di questo SAL", economic.daFatturare, `font-weight:700;background:${colore}10;`)}
-        ${ivaQuota != null ? rigaRiep(`IVA ${aliquota!.toLocaleString("it-IT")}%`, ivaQuota) + rigaRiep("Totale della quota, IVA inclusa", Math.round((economic.daFatturare + ivaQuota) * 100) / 100, "font-weight:700;") : ""}
+        ${rigaRiep(economic.daFatturare<0 ? "Rettifica da verificare" : "Quota nuova di questo SAL", economic.daFatturare, ivaQuota != null ? "forte" : "totale")}
+        ${ivaQuota != null ? rigaRiep(`IVA ${aliquota!.toLocaleString("it-IT")}%`, ivaQuota) + rigaRiep("Totale della quota, IVA inclusa", Math.round((economic.daFatturare + ivaQuota) * 100) / 100, "totale") : ""}
       </tbody>
     </table>
-    <div class="riquadro" style="flex:1;">
+    <div class="doc-riquadro" style="flex:1;">
       ${etichetta("Resta da eseguire")}
-      <div style="font-size:12pt;font-weight:700;">${fmtEur(restaDaEseguire)}</div>
-      <div style="font-size:7.5pt;color:#64748b;margin-top:2px;">su ${fmtEur(totaleContrattuale)} di voci del contratto</div>
+      <div class="numero">${fmtEur(restaDaEseguire)}</div>
+      <div class="nota" style="margin-top:2px;">su ${fmtEur(totaleContrattuale)} di voci del contratto</div>
     </div>
   </div>
-  <p style="font-size:7.5pt;color:#64748b;margin:-6px 0 14px;">Importi IVA esclusa salvo dove indicato. Questo documento non è una fattura e non attesta un pagamento. Acconti e fatture già emesse si verificano prima della fatturazione.</p>
-  ${sal.stato === "bozza" ? '<p style="margin:0 0 14px;color:#b45309;font-weight:bold;">BOZZA - Non emessa. Nessun link di approvazione attivo.</p>' : ""}
+  <p class="nota" style="margin:0 0 14pt;">Importi IVA esclusa salvo dove indicato. Questo documento non è una fattura e non attesta un pagamento. Acconti e fatture già emesse si verificano prima della fatturazione.</p>
+  ${sal.stato === "bozza" ? '<p style="margin:0 0 14pt;color:var(--warn);font-weight:bold;">BOZZA - Non emessa. Nessun link di approvazione attivo.</p>' : ""}
   ${contrattoHtml}
   ${sal.note ? `
-  <div style="background:#f8fafc;border-left:3px solid ${colore};padding:10px 14px;border-radius:0 6px 6px 0;margin-bottom:14px;">
-    <div style="font-size:7.5pt;font-weight:700;color:#475569;margin-bottom:3px;letter-spacing:.4px;">NOTE</div>
-    <div style="font-size:9pt;color:#334155;white-space:pre-wrap;">${escHtml(sal.note)}</div>
-  </div>` : ""}
+  <div class="doc-sezione">Note</div>
+  <div style="white-space:pre-wrap;margin-bottom:14pt;">${escHtml(sal.note)}</div>` : ""}
 
-  <p style="font-size:8pt;color:#475569;margin-bottom:22px;line-height:1.5;">
+  <p style="margin-bottom:22pt;">
     Il presente stato di avanzamento è redatto sulla base dei lavori eseguiti e verificati in cantiere alla data di emissione. Le parti, sottoscrivendolo, ne riconoscono le quantità e gli importi.
   </p>
 
   <!-- Firme -->
-  <div style="display:flex;gap:16px;break-inside:avoid;">
+  <div style="display:flex;gap:16pt;break-inside:avoid;">
     ${["Direttore dei lavori", "L'impresa", "Il committente"].map((ruolo, i) => `
     <div style="flex:1;">
-      <div style="font-size:7.5pt;color:#64748b;text-transform:uppercase;letter-spacing:.4px;">${ruolo}</div>
+      <div class="nota" style="text-transform:uppercase;letter-spacing:.4px;">${ruolo}</div>
       ${i === 2 && signatureUrl ? `
-      <div style="margin-top:8px;font-size:7.5pt;color:#2563eb;">Approvazione online: <a href="${escHtml(signatureUrl)}" style="color:#2563eb;overflow-wrap:anywhere;">${escHtml(signatureUrl)}</a></div>
-      <div style="margin-top:3px;font-size:7pt;color:#94a3b8;">Valido 7 giorni dalla generazione</div>` : `
-      <div style="height:42px;border-bottom:1px solid #94a3b8;"></div>
-      <div style="margin-top:4px;font-size:7pt;color:#94a3b8;">Firma e timbro · luogo e data ____________</div>`}
+      <div class="nota" style="margin-top:8px;color:var(--accent);">Approvazione online: <a href="${escHtml(signatureUrl)}" style="color:var(--accent);overflow-wrap:anywhere;">${escHtml(signatureUrl)}</a></div>
+      <div class="nota" style="margin-top:3px;">Valido 7 giorni dalla generazione</div>` : `
+      <div style="height:42px;border-bottom:.5pt solid var(--ink);"></div>
+      <div class="nota" style="margin-top:4px;">Firma e timbro · luogo e data ____________</div>`}
     </div>`).join("")}
   </div>
 
   ${buildFotoEAllegatiHtml(extra.foto ?? [], extra.allegati ?? [], colore)}
 
-  <!-- Piè di pagina -->
-  <div style="margin-top:30px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:7pt;color:#94a3b8;">
-    <div>${veste.attiva ? "" : `${escHtml(azienda.ragione_sociale)}${azienda.partita_iva ? ` — P.IVA ${escHtml(azienda.partita_iva)}` : ""} · `}SAL n. ${sal.numero_sal} del ${fmtDate(sal.data_emissione)}</div>
-    <div style="color:${colore};">${escHtml(brandFooter) || "Edilizia in Cloud"}</div>
-  </div>
+  <!-- Riferimenti tecnici: una riga sopra il piè -->
+  <div class="riferimenti">SAL n. ${sal.numero_sal} del ${fmtDate(sal.data_emissione)} · ${escHtml(brandFooter) || "Edilizia in Cloud"}</div>
 
 </div>
 ${veste.chiudi}</body>

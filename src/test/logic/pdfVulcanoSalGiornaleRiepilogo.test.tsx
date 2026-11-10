@@ -53,7 +53,7 @@ describe("SAL: veste di Vulcano e colonna Voce", () => {
     const html = buildSalHtml(sal(ALTRA), order, azienda, null, "Edilizia in Cloud", 16000, null, extra);
     expect(html).not.toContain("piede-proprio");
     expect(html).not.toContain("EB Garamond");
-    expect(html).toContain("max-height:60px;max-width:180px");
+    expect(html).toContain("height:44pt;width:auto;max-width:200pt;");
     expect(vesteHtml(ALTRA, 182)).toMatchObject({ attiva: false, css: "", apri: "", chiudi: "", stileLogo: null });
   });
 
@@ -98,7 +98,7 @@ describe("Giornale dei lavori", () => {
     expect(v).toContain("height:55pt");
     const a = buildGiornaleHtml([giornata()], null, azienda, "EiC", ALTRA);
     expect(a).not.toContain("piede-proprio");
-    expect(a).toContain("Pagina \" counter(page)");
+    expect(a).toContain("\"Pag. \" counter(page)");
   });
 
   it("ruoloFirmatario: per utente, per nome in qualunque ordine, mai indovinato", () => {

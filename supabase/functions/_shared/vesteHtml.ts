@@ -8,10 +8,12 @@
  *   ripetuto anche lui su ogni foglio: senza, l'ultima riga di testo finirebbe sotto il piè;
  * - il numero di pagina va nel margine del foglio (`@bottom-center`), l'unico posto dove la stampa lo conosce.
  *
- * Per chi non ha un piè proprio tutto è stringa vuota e il documento resta quello di sempre, byte per byte.
+ * Per chi non ha un piè proprio `vesteHtml` è tutta stringa vuota: il piè lo dà `piedeSocietarioCss`, quello dello
+ * stile unico (stileDocumenti.ts): righe societarie centrate e «Pag. n / m» sotto, nel margine di ogni foglio.
  * Modulo puro, senza import esterni: lo usano edge e test.
  */
 import { misurePiede, personalizzazioneDocumento, urlFontPiede } from "./personalizzazioneDocumenti.ts";
+import { accentoDocumento, colore as coloreStile, pagina } from "./stileDocumenti.ts";
 
 export interface VesteHtml {
   attiva: boolean;
@@ -65,4 +67,35 @@ export function vesteHtml(companyId: string | null | undefined, larghezzaUtileMm
       ? `height:${v.logoAltezza}pt;width:auto;max-width:${v.logoLarghezzaMax}pt;object-fit:contain;`
       : null,
   };
+}
+
+/** Una stringa CSS (`content`) sicura dentro uno <style>: niente virgolette, barre o «</style>» che escano. */
+const stringaCss = (t: string) => `"${t.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/</g, "\\3C ").replace(/\s+/g, " ").trim()}"`;
+
+const CORPO_PIEDE = 7;
+const INTERLINEA_PIEDE = 1.35;
+
+/**
+ * Il piè dello stile unico per chi non ha una veste propria (10/11/2026): le righe societarie centrate, 7 pt
+ * `testoTenue`, e sotto «Pag. n / m». Sta nel margine basso del foglio (@bottom-center), che la stampa ripete su
+ * ogni pagina; il margine si allarga quanto serve alle righe. Da mettere dopo le altre regole @page del documento.
+ */
+export function piedeSocietarioCss(righe: Array<string | null | undefined>): string {
+  const testi = righe.map((r) => (r ?? "").trim()).filter(Boolean);
+  const contenuto = [...testi.map(stringaCss), `"Pag. " counter(page) " / " counter(pages)`].join(` "\\A " `);
+  const margine = Math.max(pagina.margineLaterale, Math.ceil((testi.length + 1) * CORPO_PIEDE * INTERLINEA_PIEDE + 18));
+  return `
+    @page {
+      margin-bottom: ${margine}pt;
+      @bottom-center { content: ${contenuto}; white-space: pre-wrap; text-align: center; vertical-align: middle; font-family: Helvetica, Arial, sans-serif; font-size: ${CORPO_PIEDE}pt; line-height: ${INTERLINEA_PIEDE}; color: ${coloreStile.testoTenue}; }
+    }`;
+}
+
+/**
+ * L'accento del documento (stileDocumenti.accentoDocumento): il colore della veste (Vulcano: il blu del piè), poi
+ * quello dell'azienda (anagrafica, poi il marchio scelto in «Brand & Azienda»), poi il predefinito.
+ */
+export function accentoHtml(companyId: string | null | undefined, ...coloriAzienda: Array<string | null | undefined>): string {
+  const coloreAzienda = coloriAzienda.map((c) => (c ?? "").trim()).find((c) => /^#[0-9a-f]{6}$/i.test(c)) ?? null;
+  return accentoDocumento({ coloreVeste: personalizzazioneDocumento(companyId).piedeColore, coloreAzienda });
 }
