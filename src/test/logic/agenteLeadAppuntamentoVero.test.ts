@@ -59,9 +59,9 @@ describe("il prompt dice la verità sugli appuntamenti", () => {
     promptAzienda: "Sei Giusy.",
     nomeAzienda: "Il Bagno Group",
     adesso: new Date("2026-11-10T17:30:00Z"),
-    contatto: { nome: "Florin", cognome: null },
+    contatto: { nome: "Florin", cognome: null as string | null },
     qualificazione: {},
-    faseAttuale: null,
+    faseAttuale: null as string | null,
     calendarioNome: "Calendario Giusy",
   };
 
