@@ -8,7 +8,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   storage: { from: () => ({ upload: mocks.upload }) },
   from: () => {
     const result: { data: unknown[]; error: null } = { data: [], error: null };
-    const q = { select: () => q, eq: () => q, order: () => q, limit: () => q,
+    const q = { select: () => q, eq: () => q, not: () => q, is: () => q, order: () => q, limit: () => q,
       then: (resolve: (value: typeof result) => unknown) => Promise.resolve(result).then(resolve) };
     return q;
   },

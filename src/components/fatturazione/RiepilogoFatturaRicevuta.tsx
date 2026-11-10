@@ -21,6 +21,7 @@ import { OrderSelectCombobox } from "@/components/warehouse/OrderSelectCombobox"
 import { CollegamentiFattura } from "@/components/fatturazione/CollegamentiFattura";
 import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
 import { NoteInterneFattura } from "@/components/fatturazione/NoteInterneFattura";
+import { ContoDiCosto } from "@/components/fatturazione/ContoDiCosto";
 import {
   etichettaAliquota,
   nomeNatura,
@@ -43,7 +44,7 @@ type Riga = Record<string, unknown>;
 interface Dettaglio {
   fattura: Riga;
   ordini: Array<{ id: string; oda_number: string; importo: number | null; commessa: { id: string; order_code: string } | null }>;
-  costo: { id: string; amount: number | null; commessa: { id: string; order_code: string } | null; ripartito: boolean } | null;
+  costo: { id: string; amount: number | null; category: string | null; commessa: { id: string; order_code: string } | null; ripartito: boolean } | null;
   fornitore: { id: string; name: string; tipo?: string | null } | null;
   /** Senza fornitore: le schede dell'anagrafica con la stessa partita IVA (o codice fiscale). */
   candidatiFornitore: Array<{ id: string; name: string }>;
@@ -100,7 +101,7 @@ async function leggiDettaglio(fatturaId: string, companyId: string): Promise<Det
       ? db.from("purchase_orders").select("id, oda_number, orders(id, order_code)").eq("id", f.purchase_order_id).eq("company_id", companyId).maybeSingle()
       : Promise.resolve({ data: null }),
     f.company_cost_id
-      ? db.from("company_costs").select("id, amount, allocations, orders(id, order_code)").eq("id", f.company_cost_id).eq("company_id", companyId).maybeSingle()
+      ? db.from("company_costs").select("id, amount, category, allocations, orders(id, order_code)").eq("id", f.company_cost_id).eq("company_id", companyId).maybeSingle()
       : Promise.resolve({ data: null }),
     f.fornitore_id
       ? db.from("suppliers").select("id, name, tipo").eq("id", f.fornitore_id).eq("company_id", companyId).maybeSingle()
@@ -160,7 +161,7 @@ async function leggiDettaglio(fatturaId: string, companyId: string): Promise<Det
     fattura: f,
     ordini,
     costo: costo.data
-      ? { id: costo.data.id, amount: costo.data.amount ?? null, commessa: commessaDi(costo.data.orders), ripartito: allocazioni.length > 1 }
+      ? { id: costo.data.id, amount: costo.data.amount ?? null, category: costo.data.category ?? null, commessa: commessaDi(costo.data.orders), ripartito: allocazioni.length > 1 }
       : null,
     fornitore: fornitore.data ?? null,
     candidatiFornitore,
@@ -479,6 +480,21 @@ export function RiepilogoFatturaRicevuta({
                     <PagamentoRicevutaCella forma="pulsante" id={String(f.id)} numero={String(f.numero_fattura ?? "")} tipo={String(f.tipo_documento ?? "")} pagataIl={f.pagata_il ? String(f.pagata_il) : null} />
                   )}
                 </dd>
+
+                {permessi.canViewCosts && f.stato !== "rifiutata" && !isNotaCreditoRicevuta(String(f.tipo_documento ?? "")) ? (
+                  <>
+                    <dt className="text-muted-foreground">Conto di costo</dt>
+                    <dd>
+                      <ContoDiCosto
+                        companyId={companyId!}
+                        fatturaId={String(f.id)}
+                        costoId={d.costo?.id ?? null}
+                        attuale={d.costo ? d.costo.category : (f.categoria_ai ? String(f.categoria_ai) : null)}
+                        onCambiato={aggiorna}
+                      />
+                    </dd>
+                  </>
+                ) : null}
 
                 <dt className="text-muted-foreground">Nei costi</dt>
                 <dd>
