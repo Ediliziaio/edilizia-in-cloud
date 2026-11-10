@@ -937,7 +937,7 @@ export default function DDTRicezioneList() {
             }
           />
           <span>
-            {rows.length} {rows.length === 1 ? "documento" : "documenti"} caricati · {pending.length} da registrare
+            {rows.length} {rows.length === 1 ? "documento caricato" : "documenti caricati"} · {pending.length} da registrare
             {focus === "pendenti"
               ? " · Attesi e parziali"
               : focus === "verifica"
