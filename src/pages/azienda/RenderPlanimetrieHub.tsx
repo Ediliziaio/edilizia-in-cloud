@@ -334,6 +334,8 @@ export default function RenderPlanimetrieHub() {
             piante={piante}
             mappa={collegamenti.data}
             userId={user?.id}
+            companyId={effectiveCompany?.id}
+            accessi={accessiCollegamenti(permessi)}
             risultati={filtrate.length}
           />
         )}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, useSearchParams } from "react-router-dom";
 import { FiltriArchivioPiante } from "@/components/planimetrie/FiltriArchivioPiante";
 import {
@@ -69,20 +70,33 @@ function Preview() {
 }
 const show = (query = "vista=elenco") =>
   render(
-    <MemoryRouter initialEntries={[`/?${query}`]}>
-      <Preview />
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter initialEntries={[`/?${query}`]}>
+        <Preview />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 describe("Filtri delle planimetrie", () => {
-  it("combina ricerca, periodo e autore e consente la rimozione singola", () => {
+  it("combina periodo e autore nel pannello laterale e mantiene la ricerca nella barra", () => {
     show("vista=elenco&pagina=2");
-    fireEvent.click(screen.getByRole("button", { name: "Filtri avanzati" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("combobox", { name: "Filtra collegamenti" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Filtri" }),
+    );
+    expect(screen.getByRole("dialog")).toHaveAccessibleName(
+      /Filtri planimetrie/,
+    );
     fireEvent.change(screen.getByLabelText("Aggiornata dal"), {
       target: { value: "2026-11-06" },
     });
-    expect(screen.getByRole("status")).toHaveTextContent("1 di 3 planimetrie");
     fireEvent.click(
       screen.getByRole("checkbox", { name: "Solo i miei progetti" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Mostra 1 planimetria" }),
     );
     fireEvent.change(
       screen.getByRole("textbox", { name: "Cerca una pianta" }),
@@ -102,22 +116,31 @@ describe("Filtri delle planimetrie", () => {
     expect(
       screen.getByRole("textbox", { name: "Cerca una pianta" }),
     ).toHaveValue("");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Filtri" }),
+    );
     expect(screen.getByLabelText("Aggiornata dal")).toHaveValue("2026-11-06");
-    fireEvent.click(screen.getByRole("button", { name: "Azzera filtri" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Azzera" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Mostra 2 planimetrie" }),
+    );
     expect(screen.getByLabelText("Indirizzo filtri")).toHaveTextContent(
       "vista=elenco",
     );
     expect(screen.getByRole("status")).toHaveTextContent("2 di 3 planimetrie");
-    expect(
-      screen.queryByRole("button", { name: /Rimuovi filtro/ }),
-    ).not.toBeInTheDocument();
   });
-  it("ripristina un filtro dall’indirizzo, mostra le date incoerenti e le corregge col periodo rapido", () => {
+  it("non espande la pagina quando ripristina filtri dall’indirizzo e segnala date incoerenti nel pannello", () => {
     show("dal=2026-11-10&al=2026-11-01&mie=1");
-    expect(
-      screen.getByRole("button", { name: /Filtri avanzati/ }),
-    ).toHaveAttribute("aria-expanded", "true");
+    expect(screen.queryByLabelText("Aggiornata dal")).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Filtri" }),
+    );
     expect(screen.getByRole("alert")).toHaveTextContent("data iniziale");
+    expect(
+      screen.getByRole("button", { name: "Mostra 0 planimetrie" }),
+    ).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Ultimi 7 giorni" }));
     const end = new Date();
     const start = new Date(end);
@@ -129,12 +152,5 @@ describe("Filtri delle planimetrie", () => {
       giornoLocalePianta(end),
     );
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-  });
-  it("non offre schede specifiche quando non è stato scelto un tipo di collegamento", () => {
-    show();
-    fireEvent.click(screen.getByRole("button", { name: "Filtri avanzati" }));
-    expect(
-      screen.getByRole("combobox", { name: "Filtra per scheda specifica" }),
-    ).toBeDisabled();
   });
 });

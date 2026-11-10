@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { filtraElencoPiante, leggiFiltriElenco, scriviFiltriElenco, type FiltriElencoPiante } from "@/lib/planimetrie/elenco";
+import { filtraElencoPiante, scegliFiltroPianta, valoreFiltroPianta, leggiFiltriElenco, scriviFiltriElenco, type FiltriElencoPiante } from "@/lib/planimetrie/elenco";
 import { accessiCollegamenti, cercaCollegamentiPianta, sceltaDaRiga, type MappaCollegamenti } from "@/lib/planimetrie/collegamenti";
 import type { RigaPlanimetria } from "@/lib/planimetrie/archivio";
 
@@ -70,6 +70,17 @@ describe("Archivio planimetrie", () => {
     const rows = [pianta("Città", { stato: "archiviata" }), pianta("Villa")];
     expect(filtraElencoPiante(rows, { ...filtri, ricerca: "citta", stato: "tutte" }).map((row) => row.id)).toEqual(["Città"]);
     expect(filtraElencoPiante(rows, { ...filtri, ricerca: "citta" })).toEqual([]);
+  });
+
+  it("ricerca cliente e contatto per due ID distinti combinati, mantenendo i vecchi indirizzi", () => {
+    const rows = [pianta("A", { customer_id: "cliente-1", contact_id: "crm-1" }), pianta("B", { customer_id: "cliente-1", contact_id: "crm-2" }), pianta("C", { customer_id: "cliente-2", contact_id: "crm-1" })];
+    const query = scriviFiltriElenco(new URLSearchParams("vista=elenco"), { cliente: "cliente-1", contatto: "crm-1" });
+    expect(filtraElencoPiante(rows, leggiFiltriElenco(query)).map((p) => p.id)).toEqual(["A"]);
+    const legacy = leggiFiltriElenco(new URLSearchParams("collegamento=contatto&scheda=crm-2"));
+    expect(valoreFiltroPianta(legacy, "contatto")).toBe("crm-2");
+    const changed = scriviFiltriElenco(new URLSearchParams("collegamento=contatto&scheda=crm-2"), scegliFiltroPianta(legacy, "contatto", "crm-1"));
+    expect(changed.has("collegamento")).toBe(false); expect(changed.has("scheda")).toBe(false); expect(changed.get("contatto")).toBe("crm-1");
+    expect(filtraElencoPiante(rows, { ...filtri, cliente: "nessuno" })).toEqual([]);
   });
 
 });

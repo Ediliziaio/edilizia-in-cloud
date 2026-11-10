@@ -20,6 +20,11 @@ export interface FiltriElencoPiante {
   al?: string;
   soloMie?: boolean;
   riferimento?: string;
+  cliente?: string;
+  contatto?: string;
+  preventivo?: string;
+  commessa?: string;
+  computo?: string;
 }
 export type FiltriArchivioPiante = FiltriElencoPiante & {
   pagina: number;
@@ -27,7 +32,7 @@ export type FiltriArchivioPiante = FiltriElencoPiante & {
   al: string;
   soloMie: boolean;
   riferimento: string;
-};
+} & Record<TipoCollegamento, string>;
 export const FILTRI_PIANTE_INIZIALI: FiltriArchivioPiante = {
   stato: "attive",
   ricerca: "",
@@ -38,6 +43,11 @@ export const FILTRI_PIANTE_INIZIALI: FiltriArchivioPiante = {
   al: "",
   soloMie: false,
   riferimento: "",
+  cliente: "",
+  contatto: "",
+  preventivo: "",
+  commessa: "",
+  computo: "",
 };
 const tipoValido = (value: string): value is TipoCollegamento =>
   TIPI_COLLEGAMENTO.includes(value as TipoCollegamento);
@@ -85,6 +95,18 @@ export function filtraElencoPiante(
       if (tipoValido(filtri.collegamento)) {
         const id = riga[DEFINIZIONI_COLLEGAMENTI[filtri.collegamento].colonna];
         if (!id || (filtri.riferimento && id !== filtri.riferimento))
+          return false;
+      }
+      for (const tipo of TIPI_COLLEGAMENTO) {
+        const value = filtri[tipo];
+        const id = riga[DEFINIZIONI_COLLEGAMENTI[tipo].colonna];
+        if (
+          value === "presenti"
+            ? !id
+            : value === "nessuno"
+              ? !!id
+              : value && id !== value
+        )
           return false;
       }
       if (dal || al) {
@@ -140,6 +162,11 @@ export function leggiFiltriElenco(
     al: dataValida(params.get("al")),
     soloMie: params.get("mie") === "1",
     riferimento: tipoValido(collegamento) ? params.get("scheda") || "" : "",
+    cliente: params.get("cliente") || "",
+    contatto: params.get("contatto") || "",
+    preventivo: params.get("preventivo") || "",
+    commessa: params.get("commessa") || "",
+    computo: params.get("computo") || "",
   };
 }
 export function scriviFiltriElenco(
@@ -166,9 +193,33 @@ export function scriviFiltriElenco(
     ["al", dataValida(values.al), ""],
     ["mie", values.soloMie ? "1" : "", ""],
     ["scheda", values.riferimento, ""],
+    ...TIPI_COLLEGAMENTO.map((tipo) => [tipo, values[tipo], ""]),
   ]) {
     if (value === defaultValue) next.delete(key);
     else next.set(key, value);
   }
   return next;
+}
+
+/** I vecchi link continuano a funzionare, presentati come filtro della scheda corretta. */
+export function valoreFiltroPianta(
+  filtri: FiltriArchivioPiante,
+  tipo: TipoCollegamento,
+) {
+  return (
+    filtri[tipo] ||
+    (filtri.collegamento === tipo ? filtri.riferimento || "presenti" : "")
+  );
+}
+export function scegliFiltroPianta(
+  filtri: FiltriArchivioPiante,
+  tipo: TipoCollegamento,
+  value: string,
+): Partial<FiltriArchivioPiante> {
+  return {
+    [tipo]: value,
+    ...(filtri.collegamento === tipo
+      ? { collegamento: "tutti", riferimento: "" }
+      : {}),
+  };
 }
