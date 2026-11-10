@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useContabilitaGeneraleAttiva } from "@/components/contabilita/ContabilitaInCasa";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -94,6 +95,7 @@ const navGroups = macroAreas.map(area => ({
     url: item.url,
     icon: item.icon,
     demoCompanyOnly: item.demoCompanyOnly,
+    soloConContabilitaGenerale: item.soloConContabilitaGenerale,
   })),
 }));
 
@@ -102,6 +104,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const isDemoBaseline = isDemoCompanyId(effectiveCompany?.id);
+  const { attiva: contabilitaGenerale } = useContabilitaGeneraleAttiva();
   // Le impostazioni fuori dal piano o senza permesso non si cercano (21/09/2026).
   const { voci: vociImpostazioni } = useVociImpostazioni(open);
 
@@ -204,7 +207,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     const visibleGroups = navGroups
       .map(group => ({
         ...group,
-        items: group.items.filter(item => !item.demoCompanyOnly || isDemoBaseline),
+        items: group.items.filter(item => (!item.demoCompanyOnly || isDemoBaseline) && (!item.soloConContabilitaGenerale || contabilitaGenerale === true)),
       }))
       .filter(group => group.items.length > 0);
     if (query.length < 2) return visibleGroups;
@@ -217,7 +220,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         ),
       }))
       .filter(group => group.items.length > 0);
-  }, [query, isDemoBaseline]);
+  }, [query, isDemoBaseline, contabilitaGenerale]);
 
   const filteredSettingsItems = useMemo(() => {
     if (query.length < 2) return [];

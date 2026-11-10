@@ -298,6 +298,7 @@ function PianoDeiConti({ companyId, conti }: { companyId: string; conti: ContoCo
 function Scritture({ companyId, anno, conti, giornale }: { companyId: string; anno: number; conti: ContoContabile[]; giornale: boolean }) {
   const qc = useQueryClient();
   const scritture = useScritture(companyId, anno);
+  const esercizio = useEsercizio(companyId, anno).data;
   const anagrafica = useAnagraficaAzienda();
   const [nuova, setNuova] = useState(false);
   const [stampa, setStampa] = useState<string | null>(null);
@@ -331,6 +332,9 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
       ].filter(Boolean).join(" · ");
       (r.errori.length ? toast.warning : toast.success)(`${nuove} scritture generate`, { description: dettagli, duration: 12000 });
       void qc.invalidateQueries({ queryKey: chiave(companyId, "scritture") });
+      // L'ora dell'ultimo aggiornamento la scrive il giro automatico; quello a mano la mostra subito.
+      qc.setQueryData<StatoEsercizioRiga | null>(chiave(companyId, "esercizio", anno),
+        (e) => e ? { ...e, generato_il: new Date().toISOString() } : e);
     },
     onError: (e) => toast.error("Scritture non generate", { description: e instanceof Error ? e.message : String(e) }),
   });
@@ -362,6 +366,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
         <span className="text-muted-foreground">
           {anno}: {g.scritture} scritture · dare {euro(g.totaleDare)} · avere {euro(g.totaleAvere)}
+          {esercizio?.generato_il ? <> · {aggiornataAlle(esercizio.generato_il)}</> : null}
         </span>
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={apriStampa}><Printer className="mr-1 h-4 w-4" />Stampa libro giornale</Button>
@@ -375,7 +380,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
             </>
           ) : null}
           <Button size="sm" variant="outline" onClick={() => genera.mutate()} disabled={genera.isPending}>
-            <FileInput className="mr-1 h-4 w-4" />{genera.isPending ? "Generazione…" : "Genera dai documenti"}
+            <FileInput className="mr-1 h-4 w-4" />{genera.isPending ? "Aggiornamento…" : "Aggiorna adesso"}
           </Button>
           <Button size="sm" onClick={() => setNuova(true)}><Plus className="mr-1 h-4 w-4" />Nuova scrittura</Button>
         </div>
@@ -406,7 +411,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
       ) : (
         <div className="space-y-2">
           {elenco.length === 0 ? (
-            <p className="rounded-xl border p-4 text-sm text-muted-foreground">Nessuna scrittura nel {anno}. «Genera dai documenti» registra fatture, incassi e pagamenti dell'esercizio; le altre operazioni si registrano con «Nuova scrittura».</p>
+            <p className="rounded-xl border p-4 text-sm text-muted-foreground">Nessuna scrittura nel {anno}. Fatture, incassi e pagamenti si registrano da soli ogni quarto d'ora («Aggiorna adesso» per non aspettare); le altre operazioni si registrano con «Nuova scrittura».</p>
           ) : elenco.slice(0, mostra).map((s) => {
             const tot = s.contabilita_righe.reduce((t, r) => t + Number(r.dare || 0), 0);
             return (
@@ -919,14 +924,23 @@ function LiquidazioneIva({ companyId, anno }: { companyId: string; anno: number 
   );
 }
 
-interface StatoEsercizioRiga { anno: number; chiuso_il: string | null; stampato_fino_al: string | null; stampe: Array<{ dal: string; al: string; scritture: number; il: string }> }
+interface StatoEsercizioRiga { anno: number; chiuso_il: string | null; stampato_fino_al: string | null; generato_il: string | null; stampe: Array<{ dal: string; al: string; scritture: number; il: string }> }
+
+/** «Aggiornata alle 10:15» oggi, «Aggiornata il 09/11 alle 18:52» gli altri giorni (ora italiana). */
+function aggiornataAlle(iso: string, adesso: Date = new Date()): string {
+  const d = new Date(iso);
+  const giorno = (x: Date) => x.toLocaleDateString("it-IT", { timeZone: "Europe/Rome", day: "2-digit", month: "2-digit" });
+  const ora = d.toLocaleTimeString("it-IT", { timeZone: "Europe/Rome", hour: "2-digit", minute: "2-digit" });
+  const stessoGiorno = d.toLocaleDateString("it-IT", { timeZone: "Europe/Rome" }) === adesso.toLocaleDateString("it-IT", { timeZone: "Europe/Rome" });
+  return stessoGiorno ? `aggiornata alle ${ora}` : `aggiornata il ${giorno(d)} alle ${ora}`;
+}
 
 function useEsercizio(companyId: string | undefined, anno: number) {
   return useQuery({
     queryKey: chiave(companyId, "esercizio", anno),
     enabled: !!companyId,
     queryFn: async () => {
-      const { data, error } = await db.from("contabilita_esercizi").select("anno, chiuso_il, stampato_fino_al, stampe")
+      const { data, error } = await db.from("contabilita_esercizi").select("anno, chiuso_il, stampato_fino_al, stampe, generato_il")
         .eq("company_id", companyId).eq("anno", anno).maybeSingle();
       if (error) throw error;
       return (data ?? null) as StatoEsercizioRiga | null;
