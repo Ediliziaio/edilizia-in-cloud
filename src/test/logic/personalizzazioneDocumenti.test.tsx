@@ -62,6 +62,14 @@ describe("personalizzazioneDocumento", () => {
     expect(misurePiede(personalizzazioneDocumento(id), 495)).toBeNull();
     expect(margineInferiorePiede(id, 72)).toBe(72);
   });
+  it("Renova: copertina chiara col suo logo senza riquadro, grande; pagine interne e piè come sempre", () => {
+    const v = personalizzazioneDocumento("f2a16dd8-36c3-4d92-8d78-267d6374dcb5");
+    expect(v).toMatchObject({ logoCopertinaAltezza: 100, logoCopertinaLarghezzaMax: 260, logoAltezza: null, piedeFont: null, piedeRighe: null });
+    expect(v.logoCopertinaUrl).toMatch(/^data:image\/png;base64,/);
+    expect(v.copertina).toMatchObject({ fondo: "#FFFFFF", testo: "#1F2937" });
+    expect(misurePiede(v, 495)).toBeNull();
+    expect(margineInferiorePiede("f2a16dd8-36c3-4d92-8d78-267d6374dcb5", 72)).toBe(72);
+  });
   it("Vulcano ha le quattro righe dell'esempio, scritte così, la prima come titolo e l'email azzurra sottolineata", () => {
     const v = personalizzazioneDocumento(VULCANO);
     expect(v.piedeRighe!.map(testoRigaPiede)).toEqual(PIEDE_VULCANO);

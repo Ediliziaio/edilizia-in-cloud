@@ -743,8 +743,16 @@ export function CopertinaDocumento({ tema, dati, bookmark, data, nota, avviso, c
   avviso?: string;
   colori?: { occhiello?: string; titolo?: string; sottotitolo?: string };
 }) {
-  const c = dati.modello.copertina;
-  const { fondo, testo, evidenza } = coloriCopertina(tema, { fondo: c.coloreFondo, testo: c.coloreTesto });
+  const veste = personalizzazioneDocumento(dati.azienda.companyId);
+  // I colori della copertina propri dell'azienda (Renova) vincono su quelli del modello, testi compresi.
+  const c = veste.copertina ? { ...dati.modello.copertina, coloreFondo: veste.copertina.fondo, coloreTesto: veste.copertina.testo } : dati.modello.copertina;
+  const coloriTesti = veste.copertina
+    ? { titolo: veste.copertina.titolo, occhiello: veste.copertina.occhiello, sottotitolo: veste.copertina.sottotitolo }
+    : colori;
+  const coloriScelti = coloriCopertina(tema, { fondo: c.coloreFondo, testo: c.coloreTesto });
+  const { fondo, testo } = coloriScelti;
+  // L'evidenza si calcola per i fondi scuri: su quello chiaro dell'azienda vale il suo occhiello.
+  const evidenza = veste.copertina?.occhiello ?? coloriScelti.evidenza;
   const opacita = c.opacitaVelo ?? 0.6;
   const inTinta = copertinaInTinta(c.opacitaVelo);
   // In tinta la foto prende il colore dell'azienda (pieno, come una stampa a due colori) e
@@ -760,8 +768,7 @@ export function CopertinaDocumento({ tema, dati, bookmark, data, nota, avviso, c
   const corpoOcchiello = Math.max(7, Math.min(12, c.corpoOcchiello ?? 8.5));
   const corpoSottotitolo = Math.max(10, Math.min(16, c.corpoSottotitolo ?? 12.5));
   // Il logo scelto per la copertina vince; poi, su fondo scuro, il logo chiaro del kit del marchio.
-  const logo = c.logoUrl || (testo === "#FFFFFF" ? dati.azienda.logoChiaroUrl : null) || dati.azienda.logoUrl;
-  const veste = personalizzazioneDocumento(dati.azienda.companyId);
+  const logo = veste.logoCopertinaUrl || c.logoUrl || (testo === "#FFFFFF" ? dati.azienda.logoChiaroUrl : null) || dati.azienda.logoUrl;
   const altezzaLogo = veste.logoCopertinaAltezza ?? 50 * c.scalaLogo;
   const larghezzaLogo = veste.logoCopertinaLarghezzaMax ?? 190 * c.scalaLogo;
   // Un logo scuro su un fondo scuro non si legge: se non c'è quello chiaro, gli si mette sotto un fondo bianco.
@@ -864,11 +871,11 @@ export function CopertinaDocumento({ tema, dati, bookmark, data, nota, avviso, c
         </View>
 
         <View style={{ flex: 1, justifyContent: giustificaTesto, alignItems: centro ? "center" : "flex-start", paddingTop: 30, paddingBottom: 34 }}>
-          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: corpoOcchiello, color: colori?.occhiello || evidenza, letterSpacing: 2.4, marginBottom: 14, textAlign: c.allineamento }}>{occhiello.toUpperCase()}</Text>
+          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: corpoOcchiello, color: coloriTesti?.occhiello || evidenza, letterSpacing: 2.4, marginBottom: 14, textAlign: c.allineamento }}>{occhiello.toUpperCase()}</Text>
           <View style={{ maxWidth: 480 }}>
-            <TitoloAccento tema={tema} testo={titolo} corpo={corpoTitolo} colore={colori?.titolo || testo} coloreAccento={evidenza} allineamento={c.allineamento} interlinea={1.2} />
+            <TitoloAccento tema={tema} testo={titolo} corpo={corpoTitolo} colore={coloriTesti?.titolo || testo} coloreAccento={evidenza} allineamento={c.allineamento} interlinea={1.2} />
           </View>
-          <Text style={{ fontFamily: tema.caratteri.testo, fontSize: corpoSottotitolo, color: colori?.sottotitolo || testo, opacity: 0.86, marginTop: 14, lineHeight: 1.4, maxWidth: 400, textAlign: c.allineamento }}>{sottotitoloDaStampare}</Text>
+          <Text style={{ fontFamily: tema.caratteri.testo, fontSize: corpoSottotitolo, color: coloriTesti?.sottotitolo || testo, opacity: 0.86, marginTop: 14, lineHeight: 1.4, maxWidth: 400, textAlign: c.allineamento }}>{sottotitoloDaStampare}</Text>
           {avviso ? <Text style={{ fontSize: 10, color: testo, lineHeight: 1.4, marginTop: 16, maxWidth: 400 }}>{avviso}</Text> : null}
         </View>
 

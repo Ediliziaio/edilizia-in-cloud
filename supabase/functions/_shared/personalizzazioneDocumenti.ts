@@ -3,10 +3,13 @@
  *
  * Oggi solo Impresa Vulcano: logo molto più grande e piè di pagina in EB Garamond blu scuro. Dal 10/11/2026 anche
  * il contenuto del piè è il suo: le quattro righe dell'esempio mandato dal titolare (`piedeRighe`), al posto delle
- * righeSocietarie. Per tutte le altre il valore neutro lascia ogni documento com'era.
+ * righeSocietarie. Dal 10/11/2026 Renova Solution: copertina chiara e logo grande, senza il riquadro bianco.
+ * Per tutte le altre il valore neutro lascia ogni documento com'era.
  *
  * Modulo puro: lo importano frontend, edge e bundle. Misure in punti PDF.
  */
+import { LOGO_COPERTINA_RENOVA } from "./logoCopertinaRenova.ts";
+
 /** Un pezzo di una riga del piè: il testo, scritto così com'è, e se serve un colore suo e la sottolineatura. */
 export interface PartePiede {
   testo: string;
@@ -31,6 +34,13 @@ export interface PersonalizzazioneDocumento {
   piedeColore: string | null;
   /** Le righe del piè al posto dei dati societari; null = il piè di sempre. */
   piedeRighe: readonly RigaPiede[] | null;
+  /** Il logo della copertina al posto di quello dell'azienda (immagine incorporata); null = quello di sempre. */
+  logoCopertinaUrl: string | null;
+  /**
+   * I colori della copertina (quella dei modelli di preventivo) al posto di quelli del modello: il fondo, che
+   * colora anche il velo sulla foto, e i testi. null = quelli del modello.
+   */
+  copertina: Readonly<{ fondo: string; testo: string; titolo: string; occhiello: string; sottotitolo: string }> | null;
 }
 
 export const SENZA_PERSONALIZZAZIONE: PersonalizzazioneDocumento = Object.freeze({
@@ -41,9 +51,12 @@ export const SENZA_PERSONALIZZAZIONE: PersonalizzazioneDocumento = Object.freeze
   piedeFont: null,
   piedeColore: null,
   piedeRighe: null,
+  logoCopertinaUrl: null,
+  copertina: null,
 });
 
 const IMPRESA_VULCANO = "7c87c209-7868-42d0-ad98-6c95ac6de196";
+const RENOVA_SOLUTION = "f2a16dd8-36c3-4d92-8d78-267d6374dcb5";
 
 export const FONT_EB_GARAMOND = "EB Garamond";
 
@@ -63,10 +76,25 @@ const VESTE_VULCANO: PersonalizzazioneDocumento = Object.freeze({
     { parti: [{ testo: "info@impresavulcano.it", colore: "#3B82C4", sottolineato: true }, { testo: " - www.impresavulcano.it" }] },
     { parti: [{ testo: "C.F./P.IVA 06923340969    tel. 0331/1409144" }] },
   ]),
+  logoCopertinaUrl: null,
+  copertina: null,
+});
+
+// Renova (10/11/2026): il logo in copertina era piccolo e dentro un riquadro bianco sul fondo scuro. Ora la copertina
+// è chiara, con la foto che si vede sotto un velo bianco, e il logo è quello senza riquadro, alto il doppio.
+// L'occhiello nel verde del marchio, scurito quanto basta per leggersi sul bianco. Le pagine interne restano come sono.
+const VESTE_RENOVA: PersonalizzazioneDocumento = Object.freeze({
+  ...SENZA_PERSONALIZZAZIONE,
+  logoCopertinaAltezza: 100,
+  logoCopertinaLarghezzaMax: 260,
+  logoCopertinaUrl: LOGO_COPERTINA_RENOVA,
+  copertina: Object.freeze({ fondo: "#FFFFFF", testo: "#1F2937", titolo: "#111827", occhiello: "#5A7300", sottotitolo: "#374151" }),
 });
 
 export function personalizzazioneDocumento(companyId: string | null | undefined): PersonalizzazioneDocumento {
-  return companyId === IMPRESA_VULCANO ? VESTE_VULCANO : SENZA_PERSONALIZZAZIONE;
+  if (companyId === IMPRESA_VULCANO) return VESTE_VULCANO;
+  if (companyId === RENOVA_SOLUTION) return VESTE_RENOVA;
+  return SENZA_PERSONALIZZAZIONE;
 }
 
 /** Il testo intero di una riga del piè. */
