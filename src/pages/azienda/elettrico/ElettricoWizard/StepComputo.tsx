@@ -19,10 +19,11 @@ import { consentiPreventivoConversazionale } from "@/lib/preventivi/quoteRollout
 const NativeComputoAiDialog = lazy(() => import("@/components/quotes/NativeComputoAiDialog"));
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Loader2, CheckCircle2, Settings2, Info, Sparkles, Mic } from "lucide-react";
+import { Loader2, CheckCircle2, Settings2, Info, FileUp, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { ComputoUploadModal } from "@/components/computo/ComputoUploadModal";
+import { ImportaVociDialog } from "@/components/computo/ImportaVociDialog";
+import { versoVoceLocale } from "@/lib/computo/importaVoci";
 import { VoiceComputoDialog } from "@/components/computo/VoiceComputoDialog";
 import { useSaveComputo, useEffectiveCompanyId } from "@/hooks/useElettricoProgetto";
 import { useListinoVociSearch } from "@/hooks/useElettricoListino";
@@ -258,9 +259,9 @@ export default function StepComputo({ progettoId, initialComputo, initialDirty =
           size="sm"
           className="tap-compact h-8 gap-1.5 text-xs max-sm:flex-1"
           disabled={!companyId}
-          onClick={() => nativeAi ? setVoiceOpen(true) : setImportOpen(true)}
+          onClick={() => setImportOpen(true)}
         >
-          <Sparkles className="h-3.5 w-3.5 text-orange-500" /> <span className="max-sm:hidden">Importa computo da PDF (AI)</span><span className="sm:hidden">Importa PDF</span>
+          <FileUp className="h-3.5 w-3.5 text-orange-500" /> Importa voci
         </Button>
         <Button
           type="button"
@@ -274,7 +275,7 @@ export default function StepComputo({ progettoId, initialComputo, initialDirty =
         </Button>
         {/* Telefono: due bottoni affiancati, senza la frase di spiegazione. */}
         <span className="text-[11px] text-muted-foreground max-sm:hidden">
-          Carica un computo esistente: l'AI estrae le voci, le rivedi e le aggiungi.
+          Da PriMus, PDF, Excel, CSV, Word o una foto: rivedi le voci prima di aggiungerle.
         </span>
       </div>
 
@@ -301,12 +302,12 @@ export default function StepComputo({ progettoId, initialComputo, initialDirty =
         confirmLabel="Aggiungi al computo"
       />}
 
-      <ComputoUploadModal
+      <ImportaVociDialog
         open={importOpen}
         onOpenChange={setImportOpen}
-        intent="computo"
-        onConfirmVoci={handleImportVoci}
-        confirmLabel="Aggiungi al computo"
+        vociPresenti={computo.length}
+        consentiAi
+        onAggiungi={voci => handleImportVoci(voci.map(versoVoceLocale))}
       />
     </div>
   );

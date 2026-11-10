@@ -72,6 +72,12 @@ function valoreCella(v: unknown): { testo: string; numero: number | null; formul
   return { testo: "", numero: null, formula: false };
 }
 
+/** Una cella da un testo semplice: le tabelle dei CSV e dei documenti Word passano dalla stessa lettura dei fogli. */
+export function cellaDaTesto(testo: string, grassetto = false): Cella {
+  const v = valoreCella(testo);
+  return { testo: v.testo, testoUnito: v.testo, numero: v.numero, formulaSenzaRisultato: false, grassetto };
+}
+
 // ── L'intestazione ───────────────────────────────────────────────────────────
 
 type Ruolo = "numero" | "codice" | "descrizione" | "unita" | "quantita" | "prezzo" | "importo";
