@@ -40,12 +40,13 @@ const PASSI: { id: Passo; titolo: string }[] = [
   { id: "manda", titolo: "Manda" },
 ];
 
-interface Props { id: string; existing: boolean; order: string; company: string; context: VariationContext; canEdit: boolean; onClose: () => void }
-export function VariationLifecycleDialog({ id, existing, order, company, context, canEdit, onClose }: Props) {
+/** `bozzaIniziale`: un lavoro extra nuovo già scritto (dal preventivo accettato): nasce da salvare, chiudere lo salva. */
+interface Props { id: string; existing: boolean; order: string; company: string; context: VariationContext; canEdit: boolean; onClose: () => void; bozzaIniziale?: VariationDraft }
+export function VariationLifecycleDialog({ id, existing, order, company, context, canEdit, onClose, bozzaIniziale }: Props) {
   const workflow = useVariationWorkflow(order, company);
-  const [form, setForm] = useState<VariationDraft>(() => ({ ...emptyVariationDraft(), documentCompanyName: context.companyName, documentCompanyDetails: context.companyDetails, documentCustomerName: context.customerName, documentCustomerDetails: context.customerAddress }));
+  const [form, setForm] = useState<VariationDraft>(() => (!existing && bozzaIniziale) ? bozzaIniziale : ({ ...emptyVariationDraft(), documentCompanyName: context.companyName, documentCompanyDetails: context.companyDetails, documentCustomerName: context.customerName, documentCustomerDetails: context.customerAddress }));
   const [receipt, setReceipt] = useState<WorkflowResponse | null>(null);
-  const [saved, setSaved] = useState(existing ? "" : JSON.stringify(form));
+  const [saved, setSaved] = useState(existing || bozzaIniziale ? "" : JSON.stringify(form));
   const [busy, setBusy] = useState(existing);
   const [azione, setAzione] = useState("");
   const [error, setError] = useState("");

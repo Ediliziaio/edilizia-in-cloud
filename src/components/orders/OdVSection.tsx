@@ -13,6 +13,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
 import { usePermissions } from "@/hooks/usePermissions";
 import { type VariationContext } from "./VariationEditor";
+import type { VariationDraft } from "@/lib/orders/variationDraft";
 import { variationEventDate } from "@/lib/orders/pendingVariationDocument";
 import { dettagliImpresa } from "@/lib/orders/variationDocumentContext";
 import { caricaDatiSocietari, righeSocietarie } from "../../../supabase/functions/_shared/datiSocietari";
@@ -26,6 +27,10 @@ interface OdVSectionProps {
   companyId: string;
   context?: VariationContext;
   onOpenDocuments?:()=>void;
+  /** Un lavoro extra già scritto (dal preventivo accettato del committente): si apre subito, da salvare. */
+  bozzaIniziale?: { id: string; bozza: VariationDraft };
+  /** Chiamata alla chiusura del lavoro extra aperto con `bozzaIniziale`. */
+  onBozzaChiusa?: () => void;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; tono: TonoStato }> = {
@@ -36,7 +41,7 @@ const STATUS_CONFIG: Record<string, { label: string; tono: TonoStato }> = {
   annullato: { label: "Annullato", tono: "grigio" },
 };
 
-export function OdVSection({ orderId, companyId, context: contestoCommessa = {}, onOpenDocuments }: OdVSectionProps) {
+export function OdVSection({ orderId, companyId, context: contestoCommessa = {}, onOpenDocuments, bozzaIniziale, onBozzaChiusa }: OdVSectionProps) {
   // Senza i dati dell'impresa il riquadro nel PDF restava col solo nome.
   const anagrafica = useCompanyAnagraficaForTemplate();
   const { data: societarie } = useQuery({
@@ -46,7 +51,7 @@ export function OdVSection({ orderId, companyId, context: contestoCommessa = {},
   const context: VariationContext = { ...contestoCommessa, societarie, companyId, companyDetails: contestoCommessa.companyDetails ?? dettagliImpresa(anagrafica) };
   const permissions = usePermissions();
   const queryClient = useQueryClient();
-  const [editing, setEditing] = useState<{id:string;existing:boolean}|null>(null);
+  const [editing, setEditing] = useState<{id:string;existing:boolean}|null>(() => bozzaIniziale ? { id: bozzaIniziale.id, existing: false } : null);
   const sending = useRef(new Set<string>());
   const [campiDi, setCampiDi] = useState<string | null>(null);
   const [invioEmailLoading, setInvioEmailLoading] = useState<string | null>(null);
@@ -192,7 +197,9 @@ export function OdVSection({ orderId, companyId, context: contestoCommessa = {},
           {campiDi && <EntityCustomFieldsSection entityType="ordini_variazione" entityId={campiDi} />}
         </DialogContent>
       </Dialog>
-      {editing && <VariationLifecycleDialog key={`${companyId}:${orderId}:${editing.id}`} id={editing.id} existing={editing.existing} order={orderId} company={companyId} context={context} canEdit={permissions.canEditOrders} onClose={() => setEditing(null)} />}
+      {editing && <VariationLifecycleDialog key={`${companyId}:${orderId}:${editing.id}`} id={editing.id} existing={editing.existing} order={orderId} company={companyId} context={context} canEdit={permissions.canEditOrders}
+        bozzaIniziale={editing.id === bozzaIniziale?.id ? bozzaIniziale.bozza : undefined}
+        onClose={() => { const daBozza = editing.id === bozzaIniziale?.id; setEditing(null); if (daBozza) onBozzaChiusa?.(); }} />}
     </>
   );
 }

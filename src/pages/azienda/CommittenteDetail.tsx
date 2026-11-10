@@ -26,7 +26,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarDays, ChevronDown, CreditCard, Download, ExternalLink, FileSignature, FileText, HardHat,
-  Loader2, Mail, MapPin, Pencil, Phone, Plus, Trash2, Upload, Euro, AlertTriangle, ClipboardList, Lock, Receipt,
+  Loader2, Mail, MapPin, Pencil, Phone, Plus, Trash2, Upload, Euro, AlertTriangle, ClipboardList, Lock, Receipt, FilePen,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -84,6 +84,8 @@ import { useSchermoStretto } from "@/hooks/useSchermoStretto";
 import type { ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
 import { queryKeys } from "@/lib/queryKeys";
 import { eventiCommittente, type RendicontoNelDiario } from "@/lib/appalto/diarioCommittente";
+import { PreventiviCommittente, type PreventivoScheda } from "@/components/committenti/PreventiviCommittente";
+import { preventivoDaRichiamare } from "@/lib/preventivi/preventiviCommittente";
 
 const EmailComposeDialog = lazy(() =>
   import("@/pages/azienda/email/components/EmailComposeDialog").then((m) => ({ default: m.EmailComposeDialog }))
@@ -123,7 +125,7 @@ interface Tariffa {
 }
 
 interface Lavoro {
-  id: string; order_code: string | null; description: string | null;
+  id: string; order_code: string | null; description: string | null; quote_id: string | null;
   total_amount: number | null; created_at: string;
   work_start_date: string | null; work_end_date: string | null;
   valorizzazione: string | null; tetto_importo: number | null;
@@ -166,6 +168,7 @@ const nomeCommittente = (c: Committente | null | undefined) =>
 const SEZIONI: SezioneLaterale[] = [
   { key: "contratti", icon: FileSignature, label: "Contratti" },
   { key: "listino", icon: Euro, label: "Listino concordato" },
+  { key: "preventivi", icon: FilePen, label: "Preventivi" },
   { key: "commesse", icon: ClipboardList, label: "Commesse" },
   { key: "rendiconti", icon: Receipt, label: "Rendiconti", larga: true },
   { key: "documenti", icon: FileText, label: "Documenti / Fatture" },
@@ -288,7 +291,7 @@ export default function CommittenteDetail() {
     queryFn: async (): Promise<Lavoro[]> => {
       const { data, error } = await supabase
         .from("orders")
-        .select("id, order_code, description, total_amount, work_start_date, work_end_date, valorizzazione, tetto_importo, created_at, fase:order_statuses!orders_current_status_id_fkey(name, color)")
+        .select("id, order_code, description, quote_id, total_amount, work_start_date, work_end_date, valorizzazione, tetto_importo, created_at, fase:order_statuses!orders_current_status_id_fkey(name, color)")
         .eq("company_id", companyId!)
         .eq("customer_id", id!)
         .is("deleted_at", null)
@@ -296,6 +299,23 @@ export default function CommittenteDetail() {
         .limit(100);
       if (error) throw error;
       return (data ?? []) as unknown as Lavoro[];
+    },
+  });
+
+  // I preventivi fatti al committente (10/11/2026): quelli legati alla sua riga e, se ne ha uno, al suo contatto CRM.
+  const marketingContactId = committente.data?.marketing_contact_id ?? null;
+  const preventivi = useQuery({
+    queryKey: ["preventivi-committente", companyId, id, marketingContactId],
+    enabled: !!companyId && !!id && committente.isSuccess,
+    queryFn: async (): Promise<PreventivoScheda[]> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let q = (supabase as any).from("quotes")
+        .select("id, quote_number, title, total, status, created_at, sent_at, expires_at, signed_at, revision_number, parent_quote_id, refused_motivo, refused_reason, variante_id, version, source")
+        .eq("company_id", companyId).is("deleted_at", null);
+      q = marketingContactId ? q.or(`customer_id.eq.${id},contact_id.eq.${marketingContactId}`) : q.eq("customer_id", id);
+      const { data, error } = await q.order("created_at", { ascending: false }).limit(100);
+      if (error) throw error;
+      return (data ?? []) as PreventivoScheda[];
     },
   });
 
@@ -454,9 +474,16 @@ export default function CommittenteDetail() {
   const apriAppuntamento = () => setAppuntamentoOpen(true);
   const nuovoContratto = () => navigate(`/azienda/committenti/${id}/contratto/nuovo`);
   const puoCreareLavori = permessi.isAdmin || permessi.canEditOrders;
+  const puoPreventivi = permessi.isAdmin || permessi.canEditPreventivi;
+  const nuovoPreventivo = () => navigate(`/azienda/marketing/preventivi/nuovo?customer_id=${c.id}`);
   const nuovoLavoro = () => navigate(`/azienda/ordini/nuovo-lavoro-appaltatore?committente=${c.id}`);
   const pulsantiCrea = (
     <>
+      {puoPreventivi && (
+        <Button variant="outline" size="sm" className="h-9 gap-1.5 max-md:flex-1" onClick={nuovoPreventivo}>
+          <FilePen className="h-3.5 w-3.5" /> Nuovo preventivo
+        </Button>
+      )}
       {puoCreareLavori && (
         <Button variant="outline" size="sm" className="h-9 gap-1.5 max-md:flex-1" onClick={nuovoLavoro}>
           <ClipboardList className="h-3.5 w-3.5" /> Nuovo lavoro
@@ -474,6 +501,7 @@ export default function CommittenteDetail() {
   const conteggi: Record<string, number | undefined> = {
     contratti: elencoContratti.length,
     listino: vedeImporti ? tariffeInUso.length : undefined,
+    preventivi: preventivi.data?.length,
     commesse: elencoLavori.length,
     documenti: scheda?.fatture.length ?? 0,
     appuntamenti: scheda?.appuntamenti.length ?? 0,
@@ -745,7 +773,12 @@ export default function CommittenteDetail() {
     { label: "Commesse", icon: ClipboardList, iconColor: "text-blue-500", value: lavori.isLoading ? "…" : elencoLavori.length, sub: elencoLavori.length === 0 ? "Nessun lavoro" : `l'ultima del ${new Date(elencoLavori[0].created_at).toLocaleDateString("it-IT")}`, onClick: () => apriSezione("commesse") },
     { label: "Listino", icon: Euro, iconColor: "text-violet-500", value: "—", sub: "Prezzi riservati", onClick: () => apriSezione("listino") },
   ];
-  const azioni = azioniCommittente(vedeImporti ? nC : null, contrattoInCorso, oggiRoma(), !contratti.isLoading && !contratti.isError);
+  const oggi = oggiRoma();
+  const daRichiamare = preventivoDaRichiamare(preventivi.data ?? [], oggi, vedeImporti);
+  const azioni = [
+    ...azioniCommittente(vedeImporti ? nC : null, contrattoInCorso, oggi, !contratti.isLoading && !contratti.isError),
+    ...(daRichiamare ? [daRichiamare] : []),
+  ];
   // da_incassare null = non si possono leggere le fatture: «—» e nessun sollecito, non «€ 0».
   const apriSollecito = (oggetto: string, testo: string) => {
     const html = testo.split("\n\n").map((p) => `<p>${p.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>")}</p>`).join("");
@@ -757,6 +790,22 @@ export default function CommittenteDetail() {
     if (chiave === "contratti") return pannelloContratti;
     if (chiave === "listino") return pannelloListino;
     if (chiave === "commesse") return pannelloCommesse;
+    if (chiave === "preventivi") {
+      return (
+        <PreventiviCommittente
+          committenteId={c.id}
+          companyId={companyId ?? ""}
+          preventivi={preventivi.data ?? []}
+          caricamento={preventivi.isLoading}
+          errore={preventivi.isError}
+          commesse={elencoLavori}
+          oggi={oggi}
+          vedeImporti={vedeImporti}
+          puoPreventivi={puoPreventivi}
+          puoCommesse={puoCreareLavori}
+        />
+      );
+    }
     if (chiave === "rendiconti") {
       if (!vedeImporti) {
         return (

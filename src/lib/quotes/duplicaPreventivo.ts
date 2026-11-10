@@ -36,6 +36,10 @@ const CAMPI_DA_AZZERARE = [
   "signature_token",
   "refused_at",
   "refused_reason",
+  // Il motivo del rifiuto e il lavoro extra nato dal preventivo restano all'originale (10/11/2026).
+  // Il committente (customer_id) invece passa alla copia e alla revisione: è lo stesso cliente.
+  "refused_motivo",
+  "variante_id",
   "expires_at",
   "deleted_at",
   "deleted_by",

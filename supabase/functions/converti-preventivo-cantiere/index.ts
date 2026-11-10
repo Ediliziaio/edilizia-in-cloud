@@ -110,7 +110,22 @@ Deno.serve(async (req) => {
     // commessa non compare nel portale del cliente né nel suo storico, e il
     // nome in chiaro non basta a nessuna ricerca. Il contatto CRM sa a quale
     // profilo cliente corrisponde (marketing_contacts.customer_profile_id).
-    if (quote.contact_id) {
+    // Dal 10/11/2026 il preventivo fatto dalla scheda di un cliente o di un committente sa di chi è
+    // (quotes.customer_id, stessa azienda per trigger): vale prima del contatto CRM.
+    let committente = false;
+    const clienteDiretto = (quote as Record<string, unknown>).customer_id;
+    if (typeof clienteDiretto === "string" && clienteDiretto) {
+      const { data: profilo } = await supabaseAdmin
+        .from("profiles")
+        .select("id, company_id, customer_type")
+        .eq("id", clienteDiretto)
+        .maybeSingle();
+      if (profilo && profilo.company_id === quote.company_id) {
+        orderData.customer_id = profilo.id;
+        committente = profilo.customer_type === "appaltatore";
+      }
+    }
+    if (!orderData.customer_id && quote.contact_id) {
       const { data: contatto } = await supabaseAdmin
         .from("marketing_contacts")
         .select("customer_profile_id")
@@ -153,7 +168,35 @@ Deno.serve(async (req) => {
     });
     if (conversionError || !result?.id) return errorResponse(conversionError?.message || "Creazione commessa non riuscita.",409);
     const order = {id:result.id};
-    const righeAvviso: string | null = null;
+    let righeAvviso: string | null = null;
+
+    // 6b. Il preventivo di un committente diventa un lavoro in appalto a corpo, col contratto in corso: è da lì
+    // che rendiconti e fatture prendono condizioni e tariffe. Stessa regola di contrattoDiOggi (src/lib/appalto):
+    // attivo e valido oggi, se no il primo attivo, se no il più recente.
+    if (committente) {
+      try {
+        const oggi = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
+        const { data: contratti } = await supabaseAdmin
+          .from("appalto_contratti")
+          .select("id, valido_dal, valido_al, attivo")
+          .eq("company_id", quote.company_id)
+          .eq("committente_id", orderData.customer_id as string)
+          .order("valido_dal", { ascending: false });
+        const elenco = (contratti ?? []) as Array<{ id: string; valido_dal: string; valido_al: string | null; attivo: boolean }>;
+        const contratto = elenco.find((c) => c.attivo && c.valido_dal <= oggi && (!c.valido_al || c.valido_al >= oggi))
+          ?? elenco.find((c) => c.attivo) ?? elenco[0] ?? null;
+        const { error: eAppalto } = await supabaseAdmin
+          .from("orders")
+          .update({ order_type: "appaltatore_lavoro", valorizzazione: "a_corpo", appalto_contratto_id: contratto?.id ?? null })
+          .eq("id", order.id)
+          .eq("company_id", quote.company_id);
+        if (eAppalto) throw eAppalto;
+        if (!contratto) righeAvviso = "Il committente non ha un contratto: scrivilo nella sua scheda prima dei rendiconti.";
+      } catch (eAppalto) {
+        console.error("Commessa in appalto dal preventivo:", eAppalto);
+        righeAvviso = "La commessa c'è, ma non è legata al contratto del committente: controllala prima dei rendiconti.";
+      }
+    }
 
     // 7. Chiude la catena commerciale: se il preventivo era legato a un
     // deal, la commessa lo ricorda (orders.opportunity_id) e l'opportunità

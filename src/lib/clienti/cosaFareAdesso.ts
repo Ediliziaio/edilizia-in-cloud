@@ -8,7 +8,8 @@ import { euro } from "@/lib/clienti/schedaCliente";
 
 export type AzioneSuggerita =
   | { tipo: "sollecito"; importo: number; giorni: number; commesse: string[] }
-  | { tipo: "preventivo"; id: string; numero: string | null; giorni: number; totale: number | null }
+  /** Con `scadutoIl` è un preventivo scaduto senza risposta (scheda committente): `giorni` contano da lì. */
+  | { tipo: "preventivo"; id: string; numero: string | null; giorni: number; totale: number | null; scadutoIl?: string }
   | { tipo: "assistenza"; id: string; titolo: string | null; giorni: number }
   | { tipo: "da_rendicontare"; importo: number }
   | { tipo: "rendiconto_fermo"; numero: number; giorni: number }

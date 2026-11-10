@@ -13,7 +13,7 @@ import { useOrderContractLink } from "@/hooks/useOrderContractLink";
 import { avanzamentoFasi, seminaSchedaCommessa, type SchedaCommessa } from "@/lib/orders/schedaCommessa";
 import { DuplicaLavoroDialog } from "@/components/orders/DuplicaLavoroDialog";
 import { useState, useMemo, useCallback, useRef, lazy, Suspense } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { AlertTriangle, BellRing, ChevronRight, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, ArrowRight } from "lucide-react";
@@ -122,6 +122,7 @@ import { DocumentiInPopup } from "@/components/orders/DocumentiInPopup";
 import { useConteggioRichiesteCommessa } from "@/hooks/useSupplierRfqs";
 import { OrdineVariazione } from "@/components/orders/OrdineVariazione";
 import { LavoriExtraPopup } from "@/components/orders/LavoriExtraPopup";
+import { LavoroExtraDaPreventivo } from "@/components/orders/LavoroExtraDaPreventivo";
 
 import { useOrdinePDF, type OrdinePDFProps } from "@/hooks/useOrdinePDF";
 import { RiepilogoPdfDialog, type SceltaRiepilogo } from "@/components/orders/RiepilogoPdfDialog";
@@ -380,6 +381,9 @@ function OrderDetailInner() {
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
   const permissions = usePermissions();
+  // Dalla scheda committente: un preventivo accettato da trasformare in lavoro extra su questa commessa.
+  const [parametriUrl, setParametriUrl] = useSearchParams();
+  const lavoroExtraDa = parametriUrl.get("lavoro_extra_da");
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
 
@@ -1555,6 +1559,10 @@ function OrderDetailInner() {
     <div id="order-detail-overview" className="commessa-elevated min-h-screen bg-slate-50 scroll-mt-4">
       {/* Dentro una commessa generale: torna alla generale e passa alle commesse sorelle. */}
       <PercorsoGenerale orderId={id!} />
+      {lavoroExtraDa && permissions.canEditOrders && permissions.canViewOrderAmounts && companyId && (
+        <LavoroExtraDaPreventivo quoteId={lavoroExtraDa} orderId={id!} companyId={companyId} context={contestoVarianti}
+          onChiudi={() => setParametriUrl((p) => { const n = new URLSearchParams(p); n.delete("lavoro_extra_da"); return n; }, { replace: true })} />
+      )}
 
       {/* ── New Header (breadcrumb + title + actions) ──────────── */}
       <OrdineDetailHeader
