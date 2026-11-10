@@ -1,6 +1,7 @@
 export const FISCAL_SECTIONS = [
   "iva",
   "contabilita",
+  "generale",
   "ritenute",
   "archivio",
 ] as const;
