@@ -55,6 +55,13 @@
   ! X-Frame-Options
 
 # Security headers for all pages
+# connect-src https://*.ediliziaincloud.com (10/11/2026): l'app gira su app., www. e
+# admin.ediliziaincloud.com (e sui domini dei rivenditori), ma i file di public/ sono
+# salvati nel database con UN indirizzo assoluto, per esempio il logo di Impresa
+# Vulcano su https://app.ediliziaincloud.com/loghi/. Con la sola 'self', chi lavorava
+# da www. non poteva scaricarlo: ordini e RDO fallivano con «Failed to fetch» e nei
+# PDF di react-pdf il logo spariva. Le immagini sono già aperte (img-src https:), il
+# fetch no: sono i PDF fatti nel browser a leggere il logo con fetch.
 # worker-src 'self' blob: — i PDF generati nel browser (@react-pdf, che dentro usa
 # fflate) comprimono le immagini in un worker creato da un blob. Senza questa
 # voce la CSP ricadeva su script-src, il worker veniva rifiutato e la libreria,
@@ -67,12 +74,16 @@
   Permissions-Policy: camera=(), microphone=(), geolocation=()
   X-XSS-Protection: 1; mode=block
   Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://cdn.jsdelivr.net https://connect.facebook.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https: http:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://api.open-meteo.com https://graph.facebook.com https://*.facebook.com; frame-src 'self' blob: https://www.google.com https://www.youtube.com https://www.youtube-nocookie.com https://www.facebook.com https://web.facebook.com https://m.facebook.com https://business.facebook.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://cdn.jsdelivr.net https://connect.facebook.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https: http:; connect-src 'self' https://*.ediliziaincloud.com https://*.supabase.co wss://*.supabase.co https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://api.open-meteo.com https://graph.facebook.com https://*.facebook.com; frame-src 'self' blob: https://www.google.com https://www.youtube.com https://www.youtube-nocookie.com https://www.facebook.com https://web.facebook.com https://m.facebook.com https://business.facebook.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'
 
 # Inter font self-hosted — immutable 1y (woff2 dal version 5.1.0 di @fontsource/inter)
 /fonts/*
   Cache-Control: public, max-age=31536000, immutable
   Content-Type: font/woff2
+  Access-Control-Allow-Origin: *
+
+# Loghi delle aziende in public/loghi: si leggono da ogni dominio dell'app (fetch dei PDF).
+/loghi/*
   Access-Control-Allow-Origin: *
 
 # Hero images self-hosted — immutable 1y (mai cambieranno, hash-based naming via build)
