@@ -191,7 +191,7 @@ describe("Foto, scansioni e PDF qualsiasi: lettura sul server", () => {
 });
 
 describe("Voci da controllare", () => {
-  const voce = (p: Partial<VoceImportata>) => ({ ...voceVuota(), descrizione: "Intonaco", unita: "mq", quantita: "10", prezzo: "24", avvisi: [], origine: "f", ...p });
+  const voce = (p: Partial<VoceImportata>): VoceImportata => ({ ...voceVuota(), descrizione: "Intonaco", unita: "mq", quantita: "10", prezzo: "24", avvisi: [], origine: "f", ...p });
 
   it("segnala quello che manca o è a zero", () => {
     expect(avvisiVoce(voce({}))).toEqual([]);
