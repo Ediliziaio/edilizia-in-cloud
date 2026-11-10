@@ -248,7 +248,7 @@ Ogni lotto si pubblica da solo, con i test e una prova sui dati veri.
 | **1. Fondamenta** ✅ 10/11 | `subappaltatore_id` su varianti e voci di ditta, ricavato dalla squadra; normalizzazione delle unità (R4); rapporto dei doppioni (sezione 3). Le regole di accesso restano come sono (R11 rivisto) | fatto: 62 righe su 66 hanno l'anagrafica (le 4 di MG Posa la prenderanno quando la squadra verrà collegata); test delle unità verde, e la funzione del database dà le stesse unità del codice su tutte le 22 grafie vere; trigger provato in 6 casi in una transazione annullata |
 | **2. Listino della ditta, a mano** ✅ 10/11 | linguetta «Listino» nella scheda subappaltatore (voci dell'azienda col prezzo della ditta, «Voce sua», «Prezzi passati», «Valgono dal»); `listino_ditta_salva` chiude il prezzo vecchio e apre il nuovo; prezzi scaduti mai proposti; voci proprie di una ditta mai proposte alle altre; squadra cancellata senza perdere i prezzi | fatto: prova in transazione annullata con l'amministratore della Demo 2, 8 casi su 8 (nuovo, correzione, listino nuovo che chiude il vecchio, uguale, tolto, negativo rifiutato, subappaltatore rifiutato, squadra cancellata). Trovato e corretto nella prova: `is_default` è uno per voce in tutta l'azienda (è la variante «di norma» dei preventivi), quindi un prezzo di ditta nasce senza (migrazione 20290213180100). Anche il ricalcolo automatico del previsto della ditta (`ditte_ricalcola_previsto`) ignorava le date: ora usa solo i prezzi validi oggi e trova quelli dell'anagrafica (20290213180200; sui dati di oggi 0 importi cambiati su 28 fasi; prova 50 → 30 → 50 €). Vista a schermo con dati d'esempio a 960 px e sul telefono |
 | **3. Abbinamento voci ↔ listino** ✅ 10/11 (senza AI) | «Collega al listino» in «Ditte e contratti»: proposte per stesso codice, come l'ultima volta (`product_aliases`, `learned_from='voce_computo'`), stessa descrizione unica; unità diverse = da guardare; scelta a mano con ricerca; «Al listino» crea la voce dal computo (col permesso listino); `voci_abbina_listino` scrive e ricorda (R3) | fatto: Villa Ida 252 voci su 643 si collegano da sole per codice; Cagliari L1/L2 e Courmayeur 0 (i loro codici non sono nel listino: si collegano a mano, poi si ricordano). Prova in transazione annullata con un amministratore di Bonarrigo, 6 casi su 6. **Resta: la proposta per significato con l'AI** — il listino di Bonarrigo non ha gli embedding; serve generarli (costo AI) |
-| **4. Affidamento per voce** | `subappalto_affidamenti`, funzioni, «Chi fa cosa», quote di quantità, «senza ditta», ditta sulla fase calcolata (R1, R6, R13, R15) | due affidamenti in parallelo: uno fallisce; l'esempio 7 fasi × 5 voci con 3 ditte torna al centesimo; fase con voce a contratto non cancellabile |
+| **4. Affidamento per voce** 🟡 10/11 database fatto, schermata da fare | `subappalto_affidamenti`, funzioni, «Chi fa cosa», quote di quantità, «senza ditta», ditta sulla fase calcolata (R1, R6, R13, R15) | due affidamenti in parallelo: uno fallisce; l'esempio 7 fasi × 5 voci con 3 ditte torna al centesimo; fase con voce a contratto non cancellabile |
 | **5. Contratto dagli affidamenti** | prezzi proposti con l'origine, «ricorda nel listino», margini interni con «comprende» (R9, R10), corrispettivo calcolato (R7, R8), PDF «Lavori affidati» | PDF di O-0001 di Dimora; utente senza permesso sui costi: nessuna cifra di venduto in nessuna risposta; database, finestra e PDF uguali al centesimo |
 | **6. Firma → quadro → misure → costi** | fotografia all'invio (R5), quadro con `voce_id` alla firma, previsto e consuntivo per fase, Margini e controllo di gestione | contratto Demo 2 firmato in una transazione annullata: quadro, misura, SAL e consuntivo della fase coerenti |
 | **7. Listino da Excel e PDF** | finestra di abbinamento, controllo dei prezzi fuori scala (R17) | un listino vero di una ditta, riga per riga |
@@ -286,6 +286,24 @@ Florin: «prima controlla bene tutto». Due controlli indipendenti più il mio:
   suggerimenti). Va cambiata la regola di accesso, in una finestra tranquilla perché le regole
   bloccano l'accesso mentre si applicano. E le edge function e il super admin non possono usare
   `listino_ditta_salva` (servono un utente vero dell'azienda).
+
+## 5-ter. Lotto 4, parte database (10/11/2026)
+
+Migrazioni `20290213210000_subappalto_affidamenti` e `20290213210100`, applicate e riallineate.
+- Tabella `subappalto_affidamenti` (l'unica nuova del piano): quota di una voce a una ditta, prezzo
+  proposto (listino della ditta → costo aziendale → a mano), «comprende» posa / fornitura e posa,
+  stato bozza / a contratto. Si legge con commesse + costi; si scrive solo con `affida_voci`,
+  `affidamento_modifica`, `affidamento_togli` (controllano commesse + costi).
+- Σ quote ≤ quantità della voce, con la voce bloccata mentre si scrive; la stessa ditta sulla stessa
+  voce si somma alla sua quota.
+- La ditta sulla fase segue da sola (`order_external_teams`, `costo_origine = 'contratto'`, nota
+  «Dagli affidamenti»); se la ditta non ha una squadra, nasce. Una ditta assegnata a mano prima non
+  si perde: torna «a mano» quando le sue quote se ne vanno.
+- Una voce o una fase con quote a contratto non si cancella; in bozza le quote se ne vanno con lei;
+  la purga dell'azienda passa. Un contratto cancellato riporta le sue quote in bozza.
+- Provato su Villa Ida in transazioni annullate: voce intera, voce piena, divisione 70 + 30,
+  previsto della ditta 875 €, oltre la quantità rifiutato, voce/fase a contratto bloccate, quota a
+  contratto non modificabile, cliente rifiutato e senza lettura.
 
 ## 6. I numeri di oggi (produzione, 10/11/2026)
 
