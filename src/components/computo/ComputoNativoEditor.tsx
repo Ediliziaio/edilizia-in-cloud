@@ -23,11 +23,10 @@ import { MOMENTI_RATA, analizzaEconomia } from "@/lib/computo/economiaComputo";
 import ComputoCapitoli from "./ComputoCapitoli";
 import ComputoMisure from "./ComputoMisure";
 import ComputoUnitaSelect from "./ComputoUnitaSelect";
-import ComputoImportPrimus, { type ComputoImportPrimusHandle } from "./ComputoImportPrimus";
 import { nomeCointestatario } from "@/lib/preventivatore/cointestatario";
 import { bozzaDalModello, fotoPerCopertina, leggiLogoPerPdf, vesteDalModello, type ModelloComputo, type VesteComputo } from "@/lib/computo/modelloComputo";
-import { vociDaEstrazioneAi } from "@/lib/computo/importaComputo";
-import type { ComputoVoceLocal } from "@/types/computo";
+import { applicaImportComputo, type EsitoImportComputo } from "@/lib/computo/importaComputo";
+import type { VoceImportata } from "@/lib/computo/importaVoci";
 import { calcolaIvaComputo } from "@/lib/computo/ivaComputo";
 import { ComputoFormatoSelect, ComputoOpzione } from "./ComputoPdfControls";
 import type { PickedVoce } from "@/components/ristrutturazione/ComputoEditor/types";
@@ -46,7 +45,7 @@ import { rigaDatiFiscali } from "@/lib/preventivatore/datiFiscaliCliente";
 const desktopSnapshot = () => window.matchMedia("(min-width: 1280px)").matches;
 const AddVocePicker = lazy(() => import("@/components/ristrutturazione/ComputoEditor/AddVocePicker"));
 // Gli stessi strumenti AI di Ristrutturazione e degli altri moduli; si caricano solo quando si aprono.
-const ComputoUploadModal = lazy(() => import("./ComputoUploadModal").then(m => ({ default: m.ComputoUploadModal })));
+const ImportaVociDialog = lazy(() => import("./ImportaVociDialog"));
 const ComputoSilvioAi = lazy(() => import("./ComputoSilvioAi"));
 const MAX_VOCI_SILVIO = 100;
 const subscribeDesktop = (notify: () => void) => {
@@ -124,7 +123,8 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
   const [storico, setStorico] = useState<BozzaComputo[]>([]);
   const [scelta, setScelta] = useState<string | null>(null);
   const [picker, setPicker] = useState<{ capitolo?: string } | null>(null);
-  const [aiAperta, setAiAperta] = useState<"file" | "chat" | null>(null);
+  const [aiAperta, setAiAperta] = useState<"chat" | null>(null);
+  const [importAperto, setImportAperto] = useState(false);
   const [fileChat, setFileChat] = useState<File | undefined>(undefined);
   const [revisioniAperte, setRevisioniAperte] = useState(false);
   const [errore, setErrore] = useState(iniziale.errore);
@@ -144,7 +144,6 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
   }, [anteprima]);
   const precedente = useRef(iniziale.raw);
   const importInput = useRef<HTMLInputElement>(null);
-  const importPrimus = useRef<ComputoImportPrimusHandle>(null);
   const apriVoce = (id: string) => setScelta(id);
 
   const modificato = useRef(false);
@@ -354,12 +353,16 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
     if (!nuove.length) { setPicker(null); return; }
     cambia({ ...bozza, voci: [...bozza.voci, ...nuove] }); apriVoce(nuove[nuove.length - 1].id); setPicker(null);
   };
-  const daAi = (estratte: ComputoVoceLocal[]) => {
-    setAiAperta(null);
-    if (!estratte.length) return;
-    if (bozza.voci.length + estratte.length > 5000) { setErrore(`Con queste voci il computo supererebbe le 5000 lavorazioni. Nessuna è stata aggiunta.`); return; }
-    cambia({ ...bozza, voci: [...bozza.voci, ...vociDaEstrazioneAi(estratte)] }); setScelta("");
-    toast.success(`${estratte.length} ${estratte.length === 1 ? "voce aggiunta" : "voci aggiunte"} al computo`, { description: "Controlla quantità e prezzi. Con «Annulla» si torna indietro." });
+  /** Le voci rivedute nel popup «Importa voci»: in coda, e l'intestazione del documento solo dove la bozza è vuota. */
+  const daImport = (importate: VoceImportata[], esito: EsitoImportComputo | null) => {
+    setImportAperto(false);
+    if (!importate.length) return;
+    const voci = importate.map(({ avvisi: _a, origine: _o, ...voce }) => voce);
+    try {
+      cambia(esito ? applicaImportComputo(bozza, { ...esito, voci }) : { ...bozza, voci: [...bozza.voci, ...voci] });
+    } catch (e) { setErrore(e instanceof Error ? e.message : "Import non riuscito."); return; }
+    setScelta("");
+    toast.success(`${voci.length} ${voci.length === 1 ? "voce aggiunta" : "voci aggiunte"} al computo`, { description: "Con «Annulla» si torna indietro." });
   };
   const riordina = (delta: number) => {
     if (!v) return;
@@ -438,9 +441,8 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
             <Button size="sm" className="bg-blue-950 text-white hover:bg-blue-900" disabled={bozza.voci.length > MAX_VOCI_SILVIO}
               title={bozza.voci.length > MAX_VOCI_SILVIO ? `Silvio lavora su preventivi fino a ${MAX_VOCI_SILVIO} voci: questo ne ha ${bozza.voci.length}.` : "Descrivi il lavoro, anche a voce: Silvio propone le voci e tu le rivedi"}
               onClick={() => setAiAperta("chat")}><Sparkles className="mr-1 h-4 w-4 text-orange-300" />Apri Silvio AI</Button>
-            <Button size="sm" variant="outline" className="bg-white" disabled={bozza.voci.length >= 5000} title="Fa leggere all'AI un PDF, un Excel o una foto" onClick={() => setAiAperta("file")}><Sparkles className="mr-1 h-4 w-4 text-orange-500" /><span className="max-sm:hidden">Importa con l'AI</span><span className="sm:hidden">Da file</span></Button>
           </>}
-          <Button size="sm" variant="outline" className="bg-white" disabled={bozza.voci.length >= 5000} title="PDF o XPWE di PriMus, oppure foglio Excel (.xlsx): voci e importi come sono scritti" onClick={() => importPrimus.current?.scegliFile()}><FileUp className="mr-1 h-4 w-4" /><span className="max-sm:hidden">Importa da PriMus</span><span className="sm:hidden">PriMus</span></Button>
+          <Button size="sm" variant="outline" className="bg-white" disabled={bozza.voci.length >= 5000} title="PriMus, PDF, Excel, CSV, Word o una foto: rivedi le voci prima di aggiungerle" onClick={() => setImportAperto(true)}><FileUp className="mr-1 h-4 w-4" />Importa voci</Button>
           <span className="ml-auto flex items-center gap-2">
             <Button variant="outline" size="sm" title="Annulla ultima modifica" aria-label="Annulla ultima modifica" disabled={!storico.length} onClick={() => {
               const ripristinata = storico.at(-1)!;
@@ -462,7 +464,6 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
           }}><Sparkles className="h-3 w-3 text-orange-500" />{a.nome.length > 28 ? `${a.nome.slice(0, 26)}…` : a.nome}</Button>)}
         <span className="text-muted-foreground">· Silvio la legge e propone le voci</span>
       </div>}
-      <ComputoImportPrimus ref={importPrimus} bozza={bozza} onBusy={setCaricando} onApplica={nuova => { cambia(nuova); setScelta(""); }} />
       <ComputoCapitoli voci={bozza.voci} capitoliVuoti={bozza.capitoli ?? []} aperta={v?.id}
         onApri={id => (id ? apriVoce(id) : setScelta(""))} onAdd={aggiungi}
         onModifica={(id, patch) => cambia({ ...bozza, voci: bozza.voci.map(r => r.id === id ? { ...r, ...patch } : r) })}
@@ -554,14 +555,15 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
     </Sheet>
     {revisioniAperte && <ComputoRevisioni bozza={bozza} open onOpenChange={setRevisioniAperte} onChange={cambiaParte} />}
     {aiAperta && ai && <Suspense fallback={<p role="status">Apro Silvio AI…</p>}>
-      {aiAperta === "file"
-        ? <ComputoUploadModal open intent="computo" onOpenChange={open => { if (!open) setAiAperta(null); }} onConfirmVoci={daAi} confirmLabel="Aggiungi al computo" />
-        : <ComputoSilvioAi open bozza={bozza} fileIniziale={fileChat} companyId={ai.companyId} draftId={ai.draftId} intestazione={intestazione}
+      <ComputoSilvioAi open bozza={bozza} fileIniziale={fileChat} companyId={ai.companyId} draftId={ai.draftId} intestazione={intestazione}
           onOpenChange={open => { if (!open) { setAiAperta(null); setFileChat(undefined); } }}
           onApply={(voci, titolo) => {
             // Il titolo di Silvio vale solo se quello del preventivo è ancora quello di partenza: uno scritto a mano non si tocca.
             const titoloNuovo = titolo && (!bozza.titolo.trim() || bozza.titolo === bozzaVuota().titolo) ? { titolo } : {};
-            setAiAperta(null); cambia({ ...bozza, ...titoloNuovo, voci }); setScelta(""); toast.success("Modifiche di Silvio applicate al computo", { description: "Con «Annulla» si torna indietro." }); }} />}
+            setAiAperta(null); cambia({ ...bozza, ...titoloNuovo, voci }); setScelta(""); toast.success("Modifiche di Silvio applicate al computo", { description: "Con «Annulla» si torna indietro." }); }} />
+    </Suspense>}
+    {importAperto && <Suspense fallback={<p role="status">Apro l'import…</p>}>
+      <ImportaVociDialog open onOpenChange={open => { if (!open) setImportAperto(false); }} onAggiungi={daImport} vociPresenti={bozza.voci.length} consentiAi={!!ai} />
     </Suspense>}
     {picker && consentiListini && <Suspense fallback={<p role="status">Apertura listini…</p>}><AddVocePicker open onOpenChange={open => { if (!open) setPicker(null); }} onPick={daListino} targetCapitolo={picker.capitolo} vociPresenti={bozza.voci.map(v => v.descrizione)} capitoliComputo={bozza.voci.map(v => v.capitolo)} /></Suspense>}
     <Dialog open={!!anteprima} onOpenChange={open => { if (!open) setAnteprima(null); }}>
