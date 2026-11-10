@@ -41,7 +41,7 @@ import QuoteLineEditor from "./QuoteLineEditor";
 import { QuoteChatResponse } from "./QuoteChatResponse";
 import { QuoteChatChoices } from "./QuoteChatChoices";
 import { QuoteTurnDetails } from './QuoteTurnDetails';
-import { isQuoteProviderNotice } from '@/lib/preventivi/quoteChatPresentation';
+import { isAzioneStrumentiAI, isMessaggioStrumentiAI, isQuoteProviderNotice } from '@/lib/preventivi/quoteChatPresentation';
 import { QuoteSourcePicker } from './QuoteSourcePicker';
 import { QuoteSimulationPicker } from './QuoteSimulationPicker';
 import { QuoteTemplatePicker } from './QuoteTemplatePicker';
@@ -108,6 +108,8 @@ type WorkspaceProps = {
   flow?: QuoteAiFlow;
   localTrialId?: string;
   demoMemory?: QuoteDemoMemory;
+  /** Scelta del modello, confronti e costi AI: solo nel laboratorio di sviluppo, mai a chi usa l'azienda. */
+  strumentiAI?: boolean;
   /** Wizard-owned isolated session. Never reads/writes the simulation's memory. */
   embedded?: {
     title: string; document: ChatDocument; project: QuoteProject;
@@ -138,7 +140,7 @@ function LocalPlanPreview({ blob, name, reading, selected }: { blob: Blob; name:
   }, [blob]);
   return blob.type.startsWith("image/") ? <div className="quote-plan-image" style={{ aspectRatio: reading ? `${reading.width}/${reading.height}` : undefined }}><img ref={image} alt={`Planimetria locale: ${name}`} />{selected && <svg viewBox="0 0 1 1" preserveAspectRatio="none" aria-label="Posizione del testo dell’ambiente selezionato"><rect x={selected.bbox[0]} y={selected.bbox[1]} width={selected.bbox[2]} height={selected.bbox[3]} fill="#fb923c44" stroke="#e65e13" strokeWidth=".004" /></svg>}</div> : <p>PDF conservato solo nel browser. Scegli una pagina scrivendo «pagina 2». Le posizioni dei testi sono riportate sotto, senza anteprima grafica del PDF.</p>;
 }
-function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", ownerId, localTrialId, onBack, transport, simulated = true, memory, scenarioId, onScenario, templateLibrary, transcribeAudio, cadReader, flow, embedded }: WorkspaceProps & { memory?: MemoryProps }) {
+function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "Demo Azienda 2", ownerId, localTrialId, onBack, transport, simulated = true, memory, scenarioId, onScenario, templateLibrary, transcribeAudio, cadReader, flow, embedded }: WorkspaceProps & { memory?: MemoryProps }) {
   const initial = embedded?.initial?.snapshot ?? memory?.initial.snapshot;
   const scenario = quoteSimulationScenario(scenarioId);
   const [document, setDocument] = useState<ChatDocument>(() => initial?.document ?? (embedded ? structuredClone(embedded.document) : { ...emptyChatDocument(), ...(scenario ? { title: scenario.title } : {}) }));
@@ -210,6 +212,10 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
   const chatScroll = useQuoteChatScroll(log, `${messages.length}:${messages.at(-1)?.text ?? ''}`, pane === 'chat' && !editorOpen);
   const append = (m: Message) => setMessages(prev => [...prev, m].slice(-50));
   const appendDiagnostic = (m: Message) => append({ ...m, diagnostic: true });
+  // Un file che non si legge è un avviso vicino al campo, non una risposta di Silvio che resta in chat.
+  const [avvisoAllegato, setAvvisoAllegato] = useState<string | null>(null);
+  const visibile = (m: Message) => !isQuoteProviderNotice(m) && (strumentiAI || !isMessaggioStrumentiAI(m));
+  const stessoAutore = (i: number) => { for (let k = i - 1; k >= 0; k--) if (visibile(messages[k])) return messages[k].role === messages[i].role; return false; };
   const clearSubmittedInput = (submitted: string) => setInput(value => value.trim() === submitted.trim() ? '' : value);
   const changeTax = (next: QuoteTaxSettings) => {
     try {
@@ -261,7 +267,7 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
         actions: [...candidates.rooms.slice(0, 12).map((r, i) => `Seleziona ambiente ${i + 1} pagina ${reading.page}`), "Mostra quote lette"],
         warnings: ["Le coordinate indicano dove è stato letto il testo, non il contorno delle stanze. Quote e unità richiedono conferma; non è stato eseguito un rilievo geometrico automatico."],
       });
-    } catch (e) { if (!ctrl.signal.aborted && run === generation.current) append({ role: "assistant", text: e instanceof Error ? e.message : "Lettura locale non riuscita." }); }
+    } catch (e) { if (!ctrl.signal.aborted && run === generation.current) setAvvisoAllegato(e instanceof Error ? e.message : "Lettura locale non riuscita."); }
     finally { if (run === generation.current) { controller.current = null; setBusy(false); } }
   };
   const attach = async (file: File) => {
@@ -281,7 +287,7 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
           if (cad && cad.reading.id !== reading.id) throw new Error('Questa bozza ha già un altro DWG. Scrivi «nuovo progetto» prima di sostituirlo.');
           setCad({ reading, selectedState: cad?.selectedState ?? 'unknown' });
           append({ role: 'assistant', text: `**DWG letto ${reading.processedBy === 'service' ? 'dal convertitore dedicato' : 'in locale'}.** Ho trovato ${reading.totalTexts} testi e ${reading.layers.length} layer riportati. Non ho aggiunto voci o prezzi: legenda, testi ripetuti e geometrie non sono ancora quantità verificate. L’originale non è stato inviato all’AI; il riepilogo è ripreso con questa bozza.${quoteCadMeasureSummary(reading) ? ` ${quoteCadMeasureSummary(reading)}` : ''}`, questions: quoteCadQuestions(reading) });
-        } catch (error) { if (!ctrl.signal.aborted && run === generation.current) append({ role: 'assistant', text: error instanceof Error ? error.message : 'DWG non leggibile.' }); }
+        } catch (error) { if (!ctrl.signal.aborted && run === generation.current) setAvvisoAllegato(error instanceof Error ? error.message : 'DWG non leggibile.'); }
         finally { if (run === generation.current) { controller.current = null; setBusy(false); } }
         return;
       }
@@ -296,7 +302,7 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
       const blob = new Blob([bytes], { type: mime });
       const asset: PlanAttachment = { id, name: [...file.name].filter(c => c.charCodeAt(0) >= 32).join("").slice(0, 180), mime, size: blob.size, reading: plan?.reading ?? null };
       setPlan(asset); setPlanBlob(blob); await readPlan(asset, blob);
-    } catch (e) { if (ownerGeneration === generation.current) append({ role: "assistant", text: e instanceof Error ? e.message : "Allegato non valido." }); }
+    } catch (e) { if (ownerGeneration === generation.current) setAvvisoAllegato(e instanceof Error ? e.message : "Allegato non valido."); }
     finally { attaching.current = false; setPreparingAttachment(false); }
   };
   // Il file passato dal preventivo (la pianta del passo Progetto) si allega da solo, una volta, all'apertura.
@@ -308,6 +314,7 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
   // eslint-disable-next-line react-hooks/exhaustive-deps -- una volta sola, all'apertura
   }, []);
   const send = async (text = input, intent?: 'budget' | 'vision' | 'schedule', testoMostrato?: string) => {
+    setAvvisoAllegato(null);
     if (attaching.current) return;
     if (embedded && isEmbeddedWizardContextCommand(text)) {
       appendDiagnostic({ role: 'assistant', text: 'Il modello, il cliente e le impostazioni fiscali vengono dal wizard aperto. Puoi cambiarli lì dopo aver chiuso questa finestra.' }); return;
@@ -397,11 +404,11 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
       clearSubmittedInput(text); return;
     }
     if (text === 'Passa al computo verificato') { setBudgetFollowUp(false); setInput(''); appendDiagnostic({ role: 'assistant', text: 'Modalità computo: le prossime risposte possono proporre lavorazioni, senza includere automaticamente importi. Il budget preliminare resta separato e non diventa un prezzo verificato.' }); return; }
-    if (/^usa (?:sonnet 5\.5|gpt[- ]6\.1 sol)$/i.test(text)) {
+    if (strumentiAI && /^usa (?:sonnet 5\.5|gpt[- ]6\.1 sol)$/i.test(text)) {
       const next = /gpt/i.test(text) ? 'openai/gpt-6.1-sol' : 'anthropic/claude-sonnet-5.5';
       setPreferredModel(next); clearSubmittedInput(text); appendDiagnostic({ role: 'assistant', text: `Prossimi turni di questa bozza: **${next}**. Nessuna chiamata avviata, nessuna modifica al modello globale. Il modello effettivo e il costo verranno riscontrati dopo ogni risposta.`, actions: ['Confronta Sonnet e GPT', 'Confronta costi modelli'] }); return;
     }
-    if (/^mostra strumenti ai$/i.test(text)) { appendDiagnostic({ role: 'assistant', text: 'Scegli qui il modello della conversazione o confronta i costi. Budget preliminare è una stima AI separata dal computo verificato; la lettura visiva condivide una copia della planimetria con OpenRouter solo quando premi il pulsante dedicato.', actions: ['Usa Sonnet 5.5', 'Usa GPT 6.1 Sol', 'Confronta costi modelli', 'Confronta Sonnet e GPT'] }); clearSubmittedInput(text); return; }
+    if (strumentiAI && /^mostra strumenti ai$/i.test(text)) { appendDiagnostic({ role: 'assistant', text: 'Scegli qui il modello della conversazione o confronta i costi. Budget preliminare è una stima AI separata dal computo verificato; la lettura visiva condivide una copia della planimetria con OpenRouter solo quando premi il pulsante dedicato.', actions: ['Usa Sonnet 5.5', 'Usa GPT 6.1 Sol', 'Confronta costi modelli', 'Confronta Sonnet e GPT'] }); clearSubmittedInput(text); return; }
     const targetedFormulas = /^proponi formule per voci\s+([\d,\s]+)$/i.exec(text);
     if (targetedFormulas) {
       const numbers = [...new Set(targetedFormulas[1].split(/[,\s]+/).filter(Boolean).map(Number))];
@@ -503,7 +510,7 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
       const latest = [...messages].reverse().find(m => m.role === "user" && quoteOpeningMeasures(m.text).length);
       appendDiagnostic({ role: "assistant", text: latest ? `Calcolo dall’ultimo messaggio utente con gruppi completi; eventuali correzioni successive vanno riscritte con pezzi, lati e unità.\n\n${quoteOpeningMeasureText(quoteOpeningMeasures(latest.text))}` : "Scrivi i gruppi completi, per esempio «2 finestre da 120 × 140 cm e 1 portafinestra da 100 × 240 cm». Non deduco misure o pezzi mancanti." }); setInput(""); return;
     }
-    if (/^(?:confronta|mostra) (?:i )?costi (?:dei )?modelli$/i.test(text)) {
+    if (strumentiAI && /^(?:confronta|mostra) (?:i )?costi (?:dei )?modelli$/i.test(text)) {
       const run = ++generation.current; const ctrl = new AbortController(); controller.current = ctrl;
       setBusy(true); setElapsedSeconds(0); setOperation("chat"); setInput(""); appendDiagnostic({ role: "user", text });
       try {
@@ -514,12 +521,12 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
       } finally { if (run === generation.current) { controller.current = null; setBusy(false); } }
       return;
     }
-    if (/^confronta sonnet e gpt$/i.test(text)) { appendDiagnostic({ role: 'assistant', text: 'Confronto reale Sonnet 5.5 / GPT-6.1 Sol: stessi sei casi sintetici, nessun dato cliente o immagine e nessuna modifica alla bozza. Massimo 12 turni, stop alla soglia osservata di 0,50 USD (non un tetto preventivo garantito). Nessun fallback o retry automatico.', actions: ['Avvia confronto Sonnet e GPT'] }); setInput(''); return; }
-    if (/^confronta (?:i )?modelli(?: haiku 5\.5 e sonnet 5\.5)?$/i.test(text)) {
+    if (strumentiAI && /^confronta sonnet e gpt$/i.test(text)) { appendDiagnostic({ role: 'assistant', text: 'Confronto reale Sonnet 5.5 / GPT-6.1 Sol: stessi sei casi sintetici, nessun dato cliente o immagine e nessuna modifica alla bozza. Massimo 12 turni, stop alla soglia osservata di 0,50 USD (non un tetto preventivo garantito). Nessun fallback o retry automatico.', actions: ['Avvia confronto Sonnet e GPT'] }); setInput(''); return; }
+    if (strumentiAI && /^confronta (?:i )?modelli(?: haiku 5\.5 e sonnet 5\.5)?$/i.test(text)) {
       appendDiagnostic({ role: "user", text }); setInput("");
       appendDiagnostic({ role: "assistant", text: "Posso confrontare Haiku 5.5 e Sonnet 5.5 su 6 casi sintetici identici: memoria per stanza, conservazione/sovrapposizione, ipotesi, righe manuali, formato di prezzario incompatibile e conferma di esclusione. Fino a 12 turni, con costo AI e tetto osservato di 0,50 USD; nessuna modifica alla tua bozza, configurazione globale o invio ai clienti. Un errore o costo non noto interrompe la prova senza retry automatico.", actions: ["Avvia confronto sintetico modelli"] }); return;
     }
-    if (text === "Avvia confronto sintetico modelli" || text === 'Avvia confronto Sonnet e GPT') {
+    if (strumentiAI && (text === "Avvia confronto sintetico modelli" || text === 'Avvia confronto Sonnet e GPT')) {
       if (simulated || !transport) { appendDiagnostic({ role: "assistant", text: "Confronto reale disponibile soltanto nella modalità OpenRouter di Demo Azienda 2." }); return; }
       const run = ++generation.current; const ctrl = new AbortController(); controller.current = ctrl; setElapsedSeconds(0); setBusy(true); setOperation("chat"); setInput("");
       appendDiagnostic({ role: "user", text }); const results: string[] = []; let cost = 0;
@@ -706,7 +713,8 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
       const result = await (transport ?? simulatePlanConversation)(request, ctrl.signal, event => {
         if (ctrl.signal.aborted || run !== generation.current || event.turnId !== request.turnId || event.revision !== request.revision) return;
         if (event.type === 'draft') streamingReply.current?.update(event.text);
-        else { setProgress(event.stage); if (event.stage === 'catalogue' || event.stage === 'composition') streamingReply.current?.clear(); }
+        // Il testo già scritto resta mentre Silvio cerca i prezzi: lo sostituisce la risposta successiva, non un vuoto.
+        else setProgress(event.stage);
       });
       if (ctrl.signal.aborted || run !== generation.current) return;
       if (result.simulated !== simulated) throw new Error("Modalità della risposta non coerente.");
@@ -869,9 +877,9 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
         <TabsTrigger value="lines">Voci del preventivo <span className="quote-tab-count" aria-hidden="true">{document.lines.filter(l => !l.supersededBy?.length).length}</span></TabsTrigger>
       </TabsList>
       <TabsContent value="chat" forceMount hidden={pane !== "chat"} className="quote-workbench-panel">
-      <section className="quote-lab-chat" aria-label="Chat unica preventivo"><header className="chat-workspace-header"><div className="quote-chat-identity"><span><i aria-hidden="true">✦</i>Silvio AI</span><small role="status">{memory?.status ?? (embedded?.savedLocally ? 'Bozza ripresa da questo browser · modifiche da salvare' : 'Conversazione non salvata')}</small></div><div className="quote-chat-header-meta"><details className="quote-model-details"><summary aria-label="Dettagli modello AI">{simulated ? 'Locale' : preferredModel.includes('sonnet') ? 'Sonnet 5.5' : 'GPT 6.1 Sol'}</summary><div>{!simulated && <p>Prossimo turno: {preferredModel}</p>}<p>{model ? <>Ultimo esito: {model}</> : 'Il modello effettivo viene verificato dopo la risposta.'}</p>{!simulated && <button type="button" disabled={busy || memory?.blocked} onClick={() => void send('Mostra strumenti AI')}>Modello e costi AI</button>}</div></details><span className={`chat-operation-status ${busy ? "working" : ""}`}><i aria-hidden="true" />{busy ? operation === "ocr" ? "Lettura" : "Elaborazione" : "Pronto"}</span></div></header>
+      <section className="quote-lab-chat" aria-label="Chat unica preventivo"><header className="chat-workspace-header"><div className="quote-chat-identity"><span><i aria-hidden="true">✦</i>Silvio AI</span><small role="status">{memory?.status ?? (embedded?.savedLocally ? 'Bozza ripresa da questo browser · modifiche da salvare' : 'Conversazione non salvata')}</small></div><div className="quote-chat-header-meta">{strumentiAI && <details className="quote-model-details"><summary aria-label="Dettagli modello AI">{simulated ? 'Locale' : preferredModel.includes('sonnet') ? 'Sonnet 5.5' : 'GPT 6.1 Sol'}</summary><div>{!simulated && <p>Prossimo turno: {preferredModel}</p>}<p>{model ? <>Ultimo esito: {model}</> : 'Il modello effettivo viene verificato dopo la risposta.'}</p>{!simulated && <button type="button" disabled={busy || memory?.blocked} onClick={() => void send('Mostra strumenti AI')}>Modello e costi AI</button>}</div></details>}<span className={`chat-operation-status ${busy ? "working" : ""}`}><i aria-hidden="true" />{busy ? operation === "ocr" ? "Lettura" : "Elaborazione" : "Pronto"}</span></div></header>
         {memory?.issue && <div role="alert" className="quote-memory-warning"><p>{memory.issue}</p>{memory.blocked ? <button onClick={memory.reload}>Riprendi versione salvata (scarta modifiche di questa scheda)</button> : <button onClick={memory.retry}>Riprova salvataggio</button>}</div>}
-        <div className="quote-lab-messages" role="log" aria-live="polite" ref={log} onScroll={chatScroll.onScroll}>{messages.map((m, i) => isQuoteProviderNotice(m) ? null : <article className={`quote-lab-message ${m.role}`} key={i}><small>{m.role === "user" ? "Tu" : simulated ? plan ? "Assistente · locale" : "Assistente · caso preparato" : "Assistente"}</small>{m.role === 'assistant' && m.sources?.length ? null : m.role === 'assistant' && m.diagnostic && m.text.includes('**Risultato ') ? <QuoteCatalogueMessage content={m.text} actions={m.actions} references={m.catalogueRefs} disabled={busy || memory?.blocked || i !== latestAssistant || m.actionRevision !== document.revision} onAction={a => void send(a)} /> : m.role === "assistant" ? <QuoteChatResponse content={m.receipt ? coherentQuoteReply(m.text) : m.text} /> : <p>{m.text}</p>}
+        <div className="quote-lab-messages" role="log" aria-live="polite" ref={log} onScroll={chatScroll.onScroll}>{messages.map((m, i) => !visibile(m) ? null : <article className={`quote-lab-message ${m.role}${stessoAutore(i) ? " quote-lab-message--segue" : ""}`} key={i}>{!stessoAutore(i) && <small>{m.role === "user" ? "Tu" : simulated ? plan ? "Silvio · locale" : "Silvio · caso preparato" : "Silvio"}</small>}{m.role === 'assistant' && m.sources?.length ? null : m.role === 'assistant' && m.diagnostic && m.text.includes('**Risultato ') ? <QuoteCatalogueMessage content={m.text} actions={m.actions} references={m.catalogueRefs} disabled={busy || memory?.blocked || i !== latestAssistant || m.actionRevision !== document.revision} onAction={a => void send(a)} /> : m.role === "assistant" ? <QuoteChatResponse content={m.receipt ? coherentQuoteReply(m.text) : m.text} /> : <p>{m.text}</p>}
           {simulated && !plan && i === 0 && <details className="quote-chat-attachment"><summary>Immagine del precedente caso preparato (non OCR)</summary><img src={planImage} alt="Planimetria del caso preparato; superficie totale non verificata" loading="lazy" /></details>}
           {(!!m.questions?.length || !!m.choices?.length) && <div className="quote-chat-follow-up">
             {!!m.questions?.length && <ul className="quote-chat-questions">{m.questions.map(q => <li key={q}><QuoteChatResponse content={q.replace(/^\s*(?:[-*•]\s*)?(?:\d{1,3}[.)]\s*)?/, "")} /></li>)}</ul>}
@@ -884,11 +892,11 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
           </div>}
           {m.editorSummary && <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3" aria-label="Valori del computo al momento della risposta"><QuoteChatResponse content={m.editorSummary} /></div>}
           <QuoteTurnDetails warnings={m.warnings} receipt={m.receipt} revision={m.actionRevision} onReview={() => setPane('lines')} />
-          {m.preliminaryBudget && <QuotePreliminaryBudget budget={m.preliminaryBudget} stale={m.budgetRevision !== document.revision || i !== latestBudgetMessage || !savedBudget} model={m.budgetModel} vat={budgetVat} />}
-          {m.benchmarkRaw?.map((t, n) => <details className="quote-chat-caveats" key={`raw-${n}`}><summary>Risposta grezza del modello · passaggio {n + 1}</summary><QuoteChatResponse content={t.message} />{t.questions.map(q => <QuoteChatResponse key={q} content={q} />)}<p>Proposte: {t.proposals.map(p => `${p.id}: ${p.title}`).join("; ") || "nessuna"}</p><p>Esclusioni proposte: {t.excludeIds?.join(", ") || "nessuna"}</p></details>)}
+          {m.preliminaryBudget && <QuotePreliminaryBudget budget={m.preliminaryBudget} stale={m.budgetRevision !== document.revision || i !== latestBudgetMessage || !savedBudget} model={strumentiAI ? m.budgetModel : undefined} vat={budgetVat} />}
+          {strumentiAI && m.benchmarkRaw?.map((t, n) => <details className="quote-chat-caveats" key={`raw-${n}`}><summary>Risposta grezza del modello · passaggio {n + 1}</summary><QuoteChatResponse content={t.message} />{t.questions.map(q => <QuoteChatResponse key={q} content={q} />)}<p>Proposte: {t.proposals.map(p => `${p.id}: ${p.title}`).join("; ") || "nessuna"}</p><p>Esclusioni proposte: {t.excludeIds?.join(", ") || "nessuna"}</p></details>)}
           {i === latestAssistant && m.actions?.some(a => /^Escludi voce \d+$/.test(a) && document.lines[Number(a.match(/\d+$/)?.[0]) - 1]?.included) && <p className="quote-chat-confirmation"><strong>Esclusione ancora da confermare.</strong> La scelta tecnica non ha tolto importi dal totale: usa il pulsante «Escludi voce» qui sotto per applicarla.</p>}
           {m.actions?.some(a => /^Escludi voce \d+$/.test(a)) && m.actionRevision !== document.revision && <p className="quote-chat-confirmation">Proposta precedente: prima di escludere, richiedi una nuova verifica delle voci attuali in chat.</p>}
-          {m.actions && <div className="quote-lab-suggestions">{m.actions.filter(a => !(m.diagnostic && m.text.includes('**Risultato ') && a.startsWith('Collega codice '))).map(a => <button key={a} disabled={busy || memory?.blocked || / · revisione \d+$/.test(a) && Number(a.match(/(\d+)$/)?.[1]) !== document.revision || /^Componi parti confermate/.test(a) && i !== latestAssistant || /^Escludi voce \d+$/.test(a) && m.actionRevision !== document.revision || a === 'Prepara proposta indicativa dal budget' && (i !== latestBudgetMessage || !savedBudget) || /^Conferma proposta indicativa dal budget/.test(a) && i !== latestAssistant} onClick={() => void send(a)}>{a.startsWith('Usa modello preventivo ') ? `Usa ${workspaceOfferTemplates(templateLibrary).find(t => a.endsWith(t.id))?.name ?? 'modello non disponibile'}` : actionLabel(a, m.text)}</button>)}</div>}
+          {m.actions && <div className="quote-lab-suggestions">{m.actions.filter(a => (strumentiAI || !isAzioneStrumentiAI(a)) && !(m.diagnostic && m.text.includes('**Risultato ') && a.startsWith('Collega codice '))).map(a => <button key={a} disabled={busy || memory?.blocked || / · revisione \d+$/.test(a) && Number(a.match(/(\d+)$/)?.[1]) !== document.revision || /^Componi parti confermate/.test(a) && i !== latestAssistant || /^Escludi voce \d+$/.test(a) && m.actionRevision !== document.revision || a === 'Prepara proposta indicativa dal budget' && (i !== latestBudgetMessage || !savedBudget) || /^Conferma proposta indicativa dal budget/.test(a) && i !== latestAssistant} onClick={() => void send(a)}>{a.startsWith('Usa modello preventivo ') ? `Usa ${workspaceOfferTemplates(templateLibrary).find(t => a.endsWith(t.id))?.name ?? 'modello non disponibile'}` : actionLabel(a, m.text)}</button>)}</div>}
           {m.sources && <QuoteSourcePicker options={m.sources} selectedId={sourceId} disabled={busy || !!memory?.blocked || i !== latestSourceMessage} loading={sources.isFetching} error={!!sources.error} onRetry={() => void send('Mostra prezzari')} onSelect={id => send(`usa fonte ${id}`)} />}
           {!flow && m.picker === 'simulations' && <QuoteSimulationPicker currentId={scenarioId} disabled={busy || !!memory?.blocked || i !== latestSimulationPicker} onSelect={id => send(`Simulazione ${quoteSimulationScenario(id)!.label.toLocaleLowerCase('it')}`)} />}
           {!embedded && !flow && (m.picker === 'templates' || i === 0 && m.role === 'assistant' && !simulated) && <QuoteTemplatePicker library={templateLibrary} selectedId={templateId}
@@ -927,9 +935,10 @@ function AssistedWorkspaceBody({ companyId, companyName = "Demo Azienda 2", owne
         {chatScroll.unread && <div className="quote-chat-unread"><button type="button" onClick={chatScroll.jumpToLatest} aria-label="Vai all’ultima risposta">Nuova risposta ↓</button></div>}
         {(dossier.length > 0 || dossierOpen) && <details open={dossierOpen} onToggle={e => setDossierOpen(e.currentTarget.open)} className="mx-4 my-2 rounded-lg border border-blue-100 p-3 text-xs"><summary className="cursor-pointer text-blue-800">Documenti del progetto · {dossier.length} {dossier.length === 1 ? 'pagina' : 'pagine'}</summary><p className="my-2 text-slate-500">Estratti locali richiamabili dall’AI. OCR e specifiche non sono misure o prezzi certificati.</p>{dossier.map(page => <details key={`${page.id}:${page.page}`} className="my-2"><summary>{page.name} · p. {page.page} · {page.origin === 'ocr' ? 'OCR da verificare' : 'estratto controllato'}</summary><p className="my-2 text-slate-500">D-{page.id.slice(0, 8)}-P{page.page}{page.excerpt ? ' · estratto parziale' : ''}</p><pre className="max-h-40 overflow-auto whitespace-pre-wrap font-sans">{page.text}</pre><button className="mt-2 text-blue-700 underline" disabled={busy || memory?.blocked} onClick={() => setDossier(previous => readQuoteDossier(previous.filter(p => p.id !== page.id || p.page !== page.page)))}>Rimuovi estratto dal dossier</button></details>)}</details>}
         {plan?.localFileMissing && <p role="status" className="mx-4 my-2 text-xs text-orange-800">Dossier ripreso, originale non presente su questo dispositivo. Riallega «{plan.name}» per vedere o analizzare di nuovo l’immagine.</p>}
-        <input ref={fileInput} type="file" accept="image/png,image/jpeg,application/pdf,.dwg" aria-label="File planimetria" hidden onChange={e => { const file = e.currentTarget.files?.[0]; e.currentTarget.value = ''; if (file) void attach(file); }} />
-        <div ref={composer} className="quote-chat-compose-region"><QuoteChatComposer value={input} onValueChange={setInput} onSubmit={() => void send()} onStop={stop} busy={busy} disabled={memory?.blocked} real={!simulated} hasPlan={!!plan} hasLines={!!document.lines.length} planningEnabled={planningEnabled} onAttachPlan={() => fileInput.current?.click()} onAction={composerAction} transcribe={transcribeAudio} onEvidence={page => { try { setDossier(upsertQuoteDossier(dossier, page)); return true; } catch (e) { appendDiagnostic({ role: 'assistant', text: (e as Error).message }); return false; } }} /></div>
-        <details className="quote-chat-privacy"><summary>Scelte e importi da confermare <span>· Dati e privacy</span></summary><p>{!simulated && 'Invio: messaggi, voci ed estratti pertinenti del dossier a OpenRouter. Analizza immagine invia una copia PNG/JPEG senza metadati; l’originale resta locale. Materiali e audio si controllano nel messaggio prima di inviarli. '}{memory ? 'Salvataggio automatico su questo browser. Dai controlli puoi salvare e riprendere una copia nell’area backend Demo 2 del tuo account, oppure attivarne esplicitamente l’aggiornamento automatico per questa sessione. Nessuna fusione automatica tra dispositivi; file originali esclusi.' : embedded ? 'Usa «Salva e chiudi» per conservare chat, voci e allegati solo in questo browser, separati per account, azienda e preventivo. Non è un salvataggio del preventivo nel gestionale né una sincronizzazione tra dispositivi.' : 'Sessione senza memoria persistente.'} Interrompi scarta la risposta in arrivo; una chiamata già avviata al provider può comunque essere conteggiata. Nessun invio ai clienti.</p></details>
+        <input ref={fileInput} type="file" accept="image/png,image/jpeg,application/pdf,.dwg" aria-label="File planimetria" data-rilascio="senza-filtro" hidden onChange={e => { setAvvisoAllegato(null); const file = e.currentTarget.files?.[0]; e.currentTarget.value = ''; if (file) void attach(file); }} />
+        {avvisoAllegato && <div role="alert" className="quote-chat-attach-alert"><span>{avvisoAllegato}</span><button type="button" aria-label="Chiudi avviso" onClick={() => setAvvisoAllegato(null)}>×</button></div>}
+        <div ref={composer} className="quote-chat-compose-region"><QuoteChatComposer strumentiAI={strumentiAI} value={input} onValueChange={setInput} onSubmit={() => void send()} onStop={stop} busy={busy} disabled={memory?.blocked} real={!simulated} hasPlan={!!plan} hasLines={!!document.lines.length} planningEnabled={planningEnabled} onAttachPlan={() => fileInput.current?.click()} onAction={composerAction} transcribe={transcribeAudio} onEvidence={page => { try { setDossier(upsertQuoteDossier(dossier, page)); return true; } catch (e) { appendDiagnostic({ role: 'assistant', text: (e as Error).message }); return false; } }} /></div>
+        <details className="quote-chat-privacy"><summary>Come funziona <span>· dati e privacy</span></summary><p>{!simulated && 'Invio: messaggi, voci ed estratti pertinenti del dossier al servizio di intelligenza artificiale. Analizza immagine invia una copia PNG/JPEG senza metadati; l’originale resta locale. Materiali e audio si controllano nel messaggio prima di inviarli. '}{memory ? 'Salvataggio automatico su questo browser. Dai controlli puoi salvare e riprendere una copia nell’area backend Demo 2 del tuo account, oppure attivarne esplicitamente l’aggiornamento automatico per questa sessione. Nessuna fusione automatica tra dispositivi; file originali esclusi.' : embedded ? 'Usa «Salva e chiudi» per conservare chat, voci e allegati solo in questo browser, separati per account, azienda e preventivo. Non è un salvataggio del preventivo nel gestionale né una sincronizzazione tra dispositivi.' : 'Sessione senza memoria persistente.'} Interrompi scarta la risposta in arrivo; una chiamata già avviata al provider può comunque essere conteggiata. Nessun invio ai clienti.</p></details>
       </section>
       </TabsContent>
       <TabsContent value="lines" forceMount hidden={pane !== "lines"} className="quote-workbench-panel quote-lines-panel">

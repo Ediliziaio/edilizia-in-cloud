@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type RefObject } from 'react';
+import { chiudiMarkdownParziale, QuoteChatResponse } from './QuoteChatResponse';
 export type QuoteStreamingReplyHandle = { update: (text: string) => void; clear: () => void };
 /** State stays here: provider fragments must not rerender the editor/PDF or be persisted. */
 export const QuoteStreamingReply = forwardRef<QuoteStreamingReplyHandle, { log: RefObject<HTMLDivElement> }>(function QuoteStreamingReply({ log }, ref) {
@@ -9,5 +10,5 @@ export const QuoteStreamingReply = forwardRef<QuoteStreamingReplyHandle, { log: 
   }), [log]);
   useEffect(() => { if (follow.current && log.current) log.current.scrollTop = log.current.scrollHeight; }, [text, log]);
   if (!text) return null;
-  return <article className="quote-lab-message assistant" aria-label="Risposta in elaborazione" aria-live="off"><small>Silvio sta scrivendo · da verificare</small><p className="whitespace-pre-wrap">{text}</p></article>;
+  return <article className="quote-lab-message assistant" aria-label="Risposta in elaborazione" aria-live="off"><small>Silvio sta scrivendo…</small><QuoteChatResponse content={chiudiMarkdownParziale(text)} /></article>;
 });

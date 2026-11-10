@@ -42,7 +42,7 @@ export default function QuoteAiSimulation(props: { companyId?: string; companyNa
   const workspace = mode === "guided" ? <GuidedWorkspace {...props} onOpenPlan={() => setMode("plan")} onOpenReal={endpoint ? () => setMode("real") : undefined} />
     : <AssistedWorkspace key={`${props.companyId}:${mode}:${flow ?? scenario?.id ?? "main"}:${localTrialId ?? ''}`} {...props} localTrialId={localTrialId} flow={flow} templateLibrary={templateLibrary} companyId={props.companyId ?? demoCompanyId} memoryMode={mode === "plan" ? "plan" : "real"} scenarioId={scenario?.id}
       onScenario={id => { const next = new URLSearchParams(params); if (id) next.set("scenario", id); else next.delete("scenario"); setParams(next); }}
-      simulated={false} transport={transport} demoMemory={demoMemory} transcribeAudio={transcribeAudio} onBack={() => flow ? navigate('/azienda/marketing/preventivi') : setMode("guided")} />;
+      simulated={false} strumentiAI transport={transport} demoMemory={demoMemory} transcribeAudio={transcribeAudio} onBack={() => flow ? navigate('/azienda/marketing/preventivi') : setMode("guided")} />;
   return flow?.startsWith('bagni:') ? <BagniLocalGate onBack={() => navigate('/azienda/marketing/preventivi')}><BagniTemplateWorkspace companyId={props.companyId ?? demoCompanyId} modelId={requestedModel}>{workspace}</BagniTemplateWorkspace></BagniLocalGate> : workspace;
 }
 function BagniTemplateWorkspace({ companyId, modelId, children }: { companyId: string; modelId: string; children: ReactNode }) {

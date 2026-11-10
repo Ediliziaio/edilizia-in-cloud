@@ -226,3 +226,18 @@
   .chat-only-workspace .quote-lab-message .quote-choice-pill,
   .chat-only-workspace .thinking-composer .quote-composer-icon { transform: none !important; }
 }
+
+/* Rifiniture della chat di Silvio (10/11/2026). */
+/* Un solo bordo attorno al campo: il riquadro esterno segnala già il focus. */
+.quote-composer-dock .thinking-composer textarea:focus,
+.quote-composer-dock .thinking-composer textarea:focus-visible { box-shadow: none !important; outline: none; }
+/* Il clic su «Dettagli della risposta» non lascia un riquadro blu; la tastiera sì. */
+.quote-lab-chat summary:focus:not(:focus-visible) { outline: none; box-shadow: none; }
+.quote-lab-chat summary:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; border-radius: 6px; }
+/* Messaggi dello stesso autore di fila: un'etichetta sola, più vicini. */
+.quote-lab-messages .quote-lab-message--segue { margin-top: -10px; }
+/* Il file che non si legge: un avviso sopra il campo, che si chiude. */
+.quote-chat-attach-alert { display: flex; align-items: flex-start; gap: 10px; margin: 0 16px 8px; padding: 9px 12px; border: 1px solid #fecaca; border-radius: 10px; background: #fef2f2; color: #991b1b; font-size: 13px; line-height: 1.45; }
+.quote-chat-attach-alert span { flex: 1; }
+.quote-chat-attach-alert button { flex-shrink: 0; width: 22px; height: 22px; border-radius: 6px; color: #991b1b; font-size: 16px; line-height: 1; }
+.quote-chat-attach-alert button:hover { background: #fee2e2; }

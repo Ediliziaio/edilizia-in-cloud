@@ -43,6 +43,19 @@ describe('Testo progressivo reale, solo message e nessuna azione parziale', () =
     const response = quoteEventResponse(async (_, draft) => { draft('Ipotesi da verificare', 0); throw new Error('secret'); }, id, new AbortController().signal, {});
     await expect(readQuoteStream(response, id, new AbortController().signal)).rejects.toThrow('Bozza intatta');
   });
+  it('mostra il grassetto mentre scrive, senza asterischi, anche prima che si chiuda', () => {
+    const api = createRef<QuoteStreamingReplyHandle>(); const log = createRef<HTMLDivElement>();
+    render(<div ref={log}><QuoteStreamingReply ref={api} log={log} /></div>);
+    const risposta = () => screen.getByLabelText('Risposta in elaborazione');
+    act(() => api.current!.update('Per una **ristrutturazione compl'));
+    expect(risposta().querySelector('strong')).toHaveTextContent('ristrutturazione compl'); expect(risposta()).not.toHaveTextContent('*');
+    act(() => api.current!.update('Per una **ristrutturazione completa** di una casa *'));
+    expect(risposta().querySelector('strong')).toHaveTextContent('ristrutturazione completa'); expect(risposta()).not.toHaveTextContent('*');
+    act(() => api.current!.update('Servono:\n- misure\n-'));
+    expect(risposta().querySelectorAll('li')).toHaveLength(1); expect(risposta()).not.toHaveTextContent(/-$/);
+    act(() => api.current!.update('Codice `ABC'));
+    expect(risposta().querySelector('code')).toHaveTextContent('ABC');
+  });
   it('aggiorna solo il componente del testo, senza ridisegnare editor o salvare frammenti', () => {
     const api = createRef<QuoteStreamingReplyHandle>(); const log = createRef<HTMLDivElement>(); let parentRenders = 0;
     function Parent() { parentRenders++; return <div ref={log}><p>Editor invariato</p><QuoteStreamingReply ref={api} log={log} /></div>; }

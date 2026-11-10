@@ -34,6 +34,8 @@ vi.mock("@/lib/preventivi/quoteVision", () => ({
 }));
 vi.mock('@/lib/preventivi/quoteCad', async original => ({ ...await original<typeof import('@/lib/preventivi/quoteCad')>(), readCadLocally: vi.fn() }));
 import { readCadLocally, type QuoteCadReading } from '@/lib/preventivi/quoteCad';
+import { RilascioFileGlobale } from '@/components/shared/RilascioFileGlobale';
+import { prepareQuoteVision } from '@/lib/preventivi/quoteVision';
 vi.mock("@/components/quotes/dev/QuoteChatComposer", () => ({
   QuoteChatComposer: ({
     value,
@@ -144,6 +146,38 @@ const props = () => ({
 const cadReading = (): QuoteCadReading => ({ version: 1, id: 'a'.repeat(64), name: 'test.dwg', size: 6, engine: 'LibreDWG', units: null,
   entities: 600, inserts: 0, dimensions: 0, layers: ['PDF_Text'], texts: [{ text: 'Sostituzione infissi', handle: '42', layer: 'PDF_Text', xy: null }], totalTexts: 2, omittedTexts: 1,
   partial: false, mixedStates: true, pdfImported: true, externalReferences: 0 });
+describe('Trascinare un file nella chat di Silvio', () => {
+  const originale = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'files')!;
+  beforeEach(() => {
+    // jsdom non ha DataTransfer e non impagina.
+    vi.stubGlobal('DataTransfer', class { elenco: File[] = []; items = { add: (f: File) => this.elenco.push(f) }; get files() { return this.elenco; } });
+    const copie = new WeakMap<object, unknown>();
+    Object.defineProperty(HTMLInputElement.prototype, 'files', { configurable: true, get() { return copie.get(this) ?? null; }, set(v) { copie.set(this, v); } });
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const m = this.classList.contains('hidden') ? 0 : 100;
+      return { top: 0, left: 0, right: m, bottom: m, width: m, height: m, x: 0, y: 0, toJSON: () => '' };
+    });
+  });
+  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); Object.defineProperty(HTMLInputElement.prototype, 'files', originale); });
+  const rilascia = (bersaglio: Element, files: File[]) => {
+    const e = new Event('drop', { bubbles: true, cancelable: true });
+    Object.defineProperty(e, 'dataTransfer', { value: { types: ['Files'], files, items: [] } });
+    act(() => { bersaglio.dispatchEvent(e); });
+    return e;
+  };
+  it('prende il file rilasciato ovunque nella finestra, anche sull\'anteprima, e lo mostra come allegato', async () => {
+    render(<><RilascioFileGlobale /><VerticalWizardAiDialog {...props()} /></>);
+    const e = rilascia(screen.getByText('Anteprima: 12'), [new File(['x'], 'pianta.png', { type: 'image/png' })]);
+    expect(e.defaultPrevented).toBe(true);
+    await screen.findByText(/pianta.png.*non ancora inviata/);
+  });
+  it('un formato che Silvio non legge viene rilasciato e riceve il suo messaggio nella chat', async () => {
+    vi.mocked(prepareQuoteVision).mockRejectedValueOnce(new Error('Usa PNG, JPEG o PDF per la lettura visiva.'));
+    render(<><RilascioFileGlobale /><VerticalWizardAiDialog {...props()} /></>);
+    rilascia(screen.getByRole('dialog'), [new File(['x'], 'listino.xlsx', { type: 'application/vnd.ms-excel' })]);
+    await screen.findByText('Usa PNG, JPEG o PDF per la lettura visiva.');
+  });
+});
 describe('DWG nei configuratori tecnici', () => {
   it.each(['serramenti', 'fotovoltaico'] as const)('usa lo stesso contratto CAD nel modulo %s senza alterare configurazione e prezzi', async module => {
     vi.mocked(readCadLocally).mockResolvedValue(cadReading());

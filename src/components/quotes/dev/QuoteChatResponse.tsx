@@ -69,6 +69,28 @@ function blocks(content: string): ReactNode[] {
   flush(); return out;
 }
 
+/**
+ * Il testo che sta ancora arrivando, reso come sarà alla fine: un `**` aperto vale
+ * già da grassetto, un simbolo appena iniziato (`*`, `#`, `-` da solo in fondo) non
+ * si vede finché non diventa qualcosa.
+ */
+export function chiudiMarkdownParziale(testo: string): string {
+  let t = testo.replace(/\r\n?/g, "\n");
+  // Una riga finale fatta solo di un segno di elenco o titolo non ancora seguito da testo.
+  t = t.replace(/(^|\n)[ \t]*(?:#{1,6}|[-*•]|\d{1,3}[.)]?)[ \t]*$/, "$1");
+  // Asterischi in coda: l'inizio di un grassetto o la sua chiusura a metà.
+  t = t.replace(/\*+$/, "");
+  const recinti = (t.match(/^\s*```/gm) ?? []).length;
+  const fuori = recinti % 2 === 0 ? t : t.slice(0, t.lastIndexOf("```"));
+  if (recinti % 2 === 0) {
+    const doppi = (fuori.match(/\*\*/g) ?? []).length;
+    if (doppi % 2 === 1) t = `${t.trimEnd()}**`;
+    const apici = (fuori.replace(/\*\*/g, "").match(/`/g) ?? []).length;
+    if (apici % 2 === 1) t += "`";
+  }
+  return t;
+}
+
 export const QuoteChatResponse = memo(function QuoteChatResponse({ content }: { content: string }) {
   // Unexpectedly large legacy text remains complete and inert, without parsing.
   return <div className="quote-chat-response">{content.length > 20000 ? <p className="quote-chat-plain">{content}</p> : blocks(content)}</div>;

@@ -164,7 +164,7 @@ describe("Planimetria e memoria: percorso intero nella chat", () => {
       turn: { version: 1, title: "", message: "Verifica sintetica", questions: [], warnings: [], searches: [], proposals: [] },
       modelTest: { requestedModel: r.modelTest!.model, caseId: r.modelTest!.caseId, calls: 1, inputTokens: 100, outputTokens: 10, costUsd: null,
         rawTurns: [{ version: 1, title: "", message: "Verifica sintetica", questions: [], warnings: [], searches: [], proposals: [] }] } }));
-    render(<Workspace companyId={memoryScope.companyId} onBack={vi.fn()} simulated={false} transport={call} />);
+    render(<Workspace companyId={memoryScope.companyId} onBack={vi.fn()} simulated={false} strumentiAI transport={call} />);
     send("Confronta modelli"); expect(call).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Avvia confronto sintetico modelli" }));
     await waitFor(() => expect(screen.getByRole("log")).toHaveTextContent("Confronto interrotto dopo 1/12"));
@@ -174,7 +174,7 @@ describe("Planimetria e memoria: percorso intero nella chat", () => {
   it("non attribuisce il confronto al modello richiesto se risponde un fallback", async () => {
     const call = vi.fn<QuoteChatTransport>().mockImplementation(async r => ({ version: 1, revision: r.revision, turnId: r.turnId, simulated: false, model: "fallback/diverso", references: [],
       turn: { version: 1, title: "", message: "Risposta", questions: [], warnings: [], searches: [], proposals: [] } }));
-    render(<Workspace companyId={memoryScope.companyId} onBack={vi.fn()} simulated={false} transport={call} />);
+    render(<Workspace companyId={memoryScope.companyId} onBack={vi.fn()} simulated={false} strumentiAI transport={call} />);
     send("Avvia confronto sintetico modelli");
     await waitFor(() => expect(screen.getByRole("log")).toHaveTextContent("Confronto interrotto dopo 0/12")); expect(call).toHaveBeenCalledOnce();
     expect(screen.getByRole("log")).toHaveTextContent("modello/caso effettivo");
@@ -196,7 +196,7 @@ describe("Planimetria e memoria: percorso intero nella chat", () => {
   it("interrompe il confronto senza applicare risultati tardivi né rilanciarlo", async () => {
     let resolve!: (result: Awaited<ReturnType<QuoteChatTransport>>) => void;
     const call = vi.fn<QuoteChatTransport>().mockImplementation(() => new Promise(r => { resolve = r; }));
-    render(<Workspace companyId={memoryScope.companyId} onBack={vi.fn()} simulated={false} transport={call} />);
+    render(<Workspace companyId={memoryScope.companyId} onBack={vi.fn()} simulated={false} strumentiAI transport={call} />);
     send("Avvia confronto sintetico modelli"); fireEvent.click(screen.getByRole("button", { name: "Interrompi risposta" }));
     const request = call.mock.calls[0][0];
     await act(async () => resolve({ version: 1, revision: request.revision, turnId: request.turnId, simulated: false, model: request.modelTest!.model, references: [], turn: { version: 1, title: "", message: "Risultato tardivo", questions: [], warnings: [], searches: [], proposals: [] } }));
