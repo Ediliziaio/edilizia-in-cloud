@@ -227,7 +227,7 @@ export function benestareFatturazione(d: VerbaleSalSub, r: { lordo: number; rite
         `Intestazione: ${d.impresa.ragione_sociale}${d.impresa.partita_iva ? `, P.IVA ${d.impresa.partita_iva}` : ""}.`,
         `Causale da riportare in fattura: ${rif}.`,
         "IVA: nei subappalti del settore edile si applica di norma l'inversione contabile (art. 17, c. 6, lett. a, DPR 633/72): fattura senza IVA con l'annotazione «inversione contabile», salvo diverso regime indicato nel contratto.",
-        d.contratto.modalita_pagamento ? `Pagamento: ${d.contratto.modalita_pagamento}.` : "Pagamento secondo le condizioni del contratto.",
+        d.contratto.modalita_pagamento?.trim().replace(/\.+$/, "") ? `Pagamento: ${d.contratto.modalita_pagamento.trim().replace(/\.+$/, "")}.` : "Pagamento secondo le condizioni del contratto.",
       ],
     };
   }
