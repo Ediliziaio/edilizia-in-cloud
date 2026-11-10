@@ -374,7 +374,7 @@ export function CustomerActivityTimeline({
       </div>
 
       {/* Timeline scrollabile */}
-      <div className="flex-1 overflow-y-auto px-3 py-3">
+      <div className="flex-1 overflow-y-auto px-2 py-2">
         {filteredEvents.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <Activity className="h-10 w-10 text-muted-foreground/30 mb-3" />
@@ -386,14 +386,14 @@ export function CustomerActivityTimeline({
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {groupedEvents.map(([dateLabel, evs]) => (
               <div key={dateLabel}>
                 {/* Separator data centrato (stile marketing) */}
-                <div className="text-center text-xs text-muted-foreground font-medium py-1">
+                <div className="text-center text-[11px] text-muted-foreground font-medium py-0.5">
                   {dateLabel}
                 </div>
-                <div className="space-y-0.5">
+                <div>
                   {evs.map((ev) => (
                     <button
                       key={ev.id}
@@ -401,22 +401,22 @@ export function CustomerActivityTimeline({
                       disabled={!ev.href && !ev.onClick}
                       onClick={() => { if (ev.onClick) ev.onClick(); else if (ev.href) navigate(ev.href); }}
                       className={cn(
-                        "w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors group",
+                        "w-full flex items-start gap-2 px-2 py-1.5 rounded-md text-left transition-colors group",
                         ev.href || ev.onClick ? "hover:bg-muted/50 cursor-pointer" : "cursor-default",
                       )}
                     >
-                      <div className={cn("h-7 w-7 rounded-full flex items-center justify-center shrink-0", ev.iconBg)}>
+                      <div className={cn("h-6 w-6 rounded-full flex items-center justify-center shrink-0 [&_svg]:h-3 [&_svg]:w-3", ev.iconBg)}>
                         {ev.icon}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-baseline justify-between gap-2">
-                          <p className="text-sm font-medium truncate">{ev.title}</p>
+                          <p className="text-xs font-medium truncate">{ev.title}</p>
                           <span className="text-[10px] text-muted-foreground shrink-0">
                             {getTimeLabel(ev.timestamp)}
                           </span>
                         </div>
                         {ev.description && (
-                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{ev.description}</p>
+                          <p className="text-[11px] leading-snug text-muted-foreground line-clamp-2">{ev.description}</p>
                         )}
                       </div>
                       {ev.href && (
