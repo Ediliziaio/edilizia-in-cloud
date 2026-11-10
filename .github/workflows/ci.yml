@@ -159,6 +159,7 @@ jobs:
           src/test/ui/rdoCampoVoce.test.tsx
           src/test/logic/sentinellaMemoria.test.ts
           src/test/logic/sentinellaDatabase.test.ts
+          src/test/logic/migrazioneChatIntelDipendenze.test.ts
           src/test/logic/planimetrieArchivio.test.ts
           src/test/wizard-audit/verticalConversation.test.ts
 

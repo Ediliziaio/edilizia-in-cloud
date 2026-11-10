@@ -2,6 +2,12 @@
 -- qui dal registro migrazioni (supabase_migrations.schema_migrations),
 -- per riallineare la cartella del repo alla storia reale del database.
 
+-- Gli helper sottostanti leggono message_type. Il database storico aveva già
+-- questo campo, ma il primo ALTER ricostruito nel repo è datato luglio: una
+-- nuova anteprima deve poter applicare anche questa migrazione di maggio.
+ALTER TABLE public.internal_chat_messages
+  ADD COLUMN IF NOT EXISTS message_type TEXT DEFAULT 'text';
+
 -- MP-SA-INTEL-01: helper service-role-only per il worker (espongono msg grezzi → SOLO worker)
 CREATE OR REPLACE FUNCTION public.sa_companies_with_recent_silvio_msgs(p_hours int DEFAULT 24, p_limit int DEFAULT 30)
 RETURNS TABLE(company_id uuid) LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public' AS $$
