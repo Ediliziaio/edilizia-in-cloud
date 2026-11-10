@@ -10,6 +10,7 @@
  */
 
 export type SyncItemType =
+  | "documento_ddt"
   | "checklist"
   | "rapportino_vocale"
   | "timbratura"
@@ -115,14 +116,14 @@ function generateId(): string {
 }
 
 async function enqueue<T>(
-  item: Pick<SyncItem<T>, "type" | "payload" | "target">,
+  item: Pick<SyncItem<T>, "type" | "payload" | "target"> & { operationId?: string },
 ): Promise<string> {
   const db = await openDB();
   const id = generateId();
   const now = Date.now();
   const fullItem: SyncItem<T> = {
     id,
-    operationId: id,
+    operationId: item.operationId ?? id,
     type: item.type,
     payload: item.payload,
     target: item.target,

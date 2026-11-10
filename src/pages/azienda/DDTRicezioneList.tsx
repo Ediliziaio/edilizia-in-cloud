@@ -73,6 +73,7 @@ import {
   DDT_STATO_META,
 } from "@/components/ddt/DDTStatusBadge";
 import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
+import { DocumentiInIngresso } from "@/components/ddt/DocumentiInIngresso";
 import { BolleInBloccoDialog } from "@/components/ddt/BolleInBloccoDialog";
 import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
 import { useToast } from "@/hooks/use-toast";
@@ -751,6 +752,8 @@ export default function DDTRicezioneList() {
           </Button>
         </div>
       </div>
+
+      {canCreate && <DocumentiInIngresso />}
 
       <section
         aria-label="Riepilogo DDT"

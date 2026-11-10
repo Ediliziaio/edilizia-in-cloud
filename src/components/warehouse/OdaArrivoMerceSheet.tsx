@@ -242,13 +242,15 @@ export function OdaArrivoMerceSheet({
         reader.readAsDataURL(file);
       });
       const { data, error } = await supabase.functions.invoke("ai-ddt-analyzer", {
-        body: { file_base64: base64, mime: file.type || "image/jpeg", company_id: companyId },
+        body: { file_name: file.name, file_base64: base64, mime: file.type || "image/jpeg", company_id: companyId },
       });
       if (error) throw new Error(await edgeErrorMessage(error, "Non sono riuscito a leggere la bolla"));
       const payload = data as {
         success?: boolean;
         error?: string;
         extracted?: {
+          ddt_number?: string | null;
+          ddt_date?: string | null;
           document_number?: string | null;
           document_date?: string | null;
           items?: Array<{ description?: string | null; quantity?: number | string | null; code?: string | null }>;
@@ -276,8 +278,10 @@ export function OdaArrivoMerceSheet({
         }
       }
       setQuantita(prossime);
-      if (payload.extracted?.document_number && !numeroBolla) setNumeroBolla(payload.extracted.document_number);
-      if (payload.extracted?.document_date) setDataBolla(payload.extracted.document_date.slice(0, 10));
+      const numeroLetto = payload.extracted?.ddt_number || payload.extracted?.document_number;
+      const dataLetta = payload.extracted?.ddt_date || payload.extracted?.document_date;
+      if (numeroLetto && !numeroBolla) setNumeroBolla(numeroLetto);
+      if (dataLetta) setDataBolla(dataLetta.slice(0, 10));
 
       toast.success(
         abbinate > 0 ? `Bolla letta: ${abbinate} righe compilate` : "Bolla letta, ma nessuna riga riconosciuta",

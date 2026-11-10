@@ -476,6 +476,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
       const { data, error } = await supabase.functions.invoke("ai-ddt-analyzer", {
         body: {
           file_base64: fileBase64,
+          file_name: ddtFile.name,
           mime: ddtFile.type || "image/jpeg",
           company_id: companyId,
           warehouse_id: warehouseId ?? null,

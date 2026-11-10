@@ -25,7 +25,7 @@ describe("il client non aggira le policy ed evita i reinvii duplicati", () => {
   it("l'insert ha una chiave stabile e verifica la propria riga dopo una risposta persa", () => {
     expect(hook).toContain("syncOperationId(item)");
     expect(hook).toContain('error.code === "23505"');
-    expect(hook).toContain('.eq("id", id).eq("company_id", row?.company_id');
+    expect(hook).toMatch(/\.eq\("id", id\)\s*\.eq\("company_id", row\?\.company_id/);
   });
 
   it("rifiuta target generici provenienti dal telefono", () => {

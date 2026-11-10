@@ -1,3 +1,4 @@
+import { useDocumentiDDT, STATO_DOCUMENTO } from "@/hooks/useDocumentiDDT";
 import { COLONNE_RAPPORTINO, COLONNE_RAPPORTINO_CON_AUTORE } from "@/lib/campo/colonneRapportino";
 import { RuoloCantiereCampo } from "@/components/campo/RuoloCantiereCampo";
 import { BottoneCollaudo } from "@/components/campo/BottoneCollaudo";
@@ -918,7 +919,7 @@ export default function CampoLavoroDetail() {
               sera dentro al rapportino (dove la galleria è irraggiungibile). */}
           {/* Bolla: parte da QUI (cantiere già impostato), non più dal menu "App".
               Giornaliero resta nella card "Chiudi giornata" e nella barra sticky. */}
-          <QuickAction icon={Receipt} label="Bolla" onClick={() => navigate(`/campo/merce?order=${orderId}`)} />
+          <QuickAction icon={Receipt} label="Bolla" onClick={() => navigate(`/campo/ddt?order=${orderId}`)} />
           <QuickAction icon={Camera} label="Foto" onClick={() => navigate(`/campo/lavoro/${orderId}/foto`)} />
           <QuickAction icon={AlertCircle} label="Segnala" onClick={() => navigate(`/campo/ticket/nuovo/${orderId}`)} />
           {orderId && <BottoneCollaudo orderId={orderId} />}
@@ -1325,17 +1326,20 @@ function BolleCantiere({ orderId }: { orderId: string }) {
   const navigate = useNavigate();
   const { data, isLoading, isError, refetch } = useAcquistiCommessa(orderId);
   const bolle = data ?? [];
+  const documenti = useDocumentiDDT(true, orderId);
   return (
     <div className="space-y-3">
       <button
-        onClick={() => navigate(`/campo/merce?order=${orderId}`)}
+        onClick={() => navigate(`/campo/ddt?order=${orderId}`)}
         className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-black text-white transition-transform active:scale-[0.98]"
       >
         <Camera className="h-4 w-4" />Fotografa una bolla
       </button>
+      {documenti.data?.map(j => <div key={j.id} className="rounded-xl border bg-background p-3 text-sm"><p className="break-all font-semibold">{j.files[0]?.name}</p><p className="mt-1 text-xs text-muted-foreground">{STATO_DOCUMENTO[j.status]} · {new Date(j.created_at).toLocaleString("it-IT")}</p></div>)}
+      {documenti.isError && <button className="min-h-11 text-sm underline" onClick={() => void documenti.refetch()}>Riprova a caricare i DDT inviati</button>}
       {isLoading && <p className="text-sm text-muted-foreground">Carico le bolle…</p>}
       {isError && <p className="text-sm text-destructive">Non riesco a leggere le bolle. <button type="button" className="underline" onClick={() => refetch()}>Riprova</button></p>}
-      {!isLoading && !isError && bolle.length === 0 && (
+      {!isLoading && !isError && bolle.length === 0 && !documenti.data?.length && (
         <div className="rounded-xl border bg-muted/40 p-4 text-center text-sm text-muted-foreground">
           <Receipt className="mx-auto mb-2 h-7 w-7 opacity-60" />
           Nessuna bolla per questo cantiere. Fotografa una bolla, uno scontrino o una fattura: la legge e la registra l’ufficio.

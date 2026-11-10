@@ -10,7 +10,7 @@ import { dividiFile, gruppiDaTagli, tagliProposti, type PdfDaDividere } from "@/
 
 export function DividiPdfPannello({ pdf, onDiviso, onTogli }: {
   pdf: PdfDaDividere;
-  onDiviso: (pezzi: File[]) => void;
+  onDiviso: (pezzi: File[], leggi?: boolean) => void;
   onTogli: () => void;
 }) {
   const proposta = useMemo(() => tagliProposti(pdf.testi), [pdf.testi]);
@@ -21,10 +21,20 @@ export function DividiPdfPannello({ pdf, onDiviso, onTogli }: {
   const cambia = (pagina: number) =>
     setTagli((p) => (p.includes(pagina) ? p.filter((t) => t !== pagina) : [...p, pagina]));
 
-  const dividi = async () => {
+  const dividi = async (leggi = true) => {
     setLavoro(true);
     try {
-      onDiviso(gruppi.length === 1 ? [pdf.file] : await dividiFile(pdf.file, gruppi));
+      const pezzi = gruppi.length === 1 ? [pdf.file] : await dividiFile(pdf.file, gruppi);
+      if (!leggi) {
+        const { default: JSZip } = await import("jszip");
+        const zip = new JSZip();
+        for (const file of pezzi) zip.file(file.name, await file.arrayBuffer());
+        const blob = await zip.generateAsync({ type: "blob", compression: "STORE" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a"); a.href = url; a.download = `${pdf.file.name.replace(/\.pdf$/i, "")}-bolle-divise.zip`; a.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }
+      onDiviso(pezzi, leggi);
     } catch (e) {
       toast.error("Non sono riuscito a dividere il PDF", { description: e instanceof Error ? e.message : String(e) });
       setLavoro(false);
@@ -43,7 +53,7 @@ export function DividiPdfPannello({ pdf, onDiviso, onTogli }: {
           {proposta.senzaTesto === pdf.miniature.length ? "È una scansione senza testo" : "Alcune pagine sono scansioni senza testo"}: ho tagliato a ogni pagina. Togli i tagli fra le pagine della stessa bolla.
         </p>
       )}
-      <ol className="flex flex-wrap items-center gap-y-3">
+      <ol className="flex max-h-80 flex-wrap items-center gap-y-3 overflow-y-auto rounded-lg bg-muted/20 p-2">
         {pdf.miniature.map((src, i) => {
           const taglio = tagli.includes(i);
           return (
@@ -70,6 +80,7 @@ export function DividiPdfPannello({ pdf, onDiviso, onTogli }: {
       </ol>
       <div className="flex flex-wrap justify-end gap-2">
         <Button type="button" variant="outline" size="sm" disabled={lavoro} onClick={onTogli}>Togli questo PDF</Button>
+        <Button type="button" variant="outline" size="sm" disabled={lavoro} onClick={() => void dividi(false)}>Dividi e scarica senza lettura AI</Button>
         <Button type="button" size="sm" disabled={lavoro} onClick={() => void dividi()}>
           {lavoro && <Loader2 aria-hidden="true" className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
           {gruppi.length === 1 ? "È una bolla sola: leggila" : `Dividi e leggi ${gruppi.length} bolle`}

@@ -1,4 +1,7 @@
+import type * as React from "react";
+import { useConsegneDDT } from "@/hooks/useConsegneDDT";
 import { ricezioneNonAllineata } from "@/lib/magazzino/ricezioneNonAllineata";
+import { useFileDDT } from "@/hooks/useFileDDT";
 // ============================================================================
 // DDTRicezioneDetail — la scheda di una bolla ricevuta
 // ----------------------------------------------------------------------------
@@ -31,9 +34,10 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DDTRigheCard } from "@/components/ddt/DDTRigheCard";
-import { DDTCaricoMagazzinoCard } from "@/components/ddt/DDTCaricoMagazzinoCard";
+import { DDTOriginaliCard } from "@/components/ddt/DDTOriginaliCard";
+import { PrezziDaFatturaCard } from "@/components/ddt/PrezziDaFatturaCard";
+import { ConsegneDDTCard } from "@/components/ddt/ConsegneDDTCard";
 import { ArrivoPosizioniPanel } from "@/components/ddt/ArrivoPosizioniPanel";
-import { usePermissions } from "@/hooks/usePermissions";
 import { importoRiga } from "@/lib/ddt/letturaAI";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -99,7 +103,9 @@ export default function DDTRicezioneDetail() {
   const navigate = useNavigaDocumento();
   const inPopup = useDentroPopupDocumento();
   const { ddt, isLoading, receipts, isReceiptsLoading, isReceiptsError } = useDDTRicezioneDetail(ddtId);
-  const permessiCarico = usePermissions();
+  const fileDocumento = useFileDDT(ddt);
+  const consegneDocumento = useConsegneDDT(ddt?.company_id ?? "",ddtId ?? "");
+  const destinazioneMista = new Set((consegneDocumento.data ?? []).filter(c=>c.tipo!=="servizio").map(c=>c.destinazione)).size>1;
   const { updateDDT, deleteDDT, createGoodsReceipt, deleteGoodsReceipt } =
     useDDTRicezioneMutations(ddt?.purchase_order_id ?? null);
   const {
@@ -370,6 +376,7 @@ export default function DDTRicezioneDetail() {
   }, [poItems, righeMerce, receipts]);
 
   const openReceiveFor = (itemId: string) => {
+    if (ddt?.destinazione === "cantiere") return;
     const it = poItems.find((x) => x.id === itemId);
     if (!it || isReceiptsLoading || isReceiptsError) return;
     if (!po || !["inviato", "confermato", "parziale"].includes(po.status)) {
@@ -393,7 +400,7 @@ export default function DDTRicezioneDetail() {
   };
 
   const submitReceive = () => {
-    if (!ddt || !selectedItem || isReceiptsLoading || isReceiptsError) return;
+    if (!ddt || ddt.destinazione === "cantiere" || !selectedItem || isReceiptsLoading || isReceiptsError) return;
     if (!po || !["inviato", "confermato", "parziale"].includes(po.status)) {
       toast.error("Lo stato dell’ordine non consente nuove ricezioni.");
       return;
@@ -691,7 +698,7 @@ export default function DDTRicezioneDetail() {
                 icon={ddt.destinazione === "cantiere" ? Truck : Warehouse}
                 label="Destinazione"
                 value={
-                  ddt.destinazione === "cantiere"
+                  destinazioneMista ? "cantiere e magazzino" : ddt.destinazione === "cantiere"
                     ? "in cantiere"
                     : (ddt.warehouses?.name ?? "magazzino")
                 }
@@ -799,6 +806,8 @@ export default function DDTRicezioneDetail() {
               evita di contare la stessa merce due volte. */}
           <DDTRigheCard
             ddtId={ddtId}
+            consegnaDiretta={ddt.destinazione === "cantiere" && !destinazioneMista}
+            gestioneConsegneEsplicita={true}
             odaId={ddt?.purchase_order_id}
             fornitoreId={ddt?.supplier_id}
             aiConfidenza={ddt?.ai_confidenza}
@@ -812,10 +821,10 @@ export default function DDTRicezioneDetail() {
           {/* Le posizioni su misura dell'ordine: la bolla propone, chi riceve conferma. */}
           {ddt?.purchase_order_id && <ArrivoPosizioniPanel odaId={ddt.purchase_order_id} ddtId={ddtId} nascondiSeVuoto />}
 
-          {/* Senza ordine d'acquisto la merce entra in giacenza da qui. In cantiere non entra: il costo arriva dalla fattura. */}
-          {ddt && !ddt.purchase_order_id && ddt.destinazione !== "cantiere" && (
-            <DDTCaricoMagazzinoCard ddtId={ddtId} companyId={ddt.company_id} warehouseId={ddt.warehouse_id} puoCaricare={!permessiCarico.solaLettura} />
-          )}
+          <ConsegneDDTCard key={ddt.id} ddt={ddt} />
+          <PrezziDaFatturaCard key={`prezzi:${ddt.id}`} ddt={ddt} />
+
+          {ddt.ddt_file_bucket && <DDTOriginaliCard key={`originali:${ddt.id}`} ddtId={ddt.id} companyId={ddt.company_id} />}
 
           {/* ─── 2. IL DOCUMENTO: la foto accanto alle righe, per correggerle ─── */}
           <Card>
@@ -846,9 +855,10 @@ export default function DDTRicezioneDetail() {
                 }}
               />
 
-              {ddt.ddt_file_url && ddt.ddt_file_name && ddt.ddt_file_mime ? (
+              {fileDocumento.isError && <p role="alert" className="text-sm text-destructive">Non riesco ad aprire l’originale. <button type="button" className="underline" onClick={() => void fileDocumento.refetch()}>Riprova</button></p>}
+              {ddt.ddt_file_bucket ? <p className="text-sm text-muted-foreground">L’originale del fornitore è conservato nella sezione qui sopra. Puoi aggiungere gli altri documenti negli allegati.</p> : ddt.ddt_file_url && ddt.ddt_file_name && ddt.ddt_file_mime && fileDocumento.data && !ddt.ddt_file_bucket ? (
                 <DDTMainFilePreview
-                  url={ddt.ddt_file_url}
+                  url={fileDocumento.data ?? ""}
                   name={ddt.ddt_file_name}
                   mime={ddt.ddt_file_mime}
                   onReplace={onReplaceMainClick}
@@ -859,6 +869,7 @@ export default function DDTRicezioneDetail() {
                         ddt_file_url: null,
                         ddt_file_name: null,
                         ddt_file_mime: null,
+                        ddt_file_bucket: null,
                       },
                     });
                   }}
@@ -927,7 +938,7 @@ export default function DDTRicezioneDetail() {
           </Card>
 
           {/* ─── 3. TORNA CON L'ORDINE? ricezioni per articolo e articoli dell'ODA ─── */}
-          <Card>
+          {(!(ddt.ricezione_esplicita || consegneDocumento.data?.length) || receipts.length > 0) && <Card>
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -952,7 +963,7 @@ export default function DDTRicezioneDetail() {
             <CardContent className="pt-0 space-y-3">
               {/* Che cosa non torna, detto in una riga invece che lasciato
                   dedurre scorrendo venti articoli. */}
-              {(scostamenti.mancanti > 0 || scostamenti.righeNonAbbinate > 0) && (
+              {ddt?.destinazione !== "cantiere" && (scostamenti.mancanti > 0 || scostamenti.righeNonAbbinate > 0) && (
                 <div className="rounded-md border border-amber-200 bg-amber-50/70 p-2.5 text-xs text-amber-900 space-y-1">
                   {scostamenti.nonAllineato && <p>Residuo da verificare: le ricezioni registrate e il riepilogo OdA non sono allineati. Non ripetere le ricezioni già presenti.</p>}
                   {!scostamenti.nonAllineato && scostamenti.mancanti > 0 && (
@@ -1116,7 +1127,7 @@ export default function DDTRicezioneDetail() {
                                 )}
                               </div>
                             </div>
-                            {!isReceiving && pending > 0 && linkedToOrder && (
+                            {ddt?.destinazione !== "cantiere" && !isReceiving && pending > 0 && linkedToOrder && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -1229,7 +1240,7 @@ export default function DDTRicezioneDetail() {
                 )}
               </div>
             </CardContent>
-          </Card>
+          </Card>}
         </div>
 
           {/* ─── 4. CHI L'HA PORTATA: corriere, mezzo, autista, orari ─── */}
@@ -1715,12 +1726,12 @@ export default function DDTRicezioneDetail() {
                 vuoto="Non indicata"
                 valore={
                   ddt.destinazione === "cantiere"
-                    ? "Direttamente in cantiere"
+                    ? (destinazioneMista ? "Cantiere e magazzino" : "Direttamente in cantiere")
                     : (ddt.warehouses?.name ?? "Magazzino")
                 }
                 dettaglio={
                   ddt.destinazione === "cantiere"
-                    ? "Non passa dal magazzino: in giacenza non entra."
+                    ? (destinazioneMista ? "Ogni quota segue la destinazione confermata nelle consegne." : "Non passa dal magazzino: in giacenza non entra.")
                     : ddt.caricata_a_magazzino_at
                       ? `In giacenza dal ${format(new Date(ddt.caricata_a_magazzino_at), "dd/MM/yyyy", { locale: it })}`
                       : isReceiptsError ? "Ricezioni non verificabili: ricarica la pagina"
