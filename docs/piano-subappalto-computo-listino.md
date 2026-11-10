@@ -1,7 +1,8 @@
 # Contratti di subappalto dal computo e dal listino della ditta — piano (versione 2)
 
-Versione 1 e versione 2 scritte il 10/11/2026. **È un piano: niente codice e niente migrazioni
-finché Florin non dà il via.**
+Versione 1 e versione 2 scritte il 10/11/2026. **Stato: Florin ha approvato il piano e le
+proposte delle 8 domande il 10/11/2026; il lotto 1 è fatto** (migrazione
+`20290213100000_listino_ditta_anagrafica_unita`, applicata e riallineata).
 
 La versione 2 aggiunge:
 - l'impostazione concreta: schermate, dati e regole;
@@ -199,16 +200,17 @@ sull'azienda della commessa.
 | Una funzione di unità in TS e un'altra in SQL scritte a mano | si allineano male | una tabella di sinonimi sola, generata in un file per il codice e uno per l'SQL, con lo stesso test (rischio R4) |
 | Import listino nuovo da zero | `parseVociIncollate` (listino fornitore) e il lettore AI di Silvio esistono | si riusano; cambia solo la destinazione |
 
-**Doppioni nei dati, da ripulire o da gestire prima:**
-- 26 voci di listino con lo stesso nome e la stessa unità (Bonarrigo, Dimora): l'abbinamento
-  automatico non deve scegliere a caso;
-- 2 coppie «stessa voce, stessa ditta, due prezzi» (Demo 2);
-- 1 subappaltatore doppio per nome;
-- 81 subappaltatori senza P.IVA;
-- 34 schede sicurezza senza anagrafica, 6 squadre esterne senza anagrafica.
+**Doppioni nei dati: il rapporto del lotto 1 (10/11/2026).** Nessuno si fonde da solo, e
+nessuna fusione automatica per nome.
 
-Il lotto 1 produce l'elenco e lo fa decidere a una persona. **Nessuna fusione automatica per
-nome.**
+| Cosa | Dove | Cos'è davvero | Cosa si fa |
+|---|---|---|---|
+| 26 voci di listino con lo stesso nome e la stessa unità | 25 Bonarrigo, 1 Dimora | Bonarrigo: la stessa lavorazione presa da computi diversi, con **prezzi di vendita diversi** (es. porta EI60 a doppia anta: 970/710/930/860 €). Non sono doppioni da fondere: sono prezzi di progetti diversi. Dimora: una vera copia («gres porcellanato 60x60», stessi prezzi) | l'abbinamento automatico usa il codice, che è unico; con un nome omonimo si chiede sempre conferma. La copia di Dimora la sistema Dimora |
+| 2 voci con due prezzi della stessa ditta | Demo 2 (Vais Home, MG Posa) | prezzi per condizioni diverse, «su nuovo» e «con smontaggio» | restano: vedi R2 corretto |
+| 1 subappaltatore doppio per nome | Green Energy: «SWEET HOME S.R.L.» senza P.IVA e «SWEET HOME SRL» con P.IVA | probabile doppione | da far decidere a Green Energy |
+| 81 subappaltatori senza P.IVA | Green Energy 59, Demo 2 14, Demo 5, Ke Bei 3 | anagrafiche incomplete | nessuna delle aziende che usano il subappalto dal computo |
+| 34 schede sicurezza senza anagrafica | Bonarrigo 17, Demo 2 10, Demo 7 | la scheda del contratto non è legata alla ditta | **Bonarrigo va sistemata prima del lotto 4**: un contratto su quelle schede non trova il listino della ditta |
+| 6 squadre esterne senza anagrafica | Demo 2 (MG Posa), Demo (3), Innovasol (1), Renova (1) | squadre mai collegate alla ditta | quando si collegano, i loro prezzi seguono da soli (trigger del lotto 1) |
 
 ---
 
@@ -217,7 +219,7 @@ nome.**
 | # | Rischio | Cosa succederebbe | Difesa |
 |---|---|---|---|
 | **R1** | Due persone affidano la stessa voce nello stesso momento | voce affidata due volte, costo doppio | `affida_voci` blocca le voci (`FOR UPDATE`) e controlla la somma dentro la transazione; test con due transazioni parallele |
-| **R2** | La ditta ha due prezzi validi per la stessa voce (2 casi già oggi) | prezzo scelto a caso | regola: un prezzo per voce, ditta e periodo. Trigger che rifiuta periodi sovrapposti (`btree_gist` non è installato: niente vincolo di esclusione). I 2 casi vanno decisi a mano |
+| **R2** | La ditta ha più prezzi per la stessa voce (2 casi già oggi) | prezzo scelto a caso | **corretto dopo il lotto 1**: i 2 casi non sono doppioni ma prezzi diversi per condizioni diverse («su nuovo» 85 €, «con smontaggio» 110 €). Regola: più prezzi con il loro nome, uno predefinito (`is_default`, esiste già); il contratto propone il predefinito e chiede quale se la scelta conta. Le date di validità servono a chiudere un listino vecchio, non a vietare due prezzi nello stesso periodo |
 | **R3** | Abbinamento sbagliato fra voce del computo e voce di listino (descrizioni simili, 26 omonimi) | prezzo di un'altra lavorazione nel contratto | automatico solo per codice identico o abbinamento ricordato; l'AI propone e una persona conferma; omonimi = sempre «da confermare»; il pallino d'origine resta visibile |
 | **R4** | Unità diverse: nelle voci ci sono 21 scritture (m2/mq, mc/m3, cad/cad./n., ora/ore, a corpo/a.c./corpo…), nel listino 8 | 420 m2 × prezzo «a pezzo», oppure nessun abbinamento | normalizzazione unica con test (m2→mq, m3→mc, cad/n.→pz, ore→h, a.c.→corpo); unità diverse = mai proposta automatica, avviso in riga |
 | **R5** | Il contratto cambia dopo l'invio in firma | il firmato non è il PDF mandato | fotografia all'invio; la modifica annulla la firma in attesa (esiste già) e si rifà; test |
@@ -226,7 +228,7 @@ nome.**
 | **R8** | Arrotondamenti: totale del PDF ≠ importo nel database per qualche centesimo | contestazioni, SAL che non chiudono | stesso conto ovunque (riga arrotondata, poi somma); test che confronta database, finestra e PDF |
 | **R9** | **Il venduto della voce comprende i materiali, la ditta fa solo la posa** (634 voci hanno anche il costo materiali) | margine falso: sembra 60% ed è 15% | `comprende` sull'affidamento (posa / fornitura e posa); con «posa» il margine sottrae anche i materiali della voce; la colonna lo dice |
 | **R10** | Chi vede i prezzi. I contratti si leggono anche con il solo permesso «subappaltatori» (`scheda_subappaltatori_leggi`), senza il permesso sui costi | se il venduto finisse nel contratto o negli affidamenti, lo vedrebbe chi non deve | venduto e margine **mai salvati** fuori dalle voci; calcolati da `margini_affidamenti` solo con `can_view_costs`; test con un utente senza permesso |
-| **R11** | Le regole di accesso del listino delle ditte usano `get_my_company_id()`: un utente con più aziende vede il listino dell'azienda sbagliata | prezzi di un'altra azienda proposti | regole nuove con `has_permission_for_company(company_id)`, come le altre tabelle recenti; si riscrivono anche le vecchie |
+| **R11** | Le regole di accesso del listino delle ditte usano `get_my_company_id()`: un utente con più aziende vede il listino dell'azienda attiva | prezzi di un'altra azienda proposti | **rivisto nel lotto 1, nessuna modifica**: `get_my_company_id()` è l'azienda attiva, come in altre 450 regole (listino aziendale compreso), e l'azienda per scheda è un lavoro a parte (ramo `claude/azienda-per-scheda`). La scrittura dei prezzi è già aperta a chi ha permesso listino + costi (`varianti_scrittura_listino`). Riscriverle solo qui le farebbe divergere dal resto e bloccherebbe l'accesso per la durata della migrazione |
 | **R12** | Le voci di Bonarrigo (1.752 su 1.777 dal computo) non puntano più alla riga del computo da cui vengono | una variante del computo non trova le voci della commessa | per quelle commesse il confronto lavora sulla voce della commessa (quantità cambiata → «da rivedere»), non sul computo; per i computi nuovi si usa la voce radice (`voce_origine_id`), che esiste già |
 | **R13** | Commesse grandi: Villa Ida ha 643 voci | lentezza, 643 chiamate, limite di 1.000 righe di PostgREST | una chiamata per azione (`affida_voci` con un elenco); letture con RPC o a pagine; albero chiuso per fase di default |
 | **R14** | La ditta del contratto ha più schede sicurezza (fino a 33 per la stessa anagrafica) | contratto sulla scheda sbagliata | si usa la regola che c'è già (`schedeSicurezzaDitta`: prima quella della commessa, poi la generale) |
@@ -243,8 +245,8 @@ Ogni lotto si pubblica da solo, con i test e una prova sui dati veri.
 
 | Lotto | Contenuto | Fatto quando |
 |---|---|---|
-| **1. Fondamenta** | `subappaltatore_id` su varianti e voci di ditta, ricavato dalla squadra; normalizzazione delle unità (R4); regole di accesso con `has_permission_for_company` (R11); rapporto dei doppioni (sezione 3) | le 66 righe Demo 2 hanno l'anagrafica; il test delle unità è verde in TS e SQL; un utente con 2 aziende vede il listino giusto |
-| **2. Listino della ditta, a mano** | linguetta «Listino» nella scheda subappaltatore, prezzi per periodo, voci proprie, periodi senza sovrapposizioni (R2) | su Demo 2 tre prezzi scritti a mano compaiono nel pannello della commessa; un periodo sovrapposto viene rifiutato |
+| **1. Fondamenta** ✅ 10/11 | `subappaltatore_id` su varianti e voci di ditta, ricavato dalla squadra; normalizzazione delle unità (R4); rapporto dei doppioni (sezione 3). Le regole di accesso restano come sono (R11 rivisto) | fatto: 62 righe su 66 hanno l'anagrafica (le 4 di MG Posa la prenderanno quando la squadra verrà collegata); test delle unità verde, e la funzione del database dà le stesse unità del codice su tutte le 22 grafie vere; trigger provato in 6 casi in una transazione annullata |
+| **2. Listino della ditta, a mano** | linguetta «Listino» nella scheda subappaltatore, prezzi con nome e uno predefinito, data da cui valgono, voci proprie (R2 corretto) | su Demo 2 tre prezzi scritti a mano compaiono nel pannello della commessa; un listino nuovo chiude il vecchio senza toccare i contratti |
 | **3. Abbinamento voci ↔ listino** | `tariffa_id` per codice, abbinamenti ricordati in `product_aliases`, proposta AI da confermare, «aggiungi al listino» (R3) | su Villa Ida: quante voci si abbinano da sole per codice; una seconda commessa ritrova gli abbinamenti ricordati |
 | **4. Affidamento per voce** | `subappalto_affidamenti`, funzioni, «Chi fa cosa», quote di quantità, «senza ditta», ditta sulla fase calcolata (R1, R6, R13, R15) | due affidamenti in parallelo: uno fallisce; l'esempio 7 fasi × 5 voci con 3 ditte torna al centesimo; fase con voce a contratto non cancellabile |
 | **5. Contratto dagli affidamenti** | prezzi proposti con l'origine, «ricorda nel listino», margini interni con «comprende» (R9, R10), corrispettivo calcolato (R7, R8), PDF «Lavori affidati» | PDF di O-0001 di Dimora; utente senza permesso sui costi: nessuna cifra di venduto in nessuna risposta; database, finestra e PDF uguali al centesimo |
@@ -278,6 +280,10 @@ L'import (lotto 7) è stato spostato dopo il contratto: il listino si costruisce
 ---
 
 ## 7. Domande per Florin (con la mia proposta)
+
+**10/11/2026: Florin ha approvato le proposte («Sì, parti dal lotto 1»).** Le domande 5 (da dove
+partire, e con quali listini delle ditte di Bonarrigo) e 7 (oneri della sicurezza) non avevano
+una proposta: restano da chiedere prima dei lotti 3 e 5.
 
 1. **Voce divisa fra due ditte per quantità** (300 mq a Rossi + 120 a Bianchi, la voce resta
    una). *Proposta: sì.*

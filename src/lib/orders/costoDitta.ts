@@ -23,6 +23,8 @@ export interface VoceCostoDitta {
 export interface VarianteCostoDitta {
   tariffa_id: string;
   external_team_id: string | null;
+  /** Il subappaltatore (anagrafica) a cui vale: dal 10/11/2026 il listino della ditta sta qui, anche senza squadra. */
+  subappaltatore_id?: string | null;
   costo: number | null;
   is_default?: boolean | null;
   attivo?: boolean | null;
@@ -54,6 +56,34 @@ export function varianteDellaSquadra(
   return varianti
     .filter((v) => v.tariffa_id === tariffaId && v.external_team_id === squadraId && v.attivo !== false && v.costo != null)
     .sort((a, b) => Number(b.is_default ?? false) - Number(a.is_default ?? false) || (a.sort_order ?? 0) - (b.sort_order ?? 0))[0] ?? null;
+}
+
+/**
+ * Il prezzo della ditta sta sull'anagrafica del subappaltatore (`subappaltatore_id`), la commessa
+ * ragiona per squadra (`external_team_id`). Qui ogni prezzo scritto sull'anagrafica vale anche per
+ * le squadre di quella ditta, così chi cerca per squadra (varianteDellaSquadra) lo trova. Un prezzo
+ * scritto proprio sulla squadra resta suo e non si copia sulle altre squadre della stessa ditta,
+ * se una squadra ha già il suo prezzo per quella voce.
+ */
+export function variantiPerSquadre<V extends VarianteCostoDitta>(
+  varianti: ReadonlyArray<V>,
+  squadre: ReadonlyArray<{ id: string; subappaltatore_id: string | null }>,
+): V[] {
+  const squadreDi = new Map<string, string[]>();
+  for (const s of squadre) {
+    if (!s.subappaltatore_id) continue;
+    squadreDi.set(s.subappaltatore_id, [...(squadreDi.get(s.subappaltatore_id) ?? []), s.id]);
+  }
+  const proprie = new Set(varianti.filter((v) => v.external_team_id).map((v) => `${v.tariffa_id}|${v.external_team_id}`));
+  const out: V[] = [...varianti];
+  for (const v of varianti) {
+    if (!v.subappaltatore_id) continue;
+    for (const squadraId of squadreDi.get(v.subappaltatore_id) ?? []) {
+      if (squadraId === v.external_team_id || proprie.has(`${v.tariffa_id}|${squadraId}`)) continue;
+      out.push({ ...v, external_team_id: squadraId });
+    }
+  }
+  return out;
 }
 
 /**

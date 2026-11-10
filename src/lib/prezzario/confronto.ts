@@ -63,19 +63,33 @@ export function normalizzaUnita(u: string | null | undefined): string {
     .replace(/²/g, "2")
     .replace(/³/g, "3");
   if (!t) return "";
-  const sinonimi: Record<string, string> = {
-    mq: "m2", m2: "m2", metroquadro: "m2", metriquadri: "m2", metroquadrato: "m2",
-    mc: "m3", m3: "m3", metrocubo: "m3", metricubi: "m3",
-    ml: "m", m: "m", metro: "m", metrolineare: "m", metrilineari: "m",
-    cad: "cad", pz: "cad", pezzo: "cad", pezzi: "cad", n: "cad", nr: "cad", num: "cad", "cadauno": "cad",
-    kg: "kg", chilogrammo: "kg", chili: "kg",
-    t: "t", ton: "t", tonnellata: "t",
-    h: "h", ora: "h", ore: "h",
-    l: "l", lt: "l", litro: "l", litri: "l",
-    acorpo: "a corpo", "acorpo1": "a corpo",
-  };
-  return sinonimi[t] ?? t;
+  return SINONIMI_UNITA[t] ?? t;
 }
+
+/**
+ * I sinonimi delle unità, dopo minuscole e senza spazi e punti. La stessa tabella sta nel database,
+ * in `public.unita_normalizzata()` (migrazione 20290213100000): il test `unitaNormalizzata.test.ts`
+ * controlla che le due restino uguali. Una voce nuova si aggiunge in tutti e due i posti.
+ *
+ * Dal 10/11/2026 (subappalto dal computo): nelle voci delle commesse si trovano anche «a.c.»,
+ * «corpo», «mesi», «cad.», «n.»; nel listino manodopera «fisso», «piano», «km».
+ */
+export const SINONIMI_UNITA: Readonly<Record<string, string>> = {
+  mq: "m2", m2: "m2", metroquadro: "m2", metriquadri: "m2", metroquadrato: "m2",
+  mc: "m3", m3: "m3", metrocubo: "m3", metricubi: "m3",
+  ml: "m", m: "m", mt: "m", metro: "m", metrolineare: "m", metrilineari: "m",
+  cad: "cad", pz: "cad", pezzo: "cad", pezzi: "cad", n: "cad", nr: "cad", num: "cad", cadauno: "cad",
+  kg: "kg", chilogrammo: "kg", chili: "kg",
+  t: "t", ton: "t", tonnellata: "t",
+  h: "h", ora: "h", ore: "h",
+  l: "l", lt: "l", litro: "l", litri: "l",
+  acorpo: "a corpo", acorpo1: "a corpo", corpo: "a corpo", ac: "a corpo", forfait: "a corpo", aforfait: "a corpo", fisso: "a corpo",
+  gg: "gg", giorno: "gg", giorni: "gg", giornata: "gg", giornate: "gg",
+  mese: "mese", mesi: "mese",
+  paio: "paio", paia: "paio",
+  km: "km", chilometro: "km", chilometri: "km",
+  piano: "piano", piani: "piano",
+};
 
 /** Le due unità sono la stessa cosa? Un'unità mancante non combacia con niente. */
 export function unitaCompatibili(a: string | null | undefined, b: string | null | undefined): boolean {
