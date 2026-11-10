@@ -1,5 +1,5 @@
 // 09/11/2026: il renderer comune stampa la veste propria dell'azienda (logo e piè). Questo commento fa ripubblicare la funzione.
-// 10/11/2026: il piè di Impresa Vulcano con le righe dell'esempio del titolare (personalizzazioneDocumenti). Anche questo fa ripubblicare.
+// 10/11/2026: il piè di Impresa Vulcano con le righe dell'esempio del titolare (personalizzazioneDocumenti). Rimpicciolito lo stesso giorno. Anche questo fa ripubblicare.
 // 06/11/2026: il preventivo generico non porta più i blocchi raccontati di «ristrutturazione» (copertina,
 // tabella e condizioni: il resto vive nei moduli verticali). Il renderer è un bundle di _shared, e il job
 // di deploy guarda solo i file cambiati: questo commento serve a far ripubblicare anche questa funzione.

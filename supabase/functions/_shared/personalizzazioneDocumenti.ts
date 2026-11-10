@@ -96,19 +96,19 @@ export interface MisurePiede {
 }
 
 /**
- * Le misure del piè proprio, in punti, per una larghezza utile data. Le righe 2-4 stanno a 9 punti e scendono
- * insieme se la più lunga non ci sta: mai a capo. Il titolo a 13,5 (l'esempio: circa una volta e mezza le altre).
+ * Le misure del piè proprio, in punti, per una larghezza utile data. Le righe 2-4 stanno a 7 punti e scendono
+ * insieme se la più lunga non ci sta: mai a capo. Il titolo a 10,5 (ridotti il 10/11/2026 su richiesta del titolare: occupava troppo).
  */
 export function misurePiede(veste: PersonalizzazioneDocumento, larghezzaUtile: number): MisurePiede | null {
   const righe = veste.piedeRighe;
   if (!righe?.length) return null;
-  const corpo = Math.min(9, Math.floor((larghezzaUtile / LARGHEZZA_RIGA_LUNGA_A_CORPO_1) * 4) / 4);
-  const corpoTitolo = 13.5;
+  const corpo = Math.min(7, Math.floor((larghezzaUtile / LARGHEZZA_RIGA_LUNGA_A_CORPO_1) * 4) / 4);
+  const corpoTitolo = 10.5;
   const rigaTitolo = corpoTitolo * 1.15;
-  const riga = corpo * 1.3;
+  const riga = corpo * 1.25;
   const altezza = righe.reduce((s, r) => s + (r.titolo ? rigaTitolo : riga), 0);
-  const corpoPagina = 7.5;
-  const cimaPaginaDalFondo = 24;
+  const corpoPagina = 6.5;
+  const cimaPaginaDalFondo = 20;
   const fondoRigheDalFondo = cimaPaginaDalFondo + 1;
   return { corpoTitolo, corpo, rigaTitolo, riga, altezza, corpoPagina, cimaPaginaDalFondo, fondoRigheDalFondo, ingombro: fondoRigheDalFondo + altezza };
 }
@@ -161,7 +161,7 @@ export function disegnaPiedeJsPdf(pdf: PdfPerPiede, veste: PersonalizzazioneDocu
   let fondo = fondoFoglio - mm(m.fondoRigheDalFondo);
   const basi: number[] = [];
   for (let i = righe.length - 1; i >= 0; i--) {
-    const alta = righe[i].titolo ? m.rigaTitolo : (corpo * 1.3);
+    const alta = righe[i].titolo ? m.rigaTitolo : (corpo * 1.25);
     basi[i] = fondo - mm(alta * 0.27);
     fondo -= mm(alta);
   }

@@ -171,13 +171,13 @@ var LARGHEZZA_RIGA_LUNGA_A_CORPO_1 = 43.3;
 function misurePiede(veste, larghezzaUtile) {
   const righe = veste.piedeRighe;
   if (!righe?.length) return null;
-  const corpo = Math.min(9, Math.floor(larghezzaUtile / LARGHEZZA_RIGA_LUNGA_A_CORPO_1 * 4) / 4);
-  const corpoTitolo = 13.5;
+  const corpo = Math.min(7, Math.floor(larghezzaUtile / LARGHEZZA_RIGA_LUNGA_A_CORPO_1 * 4) / 4);
+  const corpoTitolo = 10.5;
   const rigaTitolo = corpoTitolo * 1.15;
-  const riga = corpo * 1.3;
+  const riga = corpo * 1.25;
   const altezza = righe.reduce((s, r) => s + (r.titolo ? rigaTitolo : riga), 0);
-  const corpoPagina = 7.5;
-  const cimaPaginaDalFondo = 24;
+  const corpoPagina = 6.5;
+  const cimaPaginaDalFondo = 20;
   const fondoRigheDalFondo = cimaPaginaDalFondo + 1;
   return { corpoTitolo, corpo, rigaTitolo, riga, altezza, corpoPagina, cimaPaginaDalFondo, fondoRigheDalFondo, ingombro: fondoRigheDalFondo + altezza };
 }
@@ -198,7 +198,7 @@ function disegnaPiedeJsPdf(pdf, veste, o) {
   let fondo = fondoFoglio - mm(m.fondoRigheDalFondo);
   const basi = [];
   for (let i = righe.length - 1; i >= 0; i--) {
-    const alta = righe[i].titolo ? m.rigaTitolo : corpo * 1.3;
+    const alta = righe[i].titolo ? m.rigaTitolo : corpo * 1.25;
     basi[i] = fondo - mm(alta * 0.27);
     fondo -= mm(alta);
   }

@@ -68,9 +68,9 @@ describe("personalizzazioneDocumento", () => {
     expect(v.piedeRighe!.map((r) => Boolean(r.titolo))).toEqual([true, false, false, false]);
     expect(v.piedeRighe![2].parti[0]).toEqual({ testo: "info@impresavulcano.it", colore: "#3B82C4", sottolineato: true });
   });
-  it("le misure: titolo 13,5, righe 9 finché la più lunga ci sta, poi scendono; il margine copre il piè", () => {
+  it("le misure: titolo 10,5, righe 7 finché la più lunga ci sta, poi scendono; il margine copre il piè", () => {
     const v = personalizzazioneDocumento(VULCANO);
-    expect(misurePiede(v, 495)).toMatchObject({ corpoTitolo: 13.5, corpo: 9 });
+    expect(misurePiede(v, 495)).toMatchObject({ corpoTitolo: 10.5, corpo: 7 });
     expect(misurePiede(v, 300)!.corpo).toBeLessThan(7);
     expect(misurePiede(v, 300)!.corpo * 43.3).toBeLessThanOrEqual(300);
     const m = misurePiede(v, 495)!;
