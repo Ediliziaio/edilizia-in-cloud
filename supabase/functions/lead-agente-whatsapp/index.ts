@@ -106,7 +106,17 @@ Deno.serve(async (req) => {
   await admin.from("conversazioni").upsert(filtroConv, { onConflict: "company_id,entita_tipo,entita_id", ignoreDuplicates: true });
   const { data: conversazione } = await admin
     .from("conversazioni").select("bot_in_pausa").match(filtroConv).maybeSingle();
-  if (conversazione?.bot_in_pausa) return json({ ok: true, skipped: "in_pausa" });
+  // In pausa: ha preso la conversazione una persona, e va bene così — ma il
+  // lead che scrive non deve sparire. La pausa non scade mai (la mette il
+  // riquadro di Conversazioni al primo messaggio scritto a mano) e l'uscita
+  // era muta: nessuna risposta, nessun avviso, nessuna riga di registro. Il
+  // 10/11/2026 erano 147 conversazioni in pausa sulla piattaforma e 52
+  // persone avevano riscritto senza che nessuno rispondesse. Qui si avvisa
+  // chi deve rispondere, una volta ogni dodici ore per non diventare rumore.
+  if (conversazione?.bot_in_pausa) {
+    await avvisaSePausaMuta(admin, { companyId, config, contatto, numeroId: numero.id });
+    return json({ ok: true, skipped: "in_pausa" });
+  }
 
   // ── Turno ───────────────────────────────────────────────────────────────
   const turno = await prendiTurno(admin, filtroConv);
@@ -361,6 +371,38 @@ async function scriviRiepilogo(admin: Admin, r: {
     if (error) console.warn("[lead-agente] riepilogo non salvato:", error.message);
   } catch (e) {
     console.warn("[lead-agente] riepilogo non scritto:", String(e).slice(0, 200));
+  }
+}
+
+/**
+ * Il lead ha scritto ma l'assistente è in pausa: avvisa chi deve rispondere,
+ * al massimo una volta ogni dodici ore per quella persona.
+ */
+async function avvisaSePausaMuta(admin: Admin, d: {
+  companyId: string;
+  // deno-lint-ignore no-explicit-any
+  config: any;
+  // deno-lint-ignore no-explicit-any
+  contatto: any;
+  numeroId: string;
+}): Promise<void> {
+  try {
+    const { count } = await admin
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", d.companyId)
+      .eq("entity_id", d.contatto.id)
+      .eq("type", "lead_whatsapp_agente")
+      .gt("created_at", new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString());
+    if ((count ?? 0) > 0) return;
+    const nome = [d.contatto.first_name, d.contatto.last_name].filter(Boolean).join(" ") || "Un lead";
+    await avvisaUtenti(
+      { admin, companyId: d.companyId, contactId: d.contatto.id, config: d.config, contatto: { first_name: d.contatto.first_name, last_name: d.contatto.last_name, phone: d.contatto.phone }, waNumberId: d.numeroId },
+      `WhatsApp: ${nome} ha scritto, l'assistente è in pausa`,
+      "La conversazione è in mano a una persona, quindi l'assistente non risponde. Rispondi tu da Conversazioni, oppure riattiva l'assistente da lì.",
+    );
+  } catch (e) {
+    console.warn("[lead-agente] avviso di pausa non inviato:", String(e).slice(0, 120));
   }
 }
 
