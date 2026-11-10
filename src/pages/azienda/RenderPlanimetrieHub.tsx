@@ -25,21 +25,13 @@ import {
   MessageSquareText,
   PenLine,
   Plus,
-  Search,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,9 +47,11 @@ import {
   filtraElencoPiante,
   leggiFiltriElenco,
   scriviFiltriElenco,
-  type FiltriElencoPiante,
+  FILTRI_PIANTE_INIZIALI,
+  type FiltriArchivioPiante,
 } from "@/lib/planimetrie/elenco";
 import { AssociazioniPiantaPanel } from "@/components/planimetrie/CollegamentiPianta";
+import { FiltriArchivioPiante as FiltriPiante } from "@/components/planimetrie/FiltriArchivioPiante";
 import { PlanimetriaProjectCard } from "@/components/planimetrie/PlanimetriaProjectCard";
 import {
   PIANTE_PER_PAGINA,
@@ -127,7 +121,7 @@ const PASSI: { titolo: string; testo: string; icona: LucideIcon }[] = [
 ];
 
 export default function RenderPlanimetrieHub() {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const permessi = usePermissions();
   const [params, setParams] = useSearchParams();
   const {
@@ -146,16 +140,9 @@ export default function RenderPlanimetrieHub() {
   const [esempio, setEsempio] = useState(false);
   const location = useLocation();
   const returnTo = `${location.pathname}${location.search}`;
-  const {
-    ricerca,
-    stato,
-    collegamento: filtroCollegamento,
-    ordine,
-    pagina,
-  } = leggiFiltriElenco(params);
-  const cambiaFiltri = (
-    patch: Partial<FiltriElencoPiante & { pagina: number }>,
-  ) =>
+  const filtri = useMemo(() => leggiFiltriElenco(params), [params]);
+  const { pagina } = filtri;
+  const cambiaFiltri = (patch: Partial<FiltriArchivioPiante>) =>
     setParams(scriviFiltriElenco(params, { pagina: 0, ...patch }), {
       replace: true,
     });
@@ -174,13 +161,8 @@ export default function RenderPlanimetrieHub() {
     );
   };
   const filtrate = useMemo(
-    () =>
-      filtraElencoPiante(
-        piante,
-        { stato, ricerca, collegamento: filtroCollegamento, ordine },
-        collegamenti.data,
-      ),
-    [piante, stato, ricerca, filtroCollegamento, ordine, collegamenti.data],
+    () => filtraElencoPiante(piante, filtri, collegamenti.data, user?.id),
+    [piante, filtri, collegamenti.data, user?.id],
   );
   const ultimaPagina = Math.max(
     0,
@@ -192,13 +174,7 @@ export default function RenderPlanimetrieHub() {
     (paginaCorrente + 1) * PIANTE_PER_PAGINA,
   );
   const anteprime = useAnteprimePlanimetrie(effectiveCompany?.id, visibili);
-  const azzeraFiltri = () =>
-    cambiaFiltri({
-      ricerca: "",
-      stato: "attive",
-      collegamento: "tutti",
-      ordine: "recenti",
-    });
+  const azzeraFiltri = () => cambiaFiltri(FILTRI_PIANTE_INIZIALI);
   // Prima volta: una pianta d'esempio già pronta (trilocale con il progetto), da guardare e modificare.
   const apriEsempio = async () => {
     if (!effectiveCompany?.id) return;
@@ -352,117 +328,14 @@ export default function RenderPlanimetrieHub() {
           </div>
         </div>
         {piante.length > 0 && (
-          <div className="space-y-3 rounded-xl border bg-card p-3">
-            <div
-              className="flex flex-wrap gap-1"
-              aria-label="Stato delle planimetrie"
-            >
-              {(
-                [
-                  ["attive", "Tutte le attive"],
-                  ["bozza", "Bozze"],
-                  ["in_uso", "In uso"],
-                  ["archiviata", "Archiviate"],
-                ] as const
-              ).map(([key, nome]) => (
-                <Button
-                  key={key}
-                  size="sm"
-                  variant={stato === key ? "secondary" : "ghost"}
-                  aria-pressed={stato === key}
-                  onClick={() => {
-                    cambiaFiltri({ stato: key });
-                  }}
-                >
-                  {nome}
-                  <span className="ml-1.5 text-xs text-muted-foreground">
-                    {
-                      piante.filter((p) =>
-                        key === "attive"
-                          ? p.stato !== "archiviata"
-                          : p.stato === key,
-                      ).length
-                    }
-                  </span>
-                </Button>
-              ))}
-            </div>
-            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px_180px]">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  aria-label="Cerca una pianta"
-                  placeholder="Cerca progetto, cliente, contatto o preventivo…"
-                  value={ricerca}
-                  onChange={(e) => {
-                    cambiaFiltri({ ricerca: e.target.value });
-                  }}
-                  className="pl-9"
-                />
-              </div>
-              <Select
-                value={filtroCollegamento}
-                onValueChange={(v) => {
-                  cambiaFiltri({
-                    collegamento: v as FiltriElencoPiante["collegamento"],
-                  });
-                }}
-              >
-                <SelectTrigger aria-label="Filtra collegamenti">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[
-                    ["tutti", "Tutti i collegamenti"],
-                    ["collegate", "Con collegamenti"],
-                    ["libere", "Da collegare"],
-                    ["contatto", "Contatto CRM"],
-                    ["cliente", "Cliente"],
-                    ["preventivo", "Preventivo"],
-                    ["commessa", "Commessa"],
-                    ["computo", "Computo metrico"],
-                  ].map(([key, nome]) => (
-                    <SelectItem key={key} value={key}>
-                      {nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={ordine}
-                onValueChange={(v) => {
-                  cambiaFiltri({ ordine: v as FiltriElencoPiante["ordine"] });
-                }}
-              >
-                <SelectTrigger aria-label="Ordina planimetrie">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="recenti">Ultime modificate</SelectItem>
-                  <SelectItem value="nome">Nome A–Z</SelectItem>
-                  <SelectItem value="meno_recenti">Meno recenti</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        )}
-        {(ricerca ||
-          filtroCollegamento !== "tutti" ||
-          stato !== "attive" ||
-          ordine !== "recenti") && (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/30 px-3 py-2 text-xs">
-            <span>
-              {filtrate.length} risultati{ricerca ? ` per “${ricerca}”` : ""}
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs"
-              onClick={azzeraFiltri}
-            >
-              Azzera i filtri
-            </Button>
-          </div>
+          <FiltriPiante
+            value={filtri}
+            onChange={cambiaFiltri}
+            piante={piante}
+            mappa={collegamenti.data}
+            userId={user?.id}
+            risultati={filtrate.length}
+          />
         )}
         {anteprime.isError && (
           <p role="status" className="text-xs text-muted-foreground">
