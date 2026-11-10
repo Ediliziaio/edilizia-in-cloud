@@ -128,7 +128,7 @@ describe("La migrazione di correzione", () => {
   });
 
   it("non introduce essa stessa una PERMISSIVE for all senza soggetto", () => {
-    const sue = policyPerTutto().filter((p) => p.file === CORREZIONE && !p.restrictive && !SOGGETTO.test(p.corpo));
+    const sue = policyPerTutto().filter((p) => p.file === CORREZIONE && !p.restrictive && platealarga(p.corpo) && !restaQualcosa(p.corpo));
     expect(sue.map((p) => p.nome)).toEqual([]);
   });
 
