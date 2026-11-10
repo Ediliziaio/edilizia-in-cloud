@@ -249,7 +249,7 @@ Ogni lotto si pubblica da solo, con i test e una prova sui dati veri.
 | **2. Listino della ditta, a mano** ✅ 10/11 | linguetta «Listino» nella scheda subappaltatore (voci dell'azienda col prezzo della ditta, «Voce sua», «Prezzi passati», «Valgono dal»); `listino_ditta_salva` chiude il prezzo vecchio e apre il nuovo; prezzi scaduti mai proposti; voci proprie di una ditta mai proposte alle altre; squadra cancellata senza perdere i prezzi | fatto: prova in transazione annullata con l'amministratore della Demo 2, 8 casi su 8 (nuovo, correzione, listino nuovo che chiude il vecchio, uguale, tolto, negativo rifiutato, subappaltatore rifiutato, squadra cancellata). Trovato e corretto nella prova: `is_default` è uno per voce in tutta l'azienda (è la variante «di norma» dei preventivi), quindi un prezzo di ditta nasce senza (migrazione 20290213180100). Anche il ricalcolo automatico del previsto della ditta (`ditte_ricalcola_previsto`) ignorava le date: ora usa solo i prezzi validi oggi e trova quelli dell'anagrafica (20290213180200; sui dati di oggi 0 importi cambiati su 28 fasi; prova 50 → 30 → 50 €). Vista a schermo con dati d'esempio a 960 px e sul telefono |
 | **3. Abbinamento voci ↔ listino** ✅ 10/11 (senza AI) | «Collega al listino» in «Ditte e contratti»: proposte per stesso codice, come l'ultima volta (`product_aliases`, `learned_from='voce_computo'`), stessa descrizione unica; unità diverse = da guardare; scelta a mano con ricerca; «Al listino» crea la voce dal computo (col permesso listino); `voci_abbina_listino` scrive e ricorda (R3) | fatto: Villa Ida 252 voci su 643 si collegano da sole per codice; Cagliari L1/L2 e Courmayeur 0 (i loro codici non sono nel listino: si collegano a mano, poi si ricordano). Prova in transazione annullata con un amministratore di Bonarrigo, 6 casi su 6. **Resta: la proposta per significato con l'AI** — il listino di Bonarrigo non ha gli embedding; serve generarli (costo AI) |
 | **4. Affidamento per voce** ✅ 10/11 (database + finestra «Affida le voci alle ditte») | `subappalto_affidamenti`, funzioni, «Chi fa cosa», quote di quantità, «senza ditta», ditta sulla fase calcolata (R1, R6, R13, R15) | due affidamenti in parallelo: uno fallisce; l'esempio 7 fasi × 5 voci con 3 ditte torna al centesimo; fase con voce a contratto non cancellabile |
-| **5. Contratto dagli affidamenti** | prezzi proposti con l'origine, «ricorda nel listino», margini interni con «comprende» (R9, R10), corrispettivo calcolato (R7, R8), PDF «Lavori affidati» | PDF di O-0001 di Dimora; utente senza permesso sui costi: nessuna cifra di venduto in nessuna risposta; database, finestra e PDF uguali al centesimo |
+| **5. Contratto dagli affidamenti** ✅ 10/11 (senza «ricorda nel listino») | prezzi proposti con l'origine, «ricorda nel listino», margini interni con «comprende» (R9, R10), corrispettivo calcolato (R7, R8), PDF «Lavori affidati» | PDF di O-0001 di Dimora; utente senza permesso sui costi: nessuna cifra di venduto in nessuna risposta; database, finestra e PDF uguali al centesimo |
 | **6. Firma → quadro → misure → costi** | fotografia all'invio (R5), quadro con `voce_id` alla firma, previsto e consuntivo per fase, Margini e controllo di gestione | contratto Demo 2 firmato in una transazione annullata: quadro, misura, SAL e consuntivo della fase coerenti |
 | **7. Listino da Excel e PDF** | finestra di abbinamento, controllo dei prezzi fuori scala (R17) | un listino vero di una ditta, riga per riga |
 | **8. Varianti** | voce cambiata → «da rivedere» (R12), «Proponi variante» per riga, nuova revisione del quadro | variante di quantità su una voce con misure: le misure restano valide, l'importo segue |
@@ -398,3 +398,23 @@ per ditta. Tutto passa da `affida_voci` / `affidamento_modifica` / `affidamento_
 Prove: 7 sui calcoli (quote, residuo, margine pro-quota, materiali nostri con la sola posa),
 4 sulla finestra. Non provata ancora su una commessa vera con un utente vero (lotto 9).
 Prossimo: lotto 5, il contratto nasce dagli affidamenti della ditta e il PDF «Lavori affidati».
+
+## 5-sexies. Lotto 5, il contratto dagli affidamenti (10/11/2026)
+
+- Commessa → Ditte e contratti: se la ditta ha voci affidate, «Crea contratto…» parte da quelle (le sue quote
+  libere e quelle già di questo contratto), con la quantità e il prezzo della quota, non da tutte le voci delle
+  sue fasi. Senza affidamenti resta tutto come prima. «Riprendi le voci affidate» rimette l'elenco.
+- Nella finestra, sotto ogni voce affidata: cosa comprende il prezzo e da dove viene (listino della ditta,
+  «costo nostro, non della ditta» in arancio, a mano). Un prezzo cambiato diventa «a mano». Una voce
+  affidata senza prezzo blocca il salvataggio (domanda 2 approvata): si scrive il prezzo o si toglie la riga.
+- Database, `20290216120000_contratto_aggancia_affidamenti` (applicata e riallineata): a ogni scrittura di un
+  contratto non firmato, le righe con `affidamento_id` passano «a contratto» con quantità e prezzo della riga;
+  quelle tolte tornano in bozza; ditta o commessa sbagliata, quota già in un altro contratto, quantità oltre
+  il resto della voce annullano tutto il salvataggio. Dopo la firma non si tocca niente. Provato con un utente
+  vero della Demo 2 in transazione annullata: 5 casi su 5 (aggancio con prezzo cambiato → «a mano», altra
+  ditta rifiutata, quantità oltre rifiutata, riga tolta → bozza, contratto cancellato → bozza).
+- PDF e stampa: l'Allegato A era già per fase con i totali di fase; ora accanto alla voce c'è «(solo posa)» o
+  «(fornitura e posa)». Il venduto non è nelle righe del contratto (provato).
+- Non fatto: «ricorda nel listino di Rossi» dalla finestra del contratto (si fa dal listino della ditta);
+  il controllo «prezzo > 0» è nella finestra, non nel database. Restano: lotto 6 (firma → quadro, misure, SAL,
+  costi), 7 (import Excel/PDF del listino), 8 (varianti), 9 (prova a schermo su una commessa vera).

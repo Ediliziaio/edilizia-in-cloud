@@ -13,7 +13,7 @@
 import { Document, Font, Page, StyleSheet, Text, View, pdf } from "@react-pdf/renderer";
 import {
   articoliContratto, articoliDaApprovare, dataContratto, elencoPerFase, euroContratto, quantitaContratto,
-  codiciElenco, elencoCantiereSenzaCifre, riepilogoEconomicoContratto, totaleElencoLavori, type DatiContrattoSubappalto,
+  codiciElenco, elencoCantiereSenzaCifre, riepilogoEconomicoContratto, testoComprende, totaleElencoLavori, type DatiContrattoSubappalto,
 } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
 import {
   Firme, PiedeDocumento, TestataDocumento, TitoloSezione, accentoPdf, colore, margineInferioreDocumento, pagina, riquadro, st, tabella,
@@ -198,7 +198,7 @@ export function ContrattoSubappaltoPDF({ d }: { d: DatiContrattoSubappalto }) {
                 {g.righe.map((r, i) => (
                   <View key={i} style={s.tRiga} wrap={false}>
                     {codici.perRiga && <Text style={s.cCod}>{r.codice ?? ""}</Text>}
-                    <Text style={[s.td, s.cDesc]}>{r.descrizione}</Text>
+                    <Text style={[s.td, s.cDesc]}>{r.descrizione}{r.comprende ? ` (${testoComprende(r.comprende)})` : ""}</Text>
                     <Text style={[s.td, s.cUm]}>{r.unita ?? ""}</Text>
                     <Text style={[s.td, s.cNum]}>{quantitaContratto(r.quantita)}</Text>
                     <Text style={[s.td, s.cPrz]}>{euroContratto(r.prezzo)}</Text>

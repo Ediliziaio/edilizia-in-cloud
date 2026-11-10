@@ -33,22 +33,27 @@ const ORIGINE: Record<AffidamentoChiFaCosa["origine_prezzo"], string> = {
 };
 const qt = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 3 });
 
+/** Gli affidamenti di una commessa: la stessa cache per la finestra e per i contratti delle ditte. */
+export function useAffidamentiCommessa(orderId: string) {
+  return useQuery({
+    queryKey: chiaveAffidamenti(orderId),
+    queryFn: async (): Promise<AffidamentoChiFaCosa[]> => {
+      const { data, error } = await db.from("subappalto_affidamenti")
+        .select("id, voce_id, subappaltatore_id, quantita, prezzo_unitario, origine_prezzo, comprende, stato, contratto_id")
+        .eq("order_id", orderId).limit(5000);
+      if (error) throw error;
+      return ((data ?? []) as AffidamentoChiFaCosa[]).map((a) => ({ ...a, quantita: Number(a.quantita), prezzo_unitario: a.prezzo_unitario == null ? null : Number(a.prezzo_unitario) }));
+    },
+  });
+}
+
 export function AffidaVociDialog({ orderId, companyId, voci, fasi, onChiudi, onCambio }: {
   orderId: string; companyId: string;
   voci: VoceChiFaCosa[]; fasi: Array<{ id: string; name: string; position?: number | null }>;
   onChiudi: () => void; onCambio: () => void;
 }) {
   const qc = useQueryClient();
-  const affidamenti = useQuery({
-    queryKey: chiaveAffidamenti(orderId),
-    queryFn: async (): Promise<AffidamentoChiFaCosa[]> => {
-      const { data, error } = await db.from("subappalto_affidamenti")
-        .select("id, voce_id, subappaltatore_id, quantita, prezzo_unitario, origine_prezzo, comprende, stato")
-        .eq("order_id", orderId).limit(5000);
-      if (error) throw error;
-      return ((data ?? []) as AffidamentoChiFaCosa[]).map((a) => ({ ...a, quantita: Number(a.quantita), prezzo_unitario: a.prezzo_unitario == null ? null : Number(a.prezzo_unitario) }));
-    },
-  });
+  const affidamenti = useAffidamentiCommessa(orderId);
   const ditte = useQuery({
     queryKey: ["subappaltatori-per-affidare", companyId],
     staleTime: 5 * 60_000,
