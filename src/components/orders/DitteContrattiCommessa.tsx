@@ -26,7 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/formatters";
 import { costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
-import { conIva, variantiPerSquadre, vociListinoPerDitta, type VarianteCostoDitta } from "@/lib/orders/costoDitta";
+import { conIva, prezzoValidoIl, variantiPerSquadre, vociListinoPerDitta, type VarianteCostoDitta } from "@/lib/orders/costoDitta";
 import { useAssegnaAlleFasi } from "@/hooks/useAssegnaAlleFasi";
 import {
   type SottofaseLavoro, contrattoDellaDitta, contrattoPerFase, costoFaseDitta, dittaProposta, elencoDaSalvare, elencoLavoriDitta, periodoFasi, prezzoListinoPerDitta,
@@ -102,7 +102,7 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
         // Le fasi date alle ditte nelle altre commesse: chi fa sempre quel lavoro.
         db.from("order_external_teams").select("external_team_id, fase:order_work_phases(name), ordine:orders!inner(company_id)")
           .eq("ordine.company_id", companyId).neq("order_id", orderId).not("phase_id", "is", null).limit(3000),
-        db.from("tariffa_costi_varianti").select("tariffa_id, external_team_id, subappaltatore_id, costo, is_default, attivo, sort_order, valid_from, valid_to").eq("company_id", companyId),
+        db.from("tariffa_costi_varianti").select("tariffa_id, external_team_id, subappaltatore_id, costo, is_default, attivo, sort_order, valid_from, valid_to, created_at").eq("company_id", companyId),
         db.from("contratti_subappalto").select("id, subappaltatore_id, stato, numero_contratto, importo_contrattuale, firmato_il, elenco_lavori").eq("order_id", orderId).eq("company_id", companyId),
         db.from("subappaltatori_sicurezza").select(COLONNE_SCHEDA).eq("company_id", companyId).not("campo_subappaltatore_id", "is", null),
         db.from("order_work_phases").select("id, sottofasi:order_work_subphases(id, phase_id, name, position)").eq("order_id", orderId),
@@ -117,7 +117,8 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
           .filter((s) => s.external_team_id && s.fase?.name)
           .map((s) => ({ external_team_id: s.external_team_id!, fase: s.fase!.name })) as FaseStorica[],
         // Il prezzo scritto sull'anagrafica della ditta vale anche per la sua squadra.
-        varianti: variantiPerSquadre((varianti.data ?? []) as VarianteCostoDitta[], (ditte.data ?? []) as Ditta[]),
+        // Solo i prezzi accesi e validi oggi, come in «Aggiungi manodopera» e nel database.
+        varianti: variantiPerSquadre(((varianti.data ?? []) as VarianteCostoDitta[]).filter((v) => v.attivo !== false && prezzoValidoIl(v)), (ditte.data ?? []) as Ditta[]),
         contratti: (contratti.data ?? []) as Contratto[],
         schede: (schede.data ?? []) as SchedaSic[],
       };

@@ -33,6 +33,8 @@ export interface VarianteCostoDitta {
   /** Da quando a quando vale il prezzo (aaaa-mm-gg). Vuoto = da sempre / per sempre. */
   valid_from?: string | null;
   valid_to?: string | null;
+  /** Ultimo criterio di scelta, come nel database: a parità vince il prezzo più vecchio. */
+  created_at?: string | null;
 }
 
 /**
@@ -86,7 +88,8 @@ export function varianteDellaSquadra(
 ): VarianteCostoDitta | null {
   return varianti
     .filter((v) => v.tariffa_id === tariffaId && v.external_team_id === squadraId && v.attivo !== false && v.costo != null && prezzoValidoIl(v, giorno))
-    .sort((a, b) => Number(b.is_default ?? false) - Number(a.is_default ?? false) || (a.sort_order ?? 0) - (b.sort_order ?? 0))[0] ?? null;
+    .sort((a, b) => Number(b.is_default ?? false) - Number(a.is_default ?? false) || (a.sort_order ?? 0) - (b.sort_order ?? 0)
+      || String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")))[0] ?? null;
 }
 
 /**
@@ -105,7 +108,8 @@ export function variantiPerSquadre<V extends VarianteCostoDitta>(
     if (!s.subappaltatore_id) continue;
     squadreDi.set(s.subappaltatore_id, [...(squadreDi.get(s.subappaltatore_id) ?? []), s.id]);
   }
-  const proprie = new Set(varianti.filter((v) => v.external_team_id).map((v) => `${v.tariffa_id}|${v.external_team_id}`));
+  // Conta solo un prezzo della squadra che vale oggi: uno chiuso o spento non deve nascondere quello della ditta.
+  const proprie = new Set(varianti.filter((v) => v.external_team_id && v.attivo !== false && prezzoValidoIl(v)).map((v) => `${v.tariffa_id}|${v.external_team_id}`));
   const out: V[] = [...varianti];
   for (const v of varianti) {
     if (!v.subappaltatore_id) continue;

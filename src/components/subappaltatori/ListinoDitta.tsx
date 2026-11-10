@@ -93,7 +93,8 @@ export function ListinoDitta({ companyId, anagraficaId, nomeDitta }: { companyId
   const [storiaAperta, setStoriaAperta] = useState(false);
   const [voceNuova, setVoceNuova] = useState(false);
 
-  const perVoce = useMemo(() => prezziPerVoce(dati.data?.prezzi ?? [], oggi), [dati.data, oggi]);
+  // I prezzi del giorno da cui valgono le modifiche: è lo stesso giorno su cui ragiona listino_ditta_salva.
+  const perVoce = useMemo(() => prezziPerVoce(dati.data?.prezzi ?? [], validoDal), [dati.data, validoDal]);
   const { righe: daSalvare, errori } = useMemo(() => righeDaSalvare(modifiche, perVoce), [modifiche, perVoce]);
   const conPrezzo = useMemo(() => [...perVoce.values()].filter((v) => v.principale).length, [perVoce]);
   const storia = useMemo(() => (dati.data?.voci ?? []).flatMap((v) => (perVoce.get(v.id)?.storia ?? []).map((p) => ({ voce: v, p }))), [dati.data, perVoce]);
@@ -138,7 +139,7 @@ export function ListinoDitta({ companyId, anagraficaId, nomeDitta }: { companyId
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold">Listino di {nomeDitta}</h3>
           <p className="text-xs text-muted-foreground">
-            {conPrezzo} voci con un prezzo della ditta su {voci.length}. I prezzi valgono per tutte le commesse: li propongono «Ditte e contratti» e «Aggiungi manodopera». I contratti già fatti non cambiano.
+            {conPrezzo} voci con un prezzo della ditta su {voci.length}{validoDal !== oggi ? ` (prezzi al ${data(validoDal)})` : ""}. I prezzi valgono per tutte le commesse: li propongono «Ditte e contratti» e «Aggiungi manodopera». I contratti già fatti non cambiano.
           </p>
         </div>
         {puoScrivere && (
@@ -239,7 +240,7 @@ export function ListinoDitta({ companyId, anagraficaId, nomeDitta }: { companyId
       {voceNuova && (
         <VoceSuaDialog companyId={companyId} anagraficaId={anagraficaId} nomeDitta={nomeDitta} validoDal={validoDal}
           onChiudi={() => setVoceNuova(false)}
-          onCreata={() => { setVoceNuova(false); void qc.invalidateQueries({ queryKey: chiave }); void qc.invalidateQueries({ queryKey: ["tariffe-manodopera", companyId] }); }} />
+          onCreata={() => { setVoceNuova(false); void qc.invalidateQueries({ queryKey: chiave }); void qc.invalidateQueries({ queryKey: ["tariffe-manodopera", companyId] }); void qc.invalidateQueries({ queryKey: ["listino-manodopera-voci", companyId] }); }} />
       )}
     </div>
   );

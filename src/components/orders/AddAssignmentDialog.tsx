@@ -163,11 +163,11 @@ export function AddAssignmentDialog({
     queryKey: ["tariffa-costi-varianti", companyId],
     enabled: open && tipo === "esterno" && canViewCosts && !!companyId,
     staleTime: 5 * 60 * 1000,
-    queryFn: async (): Promise<Array<{ id: string; tariffa_id: string; external_team_id: string | null; subappaltatore_id: string | null; nome: string; costo: number | null; is_default: boolean | null; attivo: boolean | null; sort_order: number | null; valid_from: string | null; valid_to: string | null }>> => {
+    queryFn: async (): Promise<Array<{ id: string; tariffa_id: string; external_team_id: string | null; subappaltatore_id: string | null; nome: string; costo: number | null; is_default: boolean | null; attivo: boolean | null; sort_order: number | null; valid_from: string | null; valid_to: string | null; created_at: string | null }>> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("tariffa_costi_varianti")
-        .select("id, tariffa_id, external_team_id, subappaltatore_id, nome, costo, is_default, attivo, sort_order, valid_from, valid_to")
+        .select("id, tariffa_id, external_team_id, subappaltatore_id, nome, costo, is_default, attivo, sort_order, valid_from, valid_to, created_at")
         .eq("company_id", companyId);
       if (error) throw error;
       return data ?? [];
@@ -193,7 +193,8 @@ export function AddAssignmentDialog({
   const variantiSquadra = tariffaSel && squadraSelezionata
     ? varianti
         .filter((v) => v.tariffa_id === tariffaSel.id && v.external_team_id === squadraSelezionata && v.attivo !== false)
-        .sort((a, b) => Number(b.is_default ?? false) - Number(a.is_default ?? false) || (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        .sort((a, b) => Number(b.is_default ?? false) - Number(a.is_default ?? false) || (a.sort_order ?? 0) - (b.sort_order ?? 0)
+          || String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")))
     : [];
   const varianteSel = variantiSquadra.find((v) => v.id === varianteId) ?? variantiSquadra[0] ?? null;
   /** Il costo che vale davvero: variante della squadra se c'e', altrimenti base. */

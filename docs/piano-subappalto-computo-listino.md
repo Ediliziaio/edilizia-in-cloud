@@ -2,7 +2,7 @@
 
 Versione 1 e versione 2 scritte il 10/11/2026. **Stato: Florin ha approvato il piano e le
 proposte delle 8 domande il 10/11/2026; fatti i lotti 1, 2 e 3** (migrazioni `20290213100000`,
-`20290213180000/180100/180200`, `20290213190000/190100/190200`, applicate e riallineate).
+`20290213180000/180100/180200`, `20290213190000/190100/190200`, `20290213200000` dopo la revisione, applicate e riallineate).
 
 La versione 2 aggiunge:
 - l'impostazione concreta: schermate, dati e regole;
@@ -259,6 +259,33 @@ L'import (lotto 7) è stato spostato dopo il contratto: il listino si costruisce
 «ricorda nel listino» lavorando, e l'import serve solo quando la ditta manda un file.
 
 ---
+
+## 5-bis. Controllo prima di pubblicare i lotti 2 e 3 (10/11/2026)
+
+Florin: «prima controlla bene tutto». Due controlli indipendenti più il mio:
+
+- **Revisione del codice** (agente senza contesto): 7 difetti, tutti corretti nella migrazione
+  `20290213200000_listino_ditta_revisione` e nel codice:
+  - il «principale» della ditta cambiava dopo un salvataggio (ora il prezzo riaperto tiene la data
+    di creazione, e il codice usa lo stesso ultimo criterio del database);
+  - un prezzo da oggi si accavallava con uno già fissato per il futuro (ora si ferma il giorno prima);
+  - la casella del listino confrontava col prezzo di oggi anche con un'altra data scelta;
+  - in «Ditte e contratti» un vecchio prezzo chiuso della squadra nascondeva quello della ditta;
+  - togliere un prezzo già usato in un preventivo dava un errore tecnico (ora si spegne);
+  - cambiare il listino non aggiornava il previsto delle fasi (ora sì, solo commesse aperte);
+  - il collegamento al listino aggiornava una voce per volta (ora una sola istruzione: 265 voci di
+    Villa Ida in 1,9 secondi);
+  - «a_corpo» non era uguale ad «a corpo» nel database.
+- **Accessi** (guardiano): un buco fra aziende, gravità media-bassa, mai usato (0 righe incoerenti).
+  L'amministratore di un'azienda poteva scrivere un prezzo che puntava a squadra e voce di un'altra
+  azienda e decidere il costo previsto di quella. Chiuso con chiavi esterne composte e filtri per
+  azienda. Il ricalcolo dei previsti resta del solo sistema: dal listino si passa da
+  `listino_ditta_ricalcola_previsto`, che controlla i permessi.
+- **Resta da decidere (non mio, già esistente):** `product_aliases` si legge e si scrive da
+  chiunque nell'azienda, anche operai e subappaltatori (nessun prezzo dentro, ma possono guastare i
+  suggerimenti). Va cambiata la regola di accesso, in una finestra tranquilla perché le regole
+  bloccano l'accesso mentre si applicano. E le edge function e il super admin non possono usare
+  `listino_ditta_salva` (servono un utente vero dell'azienda).
 
 ## 6. I numeri di oggi (produzione, 10/11/2026)
 

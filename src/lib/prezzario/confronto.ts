@@ -59,7 +59,7 @@ export function normalizzaUnita(u: string | null | undefined): string {
   const t = (u ?? "")
     .toLowerCase()
     .replace(/\s+/g, "")
-    .replace(/[.]/g, "")
+    .replace(/[._]/g, "")
     .replace(/²/g, "2")
     .replace(/³/g, "3");
   if (!t) return "";
@@ -71,6 +71,7 @@ export function normalizzaUnita(u: string | null | undefined): string {
  * in `public.unita_normalizzata()` (migrazione 20290213100000): il test `unitaNormalizzata.test.ts`
  * controlla che le due restino uguali. Una voce nuova si aggiunge in tutti e due i posti.
  *
+ * Punti e trattini bassi si tolgono come gli spazi («a_corpo» del listino = «a corpo»).
  * Dal 10/11/2026 (subappalto dal computo): nelle voci delle commesse si trovano anche «a.c.»,
  * «corpo», «mesi», «cad.», «n.»; nel listino manodopera «fisso», «piano», «km».
  */

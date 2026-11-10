@@ -34,7 +34,7 @@ describe("unità di misura: codice e database con la stessa tabella", () => {
       ["ora", "h"], ["ore", "h"], ["h", "h"],
       ["mese", "mese"], ["mesi", "mese"],
       ["kg", "kg"], ["t", "t"], ["T", "t"], ["paio", "paio"],
-      ["km", "km"], ["piano", "piano"],
+      ["km", "km"], ["piano", "piano"], ["a_corpo", "a corpo"],
     ];
     for (const [grezza, normale] of attese) expect(normalizzaUnita(grezza), grezza).toBe(normale);
   });

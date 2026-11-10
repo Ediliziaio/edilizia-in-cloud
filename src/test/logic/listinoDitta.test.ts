@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { prezziPerVoce, righeDaSalvare, scartoDalCosto, type PrezzoDitta } from "@/lib/subappaltatori/listinoDitta";
-import { prezzoValidoIl, varianteDellaSquadra, vociListinoPerDitta } from "@/lib/orders/costoDitta";
+import { prezzoValidoIl, varianteDellaSquadra, variantiPerSquadre, vociListinoPerDitta } from "@/lib/orders/costoDitta";
 
 const p = (x: Partial<PrezzoDitta>): PrezzoDitta => ({
   id: "x", tariffa_id: "posa", nome: "Vais", costo: 90, is_default: false, attivo: true, sort_order: 0, valid_from: "2026-09-01", valid_to: null, ...x,
@@ -23,6 +23,22 @@ describe("listino della ditta: il prezzo che vale oggi", () => {
     expect(prezziPerVoce([p({ valid_from: "2026-11-11" })], "2026-11-10").get("posa")?.principale).toBeNull();
     expect(prezzoValidoIl({ valid_from: "2026-11-10", valid_to: "2026-11-10" }, "2026-11-10")).toBe(true);
     expect(prezzoValidoIl({ valid_from: null, valid_to: null }, "2026-11-10")).toBe(true);
+  });
+
+  it("a parità di ordine vince il prezzo più vecchio, come nel database", () => {
+    const varianti = [
+      { tariffa_id: "posa", external_team_id: "vais", costo: 120, created_at: "2026-09-02" },
+      { tariffa_id: "posa", external_team_id: "vais", costo: 90, created_at: "2026-09-01" },
+    ];
+    expect(varianteDellaSquadra(varianti, "posa", "vais")?.costo).toBe(90);
+  });
+
+  it("un prezzo chiuso della squadra non nasconde quello scritto sulla ditta", () => {
+    const varianti = variantiPerSquadre([
+      { tariffa_id: "posa", external_team_id: "s2", subappaltatore_id: "rossi", costo: 70, valid_from: "2025-01-01", valid_to: "2025-12-31" },
+      { tariffa_id: "posa", external_team_id: null, subappaltatore_id: "rossi", costo: 85, valid_from: "2026-01-01", valid_to: null },
+    ], [{ id: "s2", subappaltatore_id: "rossi" }]);
+    expect(varianteDellaSquadra(varianti, "posa", "s2", "2026-11-10")?.costo).toBe(85);
   });
 
   it("la commessa non propone un prezzo della ditta chiuso", () => {
