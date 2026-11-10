@@ -1,4 +1,5 @@
-export interface SalDraftLine {descrizione:string;importo_contrattuale:string;percentuale_avanzamento:string;note:string;fase_id?:string|null}
+import type {SottofaseSalDraft} from "./salSottofasi";
+export interface SalDraftLine {descrizione:string;importo_contrattuale:string;percentuale_avanzamento:string;note:string;fase_id?:string|null;sottofasi?:SottofaseSalDraft[]}
 export interface SalPreparedLine {descrizione:string;importo_contrattuale:number;percentuale_avanzamento:number;note:string|null;fase_id?:string|null}
 export function salNumber(text: string): number | null {
   if (!/^\d+(?:[.,]\d{1,2})?$/.test(text.trim())) return null;

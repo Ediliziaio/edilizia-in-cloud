@@ -1,3 +1,4 @@
+// 10/11/2026: le sottofasi sotto ogni fase (sal_voci_sottofasi), con la % del SAL precedente per sottofase; «dettaglio_sottofasi: false» per il verbale breve.
 // 10/11/2026: stile unico dei documenti (_shared/stileDocumenti.ts): testata col logo a sinistra e il titolo a destra, filetto d'accento, tabelle e riquadri tenui, dati societari nel piè; accento dal colore della veste o del marchio (_shared/coloreMarchioAzienda.ts).
 // 10/11/2026: veste propria dell'azienda nel verbale (logo grande, piè proprio: _shared/vesteHtml.ts) e colonna «Voce» che non spezza le parole (render.ts).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -38,7 +39,7 @@ Deno.serve(async (req) => {
     }
     const userId = user.id;
 
-    const { sal_id, company_id, prepare_signature=false, foto_ids, allegati } = await req.json();
+    const { sal_id, company_id, prepare_signature=false, foto_ids, allegati, dettaglio_sottofasi } = await req.json();
     if (!sal_id || !company_id) {
       return new Response(JSON.stringify({ error: "sal_id e company_id obbligatori" }), {
         status: 400,
@@ -65,7 +66,7 @@ Deno.serve(async (req) => {
     // Fetch SAL with voci
     const { data: sal, error: salErr } = await supabase
       .from("sal_records")
-      .select("*, sal_voci(id, descrizione, importo_contrattuale, percentuale_avanzamento, importo_sal, note)")
+      .select("*, sal_voci(id, descrizione, importo_contrattuale, percentuale_avanzamento, importo_sal, note, sal_voci_sottofasi(sottofase_id, posizione, descrizione, unita, quantita_contratto, quantita_a_oggi, importo_contrattuale, percentuale_avanzamento, importo_sal))")
       .eq("id", sal_id)
       .eq("company_id", company_id)
       .single();
@@ -91,13 +92,18 @@ Deno.serve(async (req) => {
     // Voci dell'ultimo SAL emesso: nel verbale, voce per voce, il già maturato e la quota di questo SAL.
     // Se non si leggono il verbale resta completo, col solo cumulativo.
     const ultimoPrecedente=(prior??[]).find(p=>p.id!==sal.id);
-    const extra:SalExtra={aliquotaIva:(order as {vat_rate?:number|null}).vat_rate ?? null,importoContratto:Number(order.total_amount)||null};
+    const extra:SalExtra={aliquotaIva:(order as {vat_rate?:number|null}).vat_rate ?? null,importoContratto:Number(order.total_amount)||null,dettaglioSottofasi:dettaglio_sottofasi!==false};
     if(ultimoPrecedente){
-      const {data:vociPrec,error:vociPrecError}=await supabase.from("sal_voci").select("descrizione,importo_sal").eq("sal_id",ultimoPrecedente.id);
+      const {data:vociPrec,error:vociPrecError}=await supabase.from("sal_voci").select("descrizione,importo_sal,sal_voci_sottofasi(sottofase_id,percentuale_avanzamento)").eq("sal_id",ultimoPrecedente.id);
       if(!vociPrecError && Array.isArray(vociPrec)){
         const mappa:Record<string,number>={};
-        for(const v of vociPrec as Array<{descrizione:string|null;importo_sal:number|null}>)mappa[chiaveVoce(v.descrizione)]=(mappa[chiaveVoce(v.descrizione)]??0)+(Number(v.importo_sal)||0);
+        const sotto:Record<string,number>={};
+        for(const v of vociPrec as Array<{descrizione:string|null;importo_sal:number|null;sal_voci_sottofasi?:Array<{sottofase_id:string|null;percentuale_avanzamento:number}>|null}>){
+          mappa[chiaveVoce(v.descrizione)]=(mappa[chiaveVoce(v.descrizione)]??0)+(Number(v.importo_sal)||0);
+          for(const d of v.sal_voci_sottofasi??[])if(d.sottofase_id)sotto[d.sottofase_id]=Number(d.percentuale_avanzamento)||0;
+        }
         extra.vociPrecedenti=mappa;
+        extra.sottofasiPrecedenti=sotto;
       }
     }
     // Le foto scelte per il verbale: solo di questa commessa, firmate per il tempo di stampare.

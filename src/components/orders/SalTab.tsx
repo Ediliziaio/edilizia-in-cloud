@@ -34,6 +34,20 @@ import {VerbaleSalDialog} from "./VerbaleSalDialog";
 import {CertificatoSal} from "./CertificatoSal";
 import {certificatoDelSal,certificatoBloccato, certificatoPrecedente} from "@/lib/orders/salCertificato";
 import {giornoLocale} from "@/lib/orders/cronoprogramma";
+import {conPercentuale, conQuantita, percentualeFaseDaSottofasi, type SottofasePerSal, type SottofaseSalDraft} from "@/lib/orders/salSottofasi";
+
+interface SalVoceSottofase {
+  id: string;
+  sottofase_id: string | null;
+  posizione: number;
+  descrizione: string;
+  unita: string | null;
+  quantita_contratto: number | null;
+  quantita_a_oggi: number | null;
+  importo_contrattuale: number | null;
+  percentuale_avanzamento: number;
+  importo_sal: number | null;
+}
 
 interface SalVoce {
   id: string;
@@ -43,6 +57,7 @@ interface SalVoce {
   importo_sal: number;
   note: string | null;
   fase_id?: string | null;
+  sal_voci_sottofasi?: SalVoceSottofase[] | null;
 }
 
 interface SalRecord {
@@ -98,7 +113,23 @@ interface VoceForm {
   note: string;
   /** Fase della commessa da cui nasce la voce; assente = voce libera. */
   fase_id?: string | null;
+  /** Dettaglio per sottofase: la % della voce è la loro media pesata. */
+  sottofasi?: SottofaseSalDraft[];
 }
+
+// Letture delle sottofasi e delle voci della commessa: un tipo minimo, perché i tipi generati
+// non hanno order_work_phase_voci e quelli delle sottofasi fanno esplodere il compilatore.
+interface LetturaSemplice {
+  select: (colonne: string) => LetturaSemplice;
+  in: (colonna: string, valori: string[]) => LetturaSemplice;
+  eq: (colonna: string, valore: string) => LetturaSemplice;
+  not: (colonna: string, operatore: string, valore: null) => LetturaSemplice;
+  order: (colonna: string) => LetturaSemplice;
+  range: (da: number, a: number) => PromiseLike<{ data: unknown[] | null; error: unknown }>;
+}
+const leggiTabella = (tabella: string) => (supabase as unknown as { from: (t: string) => LetturaSemplice }).from(tabella);
+
+const fmtQ = (n: number | null | undefined) => n == null ? "" : Number(n).toLocaleString("it-IT", { maximumFractionDigits: 3 });
 
 const emptyVoce = (): VoceForm => ({
   descrizione: "",
@@ -137,7 +168,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
     queryFn: async () => {
       const { data, error, count } = await supabase
         .from("sal_records")
-        .select("*, sal_voci(id, descrizione, importo_contrattuale, percentuale_avanzamento, importo_sal, note, fase_id), sal_certificati(*)",{count:"exact"})
+        .select("*, sal_voci(id, descrizione, importo_contrattuale, percentuale_avanzamento, importo_sal, note, fase_id, sal_voci_sottofasi(id, sottofase_id, posizione, descrizione, unita, quantita_contratto, quantita_a_oggi, importo_contrattuale, percentuale_avanzamento, importo_sal)), sal_certificati(*)",{count:"exact"})
         .eq("order_id", orderId)
         .eq("company_id", companyId)
         .order("numero_sal", { ascending: false });
@@ -162,7 +193,36 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
       .eq("order_id", orderId).eq("company_id",companyId).order("position");
     if (error) throw error;
     // importo_venduto non è nei tipi generati: la lettura torna tipata come errore, si passa da unknown.
-    return (data || []) as unknown as FasePerSal[];
+    const fasi = (data || []) as unknown as FasePerSal[];
+    // Le sottofasi vanno nel verbale come dettaglio (10/11/2026). Se non si leggono, il verbale resta per fase.
+    const ids = fasi.map((f) => f.id).filter((x): x is string => !!x);
+    if (!ids.length) return fasi;
+    try {
+      const sotto: Array<SottofasePerSal & { phase_id: string }> = [];
+      for (let da = 0; ; da += 1000) {
+        const r = await leggiTabella("order_work_subphases").select("id, phase_id, name, position, peso, fatta, percentuale, quantita_fatta")
+          .in("phase_id", ids).order("position").range(da, da + 999);
+        if (r.error) throw r.error;
+        sotto.push(...((r.data ?? []) as Array<SottofasePerSal & { phase_id: string }>));
+        if ((r.data?.length ?? 0) < 1000) break;
+      }
+      // Importi e quantità del contratto dalle voci della commessa; senza permesso sugli importi restano le %.
+      const vociPerSottofase = new Map<string, Array<{ quantita: number | null; unita: string | null; importo: number | null }>>();
+      for (let da = 0; ; da += 1000) {
+        const r = await leggiTabella("order_work_phase_voci").select("subphase_id, quantita, unita, importo")
+          .eq("order_id", orderId).eq("company_id", companyId).not("subphase_id", "is", null).range(da, da + 999);
+        if (r.error) break;
+        for (const v of (r.data ?? []) as Array<{ subphase_id: string; quantita: number | null; unita: string | null; importo: number | null }>) {
+          const l = vociPerSottofase.get(v.subphase_id) ?? [];
+          l.push({ quantita: v.quantita, unita: v.unita, importo: v.importo });
+          vociPerSottofase.set(v.subphase_id, l);
+        }
+        if ((r.data?.length ?? 0) < 1000) break;
+      }
+      return fasi.map((f) => ({ ...f, sottofasi: sotto.filter((x) => x.phase_id === f.id).map((x) => ({ ...x, voci: vociPerSottofase.get(x.id) ?? [] })) }));
+    } catch {
+      return fasi;
+    }
   };
   const chiaveFasi = ["sal-fasi-commessa", orderId, companyId];
   const { data: fasiSal = [], isError: fasiError, refetch: refetchFasi } = useQuery<FasePerSal[]>({
@@ -257,12 +317,12 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
     onError:(error:Error)=>{toast.error(error.message);refreshSal();},
   });
 
-  const handleExportPdf = async (sal: SalRecord, fotoIds: string[] = [], allegati: string[] = []) => {
+  const handleExportPdf = async (sal: SalRecord, fotoIds: string[] = [], allegati: string[] = [], dettaglioSottofasi = true) => {
     setIsExporting(true);
     setExportingSalId(sal.id);
     try {
       const { data, error } = await supabase.functions.invoke("generate-sal-pdf", {
-        body: { sal_id: sal.id, company_id: companyId, prepare_signature:false, foto_ids: fotoIds, allegati },
+        body: { sal_id: sal.id, company_id: companyId, prepare_signature:false, foto_ids: fotoIds, allegati, dettaglio_sottofasi: dettaglioSottofasi },
       });
       if (error) {
         const detail = error.context ? await error.context.json?.().catch((): null => null) : null;
@@ -283,6 +343,17 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   const updateVoce = (index: number, field: keyof VoceForm, value: string) => {
     draftRevision.current++;
     setVoci((prev) => prev.map((v, i) => (i === index ? { ...v, [field]: value } : v)));
+  };
+
+  // Una sottofase cambia: la % della fase è la loro media (pesata sugli importi o sul peso).
+  const updateSottofase = (index: number, j: number, campo: "percentuale" | "quantita", valore: string) => {
+    draftRevision.current++;
+    setVoci((prev) => prev.map((v, i) => {
+      if (i !== index || !v.sottofasi) return v;
+      const sottofasi = v.sottofasi.map((d, k) => (k !== j ? d : campo === "quantita" ? conQuantita(d, valore) : conPercentuale(d, valore)));
+      const media = percentualeFaseDaSottofasi(sottofasi);
+      return { ...v, sottofasi, percentuale_avanzamento: media != null ? String(media) : v.percentuale_avanzamento };
+    }));
   };
 
   const addVoce = () => {draftRevision.current++;setVoci((prev) => [...prev, emptyVoce()]);};
@@ -709,14 +780,25 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                         </tr>
                       </thead>
                       <tbody>
-                        {sal.sal_voci.map((v) => (
+                        {sal.sal_voci.flatMap((v) => [
                           <tr key={v.id} className="border-b last:border-0">
-                            <td className="p-2">{v.descrizione}</td>
+                            <td className={`p-2${v.sal_voci_sottofasi?.length ? " font-medium" : ""}`}>{v.descrizione}</td>
                             <td className="p-2 text-right">{formatCurrency(v.importo_contrattuale)}</td>
                             <td className="p-2 text-right">{v.percentuale_avanzamento}%</td>
                             <td className="p-2 text-right font-medium">{formatCurrency(v.importo_sal)}</td>
-                          </tr>
-                        ))}
+                          </tr>,
+                          ...[...(v.sal_voci_sottofasi ?? [])].sort((a, b) => a.posizione - b.posizione).map((d) => (
+                            <tr key={d.id} className="border-b text-muted-foreground last:border-0">
+                              <td className="py-1 pl-6 pr-2">
+                                {d.descrizione}
+                                {d.quantita_contratto ? <span className="ml-1 tabular-nums">· {fmtQ(d.quantita_a_oggi)} / {fmtQ(d.quantita_contratto)} {d.unita ?? ""}</span> : null}
+                              </td>
+                              <td className="py-1 px-2 text-right">{d.importo_contrattuale != null ? formatCurrency(d.importo_contrattuale) : ""}</td>
+                              <td className="py-1 px-2 text-right">{d.percentuale_avanzamento}%</td>
+                              <td className="py-1 px-2 text-right">{d.importo_contrattuale != null ? formatCurrency(d.importo_sal ?? 0) : ""}</td>
+                            </tr>
+                          )),
+                        ])}
                       </tbody>
                       <tfoot>
                         <tr className="bg-muted/30 font-semibold">
@@ -907,6 +989,8 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                         onChange={(e) => updateVoce(i, "percentuale_avanzamento", e.target.value)}
                         placeholder="0"
                         className="h-8 text-sm"
+                        readOnly={!!v.sottofasi?.length}
+                        title={v.sottofasi?.length ? "Media delle sottofasi: si cambia dalle sottofasi qui sotto" : undefined}
                       />
                       {(() => {
                         const prima = percentualePrecedenteVoce(v, precedentiVoci);
@@ -922,6 +1006,39 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                       </div>
                     </div>
                   </div>
+                  {!!v.sottofasi?.length && (
+                    <div className="rounded-md border bg-muted/20">
+                      <p className="border-b px-2 py-1 text-[11px] font-medium text-muted-foreground">Sottofasi · la % della fase è la loro media{v.sottofasi.every((d) => d.importo_contrattuale) ? " pesata sugli importi" : ""}</p>
+                      <ul className="divide-y">
+                        {v.sottofasi.map((d, j) => {
+                          const prima = d.sottofase_id ? precedentiVoci.perSottofase.get(d.sottofase_id) ?? null : null;
+                          const pct = Number(String(d.percentuale_avanzamento).replace(",", "."));
+                          const scende = prima != null && Number.isFinite(pct) && pct < prima;
+                          return (
+                            <li key={d.sottofase_id ?? j} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-1.5 text-xs">
+                              <span className="min-w-0 flex-1 truncate" title={d.descrizione}>{d.descrizione}</span>
+                              {d.importo_contrattuale != null && <span className="tabular-nums text-muted-foreground">{formatCurrency(d.importo_contrattuale)}</span>}
+                              {d.quantita_contratto ? (
+                                <span className="flex items-center gap-1">
+                                  <Input inputMode="decimal" className="h-7 w-20 text-xs" value={d.quantita_a_oggi} aria-label={`Quantità a oggi di ${d.descrizione}`}
+                                    onChange={(e) => updateSottofase(i, j, "quantita", e.target.value)} />
+                                  <span className="text-muted-foreground">/ {fmtQ(d.quantita_contratto)} {d.unita ?? ""}</span>
+                                </span>
+                              ) : null}
+                              <span className="flex items-center gap-1">
+                                <Input inputMode="decimal" className="h-7 w-16 text-xs" value={d.percentuale_avanzamento} aria-label={`Avanzamento di ${d.descrizione}`}
+                                  onChange={(e) => updateSottofase(i, j, "percentuale", e.target.value)} />
+                                <span className="text-muted-foreground">%</span>
+                              </span>
+                              {prima != null && precedentiVoci.numero != null && (
+                                <span className={scende ? "font-medium text-amber-700" : "text-muted-foreground"}>SAL n. {precedentiVoci.numero}: {prima}%{scende ? " · scende" : ""}</span>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  )}
                   <div className="space-y-1">
                     <Label htmlFor={`sal-note-${i}`} className="text-xs">Note voce · visibili al cliente</Label>
                     <Input
@@ -1004,7 +1121,8 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
         const precedente = salList.find((x) => x.numero_sal < verbaleDi.numero_sal && x.stato !== "bozza");
         return <VerbaleSalDialog numero={verbaleDi.numero_sal} orderId={orderId} companyId={companyId}
           dal={precedente?.data_emissione ?? null} al={verbaleDi.data_emissione} inCorso={isExporting}
-          onGenera={(fotoIds, allegati) => void handleExportPdf(verbaleDi, fotoIds, allegati)} onClose={() => setVerbaleDi(null)} />;
+          conSottofasi={(verbaleDi.sal_voci ?? []).some((v) => (v.sal_voci_sottofasi?.length ?? 0) > 0)}
+          onGenera={(fotoIds, allegati, dettaglio) => void handleExportPdf(verbaleDi, fotoIds, allegati, dettaglio)} onClose={() => setVerbaleDi(null)} />;
       })()}
       {printHtml && (
         <PrintPreviewModal

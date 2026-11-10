@@ -76024,6 +76024,66 @@ export type Database = {
           },
         ]
       }
+      sal_voci_sottofasi: {
+        Row: {
+          created_at: string
+          descrizione: string
+          id: string
+          importo_contrattuale: number | null
+          importo_sal: number | null
+          percentuale_avanzamento: number
+          posizione: number
+          quantita_a_oggi: number | null
+          quantita_contratto: number | null
+          sottofase_id: string | null
+          unita: string | null
+          voce_id: string
+        }
+        Insert: {
+          created_at?: string
+          descrizione: string
+          id?: string
+          importo_contrattuale?: number | null
+          importo_sal?: number | null
+          percentuale_avanzamento: number
+          posizione?: number
+          quantita_a_oggi?: number | null
+          quantita_contratto?: number | null
+          sottofase_id?: string | null
+          unita?: string | null
+          voce_id: string
+        }
+        Update: {
+          created_at?: string
+          descrizione?: string
+          id?: string
+          importo_contrattuale?: number | null
+          importo_sal?: number | null
+          percentuale_avanzamento?: number
+          posizione?: number
+          quantita_a_oggi?: number | null
+          quantita_contratto?: number | null
+          sottofase_id?: string | null
+          unita?: string | null
+          voce_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sal_voci_sottofasi_sottofase_id_fkey"
+            columns: ["sottofase_id"]
+            isOneToOne: false
+            referencedRelation: "order_work_subphases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_voci_sottofasi_voce_id_fkey"
+            columns: ["voce_id"]
+            isOneToOne: false
+            referencedRelation: "sal_voci"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sales_playbook_completions: {
         Row: {
           company_id: string

@@ -53,6 +53,17 @@ Difetti visti su una commessa vera con computo a misura, da sistemare insieme:
 4. **I SAL vecchi non cambiano:** i 481 verbali esistenti hanno solo le fasi e si stampano come
    oggi.
 
+## Stato
+
+- **10/11/2026, lotti A e B fatti.** Una scelta diversa dal piano: le sottofasi non stanno in
+  `sal_voci` con una `voce_padre_id`, ma in una tabella a parte, `sal_voci_sottofasi`, figlia
+  della voce (migrazione `20290215100000_sal_voci_sottofasi`). Così nessuna lettura che somma
+  `sal_voci` (fattura dai lavori, PDF e riepilogo della commessa, registro, AI) poteva contare due
+  volte un importo: non c'era niente da escludere. Il calcolo sta in `src/lib/orders/salSottofasi.ts`.
+  La % della fase con sottofasi è la loro media pesata, con due decimali, mai sotto quella già
+  certificata.
+- Restano C (il nuovo verbale in un passaggio) e D.
+
 ## Lotti
 
 ### Lotto A — Le sottofasi nel verbale (dati e calcolo)

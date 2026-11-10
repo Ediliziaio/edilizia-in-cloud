@@ -15,16 +15,19 @@ import { cn } from "@/lib/utils";
 
 interface Foto { id: string; taken_at: string; descrizione: string | null; url: string | null }
 
-export function VerbaleSalDialog({ numero, orderId, companyId, dal, al, inCorso, onGenera, onClose }: {
+export function VerbaleSalDialog({ numero, orderId, companyId, dal, al, inCorso, conSottofasi = false, onGenera, onClose }: {
   numero: number; orderId: string; companyId: string;
   /** Data del SAL precedente e di questo: dicono quali foto sono del periodo. */
   dal: string | null; al: string | null;
   inCorso: boolean;
-  onGenera: (fotoIds: string[], allegati: string[]) => void;
+  /** Il verbale ha il dettaglio per sottofase: si sceglie se stamparlo (sì per default). */
+  conSottofasi?: boolean;
+  onGenera: (fotoIds: string[], allegati: string[], dettaglioSottofasi: boolean) => void;
   onClose: () => void;
 }) {
   const [scelte, setScelte] = useState<string[]>([]);
   const [allegati, setAllegati] = useState("");
+  const [dettaglio, setDettaglio] = useState(true);
   const foto = useQuery({
     queryKey: ["foto-verbale-sal", orderId],
     staleTime: 60_000,
@@ -69,6 +72,12 @@ export function VerbaleSalDialog({ numero, orderId, companyId, dal, al, inCorso,
           <DialogDescription>Scegli cosa accompagna il verbale. Foto e allegati stanno in una pagina a sé, dopo le firme.</DialogDescription>
         </DialogHeader>
         <div className="min-h-0 space-y-4 overflow-y-auto p-4">
+          {conSottofasi && (
+            <label className="flex items-start gap-2 rounded-md border p-3 text-sm">
+              <input type="checkbox" className="mt-0.5" checked={dettaglio} onChange={(e) => setDettaglio(e.target.checked)} />
+              <span><span className="font-medium">Dettaglio sottofasi</span><span className="block text-xs text-muted-foreground">Sotto ogni fase le sue lavorazioni, con quantità e avanzamento. Spento, il verbale breve: una riga per fase.</span></span>
+            </label>
+          )}
           <div className="space-y-2">
             <p className="text-sm font-medium">Foto del cantiere · {scelte.length} di {MASSIMO_FOTO_VERBALE}</p>
             {foto.isLoading ? <p role="status" className="text-sm text-muted-foreground">Carico le foto…</p>
@@ -84,7 +93,7 @@ export function VerbaleSalDialog({ numero, orderId, companyId, dal, al, inCorso,
         </div>
         <DialogFooter className="shrink-0 border-t p-4">
           <Button variant="outline" disabled={inCorso} onClick={onClose}>Chiudi</Button>
-          <Button disabled={inCorso} onClick={() => onGenera(scelte, allegatiDaTesto(allegati))}>
+          <Button disabled={inCorso} onClick={() => onGenera(scelte, allegatiDaTesto(allegati), dettaglio)}>
             {inCorso && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />}Prepara il verbale
           </Button>
         </DialogFooter>

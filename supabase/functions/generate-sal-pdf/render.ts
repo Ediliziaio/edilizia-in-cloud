@@ -18,6 +18,19 @@ function fmtEur(n: number): string {
   return n.toLocaleString("it-IT", {style:"currency",currency:"EUR",useGrouping:true,minimumFractionDigits:2,maximumFractionDigits:2});
 }
 
+/** Dettaglio per sottofase di una voce (sal_voci_sottofasi, 10/11/2026): non entra nei totali. */
+export interface SalVoceSottofase {
+  sottofase_id: string | null;
+  posizione: number;
+  descrizione: string;
+  unita: string | null;
+  quantita_contratto: number | null;
+  quantita_a_oggi: number | null;
+  importo_contrattuale: number | null;
+  percentuale_avanzamento: number;
+  importo_sal: number | null;
+}
+
 interface SalVoce {
   id: string;
   descrizione: string;
@@ -25,6 +38,7 @@ interface SalVoce {
   percentuale_avanzamento: number;
   importo_sal: number;
   note: string | null;
+  sal_voci_sottofasi?: SalVoceSottofase[] | null;
 }
 
 export interface SalRecord {
@@ -125,6 +139,10 @@ const STATO_LABELS: Record<string, string> = {
  */
 export interface SalExtra {
   vociPrecedenti?: Record<string, number> | null;
+  /** % certificata per sottofase nell'ultimo SAL emesso (per sottofase_id). */
+  sottofasiPrecedenti?: Record<string, number> | null;
+  /** Le sottofasi sotto ogni fase: sì per default, «no» per il verbale breve. */
+  dettaglioSottofasi?: boolean;
   aliquotaIva?: number | null;
   importoContratto?: number | null;
   foto?: FotoVerbale[] | null;
@@ -190,6 +208,30 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
   // La colonna «Voce» prende tutto quello che resta (10/11/2026): le altre hanno larghezze strette e numeri su una riga
   // sola. Prima, con tutte le colonne, alla voce restavano un centinaio di pixel e «overflow-wrap:anywhere» spezzava
   // le parole a metà («Impermeabiliz zazione»).
+  const fmtQ = (n: number | null | undefined) => n == null ? "" : Number(n).toLocaleString("it-IT", { maximumFractionDigits: 3 });
+  const precSotto = extra.sottofasiPrecedenti ?? {};
+  // Le sottofasi sotto la loro fase, rientrate e in corpo più piccolo. Solo dettaglio: i totali restano delle fasi.
+  const righeSottofasi = (v: SalVoce) => extra.dettaglioSottofasi === false ? "" : [...(v.sal_voci_sottofasi ?? [])]
+    .filter((d) => d.descrizione?.trim() && Number.isFinite(Number(d.percentuale_avanzamento)))
+    .sort((a, b) => a.posizione - b.posizione)
+    .map((d) => {
+      const imp = d.importo_contrattuale != null && Number.isFinite(Number(d.importo_contrattuale)) ? Number(d.importo_contrattuale) : null;
+      const cum = imp != null ? Number(d.importo_sal) || 0 : null;
+      const pPct = d.sottofase_id != null && precSotto[d.sottofase_id] != null ? Number(precSotto[d.sottofase_id]) : null;
+      const pImp = imp != null && pPct != null ? Math.round(imp * pPct) / 100 : null;
+      const quota = cum != null && pImp != null ? Math.round((cum - pImp) * 100) / 100 : null;
+      const qta = d.quantita_contratto ? ` <span style="color:var(--muted);">· ${fmtQ(d.quantita_a_oggi)} / ${fmtQ(d.quantita_contratto)}${d.unita ? ` ${escHtml(d.unita)}` : ""}</span>` : "";
+      return `
+    <tr class="riga-sottofase">
+      <td></td>
+      <td class="voce" style="padding-left:12pt;">– ${escHtml(d.descrizione)}${qta}</td>
+      <td class="num">${imp != null ? fmtEur(imp) : ""}</td>
+      ${perVoceAffidabile ? `<td class="num">${pPct != null ? pct(pPct) : ""}</td>` : ""}
+      <td class="num">${pct(Number(d.percentuale_avanzamento))}</td>
+      <td class="num">${cum != null ? fmtEur(cum) : ""}</td>
+      ${perVoceAffidabile ? `<td class="num">${pImp != null ? fmtEur(pImp) : ""}</td><td class="num">${quota != null ? fmtEur(quota) : ""}</td>` : ""}
+    </tr>`;
+    }).join("");
   const th = (t: string, al = "right", w = "") => `<th style="text-align:${al};padding-left:4pt;padding-right:4pt;${w ? `width:${w};` : ""}">${t}</th>`;
   const vociHtml = righe.map((r, i) => `
     <tr>
@@ -209,7 +251,7 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
       <td class="num">${fmtEur(r.cum)}</td>
       ${perVoceAffidabile ? `<td class="num" style="color:var(--muted);">${fmtEur(r.p)}</td>` : ""}
       ${perVoceAffidabile ? `<td class="num" style="font-weight:700;">${fmtEur(r.quota)}</td>` : ""}
-    </tr>`).join("");
+    </tr>${righeSottofasi(r.v)}`).join("");
 
   const statoLabel = STATO_LABELS[sal.stato] || sal.stato.toUpperCase();
   const statoOk = ["approvato","firmato"].includes(sal.stato);
@@ -246,6 +288,7 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
     @media print { .page { padding: 0; max-width: none; } }
     table { width:100%; border-collapse:collapse; } td { overflow-wrap:break-word; word-break:normal; hyphens:manual; vertical-align:top; } thead { display:table-header-group; } tr { break-inside:avoid; }
     td.voce { min-width: 140px; }
+    tr.riga-sottofase td { font-size: ${pagina.nota}pt; color: var(--muted); padding-top: 1pt; padding-bottom: 1pt; }
     a { overflow-wrap:anywhere; }
     .nota { font-size: ${pagina.nota}pt; color: var(--muted); }
     table.doc-tabella tr.forte td { font-weight: 700; }

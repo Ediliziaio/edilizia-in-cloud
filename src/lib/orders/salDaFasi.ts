@@ -14,6 +14,7 @@
  * Modulo puro: niente React, niente Supabase.
  */
 import { avanzamentoFase } from "./cronoprogramma";
+import { percentualeFaseDaSottofasi, sottofasiPerSal, type SottofasePerSal, type SottofaseSalDraft } from "./salSottofasi";
 
 export interface FasePerSal {
   id?: string;
@@ -24,6 +25,8 @@ export interface FasePerSal {
   percentuale: number | null;
   /** Venduto della fase (€), se scritto dall'ufficio; altrimenti non lo sappiamo. */
   importo_venduto: number | null;
+  /** Sottofasi della fase (dal 10/11/2026 vanno nel verbale come dettaglio). */
+  sottofasi?: ReadonlyArray<SottofasePerSal>;
 }
 
 /** Stessa forma del form voce in SalTab (campi stringa per gli input). */
@@ -34,6 +37,8 @@ export interface VoceSalDraft {
   note: string;
   /** Fase della commessa da cui nasce la voce; assente = voce libera. */
   fase_id?: string | null;
+  /** Dettaglio per sottofase: se c'è, la % della voce è la loro media pesata. */
+  sottofasi?: SottofaseSalDraft[];
 }
 
 /** Una voce di un verbale già salvato, per sapere da dove riparte il SAL nuovo. */
@@ -41,6 +46,7 @@ export interface VoceSalSalvata {
   descrizione: string;
   percentuale_avanzamento: number;
   fase_id?: string | null;
+  sal_voci_sottofasi?: ReadonlyArray<{ sottofase_id: string | null; percentuale_avanzamento: number }> | null;
 }
 
 export interface SalPerPrecedente {
@@ -58,6 +64,8 @@ export interface PercentualiPrecedenti {
   numero: number | null;
   perFase: Map<string, number>;
   perNome: Map<string, number>;
+  /** % certificate per sottofase (dal dettaglio dei verbali del 10/11/2026 in poi). */
+  perSottofase: Map<string, number>;
 }
 
 /**
@@ -71,15 +79,19 @@ export function percentualiPrecedenti(numeroNuovo: number, tutti: ReadonlyArray<
     .reduce<SalPerPrecedente | null>((u, s) => (!u || s.numero_sal > u.numero_sal ? s : u), null);
   const perFase = new Map<string, number>();
   const perNome = new Map<string, number>();
+  const perSottofase = new Map<string, number>();
   for (const v of prec?.sal_voci ?? []) {
     const pct = Number(v.percentuale_avanzamento) || 0;
     if (v.fase_id) perFase.set(v.fase_id, pct);
     else perNome.set(chiaveNome(v.descrizione), pct);
+    for (const d of v.sal_voci_sottofasi ?? []) {
+      if (d.sottofase_id) perSottofase.set(d.sottofase_id, Number(d.percentuale_avanzamento) || 0);
+    }
   }
-  return { numero: prec?.numero_sal ?? null, perFase, perNome };
+  return { numero: prec?.numero_sal ?? null, perFase, perNome, perSottofase };
 }
 
-const VUOTE: PercentualiPrecedenti = { numero: null, perFase: new Map(), perNome: new Map() };
+const VUOTE: PercentualiPrecedenti = { numero: null, perFase: new Map(), perNome: new Map(), perSottofase: new Map() };
 
 function pctPrecedente(v: { descrizione: string; fase_id?: string | null }, prec: PercentualiPrecedenti): number | null {
   if (v.fase_id) return prec.perFase.get(v.fase_id) ?? null;
@@ -98,13 +110,22 @@ export function vociSalDaFasi(fasi: ReadonlyArray<FasePerSal>, precedenti: Perce
     .map((f) => {
       const cantiere = avanzamentoFase({ status: f.status ?? "", percentuale: f.percentuale });
       const certificata = f.id ? precedenti.perFase.get(f.id) ?? null : null;
+      const venduto = f.importo_venduto != null && f.importo_venduto > 0 ? f.importo_venduto : null;
       const voce: VoceSalDraft = {
         descrizione: f.name.trim(),
-        importo_contrattuale: f.importo_venduto != null && f.importo_venduto > 0 ? String(f.importo_venduto) : "",
+        importo_contrattuale: venduto != null ? String(venduto) : "",
         percentuale_avanzamento: String(certificata != null && certificata > cantiere ? certificata : cantiere),
         note: "",
       };
       if (f.id) voce.fase_id = f.id;
+      // Con le sottofasi la % della fase è la loro media: ogni sottofase riparte dalla sua % certificata.
+      const dettaglio = f.id && f.sottofasi?.length ? sottofasiPerSal(f.sottofasi, venduto, precedenti.perSottofase) : [];
+      if (dettaglio.length) {
+        voce.sottofasi = dettaglio;
+        const media = percentualeFaseDaSottofasi(dettaglio);
+        // Mai sotto il già certificato: un SAL precedente senza dettaglio può dire qualche decimale in più.
+        if (media != null) voce.percentuale_avanzamento = String(certificata != null && certificata > media ? certificata : media);
+      }
       return voce;
     });
 }
@@ -143,6 +164,13 @@ export function vociSottoIlPrecedente(voci: ReadonlyArray<VoceSalDraft>, precede
     const prima = pctPrecedente(v, precedenti);
     const ora = Number(String(v.percentuale_avanzamento).replace(",", "."));
     if (prima != null && Number.isFinite(ora) && ora < prima) out.push({ descrizione: v.descrizione.trim(), precedente: prima, attuale: ora });
+    for (const d of v.sottofasi ?? []) {
+      const primaD = d.sottofase_id ? precedenti.perSottofase.get(d.sottofase_id) ?? null : null;
+      const oraD = Number(String(d.percentuale_avanzamento).replace(",", "."));
+      if (primaD != null && Number.isFinite(oraD) && oraD < primaD) {
+        out.push({ descrizione: `${v.descrizione.trim()} › ${d.descrizione.trim()}`, precedente: primaD, attuale: oraD });
+      }
+    }
   }
   return out;
 }
