@@ -49,9 +49,10 @@ describe("computo nel documento edile condiviso (TabellaCapitolo)", () => {
   });
 
   it("paddingBottom della pagina >= 90 (piè di pagina fino a cinque righe)", () => {
-    const m = src.match(/const pagina = \{ paddingTop: \d+, paddingBottom: (\d+),/);
+    // Dal 09/11/2026 il fondo scende solo col logo grande (Vulcano), e mai sotto quello che chiede il suo piè.
+    const m = src.match(/const pagina = \{ paddingTop: (\d+) \+ spostamento, paddingBottom: margineInferiorePiede\(dati\.azienda\.companyId, (\d+) - spostamento\),/);
     expect(m).not.toBeNull();
-    expect(Number(m![1])).toBeGreaterThanOrEqual(90);
+    expect(Number(m![2])).toBeGreaterThanOrEqual(90);
   });
 
   it("«Chi siamo» non è atomico: un testo lungo non viene troncato", () => {

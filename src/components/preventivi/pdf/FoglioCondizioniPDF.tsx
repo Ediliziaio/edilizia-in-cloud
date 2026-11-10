@@ -10,12 +10,13 @@ import type { RigaContratto } from "../../../../supabase/functions/_shared/testo
 import { clausoleDaApprovare, perArticoli, righeDaStampare } from "../../../../supabase/functions/_shared/condizioniStandard";
 import { TestoContrattoPdf } from "./TestoContrattoPdf";
 import { fontPiedeRegistrato } from "./fontPiede";
-import { personalizzazioneDocumento } from "../../../../supabase/functions/_shared/personalizzazioneDocumenti";
+import { margineInferiorePiede, misurePiede, personalizzazioneDocumento } from "../../../../supabase/functions/_shared/personalizzazioneDocumenti";
 
 const MARGINE = 50;
 const GRIGIO = "#6B7280";
 const INCHIOSTRO = "#1F2937";
 const A4_ALTEZZA = 841.89;
+const A4_LARGHEZZA = 595.28;
 
 /**
  * Il piè di pagina di ogni documento: i dati societari centrati, in alto, e sotto il numero di pagina
@@ -29,6 +30,25 @@ export function PieSocietario({ righe, font: fontBase = "Helvetica", margine = M
   const veste = personalizzazioneDocumento(companyId);
   const font = veste.piedeFont ? fontPiedeRegistrato(veste.piedeFont) : fontBase;
   const colore = veste.piedeColore ?? coloreBase;
+  // Il piè proprio (Vulcano, 10/11/2026): le righe dell'esempio al posto dei dati societari, senza filetto, la prima
+  // più grande. Chi lo usa allarga il margine inferiore con margineInferiorePiede.
+  const misure = misurePiede(veste, A4_LARGHEZZA - margine * 2);
+  if (veste.piedeRighe && misure) {
+    const cima = A4_ALTEZZA - misure.ingombro;
+    return (
+      <>
+        <View fixed style={{ position: "absolute", top: cima, height: misure.altezza, left: margine, right: margine }}>
+          {veste.piedeRighe.map((r, i) => (
+            <Text key={i} style={{ fontFamily: font, fontSize: r.titolo ? misure.corpoTitolo : misure.corpo, lineHeight: r.titolo ? 1.15 : 1.3, color: colore, textAlign: "center" }}>
+              {r.parti.map((p, j) => <Text key={j} style={{ color: p.colore ?? colore, textDecoration: p.sottolineato ? "underline" : undefined }}>{p.testo}</Text>)}
+            </Text>
+          ))}
+        </View>
+        <Text fixed style={{ position: "absolute", top: A4_ALTEZZA - misure.cimaPaginaDalFondo, left: margine, right: margine, fontFamily: font, fontSize: misure.corpoPagina, color: colore, textAlign: "center" }}
+          render={({ pageNumber, totalPages }) => `Pag. ${pageNumber} / ${totalPages}`} />
+      </>
+    );
+  }
   // Posizioni e altezze scritte: con `bottom` su un contenuto che scorre più fogli il piè finiva fuori pagina, e un
   // numero di pagina dentro il riquadro restava senza spazio e non si stampava.
   const altezzaDati = 5 + righe.length * 9.5;
@@ -89,7 +109,7 @@ export function FoglioCondizioniPDF({ titolo, autore, righe, societarie, firme, 
   const testo = conTitolo && righe[0]?.tipo === "h1" ? [righe[0], ...corpo] : corpo;
   return (
     <Document title={titolo} author={autore} producer="Edilizia in Cloud">
-      <Page size="A4" style={{ paddingTop: 48, paddingBottom: 72, paddingHorizontal: MARGINE, fontFamily: "Helvetica" }}>
+      <Page size="A4" style={{ paddingTop: 48, paddingBottom: margineInferiorePiede(companyId, 72), paddingHorizontal: MARGINE, fontFamily: "Helvetica" }}>
         <PieSocietario righe={societarie} companyId={companyId} />
         <CorpoFoglio righe={testo} />
         {firme && (

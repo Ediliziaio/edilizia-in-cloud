@@ -1,7 +1,7 @@
 import type { prepareVariation, VariationDocumentParts } from "./variationDraft";
 import { CONDIZIONI_STANDARD_VARIANTE, variationImpact } from "./variationDraft";
 import { variationEventDate } from "./pendingVariationDocument";
-import { fontPiedeBase64, personalizzazioneDocumento, puntiInMm } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
+import { disegnaPiedeJsPdf, fontPiedeBase64, limiteContenutoJsPdf, personalizzazioneDocumento, puntiInMm } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
 type PublicVariation=Pick<ReturnType<typeof prepareVariation>,"titolo"|"descrizione"|"motivazione"|"richiesto_da"|"impatto_economico"> & {impatto_giorni?:number};
 export interface VariationPdfContext {companyId?:string;orderCode?:string;customerName?:string;currentNet?:number;vatRate?:number;companyName?:string;companyDetails?:string;customerAddress?:string;siteAddress?:string;proposalNumber?:number;proposalRegisteredAt?:string;documentHeading?:string;primaryColor?:string;archivedOriginal?:boolean;parti?:VariationDocumentParts;logo?:string;societarie?:string[]}
 export function variationPdfFilename(orderCode:string|undefined,title:string){
@@ -29,8 +29,10 @@ async function buildVariationPdf(variation:PublicVariation,context:VariationPdfC
   const colors:Record<string,[number,number,number]>={"#1e3a5f":[30,58,95],"#14532d":[20,83,45],"#9a3412":[154,52,18]};
   const navy:[number,number,number]=colors[context.primaryColor || ""] || [30,58,95];
   const INK:[number,number,number]=[35,45,60], GREY:[number,number,number]=[100,110,125], LINE:[number,number,number]=[215,222,232], PALE:[number,number,number]=[245,247,250];
-  const LEFT=15, RIGHT=195, WIDTH=RIGHT-LEFT, BOTTOM=272;
   const veste=personalizzazioneDocumento(context.companyId);
+  // Il piè proprio (Vulcano, 10/11/2026) vale dove esce il piè societario: lì il contenuto si ferma più in alto.
+  const piedeProprio=Boolean(veste.piedeRighe&&context.societarie?.length);
+  const LEFT=15, RIGHT=195, WIDTH=RIGHT-LEFT, BOTTOM=piedeProprio?limiteContenutoJsPdf(veste,WIDTH,272):272;
   // Se il carattere non si scarica il piè resta in Helvetica: il documento esce lo stesso.
   const fontPiede=veste.piedeFont&&context.societarie?.length?await fontPiedeBase64():null;
   if(fontPiede){doc.addFileToVFS("EBGaramond-Regular.ttf",fontPiede);doc.addFont("EBGaramond-Regular.ttf","EBGaramond","normal");}
@@ -211,8 +213,13 @@ async function buildVariationPdf(variation:PublicVariation,context:VariationPdfC
 
   const count = doc.getNumberOfPages();
   for (let page=1;page<=count;page++) {
-    doc.setPage(page); doc.setDrawColor(...LINE); doc.line(LEFT,280,RIGHT,280);
+    doc.setPage(page);
     const stato=mode==="proposta" ? "Proposta non firmata" : "Anteprima non firmata";
+    if(piedeProprio){
+      disegnaPiedeJsPdf(doc,veste,{font:fontPiede?"EBGaramond":"helvetica",pulisci:fontPiede?undefined:clean,larghezzaUtile:WIDTH,pagina:`Pagina ${page} di ${count} - ${stato}`});
+      continue;
+    }
+    doc.setDrawColor(...LINE); doc.line(LEFT,280,RIGHT,280);
     const societarie=context.societarie?.length ? context.societarie : null;
     if(societarie){
       // In fondo i dati societari, centrati, e sotto pagina e stato (09/11/2026).

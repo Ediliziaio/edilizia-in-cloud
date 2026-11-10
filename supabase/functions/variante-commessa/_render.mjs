@@ -142,7 +142,8 @@ var SENZA_PERSONALIZZAZIONE = Object.freeze({
   logoCopertinaAltezza: null,
   logoCopertinaLarghezzaMax: null,
   piedeFont: null,
-  piedeColore: null
+  piedeColore: null,
+  piedeRighe: null
 });
 var IMPRESA_VULCANO = "7c87c209-7868-42d0-ad98-6c95ac6de196";
 var FONT_EB_GARAMOND = "EB Garamond";
@@ -152,10 +153,80 @@ var VESTE_VULCANO = Object.freeze({
   logoCopertinaAltezza: 75,
   logoCopertinaLarghezzaMax: 460,
   piedeFont: FONT_EB_GARAMOND,
-  piedeColore: "#1C1650"
+  piedeColore: "#1C1650",
+  // Dall'esempio del titolare (10/11/2026), parola per parola: «–» nelle sedi, «/» fra le due, quattro spazi fra
+  // P.IVA e telefono. L'email in azzurro sottolineata, come nell'esempio; il resto nel blu del piè.
+  piedeRighe: Object.freeze([
+    { titolo: true, parti: [{ testo: "Impresa Vulcano s.r.l." }] },
+    { parti: [{ testo: "Sede Legale: Via Marconi, 35 \u2013 Lonate Pozzolo (VA) / Sede Operativa: Via dei Mille, 3 \u2013 Vanzaghello (MI)" }] },
+    { parti: [{ testo: "info@impresavulcano.it", colore: "#3B82C4", sottolineato: true }, { testo: " - www.impresavulcano.it" }] },
+    { parti: [{ testo: "C.F./P.IVA 06923340969    tel. 0331/1409144" }] }
+  ])
 });
 function personalizzazioneDocumento(companyId) {
   return companyId === IMPRESA_VULCANO ? VESTE_VULCANO : SENZA_PERSONALIZZAZIONE;
+}
+var testoRigaPiede = (r) => r.parti.map((p) => p.testo).join("");
+var LARGHEZZA_RIGA_LUNGA_A_CORPO_1 = 43.3;
+function misurePiede(veste, larghezzaUtile) {
+  const righe = veste.piedeRighe;
+  if (!righe?.length) return null;
+  const corpo = Math.min(9, Math.floor(larghezzaUtile / LARGHEZZA_RIGA_LUNGA_A_CORPO_1 * 4) / 4);
+  const corpoTitolo = 13.5;
+  const rigaTitolo = corpoTitolo * 1.15;
+  const riga = corpo * 1.3;
+  const altezza = righe.reduce((s, r) => s + (r.titolo ? rigaTitolo : riga), 0);
+  const corpoPagina = 7.5;
+  const cimaPaginaDalFondo = 24;
+  const fondoRigheDalFondo = cimaPaginaDalFondo + 1;
+  return { corpoTitolo, corpo, rigaTitolo, riga, altezza, corpoPagina, cimaPaginaDalFondo, fondoRigheDalFondo, ingombro: fondoRigheDalFondo + altezza };
+}
+var BIANCO_SOPRA_PIEDE = 8;
+function disegnaPiedeJsPdf(pdf, veste, o) {
+  const righe = veste.piedeRighe;
+  const m = misurePiede(veste, o.larghezzaUtile * 72 / 25.4);
+  if (!righe?.length || !m) return;
+  const testo = (t) => o.pulisci ? o.pulisci(t) : t;
+  const colore = veste.piedeColore ?? "#1C1650";
+  pdf.setFont(o.font, "normal");
+  let corpo = m.corpo;
+  pdf.setFontSize(corpo);
+  const piuLunga = Math.max(...righe.filter((r) => !r.titolo).map((r) => pdf.getTextWidth(testo(testoRigaPiede(r)))));
+  if (piuLunga > o.larghezzaUtile) corpo = corpo * o.larghezzaUtile / piuLunga;
+  const mm = (punti) => punti * 25.4 / 72;
+  const fondoFoglio = 297;
+  let fondo = fondoFoglio - mm(m.fondoRigheDalFondo);
+  const basi = [];
+  for (let i = righe.length - 1; i >= 0; i--) {
+    const alta = righe[i].titolo ? m.rigaTitolo : corpo * 1.3;
+    basi[i] = fondo - mm(alta * 0.27);
+    fondo -= mm(alta);
+  }
+  righe.forEach((r, i) => {
+    const c = r.titolo ? m.corpoTitolo : corpo;
+    pdf.setFontSize(c);
+    const pezzi = r.parti.map((p) => ({ ...p, testo: testo(p.testo), larghezza: 0 }));
+    for (const p of pezzi) p.larghezza = pdf.getTextWidth(p.testo);
+    let x = 105 - pezzi.reduce((s, p) => s + p.larghezza, 0) / 2;
+    for (const p of pezzi) {
+      pdf.setTextColor(p.colore ?? colore);
+      pdf.text(p.testo, x, basi[i]);
+      if (p.sottolineato) {
+        pdf.setDrawColor(p.colore ?? colore);
+        pdf.setLineWidth(mm(c * 0.05));
+        pdf.line(x, basi[i] + mm(c * 0.12), x + p.larghezza, basi[i] + mm(c * 0.12));
+      }
+      x += p.larghezza;
+    }
+  });
+  pdf.setFontSize(m.corpoPagina);
+  pdf.setTextColor(colore);
+  pdf.text(testo(o.pagina), 105, fondoFoglio - mm(m.cimaPaginaDalFondo) + mm(m.corpoPagina * 0.8), { align: "center" });
+}
+function limiteContenutoJsPdf(veste, larghezzaUtileMm, limite) {
+  const m = misurePiede(veste, larghezzaUtileMm * 72 / 25.4);
+  if (!m) return limite;
+  return Math.min(limite, 297 - (m.ingombro + BIANCO_SOPRA_PIEDE) * 25.4 / 72);
 }
 var puntiInMm = (punti) => punti * 25.4 / 72;
 var PERCORSO_FONT_PIEDE = "/fonts/EBGaramond-Regular.ttf?v=2";
@@ -206,8 +277,9 @@ async function buildVariationPdf(variation, context, mode) {
   const colors = { "#1e3a5f": [30, 58, 95], "#14532d": [20, 83, 45], "#9a3412": [154, 52, 18] };
   const navy = colors[context.primaryColor || ""] || [30, 58, 95];
   const INK = [35, 45, 60], GREY = [100, 110, 125], LINE = [215, 222, 232], PALE = [245, 247, 250];
-  const LEFT = 15, RIGHT = 195, WIDTH = RIGHT - LEFT, BOTTOM = 272;
   const veste = personalizzazioneDocumento(context.companyId);
+  const piedeProprio = Boolean(veste.piedeRighe && context.societarie?.length);
+  const LEFT = 15, RIGHT = 195, WIDTH = RIGHT - LEFT, BOTTOM = piedeProprio ? limiteContenutoJsPdf(veste, WIDTH, 272) : 272;
   const fontPiede = veste.piedeFont && context.societarie?.length ? await fontPiedeBase64() : null;
   if (fontPiede) {
     doc.addFileToVFS("EBGaramond-Regular.ttf", fontPiede);
@@ -467,9 +539,13 @@ async function buildVariationPdf(variation, context, mode) {
   const count = doc.getNumberOfPages();
   for (let page = 1; page <= count; page++) {
     doc.setPage(page);
+    const stato = mode === "proposta" ? "Proposta non firmata" : "Anteprima non firmata";
+    if (piedeProprio) {
+      disegnaPiedeJsPdf(doc, veste, { font: fontPiede ? "EBGaramond" : "helvetica", pulisci: fontPiede ? void 0 : clean, larghezzaUtile: WIDTH, pagina: `Pagina ${page} di ${count} - ${stato}` });
+      continue;
+    }
     doc.setDrawColor(...LINE);
     doc.line(LEFT, 280, RIGHT, 280);
-    const stato = mode === "proposta" ? "Proposta non firmata" : "Anteprima non firmata";
     const societarie = context.societarie?.length ? context.societarie : null;
     if (societarie) {
       font(6.5, false, GREY);

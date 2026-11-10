@@ -10,7 +10,7 @@
  * l'elenco completo dei lavori in Allegato A come nell'ordine.
  */
 import { PieSocietario } from "@/components/preventivi/pdf/FoglioCondizioniPDF";
-import { personalizzazioneDocumento } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
+import { margineInferiorePiede, personalizzazioneDocumento } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
 import { Document, Font, Image, Page, StyleSheet, Text, View, pdf } from "@react-pdf/renderer";
 import {
   articoliContratto, articoliDaApprovare, dataContratto, elencoPerFase, euroContratto, quantitaContratto,
@@ -96,7 +96,7 @@ export function ContrattoSubappaltoPDF({ d }: { d: DatiContrattoSubappalto }) {
   const codici = codiciElenco(elenco);
   return (
     <Document title={`Contratto di subappalto ${d.numero ?? ""}`.trim()} author={a.ragioneSociale} producer="Edilizia in Cloud">
-      <Page size="A4" style={logoGrande ? [s.pagina, { paddingTop: 98 }] : s.pagina}>
+      <Page size="A4" style={[s.pagina, { paddingBottom: margineInferiorePiede(d.societarie?.length ? d.veste?.companyId : null, 66) }, logoGrande ? { paddingTop: 98 } : {}]}>
         {/* Il piè sta per primo: dopo un contenuto su più fogli react-pdf lo disegnava fuori pagina. */}
         {d.societarie?.length ? <PieSocietario righe={d.societarie} margine={44} companyId={d.veste?.companyId} /> : (
           <View style={s.piede} fixed>

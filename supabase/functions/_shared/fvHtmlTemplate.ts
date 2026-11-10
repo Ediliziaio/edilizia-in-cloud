@@ -14,7 +14,7 @@ import { isFvAccumulo, isFvLocalIntervention, fvInterventionLabel, FV_ACCUMULO_P
 import { eFotoDiSerie, leggiBlocco, leggiFotoPagina, PAGINE_BLOCCO, type PaginaBlocco } from "./blocchiPreventivo.ts";
 import { iconaSvg } from "./iconePreventivo.ts";
 import { eTavola } from "./proporzioniImmagine.ts";
-import { personalizzazioneDocumento, urlFontPiede } from "./personalizzazioneDocumenti.ts";
+import { misurePiede, personalizzazioneDocumento, urlFontPiede } from "./personalizzazioneDocumenti.ts";
 import { leggiTestata, type PaginaConTestata, type TestataPagina } from "./testatePagine.ts";
 import {
   ORO_STELLE, PUNTI_STELLA, indirizzoDaLeggere, leggiVotiOnline, recensioniScritte, stellePiene, votoScritto, type VotoOnline,
@@ -826,6 +826,13 @@ function footerDocumento(d: FvPdfTemplateData, riferimento: string, pageN: numbe
 }
 
 function footer(d: FvPdfTemplateData, pageN: number, total: number): string {
+  // Il piè proprio (Vulcano, 10/11/2026): le righe dell'esempio del titolare al posto dei dati societari.
+  const veste = personalizzazioneDocumento(d.azienda.company_id);
+  if (d.azienda.righe_societarie?.length && veste.piedeRighe) {
+    const righe = veste.piedeRighe.map((r) => `<div class="${r.titolo ? "titolo" : "riga"}">${r.parti.map((p) =>
+      p.colore || p.sottolineato ? `<span style="${p.colore ? `color:${p.colore};` : ""}${p.sottolineato ? "text-decoration:underline;" : ""}">${escHtml(p.testo)}</span>` : escHtml(p.testo)).join("")}</div>`).join("");
+    return `<div class="page-footer societario proprio">${righe}<div class="pnum">${pageN} / ${total}</div></div>`;
+  }
   // I dati societari, centrati, e sotto il numero di pagina (09/11/2026): uguale in tutti i documenti.
   if (d.azienda.righe_societarie?.length) {
     return `<div class="page-footer societario">${d.azienda.righe_societarie.map((r) => `<div>${escHtml(r)}</div>`).join("")}<div class="pnum">${pageN} / ${total}</div></div>`;
@@ -1118,6 +1125,19 @@ function cssVesteAzienda(companyId: string | null | undefined): string {
 @font-face { font-family: '${v.piedeFont}'; src: url('${urlFontPiede()}') format('truetype'); }
 .cover-brand .logo-img { width: auto; height: ${v.logoCopertinaAltezza}pt; max-width: ${v.logoCopertinaLarghezzaMax}pt; border-radius: 2px; background: #fff; padding: 6px; }
 .page-footer.societario, .page-footer.societario .pnum { font-family: '${v.piedeFont}', 'Times New Roman', serif; color: ${v.piedeColore}; }
+${cssPiedeProprio(v)}`;
+}
+
+/** Il piè proprio: senza filetto, il titolo più grande, ogni riga su una riga sola (spazi tenuti), più spazio sotto il contenuto. */
+function cssPiedeProprio(v: ReturnType<typeof personalizzazioneDocumento>): string {
+  // Larghezza utile del piè: 210 mm meno 16 per lato.
+  const m = misurePiede(v, ((210 - 32) * 72) / 25.4);
+  if (!m) return "";
+  return `.page-footer.societario.proprio { border-top: 0; padding: 0 16mm ${m.cimaPaginaDalFondo - m.corpoPagina * 1.2}pt; font-weight: 400; }
+.page-footer.societario.proprio .titolo { font-size: ${m.corpoTitolo}pt; line-height: 1.15; white-space: pre; }
+.page-footer.societario.proprio .riga { font-size: ${m.corpo}pt; line-height: 1.3; white-space: pre; }
+.page-footer.societario.proprio .pnum { font-size: ${m.corpoPagina}pt; line-height: 1.2; font-weight: 400; margin-top: 1pt; }
+.page:has(.page-footer.societario.proprio) .content { padding-bottom: ${Math.ceil(m.ingombro + 8)}pt; }
 `;
 }
 

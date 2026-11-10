@@ -22,7 +22,7 @@ import {
   documentoIncompleto,
 } from "./modello";
 
-import { fontPiedeBase64, personalizzazioneDocumento, puntiInMm } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
+import { disegnaPiedeJsPdf, fontPiedeBase64, limiteContenutoJsPdf, personalizzazioneDocumento, puntiInMm } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
 
 /** Layout comune, derivato dai cinque modelli operativi: identità aziendale,
  * fascia titolo, anagrafiche affiancate, tabella e riepiloghi. */
@@ -51,7 +51,8 @@ export function creaPdfOperativo(
   });
   const left = modello.margine || 14,
     width = 210 - left * 2,
-    bottom = 268,
+    // Col piè proprio (Vulcano, quattro righe) il contenuto si ferma più in alto.
+    bottom = limiteContenutoJsPdf(veste, width, 268),
     navy: [number, number, number] = modello.colore
       ? rgbModello(modello.colore)
       : [31, 58, 93];
@@ -730,6 +731,20 @@ export function creaPdfOperativo(
   }
   for (let page = 1; page <= pdf.getNumberOfPages(); page++) {
     pdf.setPage(page);
+    if (veste.piedeRighe) {
+      // Il piè dell'esempio del titolare (10/11/2026): niente filetto, righe proprie, sotto la pagina.
+      disegnaPiedeJsPdf(pdf, veste, {
+        font: a.fontPiede ? "EBGaramond" : modello.carattere,
+        pulisci: a.fontPiede ? undefined : safe,
+        larghezzaUtile: width,
+        pagina: modello.numerazione ? `Pagina ${page} di ${pdf.getNumberOfPages()}` : "",
+      });
+      if (modello.notaPagina) {
+        font(6.5, false, true);
+        pdf.text(safe(modello.notaPagina), left, 291, { maxWidth: width / 2 - 20 });
+      }
+      continue;
+    }
     pdf.setDrawColor(210, 219, 231);
     pdf.line(left, 278, left + width, 278);
     foot.forEach((line, i) => {

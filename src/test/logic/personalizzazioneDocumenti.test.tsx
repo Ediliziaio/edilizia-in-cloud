@@ -1,7 +1,7 @@
 /// <reference types="node" />
 /**
- * La veste dei PDF per azienda (09/11/2026): Impresa Vulcano ha logo grande e piè in EB Garamond blu scuro; le altre
- * restano identiche. Renderer vero: se PDF_PROVA_DIR è impostata, il PDF di prova resta lì.
+ * La veste dei PDF per azienda (09/11/2026): Impresa Vulcano ha logo grande e piè in EB Garamond blu scuro, dal
+ * 10/11/2026 con le quattro righe dell'esempio del titolare; le altre restano identiche. Renderer vero: se PDF_PROVA_DIR è impostata, il PDF di prova resta lì.
  */
 import { renderToBuffer } from "@react-pdf/renderer/lib/react-pdf.js";
 import { OPS, getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
@@ -10,7 +10,7 @@ import path from "node:path";
 import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 import {
-  SENZA_PERSONALIZZAZIONE, personalizzazioneDocumento,
+  SENZA_PERSONALIZZAZIONE, margineInferiorePiede, misurePiede, personalizzazioneDocumento, testoRigaPiede,
 } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
 
 vi.setConfig({ testTimeout: 240_000 });
@@ -59,10 +59,34 @@ describe("personalizzazioneDocumento", () => {
   it.each([[ALTRA], [null], [undefined], [""], ["preview"]])("%s: valore neutro", (id) => {
     expect(personalizzazioneDocumento(id)).toBe(SENZA_PERSONALIZZAZIONE);
     expect(Object.values(SENZA_PERSONALIZZAZIONE).every((v) => v === null)).toBe(true);
+    expect(misurePiede(personalizzazioneDocumento(id), 495)).toBeNull();
+    expect(margineInferiorePiede(id, 72)).toBe(72);
+  });
+  it("Vulcano ha le quattro righe dell'esempio, scritte così, la prima come titolo e l'email azzurra sottolineata", () => {
+    const v = personalizzazioneDocumento(VULCANO);
+    expect(v.piedeRighe!.map(testoRigaPiede)).toEqual(PIEDE_VULCANO);
+    expect(v.piedeRighe!.map((r) => Boolean(r.titolo))).toEqual([true, false, false, false]);
+    expect(v.piedeRighe![2].parti[0]).toEqual({ testo: "info@impresavulcano.it", colore: "#3B82C4", sottolineato: true });
+  });
+  it("le misure: titolo 13,5, righe 9 finché la più lunga ci sta, poi scendono; il margine copre il piè", () => {
+    const v = personalizzazioneDocumento(VULCANO);
+    expect(misurePiede(v, 495)).toMatchObject({ corpoTitolo: 13.5, corpo: 9 });
+    expect(misurePiede(v, 300)!.corpo).toBeLessThan(7);
+    expect(misurePiede(v, 300)!.corpo * 43.3).toBeLessThanOrEqual(300);
+    const m = misurePiede(v, 495)!;
+    expect(margineInferiorePiede(VULCANO, 72)).toBeGreaterThanOrEqual(m.ingombro + 8);
+    expect(margineInferiorePiede(VULCANO, 120)).toBe(120);
   });
 });
 
-interface Foglio { numero: number; loghi: Array<{ cima: number; fondo: number; larghezza: number }>; testi: Array<{ cima: number; testo: string; font: string }> }
+const PIEDE_VULCANO = [
+  "Impresa Vulcano s.r.l.",
+  "Sede Legale: Via Marconi, 35 – Lonate Pozzolo (VA) / Sede Operativa: Via dei Mille, 3 – Vanzaghello (MI)",
+  "info@impresavulcano.it - www.impresavulcano.it",
+  "C.F./P.IVA 06923340969    tel. 0331/1409144",
+];
+
+interface Foglio { numero: number; loghi: Array<{ cima: number; fondo: number; larghezza: number }>; testi: Array<{ cima: number; base: number; testo: string; font: string }> }
 
 type Matrice = [number, number, number, number, number, number];
 const molt = (a: Matrice, b: Matrice): Matrice => [
@@ -92,7 +116,7 @@ async function fogli(bytes: Uint8Array): Promise<Foglio[]> {
     const stili = (await pagina.getTextContent()).styles;
     const testo = await pagina.getTextContent();
     const testi = (testo.items.filter((x) => "str" in x && x.str.trim()) as Array<{ str: string; transform: number[]; fontName: string; height: number }>)
-      .map((t) => ({ cima: alto - t.transform[5] - Math.abs(t.transform[3]), testo: t.str, font: stili[t.fontName]?.fontFamily ?? t.fontName }));
+      .map((t) => ({ cima: alto - t.transform[5] - Math.abs(t.transform[3]), base: alto - t.transform[5], testo: t.str, font: stili[t.fontName]?.fontFamily ?? t.fontName }));
     out.push({ numero: n, loghi, testi });
   }
   return out;
@@ -138,8 +162,26 @@ describe("documento edile", () => {
       // Tutto il testo, riferimento del preventivo compreso, sta sotto il logo.
       expect(Math.min(...p.testi.map((t) => t.cima)), `p.${p.numero}: testo sopra il fondo del logo`).toBeGreaterThanOrEqual(logo.fondo - 0.5);
     }
-    expect(pagine[1].testi.some((t) => t.testo.includes("Capitale sociale versato")), "il contenuto del piè resta").toBe(true);
     expect(Buffer.from(bytes).includes("EBGaramond"), "il carattere è nel file").toBe(true);
+  });
+
+  it("per Vulcano il piè è quello dell'esempio, su ogni pagina interna, e il contenuto non lo tocca", async () => {
+    fontDaDisco();
+    const pagine = await fogli(await documento(VULCANO));
+    vi.unstubAllGlobals();
+    const cimaPiede = 841.89 - misurePiede(personalizzazioneDocumento(VULCANO), 595.28 - 2 * 48)!.ingombro;
+    const delPiede = (t: Foglio["testi"][number]) => t.cima >= cimaPiede - 1;
+    for (const p of pagine.slice(1)) {
+      const piede = p.testi.filter(delPiede).map((t) => t.testo).join(" ").replace(/\s+/g, " ");
+      for (const r of PIEDE_VULCANO) expect(piede, `p.${p.numero}`).toContain(r.replace(/\s+/g, " ").slice(0, 20));
+      expect(piede).toContain("www.impresavulcano.it");
+      expect(piede).toContain("tel. 0331/1409144");
+      expect(piede).toMatch(/Pag\. \d+ \/ \d+/);
+      expect(piede, "i dati societari di prima non ci sono più").not.toContain("Capitale sociale");
+      // Il contenuto finisce sopra il piè, con un po' di bianco.
+      const contenuto = p.testi.filter((t) => !delPiede(t));
+      if (contenuto.length) expect(Math.max(...contenuto.map((t) => t.base)), `p.${p.numero}: contenuto sul piè`).toBeLessThan(cimaPiede - 2);
+    }
   });
 
   it("per un'altra azienda niente cambia: logo piccolo e stessa impaginazione di chi non ha azienda", async () => {
@@ -164,6 +206,6 @@ describe("documento edile", () => {
     vi.unstubAllGlobals();
     const pagine = await fogli(bytes);
     expect(pagine.length).toBeGreaterThan(3);
-    expect(pagine[1].testi.some((t) => t.testo.includes("Capitale sociale versato"))).toBe(true);
+    expect(pagine[1].testi.some((t) => t.testo.includes("Impresa Vulcano s.r.l."))).toBe(true);
   });
 });

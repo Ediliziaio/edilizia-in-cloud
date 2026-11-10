@@ -26,7 +26,7 @@ import { logoDelDocumento, logoDellaCopertina } from "@/lib/pdf/logoDelDocumento
 import { nomeCointestatario } from "@/lib/preventivatore/cointestatario";
 import { TestoContrattoPdf } from '../preventivi/pdf/TestoContrattoPdf';
 import { PieSocietario } from '../preventivi/pdf/FoglioCondizioniPDF';
-import { personalizzazioneDocumento } from '../../../supabase/functions/_shared/personalizzazioneDocumenti';
+import { margineInferiorePiede, personalizzazioneDocumento } from '../../../supabase/functions/_shared/personalizzazioneDocumenti';
 import { righeSocietarie } from '../../../supabase/functions/_shared/datiSocietari';
 import { FinitureSceltePdf, PresentazioneProdottoPdf, type FinituraPreventivoPdf } from "./PresentazioneProdottoPdf";
 import { PianoLavoriEditorialePdf } from "./PianoLavoriEditorialePdf";
@@ -5011,7 +5011,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
           condizioni: (
             <>
             {condizioniLegaliAttivo && condizioniLegaliTesto && (
-              <Page size="A4" style={[styles.page, { paddingTop: 48, paddingBottom: 72 }]}>
+              <Page size="A4" style={[styles.page, { paddingTop: 48, paddingBottom: margineInferiorePiede(righeSocietarieFoglio?.length ? companyIdDocumento : null, 72) }]}>
                 <PageFooter companyId={companyIdDocumento} societarie={righeSocietarieFoglio} companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
                 {/* Le condizioni si leggono riga per riga: prima il testo si stampava
                     com'era, e il cliente vedeva «## Art. 1 — Oggetto». Un articolo per

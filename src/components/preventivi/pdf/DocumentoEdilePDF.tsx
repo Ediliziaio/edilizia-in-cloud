@@ -43,7 +43,7 @@ import type { PaginaConTestata } from "../../../../supabase/functions/_shared/te
 import { giorniDellaDurata, perArticoli, senzaNumeroDavanti, spezzaAccento } from "./testoDocumento";
 import { TestoContrattoPdf } from './TestoContrattoPdf';
 import { PieSocietario } from './FoglioCondizioniPDF';
-import { personalizzazioneDocumento } from "../../../../supabase/functions/_shared/personalizzazioneDocumenti";
+import { margineInferiorePiede, personalizzazioneDocumento } from "../../../../supabase/functions/_shared/personalizzazioneDocumenti";
 import { clausoleStampateEdile, segnaClausoleDelDocumento } from '@/lib/fea/clausoleDelDocumento';
 import { altezzaTesto, righeDiTesto, testoDaHtml, type FamigliaPdf } from "./misuraTesto";
 import type {
@@ -88,8 +88,10 @@ const etichettaIvaInclusa = (t: DocEdileTotali): string =>
 /** L'altezza scrivibile di una pagina: 841 punti meno i margini di 96 sopra e sotto. */
 const ALTEZZA_UTILE = ALTEZZA - 96 * 2;
 /** Testata col logo grande (personalizzazioneDocumenti): dove comincia e di quanto spinge giù la pagina. */
-const TESTATA_GRANDE_CIMA = 22;
-const SPOSTAMENTO_TESTATA_GRANDE = 20;
+// 10/11/2026: il piè di Vulcano è passato a quattro righe (84 punti col bianco): la testata sale di 6 e la pagina
+// scende di 10 invece di 20, così il fondo resta a 86 e l'altezza utile non cambia.
+const TESTATA_GRANDE_CIMA = 16;
+const SPOSTAMENTO_TESTATA_GRANDE = 10;
 /** Lo stacco fra due capitoli sulla stessa pagina. */
 const STACCO = 30;
 /**
@@ -1311,15 +1313,15 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   const corpoTesto = { fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.inchiostro, lineHeight: 1.55 } as const;
   // paddingBottom: il piè di pagina può arrivare a cinque righe (nome, recapiti, dati
   // fiscali, testo libero, versione). Sotto i 90 punti il testo gli finiva sopra.
-  // Col logo grande la pagina scende quanto sale il fondo (basta: il piè societario sono due righe): l'altezza
-  // utile resta ALTEZZA_UTILE, e con lei tutte le misure a mano dei capitoli.
+  // Col logo grande la pagina scende quanto sale il fondo: l'altezza utile resta ALTEZZA_UTILE, e con lei tutte le
+  // misure a mano dei capitoli. Il fondo non scende mai sotto quello che chiede il piè proprio (margineInferiorePiede).
   const vesteTestata = personalizzazioneDocumento(dati.azienda.companyId);
   const spostamento = vesteTestata.logoAltezza && dati.azienda.logoUrl ? SPOSTAMENTO_TESTATA_GRANDE : 0;
-  const pagina = { paddingTop: 96 + spostamento, paddingBottom: 96 - spostamento, paddingHorizontal: MARGINE, fontFamily: tema.caratteri.testo, backgroundColor: tema.carta } as const;
+  const pagina = { paddingTop: 96 + spostamento, paddingBottom: margineInferiorePiede(dati.azienda.companyId, 96 - spostamento), paddingHorizontal: MARGINE, fontFamily: tema.caratteri.testo, backgroundColor: tema.carta } as const;
   const cornice = (<>{dati.filigrana ? <Text fixed style={{ position: "absolute", top: 380, left: MARGINE, width: UTILE, textAlign: "center", fontSize: 48, color: tema.grigioChiaro, opacity: 0.12, transform: "rotate(-35deg)" }}>{dati.filigrana}</Text> : null}<Intestazione tema={tema} dati={dati} /><PieDiPagina tema={tema} dati={dati} /></>);
 
   // Il foglio delle condizioni e della firma: niente intestazione (né logo, né «Piano dei lavori»), in fondo i dati societari.
-  const paginaFoglio = { ...pagina, paddingTop: 48, paddingBottom: 72 } as const;
+  const paginaFoglio = { ...pagina, paddingTop: 48, paddingBottom: margineInferiorePiede(dati.azienda.companyId, 72) } as const;
   const corniceFoglio = (<>{dati.filigrana ? <Text fixed style={{ position: "absolute", top: 380, left: MARGINE, width: UTILE, textAlign: "center", fontSize: 48, color: tema.grigioChiaro, opacity: 0.12, transform: "rotate(-35deg)" }}>{dati.filigrana}</Text> : null}<PieSocietario righe={dati.azienda.righeSocietarie ?? []} font={tema.caratteri.testo} margine={MARGINE} companyId={dati.azienda.companyId} /></>);
 
   // Dopo il capitolo precedente, sulla stessa pagina: quelli di altezza limitata

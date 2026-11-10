@@ -7,6 +7,7 @@
  */
 import { Document, Page, Text, View, pdf } from "@react-pdf/renderer";
 import { PieSocietario } from "@/components/preventivi/pdf/FoglioCondizioniPDF";
+import { margineInferiorePiede } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
 import { BLU, RigaEco, chiaro, stiliContratto as s } from "@/components/subappaltatori/ContrattoSubappaltoPDF";
 import { elencoPerFase, euroContratto, quantitaContratto, totaleElencoLavori, type RigaElencoLavori } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
 import type { ArticoloCliente, DatiContrattoCliente } from "@/lib/contratti/contrattoCliente";
@@ -82,7 +83,7 @@ export function ContrattoClientePDF({ d }: { d: DatiContrattoCliente }) {
   const b = d.committente;
   return (
     <Document title={`${d.titolo} ${d.numero ?? ""}`.trim()} author={a.ragioneSociale} producer="Edilizia in Cloud">
-      <Page size="A4" style={[s.pagina, { paddingTop: 44 }]}>
+      <Page size="A4" style={[s.pagina, { paddingTop: 44, paddingBottom: margineInferiorePiede(d.companyId, 66) }]}>
         <PieSocietario righe={d.societarie} margine={44} companyId={d.companyId} />
         <View style={[s.fascia, { backgroundColor: c }]}>
           <Text style={s.titolo}>{d.titolo.toUpperCase()}</Text>

@@ -22,6 +22,7 @@
 import React from "react";
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { PieSocietario } from "@/components/preventivi/pdf/FoglioCondizioniPDF";
+import { margineInferiorePiede } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
 import { riepilogoRendiconto, type CantiereDelRendiconto } from "@/lib/appalto/fattura";
 import type { CantiereAllegato } from "@/lib/appalto/giornaleAllegato";
 
@@ -340,7 +341,7 @@ export function RendicontoAppaltoPDF({
       author={azienda.name}
       subject={`Rendiconto n. ${numero} dal ${giornoIT(periodoDal)} al ${giornoIT(periodoAl)}`}
     >
-      <Page size="A4" style={styles.page} wrap>
+      <Page size="A4" style={[styles.page, { paddingBottom: margineInferiorePiede(companyId, 70) }]} wrap>
         {/* I dati dell'azienda sono in fondo, uguali a tutti i documenti (09/11/2026). Il piè sta per primo. */}
         <PieSocietario righe={societarie.length ? societarie : [azienda.name]} margine={40} companyId={companyId} />
 
@@ -518,8 +519,8 @@ export function RendicontoAppaltoPDF({
 
       {/* Allegato: le pagine firmate del giornale dei giorni rendicontati. Niente importi. */}
       {giornale.length > 0 ? (
-        <Page size="A4" style={styles.page} wrap>
-          <PieSocietario righe={societarie.length ? societarie : [azienda.name]} margine={40} />
+        <Page size="A4" style={[styles.page, { paddingBottom: margineInferiorePiede(companyId, 70) }]} wrap>
+          <PieSocietario righe={societarie.length ? societarie : [azienda.name]} margine={40} companyId={companyId} />
           <View style={styles.docBlock}>
             <View>
               <Text style={styles.docTitle}>Allegato: giornale dei lavori</Text>

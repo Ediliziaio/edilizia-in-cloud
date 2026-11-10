@@ -1,3 +1,4 @@
+// 10/11/2026: il piè di Impresa Vulcano con le righe dell'esempio del titolare (fvHtmlTemplate). Questo commento fa ripubblicare la funzione.
 /**
  * Edge Function: fv-genera-pdf v2 (Reonic-killer)
  *
