@@ -2,11 +2,9 @@ import { Blob as NodeBlob } from "node:buffer";
 import { webcrypto } from "node:crypto";
 // src/test/logic/whatsappMercePresa.test.ts
 /**
- * Bolla e scontrino mandati dall'operaio su WhatsApp fanno la stessa strada
- * dell'app Campo (18/10/2026): finiscono in «Merce presa» sul cantiere
- * confermato, l'ufficio li verifica e diventano costo della commessa e, se ha
- * pagato l'operaio, il suo rimborso. La foto passa nel deposito dei documenti
- * di cantiere. Ufficio e amministratore restano sui percorsi di prima.
+ * Il DDT entra nell'archivio comune e attende il controllo dell'ufficio,
+ * senza creare costi o rimborsi. Lo scontrino mantiene il percorso «Merce
+ * presa», distinguendo il pagamento dell'operaio dal conto aziendale.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
@@ -48,8 +46,9 @@ describe("la bolla dell'operaio", () => {
     const esito = await caricaDDT(ctx, {numero_ddt:"123",fornitore:"Fornitore Demo",order_id:"ordine",righe:[{descrizione:"Cemento",quantita:10,unita_misura:"sacchi"}]});
     expect(esito.ok).toBe(true);
     expect(db.tabelle.ddt_document_jobs).toHaveLength(1);
-    expect(db.tabelle.ddt_document_jobs[0]).toMatchObject({company_id:"company",created_by:null,employee_id:"emp",order_id:"ordine",status:"queued",source:"whatsapp",files:[{bucket:"whatsapp-media",path:"company/2026-10/foto.jpg"}]});
-    expect(db.rpcChiamate).toHaveLength(0); expect(caricati).toHaveLength(0);
+    expect(db.tabelle.ddt_document_jobs[0]).toMatchObject({company_id:"company",created_by:null,employee_id:"emp",order_id:"ordine",status:"queued",source:"whatsapp",files:[{bucket:"ddt-documenti",path:expect.stringMatching(/^company\/null\/[^/]+\/1-originale\.jpg$/)}]});
+    expect(db.rpcChiamate).toHaveLength(0); expect(caricati).toHaveLength(1);
+    expect(caricati[0]).toBe(`ddt-documenti:${db.tabelle.ddt_document_jobs[0].files[0].path}`);
     expect(esito.user_message).toContain("Documenti in ingresso");
     expect(db.scritture.every(w=>w.tabella==="ddt_document_jobs")).toBe(true);
   });

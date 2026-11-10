@@ -86,6 +86,25 @@ export async function acquisisciDdtWhatsapp(
   let j = await lookup();
   if (!j) {
     const id = crypto.randomUUID();
+    // Il documento passa nell'archivio DDT: il vecchio bucket WhatsApp limita
+    // la lettura all'azienda principale del profilo e non copre gli utenti
+    // autorizzati su più aziende. L'allegato WhatsApp originale resta intatto.
+    const estensione =
+      {
+        "application/pdf": "pdf",
+        "image/jpeg": "jpg",
+        "image/png": "png",
+        "image/webp": "webp",
+        "image/heic": "heic",
+        "image/heif": "heif",
+        "image/bmp": "bmp",
+      }[mime] ?? "bin";
+    const originalePath = `${opts.companyId}/${opts.userId ?? "null"}/${id}/1-originale.${estensione}`;
+    const { error: copyError } = await db.storage
+      .from("ddt-documenti")
+      .upload(originalePath, bytes, { contentType: mime, upsert: false });
+    if (copyError)
+      throw new Error("Copia del documento non completata: riprova");
     const { data, error: insertError } = await db
       .from("ddt_document_jobs")
       .insert({
@@ -99,11 +118,11 @@ export async function acquisisciDdtWhatsapp(
         file_hash: fileHash,
         files: [
           {
-            path: opts.storagePath,
+            path: originalePath,
             name: opts.storagePath.split("/").pop(),
             mime,
             size: file.size,
-            bucket: "whatsapp-media",
+            bucket: "ddt-documenti",
           },
         ],
         status: opts.result ? "review" : "queued",
