@@ -47,7 +47,7 @@ export function vesteHtml(companyId: string | null | undefined, larghezzaUtileMm
     @font-face { font-family: '${v.piedeFont}'; src: url('${urlFontPiede()}') format('truetype'); }
     @page {
       margin-bottom: ${m.cimaPaginaDalFondo}pt;
-      @bottom-center { content: counter(page) " / " counter(pages); font-family: ${font}; font-size: ${m.corpoPagina}pt; color: ${colore}; vertical-align: top; padding-top: 1pt; }
+      @bottom-center { content: "Pag. " counter(page) " / " counter(pages); font-family: ${font}; font-size: ${m.corpoPagina}pt; color: ${colore}; vertical-align: top; padding-top: 1pt; }
     }
     .piede-proprio { text-align: center; font-family: ${font}; color: ${colore}; font-weight: 400; margin-top: 24px; }
     .piede-proprio .titolo { font-size: ${m.corpoTitolo}pt; line-height: 1.15; white-space: pre; }

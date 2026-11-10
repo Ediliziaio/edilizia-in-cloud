@@ -103,8 +103,15 @@ export const numeroIt = (v: number) =>
 /** Le ore di un viaggio: «—» se non ci sono, non «0» (10/11/2026). */
 export const oreIt = (v?: number | null) =>
   v != null && Number.isFinite(v) && v > 0 ? numeroIt(v) : "—";
-export const euro = (v: number) =>
-  `${v.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+/**
+ * 1.234,56 sempre col separatore delle migliaia: l'it-IT di ICU non lo mette sotto le 5 cifre («4570,24»),
+ * mentre gli altri documenti scrivono «4.570,24» (10/11/2026, stile unico).
+ */
+export const importoIt = (v: number) => {
+  const [intero, decimali] = Math.abs(v).toFixed(2).split(".");
+  return `${v < 0 ? "-" : ""}${intero.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${decimali}`;
+};
+export const euro = (v: number) => `${importoIt(v)} €`;
 export const importoRiga = (r: RigaDocumentoOperativo) =>
   r.importo ??
   Math.round(r.quantita * (r.prezzo ?? 0) * (1 - (r.sconto ?? 0) / 100) * 100) /

@@ -16,6 +16,7 @@ import {
   totaliDocumento,
   importoRiga,
   euro,
+  importoIt,
   numeroIt,
   oreIt,
   dataIt,
@@ -378,11 +379,7 @@ export function creaPdfOperativo(
     blank?: boolean;
   };
   const emptyPrices = d.tipo === "richiesta" || senzaPrezzi(d);
-  const money = (v: number) =>
-    v.toLocaleString("it-IT", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
+  const money = importoIt;
   let cols: Col[];
   if (d.tipo === "trasporti")
     cols = [
