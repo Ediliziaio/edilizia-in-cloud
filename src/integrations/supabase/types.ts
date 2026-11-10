@@ -88922,6 +88922,7 @@ export type Database = {
       }
       tariffa_costi_varianti: {
         Row: {
+          subappaltatore_id: string | null
           attivo: boolean
           company_id: string
           costo: number
@@ -88941,6 +88942,7 @@ export type Database = {
           valid_to: string | null
         }
         Insert: {
+          subappaltatore_id?: string | null
           attivo?: boolean
           company_id: string
           costo?: number
@@ -88960,6 +88962,7 @@ export type Database = {
           valid_to?: string | null
         }
         Update: {
+          subappaltatore_id?: string | null
           attivo?: boolean
           company_id?: string
           costo?: number
@@ -89032,6 +89035,7 @@ export type Database = {
       }
       tariffe_aziendali: {
         Row: {
+          subappaltatore_id: string | null
           attiva: boolean | null
           attivo: boolean | null
           categoria_prodotto: string | null
@@ -89062,6 +89066,7 @@ export type Database = {
           vertical_associato: string | null
         }
         Insert: {
+          subappaltatore_id?: string | null
           attiva?: boolean | null
           attivo?: boolean | null
           categoria_prodotto?: string | null
@@ -89092,6 +89097,7 @@ export type Database = {
           vertical_associato?: string | null
         }
         Update: {
+          subappaltatore_id?: string | null
           attiva?: boolean | null
           attivo?: boolean | null
           categoria_prodotto?: string | null

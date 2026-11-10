@@ -1,4 +1,5 @@
 import { SalPaymentDialog } from "@/components/subappaltatori/SalPaymentDialog";
+import { ListinoDitta } from "@/components/subappaltatori/ListinoDitta";
 import { puoConsultareSalSub } from "@/lib/permessi/contabilitaSubappalto";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { SALContabilita, RitenuteContabilita } from "@/components/subappaltatori/ContabilitaSubappalto";
@@ -146,7 +147,7 @@ export default function SubappaltatoreDetail() {
   const [contrattoDaAprire, setContrattoDaAprire] = useState<string | null>(() => parametri.get('tab') === 'contabilita' ? null : parametri.get('contratto'));
   const [tabAttiva, setTabAttiva] = useState(() => {
     const scheda = parametri.get('tab');
-    return scheda === 'contratto' || scheda === 'contabilita' ? scheda : 'anagrafica';
+    return scheda === 'contratto' || scheda === 'contabilita' || scheda === 'listino' ? scheda : 'anagrafica';
   });
   const [commessaPopup, setCommessaPopup] = useState<string | null>(null);
   const [vistaContabilita, setVistaContabilita] = useState('sal');
@@ -816,6 +817,7 @@ export default function SubappaltatoreDetail() {
           <TabsTrigger value="lavori" className="shrink-0 py-2">Commesse</TabsTrigger>
           <TabsTrigger value="contratto" className="shrink-0 py-2">Contratti</TabsTrigger>
           <TabsTrigger value="contabilita" className="shrink-0 py-2">Contabilità</TabsTrigger>
+          {permessi.canViewCosts && <TabsTrigger value="listino" className="shrink-0 py-2">Listino</TabsTrigger>}
         </TabsList>
 
         {/* ─── Tab 1: Anagrafica ─────────────────────────────────────────────── */}
@@ -1053,6 +1055,15 @@ export default function SubappaltatoreDetail() {
             onApriCommessa={(oid) => {if (schedaCommessa) navigate(`/azienda/ordini/${oid}`); else setCommessaPopup(oid);}}
             onApriContratto={(cid) => { setContrattoSelId(cid); setContrattoDaAprire(cid); setTabAttiva('contratto'); }} />
         </TabsContent>
+
+        {/* ─── Listino della ditta (10/11/2026): i suoi prezzi sulle voci dell'azienda ─── */}
+        {permessi.canViewCosts && (
+          <TabsContent value="listino" className="mt-4 max-sm:mt-3">
+            {sub.campo_subappaltatore_id
+              ? <ListinoDitta companyId={companyId} anagraficaId={sub.campo_subappaltatore_id} nomeDitta={sub.ragione_sociale} />
+              : <p className="text-sm text-muted-foreground">Questa scheda non è ancora collegata alla ditta: il listino vale per la ditta in tutte le commesse, quindi prima va collegata (Panoramica → «Collega app cantiere»).</p>}
+          </TabsContent>
+        )}
 
         {/* ─── Tab 2: Contratto ──────────────────────────────────────────────── */}
         <TabsContent value="contratto" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">

@@ -26,7 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/formatters";
 import { costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
-import { conIva, variantiPerSquadre, type VarianteCostoDitta } from "@/lib/orders/costoDitta";
+import { conIva, variantiPerSquadre, vociListinoPerDitta, type VarianteCostoDitta } from "@/lib/orders/costoDitta";
 import { useAssegnaAlleFasi } from "@/hooks/useAssegnaAlleFasi";
 import {
   type SottofaseLavoro, contrattoDellaDitta, contrattoPerFase, costoFaseDitta, dittaProposta, elencoDaSalvare, elencoLavoriDitta, periodoFasi, prezzoListinoPerDitta,
@@ -46,7 +46,7 @@ const db = supabase as any;
 interface Fase { id: string; name: string; position: number | null; start_date: string | null; end_date: string | null }
 interface Assegnazione { id: string; external_team_id: string | null; phase_id: string | null; cost_preventivo: number | null; vat_rate: number | null }
 interface Ditta { id: string; name: string; vat_rate: number | null; subappaltatore_id: string | null; is_active?: boolean | null }
-interface Tariffa { id: string; nome: string; codice: string | null; unita: string; costo: number }
+interface Tariffa { id: string; nome: string; codice: string | null; unita: string; costo: number; external_team_id?: string | null; subappaltatore_id?: string | null }
 interface Contratto { id: string; subappaltatore_id: string; stato: string; numero_contratto: string | null; importo_contrattuale: number; firmato_il: string | null; elenco_lavori: unknown }
 /** La scheda sicurezza della ditta: è lei che il contratto nomina, e ha i dati per il PDF. */
 interface SchedaSic extends SchedaSicurezza { ragione_sociale: string; piva: string | null; indirizzo: string | null; email: string | null; pec: string | null }
@@ -101,7 +101,7 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
         // Le fasi date alle ditte nelle altre commesse: chi fa sempre quel lavoro.
         db.from("order_external_teams").select("external_team_id, fase:order_work_phases(name), ordine:orders!inner(company_id)")
           .eq("ordine.company_id", companyId).neq("order_id", orderId).not("phase_id", "is", null).limit(3000),
-        db.from("tariffa_costi_varianti").select("tariffa_id, external_team_id, subappaltatore_id, costo, is_default, attivo, sort_order").eq("company_id", companyId),
+        db.from("tariffa_costi_varianti").select("tariffa_id, external_team_id, subappaltatore_id, costo, is_default, attivo, sort_order, valid_from, valid_to").eq("company_id", companyId),
         db.from("contratti_subappalto").select("id, subappaltatore_id, stato, numero_contratto, importo_contrattuale, firmato_il, elenco_lavori").eq("order_id", orderId).eq("company_id", companyId),
         db.from("subappaltatori_sicurezza").select(COLONNE_SCHEDA).eq("company_id", companyId).not("campo_subappaltatore_id", "is", null),
         db.from("order_work_phases").select("id, sottofasi:order_work_subphases(id, phase_id, name, position)").eq("order_id", orderId),
@@ -127,7 +127,7 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<Tariffa[]> => {
       const { data, error } = await db.from("tariffe_aziendali")
-        .select("id, nome, codice, unita, unita_fatturazione, prezzo_costo, costo_interno, costo_default, attiva, attivo")
+        .select("id, nome, codice, unita, unita_fatturazione, prezzo_costo, costo_interno, costo_default, attiva, attivo, external_team_id, subappaltatore_id")
         .eq("company_id", companyId).order("nome").limit(5000);
       if (error) throw error;
       return ((data ?? []) as Array<Record<string, unknown>>)
@@ -135,6 +135,7 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
         .map((t) => ({
           id: t.id as string, nome: (t.nome as string) ?? "", codice: (t.codice as string | null) ?? null,
           unita: unitaTariffa(t as never), costo: costoTariffa(t as never) ?? 0,
+          external_team_id: (t.external_team_id as string | null) ?? null, subappaltatore_id: (t.subappaltatore_id as string | null) ?? null,
         }));
     },
   });
@@ -656,6 +657,7 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
           fasi={nomiFasi}
           tariffe={tariffe}
           dittaId={ditta.id}
+          anagraficaId={ditta.subappaltatore_id}
           varianti={varianti}
           importoPattuito={senzaElenco ? Number(contratto?.importo_contrattuale) || 0 : null}
           salvando={salva.isPending}
@@ -681,14 +683,16 @@ const chiaveRiga = (r: RigaElencoLavori) => chiavi.get(r) ?? "";
  * aggiungono dal listino (col prezzo concordato con la ditta, se c'è, altrimenti il costo del listino) o a
  * mano. Le voci della commessa non cambiano: l'elenco è quello del contratto.
  */
-export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, tariffe, dittaId, varianti, importoPattuito, salvando, etichettaSalva, onSalva, onChiudi }: {
+export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, tariffe, dittaId, anagraficaId = null, varianti, importoPattuito, salvando, etichettaSalva, onSalva, onChiudi }: {
   titolo: string; righe: RigaElencoLavori[]; onRighe: (r: RigaElencoLavori[]) => void; dalleVoci: RigaElencoLavori[];
   fasi: string[]; tariffe: Tariffa[]; dittaId: string; varianti: VarianteCostoDitta[];
+  /** L'anagrafica della ditta: le sue voci proprie si propongono, quelle delle altre ditte no. */
+  anagraficaId?: string | null;
   importoPattuito: number | null; salvando: boolean; etichettaSalva: string; onSalva: () => void; onChiudi: () => void;
 }) {
   const [cerca, setCerca] = useState("");
   const [faseNuova, setFaseNuova] = useState(fasi[0] ?? "Altri lavori");
-  const trovate = cerca.trim().length < 2 ? [] : tariffe
+  const trovate = cerca.trim().length < 2 ? [] : vociListinoPerDitta(tariffe, { squadraId: dittaId, anagraficaId })
     .filter((t) => `${t.codice ?? ""} ${t.nome}`.toLowerCase().includes(cerca.trim().toLowerCase())).slice(0, 8);
   const cambia = (i: number, patch: Partial<RigaElencoLavori>) =>
     onRighe(righe.map((r, j) => {

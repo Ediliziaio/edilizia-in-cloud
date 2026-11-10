@@ -40,6 +40,8 @@ export interface Tariffa {
   incidenza_manodopera_pct?: number | null;
   /** Listino della singola squadra/subappaltatore. NULL = listino aziendale generico. */
   external_team_id?: string | null;
+  /** Voce propria di un subappaltatore, sulla sua anagrafica (10/11/2026). NULL = di nessuno. */
+  subappaltatore_id?: string | null;
   /** Configurazione del costo e gruppo di lavorazione, senza nuove colonne DB. */
   custom_field_values?: unknown;
   /** libero = prezzo scritto a mano; dal_costo = costo pieno × (1 + ricarico_pct). */
