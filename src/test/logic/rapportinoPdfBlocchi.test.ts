@@ -1,5 +1,5 @@
 /**
- * Il PDF del rapportino a blocchi: fascia con i colori dell'azienda, contatori, una scheda per ogni fase
+ * Il PDF del rapportino a blocchi (stile unico dei documenti dal 10/11/2026): testata, contatori, una scheda per ogni fase
  * (avanzamento, materiali e foto di quella fase), poi squadra, tempi, segnalazioni, foto e firme.
  *
  * pdf-lib arriva da esm.sh nelle edge function: qui lo stesso pacchetto da node_modules. Il documento si
@@ -235,10 +235,10 @@ describe("rapportino a blocchi: lo stato e le firme", () => {
 
   it("il rapporto di fine lavori ha le due firme, anche se quella del cliente manca", async () => {
     const { testi } = await disegna({ ...base, lavoro_completato: true, firma_operaio_url: "firma:op", firma_cliente_nome: "Anna Bianchi" });
-    expect(testi).toContain("Rapporto di fine lavori".toUpperCase());
+    expect(testi).toContain("Rapporto di fine lavori");
     expect(testi).toContain("FIRME");
-    expect(testi).toContain("FIRMA DEL COMPILATORE");
-    expect(testi).toContain("FIRMA DEL CLIENTE");
+    expect(testi).toContain("Firma del compilatore");
+    expect(testi).toContain("Firma del cliente");
     expect(testi).toContain("Firma non acquisita");
     expect(testi).toContain("Anna Bianchi");
   });
@@ -286,26 +286,31 @@ describe("rapportino a blocchi: intestazione e squadra", () => {
   });
 });
 
-describe("rapportino a blocchi: colori dell'azienda", () => {
-  const coloreDelNome = async (primaryColor: string) => {
+describe("rapportino a blocchi: colori dell'azienda (stile unico, 10/11/2026)", () => {
+  // Niente più fascia colorata: il nome dell'azienda è inchiostro su bianco, il colore dell'azienda è l'accento
+  // (titoli di sezione, filetto della testata), se si legge su bianco; altrimenti l'accento predefinito.
+  const colori = async (primaryColor: string) => {
     const { corpo } = await disegna(base, { branding: { primaryColor } });
-    return corpo.find(s => s.testo === "Renova Solution S.r.l.")!.colore!;
+    const tre = (c: Scritto["colore"]) => [c!.red, c!.green, c!.blue].map(v => Math.round(v * 255));
+    return { nome: tre(corpo.find(s => s.testo === "Renova Solution S.r.l.")!.colore), sezione: tre(corpo.find(s => s.testo === "COSA È STATO FATTO")!.colore) };
   };
+  const INCHIOSTRO = [0x1f, 0x29, 0x33], PREDEFINITO = [0x1e, 0x3a, 0x5f];
 
-  it("sul colore scuro la fascia scrive in bianco", async () => {
-    const c = await coloreDelNome("#1E5AA8");
-    expect([c.red, c.green, c.blue]).toEqual([1, 1, 1]);
+  it("il nome dell'azienda è sempre in inchiostro, il colore scuro dell'azienda fa da accento", async () => {
+    const c = await colori("#1E5AA8");
+    expect(c.nome).toEqual(INCHIOSTRO);
+    expect(c.sezione).toEqual([0x1e, 0x5a, 0xa8]);
   });
 
-  it("sul colore chiaro la fascia scrive in scuro", async () => {
-    const c = await coloreDelNome("#FFD700");
-    expect(c.red).toBeLessThan(0.2);
-    expect(c.blue).toBeLessThan(0.3);
+  it("un colore troppo chiaro per leggersi su bianco ripiega sull'accento predefinito", async () => {
+    const c = await colori("#FFD700");
+    expect(c.nome).toEqual(INCHIOSTRO);
+    expect(c.sezione).toEqual(PREDEFINITO);
   });
 
-  it("un colore non valido ricade sull'arancione della piattaforma, senza rompere il documento", async () => {
-    const c = await coloreDelNome("rosso");
-    expect(c.red).toBeLessThan(0.2); // scuro su arancione: è il contrasto migliore
+  it("un colore non valido ripiega sull'accento predefinito, senza rompere il documento", async () => {
+    const c = await colori("rosso");
+    expect(c.sezione).toEqual(PREDEFINITO);
   });
 });
 
@@ -366,8 +371,8 @@ describe("rapportino a blocchi: affidabilità", () => {
     const lungo = { ...giornataPiena(), descrizione_lavori: Array.from({ length: 70 }, (_, i) => `Punto ${i + 1}: lavorazione eseguita con il controllo delle quote.`).join("\n") };
     const { scritti, risultato } = await disegna(lungo);
     expect(risultato.pageCount).toBeGreaterThan(1);
-    const numeri = scritti.filter(s => /^\d+ \/ \d+$/.test(s.testo)).map(s => s.testo);
-    expect(numeri).toEqual(Array.from({ length: risultato.pageCount }, (_, i) => `${i + 1} / ${risultato.pageCount}`));
+    const numeri = scritti.filter(s => /^Pag\. \d+ \/ \d+$/.test(s.testo)).map(s => s.testo);
+    expect(numeri).toEqual(Array.from({ length: risultato.pageCount }, (_, i) => `Pag. ${i + 1} / ${risultato.pageCount}`));
     expect(scritti.filter(s => s.testo.startsWith(`Rif. ${SIGLA} | Edizione R1`))).toHaveLength(risultato.pageCount);
   });
 });
@@ -479,7 +484,7 @@ describe("campi propri nel PDF", () => {
     const firmato = await disegna({ ...base, lavoro_completato: true, ore_lavorate: 0, firma_cliente_url: "firma:1", firma_cliente_nome: "Maria Bianchi" });
     expect(firmato.testi).toContain("LAVORI CONFERMATI DAL CLIENTE");
     expect(firmato.testi).not.toContain("MATERIALI");
-    expect(firmato.testi).toContain("RAPPORTO DI FINE LAVORI");
+    expect(firmato.testi).toContain("Rapporto di fine lavori");
     const senza = await disegna({ ...base, lavoro_completato: true, ore_lavorate: 0 });
     expect(senza.testi).toContain("CONFERMA DEL CLIENTE NON ACQUISITA");
     const giornaliero = await disegna({ ...base });
@@ -495,12 +500,12 @@ describe("campi propri nel PDF", () => {
   it("il giornaliero dice chi l'ha compilato e a che ora, senza firma del cliente", async () => {
     const { testi } = await disegna({ ...base, created_at: "2026-10-05T15:30:00Z" });
     expect(testi.join(" ")).toContain("Compilato da Marco Operaio il 05/10/26 alle 17:30");
-    expect(testi).not.toContain("FIRMA DEL CLIENTE");
+    expect(testi).not.toContain("Firma del cliente");
   });
   it("con la firma di chi compila la mostra, con nome e ora", async () => {
     const { testi } = await disegna({ ...base, created_at: "2026-10-05T15:30:00Z", firma_operaio_url: "firma:2" });
-    expect(testi).toContain("FIRMA DEL COMPILATORE");
-    expect(testi).not.toContain("FIRMA DEL CLIENTE");
+    expect(testi).toContain("Firma del compilatore");
+    expect(testi).not.toContain("Firma del cliente");
     expect(testi.join(" ")).toContain("Compilato da Marco Operaio il 05/10/26 alle 17:30");
   });
   it("chi ha compilato e la firma stanno in un riquadro solo, senza il titolo Firme", async () => {
@@ -522,7 +527,7 @@ describe("campi propri nel PDF", () => {
   });
   it("un giornaliero non stampa mai una firma del cliente, nemmeno se ne ha una vecchia", async () => {
     const { testi } = await disegna({ ...base, firma_cliente_url: "firma:1", firma_cliente_nome: "Maria" });
-    expect(testi).not.toContain("FIRMA DEL CLIENTE");
+    expect(testi).not.toContain("Firma del cliente");
   });
   it("se l'ha inserito l'ufficio lo dice", async () => {
     const { testi } = await disegna({ ...base, created_at: "2026-10-05T15:30:00Z", ufficio_created_by: "u1", inserito_da: "Anna Neri" });
@@ -530,7 +535,7 @@ describe("campi propri nel PDF", () => {
   });
   it("il collaudo ha ancora la firma del cliente", async () => {
     const { testi } = await disegna({ ...base, lavoro_completato: true, firma_cliente_url: "firma:1", firma_cliente_nome: "Maria" });
-    expect(testi).toContain("FIRMA DEL CLIENTE");
+    expect(testi).toContain("Firma del cliente");
   });
 });
 

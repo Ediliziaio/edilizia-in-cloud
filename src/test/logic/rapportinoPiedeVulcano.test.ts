@@ -2,8 +2,9 @@
 /**
  * Rapportino e fine lavori col piè proprio (10/11/2026). Impresa Vulcano ha le quattro righe dell'esempio del
  * titolare in EB Garamond, centrate, e sotto «Pag. n / m»; «Rif./Generato» resta, piccolo, sopra il piè. Se il
- * carattere non arriva il documento esce lo stesso, in Times. Ogni altra azienda ha lo stesso PDF di prima, byte per
- * byte: le impronte qui sotto sono quelle del renderer prima della modifica.
+ * carattere non arriva il documento esce lo stesso, in Times. Le impronte delle altre aziende fermano il documento
+ * byte per byte: dal 10/11/2026 sono quelle dello stile unico dei documenti (`_shared/stileDocumenti.ts`), che ha
+ * cambiato la grafica per tutti (testata senza fascia, sezioni, tabelle, riquadri, piè centrato con «Pag. n / m»).
  */
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -115,11 +116,12 @@ describe("Piè proprio di Impresa Vulcano su rapportino e fine lavori", () => {
   });
 });
 
-describe("Le altre aziende: rapportino e fine lavori identici a prima", () => {
-  // sha256 dei PDF del renderer prima del piè proprio (origin/main 5bd7e7a68), stessa data di sistema.
+describe("Le altre aziende: rapportino e fine lavori fermi byte per byte", () => {
+  // sha256 dei PDF nello stile unico dei documenti (10/11/2026), stessa data di sistema. Prima: eea63b69… e 7208f154…
+  // (renderer di origin/main 5bd7e7a68, con la fascia colorata). Cambiano solo se cambia di proposito la grafica.
   const PRIMA = {
-    rapportino: "eea63b69c9e71b1d9b01b95eb302d118599b096eba01f7259c9b5a9028251bba",
-    fine_lavori: "7208f154b3d2fd24352e02e50d359888ec37ce7ba92c9ba7fcece5e7fd479830",
+    rapportino: "a81148d393ba47e4b9d73643c1e3fd902816ce0c301177dbffc26e26960498cb",
+    fine_lavori: "1d172b4153f01d35a0b89dc457478f51b1166ab6a503c3f17e1b16b13c5818c8",
   };
   it.each([false, true])("stesso PDF byte per byte (fine lavori: %s)", async (fine) => {
     fontVero();
@@ -168,14 +170,21 @@ describe("Testata e fasi del rapportino (10/11/2026)", () => {
     expect(testi.mock.calls.some(([t, o]) => t === "Impresa Vulcano s.r.l." && o?.size === 13)).toBe(false);
   });
 
-  it("le altre aziende: logo nel riquadro di sempre e nome accanto", async () => {
+  it("le altre aziende: logo a sinistra su bianco, al massimo 200 punti, e il nome non si ripete", async () => {
     fontVero();
     const logo = await pngPieno(1624, 263);
     const disegni = vi.spyOn(PDFPage.prototype, "drawImage");
     const testi = vi.spyOn(PDFPage.prototype, "drawText");
+    const rettangoli = vi.spyOn(PDFPage.prototype, "drawRectangle");
     await renderRapportino(conLogo(ALFA, "Impresa Alfa"), async (_r: string, k: string) => (k === "logo" ? logo : null));
-    expect(disegni.mock.calls[0][1]!.width!).toBeLessThanOrEqual(56);
-    expect(testi.mock.calls.some(([t, o]) => t === "Impresa Alfa" && o?.size === 13)).toBe(true);
+    const d = disegni.mock.calls[0][1]!;
+    expect(d.width!).toBeLessThanOrEqual(200);
+    expect(d.height!).toBeLessThanOrEqual(44);
+    expect(d.x).toBe(40);
+    // Lo stile unico: con il logo la ragione sociale non si ripete in testata (sta nel piè).
+    expect(testi.mock.calls.some(([t, o]) => t === "Impresa Alfa" && o?.size === 13)).toBe(false);
+    // Senza fasce colorate: nessun rettangolo pieno a tutta pagina in cima.
+    expect(rettangoli.mock.calls.some(([o]) => (o?.width ?? 0) >= 595 && (o?.y ?? 0) + (o?.height ?? 0) >= 841)).toBe(false);
   });
 
   it("una fase senza ore non dichiara «0 h»", async () => {
