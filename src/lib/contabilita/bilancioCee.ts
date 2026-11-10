@@ -64,30 +64,30 @@ export function bilancioDiVerifica(saldi: readonly SaldoConto[]): BilancioVerifi
 /** Le voci nell'ordine del codice civile, con la loro intestazione. */
 const VOCI_SPA: Array<[string, string]> = [
   ["A", "A) Crediti verso soci per versamenti ancora dovuti"],
-  ["B.I", "B.I - Immobilizzazioni immateriali"], ["B.I.3", "3) diritti di brevetto e di utilizzazione delle opere dell'ingegno"], ["B.I.7", "7) altre"],
+  ["B.I", "B.I - Immobilizzazioni immateriali"], ["B.I.1", "1) costi di impianto e di ampliamento"], ["B.I.3", "3) diritti di brevetto e di utilizzazione delle opere dell'ingegno"], ["B.I.7", "7) altre"],
   ["B.II", "B.II - Immobilizzazioni materiali"], ["B.II.1", "1) terreni e fabbricati"], ["B.II.2", "2) impianti e macchinario"],
   ["B.II.3", "3) attrezzature industriali e commerciali"], ["B.II.4", "4) altri beni"],
   ["B.III", "B.III - Immobilizzazioni finanziarie"], ["B.III.1", "1) partecipazioni"],
-  ["C.I", "C.I - Rimanenze"], ["C.I.1", "1) materie prime, sussidiarie e di consumo"], ["C.I.3", "3) lavori in corso su ordinazione"],
-  ["C.II", "C.II - Crediti"], ["C.II.1", "1) verso clienti"], ["C.II.5-bis", "5-bis) crediti tributari"], ["C.II.5-quater", "5-quater) verso altri"],
+  ["C.I", "C.I - Rimanenze"], ["C.I.1", "1) materie prime, sussidiarie e di consumo"], ["C.I.3", "3) lavori in corso su ordinazione"], ["C.I.4", "4) prodotti finiti e merci"],
+  ["C.II", "C.II - Crediti"], ["C.II.1", "1) verso clienti"], ["C.II.5-bis", "5-bis) crediti tributari"], ["C.II.5-ter", "5-ter) imposte anticipate"], ["C.II.5-quater", "5-quater) verso altri"],
   ["C.IV", "C.IV - Disponibilità liquide"], ["C.IV.1", "1) depositi bancari e postali"], ["C.IV.3", "3) danaro e valori in cassa"],
   ["D", "D) Ratei e risconti"],
 ];
 const VOCI_SPP: Array<[string, string]> = [
   ["A", "A) Patrimonio netto"], ["A.I", "I - Capitale"], ["A.IV", "IV - Riserva legale"], ["A.VI", "VI - Altre riserve"],
   ["A.VIII", "VIII - Utili (perdite) portati a nuovo"], ["A.IX", "IX - Utile (perdita) dell'esercizio"],
-  ["B", "B) Fondi per rischi e oneri"], ["B.4", "4) altri"],
+  ["B", "B) Fondi per rischi e oneri"], ["B.1", "1) per trattamento di quiescenza e obblighi simili"], ["B.4", "4) altri"],
   ["C", "C) Trattamento di fine rapporto di lavoro subordinato"],
-  ["D", "D) Debiti"], ["D.4", "4) debiti verso banche"], ["D.6", "6) acconti"], ["D.7", "7) debiti verso fornitori"],
+  ["D", "D) Debiti"], ["D.4", "4) debiti verso banche"], ["D.5", "5) debiti verso altri finanziatori"], ["D.6", "6) acconti"], ["D.7", "7) debiti verso fornitori"], ["D.10", "10) debiti verso imprese collegate"],
   ["D.12", "12) debiti tributari"], ["D.13", "13) debiti verso istituti di previdenza e di sicurezza sociale"], ["D.14", "14) altri debiti"],
   ["E", "E) Ratei e risconti"],
 ];
 const VOCI_CE: Array<[string, string]> = [
-  ["A", "A) Valore della produzione"], ["A.1", "1) ricavi delle vendite e delle prestazioni"],
+  ["A", "A) Valore della produzione"], ["A.1", "1) ricavi delle vendite e delle prestazioni"], ["A.2", "2) variazioni delle rimanenze di prodotti in corso di lavorazione, semilavorati e finiti"],
   ["A.3", "3) variazioni dei lavori in corso su ordinazione"], ["A.5", "5) altri ricavi e proventi"],
   ["B", "B) Costi della produzione"], ["B.6", "6) per materie prime, sussidiarie, di consumo e di merci"], ["B.7", "7) per servizi"],
   ["B.8", "8) per godimento di beni di terzi"], ["B.9.a", "9.a) salari e stipendi"], ["B.9.b", "9.b) oneri sociali"],
-  ["B.9.c", "9.c) trattamento di fine rapporto"], ["B.10.a", "10.a) ammortamento delle immobilizzazioni immateriali"],
+  ["B.9.c", "9.c) trattamento di fine rapporto"], ["B.9.e", "9.e) altri costi del personale"], ["B.10.a", "10.a) ammortamento delle immobilizzazioni immateriali"],
   ["B.10.b", "10.b) ammortamento delle immobilizzazioni materiali"], ["B.11", "11) variazioni delle rimanenze di materie prime"],
   ["B.14", "14) oneri diversi di gestione"],
   ["C", "C) Proventi e oneri finanziari"], ["C.16", "16) altri proventi finanziari"], ["C.17", "17) interessi e altri oneri finanziari"],

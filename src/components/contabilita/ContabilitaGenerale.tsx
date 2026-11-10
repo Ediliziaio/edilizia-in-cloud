@@ -176,6 +176,10 @@ function PianoDeiConti({ companyId, conti }: { companyId: string; conti: ContoCo
   const [mastro, setMastro] = useState("");
   const mastri = conti.filter((c) => !c.movimentabile);
   const nomeMastro = new Map(mastri.map((m) => [m.id, `${m.codice} ${m.descrizione}`]));
+  const [modifica, setModifica] = useState<ContoContabile | null>(null);
+  const [soloDaConfermare, setSoloDaConfermare] = useState(false);
+  const daConfermare = conti.filter((c) => c.nota);
+  const visibili = soloDaConfermare ? daConfermare : conti;
   const crea = useMutation({
     mutationFn: async () => {
       const sezione = NATURE.find((n) => n.value === natura)!.sezione;
@@ -195,21 +199,32 @@ function PianoDeiConti({ companyId, conti }: { companyId: string; conti: ContoCo
   });
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {daConfermare.length > 0 ? (
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={soloDaConfermare} onChange={(e) => setSoloDaConfermare(e.target.checked)} />
+            Solo i conti da confermare ({daConfermare.length})
+          </label>
+        ) : <span />}
         <Button size="sm" onClick={() => setApri(true)}><Plus className="mr-1 h-4 w-4" />Nuovo conto</Button>
       </div>
       <div className="overflow-x-auto rounded-xl border">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
-            <tr><th className="p-2">Codice</th><th className="p-2">Descrizione</th><th className="p-2">Natura</th><th className="p-2">Voce CEE</th></tr>
+            <tr><th className="p-2">Codice</th><th className="p-2">Descrizione</th><th className="p-2">Natura</th><th className="p-2">Voce CEE</th><th className="p-2" /></tr>
           </thead>
           <tbody>
-            {conti.map((c) => (
+            {visibili.map((c) => (
               <tr key={c.id} className={c.movimentabile ? "border-t" : "border-t bg-muted/30 font-semibold"}>
                 <td className="p-2 font-mono text-xs">{c.codice}</td>
-                <td className="p-2">{c.descrizione}</td>
+                <td className="p-2">
+                  {c.descrizione}
+                  {c.codice_standard ? <span className="ml-2 rounded bg-blue-50 px-1.5 text-xs font-normal text-blue-800" title="Lo usano le scritture dai documenti">ruolo {c.codice_standard}</span> : null}
+                  {c.nota ? <p className="text-xs font-normal text-amber-700">{c.nota}</p> : null}
+                </td>
                 <td className="p-2 text-muted-foreground">{c.natura}</td>
                 <td className="p-2 text-muted-foreground">{c.sezione_cee ? `${c.sezione_cee === "SPA" ? "Attivo" : c.sezione_cee === "SPP" ? "Passivo" : "C.E."} ${c.voce_cee ?? ""}` : ""}</td>
+                <td className="p-2 text-right"><Button size="sm" variant="ghost" onClick={() => setModifica(c)}>Modifica</Button></td>
               </tr>
             ))}
           </tbody>
@@ -250,6 +265,8 @@ function PianoDeiConti({ companyId, conti }: { companyId: string; conti: ContoCo
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <ModificaConto conto={modifica} onClose={() => setModifica(null)}
+        onFatto={() => void qc.invalidateQueries({ queryKey: chiave(companyId, "conti") })} />
     </div>
   );
 }
@@ -578,5 +595,65 @@ function Bilancio({ companyId, anno, conti }: { companyId: string; anno: number;
         </table>
       </div>
     </div>
+  );
+}
+
+/** Cambia la classificazione di un conto: descrizione, natura, voce CEE, ruolo e nota. I movimenti restano. */
+function ModificaConto({ conto, onClose, onFatto }: { conto: ContoContabile | null; onClose: () => void; onFatto: () => void }) {
+  const [descrizione, setDescrizione] = useState("");
+  const [natura, setNatura] = useState<ContoContabile["natura"]>("costo");
+  const [voce, setVoce] = useState("");
+  const [ruolo, setRuolo] = useState("");
+  const [nota, setNota] = useState("");
+  const [per, setPer] = useState<string | null>(null);
+  if (conto && per !== conto.id) {
+    setPer(conto.id);
+    setDescrizione(conto.descrizione);
+    setNatura(conto.natura);
+    setVoce(conto.voce_cee ?? "");
+    setRuolo(conto.codice_standard ?? "");
+    setNota(conto.nota ?? "");
+  }
+  const salva = useMutation({
+    mutationFn: async () => {
+      const sezione = NATURE.find((n) => n.value === natura)!.sezione;
+      const { error } = await db.rpc("contabilita_aggiorna_conto", {
+        p_conto: conto!.id, p_descrizione: descrizione, p_natura: natura, p_sezione_cee: sezione,
+        p_voce_cee: voce, p_codice_standard: ruolo, p_nota: nota,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success("Conto aggiornato"); setPer(null); onClose(); onFatto(); },
+    onError: (e) => toast.error("Conto non aggiornato", { description: e instanceof Error ? e.message : String(e) }),
+  });
+  return (
+    <Dialog open={!!conto} onOpenChange={(v) => { if (!v) { setPer(null); onClose(); } }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle>Conto {conto?.codice}</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1"><Label>Descrizione</Label><Input value={descrizione} onChange={(e) => setDescrizione(e.target.value)} /></div>
+          <div className="space-y-1">
+            <Label>Natura</Label>
+            <Select value={natura} onValueChange={(v) => setNatura(v as ContoContabile["natura"])}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{NATURE.map((n) => <SelectItem key={n.value} value={n.value}>{n.label}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1"><Label>Voce CEE</Label><Input value={voce} onChange={(e) => setVoce(e.target.value)} placeholder="C.II.1" /></div>
+            <div className="space-y-1"><Label>Ruolo (piano standard)</Label><Input value={ruolo} onChange={(e) => setRuolo(e.target.value)} placeholder="es. 05.01" /></div>
+          </div>
+          <div className="space-y-1">
+            <Label>Nota</Label>
+            <Input value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Vuota quando la classificazione è confermata" />
+          </div>
+          <p className="text-xs text-muted-foreground">Il ruolo dice alle scritture dai documenti quale conto usare: 05.01 clienti, 13.04 fornitori, 06.01 banca, 05.10 e 13.10 IVA, 20.01 ricavi, 30.01 acquisti.</p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => { setPer(null); onClose(); }}>Annulla</Button>
+          <Button onClick={() => salva.mutate()} disabled={salva.isPending || !descrizione.trim()}>Salva</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

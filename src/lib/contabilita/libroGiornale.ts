@@ -19,6 +19,10 @@ export interface ContoContabile {
   mastro_id: string | null;
   movimentabile: boolean;
   attivo: boolean;
+  /** Su un piano proprio: il ruolo del piano standard (05.01 clienti, 20.01 ricavi…) per le scritture dai documenti. */
+  codice_standard?: string | null;
+  /** Cosa resta da confermare (voce CEE proposta all'importazione…). */
+  nota?: string | null;
 }
 
 export interface RigaScrittura {
