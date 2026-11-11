@@ -10,6 +10,7 @@ const a = "00000000-0000-4000-a000-000000000011";
 const b = "00000000-0000-4000-a000-000000000012";
 const child = "00000000-0000-4000-a000-000000000021";
 const sql = readFileSync("supabase/migrations/20290218153000_operational_documents_delete.sql", "utf8");
+const companyGuard = readFileSync("supabase/migrations/20290218160000_operational_delete_child_company.sql", "utf8");
 const numerazione = readFileSync("supabase/migrations/20290131160000_numerazione_ordini_fornitore.sql", "utf8");
 function functionSql(name: string) { const start = numerazione.indexOf(`create or replace function public.${name}(`); return numerazione.slice(start, numerazione.indexOf('$function$;', start) + 11); }
 async function preview(kind = "oda", ids = [a], co = company) { return (await db.query<{ v: { documents: Array<{ id: string; allowed: boolean; reason: string | null; version: string }>; deleted: number } }>("select operational_documents_delete($1,$2,$3,true) v", [co, kind, ids])).rows[0].v; }
@@ -45,11 +46,23 @@ beforeAll(async () => {
     create table survey_media(id uuid primary key,survey_id uuid references surveys(id) on delete cascade);
   `);
   await db.exec(functionSql('oda_formatta_numero')); await db.exec(functionSql('generate_oda_number'));
-  await db.exec(`begin;${sql}commit;`);
+  await db.exec(`begin;${sql}${companyGuard}commit;`);
 },30000);
 beforeEach(async () => { await db.exec("reset role; set test.admin='on'; set test.permission='on'; truncate purchase_orders,supplier_rfqs,ddt_ricezione,surveys,suppliers,numerazione_ordini_fornitore cascade;"); await db.query("insert into suppliers values($1,$2,null,null)",[supplier,company]); });
 afterAll(async () => { await db?.close(); });
 describe("Eliminazione documenti e progressivi", () => {
+  it("blocca anche un figlio incoerente di un'altra azienda senza cancellare dati", async () => {
+    await order();
+    await db.exec("alter table purchase_order_items add column company_id uuid;");
+    try {
+      await db.query("insert into purchase_order_items(id,purchase_order_id,quantity_received,company_id) values($1,$2,0,$3)", [child,a,other]);
+      expect((await preview()).documents[0].reason).toContain("aziendali incoerenti");
+      await expect(remove()).rejects.toThrow(/non eliminabili/);
+      expect((await db.query("select id from purchase_order_items")).rows).toHaveLength(1);
+      expect((await db.query("select id from purchase_orders")).rows).toHaveLength(1);
+    } finally { await db.exec("alter table purchase_order_items drop column company_id;"); }
+  });
+
   it("verifica senza eliminare e cancella la bozza con righe proprie", async () => { await order(); await db.query("insert into purchase_order_items values($1,$2,0)",[child,a]); expect((await preview()).documents[0].allowed).toBe(true); expect((await db.query("select * from purchase_orders")).rows).toHaveLength(1); expect((await remove()).deleted).toBe(1); expect((await db.query("select * from purchase_order_items")).rows).toHaveLength(0); });
   it("blocca DDT collegati anziché cancellarli in cascata", async () => { await order(); await db.query("insert into ddt_ricezione(id,company_id,stato,purchase_order_id) values($1,$2,'attesa',$3)",[child,company,a]); expect((await preview()).documents[0].allowed).toBe(false); await expect(remove()).rejects.toThrow(/non eliminabili/); expect((await db.query("select * from ddt_ricezione")).rows).toHaveLength(1); });
   it("rileva anche collegamenti ai figli e non solo all'ordine", async () => { await order(); await db.query("insert into purchase_order_items values($1,$2,0)",[child,a]); await db.query("insert into goods_receipts values($1,$2)",[b,child]); expect((await preview()).documents[0].reason).toContain("ricezioni"); });
