@@ -2937,9 +2937,9 @@ function resolveRoute(pathname) {
       headline: articleH1,
       ...(meta.video ? { video: {
         "@type": "VideoObject",
-        name: articleH1,
+        name: meta.video.title || articleH1,
         description: meta.description || "",
-        thumbnailUrl: `https://i.ytimg.com/vi/${meta.video.youtubeId}/hqdefault.jpg`,
+        thumbnailUrl: meta.video.poster ? `https://www.ediliziaincloud.com${meta.video.poster}` : `https://i.ytimg.com/vi/${meta.video.youtubeId}/hqdefault.jpg`,
         uploadDate: meta.video.uploadedAt,
         duration: meta.video.duration,
         embedUrl: `https://www.youtube-nocookie.com/embed/${meta.video.youtubeId}`,
