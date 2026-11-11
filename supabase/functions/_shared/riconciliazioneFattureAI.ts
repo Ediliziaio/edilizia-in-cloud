@@ -1,6 +1,7 @@
 import {
   confrontaRigheDocumenti,
   numeroDocumento,
+  unitaConfronto,
   recordDocumento,
   righeFatturaConfronto,
   type RigaBollaConfronto,
@@ -39,15 +40,24 @@ export interface ContestoRiconciliazione {
   oda: Record<string, unknown>[];
   valorizzazioni: Record<string, unknown>[];
   altre_fatture: Record<string, unknown>[];
+  consumi?: Record<string, unknown>[];
+  allocazioni_questa_fattura?: Record<string, unknown>[];
+  allocazioni_origine?: Record<string, unknown>[];
+  equivalenze?: Record<string, unknown>[];
+  conversioni?: Record<string, unknown>[];
   revisioni_precedenti?: Record<string, unknown>[];
 }
 export function datiRiconciliazione(c: ContestoRiconciliazione) {
   const bolle: RigaBollaConfronto[] = c.ddt.flatMap((d) => {
-    const precedenti = c.valorizzazioni.filter((v) => v.ddt_id === d.id);
+    const precedenti = (c.consumi ?? c.valorizzazioni).filter(
+      (v) => (v.ddt_id ?? v.documentoId) === d.id,
+    );
     const incerto = c.altre_fatture.some(
       (f) =>
         f.ddt_ricezione_id === d.id &&
-        !precedenti.some((v) => v.fattura_id === f.fattura_ricevuta_id),
+        (c.consumi
+          ? !f.completa
+          : !precedenti.some((v) => v.fattura_id === f.fattura_ricevuta_id)),
     );
     return (d.righe as Record<string, unknown>[]).map((r) => ({
       id: String(r.id),
@@ -66,9 +76,11 @@ export function datiRiconciliazione(c: ContestoRiconciliazione) {
         !!c.revisioni_precedenti?.some(
           (v) =>
             v.riga_id === r.id &&
-            !precedenti.some(
-              (p) => p.fattura_id === v.fattura_id && p.riga_id === r.id,
-            ),
+            (c.consumi
+              ? !v.completa
+              : !precedenti.some(
+                  (p) => p.fattura_id === v.fattura_id && p.riga_id === r.id,
+                )),
         ),
     }));
   });
@@ -115,6 +127,20 @@ export function preparaRichiestaRiconciliazione(c: ContestoRiconciliazione) {
     fattura: d.fattura.map(identita),
     bolle: d.bolle.map(identita),
     ordini: d.ordini.map(identita),
+    equivalenze_confermate: (c.equivalenze ?? [])
+      .filter((e) =>
+        d.fattura.some(
+          (f) =>
+            String(f.descrizione).trim().toLowerCase().replace(/\s+/g, " ") ===
+            e.fattura_descrizione,
+        ),
+      )
+      .map((e) => ({
+        fattura_descrizione: e.fattura_descrizione,
+        fattura_codice: e.fattura_codice,
+        documento_descrizione: e.documento_descrizione,
+        documento_codice: e.documento_codice,
+      })),
   });
   if (dati.length > 150_000)
     throw new Error(
@@ -128,6 +154,7 @@ export function preparaRichiestaRiconciliazione(c: ContestoRiconciliazione) {
 Proponi SOLO corrispondenze tra le righe fornite. I calcoli e le verifiche sono eseguiti separatamente dal software.
 Restituisci JSON {"righe":[{"fattura":"id","ddt":["id"],"oda":["id"],"affidabilita":"alta|media|bassa","motivo":"breve spiegazione con dettagli riconoscibili"}],"avvisi":["..."]}.
 Una proposta per OGNI riga della fattura, nello stesso ordine. Usa solo ID presenti nei dati, senza modificarli.
+Usa le equivalenze_confermate: sono corrispondenze già approvate dal personale per questo fornitore. Verifica comunque gli altri articoli presenti nel lotto.
 Riconosci abbreviazioni, ordine delle parole e nomi commerciali dello stesso articolo. Materiale, dimensioni, classe, spessore e confezione devono essere compatibili.
 Codici diversi non sono automaticamente incompatibili: possono essere codici interni diversi; serve una descrizione specifica che provi l’equivalenza, altrimenti lascia vuoto.
 Per OGNI riga fattura includi TUTTE le righe dello stesso articolo presenti nei DDT e negli ordini, indipendentemente dagli abbinamenti delle altre voci. Non distribuire o ripartire le consegne tra righe fattura. Lo stesso ID DDT può e deve comparire in più proposte se riguarda lo stesso prodotto.
@@ -204,8 +231,41 @@ export function esitiRiconciliazione(
   p: PropostaRiconciliazione,
 ) {
   const d = datiRiconciliazione(c);
+  const conversioniUsate = new Map<string, number>();
+  const fatturaNormalizzata = d.fattura.map((f, i) => {
+    const um = [
+      ...new Set(
+        d.bolle
+          .filter((b) => p.righe[i]?.ddt.includes(b.id))
+          .map((b) => unitaConfronto(b.um))
+          .filter(Boolean),
+      ),
+    ];
+    if (um.length !== 1 || !f.um || unitaConfronto(f.um) === um[0]) return f;
+    const identita = (v: unknown) =>
+      String(v ?? "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
+    const cv = (c.conversioni ?? []).find(
+      (v) =>
+        v.descrizione_articolo === identita(f.descrizione) &&
+        v.codice_articolo === identita(f.codice) &&
+        v.unita_fattura === unitaConfronto(f.um) &&
+        v.unita_ddt === um[0],
+    );
+    const fattore = numeroDocumento(cv?.fattore);
+    if (!fattore || fattore <= 0) return f;
+    conversioniUsate.set(f.id, fattore);
+    return {
+      ...f,
+      um: um[0]!,
+      quantita: f.quantita == null ? null : f.quantita * fattore,
+      prezzo: f.prezzo == null ? null : f.prezzo / fattore,
+    };
+  });
   const esiti = confrontaRigheDocumenti(
-    d.fattura,
+    fatturaNormalizzata,
     d.bolle,
     d.ordini,
     new Map(p.righe.map((r) => [r.fattura, r])),
@@ -240,7 +300,13 @@ export function esitiRiconciliazione(
               ? "Fornitore non identificato in tutti i documenti: conferma l’associazione."
               : "Quantità e prezzi compatibili; l’equivalenza tra gli articoli richiede conferma.",
       };
-    return e;
+    const fattore = conversioniUsate.get(d.fattura[i].id);
+    return fattore
+      ? {
+          ...e,
+          motivo: `Conversione confermata: 1 ${d.fattura[i].um} = ${fattore} ${fatturaNormalizzata[i].um}. ${e.motivo}`,
+        }
+      : e;
   });
 }
 

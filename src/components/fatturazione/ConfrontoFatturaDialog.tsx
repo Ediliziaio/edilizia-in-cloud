@@ -507,7 +507,9 @@ export function ConfrontoFatturaDialog({
               ? "Analisi AI…"
               : analisiAI
                 ? "Riapri analisi AI"
-                : "Analizza con AI"}
+                : ai.dati.data?.lotto?.indice
+                  ? `Riprendi AI (${ai.dati.data.lotto.indice}/${ai.dati.data.lotto.totale})`
+                  : "Analizza con AI"}
           </Button>
         </div>
         {import.meta.env.DEV && parametri.has("qa_riconciliazione") && (
@@ -524,6 +526,25 @@ export function ConfrontoFatturaDialog({
               ai.analizza.isPending
             }
           />
+        )}
+        {ai.analizza.isPending && ai.avanzamento && (
+          <div
+            role="status"
+            className="flex items-center gap-3 border-b px-5 py-2 text-xs"
+          >
+            <span>
+              Analisi: {ai.avanzamento.completati}/{ai.avanzamento.totale} lotti
+              completati
+            </span>
+            <progress
+              className="h-2 flex-1"
+              value={ai.avanzamento.completati}
+              max={ai.avanzamento.totale}
+            />
+            <Button variant="ghost" size="sm" onClick={ai.interrompi}>
+              Interrompi
+            </Button>
+          </div>
         )}
         <RevisioneRiconciliazioneAI
           ai={ai}
@@ -617,6 +638,11 @@ export function ConfrontoFatturaDialog({
                 >
                   {fileFattura ? (
                     <OriginaliConfronto
+                      ricerca={
+                        rigaAttiva != null
+                          ? righe[rigaAttiva]?.descrizione
+                          : undefined
+                      }
                       files={[fileFattura]}
                       companyId={companyId}
                       adatta
@@ -1142,6 +1168,13 @@ export function ConfrontoFatturaDialog({
                       </p>
                     ) : (
                       <OriginaliConfronto
+                        ricerca={
+                          rigaAttiva != null
+                            ? doc?.righe.find((r) =>
+                                riferimenti.get(r.id)?.includes(rigaAttiva),
+                              )?.descrizione
+                            : undefined
+                        }
                         key={doc.id}
                         files={originali.data ?? []}
                         companyId={companyId}

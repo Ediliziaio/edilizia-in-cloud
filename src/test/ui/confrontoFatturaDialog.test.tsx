@@ -16,7 +16,11 @@ const fake = vi.hoisted(() => ({
 }));
 vi.mock("@/hooks/useConfrontoFattura", () => ({
   useConfrontoFattura: () => ({
-    data: { documenti: fake.documenti, riferimenti: [], nonDisponibili: 0 },
+    data: {
+      documenti: fake.documenti,
+      riferimenti: [] as unknown[],
+      nonDisponibili: 0,
+    },
     isError: fake.isError,
     error: { message: "RLS" },
     isFetching: false,
@@ -43,7 +47,9 @@ vi.mock("@/hooks/useConfrontoFattura", () => ({
   }),
 }));
 vi.mock("@/hooks/useRiconciliazioneFatturaAI", () => ({
-  useUltimaSelezioneConfrontoAI: () => ({ data: null }),
+  useUltimaSelezioneConfrontoAI: () => ({
+    data: null as { ddt: string[]; oda: string[] } | null,
+  }),
   useRiconciliazioneFatturaAI: () => ({
     dati: {},
     analizza: { isPending: false },
@@ -65,7 +71,7 @@ vi.mock("@/integrations/supabase/client", () => ({
       from: () => ({
         createSignedUrl: async (p: string) => ({
           data: { signedUrl: `https://files.example.test/${p}` },
-          error: null,
+          error: null as Error | null,
         }),
       }),
     },
@@ -307,7 +313,7 @@ describe("confronto affiancato della fattura", () => {
         fatturaId: "f",
         ddtId: "d",
         numero: "",
-        data: null,
+        data: null as { ddt: string[]; oda: string[] } | null,
       }),
     );
   });

@@ -1,5 +1,5 @@
 // Esegue solo contro un Postgres isolato; nessuna connessione ai dati aziendali.
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 const container = process.env.EIC_TEST_PG_CONTAINER;
 if (container !== "eic-fatture-ai-pg")
@@ -82,9 +82,9 @@ do $$declare c jsonb;r jsonb; begin
  r:=public.fattura_riconciliazione_salva('${analisi}',0,'{"1":"accettata"}');
  assert (r->>'revisione')::int=1 and r->'decisioni'->>'1'='accettata';
 end $$;
-select public.qa_nega($q$select public.fattura_riconciliazione_salva('${analisi2}',0,'{"1":"accettata"}')$q$,'40001');
+select public.qa_nega($q$select public.fattura_riconciliazione_salva('${analisi2}',0,'{"1":"accettata"}')$q$,'PT409');
 do $$begin assert public.fattura_riconciliazione_contesto('${f3}','${docs}')->'contesto'->'revisioni_precedenti'->0->>'riga_id'='${r}';end $$;
-select public.qa_nega($q$select public.fattura_riconciliazione_salva('${analisi}',0,'{"1":"rifiutata"}')$q$,'40001');
+select public.qa_nega($q$select public.fattura_riconciliazione_salva('${analisi}',0,'{"1":"rifiutata"}')$q$,'PT409');
 select public.qa_nega($q$select public.fattura_riconciliazione_salva('${analisi}',1,'{"estranea":"accettata"}')$q$,'22023');
 select public.qa_nega($q$select public.fattura_riconciliazione_salva('${analisi}',1,'{"1":"inventata"}')$q$,'22023');
 select public.qa_nega($q$select public.fattura_riconciliazione_contesto('${f2}','${docs}')$q$);
@@ -101,12 +101,13 @@ set local qa.esterno='false'; set local qa.bloccato='true';
 select public.qa_nega($q$select public.fattura_riconciliazione_contesto('${f}','${docs}')$q$);
 set local qa.bloccato='false';
 reset role; update ddt_righe set quantita=9 where id='${r}'; set local role authenticated;
-select public.qa_nega($q$select public.fattura_riconciliazione_salva('${analisi}',1,'{"1":"accettata"}')$q$,'40001');
+select public.qa_nega($q$select public.fattura_riconciliazione_salva('${analisi}',1,'{"1":"accettata"}')$q$,'PT409');
 reset role; update ddt_ricezione set supplier_id='${altra}' where id='${d}'; set local role authenticated;
 select public.qa_nega($q$select public.fattura_riconciliazione_contesto('${f}','${docs}')$q$);
 do $$begin assert not has_function_privilege('anon','public.fattura_riconciliazione_contesto(uuid,jsonb)','execute'); end $$;
 reset role;
 rollback;`;
+if (process.env.EIC_TEST_PG_EMIT_SQL) { writeFileSync(process.env.EIC_TEST_PG_EMIT_SQL, sql); process.exit(0); }
 const output = execFileSync(
   "docker",
   [

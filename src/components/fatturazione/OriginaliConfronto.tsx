@@ -6,16 +6,19 @@ import {
   apriOriginaleConfronto,
   type OriginaleConfronto,
 } from "@/lib/fatturazione/originaliConfronto";
+import { PdfRigaConfronto } from "./PdfRigaConfronto";
 import { messaggioSalvataggio } from "@/lib/fatturazione/salvataggioFattura";
 
 export function OriginaliConfronto({
   files,
   companyId,
   adatta = false,
+  ricerca,
 }: {
   files: OriginaleConfronto[];
   companyId: string;
   adatta?: boolean;
+  ricerca?: string;
 }) {
   const [id, setId] = useState("");
   const file = files.find((f) => f.id === id) ?? files[0];
@@ -122,7 +125,14 @@ export function OriginaliConfronto({
                 </Button>
               )}
             </div>
-            {q.data.mime === "application/pdf" ? (
+            {q.data.mime === "application/pdf" && ricerca ? (
+              <PdfRigaConfronto
+                key={`${q.data.url}:${ricerca}`}
+                url={q.data.url}
+                nome={file.nome}
+                ricerca={ricerca}
+              />
+            ) : q.data.mime === "application/pdf" ? (
               <iframe
                 title={`Originale ${file.nome}`}
                 src={q.data.preview}

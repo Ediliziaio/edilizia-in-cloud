@@ -6,24 +6,24 @@ const analisi = {
   id: "a",
   revisione: 0,
   decisioni: {},
-  rivista_il: null,
+  rivista_il: null as string | null,
   proposta: {
     righe: [
       {
         fattura: "1",
         ddt: ["d1"],
-        oda: [],
+        oda: [] as string[],
         affidabilita: "alta",
         motivo: "Stesso adesivo bianco A81 25kg",
       },
     ],
-    avvisi: [],
+    avvisi: [] as string[],
   },
   esiti: [
     {
       stato: "da_controllare",
       motivo: "Prezzo da confermare",
-      deltaImporto: null,
+      deltaImporto: null as number | null,
     },
   ],
 };
@@ -31,11 +31,11 @@ const righe = [
   {
     id: "1",
     descrizione: "Adesivo A81",
-    codice: null,
+    codice: null as string | null,
     um: "pz",
     quantita: 4,
-    prezzo: null,
-    importo: null,
+    prezzo: null as number | null,
+    importo: null as number | null,
   },
 ];
 const setup = (

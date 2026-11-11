@@ -27,23 +27,39 @@ export function SimulazioniRiconciliazioneAI({
     }[]
   >([]);
   const [inCorso, setInCorso] = useState(false);
-  const esegui = async () => {
+  const [progresso, setProgresso] = useState("");
+  const esegui = async (lunga = false) => {
     setInCorso(true);
     setEsiti([]);
     try {
-      for (const [scenario, titolo] of SCENARI_RICONCILIAZIONE) {
-        const { data, error } = await supabase.functions.invoke(
-          "riconcilia-fattura-ai",
-          {
+      const scenari = lunga
+        ? [["fattura-lunga", "Fattura di 90 voci in tre lotti"]]
+        : SCENARI_RICONCILIAZIONE;
+      for (const [scenario, titolo] of scenari) {
+        const richiestaId = crypto.randomUUID();
+        const leggi = () =>
+          supabase.functions.invoke("riconcilia-fattura-ai", {
             body: {
               fattura_id: fatturaId,
               documenti,
               simulazione: scenario,
-              richiesta_id: crypto.randomUUID(),
+              richiesta_id: richiestaId,
             },
-          },
-        );
-        if (error || data?.error) {
+          });
+        let { data, error } = await leggi();
+        for (
+          let passo = 0;
+          passo < 100 && !error && data?.avanzamento;
+          passo++
+        ) {
+          setProgresso(
+            `${titolo}: ${data.avanzamento.completati}/${data.avanzamento.totale} lotti`,
+          );
+          if (data.avanzamento.attendi)
+            await new Promise((r) => setTimeout(r, 1200));
+          ({ data, error } = await leggi());
+        }
+        if (error || data?.error || !data?.proposta) {
           let errore = data?.error ?? messaggioSalvataggio(error);
           try {
             errore = (await error?.context?.json())?.error ?? errore;
@@ -57,6 +73,7 @@ export function SimulazioniRiconciliazioneAI({
       }
     } finally {
       setInCorso(false);
+      setProgresso("");
     }
   };
   return (
@@ -75,6 +92,15 @@ export function SimulazioniRiconciliazioneAI({
             ? `Simulazione ${esiti.length + 1}/9…`
             : "Esegui 9 simulazioni AI"}
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={disabled || inCorso}
+          onClick={() => void esegui(true)}
+        >
+          Prova 90 voci
+        </Button>
+        <span role="status">{progresso}</span>
         <span>
           Chiamate AI reali con crediti dell’azienda. Nessuna fattura viene
           creata o verificata.
