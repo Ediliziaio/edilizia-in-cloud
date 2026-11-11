@@ -2,6 +2,10 @@
 -- qui dal registro migrazioni (supabase_migrations.schema_migrations),
 -- per riallineare la cartella del repo alla storia reale del database.
 
+-- Recovered panel timestamp precedes the FV/quote schemas. The ordered
+-- v_preventivi_unificati migration installs the complete view after them.
+DO $history$ BEGIN
+ IF to_regclass('public.fv_progetti') IS NOT NULL AND EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='quotes' AND column_name='salesperson_id') THEN
 CREATE OR REPLACE VIEW public.v_preventivi_unificati
 WITH (security_invoker = true) AS
   SELECT
@@ -100,3 +104,6 @@ COMMENT ON VIEW public.v_preventivi_unificati IS
   'Convergenza preventivi cross-modulo (classico/serramenti/fotovoltaico). security_invoker=true: eredita RLS delle tabelle base (isolamento per azienda). Mirror server-side del merge di UnifiedPreventiviList.';
 
 GRANT SELECT ON public.v_preventivi_unificati TO authenticated;
+
+ END IF;
+END $history$;

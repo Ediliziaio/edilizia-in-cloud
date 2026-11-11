@@ -8,6 +8,8 @@
 --   { "xs":[larghezze], "ys":[altezze], "m":[[riga ys[0]], [riga ys[1]], ...] }
 --   dove m[i][j] = prezzo per (xs[j], ys[i]); null = cella non quotata.
 -- Mantiene compatibilità col formato array-di-celle [{"x","y","pv"}].
+-- Recovered timestamp precedes article templates; ordered 20271024 migrations repeat this implementation.
+DO $history$ BEGIN IF to_regclass('public.article_family_templates') IS NOT NULL THEN
 CREATE OR REPLACE FUNCTION public.import_article_family_template(
   p_template_id uuid,
   p_company_id uuid,
@@ -112,3 +114,5 @@ BEGIN
   RETURN v_family_id;
 END;
 $function$;
+
+END IF; END $history$;

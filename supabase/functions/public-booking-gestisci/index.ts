@@ -143,7 +143,7 @@ Deno.serve(async (req) => {
     }
 
     const {data:spostato,error:updErr}=await admin.rpc("prenota_su_calendario_con_blocco",{
-      p_calendar_id:cal.id,p_company_id:cal.company_id,p_data:data,p_inizio:`${ora}:00`,p_fine:`${orarioDa(fine)}:00`,
+      p_calendar_id:cal.id,p_company_id:cal.company_id,p_data:data,p_inizio:`${ora}:00`,p_fine:`${fine===1440?"24:00":orarioDa(fine)}:00`,
       p_buffer_prima:cal.buffer_before_min??0,p_buffer_dopo:cal.buffer_after_min??0,p_durata_min:durata,p_riga:{appointment_id:app.id},
     });
     if(updErr)throw updErr;

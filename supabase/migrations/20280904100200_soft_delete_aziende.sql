@@ -107,3 +107,7 @@ CREATE UNIQUE INDEX idx_admin_dashboard_summary_singleton
   ON public.admin_dashboard_summary USING btree (row_id);
 
 GRANT SELECT ON public.admin_dashboard_summary TO authenticated, service_role;
+
+-- Admin materialized views are server-only immediately after creation.
+REVOKE ALL ON public.admin_dashboard_summary FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.admin_dashboard_summary TO service_role;

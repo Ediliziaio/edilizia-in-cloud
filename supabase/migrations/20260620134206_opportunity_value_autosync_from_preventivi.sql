@@ -14,6 +14,8 @@
 -- Idempotente.
 -- ============================================================
 
+-- Deferred on fresh replay until FV exists; 20271023000000 repeats the full migration.
+DO $history$ BEGIN IF to_regclass('public.fv_progetti') IS NOT NULL THEN
 create index if not exists idx_quotes_opportunity_id        on public.quotes(opportunity_id)        where opportunity_id   is not null;
 create index if not exists idx_rst_progetti_opportunita_id   on public.rst_progetti(opportunita_id)  where opportunita_id    is not null;
 create index if not exists idx_fv_progetti_opportunita_crm   on public.fv_progetti(opportunita_crm_id) where opportunita_crm_id is not null;
@@ -147,3 +149,5 @@ begin
   end loop;
 end;
 $bf$;
+
+END IF; END $history$;

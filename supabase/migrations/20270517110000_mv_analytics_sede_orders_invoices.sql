@@ -139,3 +139,7 @@ REFRESH MATERIALIZED VIEW public.mv_analytics_sede;
 --   estendere il SELECT in supabase/functions/get-sede-analytics/index.ts
 --   e i type Sede* in src/hooks/useSediAnalytics.ts.
 -- ============================================================================
+
+-- Admin materialized views are server-only immediately after creation.
+REVOKE ALL ON public.mv_analytics_sede FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.mv_analytics_sede TO service_role;

@@ -1,7 +1,7 @@
 /**
  * Orari liberi e prenotazione su un calendario, lato server (25/09/2026).
  *
- * Le regole stanno in calendarioSlot.ts (puro, testato); qui si leggono i
+ * Le regole autorevoli stanno nelle RPC SQL calendar_booking_slots e reserve_calendar_booking; qui si leggono i
  * dati e si scrive l'appuntamento. Serve agli agenti AI (WhatsApp, voce) e a
  * tutto ciò che prenota senza passare dalla pagina /prenota: prima gli agenti
  * inserivano appuntamenti senza calendario, senza titolare e senza token,
@@ -123,11 +123,10 @@ export async function prenotaSuCalendario(admin: any, a: {
   if (!cal) return { ok: false, motivo: "calendario_non_valido", messaggio: "Il calendario non è attivo o non è di questa azienda." };
 
   const ora = String(a.ora).slice(0, 5);
-  const liberi = await slotDelGiorno(admin, cal, a.dataIso, a.adesso ?? new Date());
-  if (!liberi.includes(ora)) return { ok: false, motivo: "non_libero", messaggio: "Questo orario non è più libero." };
-
+  // The atomic reservation checks availability; a retry must reach its stored request key.
   const durata = cal.duration_minutes || 30;
-  const fine = orarioDa(minutiDa(ora) + durata);
+  const fineMin = minutiDa(ora) + durata;
+  const fine = fineMin === 1440 ? "24:00" : orarioDa(fineMin);
   const { data: idCreato, error } = await admin.rpc("reserve_calendar_booking", {
     p_calendar_id: cal.id,
     p_company_id: cal.company_id,

@@ -2,6 +2,8 @@
 -- qui dal registro migrazioni (supabase_migrations.schema_migrations),
 -- per riallineare la cartella del repo alla storia reale del database.
 
+-- The restored panel migration precedes the recorded vertical column.
+ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS vertical text;
 ALTER TABLE public.companies DROP CONSTRAINT IF EXISTS companies_vertical_check;
 ALTER TABLE public.companies ADD CONSTRAINT companies_vertical_check
   CHECK (

@@ -8,6 +8,8 @@
 -- dell'azienda. Forma attesa di griglia_default:
 --   [ {"x": <larghezza int>, "y": <altezza int>, "pv": <prezzo_vendita>, "pa": <prezzo_acquisto opz>}, ... ]
 -- Additiva: i template con griglia_default null/[] si comportano come prima.
+-- Recovered timestamp precedes article templates; ordered 20271024 migrations repeat this implementation.
+DO $history$ BEGIN IF to_regclass('public.article_family_templates') IS NOT NULL THEN
 CREATE OR REPLACE FUNCTION public.import_article_family_template(
   p_template_id uuid,
   p_company_id uuid,
@@ -118,3 +120,5 @@ BEGIN
   RETURN v_family_id;
 END;
 $function$;
+
+END IF; END $history$;

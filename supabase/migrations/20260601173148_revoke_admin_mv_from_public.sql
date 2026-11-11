@@ -13,7 +13,13 @@
 -- Fix: revoca SELECT da anon + authenticated. Le MV restano accessibili a
 -- service_role (edge functions) e postgres (admin).
 
-REVOKE SELECT ON public.admin_dashboard_summary FROM anon, authenticated;
-REVOKE SELECT ON public.superadmin_service_pnl FROM anon, authenticated;
-REVOKE SELECT ON public.mv_cg_storico_24m FROM anon, authenticated;
-REVOKE SELECT ON public.mv_analytics_sede FROM anon, authenticated;
+-- Some views were created later than this recovered historical timestamp.
+-- Revoke existing ones now; every later CREATE also closes access below.
+DO $$ DECLARE v text; BEGIN
+ FOREACH v IN ARRAY ARRAY['admin_dashboard_summary','superadmin_service_pnl','mv_cg_storico_24m','mv_analytics_sede'] LOOP
+  IF to_regclass('public.'||v) IS NOT NULL THEN
+   EXECUTE format('REVOKE SELECT ON public.%I FROM PUBLIC, anon, authenticated',v);
+   EXECUTE format('GRANT SELECT ON public.%I TO service_role',v);
+  END IF;
+ END LOOP;
+END $$;

@@ -19,6 +19,7 @@ CREATE INDEX IF NOT EXISTS idx_human_call_logs_company_started
 
 ALTER TABLE public.human_call_logs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS human_call_logs_company ON public.human_call_logs;
 CREATE POLICY human_call_logs_company ON public.human_call_logs
   FOR ALL TO authenticated
   USING (company_id = get_my_company_id())

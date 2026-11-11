@@ -403,7 +403,7 @@ GRANT EXECUTE ON FUNCTION public.revoke_admin_portal_course_from_companies(TEXT,
 -- Helper opzionale per query lato cliente. Marca con `source_type`:
 --   'own'      → corso creato dall'azienda
 --   'platform' → corso platform concesso via grant
-CREATE OR REPLACE VIEW public.portal_courses_available AS
+CREATE OR REPLACE VIEW public.portal_courses_available WITH (security_invoker = on) AS
 SELECT
   c.*,
   'own'::text AS source_type,
@@ -423,4 +423,5 @@ WHERE g.status = 'granted';
 COMMENT ON VIEW public.portal_courses_available IS
   'Vista unificata: per ogni azienda restituisce i suoi corsi (source_type=own) + i corsi platform a cui ha grant (source_type=platform, granted_to_company_id=target).';
 
+REVOKE ALL ON public.portal_courses_available FROM PUBLIC, anon;
 GRANT SELECT ON public.portal_courses_available TO authenticated;

@@ -6,6 +6,10 @@
 -- company_branding.whitelabel_tier è il piano acquistato. Devono restare allineati:
 -- tier <> 'none' → white_label_enabled = true (e viceversa alla revoca).
 
+-- This recovered panel timestamp precedes the branding tier schema.
+-- The ordered duplicate 20270810000000 installs the same synchronization later.
+DO $history$ BEGIN
+ IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='company_branding' AND column_name='whitelabel_tier') THEN
 CREATE OR REPLACE FUNCTION public.sync_white_label_enabled()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -58,3 +62,6 @@ UPDATE public.company_branding
 SET primary_color = NULL
 WHERE primary_color IS NOT NULL
   AND primary_color !~* '^#[0-9a-f]{3}([0-9a-f]{3})?$';
+
+ END IF;
+END $history$;

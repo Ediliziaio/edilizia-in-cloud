@@ -4,12 +4,15 @@
 
 CREATE OR REPLACE FUNCTION public.silvio_tool_manutenzione_overview(p_company_id uuid)
 RETURNS jsonb
-LANGUAGE sql
+-- Defer relation/column planning until use: the ticket extensions are recorded later.
+-- 20270619040000 replaces this with the fully ordered SQL implementation.
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT jsonb_build_object(
+BEGIN
+  RETURN (SELECT jsonb_build_object(
     'ticket', jsonb_build_object(
       'aperti',          (SELECT count(*) FROM public.tickets t WHERE t.company_id = p_company_id AND t.status <> 'risolto'),
       'in_lavorazione',  (SELECT count(*) FROM public.tickets t WHERE t.company_id = p_company_id AND t.status = 'in_lavorazione'),
@@ -66,7 +69,8 @@ AS $$
          LIMIT 15
       ) x
     ), '[]'::jsonb)
-  );
+  ));
+END;
 $$;
 
 REVOKE ALL ON FUNCTION public.silvio_tool_manutenzione_overview(uuid) FROM public, anon;

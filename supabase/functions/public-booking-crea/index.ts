@@ -24,7 +24,7 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { sincronizzaCalendariEsterni } from "../_shared/appuntamentiPubblici.ts";
 import { avvisaSuperAdmin } from "../_shared/avvisaSuperAdmin.ts";
 import { contattoDellaPrenotazione } from "../_shared/contattoPrenotazione.ts";
-import { slotLiberiCalendario } from "../_shared/calendarioPrenotazione.ts";
+
 import { emailAppuntamento, whatsappAppuntamento } from "../_shared/messaggiAppuntamento.ts";
 import { sendOpenWaMessage, OPENWA_PLATFORM_COMPANY_ID } from "../_shared/openwaSend.ts";
 import { opzioniMittenteCalendario } from "../_shared/mittenteCalendario.ts";
@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
     const durata = cal.duration_minutes || 30;
     const inizio = minuti(ora);
     const fine = inizio + durata;
-    const fineStr = orario(fine);
+    const fineStr = fine === 1440 ? "24:00" : orario(fine);
 
     // 2. preavviso minimo (default 2 ore): niente prenotazioni "fra cinque minuti"
     const adessoRoma = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Rome" }));
@@ -105,19 +105,7 @@ Deno.serve(async (req) => {
       return json({ error: `Serve un preavviso di almeno ${preavviso < 60 ? `${preavviso} minuti` : ore === 1 ? "un'ora" : `${ore} ore`}: scegli un orario piu' avanti.` }, 409);
     }
 
-    // 3. l'orario deve essere fra quelli liberi del generatore condiviso
-    //    (calendarioSlot.ts, via slotLiberiCalendario): un posto solo per la
-    //    griglia del passo, le fasce di disponibilita', i margini, il tetto
-    //    giornaliero e gli impegni esterni del titolare (Google/Apple/Outlook).
-    //    Prima qui c'era una copia di quelle regole: con un passo diverso dalla
-    //    durata un orario fuori griglia (es. 09:30) sarebbe passato.
-    const { slot: liberi } = await slotLiberiCalendario(admin, cal.id, data, {
-      companyId: cal.company_id,
-      adesso: new Date(),
-    });
-    if (!liberi.includes(ora)) {
-      return json({ error: "Questo orario non e' piu' disponibile: scegline un altro." }, 409);
-    }
+    // Availability and stable retries are checked together inside the reservation RPC.
 
     // 4. crea l'appuntamento
     // Il link fisso del calendario (Meet, Zoom…) diventa il luogo dell'appuntamento:
