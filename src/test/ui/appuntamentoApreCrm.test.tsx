@@ -20,7 +20,7 @@ const oppPiuRecente = { id: OPP_PIU_RECENTE, contact_id: TARTANI, name: "Tartani
 
 const permessi = { canViewMarketingContacts: true, canViewMarketingOpportunities: true };
 
-const writing = vi.hoisted(() => ({ promise: null as Promise<unknown> | null, update: vi.fn(), close: vi.fn() }));
+const writing = vi.hoisted(() => ({ promise: null as Promise<unknown> | null, update: vi.fn(), close: vi.fn(), missing: false }));
 
 type Risposta = { data: unknown; error: { message: string } | null };
 
@@ -48,7 +48,9 @@ function builder(tabella: string) {
     return { data: [], error: null };
   };
   b.maybeSingle = async () => risposta();
-  b.single = async () => risposta();
+  b.single = async () => mutation && tabella === "appointments"
+    ? writing.promise ?? { data: writing.missing ? null : { id: "appointment-id" }, error: null }
+    : risposta();
   b.then = (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) => (mutation && writing.promise ? writing.promise : Promise.resolve(risposta())).then(ok, ko);
   return b;
 }
@@ -72,6 +74,30 @@ vi.mock("@/components/shared/AddressAutocomplete", () => ({
 }));
 vi.mock("@/components/shared/AddressMapPreview", () => ({ default: (): null => null }));
 vi.mock("@/components/marketing/CalendarSuggestions", () => ({ default: (): null => null }));
+// Il test riguarda i dati salvati. Select nativo evita i due FocusScope
+// di Radix (dialog + menu) che in jsdom si contendono il focus.
+vi.mock("@/components/ui/select", async () => {
+  const React = await import("react");
+  const Empty = () => null;
+  const Trigger = () => null;
+  const Item = () => null;
+  return {
+    Select: ({ value, onValueChange, children, disabled }: any) => {
+      const nodes = React.Children.toArray(children) as any[];
+      const trigger = nodes.find(node => node.type === Trigger);
+      const options: any[] = [];
+      const collect = (children: any) => React.Children.forEach(children, child => {
+        if (!React.isValidElement<any>(child)) return;
+        if (child.type === Item) options.push(child.props);
+        else collect(child.props.children);
+      });
+      collect(children);
+      return <select {...trigger?.props} disabled={disabled} value={value} onChange={e => onValueChange(e.target.value)}>
+        <option value="" />{options.map(option => <option key={option.value} value={option.value}>{option.children}</option>)}
+      </select>;
+    }, SelectTrigger: Trigger, SelectItem: Item, SelectContent: Empty, SelectValue: Empty,
+  };
+});
 
 // Radix (Select, Popover) in jsdom
 Object.assign(Element.prototype, {
@@ -99,7 +125,7 @@ const appuntamento: MarketingAppointmentData = {
   is_completed: false,
 };
 
-function apri(contestoScheda?: "contatto" | "opportunita") {
+function apri(contestoScheda?: "contatto" | "opportunita", dati = appuntamento) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <MemoryRouter initialEntries={["/azienda/marketing/calendario"]}>
@@ -107,10 +133,10 @@ function apri(contestoScheda?: "contatto" | "opportunita") {
         <MarketingAppointmentDialog
           open
           onOpenChange={writing.close}
-          appointment={appuntamento}
+          appointment={dati}
           onSaved={() => {}}
-          calendars={[{ id: "cal-1", name: "Agenda commerciale" }]}
-          users={[]}
+          calendars={[{ id: "cal-1", name: "Agenda commerciale", owner_id: "u1" }, { id: "cal-2", name: "Agenda collega", owner_id: "u2" }]}
+          users={[{ id: "u1", first_name: "Primo", last_name: "Commerciale" }, { id: "u2", first_name: "Secondo", last_name: "Commerciale" }]}
           contestoScheda={contestoScheda}
         />
       </QueryClientProvider>
@@ -119,7 +145,7 @@ function apri(contestoScheda?: "contatto" | "opportunita") {
 }
 
 beforeEach(() => {
-  writing.promise = null; writing.update.mockClear(); writing.close.mockClear();
+  writing.promise = null; writing.missing = false; writing.update.mockClear(); writing.close.mockClear();
   permessi.canViewMarketingContacts = true;
   permessi.canViewMarketingOpportunities = true;
 });
@@ -128,11 +154,48 @@ afterEach(cleanup);
 const TIMEOUT = 30_000;
 
 describe("appuntamento: aprire contatto e opportunità collegati", () => {
+  it("trasferisce calendario e responsabile conservando il record", async () => {
+    apri(undefined, { ...appuntamento, assigned_to: "u1" });
+    fireEvent.change(screen.getByRole("combobox", { name: "Calendario *" }), { target: { value: "cal-2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
+    await waitFor(() => expect(writing.close).toHaveBeenCalledWith(false));
+    expect(writing.update).toHaveBeenCalledWith({ calendar_id: "cal-2", assigned_to: "u2" });
+  });
+
+  it("scegliere un altro responsabile propone il suo calendario univoco", async () => {
+    apri(undefined, { ...appuntamento, assigned_to: "u1" });
+    fireEvent.change(screen.getByRole("combobox", { name: "Venditore assegnato" }), { target: { value: "u2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
+    await waitFor(() => expect(writing.close).toHaveBeenCalledWith(false));
+    expect(writing.update).toHaveBeenCalledWith({ calendar_id: "cal-2", assigned_to: "u2" });
+  });
+
+  it("non chiude e non dichiara salvato se il database non restituisce il record", async () => {
+    writing.missing = true;
+    apri();
+    fireEvent.change(screen.getByLabelText("Descrizione"), { target: { value: "Nota da conservare" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
+    await waitFor(() => expect(writing.update).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Salva modifiche" })).toBeEnabled());
+    expect(writing.close).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Descrizione")).toHaveValue("Nota da conservare");
+  });
+
+  it("modificare una nota conserva tipo, calendario, responsabile, stato e commessa", async () => {
+    apri(undefined, { ...appuntamento, appointment_type: "sopralluogo", assigned_to: "u2" });
+    fireEvent.change(screen.getByLabelText("Descrizione"), { target: { value: "Nuova nota del cliente" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
+    await waitFor(() => expect(writing.update).toHaveBeenCalledTimes(1));
+    expect(writing.update.mock.calls[0][0]).toEqual({ description: "Nuova nota del cliente" });
+    await waitFor(() => expect(writing.close).toHaveBeenCalledWith(false));
+  });
+
   it("blocca campi, chiusura e doppio salvataggio fino al termine della richiesta", async () => {
     let finish!: (value: unknown) => void;
     writing.promise = new Promise(resolve => { finish = resolve; });
     apri();
     await screen.findByRole("link", { name: /Apri contatto/ });
+    fireEvent.change(screen.getByLabelText("Descrizione"), { target: { value: "Nota aggiornata" } });
     fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
     await waitFor(() => expect(writing.update).toHaveBeenCalledTimes(1));
     expect(screen.getByLabelText("Titolo dell'appuntamento *")).toBeDisabled();
@@ -141,7 +204,7 @@ describe("appuntamento: aprire contatto e opportunità collegati", () => {
     expect(writing.close).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Salvataggio..." }));
     expect(writing.update).toHaveBeenCalledTimes(1);
-    finish({ data: null, error: null });
+    finish({ data: { id: "appointment-id" }, error: null });
     await waitFor(() => expect(writing.close).toHaveBeenCalledWith(false));
   });
 

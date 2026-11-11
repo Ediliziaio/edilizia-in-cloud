@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { quoteWriteVersion } from "@/lib/preventivi/quoteWriteVersion";
 import { esitoUpdateConGuardia, isConflittoModifica } from "@/lib/concorrenza";
 import { assertSavedQuoteAmounts } from "@/lib/preventivi/quoteSaveValidation";
+import { serializeQuoteDraft, readQuoteDraft } from "@/lib/preventivi/quoteDraft";
 
 // Execute the real handlers, with synthetic services only. This catches ordering
 // regressions that pure helper tests cannot see, without loading the giant editor.
@@ -27,9 +28,47 @@ function actualHandler(file: string, name: string, context: Record<string, unkno
   return context.handler as (...args: unknown[]) => Promise<void>;
 }
 const noop = () => {};
+describe("QuoteBuilder: protezione locale reale", () => {
+  const key = "quote-draft-company-a-quote-a";
+  function draftContext() {
+    const localStorage = { setItem: vi.fn(), removeItem: vi.fn() };
+    return {
+      JSON, serializeQuoteDraft, useCallback: (fn: unknown) => fn,
+      draftReady: true, isEdit: true, newQuoteCompletedRef: { current: false },
+      quoteDraftKey: key, recoverableDraft: null as object | null,
+      draftReadFailedRef: { current: false }, draftCheckedRef: { current: key },
+      lastCloudSavedSnapshotRef: { current: "versione sul server" }, lastSavedHash: "versione sul server",
+      draftSerialized: JSON.stringify({ clientName: "Cliente", notes: "Ultima nota", selectedMaterials: ["scheda"], items: [], tipoClienteScelto: "azienda" }),
+      localStorage, setLocalDraftSaved: vi.fn(), setLocalDraftFailed: vi.fn(),
+    };
+  }
+  it("protegge anche un documento esistente con allegati e tipo cliente", () => {
+    const context = draftContext();
+    actualHandler("src/pages/azienda/marketing/QuoteBuilder.tsx", "persistLocalDraft", context)();
+    const [savedKey, raw] = context.localStorage.setItem.mock.calls[0];
+    expect(savedKey).toBe(key);
+    expect(readQuoteDraft(raw)).toMatchObject({ notes: "Ultima nota", selectedMaterials: ["scheda"], tipoClienteScelto: "azienda" });
+  });
+  it.each(["loading", "recovery", "readError", "alreadySaved"])("non sovrascrive la bozza durante %s", mode => {
+    const context = draftContext();
+    if (mode === "loading") context.draftReady = false;
+    if (mode === "recovery") context.recoverableDraft = { notes: "Bozza precedente" };
+    if (mode === "readError") context.draftReadFailedRef.current = true;
+    if (mode === "alreadySaved") context.lastCloudSavedSnapshotRef.current = context.draftSerialized;
+    actualHandler("src/pages/azienda/marketing/QuoteBuilder.tsx", "persistLocalDraft", context)();
+    expect(context.localStorage.setItem).not.toHaveBeenCalled();
+  });
+  it("se il dispositivo è pieno segnala che la bozza non è protetta", () => {
+    const context = draftContext();
+    context.localStorage.setItem.mockImplementation(() => { throw new Error("QuotaExceededError"); });
+    actualHandler("src/pages/azienda/marketing/QuoteBuilder.tsx", "persistLocalDraft", context)();
+    expect(context.setLocalDraftFailed).toHaveBeenCalledWith(true);
+    expect(context.setLocalDraftSaved).not.toHaveBeenCalled();
+  });
+});
 function fixture(failAttachment: boolean, legacy = false) {
   let version = "v0", writes = 0;
-  const toast = { error: vi.fn(), success: vi.fn() };
+  const toast = { error: vi.fn(), success: vi.fn(), info: vi.fn() };
   const versionRef = { current: "v0" };
   const rpc = vi.fn(async () => {
     version = `rows-${++writes}`;
@@ -38,18 +77,19 @@ function fixture(failAttachment: boolean, legacy = false) {
   const context: Record<string, unknown> = {
     Error, console, JSON, companyId: "company-a", user: { id: "user-a" }, id: "quote-a", isEdit: true,
     existingQuote: { status: "bozza" }, existingItemsLoaded: true, existingAttachmentsLoaded: true,
-    partialQuoteId: null, pendingEditNavId: null, paymentPhases: [], paymentPlanError: (): string | null => null,
+    partialQuoteId: null, pendingEditNavId: null, recoverableDraft: null, paymentPhases: [], paymentPlanError: (): string | null => null,
     persistLocalDraft: noop, saveInFlightRef: { current: false }, versioneCaricataRef: versionRef,
     setSaving: noop, setAutosaveFailed: noop, setLastSavedHash: noop, draftSerialized: "snapshot",
+    latestDraftSerializedRef: { current: "snapshot" }, lastCloudSavedSnapshotRef: { current: "snapshot" },
     setPartialQuoteId: noop, setPendingEditNavId: noop, newQuoteCompletedRef: { current: false },
     searchParams: new URLSearchParams(), items: [], selectedMaterials: [], bonusLines: [],
     totaliPro: { costo_totale: 0, overhead_totale: 0, margine_totale_pct: 100 },
     subtotal: 100, discountAmt: 0, vatAmount: 22, total: 122,
     templateValues: {}, contractFields: [], tipoCliente: "privato",
     financingProposal: null, validityDays: 30, discountPercent: 0,
-    clearQuoteDraft: noop, assertSavedQuoteAmounts, quoteWriteVersion, esitoUpdateConGuardia, isConflittoModifica,
+    clearQuoteDraft: vi.fn(), assertSavedQuoteAmounts, quoteWriteVersion, esitoUpdateConGuardia, isConflittoModifica,
     queryClient: { invalidateQueries: noop }, queryKeys: { quotes: { all: [], detail: (): string[] => [], items: (): string[] => [] } },
-    navigate: noop, toast,
+    navigate: vi.fn(), toast,
     supabase: { rpc, from(table: string) {
       let action = "read", expected: string;
       const query = {
@@ -80,9 +120,26 @@ function fixture(failAttachment: boolean, legacy = false) {
   context.datiTestata = actualHandler("src/pages/azienda/marketing/QuoteBuilder.tsx", "datiTestata", context);
   context.righeDaSalvare = actualHandler("src/pages/azienda/marketing/QuoteBuilder.tsx", "righeDaSalvare", context);
   return { save: actualHandler("src/pages/azienda/marketing/QuoteBuilder.tsx", "handleSave", context),
-    toast, rpc, versionRef, version: () => version, colleagueSave: () => { version = "colleague"; } };
+    context, toast, rpc, versionRef, version: () => version, colleagueSave: () => { version = "colleague"; } };
 }
 describe("QuoteBuilder: salvataggio e recupero reale", () => {
+  it("non sovrascrive la bozza recuperabile prima della scelta dell'utente", async () => {
+    const f = fixture(false);
+    f.context.recoverableDraft = { notes: "Lavoro precedente" };
+    await f.save();
+    expect(f.rpc).not.toHaveBeenCalled();
+    expect(f.context.navigate).not.toHaveBeenCalled();
+    expect(f.version()).toBe("v0");
+  });
+  it("conserva input inseriti durante il salvataggio, senza chiudere l'editor", async () => {
+    const f = fixture(false);
+    (f.context.latestDraftSerializedRef as { current: string }).current = "nota scritta durante la richiesta";
+    await f.save();
+    expect(f.rpc).toHaveBeenCalledTimes(1);
+    expect(f.context.clearQuoteDraft).not.toHaveBeenCalled();
+    expect(f.context.navigate).not.toHaveBeenCalled();
+    expect(f.toast.info).toHaveBeenCalled();
+  });
   it("salva normalmente e conserva la versione del database", async () => {
     const f = fixture(false); await f.save();
     expect(f.toast.success).toHaveBeenCalledWith("Preventivo aggiornato");

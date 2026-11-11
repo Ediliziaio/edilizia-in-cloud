@@ -28,6 +28,7 @@ export const quoteDraftSchema = z.object({
   partialQuoteId: nullableText,
   contactId: nullableText, clientName: text, clientEmail: text, clientPhone: text,
   clientCompany: text, clientAddress: text, clientFiscalCode: text, clientVatNumber: text, clientCodiceUnivoco: text,
+  tipoClienteScelto: z.enum(["privato", "azienda", "pa"]).nullable(),
   title: text, description: text, validityDays: number, notes: text, internalNotes: text,
   tipoLavoro: text, indirizzoLavori: text, pianoInstallazione: number, kmCantiere: number,
   salespersonId: nullableText, sedeId: nullableText,

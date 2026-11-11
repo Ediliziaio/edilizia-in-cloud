@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { appointmentEditPatch } from "@/lib/marketing/appointmentEdit";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription as AlertDialogDesc, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle as AlertDialogTitleComp } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,7 @@ import {
 interface CalendarOption {
   id: string;
   name: string;
+  owner_id?: string | null;
   base_lat?: number | null;
   base_lng?: number | null;
   base_formatted_address?: string | null;
@@ -95,7 +97,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   appointment?: MarketingAppointmentData | null;
-  onSaved: () => void;
+  onSaved: (saved?: { calendar_id: string | null; assigned_to: string | null; appointment_date: string }) => void;
   calendars: CalendarOption[];
   users: UserOption[];
   defaultDate?: string;
@@ -173,7 +175,18 @@ export default function MarketingAppointmentDialog({
     return "";
   }, [calendars]);
 
-  // Selected calendar object
+  // Il calendario personale e il responsabile seguono lo stesso trasferimento.
+  const changeCalendar = (nextId: string) => {
+    setCalendarId(nextId);
+    const owner = calendars.find(calendar => calendar.id === nextId)?.owner_id;
+    if (owner && !onlyAssigned) setAssignedTo(owner);
+  };
+  const changeAssignee = (nextId: string) => {
+    setAssignedTo(nextId);
+    const destinations = calendars.filter(calendar => calendar.owner_id === nextId);
+    if (destinations.length === 1) setCalendarId(destinations[0].id);
+  };
+
   const selectedCalendar = useMemo(() => {
     return calendars.find((c) => c.id === calendarId) || null;
   }, [calendars, calendarId]);
@@ -665,10 +678,9 @@ export default function MarketingAppointmentDialog({
         assigned_to: assignedTo && assignedTo !== "none" ? assignedTo : (onlyAssigned ? user.id : null),
         calendar_id: calendarId,
         contact_id: !isBlocked && contactId && contactId !== "none" ? contactId : null,
-        status: isBlocked ? "confermato" : status,
+        status: isBlocked ? (appointment?.status || "confermato") : status,
         is_blocked_slot: isBlocked,
         internal_notes: internalNotes.trim() || null,
-        order_id: null,
         // Address fields
         address_line: addressData.address_line || null,
         address_city: addressData.address_city || null,
@@ -688,8 +700,13 @@ export default function MarketingAppointmentDialog({
       };
 
       if (isEditing && appointment?.id) {
-        const { error } = await supabase.from("appointments").update(payload).eq("id", appointment.id).eq("company_id", companyId!);
-        if (error) throw error;
+        const patch = appointmentEditPatch(appointment, payload);
+        if (Object.keys(patch).length) {
+          const { data: updated, error } = await supabase.from("appointments").update(patch).eq("id", appointment.id).eq("company_id", companyId!)
+            .select("id").single();
+          if (error) throw error;
+          if (!updated?.id) throw new Error("Appuntamento non aggiornato: verifica i permessi e riprova. Le modifiche restano aperte.");
+        }
         savedAppointmentId = appointment.id;
         if (!isBlocked && status === "annullato") {
           void syncDeletedAppointment(appointment.id);
@@ -770,7 +787,7 @@ export default function MarketingAppointmentDialog({
             : undefined,
         variant: followUpWarning ? "destructive" : undefined,
       });
-      onSaved();
+      onSaved({ calendar_id: calendarId, assigned_to: payload.assigned_to ?? null, appointment_date: payload.appointment_date! });
       onOpenChange(false);
     } catch (e: any) {
       toast({ title: "Errore", description: e.message, variant: "destructive" });
@@ -854,7 +871,7 @@ export default function MarketingAppointmentDialog({
 
                 <div className="space-y-2">
                   <Label>Calendario *</Label>
-                  <Select value={calendarId} onValueChange={setCalendarId} disabled={calendars.length === 0}>
+                  <Select value={calendarId} onValueChange={changeCalendar} disabled={calendars.length === 0}>
                     <SelectTrigger aria-label="Calendario *"><SelectValue placeholder="Seleziona calendario" /></SelectTrigger>
                     <SelectContent>
                       {calendars.map((c) => (
@@ -1036,7 +1053,7 @@ export default function MarketingAppointmentDialog({
                     Venditore assegnato
                     <span className="text-[10px] text-muted-foreground font-normal max-sm:hidden max-md:text-[11px]">(staff interno)</span>
                   </Label>
-                  <Select value={assignedTo} onValueChange={setAssignedTo}>
+                  <Select value={assignedTo} onValueChange={changeAssignee}>
                     <SelectTrigger aria-label="Venditore assegnato"><SelectValue placeholder="Non assegnato" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Non assegnato</SelectItem>
@@ -1349,7 +1366,7 @@ export default function MarketingAppointmentDialog({
             <div className="space-y-4 max-w-md">
               <div className="space-y-2">
                 <Label>Calendario *</Label>
-                <Select value={calendarId} onValueChange={setCalendarId}>
+                <Select value={calendarId} onValueChange={changeCalendar}>
                   <SelectTrigger aria-label="Calendario *"><SelectValue placeholder="Seleziona calendario" /></SelectTrigger>
                   <SelectContent>
                     {calendars.map((c) => (
