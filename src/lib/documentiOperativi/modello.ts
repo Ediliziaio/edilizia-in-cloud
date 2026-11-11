@@ -121,6 +121,18 @@ export function modificaNumeroRigaDocumento(r: RigaDocumentoOperativo, key: stri
   if (!["quantita", "prezzo", "sconto", "iva", "oreUomo", "oreMezzo"].includes(key)) throw new Error("Campo numerico non valido");
   return { ...r, ...(["quantita", "prezzo", "sconto"].includes(key) ? { importo: undefined } : {}), [key]: value === "" ? null : Number(value) };
 }
+/**
+ * Cosa conta il totale dei lavori in economia (11/11/2026), scritto sotto il totale in 8 pt.
+ * Il rendiconto d'appalto sullo stesso periodo dà un altro numero (vedi RendicontoAppaltoPDF):
+ * finché il titolare non decide se unirli, ciascuno dice cosa comprende.
+ *   · manodopera: le ore delle presenze, straordinari compresi (campo_presenze_effettive);
+ *   · voci extra del rapportino (quadro.voci), col loro prezzo di vendita;
+ *   · materiali e mezzi: righe con le quantità e prezzo «Da definire» → nel totale solo se
+ *     qualcuno ci scrive un prezzo (importoRiga con prezzo null vale 0).
+ */
+export const NOTA_TOTALE_ECONOMIA =
+  "Comprende manodopera, straordinari e voci extra dei rapportini; materiali e mezzi sono elencati con le quantità e contano nel totale solo se hanno un prezzo.";
+
 export function totaliDocumento(d: DocumentoOperativo) {
   if (d.tipo === "economia") {
     // Rapporto delle quantità e tariffe IVA escluse, come il modello approvato.

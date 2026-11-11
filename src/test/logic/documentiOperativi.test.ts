@@ -4,6 +4,7 @@ import {
   footerAzienda,
   totaliDocumento,
   documentoIncompleto,
+  NOTA_TOTALE_ECONOMIA,
   type DocumentoOperativo,
   type AziendaDocumento,
 } from "@/lib/documentiOperativi/modello";
@@ -260,6 +261,16 @@ describe("Standard rapporto in economia", () => {
     expect(creaPdfOperativo(d, azienda).output()).toContain(
       "Totale IVA esclusa",
     );
+  });
+  it("sotto il totale dice cosa comprende; gli altri documenti no (11/11/2026)", () => {
+    expect(NOTA_TOTALE_ECONOMIA).toBe(
+      "Comprende manodopera, straordinari e voci extra dei rapportini; materiali e mezzi sono elencati con le quantità e contano nel totale solo se hanno un prezzo.",
+    );
+    const d: DocumentoOperativo = { ...doc, tipo: "economia" };
+    // jsPDF spezza la frase su più righe: basta l'inizio di ciascun pezzo.
+    const raw = creaPdfOperativo(d, azienda).output();
+    expect(raw).toContain("Comprende manodopera, straordinari");
+    expect(creaPdfOperativo(doc, azienda).output()).not.toContain("Comprende manodopera");
   });
   it("richiede il prezzo del rapporto ma non un'aliquota IVA da esporre", async () => {
     const { erroriDocumento } =

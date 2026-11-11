@@ -1,4 +1,5 @@
 import { visibleAiAnswer } from "./visibleAiAnswer.ts";
+import { INIZI_BLOCCO_SILVIO } from "./silvioBloccoAi.ts";
 
 /** Shared instructions stay in the cached prefix; no extra provider request. */
 export const SILVIO_ANSWER_QUALITY_RULES = `
@@ -13,7 +14,11 @@ export const SILVIO_ANSWER_QUALITY_RULES = `
 - Nelle bozze scrivi direttamente il testo utilizzabile. Nei consigli presenta la scelta, la ragione concreta e il limite che potrebbe cambiarla. Rendi visibili i dati mancanti senza ripetere premesse, strumenti interni o avvertenze generiche.
 `;
 
-const TECHNICAL_ERROR = /^(?:[⚠️💳⛔⏳]+\s*)?(?:c['’]è stato un problema tecnico|il servizio ai è temporaneamente|credito (?:ai )?(?:finito|esaurito)|questa richiesta è già in elaborazione|ho fermato il nuovo tentativo|ho raggiunto il limite di tempo|non sono riuscito a (?:completare l['’]analisi|comporre una risposta utile|formulare una risposta)|non è disponibile una risposta leggibile|mi dispiace(?:\s+florin)?,?\s+ho (?:avuto|riscontrato) un problema)/iu;
+const TECHNICAL_ERROR = new RegExp(
+  "^(?:[⚠️💳⛔⏳]+\\s*)?(?:c['’]è stato un problema tecnico|il servizio ai è temporaneamente|credito (?:ai )?(?:finito|esaurito)|questa richiesta è già in elaborazione|ho fermato il nuovo tentativo|ho raggiunto il limite di tempo|non sono riuscito a (?:completare l['’]analisi|comporre una risposta utile|formulare una risposta)|non è disponibile una risposta leggibile|mi dispiace(?:\\s+florin)?,?\\s+ho (?:avuto|riscontrato) un problema|" +
+    INIZI_BLOCCO_SILVIO + ")",
+  "iu",
+);
 
 /** Keep readable previous turns, excluding live placeholders and failed replies. */
 export function silvioHistoryContent(content: unknown, options: {

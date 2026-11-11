@@ -122,6 +122,16 @@ export interface RendicontoAppaltoPDFProps {
   companyId?: string | null;
 }
 
+/**
+ * Cosa conta il totale (11/11/2026), scritto sotto i totali in 8 pt. Le righe vengono da
+ * appalto_rendiconto_righe: manodopera e straordinari (appalto_rendiconto_crea_righe, con la
+ * maggiorazione) e le voci extra del rapportino (rapportino_voce_applica). Materiali e mezzi
+ * del rapportino non diventano righe. I lavori in economia sullo stesso periodo contano altro
+ * (NOTA_TOTALE_ECONOMIA): finché il titolare non decide se unirli, ciascuno lo dice.
+ */
+export const NOTA_TOTALE_RENDICONTO =
+  "Comprende manodopera, straordinari e voci extra dei rapportini; materiali e mezzi non sono compresi.";
+
 /* ── Formattazione ──────────────────────────────────────────────────── */
 
 /**
@@ -370,6 +380,7 @@ export function RendicontoAppaltoPDF({
             <Text style={styles.nettoLabel}>Netto da fatturare</Text>
             <Text style={[st.rNumero, { color: accento }]}>€ {soldi(netto)}</Text>
           </View>
+          <Text style={[st.nota, { marginTop: 3 }]}>{NOTA_TOTALE_RENDICONTO}</Text>
         </View>
 
         {/* 6. Note e firme */}

@@ -33,6 +33,8 @@ import { giornalieroDelGiorno } from "./rapportoGiornaliero.ts";
 import { linkCreaCommessa, type FonteDaLink } from "../../../shared/silvio-commessa/ingressi.ts";
 import { creaConSilvioAcceso } from "./creaConSilvio.ts";
 import { scadutoPrevisionale } from "./scadutoPrevisionale.ts";
+import { bloccoAiPerUtente } from "./erroriAi.ts";
+import { erroreStrumentoBloccato } from "./silvioBloccoAi.ts";
 
 /**
  * MP-AIE-01 v2 — canali AI supportati. Ogni tool dichiara su quali può essere
@@ -1521,6 +1523,9 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
           tokens: { in: result.promptTokens, out: result.completionTokens },
         };
       } catch (e) {
+        // Carta, abbonamento o credito (11/11/2026): il motivo vero, non il testo del router.
+        const blocco = bloccoAiPerUtente(e);
+        if (blocco) return erroreStrumentoBloccato(blocco, "analizzare l'immagine");
         return { error: e instanceof Error ? e.message : String(e) };
       }
     },

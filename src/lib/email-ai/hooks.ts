@@ -10,6 +10,7 @@ import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { toast } from "sonner";
+import { segnalaBloccoDaRisposta } from "@/lib/creditoEsaurito";
 import type { EmailCategoria, EntitaTipo } from "./types";
 import { LIMITE_ELENCO, TIPO_ALTRO } from "./documentiDaConfermare";
 
@@ -450,7 +451,12 @@ export function useEstraiAllegato() {
         body: JSON.stringify(input),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      // Carta mancante o abbonamento sospeso (402 payment_method_required): si apre
+      // la finestra della carta. Qui fetch è diretto, il client supabase non lo vede.
+      if (!res.ok) {
+        segnalaBloccoDaRisposta(res.status, json);
+        throw new Error(json.error || `HTTP ${res.status}`);
+      }
       return json;
     },
     onSuccess: (data, vars) => {

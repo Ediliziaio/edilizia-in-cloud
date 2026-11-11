@@ -158,3 +158,29 @@ export function segnalaBloccoDaRisposta(status: number, corpo: unknown): Payment
   usePaymentGateStore.getState().show(kind, kind === "credits" ? estraiDettaglioCredito(corpo) : null);
   return kind;
 }
+
+/**
+ * Silvio risponde 200 con { ok: false } anche quando si ferma per un blocco: la
+ * frase col motivo e' gia' in chat, qui si apre la finestra giusta (11/11/2026).
+ *   · error "credito_esaurito" → ricarica dei crediti AI (com'era);
+ *   · code "payment_method_required" → finestra della carta (carta mancante,
+ *     abbonamento sospeso o scaduto: _shared/silvioBloccoAi.ts).
+ * Gli altri ok:false (RBAC, errori) non aprono niente.
+ */
+export function segnalaBloccoSilvio(esito: unknown): PaymentGateKind | null {
+  if (!esito || typeof esito !== "object") return null;
+  const { ok, error, code, messaggio } = esito as { ok?: unknown; error?: unknown; code?: unknown; messaggio?: unknown };
+  if (ok !== false) return null;
+  if (error === "credito_esaurito" || code === "insufficient_credits") {
+    segnalaCreditoEsaurito({
+      portafoglio: "ai",
+      ...(typeof messaggio === "string" && messaggio.trim() ? { messaggio: messaggio.trim() } : {}),
+    });
+    return "credits";
+  }
+  if (code === CODICE_CARTA) {
+    usePaymentGateStore.getState().show("payment", null);
+    return "payment";
+  }
+  return null;
+}

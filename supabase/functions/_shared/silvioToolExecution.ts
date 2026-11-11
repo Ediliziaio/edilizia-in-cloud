@@ -23,6 +23,8 @@ import {
   type ToolContext,
 } from "./silvioTools.ts";
 import { usaPermessiStaff } from "./ruoloSilvio.ts";
+import { bloccoAiPerUtente } from "./erroriAi.ts";
+import { erroreStrumentoBloccato } from "./silvioBloccoAi.ts";
 import { legacyQuoteDraftInput, quoteDraftIssue } from "./operationalDraftValidation.ts";
 
 export interface ToolExecutionResult {
@@ -417,6 +419,13 @@ export async function executeToolWithRouting(
       proposalId: null,
       durationMs: Date.now() - t0,
     });
+    // Uno strumento che chiama l'AI e trova carta, abbonamento o credito fermi
+    // (11/11/2026): al modello arriva il motivo da riferire, non il testo del router.
+    const blocco = bloccoAiPerUtente(e);
+    if (blocco) {
+      const { error: perUtente, code } = erroreStrumentoBloccato(blocco, "completare questa operazione");
+      return { success: false, toolName, error: { code, message: perUtente }, durationMs: Date.now() - t0, riskLevel: risk };
+    }
     return {
       success: false,
       toolName,

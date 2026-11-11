@@ -8,7 +8,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { RendicontoAppaltoPDF, notaPerCommittente } from "@/components/orders/RendicontoAppaltoPDF";
+import { NOTA_TOTALE_RENDICONTO, RendicontoAppaltoPDF, notaPerCommittente } from "@/components/orders/RendicontoAppaltoPDF";
 import { raggruppaPerCantiere, type RigaDaStampare } from "@/lib/appalto/fattura";
 import { giornaleDaAllegare, type CantiereAllegato, type RigaGiornaleDb } from "@/lib/appalto/giornaleAllegato";
 
@@ -138,6 +138,10 @@ describe("il PDF del rendiconto d'appalto", () => {
     expect(tutto).toContain("7.550,00");
     expect(tutto).toContain("Ritenuta a garanzia 4%");
     expect(tutto).toContain("302,00");
+    // Sotto il netto, in piccolo, cosa comprende il totale (11/11/2026).
+    expect(NOTA_TOTALE_RENDICONTO).toBe("Comprende manodopera, straordinari e voci extra dei rapportini; materiali e mezzi non sono compresi.");
+    expect(tutto).toContain(NOTA_TOTALE_RENDICONTO);
+    expect(tutto.indexOf(NOTA_TOTALE_RENDICONTO)).toBeGreaterThan(tutto.indexOf("Netto da fatturare"));
     expect(tutto).toContain("Netto da fatturare");
     expect(tutto).toContain("7.248,00");
   });

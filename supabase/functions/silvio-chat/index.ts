@@ -6,6 +6,10 @@
  * 02/11/2026: cache a 5 minuti col breakpoint di coda, sola lettura, tetti sul
  * turno (_shared/silvioRisparmioToken.ts).
  * 03/11/2026: gruppo fisso di strumenti e listino proprio (t2_silvio).
+ * 11/11/2026: carta mancante, abbonamento sospeso e credito finito non sono più
+ * «problema tecnico» / «ERRORE TECNICO»: Silvio dice il motivo vero e il browser
+ * apre la finestra giusta (_shared/silvioBloccoAi.ts), anche quando il blocco
+ * arriva da silvio-extract-pdf o da uno strumento.
  * Kill-switch: SILVIO_TOOL_DOMAIN_FILTER_DISABLED / AI_PROMPT_CACHE_DISABLED /
  * AI_PROMPT_CACHE_TAIL_DISABLED / SILVIO_SOLA_LETTURA_DISABLED.
  *
@@ -38,6 +42,8 @@ import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { AiTurnControl, AiTurnLimitError } from "../_shared/aiTurnControl.ts";
 import { AiRequestGuardError, isProviderCreditError } from "../_shared/aiRequestGuard.ts";
+import { bloccoSilvioDaCorpo, bloccoSilvioDaErrore, corpoErroreInvoke, esitoBloccoSilvio, messaggioBloccoSilvio } from "../_shared/silvioBloccoAi.ts";
+import type { ErroreAiPerUtente } from "../_shared/erroriAi.ts";
 import { createLatestStreamWriter } from "../_shared/latestStreamWriter.ts";
 import { publicAiAnswer, visibleAiAnswer } from "../_shared/visibleAiAnswer.ts";
 import { SILVIO_REPLY_STYLE } from "../_shared/silvioReplyStyle.ts";
@@ -1088,6 +1094,10 @@ serve(async (req: Request) => {
     // messaggio, quindi qui arrivano sempre come testo normale.
     let userContent: unknown = userMessage || "(allegati senza testo)";
     let documentContextPartial = false;
+    // Un allegato non letto per carta, abbonamento o credito: Silvio si ferma e lo
+    // dice (11/11/2026). Prima diventava «ERRORE TECNICO» nel prompt e il modello
+    // chiedeva di togliere la password al PDF.
+    let bloccoAllegato: { blocco: ErroreAiPerUtente; nomeFile: string } | null = null;
     const visualAttachments = attachments.filter(
       (a) => a.kind === "image" || a.kind === "pdf" || a.kind === "text-doc" || a.kind === "office-doc",
     );
@@ -1166,7 +1176,12 @@ serve(async (req: Request) => {
             //   3. text vuoto + vision_fallback=false (no error) → PDF non scansione + non testo nativo (raro: probabilmente PDF protetto)
             //   4. text presente con vision_fallback=true → OK (OCR ha lavorato)
             //   5. text presente nativo → OK (estrazione standard)
-            if (pdfErr) {
+            const bloccoPdf = pdfErr ? bloccoSilvioDaCorpo(await corpoErroreInvoke(pdfErr)) : null;
+            if (bloccoPdf) {
+              console.warn("[silvio-chat] PDF non letto per blocco:", bloccoPdf.body.code);
+              bloccoAllegato = { blocco: bloccoPdf, nomeFile: att.file_name };
+              break;
+            } else if (pdfErr) {
               documentContextPartial = true;
               console.warn("[silvio-chat] PDF extract RPC error:", pdfErr.message);
               parts.push({
@@ -1199,6 +1214,11 @@ serve(async (req: Request) => {
               });
             }
           } catch (pdfCatch) {
+            const bloccoPdf = bloccoSilvioDaErrore(pdfCatch);
+            if (bloccoPdf) {
+              bloccoAllegato = { blocco: bloccoPdf, nomeFile: att.file_name };
+              break;
+            }
             documentContextPartial = true;
             const msg = pdfCatch instanceof Error ? pdfCatch.message : String(pdfCatch);
             console.warn("[silvio-chat] PDF extract exception:", msg);
@@ -1255,6 +1275,15 @@ serve(async (req: Request) => {
         }
       }
       userContent = parts;
+    }
+    if (bloccoAllegato) {
+      await supabaseAdmin.from("internal_chat_messages").insert({
+        ...replyLink,
+        channel_id: channelId, sender_id: SILVIO_SENDER_ID, company_id: companyId,
+        content: messaggioBloccoSilvio(bloccoAllegato.blocco, { tipo: "documento", nomeFile: bloccoAllegato.nomeFile }),
+        message_type: "text",
+      });
+      return jsonResponse(esitoBloccoSilvio(bloccoAllegato.blocco), 200, corsHeaders);
     }
 
     // Keep the current request; attachment coverage is tracked separately from history.
@@ -1549,8 +1578,12 @@ serve(async (req: Request) => {
         }
         const errMsg = aiErr instanceof Error ? aiErr.message : String(aiErr);
         console.error("[silvio-chat] aiRouter iter", iteration, "error:", errMsg);
+        // Carta, abbonamento o credito (11/11/2026): il motivo vero, non «problema tecnico».
+        const blocco = aiErr instanceof AiRequestGuardError ? null : bloccoSilvioDaErrore(aiErr);
         // Messaggio utente-friendly + suggerimento per AI Test Lab
-        const userFriendlyMsg = aiErr instanceof AiRequestGuardError
+        const userFriendlyMsg = blocco
+          ? messaggioBloccoSilvio(blocco, { tipo: "risposta" })
+          : aiErr instanceof AiRequestGuardError
           ? aiErr.code === "in_progress"
             ? "⏳ Questa richiesta è già in elaborazione. Attendi la risposta senza inviarla di nuovo."
             : "⚠️ Ho fermato il nuovo tentativo per evitare costi o operazioni duplicati. Controlla la risposta e le azioni già presenti; se mancano, serve verificare questa richiesta prima di ripeterla."
@@ -1575,7 +1608,7 @@ serve(async (req: Request) => {
             message_type: "text",
           });
         }
-        return jsonResponse({ ok: false, error: errMsg }, 200, corsHeaders);
+        return jsonResponse(blocco ? esitoBloccoSilvio(blocco) : { ok: false, error: errMsg }, 200, corsHeaders);
       }
 
       // Inspect raw response to extract tool_calls
@@ -2160,6 +2193,9 @@ serve(async (req: Request) => {
     if (err instanceof Response) return err;
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[silvio-chat] error:", msg);
+    // Un blocco sfuggito ai punti sopra: 402 col codice (il browser apre la finestra), non un 500.
+    const blocco = bloccoSilvioDaErrore(err);
+    if (blocco) return jsonResponse(blocco.body, blocco.status, corsHeaders);
     return errorResponse(msg, 500, corsHeaders);
   }
 });

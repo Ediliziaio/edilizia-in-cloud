@@ -9,6 +9,12 @@
  *   5) Match fornitore + dedup SDI + alert IBAN anti-frode → BOZZA da_confermare
  *
  * REGOLA D'ORO (cap. 11): mai auto-registrazione. Produce solo una bozza.
+ *
+ * 11/11/2026: prima della visione, il controllo della carta (requirePaymentMethod.ts)
+ * come le altre funzioni AI: era AI erogata senza carta. Bloccato → 402
+ * payment_method_required col motivo vero. Il router (aiRouter) non si usa: cambierebbe
+ * modello, addebito e risultato; gli errori del provider li segnala già callOpenRouter
+ * (segnalaErroreAI).
  * Endpoint POST: { attachment_id: uuid }  · Auth: Bearer (staff interno).
  */
 
@@ -26,6 +32,7 @@ import {
 import { callOpenRouter } from "../_shared/ai-provider/openrouter.ts";
 import { jsonDalModello } from "./jsonDalModello.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
+import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -124,6 +131,16 @@ Deno.serve(async (req) => {
     }
     if (att.size_bytes && att.size_bytes > MAX_PDF_BYTES) {
       return json({ skipped: "too_large", reason: "PDF troppo grande per l'estrazione automatica." }, 200, cors);
+    }
+
+    // ── Carta (o abbonamento) prima di spendere: la visione è AI a consumo ──
+    // Il tentativo si registra come «credito»: il dispatcher riprova fra un'ora e
+    // non lo abbandona dopo 6 giri, così riparte da solo quando la carta c'è.
+    const pagamento = await checkPaymentMethod(supabase, att.company_id);
+    if (!pagamento.allowed) {
+      const motivo = pagamento.message ?? PAYMENT_METHOD_REQUIRED_MESSAGE;
+      await segnaTentativo(supabase, att.inbox_id, "credito", `carta: ${motivo}`);
+      return json({ error: motivo, code: "payment_method_required" }, 402, cors);
     }
 
     // ── Download PDF dallo storage ──────────────────────────────────────────

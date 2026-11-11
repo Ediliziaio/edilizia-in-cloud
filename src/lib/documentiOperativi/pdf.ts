@@ -22,6 +22,7 @@ import {
   dataIt,
   documentoIncompleto,
   haImportiDocumento,
+  NOTA_TOTALE_ECONOMIA,
 } from "./modello";
 
 import { disegnaPiedeJsPdf, fontPiedeBase64, limiteContenutoJsPdf, personalizzazioneDocumento, puntiInMm } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
@@ -713,6 +714,8 @@ export function creaPdfOperativo(
     y = fine;
     if (documentoIncompleto(d))
       paragraph("Da completare: totali delle sole voci valorizzate.", true);
+    // Cosa conta il totale (11/11/2026): il rendiconto d'appalto conta altro.
+    if (d.tipo === "economia") paragraph(NOTA_TOTALE_ECONOMIA, true);
     fine = y;
   } else if (emptyPrices) {
     const x = d.tipo === "richiesta" ? left : left + width - 86;

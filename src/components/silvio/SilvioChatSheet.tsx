@@ -79,7 +79,7 @@ import {
 import { useAutoSizeTextarea } from "@/hooks/useAutoSizeTextarea";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeSilvioWithRecovery } from "@/lib/silvio/replyDelivery";
-import { segnalaCreditoEsaurito } from "@/lib/creditoEsaurito";
+import { segnalaBloccoSilvio } from "@/lib/creditoEsaurito";
 import { useAuth } from "@/contexts/AuthContext";
 import { type ChatMarkdownSource } from "@/components/ui/ChatMarkdown";
 import { SilvioAnswer } from "./SilvioAnswer";
@@ -948,10 +948,8 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
       if (res.error) throw new Error(`Silvio: ${res.error.message}`);
       // Credito finito: la frase con il link e' gia' in chat (la scrive il
       // server); qui si apre anche la finestra di ricarica.
-      const esitoCredito = res.data as { ok?: boolean; error?: string } | null;
-      if (esitoCredito?.ok === false && esitoCredito.error === "credito_esaurito") {
-        segnalaCreditoEsaurito({ portafoglio: "ai" });
-      }
+      // Lo stesso per la carta mancante o l'abbonamento sospeso (11/11/2026).
+      segnalaBloccoSilvio(res.data);
       // AI Test Lab — toast warning se aiRouter ha fatto fallback automatico.
       if (aiSelector.showSelector && aiSelector.selectedModel) {
         const data = res.data as {
