@@ -21,7 +21,7 @@ import { ContiPerRuolo, useContiMovimentabili, type RuoloConto } from "./ContiPe
 const euro = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" } as Intl.NumberFormatOptions).format(n);
 const dataIt = (d: string) => d.split("-").reverse().join("/");
 
-export type TipoRateoRisconto = "risconto_attivo" | "risconto_passivo" | "rateo_attivo" | "rateo_passivo";
+export type TipoRateoRisconto = "risconto_attivo" | "risconto_passivo" | "rateo_attivo" | "rateo_passivo" | "fattura_da_ricevere" | "fattura_da_emettere";
 
 /** Ogni tipo: cosa vuol dire in parole, su che natura di conto si appoggia, e il conto di stato patrimoniale. */
 export const TIPI_RATEI_RISCONTI: Record<TipoRateoRisconto, { nome: string; spiegazione: string; natura: "costo" | "ricavo"; ruolo: RuoloConto }> = {
@@ -44,6 +44,16 @@ export const TIPI_RATEI_RISCONTI: Record<TipoRateoRisconto, { nome: string; spie
     nome: "Rateo passivo", natura: "costo",
     spiegazione: "Un costo maturato quest'anno che arriverà in fattura l'anno dopo (utenze, noleggi).",
     ruolo: { ruolo: "14.01", etichetta: "Ratei passivi (stato patrimoniale)", natura: "passivo" },
+  },
+  fattura_da_ricevere: {
+    nome: "Fattura da ricevere", natura: "costo",
+    spiegazione: "Un costo di quest'anno la cui fattura arriverà l'anno dopo (lavori finiti a dicembre, utenze): va tutto nell'anno.",
+    ruolo: { ruolo: "13.05", etichetta: "Fatture da ricevere (stato patrimoniale)", natura: "passivo" },
+  },
+  fattura_da_emettere: {
+    nome: "Fattura da emettere", natura: "ricavo",
+    spiegazione: "Un ricavo maturato quest'anno che si fatturerà l'anno dopo (un SAL di dicembre): va tutto nell'anno.",
+    ruolo: { ruolo: "05.02", etichetta: "Fatture da emettere (stato patrimoniale)", natura: "attivo" },
   },
 };
 const TIPI = Object.keys(TIPI_RATEI_RISCONTI) as TipoRateoRisconto[];
@@ -184,7 +194,7 @@ export function RateiRiscontiFineAnno({ companyId, anno, chiuso }: { companyId: 
             <Input aria-label="Al" type="date" className="h-8 text-xs" value={bozza.al} onChange={(ev) => setBozza({ ...bozza, al: ev.target.value })} />
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs text-muted-foreground">{tipo.spiegazione} Scrivi l'importo intero del periodo: la quota la calcolo a giorni.</p>
+            <p className="text-xs text-muted-foreground">{tipo.spiegazione} {tipo.nome.startsWith("Fattura") ? "L'importo va tutto al 31/12 e si riapre all'01/01, quando arriva la fattura." : "Scrivi l'importo intero del periodo: la quota la calcolo a giorni."}</p>
             <Button size="sm" variant="secondary" disabled={!bozzaValida || aggiungi.isPending} onClick={() => aggiungi.mutate()}>Aggiungi</Button>
           </div>
         </div>

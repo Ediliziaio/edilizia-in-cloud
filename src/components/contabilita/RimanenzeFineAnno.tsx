@@ -116,7 +116,7 @@ export function RimanenzeFineAnno({ companyId, anno, chiuso }: { companyId: stri
             <tr><th className="p-2">Rimanenze</th><th className="p-2 text-right">Iniziali (dal giornale)</th><th className="p-2 text-right">Finali al 31/12/{anno}</th></tr>
           </thead>
           <tbody>
-            {riga("Lavori in corso su ordinazione", a.lavori, lavori, setLavori, "rim-lavori", "Proposta: maturato delle commesse meno fatturato (Controllo di gestione).")}
+            {riga("Lavori in corso su ordinazione", a.lavori, lavori, setLavori, "rim-lavori", "Proposta: maturato delle commesse meno fatturato (Controllo di gestione), calcolata a OGGI con le sole fatture collegate alle commesse: per il 31/12 controlla l'avanzamento a quella data.")}
             {riga("Materiali di magazzino", a.materiali, materiali, setMateriali, "rim-materiali", "Proposta: giacenza di oggi × costo medio. A fine anno contala davvero.")}
           </tbody>
         </table>

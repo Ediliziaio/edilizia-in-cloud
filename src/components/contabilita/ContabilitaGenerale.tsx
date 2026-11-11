@@ -34,9 +34,8 @@ const RUOLI_TFR: readonly RuoloConto[] = [
   { ruolo: "12.01", etichetta: "Fondo TFR (stato patrimoniale, C)", natura: "passivo" },
 ];
 /** Dove va il risultato dell'anno chiuso all'apertura dell'anno dopo. */
-const RUOLI_CHIUSURA: readonly RuoloConto[] = [
-  { ruolo: "10.04", etichetta: "Utili (perdite) portati a nuovo (A.VIII): ci va il risultato dell'anno chiuso", natura: "passivo" },
-];
+const RUOLI_UTILI_A_NUOVO: RuoloConto = { ruolo: "10.04", etichetta: "Utili (perdite) portati a nuovo (A.VIII): ci va il risultato dell'anno chiuso", natura: "passivo" };
+const RUOLI_UTILE: RuoloConto = { ruolo: "10.05", etichetta: "Utile (perdita) dell'esercizio (A.IX): ci va il risultato della chiusura", natura: "passivo" };
 import { RimanenzeFineAnno } from "@/components/contabilita/RimanenzeFineAnno";
 import { bilancioASezioni, bilancioCee, bilancioDiVerifica, htmlBilancioCee, htmlBilancioSezioni, htmlBilancioVerifica, saldiPerConto, type LatoBilancio } from "@/lib/contabilita/bilancioCee";
 import type { AziendaIntestazione } from "@/lib/contabilita/documentoContabile";
@@ -1177,7 +1176,7 @@ interface EsitoFineAnno {
 }
 interface EsitoChiusura {
   utile: number; conti_economici: number; conti_patrimoniali: number; apertura_gia_presente: boolean;
-  iva_non_liquidata?: number; ammortamenti_da_registrare?: boolean; tfr_da_registrare?: boolean; conto_utili_a_nuovo?: boolean;
+  iva_non_liquidata?: number; ammortamenti_da_registrare?: boolean; tfr_da_registrare?: boolean; conto_utili_a_nuovo?: boolean; conto_utile_da_scegliere?: boolean;
   imposte_da_stanziare?: boolean;
   /** Il primo esercizio precedente ancora aperto: gli esercizi si chiudono in ordine. */
   esercizio_precedente_aperto?: number | null;
@@ -1312,7 +1311,8 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
               {chiusura.data!.apertura_gia_presente ? ` · il ${anno + 1} ha già la sua apertura (non se ne farà un'altra)` : ""}.
             </p>
             {/* Senza «utili portati a nuovo» il risultato riaperto si somma a quello dell'anno dopo, nella stessa voce A.IX. */}
-            <ContiPerRuolo companyId={companyId} ruoli={chiusura.data!.conto_utili_a_nuovo === false ? RUOLI_CHIUSURA : []} chiuso={chiuso} />
+            <ContiPerRuolo companyId={companyId} chiuso={chiuso}
+              ruoli={[...(chiusura.data!.conto_utile_da_scegliere ? [RUOLI_UTILE] : []), ...(chiusura.data!.conto_utili_a_nuovo === false ? [RUOLI_UTILI_A_NUOVO] : [])]} />
             {(chiusura.data!.iva_non_liquidata ?? 0) !== 0 || chiusura.data!.ammortamenti_da_registrare || chiusura.data!.tfr_da_registrare || chiusura.data!.esercizio_precedente_aperto || chiusura.data!.imposte_da_stanziare ? (
               <ul className="list-disc rounded-lg border border-amber-200 bg-amber-50 py-2 pl-6 pr-3 text-amber-900">
                 {chiusura.data!.esercizio_precedente_aperto ? <li>L'esercizio {chiusura.data!.esercizio_precedente_aperto} è ancora aperto: gli esercizi si chiudono in ordine, prima quello.</li> : null}
