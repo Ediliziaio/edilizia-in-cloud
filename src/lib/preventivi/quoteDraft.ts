@@ -83,3 +83,10 @@ export function readQuoteDraft(raw: string): QuoteDraft {
 export function serializeQuoteDraft(draft: QuoteDraft, now = new Date()): string {
   return JSON.stringify({ ...draft, schemaVersion: 2, savedAt: now.toISOString() });
 }
+
+/** L'id del record appena creato non è un nuovo input dell'utente. */
+export function quoteDraftInputHash(serialized: string): string {
+  const value: Record<string, unknown> = JSON.parse(serialized);
+  const { partialQuoteId: _partial, savedAt: _saved, schemaVersion: _version, ...input } = value;
+  return JSON.stringify(input);
+}

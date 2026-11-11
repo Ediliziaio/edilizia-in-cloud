@@ -74,7 +74,7 @@ import { BonusLinesCard } from "@/components/orders/BonusLinesCard";
 import { useBonusFiscaliFlags } from "@/hooks/useBonusFiscaliFlags";
 import { type BonusLine, serializeBonusLines } from "@/lib/orders/bonusFiscali";
 import { type QuotePaymentPhase, recalcPhaseAmounts, paymentPlanError } from "@/lib/preventivi/paymentTerms";
-import { readQuoteDraft, serializeQuoteDraft, type QuoteDraft } from "@/lib/preventivi/quoteDraft";
+import { readQuoteDraft, serializeQuoteDraft, quoteDraftInputHash, type QuoteDraft } from "@/lib/preventivi/quoteDraft";
 import { useBoundedAutosave, useDraftExitFlush } from "@/hooks/useBoundedAutosave";
 import { assertSavedQuoteAmounts } from "@/lib/preventivi/quoteSaveValidation";
 import { fetchQuotePdf } from "@/lib/preventivi/quotePdfDownload";
@@ -522,6 +522,10 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   const [pendingEditNavId, setPendingEditNavId] = useState<string | null>(null);
   const [partialQuoteId, setPartialQuoteId] = useState<string | null>(null);
   const newQuoteCompletedRef = useRef(false);
+  const draftHandedOffRef = useRef(false);
+  // Solo gli id creati da questa istanza possono riprendere il salvataggio
+  // parziale usando la versione già verificata, senza creare un doppione.
+  const createdQuoteRef = useRef<string | null>(null);
   // Sprint A — Preventivatore Unificato: dialog a 3 stadi dietro feature flag
   // `PREVENTIVATORE_UNIFIED_V1`. Quando ON sostituisce il cluster di 5 bottoni
   // (Listino / Bundle / Serramento / Riga libera / Altro) con un unico
@@ -1816,9 +1820,12 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     return () => clearTimeout(timer);
   }, [draftReady, quoteDraftKey, draftSerialized, isEdit]);
 
-  const persistLocalDraft = useCallback(() => {
-    if (!draftReady || newQuoteCompletedRef.current || !quoteDraftKey || recoverableDraft || draftReadFailedRef.current || draftCheckedRef.current !== quoteDraftKey) return;
-    if (isEdit && lastCloudSavedSnapshotRef.current === draftSerialized) {
+  const persistLocalDraft = () => {
+    if (!draftReady || draftHandedOffRef.current || !quoteDraftKey || recoverableDraft || draftReadFailedRef.current || draftCheckedRef.current !== quoteDraftKey) return;
+    const alreadySaved = isEdit ? lastCloudSavedSnapshotRef.current === draftSerialized
+      : newQuoteCompletedRef.current && !!lastCloudSavedSnapshotRef.current
+        && quoteDraftInputHash(lastCloudSavedSnapshotRef.current) === quoteDraftInputHash(draftSerialized);
+    if (alreadySaved) {
       // Anche un annulla/ripristina manuale può riportare tutti i campi alla
       // versione sul server: una vecchia copia sporca non va riproposta.
       try { localStorage.removeItem(quoteDraftKey); setLocalDraftSaved(false); }
@@ -1832,23 +1839,33 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       setLocalDraftSaved(true);
       setLocalDraftFailed(false);
     } catch { setLocalDraftFailed(true); }
-  }, [draftReady, isEdit, lastSavedHash, quoteDraftKey, recoverableDraft, draftSerialized]);
+  };
 
   useDraftExitFlush(persistLocalDraft);
 
-  useEffect(() => {
-    if (saving) return;
-    const timer = setTimeout(persistLocalDraft, 500);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [persistLocalDraft, saving]);
+  useBoundedAutosave(draftSerialized, !!quoteDraftKey && draftReady && !saving,
+    persistLocalDraft, quoteDraftKey || "", 500, 2_000);
 
   const clearQuoteDraft = useCallback(() => {
     if (!quoteDraftKey) return;
     try { localStorage.removeItem(quoteDraftKey); setLocalDraftSaved(false); }
     catch { setLocalDraftFailed(true); }
   }, [quoteDraftKey]);
+
+  const openCreatedQuoteWithDraft = (quoteId: string) => {
+    if (!companyId) return;
+    try {
+      const snapshot = JSON.parse(latestDraftSerializedRef.current) as QuoteDraft;
+      localStorage.setItem(`quote-draft-${companyId}-${quoteId}`, serializeQuoteDraft({ ...snapshot, partialQuoteId: null }));
+      draftHandedOffRef.current = true;
+      newQuoteCompletedRef.current = true;
+      clearQuoteDraft();
+      navigate(`/azienda/marketing/preventivi/${quoteId}/modifica`);
+    } catch {
+      setLocalDraftFailed(true);
+      toast.error("Impossibile trasferire la bozza: conserva questa pagina aperta.");
+    }
+  };
 
   const restoreQuoteDraft = (provided?: QuoteDraft) => {
     const d = provided ?? recoverableDraft;
@@ -2170,10 +2187,11 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       });
       return;
     }
-    if (!isEdit && (partialQuoteId || pendingEditNavId)) {
+    const canResumeCreated = !isEdit && !!createdQuoteRef.current && !!versioneCaricataRef.current;
+    if (!isEdit && !canResumeCreated && (partialQuoteId || pendingEditNavId)) {
       toast.error("Questo preventivo è già stato creato", {
         description: "Apri la versione salvata per completarla senza creare un duplicato.",
-        action: { label: "Apri preventivo", onClick: () => navigate(`/azienda/marketing/preventivi/${partialQuoteId || pendingEditNavId}`) },
+        action: { label: "Apri preventivo", onClick: () => openCreatedQuoteWithDraft((partialQuoteId || pendingEditNavId)!) },
       });
       return;
     }
@@ -2196,7 +2214,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       // agganciati in tutto il DB, verificato 2026-08-21).
       const quoteData = datiTestata(status);
 
-      let quoteId = id;
+      let quoteId = isEdit ? id : canResumeCreated ? createdQuoteRef.current : undefined;
 
       // La RPC è atomica per le righe, NON per testata + allegati.
       // Controllare ogni risultato: nessun falso successo dopo errori parziali.
@@ -2218,7 +2236,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
         }
       };
 
-      if (isEdit) {
+      if (isEdit || canResumeCreated) {
         // L'ordine conta: la testata si aggiorna PRIMA delle righe.
         // `salvaRigheAtomiche` cancella e riscrive tutte le righe, quindi
         // farlo per primo distruggeva il lavoro del collega anche quando poi
@@ -2227,7 +2245,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
         const { data: righeTestata, error } = await supabase
           .from("quotes")
           .update(quoteData)
-          .eq("id", id!)
+          .eq("id", quoteId!)
           .eq("company_id", companyId)
           // Se un collega ha salvato mentre questa pagina era aperta,
           // `updated_at` non combacia più e la UPDATE tocca zero righe.
@@ -2238,7 +2256,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
           righeTestata as Array<{ updated_at?: string | null }> | null,
           "preventivo",
         );
-        await salvaRigheAtomiche(id!);
+        await salvaRigheAtomiche(quoteId!);
       } else {
         const { data: numData, error: numErr } = await supabase.rpc("generate_quote_number", {
           p_company_id: companyId,
@@ -2254,6 +2272,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
           .single();
         if (error) throw error;
         quoteId = data.id;
+        createdQuoteRef.current = quoteId!;
         setPartialQuoteId(quoteId!);
         try {
           await salvaRigheAtomiche(quoteId!);
@@ -2266,6 +2285,8 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
             throw new Error("Salvataggio parziale: il preventivo è stato creato, ma le righe non sono state salvate. Aprilo dalla lista prima di riprovare.", { cause: eRighe });
           }
           setPartialQuoteId(null);
+          createdQuoteRef.current = null;
+          versioneCaricataRef.current = null;
           throw eRighe;
         }
       }
@@ -2313,9 +2334,10 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       setLastSavedHash(draftSerialized);
       lastCloudSavedSnapshotRef.current = draftSerialized;
       setAutosaveFailed(false);
-      if (isEdit && latestDraftSerializedRef.current === draftSerialized) clearQuoteDraft();
+      const laterInput = quoteDraftInputHash(latestDraftSerializedRef.current) !== quoteDraftInputHash(draftSerialized);
+      if (isEdit && !laterInput) clearQuoteDraft();
       if (opts?.autosave) return; // Nessun refetch che possa cancellare input in corso.
-      if (isEdit && latestDraftSerializedRef.current !== draftSerialized) {
+      if (laterInput) {
         toast.info("Versione salvata. Le modifiche inserite durante il salvataggio restano da salvare.");
         return;
       }

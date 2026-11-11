@@ -20,7 +20,7 @@ const oppPiuRecente = { id: OPP_PIU_RECENTE, contact_id: TARTANI, name: "Tartani
 
 const permessi = { canViewMarketingContacts: true, canViewMarketingOpportunities: true };
 
-const writing = vi.hoisted(() => ({ promise: null as Promise<unknown> | null, update: vi.fn(), close: vi.fn(), missing: false }));
+const writing = vi.hoisted(() => ({ promise: null as Promise<unknown> | null, update: vi.fn(), close: vi.fn(), missing: false, google: false, googleUpdate: vi.fn(), googlePush: vi.fn(), googleDelete: vi.fn(), googleMapping: vi.fn() }));
 
 type Risposta = { data: unknown; error: { message: string } | null };
 
@@ -66,7 +66,7 @@ vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1" },
 vi.mock("@/hooks/usePermissions", () => ({
   usePermissions: () => ({ solaLettura: false, onlyAssigned: false, ...permessi }),
 }));
-vi.mock("@/hooks/useGoogleCalendarSync", () => ({ useGoogleCalendarSync: () => ({ isConnected: false, syncAppointment: async () => {} }) }));
+vi.mock("@/hooks/useGoogleCalendarSync", () => ({ useGoogleCalendarSync: () => ({ hasAnyCompanyGoogleConnection: writing.google, updateEvent: writing.googleUpdate, pushEvent: writing.googlePush, deleteEvent: writing.googleDelete, checkMapping: writing.googleMapping }) }));
 vi.mock("@/hooks/useAppleCalendarSync", () => ({ useAppleCalendarSync: () => ({ isConnected: false, syncAppointment: async () => {} }) }));
 vi.mock("@/components/shared/AddressAutocomplete", () => ({
   default: (): null => null,
@@ -146,6 +146,7 @@ function apri(contestoScheda?: "contatto" | "opportunita", dati = appuntamento) 
 
 beforeEach(() => {
   writing.promise = null; writing.missing = false; writing.update.mockClear(); writing.close.mockClear();
+  writing.google = false; writing.googleUpdate.mockReset(); writing.googlePush.mockReset(); writing.googleDelete.mockReset(); writing.googleMapping.mockReset();
   permessi.canViewMarketingContacts = true;
   permessi.canViewMarketingOpportunities = true;
 });
@@ -154,6 +155,37 @@ afterEach(cleanup);
 const TIMEOUT = 30_000;
 
 describe("appuntamento: aprire contatto e opportunità collegati", () => {
+  it("manda la nota al server Google anche quando la mappa del collega non è leggibile", async () => {
+    writing.google = true;
+    apri();
+    fireEvent.change(screen.getByLabelText("Descrizione"), { target: { value: "Nota al collega" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
+    await waitFor(() => expect(writing.close).toHaveBeenCalledWith(false));
+    expect(writing.googleUpdate).toHaveBeenCalledWith(appuntamento.id);
+    expect(writing.googleMapping).not.toHaveBeenCalled(); expect(writing.googlePush).not.toHaveBeenCalled();
+  });
+  it("conserva Google quando l'annullamento CRM non viene salvato", async () => {
+    writing.google = true; writing.missing = true;
+    apri();
+    fireEvent.click(screen.getAllByRole("button", { name: "Annulla" })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Annulla l'appuntamento" }));
+    await waitFor(() => expect(writing.update).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Salva modifiche" })).toBeEnabled());
+    expect(writing.googleDelete).not.toHaveBeenCalled(); expect(writing.close).not.toHaveBeenCalled();
+  });
+  it("annulla prima nel CRM e solo dopo rimuove l'evento Google", async () => {
+    writing.google = true;
+    let finish!: (value: unknown) => void;
+    writing.promise = new Promise(resolve => { finish = resolve; });
+    apri();
+    fireEvent.click(screen.getAllByRole("button", { name: "Annulla" })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Annulla l'appuntamento" }));
+    await waitFor(() => expect(writing.update).toHaveBeenCalledTimes(1));
+    expect(writing.googleDelete).not.toHaveBeenCalled();
+    finish({ data: { id: appuntamento.id }, error: null });
+    await waitFor(() => expect(writing.close).toHaveBeenCalledWith(false));
+    expect(writing.googleDelete).toHaveBeenCalledWith(appuntamento.id);
+  });
   it("trasferisce calendario e responsabile conservando il record", async () => {
     apri(undefined, { ...appuntamento, assigned_to: "u1" });
     fireEvent.change(screen.getByRole("combobox", { name: "Calendario *" }), { target: { value: "cal-2" } });

@@ -177,6 +177,21 @@ jobs:
         if: matrix.group == 'core'
         run: bun run test:fish
 
+      - name: Verify CRM persistence and external calendar authorization
+        if: matrix.group == 'core'
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/security/externalAppointmentAccess.test.ts
+          src/test/security/calendarSyncEndpoint.test.ts
+          src/test/security/appleCalDavFetch.test.ts
+          src/test/logic/appleCalendarMutation.test.ts
+          src/test/logic/calendarMutationPersistence.test.ts
+          src/test/logic/appointmentEdit.test.ts
+          src/test/logic/quoteSaveHandlers.test.ts
+          src/test/logic/preventivoGenericoGestori.test.ts
+          src/test/ui/quoteAutosave.test.tsx
+          src/test/ui/appuntamentoApreCrm.test.tsx
+
       - name: Run floorplan, 3D orientation and document verification regressions
         if: matrix.group == 'worksite'
         run: bun run test:planimetrie

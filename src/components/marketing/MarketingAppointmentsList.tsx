@@ -86,20 +86,14 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
     if (googleSync.hasGoogleConnection || googleSync.hasAnyCompanyGoogleConnection) {
       tasks.push((async () => {
         if (shouldDelete) return googleSync.deleteEvent(appointmentId);
-        const mapping = await googleSync.checkMapping(appointmentId);
-        if (mapping) return googleSync.updateEvent(appointmentId);
-        if (googleSync.isGoogleConnected || googleSync.hasAnyCompanyGoogleConnection) return googleSync.pushEvent(appointmentId);
-        return undefined;
+        return googleSync.updateEvent(appointmentId);
       })());
     }
 
     if (appleSync.hasAppleConnection) {
       tasks.push((async () => {
         if (shouldDelete) return appleSync.deleteEvent(appointmentId);
-        const mapping = await appleSync.checkMapping(appointmentId);
-        if (mapping) return appleSync.updateEvent(appointmentId);
-        if (appleSync.isAppleConnected) return appleSync.pushEvent(appointmentId);
-        return undefined;
+        return appleSync.updateEvent(appointmentId);
       })());
     }
 
@@ -115,9 +109,9 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
     const current = appointments.find((a) => a.id === id);
     if (current?.status === newStatus) return; // early return se lo status non cambia
 
-    const { error } = await supabase.from("appointments").update({ status: newStatus } as any).eq("id", id).eq("company_id", companyId);
-    if (error) {
-      toast({ title: "Errore", description: error.message, variant: "destructive" });
+    const { data: saved, error } = await supabase.from("appointments").update({ status: newStatus }).eq("id", id).eq("company_id", companyId).select("id").single();
+    if (error || !saved?.id) {
+      toast({ title: "Stato non aggiornato", description: error?.message || "Appuntamento non modificabile: ricarica la lista e riprova.", variant: "destructive" });
     } else {
       void syncExternalCalendarsForStatus(id, newStatus);
       toast({ title: "Stato aggiornato" });

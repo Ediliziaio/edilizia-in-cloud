@@ -590,8 +590,9 @@ export default function MarketingAppointmentDialog({
     // del calendario o l'account agganciato — lo risolve la edge.
     if (googleSync.hasGoogleConnection || googleSync.hasAnyCompanyGoogleConnection) {
       tasks.push((async () => {
-        const mapping = mode === "update" ? await googleSync.checkMapping(appointmentId) : null;
-        if (mapping) return googleSync.updateEvent(appointmentId);
+        // La mappa del collega può essere invisibile sotto RLS: la decisione
+        // update/creazione spetta al server, che verifica anche i permessi.
+        if (mode === "update") return googleSync.updateEvent(appointmentId);
         if (googleSync.isGoogleConnected || googleSync.hasAnyCompanyGoogleConnection) return googleSync.pushEvent(appointmentId);
         return undefined;
       })());
@@ -599,8 +600,7 @@ export default function MarketingAppointmentDialog({
 
     if (appleSync.hasAppleConnection) {
       tasks.push((async () => {
-        const mapping = mode === "update" ? await appleSync.checkMapping(appointmentId) : null;
-        if (mapping) return appleSync.updateEvent(appointmentId);
+        if (mode === "update") return appleSync.updateEvent(appointmentId);
         if (appleSync.isAppleConnected) return appleSync.pushEvent(appointmentId);
         return undefined;
       })());
@@ -804,12 +804,13 @@ export default function MarketingAppointmentDialog({
     savingRef.current = true;
     setSaving(true);
     try {
-      await syncDeletedAppointment(appointment.id);
-      const { error } = await supabase
+      const { data: cancelled, error } = await supabase
         .from("appointments")
         .update({ status: "annullato", cancelled_at: new Date().toISOString(), cancelled_by: user?.id ?? null })
-        .eq("id", appointment.id).eq("company_id", companyId);
+        .eq("id", appointment.id).eq("company_id", companyId).select("id").single();
       if (error) throw error;
+      if (!cancelled?.id) throw new Error("Appuntamento non annullato: riprova. Il calendario esterno resta invariato.");
+      await syncDeletedAppointment(appointment.id);
       toast({ title: "Appuntamento annullato", description: "Resta nello storico, segnato come annullato." });
       onSaved();
       onOpenChange(false);

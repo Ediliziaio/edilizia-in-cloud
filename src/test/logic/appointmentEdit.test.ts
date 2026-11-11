@@ -3,11 +3,18 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
-import { appointmentEditPatch } from "@/lib/marketing/appointmentEdit";
+import { appointmentEditPatch, rollbackAppointmentTiming } from "@/lib/marketing/appointmentEdit";
 
 const original = { title: "Sopralluogo", description: "Nota", appointment_date: "2026-11-12", appointment_time: "10:00:00", appointment_type: "sopralluogo", status: "confermato", calendar_id: "cal-1", assigned_to: "u1", order_id: "order-1" };
 const form: Parameters<typeof appointmentEditPatch>[1] = { ...original, company_id: "company-a", order_id: null, appointment_type: "generico", appointment_end_time: "10:30:00", is_blocked_slot: false, address_country: "IT", meeting_provider: "none", meeting_url: null, meeting_status: "none", meeting_created_at: null };
 describe("modifica parziale appuntamento", () => {
+  it("un errore vecchio non riporta indietro uno spostamento più recente o le nuove note", () => {
+    const previous = [{ id: "a", appointment_date: "2026-11-12", description: "prima" }];
+    const current = [{ id: "a", appointment_date: "2026-11-14", description: "nuova" }];
+    expect(rollbackAppointmentTiming(current, previous, "a", { appointment_date: "2026-11-13" })).toEqual(current);
+    expect(rollbackAppointmentTiming([{ ...current[0], appointment_date: "2026-11-13" }], previous, "a", { appointment_date: "2026-11-13" }))
+      .toEqual([{ ...current[0], appointment_date: "2026-11-12" }]);
+  });
   it("non modifica nulla aprendo e salvando un vecchio sopralluogo", () => {
     expect(appointmentEditPatch(original, form)).toEqual({});
   });

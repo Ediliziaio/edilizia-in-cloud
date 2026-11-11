@@ -3,6 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getEncryptionKey, decrypt } from "../_shared/encryption.ts";
 import { cronSecretValido } from "../_shared/cronAuth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
+import { canMutateExternalAppointment, canSyncExternalCalendar } from "../_shared/externalAppointmentAccess.ts";
+import { appleCalDavFetch } from "../_shared/appleCalDavFetch.ts";
 import { getCorsHeaders, jsonResponse as json } from "../_shared/headers.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
@@ -29,11 +31,10 @@ async function caldavRequest(
   if (!headers["Content-Type"]) {
     headers["Content-Type"] = "application/xml; charset=utf-8";
   }
-  return fetch(url, {
+  return appleCalDavFetch(url, {
     method,
     headers,
     body,
-    redirect: "follow",
     signal: AbortSignal.timeout(20000),
   });
 }
@@ -179,7 +180,7 @@ async function risolviBersaglio(
       return { ok: true, creds, userId: creds.conn.user_id, calendarUrl: c.external_calendar_id };
     }
   }
-  const userId = await resolveEffectiveUserId(admin, apt, fallbackUserId);
+  const userId = await resolveEffectiveUserId(admin, apt, fallbackUserId, companyId);
   const creds = await getConnectionWithCredentials(admin, userId, companyId);
   if (!creds) {
     return { ok: false, status: 404, errore: userId !== fallbackUserId ? `Il responsabile (${userId}) non ha collegato Apple Calendar` : "Apple Calendar non connesso" };
@@ -204,12 +205,14 @@ async function resolveEffectiveUserId(
   admin: ReturnType<typeof getSupabaseAdmin>,
   apt: { calendar_id?: string | null; assigned_to?: string | null },
   fallbackUserId: string,
+  companyId: string,
 ): Promise<string> {
   if (apt.calendar_id) {
     const { data: cal } = await admin
       .from("marketing_calendars")
       .select("owner_id")
       .eq("id", apt.calendar_id)
+      .eq("company_id", companyId)
       .maybeSingle();
     const ownerId = (cal as { owner_id?: string } | null)?.owner_id;
     if (ownerId) return ownerId;
@@ -224,11 +227,13 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
 
   // L'appuntamento si legge PRIMA della connessione: serve a sapere di CHI e'
   // il calendario di destinazione (owner del marketing calendar o assegnatario).
-  const { data: apt } = await admin
+  const { data: apt, error: appointmentError } = await admin
     .from("appointments")
     .select("*")
     .eq("id", appointmentId)
+    .eq("company_id", companyId)
     .single();
+  if (appointmentError) throw new Error("Lettura appuntamento Apple non riuscita");
   if (!apt) return json({ error: "Appuntamento non trovato" }, 404);
 
   const esito = await risolviBersaglio(admin, apt, userId, companyId);
@@ -236,11 +241,13 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
   const { creds, userId: effectiveUserId, calendarUrl } = esito;
 
   // Un appuntamento ha UN evento, a prescindere da chi lo ha creato.
-  const { data: existing } = await admin
+  const { data: existing, error: existingError } = await admin
     .from("apple_calendar_event_map")
     .select("id")
     .eq("appointment_id", appointmentId)
+    .eq("company_id", companyId)
     .maybeSingle();
+  if (existingError) throw new Error("Collegamento Apple non verificabile");
   if (existing) return json({ alreadySynced: true, mappingId: existing.id });
 
   const uid = `apt-${apt.id}@ediliziacloud`;
@@ -264,7 +271,7 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
 
   const etag = res.headers.get("ETag") || null;
 
-  await admin.from("apple_calendar_event_map").insert({
+  const { error: mappingInsertError } = await admin.from("apple_calendar_event_map").insert({
     company_id: companyId,
     // owner effettivo, non chi ha cliccato: altrimenti update/delete
     // successivi non ritroverebbero la mappatura.
@@ -278,6 +285,7 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
     last_synced_at: new Date().toISOString(),
     last_updated_by: "crm",
   });
+  if (mappingInsertError) throw new Error("Evento Apple creato, collegamento locale da riprovare");
 
   return json({ success: true, eventUrl });
 }
@@ -288,22 +296,25 @@ async function updateEvent(userId: string, companyId: string, appointmentId: str
 
   // L'evento sta sull'account che lo ha creato: lo dice la mappa, non chi
   // sta cliccando adesso ne' il responsabile del calendario.
-  const { data: mapping } = await admin
+  const { data: mapping, error: mappingError } = await admin
     .from("apple_calendar_event_map")
     .select("*")
     .eq("appointment_id", appointmentId)
+    .eq("company_id", companyId)
     .maybeSingle();
+  if (mappingError) throw new Error("Collegamento Apple non verificabile");
+  if (!mapping) return pushEvent(userId, companyId, appointmentId);
   const effectiveUserId: string = mapping?.user_id ?? userId;
   const creds = await getConnectionWithCredentials(admin, effectiveUserId, companyId);
   if (!creds) return json({ error: "Apple Calendar non connesso" }, 404);
-  // Mai arrivato su Apple (altro calendario, o creato prima del collegamento): niente da aggiornare.
-  if (!mapping) return json({ skipped: true, motivo: "Appuntamento non presente su Apple Calendar" });
 
-  const { data: apt } = await admin
+  const { data: apt, error: appointmentError } = await admin
     .from("appointments")
     .select("*")
     .eq("id", appointmentId)
+    .eq("company_id", companyId)
     .single();
+  if (appointmentError) throw new Error("Lettura appuntamento Apple non riuscita");
   if (!apt) return json({ error: "Appuntamento non trovato" }, 404);
 
   const icsData = buildICalendar(apt);
@@ -325,7 +336,7 @@ async function updateEvent(userId: string, companyId: string, appointmentId: str
 
   const etag = res.headers.get("ETag") || null;
 
-  await admin
+  const { data: updatedMapping, error: mapUpdateError } = await admin
     .from("apple_calendar_event_map")
     .update({
       etag,
@@ -333,7 +344,8 @@ async function updateEvent(userId: string, companyId: string, appointmentId: str
       last_updated_by: "crm",
       updated_at: new Date().toISOString(),
     })
-    .eq("id", mapping.id);
+    .eq("id", mapping.id).eq("company_id", companyId).select("id").maybeSingle();
+  if (mapUpdateError || !updatedMapping) throw new Error("Evento Apple aggiornato, collegamento locale da verificare");
 
   return json({ success: true });
 }
@@ -344,31 +356,30 @@ async function deleteEvent(userId: string, companyId: string, appointmentId: str
 
   // L'evento sta sull'account che lo ha creato: lo dice la mappa, non chi
   // sta cliccando adesso ne' il responsabile del calendario.
-  const { data: mapping } = await admin
+  const { data: mapping, error: mappingError } = await admin
     .from("apple_calendar_event_map")
     .select("*")
     .eq("appointment_id", appointmentId)
+    .eq("company_id", companyId)
     .maybeSingle();
+  if (mappingError) throw new Error("Collegamento Apple non verificabile");
   const effectiveUserId: string = mapping?.user_id ?? userId;
   const creds = await getConnectionWithCredentials(admin, effectiveUserId, companyId);
   if (!creds) return json({ error: "Apple Calendar non connesso" }, 404);
   if (!mapping) return json({ success: true, message: "Nessuna mappatura trovata" });
 
-  try {
-    const res = await caldavRequest(
+  const res = await caldavRequest(
       mapping.caldav_event_url,
       "DELETE",
       creds.appleId,
       creds.appPassword
     );
-    if (!res.ok && res.status !== 404 && res.status !== 410) {
-      console.error("Apple delete event failed:", res.status);
-    }
-  } catch (e) {
-    console.error("Apple delete event error:", e);
+  if (!res.ok && res.status !== 404 && res.status !== 410) {
+    throw new Error(`Cancellazione Apple non confermata (${res.status}): collegamento conservato per riprovare`);
   }
 
-  await admin.from("apple_calendar_event_map").delete().eq("id", mapping.id);
+  const { error: deleteMapError } = await admin.from("apple_calendar_event_map").delete().eq("id", mapping.id).eq("company_id", companyId);
+  if (deleteMapError) throw new Error("Evento Apple eliminato, collegamento locale da riprovare");
   return json({ success: true });
 }
 
@@ -653,6 +664,7 @@ serveConMetriche("apple-calendar-sync", async (req: Request) => {
     const token = authHeader.replace("Bearer ", "");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     let userId: string;
+    let caller: ReturnType<typeof getSupabaseAdmin> | null = null;
     const { companyId, appointmentId } = body;
 
     if (token === serviceRoleKey) {
@@ -667,6 +679,7 @@ serveConMetriche("apple-calendar-sync", async (req: Request) => {
       const { data: { user }, error: claimsErr } = await supabaseClient.auth.getUser(token);
       if (claimsErr || !user) return json({ error: "Unauthorized" }, 401);
       userId = user.id;
+      caller = supabaseClient;
     }
 
     if (!companyId) return json({ error: "companyId required" }, 400);
@@ -678,6 +691,14 @@ serveConMetriche("apple-calendar-sync", async (req: Request) => {
       // deno-lint-ignore no-explicit-any
       if (!(await canAccessCompany(getSupabaseAdmin() as any, userId, companyId))) {
         return json({ error: "Company mismatch" }, 403);
+      }
+      if (["push-event", "update-event", "delete-event"].includes(action)) {
+        if (!appointmentId) return json({ error: "appointmentId required" }, 400);
+        if (!caller || !(await canMutateExternalAppointment(caller, getSupabaseAdmin(), userId, companyId, appointmentId, action))) {
+          return json({ error: "Modifica del calendario non consentita per questo appuntamento" }, 403);
+        }
+      } else if (!(await canSyncExternalCalendar(caller, companyId))) {
+        return json({ error: "La sincronizzazione non è consentita in sola lettura o dal portale clienti" }, 403);
       }
     }
 
