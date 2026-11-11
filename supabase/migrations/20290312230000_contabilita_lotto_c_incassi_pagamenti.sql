@@ -5,13 +5,61 @@
 -- 2. Incassi di fatture importate senza data: la scadenza, ma mai nel futuro.
 -- 3. Un incasso o un pagamento datato prima della sua fattura si registra alla data della fattura
 --    (prima saltava un giro, o restava nell'anno prima).
--- 4. Un movimento di prima nota «sciolto» con lo stesso importo di un incasso o pagamento entro 7
---    giorni è lo stesso soldo: non si registra due volte (prima solo nello stesso giorno).
+-- 4. Un movimento di prima nota «sciolto» con lo stesso importo di un incasso o pagamento registrato
+--    entro 7 giorni è lo stesso soldo: abbinati uno a uno (contabilita_prima_nota_gemelle), conta il
+--    documento; anche se la gemella arriva dopo (il movimento già registrato si storna).
 -- 5. La prima nota si riallinea come i documenti: un movimento cambiato, o spiegato da una fattura
 --    arrivata dopo, si storna e si rifà.
 -- contabilita_genera_da_documenti ripresa intera (dopo i lotti A e B), cambiata nei punti detti.
 SET LOCAL lock_timeout = '3s';
 SET LOCAL statement_timeout = '120s';
+
+-- I movimenti di prima nota «sciolti» (senza documento) che sono lo stesso soldo di un pagamento di
+-- fattura ricevuta o di un incasso di fattura emessa registrati dal documento: stesso importo entro 7
+-- giorni, abbinati uno a uno (ognuno col più vicino, e solo se è reciproco). Un documento non assorbe
+-- due movimenti, e un movimento non sparisce per un pagamento che il giornale non registra.
+CREATE OR REPLACE FUNCTION public.contabilita_prima_nota_gemelle(p_company uuid)
+RETURNS TABLE (id uuid) LANGUAGE sql STABLE SET search_path TO 'public' AS $$
+  WITH pagamenti AS (
+    SELECT f.id AS doc, coalesce(f.pagata_il, cc.paid_date) AS d,
+           coalesce(f.netto_a_pagare, f.totale_documento) AS imp1,
+           f.totale_documento - coalesce(f.ritenuta_importo, 0) - coalesce(f.trattenuta_garanzia, 0) AS imp2
+      FROM public.fatture_ricevute f
+      LEFT JOIN public.company_costs cc ON cc.id = f.company_cost_id AND cc.company_id = f.company_id AND cc.is_paid
+     WHERE f.company_id = p_company AND coalesce(f.pagata_il, cc.paid_date) IS NOT NULL AND f.stato <> 'rifiutata'
+       AND f.tipo_documento NOT IN ('TD04', 'TD08', 'TD16', 'passive_credit_note')
+       AND f.imponibile_totale IS NOT NULL AND f.iva_totale IS NOT NULL AND coalesce(f.totale_documento, 0) > 0
+       AND NOT EXISTS (SELECT 1 FROM public.prima_nota_entries p2 WHERE p2.company_id = p_company AND p2.cost_id = f.company_cost_id
+                        AND f.company_cost_id IS NOT NULL AND p2.invoice_id IS NULL AND p2.documento_fiscale_id IS NULL)
+  ), incassi AS (
+    SELECT i.id AS doc, greatest(least(coalesce(i.payment_date, i.due_date, i.issue_date), current_date), i.issue_date) AS d, i.paid_amount AS imp
+      FROM public.invoices i
+     WHERE i.company_id = p_company AND i.deleted_at IS NULL AND coalesce(i.paid_amount, 0) > 0
+       AND NOT EXISTS (SELECT 1 FROM public.invoice_payments p WHERE p.invoice_id = i.id)
+       AND NOT EXISTS (SELECT 1 FROM public.documenti_fiscali df WHERE df.id = i.id)
+    UNION ALL
+    SELECT p.id, p.payment_date, p.amount FROM public.invoice_payments p
+     WHERE p.company_id = p_company AND p.amount <> 0 AND NOT EXISTS (SELECT 1 FROM public.documenti_fiscali df WHERE df.id = p.invoice_id)
+  ), candidati AS (
+    SELECT pn.id AS mov, x.doc, abs(x.d - pn.entry_date) AS dist
+      FROM public.prima_nota_entries pn
+      JOIN pagamenti x ON abs(x.d - pn.entry_date) <= 7 AND (abs(x.imp1 - pn.amount) < 0.01 OR abs(x.imp2 - pn.amount) < 0.01)
+     WHERE pn.company_id = p_company AND pn.direction = 'uscita' AND pn.cost_id IS NULL
+       AND pn.documento_fiscale_id IS NULL AND pn.invoice_id IS NULL
+    UNION ALL
+    SELECT pn.id, x.doc, abs(x.d - pn.entry_date)
+      FROM public.prima_nota_entries pn
+      JOIN incassi x ON abs(x.d - pn.entry_date) <= 7 AND abs(x.imp - pn.amount) < 0.01
+     WHERE pn.company_id = p_company AND pn.direction = 'entrata'
+       AND pn.documento_fiscale_id IS NULL AND pn.invoice_id IS NULL
+  ), graduati AS (
+    SELECT mov, doc, row_number() OVER (PARTITION BY doc ORDER BY dist, mov) AS per_doc,
+                     row_number() OVER (PARTITION BY mov ORDER BY dist, doc) AS per_mov
+      FROM candidati
+  )
+  SELECT mov FROM graduati WHERE per_doc = 1 AND per_mov = 1;
+$$;
+REVOKE ALL ON FUNCTION public.contabilita_prima_nota_gemelle(uuid) FROM PUBLIC, anon, authenticated;
 
 CREATE OR REPLACE FUNCTION public.contabilita_genera_da_documenti(p_company uuid, p_anno integer, p_solo uuid DEFAULT NULL::uuid)
  RETURNS jsonb
@@ -106,19 +154,9 @@ BEGIN
   SELECT 'prima_nota', pn.id, pn.entry_date, 5 FROM public.prima_nota_entries pn
    WHERE pn.company_id = p_company AND pn.entry_date BETWEEN v_dal AND v_al AND pn.amount <> 0
      AND pn.documento_fiscale_id IS NULL AND pn.invoice_id IS NULL
-     -- Un movimento «sciolto» che ha la sua gemella sul documento (stessa data, stesso importo:
-     -- pagata_il della fattura ricevuta, incasso della fattura emessa) è lo stesso soldo due volte.
-     AND NOT (pn.cost_id IS NULL AND pn.direction = 'uscita' AND EXISTS (
-           SELECT 1 FROM public.fatture_ricevute f
-             LEFT JOIN public.company_costs cc ON cc.id = f.company_cost_id AND cc.company_id = f.company_id AND cc.is_paid
-            WHERE f.company_id = p_company AND abs(coalesce(f.pagata_il, cc.paid_date) - pn.entry_date) <= 7
-              AND (abs(coalesce(f.netto_a_pagare, f.totale_documento) - pn.amount) < 0.01
-                OR abs(f.totale_documento - coalesce(f.ritenuta_importo, 0) - coalesce(f.trattenuta_garanzia, 0) - pn.amount) < 0.01)))
-     AND NOT (pn.direction = 'entrata' AND EXISTS (
-           SELECT 1 FROM public.invoices i WHERE i.company_id = p_company AND i.deleted_at IS NULL
-              AND abs(coalesce(i.payment_date, i.due_date, i.issue_date) - pn.entry_date) <= 7 AND abs(i.paid_amount - pn.amount) < 0.01
-           UNION ALL
-           SELECT 1 FROM public.invoice_payments ip WHERE ip.company_id = p_company AND abs(ip.payment_date - pn.entry_date) <= 7 AND abs(ip.amount - pn.amount) < 0.01))
+     -- Un movimento «sciolto» che ha la sua gemella in un pagamento o incasso registrato dal documento
+     -- (stesso importo entro 7 giorni, abbinati uno a uno) è lo stesso soldo: conta il documento.
+     AND pn.id NOT IN (SELECT gm.id FROM public.contabilita_prima_nota_gemelle(p_company) gm)
   UNION ALL
   -- I cedolini del mese, tutti insieme: costo del personale e debiti che nascono.
   SELECT 'cedolini', md5('cedolini:' || p_company || ':' || h.anno || ':' || h.mese)::uuid,
@@ -162,7 +200,9 @@ BEGIN
               WHERE f.id = s.origine_id AND f.company_id = p_company
               AND coalesce(f.pagata_il, cc.paid_date) IS NOT NULL AND f.stato <> 'rifiutata')
        WHEN 'incasso' THEN EXISTS (SELECT 1 FROM public.invoice_payments p WHERE p.id = s.origine_id AND p.company_id = p_company AND p.amount <> 0)
+       -- Un movimento che ha trovato dopo la sua gemella sul documento esce: il soldo lo conta il documento.
        WHEN 'prima_nota' THEN EXISTS (SELECT 1 FROM public.prima_nota_entries pn WHERE pn.id = s.origine_id AND pn.company_id = p_company AND pn.amount <> 0)
+              AND s.origine_id NOT IN (SELECT gm.id FROM public.contabilita_prima_nota_gemelle(p_company) gm)
      END
   ) ev(tipo, id, data, ordine)
   WHERE p_solo IS NULL OR ev.id = p_solo OR ev.tipo = 'sparita'

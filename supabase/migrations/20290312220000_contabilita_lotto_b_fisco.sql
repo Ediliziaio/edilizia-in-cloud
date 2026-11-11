@@ -3,7 +3,7 @@
 -- 1. Tributi F24 (contabilita_ruolo_tributo): acconti IRES/IRAP (2001, 2002, 3812, 3813) fra i crediti
 --    05.12; saldi (2003, 3800) a chiusura del debito per imposte; acconto IVA 6013 su Erario c/IVA;
 --    imposta sostitutiva TFR (1712, 1713) dal fondo TFR; interessi (1989-1994) fra gli oneri
---    finanziari; righe a credito (compensazioni): bonus edilizi (77xx, 639x) su 05.13, altri
+--    finanziari; righe a credito (compensazioni): bonus edilizi (77xx, 639x, 6921-6931) su 05.13, altri
 --    crediti d'imposta (69xx) su 05.12. Senza il conto, «Partite da verificare» invece degli oneri.
 -- 2. Liquidazione trimestrale (impostazioni IVA): 1% di interessi a costo e su Erario c/IVA.
 -- 3. Imposte dell'esercizio: contabilita_imposte_esercizio + contabilita_imposte (31/12: imposte a
@@ -42,9 +42,11 @@ AS $$
       -- Imposta sostitutiva sulla rivalutazione del TFR: la paga l'azienda per i dipendenti, dal fondo.
       WHEN p_tributo IN ('1712', '1713') THEN '12.01'
       -- Interessi del ravvedimento e della rateazione.
-      WHEN p_tributo IN ('1989', '1990', '1991', '1993', '1994') THEN '40.02'
-      -- Crediti d'imposta usati in compensazione (righe a credito dell'F24): bonus edilizi, beni strumentali.
-      WHEN p_tributo ~ '^(77[0-9]{2}|639[0-9])$' THEN '05.13'
+      WHEN p_tributo IN ('1668', '1989', '1990', '1991', '1992', '1993', '1994', '3805') THEN '40.02'
+      -- Crediti d'imposta usati in compensazione (righe a credito dell'F24): quelli dei bonus edilizi
+      -- (ceduti o scontati in fattura: 77xx, 639x, 6921-6931) sul loro conto, gli altri (beni
+      -- strumentali 4.0 e simili) fra i crediti d'imposta.
+      WHEN p_tributo ~ '^(77[0-9]{2}|639[0-9]|692[1-9]|693[01])$' THEN '05.13'
       WHEN p_tributo ~ '^69[0-9]{2}$' THEN '05.12'
       WHEN p_tributo IN ('1038', '1040') THEN '13.12'
       WHEN p_cedolini AND (p_tributo ~ '^10[0-9]{2}$' OR p_tributo ~ '^38(0[1-9]|4[0-9])$') THEN '13.12'
