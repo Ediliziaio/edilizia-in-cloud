@@ -45,6 +45,11 @@ BEGIN
     IF strpos(def, r.nuovo) > 0 THEN
       CONTINUE;
     END IF;
+    -- Recovered people-view helper predates both the status and expiry checks.
+    IF r.funzione='public.can_view_company_people(uuid)' AND strpos(def,E'        AND mca.company_id = p_company_id\n        AND (\n')>0 AND strpos(def,'mca.status')=0 THEN
+      EXECUTE replace(def,E'        AND mca.company_id = p_company_id\n        AND (\n',E'        AND mca.company_id = p_company_id\n        AND mca.status = ''active''\n        AND (mca.expires_at IS NULL OR mca.expires_at > now())\n        AND (\n');
+      CONTINUE;
+    END IF;
     n := (length(def) - length(replace(def, r.vecchio, ''))) / length(r.vecchio);
     IF n <> 1 THEN
       RAISE EXCEPTION '%: il pezzo da cambiare compare % volte invece di una', r.funzione, n;

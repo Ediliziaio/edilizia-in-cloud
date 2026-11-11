@@ -60,12 +60,12 @@ do $$
 declare
   -- Per ogni funzione: [impronta del corpo censito, impronta del corpo nuovo].
   v_attese constant jsonb := jsonb_build_object(
-    'public.chiamante_anonimo()',            jsonb_build_array('7012bb9cbf9c7ca4f334ff89ef46f673', 'c8ed42daa607b13e979998e9a1ecd738'),
+    'public.chiamante_anonimo()',            jsonb_build_array('7012bb9cbf9c7ca4f334ff89ef46f673', 'c8ed42daa607b13e979998e9a1ecd738', 'c2e1c33821f5da93364c2b3a1fea225e'),
     'public.utente_bloccato()',              jsonb_build_array('500321c342986e74d56837345c48894d', '02e4b8e473b2f23ca707786a151d5c4f'),
     'public.has_role(uuid,public.app_role)', jsonb_build_array('1a5b6b4b10d202ffdf21ca4bf75385e8', 'e39a12e402a20f0af70143f1ac3759fd'),
     'public.get_user_company_id(uuid)',      jsonb_build_array('ef97986b03ede24a9e7c85349027ad70', '3d4f65b3dcc3ddc69ddcc9198fa119e3'),
     'public.get_effective_company_id()',     jsonb_build_array('33ab7fe4f97dd4efe82ac72ab2a661be', '7b00d4e19a00970b565cc71794efc129'),
-    'public.get_my_company_id()',            jsonb_build_array('f873454c685a677923347603a3510190', '802d0ceb25cc735d1916beccff7e91d5'),
+    'public.get_my_company_id()',            jsonb_build_array('f873454c685a677923347603a3510190', '802d0ceb25cc735d1916beccff7e91d5', '927ef7f21c807cf7871ebe5972918b84'),
     'public.e_amministratore_di(uuid)',      jsonb_build_array('55463f059e9f657ca8d2b28f9ee5479e', '7ab8c30a4bd5da0da1095723a3d71c99'),
     'public.utente_e_cliente_esterno()',     jsonb_build_array('b56132cebbc560a1e5847014cb0f3017', '56cca5c887262728457f60043c32768e'),
     'public.is_super_admin(uuid)',           jsonb_build_array('54a19e4cce7bb09e45b8d50ba788ad8c', '23d8f86c6a793f16c3e8273a711de064'),

@@ -119,7 +119,7 @@ BEGIN
         url:=current_setting('app.supabase_url', true) || '/functions/v1/ai-proactive-proposals-daily',
         headers:=jsonb_build_object(
           'Content-Type', 'application/json',
-          'x-cron-secret', current_setting('app.proactive_cron_secret', true)
+          'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'proactive_cron_secret')
         ),
         body:='{"source": "pg_cron_daily"}'::jsonb,
         timeout_milliseconds:=600000

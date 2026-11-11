@@ -60,6 +60,12 @@ ALTER TABLE public.outreach_sequences ADD COLUMN IF NOT EXISTS plain_text_only b
 COMMENT ON COLUMN public.outreach_sequences.plain_text_only IS
   'Se true le caselle native (gmail/outlook/smtp) spediscono SOLO text/plain, come una mail scritta a mano.';
 
+-- Recovered from the live schema: the original source omitted this foundation.
+ALTER TABLE public.outreach_sending_domains ADD COLUMN IF NOT EXISTS ruolo text NOT NULL DEFAULT 'coorte_a';
+DO $domain_role$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid='public.outreach_sending_domains'::regclass AND conname='outreach_sending_domains_ruolo_check') THEN
+ ALTER TABLE public.outreach_sending_domains ADD CONSTRAINT outreach_sending_domains_ruolo_check CHECK(ruolo IN ('canary','coorte_a','coorte_b','panchina'));
+END IF;END $domain_role$;
+
 -- 6. vista prontezza: una casella OAuth non ha IMAP/SMTP propri ma e' pronta
 CREATE OR REPLACE VIEW public.v_outreach_infrastruttura WITH (security_invoker = on) AS
  SELECT b.id AS brand_id,

@@ -82,7 +82,7 @@ declare
     'prima_nota_entries|prima_nota_tenant_delete', jsonb_build_array('035826ab85b0f42ccb7c8e1229c44da0', '1f2ae0bf47b9ffdd3c9891885e699e97'),
     'prima_nota_entries|prima_nota_tenant_insert', jsonb_build_array('2238cbe5380ba0a1708c013c04d19a6d', '8b4bb7cd2c4d57ec5603a46995199117'),
     'prima_nota_entries|prima_nota_tenant_update', jsonb_build_array('f5529034280ecf93b279505f1cc4ae5f', '0c0cd56cb72d99cf68c497763ff464b0'),
-    'appointments|appointments_lettura_authenticated', jsonb_build_array('a49b5b0658bf1f9828a151d6e771d1f2', '7d00d68b6c83808b126e0733fc208627'),
+    'appointments|appointments_lettura_authenticated', jsonb_build_array('a49b5b0658bf1f9828a151d6e771d1f2', '7d00d68b6c83808b126e0733fc208627', 'f57e3a47a19623f1699f3bf2f4734f52'),
     'appointments|cliente_legge_propri_appuntamenti', jsonb_build_array('ed43a1e8d2a8824445ef12b68449c1f3', 'd19eba5801f0180b65218c5502980a23'),
     'order_statuses|Company admins can manage their order statuses', jsonb_build_array('2689d99181c541fdb674099c51adc331', 'c2fbe8b6776a5b5f2e103af316073b31'),
     'order_statuses|Customers can view their company order statuses', jsonb_build_array('c3a1f4cbc41d69dd59f1b7013ac6867a', '6cc53b71e9e19bb250400edc29684542'),

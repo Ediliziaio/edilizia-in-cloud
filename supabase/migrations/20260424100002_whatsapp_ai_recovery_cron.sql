@@ -4,7 +4,7 @@
 -- Pattern allineato agli altri cron del repo (retry-failed-webhooks,
 -- send-nps-survey, check-ai-usage-alerts): usa
 --   - current_setting('app.supabase_url', true)
---   - current_setting('app.internal_cron_secret', true)
+--   - (select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret')
 -- che sono i GUC settati a livello DB tramite ALTER DATABASE SET.
 --
 -- Idempotente: unschedule prima se il job esiste già.
@@ -27,7 +27,7 @@ SELECT cron.schedule(
       url     := current_setting('app.supabase_url', true) || '/functions/v1/whatsapp-ai-recovery',
       headers := jsonb_build_object(
         'Content-Type', 'application/json',
-        'x-cron-secret', current_setting('app.internal_cron_secret', true)
+        'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret')
       ),
       body    := '{}'::jsonb
     );

@@ -196,7 +196,7 @@ select pg_temp.correggi('public.conferma_carico_ddt(uuid,uuid)',
       end if;$to$,
   'v_tot_riga := v_tot_riga + v_registrata;');
 select pg_temp.correggi('public.conferma_carico_ddt(uuid,uuid)',
-  $re$    if v_c\.purchase_order_id is not null then\n      while v_qta > 0 loop$re$,
+  $re$    if v_c\.purchase_order_id is not null then\n(?:      --[^\n]*\n)*      while v_qta > 0 loop$re$,
   $to$    if v_c.purchase_order_id is not null then
       v_tot_riga := 0;
       while v_qta > 0 loop$to$,

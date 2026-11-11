@@ -284,18 +284,25 @@ GRANT EXECUTE ON FUNCTION public.reclassify_email_manuale(
 --   employees.first_name + last_name (no 'name' col)
 --   customers: tabella NON esiste — gestione clienti via RPC dedicate
 -- NOTE: SECURITY INVOKER (eredita RLS della tabella sottostante)
-CREATE OR REPLACE VIEW public.v_email_inbox_classified AS
-SELECT
-  e.*,
-  -- Categoria UI = nuova se presente, fallback a legacy
-  COALESCE(e.categoria::text, e.ai_category, 'altro') AS categoria_ui,
-  -- Nome entità linkata (lookup soft, NULL se entità rimossa)
-  CASE e.entita_tipo
-    WHEN 'fornitore' THEN (SELECT s.name FROM public.suppliers s WHERE s.id = e.entita_id AND s.company_id = e.company_id)
-    WHEN 'operaio'   THEN (SELECT trim(concat_ws(' ', emp.first_name, emp.last_name)) FROM public.employees emp WHERE emp.id = e.entita_id AND emp.company_id = e.company_id)
-    ELSE NULL
-  END AS entita_nome
-FROM public.email_inbox e;
+-- Preserve the view's established column order when e.* gained new columns.
+DO $classified_view$ DECLARE col record; names text[]:='{}'; fields text[]:='{}'; relation regclass;
+BEGIN
+ relation:=coalesce(to_regclass('public.v_email_inbox_classified'),to_regclass('public.email_inbox'));
+ FOR col IN SELECT attname FROM pg_attribute WHERE attrelid=relation AND attnum>0 AND NOT attisdropped ORDER BY attnum LOOP
+  names:=array_append(names,col.attname);
+  fields:=array_append(fields,case col.attname
+   when 'categoria_ui' then 'COALESCE(e.categoria::text,e.ai_category,''altro'') AS categoria_ui'
+   when 'entita_nome' then 'CASE e.entita_tipo WHEN ''fornitore'' THEN (SELECT s.name FROM public.suppliers s WHERE s.id=e.entita_id AND s.company_id=e.company_id) WHEN ''operaio'' THEN (SELECT trim(concat_ws('' '',emp.first_name,emp.last_name)) FROM public.employees emp WHERE emp.id=e.entita_id AND emp.company_id=e.company_id) ELSE NULL END AS entita_nome'
+   else format('e.%I',col.attname) end);
+ END LOOP;
+ FOR col IN SELECT attname FROM pg_attribute WHERE attrelid='public.email_inbox'::regclass AND attnum>0 AND NOT attisdropped AND NOT(attname=any(names)) ORDER BY attnum LOOP
+  fields:=array_append(fields,format('e.%I',col.attname));
+ END LOOP;
+ IF NOT('categoria_ui'=any(names)) THEN fields:=array_append(fields,'COALESCE(e.categoria::text,e.ai_category,''altro'') AS categoria_ui');END IF;
+ IF NOT('entita_nome'=any(names)) THEN fields:=array_append(fields,'CASE e.entita_tipo WHEN ''fornitore'' THEN (SELECT s.name FROM public.suppliers s WHERE s.id=e.entita_id AND s.company_id=e.company_id) WHEN ''operaio'' THEN (SELECT trim(concat_ws('' '',emp.first_name,emp.last_name)) FROM public.employees emp WHERE emp.id=e.entita_id AND emp.company_id=e.company_id) ELSE NULL END AS entita_nome');END IF;
+ EXECUTE 'CREATE OR REPLACE VIEW public.v_email_inbox_classified WITH (security_invoker=true) AS SELECT '||array_to_string(fields,',')||' FROM public.email_inbox e';
+END $classified_view$;
+
 
 GRANT SELECT ON public.v_email_inbox_classified TO authenticated;
 

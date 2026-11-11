@@ -4,8 +4,8 @@
 -- dati senza modifiche. Le assegnazioni esistenti hanno phase_id = NULL
 -- (gruppo "Senza fase"): nessuna migrazione dati, niente si perde.
 
--- Elimina la tabella parallela mai usata in produzione.
-DROP TABLE IF EXISTS public.order_phase_assignments;
+-- Preserve the legacy table: later historical functions still read it, and
+-- it is present in the live schema. Existing labor grouping stays unchanged.
 
 -- Colonne di raggruppamento/preventivo sulle tabelle manodopera esistenti.
 ALTER TABLE public.order_employees

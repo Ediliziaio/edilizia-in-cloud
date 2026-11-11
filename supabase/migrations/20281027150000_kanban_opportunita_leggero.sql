@@ -52,7 +52,7 @@ declare
   v_attese constant jsonb := jsonb_build_object(
     'public.opportunita_ordine_sql(text,text)', jsonb_build_array('dceda814f21254182dd320c622285109', '60aaf597f15cff37bfd34a2c89ab30c0'),
     'public.opportunita_kanban(uuid,jsonb,uuid[],text,text,integer)', jsonb_build_array('0446f7212d9d638e3478eb223681d8d8', '8f46d693d51e93a9cb1876ea48421aa4'),
-    'public.opportunita_schede(uuid[])', jsonb_build_array('b1bb5c73a1ee864fb4884528423e674b', 'ac0cb1141fcd2ace4a3de0143e15fe91'),
+    'public.opportunita_schede(uuid[])', jsonb_build_array('b1bb5c73a1ee864fb4884528423e674b', 'ac0cb1141fcd2ace4a3de0143e15fe91', '23ce9405c5419ce73cfd65709b4ce4b6'),
     'public.contatti_seguiti_da_me()', jsonb_build_array('6a1aae843f7af1e25e7cd99d7c9de9c0', '6c9822cefcaa274bcb5174471cf66dba'));
   v_firma text;
   v_impronta text;

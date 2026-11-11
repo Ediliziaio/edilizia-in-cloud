@@ -97,10 +97,10 @@ begin
   if position('coalesce(quantity_received, 0) < coalesce(quantity, 0)' in v_def) > 0 then
     raise notice 'receive_from_oda_via_scans già aggiornata';
   else
-    if regexp_count(v_def, 'AND\s+quantity_received\s*<\s*quantity\)') <> 1 then
+    if regexp_count(v_def, 'AND\s+quantity_received\s*<\s*quantity\s*\)') <> 1 then
       raise exception 'receive_from_oda_via_scans: confronto quantità inatteso';
     end if;
-    v_def := regexp_replace(v_def, 'AND\s+quantity_received\s*<\s*quantity\)',
+    v_def := regexp_replace(v_def, 'AND\s+quantity_received\s*<\s*quantity\s*\)',
                             'AND coalesce(quantity_received, 0) < coalesce(quantity, 0))');
 
     if regexp_count(v_def, 'WHERE\s+id\s*=\s*p_oda_id\s*;') <> 1 then

@@ -13,11 +13,14 @@ CREATE OR REPLACE FUNCTION public.riepilogo_piattaforma(
   p_a  timestamptz
 )
 RETURNS jsonb
-LANGUAGE sql
+-- MRR truth columns are introduced by the following recovered foundation.
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path TO 'public'
 AS $function$
+BEGIN
+ RETURN (
 WITH
 -- Le aziende vere: fuori la company di piattaforma, che non e' un cliente.
 clienti AS (
@@ -132,7 +135,9 @@ SELECT jsonb_build_object(
                   WHERE direction = 'outbound' AND created_at >= p_da AND created_at < p_a),
   'wa_risposte', (SELECT count(*) FROM public.openwa_messages
                   WHERE direction = 'inbound' AND created_at >= p_da AND created_at < p_a)
-);
+)
+ );
+END;
 $function$;
 
 REVOKE ALL ON FUNCTION public.riepilogo_piattaforma(timestamptz, timestamptz) FROM PUBLIC, anon, authenticated;

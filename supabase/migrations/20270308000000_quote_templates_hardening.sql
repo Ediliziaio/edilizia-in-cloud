@@ -29,7 +29,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_record record;
+  v_target_company uuid;
   v_target_kind text;
   v_count int;
 BEGIN
@@ -59,8 +59,8 @@ BEGIN
 
   -- Validate linked_cover_id: kind='copertina', stessa company
   IF NEW.linked_cover_id IS NOT NULL THEN
-    SELECT kind, company_id INTO v_target_kind, v_record
-      FROM public.quote_templates WHERE id = NEW.linked_cover_id;
+    SELECT kind, company_id INTO v_target_kind, v_target_company
+      FROM public.quote_templates WHERE id = NEW.linked_cover_id AND company_id = NEW.company_id;
     IF v_target_kind IS NULL THEN
       RAISE EXCEPTION 'linked_cover_id punta a un template inesistente' USING ERRCODE = '23503';
     END IF;
@@ -72,7 +72,7 @@ BEGIN
 
   -- Validate linked_terms_id: kind='condizioni'
   IF NEW.linked_terms_id IS NOT NULL THEN
-    SELECT kind INTO v_target_kind FROM public.quote_templates WHERE id = NEW.linked_terms_id;
+    SELECT kind INTO v_target_kind FROM public.quote_templates WHERE id = NEW.linked_terms_id AND company_id = NEW.company_id;
     IF v_target_kind IS NULL THEN
       RAISE EXCEPTION 'linked_terms_id punta a un template inesistente' USING ERRCODE = '23503';
     END IF;
@@ -84,7 +84,7 @@ BEGIN
 
   -- Validate linked_legal_id: kind='legali'
   IF NEW.linked_legal_id IS NOT NULL THEN
-    SELECT kind INTO v_target_kind FROM public.quote_templates WHERE id = NEW.linked_legal_id;
+    SELECT kind INTO v_target_kind FROM public.quote_templates WHERE id = NEW.linked_legal_id AND company_id = NEW.company_id;
     IF v_target_kind IS NULL THEN
       RAISE EXCEPTION 'linked_legal_id punta a un template inesistente' USING ERRCODE = '23503';
     END IF;
@@ -98,7 +98,7 @@ BEGIN
   IF NEW.linked_product_ids IS NOT NULL AND array_length(NEW.linked_product_ids, 1) > 0 THEN
     SELECT count(*) INTO v_count
       FROM public.quote_templates
-      WHERE id = ANY(NEW.linked_product_ids) AND kind = 'prodotto';
+      WHERE id = ANY(NEW.linked_product_ids) AND kind = 'prodotto' AND company_id = NEW.company_id;
     IF v_count < array_length(NEW.linked_product_ids, 1) THEN
       RAISE EXCEPTION 'linked_product_ids contiene template che non sono kind=prodotto'
         USING ERRCODE = '23514';
@@ -109,7 +109,7 @@ BEGIN
   IF NEW.linked_section_ids IS NOT NULL AND array_length(NEW.linked_section_ids, 1) > 0 THEN
     SELECT count(*) INTO v_count
       FROM public.quote_templates
-      WHERE id = ANY(NEW.linked_section_ids) AND kind = 'sezione';
+      WHERE id = ANY(NEW.linked_section_ids) AND kind = 'sezione' AND company_id = NEW.company_id;
     IF v_count < array_length(NEW.linked_section_ids, 1) THEN
       RAISE EXCEPTION 'linked_section_ids contiene template che non sono kind=sezione'
         USING ERRCODE = '23514';

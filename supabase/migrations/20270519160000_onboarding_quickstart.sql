@@ -18,28 +18,30 @@ COMMENT ON COLUMN public.onboarding_steps.action_url IS
 COMMENT ON COLUMN public.onboarding_steps.action_label IS
   'Label CTA (es. "Aggiungi cliente"). Se NULL → "Vai" generico.';
 
+-- Anticipa il contratto nullable già previsto da 20270519200000: il seed di sistema non inventa utenti.
+ALTER TABLE public.onboarding_templates ALTER COLUMN created_by DROP NOT NULL;
+
 -- ─── 2. Template Quick Start Edilizia ───────────────────────────────────────
 DO $$
 DECLARE
   v_template_id uuid;
   v_super_admin_id uuid;
 BEGIN
-  -- Trova un super_admin per il created_by (NOT NULL).
+  -- Usa un super_admin se già presente; NULL identifica il seed di sistema.
   -- user_roles non ha created_at quindi prendiamo solo il primo trovato.
   SELECT user_id INTO v_super_admin_id
   FROM public.user_roles
   WHERE role = 'super_admin'::app_role
   LIMIT 1;
 
-  -- Inserisci template se non esiste (richiede UNIQUE(name) — vedi migration 20270519200000)
+  -- Il vincolo UNIQUE(name) arriva nella migrazione successiva; il seed è seriale.
   INSERT INTO public.onboarding_templates (name, description, is_default, created_by)
-  VALUES (
+  SELECT
     'Quick Start Edilizia',
     'Setup guidato in 6 passi per essere operativi in meno di 5 minuti',
     true,
     v_super_admin_id
-  )
-  ON CONFLICT (name) DO NOTHING
+  WHERE NOT EXISTS (SELECT 1 FROM public.onboarding_templates WHERE name='Quick Start Edilizia')
   RETURNING id INTO v_template_id;
 
   IF v_template_id IS NULL THEN

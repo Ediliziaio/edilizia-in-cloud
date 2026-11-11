@@ -73,11 +73,12 @@ export function useWebhooks(companyId: string | undefined) {
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
+    refetchInterval: 30_000,
     gcTime: 15 * 60 * 1000,
   });
 }
 
-export function useWebhookDeliveries(webhookId: string | null) {
+export function useWebhookDeliveries(webhookId: string | null, refresh = false) {
   return useQuery({
     queryKey: ["webhook-deliveries", webhookId],
     queryFn: async () => {
@@ -92,6 +93,7 @@ export function useWebhookDeliveries(webhookId: string | null) {
       return (data ?? []) as unknown as WebhookDelivery[];
     },
     enabled: !!webhookId,
+    refetchInterval: refresh ? 5_000 : false,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
@@ -160,24 +162,23 @@ export function useRetryDelivery(webhookId: string | null) {
       if (!webhookId) throw new Error("Webhook richiesto");
       const { data: delivery, error: fetchErr } = await supabase
         .from("webhook_deliveries")
-        .select("webhook_id, event_type, payload, attempt_count")
+        .select("webhook_id")
         .eq("id", deliveryId)
         .eq("webhook_id", webhookId)
         .single();
       if (fetchErr || !delivery) throw new Error("Delivery non trovato");
 
-      // Il server registra un nuovo tentativo. La consegna precedente resta
-      // storica: marcarla "retrying" la lasciava in attesa per sempre.
+      // Il server rimette in coda lo stesso evento, conservandone identificativo
+      // e audit dei tentativi. Il browser non può sostituirne il payload.
       const { data, error } = await supabase.functions.invoke("send-webhook", {
         body: {
           webhook_id: delivery.webhook_id,
-          event_type: delivery.event_type,
-          payload: delivery.payload,
+          delivery_id: deliveryId,
         },
       });
       if (error) throw error;
-      // L'Edge Function può rispondere HTTP 200 anche con endpoint fallito.
-      if (data?.status !== "success") {
+      // Accettato in coda non significa già consegnato al destinatario.
+      if (data?.status !== "queued") {
         throw new Error(data?.http_status ? `Endpoint non raggiunto correttamente (HTTP ${data.http_status})` : "Invio non riuscito: verifica l'endpoint e riprova");
       }
     },

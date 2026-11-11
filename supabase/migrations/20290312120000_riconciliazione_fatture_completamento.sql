@@ -326,3 +326,4 @@ create index fattura_lotti_fattura on fattura_riconciliazione_lotti(fattura_id);
 create index fattura_equivalenze_supplier_fk on fattura_equivalenze_fornitore(supplier_id);
 create index fattura_conversioni_supplier_fk on fattura_conversioni_fornitore(supplier_id);
 create index fattura_quantita_riga_fk on fattura_ddt_quantita(ddt_riga);
+

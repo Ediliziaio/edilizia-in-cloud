@@ -11,3 +11,4 @@ begin
   raise exception 'Definizione del contesto non riconosciuta: controllare l’ordinamento dei consumi.';
  end if;
 end $migrazione$;
+

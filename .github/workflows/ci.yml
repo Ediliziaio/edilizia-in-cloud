@@ -4,6 +4,9 @@ name: CI / Edge-function deploy
 on:
   push:
     branches: [main]
+    # Verification tags run the complete checks without creating hosted database
+    # branches. The deployment job remains restricted to refs/heads/main.
+    tags: [verify-automation-completion-*]
   pull_request:
     branches: [main]
   # Avvio a mano. Serve quando il deploy non e' partito da solo: se il job
@@ -24,21 +27,30 @@ on:
 # I deploy su main, invece, non vengono interrotti.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 # ── Shared env ───────────────────────────────────────────────────────────────
 env:
   SUPABASE_PROJECT_ID: rsbrguhkodgnqfomrevo
 
 jobs:
+  migration-history:
+    name: Complete offline database reconstruction
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Replay every migration with network and cron disabled
+        run: python3 scripts/test-migration-history.py
+
   frontend-build:
     name: Frontend production build
-    # Browser e librerie già presenti: evita installazioni apt che bloccano la
-    # build quando il mirror Azure di Ubuntu non è raggiungibile. Stessa versione del lockfile.
+    # Official image matches the lockfile and already contains browser libraries.
+    # This avoids APT mirror/DNS failures before the actual build can start.
     runs-on: ubuntu-24.04
     container:
       image: mcr.microsoft.com/playwright:v1.60.0-noble
-      options: --init --ipc=host
+      options: --shm-size=1g
     env:
       # Identificazione pubblica del frontend, sempre soggetta a RLS. Nessuna chiave server.
       VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://rsbrguhkodgnqfomrevo.supabase.co' }}
@@ -58,8 +70,10 @@ jobs:
         run: npm install --global bun@1.4.4
       - name: Install frozen dependencies
         run: bun install --frozen-lockfile
-      - name: Verify supported browser installation
-        run: npx --no-install playwright install chromium-headless-shell
+      - name: Verify bundled browser launches
+        run: >-
+          node --input-type=module -e
+          "import { chromium } from 'playwright'; const browser = await chromium.launch({headless:true}); await browser.close();"
       - name: Build application and prerender public routes
         run: npm run build
       - name: Verify prerendered routes
@@ -116,9 +130,13 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────
   # 2. Critical unit tests
   # ─────────────────────────────────────────────────────────────────────────
-  test:
-    name: Critical tests
+  critical-tests:
+    name: Critical tests / ${{ matrix.group }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [core, worksite, access, economics]
     steps:
       - uses: actions/checkout@v4
 
@@ -135,16 +153,36 @@ jobs:
       - name: Install deps
         run: bun install --frozen-lockfile
 
+      - name: Verify deployment checkpoint selection
+        if: matrix.group == 'core'
+        run: node --test scripts/tests/ultimoDeployRiuscito.test.mjs
+
+      - name: Typecheck webhook edge functions
+        if: matrix.group == 'core'
+        run: npx --yes deno@2.9.6 check supabase/functions/dispatch-global-webhooks/index.ts supabase/functions/send-webhook/index.ts
+
+      - name: Verify global webhook events, permissions and delivery queue
+        if: matrix.group == 'core'
+        run: bun run test:global-webhooks
+
+      - name: Verify recovered migration guards and tenant security
+        if: matrix.group == 'core'
+        run: bun run test:migration-recovery
+
       - name: Run critical tests
+        if: matrix.group == 'core'
         run: bun run test:critical
 
       - name: Run floorplan, 3D orientation and document verification regressions
+        if: matrix.group == 'worksite'
         run: bun run test:planimetrie
 
       - name: Verify photovoltaic quotes, PDF templates and rental isolation
+        if: matrix.group == 'access'
         run: bun run test:fotovoltaico
 
       - name: Run catalogue and selected-company regressions
+        if: matrix.group == 'economics'
         run: >-
           bunx vitest run --maxWorkers=2
           src/test/ui/materialiListino.test.tsx
@@ -157,11 +195,13 @@ jobs:
           src/test/ui/permessiDistinti.test.tsx
 
       - name: Verify distinct permissions with PostgreSQL row security
+        if: matrix.group == 'worksite'
         run: |
           node scripts/test-permessi-dettagliati.mjs
           node scripts/test-sola-lettura-dati.mjs
 
       - name: Run definitive conflict and database memory regressions
+        if: matrix.group == 'access'
         run: >-
           bunx vitest run --maxWorkers=2
           src/test/logic/conflittiSenzaRetrySql.test.ts
@@ -174,6 +214,7 @@ jobs:
           src/test/wizard-audit/verticalConversation.test.ts
 
       - name: Run purchase order and supplier request workflow regressions
+        if: matrix.group == 'economics'
         run: >-
           bunx vitest run --maxWorkers=2
           src/test/logic/acquistiOperativi.test.ts
@@ -193,6 +234,7 @@ jobs:
           src/test/ui/acquistiAnteprima.test.tsx
 
       - name: Run operational selection, summaries and detail regressions
+        if: matrix.group == 'worksite'
         run: >-
           bunx vitest run --maxWorkers=2
           src/test/logic/azioniMultipleOperative.test.ts
@@ -214,6 +256,7 @@ jobs:
           src/test/ui/provvigioniPopupContratto.test.tsx
 
       - name: Run DDT ingestion, deliveries and invoice valuation regressions
+        if: matrix.group == 'access'
         run: >-
           bunx vitest run --maxWorkers=2
           src/test/logic/ddt*.test.ts
@@ -237,6 +280,7 @@ jobs:
           src/test/ui/acquistiPermessi.test.tsx
 
       - name: Run invoice comparison and AI reconciliation regressions
+        if: matrix.group == 'economics'
         run: >-
           bunx vitest run --maxWorkers=2
           src/test/logic/confrontoDocumentiFattura.test.ts
@@ -251,6 +295,7 @@ jobs:
           src/test/ui/verificaFatturaSalvataggio.test.tsx
 
       - name: Verify reconciliation SQL and concurrent saves in isolated Postgres
+        if: matrix.group == 'economics'
         env:
           EIC_TEST_PG_CONTAINER: eic-fatture-ai-pg
         run: |
@@ -267,23 +312,27 @@ jobs:
           node scripts/test-riconciliazione-concorrenza.mjs
 
       - name: Run computo persistence, tenant isolation and PDF regressions
+        if: matrix.group == 'economics'
         run: >-
           bunx vitest run --maxWorkers=2
           src/test/logic/computo*.test.ts
           src/test/ui/computo*.test.tsx
 
       - name: Run conversational quote and native wizard regressions
+        if: matrix.group == 'worksite'
         run: |
           bun run test:preventivatore-ai
           bunx vitest run --config vitest.wizard-audit.config.ts
 
       - name: Run Silvio worksite creation and document regressions
+        if: matrix.group == 'access'
         run: >-
           bunx vitest run --maxWorkers=2
           src/test/logic/silvioCommessa*.test.ts
           src/test/ui/silvioCommessa*.test.tsx
 
       - name: Run report periods and automatic economy document regressions
+        if: matrix.group == 'economics'
         # I rapporti derivano dai rapportini approvati, anche fuori dal singolo mese.
         # I costi interni non devono mai finire nei documenti del cliente.
         # Questo blocco precede i controlli del sito pubblico.
@@ -300,6 +349,7 @@ jobs:
           src/test/ui/rapportiPeriodoDialog.test.tsx
 
       - name: Run public website and structured data regressions
+        if: matrix.group == 'worksite'
         run: >-
           bunx vitest run --maxWorkers=1
           src/test/ui/marketingDemoJourney.test.tsx
@@ -319,6 +369,7 @@ jobs:
           src/test/logic/prerenderPerIBot.test.ts
 
       - name: Run contract, intervention and office workflow regressions
+        if: matrix.group == 'access'
         run: >-
           bunx vitest run --maxWorkers=1 --testTimeout=15000
           src/test/logic/contractPreparation.test.ts
@@ -337,6 +388,7 @@ jobs:
           src/test/logic/creaCommessaPagamenti.test.ts
 
       - name: Run subcontractor assignment, amounts and atomic bridge regressions
+        if: matrix.group == 'economics'
         run: >-
           bunx vitest run --maxWorkers=2 --testTimeout=15000
           src/test/logic/assignmentAmounts.test.ts
@@ -351,6 +403,7 @@ jobs:
           src/test/ui/orderWorkPlanning.test.tsx
 
       - name: Run quote to worksite classification regression tests
+        if: matrix.group == 'worksite'
         run: >-
           bunx vitest run --maxWorkers=1 --testTimeout=15000
           src/test/logic/quoteConversionAtomic.test.ts
@@ -360,6 +413,7 @@ jobs:
           src/test/ui/quoteLineKindFields.test.tsx
 
       - name: Run module conversion and multi-company regressions
+        if: matrix.group == 'access'
         run: >-
           bunx vitest run --maxWorkers=1 --testTimeout=15000
           src/test/logic/moduliCommessaAtomic.test.ts
@@ -369,6 +423,7 @@ jobs:
           src/test/logic/avviaCommessa.test.ts
 
       - name: Run worksite and quote duplication regressions
+        if: matrix.group == 'economics'
         run: >-
           bunx vitest run --maxWorkers=1 --testTimeout=15000
           src/test/logic/duplicaLavoriAtomic.test.ts
@@ -376,6 +431,7 @@ jobs:
           src/test/ui/ristrutturazioneDuplicaFlusso.test.tsx
 
       - name: Run daily hours and quote descriptions regressions
+        if: matrix.group == 'worksite'
         run: >-
           bunx vitest run --maxWorkers=1 --testTimeout=15000
           src/test/logic/entityAttachmentsMigrationOrder.test.ts
@@ -392,6 +448,7 @@ jobs:
           src/test/logic/offertaPubblicaLinkERighe.test.ts
 
       - name: Run bounded reads, Kanban and shared Realtime regressions
+        if: matrix.group == 'access'
         run: >-
           bunx vitest run --maxWorkers=1
           src/test/logic/queryTimeoutCancellation.test.ts
@@ -413,6 +470,7 @@ jobs:
           src/test/logic/cronCapiReadiness.test.ts
 
       - name: Run email loop and lightweight regional price regressions
+        if: matrix.group == 'economics'
         run: >-
           bunx vitest run --maxWorkers=1 --testTimeout=15000
           src/test/logic/emailTriagePersistenza.test.ts
@@ -424,6 +482,7 @@ jobs:
           src/test/ui/fotoQualitaSchema.test.tsx
 
       - name: Run sidebar preview regression tests
+        if: matrix.group == 'worksite'
         run: >-
           bunx vitest run --maxWorkers=1
           src/test/logic/sidebarPreview.test.ts
@@ -431,6 +490,7 @@ jobs:
           src/test/ui/sidebarState.test.tsx
 
       - name: Run confirmed catalogue variants regression tests
+        if: matrix.group == 'access'
         run: >-
           bunx vitest run --maxWorkers=1
           src/test/logic/variantiTecnicheConfermate.test.ts
@@ -442,6 +502,7 @@ jobs:
           src/test/ui/catalogoPreventivoUX.test.tsx
 
       - name: Run recoverable worksite deletion regressions
+        if: matrix.group == 'economics'
         run: >-
           bunx vitest run --maxWorkers=1 --testTimeout=15000
           src/test/logic/ordersTrash.test.ts
@@ -449,6 +510,7 @@ jobs:
           src/test/ui/ordersTrashConfirm.test.tsx
 
       - name: Run auth session regression tests
+        if: matrix.group == 'worksite'
         run: >-
           bunx vitest run
           src/test/ui/authSessionRecovery.test.tsx
@@ -459,11 +521,13 @@ jobs:
           src/test/logic/sessioneCookieDominio.test.ts
 
       - name: Run admin impersonation regression tests
+        if: matrix.group == 'access'
         run: |
           bunx vitest run --maxWorkers=1 src/test/logic/impersonazioneAccesso.test.ts src/test/ui/ingressoAziendaRifiutato.test.tsx
           node scripts/test-impersonation-burst.mjs
 
       - name: Run company administration regression tests
+        if: matrix.group == 'economics'
         run: |
           bunx vitest run --maxWorkers=1 --testTimeout=15000 src/test/ui/companyAdminReorganization.test.tsx src/test/ui/companyEffectiveFeatures.test.tsx src/test/ui/companyListQuickDetails.test.tsx src/test/ui/companyAIConsistency.test.tsx src/test/ui/companyWalletBalances.test.tsx src/test/ui/companyActivitySources.test.tsx src/test/ui/companyEmailQuotaDraft.test.tsx src/test/ui/adminWhiteLabel.test.tsx
           bunx vitest run --maxWorkers=2 src/test/logic/companyHealthConsistency.test.ts src/test/ui/companyLastAccessConsistency.test.tsx src/test/ui/companyKpiHealthState.test.tsx src/test/ui/companyHealthBadgeConsistency.test.tsx src/test/logic/adminRevenueHistory.test.ts src/test/logic/cockpitPortfolioRevenue.test.ts src/test/ui/adminUsersReadability.test.tsx
@@ -471,6 +535,7 @@ jobs:
           node scripts/test-white-label-plan.mjs
 
       - name: Run superadmin operations regression tests
+        if: matrix.group == 'worksite'
         run: >-
           bunx vitest run --maxWorkers=2
           src/test/logic/adminTaskState.test.ts
@@ -481,6 +546,7 @@ jobs:
           src/test/ui/adminTaskCompanyLinks.test.tsx
 
       - name: Run superadmin email and chat regression tests
+        if: matrix.group == 'access'
         run: >-
           bunx vitest run --maxWorkers=2
           src/test/logic/emailClientStatus.test.ts
@@ -491,6 +557,7 @@ jobs:
           src/test/ui/emailLayoutState.test.tsx
 
       - name: Run phase notes and materials regressions
+        if: matrix.group == 'economics'
         run: >-
           bunx vitest run --maxWorkers=2 --testTimeout=20000
           src/test/logic/fasiMaterialiClassificazione.test.ts
@@ -502,9 +569,11 @@ jobs:
           src/test/ui/orderSerialsDisclosure.test.tsx
 
       - name: Run order PDF type boundary regressions
+        if: matrix.group == 'worksite'
         run: bunx vitest run --maxWorkers=1 src/test/logic/ordinePdfTypeBoundary.test.tsx
 
       - name: Run typed quote, task and catalogue data regressions
+        if: matrix.group == 'access'
         run: >-
           bunx vitest run --maxWorkers=2 --testTimeout=30000
           src/test/logic/quoteVersionSnapshot.test.ts
@@ -517,6 +586,7 @@ jobs:
           src/test/logic/smartDocumentImport.test.ts
 
       - name: Run commesse scope and filter regressions
+        if: matrix.group == 'economics'
         run: >-
           bunx vitest run --maxWorkers=2
           src/test/logic/commesseListScope.test.ts
@@ -533,12 +603,14 @@ jobs:
           src/test/ui/useURLFiltersPiuSetterDiFila.test.tsx
 
       - name: Run dashboard economics and operational UI regressions
+        if: matrix.group == 'worksite'
         run: >-
           TZ=Europe/Rome bunx vitest run --maxWorkers=2
           src/test/logic/cruscottoMetrics.test.ts
           src/test/logic/comeStiamoAndando.test.ts
           src/test/ui/cruscottoFinanzaOperations.test.tsx
       - name: Run cash forecast regression tests
+        if: matrix.group == 'access'
         run: >-
           TZ=Europe/Rome bunx vitest run
           src/test/logic/forecastLedger.test.ts
@@ -546,6 +618,7 @@ jobs:
           src/test/ui/forecastWorkspace.test.tsx
 
       - name: Run independent sales area visibility regression tests
+        if: matrix.group == 'economics'
         run: >-
           bunx vitest run --maxWorkers=1
           src/test/logic/moduleVisibility.test.tsx
@@ -558,6 +631,7 @@ jobs:
           src/test/ui/moduliVerita.test.tsx
 
       - name: Run unified credits settings regression tests
+        if: matrix.group == 'worksite'
         run: >-
           bunx vitest run --maxWorkers=1
           src/test/ui/abbonamentoSchede.test.tsx
@@ -573,12 +647,14 @@ jobs:
           src/test/ui/creditiUnaTestataEUnaRicarica.test.tsx
 
       - name: Run company economics and consumption regression tests
+        if: matrix.group == 'access'
         run: |
           bunx vitest run --maxWorkers=2 src/test/logic/companyConsumption.test.ts src/test/ui/companyConsumption.test.tsx src/test/logic/companyEconomics.test.ts src/test/ui/companyEconomics.test.tsx src/test/ui/companyAdminReorganization.test.tsx
           node scripts/test-company-economics.mjs
           node scripts/test-company-consumption.mjs
 
       - name: Run native invoice filters and atomic emission regressions
+        if: matrix.group == 'economics'
         run: >-
           TZ=Europe/Rome bunx vitest run --maxWorkers=1 --testTimeout=15000
           src/test/logic/documentiFiltri.test.ts
@@ -593,11 +669,23 @@ jobs:
           src/test/security/fatturaScartataSiCorregge.test.ts
 
       - name: Run CG SQL reconciliation and rating regressions
+        if: matrix.group == 'worksite'
         run: >-
           TZ=Europe/Rome bunx vitest run --maxWorkers=1 --testTimeout=20000
           src/test/logic/cgReconciliation.test.ts
           src/test/ui/cgRatingQuality.test.tsx
           src/test/logic/silvioOrderReport.test.ts
+
+  test:
+    name: Critical tests
+    runs-on: ubuntu-latest
+    needs: [critical-tests]
+    if: always()
+    steps:
+      - name: Require every critical test group
+        env:
+          GROUP_RESULT: ${{ needs.critical-tests.result }}
+        run: test "$GROUP_RESULT" = success
 
   # ─────────────────────────────────────────────────────────────────────────
   # 3. Deploy changed edge functions (main only, after checks pass)
@@ -629,7 +717,7 @@ jobs:
     runs-on: ubuntu-latest
     # Il contenitore CAD (Docker) non c'entra con le edge function: se la sua
     # prova si rompe, il deploy delle funzioni non deve fermarsi con lui.
-    needs: [typecheck, test]
+    needs: [typecheck, test, migration-history]
     if: >-
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
@@ -720,12 +808,14 @@ jobs:
           # da prima e riprova. Solo i push contano: un avvio a mano per poche
           # funzioni non dice niente sulle altre. Se l'elenco non si legge, si
           # resta sul comportamento di prima.
-          ULTIMO_OK=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=20" \
-            --jq '[.workflow_runs[] | select(.id != ${{ github.run_id }})] | .[0].head_sha // empty' 2>/dev/null || true)
+          # Use the deployment job result, independently of frontend failures.
+          # Otherwise a successful deploy followed by an APT/build failure
+          # could overwrite a newer manual hotfix on the next push.
+          ULTIMO_OK=$(node scripts/ultimo-deploy-riuscito.mjs)
           if [ -n "$ULTIMO_OK" ] \
               && git rev-parse --verify "$ULTIMO_OK^{commit}" >/dev/null 2>&1 \
               && git merge-base --is-ancestor "$ULTIMO_OK" HEAD; then
-            echo "Base del confronto: ultimo push riuscito ${ULTIMO_OK}"
+            echo "Base del confronto: ultimo deploy riuscito ${ULTIMO_OK}"
             BASE="$ULTIMO_OK"
           else
             echo "Ultimo push riuscito non disponibile: si usa il push precedente"

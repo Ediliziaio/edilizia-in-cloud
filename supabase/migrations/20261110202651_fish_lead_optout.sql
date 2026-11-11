@@ -1,3 +1,12 @@
+-- Fresh reconstruction only: production already applied these recovered files.
+-- Markers are created only where a recovered patch precedes its actual dependencies.
+set local lock_timeout='3s';
+set local statement_timeout='60s';
+create schema if not exists private;
+create table if not exists private.recovered_dependency_patches(id text primary key);
+alter table private.recovered_dependency_patches enable row level security;
+revoke all on private.recovered_dependency_patches from public,anon,authenticated,service_role;
+DO $defer_recovered_10$ BEGIN IF to_regprocedure('public.fish_customer_phone(text,text)') is not null THEN
 CREATE INDEX IF NOT EXISTS marketing_contacts_voice_optout_phone_idx ON public.marketing_contacts(company_id,public.fish_customer_phone(phone,'IT')) WHERE optout_call OR opt_out;
 -- Reuses the existing phone opt-out; email, SMS and WhatsApp consent are untouched.
 CREATE FUNCTION public.fish_record_call_optout(p_company uuid,p_agent uuid,p_session text,p_reason text DEFAULT NULL) RETURNS jsonb
@@ -43,3 +52,5 @@ BEGIN
 END; $$;
 REVOKE ALL ON FUNCTION public.fish_prepare_outbound(uuid,uuid,uuid,text,text,uuid) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.fish_prepare_outbound(uuid,uuid,uuid,text,text,uuid) TO service_role;
+
+ELSE INSERT INTO private.recovered_dependency_patches(id) VALUES ('20261110202651_fish_lead_optout.sql') ON CONFLICT DO NOTHING; END IF; END $defer_recovered_10$;

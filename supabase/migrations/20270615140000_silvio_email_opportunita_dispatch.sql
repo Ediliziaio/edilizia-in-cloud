@@ -67,6 +67,6 @@ DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM pg_extension WHERE extname='pg_cron')
      AND EXISTS (SELECT 1 FROM pg_extension WHERE extname='pg_net') THEN
     PERFORM cron.schedule('email-ai-dispatch-opportunita-5min','*/5 * * * *',
-      $cron$ SELECT public.silvio_email_dispatch_opportunita(current_setting('app.proactive_cron_secret', true), 10); $cron$);
+      $cron$ SELECT public.silvio_email_dispatch_opportunita((select decrypted_secret from vault.decrypted_secrets where name = 'proactive_cron_secret'), 10); $cron$);
   END IF;
 END $$;

@@ -6,6 +6,7 @@
 -- (Applicata in prod il 2026-07-10 via MCP: order_work_phases_rls_campo_staff)
 -- ============================================================================
 
+DROP POLICY IF EXISTS "Staff can view order work phases if permitted" ON public.order_work_phases;
 CREATE POLICY "Staff can view order work phases if permitted"
 ON public.order_work_phases FOR SELECT
 USING (
@@ -13,6 +14,7 @@ USING (
   AND get_order_company_id(order_id) = get_user_company_id((SELECT auth.uid()))
 );
 
+DROP POLICY IF EXISTS "Staff can manage order work phases if permitted" ON public.order_work_phases;
 CREATE POLICY "Staff can manage order work phases if permitted"
 ON public.order_work_phases FOR ALL
 USING (
@@ -24,6 +26,7 @@ WITH CHECK (
   AND get_order_company_id(order_id) = get_user_company_id((SELECT auth.uid()))
 );
 
+DROP POLICY IF EXISTS "Campo workers can view phases of assigned orders" ON public.order_work_phases;
 CREATE POLICY "Campo workers can view phases of assigned orders"
 ON public.order_work_phases FOR SELECT
 USING (
@@ -35,6 +38,7 @@ USING (
   OR order_has_employee_for_user(order_id, (SELECT auth.uid()))
 );
 
+DROP POLICY IF EXISTS "Campo workers can update phases of assigned orders" ON public.order_work_phases;
 CREATE POLICY "Campo workers can update phases of assigned orders"
 ON public.order_work_phases FOR UPDATE
 USING (

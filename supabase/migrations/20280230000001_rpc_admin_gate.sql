@@ -213,8 +213,9 @@ END;
 $function$;
 
 -- get_company_health_data (sql→plpgsql)
+-- Keep the expanded contract AND apply the platform authorization gate.
 CREATE OR REPLACE FUNCTION public.get_company_health_data()
- RETURNS TABLE(company_id uuid, order_count bigint, orders_last_30d bigint, user_count bigint, last_order_date timestamp with time zone, has_customers boolean, has_staff boolean)
+ RETURNS TABLE(company_id uuid, order_count bigint, orders_last_30d bigint, user_count bigint, last_order_date timestamp with time zone, first_order_date timestamp with time zone, has_customers boolean, has_staff boolean)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -229,6 +230,7 @@ BEGIN
     COALESCE(os.orders_last_30d, 0)::bigint,
     COALESCE(uc.user_count, 0)::bigint,
     os.last_order_date,
+    os.first_order_date,
     COALESCE(cust_check.has_customers, false),
     COALESCE(staff_check.has_staff, false)
   FROM public.companies c
@@ -236,7 +238,8 @@ BEGIN
     SELECT o.company_id, 
            COUNT(*)::bigint AS order_count,
            COUNT(*) FILTER (WHERE o.created_at >= now() - interval '30 days')::bigint AS orders_last_30d,
-           MAX(o.created_at) AS last_order_date
+           MAX(o.created_at) AS last_order_date,
+           MIN(o.created_at) AS first_order_date
     FROM public.orders o
     GROUP BY o.company_id
   ) os ON os.company_id = c.id

@@ -110,19 +110,16 @@ CREATE TABLE IF NOT EXISTS public.email_outbox (
   sent_at TIMESTAMPTZ
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS email_outbox_idempotency_key_idx
-  ON public.email_outbox(idempotency_key);
-
-CREATE INDEX IF NOT EXISTS email_outbox_ready_idx
-  ON public.email_outbox(status, scheduled_at, priority, created_at)
-  WHERE status IN ('queued', 'failed', 'processing');
-
-CREATE INDEX IF NOT EXISTS email_outbox_company_status_idx
-  ON public.email_outbox(company_id, status, created_at DESC);
-
-CREATE INDEX IF NOT EXISTS email_outbox_campaign_status_idx
-  ON public.email_outbox(campaign_id, status, created_at DESC)
-  WHERE campaign_id IS NOT NULL;
+-- The native personal-email outbox already exists on a fresh installation.
+-- Do not add a second, incompatible queue or indexes on absent enterprise fields.
+DO $outbox_indexes$ BEGIN
+ IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='email_outbox' AND column_name='idempotency_key') THEN
+  CREATE UNIQUE INDEX IF NOT EXISTS email_outbox_idempotency_key_idx ON public.email_outbox(idempotency_key);
+  CREATE INDEX IF NOT EXISTS email_outbox_ready_idx ON public.email_outbox(status,scheduled_at,priority,created_at) WHERE status IN ('queued','failed','processing');
+  CREATE INDEX IF NOT EXISTS email_outbox_campaign_status_idx ON public.email_outbox(campaign_id,status,created_at DESC) WHERE campaign_id IS NOT NULL;
+ END IF;
+ CREATE INDEX IF NOT EXISTS email_outbox_company_status_idx ON public.email_outbox(company_id,status,created_at DESC);
+END $outbox_indexes$;
 
 CREATE TABLE IF NOT EXISTS public.email_dead_letter (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -152,14 +149,12 @@ ALTER TABLE public.email_outbox ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.email_dead_letter ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS email_outbox_select ON public.email_outbox;
-CREATE POLICY email_outbox_select ON public.email_outbox
-  FOR SELECT
-  USING (
-    public.has_role(auth.uid(), 'super_admin'::public.app_role)
-    OR company_id IN (
-      SELECT company_id FROM public.user_roles WHERE user_id = auth.uid()
-    )
-  );
+DO $outbox_read$ BEGIN
+ IF NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='email_outbox' AND column_name='user_id') THEN
+  CREATE POLICY email_outbox_select ON public.email_outbox FOR SELECT TO authenticated USING (
+   public.has_permission_for_company((SELECT auth.uid()),'can_view_settings_integrations',company_id));
+ END IF;
+END $outbox_read$;
 
 DROP POLICY IF EXISTS email_outbox_service_role_all ON public.email_outbox;
 CREATE POLICY email_outbox_service_role_all ON public.email_outbox
@@ -172,9 +167,7 @@ CREATE POLICY email_dead_letter_select ON public.email_dead_letter
   FOR SELECT
   USING (
     public.has_role(auth.uid(), 'super_admin'::public.app_role)
-    OR company_id IN (
-      SELECT company_id FROM public.user_roles WHERE user_id = auth.uid()
-    )
+    OR public.has_permission_for_company((SELECT auth.uid()),'can_view_settings_integrations',company_id)
   );
 
 DROP POLICY IF EXISTS email_dead_letter_service_role_all ON public.email_dead_letter;
@@ -210,6 +203,9 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
+  IF NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='email_outbox' AND column_name='scheduled_at') THEN
+    RAISE EXCEPTION 'Coda email personale: usare il mittente nativo, non il worker enterprise' USING ERRCODE='0A000';
+  END IF;
   RETURN QUERY
   WITH picked AS (
     SELECT id

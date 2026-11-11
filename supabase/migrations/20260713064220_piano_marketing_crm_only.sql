@@ -1,3 +1,12 @@
+-- Fresh reconstruction only: production already applied these recovered files.
+-- Markers are created only where a recovered patch precedes its actual dependencies.
+set local lock_timeout='3s';
+set local statement_timeout='60s';
+create schema if not exists private;
+create table if not exists private.recovered_dependency_patches(id text primary key);
+alter table private.recovered_dependency_patches enable row level security;
+revoke all on private.recovered_dependency_patches from public,anon,authenticated,service_role;
+DO $defer_recovered_11$ BEGIN IF exists(select 1 from information_schema.columns where table_schema='public' and table_name='subscription_plans' and column_name='is_full_plan') and exists(select 1 from public.platform_feature_flags where key='fv_modulo_attivo') THEN
 -- Applicata direttamente in produzione dal pannello Supabase e ricostruita
 -- qui dal registro migrazioni (supabase_migrations.schema_migrations),
 -- per riallineare la cartella del repo alla storia reale del database.
@@ -11,9 +20,6 @@
 --   • plan_feature_defaults sotto spegne fiscalità/cantieri/preventivi
 -- Prezzo 97 €/mese = placeholder modificabile da /admin (piani).
 
--- This recovered timestamp precedes the full-plan/preview schema.
--- Initialization is also appended to 20270519230000 after those dependencies.
-DO $history$ BEGIN IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='subscription_plans' AND column_name='is_full_plan') AND to_regtype('public.feature_access_level') IS NOT NULL THEN
 insert into public.subscription_plans
   (name, slug, description, price_monthly, price_yearly, max_orders, max_users,
    features, is_active, position, included_modules, trial_days, is_full_plan)
@@ -49,9 +55,10 @@ cross join unnest(array[
   'contabilita_fiscale','archivio_sostitutivo','ritenute_garanzia','banca_extra'
 ]) as f(key)
 where p.slug = 'marketing'
+  and exists(select 1 from public.platform_feature_flags ff where ff.key=f.key)
   and not exists (
     select 1 from public.plan_feature_defaults d
     where d.plan_id = p.id and d.feature_key = f.key
   );
 
-END IF; END $history$;
+ELSE INSERT INTO private.recovered_dependency_patches(id) VALUES ('20260713064220_piano_marketing_crm_only.sql') ON CONFLICT DO NOTHING; END IF; END $defer_recovered_11$;

@@ -318,6 +318,7 @@ declare
   v_renova    int;
   v_fatti     int;
 begin
+  if not exists(select 1 from public.company_costs) and not exists(select 1 from public.fatture_ricevute) and not exists(select 1 from public.profiles) then raise notice 'Bonifica dati storici non necessaria: database vuoto';return;end if;
   -- Il segno preciso del guasto, e nient'altro.
   create temp table _da_riallineare on commit drop as
   select cc.id as cost_id, f.company_id,

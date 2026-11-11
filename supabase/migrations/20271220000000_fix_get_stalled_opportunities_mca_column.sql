@@ -21,6 +21,10 @@
 -- Applicata a prod (rsbrguhkodgnqfomrevo) via Management API il 2026-07-11.
 -- ============================================================
 
+-- Preserve the known expanded RPC contract installed by the recovered predecessor.
+DO $preserve_contract$ DECLARE shape text;BEGIN
+ shape:=pg_get_function_result(to_regprocedure('public.get_stalled_opportunities(uuid)'));
+ IF shape IS NULL OR shape='TABLE(opportunity_id uuid, opportunity_name text, contact_name text, stage_name text, assigned_to uuid, last_activity_at timestamp with time zone, days_stalled integer, stalled_threshold integer, value numeric)' THEN
 CREATE OR REPLACE FUNCTION public.get_stalled_opportunities(p_company_id uuid)
 RETURNS TABLE(
   opportunity_id uuid, opportunity_name text, contact_name text,
@@ -64,3 +68,5 @@ BEGIN
   ORDER BY days_stalled DESC;
 END;
 $function$;
+ ELSIF shape<>'TABLE(opportunity_id uuid, opportunity_name text, contact_name text, stage_name text, value numeric, days_stalled integer, stalled_threshold integer, assigned_to uuid, last_activity timestamp with time zone)' THEN RAISE EXCEPTION 'Contratto RPC inatteso: get_stalled_opportunities';END IF;
+END $preserve_contract$;

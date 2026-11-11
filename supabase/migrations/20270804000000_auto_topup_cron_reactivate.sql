@@ -17,7 +17,7 @@ SELECT cron.schedule(
   $$ SELECT net.http_post(
     url := current_setting('app.supabase_functions_url') || '/auto-topup-trigger',
     headers := jsonb_build_object(
-      'x-cron-secret', current_setting('app.cron_secret'),
+      'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret'),
       'Content-Type', 'application/json'
     ),
     body := '{}'::jsonb

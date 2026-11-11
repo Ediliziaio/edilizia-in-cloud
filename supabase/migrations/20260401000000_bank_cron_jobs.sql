@@ -65,4 +65,4 @@ SELECT cron.schedule(
 -- tramite: UPDATE cron.job SET command = replace(command, 'INTERNAL_CRON_SECRET_PLACEHOLDER', '<SECRET>') WHERE jobname LIKE 'bank-%';
 -- Oppure impostare app.internal_cron_secret come parametro DB:
 -- ALTER DATABASE postgres SET app.internal_cron_secret = '<SECRET>';
--- e sostituire il valore hardcoded con current_setting('app.internal_cron_secret') nei job
+-- e sostituire il valore hardcoded con (select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret') nei job

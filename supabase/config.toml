@@ -1189,3 +1189,7 @@ verify_jwt = false
 # Read-only public availability; calendar is resolved only from its public slug.
 [functions.public-booking-slots]
 verify_jwt = false
+
+[functions.dispatch-global-webhooks]
+# Scheduled worker: authenticated by the shared cron secret, never a user JWT.
+verify_jwt = false

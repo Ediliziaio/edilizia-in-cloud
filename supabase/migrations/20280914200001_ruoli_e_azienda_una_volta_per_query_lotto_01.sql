@@ -98,7 +98,37 @@ BEGIN
     IF NOT r.trovata THEN
       RAISE EXCEPTION 'Policy "%" su % non trovata: lotto fermo', r.nome, r.tabella;
     END IF;
-    IF pg_catalog.md5(coalesce(r.u, '') || '|' || coalesce(r.c, '')) <> r.impronta THEN
+    -- These exact reconstructed predecessors include later tenant hardening.
+    -- Accept their recorded fingerprint as well; every unknown change still aborts.
+    IF pg_catalog.md5(coalesce(r.u, '') || '|' || coalesce(r.c, '')) <> r.impronta
+       AND NOT ((r.tabella,r.nome,pg_catalog.md5(coalesce(r.u, '') || '|' || coalesce(r.c, ''))) IN (VALUES
+          ('listino_griglia','lg_company','c5fb4d9fb7b68491ca9eddd626862726'),
+          ('hr_timbrature','hr_timbrature_admin','90555129e8e13eecbf2cdf45f23bff8c'),
+          ('ai_call_ledger','ai_call_ledger_lettura_public','1f94b9342a703b7e8bf9ee93ef22e355'),
+          ('ai_brain_documents','ai_brain_documents_lettura_public','84e6c2cedcd9e43e42546493e70fd309'),
+          ('user_sessions','user_sessions_select_admin','0b22261bbed841df49820c8cec931fd7'),
+          ('user_sessions','user_sessions_update_admin','d9ef0fa4da4655c5332df2a535f16a3f'),
+          ('ai_router_usage_log','ai_router_usage_log_lettura_public','1f94b9342a703b7e8bf9ee93ef22e355'),
+          ('scadenze','scadenze_lettura_authenticated','39dad9fe7bd20f638be529ec8dc945af'),
+          ('scadenze','scadenze_tenant_delete','c5fb4d9fb7b68491ca9eddd626862726'),
+          ('scadenze','scadenze_tenant_update','c5fb4d9fb7b68491ca9eddd626862726'),
+          ('tool_execution_log','tool_execution_log_company_read','c5fb4d9fb7b68491ca9eddd626862726'),
+          ('hr_giornate','hr_giornate_own_company','31515b857febda622204ba587001e883'),
+          ('listino_categorie','lcat_company','c5fb4d9fb7b68491ca9eddd626862726'),
+          ('listino_griglia_history','listino_history_company','c5fb4d9fb7b68491ca9eddd626862726'),
+          ('tariffe_aziendali','ta_company','c5fb4d9fb7b68491ca9eddd626862726'),
+          ('company_feature_overrides','company_read_own_feature_overrides','49fb1d3e6b6b3f37c7d3a76fae0242c7'),
+          ('appointments','appointments_lettura_authenticated','4b55e65d97c27ab19f045a03f931cc1c'),
+          ('quote_items','qi_del','a24341584f65e789233784f46fa7145e'),
+          ('quote_items','qi_ins','9edad22a23f83ceb94be69c72aeade4f'),
+          ('quote_items','qi_sel','97f7a9c1f2f32cc754b9d076e3fb89ab'),
+          ('quote_items','qi_upd','a04d077d020ebcc9dd8b8bf882dd67bf')
+,
+          ('ai_call_ledger','ai_call_ledger_lettura_public','e60b4ffc9e424301104abaeddaf52b40'),
+          ('ai_brain_documents','ai_brain_documents_lettura_public','41f0586620d57433701a64eb39994ab3'),
+          ('ai_router_usage_log','ai_router_usage_log_lettura_public','e60b4ffc9e424301104abaeddaf52b40'),
+          ('appointments','appointments_lettura_authenticated','dbdf5e3e4a4288f71b323f49ef66cefe')
+       )) THEN
       RAISE EXCEPTION 'Policy "%" su % cambiata dopo il censimento: lotto fermo', r.nome, r.tabella;
     END IF;
     v_using := pg_catalog.regexp_replace(pg_catalog.regexp_replace(pg_catalog.regexp_replace(r.u,

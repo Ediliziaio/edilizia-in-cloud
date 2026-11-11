@@ -246,7 +246,7 @@ begin
 end $$;
 
 select pg_temp.correggi_g('public.silvio_tool_overdue_payments(uuid)',
-  $re$SELECT COUNT\(\*\) INTO v_orders_count FROM public\.orders WHERE company_id = p_company_id;\s+WITH overdue AS \([\s\S]*?\), ranked AS \($re$,
+  $re$SELECT COUNT\(\*\) INTO v_orders_count\s+FROM public\.orders WHERE company_id = p_company_id;\s+WITH overdue AS \([\s\S]*?\),\s+ranked AS \($re$,
   $to$SELECT COUNT(*) INTO v_orders_count FROM public.orders WHERE company_id = p_company_id AND deleted_at IS NULL;
   -- Rate scadute con la regola della scheda commessa: residuo vero, niente cestino, niente finanziaria.
   WITH ri AS MATERIALIZED (SELECT * FROM public.rate_importi(p_company_id)),

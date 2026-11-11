@@ -1,3 +1,12 @@
+-- Fresh reconstruction only: production already applied these recovered files.
+-- Markers are created only where a recovered patch precedes its actual dependencies.
+set local lock_timeout='3s';
+set local statement_timeout='60s';
+create schema if not exists private;
+create table if not exists private.recovered_dependency_patches(id text primary key);
+alter table private.recovered_dependency_patches enable row level security;
+revoke all on private.recovered_dependency_patches from public,anon,authenticated,service_role;
+DO $defer_recovered_3$ BEGIN IF to_regclass('public.hr_paghe_documenti') is not null and to_regclass('public.hr_buoni_pasto') is not null THEN
 -- File ricostruito il 27/10/2026 dal registro del database (supabase_migrations.schema_migrations).
 -- La migrazione era già applicata in produzione con questa versione, ma il file non era mai stato salvato nel repository:
 -- il controllo «Supabase Preview» segnalava «Remote migration versions not found in local migrations directory».
@@ -247,3 +256,5 @@ returns jsonb language sql stable security invoker set search_path=public,pg_tem
 $$;
 revoke all on function public.hr_paghe_saldi(uuid,date) from public,anon;
 grant execute on function public.hr_paghe_saldi(uuid,date) to authenticated;
+
+ELSE INSERT INTO private.recovered_dependency_patches(id) VALUES ('20261026211248_hr_paghe_registri_benefit.sql') ON CONFLICT DO NOTHING; END IF; END $defer_recovered_3$;

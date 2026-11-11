@@ -14,8 +14,11 @@ BEGIN
     USING (NOT (SELECT public.utente_bloccato())) WITH CHECK (NOT (SELECT public.utente_bloccato()));
   ALTER POLICY blocco_utente_bloccato ON public.ai_brain_documents
     USING (NOT (SELECT public.utente_bloccato())) WITH CHECK (NOT (SELECT public.utente_bloccato()));
+  -- Optional/archived table: optimize only an existing policy, never create or weaken one.
+  IF EXISTS(SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='ai_brain_documents_backup_pre_track2' AND policyname='blocco_utente_bloccato') THEN
   ALTER POLICY blocco_utente_bloccato ON public.ai_brain_documents_backup_pre_track2
     USING (NOT (SELECT public.utente_bloccato())) WITH CHECK (NOT (SELECT public.utente_bloccato()));
+  END IF;
   ALTER POLICY blocco_utente_bloccato ON public.ai_brain_facts
     USING (NOT (SELECT public.utente_bloccato())) WITH CHECK (NOT (SELECT public.utente_bloccato()));
   ALTER POLICY blocco_utente_bloccato ON public.ai_call_ledger

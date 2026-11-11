@@ -12,15 +12,15 @@ CREATE TABLE IF NOT EXISTS email_templates (
 
 ALTER TABLE email_templates ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "company_access" ON email_templates
-  FOR ALL USING (
-    company_id IN (
-      SELECT id FROM companies
-      WHERE id = (SELECT (auth.jwt() -> 'app_metadata' ->> 'company_id')::uuid)
-         OR id IN (
-           SELECT company_id FROM company_users WHERE user_id = auth.uid()
-         )
-    )
-  );
+-- Resolve membership through the real permission helper, not a nonexistent
+-- company_users table or stale company claims in a JWT.
+DROP POLICY IF EXISTS "company_access" ON public.email_templates;
+DROP POLICY IF EXISTS email_templates_company_read ON public.email_templates;
+CREATE POLICY email_templates_company_read ON public.email_templates FOR SELECT TO authenticated USING (
+ public.has_permission_for_company((SELECT auth.uid()),'can_view_marketing',company_id));
+DROP POLICY IF EXISTS email_templates_company_write ON public.email_templates;
+CREATE POLICY email_templates_company_write ON public.email_templates FOR ALL TO authenticated USING (
+ public.has_permission_for_company((SELECT auth.uid()),'can_edit_marketing',company_id) AND NOT public.utente_sola_lettura(company_id)) WITH CHECK (
+ public.has_permission_for_company((SELECT auth.uid()),'can_edit_marketing',company_id) AND NOT public.utente_sola_lettura(company_id));
 
-CREATE INDEX idx_email_templates_company ON email_templates(company_id);
+CREATE INDEX IF NOT EXISTS idx_email_templates_company ON email_templates(company_id);

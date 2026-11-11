@@ -21,6 +21,10 @@ begin
   if position(p_nuovo in v_def) > 0 then
     return;
   end if;
+  if p_nome='receive_from_oda_via_scans' and position(p_vecchio in v_def)=0 and p_vecchio='      -- CAP (P1c):' then
+    p_nuovo:=replace(p_nuovo,p_vecchio,'      SELECT tracking_mode INTO v_tracking');
+    p_vecchio:='      SELECT tracking_mode INTO v_tracking';
+  end if;
   v_volte := (length(v_def) - length(replace(v_def, p_vecchio, ''))) / length(p_vecchio);
   if v_volte <> 1 then
     raise exception '%: il punto da correggere compare % volte', p_nome, v_volte;
