@@ -1007,3 +1007,28 @@ describe("superadmin actions: real handlers with isolated providers", () => {
     expect(mock.calls.some(q => q.table === "companies" && has(q, "update"))).toBe(false);
   });
 });
+
+describe("Solaria bridge is wired into the real worker", () => {
+  const company = "3f52a5ed-0b4f-4f8f-8b92-a13f3361e474";
+  const flowId = "10000000-0000-4000-8000-000000000002";
+  const queue = { id, flow_id: flowId, current_node_id: chosen, entity_type: "contact", context_json: { payload: { message: "Sì, mi interessa" } } };
+  const migration = { migration_source_node_id: "source-node" };
+  it("executes a migrated note through executeAction rather than the unknown-action fallback", async () => {
+    const mock = db(q => ({ data: q.table === "automation_flows" ? { id: flowId, company_id: company, created_by: chosen } : null, error: null }));
+    const execute = load("executeAction", { resolveAutomationRecord: async () => ({ id, company_id: company }), resolveContactText: async (_db: unknown, text: string) => text });
+    const result = await execute(mock, { ...migration, item_id: "squadd_add_notes", migration_note_text: "Nota di collaudo" }, id, company, queue);
+    expect(result).toMatchObject({ success: true, output: { action: "add_contact_note", note_id: id } });
+    expect(mock.calls.find(q => q.table === "marketing_contact_notes" && has(q, "upsert"))?.steps.find(s => s[0] === "upsert")?.[1])
+      .toMatchObject({ company_id: company, contact_id: id, content: "Nota di collaudo", automatica: true });
+  });
+  it("evaluates the actual reply event without loading an unrelated record", async () => {
+    const condition = load("executeCondition", { resolveAutomationRecord: async () => { throw new Error("Unrelated record requested"); } });
+    const result = await condition(db(), { ...migration, condizioni: [{ campo: "trigger.message", operatore: "contiene", valore: "interessa" }] }, id, company, queue);
+    expect(result).toMatchObject({ success: true, branch: "yes" });
+  });
+  it("keeps the migrated twelve-hour timeout in the actual wait action", async () => {
+    const result = await action(db(), { ...migration, item_id: "wait_for_event", await_event: "whatsapp_received", timeout_days: 1,
+      migration_timeout_override_hours: 12, migration_timeout_hours: 12, delay_unita: "ore", delay_durata: 12 }, id, company, queue);
+    expect(result).toMatchObject({ success: true, isWaiting: true, timeoutDays: 0.5 });
+  });
+});
