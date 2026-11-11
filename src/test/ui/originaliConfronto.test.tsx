@@ -22,6 +22,7 @@ import {
   originaliBolla,
 } from "@/lib/fatturazione/originaliConfronto";
 import { OriginaliConfronto } from "@/components/fatturazione/OriginaliConfronto";
+import { ConfrontoDocumentiLayout, PannelloDocumento } from "@/components/shared/ConfrontoDocumentiLayout";
 function monta(files: Parameters<typeof OriginaliConfronto>[0]["files"]) {
   return render(
     <QueryClientProvider
@@ -41,6 +42,31 @@ beforeEach(() => {
   }));
 });
 describe("originali PDF e foto del confronto", () => {
+  it("mantiene attivi i comandi condivisi e li rimuove passando dalle foto alle righe", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const files = [originaleDaRiferimento("azienda/foto.png", "ddt_attachments")!];
+    const Confronto = ({ originale }: { originale: boolean }) => (
+      <QueryClientProvider client={client}>
+        <ConfrontoDocumentiLayout>
+          <PannelloDocumento nome="Bolla" lato="sinistra" attivo testata="DDT" viste="Viste">
+            {originale ? <OriginaliConfronto files={files} companyId="azienda" /> : <p>Righe della bolla</p>}
+          </PannelloDocumento>
+        </ConfrontoDocumentiLayout>
+      </QueryClientProvider>
+    );
+    const view = render(<Confronto originale />);
+    await screen.findByAltText("Originale foto.png");
+    expect(screen.getAllByRole("link", { name: "Apri originale" })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Ingrandisci foto" }));
+    expect(screen.getByRole("button", { name: "Adatta foto" })).toBeInTheDocument();
+    view.rerender(<Confronto originale={false} />);
+    expect(screen.getByText("Righe della bolla")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Apri originale" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Adatta foto" })).not.toBeInTheDocument();
+    view.rerender(<Confronto originale />);
+    await screen.findByAltText("Originale foto.png");
+    expect(screen.getAllByRole("link", { name: "Apri originale" })).toHaveLength(1);
+  });
   it("rinnova un URL firmato scaduto dal percorso salvato", async () => {
     const f = originaleDaRiferimento(
       "https://example.supabase.co/storage/v1/object/sign/order-attachments/oda/id/ordine.pdf?token=scaduto",

@@ -1,6 +1,8 @@
+import { useDocumentoAffiancato } from "@/components/shared/contestoConfrontoDocumenti";
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ComandiDocumento } from "@/components/shared/ConfrontoDocumentiLayout";
 import { trovaRighePdf, type RigaPdfTrovata } from "@/lib/fatturazione/rigaPdf";
 import type {
   PDFDocumentProxy,
@@ -25,6 +27,8 @@ export function PdfRigaConfronto(props: PropsPdfOriginale) {
   );
 }
 function PdfOriginaleCanvas({ url, nome, ricerca = "",paginaIniziale=1 }: PropsPdfOriginale) {
+  const affiancato = useDocumentoAffiancato();
+  const scrollArea = useRef<HTMLDivElement>(null);
   const doc = useRef<PDFDocumentProxy | null>(null),
     canvas = useRef<HTMLCanvasElement | null>(null);
   const [pronto, setPronto] = useState(false),
@@ -166,9 +170,19 @@ function PdfOriginaleCanvas({ url, nome, ricerca = "",paginaIniziale=1 }: PropsP
     };
   }, [attiva, visualizzata, pronto]);
   const finita = pronto && (!ricerca.trim() || paginaLetta === totale);
+  useEffect(() => {
+    if (!box) return;
+    const frame = requestAnimationFrame(() => {
+      const viewport = scrollArea.current;
+      const riga = viewport?.querySelector<HTMLElement>('[aria-label="Riga trovata nel PDF"]');
+      if (viewport && riga) viewport.scrollTop += riga.getBoundingClientRect().top - viewport.getBoundingClientRect().top - 16;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [box]);
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2 rounded border bg-blue-50/50 p-2 text-xs">
+      <ComandiDocumento ordine={20}><div className="space-y-2">
+      <div className={affiancato ? "flex h-8 min-w-0 items-center gap-1 rounded border bg-blue-50/50 px-2 text-xs" : "flex flex-wrap items-center gap-2 rounded border bg-blue-50/50 p-2 text-xs"}>
         {ricerca ? (
           <>
             <Search className="h-3.5 w-3.5" />
@@ -256,8 +270,9 @@ function PdfOriginaleCanvas({ url, nome, ricerca = "",paginaIniziale=1 }: PropsP
           confronta l’immagine originale.
         </p>
       )}
+      </div></ComandiDocumento>
       {pronto && !errore ? (
-        <div className="min-h-0 flex-1 overflow-auto rounded border bg-slate-100 p-2">
+        <div ref={scrollArea} data-confronto-superficie className="min-h-0 flex-1 overflow-auto rounded border bg-slate-100 p-2">
           <div className="relative mx-auto w-full max-w-4xl">
             <canvas
               ref={canvas}

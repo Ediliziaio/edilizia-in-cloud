@@ -1,3 +1,4 @@
+import { useDocumentoAffiancato } from "./contestoConfrontoDocumenti";
 /**
  * PdfBlobLivePreviewPanel — pannello anteprima PDF LIVE persistente, condiviso da
  * tutti i vertical che generano il preventivo come BLOB PDF. Le pagine vengono
@@ -15,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, RefreshCw, ExternalLink, Eye, AlertCircle, Download, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useGenerazioneProtetta } from "./livePreview/useGenerazioneProtetta";
+import { ComandiDocumento } from "./ConfrontoDocumentiLayout";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { readPdfPreview, revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import { edileEditorDestinations, resolveEdileSectionPage, type SectionDestinationDocument } from "@/components/preventivi/pdf/sectionDestinations";
@@ -57,7 +59,7 @@ function capturePosition(container: HTMLDivElement): ViewPosition {
 function restorePosition(container: HTMLDivElement, position: ViewPosition, pageCount: number) {
   const page = Math.min(pageCount, Math.max(1, position.page));
   const canvas = container.querySelector<HTMLCanvasElement>(`canvas[data-page="${page}"]`);
-  container.scrollTop = canvas ? Math.max(0, canvasTop(container, canvas) + position.fraction * canvas.getBoundingClientRect().height) : position.top;
+  container.scrollTop = position.top === 0 && page === 1 ? 0 : canvas ? Math.max(0, canvasTop(container, canvas) + position.fraction * canvas.getBoundingClientRect().height) : position.top;
   container.scrollLeft = position.left;
 }
 
@@ -132,6 +134,7 @@ export function PdfBlobLivePreviewPanel({
   const [paintedUrl, setPaintedUrl] = useState<string | null>(null);
   const [pageCount, setPageCount] = useState(0);
   const [renderNonce, setRenderNonce] = useState(0);
+  const affiancato = useDocumentoAffiancato();
   const [zoom, setZoom] = useState(1);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [layoutRevision, setLayoutRevision] = useState(0);
@@ -242,7 +245,7 @@ export function PdfBlobLivePreviewPanel({
     (async () => {
       const containerWidth = container.clientWidth;
       if (containerWidth <= 24) return;
-      const fitScale = Math.min(1.6, Math.max(0.4, (containerWidth - 24) / A4_WIDTH_PT));
+      const fitScale = Math.min(1.6, Math.max(0.4, (containerWidth - (affiancato ? 16 : 24)) / A4_WIDTH_PT));
       const scale = fitScale * zoom;
       const pages = await Promise.all(Array.from({ length: pageCount }, (_, i) => pdfDocument.getPage(i + 1)));
       if (cancelled || pdfDocRef.current !== pdfDocument) return;
@@ -289,7 +292,7 @@ export function PdfBlobLivePreviewPanel({
     });
 
     return () => { cancelled = true; renderTask?.cancel?.(); invalidateNavigation(); };
-  }, [renderNonce, pageCount, zoom, viewportWidth, invalidateNavigation]);
+  }, [renderNonce, pageCount, zoom, viewportWidth, invalidateNavigation, affiancato]);
 
   useEffect(() => {
     const token = ++navigationTokenRef.current;
@@ -340,16 +343,17 @@ export function PdfBlobLivePreviewPanel({
   };
 
   return (
-    <div className="flex flex-col h-full rounded-lg border bg-card overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b bg-muted/30 shrink-0">
-        <div className="flex items-center gap-1.5 min-w-0">
+    <div className={affiancato ? "flex h-full min-h-0 flex-col overflow-hidden" : "flex flex-col h-full rounded-lg border bg-card overflow-hidden"}>
+      <ComandiDocumento ordine={20}>
+      <div className={affiancato ? "flex h-8 min-w-0 shrink-0 items-center justify-between gap-2 rounded border bg-blue-50/50 px-2" : "flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b bg-muted/30 shrink-0"}>
+        <div className="flex min-w-0 items-center gap-1.5">
           <Eye className={"h-3.5 w-3.5 shrink-0 " + accentClass} />
           <span className={"text-[11px] font-semibold uppercase tracking-wide truncate " + accentClass}>
             {headerLabel}
           </span>
-          <span role="status" aria-live="polite" className="text-[10px] text-muted-foreground" data-preview-state={previewFailed?'error':previewReady?'ready':loading || aggiornato?'rendering':'pending'}>{previewFailed?'Anteprima non disponibile':previewReady?'Aggiornata automaticamente':loading || aggiornato?'Aggiorno il PDF…':'Modifiche in attesa di anteprima'}</span>
+          <span role="status" aria-live="polite" className={affiancato ? "sr-only" : "text-[10px] text-muted-foreground"} data-preview-state={previewFailed?'error':previewReady?'ready':loading || aggiornato?'rendering':'pending'}>{previewFailed?'Anteprima non disponibile':previewReady?'Aggiornata automaticamente':loading || aggiornato?'Aggiorno il PDF…':'Modifiche in attesa di anteprima'}</span>
           {loading && (
-            <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+            <span className={`inline-flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground ${affiancato ? "sr-only" : ""}`}>
               <Loader2 className="h-3 w-3 animate-spin" /> aggiorno…
             </span>
           )}
@@ -383,7 +387,8 @@ export function PdfBlobLivePreviewPanel({
         </div>
       </div>
       {sectionStatus && edileEditorDestinations(activeSection).length > 0 && <p role="status" className="shrink-0 border-b px-3 py-1 text-[10px] text-muted-foreground">{sectionStatus}</p>}
-      <div className="relative flex-1 min-h-0 overflow-auto bg-muted/40" ref={containerRef} data-pdf-scroll-container onScroll={() => {
+      </ComandiDocumento>
+      <div data-confronto-superficie={affiancato ? true : undefined} className={affiancato ? "relative min-h-0 flex-1 overflow-auto rounded border bg-slate-100 p-2" : "relative flex-1 min-h-0 overflow-auto bg-muted/40"} ref={containerRef} data-pdf-scroll-container onScroll={() => {
         const container = containerRef.current;
         if (container && container.clientWidth > 24) lastVisiblePositionRef.current = capturePosition(container);
       }}>
@@ -414,7 +419,7 @@ export function PdfBlobLivePreviewPanel({
           </div>
         )}
         {url && !pdfError && pageCount > 0 && (
-          <div className="flex flex-col items-center gap-3 px-3 py-3">
+          <div className={affiancato ? "flex flex-col items-center gap-3" : "flex flex-col items-center gap-3 px-3 py-3"}>
             {Array.from({ length: pageCount }, (_, index) => index + 1).map((pageNumber) => (
               <div key={pageNumber} className="mx-auto rounded-sm bg-white shadow-md">
                 <canvas data-page={pageNumber} className="block h-auto" aria-label={`Pagina ${pageNumber} di ${pageCount}`} />

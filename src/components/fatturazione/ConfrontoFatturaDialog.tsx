@@ -11,6 +11,7 @@ import {
   Truck,
   Sparkles,
   Loader2,
+  Info,
 } from "lucide-react";
 import {
   Dialog,
@@ -19,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ConfrontoDocumentiLayout, PannelloDocumento, ComandiDocumento } from "@/components/shared/ConfrontoDocumentiLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -443,7 +445,7 @@ export function ConfrontoFatturaDialog({
         className={CLASSE_DIALOG_CONFRONTO}
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
-        <DialogHeader className="shrink-0 border-b px-4 py-3 pr-12 sm:px-6">
+        <DialogHeader className="shrink-0 border-b px-4 py-3 pr-12 sm:px-5">
           <DialogTitle className="flex items-center gap-2 text-lg">
             <ArrowLeftRight className="h-5 w-5 text-orange-600" />
             Confronto fattura, DDT e ordini
@@ -454,7 +456,7 @@ export function ConfrontoFatturaDialog({
             {formatDateShort(String(fattura.data_fattura ?? ""))}
           </DialogDescription>
         </DialogHeader>
-        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-muted/20 px-4 py-2 sm:px-6">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-muted/20 px-4 py-2 sm:px-5">
           <span className="mr-auto text-xs text-muted-foreground">
             Seleziona i documenti da confrontare e apri le rispettive righe o
             gli originali.
@@ -519,7 +521,7 @@ export function ConfrontoFatturaDialog({
                   : "Analizza con AI"}
           </Button>
         </div>
-        <div className="shrink-0 border-b px-4 py-2 sm:px-6"><RiepilogoConfronto indicatori={[
+        <div className="shrink-0 border-b px-4 py-2 sm:px-5"><RiepilogoConfronto indicatori={[
           {label:"Voci coerenti",valore:esiti.filter(e=>e.stato==="coerente").length,tono:"verde",attivo:filtroRighe==="coerenti",onClick:()=>setFiltroRighe(filtroRighe==="coerenti"?"tutte":"coerenti")},
           {label:"Da verificare",valore:esiti.filter(e=>e.stato!=="coerente").length,tono:"ambra",attivo:filtroRighe==="differenze",onClick:()=>setFiltroRighe(filtroRighe==="differenze"?"tutte":"differenze")},
           {label:"Documenti selezionati",valore:scelti.size,onClick:()=>setFiltroRighe("tutte")},
@@ -584,12 +586,8 @@ export function ConfrontoFatturaDialog({
           </div>
         ) : (
           <div className="contents"><PannelliConfrontoMobile valore={pannelloMobile} onChange={setPannelloMobile} sinistra="Fattura" destra="DDT e ordini"/>
-          <div className="min-h-0 flex-1 overflow-y-auto lg:grid lg:grid-cols-2 lg:grid-rows-[auto_auto_minmax(0,1fr)] lg:overflow-hidden">
-            <section
-              aria-label="Fattura ricevuta"
-              className={`${pannelloMobile==="sinistra"?"block":"hidden"} min-w-0 border-b lg:row-span-3 lg:grid lg:min-h-0 lg:[grid-template-rows:subgrid] lg:border-b-0 lg:border-r`}
-            >
-              <div className="space-y-2 border-b bg-background px-4 py-3 sm:px-6">
+          <ConfrontoDocumentiLayout>
+            <Tabs value={vistaFattura} onValueChange={setVistaFattura} className="contents"><PannelloDocumento nome="Fattura ricevuta" lato="sinistra" attivo={pannelloMobile==="sinistra"} testata={<div className="space-y-2 border-b bg-background px-4 py-3 sm:px-5">
                 <div className="flex min-h-8 items-center justify-between gap-3">
                   <h2 className="flex items-center gap-2 text-sm font-semibold">
                     <FileText className="h-4 w-4 text-blue-600" />
@@ -623,14 +621,8 @@ export function ConfrontoFatturaDialog({
                   </span>
                   <span className="shrink-0">{righe.length} voci</span>
                 </div>
-              </div>
-              <Tabs
-                value={vistaFattura}
-                onValueChange={setVistaFattura}
-                className="lg:contents"
-              >
-                <div className="flex flex-wrap items-center gap-2 px-4 pt-3 pb-2 sm:px-6">
-                  <TabsList>
+              </div>} viste={<div className="flex flex-wrap items-center gap-2 px-4 py-2 sm:px-5">
+                  <TabsList className="h-8">
                     <TabsTrigger value="righe">Righe e importi</TabsTrigger>
                     <TabsTrigger value="originale">File originale</TabsTrigger>
                   </TabsList>
@@ -644,10 +636,10 @@ export function ConfrontoFatturaDialog({
                       F{rigaAttiva + 1} selezionata · mostra tutte
                     </Button>
                   )}
-                </div>
-                <TabsContent
+                </div>}>
+<TabsContent
                   value="originale"
-                  className="mt-0 min-h-0 overflow-auto p-4 pt-1 sm:px-6"
+                  className="m-0 flex min-h-0 flex-1 flex-col px-4 pb-4 sm:px-5"
                 >
                   {fileFattura ? (
                     <OriginaliConfronto
@@ -678,9 +670,9 @@ export function ConfrontoFatturaDialog({
                     </div>
                   )}
                 </TabsContent>
-                <TabsContent
+<TabsContent
                   value="righe"
-                  className="mt-0 min-h-0 space-y-4 overflow-auto p-4 pt-1 sm:px-6"
+                  className="m-0 min-h-0 space-y-4 px-4 pb-4 sm:px-5"
                 >
                   {!righe.length ? (
                     <p className="text-sm text-muted-foreground">
@@ -826,13 +818,8 @@ export function ConfrontoFatturaDialog({
                     </p>
                   )}
                 </TabsContent>
-              </Tabs>
-            </section>
-            <section
-              aria-label="DDT e ordini di confronto"
-              className={`${pannelloMobile==="destra"?"flex":"hidden"} min-w-0 flex-col bg-muted/10 lg:row-span-3 lg:grid lg:min-h-0 lg:[grid-template-rows:subgrid] lg:overflow-hidden`}
-            >
-              <div className="shrink-0 space-y-2 border-b bg-background px-4 py-3 sm:px-6">
+</PannelloDocumento></Tabs>
+            <Tabs value={doc ? doc.tipo==="oda"&&vistaDocumento==="originale"?"fornitore":doc.tipo==="ddt"&&["inviato","fornitore"].includes(vistaDocumento)?"originale":vistaDocumento : "righe"} onValueChange={setVistaDocumento} className="contents"><PannelloDocumento nome="DDT e ordini di confronto" lato="destra" attivo={pannelloMobile==="destra"} testata={<div className="shrink-0 space-y-2 border-b bg-background px-4 py-3 sm:px-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h2 className="flex items-center gap-2 text-sm font-semibold">
                     <ClipboardList className="h-4 w-4 text-orange-600" />
@@ -1033,24 +1020,8 @@ export function ConfrontoFatturaDialog({
                     )}
                   </>
                 )}
-              </div>
-              {q.isLoading ? (
-                <p role="status" className="p-5 text-sm">
-                  Caricamento documenti…
-                </p>
-              ) : !doc ? (
-                <p className="m-4 rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
-                  Nessun DDT o ordine collegato. Aggiungi una bolla caricata o
-                  collega un ordine dalla scheda fattura.
-                </p>
-              ) : (
-                <Tabs
-                  value={doc.tipo==="oda"&&vistaDocumento==="originale"?"fornitore":doc.tipo==="ddt"&&["inviato","fornitore"].includes(vistaDocumento)?"originale":vistaDocumento}
-                  onValueChange={setVistaDocumento}
-                  className="flex min-h-0 flex-1 flex-col lg:contents"
-                >
-                  <div className="flex shrink-0 flex-wrap items-center gap-2 px-4 pt-3 pb-2 sm:px-6">
-                    <TabsList>
+              </div>} viste={doc && <div className="flex shrink-0 flex-wrap items-center gap-2 px-4 py-2 sm:px-5">
+                    <TabsList className="h-8">
                       <TabsTrigger value="righe">Righe</TabsTrigger>
                       {doc.tipo==="oda"?<><TabsTrigger value="inviato">PDF nostro</TabsTrigger><TabsTrigger value="fornitore">Conferma fornitore</TabsTrigger></>:<TabsTrigger value="originale">PDF / foto originali</TabsTrigger>}
                     </TabsList>
@@ -1058,14 +1029,13 @@ export function ConfrontoFatturaDialog({
                       <Button
                         size="sm"
                         variant={allineaVoci ? "secondary" : "ghost"}
-                        className="h-8 text-xs"
+                        className="h-8 w-8 shrink-0 p-0"
                         aria-label="Allinea righe alla fattura"
                         aria-pressed={allineaVoci}
                         title="Ordina le righe con codice o descrizione uguali seguendo le voci della fattura. Gli originali mantengono il loro ordine."
                         onClick={() => setAllineaVoci((v) => !v)}
                       >
-                        <ArrowLeftRight className="mr-1 h-3.5 w-3.5" />
-                        Allinea voci
+                        <ArrowLeftRight className="h-3.5 w-3.5" />
                       </Button>
                     )}
                     <Popover>
@@ -1073,12 +1043,14 @@ export function ConfrontoFatturaDialog({
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="ml-auto h-8 text-xs"
+                          className="ml-auto h-8 w-8 shrink-0 p-0"
+                          aria-label="Info e associazioni"
+                          title="Info e associazioni"
                         >
-                          Info e associazioni
+                          <Info className="h-3.5 w-3.5"/><span className="sr-only">Info e associazioni
                           {q.data?.riferimenti.length
                             ? ` (${q.data.riferimenti.length})`
-                            : ""}
+                            : ""}</span>
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent
@@ -1116,8 +1088,19 @@ export function ConfrontoFatturaDialog({
                         )}
                       </PopoverContent>
                     </Popover>
-                  </div>
-                  {!!q.data?.nonDisponibili && (
+                  </div>}>
+{q.isLoading ? (
+                <p role="status" className="p-5 text-sm">
+                  Caricamento documenti…
+                </p>
+              ) : !doc ? (
+                <p className="m-4 rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
+                  Nessun DDT o ordine collegato. Aggiungi una bolla caricata o
+                  collega un ordine dalla scheda fattura.
+                </p>
+              ) : (
+                <>
+{(!!q.data?.nonDisponibili || fornitoreDiverso) && <ComandiDocumento ordine={10}><div className="space-y-1">{!!q.data?.nonDisponibili && (
                     <p
                       role="alert"
                       className="mx-4 mb-2 text-xs text-destructive"
@@ -1126,16 +1109,17 @@ export function ConfrontoFatturaDialog({
                       confronto è incompleto.
                     </p>
                   )}
-                  {fornitoreDiverso && (
+{fornitoreDiverso && (
                     <p role="alert" className="text-xs text-destructive">
                       Fornitore diverso dalla fattura: controlla l’associazione.
                       Questo documento è escluso dal controllo automatico.
                     </p>
                   )}
-                  <TabsContent
+</div></ComandiDocumento>}
+<TabsContent
                     key={`${doc.id}-righe`}
                     value="righe"
-                    className="mt-0 min-h-0 flex-1 space-y-3 overflow-auto p-4 pt-1 sm:px-6"
+                    className="m-0 min-h-0 space-y-3 px-4 pb-4 sm:px-5"
                   >
                     <TabellaDocumenti
                       righe={doc.righe}
@@ -1158,11 +1142,11 @@ export function ConfrontoFatturaDialog({
                       </p>
                     )}
                   </TabsContent>
-                  {(doc.tipo==="oda"?["inviato","fornitore"]:["originale"]).map(vista=>(
+{(doc.tipo==="oda"?["inviato","fornitore"]:["originale"]).map(vista=>(
                   <TabsContent
                     key={`${doc.id}-${vista}`}
                     value={vista}
-                    className="mt-0 min-h-0 flex-1 overflow-auto p-4 pt-1 sm:px-6"
+                    className="m-0 flex min-h-0 flex-1 flex-col px-4 pb-4 sm:px-5"
                   >
                     {doc.tipo==="oda"?<OriginaliOrdineConfronto companyId={companyId} ordineId={doc.id} numero={doc.numero} attachmentUrl={typeof doc.dati.attachment_url==="string"?doc.dati.attachment_url:undefined} tipo={vista==="inviato"?"inviato":"fornitore"} adatta/>:originali.isLoading ? (
                       <p role="status" className="text-sm">
@@ -1196,12 +1180,12 @@ export function ConfrontoFatturaDialog({
                     )}
                   </TabsContent>
                   ))}
-                </Tabs>
+</>
               )}
-            </section>
-          </div></div>
+</PannelloDocumento></Tabs>
+          </ConfrontoDocumentiLayout></div>
         )}
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t bg-background px-4 py-3 sm:px-6">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t bg-background px-4 py-3 sm:px-5">
           <div className="text-xs text-muted-foreground">
             La verifica salva lo stato della fattura. Controlla gli scostamenti
             prima di confermarla.

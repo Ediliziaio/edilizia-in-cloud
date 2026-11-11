@@ -2,7 +2,8 @@ import { useRef, useState } from "react";
 import { ArrowLeftRight, ChevronRight, FileUp, Loader2, Mail, RefreshCw, Sparkles } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ConfrontoDocumentiLayout, PannelloDocumento } from "@/components/shared/ConfrontoDocumentiLayout";
 import { Textarea } from "@/components/ui/textarea";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useBaseConferma, useControlliDocumento, useControlloDocumento, type ObiettivoControllo } from "@/hooks/useControlloDocumento";
@@ -75,7 +76,7 @@ export function ConfrontoConfermaOrdineDialog({companyId,obiettivo,inizialeId,on
    <thead className="h-10 bg-slate-50 text-left text-[11px] text-slate-600"><tr><th className="px-3">Posizione</th><th className="px-3">{lato==='richiesta'?'Richiesto':'Documento fornitore'}</th><th className="px-3">{lato==='richiesta'?'Quantità':'Esito'}</th></tr></thead>
    <tbody>{visualizzate.map(r=>{
     const richiesta=richieste.find(x=>x.chiave===r.chiave);
-    return <tr key={r.chiave} className={`h-14 cursor-pointer border-t ${attiva===r.chiave?'bg-blue-50':'hover:bg-slate-50'}`}>
+    return <tr key={r.chiave} data-confronto-riga={r.chiave} className={`h-14 cursor-pointer border-t ${attiva===r.chiave?'bg-blue-50':'hover:bg-slate-50'}`}>
      <td className="px-3"><button className="max-w-full truncate text-left font-medium text-blue-700" onClick={()=>seleziona(r)} title={r.riferimento||r.descrizione}>{r.riferimento||r.descrizione}</button></td>
      <td className="min-w-0 px-3"><button className="block w-full text-left" onClick={()=>seleziona(r)}><span className="block truncate font-medium" title={r.descrizione}>{r.descrizione}</span><span className="block truncate text-[11px] text-slate-500" title={lato==='richiesta'?r.chiesto:r.letto}>{lato==='richiesta'?r.chiesto:r.letto}{lato==='fornitore'&&r.quantita_documento!=null&&r.quantita_richiesta!=null&&r.quantita_documento<r.quantita_richiesta?` · ${numero(r.quantita_richiesta-r.quantita_documento)} ancora da confermare`:''}</span></button></td>
      <td className="px-3">{lato==='richiesta'?richiesta?`${numero(richiesta.quantita)} ${richiesta.unita||''}`:'—':<span className={`rounded-full px-2 py-1 text-[10px] font-medium ${ESITO_CLASSI[r.esito]}`}>{ESITO_LABEL[r.esito]}</span>}</td>
@@ -88,6 +89,7 @@ export function ConfrontoConfermaOrdineDialog({companyId,obiettivo,inizialeId,on
   <div className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-slate-50/70 px-5 py-2">
    <span className="mr-auto text-xs text-slate-500">{storico?.fonte==='invio'?`Versione inviata il ${String(storico.inviato_il||'').slice(0,10).split('-').reverse().join('/')}`:'Base: dati correnti; nessun invio conservato.'}</span>
    <Button size="sm" variant="outline" disabled={busy} onClick={()=>{lista.avvia.reset?.();ricaricaControllo?.();}}> <RefreshCw className="mr-1.5 h-3.5 w-3.5"/>Aggiorna</Button>
+   {modificabile&&obiettivo.purchaseOrderId&&<select aria-label="Tipo di documento del fornitore" className="h-8 max-w-44 rounded-md border bg-white px-2 text-xs" value={tipoCaricamento} onChange={e=>setTipoCaricamento(e.target.value as 'offerta'|'conferma')}><option value="conferma">Conferma d’ordine</option><option value="offerta">Offerta / preventivo</option></select>}
    {modificabile&&<Button size="sm" variant="outline" disabled={busy} onClick={()=>fileInput.current?.click()}><FileUp className="mr-1.5 h-3.5 w-3.5"/>Carica {tipoCaricamento==='conferma'?'conferma':'offerta'}</Button>}
    <Button size="sm" disabled={!modificabile||busy||!controllo?.file_path} onClick={()=>avvia({controlloId:controllo!.id})}>{lista.avvia.isPending||letturaInCorso?<Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin"/>:<Sparkles className="mr-1.5 h-3.5 w-3.5"/>}{lista.avvia.isPending||letturaInCorso?'Lettura del documento…':'Controlla con AI'}</Button>
    <input ref={fileInput} type="file" accept={ACCEPT_DOCUMENTI_DDT} className="hidden" aria-label="Carica documento del fornitore" onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f)avvia({file:f});}}/>
@@ -103,26 +105,32 @@ export function ConfrontoConfermaOrdineDialog({companyId,obiettivo,inizialeId,on
   {lista.avvia.isError&&<p role="alert" className="border-b bg-red-50 px-5 py-2 text-xs text-red-800">{lista.avvia.error.message}</p>}
   {letturaInCorso&&<p role="status" className="border-b bg-blue-50 px-5 py-2 text-xs text-blue-900">Analisi in corso. Puoi chiudere il confronto e riaprirlo: il risultato viene salvato qui.</p>}
   <PannelliConfrontoMobile valore={pannelloMobile} onChange={setPannelloMobile} sinistra="Richiesta" destra="Fornitore"/>
-  <div className="grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-2">
-   <section className={`${pannelloMobile==='sinistra'?'flex':'hidden lg:flex'} min-h-0 min-w-0 flex-col border-b lg:border-r lg:border-b-0`}>
-    <div className="shrink-0 space-y-2 border-b px-5 py-3"><h3 className="text-sm font-semibold">{storico?.fonte==='invio'?'Richiesta inviata':'Richiesta da controllare'}</h3><Tabs value={vistaSinistra} onValueChange={setVistaSinistra}><TabsList className="h-8"><TabsTrigger className="text-xs" value="righe">Righe</TabsTrigger>{obiettivo.purchaseOrderId&&<TabsTrigger className="text-xs" value="pdf">PDF inviato</TabsTrigger>}</TabsList></Tabs></div>
-    <div className="min-h-0 flex-1 overflow-auto p-4">
+  <ConfrontoDocumentiLayout>
+   <Tabs value={vistaSinistra} onValueChange={setVistaSinistra} className="contents">
+    <PannelloDocumento nome="Richiesta da controllare" lato="sinistra" attivo={pannelloMobile==='sinistra'} rigaSelezionata={attiva}
+     testata={<div className="space-y-2 border-b px-4 py-3 sm:px-5"><h3 className="text-sm font-semibold">{storico?.fonte==='invio'?'Richiesta inviata':'Richiesta da controllare'}</h3><div className="flex h-8 items-center rounded-md border px-2 text-xs font-medium">{riferimento}</div></div>}
+     viste={<div className="px-4 py-2 sm:px-5"><TabsList className="h-8"><TabsTrigger className="text-xs" value="righe">Righe</TabsTrigger>{obiettivo.purchaseOrderId&&<TabsTrigger className="text-xs" value="pdf">PDF inviato</TabsTrigger>}</TabsList></div>}>
+     <TabsContent value={vistaSinistra} className={`m-0 px-4 pb-4 sm:px-5 ${vistaSinistra==='pdf'?'flex min-h-0 flex-1 flex-col':''}`}>
+
      {vistaSinistra==='pdf'&&obiettivo.purchaseOrderId?<OriginaliOrdineConfronto companyId={companyId} ordineId={obiettivo.purchaseOrderId} numero={riferimento} tipo="inviato" baseCongelata={controllo?.base_ordine??undefined} adatta/>:righe.length?tabella('richiesta'):base.isLoading?<p role="status" className="text-xs">Caricamento richiesta…</p>:<ul className="divide-y rounded-lg border">{richieste.map(r=><li key={r.chiave} className="flex justify-between gap-3 p-3 text-xs"><span className="truncate" title={r.descrizione}>{r.riferimento?`${r.riferimento} · `:''}{r.descrizione}</span><strong className="shrink-0">{numero(r.quantita)} {r.unita}</strong></li>)}</ul>}
-    </div>
-   </section>
-   <section className={`${pannelloMobile==='destra'?'flex':'hidden lg:flex'} min-h-0 min-w-0 flex-col`}>
-    <div className="shrink-0 space-y-2 border-b px-5 py-3"><div className="flex items-center justify-between gap-2"><h3 className="text-sm font-semibold">Documento del fornitore</h3>{controllo?.accettato_il&&<span className="text-xs font-medium text-emerald-800">{obsoleto?'Approvazione precedente':'Approvata'}</span>}</div>
-     {obiettivo.purchaseOrderId&&<label className="flex items-center gap-2 text-[11px] text-slate-500">Nuovo documento<select aria-label="Tipo di documento del fornitore" className="ml-auto h-7 rounded-md border px-2 text-xs" value={tipoCaricamento} onChange={e=>setTipoCaricamento(e.target.value as 'offerta'|'conferma')}><option value="conferma">Conferma d’ordine</option><option value="offerta">Offerta / preventivo</option></select></label>}
-     {lista.controlli.length>0&&<select aria-label="Versione della conferma fornitore" className="h-8 w-full rounded-md border px-2 text-xs" value={id} onChange={e=>{setScelto(e.target.value);setAttiva('');}}>{lista.controlli.map((c,i)=><option key={c.id} value={c.id}>{i+1}. {c.file_nome||'Documento'} · {new Date(c.created_at).toLocaleDateString('it-IT')} · {c.stato==='errore'?'Da rileggere':c.accettato_il?'Approvata':'Da verificare'}</option>)}</select>}
-     <Tabs value={vistaDestra} onValueChange={setVistaDestra}><TabsList className="h-8"><TabsTrigger className="text-xs" value="righe">Righe</TabsTrigger><TabsTrigger className="text-xs" value="pdf">PDF / foto originale</TabsTrigger></TabsList></Tabs>
-    </div>
-    <div className="min-h-0 flex-1 space-y-3 overflow-auto p-4">
+     </TabsContent>
+    </PannelloDocumento>
+   </Tabs>
+   <Tabs value={vistaDestra} onValueChange={setVistaDestra} className="contents">
+    <PannelloDocumento nome="Documento del fornitore" lato="destra" attivo={pannelloMobile==='destra'} rigaSelezionata={attiva}
+     testata={<div className="space-y-2 border-b px-4 py-3 sm:px-5"><div className="flex items-center justify-between gap-2"><h3 className="text-sm font-semibold">Documento del fornitore</h3>{controllo?.accettato_il&&<span className="text-xs font-medium text-emerald-800">{obsoleto?'Approvazione precedente':'Approvata'}</span>}</div>
+      {lista.controlli.length>0?<select aria-label="Versione della conferma fornitore" className="h-8 w-full rounded-md border px-2 text-xs" value={id} onChange={e=>{setScelto(e.target.value);setAttiva('');}}>{lista.controlli.map((c,i)=><option key={c.id} value={c.id}>{i+1}. {c.file_nome||'Documento'} · {new Date(c.created_at).toLocaleDateString('it-IT')} · {c.stato==='errore'?'Da rileggere':c.stato==='in_lettura'?'In lettura':c.accettato_il?'Approvata':'Da verificare'}</option>)}</select>:<p className="flex h-8 items-center text-xs text-slate-500">Nessun documento caricato</p>}
+     </div>}
+     viste={<div className="px-4 py-2 sm:px-5"><TabsList className="h-8"><TabsTrigger className="text-xs" value="righe">Righe</TabsTrigger><TabsTrigger className="text-xs" value="pdf">PDF / foto originale</TabsTrigger></TabsList></div>}>
+     <TabsContent value={vistaDestra} className={`m-0 space-y-3 px-4 pb-4 sm:px-5 ${vistaDestra==='pdf'?'flex min-h-0 flex-1 flex-col':''}`}>
+
      {caricamento||lista.caricamento?<p role="status" className="text-xs">Caricamento conferme…</p>:vistaDestra==='pdf'&&controllo?<OriginaliConfronto key={controllo.id} companyId={companyId} files={fileConferma(controllo)} ricerca={rigaAttiva?.riferimento||rigaAttiva?.descrizione} paginaIniziale={rigaAttiva?.pagina_fornitore??undefined} adatta/>:righe.length?tabella('fornitore'):<div className="rounded-lg border border-dashed p-6 text-center text-sm text-slate-500">{lista.avvia.isPending||letturaInCorso?'Lettura e confronto in corso…':'Carica la conferma ufficiale per confrontarla con la richiesta.'}</div>}
      {!controllo&&base.data?.allegato_fornitore&&<Button size="sm" variant="outline" disabled={!modificabile||busy} onClick={()=>avvia({allegatoOrdine:true})}>Usa l’allegato già presente nell’ordine</Button>}
      {!controllo&&lista.allegati.map(a=><Button key={a.attachment_id} className="w-full justify-start text-xs" size="sm" variant="outline" disabled={!modificabile||busy} onClick={()=>avvia({attachmentId:a.attachment_id})}><Mail className="mr-2 h-3.5 w-3.5"/>Usa allegato email · {a.filename}</Button>)}
-    </div>
-   </section>
-  </div>
+     </TabsContent>
+    </PannelloDocumento>
+   </Tabs>
+  </ConfrontoDocumentiLayout>
   {rigaAttiva&&<div className="max-h-[25dvh] shrink-0 overflow-auto border-t bg-slate-50/60 px-5 py-3"><div className="mb-2 flex items-center justify-between gap-2"><strong className="truncate text-xs">{rigaAttiva.riferimento||rigaAttiva.descrizione}</strong><Button size="sm" variant="ghost" className="h-7 text-xs" onClick={prossimo}>Differenza successiva<ChevronRight className="ml-1 h-3 w-3"/></Button></div>
    <table className="w-full text-xs"><thead className="text-left text-[11px] text-slate-500"><tr><th>Campo</th><th>Richiesto</th><th>Fornitore</th><th>Esito</th></tr></thead><tbody>{rigaAttiva.campi.map((c,i)=><tr key={i} className="border-t"><td className="py-1.5 font-medium">{c.campo}</td><td className="px-2">{c.chiesto||'—'}</td><td className="px-2">{c.letto||'—'}</td><td className="py-1.5">{c.nota||ESITO_LABEL[c.esito]}</td></tr>)}</tbody></table>
    {puoDecidere&&<div className="mt-2 flex flex-wrap gap-2"><Button size="sm" variant="outline" className="h-7 text-xs" onClick={()=>{setNota('');setIndici(rigaAttiva.indici_fornitore??[]);setAbbinaAperto(true);}}>Scegli corrispondenza</Button><Button size="sm" variant="outline" className="h-7 text-xs" onClick={()=>{setNota('');setDecisione({riga:rigaAttiva,esito:'verde'});}}>Conferma controllo manuale</Button><Button size="sm" variant="outline" className="h-7 text-xs" onClick={()=>{setNota('');setDecisione({riga:rigaAttiva,esito:'rosso'});}}>Segnala differenza</Button></div>}

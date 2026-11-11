@@ -1,3 +1,4 @@
+import { ConfrontoDocumentiLayout, PannelloDocumento } from "@/components/shared/ConfrontoDocumentiLayout";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
@@ -45,12 +46,14 @@ const etichette = {
   da_ricevere: "Da ricevere",
   eccedenza: "Eccedenza",
 };
+const avvisoConsegne = "Se mancano articoli, sono danneggiati o non corrispondono, conferma solo la quantità accettata e segnala il problema nella verifica DDT. Un reso riapre il residuo dell’ordine.";
 
 export function ControlloOrdiniDDTCard({ ddt }: { ddt: DDTRicezione }) {
   const [aperto, setAperto] = useState(false);
   const [pannelloMobile,setPannelloMobile]=useState("sinistra");
   const [ordineAttivo,setOrdineAttivo]=useState("tutti");
   const [vistaOrdine,setVistaOrdine]=useState("righe");
+  const [vistaDDT,setVistaDDT]=useState("righe");
   const [filtroRighe,setFiltroRighe]=useState("tutte");
   const [cerca, setCerca] = useState("");
   const [collega, setCollega] = useState(false);
@@ -186,7 +189,7 @@ export function ControlloOrdiniDDTCard({ ddt }: { ddt: DDTRicezione }) {
             <col key={i} style={{ width: `${width}%` }} />
           ))}
         </colgroup>
-        <thead className="h-10 bg-slate-50 text-[11px] text-slate-600">
+        <thead className="h-12 bg-slate-50 text-[11px] text-slate-600">
           <tr>
             {[
               "Ordine / articolo",
@@ -426,20 +429,21 @@ export function ControlloOrdiniDDTCard({ ddt }: { ddt: DDTRicezione }) {
           {modificabile&&<div className="shrink-0 border-b px-5 py-2"><ProposteOrdiniDDT compatto ddtId={ddt.id} righe={righe.data??[]} ordini={controllo.data?.righe??[]}/></div>}
           <div className="shrink-0 border-b px-5 py-2">{riepilogo}</div>
           <PannelliConfrontoMobile valore={pannelloMobile} onChange={setPannelloMobile} sinistra="DDT" destra="Ordini e conferme"/>
-          <div className="grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-2">
-            <section className={`${pannelloMobile==="sinistra"?"block":"hidden lg:block"} min-w-0 space-y-3 border-r p-4`}>
-              <h3 className="font-semibold">DDT {ddt.numero_ddt}</h3>
-              <Tabs defaultValue="righe">
-                <TabsList>
+          <ConfrontoDocumentiLayout>
+            <Tabs value={vistaDDT} onValueChange={setVistaDDT} className="contents">
+              <PannelloDocumento nome={`DDT ${ddt.numero_ddt}`} lato="sinistra" attivo={pannelloMobile==="sinistra"}
+                testata={<div className="space-y-2 border-b px-4 py-3 sm:px-5"><h3 className="text-sm font-semibold">DDT {ddt.numero_ddt}</h3><div className="flex h-8 items-center justify-between rounded-md border px-2 text-xs text-slate-600"><span>{ddt.data_ricezione?.split('-').reverse().join('/')}</span><span>{righe.data?.length??0} voci</span></div></div>}
+                viste={<div className="px-4 py-2 sm:px-5">                <TabsList className="h-8">
                   <TabsTrigger value="righe">Righe della bolla</TabsTrigger>
                   <TabsTrigger value="originale">
                     PDF / foto originali
                   </TabsTrigger>
                 </TabsList>
-                <TabsContent value="righe">
+</div>}>
+                <TabsContent value="righe" className="m-0 px-4 pb-4 sm:px-5">
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                      <thead className="h-10 bg-slate-50 text-xs">
+                      <thead className="h-12 bg-slate-50 text-xs">
                         <tr>
                           <th className="p-3 text-left">Articolo</th>
                           <th className="p-3 text-right">Quantità</th>
@@ -448,8 +452,8 @@ export function ControlloOrdiniDDTCard({ ddt }: { ddt: DDTRicezione }) {
                       </thead>
                       <tbody>
                         {(righe.data ?? []).map((r) => (
-                          <tr key={r.id} className="h-20 border-b">
-                            <td className="p-3">{r.descrizione}</td>
+                          <tr key={r.id} className="h-16 border-b">
+                            <td className="max-w-0 p-3"><span className="block truncate" title={r.descrizione}>{r.descrizione}</span></td>
                             <td className="p-3 text-right tabular-nums">
                               {numero(r.quantita)}
                             </td>
@@ -462,7 +466,7 @@ export function ControlloOrdiniDDTCard({ ddt }: { ddt: DDTRicezione }) {
                     </table>
                   </div>
                 </TabsContent>
-                <TabsContent value="originale">
+                <TabsContent value="originale" className="m-0 flex min-h-0 flex-1 flex-col px-4 pb-4 sm:px-5">
                   {originali.isLoading ? (
                     <p>Caricamento originali…</p>
                   ) : originali.isError ? (
@@ -479,20 +483,26 @@ export function ControlloOrdiniDDTCard({ ddt }: { ddt: DDTRicezione }) {
                     />
                   )}
                 </TabsContent>
-              </Tabs>
-            </section>
-            <section className={`${pannelloMobile==="destra"?"block":"hidden lg:block"} min-w-0 space-y-3 p-4`}>
-              <div className="space-y-2">
-                <h3 className="text-sm font-semibold">Ordini di confronto</h3>
-                <select aria-label="Ordine da confrontare" className="h-8 w-full rounded-md border px-2 text-xs" value={ordineAttivo} onChange={e=>setOrdineAttivo(e.target.value)}>
+
+              </PannelloDocumento>
+            </Tabs>
+            <Tabs value={vistaOrdine} onValueChange={v=>{setVistaOrdine(v);if(v!=="righe"&&ordineAttivo==="tutti"&&ordineSelezionato)setOrdineAttivo(ordineSelezionato.id);}} className="contents">
+              <PannelloDocumento nome="Ordini di confronto" lato="destra" attivo={pannelloMobile==="destra"}
+                testata={<div className="space-y-2 border-b px-4 py-3 sm:px-5"><h3 className="text-sm font-semibold">Ordini di confronto</h3>                <select aria-label="Ordine da confrontare" className="h-8 w-full rounded-md border px-2 text-xs" value={ordineAttivo} onChange={e=>setOrdineAttivo(e.target.value)}>
                   <option value="tutti">Tutti gli ordini collegati</option>{controllo.data?.ordini.map(o=><option key={o.id} value={o.id}>{o.oda_number}</option>)}
                 </select>
-                <Tabs value={vistaOrdine} onValueChange={v=>{setVistaOrdine(v);if(v!=="righe"&&ordineAttivo==="tutti"&&ordineSelezionato)setOrdineAttivo(ordineSelezionato.id);}}>
-                  <TabsList className="h-8"><TabsTrigger value="righe" className="text-xs">Righe e residui</TabsTrigger><TabsTrigger value="inviato" className="text-xs">PDF nostro</TabsTrigger><TabsTrigger value="fornitore" className="text-xs">Conferma fornitore</TabsTrigger></TabsList>
-                </Tabs>
-              </div>
-              {vistaOrdine==="righe"?<><p className="text-[11px] text-slate-500">Ricevuti su tutti i DDT, al netto dei resi. Le quantità non confermate restano aperte.</p>{tabella}</>:ordineSelezionato?<OriginaliOrdineConfronto companyId={ddt.company_id} ordineId={ordineSelezionato.id} numero={ordineSelezionato.oda_number} attachmentUrl={ordineSelezionato.attachment_url} tipo={vistaOrdine==="inviato"?"inviato":"fornitore"}/>:<p className="text-xs">Collega prima un ordine.</p>}
-              <details className="rounded-lg border p-3 text-sm">
+</div>}
+                viste={<div className="px-4 py-2 sm:px-5">                  <TabsList className="h-8"><TabsTrigger value="righe" className="text-xs">Righe e residui</TabsTrigger><TabsTrigger value="inviato" className="text-xs">PDF nostro</TabsTrigger><TabsTrigger value="fornitore" className="text-xs">Conferma fornitore</TabsTrigger></TabsList>
+</div>}>
+                <TabsContent value={vistaOrdine} className={`m-0 px-4 pb-4 sm:px-5 ${vistaOrdine!=="righe"?"flex min-h-0 flex-1 flex-col":""}`}>
+              {vistaOrdine==="righe"?tabella:ordineSelezionato?<OriginaliOrdineConfronto companyId={ddt.company_id} ordineId={ordineSelezionato.id} numero={ordineSelezionato.oda_number} attachmentUrl={ordineSelezionato.attachment_url} tipo={vistaOrdine==="inviato"?"inviato":"fornitore"}/>:<p className="text-xs">Collega prima un ordine.</p>}
+
+                </TabsContent>
+              </PannelloDocumento>
+            </Tabs>
+          </ConfrontoDocumentiLayout>
+          <div className="flex shrink-0 flex-wrap items-start gap-3 border-t bg-slate-50/60 px-5 py-2">
+              <details className="max-h-32 min-w-52 overflow-auto rounded-lg border bg-white px-3 py-2 text-xs">
                 <summary className="cursor-pointer font-medium">
                   Tutti i DDT di questi ordini (
                   {controllo.data?.bolle.length ?? 0})
@@ -512,14 +522,13 @@ export function ControlloOrdiniDDTCard({ ddt }: { ddt: DDTRicezione }) {
                     </li>
                   ))}
                 </ul>
+                <p className="mt-3 text-amber-900 lg:hidden">{avvisoConsegne}</p>
               </details>
-              <p className="flex gap-2 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">
+              <p className="hidden min-w-0 flex-1 gap-2 text-[11px] text-amber-900 lg:flex">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
-                Se mancano articoli, sono danneggiati o non corrispondono,
-                conferma solo la quantità accettata e segnala il problema nella
-                verifica DDT. Un reso riapre il residuo dell’ordine.
+                {avvisoConsegne}
               </p>
-            </section>
+
           </div>
           <div className="flex justify-end gap-2 border-t px-5 py-3">
             <Button variant="outline" onClick={() => setAperto(false)}>
