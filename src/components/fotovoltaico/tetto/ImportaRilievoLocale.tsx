@@ -1,0 +1,154 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { RilievoContext, preparaRuntime, RUNTIME_VUOTO } from "./RilievoContext";
+import { VistaReale } from "./VistaTettoReale3D";
+import { importaOrtofoto } from "./importaOrtofoto";
+import { useArchivioRilievi } from "./archivioRilievi";
+import { puntoSulModello } from "./importaModello";
+import { ALLINEAMENTO_BASE, edificioDaFalde, faldaDaOrto, nuovaFalda, pianoDelRilievo, pixelMondo, quoteEdificio, edificioCorretto, conservaPosaDopoCorrezione, type Allineamento, type RilievoLocale, type RilievoRuntime } from "./rilievoLocale";
+import type { FacciaReale, P3 } from "./tettoReale";
+import type { DisegnoCommercialeFv } from "../../../../supabase/functions/_shared/fvDisegnoCommerciale";
+type Props = {
+    piano: DisegnoCommercialeFv;
+    runtime: RilievoRuntime | null;
+    modificabile: boolean;
+    onChange: (p: DisegnoCommercialeFv) => void;
+};
+const messaggio = (e: unknown) => e instanceof Error ? e.message : "Impossibile preparare il rilievo.";
+function Preparazione({ fonte, piano, onChange, onFinito }: {
+    fonte: RilievoLocale;
+    piano: DisegnoCommercialeFv;
+    onChange: Props["onChange"];
+    onFinito: () => void;
+}) {
+    const { salva: salvaRilievoLocale } = useArchivioRilievi();
+    const [caricato, setCaricato] = useState<RilievoRuntime | null>(null), [errore, setErrore] = useState(""), [falde, setFalde] = useState<FacciaReale[]>([]), [punti, setPunti] = useState<P3[]>([]), [modo, setModo] = useState<"modello" | "ortofoto">(fonte.modello ? "modello" : "ortofoto"), [quota, setQuota] = useState(8), [pendenza, setPendenza] = useState(20), [azimut, setAzimut] = useState(180), [confermato, setConfermato] = useState(false), [salvando, setSalvando] = useState(false), [zoom, setZoom] = useState(1), [alto, setAlto] = useState(false);
+    const svg = useRef<SVGSVGElement>(null);
+    useEffect(() => { let annullato = false, rilascia: (() => void) | undefined; (async () => { try {
+        const p = await preparaRuntime(fonte);
+        if (annullato) {
+            p.rilascia();
+            return;
+        }
+        rilascia = p.rilascia;
+        setCaricato(p.runtime);
+    }
+    catch (e) {
+        if (!annullato)
+            setErrore(messaggio(e));
+    } })(); return () => { annullato = true; rilascia?.(); }; }, [fonte]);
+    const edificio = useMemo(() => edificioDaFalde(falde, !fonte.modello), [falde, fonte.modello]);
+    const preview = useMemo(() => caricato ? { ...caricato, edificio } : null, [caricato, edificio]);
+    const chiudi = () => { try {
+        if (falde.length >= 12)
+            throw new Error("Puoi gestire fino a 12 falde.");
+        const id = `falda-${crypto.randomUUID()}`, f = modo === "modello" || caricato?.modello ? nuovaFalda(punti, id, `Falda ${falde.length + 1}`) : faldaDaOrto(punti, quota, pendenza, azimut, id);
+        setFalde(v => [...v, { ...f, nome: `Falda ${v.length + 1}` }]);
+        setPunti([]);
+        setErrore("");
+    }
+    catch (e) {
+        setErrore(messaggio(e));
+    } };
+    const orto = caricato?.orto;
+    return <div className="fv-import-stage"><h4>2. Traccia le falde del cliente</h4><p className="fv-roof-photo-note">Scegli i vertici del contorno della stessa falda, in ordine lungo il bordo. Evita camini e superfici verticali. Con il modello 3D le quote vengono lette dalla sua geometria, anche tracciando sulla foto; con la sola ortofoto inserisci quota e pendenza note.</p>
+  <div className="fv-roof-photo-tools"><button type="button" disabled={!fonte.modello} aria-pressed={modo === "modello"} onClick={() => { setModo("modello"); setPunti([]); }}>Traccia sul modello 3D</button><button type="button" disabled={!orto} aria-pressed={modo === "ortofoto"} onClick={() => { setModo("ortofoto"); setPunti([]); }}>Traccia sull’ortofoto</button><span>{punti.length} punti · {falde.length} falde</span>{modo === "modello" && <button type="button" onClick={() => setAlto(v => !v)}>{alto ? "Modello in prospettiva" : "Modello dall’alto"}</button>}</div>
+  {!caricato && !errore && <p role="status">Preparazione del modello e delle texture…</p>}
+  {modo === "ortofoto" && orto && <>{!caricato?.modello ? <div className="fv-import-fields"><label>Quota minima falda (m)<input aria-label="Quota falda da ortofoto" type="number" min={.5} max={150} step={.1} value={quota} onChange={e => setQuota(Number(e.target.value))}/></label><label>Pendenza nota (°)<input type="number" min={0} max={75} value={pendenza} onChange={e => setPendenza(Number(e.target.value))}/></label><label>Azimut verso discesa (°)<input type="number" min={0} max={360} value={azimut} onChange={e => setAzimut(Number(e.target.value))}/></label></div> : <p className="fv-roof-photo-note">Le quote dei punti sulla foto vengono lette dal modello 3D lungo la verticale. Verifica prima l’allineamento tra i due file.</p>}
+   <div className="fv-roof-photo-tools"><button type="button" onClick={() => setZoom(z => Math.min(16, z * 1.5))}>Avvicina ortofoto</button><button type="button" onClick={() => setZoom(z => Math.max(1, z / 1.5))}>Allontana ortofoto</button></div>
+   <svg ref={svg} className="fv-roof-photo-canvas" viewBox={`${orto.larghezza / 2 - orto.larghezza / zoom / 2} ${orto.altezza / 2 - orto.altezza / zoom / 2} ${orto.larghezza / zoom} ${orto.altezza / zoom}`} role="group" aria-label="Ortofoto da importare: traccia una falda" onClick={e => { const m = svg.current?.getScreenCTM(); if (!m || punti.length >= 64)
+            return; const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse()); if (p.x < 0 || p.y < 0 || p.x > orto.larghezza || p.y > orto.altezza)
+            return; const q = pixelMondo(orto.affine, p), sulModello = caricato?.modello ? puntoSulModello(caricato.modello, q) : null; if (caricato?.modello && !sulModello) {
+            setErrore("Il punto della foto non incontra il modello: verifica l’allineamento.");
+            return;
+        } setPunti(ps => [...ps, sulModello ?? { ...q, z: quota }]); setErrore(""); }}><image href={orto.url} width={orto.larghezza} height={orto.altezza}/>{falde.map(f => { const a = orto.affine, det = a[0] * a[4] - a[1] * a[3]; return <polygon key={f.id} points={f.anelli[0].map(p => `${(a[4] * (p.x - a[2]) - a[1] * (p.y - a[5])) / det},${(a[0] * (p.y - a[5]) - a[3] * (p.x - a[2])) / det}`).join(" ")} fill="#38bdf820" stroke="#fff" strokeWidth={2}/>; })}{punti.map((p, i) => { const a = orto.affine, det = a[0] * a[4] - a[1] * a[3]; return <circle key={i} cx={(a[4] * (p.x - a[2]) - a[1] * (p.y - a[5])) / det} cy={(a[0] * (p.y - a[5]) - a[3] * (p.x - a[2])) / det} r={Math.max(2, orto.larghezza / 200)} fill="#f97316"/>; })}</svg></>}
+  {modo === "modello" && preview && <RilievoContext.Provider value={preview}><VistaReale pannelli={[]} ids={[]} faldaId={falde[0]?.id ?? ""} alto={alto} foto={true} ostacoli={[]} selezione={null} onSelezione={() => { }} inquadratura={{ faldaId: null, versione: 0 }} onPunto={p => { if (punti.length < 64)
+        setPunti(ps => [...ps, p]); }} puntiTracciati={punti}/></RilievoContext.Provider>}
+  <div className="fv-roof-photo-tools"><button type="button" disabled={punti.length < 3} onClick={chiudi}>Chiudi falda</button><button type="button" disabled={!punti.length} onClick={() => setPunti(ps => ps.slice(0, -1))}>Togli ultimo punto</button><button type="button" disabled={!punti.length} onClick={() => setPunti([])}>Ricomincia contorno</button><button type="button" disabled={!falde.length} onClick={() => { setFalde(fs => fs.slice(0, -1)); setPunti([]); }}>Rimuovi ultima falda</button></div>
+  {errore && <p role="alert" className="fv-roof-photo-note">{errore}</p>}
+  <label className="fv-import-check"><input type="checkbox" checked={confermato} onChange={e => setConfermato(e.target.checked)}/>Ho verificato scala, allineamento tra immagine e modello e contorni delle falde.</label>
+  <p className="fv-roof-photo-note">L’applicazione sostituisce il disegno nella bozza e ridispone fino a {piano.pannelli.length} pannelli del modello selezionato. Il preventivo cambia dopo la conferma della finestra di posa.</p>
+  <button type="button" disabled={!confermato || !falde.length || salvando} onClick={async () => { setSalvando(true); try {
+        const r = { ...fonte, edificioBase: edificio, allineamentoConfermato: true };
+        const next = pianoDelRilievo(r, piano.modulo, piano.pannelli.length);
+        await salvaRilievoLocale(r);
+        onChange(next);
+        onFinito();
+    }
+    catch (e) {
+        setErrore(messaggio(e));
+    }
+    finally {
+        setSalvando(false);
+    } }}>{salvando ? "Salvataggio del rilievo…" : "Sostituisci il tetto nella bozza"}</button>
+ </div>;
+}
+function QuoteEdificio({ piano, runtime, onChange, modificabile }: Props) {
+    const { salva: salvaRilievoLocale } = useArchivioRilievi();
+    const [altezza, setAltezza] = useState(() => Number(quoteEdificio((runtime ?? RUNTIME_VUOTO).edificio).altezza.toFixed(2))), [nota, setNota] = useState(""), [busy, setBusy] = useState(false);
+    const applica = async (ripristina = false) => {
+        if (!runtime || !modificabile)
+            return;
+        setBusy(true);
+        try {
+            let originale = runtime.fonte;
+            if (!originale) {
+                const orto = runtime.orto, blob = orto ? await (await fetch(orto.url)).blob() : null;
+                originale = { versione: 1, id: "campione", nome: "Edificio campione", creato: new Date().toISOString(), edificioBase: runtime.edificio, modello: null, orto: orto && blob ? { ...orto, blob, originale: blob, crs: "EPSG:28992", origine: runtime.edificio.origine, metrica: "georiferita" } : null, altezzaManuale: null, allineamentoConfermato: true, provenienza: "campione" };
+            }
+            const nuova: RilievoLocale = { ...originale, id: `rilievo-${crypto.randomUUID()}`, altezzaManuale: ripristina ? null : altezza };
+            const next = conservaPosaDopoCorrezione(piano, runtime.edificio, edificioCorretto(nuova));
+            next.rilievo = { versione: 1, id: nuova.id, nome: nuova.nome };
+            await salvaRilievoLocale(nuova);
+            onChange(next);
+            setNota("Quote aggiornate nella bozza; quantità e prezzo sono conservati. La correzione manuale è separata dal rilievo originale.");
+        }
+        catch (e) {
+            setNota(messaggio(e));
+        }
+        finally {
+            setBusy(false);
+        }
+    };
+    return <div className="fv-import-height"><h4>Altezza di casa o condominio</h4><p className="fv-roof-photo-note">Correzione manuale dell’altezza complessiva fuori terra: le coperture si spostano in quota e le pareti vengono adattate. Non modifica il file originale né crea nuovi piani rilevati. La correzione interessa tutta la mesh: usa un modello del solo fabbricato, senza edifici vicini.</p><div className="fv-import-fields"><label>Altezza complessiva (m)<input aria-label="Altezza complessiva edificio" type="number" min={.5} max={150} step={.1} value={altezza} disabled={!modificabile || !runtime || busy} onChange={e => setAltezza(Number(e.target.value))}/></label><button type="button" disabled={!modificabile || busy} onClick={() => setAltezza(8)}>Esempio casa · 8 m</button><button type="button" disabled={!modificabile || busy} onClick={() => setAltezza(18)}>Esempio condominio · 18 m</button></div><div className="fv-roof-photo-tools"><button type="button" disabled={!runtime || !modificabile || busy} onClick={() => applica()}>Applica altezza alla bozza</button><button type="button" disabled={!runtime?.fonte?.altezzaManuale || !modificabile || busy} onClick={() => applica(true)}>Ripristina quote originali</button></div>{runtime?.fonte?.altezzaManuale !== null && runtime?.fonte && <p className="fv-roof-photo-note">Questo modello contiene una correzione manuale dell’altezza.</p>}{nota && <p role="status" className="fv-roof-photo-note">{nota}</p>}</div>;
+}
+export function ImportaRilievoLocale(props: Props) {
+    const [orto, setOrto] = useState<File | null>(null), [world, setWorld] = useState<File | null>(null), [files, setFiles] = useState<File[]>([]), [crs, setCrs] = useState("Locale in metri"), [gsd, setGsd] = useState(.05), [nome, setNome] = useState("Rilievo cliente"), [allineamento, setAllineamento] = useState<Allineamento>(ALLINEAMENTO_BASE), [fonte, setFonte] = useState<RilievoLocale | null>(null), [errore, setErrore] = useState(""), [esito, setEsito] = useState(""), [busy, setBusy] = useState(false);
+    const prepara = async (fileOrto = orto, fileModello = files, nomeLavoro = nome, parametri = allineamento) => { setBusy(true); setErrore(""); try {
+        const raster = fileOrto ? await importaOrtofoto(fileOrto, world ?? undefined, crs, gsd) : null;
+        const principale = fileModello.find(f => /\.(glb|obj)$/i.test(f.name));
+        if (fileModello.length && !principale)
+            throw new Error("Seleziona anche un file GLB o OBJ.");
+        setFonte({ versione: 1, id: `rilievo-${crypto.randomUUID()}`, nome: nomeLavoro.trim(), creato: new Date().toISOString(), edificioBase: edificioDaFalde([], false), orto: raster, modello: principale ? { nome: principale.name, files: fileModello, allineamento: parametri } : null, altezzaManuale: null, allineamentoConfermato: false, provenienza: "importato" });
+    }
+    catch (e) {
+        setErrore(messaggio(e));
+    }
+    finally {
+        setBusy(false);
+    } };
+    return <div className="fv-import-panel" aria-label="Importazione rilievo cliente"><h3>Ortofoto e modello 3D del cliente</h3><p className="fv-roof-photo-note">Il rilievo viene conservato nell’archivio privato dell’azienda e associato al preventivo dopo la conferma. Foto e modelli si riaprono anche da un altro dispositivo autorizzato.</p>
+  {props.piano.rilievo && <QuoteEdificio key={`${props.piano.rilievo?.id ?? "campione"}-${props.runtime?.fonte?.id ?? (props.runtime ? "pronto" : "caricando")}`} {...props}/>}
+  <h4>1. Prepara un nuovo rilievo</h4><div className="fv-import-fields"><label>Nome lavoro<input aria-label="Nome rilievo" maxLength={160} value={nome} disabled={!props.modificabile} onChange={e => setNome(e.target.value)}/></label><label>Ortofoto GeoTIFF o immagine<input aria-label="Ortofoto cliente" type="file" accept=".tif,.tiff,.jpg,.jpeg,.png,.webp" disabled={!props.modificabile || busy} onChange={e => setOrto(e.target.files?.[0] ?? null)}/></label><label>World file per JPG/PNG (facoltativo)<input aria-label="World file ortofoto" type="file" accept=".jgw,.pgw,.wld,.tfw,.jgwx,.pgwx" disabled={!props.modificabile || busy} onChange={e => setWorld(e.target.files?.[0] ?? null)}/></label><label>CRS del world file (metrico)<input aria-label="CRS ortofoto" value={crs} onChange={e => setCrs(e.target.value)} disabled={!props.modificabile}/></label><label>Se manca il world file: metri/pixel noti<input aria-label="Risoluzione ortofoto metri pixel" type="number" min={.001} max={2} step={.001} value={gsd} onChange={e => setGsd(Number(e.target.value))} disabled={!props.modificabile}/></label><label>GLB oppure OBJ, MTL e texture<input aria-label="Modello 3D cliente" type="file" multiple accept=".glb,.obj,.mtl,.jpg,.jpeg,.png,.webp" disabled={!props.modificabile || busy} onChange={e => setFiles(Array.from(e.target.files ?? []))}/></label></div>
+  <p className="fv-roof-photo-note">Il GeoTIFF deve essere RGB a 8 bit in coordinate metriche locali. Un’immagine senza metadati richiede scala nota e allineamento verificato; non basta una fotografia obliqua. Per il modello: GLB standard con texture incorporate, oppure OBJ con MTL e immagini locali. Compressioni che richiedono decoder esterni non vengono caricate.</p>
+  <div className="fv-import-fields"><label>Asse verticale del modello<select aria-label="Asse verticale modello" value={allineamento.asseSu} disabled={!props.modificabile} onChange={e => setAllineamento(a => ({ ...a, asseSu: e.target.value as "y" | "z" }))}><option value="y">Y · tipico GLB</option><option value="z">Z · tipico OBJ fotogrammetrico</option></select></label>{([['scala', 'Metri per unità'], ['rotazione', 'Rotazione sul piano (°)'], ['x', 'Traslazione Est (m)'], ['y', 'Traslazione Nord (m)'], ['z', 'Quota aggiuntiva (m)']] as const).map(([k, label]) => <label key={k}>{label}<input type="number" step={k === "scala" ? .001 : .1} value={allineamento[k]} aria-label={label} disabled={!props.modificabile} onChange={e => setAllineamento(a => ({ ...a, [k]: Number(e.target.value) }))}/></label>)}</div>
+  <p className="fv-roof-photo-note">Il modello viene centrato e appoggiato a quota zero; i parametri servono ad allinearlo all’ortofoto prima di tracciare le falde. Non viene dichiarato un allineamento automatico tra file privi di un riferimento comune.</p>
+  <div className="fv-roof-photo-tools"><button type="button" disabled={!props.modificabile || busy || (!orto && !files.length) || !nome.trim()} onClick={() => prepara()}>{busy ? "Lettura dei file…" : "Prepara rilievo e allineamento"}</button><button type="button" disabled={!props.modificabile || busy} onClick={async () => { setBusy(true); try {
+        const [tif, glb] = await Promise.all([fetch("/templates/fotovoltaico/examples/ortofoto-test.tif").then(r => { if (!r.ok)
+                throw new Error("Esempio non disponibile."); return r.blob(); }), fetch("/templates/fotovoltaico/examples/casa-test.glb").then(r => { if (!r.ok)
+                throw new Error("Esempio non disponibile."); return r.blob(); })]);
+        const raster = new File([tif], "ortofoto-test.tif", { type: "image/tiff" }), modello = new File([glb], "casa-test.glb", { type: "model/gltf-binary" });
+        setOrto(raster);
+        setFiles([modello]);
+        setNome("Casa test sintetica 10 × 8 m");
+        setAllineamento(ALLINEAMENTO_BASE);
+        await prepara(raster, [modello], "Casa test sintetica 10 × 8 m", ALLINEAMENTO_BASE);
+    }
+    catch (e) {
+        setErrore(messaggio(e));
+    }
+    finally {
+        setBusy(false);
+    } }}>Prova con GeoTIFF e GLB sintetici</button></div><p className="fv-roof-photo-note">File in preparazione: {orto?.name ?? "nessuna ortofoto"} · {files.map(f => f.name).join(", ") || "nessun modello"}. L’esempio tecnico non proviene da un volo drone né da un cliente.</p>
+  {esito && <p role="status" className="fv-roof-photo-note">{esito}</p>}{errore && <p role="alert" className="fv-roof-photo-note">{errore}</p>}{fonte && <Preparazione key={fonte.id} fonte={fonte} piano={props.piano} onChange={props.onChange} onFinito={() => { setFonte(null); setErrore(""); setEsito("Rilievo applicato alla bozza. Apri Foto + 3D per controllare posa e totale."); }}/>}
+ </div>;
+}

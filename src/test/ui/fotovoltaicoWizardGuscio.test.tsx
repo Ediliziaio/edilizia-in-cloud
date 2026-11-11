@@ -366,13 +366,13 @@ it("il disegno aggiorna quantità, potenza e prezzi solo dopo conferma; Annulla 
   seminaBozza(5,{layout_overlay:disponiModuliAutomaticamente(creaDisegnoTetto("due_falde"),12),con_accumulo:false});
   monta();await arrivaAllaFase5();
   fireEvent.click(screen.getByRole("button",{name:"Modifica disposizione pannelli"}));
-  fireEvent.keyDown(screen.getByRole("button",{name:"Modulo 1"}),{key:"Delete"});
+  fireEvent.keyDown(await screen.findByRole("button",{name:"Modulo 1"}),{key:"Delete"});
   expect(screen.getByLabelText("Riepilogo disposizione")).toHaveTextContent("11 pannelli");
   expect(screen.getByLabelText("Numero pannelli")).toHaveValue(12);
   fireEvent.click(screen.getByRole("button",{name:"Annulla"}));
   expect(screen.getByLabelText("Numero pannelli")).toHaveValue(12);
   fireEvent.click(screen.getByRole("button",{name:"Modifica disposizione pannelli"}));
-  fireEvent.keyDown(screen.getByRole("button",{name:"Modulo 1"}),{key:"Delete"});
+  fireEvent.keyDown(await screen.findByRole("button",{name:"Modulo 1"}),{key:"Delete"});
   fireEvent.click(screen.getByRole("button",{name:"Usa disposizione nel preventivo"}));
   expect(screen.getByLabelText("Numero pannelli")).toHaveValue(11);
   expect(anteprima()).toHaveTextContent("4,95");
@@ -397,4 +397,16 @@ it("aprire e chiudere il disegno facoltativo mantiene il preventivo senza mappa"
   expect(screen.getByLabelText("Numero pannelli")).toHaveValue(12);
   expect(screen.getByText(/Preventivo senza mappa: capienza/)).toBeTruthy();
   expect(apiInvoke).not.toHaveBeenCalledWith("maps-proxy",expect.anything());
+});
+
+
+it("prepara il tetto 2D/3D anche senza pannello senza inventare potenza o prezzo",async()=>{
+ seminaBozza(5,{pannello_id:null,potenza_kwp:0});monta();await arrivaAllaFase5();
+ expect(screen.getByRole("button",{name:"Disegna il tetto"})).not.toBeDisabled();
+ fireEvent.click(screen.getByRole("button",{name:"Disegna il tetto"}));fireEvent.click(await screen.findByRole("button",{name:"Crea il disegno del tetto"}));
+ expect(screen.getByRole("button",{name:"Vista 3D"})).toBeTruthy();expect(screen.queryByRole("button",{name:"Usa disposizione nel preventivo"})).toBeNull();
+ expect(screen.getByLabelText("Riepilogo disposizione")).toHaveTextContent("Da definire");
+ expect(screen.getByRole("button",{name:"Conserva il disegno e scegli il pannello"})).not.toBeDisabled();
+ fireEvent.click(screen.getByRole("button",{name:"Conserva il disegno e scegli il pannello"}));expect(screen.queryByRole("dialog")).toBeNull();
+ expect(screen.getByLabelText("Numero pannelli")).toHaveValue(12);
 });
