@@ -7,7 +7,7 @@ vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ isAdmin: tru
 vi.mock("@/hooks/useSubscriptionLimits", () => ({ useSubscriptionLimits: () => ({ isScopriPlan: false }) }));
 vi.mock("@/components/render/RenderCreditsWidget", () => ({ RenderCreditsWidget: (): null => null }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
-vi.mock("@/lib/render/renderHistory", () => ({ useRenderHistory: () => ({ items: [], total: 0, isLoading: queryState.isLoading, isError: !!queryState.error, error: queryState.error, refetch: vi.fn() }) }));
+vi.mock("@/lib/render/renderHistory", () => ({ useRenderHistory: () => ({ items: [] as unknown[], total: 0, isLoading: queryState.isLoading, isError: !!queryState.error, error: queryState.error, refetch: vi.fn() }) }));
 const queryState = vi.hoisted(() => ({ isLoading: false, error: null as Error | null }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: [] as unknown[], ...queryState, refetch: vi.fn() }) }));
 import RenderCategoryHub from "@/pages/azienda/RenderCategoryHub";
@@ -15,7 +15,7 @@ afterEach(cleanup);
 beforeEach(() => { queryState.isLoading = false; queryState.error = null; });
 function setup() {
   render(<MemoryRouter><RenderCategoryHub /></MemoryRouter>);
-  fireEvent.click(screen.getAllByRole("button", { name: "Nuovo render", exact: true })[0]);
+  fireEvent.click(screen.getAllByRole("button", { name: "Nuovo render" })[0]);
   return within(screen.getByRole("dialog", { name: "Che cosa vuoi trasformare?" }));
 }
 it("distingue ricerca vuota e ripristino completo conservando il focus", () => {

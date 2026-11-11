@@ -9,7 +9,7 @@ vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ solaLettura: false }) }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: ({ queryKey }: { queryKey: string[] }) => queryKey[0] === "render-stored-session"
   ? { data: null as null, isLoading: false, isError: state.isError, refetch: state.retry }
-  : { data: null as null }, useInfiniteQuery: () => ({ data: undefined }) }));
+  : { data: null as null }, useInfiniteQuery: () => ({ data: undefined as undefined }) }));
 import RenderTechnicalModuleGalleryDetail from "@/pages/azienda/RenderTechnicalModuleGalleryDetail";
 beforeEach(() => { state.isError = false; state.retry.mockClear(); });
 afterEach(cleanup);
