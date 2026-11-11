@@ -356,19 +356,22 @@ export function creaPdfOperativo(
       disegnaRiquadro(x, y, w, hStat);
       etichetta(c.titolo, x + pad, y + pad + mm(stileRiquadro.etichettaCorpo) * 0.75);
       font(stileRiquadro.numeroCorpo, i === 3, i === 3 ? ACCENTO : INCHIOSTRO);
-      pdf.text(euro(c.totale), x + pad, y + pad + altoEtichetta + hNumero * 0.75);
       const entries =
         i < 3
           ? d.righe.filter((r) => categorie[i].match.test(r.descrizione))
           : d.righe;
+      const valorizzate = entries.filter((r) => r.prezzo != null || r.importo != null);
+      const parziale = valorizzate.length > 0 && valorizzate.length < entries.length;
+      pdf.text(!entries.length ? "—" : !valorizzate.length ? "Da definire" : euro(c.totale), x + pad, y + pad + altoEtichetta + hNumero * 0.75);
+      const interventi = new Set(d.righe.map((r) => r.gruppo || "Intervento")).size;
       const detail =
         i === 3
-          ? `${new Set(d.righe.map((r) => r.gruppo || "Intervento")).size} interventi`
+          ? `${interventi} ${interventi === 1 ? "intervento" : "interventi"}`
           : i === 0
             ? `${numeroIt(entries.reduce((sum, r) => sum + (r.unita.toLowerCase() === "h" ? r.quantita : 0), 0))} ore`
             : `${entries.length} voci`;
       font(pagina.nota, false, TENUE);
-      pdf.text(detail, x + pad, y + hStat - pad);
+      pdf.text(`${detail}${parziale ? " · parziale" : ""}`, x + pad, y + hStat - pad);
     });
     y += hStat + 5;
   }

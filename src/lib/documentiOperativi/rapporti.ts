@@ -146,7 +146,7 @@ export function rapportoEconomiaDaRapportini(
               {
                 gruppo,
                 descrizione: r.descrizione_lavori.trim(),
-                unita: "intervento",
+                unita: "cad",
                 quantita: 1,
                 prezzo: null as number | null,
                 iva: null as number | null,

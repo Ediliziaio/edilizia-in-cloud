@@ -55,7 +55,7 @@ describe("Bozza automatica del rapporto in economia", () => {
     expect(d.righe[0]).toMatchObject({
       descrizione: r.descrizione_lavori,
       quantita: 1,
-      unita: "intervento",
+      unita: "cad",
       prezzo: null,
     });
     expect(d.destinatario.email).toBeNull();
@@ -63,6 +63,7 @@ describe("Bozza automatica del rapporto in economia", () => {
     const azienda = { id: "a", name: "Impresa SIM" };
     const pdf = creaPdfOperativo(d, azienda).output();
     expect(pdf).toContain("Da definire");
+    expect(pdf).not.toContain("0,00");
     expect(pdf).toContain("Da concordare con il committente");
     expect(corpoDocumento(d, azienda)).toContain("Totale IVA esclusa: Da definire");
   });
