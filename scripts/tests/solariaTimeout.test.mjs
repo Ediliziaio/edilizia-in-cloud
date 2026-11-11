@@ -1,0 +1,11 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {solariaWaitTimeoutDays,SOLARIA_COMPANY} from '../../supabase/functions/_shared/solariaCompat.mjs';
+const cfg={migration_source_node_id:'source',migration_timeout_override_hours:12,migration_timeout_hours:12,delay_unita:'ore',delay_durata:12,timeout_days:1};
+test('12-hour event timeout remains exactly half a day with an integer builder field',()=>assert.equal(solariaWaitTimeoutDays(cfg,SOLARIA_COMPANY),.5));
+test('Other tenants cannot use the migration override',()=>assert.equal(solariaWaitTimeoutDays(cfg,'other'),1));
+test('Ordinary Solaria nodes cannot use the migration override',()=>assert.equal(solariaWaitTimeoutDays({...cfg,migration_source_node_id:undefined},SOLARIA_COMPANY),1));
+test('A later explicit user change in days takes precedence',()=>assert.equal(solariaWaitTimeoutDays({...cfg,timeout_days:3},SOLARIA_COMPANY),3));
+test('Mismatched source hours do not activate the override',()=>assert.equal(solariaWaitTimeoutDays({...cfg,migration_timeout_hours:24},SOLARIA_COMPANY),1));
+test('Missing timeout keeps native seven-day default',()=>assert.equal(solariaWaitTimeoutDays({},'other'),7));
+test('Invalid or oversized override cannot change native timeout',()=>{for(const hours of [0,-1,Infinity,NaN,9000])assert.equal(solariaWaitTimeoutDays({...cfg,migration_timeout_override_hours:hours,migration_timeout_hours:hours,delay_durata:hours},SOLARIA_COMPANY),1);});

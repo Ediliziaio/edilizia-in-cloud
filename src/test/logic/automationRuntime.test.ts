@@ -26,13 +26,15 @@ import { platformSubscriptionPlan } from "../../../supabase/functions/_shared/pl
 import { confrontoConOggi, eOperatoreData } from "../../../supabase/functions/_shared/condizioniData";
 
 const engine = fs.readFileSync("supabase/functions/process-automation/index.ts", "utf8");
+// Load the real opt-in bridge in the same isolated VM; never stub its tenant guard.
+const solariaCompat = fs.readFileSync("supabase/functions/_shared/solariaCompat.mjs", "utf8").replace(/^export /gm, "");
 const scheduler = fs.readFileSync("supabase/functions/check-scheduled-triggers/index.ts", "utf8");
 function load(name: string, globals: Record<string, any> = {}, source = engine): any {
   const ast = ts.createSourceFile("worker.ts", source, ts.ScriptTarget.Latest, true);
   const fn = ast.statements.find(n => ts.isFunctionDeclaration(n) && n.name?.text === name)!;
   if (!fn) throw new Error(`Missing worker function ${name}`);
   const code = ts.transpileModule(fn.getText(ast), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None } }).outputText;
-  return vm.runInNewContext(`${code}; ${name}`, {
+  return vm.runInNewContext(`${solariaCompat}\n${code}; ${name}`, {
     exports: {}, console: { log() {}, warn() {}, error() {} }, Date, Set, Map, Number, String, Response, TextEncoder,
     crypto: webcrypto, fetch: () => { throw new Error("NETWORK FORBIDDEN IN TEST"); },
     UUID_RE: /^[0-9a-f-]{36}$/i, PLATFORM_ACTION_IDS: new Set(), COMPANY_ONLY_ACTION_IDS: new Set(),
@@ -1004,4 +1006,44 @@ describe("superadmin actions: real handlers with isolated providers", () => {
     expect(args.slice(1)).toEqual([actorId, { company_id: id, new_plan_id: chosen }]);
     expect(mock.calls.some(q => q.table === "companies" && has(q, "update"))).toBe(false);
   });
+});
+
+describe("Solaria bridge is wired into the real worker", () => {
+  const company = "3f52a5ed-0b4f-4f8f-8b92-a13f3361e474";
+  const flowId = "10000000-0000-4000-8000-000000000002";
+  const queue = { id, flow_id: flowId, current_node_id: chosen, entity_type: "contact", context_json: { payload: { message: "Sì, mi interessa" } } };
+  const migration = { migration_source_node_id: "source-node" };
+  it("executes a migrated note through executeAction rather than the unknown-action fallback", async () => {
+    const mock = db(q => ({ data: q.table === "automation_flows" ? { id: flowId, company_id: company, created_by: chosen } : null, error: null }));
+    const execute = load("executeAction", { resolveAutomationRecord: async () => ({ id, company_id: company }), resolveContactText: async (_db: unknown, text: string) => text });
+    const result = await execute(mock, { ...migration, item_id: "squadd_add_notes", migration_note_text: "Nota di collaudo" }, id, company, queue);
+    expect(result).toMatchObject({ success: true, output: { action: "add_contact_note", note_id: id } });
+    expect(mock.calls.find(q => q.table === "marketing_contact_notes" && has(q, "upsert"))?.steps.find(s => s[0] === "upsert")?.[1])
+      .toMatchObject({ company_id: company, contact_id: id, content: "Nota di collaudo", automatica: true });
+  });
+  it("evaluates the actual reply event without loading an unrelated record", async () => {
+    const condition = load("executeCondition", { resolveAutomationRecord: async () => { throw new Error("Unrelated record requested"); } });
+    const result = await condition(db(), { ...migration, condizioni: [{ campo: "trigger.message", operatore: "contiene", valore: "interessa" }] }, id, company, queue);
+    expect(result).toMatchObject({ success: true, branch: "yes" });
+  });
+  it("keeps the migrated twelve-hour timeout in the actual wait action", async () => {
+    const result = await action(db(), { ...migration, item_id: "wait_for_event", await_event: "whatsapp_received", timeout_days: 1,
+      migration_timeout_override_hours: 12, migration_timeout_hours: 12, delay_unita: "ore", delay_durata: 12 }, id, company, queue);
+    expect(result).toMatchObject({ success: true, isWaiting: true, timeoutDays: 0.5 });
+  });
+  it("saves the migrated calendar date through the real worker without an absent generic RPC", async () => {
+    const mock = db(q => {
+      if (q.table === "automation_flows") return { data: { id: flowId, created_by: chosen }, error: null };
+      if (q.table === "marketing_custom_fields") return { data: { id: chosen, company_id: company, object_type: "contact", field_type: "date", deleted_at: null }, error: null };
+      if (q.table === "marketing_contact_field_values") return { data: has(q, "upsert") ? q.steps.find(s => s[0] === "upsert")![1] : null, error: null };
+      throw new Error("Unexpected database access: " + q.table);
+    });
+    const execute = load("executeAction", { resolveAutomationRecord: async () => ({ id, company_id: company }) });
+    const result = await execute(mock, { ...migration, item_id: "aggiorna_campo", migration_value: "Data attuale", campo: "custom_field." + chosen }, id, company, queue);
+    expect(result).toMatchObject({ success: true, output: { field_id: chosen, entity_id: id } });
+    expect(result.output.value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(mock.calls.some(q => has(q, "rpc"))).toBe(false);
+    expect(mock.calls.find(q => q.table === "marketing_custom_fields")?.steps).toContainEqual(["eq", "company_id", company]);
+  });
+
 });

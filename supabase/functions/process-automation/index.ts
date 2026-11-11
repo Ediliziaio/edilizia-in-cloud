@@ -6,6 +6,7 @@
  * di ripiego sul mittente, non un tentativo solo. Il perche' e il costo di non
  * averla sono documentati sul punto, cercare "Catena di ripiego sul MITTENTE".
  */
+import { solariaWaitTimeoutDays, isSolariaCompat, solariaTimeoutValid, solariaReplyValue, runSolariaAction, solariaAfterDelay, solariaSkipOutgoing } from "../_shared/solariaCompat.mjs";
 import { canaleDelFreno, LIMITE_AL_MINUTO, riprovaDopoFreno } from "../_shared/frenoInvii.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
@@ -1027,8 +1028,11 @@ async function executeNode(supabase: any, node: AutomationNode, queueItem: any) 
   const companyId = queueItem.company_id;
 
   switch (node.node_type) {
-    case "delay":
-      return await executeDelay(cfg, supabase, entityId, companyId, queueItem);
+    case "delay": {
+      const delayed = await executeDelay(cfg, supabase, entityId, companyId, queueItem);
+      queueItem.context_json = solariaAfterDelay(cfg, companyId, queueItem.context_json, delayed);
+      return delayed;
+    }
 
     case "condition":
       return await executeCondition(supabase, cfg, entityId, companyId, queueItem);
@@ -1326,8 +1330,9 @@ async function executeCondition(supabase: any, cfg: Record<string, any>, entityI
     const prefix = dot > 0 ? raw.slice(0, dot) : "contatto";
     const field = dot > 0 ? raw.slice(dot + 1) : raw;
     const customId = customFieldId(raw);
-    const rec = customId ? null : await load(prefix);
-    const actual = customId ? await readAutomationCustomField(supabase, companyId, entityId, queueItem, customId) : rec ? rec[field] : undefined;
+    const reply = solariaReplyValue(cfg, companyId, raw, queueItem);
+    const rec = customId || reply.handled ? null : await load(prefix);
+    const actual = reply.handled ? reply.value : customId ? await readAutomationCustomField(supabase, companyId, entityId, queueItem, customId) : rec ? rec[field] : undefined;
     const operator = String(r.operatore ?? "uguale");
     if (eOperatoreData(operator)) return confrontoConOggi(actual, operator);
     const aliases: Record<string, string> = { uguale: "equals", diverso: "not_equals", contiene: "contains",
@@ -1637,11 +1642,26 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
   if (testMode) {
     return { success: true, output: { action: actionType, simulated: true, test_mode: true } };
   }
+  if (solariaSkipOutgoing(cfg, companyId, queueItem?.context_json, actionType)) {
+    return { success: true, output: { action: actionType, skipped: true, reason: "Promemoria già passato: politica originale di salto comunicazioni" } };
+  }
+  if (isSolariaCompat(cfg, companyId) && ["wait_for_event", "squadd_drip"].includes(actionType)) {
+    queueItem.context_json = { ...(queueItem.context_json ?? {}), _solaria_skip_outgoing: false };
+  }
+  // Opt-in bridge for the reviewed Squadd migration; other tenants use the unchanged paths.
+  const migrated = await runSolariaAction({
+    db: supabase, cfg: ncfg, companyId, entityId, queue: queueItem,
+    contact: () => resolveAutomationRecord(supabase, "contact", entityId, companyId, queueItem),
+    resolveText: (text: string, contact: any) => resolveContactText(supabase, text, contact, companyId, { queueItem, entityId, strict: true }),
+  });
+  if (migrated) return migrated;
   // These senders resolve text themselves (including HTML escaping); do not pre-expand unescaped values.
   const ownsTextResolver=new Set(["send_email","send_sms","send_whatsapp","send_whatsapp_locale","send_ai_message","internal_notification"]);
   try { if(!ownsTextResolver.has(actionType)) ncfg = await resolveAutomationCustomConfig(supabase, ncfg, companyId, entityId, queueItem); }
   catch (error) { return {success:false,error:error instanceof Error ? error.message : "Variabile personalizzata non disponibile"}; }
-  const invalidAction = actionConfigErrors(cfg);
+  const checkedCfg = isSolariaCompat(cfg, companyId) && ["wait_for_event"].includes(String(cfg.action_type ?? cfg.item_id)) && solariaTimeoutValid(cfg, companyId, Number(cfg.timeout_days))
+    ? { ...cfg, timeout_days: Math.ceil(Number(cfg.timeout_days)) } : cfg;
+  const invalidAction = actionConfigErrors(checkedCfg);
   if (invalidAction.length) return { success: false, error: invalidAction.join(" ") };
 
   // ── LEAD RECUPERATO DALLO STORICO ──
@@ -2904,8 +2924,8 @@ Istruzione: ${aiPrompt}`;
     }
 
     case "wait_for_event": {
-      const timeoutDays = ncfg.timeout_days == null || ncfg.timeout_days === "" ? 7 : Number(ncfg.timeout_days);
-      if (!ncfg.await_event || !Number.isInteger(timeoutDays) || timeoutDays < 1 || timeoutDays > 365) return { success: false, error: "Scegli l’evento e un timeout intero tra 1 e 365 giorni" };
+      const timeoutDays = solariaWaitTimeoutDays(ncfg, companyId);
+      if (!ncfg.await_event || !solariaTimeoutValid(ncfg, companyId, timeoutDays)) return { success: false, error: "Scegli l’evento e un timeout intero tra 1 e 365 giorni" };
       // This action puts the enrollment in a "waiting" state
       // The actual waiting is handled by setting a delayed queue item
       // When the awaited event fires, processTriggerEvents will check for waiting enrollments
@@ -4826,7 +4846,10 @@ async function executeSendWhatsApp(supabase: any, cfg: Record<string, any>, enti
   // libero, e il messaggio registrato sul contatto (Conversazioni, scheda).
   const contact = await resolveAutomationRecord(supabase, "contact", entityId, companyId, queueItem);
   if (!contact) return { success: false, error: "Contatto non trovato per questa azienda" };
-  const recipient = cfg.whatsapp_to ? await resolveContactText(supabase, String(cfg.whatsapp_to), contact, companyId) : contact.phone;
+  // Migrated Solaria reminders must use their triggering appointment, not another appointment of the contact.
+  const resolveWhatsAppText = (text: string) => resolveContactText(supabase, text, contact, companyId,
+    isSolariaCompat(cfg, companyId) ? { queueItem, entityId, strict: true } : {});
+  const recipient = cfg.whatsapp_to ? await resolveWhatsAppText(String(cfg.whatsapp_to)) : contact.phone;
   if (!recipient) {
     return { success: false, error: "Contatto senza numero di telefono" };
   }
@@ -4888,7 +4911,7 @@ async function executeSendWhatsApp(supabase: any, cfg: Record<string, any>, enti
     }
     const fissi: Record<string, string> = {};
     for (const [n, t] of Object.entries((cfg.modello_whatsapp_valori ?? {}) as Record<string, unknown>)) {
-      if (typeof t === "string" && t.trim()) fissi[n] = await resolveContactText(supabase, t, contact, companyId);
+      if (typeof t === "string" && t.trim()) fissi[n] = await resolveWhatsAppText(t);
     }
     const { valori, mancanti } = valoriDelModello(
       modello.variables_count ?? 0, modello.variable_mapping, contact, personalizzati, fissi,
@@ -4908,7 +4931,7 @@ async function executeSendWhatsApp(supabase: any, cfg: Record<string, any>, enti
     descrizione = `Messaggio WhatsApp automatico: modello «${nomeModello}»`;
   } else {
     // Testo libero: il testo del passo, o quello scritto dal passo AI.
-    const testo = await resolveContactText(supabase, cfg.whatsapp_body || cfg.whatsapp_text || "", contact, companyId);
+    const testo = await resolveWhatsAppText(cfg.whatsapp_body || cfg.whatsapp_text || "");
     if (!testo) {
       return { success: false, error: "Nessun testo configurato per il messaggio WhatsApp" };
     }

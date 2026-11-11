@@ -67,12 +67,12 @@ describe("voci del computo → voci del listino", () => {
 
   it("descrizione lunga del computo: propone la voce il cui nome ci sta dentro, ma non la applica da sola", () => {
     const listino = [
-      { id: "g", nome: "Posa pavimento gres porcellanato", codice: null, unita: "mq" },
+      { id: "g", nome: "Posa pavimento gres porcellanato", codice: null as string | null, unita: "mq" },
       { id: "p", nome: "Tiro al piano", codice: null, unita: "piano" },
       { id: "pa", nome: "Tiro al piano con autoscala", codice: null, unita: "piano" },
       { id: "x", nome: "Posa", codice: null, unita: "mq" },
     ];
-    const voce = (descrizione: string, unita: string) => ({ id: "v", descrizione, unita, origine_codice: null, tariffa_id: null });
+    const voce = (descrizione: string, unita: string) => ({ id: "v", descrizione, unita, origine_codice: null as string | null, tariffa_id: null as string | null });
     expect(proponiAbbinamenti([voce("Fornitura e posa di pavimento in gres porcellanato 60x60, compreso collante", "mq")], listino, [])[0])
       .toMatchObject({ tariffaId: "g", motivo: "simile", sicura: false });
     // Vince il nome più lungo che ci sta; una parola sola non basta.
