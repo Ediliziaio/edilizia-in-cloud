@@ -990,7 +990,7 @@ export function ContrattiSubappalto({
           <DialogHeader>
             <DialogTitle>Invia il contratto per la firma</DialogTitle>
             <DialogDescription>
-              Il subappaltatore riceve per email il link al contratto in PDF: lo legge, approva le clausole e firma con un codice
+              Il subappaltatore riceve per email il link al contratto in PDF: lo legge, accetta con una spunta e firma con un codice
               che gli arriva per email o, se metti il cellulare, per SMS. A firma fatta il contratto risulta firmato da solo.
             </DialogDescription>
           </DialogHeader>
