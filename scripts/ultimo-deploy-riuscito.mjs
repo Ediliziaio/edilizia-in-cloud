@@ -15,8 +15,17 @@ export async function ultimoDeployRiuscito(runs, readJobs, currentRunId) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const repository = process.env.GITHUB_REPOSITORY;
   if (!repository) throw new Error('GITHUB_REPOSITORY required');
-  const api = path => JSON.parse(execFileSync('gh', ['api', path], {encoding:'utf8', stdio:['ignore','pipe','pipe']}));
-  const runs = api(`repos/${repository}/actions/workflows/ci.yml/runs?branch=main&event=push&per_page=30`).workflow_runs;
-  const sha = await ultimoDeployRiuscito(runs, async id => api(`repos/${repository}/actions/runs/${id}/jobs?per_page=100`).jobs, process.env.GITHUB_RUN_ID);
+  // Solo i campi che servono (--jq): 100 giri interi superano il buffer di execFileSync (ENOBUFS).
+  const api = (path, jq) => JSON.parse(execFileSync('gh', ['api', path, '--jq', jq], {encoding:'utf8', maxBuffer: 64 * 1024 * 1024, stdio:['ignore','pipe','pipe']}));
+  // 11/11/2026: si cercava solo negli ultimi 30 giri. Con molte sessioni che pubblicano
+  // (54 giri in un giorno) e una fila di giri rossi o annullati, l'ultimo deploy riuscito
+  // finiva oltre il trentesimo: il passo tornava a `event.before` e le funzioni dei giri
+  // persi non uscivano più. Ora si scorre a pagine da 100, fino a 1.000 giri.
+  let sha = '';
+  for (let pagina = 1; pagina <= 10 && !sha; pagina++) {
+    const runs = api(`repos/${repository}/actions/workflows/ci.yml/runs?branch=main&event=push&per_page=100&page=${pagina}`, '[.workflow_runs[] | {id, event, head_branch, status, head_sha}]');
+    if (!runs.length) break;
+    sha = await ultimoDeployRiuscito(runs, async id => api(`repos/${repository}/actions/runs/${id}/jobs?per_page=100`, '[.jobs[] | {name, conclusion}]'), process.env.GITHUB_RUN_ID);
+  }
   process.stdout.write(sha);
 }
