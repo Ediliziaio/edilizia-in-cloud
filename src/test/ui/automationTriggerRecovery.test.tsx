@@ -13,16 +13,16 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => {
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock("@/components/flow-builder/FlowBuilderHeader", () => ({ FlowBuilderHeader: (p: any) => <button onClick={p.onSave}>Salva</button> }));
-vi.mock("@/components/flow-builder/FlowBuilderSidebar", () => ({ FlowBuilderSidebar: () => null }));
-vi.mock("@/components/flow-builder/TestFlowDialog", () => ({ TestFlowDialog: () => null }));
-vi.mock("@/components/flow-builder/NodeMeasureFix", () => ({ NodeMeasureFix: () => null }));
-vi.mock("@/components/flow-builder/FlowAutoLayout", () => ({ FlowAutoLayout: () => null }));
+vi.mock("@/components/flow-builder/FlowBuilderSidebar", () => ({ FlowBuilderSidebar: (): null => null }));
+vi.mock("@/components/flow-builder/TestFlowDialog", () => ({ TestFlowDialog: (): null => null }));
+vi.mock("@/components/flow-builder/NodeMeasureFix", () => ({ NodeMeasureFix: (): null => null }));
+vi.mock("@/components/flow-builder/FlowAutoLayout", () => ({ FlowAutoLayout: (): null => null }));
 vi.mock("@/components/flow-builder/WorkflowRightPanel", () => ({ WorkflowRightPanel: (p: any) => p.mode === "config"
   ? <button onClick={() => p.onDelete(p.selectedNode.id)}>Elimina dal pannello</button>
   : <><button onClick={() => p.onSelectItem({ id: "contatto_creato", label: "Nuovo contatto", kind: "trigger" })}>Scegli trigger</button><button onClick={() => p.onSelectItem({ id: "rimuovi_tag", label: "Rimuovi tag", kind: "action" })}>Scegli azione</button></> }));
 vi.mock("@xyflow/react", async importOriginal => {
   const actual = await importOriginal<typeof import("@xyflow/react")>();
-  return { ...actual, Background: () => null, Controls: () => null, MiniMap: () => null, Panel: ({ children }: any) => <div>{children}</div>,
+  return { ...actual, Background: (): null => null, Controls: (): null => null, MiniMap: (): null => null, Panel: ({ children }: any) => <div>{children}</div>,
     ReactFlow: (p: any) => <div>{p.nodes.map((n: any) => <div key={n.id}>
       <button onClick={e => n.data.isEmpty ? n.data.onOpenCatalog() : p.onNodeClick(e, n)}>{n.data.isEmpty ? "Aggiungi il primo trigger" : n.data.label}</button>
       {n.type === "trigger" && !n.data.isEmpty && <button aria-label={`Tastiera elimina ${n.id}`} onClick={() => { p.onNodesChange([{ type: "remove", id: n.id }]); p.onNodesDelete([n]); p.onEdgesChange(p.edges.filter((e: any) => e.source === n.id || e.target === n.id).map((e: any) => ({ type: "remove", id: e.id }))); }}>Cancella</button>}
@@ -49,18 +49,18 @@ beforeEach(() => { state.saved = null; setup(); }); afterEach(cleanup);
 describe("builder trigger recovery and persisted entry", () => {
   it("delete from panel → reinsert → save → reopen keeps the action connected", async () => {
     let view = mount();
-    fireEvent.click(await screen.findByRole("button", { name: "trigger", exact: true }));
+    fireEvent.click(await screen.findByRole("button", { name: "trigger" }));
     fireEvent.click(screen.getByRole("button", { name: "Elimina dal pannello" }));
     fireEvent.click(await screen.findByRole("button", { name: "Aggiungi il primo trigger" }));
     fireEvent.click(screen.getByRole("button", { name: "Scegli trigger" }));
     const created = state.builder.addNode.mock.calls[0][0];
     expect(created.node_type).toBe("trigger");
     expect(state.builder.addConnection).toHaveBeenCalledWith(expect.objectContaining({from_node_id:created.id,to_node_id:"azione"}));
-    fireEvent.click(screen.getByRole("button",{name:"Salva",exact:true}));
+    fireEvent.click(screen.getByRole("button",{name:"Salva"}));
     expect(state.saved.nodes).toHaveLength(2);
     expect(state.saved.connections).toHaveLength(1);
     view.unmount(); setup(state.saved.nodes,state.saved.connections); view = mount();
-    expect(await screen.findByRole("button", {name:"Nuovo contatto",exact:true})).toBeInTheDocument();
+    expect(await screen.findByRole("button", {name:"Nuovo contatto"})).toBeInTheDocument();
     expect(screen.queryByRole("button",{name:"Aggiungi il primo trigger"})).not.toBeInTheDocument();
     expect(screen.getByTestId("edges").textContent).toContain(JSON.stringify([created.id,"azione",null]));
   });
@@ -72,27 +72,27 @@ describe("builder trigger recovery and persisted entry", () => {
   it("deleting one parallel trigger leaves the other intact", async () => {
     setup([node("trigger","trigger","contatto_creato"),node("secondo","trigger","tag_aggiunto"),node("azione","action","aggiungi_tag")],[conn("trigger","azione"),conn("secondo","azione")]);
     mount(); fireEvent.click(await screen.findByRole("button",{name:"Tastiera elimina trigger"}));
-    await waitFor(() => expect(screen.queryByRole("button",{name:"trigger",exact:true})).not.toBeInTheDocument());
-    expect(screen.getByRole("button",{name:"secondo",exact:true})).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("button",{name:"trigger"})).not.toBeInTheDocument());
+    expect(screen.getByRole("button",{name:"secondo"})).toBeInTheDocument();
     expect(screen.queryByRole("button",{name:"Aggiungi il primo trigger"})).not.toBeInTheDocument();
   });
   it("removing a linear step preserves the incoming decision branch", async () => {
     const decision = { ...node("decisione","action","condition_se"), node_type:"condition" as const, config_json:{item_id:"condition_se",condizioni:[{campo:"email",operatore:"contiene",valore:"@"}]} };
     setup([node("trigger","trigger","contatto_creato"),decision,node("azione","action","aggiungi_tag"),node("successivo","action","rimuovi_tag")],[conn("trigger","decisione"),{...conn("decisione","azione"),label:"Sì"},conn("azione","successivo")]);
-    mount();fireEvent.click(await screen.findByRole("button",{name:"azione",exact:true}));fireEvent.click(screen.getByRole("button",{name:"Elimina dal pannello"}));
+    mount();fireEvent.click(await screen.findByRole("button",{name:"azione"}));fireEvent.click(screen.getByRole("button",{name:"Elimina dal pannello"}));
     expect(state.builder.addConnection).toHaveBeenCalledWith(expect.objectContaining({from_node_id:"decisione",to_node_id:"successivo",label:"Sì"}));
     expect(screen.getByTestId("edges").textContent).toContain('"decisione","successivo","Sì"');
   });
   it("removing a decision never flattens Yes and No into parallel execution", async () => {
     const decision = { ...node("decisione","action","condition_se"), node_type:"condition" as const, config_json:{item_id:"condition_se",condizioni:[{campo:"email",operatore:"contiene",valore:"@"}]} };
     setup([node("trigger","trigger","contatto_creato"),decision,node("yes","action","aggiungi_tag"),node("no","action","rimuovi_tag")],[conn("trigger","decisione"),{...conn("decisione","yes"),label:"Sì"},{...conn("decisione","no"),label:"No"}]);
-    mount();fireEvent.click(await screen.findByRole("button",{name:"decisione",exact:true}));fireEvent.click(screen.getByRole("button",{name:"Elimina dal pannello"}));
+    mount();fireEvent.click(await screen.findByRole("button",{name:"decisione"}));fireEvent.click(screen.getByRole("button",{name:"Elimina dal pannello"}));
     expect(state.builder.addConnection).not.toHaveBeenCalled();
     expect(state.builder.connections).toEqual([]);
   });
 
   it("can add a parallel trigger without losing its persisted entry", async () => {
-    mount();fireEvent.click(await screen.findByRole("button",{name:"+ Trigger",exact:true}));fireEvent.click(screen.getByRole("button",{name:"Scegli trigger"}));
+    mount();fireEvent.click(await screen.findByRole("button",{name:"+ Trigger"}));fireEvent.click(screen.getByRole("button",{name:"Scegli trigger"}));
     const created=state.builder.addNode.mock.calls[0][0];
     expect(created.node_type).toBe("trigger");
     expect(state.builder.addConnection).toHaveBeenCalledWith(expect.objectContaining({from_node_id:created.id,to_node_id:"azione",label:null}));
