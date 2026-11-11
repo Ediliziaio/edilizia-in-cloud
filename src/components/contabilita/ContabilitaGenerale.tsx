@@ -23,6 +23,8 @@ import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 import { scaricaCsv } from "@/lib/csv";
 import { FiscalSectionHeader } from "@/components/fatturazione/FiscalSectionLayout";
 import { FiscalQueryState } from "@/components/fatturazione/FiscalQueryState";
+import { RateiRiscontiFineAnno } from "@/components/contabilita/RateiRiscontiFineAnno";
+import { RimanenzeFineAnno } from "@/components/contabilita/RimanenzeFineAnno";
 import { bilancioASezioni, bilancioCee, bilancioDiVerifica, htmlBilancioCee, htmlBilancioSezioni, htmlBilancioVerifica, saldiPerConto, type LatoBilancio } from "@/lib/contabilita/bilancioCee";
 import type { AziendaIntestazione } from "@/lib/contabilita/documentoContabile";
 import { contoAPartite, htmlMastrino, mastrino, partitario } from "@/lib/contabilita/mastrini";
@@ -1244,13 +1246,20 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
             </tbody>
           </table>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Ratei, risconti e rimanenze finali si registrano con «Nuova scrittura» (causali Rateo, Risconto, Rettifica).
-        </p>
+      </section>
+
+      <section className="space-y-2">
+        <h3 className="text-sm font-semibold">2. Rimanenze finali al 31/12/{anno}</h3>
+        <RimanenzeFineAnno companyId={companyId} anno={anno} chiuso={chiuso} />
+      </section>
+
+      <section className="space-y-2">
+        <h3 className="text-sm font-semibold">3. Ratei e risconti al 31/12/{anno}</h3>
+        <RateiRiscontiFineAnno companyId={companyId} anno={anno} chiuso={chiuso} />
       </section>
 
       <section className="space-y-2 rounded-xl border p-4">
-        <h3 className="text-sm font-semibold">2. Chiusura dell'esercizio {anno}</h3>
+        <h3 className="text-sm font-semibold">4. Chiusura dell'esercizio {anno}</h3>
         {chiuso ? (
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
             <span>Chiuso il {dataIt(esercizio.data!.chiuso_il!.slice(0, 10))}. Costi e ricavi sono girati sull'utile, i conti sono riaperti al 01/01/{anno + 1}.</span>
@@ -1273,7 +1282,7 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
               </ul>
             ) : null}
             <p className="text-xs text-muted-foreground">
-              Prima di chiudere: tutto generato dai documenti, liquidazioni IVA registrate, ammortamenti e TFR fatti, ratei e risconti scritti.
+              Prima di chiudere: tutto generato dai documenti, liquidazioni IVA registrate, ammortamenti, TFR e rimanenze registrati, ratei e risconti scritti.
               Dopo, l'anno è bloccato: per correggere si riapre.
             </p>
             <Button size="sm" onClick={() => setConferma(true)} disabled={chiudi.isPending || (chiusura.data!.iva_non_liquidata ?? 0) !== 0}>Chiudi l'esercizio {anno}</Button>

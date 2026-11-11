@@ -22615,6 +22615,78 @@ export type Database = {
           },
         ]
       }
+      cg_rimanenze_magazzino: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          esercizio: number
+          fonte: string
+          id: string
+          importo: number
+          note: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          esercizio: number
+          fonte?: string
+          id?: string
+          importo?: number
+          note?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          esercizio?: number
+          fonte?: string
+          id?: string
+          importo?: number
+          note?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cg_rimanenze_magazzino_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "cg_rimanenze_magazzino_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cg_rimanenze_magazzino_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "cg_rimanenze_magazzino_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "cg_rimanenze_magazzino_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+        ]
+      }
       chat_notifications: {
         Row: {
           channel_id: string
@@ -31343,6 +31415,115 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_insoluti"
             referencedColumns: ["azienda_id"]
+          },
+        ]
+      }
+      contabilita_ratei_risconti: {
+        Row: {
+          al: string
+          company_id: string
+          conto_id: string
+          created_at: string
+          created_by: string | null
+          dal: string
+          descrizione: string
+          esercizio: number
+          fattura_ricevuta_id: string | null
+          id: string
+          importo: number
+          tipo: string
+        }
+        Insert: {
+          al: string
+          company_id: string
+          conto_id: string
+          created_at?: string
+          created_by?: string | null
+          dal: string
+          descrizione: string
+          esercizio: number
+          fattura_ricevuta_id?: string | null
+          id?: string
+          importo: number
+          tipo: string
+        }
+        Update: {
+          al?: string
+          company_id?: string
+          conto_id?: string
+          created_at?: string
+          created_by?: string | null
+          dal?: string
+          descrizione?: string
+          esercizio?: number
+          fattura_ricevuta_id?: string | null
+          id?: string
+          importo?: number
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contabilita_ratei_risconti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "contabilita_ratei_risconti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contabilita_ratei_risconti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "contabilita_ratei_risconti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "contabilita_ratei_risconti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+          {
+            foreignKeyName: "contabilita_ratei_risconti_conto_id_fkey"
+            columns: ["conto_id"]
+            isOneToOne: false
+            referencedRelation: "contabilita_conti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contabilita_ratei_risconti_fattura_ricevuta_id_fkey"
+            columns: ["fattura_ricevuta_id"]
+            isOneToOne: false
+            referencedRelation: "fatture_ricevute"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contabilita_ratei_risconti_fattura_ricevuta_id_fkey"
+            columns: ["fattura_ricevuta_id"]
+            isOneToOne: false
+            referencedRelation: "fatture_ricevute_pagamento"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contabilita_ratei_risconti_fattura_ricevuta_id_fkey"
+            columns: ["fattura_ricevuta_id"]
+            isOneToOne: false
+            referencedRelation: "fatture_ricevute_periodo_iva"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -141801,6 +141982,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      contabilita_assegna_ruolo: {
+        Args: { p_company: string; p_conto: string; p_ruolo: string }
+        Returns: undefined
+      }
       contabilita_chiudi_esercizio: {
         Args: { p_anno: number; p_anteprima?: boolean; p_company: string }
         Returns: Json
@@ -141879,6 +142064,20 @@ export type Database = {
         Args: { p_company: string }
         Returns: boolean
       }
+      contabilita_quota_rateo_risconto: {
+        Args: {
+          p_al: string
+          p_anno: number
+          p_dal: string
+          p_importo: number
+          p_tipo: string
+        }
+        Returns: number
+      }
+      contabilita_ratei_risconti_registra: {
+        Args: { p_anno: number; p_anteprima?: boolean; p_company: string }
+        Returns: Json
+      }
       contabilita_registra_scrittura: {
         Args: {
           p_causale: string
@@ -141916,6 +142115,20 @@ export type Database = {
         }
         Returns: Json
       }
+      contabilita_righe_uguali: {
+        Args: { p_righe: Json; p_scrittura: string }
+        Returns: boolean
+      }
+      contabilita_rimanenze: {
+        Args: {
+          p_anno: number
+          p_anteprima?: boolean
+          p_company: string
+          p_lavori?: number
+          p_materiali?: number
+        }
+        Returns: Json
+      }
       contabilita_riregistra_documento: {
         Args: { p_company: string; p_documento: string; p_motivo: string }
         Returns: Json
@@ -141923,6 +142136,10 @@ export type Database = {
       contabilita_ruolo_disponibile: {
         Args: { k: Json; p_ruolo: string }
         Returns: string
+      }
+      contabilita_saldo_senza_rimanenze: {
+        Args: { p_anno: number; p_company: string; p_conto: string }
+        Returns: number
       }
       contabilita_stampa_definitiva: {
         Args: { p_al: string; p_anno: number; p_company: string }
