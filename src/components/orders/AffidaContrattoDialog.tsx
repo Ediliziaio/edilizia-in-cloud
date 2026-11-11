@@ -3,8 +3,8 @@
  *
  * - I prezzi li propone il database (listino della ditta, poi costo aziendale) prima di salvare: quello che
  *   si vede è quello che va nel contratto. Si cambiano scrivendo nella riga.
- * - Le voci non collegate al listino le cerca l'AI da sola mentre si sceglie: una proposta sicura si usa
- *   (e si ricorda per le commesse dopo), una da verificare chiede un «Sì» nella riga.
+ * - Le voci non collegate al listino le cerca l'AI da sola mentre si sceglie; ogni proposta chiede un «Sì» nella
+ *   riga (provato sulle voci vere: anche quelle «sicure» del modello sbagliavano), poi si usa e si ricorda.
  * - «Crea il contratto»: collega le voci, le affida, crea il contratto in bozza (o aggiunge al suo in bozza).
  *   «Crea e manda in firma» porta al contratto con l'invio già aperto: chi firma e l'email si confermano lì.
  * Le funzioni di sempre (Chi fa cosa, Lavori e prezzi, Collega al listino) restano per i casi particolari.
@@ -86,9 +86,22 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
     })).filter((g) => g.voci.length > 0);
   }, [fasi, libere, cerca]);
 
+  // Il nome della voce di listino proposta: per dire «Sì» bisogna vedere a cosa.
+  const idProposti = [...new Set(Object.values(ai).map((a) => a.tariffaId))].sort();
+  const nomiProposti = useQuery({
+    queryKey: ["listino-nomi", companyId, idProposti.join(",")],
+    enabled: idProposti.length > 0,
+    queryFn: async (): Promise<Map<string, string>> => {
+      const { data, error } = await db.from("tariffe_aziendali").select("id, nome").eq("company_id", companyId).in("id", idProposti);
+      if (error) throw error;
+      return new Map(((data ?? []) as Array<{ id: string; nome: string }>).map((t) => [t.id, t.nome]));
+    },
+  });
   const tariffaUsata = (id: string) => {
     const a = ai[id];
-    return a && (a.certezza === "alta" || a.confermata) ? a.tariffaId : null;
+    // Prova sulle voci vere (11/11/2026): anche le proposte «sicure» del modello erano a volte sbagliate
+    // (una porta tagliafuoco presa per «Posa porta interna»). Nessuna si usa senza il «Sì» di chi affida.
+    return a?.confermata ? a.tariffaId : null;
   };
   const sceltiOrdinati = useMemo(() => voci.filter((v) => scelte.has(v.id)), [voci, scelte]);
   const chiavePrezzi = sceltiOrdinati.map((v) => `${v.id}:${tariffaUsata(v.id) ?? ""}`).join(",");
@@ -307,10 +320,10 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
                               : prezzi[v.id] != null ? <span className="text-muted-foreground">a mano</span>
                               : p ? <span className={p.origine === "manuale" ? "text-amber-800" : "text-muted-foreground"}>{ORIGINE[p.origine] ?? p.origine}</span> : null)}
                             {si && !v.tariffa_id && a && (
-                              a.certezza === "alta" || a.confermata
-                                ? <Badge variant="outline" className="ml-1 h-4 border-violet-300 bg-violet-50 px-1 text-[10px] font-normal text-violet-900" title={a.perche || undefined}>AI</Badge>
-                                : <button type="button" className="ml-1 rounded border border-violet-300 bg-violet-50 px-1 text-[10px] text-violet-900" title={a.perche || "Proposta da verificare"}
-                                    onClick={() => setAi((x) => ({ ...x, [v.id]: { ...a, confermata: true } }))}>AI: è questa? Sì</button>
+                              a.confermata
+                                ? <Badge variant="outline" className="ml-1 h-4 border-violet-300 bg-violet-50 px-1 text-[10px] font-normal text-violet-900" title={nomiProposti.data?.get(a.tariffaId) ?? undefined}>listino</Badge>
+                                : <button type="button" className="mt-0.5 block max-w-full truncate rounded border border-violet-300 bg-violet-50 px-1 text-left text-[10px] text-violet-900" title={`Nel listino: ${a.perche || "proposta da verificare"}`}
+                                    onClick={() => setAi((x) => ({ ...x, [v.id]: { ...a, confermata: true } }))}>è «{nomiProposti.data?.get(a.tariffaId) ?? "…"}»{a.certezza === "media" ? " (dubbio)" : ""}? Sì</button>
                             )}
                           </td>
                           <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">{si ? formatCurrency(Math.round(q * pr * 100) / 100) : ""}</td>
@@ -331,6 +344,15 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
           {daScrivere > 0
             ? <span className="text-amber-800">{daScrivere === 1 ? "1 prezzo da scrivere" : `${daScrivere} prezzi da scrivere`}</span>
             : conto.venduto > 0 && <span className={conto.margine < 0 ? "text-destructive" : "text-muted-foreground"}>Margine {formatCurrency(conto.margine)}{conto.marginePct != null ? ` (${conto.marginePct.toLocaleString("it-IT")}%)` : ""}</span>}
+          {(() => {
+            const daDire = sceltiOrdinati.filter((v) => !v.tariffa_id && ai[v.id] && !ai[v.id].confermata).map((v) => v.id);
+            return daDire.length > 1 && (
+              <button type="button" className="rounded border border-violet-300 bg-violet-50 px-2 py-0.5 text-xs text-violet-900"
+                onClick={() => setAi((x) => ({ ...x, ...Object.fromEntries(daDire.map((id) => [id, { ...x[id], confermata: true }])) }))}>
+                Sì a tutte le {daDire.length} voci di listino proposte
+              </button>
+            );
+          })()}
           {(aiInCorso > 0 || proposti.isFetching) && <span className="text-xs text-muted-foreground"><Loader2 className="mr-1 inline h-3 w-3 animate-spin" />{aiInCorso > 0 ? <><Sparkles className="mr-0.5 inline h-3 w-3" />cerco nel listino {aiInCorso} voci</> : "calcolo i prezzi"}</span>}
           <span className="ml-auto flex gap-2">
             <Button variant="ghost" disabled={occupato} onClick={onChiudi}>Chiudi</Button>
