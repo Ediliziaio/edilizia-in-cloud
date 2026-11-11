@@ -3,6 +3,7 @@ import { getEncryptionKey, encrypt, decrypt } from "../_shared/encryption.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { puoGestireCalendari } from "../_shared/permessiCalendari.ts";
+import { appleCalDavFetch } from "../_shared/appleCalDavFetch.ts";
 
 function json(data: unknown, status = 200, req?: Request) {
   return new Response(JSON.stringify(data), {
@@ -32,11 +33,10 @@ async function caldavRequest(
     "Content-Type": "application/xml; charset=utf-8",
   };
   if (depth) headers["Depth"] = depth;
-  return fetch(url, {
+  return appleCalDavFetch(url, {
     method,
     headers,
     body,
-    redirect: "follow",
     signal: AbortSignal.timeout(15000),
   });
 }

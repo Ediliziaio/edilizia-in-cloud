@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { quoteWriteVersion } from "@/lib/preventivi/quoteWriteVersion";
 import { esitoUpdateConGuardia, isConflittoModifica } from "@/lib/concorrenza";
 import { assertSavedQuoteAmounts } from "@/lib/preventivi/quoteSaveValidation";
-import { serializeQuoteDraft, readQuoteDraft } from "@/lib/preventivi/quoteDraft";
+import { serializeQuoteDraft, readQuoteDraft, quoteDraftInputHash } from "@/lib/preventivi/quoteDraft";
 
 // Execute the real handlers, with synthetic services only. This catches ordering
 // regressions that pure helper tests cannot see, without loading the giant editor.
@@ -34,7 +34,7 @@ describe("QuoteBuilder: protezione locale reale", () => {
     const localStorage = { setItem: vi.fn(), removeItem: vi.fn() };
     return {
       JSON, serializeQuoteDraft, useCallback: (fn: unknown) => fn,
-      draftReady: true, isEdit: true, newQuoteCompletedRef: { current: false },
+      draftReady: true, isEdit: true, newQuoteCompletedRef: { current: false }, draftHandedOffRef: { current: false }, quoteDraftInputHash,
       quoteDraftKey: key, recoverableDraft: null as object | null,
       draftReadFailedRef: { current: false }, draftCheckedRef: { current: key },
       lastCloudSavedSnapshotRef: { current: "versione sul server" }, lastSavedHash: "versione sul server",
@@ -65,23 +65,48 @@ describe("QuoteBuilder: protezione locale reale", () => {
     expect(context.setLocalDraftFailed).toHaveBeenCalledWith(true);
     expect(context.setLocalDraftSaved).not.toHaveBeenCalled();
   });
+  it("protegge nuove modifiche anche dopo aver già creato il preventivo e aperto un'anteprima", () => {
+    const context = draftContext(); context.isEdit = false; context.newQuoteCompletedRef.current = true;
+    context.lastCloudSavedSnapshotRef.current = JSON.stringify({ notes: "Nota salvata prima dell'anteprima" });
+    actualHandler("src/pages/azienda/marketing/QuoteBuilder.tsx", "persistLocalDraft", context)();
+    expect(readQuoteDraft(context.localStorage.setItem.mock.calls[0][1])).toMatchObject({ notes: "Ultima nota" });
+  });
+  it("non ripropone la bozza già salvata quando cambia soltanto l'id interno", () => {
+    const context = draftContext(); context.isEdit = false; context.newQuoteCompletedRef.current = true;
+    context.draftSerialized = JSON.stringify({ notes: "Salvata", partialQuoteId: "quote-a" });
+    context.lastCloudSavedSnapshotRef.current = JSON.stringify({ notes: "Salvata", partialQuoteId: null });
+    actualHandler("src/pages/azienda/marketing/QuoteBuilder.tsx", "persistLocalDraft", context)();
+    expect(context.localStorage.setItem).not.toHaveBeenCalled();
+  });
+  it("trasferisce una creazione parziale recuperata nell'editor corretto conservando gli input", () => {
+    const storage = { setItem: vi.fn() }; const navigate = vi.fn();
+    const context = { JSON, companyId: "company-a", latestDraftSerializedRef: { current: JSON.stringify({ notes: "Da riprendere", selectedMaterials: ["scheda"], partialQuoteId: "quote-a" }) },
+      localStorage: storage, serializeQuoteDraft, newQuoteCompletedRef: { current: false }, draftHandedOffRef: { current: false }, clearQuoteDraft: vi.fn(), navigate, setLocalDraftFailed: vi.fn(), toast: { error: vi.fn() } };
+    actualHandler("src/pages/azienda/marketing/QuoteBuilder.tsx", "openCreatedQuoteWithDraft", context)("quote-a");
+    expect(readQuoteDraft(storage.setItem.mock.calls[0][1])).toMatchObject({ notes: "Da riprendere", selectedMaterials: ["scheda"], partialQuoteId: null });
+    expect(storage.setItem.mock.calls[0][0]).toBe("quote-draft-company-a-quote-a");
+    expect(navigate).toHaveBeenCalledWith("/azienda/marketing/preventivi/quote-a/modifica");
+  });
 });
-function fixture(failAttachment: boolean, legacy = false) {
+function fixture(failAttachment: boolean, legacy = false, newQuote = false) {
   let version = "v0", writes = 0;
+  const headers: Record<string, unknown>[] = [];
   const toast = { error: vi.fn(), success: vi.fn(), info: vi.fn() };
   const versionRef = { current: "v0" };
-  const rpc = vi.fn(async () => {
+  const rpc = vi.fn(async (name: string) => {
+    if (name === "generate_quote_number") return { data: "OFF-TEST", error: null };
     version = `rows-${++writes}`;
     return { data: { ok: true, ...(legacy ? {} : { updated_at: version }) }, error: null };
   });
   const context: Record<string, unknown> = {
-    Error, console, JSON, companyId: "company-a", user: { id: "user-a" }, id: "quote-a", isEdit: true,
+    Error, console, JSON, companyId: "company-a", user: { id: "user-a" }, id: newQuote ? undefined : "quote-a", isEdit: !newQuote,
     existingQuote: { status: "bozza" }, existingItemsLoaded: true, existingAttachmentsLoaded: true,
     partialQuoteId: null, pendingEditNavId: null, recoverableDraft: null, paymentPhases: [], paymentPlanError: (): string | null => null,
     persistLocalDraft: noop, saveInFlightRef: { current: false }, versioneCaricataRef: versionRef,
-    setSaving: noop, setAutosaveFailed: noop, setLastSavedHash: noop, draftSerialized: "snapshot",
-    latestDraftSerializedRef: { current: "snapshot" }, lastCloudSavedSnapshotRef: { current: "snapshot" },
-    setPartialQuoteId: noop, setPendingEditNavId: noop, newQuoteCompletedRef: { current: false },
+    setSaving: noop, setAutosaveFailed: noop, setLastSavedHash: noop, draftSerialized: '{"notes":"snapshot"}',
+    latestDraftSerializedRef: { current: '{"notes":"snapshot"}' }, lastCloudSavedSnapshotRef: { current: '{"notes":"snapshot"}' },
+    createdQuoteRef: { current: null as string | null }, quoteDraftInputHash,
+    setPartialQuoteId: (value: string | null) => { context.partialQuoteId = value; }, setPendingEditNavId: noop, newQuoteCompletedRef: { current: false },
     searchParams: new URLSearchParams(), items: [], selectedMaterials: [], bonusLines: [],
     totaliPro: { costo_totale: 0, overhead_totale: 0, margine_totale_pct: 100 },
     subtotal: 100, discountAmt: 0, vatAmount: 22, total: 122,
@@ -93,10 +118,12 @@ function fixture(failAttachment: boolean, legacy = false) {
     supabase: { rpc, from(table: string) {
       let action = "read", expected: string;
       const query = {
-        update() { action = "update"; return query; },
+        update(data: Record<string, unknown>) { action = "update"; if (table === "quotes") headers.push(data); return query; },
+        insert(data: Record<string, unknown>) { action = "insert"; if (table === "quotes") headers.push(data); return query; },
         eq(key: string, value: string) { if (key === "updated_at") expected = value; return query; },
         select() { return query; }, single() { return query; },
         then(resolve: (value: unknown) => unknown) {
+          if (table === "quotes" && action === "insert") return Promise.resolve({ data: { id: "quote-a" }, error: null }).then(resolve);
           if (table === "quotes" && action === "update") {
             if (expected !== version) return Promise.resolve({ data: [], error: null }).then(resolve);
             version = `header-${++writes}`;
@@ -120,9 +147,34 @@ function fixture(failAttachment: boolean, legacy = false) {
   context.datiTestata = actualHandler("src/pages/azienda/marketing/QuoteBuilder.tsx", "datiTestata", context);
   context.righeDaSalvare = actualHandler("src/pages/azienda/marketing/QuoteBuilder.tsx", "righeDaSalvare", context);
   return { save: actualHandler("src/pages/azienda/marketing/QuoteBuilder.tsx", "handleSave", context),
-    context, toast, rpc, versionRef, version: () => version, colleagueSave: () => { version = "colleague"; } };
+    context, toast, rpc, headers, versionRef, version: () => version, colleagueSave: () => { version = "colleague"; } };
 }
 describe("QuoteBuilder: salvataggio e recupero reale", () => {
+  it("conserva le modifiche durante la prima creazione e poi aggiorna lo stesso preventivo", async () => {
+    const f = fixture(false, false, true);
+    f.context.notes = "Prima nota";
+    f.context.draftSerialized = JSON.stringify({ notes: "Prima nota", partialQuoteId: null });
+    (f.context.latestDraftSerializedRef as { current: string }).current = JSON.stringify({ notes: "Ultima nota digitata" });
+    await f.save();
+    expect(f.context.navigate).not.toHaveBeenCalled();
+    expect(f.context.clearQuoteDraft).not.toHaveBeenCalled();
+    expect((f.context.createdQuoteRef as { current: string }).current).toBe("quote-a");
+    f.context.notes = "Ultima nota digitata";
+    f.context.draftSerialized = JSON.stringify({ notes: "Ultima nota digitata", partialQuoteId: "quote-a" });
+    await f.save();
+    expect(f.rpc.mock.calls.filter(([name]) => name === "generate_quote_number")).toHaveLength(1);
+    expect(f.headers.at(-1)?.notes).toBe("Ultima nota digitata");
+    expect(f.context.navigate).toHaveBeenCalledWith("/azienda/marketing/preventivi/quote-a");
+  });
+  it("riprova un errore allegati dopo la prima creazione senza duplicare il documento", async () => {
+    const f = fixture(true, false, true);
+    await f.save();
+    expect(f.toast.error).toHaveBeenCalledWith("Salvataggio non completato", expect.anything());
+    await f.save();
+    expect(f.rpc.mock.calls.filter(([name]) => name === "generate_quote_number")).toHaveLength(1);
+    expect(f.toast.success).toHaveBeenCalledWith("Preventivo creato");
+    expect(f.versionRef.current).toBe(f.version());
+  });
   it("non sovrascrive la bozza recuperabile prima della scelta dell'utente", async () => {
     const f = fixture(false);
     f.context.recoverableDraft = { notes: "Lavoro precedente" };
@@ -133,7 +185,7 @@ describe("QuoteBuilder: salvataggio e recupero reale", () => {
   });
   it("conserva input inseriti durante il salvataggio, senza chiudere l'editor", async () => {
     const f = fixture(false);
-    (f.context.latestDraftSerializedRef as { current: string }).current = "nota scritta durante la richiesta";
+    (f.context.latestDraftSerializedRef as { current: string }).current = '{"notes":"nota scritta durante la richiesta"}';
     await f.save();
     expect(f.rpc).toHaveBeenCalledTimes(1);
     expect(f.context.clearQuoteDraft).not.toHaveBeenCalled();

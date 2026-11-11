@@ -12,6 +12,7 @@ import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 import { cronSecretValido } from "../_shared/cronAuth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { puoGestireCalendari } from "../_shared/permessiCalendari.ts";
+import { canMutateExternalAppointment, canSyncExternalCalendar } from "../_shared/externalAppointmentAccess.ts";
 import { listGoogleAppointmentEvents, reconcileMissingGoogleAppointments } from "../_shared/googleAppointmentReconcile.ts";
 import { applyGoogleAppointmentChange, deleteGoogleAppointmentEvent, importGoogleAppointment, insertGoogleAppointmentEvent, loadGoogleAppointmentMappings, saveGoogleAppointmentMapping } from "../_shared/googleAppointmentPersistence.ts";
 import { syncGoogleBusySlots } from "../_shared/googleBusySlots.ts";
@@ -564,7 +565,7 @@ async function updateEvent(userId: string, companyId: string, appointmentId: str
     .eq("company_id", companyId)
     .maybeSingle();
   if (mappingError) throw new Error("Collegamento Google non verificabile");
-  if (!mapping) return json({ error: "No mapping found, use push-event" }, 404);
+  if (!mapping) return pushEvent(userId, companyId, appointmentId);
   const effectiveUserId: string = mapping.user_id ?? userId;
 
   const conn = await getConnection(admin, effectiveUserId, companyId);
@@ -1880,6 +1881,7 @@ serveConMetricheRapida("google-calendar-sync", async (req) => {
     const token = authHeader.replace("Bearer ", "");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     let userId: string;
+    let caller: ReturnType<typeof getSupabaseAdmin> | null = null;
     const { companyId, appointmentId, googleEventId, googleCalendarId } = body;
 
     if (token === serviceRoleKey) {
@@ -1899,6 +1901,7 @@ serveConMetricheRapida("google-calendar-sync", async (req) => {
         return json({ error: "Unauthorized" }, 401);
       }
       userId = user.id;
+      caller = supabase;
     }
 
     if (!companyId) return json({ error: "companyId required" }, 400);
@@ -1907,6 +1910,14 @@ serveConMetricheRapida("google-calendar-sync", async (req) => {
     if (token !== serviceRoleKey) {
       if (!(await verifyCompanyAccess(userId, companyId))) {
         return json({ error: "Company mismatch" }, 403);
+      }
+      if (["push-event", "update-event", "delete-event"].includes(action)) {
+        if (!appointmentId) return json({ error: "appointmentId required" }, 400);
+        if (!caller || !(await canMutateExternalAppointment(caller, getSupabaseAdmin(), userId, companyId, appointmentId, action))) {
+          return json({ error: "Modifica del calendario non consentita per questo appuntamento" }, 403);
+        }
+      } else if (!(await canSyncExternalCalendar(caller, companyId))) {
+        return json({ error: "La sincronizzazione non è consentita in sola lettura o dal portale clienti" }, 403);
       }
       // Scheda utente (Impostazioni → Utenti → Calendario): chi gestisce i
       // calendari può rileggere quello di un collega. Prima body.userId era

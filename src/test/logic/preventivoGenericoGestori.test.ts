@@ -5,6 +5,7 @@
  * quoteSaveHandlers.test.ts. Così si prova il codice della pagina senza
  * montare l'editor.
  */
+import { quoteDraftInputHash } from "@/lib/preventivi/quoteDraft";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
@@ -270,8 +271,9 @@ describe("Salvataggio: riga di sconto in negativo, margine vuoto se mancano cost
       existingQuote: { status: "bozza" }, existingItemsLoaded: true, existingAttachmentsLoaded: true,
       partialQuoteId: null, pendingEditNavId: null, recoverableDraft: null, paymentPhases: [], paymentPlanError: (): string | null => null,
       persistLocalDraft: () => {}, saveInFlightRef: { current: false }, versioneCaricataRef: { current: "v0" },
-      setSaving: () => {}, setAutosaveFailed: () => {}, setLastSavedHash: () => {}, draftSerialized: "bozza",
-      latestDraftSerializedRef: { current: "bozza" }, lastCloudSavedSnapshotRef: { current: "bozza" },
+      setSaving: () => {}, setAutosaveFailed: () => {}, setLastSavedHash: () => {}, draftSerialized: '{"notes":"bozza"}',
+      latestDraftSerializedRef: { current: '{"notes":"bozza"}' }, lastCloudSavedSnapshotRef: { current: '{"notes":"bozza"}' },
+      createdQuoteRef: { current: null as string | null }, quoteDraftInputHash,
       setPartialQuoteId: () => {}, setPendingEditNavId: () => {}, newQuoteCompletedRef: { current: false },
       searchParams: new URLSearchParams(), items, selectedMaterials: [], bonusLines: [], totaliPro,
       subtotal, discountAmt, vatAmount, total, financingProposal: null, validityDays: 30, discountPercent: 0,
