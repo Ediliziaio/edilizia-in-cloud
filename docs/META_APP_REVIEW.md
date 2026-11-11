@@ -1,5 +1,10 @@
 # Meta App Review — Lead Ads Integration
 
+> **Guida storica di maggio 2026.** Per lo stato attuale, i livelli di accesso,
+> i testi e il video usare [Verifica Meta per le aziende clienti](meta-verifica-clienti-2026-11-02.md).
+> Al 2 novembre l’app è pubblicata e l’azienda verificata: le indicazioni qui
+> sotto su Development Mode, URL `.it` e stato della revisione sono superate.
+
 > **Status**: 🟡 PREPARAZIONE (NON ancora submittato)
 > **Owner**: Florin (decision + submit manual)
 > **Generato**: 2026-05-17 da MP-MKT-001 Fase 5
