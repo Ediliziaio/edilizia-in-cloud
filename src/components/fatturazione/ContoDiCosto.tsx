@@ -14,7 +14,7 @@
  *   si rifà col conto nuovo (`contabilita_riregistra_documento`): prima restava
  *   sul conto vecchio e il bilancio non vedeva il cambio.
  */
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -34,6 +34,7 @@ export function ContoDiCosto({ companyId, fatturaId, costoId, attuale, onCambiat
   attuale: string | null;
   onCambiato: () => void;
 }) {
+  const qc = useQueryClient();
   const { data: categorie = [] } = useQuery({
     queryKey: queryKeys.costCategories.list(companyId),
     enabled: !!companyId,
@@ -73,10 +74,16 @@ export function ContoDiCosto({ companyId, fatturaId, costoId, attuale, onCambiat
           description: `${motivo ? `${motivo}. ` : ""}Risolto il motivo, «Genera dai documenti» in Contabilità generale la registra di nuovo.`,
           duration: 12000,
         });
-      } else if (errGiornale && !/Accesso negato/.test(errGiornale)) {
-        toast.warning("Contabilità generale non aggiornata", { description: errGiornale });
+      } else if (errGiornale) {
+        toast.warning("Contabilità generale non aggiornata", {
+          description: /Accesso negato/.test(errGiornale)
+            ? "La scrittura della fattura la rifà chi ha il permesso della contabilità: avvisalo del conto cambiato."
+            : errGiornale,
+          duration: 12000,
+        });
       }
       onCambiato();
+      void qc.invalidateQueries({ queryKey: ["contabilita-generale", companyId] });
     },
     onError: (e) => toast.error("Conto di costo non cambiato", { description: e instanceof Error ? e.message : String(e) }),
   });

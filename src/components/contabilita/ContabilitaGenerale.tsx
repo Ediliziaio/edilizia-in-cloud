@@ -351,7 +351,8 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
         r.errori.length ? `${r.errori.length} non registrati: ${r.errori.slice(0, 3).join("; ")}` : "",
       ].filter(Boolean).join(" · ");
       (r.errori.length ? toast.warning : toast.success)(`${nuove} scritture generate`, { description: dettagli, duration: 12000 });
-      void qc.invalidateQueries({ queryKey: chiave(companyId, "scritture") });
+      // Tutta la contabilità: scritture, liquidazioni, fine anno e chiusura leggono le stesse scritture.
+      void qc.invalidateQueries({ queryKey: chiave(companyId) });
       // L'ora dell'ultimo aggiornamento la scrive il giro automatico; quello a mano la mostra subito.
       qc.setQueryData<StatoEsercizioRiga | null>(chiave(companyId, "esercizio", anno),
         (e) => e ? { ...e, generato_il: new Date().toISOString() } : e);
@@ -491,9 +492,9 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
       <StampaDefinitiva open={definitiva} onOpenChange={setDefinitiva} companyId={companyId} anno={anno}
         onStampa={(dal, al) => setStampa(htmlLibroGiornale({ azienda: intestazioneDa(anagrafica.data), scritture: elenco, conti, dal, al, definitiva: true }))} />
       <NuovaScrittura open={nuova} onOpenChange={setNuova} companyId={companyId} conti={conti}
-        onFatto={() => void qc.invalidateQueries({ queryKey: chiave(companyId, "scritture") })} />
+        onFatto={() => void qc.invalidateQueries({ queryKey: chiave(companyId) })} />
       <StornaScrittura scrittura={storno} onClose={() => setStorno(null)}
-        onFatto={() => void qc.invalidateQueries({ queryKey: chiave(companyId, "scritture") })} />
+        onFatto={() => void qc.invalidateQueries({ queryKey: chiave(companyId) })} />
     </div>
   );
 }
@@ -1088,7 +1089,7 @@ function StampaDefinitiva({ open, onOpenChange, companyId, anno, onStampa }: {
     },
     onSuccess: (r) => {
       toast.success("Libro giornale stampato in definitivo", { description: `${r.scritture} scritture dal ${dataIt(r.dal)} al ${dataIt(r.al)}: quei giorni ora sono bloccati.` });
-      void qc.invalidateQueries({ queryKey: chiave(companyId, "esercizio", anno) });
+      void qc.invalidateQueries({ queryKey: chiave(companyId) });
       onOpenChange(false);
       onStampa(r.dal, r.al);
     },
@@ -1125,11 +1126,13 @@ function StampaDefinitiva({ open, onOpenChange, companyId, anno, onStampa }: {
 
 interface EsitoFineAnno {
   totale_ammortamenti: number; retribuzioni: number; tfr: number;
-  ammortamenti_registrati: boolean; ammortamenti_da_aggiornare?: boolean; tfr_registrato: boolean;
+  ammortamenti_registrati: boolean; ammortamenti_da_aggiornare?: boolean; tfr_registrato: boolean; tfr_da_aggiornare?: boolean;
 }
 interface EsitoChiusura {
   utile: number; conti_economici: number; conti_patrimoniali: number; apertura_gia_presente: boolean;
   iva_non_liquidata?: number; ammortamenti_da_registrare?: boolean; tfr_da_registrare?: boolean;
+  /** Il primo esercizio precedente ancora aperto: gli esercizi si chiudono in ordine. */
+  esercizio_precedente_aperto?: number | null;
 }
 
 /**
@@ -1204,7 +1207,7 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
   }
   const f = fine.data!;
   // Anche ammortamenti da rifare (registro cambiato dopo, o sceso a zero): «Registra» li riallinea.
-  const daRegistrare = (f.totale_ammortamenti > 0 && !f.ammortamenti_registrati) || !!f.ammortamenti_da_aggiornare || (f.tfr > 0 && !f.tfr_registrato);
+  const daRegistrare = (f.totale_ammortamenti > 0 && !f.ammortamenti_registrati) || !!f.ammortamenti_da_aggiornare || (f.tfr > 0 && !f.tfr_registrato) || !!f.tfr_da_aggiornare;
   return (
     <div className="space-y-4">
       <section className="space-y-2">
@@ -1220,7 +1223,7 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
         </p>
         <RegistroCespiti companyId={companyId} anno={anno} chiuso={chiuso} />
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm font-medium">
-          <span>Accantonamento TFR {f.tfr_registrato ? "· registrato" : ""}</span>
+          <span>Accantonamento TFR {f.tfr_da_aggiornare ? <span className="text-amber-700">· da aggiornare: i cedolini sono cambiati</span> : f.tfr_registrato ? "· registrato" : ""}</span>
           <span className="tabular-nums">{euro(f.tfr)}</span>
         </div>
         <p className="text-xs text-muted-foreground">
@@ -1254,8 +1257,9 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
               {" "}· {chiusura.data!.conti_economici} conti economici da chiudere · {chiusura.data!.conti_patrimoniali} conti patrimoniali da riaprire
               {chiusura.data!.apertura_gia_presente ? ` · il ${anno + 1} ha già la sua apertura (non se ne farà un'altra)` : ""}.
             </p>
-            {(chiusura.data!.iva_non_liquidata ?? 0) !== 0 || chiusura.data!.ammortamenti_da_registrare || chiusura.data!.tfr_da_registrare ? (
+            {(chiusura.data!.iva_non_liquidata ?? 0) !== 0 || chiusura.data!.ammortamenti_da_registrare || chiusura.data!.tfr_da_registrare || chiusura.data!.esercizio_precedente_aperto ? (
               <ul className="list-disc rounded-lg border border-amber-200 bg-amber-50 py-2 pl-6 pr-3 text-amber-900">
+                {chiusura.data!.esercizio_precedente_aperto ? <li>L'esercizio {chiusura.data!.esercizio_precedente_aperto} è ancora aperto: gli esercizi si chiudono in ordine, prima quello.</li> : null}
                 {(chiusura.data!.iva_non_liquidata ?? 0) !== 0 ? <li>C'è IVA non ancora liquidata: registra la liquidazione dell'ultimo periodo (la chiusura la rifiuta).</li> : null}
                 {chiusura.data!.ammortamenti_da_registrare ? <li>Ammortamenti non registrati.</li> : null}
                 {chiusura.data!.tfr_da_registrare ? <li>Accantonamento TFR non registrato.</li> : null}
@@ -1265,7 +1269,7 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
               Prima di chiudere: tutto generato dai documenti, liquidazioni IVA registrate, ammortamenti, TFR e rimanenze registrati, ratei e risconti scritti.
               Dopo, l'anno è bloccato: per correggere si riapre.
             </p>
-            <Button size="sm" onClick={() => setConferma(true)} disabled={chiudi.isPending || (chiusura.data!.iva_non_liquidata ?? 0) !== 0}>Chiudi l'esercizio {anno}</Button>
+            <Button size="sm" onClick={() => setConferma(true)} disabled={chiudi.isPending || (chiusura.data!.iva_non_liquidata ?? 0) !== 0 || !!chiusura.data!.esercizio_precedente_aperto}>Chiudi l'esercizio {anno}</Button>
           </div>
         )}
       </section>

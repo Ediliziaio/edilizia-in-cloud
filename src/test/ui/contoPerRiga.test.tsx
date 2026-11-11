@@ -3,8 +3,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ContoRigaMenu, ProposteContiRighe, useContiRighe, type RigaPerConto } from "@/components/fatturazione/ContoPerRiga";
 
-const m = vi.hoisted(() => ({ update: vi.fn(), rpc: vi.fn() }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+const m = vi.hoisted(() => ({ update: vi.fn(), rpc: vi.fn(), erroreGiornale: null as string | null, avviso: vi.fn() }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: m.avviso } }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   from: (tabella: string) => {
     if (tabella === "cost_categories") {
@@ -13,9 +13,9 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
     }
     return { update: (v: unknown) => { m.update(v); const q = { eq: () => q, then: (r: (x: unknown) => unknown) => Promise.resolve({ error: null }).then(r) }; return q; } };
   },
-  rpc: (fn: string, args: unknown) => { m.rpc(fn, args); return Promise.resolve({ data: { stornate: 1 }, error: null }); },
+  rpc: (fn: string, args: unknown) => { m.rpc(fn, args); return Promise.resolve({ data: { stornate: 1 }, error: m.erroreGiornale ? { message: m.erroreGiornale } : null }); },
 } }));
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(() => { cleanup(); vi.clearAllMocks(); m.erroreGiornale = null; });
 
 const righe: RigaPerConto[] = [
   { chiave: "1", descrizione: "126 CLS RCK35 S4 XC1XC2" },
@@ -48,4 +48,13 @@ it("propone il conto dalla descrizione, conferma tutte le proposte e rifà la sc
   fireEvent.click(screen.getByRole("button", { name: "Conferma le proposte" }));
   await waitFor(() => expect(m.update).toHaveBeenCalledWith({ conti_righe: { "1": "materie_prime", "2": "trasporti" } }));
   await waitFor(() => expect(m.rpc).toHaveBeenCalledWith("contabilita_riregistra_documento", expect.objectContaining({ p_documento: "f1" })));
+});
+
+it("se la contabilità generale non segue il conto nuovo lo dice, anche senza il permesso", async () => {
+  m.erroreGiornale = "Accesso negato";
+  disegna({ "2": "trasporti" });
+  await waitFor(() => expect(screen.getByText(/1 riga ha un conto proposto/)).toBeTruthy());
+  fireEvent.click(screen.getByRole("button", { name: "Conferma le proposte" }));
+  await waitFor(() => expect(m.avviso).toHaveBeenCalledWith("Contabilità generale non aggiornata",
+    expect.objectContaining({ description: expect.stringMatching(/permesso della contabilità/) })));
 });

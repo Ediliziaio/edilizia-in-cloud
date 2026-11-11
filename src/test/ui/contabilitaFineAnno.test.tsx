@@ -10,6 +10,7 @@ import { MemoryRouter } from "react-router-dom";
 
 const state = vi.hoisted(() => ({
   rpc: [] as Array<{ fn: string; args: Record<string, unknown> }>,
+  precedenteAperto: null as number | null,
   esercizio: null as null | { anno: number; chiuso_il: string | null; stampato_fino_al: string | null; stampe: unknown[] },
 }));
 
@@ -57,7 +58,7 @@ vi.mock("@/integrations/supabase/client", () => ({
         };
       }
       if (fn === "contabilita_chiudi_esercizio") {
-        return { data: { utile: 1234.5, conti_economici: 7, conti_patrimoniali: 9, apertura_gia_presente: false, apertura_registrata: true }, error: null as { message: string } | null };
+        return { data: { utile: 1234.5, conti_economici: 7, conti_patrimoniali: 9, apertura_gia_presente: false, apertura_registrata: true, esercizio_precedente_aperto: state.precedenteAperto }, error: null as { message: string } | null };
       }
       return { data: null, error: null as { message: string } | null };
     },
@@ -81,6 +82,7 @@ function apri() {
 beforeEach(() => {
   state.rpc = [];
   state.esercizio = null;
+  state.precedenteAperto = null;
 });
 afterEach(cleanup);
 
@@ -99,6 +101,13 @@ it("fine anno: anteprime di ammortamenti, TFR e chiusura; si chiude solo dopo la
   fireEvent.click(within(screen.getByRole("dialog")).getAllByRole("button", { name: "Chiudi" }).find((b) => b.textContent === "Chiudi")!);
   await waitFor(() =>
     expect(state.rpc.some((c) => c.fn === "contabilita_chiudi_esercizio" && c.args.p_anteprima === false && c.args.p_anno === 2026)).toBe(true));
+});
+
+it("con l'anno prima ancora aperto la chiusura lo dice e non si fa", async () => {
+  state.precedenteAperto = 2025;
+  apri();
+  expect(await screen.findByText(/L'esercizio 2025 è ancora aperto/)).toBeTruthy();
+  expect((screen.getByRole("button", { name: "Chiudi l'esercizio 2026" }) as HTMLButtonElement).disabled).toBe(true);
 });
 
 it("esercizio chiuso: lo dice, non registra e per riaprire chiede il motivo", async () => {

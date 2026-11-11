@@ -99,9 +99,18 @@ export function useContiRighe({ companyId, fatturaId, salvati, righe, onCambiato
       const { error: errGiornale } = await supabase.rpc("contabilita_riregistra_documento", {
         p_company: companyId, p_documento: fatturaId, p_motivo: "Conto di costo per riga cambiato",
       });
-      toast.success(messaggio, errGiornale && !/Accesso negato/.test(errGiornale.message)
-        ? { description: `Contabilità generale non aggiornata: ${errGiornale.message}` } : undefined);
+      toast.success(messaggio);
+      // La fattura ha il conto nuovo; se il giornale non lo segue, deve dirlo (prima l'«Accesso negato» spariva).
+      if (errGiornale) {
+        toast.warning("Contabilità generale non aggiornata", {
+          description: /Accesso negato/.test(errGiornale.message)
+            ? "La scrittura della fattura la rifà chi ha il permesso della contabilità: avvisalo del conto cambiato."
+            : errGiornale.message,
+          duration: 12000,
+        });
+      }
       onCambiato();
+      void qc.invalidateQueries({ queryKey: ["contabilita-generale", companyId] });
     } catch (e) {
       toast.error("Conto della riga non salvato", { description: e instanceof Error ? e.message : String(e) });
     } finally {
