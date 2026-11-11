@@ -24,8 +24,8 @@ import { cn } from "@/lib/utils";
 import { TESTO_RECESSO_DI_LEGGE, eLaFraseSalvataPerSbaglio } from "@/lib/fea/testoRecessoDiLegge";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 
-// livello_firma (22/10/2026) non è ancora nei tipi generati.
-type FeaConfig = Database["public"]["Tables"]["fea_configurazione"]["Row"] & { livello_firma?: "avanzata" | "semplice" };
+// livello_firma è un text col CHECK («semplice», «avanzata»): qui si confronta solo con «avanzata».
+type FeaConfig = Database["public"]["Tables"]["fea_configurazione"]["Row"];
 type PreventivoImpostazioni = Pick<
   Database["public"]["Tables"]["preventivo_impostazioni"]["Row"],
   "firma_digitale_abilitata"
