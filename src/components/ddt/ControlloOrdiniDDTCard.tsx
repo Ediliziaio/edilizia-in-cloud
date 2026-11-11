@@ -194,11 +194,16 @@ export function ControlloOrdiniDDTCard({ ddt }: { ddt: DDTRicezione }) {
   );
   const tabella = (
     <div className="overflow-x-auto rounded-lg border">
-      <table className="w-full min-w-[650px] text-sm">
+      <table className="w-full min-w-[520px] table-fixed text-[13px]">
         <caption className="sr-only">
           Quantità ordinate, ricevute su tutti i DDT e ancora da ricevere
         </caption>
-        <thead className="bg-slate-50 text-xs text-slate-600">
+        <colgroup>
+          {[34, 10, 12, 14, 10, 20].map((width, i) => (
+            <col key={i} style={{ width: `${width}%` }} />
+          ))}
+        </colgroup>
+        <thead className="h-14 bg-slate-50 text-[11px] text-slate-600">
           <tr>
             {[
               "Ordine / articolo",
@@ -210,7 +215,7 @@ export function ControlloOrdiniDDTCard({ ddt }: { ddt: DDTRicezione }) {
             ].map((t, i) => (
               <th
                 key={t}
-                className={`px-3 py-3 font-medium ${i ? "text-right" : "text-left"}`}
+                className={`px-2 py-2 font-medium ${i ? "text-right" : "text-left"}`}
               >
                 {t}
               </th>
@@ -219,8 +224,8 @@ export function ControlloOrdiniDDTCard({ ddt }: { ddt: DDTRicezione }) {
         </thead>
         <tbody>
           {risultati.map((r) => (
-            <tr key={r.id} className="border-t hover:bg-slate-50/60">
-              <td className="max-w-72 px-3 py-3">
+            <tr key={r.id} className="h-20 border-t hover:bg-slate-50/60">
+              <td className="max-w-72 px-2 py-2">
                 <Link
                   to={`/azienda/ordini-acquisto/${r.purchase_order_id}`}
                   className="block text-xs text-blue-700 hover:underline"
@@ -237,14 +242,14 @@ export function ControlloOrdiniDDTCard({ ddt }: { ddt: DDTRicezione }) {
                   {r.unit_of_measure || "Unità da verificare"}
                 </span>
               </td>
-              <td className="px-3 text-right tabular-nums">
+              <td className="px-2 text-right tabular-nums">
                 {numero(Number(r.quantity))}
               </td>
-              <td className="px-3 text-right tabular-nums">
+              <td className="px-2 text-right tabular-nums">
                 {numero(Number(r.quantity_received ?? 0))}
               </td>
               <td
-                className="px-3 text-right tabular-nums"
+                className="px-2 text-right tabular-nums"
                 title={`Accettati da questo DDT: ${numero(r.accettataQui)}`}
               >
                 {numero(r.inBolla)}
@@ -253,11 +258,11 @@ export function ControlloOrdiniDDTCard({ ddt }: { ddt: DDTRicezione }) {
                 </span>
               </td>
               <td
-                className={`px-3 text-right font-semibold tabular-nums ${r.daRicevere ? "text-amber-800" : "text-emerald-700"}`}
+                className={`px-2 text-right font-semibold tabular-nums ${r.daRicevere ? "text-amber-800" : "text-emerald-700"}`}
               >
                 {numero(r.daRicevere)}
               </td>
-              <td className="px-3 text-right">
+              <td className="px-2 text-right">
                 <span
                   className={`inline-flex whitespace-nowrap rounded-full px-2 py-1 text-xs font-medium ${r.stato === "completa" ? "bg-emerald-50 text-emerald-800" : r.stato === "eccedenza" ? "bg-red-50 text-red-800" : "bg-amber-50 text-amber-900"}`}
                 >
@@ -449,7 +454,7 @@ export function ControlloOrdiniDDTCard({ ddt }: { ddt: DDTRicezione }) {
                 <TabsContent value="righe">
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                      <thead className="bg-slate-50 text-xs">
+                      <thead className="h-14 bg-slate-50 text-xs">
                         <tr>
                           <th className="p-3 text-left">Articolo</th>
                           <th className="p-3 text-right">Quantità</th>
@@ -458,7 +463,7 @@ export function ControlloOrdiniDDTCard({ ddt }: { ddt: DDTRicezione }) {
                       </thead>
                       <tbody>
                         {(righe.data ?? []).map((r) => (
-                          <tr key={r.id} className="border-b">
+                          <tr key={r.id} className="h-20 border-b">
                             <td className="p-3">{r.descrizione}</td>
                             <td className="p-3 text-right tabular-nums">
                               {numero(r.quantita)}
@@ -491,12 +496,14 @@ export function ControlloOrdiniDDTCard({ ddt }: { ddt: DDTRicezione }) {
                 </TabsContent>
               </Tabs>
             </section>
-            <section className="space-y-4 p-5">
-              <h3 className="font-semibold">Situazione degli ordini</h3>
-              <p className="flex h-10 items-center text-xs text-muted-foreground">
-                Ricevuti totali su tutte le consegne, al netto dei resi.
-              </p>
-              {tabella}
+            <section className="min-w-0 space-y-4 p-5">
+              <div className="space-y-3">
+                <h3 className="font-semibold">Situazione degli ordini</h3>
+                <p className="flex h-10 items-center text-xs text-muted-foreground">
+                  Ricevuti totali su tutte le consegne, al netto dei resi.
+                </p>
+              </div>
+              <div className="!mt-2">{tabella}</div>
               {modificabile && (
                 <ProposteOrdiniDDT
                   ddtId={ddt.id}
