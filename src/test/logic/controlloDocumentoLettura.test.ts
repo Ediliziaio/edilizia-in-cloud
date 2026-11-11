@@ -59,6 +59,7 @@ describe("il controllo del documento nella funzione", () => {
   };
   beforeEach(() => {
     vi.stubGlobal("Deno", denoFinto({}).deno);
+    vi.stubGlobal("EdgeRuntime",undefined);
     ai.chiamate = []; ai.ko = false; ai.risposta = { righe: [giusta] };
     db = nuovoDb();
   });
@@ -143,6 +144,22 @@ describe("il controllo del documento nella funzione", () => {
   });
   it("il documento che cita un altro ordine non diventa conforme",async()=>{
     ai.risposta={righe:[giusta],riferimenti_ordini:["ALTRO-ODA"]};expect((await chiedi()).esito).toBe("da_controllare");
+  });
+  it('risponde con l’identità del controllo e conserva il lavoro in background',async()=>{
+    const lavori:Promise<unknown>[]=[];vi.stubGlobal('EdgeRuntime',{waitUntil:(p:Promise<unknown>)=>lavori.push(p)});
+    const r=await chiedi({elaborazione_async:true});expect(r).toMatchObject({status:202,stato:'in_lettura'});expect(r.id).toBeTruthy();expect(lavori).toHaveLength(1);
+    await Promise.all(lavori);expect(db.righe('controlli_documento_fornitore')[0]).toMatchObject({stato:'letto',esito:'verde'});
+  });
+  it('un guasto in background resta recuperabile dallo stesso documento',async()=>{
+    const lavori:Promise<unknown>[]=[];vi.stubGlobal('EdgeRuntime',{waitUntil:(p:Promise<unknown>)=>lavori.push(p)});ai.ko=true;
+    expect((await chiedi({elaborazione_async:true})).status).toBe(202);await Promise.all(lavori);
+    expect(db.righe('controlli_documento_fornitore')[0]).toMatchObject({stato:'errore',errore:expect.stringContaining('documento è conservato')});
+    expect(db.righe('controlli_documento_fornitore')[0].file_path).toBeTruthy();
+  });
+  it('non sposta gli indici delle posizioni quando una voce di servizio precede l’articolo',async()=>{
+    ai.risposta={righe:[{descrizione:'Trasporto dedicato',quantita:1,unita:'viaggi',prezzo_unitario:40,confidenza:99},giusta]};
+    await chiedi();const c=db.righe('controlli_documento_fornitore')[0];
+    expect((c.righe as Array<{chiave:string;indici_fornitore:number[]}>).find(r=>r.chiave==='r1')?.indici_fornitore).toEqual([1]);
   });
 
 });

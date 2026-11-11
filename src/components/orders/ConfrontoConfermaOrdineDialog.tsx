@@ -54,7 +54,8 @@ export function ConfrontoConfermaOrdineDialog({companyId,obiettivo,inizialeId,on
  const righe=controllo?.righe??[];
  const conti=contaEsiti(righe);
  const obsoleto=!!controllo&&(!controllo.impronta_ordine||!!base.data&&controllo.impronta_ordine!==base.data.impronta);
- const busy=lista.avvia.isPending||accetta.isPending||decidi.isPending||abbina.isPending||applicaPrezzi.isPending;
+ const letturaInCorso=controllo?.stato==='in_lettura'&&!controllo.lettura_scaduta;
+ const busy=lista.avvia.isPending||letturaInCorso||accetta.isPending||decidi.isPending||abbina.isPending||applicaPrezzi.isPending;
  const puoDecidere=modificabile&&!obsoleto&&!base.isError&&!base.isFetching&&controllo?.stato==='letto'&&!controllo.accettato_il;
  const visualizzate=righe.filter(r=>filtro==='tutte'||filtro==='coerenti'&&r.esito==='verde'||filtro==='differenze'&&r.esito!=='verde');
  const prezziProposti=righe.filter(r=>r.indici_fornitore?.length===1&&base.data?.righe.some(x=>x.id===r.chiave&&x.price_pending)&&controllo?.lettura?.righe?.[r.indici_fornitore[0]]?.prezzo_unitario!=null);
@@ -86,9 +87,9 @@ export function ConfrontoConfermaOrdineDialog({companyId,obiettivo,inizialeId,on
   <DialogHeader className="shrink-0 border-b px-5 py-3 pr-12"><DialogTitle className="flex items-center gap-2 text-lg"><ArrowLeftRight className="h-5 w-5 text-orange-600"/>Confronto {obiettivo.purchaseOrderId?'ordine e conferma fornitore':'richiesta e offerta fornitore'}</DialogTitle><DialogDescription className="text-xs">{riferimento} · Richiesta inviata, documento ricevuto e differenze da verificare.</DialogDescription></DialogHeader>
   <div className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-slate-50/70 px-5 py-2">
    <span className="mr-auto text-xs text-slate-500">{storico?.fonte==='invio'?`Versione inviata il ${String(storico.inviato_il||'').slice(0,10).split('-').reverse().join('/')}`:'Base: dati correnti; nessun invio conservato.'}</span>
-   <Button size="sm" variant="outline" disabled={busy} onClick={()=>{void base.refetch();void lista.ricarica();}}> <RefreshCw className="mr-1.5 h-3.5 w-3.5"/>Aggiorna</Button>
+   <Button size="sm" variant="outline" disabled={busy} onClick={()=>{lista.avvia.reset?.();void base.refetch();void lista.ricarica();}}> <RefreshCw className="mr-1.5 h-3.5 w-3.5"/>Aggiorna</Button>
    {modificabile&&<Button size="sm" variant="outline" disabled={busy} onClick={()=>fileInput.current?.click()}><FileUp className="mr-1.5 h-3.5 w-3.5"/>Carica {tipoCaricamento==='conferma'?'conferma':'offerta'}</Button>}
-   <Button size="sm" disabled={!modificabile||busy||!controllo?.file_path} onClick={()=>avvia({controlloId:controllo!.id})}>{lista.avvia.isPending?<Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin"/>:<Sparkles className="mr-1.5 h-3.5 w-3.5"/>}{lista.avvia.isPending?'Lettura del documento…':'Controlla con AI'}</Button>
+   <Button size="sm" disabled={!modificabile||busy||!controllo?.file_path} onClick={()=>avvia({controlloId:controllo!.id})}>{lista.avvia.isPending||letturaInCorso?<Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin"/>:<Sparkles className="mr-1.5 h-3.5 w-3.5"/>}{lista.avvia.isPending||letturaInCorso?'Lettura del documento…':'Controlla con AI'}</Button>
    <input ref={fileInput} type="file" accept={ACCEPT_DOCUMENTI_DDT} className="hidden" aria-label="Carica documento del fornitore" onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f)avvia({file:f});}}/>
   </div>
   <div className="shrink-0 border-b px-5 py-2"><RiepilogoConfronto indicatori={[
@@ -100,12 +101,13 @@ export function ConfrontoConfermaOrdineDialog({companyId,obiettivo,inizialeId,on
   {obsoleto&&<p role="alert" className="border-b bg-amber-50 px-5 py-2 text-xs text-amber-950">{controllo?.impronta_ordine?'L’ordine è cambiato. Questo confronto riguarda una revisione precedente.':'Controllo storico senza versione verificabile.'} Usa “Controlla con AI” per aggiornarlo; le decisioni precedenti restano conservate.</p>}
   {controllo?.stato==='errore'&&<p role="alert" className="border-b bg-amber-50 px-5 py-2 text-xs">{controllo.errore} L’originale resta disponibile: puoi riprovare senza ricaricarlo.</p>}
   {lista.avvia.isError&&<p role="alert" className="border-b bg-red-50 px-5 py-2 text-xs text-red-800">{lista.avvia.error.message}</p>}
+  {letturaInCorso&&<p role="status" className="border-b bg-blue-50 px-5 py-2 text-xs text-blue-900">Analisi in corso. Puoi chiudere il confronto e riaprirlo: il risultato viene salvato qui.</p>}
   <PannelliConfrontoMobile valore={pannelloMobile} onChange={setPannelloMobile} sinistra="Richiesta" destra="Fornitore"/>
   <div className="grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-2">
    <section className={`${pannelloMobile==='sinistra'?'flex':'hidden lg:flex'} min-h-0 min-w-0 flex-col border-b lg:border-r lg:border-b-0`}>
     <div className="shrink-0 space-y-2 border-b px-5 py-3"><h3 className="text-sm font-semibold">{storico?.fonte==='invio'?'Richiesta inviata':'Richiesta da controllare'}</h3><Tabs value={vistaSinistra} onValueChange={setVistaSinistra}><TabsList className="h-8"><TabsTrigger className="text-xs" value="righe">Righe</TabsTrigger>{obiettivo.purchaseOrderId&&<TabsTrigger className="text-xs" value="pdf">PDF inviato</TabsTrigger>}</TabsList></Tabs></div>
     <div className="min-h-0 flex-1 overflow-auto p-4">
-     {vistaSinistra==='pdf'&&obiettivo.purchaseOrderId?<OriginaliOrdineConfronto companyId={companyId} ordineId={obiettivo.purchaseOrderId} numero={riferimento} tipo="inviato" adatta/>:righe.length?tabella('richiesta'):base.isLoading?<p role="status" className="text-xs">Caricamento richiesta…</p>:<ul className="divide-y rounded-lg border">{richieste.map(r=><li key={r.chiave} className="flex justify-between gap-3 p-3 text-xs"><span className="truncate" title={r.descrizione}>{r.riferimento?`${r.riferimento} · `:''}{r.descrizione}</span><strong className="shrink-0">{numero(r.quantita)} {r.unita}</strong></li>)}</ul>}
+     {vistaSinistra==='pdf'&&obiettivo.purchaseOrderId?<OriginaliOrdineConfronto companyId={companyId} ordineId={obiettivo.purchaseOrderId} numero={riferimento} tipo="inviato" baseCongelata={controllo?.base_ordine??undefined} adatta/>:righe.length?tabella('richiesta'):base.isLoading?<p role="status" className="text-xs">Caricamento richiesta…</p>:<ul className="divide-y rounded-lg border">{richieste.map(r=><li key={r.chiave} className="flex justify-between gap-3 p-3 text-xs"><span className="truncate" title={r.descrizione}>{r.riferimento?`${r.riferimento} · `:''}{r.descrizione}</span><strong className="shrink-0">{numero(r.quantita)} {r.unita}</strong></li>)}</ul>}
     </div>
    </section>
    <section className={`${pannelloMobile==='destra'?'flex':'hidden lg:flex'} min-h-0 min-w-0 flex-col`}>
@@ -115,7 +117,7 @@ export function ConfrontoConfermaOrdineDialog({companyId,obiettivo,inizialeId,on
      <Tabs value={vistaDestra} onValueChange={setVistaDestra}><TabsList className="h-8"><TabsTrigger className="text-xs" value="righe">Righe</TabsTrigger><TabsTrigger className="text-xs" value="pdf">PDF / foto originale</TabsTrigger></TabsList></Tabs>
     </div>
     <div className="min-h-0 flex-1 space-y-3 overflow-auto p-4">
-     {caricamento||lista.caricamento?<p role="status" className="text-xs">Caricamento conferme…</p>:vistaDestra==='pdf'&&controllo?<OriginaliConfronto key={controllo.id} companyId={companyId} files={fileConferma(controllo)} ricerca={rigaAttiva?.testo_originale||rigaAttiva?.descrizione} paginaIniziale={rigaAttiva?.pagina_fornitore??undefined} adatta/>:righe.length?tabella('fornitore'):<div className="rounded-lg border border-dashed p-6 text-center text-sm text-slate-500">{lista.avvia.isPending?'Lettura e confronto in corso…':'Carica la conferma ufficiale per confrontarla con la richiesta.'}</div>}
+     {caricamento||lista.caricamento?<p role="status" className="text-xs">Caricamento conferme…</p>:vistaDestra==='pdf'&&controllo?<OriginaliConfronto key={controllo.id} companyId={companyId} files={fileConferma(controllo)} ricerca={rigaAttiva?.riferimento||rigaAttiva?.descrizione} paginaIniziale={rigaAttiva?.pagina_fornitore??undefined} adatta/>:righe.length?tabella('fornitore'):<div className="rounded-lg border border-dashed p-6 text-center text-sm text-slate-500">{lista.avvia.isPending||letturaInCorso?'Lettura e confronto in corso…':'Carica la conferma ufficiale per confrontarla con la richiesta.'}</div>}
      {!controllo&&base.data?.allegato_fornitore&&<Button size="sm" variant="outline" disabled={!modificabile||busy} onClick={()=>avvia({allegatoOrdine:true})}>Usa l’allegato già presente nell’ordine</Button>}
      {!controllo&&lista.allegati.map(a=><Button key={a.attachment_id} className="w-full justify-start text-xs" size="sm" variant="outline" disabled={!modificabile||busy} onClick={()=>avvia({attachmentId:a.attachment_id})}><Mail className="mr-2 h-3.5 w-3.5"/>Usa allegato email · {a.filename}</Button>)}
     </div>

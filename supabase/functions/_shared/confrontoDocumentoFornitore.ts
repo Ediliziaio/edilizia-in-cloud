@@ -329,7 +329,12 @@ export function confrontaRiga(r: RigaChiesta, l: RigaLetta, op: OpzioniConfronto
   }
   if (categoria === "serramenti" || categoria === "pergole") aggiungi(confrontaArticolo(r,l,minima));
   const specifiche: Record<string,string|null> = {...r.specifiche};
-  for (const m of testoRiga.matchAll(/\b(vetro(?:camera)?|profilo|serie|modello|finitura interna|finitura esterna|accessori|tipo misura)\s*[:=]\s*([^;\n]+)/gi)) specifiche[norm(m[1])]=m[2].trim();
+  for (const fonte of [r.descrizione,r.dettagli??'']) {
+    for (const m of fonte.matchAll(/\b(vetro(?:camera)?|profilo|serie|modello|finitura interna|finitura esterna|accessori|tipo misura)\s*[:=]\s*([^;·\n]+)/gi)) {
+      const k=norm(m[1]);
+      if(!specifiche[k]) specifiche[k]=m[2].trim();
+    }
+  }
   const lette = Object.fromEntries(Object.entries(l.specifiche ?? {}).map(([k,v])=>[norm(k),v]));
   for (const [k,v] of Object.entries(specifiche)) {
     if (!v) continue;

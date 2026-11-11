@@ -274,7 +274,7 @@ export function useOriginaliConfronto(
             String(f.filename || "PDF ordine inviato"),
             f.mime,
           );
-          if (originale) files.push({...originale,tipo:"inviato",etichetta:`Inviato · ${String(e.created_at).slice(0,10).split("-").reverse().join("/")}`});
+          if (originale) files.push({...originale,id:`${originale.id}:${e.id}`,tipo:"inviato",eventoId:String(e.id),etichetta:`Inviato · ${String(e.created_at).slice(0,10).split("-").reverse().join("/")}`});
         }
       }
       return [...new Map(files.map((f) => [f.id, f])).values()];

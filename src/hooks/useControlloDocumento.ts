@@ -47,9 +47,10 @@ export function useControlliDocumento(obiettivo: ObiettivoControllo, abilitato =
   const lista = useQuery({
     queryKey: chiaviControllo.lista(obiettivo),
     enabled: abilitato,
+    refetchInterval:q=>q.state.data?.some(c=>c.stato==='in_lettura'&&Date.now()-new Date(c.updated_at||c.created_at).getTime()<10*60_000)?2500:false,
     queryFn: async () => {
-      return loadCatalogPages<Pick<ControlloDocumento,'id'|'tipo'|'file_nome'|'stato'|'esito'|'accettato_il'|'created_at'>>((a,b)=>{
-        let q=db.from('controlli_documento_fornitore').select('id,tipo,file_nome,stato,esito,accettato_il,created_at').order('created_at',{ascending:false}).order('id');
+      return loadCatalogPages<Pick<ControlloDocumento,'id'|'tipo'|'file_nome'|'stato'|'esito'|'accettato_il'|'created_at'|'updated_at'>>((a,b)=>{
+        let q=db.from('controlli_documento_fornitore').select('id,tipo,file_nome,stato,esito,accettato_il,created_at,updated_at').order('created_at',{ascending:false}).order('id');
         q=obiettivo.purchaseOrderId?q.eq('purchase_order_id',obiettivo.purchaseOrderId):q.eq('rfq_supplier_id',obiettivo.rfqSupplierId);
         return q.range(a,b);
       });
@@ -101,20 +102,24 @@ export function useControlliDocumento(obiettivo: ObiettivoControllo, abilitato =
       }
       const { data, error } = await supabase.functions.invoke("verify-purchase-order", {
         body: {
-          azione: "controllo_documento", tipo: x.tipo,
+          azione: "controllo_documento", tipo: x.tipo,elaborazione_async:true,
           purchase_order_id: obiettivo.purchaseOrderId, rfq_supplier_id: obiettivo.rfqSupplierId,
           ...datiFile, email_attachment_id:x.attachmentId,controllo_id:x.controlloId,allegato_ordine:x.allegatoOrdine,
         },
       });
       if (error) throw new Error(await messaggioFunzione(error));
-      return data as { id: string; esito: string; gia_caricato?: boolean };
+      return data as { id: string; esito: string; stato?:string; gia_caricato?: boolean };
     },
     onSuccess: (r) => {
       if (r.gia_caricato) toast.info("Questo documento era già stato caricato: apro il controllo fatto");
       qc.invalidateQueries({ queryKey: chiaviControllo.tutti });
       qc.invalidateQueries({queryKey:["fattura-confronto-originali"]});
     },
-    onError: (e) => toast.error("Documento non letto", { description: e instanceof Error ? e.message : "Riprova." }),
+    onError: (e) => {
+      void qc.invalidateQueries({ queryKey: chiaviControllo.tutti });
+      void qc.invalidateQueries({ queryKey: ["fattura-confronto-originali"] });
+      toast.error("Documento non letto", { description: e instanceof Error ? e.message : "Riprova." });
+    },
   });
   return { controlli: lista.data ?? [], caricamento: lista.isLoading, errore:lista.isError, ricarica:lista.refetch, allegati: email.data ?? [], avvia };
 }
@@ -124,10 +129,12 @@ export function useControlloDocumento(id: string | undefined) {
   const query = useQuery({
     queryKey: chiaviControllo.uno(id),
     enabled: !!id,
+    refetchInterval:q=>q.state.data?.stato==='in_lettura'&&Date.now()-new Date(q.state.data.updated_at||q.state.data.created_at).getTime()<10*60_000?2000:false,
     queryFn: async () => {
       const { data, error } = await db.from("controlli_documento_fornitore").select("*").eq("id", id).single();
       if (error) throw error;
-      return data as ControlloDocumento;
+      const c=data as ControlloDocumento;
+      return {...c,lettura_scaduta:c.stato==='in_lettura'&&Date.now()-new Date(c.updated_at||c.created_at).getTime()>=5*60_000};
     },
   });
   const aggiorna = () => { void qc.invalidateQueries({ queryKey: chiaviControllo.tutti });void qc.invalidateQueries({queryKey:["fattura-confronto-originali"]}); };
@@ -155,7 +162,7 @@ export function useControlloDocumento(id: string | undefined) {
   },onSuccess:aggiorna,onError:(e:Error)=>toast.error("Abbinamento non salvato",{description:e.message})});
   const applicaPrezzi=useMutation({mutationFn:async(righe:string[])=>{
     const {data,error}=await db.rpc("controllo_documento_applica_prezzi",{p_id:id,p_versione:query.data?.versione,p_righe:righe});if(error)throw new Error(error.message);return data as number;
-   },onSuccess:n=>{aggiorna();void qc.invalidateQueries({queryKey:["purchase-orders"]});void qc.invalidateQueries({queryKey:["purchase-order-items"]});toast.success(`${n} prezzi applicati all’ordine`);},onError:(e:Error)=>toast.error("Prezzi non applicati",{description:e.message})});
+   },onSuccess:n=>{aggiorna();for(const key of ["purchase-orders","purchase-order-detail","purchase-order-items","pdf-richiesta-ordine"])void qc.invalidateQueries({queryKey:[key]});toast.success(`${n} prezzi applicati all’ordine`);},onError:(e:Error)=>toast.error("Prezzi non applicati",{description:e.message})});
   return { controllo: query.data, caricamento: query.isLoading, decidi, accetta,abbina,applicaPrezzi };
 }
 

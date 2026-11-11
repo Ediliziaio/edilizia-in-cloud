@@ -401,6 +401,8 @@ export function ConfrontoFatturaDialog({
   );
   const selezionaRiga = (indice: number) => {
     if (!righe[indice]) return;
+    setFiltroRighe("tutte");
+    setPannelloMobile("sinistra");
     setRigaAttiva(indice);
     setVistaFattura("righe");
     if (!doc?.righe.some((r) => voceAssociata(righe[indice], r))) {

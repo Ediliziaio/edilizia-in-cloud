@@ -177,4 +177,8 @@ describe("riconciliazione completa", () => {
     expect(trovaRighePdf(items, "Cemento grigio 425 50kg")).toEqual([]);
     expect(trovaRighePdf([], "Malta adesiva A81")).toEqual([]);
   });
+  it('trova la posizione P3 senza evidenziare P30',()=>{
+    const items=[{str:'P3 Finestra PVC',transform:[10,0,0,10,40,700],width:180,height:10},{str:'P30 Finestra PVC',transform:[10,0,0,10,40,650],width:180,height:10}];
+    expect(trovaRighePdf(items,'P3').map(r=>r.testo)).toEqual(['P3 Finestra PVC']);
+  });
 });

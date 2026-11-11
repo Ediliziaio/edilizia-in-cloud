@@ -18,7 +18,7 @@ import {
 } from "../_shared/confrontoDocumentoFornitore.ts";
 import { righeDellaBase, validaLetturaConferma, avvisiLettura, condizioniDocumento, type BaseConferma, type LetturaConferma } from "../_shared/revisioniConferma.ts";
 
-const AI_MODEL = "claude-sonnet-4-20250514";
+const AI_MODEL = Deno.env.get("PURCHASE_DOCUMENT_AI_MODEL")?.trim() || "claude-sonnet-4-6";
 const MAX_BYTES = 18 * 1024 * 1024;
 const LIMITE_GIORNALIERO = 40;
 const TASK = "vision_po" as TaskKind;
@@ -39,6 +39,7 @@ export interface RichiestaControllo {
   originale_path?: string;
   originale_mime?: string;
   document_path?:string;
+  elaborazione_async?:boolean;
   allegato_ordine?:boolean;
   abbinamento?: {controllo_id:string;versione:number;chiave:string;indici:number[];nota:string};
 }
@@ -54,7 +55,7 @@ Regole:
 - Ogni riga riporta pagina (a partire da 1), testo_originale e specifiche come coppie nome/valore (vetro, profilo, finitura interna/esterna, accessori, tipo misura foro/telaio/prodotto). Non dedurre ciò che non è scritto.
 - Le misure sempre in millimetri: se il documento scrive cm o m, converti. Larghezza e altezza del serramento come le scrive il fornitore.
 - "riferimento" è il nome della posizione se c'è (Cucina, P3, Pos. 1, Rif. 2); altrimenti null.
-- Trasporto, imballo, sconti generali e spese vanno in "altri_costi", non in "righe".
+- Spese generali, imballo e sconti generali vanno in "altri_costi". Un servizio di trasporto con posizione, quantità e unità è invece una riga del documento.
 - Un dato che non c'è è null: non inventare mai.
 - "confidenza" (0-100) è quanto sei sicuro di aver letto bene QUELLA riga. Sotto 60 se la foto è sfocata o hai dovuto interpretare.
 - "incerti" elenca i campi letti con dubbio (per esempio ["larghezza_mm","colore"]).
@@ -81,7 +82,6 @@ async function impronta(buf: Uint8Array): Promise<string> {
   return [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-const eSpesa = (t?: string | null) => /^\s*(trasporto|imballo|spese|sconto)/i.test(t ?? "");
 
 /** L'offerta già controllata dello stesso fornitore da cui viene questo ordine, se c'è. */
 async function offertaControllata(db: Db, po: { id: string; supplier_id: string }, chieste: Array<{ rfq_item_id?: string | null; chiave: string }>) {
@@ -223,9 +223,10 @@ export async function controllaDocumento(
 
   // ── Lo stesso documento due volte, o due schede insieme ─────────────
   const riserva = await db.from("controlli_documento_fornitore")
-    .insert({ ...obiettivo, stato: "in_lettura", file_hash: hash, file_nome: nome, email_inbox_id: emailInbox, created_by: userId,originale_path:originalePath,originale_mime:originaleMime })
+    .insert({ ...obiettivo, stato: "in_lettura",versione:1, file_hash: hash, file_nome: nome, email_inbox_id: emailInbox, created_by: userId,originale_path:originalePath,originale_mime:originaleMime })
     .select("id").single();
   let id = riserva.data?.id as string | undefined;
+  let versioneLettura=1;
   if (riserva.error) {
     if (riserva.error.code !== "23505") throw riserva.error;
     let q = db.from("controlli_documento_fornitore").select("id, stato, esito, created_at, updated_at, lettura, versione").eq("company_id", companyId).eq("tipo", tipo).eq("file_hash", hash).eq("impronta_ordine",base.impronta);
@@ -233,6 +234,7 @@ export async function controllaDocumento(
     const { data: gia } = await q.maybeSingle();
     if (gia?.stato === "letto") return jsonResponse({ ok: true, id: gia.id, esito: gia.esito, gia_caricato: true }, 200, corsH);
     if (gia?.stato === "in_lettura" && Date.now() - new Date(gia.updated_at || gia.created_at).getTime() < LETTURA_FERMA_MS) {
+      if(body.elaborazione_async===true) return jsonResponse({ok:true,id:gia.id,stato:"in_lettura"},202,corsH);
       return errorResponse("Questo documento lo sta già leggendo qualcuno: aspetta qualche secondo", 409, corsH);
     }
     if (!gia) return errorResponse("Il documento è cambiato. Aggiorna e riprova.",409,corsH);
@@ -241,11 +243,12 @@ export async function controllaDocumento(
       .eq("id",gia.id).eq("stato",gia.stato).eq("updated_at",gia.updated_at || gia.created_at).select("id").maybeSingle();
     if (erroreRipresa || !ripresa) return errorResponse("La lettura è già ripartita. Aggiorna il confronto.",409,corsH);
     id = ripresa.id;
+    versioneLettura=Number(gia.versione||1)+1;
   }
   if (!id) throw new Error("Documento non archiviato.");
 
-  try {
-    const chieste = righeDellaBase(base).filter(r => !eSpesa(r.descrizione));
+  const eseguiLettura=async():Promise<Response>=>{try {
+    const chieste = righeDellaBase(base);
     if (!chieste.length) throw new Response(JSON.stringify({ error: "Non ci sono righe da confrontare" }), { status: 400, headers: { ...corsH, "Content-Type": "application/json" } });
     const offerta = po && tipo === "conferma" ? await offertaControllata(db, po, chieste) : null;
 
@@ -273,7 +276,7 @@ export async function controllaDocumento(
       lettura = {...lettura,lettura_completa:false,pagine_totali:body.pagine_attese};
     }
 
-    const lette = (lettura.righe ?? []).filter((r) => !eSpesa(r.descrizione));
+    const lette = lettura.righe ?? [];
     const { data: impostazioni } = await db.from("company_acquisti_impostazioni").select("conferma_tolleranza_mm").eq("company_id", companyId).maybeSingle();
     const tolleranzaMm = Number(impostazioni?.conferma_tolleranza_mm ?? 5);
     const { righe: confronto } = confrontaDocumento(chieste, lette, { tolleranzaMm });
@@ -288,16 +291,25 @@ export async function controllaDocumento(
     }
     const esito = righe.length ? peggiore(righe.map((r) => r.esito)) : "da_controllare";
 
-    const { error } = await db.from("controlli_documento_fornitore").update({
+    const { error,data:salvato } = await db.from("controlli_documento_fornitore").update({
       stato: "letto", esito, lettura, righe, file_path: `order-attachments/${percorso}`, updated_at: new Date().toISOString(),
-    }).eq("id", id);
+    }).eq("id", id).eq("versione",versioneLettura).eq("stato","in_lettura").select("id").maybeSingle();
     if (error) throw error;
+    if(!salvato) throw new Error('Una nuova lettura ha sostituito questa elaborazione.');
     return jsonResponse({ ok: true, id, esito, righe: righe.length }, 200, corsH);
   } catch (err) {
     // Una lettura andata male non deve impedire di riprovare con lo stesso file.
-    await db.from("controlli_documento_fornitore").update({stato:"errore",errore:err instanceof Error ? err.message : "Lettura non completata. Riprova dallo stesso documento.",updated_at:new Date().toISOString()}).eq("id", id);
+    let messaggio=err instanceof Error ? err.message : "Lettura non completata. Riprova dallo stesso documento.";
+    if(err instanceof Response) {try {messaggio=(await err.clone().json()).error||messaggio;}catch{/* Risposta senza messaggio leggibile. */}}
+    await db.from("controlli_documento_fornitore").update({stato:"errore",errore:messaggio,updated_at:new Date().toISOString()}).eq("id", id).eq("versione",versioneLettura).eq("stato","in_lettura");
     throw err;
+  }};
+  const runtime=(globalThis as unknown as {EdgeRuntime?:{waitUntil:(lavoro:Promise<unknown>)=>void}}).EdgeRuntime;
+  if(body.elaborazione_async===true&&runtime?.waitUntil){
+    runtime.waitUntil(eseguiLettura().catch(()=>{console.warn('[controllaDocumento] Lettura interrotta; errore conservato nel controllo.');}));
+    return jsonResponse({ok:true,id,stato:"in_lettura"},202,corsH);
   }
+  return await eseguiLettura();
 }
 
 async function leggiConAi(db: Db, x: { companyId: string; userId: string; id: string; bytes: Uint8Array; mime: string; hash: string; corsH: Record<string, string> }): Promise<Lettura> {
@@ -313,7 +325,7 @@ async function leggiConAi(db: Db, x: { companyId: string; userId: string; id: st
   const dati = base64DaByte(x.bytes);
   const eImmagine = x.mime.startsWith("image/");
   const ai = await claudeMessages({
-    model: AI_MODEL, max_tokens: 8000, system: PROMPT,
+    model: AI_MODEL, max_tokens: 16000, system: PROMPT,
     messages: [{ role: "user", content: [
       eImmagine
         ? { type: "image", source: { type: "base64", media_type: x.mime, data: dati } }
@@ -323,7 +335,7 @@ async function leggiConAi(db: Db, x: { companyId: string; userId: string; id: st
   } as ClaudeMessagesBody);
   if (!ai.ok) {
     console.error("[controllaDocumento] AI:", ai.status, (await ai.text()).slice(0, 300));
-    throw risposta(`Lettura AI non riuscita (${ai.status})`, 502);
+    throw risposta("Il servizio di lettura non è disponibile. Il documento è conservato: riprova dal confronto.", 502);
   }
   const corpo = await ai.json();
 

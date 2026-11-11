@@ -63,7 +63,7 @@ interface VerificationResult {
 
 const DAILY_LIMIT = 10;
 const MAX_DOC_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
-const AI_MODEL = "claude-sonnet-4-20250514";
+const AI_MODEL = Deno.env.get("PURCHASE_DOCUMENT_AI_MODEL")?.trim() || "claude-sonnet-4-6";
 
 function compactDocumentForFingerprint(documentBase64?: string): string | null {
   if (!documentBase64) return null;

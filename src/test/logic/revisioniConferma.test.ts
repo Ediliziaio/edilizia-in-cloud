@@ -12,6 +12,11 @@ it('dimensioni, apertura, vetro e profilo sono confrontati separatamente',()=>{
  const r=confrontaRiga(richiesta,{...letta,altezza_mm:1450,apertura:'sinistra',specifiche:{vetro:'3/12/3',profilo:'Serie 60'}});
  expect(r.esito).toBe('rosso');expect(r.campi.filter(c=>c.esito==='rosso').map(c=>c.campo)).toEqual(expect.arrayContaining(['Altezza','Apertura','vetro','profilo']));expect(r.pagina_fornitore).toBe(3);
 });
+it('i separatori dei documenti non incorporano profilo e descrizione nel valore del vetro',()=>{
+ const r=confrontaRiga({...richiesta,descrizione:'Finestra PVC · vetro: 4/16/4 · profilo: Serie 70',dettagli:'L 1200 × H 1400 mm · vetro: 4/16/4 · profilo: Serie 70'},letta);
+ expect(r.campi.find(c=>c.campo==='vetro')).toMatchObject({chiesto:'4/16/4',esito:'verde'});
+ expect(r.campi.find(c=>c.campo==='profilo')).toMatchObject({chiesto:'Serie 70',esito:'verde'});
+});
 it('due posizioni compatibili non vengono confermate automaticamente per ordine di apparizione',()=>{
  const r=confrontaDocumento([{...richiesta,riferimento:null,dettagli:null},{...richiesta,chiave:'P4',riferimento:null,dettagli:null}],[{...letta,riferimento:null},{...letta,riferimento:null}]);
  expect(r.righe.every(x=>x.esito!=='verde')).toBe(true);

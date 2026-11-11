@@ -6,7 +6,7 @@ import type {BaseConferma} from '../../../supabase/functions/_shared/revisioniCo
 const m=vi.hoisted(()=>({c:{} as ControlloDocumento,base:{} as BaseConferma,solaLettura:false,avvia:vi.fn(),decidi:vi.fn(),accetta:vi.fn(),abbina:vi.fn(),prezzi:vi.fn()}));
 vi.mock('@/hooks/usePermissions',()=>({usePermissions:()=>({solaLettura:m.solaLettura,canManagePurchasing:true,canEditOrders:false})}));
 vi.mock('@/hooks/useControlloDocumento',()=>({
- useControlliDocumento:()=>({controlli:[m.c],allegati:[],ricarica:vi.fn(),caricamento:false,errore:false,avvia:{mutate:m.avvia,isPending:false}}),
+ useControlliDocumento:()=>({controlli:[m.c],allegati:[] as unknown[],ricarica:vi.fn(),caricamento:false,errore:false,avvia:{mutate:m.avvia,isPending:false}}),
  useBaseConferma:()=>({data:m.base,isError:false,isFetching:false,refetch:vi.fn()}),
  useControlloDocumento:()=>({controllo:m.c,caricamento:false,decidi:{mutate:m.decidi},accetta:{mutate:m.accetta},abbina:{mutate:m.abbina},applicaPrezzi:{mutate:m.prezzi}}),
 }));
@@ -33,8 +33,22 @@ it('una revisione obsoleta non è approvabile ma l’originale rimane consultabi
 it('l’utente in sola lettura consulta il confronto senza caricare o approvare',()=>{
  m.solaLettura=true;mostra();expect(screen.queryByRole('button',{name:'Approva conferma'})).toBeNull();expect(screen.getByRole('button',{name:'Controlla con AI'})).toBeDisabled();expect(screen.queryByRole('button',{name:'Carica conferma'})).toBeNull();
 });
+it('la lettura fallita conserva la revisione e permette di riprovare senza un nuovo caricamento',()=>{
+ m.c.stato='errore';m.c.errore='Lettura interrotta';m.c.righe=[];mostra();
+ expect(screen.getByText(/L’originale resta disponibile/)).toBeInTheDocument();
+ expect(screen.getByRole('button',{name:'Approva conferma'})).toBeDisabled();
+ fireEvent.click(screen.getByRole('button',{name:'Controlla con AI'}));
+ expect(m.avvia).toHaveBeenCalledWith({tipo:'conferma',controlloId:'c1'},expect.anything());
+});
+it('permette di chiudere un’analisi in background senza approvarla o avviarne una seconda',()=>{
+ m.c.stato='in_lettura';m.c.updated_at=new Date().toISOString();m.c.righe=[];mostra();
+ expect(screen.getByText(/Puoi chiudere il confronto e riaprirlo/)).toBeInTheDocument();
+ expect(screen.getByRole('button',{name:'Lettura del documento…'})).toBeDisabled();
+ expect(screen.getByRole('button',{name:'Approva conferma'})).toBeDisabled();
+ expect(screen.getByRole('button',{name:'Chiudi confronto'})).toBeEnabled();
+});
 it('un abbinamento manuale richiede una motivazione e salva le posizioni selezionate',()=>{
- mostra();fireEvent.click(screen.getAllByRole('button',{name:'P3',exact:true})[0]);fireEvent.click(screen.getByRole('button',{name:'Scegli corrispondenza'}));
+ mostra();fireEvent.click(screen.getAllByRole('button',{name:/^P3$/})[0]);fireEvent.click(screen.getByRole('button',{name:'Scegli corrispondenza'}));
  const dialog=screen.getByRole('dialog',{name:'Scegli le posizioni del fornitore'});expect(within(dialog).getByRole('button',{name:'Salva abbinamento'})).toBeDisabled();
  fireEvent.change(within(dialog).getByLabelText('Motivo dell’abbinamento'),{target:{value:'Verificata posizione P3 sul PDF'}});fireEvent.click(within(dialog).getByRole('button',{name:'Salva abbinamento'}));
  expect(m.abbina).toHaveBeenCalledWith({chiave:'p3',indici:[0],nota:'Verificata posizione P3 sul PDF'},expect.anything());

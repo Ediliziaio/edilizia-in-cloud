@@ -64,7 +64,7 @@ export function trovaRighePdf(
     const normal = pulito(testo),
       tokens = new Set(normal.split(" "));
     return (
-      normal.includes(target) ||
+      (target.includes(" ") ? normal.includes(target) : tokens.has(target)) ||
       (parole.length >= 3 &&
         parole.filter((w) => tokens.has(w)).length / parole.length >= 0.85)
     );

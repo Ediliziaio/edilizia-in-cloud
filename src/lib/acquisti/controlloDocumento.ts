@@ -20,6 +20,9 @@ export interface ControlloDocumento {
   accettato_motivo: string | null;
   accettato_il: string | null;
   created_at: string;
+  updated_at?: string;
+  /** Derivato dal client al caricamento, non è un campo persistito. */
+  lettura_scaduta?: boolean;
   versione?: number;
   impronta_ordine?: string|null;
   base_ordine?: import("../../../supabase/functions/_shared/revisioniConferma").BaseConferma|null;

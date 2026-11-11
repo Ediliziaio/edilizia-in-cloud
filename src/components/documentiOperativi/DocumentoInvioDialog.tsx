@@ -601,7 +601,7 @@ function DocumentoInvioContent({
                             }
                             step="0.01"
                             aria-label={`${label} voce ${i + 1}`}
-                            value={r[key as keyof typeof r] ?? ""}
+                            value={r[key as "quantita" | "prezzo" | "sconto" | "iva" | "oreUomo" | "oreMezzo"] ?? ""}
                             onChange={(e) =>
                               cambia(
                                 "righe",

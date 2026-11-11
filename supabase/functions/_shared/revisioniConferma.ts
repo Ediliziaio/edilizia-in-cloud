@@ -62,7 +62,7 @@ export function avvisiLettura(lettura: LetturaConferma, numeroOrdine: unknown): 
   const riferimenti = lettura.riferimenti_ordini?.filter(Boolean) ?? [];
   if (riferimenti.length > 1) avvisi.push("Il documento cita più ordini: verifica a quali posizioni appartiene ogni riga.");
   if (riferimenti.length && numeroOrdine && !riferimenti.some(r => r.toLowerCase().replace(/\W/g, "") === String(numeroOrdine).toLowerCase().replace(/\W/g, ""))) avvisi.push("Il riferimento d’ordine letto non corrisponde a questo ordine.");
-  return avvisi.map((a, i) => ({ chiave: `lettura:${i}`, riferimento: null, descrizione: "Controllo del documento", categoria: "generico", stato: "abbinata", esito: "da_controllare", chiesto: "Documento completo e riferito all’ordine", letto: a,
+  return avvisi.map((a, i): RigaConfronto => ({ chiave: `lettura:${i}`, riferimento: null, descrizione: "Controllo del documento", categoria: "generico", stato: "abbinata", esito: "da_controllare", chiesto: "Documento completo e riferito all’ordine", letto: a,
     campi: [{ campo: "Documento", chiesto: null, letto: a, esito: "da_controllare", nota: a }] }));
 }
 export function condizioniDocumento(base:BaseConferma,lettura:LetturaConferma):RigaConfronto[] {
