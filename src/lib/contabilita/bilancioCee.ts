@@ -264,3 +264,111 @@ export function htmlBilancioCee(d: { azienda: AziendaIntestazione; bilancio: Bil
     vuoto: "Nessuna scrittura: il bilancio nasce dalla contabilità generale.",
   });
 }
+
+/**
+ * Bilancio a sezioni contrapposte (11/11/2026): stato patrimoniale (attivo | passivo e netto) e
+ * conto economico (costi | ricavi), conto per conto e raggruppati per mastro. È la lettura che fa lo
+ * studio sul piano dei conti dell'azienda; lo schema CEE resta per il deposito.
+ *
+ * La sezione è quella del conto (sezioneDi); nel conto economico costi e ricavi si dividono per natura.
+ * L'utile chiude le due parti: nel passivo come utile dell'esercizio, nei costi (se utile) o nei
+ * ricavi (se perdita) come pareggio. Così ogni parte ha lo stesso totale dei due lati.
+ */
+export type ParteBilancio = "attivo" | "passivo" | "costi" | "ricavi";
+
+export interface ContoInBilancio { codice: string; descrizione: string; importo: number }
+export interface MastroInBilancio { codice: string; descrizione: string; totale: number; conti: ContoInBilancio[] }
+export interface LatoBilancio { parte: ParteBilancio; mastri: MastroInBilancio[]; totale: number }
+
+export interface BilancioSezioni {
+  attivo: LatoBilancio;
+  passivo: LatoBilancio;
+  costi: LatoBilancio;
+  ricavi: LatoBilancio;
+  /** Ricavi meno costi; positivo = utile. */
+  utile: number;
+  /** Attivo meno (passivo + utile): zero se il piano dei conti è coerente. */
+  differenzaPatrimoniale: number;
+}
+
+function parteDi(c: ContoContabile): ParteBilancio {
+  const s = sezioneDi(c);
+  if (s === "SPA") return "attivo";
+  if (s === "SPP") return "passivo";
+  return c.natura === "ricavo" ? "ricavi" : c.natura === "costo" ? "costi" : (c.voce_cee ?? "").startsWith("A") || c.voce_cee === "C.16" ? "ricavi" : "costi";
+}
+
+export function bilancioASezioni(saldi: readonly SaldoConto[], conti: readonly ContoContabile[]): BilancioSezioni {
+  const perId = new Map(conti.map((c) => [c.id, c]));
+  const lati: Record<ParteBilancio, Map<string, MastroInBilancio>> = { attivo: new Map(), passivo: new Map(), costi: new Map(), ricavi: new Map() };
+  const centesimi: Record<ParteBilancio, number> = { attivo: 0, passivo: 0, costi: 0, ricavi: 0 };
+  for (const s of saldi) {
+    if (cent(s.saldo) === 0) continue;
+    const parte = parteDi(s.conto);
+    // Attivo e costi si leggono in dare, passivo e ricavi in avere.
+    const importo = parte === "attivo" || parte === "costi" ? s.saldo : -s.saldo;
+    const mastro = s.conto.mastro_id ? perId.get(s.conto.mastro_id) : undefined;
+    const chiave = mastro?.id ?? "";
+    const m = lati[parte].get(chiave) ?? { codice: mastro?.codice ?? "", descrizione: mastro?.descrizione ?? "Senza mastro", totale: 0, conti: [] };
+    m.conti.push({ codice: s.conto.codice, descrizione: s.conto.descrizione, importo });
+    m.totale = (cent(m.totale) + cent(importo)) / 100;
+    lati[parte].set(chiave, m);
+    centesimi[parte] += cent(importo);
+  }
+  const lato = (parte: ParteBilancio): LatoBilancio => ({
+    parte,
+    // I conti senza mastro in fondo.
+    mastri: [...lati[parte].values()].sort((a, b) => (!a.codice ? 1 : 0) - (!b.codice ? 1 : 0) || a.codice.localeCompare(b.codice, "it", { numeric: true })),
+    totale: centesimi[parte] / 100,
+  });
+  const utile = centesimi.ricavi - centesimi.costi;
+  return {
+    attivo: lato("attivo"),
+    passivo: lato("passivo"),
+    costi: lato("costi"),
+    ricavi: lato("ricavi"),
+    utile: utile / 100,
+    differenzaPatrimoniale: (centesimi.attivo - centesimi.passivo - utile) / 100,
+  };
+}
+
+export function htmlBilancioSezioni(d: { azienda: AziendaIntestazione; bilancio: BilancioSezioni; periodo: string }): string {
+  const b = d.bilancio;
+  type Riga = { testo: string; importo: string; forte: boolean };
+  const righe: Riga[] = [];
+  const titolo = (t: string, v: number) => righe.push({ testo: t, importo: euro(v), forte: true });
+  const lato = (l: LatoBilancio) => {
+    for (const m of l.mastri) {
+      righe.push({ testo: `${m.codice ? `${m.codice} ` : ""}${m.descrizione}`, importo: euro(m.totale), forte: true });
+      for (const c of m.conti) righe.push({ testo: `   ${c.codice} ${c.descrizione}`, importo: euro(c.importo), forte: false });
+    }
+  };
+  const utile = b.utile >= 0 ? "Utile dell'esercizio" : "Perdita dell'esercizio";
+  titolo("STATO PATRIMONIALE — ATTIVO", b.attivo.totale); lato(b.attivo);
+  titolo("STATO PATRIMONIALE — PASSIVO E NETTO", b.passivo.totale + b.utile); lato(b.passivo);
+  righe.push({ testo: utile, importo: euro(b.utile), forte: true });
+  titolo("CONTO ECONOMICO — COSTI", b.costi.totale); lato(b.costi);
+  titolo("CONTO ECONOMICO — RICAVI", b.ricavi.totale); lato(b.ricavi);
+  righe.push({ testo: utile, importo: euro(b.utile), forte: true });
+  return htmlDocumentoContabile<Riga>({
+    titolo: "Bilancio a sezioni contrapposte",
+    periodo: d.periodo,
+    sottotitolo: [
+      "Stato patrimoniale e conto economico dal piano dei conti, conto per conto e per mastro.",
+      b.differenzaPatrimoniale !== 0 ? `ATTENZIONE: attivo e passivo più risultato differiscono di ${euro(b.differenzaPatrimoniale)}.` : "",
+    ].filter(Boolean).join(" "),
+    azienda: d.azienda,
+    colonne: [
+      { intestazione: "Conto", valore: (r) => r.testo, larghezza: "78%" },
+      { intestazione: "Importo", valore: (r) => r.importo, allinea: "destra", compatta: true, larghezza: "22%" },
+    ],
+    righe,
+    evidenzia: (r) => r.forte,
+    totali: [
+      { etichetta: "Totale attivo", valore: euro(b.attivo.totale) },
+      { etichetta: "Totale passivo e netto", valore: euro(b.passivo.totale + b.utile) },
+      { etichetta: utile, valore: euro(b.utile), forte: true },
+    ],
+    vuoto: "Nessuna scrittura: il bilancio nasce dalla contabilità generale.",
+  });
+}
