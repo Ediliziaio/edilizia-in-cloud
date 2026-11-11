@@ -18,8 +18,16 @@ describe("commessa dal computo", () => {
   it("senza il permesso dei costi il costo non passa alla commessa", () => {
     expect(righeDaComputo({ bozza, aliquotaIva: 10, conCosti: false, companyId: "c" }, "q")[0].prezzo_acquisto).toBeNull();
   });
-  it("le rate diventano fasi: l'ultima è il saldo", () => {
-    expect(fasiDaRate([{ descrizione: "Acconto", percentuale: 30, importo: 300 }, { descrizione: "Saldo", percentuale: 70, importo: 700 }]).map(f => f.type)).toEqual(["deposit", "balance"]);
+  it("le rate diventano fasi: l'ultima è il saldo, e il momento d'incasso arriva fino alla commessa", () => {
+    const fasi = fasiDaRate([
+      { descrizione: "Acconto", percentuale: 30, importo: 300, aMisura: false, evento: "firma_contratto", numero: null },
+      { descrizione: "2° SAL", percentuale: null, importo: null, aMisura: true, evento: "sal_numero", numero: 2 },
+      { descrizione: "Saldo", percentuale: 70, importo: 700, aMisura: false, evento: "fine_lavori", numero: null },
+    ]);
+    expect(fasi.map(f => f.type)).toEqual(["deposit", "deposit", "balance"]);
+    // Prima erano tutte «acconto» senza momento: una rata al SAL 2 non si riconosceva più.
+    expect(fasi.map(f => f.evento)).toEqual(["firma_contratto", "sal_numero", "fine_lavori"]);
+    expect(fasi[1]).toMatchObject({ numero: 2, a_misura: true, amount: 0, percent: 0 });
   });
 });
 
@@ -36,13 +44,12 @@ describe("costi dal listino", () => {
 });
 
  it("BUG-81: trasferisce gli acconti IVA inclusa e conserva il netto se IVA assente", () => {
-    const fasi = fasiDaRate([
-      { descrizione: "Acconto", percentuale: 30, importo: 194.4, importoIvato: 237.17 },
-      { descrizione: "SAL", percentuale: 40, importo: 259.2, importoIvato: 316.22 },
-      { descrizione: "Saldo", percentuale: 30, importo: 194.4, importoIvato: 237.17 },
-    ]);
+    // Dall'11/11/2026 l'importo della rata è già quello che paga il cliente, IVA inclusa.
+    const rata = (descrizione: string, percentuale: number, importo: number) =>
+      ({ descrizione, percentuale, importo, aMisura: false, evento: "firma_contratto", numero: null as number | null });
+    const fasi = fasiDaRate([rata("Acconto", 30, 237.17), rata("SAL", 40, 316.22), rata("Saldo", 30, 237.17)]);
     expect(fasi.map(f => f.amount)).toEqual([237.17, 316.22, 237.17]);
-    expect(fasiDaRate([{ descrizione: "Saldo", percentuale: 100, importo: 648 }])[0].amount).toBe(648);
+    expect(fasiDaRate([rata("Saldo", 100, 648)])[0].amount).toBe(648);
  });
 
  describe("BUG-81: prezzo concordato del computo", () => {

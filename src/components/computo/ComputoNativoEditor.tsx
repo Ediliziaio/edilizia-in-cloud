@@ -19,7 +19,7 @@ import ComputoRevisioni from "./ComputoRevisioni";
 import { InviaFirmaCard } from "@/components/moduli/InviaFirmaCard";
 import { calcolaDetrazione } from "@/lib/computo/detrazioneComputo";
 import { calcolaSconto } from "@/lib/computo/scontoComputo";
-import { MOMENTI_RATA, analizzaEconomia } from "@/lib/computo/economiaComputo";
+import { analizzaEconomia, eventoPerCommessa, testoQuando, testoTermine } from "@/lib/computo/economiaComputo";
 import ComputoCapitoli from "./ComputoCapitoli";
 import ComputoMisure from "./ComputoMisure";
 import ComputoUnitaSelect from "./ComputoUnitaSelect";
@@ -92,7 +92,17 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
   const step = fase ?? faseLocale;
   const desktop = useSyncExternalStore(subscribeDesktop, desktopSnapshot, () => false);
   const [caricando, setCaricando] = useState(false);
-  const cambiaFase = (n: number) => { if (caricando || esportando) return; setFaseLocale(n); onFaseChange?.(n); };
+  // Il passo nuovo si apre in cima (11/11/2026): su un computo di 164 lavorazioni «Avanti» sta in fondo
+  // alla pagina, e prima il passo cambiava lasciando l'utente davanti al fondo di una pagina che non c'era più.
+  const testaFasi = useRef<HTMLDivElement | null>(null);
+  const cambiaFase = (n: number) => {
+    if (caricando || esportando) return;
+    setFaseLocale(n); onFaseChange?.(n);
+    requestAnimationFrame(() => {
+      const dolce = !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      testaFasi.current?.scrollIntoView({ behavior: dolce ? "smooth" : "auto", block: "start" });
+    });
+  };
   const [iniziale] = useState(() => {
     let raw: string | null = null;
     try {
@@ -185,13 +195,36 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
   const totaleDocumento = lordoDocumento - calcolaSconto(lordoDocumento, bozza.sconto, sicurezzaDocumento).importo;
   const fiscaleDocumento = calcolaIvaComputo(totaleDocumento, bozza);
   const spesaCliente = fiscaleDocumento.totale ?? fiscaleDocumento.imponibile ?? 0;
-  const { pianoPdf, pianoErrore } = useMemo(() => {
+  const { pianoPdf, pianoErrore, ritenutaPdf, rateCommessa } = useMemo(() => {
     const a = analizzaEconomia(bozzaPdf);
-    return { pianoErrore: a.errorePiano, pianoPdf: a.rate.map(r => ({ descrizione: r.rata.descrizione.trim() || "Rata", quando: r.rata.quando === "sal" && r.rata.giorno ? `SAL al giorno ${r.rata.giorno} di cantiere` : MOMENTI_RATA[r.rata.quando],
-      percentuale: r.percentuale ?? 0, importo: r.importo, termine: r.rata.giorniPagamento ? `${r.rata.giorniPagamento} gg` : "",
-      importoIvato: (() => { const f = calcolaIvaComputo(r.importo, bozzaPdf); return f.modalita === "applicata" && f.totale != null ? f.totale : null; })() })) };
+    const rate = a.rate.map(r => r.rata);
+    const quanteAMisura = a.rate.filter(r => r.rata.base === "avanzamento").length;
+    const r0 = bozzaPdf.pianoPagamenti.ritenuta;
+    return {
+      pianoErrore: a.errorePiano,
+      ritenutaPdf: a.ritenuta ? { percentuale: a.ritenuta.percentuale, totale: a.ritenuta.totale,
+        svincolo: r0.svincolo === "collaudo" ? "al collaudo" : `${r0.mesi} mesi dopo la fine dei lavori` } : null,
+      pianoPdf: a.rate.map(r => ({
+        descrizione: r.rata.descrizione.trim() || "Rata",
+        quando: testoQuando(r.rata, rate),
+        percentuale: r.percentuale, importo: r.importo,
+        imponibile: r.rata.base === "avanzamento" ? null : r.importoNetto,
+        termine: r.rata.termineGiorni || r.rata.termineFineMese ? testoTermine(r.rata.termineGiorni, r.rata.termineFineMese) : "",
+        aMisura: r.rata.base === "avanzamento",
+        quotaIndicativa: r.rata.base === "avanzamento" && quanteAMisura ? Math.round(a.quotaAMisura / quanteAMisura * 100) / 100 : null,
+      })),
+      // Le rate come le riceve la commessa: col momento vero del cantiere, non più tutte «acconto».
+      rateCommessa: a.rate.map(r => ({
+        descrizione: r.rata.descrizione.trim() || "Rata",
+        percentuale: r.percentuale, importo: r.importo, aMisura: r.rata.base === "avanzamento",
+        ...eventoPerCommessa(r.rata, rate),
+      })),
+    };
   }, [bozzaPdf]);
   const erroreIva = bozza.formatoPdf !== "senza-prezzi" && bozza.mostraImportiPdf !== false ? calcolaIvaComputo(totale - sconto.importo, bozza).errore : "";
+  const daQuantificare = bozza.voci.filter(r => r.daQuantificare).length;
+  /** Quello che ferma davvero il documento. Il piano dei pagamenti no: ferma la firma e la commessa. */
+  const bloccaDocumento = !bozza.titolo.trim() || !bozza.voci.length || !!invalide || !!erroreIva || !!sconto.errore;
   const intestazione = useMemo(() => ({ titolo: bozza.titolo, committente: bozza.mostraDatiCliente === false ? null : [bozza.committente.trim(), nomeCointestatario(bozza)].filter(Boolean).join(" e "), oggetto: bozza.oggetto,
     datiFiscaliCommittente: bozza.mostraDatiCliente === false ? null : rigaDatiFiscali(datiFiscaliBozza(bozza)),
     stato: "Bozza - non ancora inviata", senzaPrezzi, presentazione, azienda, dettagliAzienda, colore,
@@ -209,11 +242,12 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
     veste: veste && { ...veste, premessa: bozza.sezioniPdf.premessa === false ? "" : veste.premessa }, sezioni: bozza.sezioniPdf,
     cronoprogramma: bozza.mostraCronoprogrammaPdf === false || bozza.sezioniPdf.cronoprogramma === false ? null : bozza.cronoprogramma, sconto: bozza.sconto,
     ratePagamento: bozza.mostraCondizioni === false || bozza.sezioniPdf.pagamenti === false || pianoErrore ? [] : pianoPdf,
+    ritenutaPagamenti: bozza.mostraCondizioni === false || bozza.sezioniPdf.pagamenti === false || pianoErrore ? null : ritenutaPdf,
     calcoloDetrazione: bozza.sezioniPdf.detrazione === false || senzaPrezzi ? null : calcolaDetrazione(bozza.detrazione, spesaCliente, fiscaleDocumento.totale != null),
     condizioniContrattuali: bozza.mostraCondizioni === false || bozza.sezioniPdf.contrattuali === false ? "" : bozza.condizioniContrattuali,
     firmaCommittente: bozza.committente.trim(), firmaCointestatario: nomeCointestatario(bozza) ?? "",
     immagineCopertina: idFoto ? fotoCopertina : null, vociOpzionali }),
-  [bozza, senzaPrezzi, presentazione, azienda, dettagliAzienda, colore, veste, pianoPdf, pianoErrore, spesaCliente, idFoto, fotoCopertina, vociOpzionali]);
+  [bozza, senzaPrezzi, presentazione, azienda, dettagliAzienda, colore, veste, pianoPdf, pianoErrore, ritenutaPdf, spesaCliente, idFoto, fotoCopertina, vociOpzionali]);
   const liveKey = useMemo(() => JSON.stringify([bozza, intestazione]), [bozza, intestazione]);
   const renderLive = useCallback(async () => {
     const { generaDocumentoComputo } = await import("@/lib/computo/esportaComputo");
@@ -226,11 +260,13 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
   /** Dal preventivo alla commessa: righe e rate sul preventivo, poi la commessa nuova precompilata (`commessaDaComputo`). */
   const creaCommessa = async () => {
     if (!firmaOnline?.userId || !firmaOnline.onApriCommessa) return;
+    // Le rate del preventivo diventano le scadenze della commessa: un piano che non quadra non ci può andare.
+    if (pianoErrore) { toast.error("Il piano dei pagamenti non quadra", { description: `${pianoErrore} Sistemalo nel passo Economia prima di creare la commessa.` }); return; }
     const { preparaCommessaDaComputo } = await import("@/lib/computo/commessaDaComputo");
     const aliquota = bozza.ivaModalita === "applicata" ? numeroEditor(bozza.ivaAliquota) : bozza.ivaModalita === "non-applicabile" ? 0 : null;
     const quoteId = await preparaCommessaDaComputo({ companyId: firmaOnline.companyId, userId: firmaOnline.userId, draftId: firmaOnline.draftId, bozza: bozzaPdf,
       subtotal: fiscaleDocumento.imponibile ?? 0, vatAmount: fiscaleDocumento.iva ?? 0, total: fiscaleDocumento.totale ?? fiscaleDocumento.imponibile ?? 0, aliquotaIva: aliquota,
-      rate: pianoPdf.map(r => ({ descrizione: r.descrizione, percentuale: r.percentuale, importo: r.importo, importoIvato: r.importoIvato })), validityDays: modello?.giorniValidita ?? 30,
+      rate: rateCommessa, validityDays: modello?.giorniValidita ?? 30,
       conCosti: vediMargini, generaPdf: generaPdfDefinitivo });
     firmaOnline.onApriCommessa(quoteId);
   };
@@ -403,7 +439,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
           </DropdownMenuContent>
         </DropdownMenu>
         <Button variant="outline" size="sm" disabled={caricando || esportando || !bozza.voci.length || !bozza.titolo.trim()} onClick={() => esporta(true)}><Eye className="mr-1 h-4 w-4" />Anteprima</Button>
-        <QuotePrimaryButton aria-label="Scarica preventivo" size="sm" disabled={esportando || caricando || !bozza.voci.length || !!invalide || !!erroreIva || !!sconto.errore || !!pianoErrore || !bozza.titolo.trim()} onClick={() => esporta()}>
+        <QuotePrimaryButton aria-label="Scarica preventivo" size="sm" disabled={esportando || caricando || !bozza.voci.length || !!invalide || !!erroreIva || !!sconto.errore || !bozza.titolo.trim()} onClick={() => esporta()}>
           {esportando ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}Scarica PDF
         </QuotePrimaryButton>
       </>} />
@@ -415,6 +451,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
       Per riaprire il computo completo in Edilizia in Cloud usa «Scarica una copia della bozza» e poi «Riapri una copia salvata».
       <Button variant="outline" size="sm" className="ml-2" onClick={() => { void copiaBozza(); }}>Scarica copia completa</Button>
     </div>}
+    <div ref={testaFasi} aria-hidden="true" className="scroll-mt-4" />
     <BarraFasi passi={[{ key: "0", label: "Dati" }, { key: "1", label: "Progetto" }, { key: "2", label: "Computo" }, { key: "3", label: "Economia" }, { key: "4", label: "Documento" }]}
       corrente={String(step)} completati={new Set([!!bozza.titolo.trim() && !!bozza.committente.trim(), true, !!bozza.voci.length && !invalide, !!bozza.voci.length && !invalide && !erroreIva && !sconto.errore, documentoPronto].flatMap((ok, n) => ok ? [String(n)] : []))}
       onSelect={n => cambiaFase(Number(n))} ariaLabel="Fasi del preventivo con computo" />
@@ -489,18 +526,25 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
         />
       </div>}
       {step === 3 && <ComputoEconomia bozza={bozza} totale={totale} onChange={cambiaParte} vediMargini={vediMargini} onCronoprogramma={() => cambiaFase(4)}
-        onCostiDalListino={firmaOnline?.companyId ? costiDalListino : undefined} />}
+        onCostiDalListino={firmaOnline?.companyId ? costiDalListino : undefined} conModelliAzienda={!!firmaOnline?.companyId} />}
       {step === 4 && <ComputoDocumento bozza={bozza} onChange={cambiaParte} onSostituisci={cambia} spesaCliente={spesaCliente} ivaInclusa={fiscaleDocumento.totale != null} totaleDocumento={totaleDocumento}
-        controlli={(!bozza.titolo.trim() || !bozza.voci.length || !!invalide || !!erroreIva || !!sconto.errore || !!pianoErrore) && <div role="region" aria-label="Controlli prima del PDF" className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-sm">
-          <h3 className="font-medium">Da completare prima del download</h3>
+        controlli={(!bozza.titolo.trim() || !bozza.voci.length || !!invalide || !!erroreIva || !!sconto.errore || !!pianoErrore || !!daQuantificare) && <div role="region" aria-label="Controlli prima del PDF" className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-sm">
+          <h3 className="font-medium">{bloccaDocumento ? "Da completare prima del download" : pianoErrore ? "Da sistemare prima di mandarlo" : "Da sapere su questo preventivo"}</h3>
           {!bozza.titolo.trim() && <Button variant="link" className="h-auto p-0" onClick={() => cambiaFase(0)}>Inserisci il titolo del preventivo</Button>}
           {!bozza.voci.length && <Button variant="link" className="h-auto p-0" onClick={() => cambiaFase(2)}>Inserisci almeno una lavorazione</Button>}
-          {(!!erroreIva || !!sconto.errore || !!pianoErrore) && <Button variant="link" className="h-auto p-0" onClick={() => cambiaFase(3)}>Sistema IVA, sconto e rate nel passo Economia</Button>}
+          {(!!erroreIva || !!sconto.errore) && <Button variant="link" className="h-auto p-0" onClick={() => cambiaFase(3)}>Sistema IVA e sconto nel passo Economia</Button>}
+          {/* Un piano incompleto non ferma più il PDF (11/11/2026): il documento esce senza il piano, e lo dice. */}
+          {!!pianoErrore && <div className="space-y-0.5">
+            <Button variant="link" className="h-auto max-w-full whitespace-normal p-0 text-left" onClick={() => cambiaFase(3)}>Sistema le rate nel passo Economia</Button>
+            <p className="text-xs text-muted-foreground">{pianoErrore} Il PDF si scarica lo stesso, ma senza il piano dei pagamenti; per la firma e per la commessa il piano deve quadrare.</p>
+          </div>}
           {bozza.voci.flatMap((r, i) => risultati[i].errori.length ? [<div key={r.id} className="space-y-0.5">
             <Button variant="link" className="h-auto max-w-full whitespace-normal p-0 text-left" onClick={() => { setScelta(r.id); cambiaFase(2); }}>Completa lavorazione {i + 1}</Button>
             <p className="text-xs text-muted-foreground">{risultati[i].errori.join(" ")}</p>
           </div>] : []).slice(0, 10)}
           {invalide > 10 && <p className="text-muted-foreground">Altre {invalide - 10} lavorazioni da completare nel computo.</p>}
+          {/* Le voci che si misurano dopo non fermano niente: il documento le porta e lo dice (11/11/2026). */}
+          {!!daQuantificare && <p className="text-xs text-muted-foreground">{daQuantificare === 1 ? "1 lavorazione è segnata «da quantificare»" : `${daQuantificare} lavorazioni sono segnate «da quantificare»`}: escono nel documento senza importo, si contabilizzano a misura e non bloccano il download.</p>}
         </div>} onVaiA={cambiaFase} companyId={ai?.companyId ?? firmaOnline?.companyId} disabilitato={conflitto || erroreLettura || esportando || caricando}
         condizioniDelModello={modello?.condizioniContrattuali}
         puoRiscrivereCondizioni={puoRiscrivereCondizioni}
@@ -518,7 +562,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
     <nav aria-label="Navigazione fasi" className="flex items-center justify-between border-t pt-4">
       <Button variant="outline" disabled={step === 0 || caricando || esportando} onClick={() => cambiaFase(step - 1)}><ArrowLeft className="mr-1 h-4 w-4" />Indietro</Button>
       {step < 4 && <QuotePrimaryButton disabled={caricando || esportando} onClick={() => cambiaFase(step + 1)}>Avanti</QuotePrimaryButton>}
-      {step === 4 && <QuotePrimaryButton disabled={caricando || esportando || !bozza.voci.length || !!invalide || !!erroreIva || !!sconto.errore || !!pianoErrore || !bozza.titolo.trim()} onClick={() => esporta()}>
+      {step === 4 && <QuotePrimaryButton disabled={caricando || esportando || !bozza.voci.length || !!invalide || !!erroreIva || !!sconto.errore || !bozza.titolo.trim()} onClick={() => esporta()}>
         {esportando ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}Scarica documento
       </QuotePrimaryButton>}
     </nav>
@@ -562,7 +606,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
               <div className="space-y-1"><Label htmlFor="voce-fonte">Fonte del prezzo</Label><Input id="voce-fonte" maxLength={500} value={v.fonte ?? ""} onChange={e => modificaVoce({ fonte: e.target.value })} /></div>
               <div className="space-y-1"><Label htmlFor="voce-note-misure">Misure di riferimento originali (non usate nel calcolo)</Label><Textarea id="voce-note-misure" rows={4} maxLength={30000} value={v.noteMisure ?? ""} onChange={e => modificaVoce({ noteMisure: e.target.value })} /></div>
               <div className="space-y-1"><Label htmlFor="voce-comune">Descrizione comune del gruppo</Label><Textarea id="voce-comune" rows={4} maxLength={30000} value={v.descrizioneComune ?? ""} onChange={e => modificaVoce({ descrizioneComune: e.target.value })} /></div>
-              <div>{([['Opzionale (fuori dal totale)', 'opzionale'], ['A corpo', 'corpo'], ['Oneri sicurezza', 'sicurezza'], ['Detrazione', 'detrazione']] as const).map(([label, key]) =>
+              <div>{([['Opzionale (fuori dal totale)', 'opzionale'], ['Da quantificare più avanti', 'daQuantificare'], ['A corpo', 'corpo'], ['Oneri sicurezza', 'sicurezza'], ['Detrazione', 'detrazione']] as const).map(([label, key]) =>
                 <ComputoOpzione key={key} label={label} checked={v[key]} onChange={value => modificaVoce({ [key]: value })} />)}</div>
             </div></details>
             <div className="flex flex-wrap justify-between gap-3 text-sm"><ul className="text-amber-800">{calcolaVoce(v, senzaPrezzi).errori.map(e => <li key={e}>{e}</li>)}</ul><strong>Importo voce: {calcolaVoce(v).importo == null ? "Da completare" : `${formatEuro(calcolaVoce(v).importo!)} €`}</strong></div>

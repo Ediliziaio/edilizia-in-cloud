@@ -199,4 +199,41 @@ describe("editor computo integrato", () => {
     await scegliFormato("Computo senza prezzi");
     expect(screen.getByRole("button", { name: "Scarica preventivo" })).toBeEnabled();
   });
+  // 11/11/2026: un piano di pagamento a metà fermava il documento, e il piano a metà lo lasciava un preset.
+  it("un piano che non fa 100% non ferma il PDF e si ripara con un pulsante", async () => {
+    // Com'erano scritte le rate prima dell'11/11/2026: lo schema le converte da sé.
+    const rata = (descrizione: string, percentuale: string, quando: string) =>
+      ({ id: crypto.randomUUID(), descrizione, percentuale, quando, giorno: null as number | null, giorniPagamento: 0 });
+    localStorage.setItem("ui-piano", JSON.stringify({ ...bozzaVuota(), titolo: "Edificio", voci: [{ ...voceVuota(), descrizione: "Scavo", quantita: "10", prezzo: "100" }],
+      pianoPagamenti: { rate: [rata("Acconto", "0", "firma"), rata("1° SAL mensile", "10", "sal")] } }));
+    render(<ComputoNativoEditor initialFase={3} storageKey="ui-piano" />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Le rate sommano il 10%");
+    expect(screen.getByRole("button", { name: "Scarica preventivo" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Riporta le rate a 100%" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(screen.getByLabelText("Percentuale della rata 2")).toHaveValue("100");
+  });
+  it("una lavorazione da quantificare dopo non ferma il documento", async () => {
+    localStorage.setItem("ui-da-quantificare", JSON.stringify({ ...bozzaVuota(), titolo: "Edificio", voci: [
+      { ...voceVuota(), descrizione: "Scavo", quantita: "10", prezzo: "100" },
+      { ...voceVuota(), descrizione: "Opere di completamento", unita: "", quantita: "", prezzo: "", daQuantificare: true },
+    ] }));
+    render(<ComputoNativoEditor initialFase={2} storageKey="ui-da-quantificare" />);
+    expect(screen.getByRole("button", { name: "Scarica preventivo" })).toBeEnabled();
+    expect(screen.getByLabelText("Riepilogo del computo")).toHaveTextContent("1.000,00 €");
+    fireEvent.click(screen.getByRole("button", { name: "Scarica preventivo" }));
+    await waitFor(() => expect(esporta).toHaveBeenCalledOnce());
+    const voci = esporta.mock.calls[0][0] as Array<{ importo_computo: number | null; da_quantificare?: boolean }>;
+    expect(voci[1]).toMatchObject({ importo_computo: null, da_quantificare: true });
+  });
+  it("un piano di partenza non cancella le rate scritte a mano senza chiedere", async () => {
+    localStorage.setItem("ui-preset", JSON.stringify({ ...bozzaVuota(), titolo: "Edificio", voci: [{ ...voceVuota(), descrizione: "Scavo", quantita: "10", prezzo: "100" }],
+      pianoPagamenti: { rate: [{ id: crypto.randomUUID(), descrizione: "Come d'accordo", percentuale: "100", quando: "fine", giorno: null, giorniPagamento: 0 }] } }));
+    render(<ComputoNativoEditor initialFase={3} storageKey="ui-preset" />);
+    fireEvent.click(screen.getByRole("button", { name: "30 · 40 · 30" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("sostituisce la rata che hai scritto");
+    expect(screen.getByLabelText("Nome della rata 1")).toHaveValue("Come d'accordo");
+    fireEvent.click(screen.getByRole("button", { name: "Sostituisci" }));
+    await waitFor(() => expect(screen.getByLabelText("Nome della rata 1")).toHaveValue("Acconto"));
+  });
 });

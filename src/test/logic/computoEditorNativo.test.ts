@@ -86,6 +86,19 @@ describe("editor nativo del computo", () => {
     const base = chiaveBozzaComputo("a", "u", "o");
     expect(new Set([base, chiaveBozzaComputo("b", "u", "o"), chiaveBozzaComputo("a", "v", "o"), chiaveBozzaComputo("a", "u", "p")]).size).toBe(4);
   });
+  // 11/11/2026: le rate sono passate agli eventi del cantiere. Le bozze salvate prima devono riaprirsi.
+  it("una bozza con le rate vecchie si riapre con i momenti nuovi", () => {
+    const vecchia = { ...bozzaVuota(), pianoPagamenti: { rate: [
+      { id: "r1", descrizione: "Acconto", percentuale: "30", quando: "firma", giorno: null, giorniPagamento: 0 },
+      { id: "r2", descrizione: "1° SAL", percentuale: "40", quando: "sal", giorno: 12, giorniPagamento: 30 },
+      { id: "r3", descrizione: "Saldo", percentuale: "30", quando: "collaudo", giorno: null, giorniPagamento: 60 },
+    ] } };
+    const letta = leggiBozzaComputo(JSON.stringify(vecchia));
+    expect(letta.pianoPagamenti.rate.map(r => r.evento)).toEqual(["firma_contratto", "sal_numero", "collaudo"]);
+    expect(letta.pianoPagamenti.rate.map(r => r.termineGiorni)).toEqual([0, 30, 60]);
+    expect(letta.pianoPagamenti.rate[1]).toMatchObject({ giorno: 12, base: "percentuale", termineFineMese: false });
+    expect(letta.pianoPagamenti.ritenuta).toMatchObject({ percentuale: "", su: "sal" });
+  });
   it("non sovrascrive una versione salvata da un'altra scheda", () => {
     localStorage.setItem("test", "altra versione");
     expect(() => salvaBozzaComputo(localStorage, "test", bozzaVuota(), null)).toThrow(/altra scheda/);

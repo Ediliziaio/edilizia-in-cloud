@@ -43,6 +43,8 @@ export interface IntestazioneComputo extends ImpostazioniIvaComputo {
   sconto?: import("./scontoComputo").ScontoComputo;
   /** Le rate del piano dei pagamenti, già calcolate (passo «Economia»). */
   ratePagamento?: import("./pianoPagamentiPdf").RataPdf[];
+  /** La ritenuta a garanzia del piano dei pagamenti (11/11/2026): una riga in fondo alle rate. */
+  ritenutaPagamenti?: import("./pianoPagamentiPdf").RitenutaPdf | null;
   /** Le sezioni del documento scelte nel passo Documento: una sezione spenta non esce. */
   sezioni?: Partial<Record<"copertina" | "indice" | "riepilogo" | "firme", boolean>>;
   /** La detrazione fiscale già calcolata sul totale del documento. */

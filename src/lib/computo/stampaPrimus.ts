@@ -240,7 +240,7 @@ export function disegnaComputoPrimus(doc: jsPDF, voci: VoceComputo[], i: Intesta
     font(7, "bold", t.grigio); doc.text(`SOMMANO ${v.unita_misura || ""}`.trim(), fineDesc, y, { align: "right" });
     if (v.quantita !== null) numeroA(due(v.quantita), c.q, 44, 7.5, "bold");
     if (conUnitari && v.prezzo_unitario_computo !== null) numeroA(due(v.prezzo_unitario_computo), c.u, 42, 7.5);
-    if (conPrezzi) numeroA(v.importo_computo === null ? "da definire" : formatEuro(v.importo_computo), c.imp, 54, 7.5, "bold", v.importo_computo === null ? "#8A5A00" : t.inchiostro);
+    if (conPrezzi) numeroA(v.da_quantificare ? "da quantificare" : v.importo_computo === null ? "da definire" : formatEuro(v.importo_computo), c.imp, 54, 7.5, "bold", v.importo_computo === null ? "#8A5A00" : t.inchiostro);
     riportato += v.importo_computo ?? 0;
     voceInCorso = null;
     y += 9;
@@ -354,7 +354,7 @@ export function disegnaComputoPrimus(doc: jsPDF, voci: VoceComputo[], i: Intesta
     const blocchi = ([
       ["Riferimenti dei prezzi", [i.riferimentoPrezzi, ...fonti.map((f, k) => `[${k + 1}] ${f}`)].filter(Boolean).join("\n")],
       ["Voci opzionali, non comprese nel totale", (i.vociOpzionali ?? []).map(o => `${o.descrizione.split("\n")[0]} - ${o.quantita ?? "-"} ${o.unita}${conPrezzi && o.importo != null ? `: ${formatEuro(o.importo)} €` : ""}`).join("\n")],
-      ["Piano dei pagamenti", testoPianoPagamenti(i.ratePagamento, i.ivaModalita === "applicata", i.mostraImporti !== false)],
+      ["Piano dei pagamenti", testoPianoPagamenti(i.ratePagamento, i.ivaModalita === "applicata", i.mostraImporti !== false, i.ritenutaPagamenti)],
       ["Modalità di pagamento", i.pagamenti ?? ""],
       ["Note e condizioni", i.condizioni ?? ""],
     ] as const).filter(([, s]) => s.trim());

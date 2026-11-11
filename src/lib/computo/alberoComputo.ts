@@ -44,6 +44,8 @@ export interface VoceComputo {
   descrizione_comune?: string | null;
   /** Lavori o somme a disposizione (null = proposta automatica). */
   quadro_voce?: "lavori" | "somme_a_disposizione" | null;
+  /** Lavorazione che si quantifica più avanti (11/11/2026): nel documento esce senza quantità né importo. */
+  da_quantificare?: boolean | null;
   /** Variante: la voce del contratto originario. */
   voce_origine_id?: string | null;
   /** Nuovo prezzo (NP) introdotto con una variante. */

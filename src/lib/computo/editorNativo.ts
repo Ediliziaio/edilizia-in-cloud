@@ -2,7 +2,7 @@ import type { DatiFiscaliCliente } from "@/lib/preventivatore/datiFiscaliCliente
 import { z } from "zod";
 import { valutaFormula } from "./computoStrutturato";
 import { cronoprogrammaSchema } from "./cronoprogrammaSchema";
-import { rataSchema } from "./pagamentiSchema";
+import { pianoPagamentiSchema } from "./pagamentiSchema";
 import { revisioneSchema } from "./revisioniSchema";
 import type { VoceComputo } from "./alberoComputo";
 
@@ -19,6 +19,11 @@ const voceSchema = z.object({
   costo: z.string().max(40).default(""),
   /** Voce opzionale: si propone al cliente ma resta fuori dal totale (sezione a parte nel PDF). */
   opzionale: z.boolean().default(false),
+  /**
+   * Lavorazione che si farà ma che oggi non si sa quantificare (11/11/2026): entra nel documento
+   * senza quantità né importo, non blocca il download, e si chiude quando il numero si conosce.
+   */
+  daQuantificare: z.boolean().default(false),
   noteMisure: testo.default(""),
   descrizioneComune: testo.default(""),
   sicurezza: z.boolean(), detrazione: z.boolean(), corpo: z.boolean(),
@@ -59,7 +64,7 @@ export const bozzaComputoSchema = z.object({
   mostraCodiciPdf: z.boolean().default(true), mostraFontiPdf: z.boolean().default(true),
   mostraDatiCliente: z.boolean().default(true), mostraCondizioni: z.boolean().default(true),
   cronoprogramma: cronoprogrammaSchema.prefault({}), mostraCronoprogrammaPdf: z.boolean().default(true),
-  pianoPagamenti: z.object({ rate: z.array(rataSchema).max(24).default([]) }).prefault({}),
+  pianoPagamenti: pianoPagamentiSchema,
   // Il passo Documento (29/10/2026, come Hausme): quali sezioni escono, quali capitoli, la detrazione fiscale
   // e le condizioni contrattuali del modello dell'azienda.
   sezioniPdf: z.object({
@@ -154,18 +159,20 @@ export const ePercentuale = (unita: string) => unita.trim() === "%";
 
 export function calcolaVoce(v: VoceEditor, senzaPrezzi = false) {
   const errori: string[] = [];
+  // Una voce «da quantificare» non è incompleta per sbaglio: è una lavorazione che si misura dopo.
+  const dopo = v.daQuantificare === true;
   if (!v.descrizione.trim()) errori.push("Inserisci la descrizione.");
-  if (!v.unita.trim()) errori.push("Inserisci l'unità di misura.");
+  if (!v.unita.trim() && !dopo) errori.push("Inserisci l'unità di misura.");
   const misure = v.misure.map(quantitaMisura);
   const q = v.misure.length ? (misure.some(n => n === null) ? null : arrotondaDecimale(misure.reduce<number>((s, n) => s + n!, 0))) : numeroEditor(v.quantita);
-  if (q === null) errori.push("Completa quantità o misure con numeri validi.");
+  if (q === null && !dopo) errori.push("Completa quantità o misure con numeri validi.");
   if (q !== null && Math.abs(q) > 1e12) errori.push("Quantità fuori limite.");
   const prezzo = numeroEditor(v.prezzo);
-  if (!senzaPrezzi && (prezzo === null || prezzo < 0)) errori.push("Inserisci un prezzo unitario valido, anche zero.");
+  if (!senzaPrezzi && !dopo && (prezzo === null || prezzo < 0)) errori.push("Inserisci un prezzo unitario valido, anche zero.");
   const quantita = q === null ? null : v.detrazione ? -Math.abs(q) : q;
   // Fino al 29/10/2026 la «Percentuale» del selettore delle unità moltiplicava
   // senza dividere per 100: l'importo usciva cento volte troppo grande.
-  const importo = quantita === null || prezzo === null || prezzo < 0 ? null
+  const importo = dopo || quantita === null || prezzo === null || prezzo < 0 ? null
     : arrotondaDecimale((quantita * prezzo) / (ePercentuale(v.unita) ? 100 : 1));
   if (importo !== null && (!Number.isFinite(importo) || Math.abs(importo) > 1e12)) errori.push("Importo fuori limite.");
   return { quantita, prezzo, importo, errori, misure };
@@ -191,6 +198,7 @@ function voceDocumento(v: VoceEditor, i: number, senzaPrezzi: boolean, parziale:
       unita_misura: v.unita.trim(), quantita: c.quantita, prezzo_unitario_computo: c.prezzo !== null && c.prezzo >= 0 ? c.prezzo : null, importo_computo: c.errori.length ? null : c.importo,
       super_categoria: v.capitolo.trim() || null, categoria: v.categoria.trim() || null, sotto_categoria: v.sottocategoria.trim() || null,
       is_sicurezza: v.sicurezza, is_detrazione: v.detrazione, a_corpo: v.corpo, warnings: [],
+      da_quantificare: v.daQuantificare === true,
       fonte_prezzo: v.fonte || null,
       note_misure: v.noteMisure || null,
       descrizione_comune: v.descrizioneComune || null,

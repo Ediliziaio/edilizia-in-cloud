@@ -23,7 +23,7 @@ export type DatiCommessaComputo = {
   /** Le voci del documento: senza opzionali e senza capitoli spenti. */
   bozza: BozzaComputo;
   subtotal: number; vatAmount: number; total: number; aliquotaIva: number | null;
-  rate: { descrizione: string; percentuale: number; importo: number; importoIvato?: number | null }[];
+  rate: RataPerCommessa[];
   validityDays: number;
   /** Chi vede i costi: il costo stimato diventa il prezzo d'acquisto della riga. */
   conCosti: boolean;
@@ -51,9 +51,32 @@ export function righeDaComputo(d: Pick<DatiCommessaComputo, "bozza" | "aliquotaI
   });
 }
 
-/** Le rate del piano come fasi di pagamento del preventivo: l'ultima è il saldo. */
+/** Una rata del computo come arriva qui: col momento del cantiere, non più solo con la percentuale. */
+export type RataPerCommessa = {
+  descrizione: string; percentuale: number | null; importo: number | null;
+  /** Rata a misura: l'importo vero lo dirà il verbale SAL. */
+  aMisura: boolean;
+  /** Evento di `lib/orders/rateEventi` e, per un SAL, il suo numero. */
+  evento: string; numero: number | null;
+};
+
+/**
+ * Le rate del piano come fasi di pagamento del preventivo: l'ultima è il saldo.
+ * Dall'11/11/2026 portano anche il momento d'incasso (`evento`, `numero`), che la commessa
+ * trasforma in `trigger_evento` e in una data attesa vera invece che inventata: prima
+ * diventavano tutte «acconto», tranne l'ultima, e un «al SAL 2» non era più riconoscibile.
+ */
 export function fasiDaRate(rate: DatiCommessaComputo["rate"]) {
-  return rate.map((r, k) => ({ label: r.descrizione, type: k === rate.length - 1 && rate.length > 1 ? "balance" : "deposit", percent: r.percentuale, amount: r.importoIvato ?? r.importo }));
+  return rate.map((r, k) => ({
+    label: r.descrizione,
+    type: k === rate.length - 1 && rate.length > 1 ? "balance" : "deposit",
+    percent: r.percentuale ?? 0,
+    amount: r.importo ?? 0,
+    evento: r.evento,
+    numero: r.numero,
+    /** Una rata a misura nasce con la stima: il verbale SAL la corregge. */
+    a_misura: r.aMisura || undefined,
+  }));
 }
 
 /** Il computo è la fonte del prezzo concordato, già al netto dello sconto.

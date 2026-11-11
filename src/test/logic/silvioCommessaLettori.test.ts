@@ -118,7 +118,7 @@ function bozzaComputo(): BozzaComputo {
     cronoprogramma: { dataInizio: "09/11/2026", fasi: [{ id: "c1", nome: "Demolizioni", inizio: 1, durata: 3 }] },
     pianoPagamenti: { rate: [
       { id: "r1", descrizione: "Acconto", percentuale: "20", quando: "firma" },
-      { id: "r2", descrizione: "SAL", percentuale: "50", quando: "sal", giorno: 5 },
+      { id: "r2", descrizione: "SAL", percentuale: "50", quando: "sal", giorno: 5 },  // bozza vecchia: «quando» si converte in evento
       { id: "r3", descrizione: "Saldo", percentuale: "30", quando: "fine" },
     ] },
     voci: [
@@ -299,6 +299,18 @@ describe("lettore del computo", () => {
       { label: "SAL", type: "deposit", amount: 3850, percent: 50, daPercentuale: true, trigger_evento: "sal_numero", trigger_numero: 1 },
       { label: "Saldo", type: "balance", amount: 2310, percent: 30, daPercentuale: true, trigger_evento: "fine_lavori", trigger_numero: null },
     ]);
+  });
+
+  // 11/11/2026: col saldo che prende «il resto», una rata a misura (che vale 0) gli regalava la quota dei SAL.
+  it("con una rata a misura il saldo resta la sua percentuale, non il resto", () => {
+    const bozza = bozzaComputo();
+    const fr = frammentoDaComputo({ bozza: { ...bozza, pianoPagamenti: { ...bozza.pianoPagamenti, rate: [
+      { ...bozza.pianoPagamenti.rate[0], percentuale: "20" },
+      { ...bozza.pianoPagamenti.rate[1], percentuale: "", base: "avanzamento" as const },
+      { ...bozza.pianoPagamenti.rate[2], percentuale: "30" },
+    ] } }, id: "c-1", listino: [] });
+    const rate = val<RataDelPiano[]>(fr, "pagamenti.rate")!;
+    expect(rate.map(r => r.amount)).toEqual([1540, 0, 2310]);
   });
 
   it("costi previsti per fase: dal costo stimato e, se manca, dal listino col codice", () => {

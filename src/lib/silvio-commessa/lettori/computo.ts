@@ -21,7 +21,7 @@ import type { FaseDelPiano, Fonte, Frammento, RataDelPiano } from "../../../../s
 import { dateDelleFasi } from "../../../../shared/silvio-commessa/modelliLavoro.ts";
 import type { CalendarioCantiere } from "../../../../shared/silvio-commessa/calendario.ts";
 import { calcolaVoce, numeroEditor, bozzaVuota, type BozzaComputo } from "@/lib/computo/editorNativo";
-import { analizzaEconomia, type MomentoRata } from "@/lib/computo/economiaComputo";
+import { analizzaEconomia, eventoPerCommessa } from "@/lib/computo/economiaComputo";
 import { calcolaIvaComputo } from "@/lib/computo/ivaComputo";
 import { applicaCostiListino, type CostoListino } from "@/lib/computo/costiDalListino";
 import { normalizzaFasi } from "@/lib/computo/cronoprogramma";
@@ -52,11 +52,6 @@ export interface DatiComputo {
  * uno dopo l'altro, e un computo grande in Excel veniva 891 giornate in fila. Meglio chiedere.
  */
 export const SOGLIA_GIORNI_STIMATI = 180;
-
-/** Il momento della rata del computo come evento della rata di commessa. */
-const EVENTO: Readonly<Record<MomentoRata, string>> = {
-  firma: "firma_contratto", inizio: "inizio_lavori", sal: "sal_numero", fine: "fine_lavori", collaudo: "fine_lavori",
-};
 
 /** La prima riga della descrizione: il nome della voce. */
 const nomeVoce = (descrizione: string) => descrizione.trim().split("\n")[0].slice(0, 160) || "Lavorazione";
@@ -122,20 +117,26 @@ export function frammentoDaComputo(dati: DatiComputo): Frammento {
   else if (economia.rate.length) {
     // Le rate si incassano sul totale che il cliente paga: con l'IVA quando è applicata.
     const totale = economia.netto > 0 ? calcolaIvaComputo(economia.netto, bozza).totale ?? economia.netto : 0;
-    let sal = 0;
+    // Con una rata a misura il piano non fa 100%: l'ultima rata prende la SUA percentuale, non «il resto»,
+    // che sarebbe la quota dei SAL (11/11/2026). Il resto si assorbe solo quando le rate sono tutte fisse.
+    const conAMisura = economia.rate.some(x => x.rata.base === "avanzamento");
     const rate = economia.rate.map((r, i): RataDelPiano => {
-      const amount = i === economia.rate.length - 1
-        ? tondo(totale - economia.rate.slice(0, -1).reduce((s, x) => s + tondo((totale * (x.percentuale ?? 0)) / 100), 0))
-        : tondo((totale * (r.percentuale ?? 0)) / 100);
-      const quando = r.rata.quando;
+      const amount = r.rata.base === "avanzamento" ? 0
+        : !conAMisura && i === economia.rate.length - 1
+          ? tondo(totale - economia.rate.slice(0, -1).reduce((s, x) => s + tondo((totale * (x.percentuale ?? 0)) / 100), 0))
+          : tondo((totale * (r.percentuale ?? 0)) / 100);
+      const evento = r.rata.evento;
+      // Dall'11/11/2026 il momento della rata è già un evento del cantiere: si traduce solo
+      // quello che la commessa non conosce (il collaudo, il SAL a percentuale o a fase).
+      const perCommessa = eventoPerCommessa(r.rata, economia.rate.map(x => x.rata));
       return {
         label: r.rata.descrizione.trim() || "Rata",
-        type: quando === "fine" || quando === "collaudo" || (i === economia.rate.length - 1 && economia.rate.length > 1) ? "balance" : "deposit",
+        type: evento === "fine_lavori" || evento === "collaudo" || (i === economia.rate.length - 1 && economia.rate.length > 1) ? "balance" : "deposit",
         amount, percent: r.percentuale,
         // Il computo dice la percentuale: l'importo segue il totale, se la persona lo cambia.
         ...(r.percentuale != null ? { daPercentuale: true } : {}),
-        trigger_evento: EVENTO[quando],
-        trigger_numero: quando === "sal" ? ++sal : null,
+        trigger_evento: perCommessa.evento,
+        trigger_numero: perCommessa.numero,
       };
     });
     metti(fr, "pagamenti.rate", rate, { dove: "piano dei pagamenti" });
