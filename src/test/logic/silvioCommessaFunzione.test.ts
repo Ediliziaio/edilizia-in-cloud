@@ -30,6 +30,7 @@ const runtime = vi.hoisted(() => ({
   errore: null as Error | null,
 }));
 
+vi.mock("../../../supabase/functions/_shared/conversioneHeic.ts", () => ({ heicInJpeg: vi.fn(async () => new Uint8Array([255, 216, 255, 217])) }));
 vi.mock("https://esm.sh/@supabase/supabase-js@2", () => ({ createClient: () => runtime.db.client }));
 vi.mock("../../../supabase/functions/_shared/auth.ts", () => ({
   requireAuth: async () => ({ userId: UTENTE, supabaseAdmin: runtime.db.client }),
@@ -135,6 +136,34 @@ const valore = (fr: Frammento, chiave: string) => {
 };
 
 describe("silvio-commessa: otto documenti inventati", () => {
+  it("una foto HEIC viene convertita per la visione, mantenendo l'originale", async () => {
+    const path = `${AZIENDA}/${UTENTE}/commessa-foto.heic`;
+    const bytes = new Uint8Array([0, 0, 0, 24, ...new TextEncoder().encode("ftypheic"), 0, 0, 0, 0]);
+    runtime.db.file.set(`silvio-uploads/${path}`, { bytes, contentType: "image/heic" });
+    const r = await chiama({ company_id: AZIENDA, fonte: { tipo: "documento", etichetta: "Foto.heic" }, file_path: path });
+    expect(r.status).toBe(200);
+    expect(JSON.stringify(runtime.chiamate.at(-1)?.messages)).toContain("data:image/jpeg;base64,");
+    expect(runtime.db.file.get(`silvio-uploads/${path}`)?.bytes).toEqual(bytes);
+  });
+
+  it("un HEIC danneggiato non chiama il modello e restituisce un errore recuperabile", async () => {
+    const decoder = await import("../../../supabase/functions/_shared/conversioneHeic.ts");
+    vi.mocked(decoder.heicInJpeg).mockRejectedValueOnce(new Error("HEIC illeggibile"));
+    const path = `${AZIENDA}/${UTENTE}/commessa-rotta.heic`;
+    runtime.db.file.set(`silvio-uploads/${path}`, { bytes: new Uint8Array([0, 0, 0, 24, ...new TextEncoder().encode("ftypheic"), 0, 0, 0, 0]), contentType: "image/heic" });
+    const r = await chiama({ company_id: AZIENDA, file_path: path });
+    expect(r.status).toBe(422); expect(r.data.error).toMatch(/originale.*conservato/);
+    expect(runtime.chiamate).toHaveLength(0);
+  });
+
+  it("un testo allegato troppo lungo avvisa che il finale non è stato letto", async () => {
+    const path = `${AZIENDA}/${UTENTE}/commessa-lunga.txt`;
+    runtime.db.file.set(`silvio-uploads/${path}`, { bytes: new TextEncoder().encode("Lavori di prova. ".repeat(4500)), contentType: "text/plain" });
+    const r = await chiama({ company_id: AZIENDA, file_path: path });
+    expect(r.status).toBe(200);
+    expect((r.data.frammento as Frammento).avvisi?.join(" ")).toMatch(/Documento lungo.*Dividi il documento/);
+  });
+
   it("contratto d'appalto pubblico: importo, IVA, tempi, penali, ritenuta, anticipo, SAL, subappalto, CIG e CUP, con la pagina", async () => {
     const r = await leggi(CONTRATTO_PUBBLICO);
     expect(r.status).toBe(200);

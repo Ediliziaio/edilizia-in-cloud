@@ -51,7 +51,7 @@ export type DocumentoDaAprire =
 export function tipoDelDocumento(nome: string, mime?: string | null): "pdf" | "immagine" | null {
   const m = (mime ?? "").toLowerCase();
   if (m === "application/pdf" || /\.pdf$/i.test(nome)) return "pdf";
-  if (/^image\/(jpeg|png|webp)$/.test(m) || /\.(jpe?g|png|webp)$/i.test(nome)) return "immagine";
+  if (/^image\/(jpeg|png|webp|heic|heif)$/.test(m) || /\.(jpe?g|png|webp|hei[cf])$/i.test(nome)) return "immagine";
   return null;
 }
 

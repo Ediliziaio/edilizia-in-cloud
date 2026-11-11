@@ -21,9 +21,9 @@ const pdfjs = vi.hoisted(() => ({ pagineChieste: [] as number[] }));
 vi.mock("pdfjs-dist", () => ({
   GlobalWorkerOptions: {},
   getDocument: () => ({
+    destroy: async () => {},
     promise: Promise.resolve({
       numPages: 9,
-      destroy: () => {},
       getPage: async (n: number) => {
         pdfjs.pagineChieste.push(n);
         return {

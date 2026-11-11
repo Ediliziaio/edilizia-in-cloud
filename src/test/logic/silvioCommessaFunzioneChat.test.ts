@@ -27,6 +27,7 @@ const runtime = vi.hoisted(() => ({
   errore: null as Error | null,
 }));
 
+vi.mock("../../../supabase/functions/_shared/conversioneHeic.ts", () => ({ heicInJpeg: vi.fn(async () => new Uint8Array([255, 216, 255, 217])) }));
 vi.mock("https://esm.sh/@supabase/supabase-js@2", () => ({
   createClient: (_url: string, chiave: string): unknown => (chiave === "chiave-anon" ? runtime.utente.client : runtime.db.client),
 }));

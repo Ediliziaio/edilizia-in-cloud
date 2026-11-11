@@ -154,6 +154,17 @@ const commessa = () => screen.getByRole("tabpanel", { name: "La commessa" });
 const area = (nome: string) => within(commessa()).findByRole("region", { name: nome });
 
 describe("Popup «Crea con Silvio», fase 4", () => {
+  it("un divieto esplicito scritto dalla persona toglie le proposte e non le fa ricreare", async () => {
+    const { s } = servizi(); apri(s);
+    expect(await within(await area("Persone")).findByText("Luca Prova")).toBeInTheDocument();
+    const campo = screen.getByLabelText("Scrivi a Silvio");
+    fireEvent.change(campo, { target: { value: "SIMULAZIONE: non assegnare personale o ditte, non creare ordini di acquisto. Le date e le lavorazioni restano quelle del documento, senza altre assegnazioni." } });
+    fireEvent.keyDown(campo, { key: "Enter" });
+    await waitFor(() => expect(s.leggiTesto).toHaveBeenCalledOnce());
+    await waitFor(() => expect(within(commessa()).queryByText("Luca Prova")).not.toBeInTheDocument());
+    expect(within(commessa()).queryByText("Idraulica Prova")).not.toBeInTheDocument();
+    expect(s.chat).not.toHaveBeenCalled();
+  });
   it("propone squadra, capomastro e ditta coi dati veri: chi è impegnato ha il ⚠ e non entra", async () => {
     const { s, db } = servizi();
     apri(s);

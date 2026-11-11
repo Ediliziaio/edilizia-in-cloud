@@ -217,6 +217,8 @@ export interface RataDelPiano {
   /** Evento del cantiere che la rende esigibile (vedi src/lib/orders/rateEventi). */
   trigger_evento?: string | null;
   trigger_numero?: number | null;
+  /** Scadenza esplicita della rata, distinta dall'evento che la rende esigibile. */
+  expected_date?: string | null;
   /**
    * L'importo viene da `percent` e il documento non diceva tutto (manca l'IVA o il totale):
    * si rifà quando arriva quello che manca (quadratura.ts). Revisione 2/11, G9 e G20.

@@ -14,6 +14,7 @@ import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { trovaCitazione } from "./documentoCitato";
+import { convertiHeic } from "@/lib/files/convertiHeic";
 import { erroreLeggibile } from "@/lib/silvio-commessa/testoErrore";
 
 export interface DocumentoDelVisore {
@@ -34,7 +35,7 @@ interface PaginaPdf {
   render(o: { canvasContext: CanvasRenderingContext2D; viewport: unknown; canvas: HTMLCanvasElement }): { promise: Promise<void>; cancel?: () => void };
   getTextContent(): Promise<{ items: Array<{ str?: string; transform?: number[]; width?: number; height?: number }> }>;
 }
-interface DocumentoPdf { numPages: number; getPage(n: number): Promise<PaginaPdf>; destroy?: () => unknown }
+interface DocumentoPdf { numPages: number; getPage(n: number): Promise<PaginaPdf> }
 
 /** Il rettangolo di un pezzo di testo sulla pagina disegnata (coordinate del canvas). */
 function riquadroDi(item: { transform?: number[]; width?: number; height?: number }, vista: { transform: number[] }, scala: number): Riquadro | null {
@@ -64,7 +65,7 @@ export function VisoreFonte({ documento, onChiudi }: { documento: DocumentoDelVi
     if (!documento) return;
     let annullato = false;
     let indirizzo: string | null = null;
-    let aperto: DocumentoPdf | null = null;
+    let caricamento: { destroy: () => Promise<void> } | null = null;
     (async () => {
       // Il reset nel giro asincrono, come l'anteprima dei PDF: niente setState sincroni nell'effetto.
       await Promise.resolve();
@@ -74,14 +75,22 @@ export function VisoreFonte({ documento, onChiudi }: { documento: DocumentoDelVi
         const blob = await documento.carica();
         if (annullato) return;
         if (documento.tipo === "immagine") {
-          indirizzo = URL.createObjectURL(blob);
+          const heic = /image\/hei[cf]/i.test(blob.type) || /\.hei[cf]$/i.test(documento.titolo);
+          const visibile = heic ? await convertiHeic(new File([blob], documento.titolo, { type: blob.type })) : blob;
+          if (annullato) return;
+          indirizzo = URL.createObjectURL(visibile);
           setImmagine(indirizzo);
           return;
         }
         const [pdfjs, worker] = await Promise.all([import("pdfjs-dist"), import("pdfjs-dist/build/pdf.worker.min.mjs?url")]);
+        if (annullato) return;
         pdfjs.GlobalWorkerOptions.workerSrc = worker.default as string;
-        aperto = (await pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise) as unknown as DocumentoPdf;
-        if (annullato) { void aperto.destroy?.(); return; }
+        const data = new Uint8Array(await blob.arrayBuffer());
+        if (annullato) return;
+        const compito = pdfjs.getDocument({ data });
+        caricamento = compito;
+        const aperto = await compito.promise as unknown as DocumentoPdf;
+        if (annullato) return;
         setPagina(Math.min(Math.max(1, documento.pagina ?? 1), aperto.numPages));
         setPdf(aperto);
       } catch (e) {
@@ -93,7 +102,8 @@ export function VisoreFonte({ documento, onChiudi }: { documento: DocumentoDelVi
     return () => {
       annullato = true;
       if (indirizzo) URL.revokeObjectURL(indirizzo);
-      void aperto?.destroy?.();
+      // pdf.js 6 distrugge il task di caricamento, non il PDFDocumentProxy.
+      void caricamento?.destroy().catch(() => {});
     };
   }, [documento]);
 
@@ -122,7 +132,7 @@ export function VisoreFonte({ documento, onChiudi }: { documento: DocumentoDelVi
         if (annullato) return;
         const indici = pagina === (documento.pagina ?? pagina) ? trovaCitazione(testo.items.map((x) => x.str ?? ""), documento.citazione) : [];
         setRiquadri(indici.map((i) => riquadroDi(testo.items[i], vista, scala)).filter((x): x is Riquadro => !!x));
-        setTrovata(documento.citazione ? indici.length > 0 : null);
+        setTrovata(documento.citazione && pagina === (documento.pagina ?? pagina) ? indici.length > 0 : null);
       } catch (e) {
         if (!annullato) setErrore(erroreLeggibile(e, "Non riesco a disegnare la pagina."));
       }

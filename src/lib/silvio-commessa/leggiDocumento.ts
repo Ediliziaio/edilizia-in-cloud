@@ -87,7 +87,7 @@ export function nomePerLoStorage(nome: string): string {
 }
 
 /** Il percorso nella cartella che la policy di silvio-uploads concede a chi carica. */
-export function percorsoDocumento(opz: Pick<OpzioniLettura, "companyId" | "userId">, nome: string, adesso = Date.now()): string {
+export function percorsoDocumento(opz: Pick<OpzioniLettura, "companyId" | "userId">, nome: string, adesso: string | number = crypto.randomUUID()): string {
   return `${opz.companyId}/${opz.userId}/commessa-${adesso}-${nomePerLoStorage(nome)}`;
 }
 
@@ -132,7 +132,7 @@ export async function leggiDocumento(file: File, opz: OpzioniLettura, servizi: S
 
     case "computo_xpwe":
     case "computo_excel":
-      return { riconosciuto, frammenti: [frammentoDaFileComputo(await servizi.leggiComputo(file), file.name, { inizio: opz.inizio, calendario: opz.calendario })] };
+      return computoConOriginale(file, await servizi.leggiComputo(file), opz, servizi, riconosciuto);
 
     case "computo_primus": {
       let computo: ComputoStrutturato;
@@ -145,7 +145,7 @@ export async function leggiDocumento(file: File, opz: OpzioniLettura, servizi: S
           motivo: "PDF con un computo non di PriMus: lettore unico di Silvio",
         });
       }
-      return { riconosciuto, frammenti: [frammentoDaFileComputo(computo, file.name, { inizio: opz.inizio, calendario: opz.calendario })] };
+      return computoConOriginale(file, computo, opz, servizi, riconosciuto);
     }
 
     case "offerta_ditta": {
@@ -163,6 +163,19 @@ export async function leggiDocumento(file: File, opz: OpzioniLettura, servizi: S
     case "silvio_commessa":
       return await leggiFile(file, opz, servizi, riconosciuto);
   }
+}
+
+/** Il lettore resta locale e gratuito; il file originale va con la bozza e la commessa. */
+async function computoConOriginale(file: File, computo: ComputoStrutturato, opz: OpzioniLettura, servizi: ServiziLettura, riconosciuto: Riconosciuto): Promise<EsitoLettura> {
+  const origine = opz.origine;
+  let percorso = origine && "percorso" in origine ? origine.percorso : undefined;
+  if (!origine) {
+    percorso = percorsoDocumento(opz, file.name);
+    await servizi.carica(percorso, file);
+  }
+  const frammento = frammentoDaFileComputo(computo, file.name, { inizio: opz.inizio, calendario: opz.calendario });
+  if (percorso) frammento.fonte = { ...frammento.fonte, id: percorso };
+  return { riconosciuto, frammenti: [frammento], ...(percorso ? { percorso } : {}) };
 }
 
 async function leggiFile(file: File, opz: OpzioniLettura, servizi: ServiziLettura, riconosciuto: Riconosciuto): Promise<EsitoLettura> {
