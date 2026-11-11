@@ -1,0 +1,10 @@
+import React from "react";
+import {createRoot} from "react-dom/client";
+import {QueryClient,QueryClientProvider} from "@tanstack/react-query";
+import {MemoryRouter,Route,Routes} from "react-router-dom";
+import {Toaster} from "sonner";
+import {TooltipProvider} from "@/components/ui/tooltip";
+import {FlowBuilderPage} from "@/components/flow-builder/FlowBuilderPage";
+import "@/index.css";
+const client=new QueryClient({defaultOptions:{queries:{retry:false}}});
+createRoot(document.getElementById("root")!).render(<QueryClientProvider client={client}><TooltipProvider><div className="fixed bottom-1 left-14 z-50 rounded bg-amber-50 px-2 text-[10px] text-amber-900">COLLAUDO LOCALE · dati fittizi · servizi reali disabilitati</div><MemoryRouter initialEntries={["/azienda/marketing/automazioni/qa"]}><Routes><Route path="/azienda/marketing/automazioni/:id" element={<FlowBuilderPage/>}/></Routes></MemoryRouter><Toaster/></TooltipProvider></QueryClientProvider>);
