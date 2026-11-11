@@ -34,8 +34,9 @@ import {VerbaleSalDialog} from "./VerbaleSalDialog";
 import {CertificatoSal} from "./CertificatoSal";
 import {certificatoDelSal,certificatoBloccato, certificatoPrecedente, leggiImportoItaliano} from "@/lib/orders/salCertificato";
 import {giornoLocale} from "@/lib/orders/cronoprogramma";
+import {leggiFasiPerSal} from "@/lib/orders/leggiFasiPerSal";
 import {arrotondamentoAbituale, certificatoNelModulo, rataProposta, vociCheCambiano, type Arrotondamento} from "@/lib/orders/salNuovoVerbale";
-import {conPercentuale, conQuantita, percentualeFaseDaSottofasi, type SottofasePerSal, type SottofaseSalDraft} from "@/lib/orders/salSottofasi";
+import {conPercentuale, conQuantita, percentualeFaseDaSottofasi, type SottofaseSalDraft} from "@/lib/orders/salSottofasi";
 
 interface SalVoceSottofase {
   id: string;
@@ -118,18 +119,6 @@ interface VoceForm {
   sottofasi?: SottofaseSalDraft[];
 }
 
-// Letture delle sottofasi e delle voci della commessa: un tipo minimo, perché i tipi generati
-// non hanno order_work_phase_voci e quelli delle sottofasi fanno esplodere il compilatore.
-interface LetturaSemplice {
-  select: (colonne: string) => LetturaSemplice;
-  in: (colonna: string, valori: string[]) => LetturaSemplice;
-  eq: (colonna: string, valore: string) => LetturaSemplice;
-  not: (colonna: string, operatore: string, valore: null) => LetturaSemplice;
-  order: (colonna: string) => LetturaSemplice;
-  range: (da: number, a: number) => PromiseLike<{ data: unknown[] | null; error: unknown }>;
-}
-const leggiTabella = (tabella: string) => (supabase as unknown as { from: (t: string) => LetturaSemplice }).from(tabella);
-
 /** Le fasi uguali al SAL precedente: nel modulo stanno nascoste, e si salvano così. */
 const fasiSenzaCambi = (voci: ReadonlyArray<VoceForm>, prec: ReturnType<typeof percentualiPrecedenti>) => {
   const cambia = vociCheCambiano(voci, prec);
@@ -203,44 +192,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   // Fasi di lavorazione della commessa: per compilare il verbale dall'avanzamento
   // dichiarato in cantiere (nome, % e venduto). importo_venduto può tornare null
   // senza il permesso sugli importi: in quel caso la % arriva lo stesso.
-  const leggiFasi = async (): Promise<FasePerSal[]> => {
-    const { data, error } = await supabase
-      .from("order_work_phases")
-      .select("id, name, status, percentuale, importo_venduto")
-      .eq("order_id", orderId).eq("company_id",companyId).order("position");
-    if (error) throw error;
-    // importo_venduto non è nei tipi generati: la lettura torna tipata come errore, si passa da unknown.
-    const fasi = (data || []) as unknown as FasePerSal[];
-    // Le sottofasi vanno nel verbale come dettaglio (10/11/2026). Se non si leggono, il verbale resta per fase.
-    const ids = fasi.map((f) => f.id).filter((x): x is string => !!x);
-    if (!ids.length) return fasi;
-    try {
-      const sotto: Array<SottofasePerSal & { phase_id: string }> = [];
-      for (let da = 0; ; da += 1000) {
-        const r = await leggiTabella("order_work_subphases").select("id, phase_id, name, position, peso, fatta, percentuale, quantita_fatta")
-          .in("phase_id", ids).order("position").range(da, da + 999);
-        if (r.error) throw r.error;
-        sotto.push(...((r.data ?? []) as Array<SottofasePerSal & { phase_id: string }>));
-        if ((r.data?.length ?? 0) < 1000) break;
-      }
-      // Importi e quantità del contratto dalle voci della commessa; senza permesso sugli importi restano le %.
-      const vociPerSottofase = new Map<string, Array<{ quantita: number | null; unita: string | null; importo: number | null }>>();
-      for (let da = 0; ; da += 1000) {
-        const r = await leggiTabella("order_work_phase_voci").select("subphase_id, quantita, unita, importo")
-          .eq("order_id", orderId).eq("company_id", companyId).not("subphase_id", "is", null).range(da, da + 999);
-        if (r.error) break;
-        for (const v of (r.data ?? []) as Array<{ subphase_id: string; quantita: number | null; unita: string | null; importo: number | null }>) {
-          const l = vociPerSottofase.get(v.subphase_id) ?? [];
-          l.push({ quantita: v.quantita, unita: v.unita, importo: v.importo });
-          vociPerSottofase.set(v.subphase_id, l);
-        }
-        if ((r.data?.length ?? 0) < 1000) break;
-      }
-      return fasi.map((f) => ({ ...f, sottofasi: sotto.filter((x) => x.phase_id === f.id).map((x) => ({ ...x, voci: vociPerSottofase.get(x.id) ?? [] })) }));
-    } catch {
-      return fasi;
-    }
-  };
+  const leggiFasi = (): Promise<FasePerSal[]> => leggiFasiPerSal(supabase, orderId, companyId);
   const chiaveFasi = ["sal-fasi-commessa", orderId, companyId];
   const { data: fasiSal = [], isError: fasiError, refetch: refetchFasi } = useQuery<FasePerSal[]>({
     queryKey: chiaveFasi,
@@ -307,8 +259,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
       const avvisi:string[]=[];
       let certificatoOk=true;
       if(conCertificato && certificatoNuovo){
-        const {error}=await (supabase as never as {from:(t:string)=>{upsert:(r:unknown)=>PromiseLike<{error:{message:string}|null}>}})
-          .from("sal_certificati").upsert({sal_id:id,order_id:orderId,company_id:companyId,...certificatoNuovo});
+        const {error}=await supabase.from("sal_certificati").upsert({sal_id:id,order_id:orderId,company_id:companyId,...certificatoNuovo});
         if(error){certificatoOk=false;avvisi.push(`Certificato non salvato (${error.message}): aggiungilo dalla scheda del SAL.`);}
       }
       let emesso=false;
@@ -423,9 +374,12 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   const altreScritte = certAltre.trim() ? leggiImportoItaliano(certAltre) : null;
   const certificatoValido = (ritenutaScritta === null || (Number.isFinite(ritenutaScritta) && ritenutaScritta >= 0 && ritenutaScritta <= 100))
     && (altreScritte === null || (Number.isFinite(altreScritte) && altreScritte >= 0));
-  const certificatoNuovo = certificatoValido
+  const certificatoCalcolato = certificatoValido
     ? certificatoNelModulo({ cumulativo: totalDialogImporto, precedente: certificatoPrima, giaMaturato: precedenteNuovo, ritenutaPct: ritenutaScritta, altreDetrazioni: altreScritte, nota: certNota, arrotonda: arrotondamento })
     : null;
+  // Un netto negativo non è un certificato da pagare: il verbale abbassa il già certificato (rettifica).
+  const certificatoNegativo = !!certificatoCalcolato && certificatoCalcolato.netto < 0;
+  const certificatoNuovo = certificatoNegativo ? null : certificatoCalcolato;
   const vociNascoste = mostraTutte ? 0 : voci.filter((v) => v.fase_id && fasiInvariate.has(v.fase_id)).length;
   const nomeFase = (id?: string | null) => (id ? fasiSal.find((f) => f.id === id)?.name ?? null : null);
 
@@ -1041,6 +995,9 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                         placeholder="0.00"
                         className="h-8 text-sm"
                       />
+                      {v.fase_id && !v.importo_contrattuale.trim() && (
+                        <p className="text-[11px] font-medium text-amber-700">La fase non ha il venduto: scrivi l'importo netto di contratto.</p>
+                      )}
                     </div>
                     <div className="space-y-1">
                       <Label htmlFor={`sal-pct-${i}`} className="text-xs">Avanzamento cumulativo (%)</Label>
@@ -1183,7 +1140,9 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                       <div className="flex justify-between font-semibold"><dt>Netto del certificato</dt><dd className="tabular-nums">{formatCurrency(certificatoNuovo.netto)}</dd></div>
                       <div className="flex justify-between text-muted-foreground"><dt>Con l'IVA {vatRate}%</dt><dd className="tabular-nums">{formatCurrency(rataDaSal(certificatoNuovo.netto, vatRate))}</dd></div>
                     </dl>
-                  ) : <p role="alert" className="text-xs text-destructive">Ritenuta tra 0 e 100%, detrazioni non negative.</p>}
+                  ) : <p role="alert" className="text-xs text-destructive">{certificatoNegativo
+                    ? `Il netto del certificato viene ${formatCurrency(certificatoCalcolato!.netto)}: questo verbale certifica meno di quanto già certificato. Controlla le voci, oppure togli il certificato se è una rettifica.`
+                    : "Ritenuta tra 0 e 100%, detrazioni non negative."}</p>}
                   <p className="text-[11px] text-muted-foreground">Gli acconti sono il netto dei certificati prima{certificatoPrima ? "" : " (o il cumulativo dei SAL emessi)"}: non si riscrivono a mano. Quello che l'arrotondamento toglie torna nel certificato dopo.</p>
                 </>
               )}

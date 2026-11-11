@@ -130,6 +130,18 @@ describe("Lotto C, il modulo", () => {
     await waitFor(() => expect(stato.upsert).toHaveBeenCalledWith("sal_certificati", expect.objectContaining({ netto: 2800, rinviato: 50 })));
   });
 
+  it("un certificato col netto negativo non si salva, e il motivo si legge", async () => {
+    disegna();
+    await screen.findByText("SAL #1");
+    fireEvent.click(screen.getByRole("button", { name: /Nuovo verbale/ }));
+    await screen.findByText(/1 voce è uguale/);
+    fireEvent.change(screen.getByLabelText("Altre detrazioni (totale a oggi)"), { target: { value: "5000" } });
+    expect(screen.getByText(/certifica meno di quanto già certificato/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Controlla riepilogo" }));
+    expect(await screen.findByRole("button", { name: "Salva bozza SAL" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Salva ed emetti" })).toBeDisabled();
+  });
+
   it("«Salva ed emetti»: bozza, certificato e emissione in un passaggio", async () => {
     disegna();
     await screen.findByText("SAL #1");

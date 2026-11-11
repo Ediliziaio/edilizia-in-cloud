@@ -71,7 +71,7 @@ export function CertificatoSal({ salId, orderId, companyId, numero, cumulativo, 
   const salva = useMutation({
     mutationFn: async () => {
       if (!numeri || netto === null) throw new Error("Controlla gli importi del certificato.");
-      const { error } = await (supabase as never as { from: (t: string) => { upsert: (r: unknown) => Promise<{ error: { message: string } | null }> } })
+      const { error } = await supabase
         .from("sal_certificati")
         .upsert({ sal_id: salId, order_id: orderId, company_id: companyId, ...numeri, altre_detrazioni_nota: bozza?.nota.trim() || null, netto });
       if (error) throw new Error(error.message);
