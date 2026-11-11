@@ -9,7 +9,7 @@
  */
 
 /** Gli interventi Fotovoltaico della libreria (src/lib/moduli-vendita/areas.ts). */
-export const MODELLI_FOTOVOLTAICO = ["nuovo", "accumulo", "ampliamento", "componenti", "manutenzione"] as const;
+export const MODELLI_FOTOVOLTAICO = ["nuovo", "accumulo", "ampliamento", "componenti", "manutenzione", "aziendale", "aziendale-noleggio"] as const;
 
 export interface ModelloFotovoltaico {
   version: 1;

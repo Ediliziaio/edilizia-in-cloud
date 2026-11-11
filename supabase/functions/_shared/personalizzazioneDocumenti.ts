@@ -41,6 +41,11 @@ export interface PersonalizzazioneDocumento {
    * colora anche il velo sulla foto, e i testi. null = quelli del modello.
    */
   copertina: Readonly<{ fondo: string; testo: string; titolo: string; occhiello: string; sottotitolo: string }> | null;
+  /**
+   * Il preventivo con computo nuovo prende da solo il numero (generate_quote_number) alla prima modifica, invece del
+   * campo da scrivere a mano. Vulcano, 11/11/2026: «PV-251 il prossimo», e poi avanti.
+   */
+  numeroAutomaticoComputo?: boolean;
 }
 
 export const SENZA_PERSONALIZZAZIONE: PersonalizzazioneDocumento = Object.freeze({
@@ -68,6 +73,7 @@ const VESTE_VULCANO: PersonalizzazioneDocumento = Object.freeze({
   logoCopertinaLarghezzaMax: 460,
   piedeFont: FONT_EB_GARAMOND,
   piedeColore: "#1C1650",
+  numeroAutomaticoComputo: true,
   // Dall'esempio del titolare (10/11/2026), parola per parola: «–» nelle sedi, «/» fra le due, quattro spazi fra
   // P.IVA e telefono. L'email in azzurro sottolineata, come nell'esempio; il resto nel blu del piè.
   piedeRighe: Object.freeze([

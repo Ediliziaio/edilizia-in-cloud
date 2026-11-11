@@ -200,7 +200,9 @@ function ElencoDaScegliere({ tipo, companyId, servizi, onScegli, onChiudi }: {
   const errore = tipo === "preventivo" ? preventivi.error : computi.error;
 
   return (
-    <div className="rounded-lg border border-orange-200 bg-orange-50/50 p-2">
+    <div data-silvio-elenco className="rounded-lg border border-orange-200 bg-orange-50/50 p-2" onKeyDown={(event) => {
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onChiudi(); }
+    }}>
       <div className="flex items-center gap-2">
         <label htmlFor={idRicerca} className="sr-only">Cerca {tipo === "preventivo" ? "un preventivo" : "un computo"}</label>
         <div className="relative flex-1">
@@ -322,7 +324,7 @@ export function ColonnaFonti({
           <Plus className="h-4 w-4" aria-hidden />Scegli i file
         </Button>
         <input ref={inputFile} type="file" multiple className="sr-only" tabIndex={-1} aria-label="Scegli i file da far leggere a Silvio"
-          accept=".pdf,.jpg,.jpeg,.png,.webp,.txt,.xpwe,.dcf,.xml,.xlsx,.xlsm,.xls,application/pdf,image/jpeg,image/png,image/webp,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+          accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif,.txt,.xpwe,.dcf,.xml,.xlsx,.xlsm,application/pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           onChange={(e) => { file(e.target.files); e.target.value = ""; }} />
       </div>
 

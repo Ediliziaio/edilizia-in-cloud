@@ -69,6 +69,8 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { AiCompanyCreditError, aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { extractPdfWithCoverage } from "../_shared/pdfExtraction.ts";
+import { heicInJpeg } from "../_shared/conversioneHeic.ts";
+import { tipoFileDdt } from "../_shared/tipoFileDdt.ts";
 import { arrayBufferToBase64 } from "../_shared/base64.ts";
 import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
 import { BUCKET_SILVIO_COMMESSA, valutaFile } from "../_shared/storageAmmesso.ts";
@@ -163,10 +165,12 @@ async function contenutoDelFile(
   const buffer: ArrayBuffer = await blob.arrayBuffer();
   const bytes = new Uint8Array(buffer);
   const tipo = tipoDelFile(bytes, file.path);
-  if (!tipo) return errorResponse("Formato non letto: carica un PDF, una foto (JPG, PNG, WEBP) o un testo", 415, cors);
+  if (!tipo) return errorResponse("Formato non letto: carica un PDF, una foto (JPG, PNG, WEBP, HEIC, HEIF) o un testo", 415, cors);
 
   if (tipo === "testo") {
-    return { tipo: "testo", testo: new TextDecoder().decode(bytes).slice(0, MAX_CARATTERI), avvisi: [], pagine: null, costoEur: 0 };
+    const testo = new TextDecoder().decode(bytes);
+    const avvisi = testo.length > MAX_CARATTERI ? [`Documento lungo: letti i primi ${MAX_CARATTERI.toLocaleString("it-IT")} caratteri su ${testo.length.toLocaleString("it-IT")}. Dividi il documento per leggere anche il resto.`] : [];
+    return { tipo: "testo", testo: testo.slice(0, MAX_CARATTERI), avvisi, pagine: null, costoEur: 0 };
   } else if (tipo === "pdf") {
     let costoOcr = 0;
     // Un errore dell'OCR la lettura del PDF lo inghiotte (la pagina risulta «non letta»):
@@ -202,18 +206,26 @@ async function contenutoDelFile(
       return errorResponse("Il PDF non ha testo leggibile: carica una foto nitida o un PDF non scansionato", 422, cors);
     }
     return { tipo: "testo", testo: letto.text, avvisi, pagine: c.pages_total, costoEur: costoOcr };
+  } else if (tipo === "heic") {
+    try {
+      const jpeg = await heicInJpeg(bytes);
+      return { tipo: "immagine", mime: "image/jpeg", base64: arrayBufferToBase64(jpeg.buffer as ArrayBuffer) };
+    } catch {
+      return errorResponse("Foto HEIC non leggibile: riprova con una foto JPG. L'originale è conservato.", 422, cors);
+    }
   } else {
     return { tipo: "immagine", mime: `image/${tipo}`, base64: arrayBufferToBase64(buffer) };
   }
 }
 
 /** Che file è: dai primi byte, poi dall'estensione. */
-function tipoDelFile(bytes: Uint8Array, nome: string): "pdf" | "jpeg" | "png" | "webp" | "testo" | null {
+function tipoDelFile(bytes: Uint8Array, nome: string): "pdf" | "jpeg" | "png" | "webp" | "heic" | "testo" | null {
   const inizio = (n: number) => String.fromCharCode(...bytes.subarray(0, n));
   if (inizio(5) === "%PDF-") return "pdf";
   if (bytes[0] === 0xff && bytes[1] === 0xd8) return "jpeg";
   if (bytes[0] === 0x89 && inizio(4).slice(1) === "PNG") return "png";
   if (inizio(4) === "RIFF" && String.fromCharCode(...bytes.subarray(8, 12)) === "WEBP") return "webp";
+  if (tipoFileDdt(bytes) === "image/heic") return "heic";
   if (/\.(txt|md|eml)$/i.test(nome)) return "testo";
   return null;
 }

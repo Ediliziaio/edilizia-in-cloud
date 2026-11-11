@@ -1,3 +1,5 @@
+import {buildBusinessFvPreview} from "./fvBusinessPreview";
+import {modelloAzienda} from "../../../supabase/functions/_shared/fvModelliAzienda";
 import { fotoDiSerieDalSito, type FvPdfTemplateData } from "../../../supabase/functions/_shared/fvHtmlTemplate";
 import { isFvAccumulo, isFvLocalIntervention, fvInterventionLabel } from "../../../supabase/functions/_shared/fvIntervento";
 function standardFvPreview(): FvPdfTemplateData {
@@ -26,6 +28,7 @@ function standardFvPreview(): FvPdfTemplateData {
 
 /** Shared by the live preview, full preview and offline QA. */
 export function buildFvPreviewBase(template?: FvPdfTemplateData["template"]): FvPdfTemplateData {
+  if(modelloAzienda(template))return buildBusinessFvPreview(template);
   const base = standardFvPreview();
   if (!isFvLocalIntervention(template)) return base;
   if (!isFvAccumulo(template)) {

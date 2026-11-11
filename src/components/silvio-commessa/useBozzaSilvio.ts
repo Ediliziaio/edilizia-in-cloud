@@ -55,10 +55,11 @@ import { calendarioAzienda, inizioUtile, lavorativiTra, type CalendarioCantiere 
 import type { AllegatoCommessa } from "@/lib/silvio-commessa/lettori";
 import type { OrigineDocumento } from "@/lib/silvio-commessa/leggiDocumento";
 import {
-  BOZZA_GIA_SCRITTA, completaCommessa, creaBozza, creaCommessa, ErroreBozza, messaggioErrore, salvaBozza, salvataggioConAttesa, allegaFonti, scartaAltreBozzeCrea,
+  BOZZA_GIA_SCRITTA, completaCommessa, creaBozza, creaCommessa, ErroreBozza, messaggioErrore, salvaBozza, salvataggioConAttesa, allegaFonti,
   type Bozza, type EsitoCommessa, type FonteCaricata, type SalvataggioConAttesa,
 } from "@/lib/silvio-commessa/bozze";
 import { correzioniDalPiano } from "@/lib/silvio-commessa/correzioni";
+import { vincoliDalTestoUtente } from "@/lib/silvio-commessa/vincoliTesto";
 import { erroreLeggibile } from "@/lib/silvio-commessa/testoErrore";
 import { avvisiDiRipresa, conQuadratura } from "../../../shared/silvio-commessa/quadratura.ts";
 import { euroAI, pianoProposto, riassuntoFrammento, riservataPerProfilo, stimaLettura, testoValore, vistaPerLaChat } from "./presentazione";
@@ -584,12 +585,6 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
   /** L'ultimo salvataggio non riuscito: «Crea» non parte da una bozza vecchia (P1). */
   const erroreSalvataggio = useRef<ErroreBozza | null>(null);
 
-  // Non ferma niente: se non riesce, la bozza nuova c'è comunque.
-  const scartaVecchie = useCallback(
-    (tieni: string) => scartaAltreBozzeCrea({ companyId, userId, tieni }, servizi.db).catch(() => 0),
-    [companyId, userId, servizi.db],
-  );
-
   // Uno per popup, nato al primo uso (mai durante il render): azienda e client non cambiano.
   const salvaRef = useRef<SalvataggioConAttesa<DatiBozza> | null>(null);
   const salvatore = useCallback(() => (salvaRef.current ??= salvataggioConAttesa<DatiBozza>(
@@ -599,10 +594,7 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
         const b = await creaBozza({ companyId, orderId, piano: d.piano, fonti: d.caricate, autonomia: d.autonomia }, servizi.db);
         bozzaId.current = b.id;
         setIdBozza(b.id);
-        // La nuova c'è: quelle lasciate a metà si scartano, e chi le ignorava lo sa.
-        if (!orderId) void scartaVecchie(b.id).then((n) => {
-          if (n) invia({ tipo: "messaggio", tono: "avviso", testo: n === 1 ? "La commessa a metà che avevi lasciato l'ho scartata: ne tengo una sola alla volta." : `Le ${n} commesse a metà che avevi lasciato le ho scartate: ne tengo una sola alla volta.` });
-        });
+        // Una nuova bozza non elimina il lavoro lasciato a metà in altre bozze.
         if (d.storia.length) await salvaBozza(b.id, { piano: d.piano, fonti: d.caricate, storia: d.storia, autonomia: d.autonomia }, servizi.db);
         return;
       }
@@ -613,7 +605,7 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
       quandoSalvato: () => { erroreSalvataggio.current = null; setSalvataggio({ tipo: "salvata" }); },
       quandoSbaglia: (e) => { erroreSalvataggio.current = e; setSalvataggio({ tipo: "errore", messaggio: e.message }); },
     },
-  )), [companyId, orderId, servizi.db, attesaMs, scartaVecchie]);
+  )), [companyId, orderId, servizi.db, attesaMs]);
 
   // Cosa fa Silvio da solo: decide la scrittura che si salva, e serve anche alla chat, per non
   // scrivere quello che l'azienda ha vietato (G19).
@@ -771,6 +763,8 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
   }, [s.fonti, leggi]);
 
   const aggiungi = useCallback((nuove: FonteDaAggiungere[]) => {
+    const vincoli = nuove.flatMap((n) => n.tipo === "testo" && !n.daLink ? vincoliDalTestoUtente(n.testo) : []);
+    if (vincoli.length) invia({ tipo: "modifiche", modifiche: vincoli });
     const fonti = nuove.map((n): FonteNelPopup => {
       const base = { id: nuovoId(), avvisi: [] as string[], tentativo: 0 };
       switch (n.tipo) {
@@ -926,8 +920,7 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
     setIdBozza(b.id);
     setSalvataggio({ tipo: "salvata" });
     invia({ tipo: "riprendi", bozza: b });
-    if (b.modo === "crea") void scartaVecchie(b.id);
-  }, [scartaVecchie]);
+  }, []);
 
   /** «Crea» (o «Completa»): salva quello che aspetta, scrive, registra le correzioni. */
   const crea = useCallback(async (): Promise<EsitoCommessa> => {

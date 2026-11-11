@@ -64,4 +64,22 @@ describe("voci del computo → voci del listino", () => {
     expect(unitaPerListino("cad.")).toEqual({ unita: "pz", unita_fatturazione: "pz" });
     expect(unitaPerListino("mq x cm")).toBeNull();
   });
+
+  it("descrizione lunga del computo: propone la voce il cui nome ci sta dentro, ma non la applica da sola", () => {
+    const listino = [
+      { id: "g", nome: "Posa pavimento gres porcellanato", codice: null as string | null, unita: "mq" },
+      { id: "p", nome: "Tiro al piano", codice: null, unita: "piano" },
+      { id: "pa", nome: "Tiro al piano con autoscala", codice: null, unita: "piano" },
+      { id: "x", nome: "Posa", codice: null, unita: "mq" },
+    ];
+    const voce = (descrizione: string, unita: string) => ({ id: "v", descrizione, unita, origine_codice: null as string | null, tariffa_id: null as string | null });
+    expect(proponiAbbinamenti([voce("Fornitura e posa di pavimento in gres porcellanato 60x60, compreso collante", "mq")], listino, [])[0])
+      .toMatchObject({ tariffaId: "g", motivo: "simile", sicura: false });
+    // Vince il nome più lungo che ci sta; una parola sola non basta.
+    expect(proponiAbbinamenti([voce("Tiro al piano con autoscala fino al quinto", "piano")], listino, [])[0]).toMatchObject({ tariffaId: "pa" });
+    expect(proponiAbbinamenti([voce("Posa cordoli in calcestruzzo", "mq")], listino, [])[0]).toMatchObject({ tariffaId: null });
+    // Il caso vero: le parole c'erano, sparse, e l'unità era un'altra.
+    expect(proponiAbbinamenti([voce("Ponteggio a telaio, tiro in alto dei materiali a ogni piano", "piano")], listino, [])[0]).toMatchObject({ tariffaId: null });
+    expect(proponiAbbinamenti([voce("Posa pavimento gres porcellanato in battuta", "ml")], listino, [])[0]).toMatchObject({ tariffaId: null });
+  });
 });

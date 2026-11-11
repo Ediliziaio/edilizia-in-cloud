@@ -16,7 +16,7 @@
  */
 
 import { useMemo, useState, type ReactNode } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -60,6 +60,8 @@ import {
   Power,
 } from "lucide-react";
 import { useTabelle, useDeleteTabella, useToggleTabellaAttiva } from "@/lib/finanziamenti/queries";
+import { TabelleNoleggio } from "@/components/finanziamenti/TabelleNoleggio";
+import "@/components/fotovoltaico/economiaAzienda/economiaAzienda.css";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
@@ -78,7 +80,7 @@ import { AccessoNegato, AvvisoSolaLettura } from "./_finanziamenti/pezzi";
 /** Con poche tabelle i filtri sono solo rumore: compaiono da qui in su. */
 const TABELLE_PER_I_FILTRI = 5;
 
-export default function SettingsFinanziamenti() {
+function TabellePrestiti() {
   const { puoVedere, puoModificare } = useAccessoFinanziamenti();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
@@ -665,4 +667,10 @@ function AzioniTabella({
       </Button>
     </>
   );
+}
+
+export default function SettingsFinanziamenti(){
+ const {puoVedere,puoModificare}=useAccessoFinanziamenti(),[params,setParams]=useSearchParams(),tipo=params.get("tipo")==="noleggio"?"noleggio":"prestiti";
+ if(!puoVedere)return <AccessoNegato/>;
+ return <><div role="tablist" aria-label="Prodotti finanziari" className="eic-fin-tabs"><button type="button" role="tab" aria-selected={tipo==="prestiti"} onClick={()=>setParams({tipo:"prestiti"})}>Finanziamenti</button><button type="button" role="tab" aria-selected={tipo==="noleggio"} onClick={()=>setParams({tipo:"noleggio"})}>Noleggio operativo</button></div>{tipo==="noleggio"?<TabelleNoleggio modificabile={puoModificare}/>:<TabellePrestiti/>}</>;
 }

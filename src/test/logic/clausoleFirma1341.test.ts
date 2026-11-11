@@ -62,7 +62,8 @@ describe("clausole da approvare a parte", () => {
     expect(srv).toContain("clausoleDellaFirma(supabaseAdmin, sigReq)");
     expect(srv).toContain("approva ogni clausola specifica");
     const pag = readFileSync(resolve(process.cwd(), "src/pages/public/FirmaDocumento.tsx"), "utf8");
-    expect(pag).toContain("clausole_approvate: clausoleApprovate");
-    expect(pag).toContain("clausoleDaApprovare(sessione).length > 0 ? 'b2c_clausole' : 'firma'");
+    // Dall'11/11/2026 un'unica spunta prima del codice: la pagina manda tutte le clausole, nominate nella spunta.
+    expect(pag).toContain("clausole_approvate: idClausole");
+    expect(pag).toContain("Approvo specificamente, ai sensi degli artt. 1341 e 1342 c.c.");
   });
 });

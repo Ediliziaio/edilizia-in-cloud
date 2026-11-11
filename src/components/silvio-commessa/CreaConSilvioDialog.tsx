@@ -43,7 +43,7 @@ import { completezzaPiano } from "../../../shared/silvio-commessa/completezza.ts
 import type { Fonte, Modifica } from "../../../shared/silvio-commessa/piano.ts";
 import { prontaPerScrivere } from "@/lib/silvio-commessa/scrittura";
 import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
-import { bozzeDaRiprendere, ErroreBozza, messaggioErrore, scartaAltreBozzeCrea, scartaBozza, type Bozza, type EsitoCommessa } from "@/lib/silvio-commessa/bozze";
+import { bozzeDaRiprendere, ErroreBozza, messaggioErrore, scartaBozza, type Bozza, type EsitoCommessa } from "@/lib/silvio-commessa/bozze";
 import { erroreLeggibile } from "@/lib/silvio-commessa/testoErrore";
 import { usePermissions } from "@/hooks/usePermissions";
 import { ColonnaFonti } from "./ColonnaFonti";
@@ -160,6 +160,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
   const [riallegando, setRiallegando] = useState(false);
   const [rifiutoRipresa, setRifiutoRipresa] = useState(false);
   const [scartare, setScartare] = useState(false);
+  const [bozzaScelta, setBozzaScelta] = useState<string | null>(null);
   const partito = useRef(false);
 
   useEffect(() => {
@@ -175,13 +176,15 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
     retry: false,
     staleTime: 0,
     queryFn: async () => (await bozzeDaRiprendere(companyId, servizi.db, new Date(),
-      completa ? { modo: "completa", orderId: orderId! } : { modo: "crea" }))
+      completa ? { modo: "completa", orderId: orderId!, userId } : { modo: "crea", userId }))
       .filter((x) => x.created_by === userId && (completa ? x.modo === "completa" && x.order_id === orderId : x.modo === "crea")),
   });
   const intatta = completa
     ? !b.storia.length && b.fonti.every((f) => f.tipo === "commessa")
     : !iniziale && !b.fonti.length;
-  const ripresa = intatta && !rifiutoRipresa && !b.idBozza ? daRiprendere.data?.[0] : undefined;
+  const ripresa = intatta && !rifiutoRipresa && !b.idBozza
+    ? daRiprendere.data?.find((x) => x.id === bozzaScelta) ?? daRiprendere.data?.[0]
+    : undefined;
 
   const completezza = useMemo(() => completezzaPiano(b.piano), [b.piano]);
   const prima = useMemo(() => (completa ? completezzaPiano(pianoDellaCommessa(b.piano)).punteggio : null), [completa, b.piano]);
@@ -342,15 +345,13 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
     }
   };
 
-  /** «Ricomincia»: la bozza si butta via davvero, non si nasconde soltanto (P9). */
+  /** L'eliminazione esplicita riguarda soltanto la bozza scelta, mai le altre. */
   const ricomincia = async () => {
     const via = ripresa;
     setScartare(false);
     if (!via) return;
     try {
-      // Nuova commessa: tutte quelle lasciate a metà, altrimenti al prossimo giro ricompare la più vecchia.
-      if (completa) await scartaBozza(via.id, servizi.db);
-      else await scartaAltreBozzeCrea({ companyId, userId }, servizi.db);
+      await scartaBozza(via.id, servizi.db);
       setRifiutoRipresa(true);
       void daRiprendere.refetch();
     } catch (e) {
@@ -386,7 +387,10 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
         onFocus={(e) => { if (campoDiTesto(e.target)) alFuoco(true); }}
         onBlur={(e) => { if (campoDiTesto(e.target)) alFuoco(false); }}
         // Esc mentre si modifica un valore annulla la modifica, non chiude il popup.
-        onEscapeKeyDown={(e) => { if (aperta) { e.preventDefault(); setAperta(null); } }}
+        onEscapeKeyDown={(e) => {
+          if ((e.target as HTMLElement | null)?.closest?.("[data-silvio-elenco]")) e.preventDefault();
+          else if (aperta) { e.preventDefault(); setAperta(null); }
+        }}
         style={altezza ? { height: altezza, maxHeight: altezza } : undefined}
         className={cn(
           // La X del popup: 44 px sotto lg, come ogni altro tocco.
@@ -457,6 +461,12 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
           </div>
         </header>
 
+        {intatta && daRiprendere.isError && (
+          <div role="alert" className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900 lg:px-6">
+            <p>Non riesco a recuperare le bozze precedenti. {messaggioErrore(daRiprendere.error)}</p>
+            <Button type="button" variant="outline" size="sm" disabled={daRiprendere.isFetching} onClick={() => void daRiprendere.refetch()}>Riprova a caricare le bozze</Button>
+          </div>
+        )}
         {ripresa && (
           <div className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm lg:px-6" role="region" aria-label="Bozza da riprendere">
             <p className="min-w-0 flex-1 text-amber-900 max-sm:basis-full">
@@ -464,10 +474,27 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 ? <>Avevi già cominciato a completarla il {dataBreve(giornoInItalia(ripresa.updated_at))}.</>
                 : <>Hai una commessa a metà: <strong>{nomeBozza(ripresa)}</strong>, modificata il {dataBreve(giornoInItalia(ripresa.updated_at))}.</>}
             </p>
+            {(daRiprendere.data?.length ?? 0) > 1 && (
+              <select
+                value={ripresa.id}
+                onChange={(event) => setBozzaScelta(event.target.value)}
+                aria-label="Bozza da riprendere"
+                className="h-11 w-full rounded-md border border-input bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-72 lg:h-9"
+              >
+                {daRiprendere.data?.map((bozza) => (
+                  <option key={bozza.id} value={bozza.id}>
+                    {nomeBozza(bozza)} · {dataBreve(giornoInItalia(bozza.updated_at))}
+                  </option>
+                ))}
+              </select>
+            )}
             <Button type="button" size="sm" className="h-11 lg:h-9" onClick={() => { b.riprendi(ripresa); setScheda("commessa"); }}>
               {completa ? "Riprendi da lì" : "Riprendi la commessa"}
             </Button>
-            <Button type="button" size="sm" variant="ghost" className="h-11 lg:h-9" onClick={() => setScartare(true)}>Ricomincia</Button>
+            <Button type="button" size="sm" variant="outline" className="h-11 lg:h-9" onClick={() => setRifiutoRipresa(true)}>
+              {completa ? "Nuova proposta" : "Inizia un’altra"}
+            </Button>
+            <Button type="button" size="sm" variant="ghost" className="h-11 text-red-700 lg:h-9" onClick={() => setScartare(true)}>Elimina bozza</Button>
           </div>
         )}
 
@@ -651,10 +678,10 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
         <AlertDialog open={scartare} onOpenChange={setScartare}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Butto via la commessa a metà?</AlertDialogTitle>
+              <AlertDialogTitle>Elimino questa bozza?</AlertDialogTitle>
               <AlertDialogDescription>
                 {ripresa && !completa ? <>«{nomeBozza(ripresa)}» sparisce e non torna più. </> : "La bozza sparisce e non torna più. "}
-                Si riparte da zero.
+                Le altre bozze restano salvate.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

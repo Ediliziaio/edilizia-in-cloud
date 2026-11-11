@@ -1,5 +1,8 @@
 // 10/11/2026: ripubblicata per _shared/quoteTemplateComposer, contrattoStandard e punteggiatura (niente doppio punto).
 // 10/11/2026: il piè di Impresa Vulcano con le righe dell'esempio del titolare (fvHtmlTemplate). Rimpicciolito lo stesso giorno. Questo commento fa ripubblicare la funzione.
+import {riferimentoClienteEconomia} from "../_shared/fvEconomiaAzienda.ts";
+import {economiaAziendaPerDocumento} from "../_shared/fvEconomiaAziendaDocumento.ts";
+import type {TabellaNoleggio} from "../_shared/noleggioOperativo.ts";
 /**
  * Edge Function: fv-genera-pdf v2 (Reonic-killer)
  *
@@ -37,6 +40,8 @@
 
 import { caricaDatiSocietari, righeSocietarie } from "../_shared/datiSocietari.ts";
 import { modelloFotovoltaico } from "../_shared/modelloFotovoltaico.ts";
+import { leggiDisegnoCommerciale, pannelliDaRivedere } from "../_shared/fvDisegnoCommerciale.ts";
+import { preventivoSenzaMappa } from "../_shared/fvModalitaProgettazione.ts";
 import { PIANO_ALTEZZA, PIANO_LARGHEZZA, PIANO_ZOOM, leggiPiano } from "../_shared/fvPianoTetto.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { buildMergeContext, substituteMergeTags } from "../_shared/quoteTemplateComposer.ts";
@@ -145,7 +150,7 @@ Deno.serve(async (req: Request) => {
     const { data: prog, error: progErr } = await supabaseAdmin
       .from("fv_progetti")
       .select(
-        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, fonte_dati_tetto, qualita_dati_tetto, imagery_date, ore_sole_annue, superficie_tetto_disponibile_mq, perdita_ombreggiamento_pct, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, con_ottimizzatori, produzione_annua_kwh, autoconsumo_pct, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva, cliente_codice_univoco, cointestatario_nome, cointestatario_cognome, cointestatario_codice_fiscale, scenario_finanziamento, finanziamento_tabella_id, finanziamento_durata_mesi, finanziamento_rata_eur, finanziamento_taeg, finanziamento_tan, finanziamento_totale_dovuto_eur, kit_bundle_id, kit_nome, kit_prezzo, prezzo_vendita_manuale, sconto_valore, modalita_pagamento, iva_aliquota, modello_snapshot, layout_overlay, condizioni_nel_pdf, condizioni_testo, condizioni_origine, stato",
+        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, fonte_dati_tetto, qualita_dati_tetto, imagery_date, ore_sole_annue, superficie_tetto_disponibile_mq, perdita_ombreggiamento_pct, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, con_ottimizzatori, produzione_annua_kwh, autoconsumo_pct, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by, cliente_id, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva, cliente_codice_univoco, cointestatario_nome, cointestatario_cognome, cointestatario_codice_fiscale, economia_azienda, scenario_finanziamento, finanziamento_tabella_id, finanziamento_durata_mesi, finanziamento_rata_eur, finanziamento_taeg, finanziamento_tan, finanziamento_totale_dovuto_eur, kit_bundle_id, kit_nome, kit_prezzo, prezzo_vendita_manuale, sconto_valore, modalita_pagamento, iva_aliquota, modello_snapshot, layout_overlay, condizioni_nel_pdf, condizioni_testo, condizioni_origine, stato",
       )
       .eq("id", p.progetto_id)
       .maybeSingle();
@@ -309,7 +314,11 @@ Deno.serve(async (req: Request) => {
     const satLat = Number(prog.latitudine), satLng = Number(prog.longitudine);
     // La chiave Google Maps sta in platform_settings (come per maps-proxy), non
     // solo nell'env: leggerla da lì fa apparire la mappa satellitare anche nel PDF.
-    const googleMapsKey = (await getPlatformSetting("google_maps_api_key", "GOOGLE_MAPS_API_KEY")) || "";
+    const disegnoCommerciale = leggiDisegnoCommerciale(prog.layout_overlay);
+    if (disegnoCommerciale && disegnoCommerciale.pannelli.length !== Number(prog.numero_pannelli_scelti)) return errorResponse("La quantità del preventivo non corrisponde al disegno: salva la configurazione dell’impianto e riprova.", 400, corsHeaders);
+    if (disegnoCommerciale && pannelliDaRivedere(disegnoCommerciale).length) return errorResponse("Riposiziona i pannelli fuori falda o sovrapposti prima di generare il PDF.", 400, corsHeaders);
+    const senzaMappa = preventivoSenzaMappa(prog.layout_overlay) || !!disegnoCommerciale;
+    const googleMapsKey = senzaMappa ? "" : (await getPlatformSetting("google_maps_api_key", "GOOGLE_MAPS_API_KEY")) || "";
     if (satLat && satLng && googleMapsKey) {
       const fetchSatImg = (zoom: number) =>
         urlToB64(
@@ -798,6 +807,7 @@ Deno.serve(async (req: Request) => {
         costo_kwh_attuale: Number(prog.costo_kwh_attuale) || 0.32,
         profilo_consumo: prog.profilo_consumo,
         fonte_dati_tetto: prog.fonte_dati_tetto ?? null,
+        layout_overlay: prog.layout_overlay,
         qualita_dati_tetto: prog.qualita_dati_tetto ?? null,
         imagery_date: prog.imagery_date ?? null,
         tetto_mock: String(prog.qualita_dati_tetto ?? "").toLowerCase() === "mock",
@@ -976,12 +986,12 @@ Deno.serve(async (req: Request) => {
                 // mai letto: «il corrispettivo è quello indicato nel preventivo: .»
                 // (e letto, sarebbe stato il costo d'acquisto dell'azienda).
                 total: Number(prog.prezzo_vendita_iva_inclusa) || null,
-                payment_method: modalitaPagamento?.tipo === "finanziato"
+                payment_method: prog.cliente_tipo==="azienda"?"come da prospetto economico aziendale":modalitaPagamento?.tipo === "finanziato"
                   ? `anticipo e finanziamento in ${modalitaPagamento.durata_mesi} rate mensili`
                   : modalitaPagamento?.tipo === "noleggio"
                     ? `noleggio operativo, canone mensile per ${modalitaPagamento.durata_mesi} mesi`
                     : "",
-                payment_phases: modalitaPagamento?.tipo === "diretto"
+                payment_phases: prog.cliente_tipo==="azienda"?[]:modalitaPagamento?.tipo === "diretto"
                   ? modalitaPagamento.tranche.map((t) => ({ label: t.label, percent: t.pct, amount: t.importo_eur }))
                   : modalitaPagamento?.tipo === "finanziato" && modalitaPagamento.anticipo_eur > 0
                     ? [{ label: "Anticipo", percent: modalitaPagamento.anticipo_pct, amount: modalitaPagamento.anticipo_eur }]
@@ -1006,6 +1016,25 @@ Deno.serve(async (req: Request) => {
         listino_macrocategorie_fv: listinoMacrocategorieFv,
       },
     };
+
+    // Il documento B2B usa esclusivamente le ipotesi confermate e la versione contrattuale archiviata.
+    if(prog.cliente_tipo==="azienda"){
+      data.economia_azienda_richiesta=true;
+      try{
+        const econ=prog.economia_azienda as {parametri?:{modo?:string;tabellaNoleggio?:{id?:string}}}|null;
+        let originale:TabellaNoleggio|undefined;
+        if(econ?.parametri?.modo==="noleggio"){
+          const {data:archivio,error}=await supabaseAdmin.from("eic_tabelle_noleggio").select("contenuto,attiva").eq("company_id",prog.company_id).eq("id",econ.parametri.tabellaNoleggio?.id??"").maybeSingle();
+          if(error||!archivio)throw new Error("Versione originale della tabella non disponibile.");
+          originale={...(archivio.contenuto as TabellaNoleggio),attiva:archivio.attiva===true};
+        }
+        data.economia_azienda=economiaAziendaPerDocumento(prog.economia_azienda,{companyId:prog.company_id,clienteRiferimento:riferimentoClienteEconomia(prog),imponibile:Math.round(Number(prog.prezzo_vendita_iva_inclusa)/(1+data.costi.iva_perc/100)*100)/100,iva:data.costi.iva_perc/100,produzioneAnnua:Math.round(Number(prog.produzione_annua_kwh)*100)/100},originale);
+        if(!soloAnteprima&&data.economia_azienda.input.parametri.modo==="noleggio"&&(data.economia_azienda.input.parametri.tabellaNoleggio?.prova||data.economia_azienda.input.parametri.tabellaNoleggio?.soloSimulazione||data.economia_azienda.input.parametri.tabellaNoleggio?.assicurazioneDaQuotare))return errorResponse("Condizioni utilizzabili solo per simulazione o costi obbligatori da quotare: conferma l’offerta prima di emettere.",409,corsHeaders);
+      }catch(e){
+        if(!soloAnteprima)return errorResponse(e instanceof Error?e.message:"Prospetto aziendale da confermare.",409,corsHeaders);
+        data.configurationOnly=true;
+      }
+    }
 
     // ── Render HTML ────────────────────────────────────────────────────────
     const pagesCount = getFvPdfRenderedPagesCount(data);

@@ -50,7 +50,8 @@ describe("firma del cliente: i campi OTP tengono il fuoco", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Continua con il codice" }));
+    fireEvent.click(await screen.findByLabelText(/Ho letto il documento/));
+    fireEvent.click(screen.getByRole("button", { name: "Accetto e ricevo il codice" }));
     const prima = await screen.findByLabelText("Cifra 1 di 6");
     // La pagina mette il fuoco sulla prima cifra dopo 100ms: una persona scrive dopo.
     await act(() => new Promise((r) => setTimeout(r, 150)));

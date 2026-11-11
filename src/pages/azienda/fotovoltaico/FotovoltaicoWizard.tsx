@@ -1,3 +1,5 @@
+import {FvEconomiaAzienda} from "@/components/fotovoltaico/economiaAzienda/FvEconomiaAzienda";
+import {creaSnapshotEconomia,riferimentoClienteEconomia,snapshotEconomiaValido} from "../../../../supabase/functions/_shared/fvEconomiaAzienda";
 /**
  * Wizard 8-step creazione progetto Fotovoltaico (§31).
  * Layout v2 — replica mockup HTML con tab orizzontale sticky, page header,
@@ -143,6 +145,12 @@ import { anteprimaFotovoltaico, stimaProduzioneFv } from "@/lib/fotovoltaico/ant
 // F16: ricostruisce l'etichetta orientamento (es. "S 180°") dall'azimut numerico
 // salvato in DB (fv_progetti.azimut_tetto) all'idratazione del progetto.
 import { etichettaAzimut } from "@/lib/fotovoltaico/tetto";
+import { FvDisegnoPreventivo, type FvDisegnoPreventivoProps } from "@/components/fotovoltaico/FvDisegnoPreventivo";
+import { datiDalDisegno } from "@/lib/fotovoltaico/disegnoPreventivo";
+import { leggiDisegnoCommerciale, pannelliDaRivedere, type DisegnoCommercialeFv } from "../../../../supabase/functions/_shared/fvDisegnoCommerciale";
+import { FvSceltaProgettazione } from "@/components/fotovoltaico/FvSceltaProgettazione";
+import { cambiaModalitaProgettazione, preventivoSenzaMappa, validaDatiTettoFv } from "../../../../supabase/functions/_shared/fvModalitaProgettazione";
+import { leggiPiano } from "../../../../supabase/functions/_shared/fvPianoTetto";
 
 // MP-MKT-001: TOTAL_STEPS + TABS estratti in ./FotovoltaicoWizard/constants.ts
 // Bugfix: i range coordinate Italia (ITALIA_LAT/LNG_*) sono usati in
@@ -202,7 +210,7 @@ function describeError(e: unknown): string {
   return ERRORI_GENERICI_DEL_SERVER.find(([frase]) => frase.test(msg))?.[1] ?? msg;
 }
 
-const MODALITA_FINANZIAMENTO = ["cash", "rate", "zero", "noleggio"] as const;
+const MODALITA_FINANZIAMENTO = ["cash", "rate", "zero", "noleggio","leasing"] as const;
 
 /** La scelta di finanziamento salvata su fv_progetti, nei campi del wizard. */
 function finanziamentoSalvato(progetto: unknown): Partial<WizardData> {
@@ -224,6 +232,7 @@ function finanziamentoSalvato(progetto: unknown): Partial<WizardData> {
 /** I dati del tetto come colonne di fv_progetti (l'ombreggiamento a parte). */
 function campiTetto(d: WizardData) {
   return {
+    layout_overlay: d.layout_overlay,
     fonte_dati_tetto: d.fonte_dati_tetto,
     qualita_dati_tetto: d.qualita_dati_tetto,
     ore_sole_annue: d.ore_sole_annue,
@@ -318,6 +327,7 @@ function FotovoltaicoWizard() {
   const [progettoId, setProgettoId] = useState<string | null>(id ?? null);
   const [salvando, setSalvando] = useState(false);
   const [analizzandoTetto, setAnalizzandoTetto] = useState(false);
+  const versioneAnalisiTetto = useRef(0);
   const [calcolandoFinanziario, setCalcolandoFinanziario] = useState(false);
   const [scenarioFin, setScenarioFin] = useState<Record<string, unknown> | null>(null);
   const [scenarioErr, setScenarioErr] = useState<string | null>(null);
@@ -542,6 +552,7 @@ function FotovoltaicoWizard() {
       cointestatario_nome: cli.cointestatario_nome ?? "",
       cointestatario_cognome: cli.cointestatario_cognome ?? "",
       cointestatario_codice_fiscale: cli.cointestatario_codice_fiscale ?? "",
+      economia_azienda:(progettoEsistente as unknown as {economia_azienda?:WizardData["economia_azienda"]}).economia_azienda,
       cliente_tipo: cli.cliente_tipo === "azienda" || cli.cliente_tipo === "pa" ? cli.cliente_tipo : "privato",
       cliente_codice_univoco: cli.cliente_codice_univoco ?? "",
       cliente_ragione_sociale: cli.cliente_ragione_sociale ?? "",
@@ -778,7 +789,38 @@ function FotovoltaicoWizard() {
       });
       return;
     }
-    setData((d) => ({ ...d, [k]: v }));
+    if (k === "layout_overlay" || k === "numero_pannelli_scelti" || k === "pannello_id") setScenarioFin(null);
+    if ((k === "latitudine" || k === "longitudine") && data[k] !== v) {
+      versioneAnalisiTetto.current += 1;
+      setAnalizzandoTetto(false);
+      setScenarioFin(null);
+    }
+    setData((d) => {
+      const localitaCambiata = (k === "latitudine" || k === "longitudine") && d[k] !== v;
+      if (!localitaCambiata) {
+        const disegno = leggiDisegnoCommerciale(d.layout_overlay);
+        if (k === "kit_bundle_id" && v && disegno) return { ...d, [k]: v, layout_overlay: cambiaModalitaProgettazione(disegno, true) };
+        if (k === "layout_overlay") {
+          const ripreso = leggiDisegnoCommerciale(v);
+          const watt = Number(pannelli.find(p => p.id === d.pannello_id)?.potenza_w);
+          if (ripreso && !d.kit_bundle_id && watt > 0) {
+            const piano = { ...ripreso, modulo: misureModulo(pannelli.find(p => p.id === d.pannello_id)) };
+            return { ...d, ...datiDalDisegno(piano, watt) };
+          }
+        }
+        if (k === "pannello_id" && disegno) {
+          const articolo = pannelli.find(p => p.id === v);
+          return { ...d, [k]: v, layout_overlay: { ...disegno, modulo: misureModulo(articolo) } };
+        }
+        return { ...d, [k]: v };
+      }
+      // Un altro indirizzo richiede una nuova stima. Non riutilizzare resa,
+      // geometria o disegno del tetto precedente per il nuovo edificio.
+      return { ...d, [k]: v, ore_sole_annue: null, superficie_tetto_disponibile_mq: null,
+        numero_pannelli_max: null, potenza_max_kwp: null, qualita_dati_tetto: null,
+        imagery_date: null, layout_tetto: null, azimut_tetto: null, inclinazione_tetto: null, tetto_mock: false,
+        layout_overlay: preventivoSenzaMappa(d.layout_overlay) ? { modalita: "senza_mappa" as const } : null };
+    });
   };
 
   // ─── Validazione step (con bound checks) ─────────────────────────────────
@@ -810,11 +852,7 @@ function FotovoltaicoWizard() {
         return { valido: true };
       }
       case 4: {
-        if (!data.ore_sole_annue || data.ore_sole_annue <= 0)
-          return { valido: false, motivo: "Esegui l'analisi tetto o inserisci dati manualmente" };
-        if (!data.numero_pannelli_max || data.numero_pannelli_max <= 0)
-          return { valido: false, motivo: "Numero pannelli max deve essere > 0" };
-        return { valido: true };
+        return validaDatiTettoFv(data);
       }
       case 5: {
         const issues = problemiConfigurazioneFv(data);
@@ -900,6 +938,7 @@ function FotovoltaicoWizard() {
               cointestatario_cognome: data.cointestatario_cognome || null,
               cointestatario_codice_fiscale: data.cointestatario_codice_fiscale || null,
               cliente_tipo: data.cliente_tipo,
+              ...(data.cliente_tipo==="azienda"?{scenario_finanziamento:data.economia_azienda?.parametri.modo??data.finanziamento_modalita}:{}),
               cliente_ragione_sociale: data.cliente_ragione_sociale || null,
               cliente_codice_fiscale: data.cliente_codice_fiscale || null,
               cliente_partita_iva: data.cliente_partita_iva || null,
@@ -926,6 +965,7 @@ function FotovoltaicoWizard() {
               tipologia_immobile: data.tipologia_immobile,
               superficie_immobile_mq: data.superficie_immobile_mq ?? undefined,
               prima_casa: data.prima_casa,
+              senza_mappa: preventivoSenzaMappa(data.layout_overlay),
               consumo_annuo_kwh: data.consumo_annuo_kwh ?? 3500,
               costo_kwh_attuale: data.costo_kwh_attuale,
               tariffa_tipo: data.tariffa_tipo,
@@ -964,6 +1004,7 @@ function FotovoltaicoWizard() {
             cointestatario_cognome: data.cointestatario_cognome || null,
             cointestatario_codice_fiscale: data.cointestatario_codice_fiscale || null,
             cliente_tipo: data.cliente_tipo,
+              ...(data.cliente_tipo==="azienda"?{scenario_finanziamento:data.economia_azienda?.parametri.modo??data.finanziamento_modalita}:{}),
             cliente_ragione_sociale: data.cliente_ragione_sociale || null,
             cliente_codice_fiscale: data.cliente_codice_fiscale || null,
             cliente_partita_iva: data.cliente_partita_iva || null,
@@ -1037,18 +1078,19 @@ function FotovoltaicoWizard() {
   };
 
   // ─── Step 4 → analisi tetto ───────────────────────────────────────────────
-  const handleAnalizzaTetto = async () => {
+  const handleAnalizzaTetto = async (fonteRichiesta?: "solar_api" | "pvgis") => {
     // F14b: in sola lettura l'analisi è disabilitata — esci subito senza
     // invocare le edge function né scrivere sul progetto.
     if (readOnlyMode) return;
-    if (!progettoId || data.latitudine == null || data.longitudine == null) return;
+    if (data.latitudine == null || data.longitudine == null) return;
+    const versione = ++versioneAnalisiTetto.current;
     setAnalizzandoTetto(true);
     try {
       let result: Record<string, unknown> | null = null;
       // Fonte realmente usata: se la Solar API fallisce, ripieghiamo su PVGIS
       // così l'analisi tetto restituisce SEMPRE dei dati (niente vicolo cieco).
-      let fonteEffettiva: "solar_api" | "pvgis" =
-        data.fonte_dati_tetto === "pvgis" ? "pvgis" : "solar_api";
+      const fonteScelta = fonteRichiesta ?? data.fonte_dati_tetto;
+      let fonteEffettiva: "solar_api" | "pvgis" = fonteScelta === "pvgis" ? "pvgis" : "solar_api";
 
       const chiamaPvgis = async (): Promise<Record<string, unknown>> => {
         const { data: r, error } = await supabase.functions.invoke("fv-pvgis-fetch", {
@@ -1059,7 +1101,7 @@ function FotovoltaicoWizard() {
         return r as Record<string, unknown>;
       };
 
-      if (data.fonte_dati_tetto === "solar_api") {
+      if (fonteScelta === "solar_api") {
         try {
           const { data: r, error } = await supabase.functions.invoke("fv-solar-api-fetch", {
             body: { lat: data.latitudine, lng: data.longitudine, progetto_id: progettoId },
@@ -1072,17 +1114,17 @@ function FotovoltaicoWizard() {
           result = sr;
           fonteEffettiva = "solar_api";
         } catch (solarErr) {
-          if (!mountedRef.current) return;
+          if (!mountedRef.current || versione !== versioneAnalisiTetto.current) return;
           toast.message("Solar API non disponibile per questo edificio — uso PVGIS", {
             description: describeError(solarErr),
           });
           result = await chiamaPvgis();
         }
-      } else if (data.fonte_dati_tetto === "pvgis") {
+      } else if (fonteScelta === "pvgis") {
         result = await chiamaPvgis();
       }
 
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || versione !== versioneAnalisiTetto.current) return;
       if (!result) {
         toast.error("Nessun dato dal servizio. Prova un'altra fonte o usa l'inserimento manuale.");
         return;
@@ -1095,35 +1137,12 @@ function FotovoltaicoWizard() {
       const isMock = result._mock === true;
       const qualitaTetto = isMock ? "mock" : ((result.qualita as string) ?? null);
 
-      // F10: la fonte PVGIS NON restituisce la geometria del tetto
-      // (numero_pannelli_max / potenza_max_kwp / superficie_tetto_disponibile_mq):
-      // salvarli a null bloccava la validazione dello Step 4 ("max null pannelli").
-      // Quando il servizio non fornisce questi campi li stimiamo da una grandezza
-      // nota (superficie immobile), con un default ragionevole se manca tutto —
-      // così "Avanti" si abilita e l'utente può comunque rifinire a mano.
-      const POTENZA_PANNELLO_W = 540; // pannello standard di riferimento
-      const numMaxRaw = (result.numero_pannelli_max as number) ?? null;
-      const kwpMaxRaw = (result.potenza_max_kwp as number) ?? null;
-      const supTettoRaw = (result.superficie_tetto_disponibile_mq as number) ?? null;
-      // Stima superficie utile del tetto: ~50% della superficie immobile,
-      // fallback a 60 m² (tetto residenziale medio) se la superficie è ignota.
-      const supImmobile = data.superficie_immobile_mq ?? null;
-      const supTettoStimata =
-        supTettoRaw && supTettoRaw > 0
-          ? supTettoRaw
-          : supImmobile && supImmobile > 0
-            ? Math.round(supImmobile * 0.5)
-            : 60;
-      // ~2 m² per pannello; almeno 4 pannelli per non bloccare lo slider (min 4).
-      const numMax =
-        numMaxRaw && numMaxRaw > 0
-          ? numMaxRaw
-          : Math.max(4, Math.floor(supTettoStimata / 2));
-      const kwpMax =
-        kwpMaxRaw && kwpMaxRaw > 0
-          ? kwpMaxRaw
-          : Math.round((numMax * POTENZA_PANNELLO_W) / 10) / 100;
-      const stimaGeometrica = !(numMaxRaw && numMaxRaw > 0);
+      // PVGIS misura l'irraggiamento, non la capienza del tetto. Nessun
+      // massimo fittizio ricavato da 60 m² o da un pannello standard da 540 W.
+      const positivo = (v: unknown): number | null => typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null;
+      const numMax = fonteEffettiva === "solar_api" ? positivo(result.numero_pannelli_max) : null;
+      const kwpMax = fonteEffettiva === "solar_api" ? positivo(result.potenza_max_kwp) : null;
+      const supTetto = fonteEffettiva === "solar_api" ? positivo(result.superficie_tetto_disponibile_mq) : null;
 
       // F16: layout/azimut/inclinazione — la Solar API fornisce sia l'etichetta
       // ("S 180°") sia il valore numerico in gradi. Teniamo l'etichetta nello
@@ -1144,7 +1163,8 @@ function FotovoltaicoWizard() {
       update("ore_sole_annue", ore);
       update("numero_pannelli_max", numMax);
       update("potenza_max_kwp", kwpMax);
-      update("superficie_tetto_disponibile_mq", supTettoStimata);
+      update("superficie_tetto_disponibile_mq", supTetto);
+      update("fonte_dati_tetto", fonteEffettiva);
       update("qualita_dati_tetto", qualitaTetto);
       update("imagery_date", (result.imagery_date as string) ?? null);
       // Cattura il layout reale dei pannelli (solo Solar API lo fornisce): oggi
@@ -1158,12 +1178,13 @@ function FotovoltaicoWizard() {
       );
       update("inclinazione_tetto", inclinazioneDeg);
 
-      await aggiornaProgetto.mutateAsync({
+      if (progettoId) await aggiornaProgetto.mutateAsync({
         id: progettoId,
         patch: {
           fonte_dati_tetto: fonteEffettiva,
           ore_sole_annue: ore,
-          superficie_tetto_disponibile_mq: supTettoStimata,
+          superficie_tetto_disponibile_mq: supTetto,
+          layout_overlay: data.layout_overlay,
           numero_pannelli_max: numMax,
           potenza_max_kwp: kwpMax,
           qualita_dati_tetto: qualitaTetto,
@@ -1179,26 +1200,22 @@ function FotovoltaicoWizard() {
         } as never,
       });
 
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || versione !== versioneAnalisiTetto.current) return;
       markSaved();
       // Fix #16 Sprint 3: traccia se i dati sono mock per warning persistente
       update("tetto_mock", isMock);
       // F10: toast difensivo contro null + nota quando la geometria è stimata.
       const oreTxt = ore != null ? `${ore.toFixed(0)} h sole/anno` : "ore sole non disponibili";
       const maxTxt = numMax != null ? `max ${numMax} pannelli` : "geometria da definire";
-      const stimaTxt = stimaGeometrica
-        ? " (geometria stimata — affina i valori se serve)"
-        : isMock
-          ? " (dati stimati)"
-          : "";
+      const stimaTxt = isMock ? " (dati dimostrativi)" : "";
       toast.success(`Tetto analizzato: ${oreTxt} · ${maxTxt}${stimaTxt}`);
     } catch (e) {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || versione !== versioneAnalisiTetto.current) return;
       toast.error(
         `Analisi tetto fallita: ${describeError(e)}. Puoi cambiare fonte o passare a "Manuale".`,
       );
     } finally {
-      if (mountedRef.current) setAnalizzandoTetto(false);
+      if (mountedRef.current && versione === versioneAnalisiTetto.current) setAnalizzandoTetto(false);
     }
   };
 
@@ -1423,6 +1440,14 @@ function FotovoltaicoWizard() {
     setSalvando(true);
     setAutoSaveState("saving");
     try {
+      if(data.cliente_tipo==="azienda"){
+        const e=data.economia_azienda;if(!e?.snapshot||!effectiveCompanyId||investimentoCorrente==null)throw new Error("Conferma il calcolo azienda prima di proseguire.");
+        const input={companyId:effectiveCompanyId,clienteRiferimento:riferimentoClienteEconomia(data),imponibile:Math.round(Number(investimentoCorrente)/(1+aliquotaIvaFv(data.iva_aliquota))*100)/100,iva:aliquotaIvaFv(data.iva_aliquota),produzioneAnnua:Math.round(Number(scenarioFin?.produzione_annua_kwh??stimaProduzioneFv(data))*100)/100,parametri:e.parametri};
+        if(!snapshotEconomiaValido(e.snapshot,input))throw new Error("Prezzo, produzione o condizioni sono cambiati: conferma di nuovo il calcolo azienda.");
+        const snapshot=creaSnapshotEconomia(input,e.snapshot.creato);
+        await aggiornaProgetto.mutateAsync({id:progettoId,patch:{economia_azienda:{parametri:e.parametri,snapshot},scenario_finanziamento:e.parametri.modo,finanziamento_rata_eur:(e.parametri.modo==="noleggio"||e.parametri.modo==="leasing")?snapshot.risultato.canoneMensileEquivalente:e.parametri.modo==="rate"?e.parametri.rataFinanziamento:null,finanziamento_durata_mesi:e.parametri.modo==="leasing"?e.parametri.leasing?.durataMesi??null:e.parametri.modo==="noleggio"?e.parametri.durataNoleggioMesi:e.parametri.modo==="rate"?e.parametri.durataFinanziamentoMesi:null,finanziamento_totale_dovuto_eur:snapshot.risultato.totalePagamenti,finanziamento_tabella_id:null,finanziamento_tan:null,finanziamento_taeg:null} as never});
+        if(!mountedRef.current)return;markSaved();goTo(7,{markCompleted:true});return;
+      }
       const tabId = data.tabella_finanziamento_id ?? topFinanziamenti[0]?.id ?? null;
       const tabRata = tabId
         ? topFinanziamenti.find((t) => t.id === tabId)?.rata ?? null
@@ -1710,7 +1735,7 @@ function FotovoltaicoWizard() {
       toast.info("Compila e salva la fase 2 (immobile) per creare il progetto bozza.");
       return false;
     }
-    if (localConversationalAi && step===5) {
+    if (step === 5 && (localConversationalAi || leggiDisegnoCommerciale(data.layout_overlay))) {
       try { await handleSalvaStep5({skipNav:true});return true; } catch { return false; }
     }
     setSalvando(true);
@@ -1758,6 +1783,7 @@ function FotovoltaicoWizard() {
           cointestatario_cognome: data.cointestatario_cognome || null,
           cointestatario_codice_fiscale: data.cointestatario_codice_fiscale || null,
           cliente_tipo: data.cliente_tipo,
+              ...(data.cliente_tipo==="azienda"?{scenario_finanziamento:data.economia_azienda?.parametri.modo??data.finanziamento_modalita}:{}),
           cliente_ragione_sociale: data.cliente_ragione_sociale || null,
           cliente_codice_fiscale: data.cliente_codice_fiscale || null,
           cliente_partita_iva: data.cliente_partita_iva || null,
@@ -2229,6 +2255,8 @@ function FotovoltaicoWizard() {
           </>)}
           {step === 6 && (
             <Step6Finanziario
+              readOnlyMode={readOnlyMode}
+              imponibileCorrente={investimentoCorrente!=null?Number(investimentoCorrente)/(1+aliquotaIvaFv(data.iva_aliquota)):null}
               data={data}
               update={update}
               scenario={scenarioFin}
@@ -2300,7 +2328,7 @@ function FotovoltaicoWizard() {
 // ============================================================================
 // STEP 1 — CLIENTE
 // ============================================================================
-function Step1Cliente({
+export function Step1Cliente({
   data,
   update,
 }: {
@@ -2341,6 +2369,7 @@ function Step1Cliente({
           update("cliente_telefono", c.telefono ?? "");
           const tipo = tipoDaScelta(c);
           update("cliente_tipo", tipo);
+          if(tipo!=="azienda"&&data.finanziamento_modalita==="leasing")update("finanziamento_modalita","cash");
           if (tipo === "azienda" && data.archetipo !== "pmi") update("archetipo", "pmi");
           update("cliente_ragione_sociale", c.ragioneSociale ?? "");
           update("cliente_codice_fiscale", c.codiceFiscale ?? "");
@@ -2354,6 +2383,7 @@ function Step1Cliente({
         update("cliente_tipo", t);
         // La tipologia segue il tipo di cliente (07/11/2026): un'azienda o un ente non è «Privato — prima casa».
         if (t !== "privato" && data.archetipo !== "pmi") update("archetipo", "pmi");
+        if(t!=="azienda"&&data.finanziamento_modalita==="leasing")update("finanziamento_modalita","cash");
         if (t === "privato" && data.archetipo === "pmi") update("archetipo", "privato_prima");
       }} />
       {/* Anagrafica e contatti affiancati, il cointestato sotto su tutta la riga (07/11/2026). */}
@@ -2990,7 +3020,7 @@ function RoofSatelliteView({
   );
 }
 
-function Step4Tetto({
+export function Step4Tetto({
   data,
   update,
   analizzando,
@@ -3000,24 +3030,63 @@ function Step4Tetto({
   data: WizardData;
   update: <K extends keyof WizardData>(k: K, v: WizardData[K]) => void;
   analizzando: boolean;
-  onAnalizza: () => void;
+  onAnalizza: (fonte?: "solar_api" | "pvgis") => void;
   readOnlyMode: boolean;
 }) {
+  const senzaMappa = preventivoSenzaMappa(data.layout_overlay);
+  const localitaRichiesta = useRef<string | null>(null);
+  useEffect(() => {
+    if (readOnlyMode || analizzando || data.latitudine == null || data.longitudine == null) return;
+    const localita = `${data.latitudine}:${data.longitudine}`;
+    if (localitaRichiesta.current === localita) return;
+    localitaRichiesta.current = localita;
+    if (data.ore_sole_annue != null && data.ore_sole_annue > 0) return;
+    onAnalizza("pvgis");
+  }, [senzaMappa, readOnlyMode, analizzando, data.latitudine, data.longitudine, data.ore_sole_annue, onAnalizza]);
   return (
     <>
       <FvPanelTitle
         step={4}
         totalSteps={TOTAL_STEPS}
-        title="Tetto e geometria"
-        subtitle={
-          <>
-            Analisi automatica via <strong>Google Solar API</strong> con fallback{" "}
-            <strong>PVGIS (UE)</strong> + posizionamento manuale.
-          </>
-        }
+        title="Tetto e stima solare"
+        subtitle="Prepara il preventivo con o senza disegno: la mappa e il piano di posa sono facoltativi."
       />
-
-      <FvCard title="Sorgente dati">
+      <FvSceltaProgettazione senzaMappa={senzaMappa} disabled={readOnlyMode || analizzando}
+        onChange={(rapido) => update("layout_overlay", cambiaModalitaProgettazione(data.layout_overlay, rapido))} />
+      {senzaMappa && (
+        <FvCard title="Stima solare senza mappa">
+          <p className="mb-4 text-sm text-slate-600">Scegli numero e modello dei pannelli nella fase Impianto. La capienza del tetto resta da verificare con il sopralluogo.</p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-sm text-slate-700" aria-live="polite">
+              <strong>{data.comune || data.indirizzo || "Località da completare nella fase Immobile"}</strong>
+              <p className="mt-1">{analizzando ? "Calcolo della stima solare dalla località…" : data.ore_sole_annue != null && data.ore_sole_annue > 0
+                ? data.fonte_dati_tetto === "manuale" ? "Stima solare inserita manualmente." : "Stima solare disponibile per questa località."
+                : "La stima solare viene ricavata automaticamente dall’indirizzo dell’impianto."}</p>
+            </div>
+            <Button type="button" variant="outline" disabled={readOnlyMode || analizzando || data.latitudine == null || data.longitudine == null}
+              onClick={() => onAnalizza("pvgis")}>
+              {analizzando ? "Calcolo in corso…" : "Ricalcola dalla località"}
+            </Button>
+          </div>
+          {(data.latitudine == null || data.longitudine == null) && <p className="mt-3 text-xs text-slate-500">Seleziona l’indirizzo completo nella fase Immobile: la località serve per ricavare la stima solare.</p>}
+          <p className="mt-3 text-xs text-slate-500">La stima automatica assume orientamento sud e inclinazione di 30°. Nessuna vista satellitare o disposizione dei pannelli viene inserita nel documento.</p>
+          <details className="mt-4 border-t border-slate-200 pt-3">
+            <summary className="cursor-pointer text-sm font-medium text-slate-600">Impostazioni avanzate · dato solare manuale</summary>
+            <div className="mt-3 max-w-sm">
+              <Label htmlFor="fv-ore-senza-mappa">Ore equivalenti annue</Label>
+              <Input id="fv-ore-senza-mappa" type="number" min={1} step="any" disabled={readOnlyMode || analizzando}
+                value={data.ore_sole_annue ?? ""} placeholder="es. 1450"
+                onChange={(e) => {
+                  update("ore_sole_annue", e.target.value ? Number(e.target.value) : null);
+                  update("fonte_dati_tetto", "manuale");
+                  update("qualita_dati_tetto", "manual");
+                }} />
+              <p className="mt-1 text-xs text-slate-500">Solo per sostituire la stima automatica con un dato tecnico verificato. Le perdite dell’impianto sono applicate nel calcolo.</p>
+            </div>
+          </details>
+        </FvCard>
+      )}
+      {!senzaMappa && <FvCard title="Sorgente dati">
         {/* Telefono: le tre sorgenti in una fila di tasselli piccoli, senza descrizioni. */}
         <div className="grid grid-cols-3 gap-3 max-sm:gap-2">
           <SourceTile
@@ -3052,7 +3121,7 @@ function Step4Tetto({
         {data.fonte_dati_tetto !== "manuale" && (
           <button
             type="button"
-            onClick={onAnalizza}
+            onClick={() => onAnalizza()}
             disabled={analizzando || readOnlyMode}
             className="mt-4 w-full px-5 py-3 text-sm font-bold rounded-lg text-white bg-gradient-to-br from-orange-500 to-eic-amber shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
@@ -3069,9 +3138,9 @@ function Step4Tetto({
             )}
           </button>
         )}
-      </FvCard>
+      </FvCard>}
 
-      {data.latitudine != null && data.longitudine != null && (
+      {!senzaMappa && data.latitudine != null && data.longitudine != null && (
         <RoofSatelliteView
           lat={data.latitudine}
           lng={data.longitudine}
@@ -3081,7 +3150,7 @@ function Step4Tetto({
         />
       )}
 
-      {data.fonte_dati_tetto === "manuale" && (
+      {!senzaMappa && data.fonte_dati_tetto === "manuale" && (
         <FvCard title="Parametri manuali" className="mt-4">
           <div className="grid sm:grid-cols-3 gap-3">
             <div>
@@ -3096,7 +3165,7 @@ function Step4Tetto({
               />
             </div>
             <div>
-              <Label>Numero pannelli max</Label>
+              <Label>Numero pannelli max (facoltativo)</Label>
               <Input
                 type="number"
                 value={data.numero_pannelli_max ?? ""}
@@ -3130,7 +3199,7 @@ function Step4Tetto({
         </FvCard>
       )}
 
-      {data.ore_sole_annue && data.ore_sole_annue > 0 && (
+      {!senzaMappa && data.ore_sole_annue != null && data.ore_sole_annue > 0 && (
         <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
           <FvKpi
             label="Sup. utilizzabile"
@@ -3162,9 +3231,9 @@ function Step4Tetto({
         </div>
       )}
 
-      {data.ore_sole_annue && data.ore_sole_annue > 0 && (
+      {data.ore_sole_annue != null && data.ore_sole_annue > 0 && (
         <>
-          <FvCallout variant="success" title="Tetto idoneo all'installazione" >
+          <FvCallout variant="info" title="Stima solare disponibile" >
             <span className="max-md:hidden">
             Dati acquisiti dalla sorgente <strong>{data.fonte_dati_tetto === "solar_api" ? "Google Solar API" : data.fonte_dati_tetto === "pvgis" ? "PVGIS" : "manuale"}</strong>.
             {data.qualita_dati_tetto && <> Qualità dati: <strong>{data.qualita_dati_tetto}</strong>.</>}
@@ -3224,7 +3293,7 @@ function Step4Tetto({
             </div>
           </FvCard>
 
-          <FvLayoutTetto panels={data.layout_tetto} className="mt-3" />
+          {!senzaMappa && <FvLayoutTetto panels={data.layout_tetto} className="mt-3" />}
         </>
       )}
     </>
@@ -3532,7 +3601,7 @@ export function FvScontoCard({
   );
 }
 
-function Step5Configurazione({
+export function Step5Configurazione({
   data,
   update,
   readOnlyMode,
@@ -3547,6 +3616,7 @@ function Step5Configurazione({
   scenario,
   calcolando,
   onRicalcola,
+  EditorDisegno = FvDisegnoPreventivo,
 }: {
   data: WizardData;
   update: <K extends keyof WizardData>(k: K, v: WizardData[K]) => void;
@@ -3562,11 +3632,30 @@ function Step5Configurazione({
   scenario: Record<string, unknown> | null;
   calcolando: boolean;
   onRicalcola: () => void;
+  EditorDisegno?: React.ComponentType<FvDisegnoPreventivoProps>;
 }) {
   // Il costo d'acquisto dei prodotti extra lo vede (e lo scrive) solo chi può vedere costi e margini.
   const puoVedereImpresa = usePuoVedereImpresa();
   // Prodotti extra: ricerca live sull'INTERO listino generale (article_families).
   const [extraSearch, setExtraSearch] = useState("");
+  const [disegnoAperto, setDisegnoAperto] = useState(false);
+  const [disegnoBozza, setDisegnoBozza] = useState<DisegnoCommercialeFv | null>(null);
+  const { data: regoleDisegno = [] } = useDiscountRules();
+  const disegnoAttuale = leggiDisegnoCommerciale(data.layout_overlay);
+  const daRivedereAttuali = disegnoAttuale ? pannelliDaRivedere(disegnoAttuale).length : 0;
+  const wattDisegno = Number(pannelli.find(p => p.id === data.pannello_id)?.potenza_w);
+  const problemiDisegno = disegnoBozza ? pannelliDaRivedere(disegnoBozza) : [];
+  const datiDisegno = disegnoBozza && wattDisegno > 0 ? { ...data, ...datiDalDisegno(disegnoBozza, wattDisegno, data.prodotti_extra) } : data;
+  const totaleDisegno = anteprimaFotovoltaico(datiDisegno, { listino: { pannelli, inverter, accumuli }, regoleSconto: regoleDisegno, impiantoConfigurato: true }).totaleDocumento;
+  const applicaDisegno = () => {
+    if (readOnlyMode || !disegnoBozza || problemiDisegno.length || !(wattDisegno > 0)) return;
+    const patch = datiDalDisegno(disegnoBozza, wattDisegno, data.prodotti_extra);
+    if(patch.prodotti_extra)update("prodotti_extra",patch.prodotti_extra);
+    update("layout_overlay", patch.layout_overlay);
+    update("numero_pannelli_scelti", patch.numero_pannelli_scelti);
+    update("potenza_kwp", patch.potenza_kwp);
+    setDisegnoAperto(false);
+  };
 
   // ── Composizione offerta: Kit pronto vs configurazione manuale ──
   // Solo kit con un prezzo: senza, il preventivo usciva a 0 €.
@@ -3780,6 +3869,8 @@ function Step5Configurazione({
     listinoCompleto,
     tariffaInstallazioneConfigurata: Boolean(data.tariffa_installazione_id),
     tettoMock: data.tetto_mock,
+    senzaMappa: preventivoSenzaMappa(data.layout_overlay),
+    disposizioneCommerciale: !!leggiDisegnoCommerciale(data.layout_overlay),
   });
   const readinessVariant =
     readiness.status === "blocked"
@@ -4048,27 +4139,57 @@ function Step5Configurazione({
         />
       </div>
 
-      {/* Piano di posa (25/10/2026): i moduli disegnati in scala sulla vista satellitare, sulla falda giusta.
-          Torna l'editor tolto il 13/07, ora in scala e solo su richiesta: il piano disegnato è una pagina del PDF. */}
-      {data.latitudine != null && data.longitudine != null && (
-        <FvPianoTetto
-          lat={data.latitudine}
-          lng={data.longitudine}
-          moduli={data.numero_pannelli_scelti ?? 0}
-          kwp={data.potenza_kwp}
-          piano={data.layout_overlay}
-          onChange={(p) => update("layout_overlay", p)}
-          modificabile={!readOnlyMode}
-          modulo={misureModulo(pannelli.find((p) => p.id === data.pannello_id) as { lunghezza_mm?: unknown; larghezza_mm?: unknown; potenza_w?: unknown } | undefined)}
-        />
-      )}
+      <FvCard title="Piano di posa (facoltativo)" className="mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-slate-500">
+            {leggiDisegnoCommerciale(data.layout_overlay)
+              ? `${data.numero_pannelli_scelti} pannelli nel disegno, collegati alla configurazione e al PDF.`
+              : "Aggiungi il disegno del tetto se vuoi mostrare al cliente la disposizione dei pannelli."}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" disabled={!!data.kit_bundle_id || (!readOnlyMode && !(Number(pannelli.find(p => p.id === data.pannello_id)?.potenza_w) > 0)) || (readOnlyMode && !leggiDisegnoCommerciale(data.layout_overlay))}
+              onClick={() => { const ripreso = leggiDisegnoCommerciale(cambiaModalitaProgettazione(data.layout_overlay, false)); const articolo = pannelli.find(p => p.id === data.pannello_id); setDisegnoBozza(ripreso ? { ...ripreso, modulo: misureModulo(articolo) } : null); setDisegnoAperto(true); }}>
+              {leggiDisegnoCommerciale(data.layout_overlay) ? readOnlyMode ? "Visualizza disposizione pannelli" : "Modifica disposizione pannelli" : "Disegna il tetto"}
+            </Button>
+            {leggiDisegnoCommerciale(data.layout_overlay) && !readOnlyMode && <Button type="button" variant="ghost" size="sm" onClick={() => update("layout_overlay", cambiaModalitaProgettazione(data.layout_overlay, true))}>Escludi il disegno dal PDF</Button>}
+          </div>
+        </div>
+        {!!daRivedereAttuali && <p role="alert" className="mt-2 text-xs text-amber-700">{daRivedereAttuali} pannelli da riposizionare dopo le modifiche. Apri il disegno prima di salvare o generare il PDF.</p>}
+        {!data.pannello_id && <p className="mt-2 text-[11px] text-slate-400">Seleziona prima il modello pannello nel listino qui sotto.</p>}
+        {data.kit_bundle_id && <p className="mt-2 text-[11px] text-slate-400">Il kit mantiene le proprie quantità: passa alla configurazione a componenti per usare il disegno modificabile.</p>}
+      </FvCard>
+      <Dialog open={disegnoAperto} onOpenChange={setDisegnoAperto}>
+        <DialogContent className="fv-roof-dialog w-[calc(100vw-2rem)] max-w-5xl max-h-[92dvh] flex flex-col gap-0 overflow-hidden p-0">
+          <DialogHeader className="px-5 py-4 border-b shrink-0"><DialogTitle>Piano di posa dei pannelli</DialogTitle><DialogDescription>Controlla disposizione e totale, poi usa il disegno nel preventivo. Annulla mantiene la configurazione precedente.</DialogDescription></DialogHeader>
+          <div className="fv-roof-dialog-content min-h-0 overflow-y-auto px-4 py-3">
+          <EditorDisegno
+            value={disegnoBozza}
+            modulo={misureModulo(pannelli.find(p => p.id === data.pannello_id))}
+            potenzaModuloW={Number(pannelli.find(p => p.id === data.pannello_id)?.potenza_w) || 540}
+            nomeModulo={String(pannelli.find(p => p.id === data.pannello_id)?.descrizione || "Scegli il pannello dal listino")}
+            localita={data.latitudine!=null&&data.longitudine!=null?{lat:data.latitudine,lng:data.longitudine}:null}
+            riepilogoProposta={p=>{const d={...data,...datiDalDisegno(p,wattDisegno,data.prodotti_extra)};return{kwp:d.potenza_kwp,totale:anteprimaFotovoltaico(d,{listino:{pannelli,inverter,accumuli},regoleSconto:regoleDisegno,impiantoConfigurato:true}).totaleDocumento??null};}}
+            quantitaIniziale={data.numero_pannelli_scelti}
+            modificabile={!readOnlyMode && Number(pannelli.find(p => p.id === data.pannello_id)?.potenza_w) > 0}
+            onChange={setDisegnoBozza} />
+          </div>
+          <div className="fv-roof-dialog-footer shrink-0 border-t bg-white px-5 py-3">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-500" aria-label="Riepilogo disposizione">
+              <span><strong className="text-slate-900">{disegnoBozza?.pannelli.length ?? 0}</strong> pannelli</span>
+              <span><strong className="text-slate-900">{disegnoBozza ? formatDecimalIT(datiDisegno.potenza_kwp) : "—"}</strong> kWp</span>
+              <span>Totale IVA inclusa <strong className="text-slate-900">{disegnoBozza && totaleDisegno != null ? formattaEuro(totaleDisegno, 2) : "—"}</strong></span>
+            </div>
+            {data.prezzo_vendita_manuale != null && data.prezzo_vendita_manuale > 0 && <p className="text-[11px] text-slate-500 mt-1">È mantenuto il prezzo a corpo della configurazione.</p>}
+            {!!problemiDisegno.length && <p role="alert" className="text-xs text-amber-700 mt-2">Riposiziona {problemiDisegno.length} pannelli evidenziati prima di usare la disposizione.</p>}
+            <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setDisegnoAperto(false)}>{readOnlyMode ? "Chiudi disposizione" : "Annulla"}</Button>
+              {!readOnlyMode && <Button type="button" disabled={!disegnoBozza?.pannelli.length || problemiDisegno.length > 0} onClick={applicaDisegno}>Usa disposizione nel preventivo</Button>}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {!preventivoSenzaMappa(data.layout_overlay) && leggiPiano(data.layout_overlay) && data.latitudine != null && data.longitudine != null && <FvPianoTetto lat={data.latitudine} lng={data.longitudine} moduli={data.numero_pannelli_scelti} kwp={data.potenza_kwp} piano={leggiPiano(data.layout_overlay)} onChange={p => update("layout_overlay", p)} modificabile={!readOnlyMode} modulo={misureModulo(pannelli.find(p => p.id === data.pannello_id))} />}
 
-      {/* Progettazione elettrica: dimensionamento stringhe/MPPT (gap vs Reonic/Autarc) */}
-      <FvDimensionamentoStringhe
-        numeroModuli={data.numero_pannelli_scelti}
-        modulo={moduloSpecStringhe}
-        className="mb-4"
-      />
+      {!leggiDisegnoCommerciale(data.layout_overlay) && <FvDimensionamentoStringhe numeroModuli={data.numero_pannelli_scelti} modulo={moduloSpecStringhe} className="mb-4" />}
 
       <div className="mb-4">
         <FvCallout
@@ -4105,30 +4226,35 @@ function Step5Configurazione({
             )}
             <div className={data.kit_bundle_id ? "opacity-60 pointer-events-none" : ""}>
               <div className="flex items-center justify-between mb-2">
-                <Label>Numero pannelli</Label>
-                <span className="text-orange-600 font-bold text-lg tabular-nums">
-                  {data.numero_pannelli_scelti}
-                </span>
+                <Label htmlFor="fv-numero-pannelli">Numero pannelli</Label>
+                <Input id="fv-numero-pannelli" type="number" min={1} step={1}
+                  className="w-28 text-right font-bold text-orange-600"
+                  disabled={!!data.kit_bundle_id || readOnlyMode || !!leggiDisegnoCommerciale(data.layout_overlay)}
+                  value={data.numero_pannelli_scelti || ""}
+                  onChange={(e) => {
+                    const moduli = e.target.value ? Number(e.target.value) : 0;
+                    update("numero_pannelli_scelti", moduli);
+                    update("potenza_kwp", potenzaDaModuli(moduli, data.pannello_id));
+                  }} />
               </div>
               <input
                 type="range"
-                min={4}
-                max={data.numero_pannelli_max ?? 60}
+                aria-label="Regola il numero di pannelli"
+                min={1}
+                max={Math.max(data.numero_pannelli_max ?? 60, data.numero_pannelli_scelti, 1)}
                 value={data.numero_pannelli_scelti}
                 onChange={(e) => {
                   const moduli = Number(e.target.value);
                   update("numero_pannelli_scelti", moduli);
                   update("potenza_kwp", potenzaDaModuli(moduli, data.pannello_id));
                 }}
-                disabled={!!data.kit_bundle_id || readOnlyMode}
+                disabled={!!data.kit_bundle_id || readOnlyMode || !!leggiDisegnoCommerciale(data.layout_overlay)}
                 className="w-full accent-orange-500"
               />
               <p className="text-[11px] text-slate-500 mt-1">
-                Min 4 · Max{" "}
-                <strong>{data.numero_pannelli_max ?? "—"}</strong>{" "}
-                {data.numero_pannelli_max
-                  ? "(da analisi tetto)"
-                  : "(richiede analisi tetto)"}
+                {leggiDisegnoCommerciale(data.layout_overlay) ? "Quantità collegata al disegno: aggiungi o rimuovi i pannelli nella tavola." : data.numero_pannelli_max
+                  ? `Capienza indicata: ${data.numero_pannelli_max} pannelli. Da confermare sul posto.`
+                  : "Capienza del tetto da verificare. Puoi inserire direttamente il numero di pannelli, anche oltre la scala del cursore."}
               </p>
             </div>
 
@@ -5094,7 +5220,11 @@ function ModalitaPagamentoCard({
   );
 }
 
-function Step6Finanziario({
+export function Step6Finanziario(props:Parameters<typeof Step6FinanziarioPrivato>[0]&{imponibileCorrente?:number|null;readOnlyMode?:boolean}){
+ if(props.data.cliente_tipo==="azienda")return <FvEconomiaAzienda data={props.data} update={props.update} imponibile={props.imponibileCorrente??null} produzioneAnnua={props.scenario?.produzione_annua_kwh!=null?Number(props.scenario.produzione_annua_kwh):undefined} readOnly={props.readOnlyMode}/>;
+ return <Step6FinanziarioPrivato {...props} data={props.data.finanziamento_modalita==="leasing"?{...props.data,finanziamento_modalita:"cash"}:props.data}/>;
+}
+function Step6FinanziarioPrivato({
   data,
   update,
   scenario,
@@ -5360,7 +5490,7 @@ function Step6Finanziario({
 
       {/* Sprint 4: Payment toggle modalità pagamento (cash / rate / zero) */}
       <FvPaymentToggle
-        modalita={data.finanziamento_modalita}
+        modalita={data.finanziamento_modalita==="leasing"?"cash":data.finanziamento_modalita}
         durata={data.durata_mesi_scelta ?? 84}
         topConsigliata={(tabellaScelta && topFinanziamenti.find((t) => t.id === tabellaScelta.id)) || topAuto}
         noleggioEnabled={fvTemplate?.noleggio_operativo_attivo !== false}

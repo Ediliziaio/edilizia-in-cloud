@@ -26,11 +26,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
+import { ClienteCombobox } from "@/components/orders/ClienteCombobox";
 import { AssignedToSelect } from "@/components/orders/AssignedToSelect";
 import { SedeSelect } from "@/components/sedi/SedeSelect";
-import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
+import { useCompanyCustomers, type CompanyCustomer } from "@/hooks/useCompanyCustomers";
+import { modificheSceltaCliente } from "@/lib/silvio-commessa/sceltaCliente";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { useSediList } from "@/hooks/useSediAnalytics";
 import { parseDecimalIT } from "@/lib/parseDecimalIT";
@@ -225,6 +226,10 @@ function ModificaRate({ rate, onSalva, onAnnulla }: { rate: RataDelPiano[]; onSa
               onChange={(e) => cambia(i, { testo: e.target.value })} className="col-span-3 h-11 max-sm:order-3 sm:col-span-1 lg:h-9" />
             <Button type="button" size="icon" variant="ghost" className="h-11 w-11 max-sm:order-2 lg:h-9 lg:w-9" aria-label={`Togli la rata ${i + 1}`}
               onClick={() => setRighe(righe.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>
+            <label className="col-span-3 text-xs text-slate-600 max-sm:order-4">Scadenza della rata
+              <Input type="date" aria-label={`Scadenza della rata ${i + 1}`} value={r.expected_date ?? ""}
+                onChange={(e) => cambia(i, { expected_date: e.target.value || null })} className="mt-1 h-11 lg:h-9" />
+            </label>
           </li>
         ))}
       </ol>
@@ -242,7 +247,7 @@ function ModificaRate({ rate, onSalva, onAnnulla }: { rate: RataDelPiano[]; onSa
 
 /** Il cliente del gestionale: scelto dall'elenco o creato, coi dati che Silvio ha letto. */
 export function SceltaCliente({ companyId, piano, onScegli }: {
-  companyId: string; piano: PianoCommessa; onScegli: (id: string, nome: string) => void;
+  companyId: string; piano: PianoCommessa; onScegli: (id: string, nome: string, cliente?: CompanyCustomer) => void;
 }) {
   const { data: clienti = [] } = useCompanyCustomers(companyId);
   const [nuovo, setNuovo] = useState(false);
@@ -254,18 +259,11 @@ export function SceltaCliente({ companyId, piano, onScegli }: {
   return (
     <div className="mt-2 space-y-2">
       <label htmlFor={id} className="text-xs lg:text-[11px] font-medium text-slate-600">Cliente del gestionale</label>
-      <div className="flex gap-2">
-        <Select value={typeof scelto === "string" ? scelto : ""} onValueChange={(v) => {
+      <div className="flex min-w-0 gap-2 [&_button[role=combobox]]:h-11 lg:[&_button[role=combobox]]:h-9">
+        <ClienteCombobox id={id} clienti={clienti} value={typeof scelto === "string" ? scelto : ""} onChange={(v) => {
           const c = clienti.find((x) => x.id === v);
-          onScegli(v, c ? `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() : "");
-        }}>
-          <SelectTrigger id={id} className="h-11 flex-1 lg:h-9"><SelectValue placeholder="Scegli un cliente" /></SelectTrigger>
-          <SelectContent>
-            {clienti.map((c) => (
-              <SelectItem key={c.id} value={c.id}>{`${c.first_name ?? ""} ${c.last_name ?? ""}`.trim()}{c.email ? ` (${c.email})` : ""}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          onScegli(v, c ? `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() : "", c);
+        }} />
         <Button type="button" variant="outline" size="sm" className="h-11 gap-1 lg:h-9" onClick={() => setNuovo(true)}>
           <UserPlus className="h-4 w-4" aria-hidden />Nuovo
         </Button>
@@ -273,12 +271,12 @@ export function SceltaCliente({ companyId, piano, onScegli }: {
       {nuovo && (
         <CreateCustomerDialog open onOpenChange={setNuovo} defaultCreatePortalAccount={false}
           initialValues={{
-            fullName: nome?.client_name || nome?.client_company || undefined,
-            isBusiness: !nome?.client_name && !!nome?.client_company,
+            fullName: nome?.client_company || nome?.client_name || undefined,
+            isBusiness: !!nome?.client_company,
             email: contatto?.client_email, phone: contatto?.client_phone,
             address: typeof indirizzo === "string" ? indirizzo : undefined,
           }}
-          onCustomerCreated={(cid, cnome) => { onScegli(cid, cnome); setNuovo(false); }} />
+          onCustomerCreated={(cid, cnome, cliente) => { onScegli(cid, cnome, cliente); setNuovo(false); }} />
       )}
     </div>
   );
@@ -420,7 +418,7 @@ function Dettaglio({ chiave, valore, onTogli, vedeCosti }: { chiave: string; val
     return (
       <ul className="mt-1 space-y-0.5 text-xs lg:text-[11px] text-slate-600">
         {(valore as RataDelPiano[]).map((r, i) => (
-          <li key={i} className="flex justify-between gap-2"><span className="min-w-0 break-words">{r.label}</span><span className="shrink-0">{importoRata(r)}</span></li>
+          <li key={i} className="flex justify-between gap-2"><span className="min-w-0 break-words">{r.label}{r.expected_date ? ` · ${r.expected_date.split("-").reverse().join("/")}` : ""}</span><span className="shrink-0">{importoRata(r)}</span></li>
         ))}
       </ul>
     );
@@ -599,10 +597,8 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
           case "rate": return <ModificaRate rate={(attuale as RataDelPiano[] | null) ?? []} onSalva={(r) => cambia(r.length ? r : null)} onAnnulla={chiudi} />;
           case "cliente":
             return (
-              <SceltaCliente companyId={companyId} piano={piano} onScegli={(id, nome) => {
-                const m: Modifica[] = [{ tipo: "cambia_valore", area: "cliente", chiave: "cliente.customer_id", valore: id }];
-                if (nome && !piano.aree.cliente?.["cliente.nome"]) m.push({ tipo: "cambia_valore", area: "cliente", chiave: "cliente.nome", valore: { client_name: nome } });
-                onModifica(m);
+              <SceltaCliente companyId={companyId} piano={piano} onScegli={(id, nome, cliente) => {
+                onModifica(modificheSceltaCliente(piano, id, nome, cliente?.email));
                 chiudi();
               }} />
             );

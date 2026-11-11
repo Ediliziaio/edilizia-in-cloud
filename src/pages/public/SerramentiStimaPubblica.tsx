@@ -376,7 +376,7 @@ export default function SerramentiStimaPubblica() {
               </h3>
               <p className="text-sm text-muted-foreground mb-4">
                 {firmaToken
-                  ? "Hai letto il preventivo? Per firmarlo ti mandiamo un codice di verifica via email: bastano due passaggi."
+                  ? "Hai letto il preventivo? Per firmarlo accetti e inserisci il codice che ti mandiamo via email: è tutto."
                   : firmaInCorso
                     ? "Hai già inserito il codice di verifica, ma la firma non è ancora completata. Riapri il link che ti abbiamo mandato per email e completala da lì."
                     : "Per firmare ti serve il link di firma che ti manda l'azienda via email, con il codice di verifica. Se non l'hai ricevuto, contatta il tuo consulente."}

@@ -116,6 +116,11 @@ export const importoRiga = (r: RigaDocumentoOperativo) =>
   r.importo ??
   Math.round(r.quantita * (r.prezzo ?? 0) * (1 - (r.sconto ?? 0) / 100) * 100) /
     100;
+/** Cambiare quantità o prezzo ricalcola anche una riga con importo già valorizzato. */
+export function modificaNumeroRigaDocumento(r: RigaDocumentoOperativo, key: string, value: string): RigaDocumentoOperativo {
+  if (!["quantita", "prezzo", "sconto", "iva", "oreUomo", "oreMezzo"].includes(key)) throw new Error("Campo numerico non valido");
+  return { ...r, ...(["quantita", "prezzo", "sconto"].includes(key) ? { importo: undefined } : {}), [key]: value === "" ? null : Number(value) };
+}
 export function totaliDocumento(d: DocumentoOperativo) {
   if (d.tipo === "economia") {
     // Rapporto delle quantità e tariffe IVA escluse, come il modello approvato.
@@ -325,6 +330,7 @@ export function documentoIncompleto(d: DocumentoOperativo): boolean {
     )
   );
 }
+export const haImportiDocumento = (d: DocumentoOperativo): boolean => d.righe.some((r) => r.prezzo != null || r.importo != null);
 export function corpoDocumento(
   d: DocumentoOperativo,
   a: AziendaDocumento,
@@ -360,7 +366,7 @@ export function corpoDocumento(
     .map(([k, v]) => `<li><strong>${esc(k)}:</strong> ${esc(v)}</li>`)
     .join(
       "",
-    )}</ul><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>${d.tipo === "richiesta" || senzaPrezzi(d) ? "" : `<p>${documentoIncompleto(d) ? "<strong>Riepilogo da completare: prezzi o IVA mancanti. Gli importi seguenti riguardano solo le voci valorizzate.</strong><br>" : ""}${d.tipo === "economia" ? `Totale IVA esclusa: ${euro(t.imponibile)}` : `Imponibile: ${euro(t.imponibile)}<br>IVA: ${d.inversioneContabile ? "Inversione contabile" : euro(t.iva)}<br><strong>Totale: ${euro(t.totale)}</strong>`}</p>`}${d.note ? `<p style="white-space:pre-line"><strong>Note:</strong> ${esc(d.note)}</p>` : ""}<p>${esc(condizioniDocumento(d))}</p><p>Cordiali saluti,<br>${esc(a.business_name || a.name)}</p>`;
+    )}</ul><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>${d.tipo === "richiesta" || senzaPrezzi(d) ? "" : `<p>${documentoIncompleto(d) ? "<strong>Riepilogo da completare: prezzi o IVA mancanti. Gli importi seguenti riguardano solo le voci valorizzate.</strong><br>" : ""}${d.tipo === "economia" ? `Totale IVA esclusa: ${haImportiDocumento(d) ? euro(t.imponibile) : "Da definire"}` : `Imponibile: ${euro(t.imponibile)}<br>IVA: ${d.inversioneContabile ? "Inversione contabile" : euro(t.iva)}<br><strong>Totale: ${euro(t.totale)}</strong>`}</p>`}${d.note ? `<p style="white-space:pre-line"><strong>Note:</strong> ${esc(d.note)}</p>` : ""}<p>${esc(condizioniDocumento(d))}</p><p>Cordiali saluti,<br>${esc(a.business_name || a.name)}</p>`;
 }
 export const nomeFileDocumento = (d: DocumentoOperativo) =>
   `${d.numero}-${d.tipo}`.replace(/[^a-zA-Z0-9_-]/g, "_") + ".pdf";

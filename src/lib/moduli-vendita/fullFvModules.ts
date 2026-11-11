@@ -1,3 +1,5 @@
+import {personalizzaModelloAzienda,FV_BUSINESS_TITOLI} from "./fvBusinessTemplates";
+import {isFvModelloAzienda} from "../../../supabase/functions/_shared/fvModelliAzienda";
 import { ereditaCondizioniModello } from "./condizioniModello";
 import { completeModulePhotography } from "./modulePhotography";
 import type { FvTemplate } from "@/components/fotovoltaico/FotovoltaicoTemplateEditor";
@@ -5,10 +7,10 @@ import { FV_PDF_PAGES_META } from "@/lib/fotovoltaico/pdfPages";
 import { FV_ACCUMULO_PAGINE_NON_APPLICABILI } from "../../../supabase/functions/_shared/fvIntervento";
 import type { ContenutoBlocco } from "../../../supabase/functions/_shared/blocchiPreventivo";
 import { FV_EDITORIAL, type FvEditorialId } from "./fvEditorialContent";
-export const FULL_FV_MODULES = ["accumulo", "nuovo", "ampliamento", "componenti", "manutenzione"] as const;
+export const FULL_FV_MODULES = ["accumulo", "nuovo", "ampliamento", "componenti", "manutenzione", "aziendale", "aziendale-noleggio"] as const;
 export type FullFvModuleId = typeof FULL_FV_MODULES[number];
 export const isFullFvModuleId = (id: string): id is FullFvModuleId => FULL_FV_MODULES.some(value => value === id);
-export const fvModuleTitle = (id: FullFvModuleId) => id === "accumulo" ? "Aggiunta sistema di accumulo" : FV_EDITORIAL[id].title;
+export const fvModuleTitle = (id: FullFvModuleId) => id === "accumulo" ? "Aggiunta sistema di accumulo" : isFvModelloAzienda(id)?FV_BUSINESS_TITOLI[id]:FV_EDITORIAL[id].title;
 export type FullFvTemplate = FvTemplate & { company_id: string; id: string };
 type Entry = readonly [string, string];
 const photo = "/module-art/fotovoltaico-accumulo-cover.jpg";
@@ -20,6 +22,7 @@ const block = (titolo: string, intro: string, items: readonly Entry[], image?: s
 });
 
 export function createFullFvTemplate(base: FvTemplate, companyId: string, id: FullFvModuleId): FullFvTemplate {
+  if(isFvModelloAzienda(id)){const t=personalizzaModelloAzienda(createEditorialFvTemplate(base,companyId,"nuovo"),id);t.recensioni=structuredClone(base.recensioni??[]);t.certificazioni=structuredClone(base.certificazioni??[]);t.cantieri_galleria=structuredClone(base.cantieri_galleria??[]);t.gallery_lavori=structuredClone(base.gallery_lavori??[]);return t;}
   if (id !== "accumulo") return createEditorialFvTemplate(base, companyId, id);
   const t: FullFvTemplate = {
     ...structuredClone(base), id: `local-fotovoltaico-${id}`, company_id: companyId,

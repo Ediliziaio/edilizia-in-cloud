@@ -1,3 +1,4 @@
+import { constructionVideoGuides } from "@/lib/marketing/constructionVideoGuides";
 /**
  * Articoli settembre 2026 — long-tail operativa dove i concorrenti grandi non
  * ci sono e dove le SERP oggi premiano chi c'è (myAEDES, Cantir, Factorial).
@@ -544,6 +545,7 @@ export const blogPostsCantierePmi: BlogPost[] = [
   {
     id: "oct-2026-squadre",
     slug: "gestione-squadre-cantiere",
+    video: constructionVideoGuides.teams,
     title: "Gestione Squadre di Cantiere: Chi Va Dove, Ogni Mattina",
     excerpt:
       "Come pianificare le squadre di cantiere: chi va dove ogni mattina, il piano settimanale, subappaltatori sullo stesso piano, presenze e numeri da guardare.",

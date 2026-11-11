@@ -191,9 +191,14 @@ describe("popup unico di creazione preventivi", () => {
     fireEvent.click(screen.getByRole("link", { name: "Apri preventivatore Realizzazione giardino" }));
     expect(screen.getByTestId("route")).toHaveTextContent("/azienda/pavimenti/nuovo?modello=giardino&contact_id=c1");
   });
-  it.each([["termoidraulica", 13], ["elettrico", 11], ["ristrutturazioni", 10], ["giardini", 4], ["fotovoltaico", 5]] as const)("apre i preventivatori %s coi loro %i interventi", (area, quanti) => {
+  it.each([["termoidraulica", 13], ["elettrico", 11], ["ristrutturazioni", 10], ["giardini", 4], ["fotovoltaico", 7]] as const)("apre i preventivatori %s coi loro %i interventi", (area, quanti) => {
     mount(`area=${area}`);
     expect(screen.getAllByRole("link", { name: /^Apri preventivatore/ })).toHaveLength(quanti);
+  });
+  it.each([["Fotovoltaico aziende", "aziendale"], ["Fotovoltaico aziende · Noleggio operativo", "aziendale-noleggio"]])("apre il modello %s nel preventivatore fotovoltaico", (nome, modello) => {
+    mount("area=fotovoltaico&contact_id=c1");
+    fireEvent.click(screen.getByRole("link", { name: `Apri preventivatore ${nome}` }));
+    expect(screen.getByTestId("route")).toHaveTextContent(`/azienda/marketing/fotovoltaico/nuovo?modello=${modello}&contact_id=c1`);
   });
   it("distingue accesso all'area da disponibilità del salvataggio", () => {
     state.support.supported = false; mount("area=tetti");

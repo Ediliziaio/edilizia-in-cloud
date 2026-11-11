@@ -73,12 +73,12 @@ export interface ColonnaChatProps {
 
 function Microfono({ d }: { d: Dettatura }) {
   return (
-    <button type="button" onClick={d.tocca} disabled={d.trascrive} aria-pressed={d.registra}
-      aria-label={d.registra ? `Ferma la dettatura (${d.secondi} s)` : d.trascrive ? "Trascrivo…" : `Detta a Silvio (circa ${euroAI(STIMA_DETTATURA_EUR)})`}
+    <button type="button" onClick={d.tocca} disabled={d.trascrive || d.avviando} aria-pressed={d.registra}
+      aria-label={d.registra ? `Ferma la dettatura (${d.secondi} s)` : d.avviando ? "Apro il microfono…" : d.trascrive ? "Trascrivo…" : `Detta a Silvio (circa ${euroAI(STIMA_DETTATURA_EUR)})`}
       title={d.registra ? "Ferma" : `Detta · circa ${euroAI(STIMA_DETTATURA_EUR)}`}
       className={cn("grid h-11 w-11 place-items-center rounded-full transition-colors lg:h-9 lg:w-9",
         d.registra ? "bg-red-600 text-white" : "bg-orange-50 text-orange-700 hover:bg-orange-100")}>
-      {d.trascrive ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : d.registra ? <Square className="h-4 w-4" fill="currentColor" aria-hidden /> : <Mic className="h-5 w-5" aria-hidden />}
+      {d.trascrive || d.avviando ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : d.registra ? <Square className="h-4 w-4" fill="currentColor" aria-hidden /> : <Mic className="h-5 w-5" aria-hidden />}
     </button>
   );
 }

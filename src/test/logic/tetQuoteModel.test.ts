@@ -65,12 +65,12 @@ describe("registro unico dei preventivatori", () => {
     }
     // Tetti 9, Serramenti 9 e, dal 25/09/2026, tutti gli interventi dei sette
     // preventivatori edili (lib/moduli/modelloPreventivo: 6+6+7+10+6+6+10+7 Pareti +5 Pergole, con
-    // Conto Termico e Casa Full Electric nel Termoidraulico) e i cinque del
+    // Conto Termico e Casa Full Electric nel Termoidraulico) e i sette del
     // Fotovoltaico. Dal Lotto 10 anche le Facciate (motore Ristrutturazioni): tutte le aree connesse.
-    expect(connected).toHaveLength(109);
+    expect(connected).toHaveLength(111);
     expect(connected.filter(b => b.engine === "tetti")).toHaveLength(9);
     expect(connected.filter(b => b.engine === "serramenti")).toHaveLength(9);
-    expect(connected.filter(b => b.engine === "fotovoltaico")).toHaveLength(5);
+    expect(connected.filter(b => b.engine === "fotovoltaico")).toHaveLength(7);
   });
   it("non accetta interventi di un'altra area", () => {
     expect(quoteBuilder(SALES_AREAS[0], SALES_AREAS[1].interventions[0])).toBeNull();

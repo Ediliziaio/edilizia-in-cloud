@@ -1,3 +1,4 @@
+import type {ParametriEconomiaAzienda,SnapshotEconomiaAzienda} from "../../../../../supabase/functions/_shared/fvEconomiaAzienda";
 /**
  * FotovoltaicoWizard — types
  * Estratto da FotovoltaicoWizard.tsx (MP-MKT-001).
@@ -10,6 +11,7 @@
 import type {
   FvArchetipo, FvProfiloAutoconsumoCodice, FvTariffaTipo,
 } from "@/lib/fotovoltaico/tipi";
+import type { LayoutPosaFv } from "../../../../../supabase/functions/_shared/fvModalitaProgettazione";
 
 export interface WizardData {
   // Step 1: Cliente
@@ -106,7 +108,7 @@ export interface WizardData {
   /** Piano di posa dei moduli sulla vista satellitare (Fase 5): x/y in METRI dal centro della vista
    *  (`unita: "m"`), rotazione in gradi, colonne, orientamento dei moduli. null = piano non disegnato:
    *  il PDF non ha la pagina del piano. I vecchi piani, in percentuale e senza `unita`, non sono in scala. */
-  layout_overlay: { x: number; y: number; rot: number; cols: number; unita?: "m"; orient?: "v" | "o"; modulo?: { corto: number; lungo: number; stimato: boolean } } | null;
+  layout_overlay: LayoutPosaFv | null;
   /** Tariffa di manodopera scelta (FK a tariffe_aziendali). Se null usa default 30/40. */
   tariffa_installazione_id: string | null;
   /** Prodotti extra dal listino generale (caldaia, clima, colonnina, …):
@@ -146,7 +148,8 @@ export interface WizardData {
     note_operative: string | null;
   }>;
   // Step 6: Finanziamento
-  finanziamento_modalita: "cash" | "rate" | "zero" | "noleggio";
+  economia_azienda?: {parametri:ParametriEconomiaAzienda;snapshot:SnapshotEconomiaAzienda|null};
+  finanziamento_modalita: "cash" | "rate" | "zero" | "noleggio" | "leasing";
   /** Sconto commerciale (fv_progetti.sconto_tipo/sconto_valore): 'pct' = %
    *  sul prezzo netto, 'importo' = € fissi. L'edge fa il clamp server-side
    *  sulle discount_rules e scrive sconto_eur_applicato. */

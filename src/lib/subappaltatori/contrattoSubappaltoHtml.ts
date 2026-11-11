@@ -220,7 +220,7 @@ export function articoliContratto(d: DatiContrattoSubappalto): ArticoloContratto
       `L'impresa ${A} (di seguito «Affidataria») affida al Subappaltatore, che con la sottoscrizione del presente contratto accetta, l'esecuzione di tutte le opere, prestazioni, forniture e provviste necessarie per i lavori nel cantiere della commessa ${d.commessa.codice} (${d.commessa.descrizione}), sito in ${d.commessa.indirizzoCantiere || "—"}, per conto del cliente finale ${d.commessa.cliente || "—"} (di seguito «Committente»).`,
       t(d.descrizioneLavori) || "—",
       ...(d.elencoLavori?.length
-        ? [`Le lavorazioni, le quantità previste e i prezzi unitari sono quelli dell'Allegato A – Elenco dei lavori (${d.elencoLavori.length} voci, ${euroContratto(totaleElencoLavori(d.elencoLavori))}), parte integrante del presente contratto. Si contabilizzano le quantità effettivamente eseguite e misurate, ai prezzi unitari dell'Allegato A.`]
+        ? [`Le lavorazioni, le quantità previste e i prezzi unitari sono quelli dell'elenco dei lavori riportato all'inizio del presente contratto (${d.elencoLavori.length} voci, ${euroContratto(totaleElencoLavori(d.elencoLavori))}). Si contabilizzano le quantità effettivamente eseguite e misurate, ai prezzi unitari dell'elenco.`]
         : []),
       "Le premesse e gli allegati elencati all'ultimo articolo, sottoscritti dalle parti per accettazione, sono parte integrante ed essenziale del contratto. L'Affidataria dichiara di essere autorizzata al subappalto dal Committente (art. 1656 c.c.).",
       `Il Subappaltatore nomina quale proprio referente di cantiere ${t(d.referenteSubappaltatore) || "________________________"}: ogni comunicazione formale è valida se inviata ai suoi recapiti.`,
@@ -346,7 +346,7 @@ export function articoliContratto(d: DatiContrattoSubappalto): ArticoloContratto
     } else art.push({ titolo: c.titolo, paragrafi, daApprovare: c.vessatoria || undefined });
   }
   art.push({ titolo: "Allegati", paragrafi: [
-    `Sono allegati al contratto: ${d.elencoLavori?.length ? "Allegato A – Elenco dei lavori" : "elenco dei lavori"} e modalità di pagamento; visura camerale, DURC e certificato assicurativo del Subappaltatore; cronoprogramma; disegni tecnici di cantiere; schede tecniche di materiali e componenti.`,
+    `Sono allegati al contratto: ${d.elencoLavori?.length ? "" : "elenco dei lavori e "}modalità di pagamento; visura camerale, DURC e certificato assicurativo del Subappaltatore; cronoprogramma; disegni tecnici di cantiere; schede tecniche di materiali e componenti.`,
   ] });
   return art;
 }
@@ -399,7 +399,6 @@ export function costruisciContrattoSubappaltoHtml(d: DatiContrattoSubappalto): s
   .firme { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 48px; }
   .firme div { border-top: 1px solid #333; padding-top: 6px; font-size: 10pt; text-align: center; }
   .clausole { margin-top: 28px; font-size: 9.5pt; }
-  .allegato { page-break-before: always; }
   table.elenco { width: 100%; border-collapse: collapse; font-size: 9pt; margin-top: 8px; }
   table.elenco th, table.elenco td { border: 1px solid #999; padding: 3px 5px; vertical-align: top; }
   table.elenco th { background: #eee; text-align: left; }
@@ -423,8 +422,15 @@ export function costruisciContrattoSubappaltoHtml(d: DatiContrattoSubappalto): s
     <div><strong>Subappaltatore</strong><br>${esc(d.subappaltatore.ragioneSociale)}<br>P.IVA ${esc(d.subappaltatore.partitaIva || "—")}<br>${esc(d.subappaltatore.indirizzo)}${d.subappaltatore.pec ? `<br>PEC ${esc(d.subappaltatore.pec)}` : ""}</div>
   </div>
   <p>Committente (cliente finale dell'opera): ${esc(conPunto(d.commessa.cliente || "—"))} Cantiere: ${esc(conPunto(d.commessa.indirizzoCantiere || "—"))} Lavori dal ${dataContratto(d.dataInizio)} al ${dataContratto(d.dataFinePrevista)}.</p>
+  ${d.elencoLavori?.length ? `<section class="lavori">
+  <h2>Elenco dei lavori</h2>
+  <p class="sotto">Commessa ${esc(d.commessa.codice)}${codiciElenco(d.elencoLavori).riferimento ? ` · dal preventivo ${esc(codiciElenco(d.elencoLavori).riferimento)}` : ""} · ${esc(d.subappaltatore.ragioneSociale)} · prezzi IVA esclusa</p>
+  <table class="elenco"><thead><tr><th>Descrizione</th><th>U.M.</th><th>Quantità</th><th>Prezzo unitario</th><th>Importo</th></tr></thead><tbody>
+  ${elencoPerFase(d.elencoLavori).map((g) => `<tr class="fase"><td colspan="4">${esc(g.fase)}</td><td class="n">${euroContratto(g.totale)}</td></tr>${g.righe.map((r) => `<tr><td>${codiciElenco(d.elencoLavori!).perRiga && r.codice ? `${esc(r.codice)} · ` : ""}${esc(r.descrizione)}${r.comprende ? ` <em>(${testoComprende(r.comprende)})</em>` : ""}</td><td>${esc(r.unita ?? "")}</td><td class="n">${quantitaContratto(r.quantita)}</td><td class="n">${euroContratto(r.prezzo)}</td><td class="n">${euroContratto(r.importo)}</td></tr>`).join("")}`).join("")}
+  </tbody></table>
+  </section>` : ""}
   <table class="eco">
-    ${rigaEco("Lavori", euroContratto(eco.lavori))}
+    ${rigaEco(d.elencoLavori?.length ? `Lavori (${d.elencoLavori.length} voci dell'elenco)` : "Lavori", euroContratto(eco.lavori))}
     ${eco.oneri > 0 ? rigaEco("Oneri della sicurezza", euroContratto(eco.oneri)) : ""}
     ${rigaEco("Imponibile", euroContratto(eco.imponibile), true)}
     ${rigaEco(eco.reverseCharge ? "IVA: inversione contabile (art. 17 c. 6 lett. a DPR 633/72)" : `IVA ${eco.ivaPct}%`, eco.reverseCharge ? "reverse charge" : euroContratto(eco.iva))}
@@ -435,15 +441,6 @@ export function costruisciContrattoSubappaltoHtml(d: DatiContrattoSubappalto): s
   <div class="firme"><div>L'Affidataria</div><div>Il Subappaltatore</div></div>
   <p class="clausole">Ai sensi degli artt. 1341 e 1342 c.c. il Subappaltatore approva specificamente: ${esc(articoliDaApprovare(articoli))}.</p>
   <div class="firme"><div></div><div>Il Subappaltatore</div></div>
-  ${d.elencoLavori?.length ? `<section class="allegato">
-  <h1>ALLEGATO A – ELENCO DEI LAVORI</h1>
-  <p class="sotto">Commessa ${esc(d.commessa.codice)}${codiciElenco(d.elencoLavori).riferimento ? ` · dal preventivo ${esc(codiciElenco(d.elencoLavori).riferimento)}` : ""} · ${esc(d.subappaltatore.ragioneSociale)} · prezzi IVA esclusa</p>
-  <table class="elenco"><thead><tr><th>Descrizione</th><th>U.M.</th><th>Quantità</th><th>Prezzo unitario</th><th>Importo</th></tr></thead><tbody>
-  ${elencoPerFase(d.elencoLavori).map((g) => `<tr class="fase"><td colspan="4">${esc(g.fase)}</td><td class="n">${euroContratto(g.totale)}</td></tr>${g.righe.map((r) => `<tr><td>${codiciElenco(d.elencoLavori!).perRiga && r.codice ? `${esc(r.codice)} · ` : ""}${esc(r.descrizione)}${r.comprende ? ` <em>(${testoComprende(r.comprende)})</em>` : ""}</td><td>${esc(r.unita ?? "")}</td><td class="n">${quantitaContratto(r.quantita)}</td><td class="n">${euroContratto(r.prezzo)}</td><td class="n">${euroContratto(r.importo)}</td></tr>`).join("")}`).join("")}
-  <tr class="tot"><td colspan="4">Totale lavori</td><td class="n">${euroContratto(totaleElencoLavori(d.elencoLavori))}</td></tr>
-  </tbody></table>
-  <div class="firme"><div>L'Affidataria</div><div>Il Subappaltatore, per accettazione</div></div>
-  </section>` : ""}
 </body></html>`;
 }
 

@@ -12,7 +12,7 @@
  */
 import { normalizeDecimalSeparators } from "@/lib/parseDecimalIT";
 import { unitaCompatibili } from "@/lib/prezzario/confronto";
-import { chiaveDescrizione, unitaDelListino, type VoceListinoAbbinabile } from "./abbinamentoListino";
+import { chiaveDescrizione, chiaveSimile, unitaDelListino, type VoceListinoAbbinabile } from "./abbinamentoListino";
 
 export interface RigaListinoImportata {
   /** Numero della riga nel file, per ritrovarla. */
@@ -28,7 +28,7 @@ export type SceltaImport = { tipo: "voce"; tariffaId: string } | { tipo: "nuova"
 export interface PropostaImport {
   riga: RigaListinoImportata;
   scelta: SceltaImport;
-  motivo: "codice" | "nome" | null;
+  motivo: "codice" | "nome" | "simile" | null;
   /** Perché la riga non entra da sola (o cosa guardare). */
   avviso: string | null;
   /** Il prezzo è fuori scala rispetto al costo nostro sulla voce trovata. */
@@ -43,8 +43,14 @@ const intestazione = (v: unknown) => testoCella(v).toLowerCase().normalize("NFD"
 /** Un numero scritto all'italiana o all'inglese, con o senza €; null se non è un numero. */
 export function numeroListino(v: unknown): number | null {
   if (typeof v === "number") return Number.isFinite(v) ? v : null;
-  const s = testoCella(v).replace(/[\s€]|eur/gi, "");
-  if (!s || !/\d/.test(s)) return null;
+  // «30,00 €/mq», «€/mq 12,50», «12,5 euro», «12,50 + IVA», «12,50 cad»: la cifra c'è, il resto è contorno.
+  // Un intervallo («15-40», «da 15 a 40») non è un prezzo: resta vuoto e si vede.
+  const s = testoCella(v).replace(/\s|€|euro|eur/gi, "")
+    .replace(/\+?iva(esclusa|inclusa)?\.?$/i, "")
+    .replace(/^\/[a-z²³.]+(?=\d)/i, "")
+    .replace(/\/[a-z0-9²³.]+$/i, "")
+    .replace(/(cadauno|cadauna|cad|pz|nr|mq|ml|mc|kg|ora|ore|h)\.?$/i, "");
+  if (!/^-?\d[\d.,]*$/.test(s)) return null;
   const n = Number(normalizeDecimalSeparators(s));
   return Number.isFinite(n) ? n : null;
 }
@@ -54,14 +60,23 @@ type Colonne = { descrizione: number; prezzo: number; codice: number | null; uni
 function colonneDa(riga: unknown[]): Colonne | null {
   const h = riga.map(intestazione);
   const trova = (re: RegExp, salta: number[] = []) => h.findIndex((t, i) => !salta.includes(i) && re.test(t));
-  const codice = trova(/^(cod(ice)?|art(icolo)?\.?\s*n|n\.?\s*art|rif(erimento)?|tariffa|voce n|n\.?)$|^cod/);
-  const unita = trova(/^(u\.?\s*m\.?|um|unita( di misura)?|misura|u\.?\s*d\.?\s*m\.?)$/);
-  const prezzo = (() => {
-    const preferito = trova(/prezzo|costo|tariffa unit|euro|€/, [codice, unita]);
-    return preferito >= 0 ? preferito : trova(/importo unit|unitario/, [codice, unita]);
-  })();
-  const descrizione = trova(/descri|lavoraz|denominaz|prestazion|voce|articolo|oggetto/, [codice, unita, prezzo]);
+  /** La prima colonna che risponde, provando dalla regola più precisa alla più larga. */
+  const inOrdine = (regole: RegExp[], salta: number[]) => {
+    for (const re of regole) { const i = trova(re, salta); if (i >= 0) return i; }
+    return -1;
+  };
+  const unita = trova(/^(u\.?\s*m\.?|um|unita'?( di misura)?|misura|u\.?\s*d\.?\s*m\.?)$/);
+  // Le colonne di materiali, totali e quantità non sono mai il prezzo della ditta.
+  const nonPrezzo = h.flatMap((t, i) => (/material|totale|^importo$|quantit/.test(t) ? [i] : []));
+  const prezzo = inOrdine([
+    /prezzo.*(posa|manodopera|lavoro)/, /prezzo|^p\.?\s*u\.?$|unitari/, /tariffa unit/, /costo/, /euro|€/, /importo unit/,
+  ], [unita, ...nonPrezzo]);
+  // «Articolo» e «Voce» sono la descrizione solo se una colonna che lo dice davvero non c'è.
+  const descrizione = inOrdine([
+    /descri|designaz|denominaz/, /lavor|prestazion|oggetto|intervento/, /voce|articolo/,
+  ], [unita, prezzo]);
   if (descrizione < 0 || prezzo < 0) return null;
+  const codice = trova(/^(cod(ice)?\.?|art(icolo)?\.?(\s*n\.?)?|n\.?\s*art\.?|rif(erimento)?\.?|tariffa|voce n\.?|n\.?|n°|nr\.?)$|^cod/, [unita, prezzo, descrizione]);
   return { descrizione, prezzo, codice: codice >= 0 ? codice : null, unita: unita >= 0 ? unita : null };
 }
 
@@ -83,12 +98,18 @@ export function righeDaTabella(tabella: ReadonlyArray<ReadonlyArray<unknown>>): 
     const r = tabella[i] ?? [];
     const descrizione = testoCella(r[c.descrizione]);
     if (descrizione.length < 2) continue;
+    // I totali e le note in fondo non sono voci: «Totale» col suo importo diventava una voce della ditta.
+    if (/^(sub\s*)?tot(ale|\.)|^note?\b|^iva\b/i.test(descrizione)) continue;
+    const unita = c.unita != null ? testoCella(r[c.unita]) || null : null;
+    const prezzo = numeroListino(r[c.prezzo]);
+    // I titoli di sezione («OPERE MURARIE»): niente prezzo, niente unità.
+    if (prezzo == null && !unita && (c.unita != null || descrizione === descrizione.toUpperCase())) continue;
     righe.push({
       riga: i + 1,
       codice: c.codice != null ? testoCella(r[c.codice]) || null : null,
       descrizione: descrizione.slice(0, 2000),
-      unita: c.unita != null ? testoCella(r[c.unita]) || null : null,
-      prezzo: numeroListino(r[c.prezzo]),
+      unita,
+      prezzo,
     });
   }
   if (!righe.length) return { righe, errore: "L'intestazione c'è, ma sotto non ci sono righe con una descrizione." };
@@ -113,7 +134,10 @@ export function proponiImport(
     || t.subappaltatore_id === anagraficaId || (!!squadraId && t.external_team_id === squadraId));
   const perCodice = new Map<string, VoceListinoConCosto[]>();
   const perNome = new Map<string, VoceListinoConCosto[]>();
+  const perSimile = new Map<string, VoceListinoConCosto[]>();
   for (const t of candidate) {
+    const sim = chiaveSimile(t.nome);
+    if (sim) perSimile.set(sim, [...(perSimile.get(sim) ?? []), t]);
     if (t.codice?.trim()) { const k = t.codice.trim().toLowerCase(); perCodice.set(k, [...(perCodice.get(k) ?? []), t]); }
     const n = chiaveDescrizione(t.nome);
     if (n) perNome.set(n, [...(perNome.get(n) ?? []), t]);
@@ -124,9 +148,13 @@ export function proponiImport(
     if (riga.prezzo < 0) return { riga, scelta: { tipo: "salta" }, motivo: null, avviso: "Prezzo negativo", fuoriScala: false };
     const perCod = riga.codice ? perCodice.get(riga.codice.trim().toLowerCase()) ?? [] : [];
     const perNom = perNome.get(chiaveDescrizione(riga.descrizione)) ?? [];
-    const [trovata, motivo] = perCod.length === 1 ? [perCod[0], "codice" as const] : perNom.length === 1 ? [perNom[0], "nome" as const] : [null, null];
+    // «Posa di finestre singole» è «Posa finestra singola»: si propone, e lo dice.
+    const perSim = perCod.length === 0 && perNom.length === 0 ? perSimile.get(chiaveSimile(riga.descrizione)) ?? [] : [];
+    const [trovata, motivo] = perCod.length === 1 ? [perCod[0], "codice" as const]
+      : perNom.length === 1 ? [perNom[0], "nome" as const]
+      : perSim.length === 1 ? [perSim[0], "simile" as const] : [null, null];
     if (!trovata) {
-      const ambigua = perCod.length > 1 || perNom.length > 1;
+      const ambigua = perCod.length > 1 || perNom.length > 1 || perSim.length > 1;
       return { riga, scelta: ambigua ? { tipo: "salta" } : { tipo: "nuova" }, motivo: null, avviso: ambigua ? "Più voci con lo stesso codice o nome: scegli tu" : null, fuoriScala: false };
     }
     if (riga.unita && !unitaCompatibili(riga.unita, unitaDelListino(trovata.unita))) {
@@ -138,7 +166,7 @@ export function proponiImport(
     const fuoriScala = prezzoFuoriScala(riga.prezzo, trovata.costo);
     if (fuoriScala) return { riga, scelta: { tipo: "salta" }, motivo, avviso: "Prezzo fuori scala rispetto al costo nostro: controlla il file", fuoriScala: true };
     usate.add(trovata.id);
-    return { riga, scelta: { tipo: "voce", tariffaId: trovata.id }, motivo, avviso: null, fuoriScala: false };
+    return { riga, scelta: { tipo: "voce", tariffaId: trovata.id }, motivo, avviso: motivo === "simile" ? `Nome simile a «${trovata.nome}»: controlla` : null, fuoriScala: false };
   });
 }
 

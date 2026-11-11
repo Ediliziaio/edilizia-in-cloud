@@ -117,4 +117,42 @@ describe("listino della ditta da un file", () => {
     const csv = new File(["﻿Codice;Descrizione;UM;Prezzo\nINT01;\"Intonaco; civile\";mq;14\n"], "l.csv", { type: "text/csv" });
     expect(righeDaTabella(await tabellaDaFile(csv)).righe[0]).toMatchObject({ descrizione: "Intonaco; civile", prezzo: 14 });
   });
+
+  // Simulazione dell'11/11/2026 con listini scritti come quelli veri.
+  it("il prezzo si legge anche col contorno; un intervallo resta vuoto", () => {
+    for (const t of ["30,00 €/mq", "30,00/mq", "€/mq 30,00", "30 euro", "30,00 + IVA", "30,00 cad", "EUR 30,00"]) expect(numeroListino(t), t).toBe(30);
+    expect(numeroListino("1.250,00 €/cad")).toBe(1250);
+    for (const t of ["15-40", "da 15 a 40", "a corpo", "-"]) expect(numeroListino(t), t).toBeNull();
+  });
+
+  it("le colonne giuste con le intestazioni che si trovano davvero", () => {
+    const prova = (h: string[]) => righeDaTabella([h, h.map((_, i) => String((i + 1) * 100))]).righe[0];
+    expect(prova(["Articolo", "Descrizione", "UM", "Prezzo"])).toMatchObject({ codice: "100", descrizione: "200", unita: "300", prezzo: 400 });
+    expect(prova(["Art.", "Descrizione dei lavori", "Unità", "P.U."])).toMatchObject({ codice: "100", descrizione: "200", prezzo: 400 });
+    expect(prova(["TARIFFA", "DESIGNAZIONE DEI LAVORI", "UNITA' DI MISURA", "PREZZO UNITARIO"])).toMatchObject({ codice: "100", descrizione: "200", unita: "300", prezzo: 400 });
+    expect(prova(["Lavori", "U.M.", "Euro"])).toMatchObject({ descrizione: "100", unita: "200", prezzo: 300 });
+    // Il costo dei materiali non è il prezzo della ditta, e l'importo neanche.
+    expect(prova(["Descrizione", "UM", "Costo materiali", "Prezzo posa"])).toMatchObject({ prezzo: 400 });
+    expect(prova(["Descrizione", "Quantità", "UM", "Prezzo", "Importo"])).toMatchObject({ prezzo: 400 });
+    expect(prova(["Voce", "UM", "Prezzo al mq"])).toMatchObject({ descrizione: "100", prezzo: 300 });
+  });
+
+  it("totali, note e titoli di sezione non diventano voci", () => {
+    const { righe: r } = righeDaTabella([["Descrizione", "UM", "Prezzo"], ["OPERE MURARIE", "", ""], ["Intonaco civile", "mq", "18"], ["Totale", "", "18"], ["Note: prezzi IVA esclusa", "", ""]]);
+    expect(r.map((x) => x.descrizione)).toEqual(["Intonaco civile"]);
+  });
+
+  it("nome simile: si propone dicendolo; una voce diversa non si aggancia", () => {
+    const voci: VoceListinoConCosto[] = [
+      { id: "f", nome: "Posa finestra singola", codice: null, unita: "pz", costo: 55 },
+      { id: "t", nome: "Tiro al piano", codice: null, unita: "piano", costo: 8 },
+    ];
+    const riga = (descrizione: string, unita: string, riga = 2) => ({ riga, codice: null as string | null, descrizione, unita, prezzo: 90 });
+    const [simile] = proponiImport([riga("Posa di finestre singole", "pz")], voci, "rossi");
+    expect(simile).toMatchObject({ scelta: { tipo: "voce", tariffaId: "f" }, motivo: "simile" });
+    expect(simile.avviso).toMatch(/Nome simile/);
+    for (const d of ["Posa finestra", "Posa finestra singola scorrevole", "Fornitura finestra singola"]) {
+      expect(proponiImport([riga(d, "pz")], voci, "rossi")[0].scelta.tipo, d).toBe("nuova");
+    }
+  });
 });

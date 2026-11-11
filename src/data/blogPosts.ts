@@ -1,3 +1,4 @@
+import { constructionVideoGuides } from "@/lib/marketing/constructionVideoGuides";
 import { BLOG_AUTHOR } from "./blogAuthorProfile";
 export interface BlogPost {
   id: string;
@@ -11,7 +12,7 @@ export interface BlogPost {
   readTime: number;
   author: { name: string; role: string; avatar?: string };
   coverImage: string;
-  video?: { youtubeId: string; duration: string; uploadedAt: string };
+  video?: { youtubeId: string; duration: string; uploadedAt: string; title?: string; poster?: string };
   content: Array<{
     type: "intro" | "section" | "quote" | "list" | "cta" | "table" | "image" | "callout";
     heading?: string;
@@ -206,6 +207,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "5",
     slug: "analisi-margini-imprese-edili",
+    video: constructionVideoGuides.margin,
     faqs: [
       { q: "Come si calcola il margine di una commessa edile?", a: "Margine lordo = ricavi di commessa meno costi diretti (manodopera ai costi aziendali reali, materiali, subappalti, noli). Margine netto = margine lordo meno la quota di costi indiretti e generali attribuita alla commessa. Vanno calcolati in corso d'opera, non a fine lavori." },
       { q: "Qual è un buon margine per un'impresa edile?", a: "Dipende da segmento e rischio: nel residenziale privato un margine lordo del 20-30% e netto del 8-15% è sano; negli appalti a ribasso i margini sono più compressi. Sotto il 5% netto qualsiasi imprevisto ti porta in perdita: meglio saperlo prima di firmare." },
@@ -1456,6 +1458,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "18",
     slug: "gestione-operai-cantiere-presenze-ore",
+    video: constructionVideoGuides.hourlyCost,
     faqs: [
       { q: "Come funziona la timbratura da smartphone in cantiere?", a: "L'operaio timbra entrata e uscita dall'app sul suo telefono; la timbratura registra ora e posizione GPS ed è collegata alla commessa. Il titolare vede in tempo reale chi è presente su quale cantiere e le ore finiscono automaticamente nel consuntivo di commessa e nell'export paghe." },
       { q: "La geolocalizzazione delle timbrature è legale?", a: "Sì se rispetta lo Statuto dei Lavoratori e il GDPR: rilevazione solo al momento della timbratura (non tracciamento continuo), informativa ai lavoratori, e accordo sindacale o autorizzazione dell'Ispettorato quando richiesto. I gestionali seri sono progettati per operare in questo perimetro." },
@@ -3562,6 +3565,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "39",
     slug: "preventivi-edili-non-si-chiudono",
+    video: constructionVideoGuides.discount,
     faqs: [
       { q: "Perché il cliente sparisce dopo aver ricevuto il preventivo?", a: "Perché nessuno lo segue. Quando il preventivo parte via email e poi resta lì, non sai se il cliente lo ha aperto, cosa non ha capito, quale alternativa sta valutando e quando richiamarlo. Il lavoro commerciale fatto durante il sopralluogo viene buttato via nel momento più delicato, cioè quello in cui il cliente decide." },
       { q: "Quando devo richiamare il cliente dopo l'invio del preventivo?", a: "Entro tre giorni dall'invio, poi con follow-up programmati a 7 e 14 giorni. Il primo richiamo serve a verificare che il documento sia arrivato e a sciogliere i dubbi ancora freschi. Lasciare passare due settimane in silenzio equivale a consegnare la decisione al concorrente che invece si è fatto sentire." },
@@ -4139,6 +4143,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "46",
     slug: "crm-edilizia-gestire-lead-preventivi-follow-up",
+    video: constructionVideoGuides.followUp,
     faqs: [
       { q: "Cos'è un CRM per l'edilizia e a cosa serve?", a: "Un CRM per l'edilizia è il sistema che tiene traccia di stato, valore e prossima azione di ogni richiesta, dal primo contatto fino alla firma. Non è un'agenda elegante: serve a impedire che i clienti si perdano tra telefonate, WhatsApp, sopralluoghi e richiami mai fatti. Ogni contatto non gestito è un possibile cantiere regalato a un concorrente." },
       { q: "Serve un CRM anche a un'impresa edile piccola?", a: "Sì, perché il valore medio di una trattativa edile è alto e perderne una pesa molto. Anche venti contatti al mese diventano ingestibili se restano divisi tra telefono, WhatsApp e memoria del titolare: basta una giornata piena in cantiere per dimenticare un preventivo da richiamare e perdere un lavoro già quasi chiuso." },

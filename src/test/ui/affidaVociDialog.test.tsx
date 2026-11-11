@@ -25,10 +25,11 @@ const finto = vi.hoisted(() => {
     return c;
   };
   const rpc = vi.fn(async () => ({ data: { affidate: 2, gia_piene: 0 }, error: null as null }));
-  return { catena, rpc };
+  return { catena, rpc, affidamenti };
 });
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: (t: string) => finto.catena(t), rpc: finto.rpc } }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+const avvisi = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock("sonner", () => ({ toast: avvisi }));
 // Il menu della commessa (Radix) aperto dentro la finestra in jsdom va in ciclo: qui una tendina semplice,
 // con la stessa etichetta e gli stessi valori.
 vi.mock("@/components/orders/OfficeSelect", () => ({
@@ -102,5 +103,22 @@ describe("Affida le voci alle ditte", () => {
     expect(screen.queryByText("Rasatura")).not.toBeInTheDocument();
     const intonaci = screen.getByRole("region", { name: "Intonaci" });
     expect(within(intonaci).getByText("Intonaco civile")).toBeInTheDocument();
+  });
+
+  it("il prezzo di una quota va al centesimo: 12,345 non si salva (11/11/2026)", async () => {
+    finto.affidamenti.push({ id: "q9", voce_id: "v3", subappaltatore_id: "rossi", quantita: 100, prezzo_unitario: null, origine_prezzo: "manuale", comprende: "posa", stato: "bozza" });
+    try {
+      apri();
+      fireEvent.click(await screen.findByRole("button", { name: "Quota di Rossi srl su Massetto" }));
+      fireEvent.change(screen.getByLabelText("Prezzo"), { target: { value: "12,345" } });
+      fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+      await waitFor(() => expect(avvisi.error).toHaveBeenCalledWith(expect.stringMatching(/al centesimo/)));
+      expect(finto.rpc).not.toHaveBeenCalledWith("affidamento_modifica", expect.anything());
+      fireEvent.change(screen.getByLabelText("Prezzo"), { target: { value: "12,35" } });
+      fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+      await waitFor(() => expect(finto.rpc).toHaveBeenCalledWith("affidamento_modifica", expect.objectContaining({ p_id: "q9", p_prezzo: 12.35 })));
+    } finally {
+      finto.affidamenti.pop();
+    }
   });
 });

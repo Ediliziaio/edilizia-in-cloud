@@ -157,18 +157,23 @@ export function ImportaListinoDittaDialog({ companyId, anagraficaId, nomeDitta, 
                   {visibili.map(({ p, i }) => {
                     const voce = p.scelta.tipo === "voce" ? perId.get(p.scelta.tariffaId) : null;
                     return (
-                      <tr key={p.riga.riga} className={`border-t align-top ${p.fuoriScala ? "bg-red-50" : ""}`}>
-                        <td className="px-2 py-1.5">
-                          <p>{p.riga.codice ? <span className="text-muted-foreground">{p.riga.codice} · </span> : null}{p.riga.descrizione}</p>
-                          <p className="text-[11px] text-muted-foreground">
-                            riga {p.riga.riga}{p.riga.unita ? ` · ${p.riga.unita}` : ""}
-                            {p.motivo && p.scelta.tipo === "voce" ? ` · trovata per ${p.motivo === "codice" ? "codice" : "nome"}` : ""}
-                            {voce?.costo ? ` · costo nostro ${formatCurrency(voce.costo)}/${unitaDelListino(voce.unita)}` : ""}
-                          </p>
-                          {p.avviso && <p className={`text-[11px] ${p.fuoriScala ? "text-red-800" : "text-amber-800"}`}>{p.avviso}</p>}
+                      <tr key={p.riga.riga} className={`border-t align-middle ${p.fuoriScala ? "bg-red-50" : ""}`}>
+                        {/* Una riga per voce (11/11/2026): il testo del file e, accanto, i dettagli o l'avviso. */}
+                        <td className="max-w-0 px-2 py-1">
+                          <div className="flex min-w-0 items-baseline gap-2">
+                            <span className="min-w-0 truncate" title={p.riga.descrizione}>{p.riga.codice ? <span className="text-muted-foreground">{p.riga.codice} · </span> : null}{p.riga.descrizione}</span>
+                            <span className={`min-w-0 shrink truncate text-[11px] ${p.avviso ? (p.fuoriScala ? "text-red-800" : "text-amber-800") : "text-muted-foreground"}`}
+                              title={p.avviso ?? undefined}>
+                              {p.avviso ?? [
+                                `riga ${p.riga.riga}`, p.riga.unita,
+                                p.motivo && p.scelta.tipo === "voce" ? `per ${p.motivo === "codice" ? "codice" : "nome"}` : null,
+                                voce?.costo ? `nostro ${formatCurrency(voce.costo)}/${unitaDelListino(voce.unita)}` : null,
+                              ].filter(Boolean).join(" · ")}
+                            </span>
+                          </div>
                         </td>
-                        <td className="px-1 py-1.5 text-right tabular-nums">{p.riga.prezzo == null ? "—" : formatCurrency(p.riga.prezzo)}</td>
-                        <td className="px-2 py-1.5">
+                        <td className="px-1 py-1 text-right tabular-nums">{p.riga.prezzo == null ? "—" : formatCurrency(p.riga.prezzo)}</td>
+                        <td className="px-2 py-1">
                           <select aria-label={`Dove va la riga ${p.riga.riga}`} className="h-8 w-full rounded-md border bg-background px-1 text-xs"
                             value={valoreScelta(p.scelta)} onChange={(e) => cambia(i, e.target.value)} disabled={p.riga.prezzo == null || p.riga.prezzo < 0}>
                             <option value="salta">Non caricare</option>

@@ -39,8 +39,8 @@ export interface Riconosciuto {
 
 const estensione = (nome: string) => /\.([a-z0-9]+)$/i.exec(nome.trim())?.[1]?.toLowerCase() ?? "";
 
-const IMMAGINI = new Set(["jpg", "jpeg", "png", "webp"]);
-const NON_LETTI = new Set(["doc", "docx", "odt", "xls", "xlsb", "ods", "csv", "zip", "rar", "7z", "dwg", "dxf", "heic", "mp4", "mov"]);
+const IMMAGINI = new Set(["jpg", "jpeg", "png", "webp", "heic", "heif"]);
+const NON_LETTI = new Set(["doc", "docx", "odt", "xls", "xlsb", "ods", "csv", "zip", "rar", "7z", "dwg", "dxf", "mp4", "mov"]);
 
 /** I segni di un computo stampato da PriMus (gli stessi che cerca `eComputoPrimus`). */
 const PRIMUS = [/\bprimus\b/i, /designazione dei lavori/i, /\bsommano\b/i, /num\.?\s*ord\.?/i, /\btariffa\b/i];
@@ -84,17 +84,17 @@ export function riconosciDocumento(doc: DocumentoDaRiconoscere): Riconosciuto {
     return { lettore: "computo_primus", fonte: "computo", ai: false, immagine: false, motivo: "computo stampato da PriMus: lettore del computo, senza AI" };
   }
 
-  const immagine = IMMAGINI.has(ext) || /^image\/(jpeg|png|webp)$/.test(mime);
+  const immagine = IMMAGINI.has(ext) || /^image\/(jpeg|png|webp|heic|heif)$/.test(mime);
   if (!pdf && !immagine && (NON_LETTI.has(ext) || (mime && !/^text\//.test(mime) && !/^image\//.test(mime)))) {
     return {
       lettore: "non_letto", fonte: "documento", ai: false, immagine: false,
       motivo: /^(xls|xlsb|ods|csv)$/.test(ext) || mime === "application/vnd.ms-excel"
         ? "foglio di calcolo in un formato vecchio o diverso: aprilo in Excel e salvalo come .xlsx"
-        : "formato non letto: carica un PDF, una foto (JPG, PNG, WEBP) o un testo",
+        : "formato non letto: carica un PDF, una foto (JPG, PNG, WEBP, HEIC, HEIF) o un testo",
     };
   }
-  if (/^image\//.test(mime) && !/^image\/(jpeg|png|webp)$/.test(mime) && !IMMAGINI.has(ext)) {
-    return { lettore: "non_letto", fonte: "documento", ai: false, immagine: false, motivo: "formato d'immagine non letto: usa JPG, PNG o WEBP" };
+  if (/^image\//.test(mime) && !/^image\/(jpeg|png|webp|heic|heif)$/.test(mime) && !IMMAGINI.has(ext)) {
+    return { lettore: "non_letto", fonte: "documento", ai: false, immagine: false, motivo: "formato d'immagine non letto: usa JPG, PNG, WEBP, HEIC o HEIF" };
   }
 
   // Un contratto parla di offerte («l'offerta del … è parte del contratto»): vince il contratto.

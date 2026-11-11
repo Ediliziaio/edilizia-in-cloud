@@ -7,7 +7,7 @@
  * Impaginato del 31/10/2026 (Dimora Torino): logo dell'impresa in testata, le
  * due parti con tutti i dati, il cantiere, il riquadro economico
  * (IVA o reverse charge, ritenuta, netto ai SAL) prima degli articoli, e
- * l'elenco completo dei lavori in Allegato A come nell'ordine. Dal 10/11/2026 con lo
+ * l'elenco completo dei lavori (dall'11/11/2026 in apertura, prima del riquadro economico). Dal 10/11/2026 con lo
  * stile unico dei documenti (stileDocumentoPdf).
  */
 import { Document, Font, Page, StyleSheet, Text, View, pdf } from "@react-pdf/renderer";
@@ -44,7 +44,7 @@ export const stiliContratto = StyleSheet.create({
   para: { marginBottom: 3, textAlign: "justify" },
   luogo: { marginTop: 22, fontSize: pagina.nota, color: colore.testoTenue },
   clausole: { ...st.riquadro, marginTop: 16, fontSize: pagina.nota, lineHeight: 1.4 },
-  // Allegato A: l'elenco dei lavori.
+  // L'elenco dei lavori, in apertura.
   allegatoTitolo: { fontSize: 12, fontFamily: "Helvetica-Bold", color: colore.inchiostro, marginBottom: 2 },
   allegatoSotto: { ...st.nota, marginBottom: 8 },
   tRiga: { ...st.tRiga },
@@ -138,12 +138,48 @@ export function ContrattoSubappaltoPDF({ d }: { d: DatiContrattoSubappalto }) {
           <Text style={s.cella}><Text style={s.bold}>Lavori </Text>dal {dataContratto(d.dataInizio)} al {dataContratto(d.dataFinePrevista)}</Text>
         </View>
 
+        {/* L'elenco dei lavori in apertura, col totale e il reverse charge subito sotto (11/11/2026): prima stava
+            in Allegato A in fondo, e chi leggeva il contratto vedeva la cifra senza sapere a cosa corrispondeva. */}
+        {elenco.length > 0 && (
+          <View style={{ marginBottom: 8 }}>
+            <TitoloSezione accento={accento}>Elenco dei lavori · prezzi IVA esclusa</TitoloSezione>
+            {!!codici.riferimento && <Text style={s.allegatoSotto}>Dal preventivo {codici.riferimento}</Text>}
+            <View style={s.tTesta}>
+              {codici.perRiga && <Text style={[s.th, s.cCod]}>Codice</Text>}<Text style={[s.th, s.cDesc]}>Descrizione</Text><Text style={[s.th, s.cUm]}>U.M.</Text>
+              <Text style={[s.th, s.cNum]}>Quantità</Text><Text style={[s.th, s.cPrz]}>Prezzo</Text><Text style={[s.th, s.cImp]}>Importo</Text>
+            </View>
+            {elencoPerFase(elenco).map((g) => (
+              <View key={g.fase}>
+                <View style={s.tFase} wrap={false} minPresenceAhead={30}>
+                  <Text style={[s.td, s.bold, s.cDesc]}>{g.fase}</Text><Text style={[s.td, s.bold, s.cImp]}>{euroContratto(g.totale)}</Text>
+                </View>
+                {g.righe.map((r, i) => (
+                  <View key={i} style={s.tRiga} wrap={false}>
+                    {codici.perRiga && <Text style={s.cCod}>{r.codice ?? ""}</Text>}
+                    <Text style={[s.td, s.cDesc]}>{r.descrizione}{r.comprende ? ` (${testoComprende(r.comprende)})` : ""}</Text>
+                    <Text style={[s.td, s.cUm]}>{r.unita ?? ""}</Text>
+                    <Text style={[s.td, s.cNum]}>{quantitaContratto(r.quantita)}</Text>
+                    <Text style={[s.td, s.cPrz]}>{euroContratto(r.prezzo)}</Text>
+                    <Text style={[s.td, s.cImp]}>{euroContratto(r.importo)}</Text>
+                  </View>
+                ))}
+              </View>
+            ))}
+            {elencoDiverso && (
+              <Text style={[s.allegatoSotto, { marginTop: 6 }]}>
+                Totale dell'elenco {euroContratto(totaleElenco)}; corrispettivo pattuito {euroContratto(eco.lavori)}. Si contabilizzano le quantità eseguite ai prezzi unitari dell'elenco.
+              </Text>
+            )}
+          </View>
+        )}
+
         {/* Riquadro economico: quanto vale, come si fattura, quanto si paga. */}
         <View style={s.economico} wrap={false}>
-          <TitoloSezione accento={accento}>Corrispettivo e pagamenti · importi in euro</TitoloSezione>
-          <RigaEco label={elenco.length ? `Lavori (Allegato A, ${elenco.length} voci${elencoDiverso ? `, a listino ${euroContratto(totaleElenco)}` : ""})` : "Lavori"} valore={euroContratto(eco.lavori)} />
+          {elenco.length === 0 && <TitoloSezione accento={accento}>Corrispettivo e pagamenti · importi in euro</TitoloSezione>}
+          {/* Senza oneri lavori e imponibile sono la stessa cifra: una riga sola. */}
+          <RigaEco label={`${elenco.length ? `Totale lavori (${elenco.length} ${elenco.length === 1 ? "voce" : "voci"})` : "Lavori"}${eco.oneri > 0 ? "" : " · imponibile"}`} valore={euroContratto(eco.lavori)} forte={eco.oneri <= 0} />
           {eco.oneri > 0 && <RigaEco label="Oneri della sicurezza (non soggetti a ribasso)" valore={euroContratto(eco.oneri)} />}
-          <RigaEco label="Imponibile" valore={euroContratto(eco.imponibile)} forte />
+          {eco.oneri > 0 && <RigaEco label="Imponibile" valore={euroContratto(eco.imponibile)} forte />}
           <RigaEco
             label={eco.reverseCharge ? "IVA: inversione contabile (art. 17 c. 6 lett. a DPR 633/72)" : `IVA ${eco.ivaPct}%`}
             valore={eco.reverseCharge ? "reverse charge" : euroContratto(eco.iva)}
@@ -180,45 +216,6 @@ export function ContrattoSubappaltoPDF({ d }: { d: DatiContrattoSubappalto }) {
           <Firme voci={["", "Il Subappaltatore"]} />
         </View>
 
-        {elenco.length > 0 && (
-          <View break>
-            <Text style={s.allegatoTitolo}>Allegato A – Elenco dei lavori</Text>
-            <Text style={s.allegatoSotto}>
-              Commessa {d.commessa.codice}{codici.riferimento ? ` · dal preventivo ${codici.riferimento}` : ""} · {sub.ragioneSociale} · {elenco.length} voci · prezzi IVA esclusa{eco.reverseCharge ? ", fatturazione in reverse charge" : ""}
-            </Text>
-            <View style={s.tTesta} fixed>
-              {codici.perRiga && <Text style={[s.th, s.cCod]}>Codice</Text>}<Text style={[s.th, s.cDesc]}>Descrizione</Text><Text style={[s.th, s.cUm]}>U.M.</Text>
-              <Text style={[s.th, s.cNum]}>Quantità</Text><Text style={[s.th, s.cPrz]}>Prezzo</Text><Text style={[s.th, s.cImp]}>Importo</Text>
-            </View>
-            {elencoPerFase(elenco).map((g) => (
-              <View key={g.fase}>
-                <View style={s.tFase} wrap={false} minPresenceAhead={30}>
-                  <Text style={[s.td, s.bold, s.cDesc]}>{g.fase}</Text><Text style={[s.td, s.bold, s.cImp]}>{euroContratto(g.totale)}</Text>
-                </View>
-                {g.righe.map((r, i) => (
-                  <View key={i} style={s.tRiga} wrap={false}>
-                    {codici.perRiga && <Text style={s.cCod}>{r.codice ?? ""}</Text>}
-                    <Text style={[s.td, s.cDesc]}>{r.descrizione}{r.comprende ? ` (${testoComprende(r.comprende)})` : ""}</Text>
-                    <Text style={[s.td, s.cUm]}>{r.unita ?? ""}</Text>
-                    <Text style={[s.td, s.cNum]}>{quantitaContratto(r.quantita)}</Text>
-                    <Text style={[s.td, s.cPrz]}>{euroContratto(r.prezzo)}</Text>
-                    <Text style={[s.td, s.cImp]}>{euroContratto(r.importo)}</Text>
-                  </View>
-                ))}
-              </View>
-            ))}
-            <View style={s.tTotale} wrap={false}>
-              <Text style={[s.td, s.bold, s.cDesc]}>Totale lavori (imponibile)</Text>
-              <Text style={[s.td, s.bold, s.cImp, { color: accento }]}>{euroContratto(totaleElenco)}</Text>
-            </View>
-            {elencoDiverso && (
-              <Text style={[s.allegatoSotto, { marginTop: 6 }]}>
-                Corrispettivo pattuito nel contratto: {euroContratto(eco.lavori)}. Si contabilizzano le quantità eseguite ai prezzi unitari di questo elenco.
-              </Text>
-            )}
-            <Firme voci={["L'Affidataria", "Il Subappaltatore, per accettazione"]} />
-          </View>
-        )}
 
       </Page>
     </Document>

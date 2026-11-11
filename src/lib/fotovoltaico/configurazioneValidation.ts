@@ -1,5 +1,6 @@
 import type { ConfigurazioneComponentiFv, ListinoComponentiFv } from './componentiConfigurazione';
 import type { FvTipoServizio } from './tipi';
+import { leggiDisegnoCommerciale, pannelliDaRivedere } from '../../../supabase/functions/_shared/fvDisegnoCommerciale';
 const serviceTypes: FvTipoServizio[] = ['pratica_gse', 'allaccio_e_distribuzione', 'asseverazione', 'smaltimento_amianto', 'opere_edili_accessorie', 'smaltimento_imballaggi', 'oneri_sicurezza', 'altro'];
 export function tipoServizioFv(raw: string): FvTipoServizio {
   if (!raw) return 'altro';
@@ -8,6 +9,7 @@ export function tipoServizioFv(raw: string): FvTipoServizio {
 }
 
 type Configurazione = ConfigurazioneComponentiFv & {
+  layout_overlay?: unknown;
   iva_aliquota: number; prezzo_vendita_manuale: number | null;
   manodopera_righe: Array<{ descrizione: string; ore: number; tariffa_oraria_netta: number; tariffa_oraria_vendita: number }>;
   servizi_righe: Array<{ tipo?: string; descrizione: string; quantita: number; prezzo_netto: number; prezzo_vendita: number }>;
@@ -19,6 +21,10 @@ const nonnegative = (n: unknown): n is number => typeof n === 'number' && Number
  * catalogue entry may disappear silently from the saved components or PDF. */
 export function problemiConfigurazioneFv(data: Configurazione, listino?: ListinoComponentiFv): string[] {
   const issues: string[] = [];
+  const disegno = leggiDisegnoCommerciale(data.layout_overlay);
+  if (disegno && pannelliDaRivedere(disegno).length) issues.push("Riposiziona i pannelli fuori falda o sovrapposti prima di salvare la configurazione.");
+  if (disegno && data.numero_pannelli_scelti !== disegno.pannelli.length) issues.push('La quantità del preventivo deve corrispondere ai pannelli disegnati.');
+  if (disegno && data.kit_bundle_id) issues.push('Il disegno con quantità modificabili richiede una configurazione a componenti, senza kit a prezzo fisso.');
   if (!positive(data.potenza_kwp)) issues.push('Indica una potenza kWp valida');
   if (!nonnegative(data.iva_aliquota) || data.iva_aliquota > 1) issues.push('Verifica l’aliquota IVA (formato decimale del modulo FV)');
   if (data.prezzo_vendita_manuale != null && !nonnegative(data.prezzo_vendita_manuale)) issues.push('Correggi il prezzo di vendita manuale');

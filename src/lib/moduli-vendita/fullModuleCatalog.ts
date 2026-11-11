@@ -76,6 +76,8 @@ export const FULL_MODULE_COVERS: Readonly<Record<string, string>> = {
   "tetti/linea-vita": "/pdf-stock/tetti/squadra.jpg",
   "tetti/lucernari": "/pdf-stock/tetti/installazione.jpg",
   "fotovoltaico/accumulo": "/module-art/fotovoltaico-accumulo-cover.jpg",
+  "fotovoltaico/aziendale": "/pdf-stock/fotovoltaico/capannone.jpg",
+  "fotovoltaico/aziendale-noleggio": "/pdf-stock/fotovoltaico/capannone.jpg",
   "fotovoltaico/nuovo": "/pdf-stock/fotovoltaico/villa-tetto-coppi.jpg",
   "fotovoltaico/ampliamento": "/pdf-stock/fotovoltaico/dettaglio-celle.jpg",
   "fotovoltaico/componenti": "/pdf-stock/fotovoltaico/inverter-monofase.jpg",

@@ -464,3 +464,29 @@ un utente vero in transazione annullata:
 - `contratto_in_firma` risponde solo a chi lavora nell'azienda del contratto.
 Resta noto: un contratto con più di 100 righe ha il quadro raggruppato per fase, senza collegamento alle
 voci affidate: la «Variante sulle voci» lì risponde «rifai l'elenco lavori» (si usa la variante a importo).
+
+## Lotto 9 — prova a schermo (11/11/2026) ✅
+
+Percorso provato in locale con la Demo Azienda 2 (dati di prova tolti alla fine): affida voci → prezzi → contratto → PDF → variante → carica listino, su computer e telefono.
+
+Trovato e corretto:
+- **Prezzo a 3 decimali**: la quota mostrava 12,35 e contava 12,345 (1.481,40 € contro 1.482,00 € del contratto). Ora il popup lo rifiuta e il database arrotonda al centesimo (`20290218110000`).
+- **Variante su contratto appena firmato**: rispondeva «prima imposta l'elenco lavori» da un'altra pagina. Ora chiede solo quando matura il compenso, crea il quadro dal contratto e registra la variante.
+- **Margine sull'affidato** al 100% con prezzi mancanti: ora dice «provvisorio».
+- **Menu ditta** vuoto: `OfficeSelect` non mostrava il segnaposto.
+
+Richieste del titolare durante la prova:
+- Una voce, una riga: «Affida le voci», «Lavori e prezzi», «Carica listino», listino della ditta.
+- **Niente più Allegato A**: l'elenco dei lavori apre il contratto, con totale, reverse charge, ritenuta e netto subito sotto.
+
+Limite noto: togliendo tutte le quote da una fase, il previsto della ditta resta l'ultimo importo affidato (`affidamenti_allinea_ditta` non ricorda il valore manuale di prima).
+Non provati a schermo: firma vera con email/OTP (sulla prova la firma è stata scritta nel database) e un PDF di listino letto con l'AI.
+
+Aggiornamento dell'11/11/2026, dopo la prova:
+- Il previsto scritto a mano torna quando si tolgono tutte le voci (`20290218120000`, colonna `cost_preventivo_manuale`): il limite sopra è chiuso.
+- Un contratto in firma non si elimina (`20290218130000`): prima si annulla la richiesta.
+- Listino PDF letto dall'AI provato con un PDF generato, senza colonna quantità: 4 righe su 4.
+
+Firma elettronica (11/11/2026, richiesta del titolare, vale per tutte le firme di `FirmaDocumento`): un'unica spunta prima del codice (documento, clausole 1341 nominate una per una, recesso, privacy); col codice giusto il documento è firmato, senza altri passaggi. Il server continua a pretendere clausole, recesso e privacy. Resta solo l'identificazione della firma avanzata, dove è attiva. Nell'app l'esito arriva da solo in circa 8 secondi mentre una firma è aperta.
+
+Simulazione con listini realistici (11/11/2026). Corretti: prezzi col contorno («30,00 €/mq», «+ IVA»), colonne sbagliate («Articolo» presa per descrizione, «Costo materiali» per prezzo, «Designazione», «P.U.», «Euro» non riconosciute), righe di totale diventate voci. Aggiunto il «nome simile», sempre da controllare. Limite: sui 557 computi veri della Demo 2 il collegamento automatico a nome non trova nulla, perché le descrizioni dei computi sono troppo diverse dai nomi del listino: si collega a mano, oppure serve la proposta per significato con l'AI.

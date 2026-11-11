@@ -44,11 +44,15 @@ interface ActionCatalogListProps {
   onSelect: (item: CatalogItem) => void;
   onDragStart: (item: CatalogItem) => void;
   includeConditions?: boolean;
+  onlyConditions?: boolean;
   isAdmin?: boolean;
 }
 
-export function ActionCatalogList({ search, onSelect, onDragStart, includeConditions = true, isAdmin = false }: ActionCatalogListProps) {
-  const CATEGORY_ORDER = isAdmin ? ADMIN_CATEGORY_ORDER : COMPANY_CATEGORY_ORDER;
+export function ActionCatalogList({ search, onSelect, onDragStart, includeConditions = true, onlyConditions = false, isAdmin = false }: ActionCatalogListProps) {
+  const CATEGORY_ORDER = useMemo(() => {
+    const preferred = isAdmin ? ADMIN_CATEGORY_ORDER : COMPANY_CATEGORY_ORDER;
+    return [...preferred, ...Object.keys(ACTIONS_BY_CATEGORY).filter(cat => !preferred.includes(cat) && cat !== "logica" && cat !== "piattaforma")];
+  }, [isAdmin]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set(isAdmin ? ["piattaforma", "comunicazione"] : ["comunicazione", "crm"]));
   const [recents] = useState<string[]>(() => {
     try {
@@ -60,7 +64,7 @@ export function ActionCatalogList({ search, onSelect, onDragStart, includeCondit
     const q = search.toLowerCase().trim();
     const result: { category: string; items: CatalogItem[] }[] = [];
 
-    for (const cat of CATEGORY_ORDER) {
+    for (const cat of onlyConditions ? [] : CATEGORY_ORDER) {
       const actions = ACTIONS_BY_CATEGORY[cat];
       if (!actions) continue;
       const items = actions
@@ -95,10 +99,10 @@ export function ActionCatalogList({ search, onSelect, onDragStart, includeCondit
     }
 
     return result;
-  }, [search, includeConditions, isAdmin]);
+  }, [search, includeConditions, onlyConditions, CATEGORY_ORDER]);
 
   const recentItems = useMemo(() => {
-    if (search) return [];
+    if (search || onlyConditions) return [];
     return recents
       .map(id => ACTION_CATALOG.find(a => a.id === id))
       // Separazione: nel builder azienda i "recenti" non possono riproporre
@@ -109,7 +113,7 @@ export function ActionCatalogList({ search, onSelect, onDragStart, includeCondit
         category: a!.categoria, categoryLabel: CATEGORY_LABELS[a!.categoria] ?? a!.categoria,
         kind: actionKind(a!.id), configSchema: a!.configSchema, outputVariables: a!.outputVariables,
       }));
-  }, [recents, search, isAdmin]);
+  }, [recents, search, onlyConditions, isAdmin]);
 
   const toggle = (cat: string) => {
     setExpanded(prev => {

@@ -12,8 +12,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { INITIAL, LS_KEY_NEW } from "@/pages/azienda/fotovoltaico/FotovoltaicoWizard/constants";
 
-const { stato, ARTICOLI, NESSUNO } = vi.hoisted(() => ({
-  stato: { margini: true },
+const { stato, ARTICOLI, NESSUNO, apiInvoke, aggiorna } = vi.hoisted(() => ({
+  stato: { margini: true, id: undefined as string | undefined },
+  apiInvoke: vi.fn(),
+  aggiorna: vi.fn(() => Promise.resolve({})),
   ARTICOLI: {
     pannello: [{ id: "pan1", descrizione: "Pannello 450 W bifacciale", prezzo_vendita: 180, prezzo_acquisto: 120, potenza_w: 450, garanzia_anni: 25 }],
     inverter: [{ id: "inv1", descrizione: "Inverter ibrido 6 kW", prezzo_vendita: 1500, prezzo_acquisto: 1000, potenza_kw: 6, garanzia_anni: 10 }],
@@ -23,7 +25,7 @@ const { stato, ARTICOLI, NESSUNO } = vi.hoisted(() => ({
 }));
 
 vi.mock("react-router-dom", () => ({
-  useParams: () => ({}),
+  useParams: () => ({ id: stato.id }),
   useNavigate: () => vi.fn(),
   useSearchParams: () => [new URLSearchParams(), vi.fn()],
   Link: ({ to, children }: { to: string; children: React.ReactNode }) => <a href={String(to)}>{children}</a>,
@@ -34,7 +36,7 @@ vi.mock("@/integrations/supabase/client", () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const catena: any = new Proxy({}, { get: (_t, p) => (p === "then" ? undefined : p === "maybeSingle" || p === "single" ? () => Promise.resolve({ data: null as null, error: null as null }) : () => catena) });
   const nulla = () => Promise.resolve({ data: null as null, error: null as null });
-  return { supabase: { from: () => catena, rpc: nulla, functions: { invoke: nulla }, storage: { from: () => catena } } };
+  return { supabase: { from: () => catena, rpc: nulla, functions: { invoke: apiInvoke }, storage: { from: () => catena } } };
 });
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewMargins: stato.margini, canViewCosts: stato.margini }) }));
 vi.mock("@/hooks/useSupportoModelliPreventivo", () => ({ useSupportoModelloPreventivo: () => ({ supported: true, isLoading: false }) }));
@@ -47,7 +49,7 @@ vi.mock("@/lib/fotovoltaico/queries", () => {
   const mutazione = { mutateAsync: vi.fn(() => Promise.resolve({})), mutate: vi.fn(), isPending: false };
   return {
     useProgetto: () => niente,
-    useAggiornaProgetto: () => mutazione,
+    useAggiornaProgetto: () => ({ ...mutazione, mutateAsync: aggiorna }),
     useProfiliAutoconsumo: () => lista,
     useArticoliFv: (categoria: string) => ({ data: ARTICOLI[categoria] ?? NESSUNO, isLoading: false }),
     useComponentiProgetto: () => niente,
@@ -77,7 +79,7 @@ import FotovoltaicoWizard from "@/pages/azienda/fotovoltaico/FotovoltaicoWizard"
 
 /** La bozza di chi è arrivato alla Fase 5: 12 pannelli da 450 W (5,4 kWp) e un inverter dal listino. */
 function seminaBozza(step: number, extra: Record<string, unknown> = {}, completate: number[] = [1, 2, 3, 4].filter((n) => n < step)) {
-  localStorage.setItem(`${LS_KEY_NEW}::u1:c1:generale`, JSON.stringify({
+  localStorage.setItem(`fv_wizard_draft_v1_${stato.id ?? "new"}::u1:c1:generale`, JSON.stringify({
     step,
     completedSteps: completate,
     savedAt: Date.now(),
@@ -102,10 +104,15 @@ const barra = () => tab("Configurazione").closest(".sticky") as HTMLElement;
 const anteprima = () => screen.getByRole("complementary", { name: "Anteprima del preventivo", hidden: true });
 const arrivaAllaFase5 = async () => { await screen.findByText("Prezzo di vendita e IVA"); };
 
-beforeEach(() => { stato.margini = true; localStorage.clear(); });
+beforeEach(() => { stato.margini = true; stato.id = undefined; apiInvoke.mockReset().mockResolvedValue({ data: null, error: null }); aggiorna.mockClear(); localStorage.clear(); });
 afterEach(() => cleanup());
 
 describe("Fotovoltaico nel guscio comune", () => {
+  it("nella Fase 1 il tipo Azienda mostra anagrafica senza anticipare la scelta di pagamento",async()=>{
+    seminaBozza(1,{cliente_tipo:"azienda",archetipo:"pmi"});monta();await screen.findByRole("heading",{name:/Dati del cliente/});
+    expect(screen.getByRole("radio",{name:"Azienda"})).toHaveAttribute("aria-checked","true");
+    expect(screen.queryByRole("heading",{name:"Come vuole procedere l’azienda?"})).not.toBeInTheDocument();
+  });
   it("otto fasi in alto coi nomi corti (per esteso per lo screen reader) e il totale IVA inclusa sempre in vista", async () => {
     seminaBozza(5);
     monta();
@@ -282,4 +289,112 @@ describe("Fotovoltaico nel guscio comune", () => {
       main.remove();
     }
   });
+});
+
+
+describe("Preventivo fotovoltaico senza mappa", () => {
+  it("dalla località calcola da solo la stima e avanza senza mappe né limiti inventati", async () => {
+    apiInvoke.mockResolvedValue({ data: { ore_sole_annue_equivalenti: 1450 }, error: null });
+    seminaBozza(4, { latitudine: 42.56, longitudine: 12.64, ore_sole_annue: null, numero_pannelli_max: null, potenza_max_kwp: null });
+    monta();
+    expect(screen.getByRole("button", { name: /Preventivo senza mappa/ })).toHaveAttribute("aria-pressed", "true");
+    await waitFor(() => expect(screen.getByRole("button", { name: /^Avanti/ })).not.toBeDisabled());
+    expect(apiInvoke).toHaveBeenCalledWith("fv-pvgis-fetch", expect.anything());
+    expect(screen.getByText(/Impostazioni avanzate/).closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByRole("button", { name: /^Avanti/ }));
+    await arrivaAllaFase5();
+    expect(screen.queryByTestId("fv-piano-tetto")).toBeNull();
+    expect(apiInvoke).not.toHaveBeenCalledWith("maps-proxy", expect.anything());
+    expect(screen.getByText(/Capienza del tetto da verificare/)).toBeTruthy();
+  });
+
+  it("calcola con PVGIS e salva geometria assente e scelta senza mappa sul progetto", async () => {
+    stato.id = "progetto-locale";
+    apiInvoke.mockResolvedValue({ data: { ore_sole_annue_equivalenti: 1500 }, error: null });
+    seminaBozza(4, { latitudine: 42.56, longitudine: 12.64, ore_sole_annue: null, numero_pannelli_max: null, potenza_max_kwp: null });
+    monta();
+    await waitFor(() => expect(screen.getByLabelText("Ore equivalenti annue")).toHaveValue(1500));
+    expect(apiInvoke).toHaveBeenCalledWith("fv-pvgis-fetch", { body: { lat: 42.56, lng: 12.64, kwp: 5.4 } });
+    expect(aggiorna).toHaveBeenCalledWith(expect.objectContaining({ patch: expect.objectContaining({
+      fonte_dati_tetto: "pvgis", superficie_tetto_disponibile_mq: null, numero_pannelli_max: null, potenza_max_kwp: null,
+      layout_overlay: { modalita: "senza_mappa" },
+    }) }));
+    fireEvent.click(screen.getByRole("button", { name: /^Avanti/ }));
+    await arrivaAllaFase5();
+    expect(aggiorna).toHaveBeenLastCalledWith(expect.objectContaining({ patch: expect.objectContaining({ layout_overlay: { modalita: "senza_mappa" } }) }));
+    expect(apiInvoke).not.toHaveBeenCalledWith("fv-solar-api-fetch", expect.anything());
+    expect(apiInvoke).not.toHaveBeenCalledWith("maps-proxy", expect.anything());
+  });
+
+  it("inserisce 200 moduli senza limite fittizio di 60 e calcola i kWp dal modello scelto", async () => {
+    seminaBozza(5, { numero_pannelli_max: null, potenza_max_kwp: null });
+    monta(); await arrivaAllaFase5();
+    fireEvent.change(screen.getByLabelText("Numero pannelli"), { target: { value: "200" } });
+    expect(screen.getByLabelText("Numero pannelli")).toHaveValue(200);
+    expect(screen.getByLabelText("Regola il numero di pannelli")).toHaveAttribute("max", "200");
+    expect(within(anteprima()).getByText("90 kWp")).toBeTruthy();
+  });
+});
+
+
+it("il nuovo progetto comunica al salvataggio iniziale la scelta senza mappa", async () => {
+  apiInvoke.mockResolvedValue({ data: { progetto_id: "bozza-locale" }, error: null });
+  seminaBozza(2, { latitudine: 42.56, longitudine: 12.64 });
+  monta();
+  fireEvent.click(screen.getByRole("button", { name: /^Avanti/ }));
+  await waitFor(() => expect(apiInvoke).toHaveBeenCalledWith("fv-onboarding-cliente", {
+    body: expect.objectContaining({ senza_mappa: true, company_id: "c1" }),
+  }));
+});
+
+
+it("se la stima automatica fallisce consente il retry dalla località senza chiedere un numero tecnico", async () => {
+  apiInvoke.mockResolvedValueOnce({ data: null, error: new Error("Servizio non disponibile") });
+  seminaBozza(4, { latitudine: 42.56, longitudine: 12.64, ore_sole_annue: null, numero_pannelli_max: null });
+  monta();
+  await waitFor(() => expect(apiInvoke).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Ricalcola dalla località" })).not.toBeDisabled());
+  expect(screen.getByRole("button", { name: /^Avanti/ })).toBeDisabled();
+  apiInvoke.mockResolvedValue({ data: { ore_sole_annue_equivalenti: 1500 }, error: null });
+  fireEvent.click(screen.getByRole("button", { name: "Ricalcola dalla località" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: /^Avanti/ })).not.toBeDisabled());
+  expect(apiInvoke).toHaveBeenCalledTimes(2);
+});
+
+it("il disegno aggiorna quantità, potenza e prezzi solo dopo conferma; Annulla conserva la configurazione", async () => {
+  const {creaDisegnoTetto,disponiModuliAutomaticamente}=await import("../../../supabase/functions/_shared/fvDisegnoCommerciale");
+  seminaBozza(5,{layout_overlay:disponiModuliAutomaticamente(creaDisegnoTetto("due_falde"),12),con_accumulo:false});
+  monta();await arrivaAllaFase5();
+  fireEvent.click(screen.getByRole("button",{name:"Modifica disposizione pannelli"}));
+  fireEvent.keyDown(screen.getByRole("button",{name:"Modulo 1"}),{key:"Delete"});
+  expect(screen.getByLabelText("Riepilogo disposizione")).toHaveTextContent("11 pannelli");
+  expect(screen.getByLabelText("Numero pannelli")).toHaveValue(12);
+  fireEvent.click(screen.getByRole("button",{name:"Annulla"}));
+  expect(screen.getByLabelText("Numero pannelli")).toHaveValue(12);
+  fireEvent.click(screen.getByRole("button",{name:"Modifica disposizione pannelli"}));
+  fireEvent.keyDown(screen.getByRole("button",{name:"Modulo 1"}),{key:"Delete"});
+  fireEvent.click(screen.getByRole("button",{name:"Usa disposizione nel preventivo"}));
+  expect(screen.getByLabelText("Numero pannelli")).toHaveValue(11);
+  expect(anteprima()).toHaveTextContent("4,95");
+  expect(anteprima()).toHaveTextContent("1.980");
+  fireEvent.click(screen.getByRole("button",{name:"Escludi il disegno dal PDF"}));
+  fireEvent.change(screen.getByLabelText("Numero pannelli"),{target:{value:"8"}});
+  fireEvent.click(screen.getByRole("button",{name:"Disegna il tetto"}));
+  expect(screen.getByLabelText("Numero pannelli")).toHaveValue(8);
+  expect(screen.getByLabelText("Riepilogo disposizione")).toHaveTextContent("11 pannelli");
+  fireEvent.click(screen.getByRole("button",{name:"Annulla"}));
+  expect(screen.getByLabelText("Numero pannelli")).toHaveValue(8);
+});
+
+
+it("aprire e chiudere il disegno facoltativo mantiene il preventivo senza mappa", async () => {
+  seminaBozza(5,{numero_pannelli_max:null,potenza_max_kwp:null});monta();await arrivaAllaFase5();
+  expect(screen.queryByRole("dialog")).toBeNull();
+  fireEvent.click(screen.getByRole("button",{name:"Disegna il tetto"}));
+  expect(screen.getByRole("dialog",{name:"Piano di posa dei pannelli"})).toBeTruthy();
+  fireEvent.click(screen.getByRole("button",{name:"Annulla"}));
+  expect(screen.getByLabelText("Numero pannelli")).not.toBeDisabled();
+  expect(screen.getByLabelText("Numero pannelli")).toHaveValue(12);
+  expect(screen.getByText(/Preventivo senza mappa: capienza/)).toBeTruthy();
+  expect(apiInvoke).not.toHaveBeenCalledWith("maps-proxy",expect.anything());
 });
