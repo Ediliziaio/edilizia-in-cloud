@@ -32,6 +32,7 @@ import {
   erroriDocumento,
   TITOLI,
   nomeFileDocumento,
+  modificaNumeroRigaDocumento,
   type DocumentoOperativo,
   type TipoDocumentoOperativo,
 } from "@/lib/documentiOperativi/modello";
@@ -606,13 +607,7 @@ function DocumentoInvioContent({
                                 "righe",
                                 d.righe.map((v, n) =>
                                   n === i
-                                    ? {
-                                        ...v,
-                                        [key]:
-                                          e.target.value === ""
-                                            ? null
-                                            : Number(e.target.value),
-                                      }
+                                    ? modificaNumeroRigaDocumento(v, key, e.target.value)
                                     : v,
                                 ),
                               )

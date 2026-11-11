@@ -42,9 +42,9 @@ const Indirizzo = () => {
   const l = useLocation();
   return <output data-testid="indirizzo">{l.search}</output>;
 };
-const apri = (search = "?tab=rapportini") => render(
+const apri = (search = "?tab=rapportini&rap_vista=giorni", mensile = true) => render(
   <QueryClientProvider client={new QueryClient()}>
-    <MemoryRouter initialEntries={[`/azienda/ordini${search}`]}><RapportiniCommesse /><Indirizzo /></MemoryRouter>
+    <MemoryRouter initialEntries={[`/azienda/ordini${search}${mensile && !search.includes("rap_periodo=") ? "&rap_periodo=mese" : ""}`]}><RapportiniCommesse /><Indirizzo /></MemoryRouter>
   </QueryClientProvider>,
 );
 const indirizzo = () => screen.getByTestId("indirizzo").textContent ?? "";
@@ -139,11 +139,11 @@ describe("Commesse → Rapportini", () => {
     expect(screen.getByText("Getto soletta")).toBeInTheDocument();
   });
 
-  it("sul telefono niente mappa: un link salvato ricade sui giorni", () => {
+  it("sul telefono niente mappa: un link salvato ricade sull’elenco", () => {
     stato.isMobile = true;
     apri("?tab=rapportini&rap_vista=mappa");
     expect(screen.queryByRole("tab", { name: "Mappa del mese" })).not.toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Giorno per giorno" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Elenco" })).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByText("Ore per giorno", { selector: "h2" })).not.toBeInTheDocument();
   });
 
@@ -251,5 +251,34 @@ describe("Navigazione e filtri dei rapportini", () => {
     expect(screen.getByRole("button", { name: "Successivo" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Precedente" }));
     expect(indirizzo()).toContain("rap_id=r2");
+  });
+});
+
+
+describe("Rapportini: elenco compatto e periodi", () => {
+  it("apre tutti i rapportini in tabella, una riga per documento e stato nella seconda colonna", () => {
+    apri("?tab=rapportini", false);
+    expect(stato.chiamate[0]).toEqual(["c1", {}, true]);
+    expect(screen.getByRole("tab", { name: "Elenco" })).toHaveAttribute("aria-selected", "true");
+    const tabella = screen.getByRole("table", { name: "Elenco rapportini" });
+    expect(within(tabella).getAllByRole("row")).toHaveLength(4);
+    expect(within(tabella).getAllByRole("columnheader")[1]).toHaveTextContent("Stato");
+    expect(within(tabella).getByText("Posa guaina")).toHaveAttribute("title", "Posa guaina");
+    expect(screen.queryByRole("button", { name: "Mese precedente" })).not.toBeInTheDocument();
+  });
+  it("un intervallo personalizzato incompleto non legge tutta la storia per errore", () => {
+    apri("?tab=rapportini&rap_periodo=personalizzato&rap_da=2026-09-03&rap_a=2026-09-01", false);
+    expect(stato.chiamate[0][1]).toBeNull();
+    expect(screen.getByText(/data finale deve essere/)).toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+  it("legge un intervallo che attraversa due mesi", () => {
+    apri("?tab=rapportini&rap_periodo=personalizzato&rap_da=2026-08-20&rap_a=2026-09-30", false);
+    expect(stato.chiamate[0][1]).toEqual({ da: "2026-08-20", a: "2026-09-30" });
+  });
+  it("l’elenco mantiene il dettaglio apribile e l’esportazione su tutti i periodi", () => {
+    apri("?tab=rapportini", false);
+    fireEvent.click(within(screen.getByText("Getto soletta").closest("tr")!).getByRole("button", { name: /Apri rapportino:/ }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });

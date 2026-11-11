@@ -21,6 +21,7 @@ import {
   oreIt,
   dataIt,
   documentoIncompleto,
+  haImportiDocumento,
 } from "./modello";
 
 import { disegnaPiedeJsPdf, fontPiedeBase64, limiteContenutoJsPdf, personalizzazioneDocumento, puntiInMm } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
@@ -546,7 +547,7 @@ export function creaPdfOperativo(
     y += h;
     filetto(LINEA, stileTabella.filetto, left, y, left + width, y);
   };
-  let groupTotal = 0,
+  let groupTotal = 0, groupKnown = false, groupUnknown = false,
     currentGroup = "";
   /** Riga del totale: grassetto, filetto inchiostro sopra. */
   const groupFooter = () => {
@@ -555,8 +556,8 @@ export function creaPdfOperativo(
       filetto(INCHIOSTRO, stileTabella.filettoTotale, left, y, left + width, y);
       font(stileTabella.corpo, true);
       const base = y + rigaMin / 2 + mm(stileTabella.corpo) * 0.3;
-      pdf.text("Totale intervento", left + padX, base);
-      pdf.text(euro(groupTotal), left + width - padX, base, { align: "right" });
+      pdf.text(groupKnown && groupUnknown ? "Totale intervento parziale" : "Totale intervento", left + padX, base);
+      pdf.text(groupKnown ? euro(groupTotal) : "Da definire", left + width - padX, base, { align: "right" });
       y += rigaMin + 3;
     }
   };
@@ -566,6 +567,8 @@ export function creaPdfOperativo(
       groupFooter();
       currentGroup = row.gruppo || "Lavori in economia";
       groupTotal = 0;
+      groupKnown = false;
+      groupUnknown = false;
       if (y + 2 * rigaMin > bottom) {
         nuovaPagina();
         tableHeader();
@@ -620,6 +623,8 @@ export function creaPdfOperativo(
     });
     filetto(LINEA, stileTabella.filetto, left, y, left + width, y);
     groupTotal += importoRiga(row);
+    if (row.prezzo != null || row.importo != null) groupKnown = true;
+    else groupUnknown = true;
   });
   groupFooter();
 
@@ -633,7 +638,7 @@ export function creaPdfOperativo(
   let py = titoloSezioneA("Pagamento", payX, payWidth, sy);
   const pay = [
     d.tipo === "richiesta" ? "Condizione concordata con voi:" : "",
-    d.pagamento || "Da definire con il fornitore",
+    d.pagamento || (d.tipo === "economia" ? "Da concordare con il committente" : "Da definire con il fornitore"),
     d.inversioneContabile ? "Fatturazione" : null,
     d.inversioneContabile ? testoInversioneContabile(d) : null,
     d.banca,
@@ -700,7 +705,7 @@ export function creaPdfOperativo(
       base,
     );
     font(stileRiquadro.numeroCorpo, true, ACCENTO);
-    pdf.text(euro(t.totale), tx + tw - pad, base, { align: "right" });
+    pdf.text(haImportiDocumento(d) ? euro(t.totale) : "Da definire", tx + tw - pad, base, { align: "right" });
     fine = Math.max(fine, ty + hTot + 2);
     y = fine;
     if (documentoIncompleto(d))
