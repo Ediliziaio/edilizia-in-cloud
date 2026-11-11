@@ -32,6 +32,8 @@ export interface RigaChiesta {
   apertura?: string | null;
   /** Il testo completo della riga: da qui si ricavano colore, materiale e formato se non hanno un campo. */
   dettagli?: string | null;
+  specifiche?: Record<string, string | null> | null;
+  iva?:number|null;
 }
 
 /** Una riga come l'ha letta l'AI dal documento. Niente verdetti, solo quello che c'è scritto. */
@@ -55,6 +57,10 @@ export interface RigaLetta {
   confidenza?: number | null;
   /** I campi che l'AI non ha letto con sicurezza. */
   incerti?: string[] | null;
+  pagina?: number | null;
+  testo_originale?: string | null;
+  specifiche?: Record<string, string | null> | null;
+  iva_percentuale?:number|null;
 }
 
 export interface EsitoCampo {
@@ -79,9 +85,17 @@ export interface RigaConfronto {
   deciso_da_persona?: boolean;
   /** Identica a una riga dell'offerta già controllata: non si rifà il lavoro. */
   da_offerta?: boolean;
+  indici_fornitore?:number[];
+  quantita_richiesta?:number;
+  quantita_documento?:number|null;
+  nota_persona?:string;
+  nota_abbinamento?:string;
+  pagina_fornitore?: number | null;
+  testo_originale?: string | null;
 }
 
 export interface OpzioniConfronto {
+  abbinamenti?:Record<string,number[]>;
   /** Scarto massimo sulle misure, in millimetri. Di partenza 5. */
   tolleranzaMm?: number;
   /** Sotto questa confidenza la lettura non vale. Di partenza 60. */
@@ -188,9 +202,17 @@ function confrontaTesto(campo: string, chiesto: string | null, letto: string | n
 function confrontaQuantita(r: RigaChiesta, l: RigaLetta, categoria: Categoria, minima: number): EsitoCampo {
   const u = r.unita || "pz";
   const chiesto = `${fmt(r.quantita)} ${u}`;
-  const lettaN = numero(l.quantita) ?? (categoria === "piastrelle" ? numero(l.mq) : null);
+  let lettaN = numero(l.quantita) ?? (categoria === "piastrelle" ? numero(l.mq) : null);
   if (lettaN == null) return campoDaControllare("Quantità", chiesto, null, "Il documento non riporta la quantità");
   const letto = `${fmt(lettaN)} ${l.unita || u}`;
+  const unita = (v: string) => norm(v).replace(/\s/g, "").replace(/²/g,"2");
+  const equivalenze: Record<string,[string,number]> = {pz:["pz",1],cad:["pz",1],pezzi:["pz",1],m:["m",1],ml:["m",1],cm:["m",0.01],mm:["m",0.001],kg:["kg",1],g:["kg",0.001],t:["kg",1000],mq:["m2",1],m2:["m2",1]};
+  const a = unita(u), b = unita(l.unita || u);
+  if (a !== b) {
+    const ua = equivalenze[a], ub = equivalenze[b];
+    if (!ua || !ub || ua[0] !== ub[0]) return campoDaControllare("Unità di misura",chiesto,letto,"Unità diverse: conferma il rapporto fra pezzi, kit o confezioni prima di confrontare le quantità");
+    lettaN = Math.round(lettaN * ub[1] / ua[1] * 1000000) / 1000000;
+  }
   if (incerta(l, "quantita", minima)) return campoDaControllare("Quantità", chiesto, letto);
   if (lettaN === r.quantita) return { campo: "Quantità", chiesto, letto, esito: "verde" };
   // Le piastrelle si vendono a scatole: entro il 2% è l'arrotondamento della scatola.
@@ -300,7 +322,27 @@ export function confrontaRiga(r: RigaChiesta, l: RigaLetta, op: OpzioniConfronto
   }
 
   if (categoria === "generico") aggiungi(confrontaArticolo(r, l, minima));
+  if(categoria==="generico") {
+    const normTecnica=(s:string)=>s.toLowerCase().replace(/\s/g,'').replace(/,/g,'.');
+    const lette=normTecnica(`${l.descrizione??''} ${Object.values(l.specifiche??{}).join(' ')}`);
+    for(const m of r.descrizione.matchAll(/\b(\d+(?:[.,]\d+)?)\s*(btu|kw|w|v|litri)\b/gi)) if(!lette.includes(normTecnica(m[0]))) campi.push(campoDaControllare('Caratteristica tecnica',m[0],l.descrizione??null,'Potenza, capacità o modello non confermati: controlla la scheda del prodotto.'));
+  }
+  if (categoria === "serramenti" || categoria === "pergole") aggiungi(confrontaArticolo(r,l,minima));
+  const specifiche: Record<string,string|null> = {...r.specifiche};
+  for (const fonte of [r.descrizione,r.dettagli??'']) {
+    for (const m of fonte.matchAll(/\b(vetro(?:camera)?|profilo|serie|modello|finitura interna|finitura esterna|accessori|tipo misura)\s*[:=]\s*([^;·\n]+)/gi)) {
+      const k=norm(m[1]);
+      if(!specifiche[k]) specifiche[k]=m[2].trim();
+    }
+  }
+  const lette = Object.fromEntries(Object.entries(l.specifiche ?? {}).map(([k,v])=>[norm(k),v]));
+  for (const [k,v] of Object.entries(specifiche)) {
+    if (!v) continue;
+    const lv = lette[norm(k)];
+    aggiungi(confrontaTesto(k,norm(v),lv ? norm(lv) : null,!incerta(l,k,minima),v,lv ?? null));
+  }
   aggiungi(confrontaPrezzo(r, l, minima));
+  if(r.iva!=null&&l.iva_percentuale!=null&&r.iva!==l.iva_percentuale) campi.push({campo:"IVA",chiesto:`${r.iva}%`,letto:`${l.iva_percentuale}%`,esito:"giallo",nota:"Aliquota diversa: verifica le condizioni del documento."});
 
   return {
     chiave: r.chiave,
@@ -312,6 +354,10 @@ export function confrontaRiga(r: RigaChiesta, l: RigaLetta, op: OpzioniConfronto
     chiesto: testoChiesto(r),
     letto: testoLetto(l),
     campi,
+    pagina_fornitore: l.pagina ?? null,
+    testo_originale: l.testo_originale ?? null,
+    quantita_richiesta:r.quantita,
+    quantita_documento: l.unita&&r.unita&&norm(l.unita)!==norm(r.unita)?null:numero(l.quantita),
   };
 }
 
@@ -327,10 +373,17 @@ export function confrontaDocumento(chieste: RigaChiesta[], lette: RigaLetta[], o
   const toll = op.tolleranzaMm ?? 5;
   const libere = new Set(lette.map((_, i) => i));
   const abbinate = new Map<string, number>();
+  const ambigue = new Set<string>();
+  const gruppi = new Map<string,number[]>();
+  for(const [chiave,indici] of Object.entries(op.abbinamenti??{})) {
+    if(!chieste.some(r=>r.chiave===chiave)||!Array.isArray(indici)||!indici.length||new Set(indici).size!==indici.length||indici.some(i=>!Number.isInteger(i)||!libere.has(i))) throw new Error("Abbinamento non valido o posizione già attribuita.");
+    gruppi.set(chiave,indici);abbinate.set(chiave,indici[0]);indici.forEach(i=>libere.delete(i));
+  }
   const prendi = (r: RigaChiesta, trova: (l: RigaLetta) => boolean) => {
     if (abbinate.has(r.chiave)) return;
     const candidate = [...libere].filter((i) => trova(lette[i]));
-    if (candidate.length >= 1) { abbinate.set(r.chiave, candidate[0]); libere.delete(candidate[0]); }
+    if (candidate.length === 1) { abbinate.set(r.chiave, candidate[0]); libere.delete(candidate[0]); ambigue.delete(r.chiave); }
+    else if (candidate.length > 1) ambigue.add(r.chiave);
   };
 
   for (const r of chieste) if (r.riferimento) prendi(r, (l) => !!l.riferimento && norm(l.riferimento) === norm(r.riferimento));
@@ -356,13 +409,23 @@ export function confrontaDocumento(chieste: RigaChiesta[], lette: RigaLetta[], o
     if (i == null) {
       return {
         chiave: r.chiave, riferimento: r.riferimento ?? null, descrizione: r.descrizione, categoria: categoriaRiga(r),
-        stato: "mancante", esito: "rosso", chiesto: testoChiesto(r), letto: "—",
-        campi: [{ campo: "Posizione", chiesto: r.riferimento ?? r.descrizione, letto: null, esito: "rosso", nota: "Posizione mancante nel documento" }],
+        stato: "mancante", esito: ambigue.has(r.chiave) ? "da_controllare" : "rosso", chiesto: testoChiesto(r), letto: "—",
+        campi: [{ campo: "Posizione", chiesto: r.riferimento ?? r.descrizione, letto: null, esito: ambigue.has(r.chiave) ? "da_controllare" : "rosso", nota: ambigue.has(r.chiave) ? "Più posizioni compatibili: scegli la corrispondenza. La quantità resta da confermare." : "Posizione non confermata: resta in attesa, senza annullamento automatico" }],
+        quantita_richiesta:r.quantita,quantita_documento:ambigue.has(r.chiave)?null:0,
       };
     }
-    const c = confrontaRiga(r, lette[i], op);
+    const indici=gruppi.get(r.chiave)??[i];
+    let letta=lette[i];
+    if(indici.length>1) {
+      const stesse=indici.every(j=>norm(lette[j].unita??'')===norm(letta.unita??'')&&lette[j].larghezza_mm===letta.larghezza_mm&&lette[j].altezza_mm===letta.altezza_mm&&JSON.stringify(lette[j].specifiche)===JSON.stringify(letta.specifiche)&&lette[j].prezzo_unitario===letta.prezzo_unitario&&lette[j].quantita!=null);
+      letta={...letta,quantita:stesse?indici.reduce((s,j)=>s+Number(lette[j].quantita),0):null,
+        descrizione:indici.map(j=>lette[j].descrizione).join(' + '),testo_originale:indici.map(j=>lette[j].testo_originale||lette[j].descrizione).join(' · '),
+        incerti:stesse?letta.incerti:[...(letta.incerti??[]),'quantita','prezzo_unitario']};
+    }
+    const c = confrontaRiga(r, letta, op);
+    c.indici_fornitore=indici;
     if (inAttesa.has(r.chiave)) {
-      c.campi.unshift(campoDaControllare("Abbinamento", r.riferimento ?? r.descrizione, lette[i].riferimento ?? lette[i].descrizione ?? null, "Abbinata solo per ordine di riga: controlla che sia la stessa posizione"));
+      c.campi.unshift(campoDaControllare("Abbinamento", r.riferimento ?? r.descrizione, lette[i].riferimento ?? lette[i].descrizione ?? null, "Corrispondenza proposta da controllare: verifica posizione e configurazione nell’originale"));
       c.esito = peggiore(c.campi.map((x) => x.esito));
     }
     return c;
@@ -392,7 +455,8 @@ export function ereditaDaOfferta(conferma: RigaConfronto[], offerta: RigaConfron
   const perChiave = new Map(offerta.map((r) => [r.chiave, r]));
   return conferma.map((r) => {
     const o = perChiave.get(r.chiave);
-    if (!o || o.stato !== "abbinata" || r.stato !== "abbinata" || o.letto !== r.letto || o.chiesto !== r.chiesto) return r;
+    if (!o || o.stato !== "abbinata" || r.stato !== "abbinata" || o.letto !== r.letto || o.chiesto !== r.chiesto
+      || JSON.stringify(o.campi.map(c=>[c.campo,c.chiesto,c.letto])) !== JSON.stringify(r.campi.map(c=>[c.campo,c.chiesto,c.letto]))) return r;
     if (r.esito === "rosso" || r.esito === "da_controllare") {
       if (!o.deciso_da_persona) return r;
     }

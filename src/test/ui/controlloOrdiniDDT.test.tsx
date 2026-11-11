@@ -154,7 +154,7 @@ it("l’AI propone ma non registra arrivi o abbinamenti finché la persona non s
   m.rpc.mockResolvedValue({ data: { impronta: "nuova" }, error: null });
   mostra();
   fireEvent.click(screen.getByRole("button", { name: "Apri confronto" }));
-  fireEvent.click(screen.getByRole("button", { name: "Abbina con AI" }));
+  fireEvent.click(screen.getByRole("button", { name: "Controlla con AI" }));
   await screen.findByText("Da controllare con il documento originale");
   expect(m.rpc).not.toHaveBeenCalled();
   fireEvent.click(
@@ -178,6 +178,6 @@ it("in sola lettura lascia il confronto disponibile e nasconde le azioni di modi
   ).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Apri confronto" }));
   expect(
-    screen.queryByRole("button", { name: "Abbina con AI" }),
+    screen.queryByRole("button", { name: "Controlla con AI" }),
   ).not.toBeInTheDocument();
 });

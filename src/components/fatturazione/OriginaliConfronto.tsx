@@ -14,11 +14,13 @@ export function OriginaliConfronto({
   companyId,
   adatta = false,
   ricerca,
+  paginaIniziale,
 }: {
   files: OriginaleConfronto[];
   companyId: string;
   adatta?: boolean;
   ricerca?: string;
+  paginaIniziale?:number;
 }) {
   const [id, setId] = useState("");
   const file = files.find((f) => f.id === id) ?? files[0];
@@ -63,7 +65,7 @@ export function OriginaliConfronto({
           >
             {files.map((f, i) => (
               <option key={f.id} value={f.id}>
-                {i + 1}. {f.nome}
+                {i + 1}. {f.etichetta ? `${f.etichetta} · ` : ""}{f.nome}
               </option>
             ))}
           </select>
@@ -85,7 +87,7 @@ export function OriginaliConfronto({
           <>
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               <span className="mr-auto max-w-full break-all text-xs text-muted-foreground">
-                {file.nome}
+                {file.etichetta && <span className="mr-2 font-medium text-slate-700">{file.etichetta}</span>}{file.nome}
               </span>
               <Button asChild size="sm" variant="outline">
                 <a href={q.data.url} target="_blank" rel="noreferrer">
@@ -138,6 +140,7 @@ export function OriginaliConfronto({
                   url={q.data.url}
                   nome={file.nome}
                   ricerca={ricerca}
+                  paginaIniziale={paginaIniziale}
                 />
               </div>
             ) : /^image\/(jpeg|png|webp|gif|bmp|avif)$/.test(q.data.mime) &&

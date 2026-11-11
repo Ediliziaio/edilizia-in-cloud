@@ -303,6 +303,12 @@ jobs:
         if: matrix.group == 'worksite'
         run: >-
           bunx vitest run --maxWorkers=2
+          src/test/logic/confermeRevisioniSql.test.ts
+          src/test/logic/revisioniConferma.test.ts
+          src/test/logic/confrontoDocumentoFornitore.test.ts
+          src/test/logic/controlloDocumentoLettura.test.ts
+          src/test/ui/confrontoConfermaOrdine.test.tsx
+          src/test/ui/odaConfermaOriginale.test.tsx
           src/test/logic/ddtControlloOrdini.test.ts
           src/test/logic/ddtOrdiniMultipliSql.test.ts
           src/test/logic/ddtAcquistiRls.test.ts

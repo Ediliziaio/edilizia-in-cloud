@@ -7,14 +7,14 @@ import { AttivitaAcquistoCard } from "@/components/acquisti/AttivitaAcquistoCard
 import { attivitaOda } from "@/lib/acquisti/attivita";
 import { OdaFornitoreCard } from "@/components/orders/OdaFornitoreCard";
 import { OdaDettagliCard } from "@/components/orders/OdaDettagliCard";
-import { applicaDettagliOda } from "@/lib/orders/dettagliDocumentoOda";
+import { documentoDaOrdineAcquisto } from "@/lib/documentiOperativi/daOrdineAcquisto";
 import { OdaNoteCard } from "@/components/orders/OdaNoteCard";
 import { NumeroOdaModificabile } from "@/components/orders/NumeroOdaModificabile";
 import { PurchaseOrderItemRow } from "@/components/orders/PurchaseOrderItemRow";
 import { totaliRigheOda } from "@/lib/orders/articoloAcquisto";
 import { OrdinaComunqueDialog } from "@/components/orders/OrdinaComunqueDialog";
 import { ControlloDocumentoCard } from "@/components/orders/ControlloDocumentoCard";
-import { descrizioneConMisure, type MisuraAperta } from "@/lib/acquisti/misureSuDocumenti";
+import { type MisuraAperta } from "@/lib/acquisti/misureSuDocumenti";
 import { useState, lazy, Suspense } from "react";
 import {
   ODA_STATUS_LABELS as STATUS_LABELS,
@@ -50,7 +50,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
-import { VerifyPurchaseOrderDialog } from "@/components/orders/VerifyPurchaseOrderDialog";
+import { ConfrontoConfermaOrdineDialog } from "@/components/orders/ConfrontoConfermaOrdineDialog";
 import { VerificationHistoryCard } from "@/components/orders/VerificationHistoryCard";
 import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
 import { DDTStatusBadge } from "@/components/ddt/DDTStatusBadge";
@@ -106,6 +106,7 @@ export default function PurchaseOrderDetail() {
 
   // AI Verification
   const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
+  const [verificaDocumentoId,setVerificaDocumentoId]=useState<string>();
 
   // M4 — DDT ricezione (nuovo wizard procedurale)
   const [ddtDialogOpen, setDdtDialogOpen] = useState(false);
@@ -225,16 +226,7 @@ export default function PurchaseOrderDetail() {
     initialSubject: buildOdaEmailSubject(datiEmail),
     initialBodyHtml: buildOdaEmailBody(datiEmail),
   };
-  const documentoInvio: DocumentoOperativo = applicaDettagliOda({
-    tipo: "materiali", numero: order.oda_number, data: order.issue_date,
-    prezziDaConfermare: items.length > 0 && items.some(i => i.price_pending),
-    ...recapitiFornitore({...supplier,id:order.supplier_id,name:supplier?.name || "Fornitore"}),
-    commessa:order.orders?.order_code, codiceCliente:supplier?.codice_cliente, luogo:order.delivery_address || order.orders?.work_address,
-    indirizzoCantiere:order.orders?.work_address, magazzinoId:order.delivery_warehouse_id, destinazioneTipo:order.delivery_warehouse_id ? "magazzino" : order.order_id ? "cantiere" : order.delivery_address ? "altro" : "magazzino", riferimento:order.supplier_reference,
-    consegna:order.expected_delivery_date,pagamento:order.payment_terms || recapitiFornitore({...supplier,id:order.supplier_id,name:supplier?.name || "Fornitore"}).pagamento,note:order.notes,
-    righe:items.map(i=>({descrizione:descrizioneConMisure(i.description,i.misure_testo),nota:i.notes,unita:i.unit_of_measure || "pz",quantita:Number(i.quantity),prezzo:i.price_pending ? null : Number(i.unit_price),sconto:Number(i.discount_percent),iva:Number(i.vat_rate),importo:i.price_pending ? undefined : Number(i.line_total)})),
-    totali:{imponibile:totaliRighe.imponibile,iva:totaliRighe.iva,totale:totaliRighe.totale},
-  }, order.document_details);
+  const documentoInvio: DocumentoOperativo = documentoDaOrdineAcquisto({...order,suppliers:supplier},items);
   // Chi non vede i prezzi non modifica le righe: salverebbe un prezzo vuoto al posto di quello vero.
   const senzaPrezzi = letturaSenzaPrezzi();
   const canEdit = !senzaPrezzi && permissions.canEditOrders && ["bozza", "inviato", "confermato", "parziale"].includes(order.status);
@@ -343,7 +335,7 @@ export default function PurchaseOrderDetail() {
   };
   const vociMenu: Array<{ id: string; etichetta: string; icona: React.ReactNode; azione: () => void }> = [
     ...(order.status !== "bozza" && order.status !== "annullato"
-      ? [{ id: "verifica", etichetta: "Verifica AI", icona: <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />, azione: () => setVerifyDialogOpen(true) }]
+      ? [{ id: "verifica", etichetta: "Confronta conferma", icona: <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />, azione: () => setVerifyDialogOpen(true) }]
       : []),
     ...(arrivoPossibile
       ? [{ id: "scansione", etichetta: "Ricevi via scansione", icona: <ScanLine className="h-3.5 w-3.5" aria-hidden="true" />, azione: () => setReceiveScanOpen(true) }]
@@ -790,7 +782,7 @@ export default function PurchaseOrderDetail() {
 
           {/* La prova dell'ordine quando non e' partito da qui: conferma del
               sito, modulo firmato, scontrino del banco. */}
-          {(infoOrigine.vuoleDocumento || origine === "email" || origine === "telefono") && (
+          {order.attachment_url && (
             <OdaDocumentoCard
               odaId={order.id}
               label={infoOrigine.documentoLabel ?? "Conferma originale del fornitore"}
@@ -820,7 +812,7 @@ export default function PurchaseOrderDetail() {
 
       </section>
       <StoricoAcquistiCard tipo="oda" id={order.id} revisionKey={JSON.stringify([order.updated_at,items,order.attachment_url])}/>
-      {order.status !== "bozza" && order.status !== "annullato" && <ControlloDocumentoCard obiettivo={{ purchaseOrderId: order.id }} tipo="conferma" />}
+      {order.status !== "annullato" && <ControlloDocumentoCard obiettivo={{ purchaseOrderId: order.id }} tipo="conferma" onApri={id=>{setVerificaDocumentoId(id);setVerifyDialogOpen(true);}} />}
       <VerificationHistoryCard purchaseOrderId={order.id} />
       {previewOpen&&<DocumentoAnteprimaDialog documento={documentoInvio} onClose={()=>setPreviewOpen(false)}/>}
 
@@ -833,15 +825,7 @@ export default function PurchaseOrderDetail() {
           onFatto={() => { const poi = misureAperte.poi; setMisureAperte(null); queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(order.id) }); poi(); }}
         />
       )}
-      <VerifyPurchaseOrderDialog
-        open={verifyDialogOpen}
-        onOpenChange={setVerifyDialogOpen}
-        purchaseOrderId={order.id}
-        odaNumber={order.oda_number}
-        orderId={order.order_id}
-        orderCode={order.orders?.order_code}
-        attachmentUrl={(order as { attachment_url?: string | null }).attachment_url}
-      />
+      {verifyDialogOpen&&<ConfrontoConfermaOrdineDialog companyId={order.company_id} obiettivo={{purchaseOrderId:order.id}} inizialeId={verificaDocumentoId} onClose={()=>{setVerifyDialogOpen(false);setVerificaDocumentoId(undefined);}}/>}
 
       {/* Invio al fornitore — stesso compositore email del resto dell'app:
           oggetto e corpo arrivano precompilati ma restano modificabili, si

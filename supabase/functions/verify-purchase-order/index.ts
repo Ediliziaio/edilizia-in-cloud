@@ -12,6 +12,7 @@
 
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { controllaDocumento, type RichiestaControllo } from "./controlloDocumento.ts";
 import { chargeAndLogDirect, estimateTokenCostUsd } from "../_shared/ai-provider/directApi.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
@@ -62,7 +63,7 @@ interface VerificationResult {
 
 const DAILY_LIMIT = 10;
 const MAX_DOC_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
-const AI_MODEL = "claude-sonnet-4-20250514";
+const AI_MODEL = Deno.env.get("PURCHASE_DOCUMENT_AI_MODEL")?.trim() || "claude-sonnet-4-6";
 
 function compactDocumentForFingerprint(documentBase64?: string): string | null {
   if (!documentBase64) return null;
@@ -246,7 +247,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const body: VerifyRequest & RichiestaControllo & { azione?: string } = await req.json();
     // Il controllo di offerte e conferme (fase 6): stessa funzione, il progetto è al tetto di 500.
     if (body.azione === "controllo_documento") {
-      return await controllaDocumento(body, userId, supabaseAdmin, corsH);
+      const utente = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+        global: { headers: { Authorization: req.headers.get("Authorization")! } },
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      return await controllaDocumento(body, userId, supabaseAdmin, corsH, utente);
     }
     const { purchase_order_id, order_id, supplier_document_url, supplier_document_base64, verification_mode } = body;
 

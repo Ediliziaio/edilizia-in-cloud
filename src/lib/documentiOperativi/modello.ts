@@ -9,6 +9,16 @@ export const TITOLI: Record<TipoDocumentoOperativo, string> = {
   economia: "Rapporto lavori in economia",
 };
 export interface RigaDocumentoOperativo {
+  /** Metadati della versione inviata: non alterano il testo o il PDF. */
+  origineId?: string;
+  specifiche?: {
+    riferimento?: string | null;
+    sku?: string | null;
+    misure?: Record<string, unknown> | null;
+    colore?: string | null;
+    apertura?: string | null;
+    dettagli?: string | null;
+  };
   nota?: string | null;
   descrizione: string;
   unita: string;
