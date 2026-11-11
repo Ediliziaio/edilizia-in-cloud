@@ -941,6 +941,7 @@ Deno.serve(async (req: Request) => {
         pdf_cover_show_client_card: template.pdf_cover_show_client_card ?? null,
         presentazione_impresa_html: template.presentazione_impresa_html ?? null,
         foto_team_url: fotoTeamB64 ?? template.foto_team_url ?? null,
+        foto_team_illustrativa: eFotoDiSerie(template.foto_team_url as string | null),
         chi_siamo_titolo: template.chi_siamo_titolo ?? null,
         recensioni: recensioniB64,
         certificazioni: Array.isArray(template.certificazioni) ? template.certificazioni : [],

@@ -54,8 +54,8 @@ function DesignNumberInput({ field, id, disabled }: { field: Extract<CoverDesign
 }
 
 /** Sector adapters own units, aliases and defaults. Rendering never writes data. */
-export function TemplateCoverDesignControls({ fields, hasImage, children }: {
-  fields: CoverDesignField[]; hasImage: boolean; children?: ReactNode;
+export function TemplateCoverDesignControls({ fields, hasImage, children, photoHint }: {
+  fields: CoverDesignField[]; hasImage: boolean; children?: ReactNode; photoHint?: string;
 }) {
   const uid = useId();
   return <section data-cover-design-controls aria-label="Aspetto della copertina" className="min-w-0 space-y-5 rounded-xl border bg-card p-4">
@@ -88,7 +88,7 @@ export function TemplateCoverDesignControls({ fields, hasImage, children }: {
           </div>;
         })}
       </div>
-      {group === "Colori e sfondo" && <p className="text-xs text-muted-foreground">{hasImage ? "Il velo scuro aiuta a leggere il testo sulla foto. Il contrasto reale va verificato nell’anteprima: dipende anche dall’immagine." : "Il colore di sfondo è visibile senza foto. Aggiungi un’immagine per regolare il velo scuro."}</p>}
+      {group === "Colori e sfondo" && <p className="text-xs text-muted-foreground">{photoHint ?? (hasImage ? "Il velo scuro aiuta a leggere il testo sulla foto. Il contrasto reale va verificato nell’anteprima: dipende anche dall’immagine." : "Il colore di sfondo è visibile senza foto. Aggiungi un’immagine per regolare il velo scuro.")}</p>}
     </fieldset>)}
     {children && <div className="space-y-3 border-t pt-3">{children}</div>}
   </section>;
