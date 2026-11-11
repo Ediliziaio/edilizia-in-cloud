@@ -318,7 +318,7 @@ describe("Rapportini: elenco compatto e periodi", () => {
 
 const scegliDocumento = (etichetta: string, opzione: string) => {
   fireEvent.keyDown(screen.getByRole("combobox", { name: etichetta }), { key: "Enter" });
-  fireEvent.click(screen.getByRole("option", { name: opzione, exact: true }));
+  fireEvent.click(screen.getByRole("option", { name: opzione }));
 };
 
 describe("giornali e rapportini nell'elenco comune", () => {

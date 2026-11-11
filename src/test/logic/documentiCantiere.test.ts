@@ -59,7 +59,7 @@ describe("documenti del cantiere nello stesso elenco", () => {
     });
   });
   it("applica cantiere, data, testo e stati propri del giornale", () => {
-    const bozze = { ...g, id: "bozza", stato: null, order_id: "o2" };
+    const bozze: GiornaleRiga = { ...g, id: "bozza", stato: null, order_id: "o2" };
     expect(
       filtraGiornali([g, bozze], {
         cantiere: "o1",
