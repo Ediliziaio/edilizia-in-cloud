@@ -415,7 +415,7 @@ describe("P9: il telefono e le uscite", () => {
     const { s } = servizi();
     const chiudi = vi.fn();
     apri(s, { iniziale: undefined, onOpenChange: chiudi });
-    fireEvent.click(within(fontiColonna()).getByRole("button", { name: "Preventivo", exact: true }));
+    fireEvent.click(within(fontiColonna()).getByRole("button", { name: "Preventivo" }));
     const ricerca = await screen.findByRole("textbox", { name: "Cerca un preventivo" });
     fireEvent.keyDown(ricerca, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("textbox", { name: "Cerca un preventivo" })).not.toBeInTheDocument());

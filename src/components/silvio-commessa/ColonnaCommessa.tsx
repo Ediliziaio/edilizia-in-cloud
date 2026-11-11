@@ -30,7 +30,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
 import { AssignedToSelect } from "@/components/orders/AssignedToSelect";
 import { SedeSelect } from "@/components/sedi/SedeSelect";
-import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
+import { useCompanyCustomers, type CompanyCustomer } from "@/hooks/useCompanyCustomers";
+import { emailVera } from "@/lib/preventivatore/selezionaCliente";
+import { modificheSceltaCliente } from "@/lib/silvio-commessa/sceltaCliente";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { useSediList } from "@/hooks/useSediAnalytics";
 import { parseDecimalIT } from "@/lib/parseDecimalIT";
@@ -246,7 +248,7 @@ function ModificaRate({ rate, onSalva, onAnnulla }: { rate: RataDelPiano[]; onSa
 
 /** Il cliente del gestionale: scelto dall'elenco o creato, coi dati che Silvio ha letto. */
 export function SceltaCliente({ companyId, piano, onScegli }: {
-  companyId: string; piano: PianoCommessa; onScegli: (id: string, nome: string) => void;
+  companyId: string; piano: PianoCommessa; onScegli: (id: string, nome: string, cliente?: CompanyCustomer) => void;
 }) {
   const { data: clienti = [] } = useCompanyCustomers(companyId);
   const [nuovo, setNuovo] = useState(false);
@@ -261,12 +263,12 @@ export function SceltaCliente({ companyId, piano, onScegli }: {
       <div className="flex gap-2">
         <Select value={typeof scelto === "string" ? scelto : ""} onValueChange={(v) => {
           const c = clienti.find((x) => x.id === v);
-          onScegli(v, c ? `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() : "");
+          onScegli(v, c ? `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() : "", c);
         }}>
           <SelectTrigger id={id} className="h-11 flex-1 lg:h-9"><SelectValue placeholder="Scegli un cliente" /></SelectTrigger>
           <SelectContent>
             {clienti.map((c) => (
-              <SelectItem key={c.id} value={c.id}>{`${c.first_name ?? ""} ${c.last_name ?? ""}`.trim()}{c.email ? ` (${c.email})` : ""}</SelectItem>
+              <SelectItem key={c.id} value={c.id}>{`${c.first_name ?? ""} ${c.last_name ?? ""}`.trim()}{emailVera(c.email) ? ` (${emailVera(c.email)})` : ""}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -282,7 +284,7 @@ export function SceltaCliente({ companyId, piano, onScegli }: {
             email: contatto?.client_email, phone: contatto?.client_phone,
             address: typeof indirizzo === "string" ? indirizzo : undefined,
           }}
-          onCustomerCreated={(cid, cnome) => { onScegli(cid, cnome); setNuovo(false); }} />
+          onCustomerCreated={(cid, cnome, cliente) => { onScegli(cid, cnome, cliente); setNuovo(false); }} />
       )}
     </div>
   );
@@ -603,10 +605,8 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
           case "rate": return <ModificaRate rate={(attuale as RataDelPiano[] | null) ?? []} onSalva={(r) => cambia(r.length ? r : null)} onAnnulla={chiudi} />;
           case "cliente":
             return (
-              <SceltaCliente companyId={companyId} piano={piano} onScegli={(id, nome) => {
-                const m: Modifica[] = [{ tipo: "cambia_valore", area: "cliente", chiave: "cliente.customer_id", valore: id }];
-                if (nome && !piano.aree.cliente?.["cliente.nome"]) m.push({ tipo: "cambia_valore", area: "cliente", chiave: "cliente.nome", valore: { client_name: nome } });
-                onModifica(m);
+              <SceltaCliente companyId={companyId} piano={piano} onScegli={(id, nome, cliente) => {
+                onModifica(modificheSceltaCliente(piano, id, nome, cliente?.email));
                 chiudi();
               }} />
             );
