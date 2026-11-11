@@ -9,6 +9,8 @@ import {
   type ContestoRiconciliazione,
 } from "../_shared/riconciliazioneFattureAI.ts";
 
+import { eseguiLottoRiconciliazione } from "../_shared/eseguiLottoRiconciliazione.ts";
+import type { PropostaRiconciliazione } from "../_shared/riconciliazioneFattureAI.ts";
 import { scenarioRiconciliazione } from "../_shared/riconciliazioneFattureScenari.ts";
 
 const cors = {
@@ -92,7 +94,16 @@ Deno.serve(async (req) => {
       : null;
     if (input.simulazione && !esempio)
       return json({ error: "Scenario di prova non disponibile." }, 400);
-    const c = esempio ?? context.contesto;
+    const c = esempio
+      ? {
+          ...esempio,
+          fattura: {
+            ...esempio.fattura,
+            id: context.contesto.fattura.id,
+            company_id: context.contesto.fattura.company_id,
+          },
+        }
+      : context.contesto;
     const impronta =
       context.impronta + (esempio ? `:sim:${input.simulazione}` : "");
     const companyId = context.contesto.fattura.company_id;
@@ -106,46 +117,62 @@ Deno.serve(async (req) => {
     if (cacheError) throw cacheError;
     if (cached && !esempio)
       return json({ analisi: cached, riutilizzata: true });
-    const messages = preparaRichiestaRiconciliazione(c);
-    const result = await aiRouterComplete({
-      supabase: supabaseAdmin,
-      taskKey: "fattura_riconcilia",
-      messages,
-      companyId,
-      userId,
-      params: { temperature: 0, max_tokens: 10000, timeoutMs: 100_000 },
-      responseFormat: { type: "json_object" },
-      estimatedCostEur: 0.05,
-      idempotencyKey: `fattura-riconcilia:${VERSIONE_RICONCILIAZIONE}:${companyId}:${userId}:${input.fattura_id}:${impronta}:${input.richiesta_id}`,
-      guardProviderRequest: true,
-      // Solo le proposte già validate sono riutilizzate dalla tabella sopra.
-      // Una risposta malformata non deve bloccare i successivi tentativi per sette giorni.
-      // La chiave della richiesta evita doppi addebiti sui retry di rete dello stesso tentativo.
-    });
-    // JSON delimitato da markdown è tollerato; testo arbitrario o JSON parziale restano errori.
-    const text = result.content
-      .trim()
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```$/, "");
-    let risposta: unknown;
-    try {
-      risposta = JSON.parse(text);
-    } catch {
-      return json(
-        {
-          error: "Risposta AI non leggibile. Nessuna verifica è stata salvata.",
-        },
-        422,
-      );
+    let proposta: PropostaRiconciliazione, modello: string;
+    if (!esempio || input.simulazione === "fattura-lunga") {
+      const lotto = await eseguiLottoRiconciliazione({
+        db: supabaseAdmin,
+        c,
+        impronta,
+        userId,
+        verifica: async () => (await leggi()).impronta === context.impronta,
+      });
+      if (lotto.avanzamento) return json(lotto);
+      proposta = lotto.proposta!;
+      modello = lotto.modello!;
+    } else {
+      const messages = preparaRichiestaRiconciliazione(c);
+      const result = await aiRouterComplete({
+        supabase: supabaseAdmin,
+        taskKey: "fattura_riconcilia",
+        messages,
+        companyId,
+        userId,
+        params: { temperature: 0, max_tokens: 10000, timeoutMs: 100_000 },
+        responseFormat: { type: "json_object" },
+        estimatedCostEur: 0.05,
+        idempotencyKey: `fattura-riconcilia:${VERSIONE_RICONCILIAZIONE}:${companyId}:${userId}:${input.fattura_id}:${impronta}:${input.richiesta_id}`,
+        guardProviderRequest: true,
+        // Solo le proposte già validate sono riutilizzate dalla tabella sopra.
+        // Una risposta malformata non deve bloccare i successivi tentativi per sette giorni.
+        // La chiave della richiesta evita doppi addebiti sui retry di rete dello stesso tentativo.
+      });
+      // JSON delimitato da markdown è tollerato; testo arbitrario o JSON parziale restano errori.
+      const text = result.content
+        .trim()
+        .replace(/^```(?:json)?\s*/i, "")
+        .replace(/\s*```$/, "");
+      let risposta: unknown;
+      try {
+        risposta = JSON.parse(text);
+      } catch {
+        return json(
+          {
+            error:
+              "Risposta AI non leggibile. Nessuna verifica è stata salvata.",
+          },
+          422,
+        );
+      }
+      proposta = validaPropostaRiconciliazione(risposta, c);
+      modello = result.modelUsed;
     }
-    const proposta = validaPropostaRiconciliazione(risposta, c);
     const esiti = esitiRiconciliazione(c, proposta);
     if (esempio)
       return json({
         simulazione: input.simulazione,
         proposta,
         esiti,
-        modello: result.modelUsed,
+        modello,
       });
     if ((await leggi()).impronta !== impronta)
       return json(
@@ -165,7 +192,7 @@ Deno.serve(async (req) => {
           documenti: input.documenti,
           proposta,
           esiti,
-          modello: result.modelUsed,
+          modello,
           created_by: userId,
         },
         {

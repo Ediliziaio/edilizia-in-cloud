@@ -69,6 +69,14 @@ export function scenarioRiconciliazione(
   const f = c.fattura.righe as Record<string, unknown>[];
   const r1 = c.ddt[0].righe as Record<string, unknown>[];
   switch (nome) {
+    case "fattura-lunga":
+      c.fattura.righe = Array.from({ length: 90 }, (_, i) => ({
+        ...f[0],
+        numero_linea: i + 1,
+        quantita: 1,
+        imponibile: 12,
+      }));
+      break;
     case "due-ddt":
       break;
     case "gia-fatturato":

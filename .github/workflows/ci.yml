@@ -279,6 +279,38 @@ jobs:
           src/test/ui/supplyDocumentBoards.test.tsx
           src/test/ui/acquistiPermessi.test.tsx
 
+      - name: Run invoice comparison and AI reconciliation regressions
+        if: matrix.group == 'economics'
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/logic/confrontoDocumentiFattura.test.ts
+          src/test/logic/collegaDdtFattura.test.ts
+          src/test/logic/leggiVerificheRicevute.test.ts
+          src/test/logic/riconciliazioneFattureAI.test.ts
+          src/test/logic/riconciliazioneCompleta.test.ts
+          src/test/ui/originaliConfronto.test.tsx
+          src/test/ui/confrontoFatturaDialog.test.tsx
+          src/test/ui/riconciliazioneFatturaAI.test.tsx
+          src/test/ui/ripartizioneQuantitaFattura.test.tsx
+          src/test/ui/verificaFatturaSalvataggio.test.tsx
+
+      - name: Verify reconciliation SQL and concurrent saves in isolated Postgres
+        if: matrix.group == 'economics'
+        env:
+          EIC_TEST_PG_CONTAINER: eic-fatture-ai-pg
+        run: |
+          docker run -d --name eic-fatture-ai-pg --network none -e POSTGRES_USER=supabase_admin -e POSTGRES_HOST_AUTH_METHOD=trust postgres:17-alpine
+          trap 'docker rm -f eic-fatture-ai-pg >/dev/null' EXIT
+          for n in $(seq 1 60); do
+            # Il server temporaneo di init accetta socket ma non TCP: attendere quello definitivo.
+            if docker exec eic-fatture-ai-pg pg_isready -h 127.0.0.1 -U supabase_admin -d postgres; then break; fi
+            sleep 1
+          done
+          docker exec eic-fatture-ai-pg psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 -c 'create role authenticated; create role anon; create role service_role bypassrls;'
+          node scripts/test-riconciliazione-fatture-ai.mjs
+          node scripts/test-riconciliazione-completa.mjs
+          node scripts/test-riconciliazione-concorrenza.mjs
+
       - name: Run computo persistence, tenant isolation and PDF regressions
         if: matrix.group == 'economics'
         run: >-

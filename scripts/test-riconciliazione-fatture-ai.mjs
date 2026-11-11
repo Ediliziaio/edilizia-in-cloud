@@ -1,5 +1,5 @@
 // Esegue solo contro un Postgres isolato; nessuna connessione ai dati aziendali.
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 const container = process.env.EIC_TEST_PG_CONTAINER;
 if (container !== "eic-fatture-ai-pg")
@@ -107,6 +107,7 @@ select public.qa_nega($q$select public.fattura_riconciliazione_contesto('${f}','
 do $$begin assert not has_function_privilege('anon','public.fattura_riconciliazione_contesto(uuid,jsonb)','execute'); end $$;
 reset role;
 rollback;`;
+if (process.env.EIC_TEST_PG_EMIT_SQL) { writeFileSync(process.env.EIC_TEST_PG_EMIT_SQL, sql); process.exit(0); }
 const output = execFileSync(
   "docker",
   [

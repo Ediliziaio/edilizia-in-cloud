@@ -28,6 +28,9 @@ import type {
 } from "@/hooks/useRiconciliazioneFatturaAI";
 import type { DecisioneRiconciliazione } from "../../../supabase/functions/_shared/riconciliazioneFattureAI.ts";
 
+import { EquivalenzeFornitoreFattura } from "./EquivalenzeFornitoreFattura";
+import { RipartizioneQuantitaFattura } from "./RipartizioneQuantitaFattura";
+
 type Ai = ReturnType<typeof useRiconciliazioneFatturaAI>;
 type Props = {
   ai: Ai;
@@ -71,6 +74,7 @@ function Scelte({
       analisi.decisioni[r.fattura] ?? "da_rivedere",
     ]),
   );
+  const [ricorda, setRicorda] = useState(false);
   const [decisioni, setDecisioni] = useState<
     Record<string, DecisioneRiconciliazione>
   >(() => iniziali);
@@ -148,6 +152,15 @@ function Scelte({
                 {daRivedere} da rivedere
               </span>
             </p>
+            {ai.dati.data?.contesto && (
+              <RipartizioneQuantitaFattura
+                key={`${analisi.id}:${analisi.revisione}`}
+                analisi={analisi}
+                contesto={ai.dati.data.contesto}
+                impronta={ai.dati.data.impronta}
+                puoModificare={puoModificare && !dirty}
+              />
+            )}
             {coerenti.length > 0 && (
               <Button
                 size="sm"
@@ -401,6 +414,12 @@ function Scelte({
                 );
               })}
             </ol>
+            {!!ai.dati.data?.contesto?.equivalenze?.length && (
+              <EquivalenzeFornitoreFattura
+                regole={ai.dati.data.contesto.equivalenze}
+                puoModificare={puoModificare}
+              />
+            )}
             {analisi.proposta.avvisi.length > 0 && (
               <details className="border-t px-5 py-3 text-xs text-muted-foreground">
                 <summary className="cursor-pointer">
@@ -414,6 +433,17 @@ function Scelte({
               </details>
             )}
           </div>
+          {ai.dati.data?.contesto?.fattura.fornitore_id && (
+            <label className="flex items-center gap-2 border-t px-5 py-2 text-xs">
+              <input
+                type="checkbox"
+                checked={ricorda}
+                disabled={!puoModificare}
+                onChange={(e) => setRicorda(e.target.checked)}
+              />
+              Ricorda gli abbinamenti confermati per questo fornitore
+            </label>
+          )}
           <footer className="flex shrink-0 flex-wrap items-center gap-2 border-t bg-slate-50/50 px-5 py-3">
             <div className="mr-auto min-w-0 text-xs text-muted-foreground">
               <p>
@@ -440,8 +470,14 @@ function Scelte({
             </Button>
             <Button
               size="sm"
-              disabled={disabilitata || !dirty}
-              onClick={() => ai.salva.mutate({ analisi, decisioni })}
+              disabled={disabilitata || (!dirty && !ricorda)}
+              onClick={() =>
+                ai.salva.mutate({
+                  analisi,
+                  decisioni,
+                  ...(ricorda ? { ricorda: true } : {}),
+                })
+              }
             >
               {ai.salva.isPending ? (
                 <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
