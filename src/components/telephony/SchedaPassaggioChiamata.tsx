@@ -14,6 +14,7 @@
  * non mentre guardi la pagina del centralino.
  */
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useAuth } from "@/contexts/AuthContext";
@@ -22,11 +23,18 @@ import { PhoneIncoming, PhoneOff, User, X } from "lucide-react";
 
 interface Passaggio {
   id: string;
+  company_id?:string;
   nome_cliente: string | null;
   telefono_cliente: string | null;
   riassunto: string | null;
   creato_il: string;
+  stato?:string;
+  chiuso_il?:string|null;
+  contesto_ai?:HandoffContext|null;
 }
+
+type HandoffContext={provider?:string;identity_verified?:boolean;ticket?:{id:string;reference:string;subject:string;status:string}|null;next_step?:string};
+export function FishHandoffDetails({context}:{context:HandoffContext}){return <div className="space-y-2 rounded border border-emerald-200 bg-emerald-50/50 p-3 text-xs"><p className="font-medium">{context.identity_verified?"Nome e indirizzo verificati":"Identità da verificare con il cliente"}</p>{context.identity_verified && context.ticket && <Link className="block underline" to={`/azienda/assistenza/${context.ticket.id}`}>{context.ticket.reference} · {context.ticket.subject}</Link>}{context.next_step && <p><b>Prossimo passo:</b> {context.next_step}</p>}</div>;}
 
 /** Da quanto sta squillando, in parole. */
 function daQuanto(iso: string): string {
@@ -40,21 +48,23 @@ export function SchedaPassaggioChiamata() {
   const companyId = useEffectiveCompanyId();
   const { user } = useAuth();
   const [passaggio, setPassaggio] = useState<Passaggio | null>(null);
+  const [errore,setErrore]=useState("");
   const [, forzaRedraw] = useState(0);
 
   // Carica un eventuale passaggio già in attesa (es. pagina ricaricata mentre
   // il telefono squillava) e poi resta in ascolto.
   useEffect(() => {
+    setPassaggio(null);
     if (!companyId || !user?.id) return;
     let attivo = true;
 
     const carica = async () => {
       const { data } = await supabase
         .from("passaggi_chiamata")
-        .select("id, nome_cliente, telefono_cliente, riassunto, creato_il")
+        .select("id, company_id, nome_cliente, telefono_cliente, riassunto, creato_il, stato, chiuso_il, contesto_ai")
         .eq("company_id", companyId)
         .eq("operatore_id", user.id)
-        .eq("stato", "in_attesa")
+        .in("stato", ["in_attesa","risposto"]).is("chiuso_il",null)
         .order("creato_il", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -67,14 +77,15 @@ export function SchedaPassaggioChiamata() {
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: "*",
           schema: "public",
           table: "passaggi_chiamata",
           filter: `operatore_id=eq.${user.id}`,
         },
         (payload) => {
           const riga = payload.new as Passaggio & { stato?: string };
-          if (riga.stato === "in_attesa") setPassaggio(riga);
+          if(riga.company_id!==companyId)return;
+          if (["in_attesa","risposto"].includes(riga.stato || "") && !riga.chiuso_il)setPassaggio(riga);else setPassaggio(current=>current?.id===riga.id?null:current);
         },
       )
       .subscribe();
@@ -93,13 +104,20 @@ export function SchedaPassaggioChiamata() {
     return () => window.clearInterval(id);
   }, [passaggio]);
 
-  const chiudi = async (stato: "risposto" | "persa") => {
+  const chiudi = async (stato: "risposto" | "persa" | "terminata") => {
     if (!passaggio) return;
     const id = passaggio.id;
+    setErrore("");
+    if(passaggio.contesto_ai?.provider==="fish_audio"){
+      const {error}=await supabase.rpc("fish_operator_handoff_status" as never,{p_company:companyId,p_handoff:id,p_action:stato==="risposto"?"answer":stato==="terminata"?"finish":"missed"} as never);
+      if(error){setErrore("Non riesco a salvare lo stato. Riprova.");return;}
+      if(stato==="risposto")setPassaggio(current=>current?{...current,stato:"risposto"}:current);else setPassaggio(null);
+      return;
+    }
     setPassaggio(null);
     const { error } = await supabase
       .from("passaggi_chiamata")
-      .update({ stato, chiuso_il: new Date().toISOString() })
+      .update({ stato:stato==="terminata"?"risposto":stato, chiuso_il: new Date().toISOString() })
       .eq("id", id);
     if (error) console.error("[passaggio] chiusura fallita:", error.message);
   };
@@ -115,16 +133,16 @@ export function SchedaPassaggioChiamata() {
       <div className="flex items-start gap-3 border-b bg-orange-50 px-4 py-3 dark:bg-orange-950/30">
         <PhoneIncoming className="mt-0.5 h-5 w-5 shrink-0 animate-pulse text-orange-600" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold leading-tight">Ti stanno passando una chiamata</p>
+          <p className="text-sm font-semibold leading-tight">{passaggio.contesto_ai?.provider==="fish_audio" && passaggio.stato==="risposto"?"Chiamata in corso":"Ti stanno passando una chiamata"}</p>
           <p className="text-xs text-muted-foreground">{daQuanto(passaggio.creato_il)}</p>
         </div>
-        <button
+        {!(passaggio.contesto_ai?.provider==="fish_audio" && passaggio.stato==="risposto") && <button
           onClick={() => chiudi("persa")}
           className="rounded p-1 text-muted-foreground hover:bg-muted"
           aria-label="Chiudi la scheda"
         >
           <X className="h-4 w-4" />
-        </button>
+        </button>}
       </div>
 
       <div className="space-y-3 px-4 py-3">
@@ -149,7 +167,9 @@ export function SchedaPassaggioChiamata() {
           </div>
         )}
 
-        <div className="flex gap-2">
+        {passaggio.contesto_ai?.provider==="fish_audio" && <FishHandoffDetails context={passaggio.contesto_ai}/>}
+        {errore && <p role="alert" className="text-xs text-destructive">{errore}</p>}
+        {passaggio.contesto_ai?.provider==="fish_audio" && passaggio.stato==="risposto"?<div><p className="mb-2 text-xs text-muted-foreground">Il collega resta occupato. Segna la fine quando hai concluso la telefonata.</p><Button size="sm" className="w-full" onClick={()=>chiudi("terminata")}>Ho terminato la chiamata</Button></div>:<div className="flex gap-2">
           <Button size="sm" className="flex-1" onClick={() => chiudi("risposto")}>
             Ho risposto
           </Button>
@@ -157,7 +177,7 @@ export function SchedaPassaggioChiamata() {
             <PhoneOff className="mr-1.5 h-3.5 w-3.5" />
             Persa
           </Button>
-        </div>
+        </div>}
       </div>
     </div>
   );

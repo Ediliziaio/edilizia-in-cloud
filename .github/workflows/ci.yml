@@ -134,6 +134,9 @@ jobs:
       - name: Run critical tests
         run: bun run test:critical
 
+      - name: Run Fish centralino and CRM regressions
+        run: bun run test:fish
+
       - name: Run floorplan, 3D orientation and document verification regressions
         run: bun run test:planimetrie
 

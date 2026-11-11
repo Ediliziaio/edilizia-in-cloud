@@ -6,6 +6,7 @@ import { logger } from "@/utils/logger";
 import { withClientTimeout } from "@/lib/query-timeout";
 import { toast } from "sonner";
 import { duplicateAgentConfiguration } from "@/lib/aiAgents";
+import { callFishAgent } from "@/lib/fishAgentProxy";
 import type {
   UnifiedAgent,
   UnifiedAgentInsert,
@@ -114,10 +115,12 @@ export function useCreateUnifiedAgent() {
       if (!companyId) throw new Error("Nessuna azienda associata");
       assertAgentBaseConfig(input);
 
-      const needsElevenLabs = input.tipo === "vocale" || input.tipo === "campagna";
+      const isFish = input.tools_config?.voice_provider === "fish_audio";
+      const needsElevenLabs = !isFish && (input.tipo === "vocale" || input.tipo === "campagna");
       const { data: user } = await supabase.auth.getUser();
 
       const insertPayload: Record<string, unknown> = {
+          ...(isFish && input.client_id ? { id: input.client_id } : {}),
           company_id: companyId,
           nome: normalizeText(input.nome),
           tipo: input.tipo,
@@ -146,16 +149,29 @@ export function useCreateUnifiedAgent() {
       if (input.widget_colore) insertPayload.widget_colore = input.widget_colore;
       if (input.widget_posizione) insertPayload.widget_posizione = input.widget_posizione;
 
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from("ai_agents_v2" as never)
         .insert(insertPayload as never)
         .select("id")
         .single();
 
+      if(error?.code === "23505" && isFish && input.client_id) {
+        const recovered=await supabase.from("ai_agents_v2" as never).select("id").eq("company_id",companyId).eq("id",input.client_id).single();
+        data=recovered.data;error=recovered.error;
+      }
+
       if (error || !data) throw error || new Error("Bozza non salvata");
       const draft = data as unknown as { id: string };
       // Local ownership exists before provisioning; the backend binds the
       // remote ID atomically. A failed provisioning leaves a recoverable draft.
+      if (isFish) {
+        try {
+          const fishConfig=input.tools_config?.fish as {voice_id?:string}|undefined;
+          await callFishAgent(companyId,draft.id,"configure",{voice_id:fishConfig?.voice_id || "0e36e185d0654d5bac3d24331562a0cc"});
+        } catch {
+          toast.warning("Assistente salvato. La preparazione della prova vocale è da riprovare: puoi riprenderla dalla guida.");
+        }
+      }
       if (needsElevenLabs) {
         try {
           await requireAgentProxyV2(companyId);
@@ -192,7 +208,7 @@ export function useDeleteUnifiedAgent() {
 
       const { data: agent, error: fetchError } = await supabase
         .from("ai_agents_v2" as never)
-        .select("elevenlabs_agent_id, stato")
+        .select("elevenlabs_agent_id, stato, tools_config")
         .eq("company_id", companyId)
         .eq("id", id)
         .single();
@@ -201,6 +217,9 @@ export function useDeleteUnifiedAgent() {
       const elId = (agent as any)?.elevenlabs_agent_id;
       if ((agent as any)?.stato === "attivo") {
         throw new Error("Metti in pausa l'agente prima di eliminarlo.");
+      }
+      if ((agent as any)?.tools_config?.voice_provider === "fish_audio") {
+        await callFishAgent(companyId, id, "delete");
       }
 
       if (elId) {
@@ -233,15 +252,21 @@ export function useUpdateUnifiedAgentStatus() {
   return useMutation({
     mutationFn: async ({ id, stato }: { id: string; stato: string }) => {
       if (!companyId) throw new Error("Nessuna azienda associata");
-      if (stato === "attivo") {
+      {
         const { data, error } = await supabase
           .from("ai_agents_v2" as never)
-          .select("nome,tipo,system_prompt,elevenlabs_agent_id")
+          .select("nome,tipo,system_prompt,elevenlabs_agent_id,tools_config")
           .eq("company_id", companyId)
           .eq("id", id)
           .single();
         if (error) throw error;
-        assertAgentReadyForActivation(data as unknown as Partial<UnifiedAgent>);
+        const current = data as unknown as Partial<UnifiedAgent>;
+        if (current.tools_config?.voice_provider === "fish_audio" && ["attivo", "pausa"].includes(stato)) {
+          await callFishAgent(companyId, id, stato === "attivo" ? "activate" : "pause");
+          return;
+        }
+        if (current.tools_config?.voice_provider === "fish_audio" && stato === "archiviato") throw new Error("Scollega prima le linee Fish e metti l'agente in pausa.");
+        if (stato === "attivo") assertAgentReadyForActivation(current);
       }
 
       const { data: saved, error } = await supabase

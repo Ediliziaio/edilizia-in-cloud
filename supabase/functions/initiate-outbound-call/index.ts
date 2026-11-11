@@ -6,6 +6,8 @@ import { outboundVoiceRequest } from "../_shared/outboundVoice.ts";
 import { agentCompanyAccess } from "../_shared/agentCompanyAccess.ts";
 import { normalizeVoicePhone, voiceContactExclusion } from "../_shared/contactVoice.ts";
 import { segnalaErroreAI } from "../_shared/allarmeAI.ts";
+import { FishAudioClient } from "../_shared/fishAudio.ts";
+import { initiateFishCall } from "../_shared/fishCentralino.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 
@@ -46,6 +48,7 @@ Deno.serve(async (req) => {
         dynamicVars: body.dynamic_vars,
         campaignRecipientId: body.campaign_recipient_id,
         campaignClaimToken: body.campaign_claim_token,
+        requestKey: body.idempotency_key,
       });
     }
 
@@ -69,6 +72,7 @@ Deno.serve(async (req) => {
       userId,
       skipSubscriptionCheck: false,
       dynamicVars: body.dynamic_vars,
+      requestKey: body.idempotency_key,
     });
   } catch (err: unknown) {
     if (err instanceof Response) return err;
@@ -88,6 +92,7 @@ interface OutboundCallParams {
   dynamicVars?: Record<string, string>;
   campaignRecipientId?: string;
   campaignClaimToken?: string;
+  requestKey?: string;
 }
 
 async function handleOutboundCall(
@@ -123,7 +128,7 @@ async function handleOutboundCall(
 
   const { data: agentV2, error: agentV2Error } = await adminClient
     .from("ai_agents_v2")
-    .select("id, elevenlabs_agent_id, nome, durata_max_secondi, stato, llm_model")
+    .select("id, elevenlabs_agent_id, nome, durata_max_secondi, stato, llm_model, tools_config")
     .eq("id", agentId)
     .eq("company_id", companyId)
     .maybeSingle();
@@ -156,7 +161,13 @@ async function handleOutboundCall(
   }
 
   if (!agent) return json(req, { error: "Agente non trovato" }, 404);
-  if (!agent.elevenlabs_agent_id) return json(req, { error: "Agente non configurato su ElevenLabs" }, 400);
+  const useFish = agenteV2 && agentV2?.tools_config?.voice_provider === "fish_audio";
+  let fishBinding: any = null;
+  if (useFish) {
+    const result = await adminClient.from("ai_fish_agents").select("*").eq("company_id", companyId).eq("agent_id", agentId).maybeSingle();
+    fishBinding = result.data;
+    if (result.error || !fishBinding?.enabled || !fishBinding.published || fishBinding.billed_per_min_eur == null) return json(req, { error: "Completa e attiva il collegamento Fish prima di chiamare" }, 400);
+  } else if (!agent.elevenlabs_agent_id) return json(req, { error: "Agente vocale non configurato" }, 400);
 
   // Business hours check (Italian timezone)
   if (agent.business_hours_enabled) {
@@ -249,22 +260,33 @@ async function handleOutboundCall(
   //
   // Il tetto e' quello dell'agente; la tariffa e' la stessa che usa il conteggio
   // dopo la chiamata, quindi le due cifre parlano la stessa lingua.
-  if (agent.durataMassimaSecondi && agent.durataMassimaSecondi > 0) {
-    const tariffa = await prezzoMinutoVoce(adminClient, companyId, agent.llmModel, null);
-    const minutiMax = agent.durataMassimaSecondi / 60;
+  if (useFish || (agent.durataMassimaSecondi && agent.durataMassimaSecondi > 0)) {
+    const tariffa = useFish ? { prezzoPerMin: Number(fishBinding.billed_per_min_eur) } : await prezzoMinutoVoce(adminClient, companyId, agent.llmModel, null);
+    const maxSeconds = useFish ? Math.max(30, Math.min(3600, agent.durataMassimaSecondi || 300)) : agent.durataMassimaSecondi || 300;
+    const minutiMax = maxSeconds / 60;
     const costoMassimo = Number((minutiMax * tariffa.prezzoPerMin).toFixed(2));
     if (saldo.spendibile < costoMassimo) {
       return json(req, {
         error:
           `Crediti insufficienti per una chiamata intera: «${agent.name}» puo' parlare fino a ` +
-          `${Math.round(agent.durataMassimaSecondi / 60)} minuti, che costano fino a ` +
+          `${Math.round(maxSeconds / 60)} minuti, che costano fino a ` +
           `${costoMassimo.toFixed(2)} €, e il saldo e' ${saldo.spendibile.toFixed(2)} €. ` +
           `Ricarica, oppure abbassa la durata massima dell'agente.`,
         saldo_eur: saldo.spendibile,
         costo_massimo_eur: costoMassimo,
-        durata_massima_secondi: agent.durataMassimaSecondi,
+        durata_massima_secondi: maxSeconds,
       }, 402);
     }
+  }
+
+  if (useFish) {
+    const key = Deno.env.get("FISH_API_KEY");
+    if (!key) return json(req, { error: "FISH_API_KEY non configurata nel backend" }, 503);
+    const result = await initiateFishCall(adminClient, new FishAudioClient(key), {
+      companyId, agentId, contactId: targetContactId, targetPhone, dynamicVars,
+      requestKey: params.requestKey, campaignRecipientId: params.campaignRecipientId,
+    });
+    return json(req, result, result.success ? 200 : 502);
   }
 
   // Get ElevenLabs API key
@@ -306,7 +328,7 @@ async function handleOutboundCall(
     return json(req, { error: "Nessun numero di telefono configurato per questo agente." }, 400);
   }
 
-  const { url: outboundUrl, payload: elPayload } = outboundVoiceRequest(phoneProvider, agent.elevenlabs_agent_id, elPhoneId, targetPhone, dynamicVars);
+  const { url: outboundUrl, payload: elPayload } = outboundVoiceRequest(phoneProvider, agent.elevenlabs_agent_id!, elPhoneId, targetPhone, dynamicVars);
   if (params.campaignRecipientId) {
     const { data: begun, error: beginError } = await adminClient.rpc("begin_voice_campaign_call" as never, {
       p_company_id: companyId, p_recipient_id: params.campaignRecipientId, p_token: params.campaignClaimToken,

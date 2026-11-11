@@ -130,9 +130,9 @@ export function AgentCardUnified({
                 <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold border ${tipoCfg.badgeClass}`}>
                   <TipoIcon className="h-2.5 w-2.5" /> {tipoCfg.label}
                 </span>
-                {agente.elevenlabs_agent_id && (
+                {(agente.elevenlabs_agent_id || agente.tools_config?.voice_provider === "fish_audio") && (
                   <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-[hsl(var(--warning))]/10 text-[hsl(var(--warning))] border border-[hsl(var(--warning))]/20">
-                    <Zap className="h-2.5 w-2.5" /> EL
+                    <Zap className="h-2.5 w-2.5" /> {agente.tools_config?.voice_provider === "fish_audio" ? "Fish" : "EL"}
                   </span>
                 )}
               </div>

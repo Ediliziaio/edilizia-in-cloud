@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { callElevenLabsProxy, requireAgentProxyV2 } from "@/modules/ai-agents/hooks/useElevenLabsProxy";
 import { useUnifiedAgents } from "@/hooks/useUnifiedAgents";
+import { NumberConnectionGuide } from "@/components/telephony/NumberConnectionGuide";
+import { FishConnectionRequestsQueue } from "./FishConnectionRequestsQueue";
 import { Link, useLocation } from "react-router-dom";
 import {
   Phone,
@@ -76,6 +78,7 @@ export function TelephonyTab() {
     mutationFn: async ({ numberId, agentId }: { numberId: string; agentId: string | null }) => {
       if (!companyId) throw new Error("Nessuna azienda associata");
       if (agentId && !allAgents.some(a => a.id === agentId)) throw new Error("Agente non disponibile per questa azienda");
+      if (allAgents.find(a => a.id === agentId)?.tools_config?.voice_provider === "fish_audio") throw new Error("Per assegnare una linea a Fish usa la configurazione Fish dell'agente.");
       const number = numbers.find(n => n.id === numberId);
       if (!number) throw new Error("Numero non disponibile");
       if (number.elevenlabs_phone_id) {
@@ -147,6 +150,8 @@ export function TelephonyTab() {
 
   return (
     <div className="space-y-6">
+      <NumberConnectionGuide />
+      {companyId && <FishConnectionRequestsQueue companyId={companyId}/>}
       {/* Solo le azioni, a destra: il titolo «Numeri Telefonici» ripeteva la
           scheda e la frase su Impostazioni → Telefonia la ripete il riquadro
           vuoto qui sotto (con il suo bottone). */}
@@ -158,7 +163,7 @@ export function TelephonyTab() {
           <Button variant="outline" size="sm" onClick={syncFromEL} disabled={syncing || !companyId} title="Verifica i numeri dell'azienda su ElevenLabs">
             {syncing ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
             {/* «Sync» all'inglese: il nome del servizio resta nel suggerimento. */}
-            Verifica collegamenti
+            Verifica ElevenLabs
           </Button>
         </div>
       </div>
@@ -215,6 +220,7 @@ export function TelephonyTab() {
                     </TableCell>
                     <TableCell>
                       <Select
+                        disabled={assignedAgent?.tools_config?.voice_provider === "fish_audio"}
                         value={num.agent_id || "none"}
                         onValueChange={(v) =>
                           assignAgent.mutate({ numberId: num.id, agentId: v === "none" ? null : v })
@@ -240,7 +246,7 @@ export function TelephonyTab() {
                       </Select>
                     </TableCell>
                     <TableCell>
-                      {num.elevenlabs_phone_id ? (
+                      {assignedAgent?.tools_config?.voice_provider === "fish_audio" ? <Badge variant="outline">Gestito da Fish</Badge> : num.elevenlabs_phone_id ? (
                         <div className="space-y-1"><span className="flex items-center gap-1 text-xs text-primary">
                           <Link2 className="h-3 w-3" /> Collegato
                         </span>{num.agent_id && <Button size="sm" variant="outline" className="h-7 text-xs"

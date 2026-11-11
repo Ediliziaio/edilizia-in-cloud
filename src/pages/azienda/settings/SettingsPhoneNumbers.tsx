@@ -54,6 +54,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Phone, Plus, Search, Trash2, MessageSquare, PhoneCall, Loader2, Download, Bot, Link2, AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { TelephonyComplianceCard } from "@/components/telephony/TelephonyComplianceCard";
+import { NumberConnectionGuide } from "@/components/telephony/NumberConnectionGuide";
 
 type PurchaseStep = "search" | "results" | "confirm";
 
@@ -215,6 +216,7 @@ export default function SettingsPhoneNumbers() {
 
   return (
     <div className="space-y-6">
+      <NumberConnectionGuide />
       {/* Il titolo «Telefonia» c'è già nella testata delle Impostazioni: qui solo cosa si fa in questa pagina. */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="min-w-0 flex-1 text-muted-foreground">

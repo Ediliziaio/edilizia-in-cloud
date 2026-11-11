@@ -40,6 +40,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { TicketChat } from "@/components/tickets/TicketChat";
+import { TicketAIConversation } from "@/components/tickets/TicketAIConversation";
+import { TicketAIActivity } from "@/components/tickets/TicketAIActivity";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { PlaybookEditorDialog } from "@/components/orders/PlaybookEditorDialog";
 import { applyPlaybookToTicket } from "@/lib/ticketPlaybook";
@@ -102,7 +104,7 @@ export default function TicketDetail() {
       const { data, error } = await supabase
         .from("tickets")
         .select(`
-          id, subject, status, priority, tipo, fonte, created_at, customer_id, order_id,
+          id, subject, descrizione, status, priority, tipo, fonte, created_at, customer_id, order_id,
           assigned_to, squadra_id, category, internal_notes,
           a_pagamento, motivo_gratuito, importo_preventivato, importo_finale,
           pagato, data_pagamento, metodo_pagamento, note_pagamento, merce_richiesta,
@@ -696,9 +698,9 @@ export default function TicketDetail() {
                 ) : (
                   <div className="flex items-center gap-2">
                     <User className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="font-medium text-sm">
+                    <Link to={`/azienda/clienti/${ticket.customer_id}`} className="font-medium text-sm text-primary hover:underline">
                       {ticket.customer.first_name} {ticket.customer.last_name}
-                    </span>
+                    </Link>
                   </div>
                 )}
                 {ticket.customer?.email && (
@@ -946,7 +948,10 @@ export default function TicketDetail() {
         </div>
 
         {/* Chat: on mobile first, on desktop second */}
-        <div className="order-1 md:order-2 min-h-0">
+        <div className="order-1 md:order-2 min-h-0 space-y-4">
+          {ticket.descrizione && <Card><CardContent className="p-4"><h2 className="mb-3 text-sm font-semibold">Richiesta del cliente</h2><p className="whitespace-pre-wrap break-words text-sm leading-6">{ticket.descrizione}</p></CardContent></Card>}
+          {effectiveCompany?.id && <TicketAIConversation companyId={effectiveCompany.id} ticketId={ticket.id}/>}
+          {effectiveCompany?.id && <TicketAIActivity companyId={effectiveCompany.id} ticketId={ticket.id}/>}
           <TicketChat
             ticketId={ticket.id}
             messages={messages}

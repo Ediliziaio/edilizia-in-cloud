@@ -36,6 +36,7 @@ interface ConversationV2 {
   agent_id: string;
   company_id: string;
   elevenlabs_conversation_id: string | null;
+  voice_provider?: string | null;
   contact_id: string | null;
   stato: string;
   canale: string;
@@ -145,7 +146,7 @@ export function ConversazioniTab({ agentIdFilter }: ConversazioniTabProps = {}) 
               dati non arrivano MAI — dirlo evita di scambiare il vuoto per
               "nessuna attività". */}
           <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 max-md:mt-1.5 max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:text-[11px]">
-            La raccolta automatica delle conversazioni<span className="md:hidden"> (webhook eventi provider)</span> non è ancora attiva.
+            Qui compaiono le chiamate effettive ricevute dal backend. Le prove vocali e le simulazioni sono separate dallo storico reale.
           </p>
         </div>
       ) : (
@@ -174,6 +175,7 @@ export function ConversazioniTab({ agentIdFilter }: ConversazioniTabProps = {}) 
                     <div>
                       <p className="text-sm font-medium text-foreground">
                         {agente?.nome || "Agente sconosciuto"}
+                        {conv.voice_provider === "fish_audio" && <Badge variant="outline" className="ml-2 text-[10px]">Fish Audio</Badge>}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {conv.numero_chiamante || conv.elevenlabs_conversation_id?.slice(0, 12) || conv.id.slice(0, 8)}

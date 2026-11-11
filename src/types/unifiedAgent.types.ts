@@ -30,6 +30,8 @@ export interface UnifiedAgent {
 }
 
 export interface UnifiedAgentInsert {
+  /** Stable UUID for retrying a guided creation without inserting another draft. */
+  client_id?: string;
   nome: string;
   tipo: TipoAgente;
   descrizione?: string;

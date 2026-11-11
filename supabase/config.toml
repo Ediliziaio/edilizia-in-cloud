@@ -1,5 +1,13 @@
 project_id = "rsbrguhkodgnqfomrevo"
 
+# Fish external delivery: HMAC and per-agent authorization are enforced in-code.
+[functions.fish-webhook]
+verify_jwt = false
+[functions.fish-inbound]
+verify_jwt = false
+[functions.fish-agent-tools]
+verify_jwt = false
+
 # Automazioni del bot (report mattino, cose del giorno, avvisi, promemoria):
 # chiamata dal cron via silvio_invoke_edge, che manda solo x-internal-cron-secret
 # (nessun Bearer, in vault non c'è la service key). L'auth vera è in-code

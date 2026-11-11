@@ -629,6 +629,7 @@ export default function CompanyCustomerDetail() {
           />
           {/* Storico chiamate sincronizzato (centralino + AI) */}
           <ContactCallHistory
+            customerId={customer.id}
             contactId={customer.marketing_contact_id ?? undefined}
             phone={customer.phone}
             name={fullName}

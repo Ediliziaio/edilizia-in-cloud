@@ -41,6 +41,8 @@ const aperte = funzioniSenzaJwt(config);
 const CONTROLLI: Record<string, RegExp> = {
   aiutante:
     /\b(requireAuth|requireRole|requireCompanyAccess|requireInternalSecret|isInternalRequest|cronSecretValido|chiamataInternaValida|verifyServiceRoleOrSuperAdmin|verificaFirmaElevenLabs|chiaveUrlValida|inboundWebhookHandler)\s*\(/,
+  // Authenticated handler factories; their denial paths are executed in fishCentralino.test.ts.
+  factoryFish: /\b(createFishEventHandler|createFishToolHandler)\s*\(/,
   utente: /\bauth\s*\.\s*(getClaims|getUser)\s*\(/,
   autorizzazioneInArrivo: /headers\s*\.\s*get\(\s*["'`]authorization["'`]\s*\)/i,
   intestazioneSegreta:

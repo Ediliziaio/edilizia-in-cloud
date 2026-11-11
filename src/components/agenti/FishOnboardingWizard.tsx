@@ -1,0 +1,70 @@
+import { useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, ArrowRight, Bot, Check, CheckCircle2, Loader2, Mic, Phone, Sparkles } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { useCreateUnifiedAgent } from "@/hooks/useUnifiedAgents";
+import { callFishAgent } from "@/lib/fishAgentProxy";
+import { FISH_FLOW_PRESETS } from "@/lib/fishFlows";
+import { FISH_DEFAULT_VOICE, fishOnboardingInput, onboardingPhone, type FishOnboardingValues } from "@/lib/fishOnboarding";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FishLiveVoice } from "./FishLiveVoice";
+import { FishNumberConnectionRequest } from "./FishNumberConnectionRequest";
+
+const STEPS=["Attività","Agenda","Voce","Prova","Numero"];
+export function FishOnboardingWizard({open,onClose,onSuccess,onChangeType,existingAgent}:{open:boolean;onClose:()=>void;onSuccess:(id:string)=>void;onChangeType?:()=>void;existingAgent?:any}) {
+  const companyId=useEffectiveCompanyId();
+  const auth=useAuth();
+  const {isAdmin}=usePermissions();
+  const canManage=isAdmin || (auth.role==="super_admin" && !auth.viewAsRole);
+  const companyName=auth.effectiveCompany?.name?.replace(/[.!?]+$/, "");
+  const cache=useQueryClient();
+  const draftId=useRef(crypto.randomUUID());
+  const [step,setStep]=useState(existingAgent?3:0);
+  const [agentId,setAgentId]=useState<string|null>(existingAgent?.id || null);
+  const [tested,setTested]=useState(false);
+  const [error,setError]=useState("");
+  const [values,setValues]=useState<FishOnboardingValues>(()=>({name:existingAgent?.nome || "Assistente telefonico",flowId:existingAgent?.tools_config?.fish?.flow_id || "complete",calendarId:existingAgent?.tools_config?.fish?.calendar_id || "",operatorNumber:existingAgent?.tools_config?.trasferimento?.numero || "",greeting:existingAgent?.primo_messaggio || `Buongiorno, sono l’assistente virtuale ${companyName?`di ${companyName}`:"dell’azienda"}. Come posso aiutarla?`,expressive:existingAgent?.tools_config?.fish?.voice?.expressive ?? true}));
+  const update=(patch:Partial<FishOnboardingValues>)=>setValues(old=>({...old,...patch}));
+  const flow=FISH_FLOW_PRESETS.find(item=>item.id===values.flowId) || FISH_FLOW_PRESETS[0];
+  const needsCalendar=flow.tools.includes("create_appointment");
+  const create=useCreateUnifiedAgent();
+  const calendars=useQuery({queryKey:["fish-agent-calendars",companyId],enabled:!!companyId && canManage,retry:false,queryFn:async()=>{const {data,error}=await supabase.from("marketing_calendars").select("id,name,duration_minutes").eq("company_id",companyId!).eq("is_active",true).order("name");if(error)throw error;return data || [];}});
+  const statusKey=["fish-agent",companyId,agentId];
+  const status=useQuery({queryKey:statusKey,enabled:!!agentId && !!companyId,retry:false,queryFn:()=>callFishAgent<{binding:{fish_agent_id:string|null}|null;keyConfigured:boolean;synchronized:boolean}>(companyId!,agentId!,"status")});
+  const prepare=useMutation({mutationFn:()=>callFishAgent(companyId!,agentId!,"configure",{voice_id:FISH_DEFAULT_VOICE}),onSuccess:()=>cache.invalidateQueries({queryKey:statusKey})});
+  const ready=!!status.data?.keyConfigured && !!status.data.synchronized && !!status.data.binding?.fish_agent_id;
+  const busy=create.isPending;
+  const close=()=>{if(busy)return;if(agentId)onSuccess(agentId);else onClose();};
+  async function next(){
+    setError("");
+    if(step===0 && !values.name.trim()){setError("Dai un nome all’assistente per continuare.");return;}
+    if(step===1 && values.operatorNumber.trim() && !/^\+[1-9]\d{7,14}$/.test(onboardingPhone(values.operatorNumber))){setError("Per l’operatore inserisci un numero con prefisso internazionale, per esempio +39.");return;}
+    if(step===2){
+      try{const input=fishOnboardingInput(values);const created=await create.mutateAsync({...input,client_id:draftId.current});setAgentId(created.id);setStep(3);}catch{setError("Non sono riuscito a salvare l’assistente. I dati sono qui: riprova senza ricominciare.");}
+    }else setStep(value=>Math.min(4,value+1));
+  }
+  const scenario=values.flowId==="support"?"support":values.flowId==="orders"?"order":["callback","operator"].includes(values.flowId)?"no_operator":values.flowId==="sales_outbound"?"sales_outbound":"appointment";
+  return <Dialog open={open} onOpenChange={value=>{if(!value)close();}}><DialogContent className="max-h-[94vh] overflow-y-auto p-0 sm:max-w-3xl" onEscapeKeyDown={event=>{if(busy)event.preventDefault();}} onInteractOutside={event=>{if(busy)event.preventDefault();}}>
+    <DialogHeader className="border-b px-6 pb-5 pt-6"><DialogTitle className="flex items-center gap-3 text-xl"><span className="rounded-xl bg-emerald-50 p-2 text-emerald-700"><Bot className="h-5 w-5"/></span>{agentId?"Completa il tuo assistente":"Crea il tuo assistente telefonico"}</DialogTitle><p className="pt-2 text-sm leading-6 text-muted-foreground">Dall’attività alla prova a voce. Il numero si collega quando sei pronto.</p></DialogHeader>
+    <ol className="grid grid-cols-5 gap-1 border-b bg-muted/20 px-4 py-4" aria-label="Passaggi della configurazione">{STEPS.map((label,index)=><li key={label}><button type="button" aria-current={step===index?"step":undefined} disabled={index>=step || !!agentId || busy} onClick={()=>{setError("");setStep(index);}} className={`flex w-full flex-col items-center gap-2 text-[11px] sm:flex-row sm:justify-center sm:text-xs ${step===index?"font-semibold text-emerald-800":"text-muted-foreground"}`}><span className={`flex h-6 w-6 items-center justify-center rounded-full ${step===index?"bg-emerald-700 text-white":index<step?"bg-emerald-50 text-emerald-700":"border bg-background"}`}>{index<step?<Check className="h-3.5 w-3.5"/>:index+1}</span>{label}</button></li>)}</ol>
+    <div className="min-h-[340px] space-y-5 px-6 pb-2">
+      {!canManage && <p role="alert" className="rounded-xl border p-4 text-sm">La creazione e il collegamento degli assistenti sono riservati all’amministratore dell’azienda.</p>}
+      {step===0 && <><div><h2 className="text-lg font-semibold">Che cosa deve fare?</h2><p className="mt-1 text-sm text-muted-foreground">Scegli un punto di partenza. Potrai modificarlo anche dopo.</p></div><div><Label htmlFor="onboarding-agent-name">Nome dell’assistente</Label><Input id="onboarding-agent-name" value={values.name} onChange={e=>update({name:e.target.value})} maxLength={100}/></div><div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Attività dell’assistente">{FISH_FLOW_PRESETS.map(item=><button key={item.id} type="button" role="radio" aria-checked={values.flowId===item.id} onClick={()=>update({flowId:item.id})} className={`rounded-xl border p-4 text-left transition-colors ${values.flowId===item.id?"border-emerald-600 bg-emerald-50/50 ring-1 ring-emerald-600":"bg-background hover:bg-muted/30"}`}><span className="block text-sm font-semibold">{item.title}</span><span className="mt-2 block text-xs leading-5 text-muted-foreground">{item.description}</span></button>)}</div></>}
+      {step===1 && <><div><h2 className="text-lg font-semibold">Agenda e persone</h2><p className="mt-1 text-sm text-muted-foreground">Collega le risorse che l’assistente può usare.</p></div>{needsCalendar?<div className="rounded-xl border p-4"><Label>Calendario per gli appuntamenti</Label>{calendars.isError?<div role="alert" className="mt-3 text-sm">Non riesco a leggere i calendari.<Button variant="ghost" onClick={()=>calendars.refetch()}>Riprova</Button></div>:<Select value={values.calendarId || "later"} onValueChange={value=>update({calendarId:value==="later"?"":value})}><SelectTrigger aria-label="Calendario dell’assistente" className="mt-2"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="later">Lo configuro più tardi</SelectItem>{calendars.data?.map(calendar=><SelectItem key={calendar.id} value={calendar.id}>{calendar.name} · {calendar.duration_minutes} min</SelectItem>)}</SelectContent></Select>}<p className="mt-3 text-xs leading-5 text-muted-foreground">L’agenda rispetta disponibilità, durata e impegni del titolare. Puoi già fare una prova; per prenotare davvero serve un calendario attivo.</p>{!calendars.isLoading && !calendars.isError && !calendars.data?.length && <a className="mt-2 inline-block text-xs underline" href="/azienda/impostazioni/calendari" target="_blank" rel="noreferrer">Apri la gestione dei calendari</a>}</div>:<div className="rounded-xl bg-muted/30 p-4 text-sm">Questo flusso non prenota appuntamenti. Non serve scegliere un calendario.</div>}{values.flowId==="operator"?<div className="rounded-xl border p-4 text-sm leading-6"><b>Primo operatore disponibile</b><p className="mt-2">Usa gli operatori presenti e liberi nel centralino, con numero completo già configurato. Se nessuno può rispondere raccoglie una richiesta di richiamo. Puoi provare il dialogo anche prima di collegare la linea.</p></div>:<div className="rounded-xl border p-4"><Label htmlFor="onboarding-operator">Numero dell’operatore, facoltativo</Label><Input id="onboarding-operator" value={values.operatorNumber} onChange={e=>update({operatorNumber:e.target.value})} placeholder="+39…" type="tel" className="mt-2" maxLength={30}/><p className="mt-3 text-xs leading-5 text-muted-foreground">È la persona a cui passare le chiamate dopo la verifica di disponibilità. Se lo lasci vuoto, l’assistente raccoglie una richiesta di richiamo.</p></div>}</>}
+      {step===2 && <><div><h2 className="text-lg font-semibold">Come si presenta?</h2><p className="mt-1 text-sm text-muted-foreground">Una voce italiana pronta e un saluto chiaro.</p></div><div className="flex items-center gap-4 rounded-2xl border bg-muted/10 p-5"><div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-emerald-100 via-cyan-100 to-violet-100"><Mic className="h-6 w-6 text-emerald-700"/></div><div><p className="font-semibold">Voce Riflessiva · italiano</p><p className="mt-1 text-xs text-muted-foreground">Puoi personalizzare voce e velocità dall’editor.</p></div></div><div><Label htmlFor="onboarding-greeting">Primo messaggio</Label><Textarea id="onboarding-greeting" value={values.greeting} onChange={e=>update({greeting:e.target.value})} maxLength={500} rows={3}/></div><div className="flex items-center justify-between rounded-xl border p-4"><div><Label htmlFor="onboarding-expressive">Voce naturale ed espressiva</Label><p className="mt-1 text-xs text-muted-foreground">Adatta pause ed enfasi alla conversazione.</p></div><Switch id="onboarding-expressive" checked={values.expressive} onCheckedChange={expressive=>update({expressive})}/></div><div className="rounded-xl bg-muted/30 p-4 text-xs leading-6 text-muted-foreground">{flow.title} · {values.calendarId?"Calendario scelto":"Calendario configurabile dopo"} · {values.flowId==="operator"?"Primo operatore disponibile":values.operatorNumber?"Operatore impostato":"Richiamo quando serve una persona"}<br/>La prova usa dati dimostrativi. Non attiva telefonate o registrazioni.</div></>}
+      {step===3 && agentId && <><div><h2 className="text-lg font-semibold">Prova il tuo assistente</h2><p className="mt-1 text-sm text-muted-foreground">La bozza è salvata. Ascolta come gestisce una richiesta prima di collegare il numero.</p></div>{status.isPending?<div className="flex items-center gap-2 rounded-xl border p-4 text-sm"><Loader2 className="h-4 w-4 animate-spin"/>Preparo la conversazione…</div>:ready?<FishLiveVoice companyId={companyId!} agentId={agentId} ready initialScenario={scenario} onConnected={()=>setTested(true)}/>:<div className="space-y-3 rounded-xl border p-4"><p className="text-sm">L’assistente è salvato. La prova vocale non è ancora pronta; puoi riprovare la preparazione senza creare un altro agente.</p><Button variant="outline" disabled={prepare.isPending || !canManage} onClick={()=>prepare.mutate()}>{prepare.isPending?<Loader2 className="mr-2 h-4 w-4 animate-spin"/>:<Sparkles className="mr-2 h-4 w-4"/>}Prepara la prova</Button>{prepare.isError && <p role="alert" className="text-xs text-destructive">La preparazione non è riuscita. Riprova più tardi; la bozza rimane salvata.</p>}</div>}{tested && <p className="flex items-center gap-2 text-sm text-emerald-800"><CheckCircle2 className="h-4 w-4"/>Collegamento vocale verificato.</p>}</>}
+      {step===4 && agentId && <FishNumberConnectionRequest companyId={companyId!} agentId={agentId}/>}
+      {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
+    </div>
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-muted/10 px-6 py-4"><div>{step===0?onChangeType && <Button variant="ghost" onClick={onChangeType}>Altri tipi di agente</Button>:<Button variant="ghost" disabled={busy} onClick={()=>{if(agentId && step===3)onSuccess(agentId);else{setError("");setStep(value=>value-1);}}}><ArrowLeft className="mr-2 h-4 w-4"/>{agentId && step===3?"Apri impostazioni":"Indietro"}</Button>}</div>{step===4?<Button onClick={()=>onSuccess(agentId!)}>Apri il mio assistente<Check className="ml-2 h-4 w-4"/></Button>:<Button disabled={busy || !canManage || !companyId} onClick={next}>{busy?<><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Creo l’assistente…</>:step===2?"Crea e prova":step===3?<><Phone className="mr-2 h-4 w-4"/>Collega il numero</>:<>Continua<ArrowRight className="ml-2 h-4 w-4"/></>}</Button>}</div>
+  </DialogContent></Dialog>;
+}

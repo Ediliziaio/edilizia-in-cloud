@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -58,6 +58,7 @@ export function AiCallButton({
   const setOpen = onAperto ?? setApertoQui;
   const [agentId, setAgentId] = useState("");
   const [calling, setCalling] = useState(false);
+  const attempt = useRef<{ target: string; key: string } | null>(null);
 
   const { data: agents = [], isLoading } = useQuery({
     queryKey: ["voice-agents-for-call", companyId],
@@ -85,6 +86,10 @@ export function AiCallButton({
     setCalling(true);
     try {
       const body: Record<string, unknown> = { agent_id: agentId };
+      const target = JSON.stringify([companyId, agentId, contactId, phone]);
+      if (attempt.current?.target !== target) attempt.current = { target, key: crypto.randomUUID() };
+      body.idempotency_key = attempt.current.key;
+      body.company_id = companyId;
       if (contactId) body.contact_id = contactId;
       else if (phone) body.phone_number = phone;
       // Pre-check crediti: check-credits-before-call esisteva ma nessuno la
@@ -104,6 +109,7 @@ export function AiCallButton({
       if (error) throw error;
       if ((data as { error?: string })?.error) throw new Error((data as { error?: string }).error);
       toast.success((data as { message?: string })?.message || "Chiamata AI avviata");
+      attempt.current = null;
       setOpen(false);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Errore nell'avvio della chiamata");
