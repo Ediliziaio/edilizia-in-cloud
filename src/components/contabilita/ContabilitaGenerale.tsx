@@ -1203,8 +1203,8 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
     return <FiscalQueryState loading={fine.isLoading} error={fine.isError} onRetry={() => void fine.refetch()} />;
   }
   const f = fine.data!;
-  const daRegistrare = (f.totale_ammortamenti > 0 && !f.ammortamenti_registrati) || (f.tfr > 0 && !f.tfr_registrato);
-  // ammortamenti_registrati è falso anche quando il registro è cambiato dopo: allora «Registra» li rifà.
+  // Anche ammortamenti da rifare (registro cambiato dopo, o sceso a zero): «Registra» li riallinea.
+  const daRegistrare = (f.totale_ammortamenti > 0 && !f.ammortamenti_registrati) || !!f.ammortamenti_da_aggiornare || (f.tfr > 0 && !f.tfr_registrato);
   return (
     <div className="space-y-4">
       <section className="space-y-2">

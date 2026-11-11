@@ -65,6 +65,8 @@ it("annulla una cessione dell'anno", async () => {
   conClient(<RegistroCespiti companyId="az" anno={2026} chiuso={false} />);
   expect(await screen.findByText(/Furgone venduto · 10\/05\/2026/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Annulla cessione" }));
+  expect(m.rpc.some((c) => c.fn === "contabilita_cespite_annulla_cessione")).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: "Sì, annulla" }));
   await waitFor(() => expect(m.rpc.some((c) => c.fn === "contabilita_cespite_annulla_cessione" && c.args.p_cespite === "ces9")).toBe(true));
 });
 

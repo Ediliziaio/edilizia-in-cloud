@@ -56,6 +56,11 @@ ha magazzino.
     plusvalenza in 20.04 o minusvalenza in 30.40; si annulla con contabilita_cespite_annulla_cessione;
   - contabilita_cespite_da_fattura: dalla riga di una fattura ricevuta (pulsante «Cespite»), la riga
     passa sul conto del bene e la fattura già registrata si storna e si rifà.
+- Correzioni della revisione (20290312110000): l'IVA indetraibile segue le righe della fattura in
+  proporzione alla loro IVA (per un cespite sta sul conto del bene, come nel costo del registro);
+  storni e riaperture il primo giorno libero se il giornale è stampato; un anno senza quota si stima
+  e lo si dice; annullare una cessione rimette il cespite com'era; il fondo iniziale è protetto anche
+  dal Controllo di gestione; ammortamenti scesi a zero si stornano; niente cespiti da note di credito.
 
 ## Fuori
 

@@ -21582,6 +21582,7 @@ export type Database = {
           is_active: boolean
           note: string | null
           prezzo_cessione: number | null
+          prima_della_cessione: Json | null
           sede_id: string | null
           sottocategoria: string | null
           updated_at: string
@@ -21611,6 +21612,7 @@ export type Database = {
           is_active?: boolean
           note?: string | null
           prezzo_cessione?: number | null
+          prima_della_cessione?: Json | null
           sede_id?: string | null
           sottocategoria?: string | null
           updated_at?: string
@@ -21640,6 +21642,7 @@ export type Database = {
           is_active?: boolean
           note?: string | null
           prezzo_cessione?: number | null
+          prima_della_cessione?: Json | null
           sede_id?: string | null
           sottocategoria?: string | null
           updated_at?: string
@@ -46128,6 +46131,114 @@ export type Database = {
             columns: ["purchase_order_id"]
             isOneToOne: false
             referencedRelation: "purchase_orders_senza_prezzi"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fattura_riconciliazioni_ai: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          decisioni: Json
+          documenti: Json
+          esiti: Json
+          fattura_id: string
+          id: string
+          impronta: string
+          modello: string
+          proposta: Json
+          revisione: number
+          rivista_da: string | null
+          rivista_il: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by: string
+          decisioni?: Json
+          documenti: Json
+          esiti: Json
+          fattura_id: string
+          id?: string
+          impronta: string
+          modello: string
+          proposta: Json
+          revisione?: number
+          rivista_da?: string | null
+          rivista_il?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          decisioni?: Json
+          documenti?: Json
+          esiti?: Json
+          fattura_id?: string
+          id?: string
+          impronta?: string
+          modello?: string
+          proposta?: Json
+          revisione?: number
+          rivista_da?: string | null
+          rivista_il?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fattura_riconciliazioni_ai_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "fattura_riconciliazioni_ai_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fattura_riconciliazioni_ai_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "fattura_riconciliazioni_ai_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "fattura_riconciliazioni_ai_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+          {
+            foreignKeyName: "fattura_riconciliazioni_ai_fattura_id_fkey"
+            columns: ["fattura_id"]
+            isOneToOne: false
+            referencedRelation: "fatture_ricevute"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fattura_riconciliazioni_ai_fattura_id_fkey"
+            columns: ["fattura_id"]
+            isOneToOne: false
+            referencedRelation: "fatture_ricevute_pagamento"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fattura_riconciliazioni_ai_fattura_id_fkey"
+            columns: ["fattura_id"]
+            isOneToOne: false
+            referencedRelation: "fatture_ricevute_periodo_iva"
             referencedColumns: ["id"]
           },
         ]
@@ -143636,6 +143747,14 @@ export type Database = {
         Returns: undefined
       }
       fattura_ricevuta_verifica: { Args: { p_id: string }; Returns: Json }
+      fattura_riconciliazione_contesto: {
+        Args: { p_documenti: Json; p_fattura: string }
+        Returns: Json
+      }
+      fattura_riconciliazione_salva: {
+        Args: { p_analisi: string; p_decisioni: Json; p_revisione: number }
+        Returns: Json
+      }
       fattura_segna_rettifica: {
         Args: { p_fattura_id: string; p_motivo: string }
         Returns: Json

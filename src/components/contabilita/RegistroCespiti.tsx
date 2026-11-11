@@ -87,6 +87,7 @@ export function leggiEsitoCessione(j: Json): EsitoCessione {
 export function RegistroCespiti({ companyId, anno, chiuso }: { companyId: string; anno: number; chiuso: boolean }) {
   const [conti, setConti] = useState<QuotaCespite | null>(null);
   const [cedi, setCedi] = useState<QuotaCespite | null>(null);
+  const [daAnnullare, setDaAnnullare] = useState<string | null>(null);
   const qc = useQueryClient();
   const piano = useContiMovimentabili(companyId);
   const codiceDi = (id: string | null) => (id ? piano.data?.find((c) => c.id === id)?.codice ?? "—" : "manca");
@@ -187,7 +188,16 @@ export function RegistroCespiti({ companyId, anno, chiuso }: { companyId: string
           {(ceduti.data ?? []).map((c) => (
             <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-1.5">
               <span>{c.descrizione} · {c.data_dismissione ? dataIt(c.data_dismissione) : ""} · {euro(Number(c.prezzo_cessione) || 0)}</span>
-              <Button size="sm" variant="ghost" disabled={chiuso || annulla.isPending} onClick={() => annulla.mutate(c.id)}>Annulla cessione</Button>
+              {daAnnullare === c.id ? (
+                <span className="flex items-center gap-1 text-xs">
+                  Storno la cessione e il cespite torna nel registro?
+                  <Button size="sm" variant="destructive" className="h-7" disabled={annulla.isPending}
+                    onClick={() => { annulla.mutate(c.id); setDaAnnullare(null); }}>Sì, annulla</Button>
+                  <Button size="sm" variant="ghost" className="h-7" onClick={() => setDaAnnullare(null)}>No</Button>
+                </span>
+              ) : (
+                <Button size="sm" variant="ghost" disabled={chiuso || annulla.isPending} onClick={() => setDaAnnullare(c.id)}>Annulla cessione</Button>
+              )}
             </div>
           ))}
         </div>
