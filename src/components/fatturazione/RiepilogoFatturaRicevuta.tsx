@@ -1,9 +1,10 @@
 import { pagamentoDaMostrare } from "@/lib/fatturazione/pagamentoFatturaRicevuta";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertTriangle, Download, FileText, Link2, Receipt, Sparkles } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Download, FileText, Link2, Receipt, Sparkles } from "lucide-react";
+import { ConfrontoFatturaDialog } from "./ConfrontoFatturaDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { Badge } from "@/components/ui/badge";
@@ -89,7 +90,7 @@ async function leggiDettaglio(fatturaId: string, companyId: string): Promise<Det
   const { data: f, error } = await db
     .from("fatture_ricevute")
     .select(
-      "id, prima_nota_id, verifica_manuale, rettifica_motivo, note_interne, pagata_il, cedente_ragione_sociale, cedente_piva, cedente_cf, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, righe, conti_righe, riepilogo_iva, stato, xml_url, xml_bytes, purchase_order_id, company_cost_id, fornitore_id, order_id_suggerito, order_match_confidenza, contratto_subappalto_id, categoria_ai, sottocategoria_ai, ai_riassunto, anomalie_rilevate, note, piano_pagamento, condizioni_pagamento, ritenuta_importo, ritenuta_aliquota, ritenuta_tipo, cassa_previdenziale, bollo_importo, trattenuta_garanzia, netto_a_pagare",
+      "id, prima_nota_id, verifica_manuale, rettifica_motivo, note_interne, pagata_il, cedente_ragione_sociale, cedente_piva, cedente_cf, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, pdf_url, pdf_storage_bucket, pdf_storage_path, righe, conti_righe, riepilogo_iva, stato, xml_url, xml_bytes, purchase_order_id, company_cost_id, fornitore_id, order_id_suggerito, order_match_confidenza, contratto_subappalto_id, sal_subappaltatore_id, categoria_ai, sottocategoria_ai, ai_riassunto, anomalie_rilevate, note, piano_pagamento, condizioni_pagamento, ritenuta_importo, ritenuta_aliquota, ritenuta_tipo, cassa_previdenziale, bollo_importo, trattenuta_garanzia, netto_a_pagare",
     )
     .eq("id", fatturaId)
     .eq("company_id", companyId)
@@ -176,32 +177,39 @@ async function leggiDettaglio(fatturaId: string, companyId: string): Promise<Det
   };
 }
 
-export function riepilogoQueryKey(fatturaId: string | null) {
-  return ["fattura-ricevuta-riepilogo", fatturaId] as const;
+export function riepilogoQueryKey(fatturaId: string | null, companyId?: string | null) {
+  return ["fattura-ricevuta-riepilogo", companyId, fatturaId] as const;
 }
 
-export function RiepilogoFatturaRicevuta({
-  fatturaId,
-  companyId,
-  onClose,
-  azioni = {},
-}: {
+interface PropsRiepilogo {
   fatturaId: string | null;
   companyId: string | null | undefined;
   onClose: () => void;
   azioni?: AzioniRiepilogo;
-}) {
+}
+
+export function RiepilogoFatturaRicevuta(props: PropsRiepilogo) {
+  return <ContenutoRiepilogo key={`${props.companyId}-${props.fatturaId}`} {...props} />;
+}
+
+function ContenutoRiepilogo({
+  fatturaId,
+  companyId,
+  onClose,
+  azioni = {},
+}: PropsRiepilogo) {
   const isMobile = useIsMobile();
   // In mezzo allo schermo come gli altri documenti; da telefono resta il foglio dal basso.
   const Radice = isMobile ? Sheet : Dialog;
   const Contenuto = (isMobile ? SheetContent : DialogContent) as typeof DialogContent;
   const { data: d, isLoading, error } = useQuery({
-    queryKey: riepilogoQueryKey(fatturaId),
+    queryKey: riepilogoQueryKey(fatturaId, companyId),
     enabled: !!fatturaId && !!companyId,
     queryFn: () => leggiDettaglio(fatturaId!, companyId!),
   });
 
   const permessi = usePermissions();
+  const [confronto, setConfronto] = useState(false);
   const [pagamenti, setPagamenti] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const aggiorna = () => {
@@ -251,7 +259,6 @@ export function RiepilogoFatturaRicevuta({
   // La commessa senza ordine d'acquisto: commessa_collega_fattura_ricevuta (la stessa
   // della scheda commessa) contabilizza se serve e porta il costo sulla commessa.
   const [scegliCommessa, setScegliCommessa] = useState(false);
-  useEffect(() => setScegliCommessa(false), [fatturaId]);
   const collegaCommessa = useMutation({
     mutationFn: async (orderId: string) => {
       const { data, error } = await (supabase as any).rpc("commessa_collega_fattura_ricevuta", { p_fattura_id: fatturaId, p_order_id: orderId });
@@ -301,7 +308,8 @@ export function RiepilogoFatturaRicevuta({
   return (
     <>
     {pagamenti && <ExpensePaymentDialog key={pagamenti} costId={pagamenti} onClose={() => { setPagamenti(null); aggiorna(); }} />}
-    <Radice open={!!fatturaId} onOpenChange={(o) => { if (!o) onClose(); }}>
+    {confronto && f && companyId && <ConfrontoFatturaDialog key={`${companyId}-${fatturaId}`} fattura={f} companyId={companyId} ordineIds={d.ordini.map((o) => o.id)} puoModificare={!!permessi.canViewCosts && !permessi.solaLettura} onClose={() => setConfronto(false)} onVersioneCompleta={azioni.onVersioneCompleta} />}
+    <Radice open={!!fatturaId && !confronto} onOpenChange={(o) => { if (!o) onClose(); }}>
       <Contenuto
         {...(isMobile ? { side: "bottom" as const } : { onOpenAutoFocus: (e: Event) => e.preventDefault() })}
         className={`${isMobile ? "max-h-[90dvh] overflow-y-auto rounded-t-2xl px-4 pb-6" : "block max-h-[92dvh] max-w-3xl overflow-y-auto"} [&_dl_a]:min-h-0 [&_dl_a]:min-w-0`}
@@ -327,6 +335,8 @@ export function RiepilogoFatturaRicevuta({
                 {f.data_ricezione_sdi ? ` · arrivata dallo SDI il ${formatDateShort(String(f.data_ricezione_sdi))}` : ""}
               </SheetDescription>
             </SheetHeader>
+
+            {permessi.canViewCosts && <Button variant="outline" className="w-full justify-start border-blue-200 bg-blue-50/50 text-blue-900 hover:bg-blue-50" onClick={() => setConfronto(true)}><ArrowLeftRight className="mr-2 h-4 w-4" />Confronta con DDT e ordini</Button>}
 
             {/* Fornitore: senza dati non resta un riquadro vuoto. */}
             {(f.cedente_piva || f.cedente_cf || indirizzo || f.ai_riassunto || f.categoria_ai) ? (
@@ -469,7 +479,7 @@ export function RiepilogoFatturaRicevuta({
                 </dd>
 
                 {permessi.canViewCosts && (
-                  <CollegamentiFattura fatturaId={String(f.id)} companyId={companyId} puoModificare={!permessi.solaLettura}
+                  <CollegamentiFattura fatturaId={String(f.id)} companyId={companyId} puoModificare={!permessi.solaLettura} fornitoreId={d.fornitore?.id}
                     numeroContratto={d.subappalto?.numero_contratto} contrattoId={f.contratto_subappalto_id ? String(f.contratto_subappalto_id) : null}
                     salId={f.sal_subappaltatore_id ? String(f.sal_subappaltatore_id) : null} cedentePiva={f.cedente_piva ? String(f.cedente_piva) : null}
                     notaDiCredito={isNotaCreditoRicevuta(String(f.tipo_documento ?? ""))}
