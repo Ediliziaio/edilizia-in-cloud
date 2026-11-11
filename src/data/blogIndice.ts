@@ -623,6 +623,13 @@ export const blogIndice: BlogPostScheda[] = [
   {
     "id": "oct-2026-squadre",
     "slug": "gestione-squadre-cantiere",
+    "video": {
+      "youtubeId": "WQ8tMo-TjHk",
+      "duration": "PT3M33S",
+      "uploadedAt": "2026-11-11T09:45:33+01:00",
+      "title": "Alle 7:30 ti chiamano tutti: oggi dove andiamo?",
+      "poster": "/images/marketing/guide/03-squadre-cantieri.webp"
+    },
     "title": "Gestione Squadre di Cantiere: Chi Va Dove, Ogni Mattina",
     "excerpt": "Come pianificare le squadre di cantiere: chi va dove ogni mattina, il piano settimanale, subappaltatori sullo stesso piano, presenze e numeri da guardare.",
     "category": "Gestione Cantieri",
@@ -689,6 +696,13 @@ export const blogIndice: BlogPostScheda[] = [
   {
     "id": "5",
     "slug": "analisi-margini-imprese-edili",
+    "video": {
+      "youtubeId": "qLWboBNo24w",
+      "duration": "PT4M27S",
+      "uploadedAt": "2026-11-11T09:40:33+01:00",
+      "title": "Quanto guadagni davvero su un cantiere?",
+      "poster": "/images/marketing/guide/00-margine-cantiere.webp"
+    },
     "title": "Analisi dei Margini per Imprese Edili",
     "excerpt": "Il 68% delle imprese edili non conosce i margini reali per commessa. Come calcolarli, monitorarli in tempo reale e difenderli cantiere per cantiere.",
     "category": "Finanza",
@@ -963,6 +977,13 @@ export const blogIndice: BlogPostScheda[] = [
   {
     "id": "18",
     "slug": "gestione-operai-cantiere-presenze-ore",
+    "video": {
+      "youtubeId": "WSyvIxBP8Vc",
+      "duration": "PT3M43S",
+      "uploadedAt": "2026-11-11T09:41:48+01:00",
+      "title": "Quanto costa davvero un’ora del tuo operaio?",
+      "poster": "/images/marketing/guide/01-costo-orario.webp"
+    },
     "title": "Gestione Operai in Cantiere: Presenze, Ore e Paghe nel 2026",
     "excerpt": "Come gestire le presenze degli operai edili, tracciare le ore per cantiere, collegare le ore alle buste paga e rispettare il CCNL edilizia.",
     "category": "HR & Personale",
@@ -1468,6 +1489,13 @@ export const blogIndice: BlogPostScheda[] = [
   {
     "id": "39",
     "slug": "preventivi-edili-non-si-chiudono",
+    "video": {
+      "youtubeId": "M_Y1KmGh5w8",
+      "duration": "PT3M30S",
+      "uploadedAt": "2026-11-11T09:45:14+01:00",
+      "title": "Ti chiede il 10% di sconto. Quanto margine regali?",
+      "poster": "/images/marketing/guide/02-sconto-margine.webp"
+    },
     "title": "Perché i Preventivi Edili Non Si Chiudono",
     "excerpt": "Fai sopralluoghi, calcoli, invii preventivi e poi il cliente sparisce? Il problema spesso non è il prezzo, ma processo, valore e follow-up.",
     "category": "Commerciale",
@@ -1583,6 +1611,13 @@ export const blogIndice: BlogPostScheda[] = [
   {
     "id": "46",
     "slug": "crm-edilizia-gestire-lead-preventivi-follow-up",
+    "video": {
+      "youtubeId": "78fLWl_57mI",
+      "duration": "PT3M50S",
+      "uploadedAt": "2026-11-11T09:45:33+01:00",
+      "title": "Sopralluogo, preventivo… poi il cliente sparisce",
+      "poster": "/images/marketing/guide/04-cliente-sparisce.webp"
+    },
     "title": "CRM per Edilizia: Gestire Lead, Preventivi e Follow-up",
     "excerpt": "Un CRM per edilizia serve a non perdere contatti, sopralluoghi e preventivi. Ecco il flusso che ogni impresa edile dovrebbe avere.",
     "category": "Commerciale",
