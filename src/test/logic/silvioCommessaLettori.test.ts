@@ -301,8 +301,9 @@ describe("lettore del computo", () => {
     ]);
   });
 
-  // 11/11/2026: col saldo che prende «il resto», una rata a misura (che vale 0) gli regalava la quota dei SAL.
-  it("con una rata a misura il saldo resta la sua percentuale, non il resto", () => {
+  // 11/11/2026: col saldo che prende «il resto», la rata a misura gli regalava la quota dei SAL.
+  // La rata a misura nasce con la previsione (la quota che le toccherebbe), marcata come tale.
+  it("con una rata a misura il saldo resta la sua percentuale, e il SAL prende la previsione", () => {
     const bozza = bozzaComputo();
     const fr = frammentoDaComputo({ bozza: { ...bozza, pianoPagamenti: { ...bozza.pianoPagamenti, rate: [
       { ...bozza.pianoPagamenti.rate[0], percentuale: "20" },
@@ -310,7 +311,9 @@ describe("lettore del computo", () => {
       { ...bozza.pianoPagamenti.rate[2], percentuale: "30" },
     ] } }, id: "c-1", listino: [] });
     const rate = val<RataDelPiano[]>(fr, "pagamenti.rate")!;
-    expect(rate.map(r => r.amount)).toEqual([1540, 0, 2310]);
+    expect(rate.map(r => r.amount)).toEqual([1540, 3850, 2310]);
+    // Le tre rate fanno il totale: la previsione del SAL è la metà che resta fra acconto e saldo.
+    expect(rate.reduce((s, r) => s + r.amount, 0)).toBe(7700);
   });
 
   it("costi previsti per fase: dal costo stimato e, se manca, dal listino col codice", () => {

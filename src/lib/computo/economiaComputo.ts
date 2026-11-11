@@ -84,8 +84,12 @@ export function numeroSal(rate: readonly Rata[], r: Rata): number {
   return rate.filter(x => MOMENTI_SAL.includes(x.evento)).indexOf(r) + 1 || 1;
 }
 
-/** Il giorno di cantiere in cui l'impresa INCASSA la rata (0 = prima di iniziare). */
-export function giornoIncasso(r: Rata, durata: number, fasi: { nome: string; inizio: number; durata: number }[] = []): number {
+/**
+ * Il giorno di cantiere in cui l'impresa INCASSA la rata (0 = prima di iniziare).
+ * `salTotali` serve a spalmare i SAL numerati lungo il cantiere: senza, undici SAL mensili
+ * cadevano tutti a metà lavori e il flusso di cassa diventava una favola.
+ */
+export function giornoIncasso(r: Rata, durata: number, fasi: { nome: string; inizio: number; durata: number }[] = [], salTotali = 0): number {
   const fine = durata || 1;
   let base: number;
   switch (r.evento) {
@@ -97,7 +101,13 @@ export function giornoIncasso(r: Rata, durata: number, fasi: { nome: string; ini
       base = scelte.length ? Math.min(fine, Math.max(...scelte.map(f => f.inizio + f.durata - 1))) : Math.ceil(fine / 2);
       break;
     }
-    case "sal_numero": base = r.giorno != null ? Math.min(fine, r.giorno) : Math.ceil(fine / 2); break;
+    case "sal_numero": {
+      if (r.giorno != null) { base = Math.min(fine, r.giorno); break; }
+      // Il SAL n di N si colloca a n/(N+1) del cantiere: l'ultimo resta prima della fine lavori.
+      const n = r.numero ?? 1;
+      base = salTotali > 0 ? Math.max(1, Math.min(fine, Math.round(fine * n / (salTotali + 1)))) : Math.ceil(fine / 2);
+      break;
+    }
     default: base = fine; // fine_lavori, collaudo
   }
   // I giorni di pagamento sono solari: circa 5 lavorativi ogni 7. Il «fine mese» qui non si stima.
@@ -134,6 +144,12 @@ export type RataCalcolata = {
   importoNetto: number;
   /** Quota trattenuta a garanzia su questa rata, e quello che resta davvero in cassa. */
   trattenuta: number;
+  /**
+   * Per una rata a misura: quanto le toccherebbe se l'avanzamento fosse regolare, IVA inclusa.
+   * È una previsione, non un importo del contratto: serve alla cassa e alla commessa, mai al PDF
+   * come cifra da pagare.
+   */
+  stima: number | null;
   giorno: number;
 };
 
@@ -185,6 +201,7 @@ export function analizzaEconomia(bozza: BozzaComputo): AnalisiEconomia {
   // Difensivo: una bozza composta a mano (test, vecchi salvataggi) può non avere la ritenuta.
   const ritenutaPiano: RitenutaGaranzia = bozza.pianoPagamenti.ritenuta ?? { percentuale: "", su: "sal", svincolo: "collaudo", mesi: 12 };
   const ritenutaPerc = perc(ritenutaPiano.percentuale) ?? 0;
+  const quantiSal = pianoRate.filter(r => r.evento === "sal_numero").length;
   // Dove si trattiene la ritenuta: su tutte le rate, o solo su quelle a SAL. Una regola sola, scritta qui.
   const siTrattiene = (r: Rata) => ritenutaPerc > 0 && (ritenutaPiano.su === "tutte" || MOMENTI_SAL.includes(r.evento));
   const rate: RataCalcolata[] = pianoRate.map(r => {
@@ -193,7 +210,9 @@ export function analizzaEconomia(bozza: BozzaComputo): AnalisiEconomia {
     const importo = p == null || totaleCliente == null ? null : arrotondaDecimale(totaleCliente * p / 100);
     const importoNetto = p == null ? 0 : arrotondaDecimale(netto * p / 100);
     const trattenuta = siTrattiene(r) ? arrotondaDecimale(importoNetto * ritenutaPerc / 100) : 0;
-    return { rata: r, percentuale: p, importo, importoNetto, trattenuta, giorno: giornoIncasso(r, durata, fasi) };
+    const calcolata: RataCalcolata = { rata: r, percentuale: p, importo, importoNetto, trattenuta, stima: null,
+      giorno: giornoIncasso(r, durata, fasi, quantiSal) };
+    return calcolata;
   });
   const sommaPercentuali = arrotondaDecimale(rate.reduce((s, r) => s + (r.percentuale ?? 0), 0), 2);
   const aMisura = rate.filter(r => r.rata.base === "avanzamento");
@@ -216,6 +235,9 @@ export function analizzaEconomia(bozza: BozzaComputo): AnalisiEconomia {
 
   // La quota lasciata ai SAL si divide fra le rate a misura: su quelle si trattiene come sulle altre.
   const quotaPerAMisura = aMisura.length ? arrotondaDecimale(netto * quotaAMisura / 100 / aMisura.length) : 0;
+  // La stessa quota su quello che paga il cliente: è la previsione con cui la rata nasce in commessa.
+  const stimaCliente = aMisura.length && totaleCliente != null ? arrotondaDecimale(totaleCliente * quotaAMisura / 100 / aMisura.length) : null;
+  for (const r of aMisura) r.stima = stimaCliente;
   const trattenutaAMisura = aMisura.reduce((t, r) => t + (siTrattiene(r.rata) ? quotaPerAMisura * ritenutaPerc / 100 : 0), 0);
   const trattenutoTotale = arrotondaDecimale(rate.reduce((t, r) => t + r.trattenuta, 0) + trattenutaAMisura);
   const giornoSvincolo = ritenutaPiano.svincolo === "mesi"

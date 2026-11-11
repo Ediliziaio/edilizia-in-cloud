@@ -216,7 +216,9 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
       // Le rate come le riceve la commessa: col momento vero del cantiere, non più tutte «acconto».
       rateCommessa: a.rate.map(r => ({
         descrizione: r.rata.descrizione.trim() || "Rata",
-        percentuale: r.percentuale, importo: r.importo, aMisura: r.rata.base === "avanzamento",
+        // Una rata a misura nasce con la previsione, marcata come tale: a zero il previsionale di
+        // cassa della commessa non vedrebbe la parte più grossa del contratto.
+        percentuale: r.percentuale, importo: r.importo ?? r.stima, aMisura: r.rata.base === "avanzamento",
         ...eventoPerCommessa(r.rata, rate),
       })),
     };

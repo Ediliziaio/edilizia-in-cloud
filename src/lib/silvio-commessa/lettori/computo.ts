@@ -121,7 +121,7 @@ export function frammentoDaComputo(dati: DatiComputo): Frammento {
     // che sarebbe la quota dei SAL (11/11/2026). Il resto si assorbe solo quando le rate sono tutte fisse.
     const conAMisura = economia.rate.some(x => x.rata.base === "avanzamento");
     const rate = economia.rate.map((r, i): RataDelPiano => {
-      const amount = r.rata.base === "avanzamento" ? 0
+      const amount = r.rata.base === "avanzamento" ? (r.stima ?? 0)
         : !conAMisura && i === economia.rate.length - 1
           ? tondo(totale - economia.rate.slice(0, -1).reduce((s, x) => s + tondo((totale * (x.percentuale ?? 0)) / 100), 0))
           : tondo((totale * (r.percentuale ?? 0)) / 100);

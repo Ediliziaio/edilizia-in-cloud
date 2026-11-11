@@ -85,6 +85,13 @@ describe("piano dei pagamenti e cassa", () => {
     expect(a.sommaPercentuali).toBe(40);
     expect(a.quotaAMisura).toBe(60);
     expect(a.rate[1].importo).toBeNull();
+    // La previsione esiste (serve alla cassa e alla commessa), ma non è un importo del contratto.
+    // Senza IVA decisa non c'è totale cliente, quindi nemmeno previsione.
+    expect(a.rate[1].stima).toBeNull();
+    expect(analizzaEconomia({ ...b, ivaModalita: "non-applicabile" as const }).rate[1].stima).toBe(1200); // il 60% di 4.000 sui due SAL
+    // I SAL si spalmano sul cantiere invece di cadere tutti a metà lavori.
+    expect(analizzaEconomia({ ...b, cronoprogramma: { dataInizio: "", nota: "", fasi: [{ id: "1", nome: "Scavi", inizio: 1, durata: 30, nota: "" }] } })
+      .rate.map(r => r.giorno)).toEqual([0, 10, 20, 30]);
     // La ritenuta del 5% si trattiene sui SAL: il 60% di 4.000 euro di lavori.
     expect(a.ritenuta?.totale).toBe(120);
   });
