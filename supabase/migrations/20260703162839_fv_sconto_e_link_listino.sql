@@ -7,6 +7,8 @@
 -- Sconto sul preventivo: tipo ('pct' | 'importo') + valore inserito dal venditore.
 -- sconto_eur_applicato è l'importo effettivamente applicato dall'edge dopo il
 -- clamp server-side sulle discount_rules (audit di cosa è stato concesso).
+-- Repeated by 20270703190000 once FV and the article catalogue exist.
+DO $history$ BEGIN IF to_regclass('public.fv_progetti') IS NOT NULL AND to_regclass('public.articoli_native') IS NOT NULL THEN
 ALTER TABLE public.fv_progetti
   ADD COLUMN IF NOT EXISTS sconto_tipo text CHECK (sconto_tipo IN ('pct','importo')),
   ADD COLUMN IF NOT EXISTS sconto_valore numeric,
@@ -20,3 +22,5 @@ ALTER TABLE public.articoli_native
 CREATE INDEX IF NOT EXISTS idx_articoli_native_listino_family
   ON public.articoli_native (company_id, listino_family_id)
   WHERE listino_family_id IS NOT NULL;
+
+END IF; END $history$;

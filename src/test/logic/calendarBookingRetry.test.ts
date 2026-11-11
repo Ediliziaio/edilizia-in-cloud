@@ -10,3 +10,13 @@ it('reaches the atomic retry even when its original slot is occupied and preserv
  expect(rpc).toHaveBeenCalledWith('reserve_calendar_booking',expect.objectContaining({p_fine:'24:00:00',p_riga:expect.objectContaining({request_key:'queue:stable'})}));
  expect(mirror).not.toHaveBeenCalled();
 });
+for (const [link, provider, expected] of [["https://meet.example.test/fisso","google_meet","manual"],[null,"google_meet","google_meet"],[null,null,"none"]] as const) {
+ it(`respects the selected calendar meeting configuration: ${expected}`,async()=>{
+  mirror.mockClear();
+  const rpc=vi.fn(async()=>({data:{id:'new-appointment',duplicate:false},error:null as unknown}));
+  const q:any=new Proxy({},{get:(_,method)=>method==='then'?(resolve:any)=>Promise.resolve({data:{id:'calendar',company_id:'company',duration_minutes:30,owner_id:'seller',assigned_to:'seller',default_meeting_provider:provider,link_videochiamata:link},error:null}).then(resolve):()=>q});
+  await prenotaSuCalendario({rpc,from:()=>q},{calendarId:'calendar',companyId:'company',dataIso:'2026-12-01',ora:'10:00',contactId:null,opportunityId:null,titolo:'Prova',descrizione:''});
+  expect(rpc).toHaveBeenCalledWith('reserve_calendar_booking',expect.objectContaining({p_riga:expect.objectContaining({meeting_provider:expected,meeting_url:link})}));
+  expect(mirror).toHaveBeenCalledTimes(1);
+ });
+}

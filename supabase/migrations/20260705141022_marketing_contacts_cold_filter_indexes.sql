@@ -3,6 +3,8 @@
 -- per riallineare la cartella del repo alla storia reale del database.
 
 -- Indici per filtrare il DB freddo (segmentazione outreach) sulla company scoped
+-- The ordered cold-filter migration repeats these indexes after contact enrichment.
+DO $history$ BEGIN IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='marketing_contacts' AND column_name='fatturato') THEN
 create index if not exists idx_mc_tags_gin on public.marketing_contacts using gin (tags);
 create index if not exists idx_mc_company_province on public.marketing_contacts (company_id, province);
 create index if not exists idx_mc_company_region on public.marketing_contacts (company_id, region);
@@ -10,3 +12,5 @@ create index if not exists idx_mc_company_fatturato on public.marketing_contacts
 create index if not exists idx_mc_company_dipendenti on public.marketing_contacts (company_id, dipendenti);
 create index if not exists idx_mc_company_ateco on public.marketing_contacts (company_id, ateco_code);
 create index if not exists idx_mc_vat on public.marketing_contacts (vat_number) where vat_number is not null;
+
+END IF; END $history$;

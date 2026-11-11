@@ -1,3 +1,6 @@
+-- The unified ai_usage_log VIEW already supersedes this legacy table contract.
+-- Preserve that view; never try to attach table-only RLS/indexes to it.
+DO $history$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_class WHERE oid=to_regclass('public.ai_usage_log') AND relkind IN ('v','m')) THEN
 -- Migration: ai_usage_log table for Module 6 AI Usage Monitor
 -- Tracks AI API consumption per company for cost monitoring
 
@@ -16,6 +19,7 @@ CREATE TABLE IF NOT EXISTS public.ai_usage_log (
 
 ALTER TABLE public.ai_usage_log ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "super_admin_view_ai_usage" ON public.ai_usage_log;
 CREATE POLICY "super_admin_view_ai_usage"
   ON public.ai_usage_log
   FOR ALL
@@ -31,3 +35,5 @@ CREATE INDEX IF NOT EXISTS ai_usage_log_created_at_idx
 
 CREATE INDEX IF NOT EXISTS ai_usage_log_provider_idx
   ON public.ai_usage_log (provider, created_at DESC);
+
+END IF; END $history$;

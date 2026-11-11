@@ -1,3 +1,5 @@
+-- Fresh replay dependency guard; identical ordered implementation: 20260716130000_render_bagno_claim_sweep.sql
+DO $deferred_history_0$ BEGIN IF to_regclass('public.render_bagno_sessions') IS NOT NULL THEN
 -- Applicata direttamente in produzione dal pannello Supabase e ricostruita
 -- qui dal registro migrazioni (supabase_migrations.schema_migrations),
 -- per riallineare la cartella del repo alla storia reale del database.
@@ -162,3 +164,5 @@ END;
 $$;
 
 REVOKE EXECUTE ON FUNCTION public.sweep_stuck_render_sessions() FROM public, anon, authenticated;
+
+END IF; END $deferred_history_0$;

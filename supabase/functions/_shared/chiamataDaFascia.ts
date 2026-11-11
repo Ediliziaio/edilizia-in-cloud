@@ -120,8 +120,8 @@ export async function fissaChiamataDaFascia(admin: any, opz: {
     const available=await slotLiberiCalendario(admin,cal.id,giorno,{companyId:opz.companyId,adesso});
     for(const ora of available.slot.filter(t=>minuti(t)>=cerca.da&&minuti(t)+durata<=cerca.a)){
       const booked=await prenotaSuCalendario(admin,{calendarId:cal.id,companyId:opz.companyId,dataIso:giorno,ora,contactId:opz.contactId,opportunityId:null,titolo:opz.titolo?.trim()||"Richiamo",descrizione:`Fascia scelta dal cliente: ${opz.messaggio}`,tipo:"chiamata",adesso,requestKey:opz.requestKey,remindersHandled:true});
-      if(booked.ok)return{appointmentId:booked.appointmentId,giorno,ora,giornoEsteso:dataEstesa(giorno),esistente:booked.duplicate??false};
-      if(booked.motivo!=="non_libero")throw Error(booked.messaggio);
+      if(booked.ok===true)return{appointmentId:booked.appointmentId,giorno,ora,giornoEsteso:dataEstesa(giorno),esistente:booked.duplicate??false};
+      if(booked.ok===false&&booked.motivo!=="non_libero")throw Error(booked.messaggio);
     }
     throw Error("Nessun partecipante della squadra è libero nella fascia scelta");
   }

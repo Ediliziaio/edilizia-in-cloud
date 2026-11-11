@@ -60,14 +60,18 @@ GRANT EXECUTE ON FUNCTION public.claim_render_bagno_session(uuid, integer) TO se
 
 CREATE OR REPLACE FUNCTION public.release_render_bagno_session(_session_id uuid)
 RETURNS boolean
-LANGUAGE sql
+LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE released boolean;
+BEGIN
   UPDATE render_bagno_sessions
   SET stato = 'analysis_done', processing_started_at = NULL
   WHERE id = _session_id AND stato = 'processing'
-  RETURNING true;
+  RETURNING true INTO released;
+  RETURN released;
+END;
 $$;
 
 REVOKE EXECUTE ON FUNCTION public.release_render_bagno_session(uuid) FROM public, anon, authenticated;

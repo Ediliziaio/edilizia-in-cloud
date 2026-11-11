@@ -75,7 +75,9 @@ comment on table public.demo_scenario_eventi is
 -- create function public.demo_scenario_applica(p_company_id uuid, p_fino_a date default current_date)
 --   returns table(applicati int, falliti int, saltati int) ...
 
-revoke all on function public.demo_scenario_applica(uuid, date) from public, anon, authenticated;
+DO $$ BEGIN IF to_regprocedure('public.demo_scenario_applica(uuid,date)') IS NOT NULL THEN
+ revoke all on function public.demo_scenario_applica(uuid, date) from public, anon, authenticated;
+END IF; END $$;
 
 -- ─── La sveglia ──────────────────────────────────────────────────────────────
 -- select cron.schedule('demo-scenario-vetrina-daily', '15 4 * * *',

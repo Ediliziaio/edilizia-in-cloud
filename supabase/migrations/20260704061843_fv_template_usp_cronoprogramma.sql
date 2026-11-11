@@ -1,3 +1,5 @@
+-- Fresh replay dependency guard; identical ordered implementation: 20271208000000_fv_template_usp_cronoprogramma.sql
+DO $deferred_history_0$ BEGIN IF to_regclass('public.fv_template_pdf') IS NOT NULL THEN
 -- Applicata direttamente in produzione dal pannello Supabase e ricostruita
 -- qui dal registro migrazioni (supabase_migrations.schema_migrations),
 -- per riallineare la cartella del repo alla storia reale del database.
@@ -9,3 +11,5 @@
 ALTER TABLE public.fv_template_pdf
   ADD COLUMN IF NOT EXISTS usp jsonb,
   ADD COLUMN IF NOT EXISTS cronoprogramma jsonb;
+
+END IF; END $deferred_history_0$;

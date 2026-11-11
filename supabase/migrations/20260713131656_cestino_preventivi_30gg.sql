@@ -9,15 +9,15 @@
 -- fv_progetti veniva rifiutato dalle FK NO ACTION (fv_eventi, revisioni
 -- figlie) — il purge le gestisce esplicitamente.
 
-alter table public.sr_progetti  add column if not exists deleted_at timestamptz;
-alter table public.fv_progetti  add column if not exists deleted_at timestamptz;
-alter table public.rst_progetti add column if not exists deleted_at timestamptz;
-alter table public.bgn_progetti add column if not exists deleted_at timestamptz;
-alter table public.tet_progetti add column if not exists deleted_at timestamptz;
-alter table public.clm_progetti add column if not exists deleted_at timestamptz;
-alter table public.ele_progetti add column if not exists deleted_at timestamptz;
-alter table public.idr_progetti add column if not exists deleted_at timestamptz;
-alter table public.pis_progetti add column if not exists deleted_at timestamptz;
+alter table if exists public.sr_progetti  add column if not exists deleted_at timestamptz;
+alter table if exists public.fv_progetti  add column if not exists deleted_at timestamptz;
+alter table if exists public.rst_progetti add column if not exists deleted_at timestamptz;
+alter table if exists public.bgn_progetti add column if not exists deleted_at timestamptz;
+alter table if exists public.tet_progetti add column if not exists deleted_at timestamptz;
+alter table if exists public.clm_progetti add column if not exists deleted_at timestamptz;
+alter table if exists public.ele_progetti add column if not exists deleted_at timestamptz;
+alter table if exists public.idr_progetti add column if not exists deleted_at timestamptz;
+alter table if exists public.pis_progetti add column if not exists deleted_at timestamptz;
 
 create or replace function public.purge_cestino_preventivi()
 returns void

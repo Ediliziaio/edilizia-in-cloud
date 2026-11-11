@@ -30,6 +30,8 @@ export interface CalendarioBase {
   name: string;
   owner_id: string | null;
   duration_minutes: number;
+  default_meeting_provider?: string | null;
+  link_videochiamata?: string | null;
   calendar_type?: string;
   team_calendar_ids?: string[];
   buffer_before_min: number | null;
@@ -41,7 +43,7 @@ export interface CalendarioBase {
 }
 
 const COLONNE_CALENDARIO =
-  "id, company_id, name, owner_id, duration_minutes, buffer_before_min, buffer_after_min, min_notice_minutes, max_per_day, slot_interval_min, is_active, calendar_type, team_calendar_ids";
+  "id, company_id, name, owner_id, duration_minutes, buffer_before_min, buffer_after_min, min_notice_minutes, max_per_day, slot_interval_min, is_active, calendar_type, team_calendar_ids, default_meeting_provider, link_videochiamata";
 
 async function leggiCalendario(admin: any, calendarId: string, companyId?: string): Promise<CalendarioBase | null> {
   let q = admin.from("marketing_calendars").select(COLONNE_CALENDARIO).eq("id", calendarId).eq("is_active", true);
@@ -127,6 +129,8 @@ export async function prenotaSuCalendario(admin: any, a: {
   const durata = cal.duration_minutes || 30;
   const fineMin = minutiDa(ora) + durata;
   const fine = fineMin === 1440 ? "24:00" : orarioDa(fineMin);
+  const fixedLink=cal.link_videochiamata?.trim()||null;
+  const useMeet=!fixedLink&&cal.default_meeting_provider==="google_meet";
   const { data: idCreato, error } = await admin.rpc("reserve_calendar_booking", {
     p_calendar_id: cal.id,
     p_company_id: cal.company_id,
@@ -141,7 +145,10 @@ export async function prenotaSuCalendario(admin: any, a: {
       opportunity_id: a.opportunityId,
       title: a.titolo,
       description: a.descrizione,
-      appointment_type: a.tipo ?? "agente_ai",
+      appointment_type: a.tipo ?? ((fixedLink||useMeet)?"videocall":"agente_ai"),
+      meeting_provider: fixedLink?"manual":useMeet?"google_meet":"none",
+      meeting_status: fixedLink?"ready":useMeet?"pending":"none",
+      meeting_url: fixedLink,
       assigned_to: cal.owner_id,
       manage_token: nuovoToken(),
       request_key: a.requestKey??null,

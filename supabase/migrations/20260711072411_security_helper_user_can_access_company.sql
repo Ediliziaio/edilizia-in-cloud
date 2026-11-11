@@ -7,13 +7,18 @@
 -- Unisce TUTTI i percorsi d'accesso legittimi + bypass service_role (orchestratore).
 CREATE OR REPLACE FUNCTION public.user_can_access_company(p_company_id uuid)
 RETURNS boolean
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path TO 'public'
 AS $function$
-  SELECT
-    p_company_id IS NOT NULL
+DECLARE accountant_allowed boolean := false;
+BEGIN
+  -- The accountant module is installed later on a fresh replay.
+  IF to_regprocedure('public.can_accountant_access_company(uuid,text)') IS NOT NULL THEN
+    EXECUTE 'SELECT public.can_accountant_access_company($1,NULL)' INTO accountant_allowed USING p_company_id;
+  END IF;
+  RETURN p_company_id IS NOT NULL
     AND (
       -- service_role (orchestratore Silvio / edge / cron) → sempre consentito
       COALESCE(current_setting('request.jwt.claims', true)::json ->> 'role', '') = 'service_role'
@@ -27,8 +32,10 @@ AS $function$
         WHERE mca.user_id = auth.uid() AND mca.company_id = p_company_id
       )
       -- commercialista (studio con accesso all'azienda)
-      OR public.can_accountant_access_company(p_company_id, NULL)
+      OR accountant_allowed
     );
+
+END;
 $function$;
 
 COMMENT ON FUNCTION public.user_can_access_company(uuid) IS

@@ -2,6 +2,8 @@
 -- qui dal registro migrazioni (supabase_migrations.schema_migrations),
 -- per riallineare la cartella del repo alla storia reale del database.
 
+-- Repeated after the FV module by its ordered 20271111 migration.
+DO $$ BEGIN IF to_regclass('public.articoli_native') IS NOT NULL AND to_regclass('public.bundle_voci') IS NOT NULL THEN
 ALTER TABLE public.articoli_native
   ADD COLUMN IF NOT EXISTS immagine_url text;
 
@@ -13,3 +15,5 @@ ALTER TABLE public.bundle_voci
 
 COMMENT ON COLUMN public.bundle_voci.immagine_url IS
   'Foto del prodotto della voce bundle, mostrata nella pagina kit del preventivo PDF.';
+
+END IF; END $$;
