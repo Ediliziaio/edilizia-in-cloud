@@ -458,6 +458,12 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
           </div>
         </header>
 
+        {intatta && daRiprendere.isError && (
+          <div role="alert" className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900 lg:px-6">
+            <p>Non riesco a recuperare le bozze precedenti. {messaggioErrore(daRiprendere.error)}</p>
+            <Button type="button" variant="outline" size="sm" disabled={daRiprendere.isFetching} onClick={() => void daRiprendere.refetch()}>Riprova a caricare le bozze</Button>
+          </div>
+        )}
         {ripresa && (
           <div className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm lg:px-6" role="region" aria-label="Bozza da riprendere">
             <p className="min-w-0 flex-1 text-amber-900 max-sm:basis-full">

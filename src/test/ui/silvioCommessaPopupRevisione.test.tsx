@@ -58,6 +58,7 @@ interface OpzioniDb {
   /** Il salvataggio di una bozza che c'è già. */
   update?: () => Promise<{ data: unknown; error: unknown }>;
   bozze?: unknown[];
+  erroreSelect?: { message: string } | null;
 }
 
 function dbFinto(o: OpzioniDb = {}) {
@@ -83,7 +84,7 @@ function dbFinto(o: OpzioniDb = {}) {
     for (const k of ["select", "insert", "update", "delete", "eq", "neq", "gt", "order", "limit"]) q[k] = catena(k);
     q.single = async () => ({ data: { id: "b1", stato: "bozza" }, error: null as unknown });
     q.maybeSingle = async () => (ultimo === "update" && o.update ? o.update() : { data: { id: "b1" }, error: null as unknown });
-    q.then = (ok: (r: unknown) => unknown) => Promise.resolve(ok({ data: o.bozze ?? [], error: null }));
+    q.then = (ok: (r: unknown) => unknown) => Promise.resolve(ok({ data: o.bozze ?? [], error: ultimo === "select" ? o.erroreSelect ?? null : null }));
     return q;
   };
   const storage = {
@@ -410,6 +411,15 @@ describe("P8: si tocca col dito", () => {
 });
 
 describe("P9: il telefono e le uscite", () => {
+  it("un errore nel recupero delle bozze si vede e si può riprovare", async () => {
+    const opzioni: OpzioniDb = { erroreSelect: { message: "Failed to fetch" } };
+    const { s } = servizi({}, [], opzioni);
+    apri(s, { iniziale: undefined });
+    expect(await screen.findByRole("alert")).toHaveTextContent("Non riesco a recuperare le bozze precedenti");
+    opzioni.erroreSelect = null;
+    fireEvent.click(screen.getByRole("button", { name: "Riprova a caricare le bozze" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  });
   it("il salvataggio si vede anche sul telefono", async () => {
     const { s } = servizi();
     apri(s);

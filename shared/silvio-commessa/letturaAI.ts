@@ -68,7 +68,7 @@ export const CHIAVI_LETTURA: readonly ChiaveLettura[] = [
   { chiave: "fasi.work_start_date", forma: "data", istruzione: "data d'inizio lavori, solo se il documento la scrive" },
   { chiave: "fasi.work_end_date", forma: "data", istruzione: "data di fine lavori, solo se il documento la scrive" },
   { chiave: "fasi.expected_date", forma: "data", istruzione: "data di consegna prevista, solo se il documento la scrive" },
-  { chiave: "sal_scadenze.sal", forma: "sal", istruzione: "oggetto { cadenza, importo_minimo_eur, percentuali[] } dei SAL" },
+  { chiave: "sal_scadenze.sal", forma: "sal", istruzione: "oggetto { cadenza, importo_minimo_eur, percentuali[] } SOLO se il documento prevede esplicitamente stati di avanzamento lavori (SAL). Acconto alla firma e saldo finale sono rate, non SAL: non duplicarli qui" },
   { chiave: "comunicazione.direttore_lavori", forma: "direttore_lavori", istruzione: "oggetto { dl_notification_email, dl_notification_phone } del direttore dei lavori" },
 ];
 
@@ -341,7 +341,7 @@ function pulisciTipoLavoro(v: unknown): Esito<string> {
  * (revisione 1/11, L3) si calcola sull'imponibile, ma tutte le rate restano una proposta con
  * «manca l'IVA»: prima 30 % di 100.000 imponibile diventava 30.000 «fatto» invece di 33.000.
  */
-function pulisciRate(v: unknown, totaleIvato: number | null, imponibile: number | null = null, testo = ""): Esito<RataDelPiano[]> & { senzaIva?: boolean } {
+function pulisciRate(v: unknown, totaleIvato: number | null, imponibile: number | null = null, testo: string | null = null): Esito<RataDelPiano[]> & { senzaIva?: boolean } {
   if (!Array.isArray(v)) return { ok: false, motivo: "le rate non sono un elenco" };
   const rate: RataDelPiano[] = [];
   const scartate: string[] = [];
@@ -376,7 +376,7 @@ function pulisciRate(v: unknown, totaleIvato: number | null, imponibile: number 
       ...(percent != null ? { percent } : {}),
       ...(daPercentuale ? { daPercentuale } : {}),
       trigger_evento: evento,
-      ...(scadenza && dataNelTesto(testo, scadenza) ? { expected_date: scadenza } : {}),
+      ...(scadenza && (testo == null || dataNelTesto(testo, scadenza)) ? { expected_date: scadenza } : {}),
       ...(evento === "sal_numero" && numeroSal != null && numeroSal >= 1 ? { trigger_numero: Math.round(numeroSal) } : {}),
     });
   });
@@ -812,7 +812,7 @@ function pulisci(forma: Forma, grezzo: Grezzo, amb: Ambiente): Pulito {
       return s ? semplice({ ok: true, valore: { indirizzo_lavori: s } }) : { ok: false, motivo: "indirizzo vuoto" };
     }
     case "rate": {
-      const e = pulisciRate(v, amb.totaleIvato, amb.imponibile, amb.ctx.testo ?? "");
+      const e = pulisciRate(v, amb.totaleIvato, amb.imponibile, amb.ctx.testo ?? null);
       const p = semplice(e);
       // Calcolate senza l'IVA: mai «fatto», anche con la citazione giusta.
       return p.ok && e.ok && e.senzaIva
@@ -820,7 +820,12 @@ function pulisci(forma: Forma, grezzo: Grezzo, amb: Ambiente): Pulito {
         : p;
     }
     case "fasi": return semplice(pulisciFasi(v));
-    case "sal": return semplice(pulisciSal(v));
+    case "sal": {
+      if (amb.ctx.testo && !/\bs\.?a\.?l\.?\b|stat[oi]\s+(?:di\s+)?avanzamento/i.test(amb.ctx.testo)) {
+        return { ok: false, motivo: "il documento non prevede stati di avanzamento lavori: acconto e saldo restano nelle rate" };
+      }
+      return semplice(pulisciSal(v));
+    }
     case "condizioni": return pulisciCondizioni(v, grezzo, amb);
   }
 }

@@ -266,7 +266,8 @@ function rateScritte(rate: RataDelPiano[]): RataScritta[] {
       label: (r.label ?? "").trim() || `Rata ${i + 1}`,
       type: r.type === "balance" || r.type === "financing" ? r.type : "deposit",
       amount: Math.round(Number(r.amount) * 100) / 100,
-      trigger_evento: r.trigger_evento && EVENTI_RATA.has(r.trigger_evento) ? r.trigger_evento : "data_fissa",
+      // Le rate a evento vengono ridatate dal database: una scadenza esplicita deve restare fissa.
+      trigger_evento: dataVera(r.expected_date) ? "data_fissa" : r.trigger_evento && EVENTI_RATA.has(r.trigger_evento) ? r.trigger_evento : "data_fissa",
       trigger_numero: r.trigger_numero ?? null,
       ...(typeof r.expected_date === "string" && dataVera(r.expected_date) ? { expected_date: r.expected_date } : {}),
     }));
