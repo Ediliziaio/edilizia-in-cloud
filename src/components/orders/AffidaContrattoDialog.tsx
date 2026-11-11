@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Search, Send, Sparkles } from "lucide-react";
+import { Loader2, Pencil, Search, Send, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,8 +25,9 @@ import { parseAssignmentAmount } from "@/lib/orders/assignmentAmounts";
 import { contrattoDellaDitta, periodoFasi, schedeSicurezzaDitta, type AffidamentoPerContratto, type SchedaSicurezza, type VoceLavoro } from "@/lib/orders/ditteLavori";
 import { chiaveAffidamenti, statoVoce } from "@/lib/subappaltatori/affidamentiCommessa";
 import { chiaveDescrizione } from "@/lib/subappaltatori/abbinamentoListino";
-import { contoTabella, destinoContratto, elencoUnito, righeContratto, type RigaTabella } from "@/lib/subappaltatori/affidaEContratto";
+import { contoTabella, destinoContratto, elencoUnito, prezzoDalVenduto, righeContratto, type RigaTabella } from "@/lib/subappaltatori/affidaEContratto";
 import { useAffidamentiCommessa } from "./AffidaVociDialog";
+import { useVociPrevisteFasi } from "@/hooks/useVociPrevisteFasi";
 import { OfficeSelect } from "./OfficeSelect";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -67,6 +68,12 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
   const [scelte, setScelte] = useState<Set<string>>(new Set());
   const [quantita, setQuantita] = useState<Record<string, string>>({});
   const [prezzi, setPrezzi] = useState<Record<string, string>>({});
+  // Il testo della riga nel contratto, se lo si vuole diverso da quello della voce (11/11/2026).
+  const [testi, setTesti] = useState<Record<string, string>>({});
+  const [inScrittura, setInScrittura] = useState<string | null>(null);
+  // Un prezzo per molte righe: uguale per tutte, o il nostro venduto meno una percentuale.
+  const [prezzoUnico, setPrezzoUnico] = useState("");
+  const [sconto, setSconto] = useState("");
   const [ai, setAi] = useState<ProposteAi>({});
   const chieste = useRef<Set<string>>(new Set());
   const [aiInCorso, setAiInCorso] = useState(0);
@@ -141,7 +148,21 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
 
   const quantitaDi = (v: VoceAffidabile) => (quantita[v.id] != null ? parseAssignmentAmount(quantita[v.id], 3) : residua.get(v.id) ?? 0);
   const prezzoDi = (id: string) => (prezzi[id] != null ? (prezzi[id].trim() ? parseAssignmentAmount(prezzi[id], 4) : null) : proposti.data?.get(id)?.prezzo ?? null);
-  const righe: RigaTabella[] = sceltiOrdinati.map((v) => ({ voceId: v.id, quantita: quantitaDi(v), prezzo: prezzoDi(v.id) }));
+  const righe: RigaTabella[] = sceltiOrdinati.map((v) => ({ voceId: v.id, quantita: quantitaDi(v), prezzo: prezzoDi(v.id), descrizione: testi[v.id] ?? null }));
+  /** Scrive il prezzo nelle righe scelte: solo in quelle senza prezzo, o in tutte. */
+  const applicaPrezzi = (calcola: (v: VoceAffidabile) => number | null, tutte: boolean) => {
+    const nuovi: Record<string, string> = {};
+    let fatte = 0;
+    for (const v of sceltiOrdinati) {
+      if (!tutte && prezzoDi(v.id) != null && (prezzoDi(v.id) ?? 0) > 0) continue;
+      const p = calcola(v);
+      if (p == null || !(p > 0)) continue;
+      nuovi[v.id] = casella(p);
+      fatte++;
+    }
+    setPrezzi((s) => ({ ...s, ...nuovi }));
+    toast.success(fatte ? `Prezzo scritto in ${fatte} ${fatte === 1 ? "riga" : "righe"}.` : "Nessuna riga da cambiare.");
+  };
   const conto = contoTabella(righe, voci, (id) => residua.get(id) ?? 0, comprende);
   const erroreDi = (id: string) => conto.errori.find((e) => e.voceId === id)?.motivo;
   // Un prezzo ancora da scrivere non è un errore: lo diventa solo se resta vuoto. In rosso le cose sbagliate.
@@ -271,6 +292,21 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
         {contrattoAttuale && !contrattoAttuale.firmato_il && <p className="text-xs text-muted-foreground">La ditta ha già un contratto in bozza su questa commessa: le voci scelte si aggiungono a quello.</p>}
         {contrattoAttuale?.firmato_il && <p role="alert" className="text-xs text-amber-800">La ditta ha già un contratto firmato su questa commessa: le voci in più vanno con «Variante sulle voci».</p>}
 
+        {ditta && sceltiOrdinati.length > 1 && (
+          <div className="flex flex-wrap items-center gap-2 rounded-md bg-muted/40 px-2 py-1.5 text-xs">
+            <span className="font-medium">Prezzo per più righe:</span>
+            <Input aria-label="Prezzo uguale per le righe" inputMode="decimal" placeholder="€" value={prezzoUnico} onChange={(e) => setPrezzoUnico(e.target.value)} className="h-7 w-20 text-right" />
+            <Button size="sm" variant="outline" className="h-7 px-2 text-xs" disabled={!(parseAssignmentAmount(prezzoUnico, 2) ?? 0)}
+              onClick={() => applicaPrezzi(() => parseAssignmentAmount(prezzoUnico, 2), false)}>a quelle senza prezzo</Button>
+            <span className="text-muted-foreground">oppure il nostro venduto meno</span>
+            <Input aria-label="Percentuale da togliere al venduto" inputMode="decimal" placeholder="%" value={sconto} onChange={(e) => setSconto(e.target.value)} className="h-7 w-16 text-right" />
+            <Button size="sm" variant="outline" className="h-7 px-2 text-xs" disabled={parseAssignmentAmount(sconto, 2) == null || !sconto.trim()}
+              onClick={() => applicaPrezzi((v) => prezzoDalVenduto(v, parseAssignmentAmount(sconto, 2) ?? -1), false)}>a quelle senza prezzo</Button>
+            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" disabled={parseAssignmentAmount(sconto, 2) == null || !sconto.trim()}
+              title="Sostituisce anche i prezzi già scritti o presi dal listino"
+              onClick={() => applicaPrezzi((v) => prezzoDalVenduto(v, parseAssignmentAmount(sconto, 2) ?? -1), true)}>a tutte</Button>
+          </div>
+        )}
         <div className="min-h-0 flex-1 overflow-auto rounded-md border">
           {affidamenti.isLoading ? <p className="p-3 text-sm text-muted-foreground"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" />Caricamento…</p> : (
             <table className="w-full min-w-[820px] text-sm">
@@ -305,7 +341,18 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
                       return (
                         <tr key={v.id} className={`border-t align-middle ${grave ? "bg-red-50" : ""}`}>
                           <td className="px-2 py-1"><Checkbox checked={si} aria-label={`Scegli ${v.descrizione}`} onCheckedChange={(c) => cambiaScelta([v.id], c === true)} /></td>
-                          <td className="max-w-0 px-1 py-1"><p className="truncate" title={v.descrizione}>{v.descrizione}</p></td>
+                          <td className="max-w-0 px-1 py-1">
+                            {si && inScrittura === v.id ? (
+                              <Input autoFocus aria-label={`Testo nel contratto per ${v.descrizione}`} className="h-8" value={testi[v.id] ?? v.descrizione}
+                                onChange={(e) => setTesti((t) => ({ ...t, [v.id]: e.target.value }))} onBlur={() => setInScrittura(null)}
+                                onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") setInScrittura(null); }} />
+                            ) : (
+                              <div className="flex min-w-0 items-center gap-1">
+                                <p className={`truncate ${testi[v.id] ? "text-blue-900" : ""}`} title={testi[v.id] ? `Nel contratto: ${testi[v.id]}\nNella commessa: ${v.descrizione}` : v.descrizione}>{testi[v.id] ?? v.descrizione}</p>
+                                {si && <button type="button" className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label={`Cambia il testo nel contratto di ${v.descrizione}`} title="Cambia il testo di questa riga nel contratto" onClick={() => setInScrittura(v.id)}><Pencil className="h-3 w-3" /></button>}
+                              </div>
+                            )}
+                          </td>
                           <td className="whitespace-nowrap px-1 py-1 text-right text-xs tabular-nums text-muted-foreground">{qt(residua.get(v.id) ?? 0)} {v.unita ?? ""}</td>
                           <td className="px-1 py-1">
                             {si && <Input aria-label={`Quantità di ${v.descrizione}`} inputMode="decimal" className="h-8 text-right tabular-nums"
@@ -369,3 +416,47 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
   );
 }
 
+/**
+ * Lo stesso popup aperto da «Altre azioni» in cima alla commessa (11/11/2026): legge da sé fasi, voci,
+ * contratti e schede delle ditte, che nel pannello «Ditte e contratti» arrivano già caricati.
+ */
+export function AffidaContrattoDaCommessa({ orderId, companyId, onChiudi }: { orderId: string; companyId: string; onChiudi: () => void }) {
+  const qc = useQueryClient();
+  const voci = useVociPrevisteFasi(orderId, true);
+  const dati = useQuery({
+    queryKey: ["affida-contratto-commessa", companyId, orderId],
+    queryFn: async () => {
+      const [fasi, contratti, schede] = await Promise.all([
+        db.from("order_work_phases").select("id, name, position, start_date, end_date").eq("order_id", orderId).eq("company_id", companyId).order("position"),
+        db.from("contratti_subappalto").select("id, subappaltatore_id, stato, firmato_il, elenco_lavori").eq("order_id", orderId).eq("company_id", companyId),
+        db.from("subappaltatori_sicurezza").select("id, campo_subappaltatore_id, order_id, created_at").eq("company_id", companyId).not("campo_subappaltatore_id", "is", null),
+      ]);
+      for (const r of [fasi, contratti, schede]) if (r.error) throw r.error;
+      return { fasi: fasi.data ?? [], contratti: contratti.data ?? [], schede: schede.data ?? [] };
+    },
+  });
+  if (dati.isError || voci.isError) {
+    toast.error("Non riesco a leggere fasi e voci della commessa.");
+    onChiudi();
+    return null;
+  }
+  if (!dati.data || !voci.data) {
+    return (
+      <Dialog open onOpenChange={(o) => !o && onChiudi()}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>Affida e manda il contratto</DialogTitle><DialogDescription>Carico fasi e voci della commessa…</DialogDescription></DialogHeader>
+          <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
+        </DialogContent>
+      </Dialog>
+    );
+  }
+  return (
+    <AffidaContrattoDialog orderId={orderId} companyId={companyId} fasi={dati.data.fasi} voci={voci.data as VoceAffidabile[]}
+      contratti={dati.data.contratti} schede={dati.data.schede} onChiudi={onChiudi}
+      onFatto={() => {
+        void qc.invalidateQueries({ queryKey: ["affida-contratto-commessa", companyId, orderId] });
+        void qc.invalidateQueries({ queryKey: ["ditte-contratti-commessa", companyId, orderId] });
+        void qc.invalidateQueries({ queryKey: chiaveAffidamenti(orderId) });
+      }} />
+  );
+}

@@ -658,6 +658,15 @@ export function ContrattiSubappalto({
         throw new Error(messaggio);
       }
       if (data?.request_id) await supabase.from("contratti_subappalto" as never).update({ firma_richiesta_id: data.request_id } as never).eq("id", c.id);
+      // Chi firma per la ditta si ricorda (11/11/2026): dal secondo invio nome, email e cellulare sono già scritti.
+      // Solo dove la scheda non li ha: non si sovrascrive quello che qualcuno ha scritto a mano.
+      const ricorda: Record<string, string> = {};
+      if (!sub.responsabile?.trim()) ricorda.responsabile = nome.trim();
+      if (!sub.pec?.trim() && !sub.email?.trim()) ricorda.email = email.trim();
+      if (!sub.telefono?.trim() && telefono.trim()) ricorda.telefono = telefono.trim();
+      if (Object.keys(ricorda).length) {
+        await supabase.from("subappaltatori_sicurezza" as never).update(ricorda as never).eq("id", c.subappaltatore_id).eq("company_id", companyId);
+      }
       return data as { otp_inviato?: boolean };
     },
     onSuccess: () => {
