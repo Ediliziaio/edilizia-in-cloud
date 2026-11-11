@@ -7,6 +7,13 @@ beforeEach(() => { vi.useFakeTimers(); localStorage.clear(); });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe("salvataggio automatico del preventivo classico", () => {
+  it("protegge la bozza locale entro due secondi anche scrivendo senza pause", () => {
+    const save = vi.fn();
+    const { rerender } = renderHook(({ text }) => useBoundedAutosave(text, true, () => save(text), "draft-local", 500, 2_000), { initialProps: { text: "inizio" } });
+    for (let i = 1; i <= 9; i++) { act(() => vi.advanceTimersByTime(200)); rerender({ text: `nota ${i}` }); }
+    act(() => vi.advanceTimersByTime(200));
+    expect(save).toHaveBeenCalledExactlyOnceWith("nota 9");
+  });
   it("salva l'ultimo input entro 15 secondi anche scrivendo continuamente", () => {
     const save = vi.fn();
     const { rerender } = renderHook(({ text }) => useBoundedAutosave(text, true, () => save(text), "azienda:preventivo"), { initialProps: { text: "inizio" } });

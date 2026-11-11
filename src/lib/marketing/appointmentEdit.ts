@@ -32,3 +32,20 @@ export function appointmentEditPatch(original: Fields, values: Fields): Fields {
   }
   return patch;
 }
+
+type Timing = { id: string; appointment_date: string; appointment_time?: string | null; appointment_end_time?: string | null };
+type TimingPatch = Partial<Omit<Timing, "id">>;
+/** Un rollback della data non deve ripristinare tutta la cache, né cancellare
+ * note, altri appuntamenti o un secondo spostamento avvenuto nel frattempo. */
+export function rollbackAppointmentTiming<T extends Timing>(rows: T[] | undefined, previous: T[] | undefined, id: string, optimistic: TimingPatch): T[] | undefined {
+  const old = previous?.find(row => row.id === id);
+  if (!old || !rows) return rows;
+  const keys = Object.keys(optimistic) as (keyof TimingPatch)[];
+  const normalize = (key: keyof TimingPatch, value: unknown) => key === "appointment_date" ? value : value == null ? null : String(value).slice(0, 5);
+  return rows.map(row => {
+    if (row.id !== id || keys.some(key => normalize(key, row[key]) !== normalize(key, optimistic[key]))) return row;
+    const restored = { ...row };
+    for (const key of keys) Object.assign(restored, { [key]: old[key] });
+    return restored;
+  });
+}

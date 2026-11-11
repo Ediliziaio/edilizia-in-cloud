@@ -51,6 +51,7 @@ import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archiv
 import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { usePermissions } from "@/hooks/usePermissions";
+import { rollbackAppointmentTiming } from "@/lib/marketing/appointmentEdit";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import MarketingCalendarWeekView from "@/components/marketing/MarketingCalendarWeekView";
@@ -886,19 +887,13 @@ export default function MarketingCalendar() {
     // del calendario o l'account agganciato — lo risolve la edge.
     if (googleSync.hasGoogleConnection || googleSync.hasAnyCompanyGoogleConnection) {
       tasks.push((async () => {
-        const mapping = await googleSync.checkMapping(appointmentId);
-        if (mapping) return googleSync.updateEvent(appointmentId);
-        if (googleSync.isGoogleConnected || googleSync.hasAnyCompanyGoogleConnection) return googleSync.pushEvent(appointmentId);
-        return undefined;
+        return googleSync.updateEvent(appointmentId);
       })());
     }
 
     if (appleSync.hasAppleConnection) {
       tasks.push((async () => {
-        const mapping = await appleSync.checkMapping(appointmentId);
-        if (mapping) return appleSync.updateEvent(appointmentId);
-        if (appleSync.isAppleConnected) return appleSync.pushEvent(appointmentId);
-        return undefined;
+        return appleSync.updateEvent(appointmentId);
       })());
     }
 
@@ -969,16 +964,17 @@ export default function MarketingCalendar() {
       );
     });
 
-    const { error } = await supabase
+    const { data: moved, error } = await supabase
       .from("appointments")
       .update(updateData)
       .eq("id", appointmentId)
-      .eq("company_id", companyId);
+      .eq("company_id", companyId).select("id").single();
 
-    if (error) {
+    if (error || !moved?.id) {
       // Rollback optimistic update.
-      queryClient.setQueryData(queryKey, previousData);
-      toast.error("Errore nello spostamento", { description: error.message });
+      queryClient.setQueryData(queryKey, (rows: typeof previousData) => rollbackAppointmentTiming(rows, previousData, appointmentId, updateData));
+      void refetchAppointments();
+      toast.error("Errore nello spostamento", { description: error?.message || "Appuntamento non modificabile. Ricarica e riprova." });
       return;
     }
 
@@ -989,14 +985,17 @@ export default function MarketingCalendar() {
         onClick: async () => {
           const rollback: TablesUpdate<"appointments"> = {};
           if (oldDate) rollback.appointment_date = oldDate;
-          if (oldTime) rollback.appointment_time = oldTime;
-          if (oldEndTime !== undefined) rollback.appointment_end_time = oldEndTime;
-          const { error: undoError } = await supabase
+          if (updateData.appointment_time && oldTime) rollback.appointment_time = oldTime;
+          if (updateData.appointment_end_time && oldEndTime !== undefined) rollback.appointment_end_time = oldEndTime;
+          let undoQuery = supabase
             .from("appointments")
             .update(rollback)
             .eq("id", appointmentId)
-            .eq("company_id", companyId!);
-          if (undoError) {
+            .eq("company_id", companyId!).eq("appointment_date", newDate);
+          if (updateData.appointment_time) undoQuery = undoQuery.eq("appointment_time", updateData.appointment_time);
+          if (updateData.appointment_end_time) undoQuery = undoQuery.eq("appointment_end_time", updateData.appointment_end_time);
+          const { data: undone, error: undoError } = await undoQuery.select("id").single();
+          if (undoError || !undone?.id) {
             toast.error("Errore nell'annullamento");
           } else {
             toast.info("Spostamento annullato");
@@ -1050,15 +1049,16 @@ export default function MarketingCalendar() {
       );
     });
 
-    const { error } = await supabase
+    const { data: resized, error } = await supabase
       .from("appointments")
       .update({ appointment_end_time: newEndTime })
       .eq("id", appointmentId)
-      .eq("company_id", companyId);
+      .eq("company_id", companyId).select("id").single();
 
-    if (error) {
-      queryClient.setQueryData(queryKey, previousData);
-      toast.error("Errore nel ridimensionamento", { description: error.message });
+    if (error || !resized?.id) {
+      queryClient.setQueryData(queryKey, (rows: typeof previousData) => rollbackAppointmentTiming(rows, previousData, appointmentId, { appointment_end_time: newEndTime }));
+      void refetchAppointments();
+      toast.error("Errore nel ridimensionamento", { description: error?.message || "Appuntamento non modificabile. Ricarica e riprova." });
       return;
     }
     toast.success(`Durata aggiornata fino alle ${newEndTime}`);
