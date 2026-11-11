@@ -48,6 +48,14 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("shared semantic PDF preview, including Facciate direct consumer", () => {
+  it("keeps the first page at the top on initial paint and zoom", async () => {
+    render(<PdfBlobLivePreviewPanel {...props} />);
+    await waitFor(() => expect(document.querySelector('[data-preview-state="ready"]')).not.toBeNull());
+    expect(panel().scrollTop).toBe(0);
+    fireEvent.click(screen.getByTitle("Ingrandisci"));
+    await waitFor(() => expect(canvas(1).height).toBeGreaterThan(600));
+    expect(panel().scrollTop).toBe(0);
+  });
   it("renders a registered PDF with production CSP blocking fetch(blob:) and reports ready only after paint", async () => {
     vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:production");
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});

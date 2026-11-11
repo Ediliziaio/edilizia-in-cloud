@@ -70,12 +70,12 @@ export function ProposteOrdiniDDT({
   });
   return (
     <div className={compatto?"space-y-2":"space-y-3 rounded-xl border border-violet-100 bg-violet-50/30 p-3"}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
+      <div className={`flex items-center justify-between gap-2 ${compatto ? "flex-nowrap" : "flex-wrap"}`}>
+        <div className="min-w-0" title="L’AI confronta gli articoli; le quantità e gli arrivi restano da controllare.">
           <p className="text-xs font-medium">
             Controllo delle corrispondenze
           </p>
-          <p className="text-xs text-muted-foreground">
+          <p className={`text-xs text-muted-foreground ${compatto ? "hidden sm:block" : ""}`}>
             L’AI confronta gli articoli; le quantità e gli arrivi restano da
             controllare.
           </p>
