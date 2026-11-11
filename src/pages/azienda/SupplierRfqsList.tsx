@@ -268,7 +268,13 @@ export default function SupplierRfqsList() {
     });
   const page = operationalPage(params.get("rdo_pagina"), filtered.length);
   const visible = filtered.slice((page - 1) * 25, page * 25);
-  const selection = useOperationalDeletion("rfq", visible.map(r => ({ id: r.id, label: r.rfq_number })), canCreate && view === "elenco");
+  const selection = useOperationalDeletion("rfq", visible.map(r => ({
+    id: r.id, label: r.rfq_number, href: `/azienda/richieste-offerta/${r.id}`,
+    phase: { id: r.id, label: r.rfq_number, href: `/azienda/richieste-offerta/${r.id}`, status: r.status, stage: r.status, responses: contatori[r.id]?.risposte ?? 0 },
+    values: { titolo: r.titolo, stato: RDO_STATUS_LABELS[r.status] ?? r.status, scadenza: r.scadenza_offerte ?? "", risposte: String(contatori[r.id]?.risposte ?? 0) },
+  })), canCreate && view === "elenco", {
+    filename: "richieste-offerta", columns: [{ key: "documento", label: "N° RdO" }, { key: "titolo", label: "Titolo" }, { key: "stato", label: "Stato" }, { key: "scadenza", label: "Scadenza offerte" }, { key: "risposte", label: "Risposte ricevute" }],
+  });
   const selectKpi = (value: string, nextFocus = "") =>
     update({ stato: value, focus: nextFocus });
   const response = (r: SupplierRfq) => {

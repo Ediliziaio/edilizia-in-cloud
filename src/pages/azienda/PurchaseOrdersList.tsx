@@ -574,7 +574,15 @@ export default function PurchaseOrdersList() {
     Math.min(Math.floor(Number(params.get("oda_pagina")) || 1), pagineElenco),
   );
   const visibili = filtered.slice((paginaElenco - 1) * 25, paginaElenco * 25);
-  const selection = useOperationalDeletion("oda", visibili.map(o => ({ id: o.id, label: o.oda_number })), puoAgire && vistaPrincipale === "elenco" && vista === "elenco");
+  const selection = useOperationalDeletion("oda", visibili.map(o => ({
+    id: o.id, label: o.oda_number, href: `/azienda/ordini-acquisto/${o.id}`,
+    phase: { id: o.id, label: o.oda_number, href: `/azienda/ordini-acquisto/${o.id}`, status: o.status, stage: o.status === "bozza" ? "da_ordinare" : o.status === "ricevuto" ? "consegnato" : o.status === "parziale" ? "in_consegna" : "ordinato" },
+    values: { fornitore: o.suppliers?.name ?? "", commessa: o.orders?.order_code ?? "", data: o.issue_date, consegna: o.expected_delivery_date ?? "", stato: STATUS_LABELS[o.status] ?? o.status, ...(vedeCosti ? { totale: String(o.total) } : {}) },
+  })), puoAgire && vistaPrincipale === "elenco" && vista === "elenco", {
+    filename: "ordini-acquisto", columns: [
+      { key: "documento", label: "N° OdA" }, { key: "fornitore", label: "Fornitore" }, { key: "commessa", label: "Commessa" }, { key: "data", label: "Emissione" }, { key: "consegna", label: "Consegna prevista" }, { key: "stato", label: "Stato" }, ...(vedeCosti ? [{ key: "totale", label: "Totale €" }] : []),
+    ],
+  });
 
   // Per commessa: quanto si è impegnato e quanto è arrivato per ogni cantiere.
   // Gli ordini senza commessa (scorte, attrezzatura) stanno in un gruppo loro.

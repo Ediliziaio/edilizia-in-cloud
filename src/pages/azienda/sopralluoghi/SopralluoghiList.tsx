@@ -330,7 +330,14 @@ export default function SopralluoghiList() {
   const totale = Object.values(contaPerFase(tutti)).reduce((a, b) => a + b, 0);
   const pagine = Math.max(1, Math.ceil(elenco.length / 24));
   const paginaAttuale = Math.min(pagina, pagine);
-  const selection = useOperationalDeletion("surveys", elenco.slice((paginaAttuale - 1) * 24, paginaAttuale * 24).map(s => ({ id: s.id, label: s.code })), !!permessi.isAdmin && !permessi.solaLettura && vista === "elenco");
+  const selection = useOperationalDeletion("surveys", elenco.slice((paginaAttuale - 1) * 24, paginaAttuale * 24).map(s => ({
+    id: s.id, label: s.code, href: `/azienda/sopralluoghi/${s.id}`,
+    phase: { id: s.id, label: s.code, href: `/azienda/sopralluoghi/${s.id}`, status: s.status, stage: fasePratica(s) ?? "", scheduled: s.scheduled_at, linked: !!(s.estimate_id || s.order_id) },
+    values: { cliente: s.cliente_nome ?? "", indirizzo: s.address ?? "", tecnico: s.tecnico_nome ?? "", data: s.scheduled_at ?? "", stato: FASI.find(f => f.fase === fasePratica(s))?.etichetta ?? s.status },
+  })), puoCreare && vista === "elenco", {
+    canDelete: !!permessi.isAdmin,
+    filename: "sopralluoghi", columns: [{ key: "documento", label: "Codice" }, { key: "cliente", label: "Cliente" }, { key: "indirizzo", label: "Indirizzo" }, { key: "tecnico", label: "Tecnico" }, { key: "data", label: "Appuntamento" }, { key: "stato", label: "Fase" }],
+  });
   const imposta = (p: Partial<FiltriBacheca>) => {
     setPagina(1);
     setParams(

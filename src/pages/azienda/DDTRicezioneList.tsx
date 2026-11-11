@@ -474,7 +474,16 @@ export default function DDTRicezioneList() {
   );
   const page = operationalPage(params.get("ddt_pagina"), rows.length);
   const visibleRows = rows.slice((page - 1) * 25, page * 25);
-  const selection = useOperationalDeletion("ddt", visibleRows.flatMap(row => row.tipo === "ddt" ? [{ id: row.ddt.id, label: row.ddt.numero_ddt }] : []), canCreate && view === "elenco");
+  const selection = useOperationalDeletion("ddt", visibleRows.flatMap(row => {
+    if (row.tipo !== "ddt") return [];
+    const d = row.ddt;
+    return [{ id: d.id, label: d.numero_ddt, href: `/azienda/ddt/${d.id}`,
+      phase: { id: d.id, label: d.numero_ddt, href: `/azienda/ddt/${d.id}`, status: d.stato, stage: stage(d), damages: d.has_damages, quantity: d.ricezione_esplicita ? (d.consegne?.some(c => c.tipo === "ingresso") ? 1 : 0) : Number(d.quantita_ricevuta) },
+      values: { fornitore: fornitoreNomeDi(d) ?? "", commessa: commessaCodiceDi(d) ?? "", oda: d.purchase_orders?.oda_number ?? "", data: d.data_ricezione ?? "", stato: DDT_STATO_META[d.stato as keyof typeof DDT_STATO_META]?.label ?? d.stato, quantita: riepilogoQuantitaDDT(d) },
+    }];
+  }), canCreate && view === "elenco", {
+    filename: "ddt", columns: [{ key: "documento", label: "N° DDT" }, { key: "fornitore", label: "Fornitore" }, { key: "commessa", label: "Commessa" }, { key: "oda", label: "OdA" }, { key: "data", label: "Data" }, { key: "stato", label: "Stato" }, { key: "quantita", label: "Quantità" }],
+  });
 
   // Export
   const buildExportRows = () => {
