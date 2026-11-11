@@ -1,3 +1,4 @@
+import type {CampioneEditorFv} from "./FvPersonalizzazionePagine";
 /**
  * FvLivePreviewPanel — Anteprima preventivo Fotovoltaico LIVE persistente, a lato
  * dell'editor template (parità concettuale col pannello Serramenti).
@@ -35,6 +36,7 @@ interface Props {
   /** Sezione attiva nell'editor → auto-scroll alla sezione HTML. */
   activeSection?: string | null;
   debounceMs?: number;
+  renderCampione?:(form:Record<string,unknown>)=>CampioneEditorFv;
 }
 
 // Dati cliente/impianto DEMO per le pagine dato-dipendenti (parità col dialog).
@@ -45,12 +47,13 @@ interface Props {
 // tagliato — era il "template FV zoomato al massimo con le scritte
 // disallineate". L'adattamento ora vive in useFitScale, condiviso.
 
-export function FvLivePreviewPanel({ form: formSalvato, companyName, logoUrl: logoSalvato, activeSection, debounceMs = 350 }: Props) {
+export function FvLivePreviewPanel({ form: formSalvato, companyName, logoUrl: logoSalvato, activeSection, debounceMs = 350, renderCampione }: Props) {
   // Le immagini del modello sono percorsi nel bucket privato: l'anteprima usa i
   // link firmati (vedi supabase/functions/_shared/immaginiModelloPdf.ts).
   const form = useImmaginiModelloFirmate(formSalvato, CAMPI_IMMAGINE_FOTOVOLTAICO);
   const logoUrl = useFileRiservato(logoSalvato) || null;
   const [html, setHtml] = useState("");
+  const [pagineFuoriBordo,setPagineFuoriBordo]=useState<number[]>([]);
   const [sectionNotice, setSectionNotice] = useState<{ section: string; text: string } | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const savedScrollRef = useRef(0);
@@ -63,6 +66,7 @@ export function FvLivePreviewPanel({ form: formSalvato, companyName, logoUrl: lo
 
   const buildHtml = useMemo(() => {
     return () => {
+      if(renderCampione)return renderCampione(form??{}).html;
       const base = buildFvPreviewBase(form as FvPdfTemplateData["template"]);
       const f = form ?? {};
       const str = (k: string) => {
@@ -93,8 +97,7 @@ export function FvLivePreviewPanel({ form: formSalvato, companyName, logoUrl: lo
         return `<div style="padding:32px;font-family:sans-serif;color:#b91c1c">Anteprima non disponibile: ${String(e)}</div>`;
       }
     };
-     
-  }, [form, companyName, logoUrl]);
+  }, [form, companyName, logoUrl,renderCampione]);
 
   const formKey = useMemo(
     () => JSON.stringify(form) + "|" + (companyName ?? "") + "|" + (logoUrl ?? ""),
@@ -136,6 +139,8 @@ export function FvLivePreviewPanel({ form: formSalvato, companyName, logoUrl: lo
   const handleIframeLoad = () => {
     try { iframeRef.current?.contentWindow?.scrollTo(0, savedScrollRef.current); } catch { /* noop */ }
     syncSection();
+    const doc=iframeRef.current?.contentDocument;
+    if(doc)setPagineFuoriBordo(Array.from(doc.querySelectorAll<HTMLElement>(".page")).flatMap((p,i)=>{if(p.querySelector(".cover"))return[];const limite=p.querySelector(".page-footer")?.getBoundingClientRect().top??p.getBoundingClientRect().bottom;return Array.from(p.querySelectorAll(".content h1,.content h2,.content h3,.content p,.content img,.content table")).some(e=>e.getBoundingClientRect().bottom>limite-2)?[i+1]:[];}));
   };
 
   // Navigation within an already loaded document uses the same semantic anchor.
@@ -192,6 +197,7 @@ export function FvLivePreviewPanel({ form: formSalvato, companyName, logoUrl: lo
       <p className="px-3 py-1.5 text-[10px] text-muted-foreground border-b shrink-0">
         Vista HTML del modello. Verifica l'impaginazione nel PDF esportato.
       </p>
+      {pagineFuoriBordo.length>0&&<p role="alert" className="shrink-0 border-b bg-amber-50 px-3 py-2 text-xs text-amber-900">Contenuto oltre il margine nelle pagine {pagineFuoriBordo.join(", ")}. Riduci il testo o rivedi le immagini prima di esportare.</p>}
       {sectionNotice?.section === activeSection && <p role="status" className="shrink-0 border-b px-3 py-1 text-[10px] text-muted-foreground">{sectionNotice.text}</p>}
       <div ref={fit.ref} className="flex-1 overflow-auto bg-muted/40">
         {/* DUE livelli, e servono entrambi:

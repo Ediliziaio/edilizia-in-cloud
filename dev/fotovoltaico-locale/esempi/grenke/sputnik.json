@@ -1,0 +1,321 @@
+{
+  "versione": 1,
+  "id": "76867a36-c447-4fb7-85a9-358288f41620",
+  "companyId": "demo-azienda-2-locale",
+  "fornitore": "GRENKE LOCAZIONE S.R.L.",
+  "nome": "SPUTNIK++ — coefficienti dal PDF",
+  "revisione": "PDF fornito — validità da confermare",
+  "dal": "",
+  "al": "",
+  "attiva": true,
+  "prova": false,
+  "soloSimulazione": true,
+  "validitaNonIndicata": true,
+  "assicurazioneDaQuotare": true,
+  "note": "Coefficienti trascritti e verificati sul PDF fornito. Nessuna data di validità riportata. Assicurazione obbligatoria non inclusa; fine contratto e spese accessorie da confermare. Le fasce riportate con euro interi sono conservate senza ampliamenti.",
+  "righe": [
+    {
+      "importoDa": 500,
+      "importoA": 2500,
+      "durataMesi": 24,
+      "periodoMesi": 3,
+      "coefficiente": 5.073,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 2501,
+      "importoA": 5000,
+      "durataMesi": 24,
+      "periodoMesi": 3,
+      "coefficiente": 5.07,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 5001,
+      "importoA": 12000,
+      "durataMesi": 24,
+      "periodoMesi": 3,
+      "coefficiente": 5.025,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 12001,
+      "importoA": 25000,
+      "durataMesi": 24,
+      "periodoMesi": 3,
+      "coefficiente": 5.017,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 25001,
+      "importoA": 50000,
+      "durataMesi": 24,
+      "periodoMesi": 3,
+      "coefficiente": 4.94,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 50001,
+      "importoA": 100000,
+      "durataMesi": 24,
+      "periodoMesi": 3,
+      "coefficiente": 4.879,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 500,
+      "importoA": 2500,
+      "durataMesi": 30,
+      "periodoMesi": 3,
+      "coefficiente": 4.11,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 2501,
+      "importoA": 5000,
+      "durataMesi": 30,
+      "periodoMesi": 3,
+      "coefficiente": 4.092,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 5001,
+      "importoA": 12000,
+      "durataMesi": 30,
+      "periodoMesi": 3,
+      "coefficiente": 4.06,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 12001,
+      "importoA": 25000,
+      "durataMesi": 30,
+      "periodoMesi": 3,
+      "coefficiente": 4.034,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 25001,
+      "importoA": 50000,
+      "durataMesi": 30,
+      "periodoMesi": 3,
+      "coefficiente": 4.016,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 50001,
+      "importoA": 100000,
+      "durataMesi": 30,
+      "periodoMesi": 3,
+      "coefficiente": 3.972,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 500,
+      "importoA": 2500,
+      "durataMesi": 36,
+      "periodoMesi": 3,
+      "coefficiente": 3.699,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 2501,
+      "importoA": 5000,
+      "durataMesi": 36,
+      "periodoMesi": 3,
+      "coefficiente": 3.605,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 5001,
+      "importoA": 12000,
+      "durataMesi": 36,
+      "periodoMesi": 3,
+      "coefficiente": 3.536,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 12001,
+      "importoA": 25000,
+      "durataMesi": 36,
+      "periodoMesi": 3,
+      "coefficiente": 3.512,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 25001,
+      "importoA": 50000,
+      "durataMesi": 36,
+      "periodoMesi": 3,
+      "coefficiente": 3.474,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 50001,
+      "importoA": 100000,
+      "durataMesi": 36,
+      "periodoMesi": 3,
+      "coefficiente": 3.469,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 500,
+      "importoA": 2500,
+      "durataMesi": 48,
+      "periodoMesi": 3,
+      "coefficiente": 3.14,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 2501,
+      "importoA": 5000,
+      "durataMesi": 48,
+      "periodoMesi": 3,
+      "coefficiente": 2.81,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 5001,
+      "importoA": 12000,
+      "durataMesi": 48,
+      "periodoMesi": 3,
+      "coefficiente": 2.78,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 12001,
+      "importoA": 25000,
+      "durataMesi": 48,
+      "periodoMesi": 3,
+      "coefficiente": 2.746,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 25001,
+      "importoA": 50000,
+      "durataMesi": 48,
+      "periodoMesi": 3,
+      "coefficiente": 2.744,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 50001,
+      "importoA": 100000,
+      "durataMesi": 48,
+      "periodoMesi": 3,
+      "coefficiente": 2.742,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 500,
+      "importoA": 2500,
+      "durataMesi": 60,
+      "periodoMesi": 3,
+      "coefficiente": 2.747,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 2501,
+      "importoA": 5000,
+      "durataMesi": 60,
+      "periodoMesi": 3,
+      "coefficiente": 2.386,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 5001,
+      "importoA": 12000,
+      "durataMesi": 60,
+      "periodoMesi": 3,
+      "coefficiente": 2.348,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 12001,
+      "importoA": 25000,
+      "durataMesi": 60,
+      "periodoMesi": 3,
+      "coefficiente": 2.316,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 25001,
+      "importoA": 50000,
+      "durataMesi": 60,
+      "periodoMesi": 3,
+      "coefficiente": 2.281,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 50001,
+      "importoA": 100000,
+      "durataMesi": 60,
+      "periodoMesi": 3,
+      "coefficiente": 2.218,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 500,
+      "importoA": 2500,
+      "durataMesi": 72,
+      "periodoMesi": 3,
+      "coefficiente": 2.463,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 2501,
+      "importoA": 5000,
+      "durataMesi": 72,
+      "periodoMesi": 3,
+      "coefficiente": 2.208,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 5001,
+      "importoA": 12000,
+      "durataMesi": 72,
+      "periodoMesi": 3,
+      "coefficiente": 2.164,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 12001,
+      "importoA": 25000,
+      "durataMesi": 72,
+      "periodoMesi": 3,
+      "coefficiente": 2.03,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 25001,
+      "importoA": 50000,
+      "durataMesi": 72,
+      "periodoMesi": 3,
+      "coefficiente": 1.992,
+      "unita": "percentuale_mese"
+    },
+    {
+      "importoDa": 50001,
+      "importoA": 100000,
+      "durataMesi": 72,
+      "periodoMesi": 3,
+      "coefficiente": 1.936,
+      "unita": "percentuale_mese"
+    }
+  ],
+  "condizioni": {
+    "anticipoPct": 0,
+    "speseIniziali": 0,
+    "prelocazione": 0,
+    "assicurazioneAnnua": 0,
+    "manutenzioneAnnua": 0,
+    "manutenzioneInclusa": false,
+    "canoniAnticipati": true,
+    "fine": "da_definire",
+    "acquistoFinale": null
+  },
+  "fonte": {
+    "nome": "Tabella_Sputnik++++ (1).pdf",
+    "sha256": "1729989dc41ae75393668687990e8f07f1762de364b45487204b08681ca981c9"
+  }
+}

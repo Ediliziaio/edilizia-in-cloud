@@ -147,7 +147,7 @@ const SANKEY_HERO_H = 108;
 const SANKEY_MIN_H = 76;
 const SANKEY_MAX_H = 108;
 
-export function svgSankeyDoveVa(flows: FvFlows): string {
+export function svgSankeyDoveVa(flows: FvFlows,azienda=false,accumulo=true): string {
   const W = 700, H = 216, midY = H / 2;
   // Percentuali derivate dai kWh REALI mostrati nei box (sempre coerenti col disegno).
   const auto = Math.max(0, flows.autoconsumo_kwh);
@@ -202,18 +202,18 @@ export function svgSankeyDoveVa(flows: FvFlows): string {
     ${sankeyRibbon(SX, aEdgeBot, srcY + srcH, dX, reteY, reteY + hRete, "url(#dvRete)", "dv")}
 
     <!-- Etichette % centrate sui nastri -->
-    ${sankeyPill((SX + dX) / 2, autoLabelY, `${autoPct}% in casa`, C.greenDark, "dv")}
+    ${sankeyPill((SX + dX) / 2, autoLabelY, `${autoPct}% ${azienda?"nell’attività":"in casa"}`, C.greenDark, "dv")}
     ${sankeyPill((SX + dX) / 2, reteLabelY, `${retePct}% in rete`, C.navy, "dv")}
 
     ${sankeyBox(srcX, srcY, srcW, srcH, "dvPv", "★ FOTOVOLTAICO", `${flows.produzione_kwh.toLocaleString("it-IT")}`, "kWh prodotti / anno", C.orangeDark, "dv", true)}
-    ${sankeyBox(dX, casaY, dW, hCasa, "dvCasa", "⌂ CASA &amp; BATTERIA", `${auto.toLocaleString("it-IT")} kWh`, "autoconsumo diretto", "white", "dv")}
+    ${sankeyBox(dX, casaY, dW, hCasa, "dvCasa", azienda?(accumulo?"⌂ ATTIVITÀ &amp; BATTERIA":"⌂ ATTIVITÀ"):"⌂ CASA &amp; BATTERIA", `${auto.toLocaleString("it-IT")} kWh`, "autoconsumo diretto", "white", "dv")}
     ${sankeyBox(dX, reteY, dW, hRete, "dvGrid", "⚡ RETE PUBBLICA", `${rete.toLocaleString("it-IT")} kWh`, "energia immessa", "white", "dv")}
   </svg>`;
 }
 
 // ─── 3. SANKEY "DA DOVE VIENE L'ENERGIA CHE CONSUMI" ───────────────────────
 
-export function svgSankeyDaDoveViene(flows: FvFlows, consumo_annuo_kwh: number): string {
+export function svgSankeyDaDoveViene(flows: FvFlows, consumo_annuo_kwh: number,azienda=false): string {
   const W = 700, H = 216, midY = H / 2;
   // Percentuali derivate dai kWh REALI dei box (FV = autoconsumo, Rete = prelievo).
   const dalSole = Math.max(0, flows.autoconsumo_kwh);
@@ -271,9 +271,9 @@ export function svgSankeyDaDoveViene(flows: FvFlows, consumo_annuo_kwh: number):
     ${sankeyPill((SX + DX) / 2, fvLabelY, `${fvPct}% dal sole`, C.greenDark, "dd")}
     ${sankeyPill((SX + DX) / 2, reteLabelY, `${retePct}% dalla rete`, C.navy, "dd")}
 
-    ${sankeyBox(srcX, fvY, srcW, hFv, "ddPv", "★ FOTOVOLTAICO", `${dalSole.toLocaleString("it-IT")} kWh`, "il tuo · gratis", C.orangeDark, "dd")}
+    ${sankeyBox(srcX, fvY, srcW, hFv, "ddPv", "★ FOTOVOLTAICO", `${dalSole.toLocaleString("it-IT")} kWh`, azienda?"energia autoconsumata":"il tuo · gratis", C.orangeDark, "dd")}
     ${sankeyBox(srcX, reteY, srcW, hRete, "ddGrid", "⚡ RETE PUBBLICA", `${dallaRete.toLocaleString("it-IT")} kWh`, "prelievo residuo", "white", "dd")}
-    ${sankeyBox(casaX, casaY, casaW, casaH, "ddCasa", "⌂ CASA", `${consumo_annuo_kwh.toLocaleString("it-IT")}`, "kWh consumati / anno", "white", "dd", true)}
+    ${sankeyBox(casaX, casaY, casaW, casaH, "ddCasa", azienda?"⌂ ATTIVITÀ":"⌂ CASA", `${consumo_annuo_kwh.toLocaleString("it-IT")}`, "kWh consumati / anno", "white", "dd", true)}
   </svg>`;
 }
 

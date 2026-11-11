@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "incremental": false
+  },
+  "include": [],
+  "files": [
+    "src/components/fotovoltaico/FvSceltaProgettazione.tsx",
+    "src/lib/fotovoltaico/preventivatore.ts",
+    "src/pages/azienda/fotovoltaico/FotovoltaicoWizard/types.ts",
+    "src/pages/azienda/fotovoltaico/FotovoltaicoWizard/constants.ts",
+    "src/pages/azienda/fotovoltaico/FotovoltaicoWizard/helpers.ts",
+    "supabase/functions/_shared/fvModalitaProgettazione.ts",
+    "supabase/functions/_shared/fvHtmlTemplate.ts",
+    "src/vite-env.d.ts",
+    "src/pages/azienda/fotovoltaico/FotovoltaicoWizard.tsx",
+    "dev/fotovoltaico-locale/main.tsx"
+  ]
+}

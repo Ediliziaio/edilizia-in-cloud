@@ -12,6 +12,8 @@ import {
   LS_KEY_PREFIX, LS_KEY_NEW, DRAFT_TTL_MS, INITIAL, TOTAL_STEPS,
 } from "./constants";
 import type { PersistedDraft, WizardData } from "./types";
+import { cambiaModalitaProgettazione, preventivoSenzaMappa } from "../../../../../supabase/functions/_shared/fvModalitaProgettazione";
+import { leggiDisegnoCommerciale } from "../../../../../supabase/functions/_shared/fvDisegnoCommerciale";
 
 export function isCoordinataItalia(lat: number | null, lng: number | null): boolean {
   if (lat == null || lng == null) return false;
@@ -237,6 +239,9 @@ function sanitizzaLayoutTetto(value: unknown): WizardData["layout_tetto"] | unde
 
 function sanitizzaLayoutOverlay(value: unknown): WizardData["layout_overlay"] | undefined {
   if (!isRecord(value)) return undefined;
+  const disegno = leggiDisegnoCommerciale(value);
+  if (disegno) return disegno;
+  if (preventivoSenzaMappa(value)) return cambiaModalitaProgettazione(value, true);
   const { x, y, rot, cols } = value;
   if (!isFiniteNumber(x) || !isFiniteNumber(y) || !isFiniteNumber(rot) || !isFiniteNumber(cols)) return undefined;
   return {
@@ -255,7 +260,7 @@ const CAMPI_STRUTTURATI: Partial<Record<keyof WizardData, (candidate: unknown) =
   servizi_righe: sanitizzaServizi,
   modalita_pagamento: sanitizzaModalitaPagamento,
   layout_tetto: (v) => (v === null ? null : sanitizzaLayoutTetto(v)),
-  layout_overlay: (v) => (v === null ? null : sanitizzaLayoutOverlay(v)),
+  layout_overlay: (v) => (v === null ? null : sanitizzaLayoutOverlay(v) ?? null),
 };
 
 function normalizeWizardData(value: unknown): WizardData | null {

@@ -174,7 +174,7 @@ export function CampoIndirizzo({
     setStato("");
     setCaricamento(false);
     if (testo.trim().length >= MINIMO_CARATTERI) {
-      timer.current = setTimeout(() => void cerca(testo, numero), ATTESA_MS);
+      timer.current = setTimeout((): void => void cerca(testo, numero), ATTESA_MS);
     }
   };
 

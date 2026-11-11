@@ -1,0 +1,5 @@
+import type {RilievoLocale} from "./rilievoLocale";
+const DB="fv-rilievi-locali-v1";
+function apri(){return new Promise<IDBDatabase>((resolve,reject)=>{const req=indexedDB.open(DB,1);req.onupgradeneeded=()=>req.result.createObjectStore("rilievi",{keyPath:"id"});req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(new Error("Archivio locale non disponibile."));});}
+export async function salvaRilievoLocale(r:RilievoLocale){const db=await apri();try{await new Promise<void>((resolve,reject)=>{const tx=db.transaction("rilievi","readwrite");tx.objectStore("rilievi").put(r);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(new Error("Spazio locale insufficiente o salvataggio non riuscito: il preventivo non è stato aggiornato."));tx.onabort=tx.onerror;});}finally{db.close();}}
+export async function leggiRilievoLocale(id:string){const db=await apri();try{return await new Promise<RilievoLocale|null>((resolve,reject)=>{const tx=db.transaction("rilievi","readonly"),req=tx.objectStore("rilievi").get(id);req.onsuccess=()=>resolve(req.result??null);req.onerror=()=>reject(new Error("Impossibile leggere il rilievo locale."));});}finally{db.close();}}

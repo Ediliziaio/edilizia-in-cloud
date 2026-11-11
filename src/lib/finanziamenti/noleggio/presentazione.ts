@@ -1,0 +1,3 @@
+import type { UnitaCoefficiente } from "../../../../supabase/functions/_shared/noleggioOperativo";
+export const ETICHETTE_UNITA: Record<UnitaCoefficiente, string> = { percentuale_mese: "Percentuale del capitale per mese", percentuale_periodo: "Percentuale del capitale per canone", euro_mille_mese: "Euro per 1.000 € di capitale al mese", euro_mille_periodo: "Euro per 1.000 € di capitale per canone", canone_periodo: "Canone fisso in euro per periodo" };
+export function scaricaTesto(nome: string, testo: string, tipo = "text/csv;charset=utf-8") { const url = URL.createObjectURL(new Blob([testo], { type: tipo })), a = document.createElement("a"); a.href = url; a.download = nome; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }

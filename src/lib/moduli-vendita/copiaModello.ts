@@ -1,3 +1,4 @@
+import {isFvModelloAzienda} from "../../../supabase/functions/_shared/fvModelliAzienda";
 /**
  * «Copia configurazione su…»: dopo aver configurato il modello di un intervento,
  * il titolare lo copia su altri interventi. La copia è INDIPENDENTE — sono record
@@ -113,8 +114,10 @@ export function applicaIdentita(tipo: TipoModello, template: unknown, companyId:
   const blocchi = template.pdf_blocchi;
   if (eObj(blocchi)) {
     if ("modulo_intervento" in blocchi) blocchi.modulo_intervento = moduleId;
+    if(tipo==="fv"){if(isFvModelloAzienda(moduleId))blocchi.azienda_variante=moduleId;else delete blocchi.azienda_variante;}
     const def = blocchi.modulo_defaults;
     if (eObj(def) && "modulo_intervento" in def) def.modulo_intervento = moduleId;
+    if(tipo==="fv"&&eObj(def)){if(isFvModelloAzienda(moduleId))def.azienda_variante=moduleId;else delete def.azienda_variante;}
   }
   return template;
 }

@@ -50,6 +50,8 @@ const FOTO_DELLE_PAGINE: Record<string, ChiaveFotoPagina> = { garanzie: "garanzi
 interface Props {
   ordineDiSerie?: FvPdfPageOrderItem[] | null;
   escluse?: ReadonlySet<string>;
+  notaEscluse?:string;
+  obbligatorie?:ReadonlySet<string>;
   labels?: Record<string, { label: string; descrizione: string }>;
   value: FvPdfPageOrderItem[] | null | undefined;
   onChange: (next: FvPdfPageOrderItem[]) => void;
@@ -62,11 +64,11 @@ interface Props {
   apriSezione?: (sezione: string) => void;
 }
 
-function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto, apriSezione, ordineDiSerie, escluse, labels }: Props) {
-  const items = normalizeFvPdfPagesOrder(value).filter(p => !escluse?.has(p.id));
+function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto, apriSezione, ordineDiSerie, escluse, labels, notaEscluse, obbligatorie }: Props) {
+  const items = normalizeFvPdfPagesOrder(value).filter(p => !escluse?.has(p.id)).map(p=>obbligatorie?.has(p.id)?{...p,visible:true}:p);
   // Keep excluded pages explicitly disabled when saving. Normalization would otherwise reintroduce them.
   const change = (next: FvPdfPageOrderItem[]) => onChange([...next, ...normalizeFvPdfPagesOrder(value).filter(p => escluse?.has(p.id)).map(p => ({ ...p, visible: false }))]);
-  const metaById = new Map(FV_PDF_PAGES_META.map((page) => [page.id, { ...page, ...labels?.[page.id] }]));
+  const metaById = new Map(FV_PDF_PAGES_META.map((page) => [page.id, { ...page, ...labels?.[page.id],obbligatoria:page.obbligatoria||obbligatorie?.has(page.id) }]));
   const [recentlyMovedId, setRecentlyMovedId] = useState<string | null>(null);
   const [aperta, setAperta] = useState<string | null>(null);
 
@@ -126,7 +128,7 @@ function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto
 
   return (
     <div className="space-y-3">
-      {escluse?.size ? <p className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs text-sky-950">Questo modulo riguarda l'integrazione dell'accumulo. I grafici di produzione e risparmio dell'intero impianto non sono applicabili e non vengono inseriti nel PDF.</p> : null}
+      {escluse?.size ? <p className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs text-sky-950">{notaEscluse??"Questo modulo riguarda l’integrazione dell’accumulo. I grafici di produzione e risparmio dell’intero impianto non sono applicabili e non vengono inseriti nel PDF."}</p> : null}
       <div className={
         "flex items-start gap-2 rounded-md border px-3 py-2 text-xs " +
         (isCustomOrder

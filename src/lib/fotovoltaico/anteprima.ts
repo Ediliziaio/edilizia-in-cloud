@@ -56,6 +56,8 @@ export function stimaProduzioneFv(d: {
 
 /** I campi del wizard che servono all'anteprima (`WizardData` li ha tutti). */
 export interface DatiAnteprimaFv extends ConfigurazioneComponentiFv {
+  cliente_tipo?:"privato"|"azienda"|"pa";
+  cliente_ragione_sociale?:string;
   cliente_nome: string;
   cliente_cognome: string;
   cliente_telefono: string;
@@ -253,7 +255,7 @@ export function anteprimaFotovoltaico(d: DatiAnteprimaFv, opzioni: OpzioniAntepr
   // ── detrazione dall'ultimo calcolo, solo se è ancora sul totale di adesso ──
   let detrazione: DetrazioneAnteprima | null = null;
   const costiCalcolo = (opzioni.scenario?.costi as { prezzo_vendita_iva_inclusa?: number } | undefined) ?? null;
-  if (opzioni.scenario && costiCalcolo?.prezzo_vendita_iva_inclusa != null && haQualcosaDaSommare) {
+  if (d.cliente_tipo!=="azienda" && opzioni.scenario && costiCalcolo?.prezzo_vendita_iva_inclusa != null && haQualcosaDaSommare) {
     const delCalcolo = num(costiCalcolo.prezzo_vendita_iva_inclusa);
     if (Math.abs(delCalcolo - prezzo.totale) <= 1) {
       detrazione = detrazioneDelCalcolo(opzioni.scenario);
@@ -298,7 +300,7 @@ export function anteprimaFotovoltaico(d: DatiAnteprimaFv, opzioni: OpzioniAntepr
     dataEtichetta: dataEstesa(oggi),
     titolo: `Impianto fotovoltaico${kwpTitolo}`,
     cliente: {
-      nome: compatta(d.cliente_nome, d.cliente_cognome) || null,
+      nome: ((d.cliente_tipo==="azienda"||d.cliente_tipo==="pa")?d.cliente_ragione_sociale:"")||compatta(d.cliente_nome, d.cliente_cognome) || null,
       righe: [compatta(d.cliente_telefono), compatta(d.cliente_email)].filter(Boolean),
     },
     cantiere: compattaIndirizzo(d.indirizzo, compatta(d.cap, d.comune), d.provincia) || null,

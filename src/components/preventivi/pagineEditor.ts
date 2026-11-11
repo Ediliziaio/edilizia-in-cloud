@@ -92,8 +92,10 @@ export const PAGINE_EDITOR_SERRAMENTI: PaginaEditor[] = [
 // ─── Fotovoltaico ─────────────────────────────────────────────────────────────
 
 export const PAGINE_EDITOR_FOTOVOLTAICO: PaginaEditor[] = [
+  { id: "page_testi_immagini", voce: "Testi e immagini di tutte le pagine", emoji: "✏️", descrizione: "Tutti i testi e le immagini statiche del documento, con dati automatici protetti.", pagina: null, esistente: true },
   { id: "page_cover", voce: "Copertina", emoji: "🖼️", descrizione: "Prima pagina del preventivo.", pagina: null, esistente: true },
   { id: "page_chi_siamo", voce: "Chi siamo e garanzie", emoji: "👋", icona: ShieldCheck, descrizione: "Presentazione, garanzie, perché sceglierci e certificazioni.", pagina: "garanzie", testata: "garanzie", foto: { chiave: "garanzie", nota: FASCIA }, esistente: true },
+  { id: "page_monitoraggio", voce: "App e monitoraggio", emoji: "📱", descrizione: "Attiva la pagina, distingui app inclusa o gratuita e servizi aggiuntivi.", pagina: "monitoraggio", esistente: true },
   { id: "page_percorso", voce: "Come lavoriamo", emoji: "🗺️", descrizione: "Iter cliente e pratiche.", pagina: "iter", esistente: true },
   { id: "page_come_funziona", voce: "Come funziona", emoji: "🔧", icona: Wrench, descrizione: "Produce, converte, conserva, scambia.", pagina: "come_funziona", blocco: "comeFunziona" },
   { id: "page_protezione", voce: "Protezione degli ambienti", emoji: "🏠", icona: Home, descrizione: "Come lavorate sul tetto e proteggete la casa.", pagina: "protezione", blocco: "protezione" },
@@ -102,6 +104,10 @@ export const PAGINE_EDITOR_FOTOVOLTAICO: PaginaEditor[] = [
   { id: "page_diario", voce: "Diario fotografico", emoji: "📷", icona: Camera, descrizione: "Le foto dell'installazione.", pagina: "diario", blocco: "diario" },
   { id: "page_recensioni", voce: "Dicono di noi", emoji: "⭐", icona: Quote, descrizione: "Il voto su Google o Trustpilot, le parole dei clienti e le foto dei vostri impianti.", pagina: "recensioni", testata: "recensioni", foto: { chiave: "recensioni", nota: "Riempie il fondo della pagina quando non ci sono foto dei vostri impianti." } },
   { id: "page_faq", voce: "Domande e risposte", emoji: "❓", icona: HelpCircle, descrizione: "Le risposte prima della firma.", pagina: "faq", testata: "domande", foto: { chiave: "faq", nota: FASCIA } },
+  {id:"page_azienda_sintesi",voce:"Azienda · risparmio e pagamenti",emoji:"💶",descrizione:"Titoli e introduzione del riepilogo economico aziendale.",pagina:"azienda_sintesi",esistente:true},
+  {id:"page_azienda_flussi",voce:"Azienda · flussi negli anni",emoji:"📈",descrizione:"Presentazione del grafico e dei flussi di cassa.",pagina:"azienda_flussi",esistente:true},
+  {id:"page_azienda_scadenze",voce:"Azienda · scadenze e bolletta",emoji:"📅",descrizione:"Presentazione delle scadenze e della bolletta residua.",pagina:"azienda_scadenze",esistente:true},
+  {id:"page_azienda_ipotesi",voce:"Azienda · dati e ipotesi",emoji:"🔎",descrizione:"Titoli e introduzione di fonti, costi e ipotesi del calcolo.",pagina:"azienda_ipotesi",esistente:true},
   { id: "page_render", voce: "Simulazione prima e dopo", emoji: "🪄", descrizione: "Nota anteprima impianto.", pagina: null, esistente: true },
   { id: "page_cta", voce: "I prossimi passi", emoji: "✅", descrizione: "Titolo, testo e firma.", pagina: "decisione", foto: { chiave: "decisione", nota: FASCIA }, esistente: true },
   { id: "page_consulente", voce: "Consulente", emoji: "👤", descrizione: "Copy venditore e contatto.", pagina: null, esistente: true },

@@ -1,3 +1,4 @@
+import type {CampioneEditorFv} from "./FvPersonalizzazionePagine";
 // ─────────────────────────────────────────────────────────────────────────────
 // FvTemplatePreviewDialog — anteprima COMPLETA del preventivo Fotovoltaico
 // dentro l'editor template (parità col modulo Serramenti). Renderizza lato client
@@ -36,6 +37,7 @@ export default function FvTemplatePreviewDialog({
   form: formSalvato,
   companyName,
   logoUrl: logoSalvato,
+  renderCampione,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -43,6 +45,7 @@ export default function FvTemplatePreviewDialog({
   form: Record<string, unknown>;
   companyName?: string | null;
   logoUrl?: string | null;
+  renderCampione?:(form:Record<string,unknown>)=>CampioneEditorFv;
 }) {
   // Immagini del modello: percorsi nel bucket privato, firmati solo mentre il
   // dialogo è aperto (vedi supabase/functions/_shared/immaginiModelloPdf.ts).
@@ -50,6 +53,7 @@ export default function FvTemplatePreviewDialog({
   const logoUrl = useFileRiservato(open ? logoSalvato : null) || null;
   const html = useMemo(() => {
     if (!open) return "";
+    if(renderCampione)return renderCampione(form??{}).html;
     const base = buildFvPreviewBase(form as FvPdfTemplateData["template"]);
     const f = form ?? {};
     const str = (k: string) => {
@@ -83,7 +87,7 @@ export default function FvTemplatePreviewDialog({
         e,
       )}</div>`;
     }
-  }, [open, form, companyName, logoUrl]);
+  }, [open, form, companyName, logoUrl,renderCampione]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
