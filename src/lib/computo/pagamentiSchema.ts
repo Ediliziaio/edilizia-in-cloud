@@ -37,18 +37,8 @@ const MOMENTI_VECCHI: Record<string, MomentoRata> = {
   firma: "firma_contratto", inizio: "inizio_lavori", sal: "sal_numero", fine: "fine_lavori", collaudo: "collaudo",
 };
 
-/** I termini che si offrono nella tendina. Ci si può scrivere qualunque numero di giorni. */
-export const TERMINI_RATA: readonly { giorni: number; fineMese: boolean }[] = [
-  { giorni: 0, fineMese: false }, { giorni: 30, fineMese: false }, { giorni: 30, fineMese: true },
-  { giorni: 45, fineMese: false }, { giorni: 45, fineMese: true }, { giorni: 60, fineMese: false },
-  { giorni: 60, fineMese: true }, { giorni: 90, fineMese: false },
-];
-
-/** «A vista», «45 giorni data fattura», «60 giorni data fattura fine mese». */
-export function testoTermine(giorni: number, fineMese: boolean): string {
-  if (!giorni) return fineMese ? "fine mese" : "a vista";
-  return `${giorni} giorni data fattura${fineMese ? " fine mese" : ""}`;
-}
+// I termini e il modo di scriverli stanno in `lib/terminiPagamento`, con le regole che li leggono.
+export { TERMINI_RATA, testoTermine } from "@/lib/terminiPagamento";
 
 export const rataSchema = z.preprocess(
   (raw) => {

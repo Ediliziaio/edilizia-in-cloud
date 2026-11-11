@@ -224,6 +224,11 @@ export interface RataDelPiano {
    * si rifà quando arriva quello che manca (quadratura.ts). Revisione 2/11, G9 e G20.
    */
   daPercentuale?: boolean;
+  /**
+   * Rata pagata sull'avanzamento misurato (11/11/2026): l'importo è la quota che le toccherebbe,
+   * non una cifra del contratto. In commessa diventa `order_installments.importo_da_misurare`.
+   */
+  aMisura?: boolean;
 }
 
 /** Il costo previsto di una fase, in `costi.previsti`. */

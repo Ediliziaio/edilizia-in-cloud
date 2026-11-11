@@ -30,11 +30,23 @@ describe("il piano nel documento", () => {
     ], note: "Bonifico bancario." });
     expect(d.pianoPagamento).toEqual({
       righe: [
-        { nome: "Acconto alla firma", quando: "Alla firma del contratto", percent: 30, importo: 3300 },
-        { nome: "Saldo", quando: "A fine lavori", percent: 70, importo: 7700 },
+        { nome: "Acconto alla firma", quando: "Alla firma del contratto", percent: 30, importo: 3300, aMisura: false },
+        { nome: "Saldo", quando: "A fine lavori", percent: 70, importo: 7700, aMisura: false },
       ],
       note: "Bonifico bancario.",
     });
+  });
+
+  // 11/11/2026: anche fuori dal computo una rata a SAL può pagarsi a misura, e il termine si legge.
+  it("la rata a misura esce senza promettere un importo, e il termine entra nel «quando»", () => {
+    const d = dati({ modo: "sal", righe: [
+      { nome: "Acconto", percent: 20, evento: "firma_contratto", numero: null, termineGiorni: 60, termineFineMese: true },
+      { nome: "1° SAL", percent: 0, evento: "sal_numero", numero: 1, aMisura: true },
+      { nome: "Saldo", percent: 30, evento: "fine_lavori", numero: null },
+    ], note: null });
+    expect(d.pianoPagamento!.righe[0].quando).toBe("Alla firma del contratto, pagamento 60 giorni data fattura fine mese");
+    expect(d.pianoPagamento!.righe[1]).toMatchObject({ aMisura: true, importo: 5500 }); // il 50% che resta
+    expect(d.pianoPagamento!.righe[2]).toMatchObject({ aMisura: false, importo: 3300 });
   });
 
   it("un piano a SAL porta il numero del SAL nel «quando»", () => {

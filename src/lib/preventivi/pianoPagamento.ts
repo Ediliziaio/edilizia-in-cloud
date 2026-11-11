@@ -15,6 +15,7 @@
  * Modulo puro: niente React, niente Supabase. Gli importi li calcola solo questa funzione, per schermate e PDF.
  */
 import { EVENTI_RATA, type EventoRata } from "@/lib/orders/rateEventi";
+import { testoTermine } from "@/lib/terminiPagamento";
 import type { ModelloPagamento, RataModello } from "@/lib/orders/modelliPagamento";
 
 export type ModoPagamento = "rate" | "sal";
@@ -24,11 +25,20 @@ export type EventoRataPreventivo = Exclude<EventoRata, "stato_commessa">;
 
 export interface RataPreventivo {
   nome: string;
-  /** Percentuale sul totale IVA inclusa: da 0 a 100, due decimali. */
+  /** Percentuale sul totale IVA inclusa: da 0 a 100, due decimali. Zero per una rata a misura. */
   percent: number;
   evento: EventoRataPreventivo;
   /** Solo per «al SAL numero…»: il numero del SAL. */
   numero: number | null;
+  /**
+   * Rata pagata sull'avanzamento misurato (11/11/2026): al preventivo l'importo non si conosce,
+   * lo dirà il SAL. Il piano allora non fa 100% di rate fisse: quello che resta è la quota che
+   * le rate a misura si divideranno.
+   */
+  aMisura?: boolean;
+  /** Termine di pagamento: giorni data fattura, e se si va a fine mese. */
+  termineGiorni?: number;
+  termineFineMese?: boolean;
 }
 
 export interface PianoPagamento {
@@ -57,11 +67,15 @@ export function leggiPianoPagamento(raw: unknown): PianoPagamento | null {
     .map((x): RataPreventivo => {
       const evento = typeof x.evento === "string" && EVENTI_VALIDI.has(x.evento) ? (x.evento as EventoRataPreventivo) : "data_fissa";
       const numero = Number(x.numero);
+      const giorni = Math.trunc(Number(x.termineGiorni));
       return {
         nome: String(x.nome ?? "").trim().slice(0, MAX_NOME_RATA_PIANO) || "Rata",
         percent: arrotonda2(limita(Number(x.percent) || 0, 0, 100)),
         evento,
         numero: evento === "sal_numero" && Number.isFinite(numero) && numero > 0 ? Math.round(numero) : null,
+        ...(x.aMisura === true ? { aMisura: true } : {}),
+        ...(Number.isFinite(giorni) && giorni > 0 ? { termineGiorni: limita(giorni, 0, 365) } : {}),
+        ...(x.termineFineMese === true ? { termineFineMese: true } : {}),
       };
     });
   if (righe.length === 0) return null;
@@ -74,11 +88,28 @@ export function totalePercentuali(righe: readonly RataPreventivo[]): number {
   return arrotonda2(righe.reduce((s, r) => s + (Number(r.percent) || 0), 0));
 }
 
-export function pianoCompleto(piano: PianoPagamento | null | undefined): boolean {
-  return !!piano && piano.righe.length > 0 && Math.abs(totalePercentuali(piano.righe) - 100) < 0.005;
+/** La quota del prezzo che resta alle rate a misura: 100 meno le percentuali fisse. */
+export function quotaAMisura(piano: PianoPagamento | null | undefined): number {
+  if (!piano) return 0;
+  return piano.righe.some((r) => r.aMisura) ? arrotonda2(Math.max(0, 100 - totalePercentuali(piano.righe))) : 0;
 }
 
-export interface RataConImporto extends RataPreventivo { importo: number }
+/**
+ * Un piano vale se copre tutto il prezzo. Con le rate a misura (11/11/2026) le percentuali fisse
+ * non devono fare 100: devono stare sotto, e quello che resta è la quota che i SAL si dividono.
+ */
+export function pianoCompleto(piano: PianoPagamento | null | undefined): boolean {
+  if (!piano || piano.righe.length === 0) return false;
+  const somma = totalePercentuali(piano.righe);
+  if (piano.righe.some((r) => r.aMisura)) return somma <= 100.005 && 100 - somma > 0.005;
+  return Math.abs(somma - 100) < 0.005;
+}
+
+export interface RataConImporto extends RataPreventivo {
+  importo: number;
+  /** Per una rata a misura: l'importo è la quota che le toccherebbe, non una cifra del contratto. */
+  previsione?: boolean;
+}
 
 /**
  * Le rate con gli importi sul totale IVA inclusa. L'ultima assorbe l'arrotondamento, così la somma delle rate fa
@@ -87,8 +118,14 @@ export interface RataConImporto extends RataPreventivo { importo: number }
 export function rateConImporti(piano: PianoPagamento | null | undefined, totale: number): RataConImporto[] {
   if (!piano || piano.righe.length === 0) return [];
   const base = Math.max(0, Number(totale) || 0);
-  const righe = piano.righe.map((r) => ({ ...r, importo: arrotonda2((base * (Number(r.percent) || 0)) / 100) }));
-  if (base > 0) {
+  // Le rate a misura si dividono quello che resta: è una previsione, non una cifra del contratto.
+  const aMisura = piano.righe.filter((r) => r.aMisura).length;
+  const quota = quotaAMisura(piano);
+  const perAMisura = aMisura > 0 ? arrotonda2((base * quota) / 100 / aMisura) : 0;
+  const righe: RataConImporto[] = piano.righe.map((r) => r.aMisura
+    ? { ...r, importo: perAMisura, previsione: true }
+    : { ...r, importo: arrotonda2((base * (Number(r.percent) || 0)) / 100) });
+  if (base > 0 && !aMisura) {
     const somma = arrotonda2(righe.reduce((s, r) => s + r.importo, 0));
     const scarto = arrotonda2(base - somma);
     // Solo se il piano copre tutto il prezzo: un piano incompleto non si "aggiusta" di nascosto.
@@ -104,6 +141,13 @@ export function rateConImporti(piano: PianoPagamento | null | undefined, totale:
 export function quandoSiPaga(rata: Pick<RataPreventivo, "evento" | "numero">): string {
   if (rata.evento === "sal_numero") return rata.numero ? `Al SAL ${rata.numero}` : "Al SAL";
   return EVENTI_RATA.find((e) => e.value === rata.evento)?.label ?? "A una data precisa";
+}
+
+/** «, pagamento a 60 giorni data fattura fine mese»: la coda della riga, vuota se è a vista. */
+export function terminePiano(rata: Pick<RataPreventivo, "termineGiorni" | "termineFineMese">): string {
+  const giorni = rata.termineGiorni ?? 0;
+  if (!giorni && !rata.termineFineMese) return "";
+  return testoTermine(giorni, rata.termineFineMese === true);
 }
 
 /** Un modello di pagamento dell'azienda diventa il piano di questo preventivo (copiato, non collegato). */

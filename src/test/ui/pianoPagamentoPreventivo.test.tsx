@@ -123,6 +123,29 @@ describe("col piano", () => {
     expect((screen.getByLabelText("Togli la rata 1") as HTMLButtonElement).disabled).toBe(true);
   });
 
+  // 11/11/2026: anche qui un SAL si può pagare a misura, e il termine di pagamento è un dato.
+  it("un SAL si paga a misura, e il piano resta valido senza fare 100% di rate fisse", () => {
+    const onChange = monta({ modo: "sal", righe: [
+      { nome: "Acconto alla firma", percent: 20, evento: "firma_contratto", numero: null },
+      { nome: "SAL 1", percent: 70, evento: "sal_numero", numero: 1 },
+      { nome: "Saldo", percent: 10, evento: "fine_lavori", numero: null },
+    ], note: null });
+    fireEvent.click(screen.getByLabelText("Paga a misura la rata 2"));
+    const piano = onChange.mock.calls.at(-1)![0] as PianoPagamento;
+    expect(piano.righe[1]).toMatchObject({ aMisura: true, percent: 0 });
+    cleanup();
+    monta(piano);
+    expect(testo()).toContain("a misura");
+    expect(testo()).toContain("30% fisso + 70% a misura");
+  });
+
+  it("il termine di pagamento si sceglie per rata, col fine mese", () => {
+    const onChange = monta(pianoRateDiPartenza());
+    fireEvent.click(screen.getByLabelText("Termine di pagamento della rata 2"));
+    fireEvent.click(screen.getByRole("option", { name: "60 giorni data fattura fine mese" }));
+    expect((onChange.mock.calls.at(-1)![0] as PianoPagamento).righe[1]).toMatchObject({ termineGiorni: 60, termineFineMese: true });
+  });
+
   it("il modo scelto si vede, e passando a SAL il piano cambia", () => {
     const onChange = monta(pianoRateDiPartenza());
     const gruppo = screen.getByRole("group", { name: "Modo di pagamento" });

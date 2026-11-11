@@ -8,7 +8,7 @@
  */
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { BadgeEuro, Plus, Trash2, TriangleAlert } from "lucide-react";
+import { BadgeEuro, Plus, Ruler, Trash2, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,9 +21,10 @@ import { EVENTI_RATA, GRUPPI_EVENTO } from "@/lib/orders/rateEventi";
 import { useModelliPagamento } from "@/hooks/useModelliPagamento";
 import {
   MAX_NOME_RATA_PIANO, MAX_RATE_PIANO, cambiaModo, leggiPianoPagamento, partenzeDelModulo, pianoCompleto,
-  pianoDaModello, quandoSiPaga, rateConImporti, totalePercentuali,
+  pianoDaModello, quandoSiPaga, quotaAMisura, rateConImporti, totalePercentuali,
   type ModoPagamento, type PianoPagamento, type RataPreventivo,
 } from "@/lib/preventivi/pianoPagamento";
+import { TERMINI_RATA, testoTermine } from "@/lib/terminiPagamento";
 
 interface Props {
   /** Il piano com'è salvato sul preventivo (null = non ancora deciso). */
@@ -94,6 +95,7 @@ export function PianoPagamentoCard({ piano: raw, onChange, totale, testoDelModel
   const somma = totalePercentuali(piano.righe);
   const completo = pianoCompleto(piano);
   const gruppi = eventiDelModo(piano.modo);
+  const quota = quotaAMisura(piano);
 
   return (
     <div className="rounded-lg border">
@@ -122,7 +124,7 @@ export function PianoPagamentoCard({ piano: raw, onChange, totale, testoDelModel
 
       <div className="space-y-1.5 px-3 py-2">
         {piano.righe.map((r, i) => (
-          <div key={i} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,11rem)_4.5rem_auto_auto]">
+          <div key={i} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,11rem)_6rem_auto_auto_auto]">
             <Input
               aria-label={`Nome della rata ${i + 1}`}
               value={r.nome}
@@ -141,17 +143,46 @@ export function PianoPagamentoCard({ piano: raw, onChange, totale, testoDelModel
                 ))}
               </SelectContent>
             </Select>
-            <div className="relative max-sm:col-span-1">
-              <Input
-                aria-label={`Percentuale della rata ${i + 1}`}
-                inputMode="decimal"
-                value={String(r.percent)}
-                onChange={(e) => cambiaRiga(i, { percent: arrotonda2(Math.min(100, Math.max(0, Number(e.target.value.replace(",", ".")) || 0))) })}
-                className="h-8 pr-5 text-right text-xs tabular-nums"
-              />
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">%</span>
+            <div className="flex items-center gap-1 max-sm:col-span-1">
+              {r.aMisura ? (
+                <span className="flex h-8 flex-1 items-center justify-center rounded bg-slate-100 text-[10px] text-slate-700">a misura</span>
+              ) : (
+                <div className="relative flex-1">
+                  <Input
+                    aria-label={`Percentuale della rata ${i + 1}`}
+                    inputMode="decimal"
+                    value={String(r.percent)}
+                    onChange={(e) => cambiaRiga(i, { percent: arrotonda2(Math.min(100, Math.max(0, Number(e.target.value.replace(",", ".")) || 0))) })}
+                    className="h-8 pr-5 text-right text-xs tabular-nums"
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">%</span>
+                </div>
+              )}
+              {/* Un SAL si paga su quello che è stato fatto: l'importo al preventivo non si conosce. */}
+              {r.evento === "sal_numero" && (
+                <button
+                  type="button"
+                  aria-label={r.aMisura ? `Dai una percentuale fissa alla rata ${i + 1}` : `Paga a misura la rata ${i + 1}`}
+                  title={r.aMisura ? "Dai a questa rata una percentuale fissa" : "L'importo lo dirà il SAL: si paga quello che è stato fatto"}
+                  onClick={() => cambiaRiga(i, r.aMisura ? { aMisura: false } : { aMisura: true, percent: 0 })}
+                  className="rounded p-1 text-slate-400 hover:text-emerald-700"
+                >
+                  <Ruler className={cn("h-3.5 w-3.5", r.aMisura && "text-emerald-600")} />
+                </button>
+              )}
             </div>
-            <span className="text-right text-xs font-semibold tabular-nums">{formatCurrency(righe[i]?.importo ?? 0)}</span>
+            <span className={cn("text-right text-xs font-semibold tabular-nums", righe[i]?.previsione && "font-normal text-slate-500")}>
+              {formatCurrency(righe[i]?.importo ?? 0)}{righe[i]?.previsione ? " circa" : ""}
+            </span>
+            <Select
+              value={`${r.termineGiorni ?? 0}|${r.termineFineMese === true}`}
+              onValueChange={(v) => { const [g, fm] = v.split("|"); cambiaRiga(i, { termineGiorni: Number(g), termineFineMese: fm === "true" }); }}
+            >
+              <SelectTrigger className="h-8 w-[8.5rem] text-[11px] max-sm:col-span-2 max-sm:w-full" aria-label={`Termine di pagamento della rata ${i + 1}`}><SelectValue /></SelectTrigger>
+              <SelectContent>{TERMINI_RATA.map((t) => (
+                <SelectItem key={`${t.giorni}|${t.fineMese}`} value={`${t.giorni}|${t.fineMese}`}>{testoTermine(t.giorni, t.fineMese)}</SelectItem>
+              ))}</SelectContent>
+            </Select>
             <button
               type="button"
               aria-label={`Togli la rata ${i + 1}`}
@@ -186,14 +217,18 @@ export function PianoPagamentoCard({ piano: raw, onChange, totale, testoDelModel
             </Button>
           </div>
           <span className={cn("text-[11px] font-semibold tabular-nums", completo ? "text-emerald-700" : "text-amber-700")}>
-            {completo ? `Totale ${formatCurrency(totale)}` : `${somma}% di 100 — mancano ${arrotonda2(100 - somma)} punti`}
+            {quota > 0
+              ? `${somma}% fisso + ${quota}% a misura — Totale ${formatCurrency(totale)}`
+              : completo ? `Totale ${formatCurrency(totale)}` : `${somma}% di 100 — mancano ${arrotonda2(100 - somma)} punti`}
           </span>
         </div>
 
         {!completo && (
           <p role="alert" className="flex items-start gap-1.5 rounded bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800">
             <TriangleAlert aria-hidden="true" className="mt-0.5 h-3 w-3 shrink-0" />
-            Finché le rate non fanno 100 il piano non esce nel PDF: il cliente vedrebbe un piano che non copre il prezzo.
+            {piano.righe.some((r) => r.aMisura)
+              ? "Le rate fisse si prendono tutto il prezzo: alle rate a misura non resta niente da fatturare."
+              : "Finché le rate non fanno 100 il piano non esce nel PDF: il cliente vedrebbe un piano che non copre il prezzo."}
           </p>
         )}
 

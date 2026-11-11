@@ -117,6 +117,8 @@ export interface RataScritta {
   trigger_evento: string;
   trigger_numero: number | null;
   expected_date?: string;
+  /** L'importo è la quota prevista di una rata a misura: lo fisserà il verbale SAL (11/11/2026). */
+  importo_da_misurare?: boolean;
 }
 
 /** Una riga della commessa nei nomi che legge `create_order_atomic`. */
@@ -269,6 +271,7 @@ function rateScritte(rate: RataDelPiano[]): RataScritta[] {
       // Le rate a evento vengono ridatate dal database: una scadenza esplicita deve restare fissa.
       trigger_evento: dataVera(r.expected_date) ? "data_fissa" : r.trigger_evento && EVENTI_RATA.has(r.trigger_evento) ? r.trigger_evento : "data_fissa",
       trigger_numero: r.trigger_numero ?? null,
+      ...(r.aMisura ? { importo_da_misurare: true } : {}),
       ...(typeof r.expected_date === "string" && dataVera(r.expected_date) ? { expected_date: r.expected_date } : {}),
     }));
 }

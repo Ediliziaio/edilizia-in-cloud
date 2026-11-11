@@ -29,7 +29,7 @@ import { conOrigine, fotoPerIlPdf } from "@/lib/pdf/fotoBlocchi";
 import { leggiEsigenze } from "@/lib/preventivatore/esigenze";
 import { descrizioneBreve, testoDelListino } from "@/lib/moduli/testoProdotto";
 import { rateDelPreventivo, sceltaFinanziariaDelPreventivo } from "@/lib/preventivi/finanziamentoLite";
-import { leggiPianoPagamento, pianoCompleto, quandoSiPaga, rateConImporti } from "@/lib/preventivi/pianoPagamento";
+import { leggiPianoPagamento, pianoCompleto, quandoSiPaga, rateConImporti, terminePiano } from "@/lib/preventivi/pianoPagamento";
 import { fasiDaStampare, leggiCronoprogramma } from "@/lib/preventivi/cronoprogramma";
 import { condizioniTolteDalPdf, haTesto } from "@/lib/preventivi/condizioniDelPreventivo";
 import {
@@ -54,7 +54,14 @@ function pianoDelDocumento(raw: unknown, totale: number) {
   const piano = leggiPianoPagamento(raw);
   if (!pianoCompleto(piano)) return null;
   return {
-    righe: rateConImporti(piano, totale).map((r) => ({ nome: r.nome, quando: quandoSiPaga(r), percent: r.percent, importo: r.importo })),
+    righe: rateConImporti(piano, totale).map((r) => ({
+      nome: r.nome,
+      // Il termine entra nel «quando»: è una condizione del contratto, non un dettaglio.
+      quando: [quandoSiPaga(r), terminePiano(r)].filter(Boolean).join(", pagamento "),
+      percent: r.percent, importo: r.importo,
+      // Una rata a misura non promette un importo: quello scritto è la quota indicativa.
+      aMisura: r.previsione === true,
+    })),
     note: piano!.note,
   };
 }

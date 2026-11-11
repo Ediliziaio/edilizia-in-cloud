@@ -105,7 +105,10 @@ export function rateDelPreventivo(paymentPhases: unknown, totale: number): RataD
   return fasi.map((p, i): RataDelPiano => {
     const amount = p.amount > 0 ? tondo(p.amount) : tondo((totale * p.percent) / 100);
     const evento = p.type === "balance" ? "fine_lavori" : p.type === "deposit" && i === 0 ? "firma_contratto" : null;
-    return { label: p.label || (p.type === "balance" ? "Saldo" : "Acconto"), type: p.type, amount, percent: p.percent || null, trigger_evento: evento };
+    return { label: p.label || (p.type === "balance" ? "Saldo" : "Acconto"), type: p.type, amount, percent: p.percent || null,
+      trigger_evento: p.evento && p.evento !== "data_fissa" ? p.evento : evento,
+      ...(p.evento === "sal_numero" && p.numero ? { trigger_numero: p.numero } : {}),
+      ...(p.aMisura ? { aMisura: true } : {}) };
   });
 }
 
@@ -120,6 +123,8 @@ export function rateDelPreventivatore(pianoPagamento: unknown, totale: number): 
     percent: r.percent,
     trigger_evento: r.evento,
     trigger_numero: r.numero,
+    // L'importo di una rata a misura è la quota prevista: il verbale SAL lo correggerà.
+    ...(r.previsione ? { aMisura: true } : {}),
   }));
 }
 

@@ -1847,8 +1847,8 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
                       {r.nome}
                       <Text style={{ fontFamily: tema.caratteri.testo, color: tema.grigio }}>{`  ·  ${r.quando}`}</Text>
                     </Text>
-                    <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio }}>{percento(r.percent)}</Text>
-                    <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10, color: tema.inchiostro }}>{formatCurrency(r.importo)}</Text>
+                    <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio }}>{r.aMisura ? "a misura" : percento(r.percent)}</Text>
+                    <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10, color: tema.inchiostro }}>{r.aMisura ? `${formatCurrency(r.importo)} circa` : formatCurrency(r.importo)}</Text>
                   </View>
                 ))}
                 {dati.pianoPagamento.note ? (

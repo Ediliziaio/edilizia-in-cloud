@@ -1,3 +1,4 @@
+// 11/11/2026: le rate del piano portano «a misura» (shared/silvio-commessa/piano.ts). Questo commento fa ripubblicare la funzione.
 /**
  * silvio-piano-volo — il piano di volo delle commesse (1/11/2026, fase 5, lotto 5.3).
  * Vedi docs/piano-silvio-commessa-ai.md, sezione 4 e fase 5.

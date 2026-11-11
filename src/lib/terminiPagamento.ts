@@ -63,6 +63,23 @@ export function calcolaScadenza(
   return d.toLocaleDateString("en-CA");
 }
 
+/**
+ * I termini che si offrono sulle rate di un preventivo (11/11/2026). Prima erano cinque numeri
+ * scritti in un componente — senza i 45 giorni e senza il «fine mese», che in edilizia è metà
+ * dei termini veri. Qui stanno una volta sola, accanto alle regole che li sanno leggere.
+ */
+export const TERMINI_RATA: readonly { giorni: number; fineMese: boolean }[] = [
+  { giorni: 0, fineMese: false }, { giorni: 30, fineMese: false }, { giorni: 30, fineMese: true },
+  { giorni: 45, fineMese: false }, { giorni: 45, fineMese: true }, { giorni: 60, fineMese: false },
+  { giorni: 60, fineMese: true }, { giorni: 90, fineMese: false },
+];
+
+/** «a vista», «45 giorni data fattura», «60 giorni data fattura fine mese». */
+export function testoTermine(giorni: number, fineMese: boolean): string {
+  if (!giorni) return fineMese ? "fine mese" : "a vista";
+  return `${giorni} giorni data fattura${fineMese ? " fine mese" : ""}`;
+}
+
 /** Preset offerti nell'editor: quelli che si vedono davvero sulle fatture. */
 export const TERMINI_PRESET = [
   "Alla consegna",
