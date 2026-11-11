@@ -103,7 +103,7 @@ export default function DDTRicezioneDetail() {
   const ddtId = useIdDocumento(ddtIdIndirizzo);
   const navigate = useNavigaDocumento();
   const inPopup = useDentroPopupDocumento();
-  const { ddt, isLoading, receipts, isReceiptsLoading, isReceiptsError } = useDDTRicezioneDetail(ddtId);
+  const { ddt, isLoading, isError: erroreDDT, refetch: rileggiDDT, receipts, isReceiptsLoading, isReceiptsError } = useDDTRicezioneDetail(ddtId);
   const fileDocumento = useFileDDT(ddt);
   const consegneDocumento = useConsegneDDT(ddt?.company_id ?? "",ddtId ?? "");
   const destinazioneMista = new Set((consegneDocumento.data ?? []).filter(c=>c.tipo!=="servizio").map(c=>c.destinazione)).size>1;
@@ -491,7 +491,8 @@ export default function DDTRicezioneDetail() {
     return (
       <div className="text-center py-12 space-y-3">
         <FileCheck className="h-12 w-12 mx-auto text-muted-foreground/40" />
-        <p className="text-muted-foreground">DDT non trovato</p>
+        <p role={erroreDDT ? "alert" : undefined} className="text-muted-foreground">{erroreDDT ? "Non riesco a caricare il DDT. Riprova; il documento non è stato eliminato." : "DDT non trovato"}</p>
+        {erroreDDT && <Button variant="outline" onClick={() => rileggiDDT()}>Riprova</Button>}
         <Button variant="outline" onClick={() => navigate("/azienda/ordini?tab=ddt")}>
           <ArrowLeft className="h-4 w-4 mr-1" /> Torna ai DDT
         </Button>

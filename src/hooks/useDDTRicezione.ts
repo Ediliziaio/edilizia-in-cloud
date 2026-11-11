@@ -247,7 +247,7 @@ export function useDDTRicezioneList(filters?: {
             // Left join sull'ODA, non !inner: dal 29/10/2026 una bolla può non
             // averne, e con l'inner join sarebbe sparita dalla lista senza che
             // nessuno lo dicesse. Commessa e fornitore si leggono dalla bolla.
-            "*, purchase_orders(id, oda_number, status, order_id, supplier_id, suppliers(name, email), orders(id, order_code)), warehouses(id, name), orders(id, order_code), suppliers(id, name), consegne:ddt_consegne(tipo, quantita, unita_misura, destinazione, warehouses(name))"
+            "*, purchase_orders!ddt_ricezione_purchase_order_id_fkey(id, oda_number, status, order_id, supplier_id, suppliers(name, email), orders(id, order_code)), warehouses(id, name), orders(id, order_code), suppliers(id, name), consegne:ddt_consegne(tipo, quantita, unita_misura, destinazione, warehouses(name))"
           )
           .eq("company_id", companyId!)
           .order("data_ricezione", { ascending: false })
@@ -310,7 +310,7 @@ export function useDDTRicezioneDetail(ddtId: string | null | undefined) {
       const { data, error } = await supabase
         .from("ddt_ricezione")
         .select(
-          "*, purchase_orders(id, oda_number, status, order_id, supplier_id, suppliers(name, email), orders(id, order_code)), warehouses(id, name), orders(id, order_code), suppliers(id, name)"
+          "*, purchase_orders!ddt_ricezione_purchase_order_id_fkey(id, oda_number, status, order_id, supplier_id, suppliers(name, email), orders(id, order_code)), warehouses(id, name), orders(id, order_code), suppliers(id, name)"
         )
         .eq("id", ddtId!)
         .maybeSingle();
@@ -344,6 +344,8 @@ export function useDDTRicezioneDetail(ddtId: string | null | undefined) {
   return {
     ddt: detailQuery.data ?? null,
     isLoading: detailQuery.isLoading,
+    isError: detailQuery.isError,
+    error: detailQuery.error,
     receipts: receiptsQuery.data ?? [],
     isReceiptsLoading: receiptsQuery.isLoading,
     isReceiptsError: receiptsQuery.isError,

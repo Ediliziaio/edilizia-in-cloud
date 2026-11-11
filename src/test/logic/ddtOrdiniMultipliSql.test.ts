@@ -45,6 +45,12 @@ beforeAll(async () => {
       "utf8",
     ),
   );
+  await db.exec(
+    readFileSync(
+      "supabase/migrations/20290312123500_ddt_collegamenti_compatibili.sql",
+      "utf8",
+    ),
+  );
 }, 60000);
 beforeEach(async () => {
   await db.exec(`truncate ddt_ordini_acquisto,ddt_consegne,ddt_operazioni_consegna,ddt_righe,ddt_ricezione,purchase_order_items,purchase_orders,order_items,warehouse_movements,warehouse_stock,orders,suppliers,warehouses,profiles,companies cascade;
@@ -218,7 +224,7 @@ it("non collega ordini di un altro fornitore o in bozza", async () => {
   );
   await expect(
     db.exec(
-      `insert into ddt_ordini_acquisto values('${ddt}','${oda}','${azienda}',null,now())`,
+      `insert into ddt_ordini_acquisto(ddt_id,purchase_order_id,company_id,created_by,created_at) values('${ddt}','${oda}','${azienda}',null,now())`,
     ),
   ).rejects.toThrow("stesso fornitore");
   await db.exec(
@@ -226,7 +232,7 @@ it("non collega ordini di un altro fornitore o in bozza", async () => {
   );
   await expect(
     db.exec(
-      `insert into ddt_ordini_acquisto values('${ddt}','${oda}','${azienda}',null,now())`,
+      `insert into ddt_ordini_acquisto(ddt_id,purchase_order_id,company_id,created_by,created_at) values('${ddt}','${oda}','${azienda}',null,now())`,
     ),
   ).rejects.toThrow("Emetti");
 });
