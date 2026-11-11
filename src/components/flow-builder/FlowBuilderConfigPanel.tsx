@@ -828,7 +828,7 @@ function ConfigField({
       if (error) throw error;
       return data || [];
     },
-    enabled: !!companyId && field.type === "calendar_select",
+    enabled: !!companyId && (field.type === "calendar_select" || field.type === "calendar_multi_select"),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -1258,6 +1258,64 @@ function ConfigField({
           </p>
         )
       )}
+
+      {field.type === "calendar_multi_select" && (() => {
+        if (calendariPrenotazione.length === 0) {
+          return (
+            <p className="rounded-lg border border-dashed px-3 py-2.5 text-xs text-muted-foreground">
+              Nessun calendario trovato. Creane uno in Impostazioni → Appuntamenti e prenotazioni.
+            </p>
+          );
+        }
+        const ids: string[] = Array.isArray(value) ? value : [];
+        // Elenco vuoto = nessun filtro: il flusso parte per tutti i calendari.
+        const scegli = (id: string) =>
+          onChange(ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]);
+        const nome = (id: string) =>
+          calendariPrenotazione.find((c: { id: string; name: string }) => c.id === id)?.name || id;
+        return (
+          <div className="space-y-1.5">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button type="button" variant="outline" className="h-9 w-full justify-between text-sm font-normal">
+                  {ids.length > 0
+                    ? `${ids.length} calendari${ids.length === 1 ? "o" : ""} selezionat${ids.length === 1 ? "o" : "i"}`
+                    : "Tutti i calendari"}
+                  <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[300px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Cerca calendario…" />
+                  <CommandList className="max-h-[240px]">
+                    <CommandEmpty>Nessun calendario trovato.</CommandEmpty>
+                    <CommandGroup>
+                      {calendariPrenotazione.map((c: { id: string; name: string }) => (
+                        <CommandItem key={c.id} value={`${c.name} ${c.id}`} onSelect={() => scegli(c.id)}>
+                          <CheckCircle className={`mr-2 h-3.5 w-3.5 shrink-0 ${ids.includes(c.id) ? "text-primary" : "opacity-0"}`} />
+                          <span className="truncate text-sm">{c.name}</span>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+            {ids.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {ids.map((id) => (
+                  <span key={id} className="inline-flex max-w-full items-center gap-1 rounded-full border bg-muted/50 px-2 py-0.5 text-[11px]">
+                    <span className="truncate">{nome(id)}</span>
+                    <button type="button" onClick={() => scegli(id)} aria-label="Togli calendario" className="shrink-0 text-muted-foreground hover:text-foreground">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {field.type === "pipeline_select" && (
         crmPipelines.length > 0 ? (
