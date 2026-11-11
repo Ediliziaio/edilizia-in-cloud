@@ -305,6 +305,7 @@ jobs:
           bunx vitest run --maxWorkers=2
           src/test/logic/ddtControlloOrdini.test.ts
           src/test/logic/ddtOrdiniMultipliSql.test.ts
+          src/test/logic/ddtAcquistiRls.test.ts
           src/test/logic/ddtConfrontoAI.test.ts
           src/test/ui/controlloOrdiniDDT.test.tsx
 
