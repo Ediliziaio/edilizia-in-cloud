@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   ArrowLeftRight,
   CheckCircle2,
@@ -9,6 +9,8 @@ import {
   FileText,
   RefreshCw,
   Truck,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import {
   Dialog,
@@ -38,6 +40,17 @@ import {
 } from "@/hooks/useConfrontoFattura";
 import { OriginaliConfronto } from "./OriginaliConfronto";
 import { VerificaFatturaPill } from "./VerificaFatturaPill";
+import {
+  useRiconciliazioneFatturaAI,
+  useUltimaSelezioneConfrontoAI,
+} from "@/hooks/useRiconciliazioneFatturaAI";
+import { SimulazioniRiconciliazioneAI } from "./SimulazioniRiconciliazioneAI";
+import { RevisioneRiconciliazioneAI } from "./RevisioneRiconciliazioneAI";
+import {
+  scelteAbbinamenti,
+  datiRiconciliazione,
+  esitiRiconciliazione,
+} from "../../../supabase/functions/_shared/riconciliazioneFattureAI.ts";
 import { CollegaDdtFattura } from "./CollegaDdtFattura";
 import { salvaCollegamentoDdt } from "@/lib/fatturazione/collegaDdt";
 import {
@@ -103,7 +116,7 @@ function TabellaDocumenti({
           <tr>
             <th
               className="p-2 text-left"
-              title="Voci della fattura con codice o descrizione uguale, da confrontare"
+              title="Voci della fattura abbinate per codice, descrizione o proposta AI da confermare"
             >
               Voce fattura
             </th>
@@ -138,7 +151,7 @@ function TabellaDocumenti({
                   ) : (
                     <span
                       className="text-muted-foreground"
-                      title="Nessuna voce con codice o descrizione uguale"
+                      title="Nessun abbinamento attivo per questa voce"
                     >
                       —
                     </span>
@@ -187,8 +200,10 @@ export function ConfrontoFatturaDialog({
   onClose: () => void;
   onVersioneCompleta?: () => void;
 }) {
+  const [parametri] = useSearchParams();
   const id = String(fattura.id),
     q = useConfrontoFattura(companyId, id, ordineIds);
+  const ultimaSelezioneAI = useUltimaSelezioneConfrontoAI(companyId, id);
   const fornitoreId = fattura.fornitore_id
     ? String(fattura.fornitore_id)
     : null;
@@ -196,6 +211,7 @@ export function ConfrontoFatturaDialog({
   const [attivo, setAttivo] = useState("");
   const [selezione, setSelezione] = useState<Set<string> | null>(null);
   const [controllo, setControllo] = useState(false);
+  const [revisioneAperta, setRevisioneAperta] = useState(false);
   const [rigaAttiva, setRigaAttiva] = useState<number | null>(null);
   const [aggiungi, setAggiungi] = useState(false);
   const [vistaDocumento, setVistaDocumento] = useState("righe");
@@ -234,6 +250,20 @@ export function ConfrontoFatturaDialog({
   const scelti = useMemo(
     () =>
       selezione ??
+      (ultimaSelezioneAI.data &&
+      [...ultimaSelezioneAI.data.ddt, ...ultimaSelezioneAI.data.oda].every(
+        (id) =>
+          documenti.some(
+            (d) =>
+              d.id === id &&
+              documentoCompatibileConFornitore(fornitoreId, d.dati.supplier_id),
+          ),
+      )
+        ? new Set([
+            ...ultimaSelezioneAI.data.ddt,
+            ...ultimaSelezioneAI.data.oda,
+          ])
+        : null) ??
       new Set(
         documenti
           .filter(
@@ -243,7 +273,7 @@ export function ConfrontoFatturaDialog({
           )
           .map((d) => d.id),
       ),
-    [selezione, documenti, fornitoreId],
+    [selezione, documenti, fornitoreId, ultimaSelezioneAI.data],
   );
   const doc = documenti.find((d) => d.id === attivo) ?? documenti[0];
   const originali = useOriginaliConfronto(companyId, doc);
@@ -251,38 +281,107 @@ export function ConfrontoFatturaDialog({
     () => righeFatturaConfronto(fattura.righe),
     [fattura.righe],
   );
-  const esiti = useMemo(
-    () =>
-      confrontaRigheDocumenti(
-        righe,
-        documenti
-          .filter(
-            (d) =>
-              d.tipo === "ddt" &&
-              scelti.has(d.id) &&
-              documentoCompatibileConFornitore(fornitoreId, d.dati.supplier_id),
-          )
-          .flatMap((d) => d.bolle),
-        documenti
-          .filter(
-            (d) =>
-              d.tipo === "oda" &&
-              scelti.has(d.id) &&
-              documentoCompatibileConFornitore(fornitoreId, d.dati.supplier_id),
-          )
-          .flatMap((d) => d.righe),
-      ),
-    [righe, documenti, scelti, fornitoreId],
+  const selezioneAI = useMemo(
+    () => ({
+      ddt: documenti
+        .filter((d) => d.tipo === "ddt" && scelti.has(d.id))
+        .map((d) => d.id)
+        .sort(),
+      oda: documenti
+        .filter((d) => d.tipo === "oda" && scelti.has(d.id))
+        .map((d) => d.id)
+        .sort(),
+    }),
+    [documenti, scelti],
   );
-  const riferimenti = useMemo(
+  const ai = useRiconciliazioneFatturaAI({
+    companyId,
+    fatturaId: id,
+    documenti: selezioneAI,
+    revisioneDati: `${q.dataUpdatedAt}:${JSON.stringify(righe)}`,
+  });
+  const analisiAI = ai.dati.data?.analisi;
+  const datiAllineatiAI =
+    ai.dati.data &&
+    JSON.stringify(datiRiconciliazione(ai.dati.data.contesto).fattura) ===
+      JSON.stringify(righe);
+  const abbinamentiAI = useMemo(
     () =>
-      new Map(
-        (doc?.righe ?? []).map((r) => [
-          r.id,
-          righe.flatMap((f, i) => (stessaVoce(f, r) ? [i] : [])),
-        ]),
-      ),
-    [doc?.righe, righe],
+      analisiAI && datiAllineatiAI
+        ? scelteAbbinamenti(analisiAI.proposta, analisiAI.decisioni)
+        : undefined,
+    [analisiAI, datiAllineatiAI],
+  );
+  const voceAssociata = (f: RigaConfronto, r: RigaConfronto) => {
+    const proposta =
+      datiAllineatiAI &&
+      analisiAI?.proposta.righe.find((p) => p.fattura === f.id);
+    if (proposta)
+      return (
+        analisiAI?.decisioni[f.id] !== "rifiutata" &&
+        [...proposta.ddt, ...proposta.oda].includes(r.id)
+      );
+    return stessaVoce(f, r);
+  };
+  const esiti = useMemo(() => {
+    if (ai.dati.data && datiAllineatiAI) {
+      const c = ai.dati.data.contesto,
+        d = datiRiconciliazione(c);
+      const p = analisiAI
+        ? {
+            ...analisiAI.proposta,
+            righe: analisiAI.proposta.righe.map((r) => ({
+              ...r,
+              ...(abbinamentiAI?.get(r.fattura) ?? { ddt: [], oda: [] }),
+            })),
+          }
+        : {
+            righe: d.fattura.map((f) => ({
+              fattura: f.id,
+              ddt: d.bolle.filter((r) => stessaVoce(f, r)).map((r) => r.id),
+              oda: d.ordini.filter((r) => stessaVoce(f, r)).map((r) => r.id),
+              affidabilita: "alta" as const,
+              motivo: "Codice o descrizione uguale",
+            })),
+            avvisi: [],
+          };
+      return esitiRiconciliazione(c, p);
+    }
+    return confrontaRigheDocumenti(
+      righe,
+      documenti
+        .filter(
+          (d) =>
+            d.tipo === "ddt" &&
+            scelti.has(d.id) &&
+            documentoCompatibileConFornitore(fornitoreId, d.dati.supplier_id),
+        )
+        .flatMap((d) => d.bolle),
+      documenti
+        .filter(
+          (d) =>
+            d.tipo === "oda" &&
+            scelti.has(d.id) &&
+            documentoCompatibileConFornitore(fornitoreId, d.dati.supplier_id),
+        )
+        .flatMap((d) => d.righe),
+      abbinamentiAI,
+    );
+  }, [
+    righe,
+    documenti,
+    scelti,
+    fornitoreId,
+    abbinamentiAI,
+    ai.dati.data,
+    datiAllineatiAI,
+    analisiAI,
+  ]);
+  const riferimenti = new Map(
+    (doc?.righe ?? []).map((r) => [
+      r.id,
+      righe.flatMap((f, i) => (voceAssociata(f, r) ? [i] : [])),
+    ]),
   );
   const evidenziate = new Set(
     (doc?.righe ?? [])
@@ -300,9 +399,9 @@ export function ConfrontoFatturaDialog({
     if (!righe[indice]) return;
     setRigaAttiva(indice);
     setVistaFattura("righe");
-    if (!doc?.righe.some((r) => stessaVoce(righe[indice], r))) {
+    if (!doc?.righe.some((r) => voceAssociata(righe[indice], r))) {
       const corrispondente = documenti.find((d) =>
-        d.righe.some((r) => stessaVoce(righe[indice], r)),
+        d.righe.some((r) => voceAssociata(righe[indice], r)),
       );
       if (corrispondente) setAttivo(corrispondente.id);
     }
@@ -377,7 +476,69 @@ export function ConfrontoFatturaDialog({
             <CheckCircle2 className="mr-1.5 h-4 w-4" />
             Controlla quantità e prezzi
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-indigo-200 text-indigo-800 hover:bg-indigo-50"
+            disabled={
+              !puoModificare ||
+              q.isFetching ||
+              q.isError ||
+              !scelti.size ||
+              !righe.length ||
+              ai.dati.isFetching ||
+              ultimaSelezioneAI.isFetching ||
+              ai.dati.isError ||
+              ai.dati.data?.puo_modificare === false ||
+              ai.analizza.isPending
+            }
+            title="Propone corrispondenze tra articoli con descrizioni diverse. Usa i crediti AI dell’azienda; la conferma resta tua."
+            onClick={() => {
+              setRevisioneAperta(true);
+              if (!analisiAI) ai.analizza.mutate();
+            }}
+          >
+            {ai.analizza.isPending ? (
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="mr-1.5 h-4 w-4" />
+            )}
+            {ai.analizza.isPending
+              ? "Analisi AI…"
+              : analisiAI
+                ? "Riapri analisi AI"
+                : "Analizza con AI"}
+          </Button>
         </div>
+        {import.meta.env.DEV && parametri.has("qa_riconciliazione") && (
+          <SimulazioniRiconciliazioneAI
+            fatturaId={id}
+            documenti={selezioneAI}
+            disabled={
+              !puoModificare ||
+              !scelti.size ||
+              ai.dati.isFetching ||
+              ultimaSelezioneAI.isFetching ||
+              ai.dati.isError ||
+              ai.dati.data?.puo_modificare === false ||
+              ai.analizza.isPending
+            }
+          />
+        )}
+        <RevisioneRiconciliazioneAI
+          ai={ai}
+          aperta={revisioneAperta}
+          onApertura={setRevisioneAperta}
+          righe={righe}
+          documenti={documenti}
+          puoModificare={
+            puoModificare &&
+            !!datiAllineatiAI &&
+            !ai.dati.isFetching &&
+            ai.dati.data?.puo_modificare !== false
+          }
+          onRiga={selezionaRiga}
+        />
         {q.isError ? (
           <div
             role="alert"

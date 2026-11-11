@@ -42,6 +42,14 @@ vi.mock("@/hooks/useConfrontoFattura", () => ({
     refetch: vi.fn(),
   }),
 }));
+vi.mock("@/hooks/useRiconciliazioneFatturaAI", () => ({
+  useUltimaSelezioneConfrontoAI: () => ({ data: null }),
+  useRiconciliazioneFatturaAI: () => ({
+    dati: {},
+    analizza: { isPending: false },
+    salva: {},
+  }),
+}));
 vi.mock("@/components/fatturazione/VerificaFatturaPill", () => ({
   VerificaFatturaPill: () => <span>Verifica fattura</span>,
 }));
