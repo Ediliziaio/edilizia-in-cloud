@@ -140,6 +140,8 @@ export function DDTRigheCard({
   modificabile = true,
   odaId,
   fornitoreId,
+  consegnaDiretta = false,
+  gestioneConsegneEsplicita = false,
 }: {
   ddtId: string | null | undefined;
   aiConfidenza?: number | null;
@@ -148,17 +150,21 @@ export function DDTRigheCard({
   /** Articoli già registrati all'arrivo su questa bolla. */
   ricezioni?: number;
   modificabile?: boolean;
+  /** La consegna diretta non deve usare la procedura che carica giacenze. */
+  consegnaDiretta?: boolean;
+  gestioneConsegneEsplicita?: boolean;
   /** L'ordine a cui è collegata la bolla: la sua merce si abbina riga per riga. */
   odaId?: string | null;
   /** Una bolla può consegnare più ordini: si guardano anche gli altri aperti del fornitore. */
   fornitoreId?: string | null;
 }) {
-  const { data: righe = [], isLoading } = useDDTRighe(ddtId);
+  const { data: righe = [], isLoading, isError, refetch } = useDDTRighe(ddtId);
   const { aggiungiRighe, aggiornaRiga, eliminaRiga } = useDDTRigheMutations(ddtId);
   const { ordine, abbina, registraArrivo, nonInBolla, ordiniToccati } = useAbbinamentoBolla(ddtId, odaId, righe, modificabile, fornitoreId);
   const conferma = useConfirm();
   const daRegistrare = arriviDaRegistrare(righe, ordine);
   const chiediRegistrazione = async () => {
+    if (consegnaDiretta || gestioneConsegneEsplicita) return;
     const elenco = daRegistrare.map((d) => `${d.numero ?? "ordine"}: ${d.righe === 1 ? "1 riga" : `${d.righe} righe`}`).join(" · ");
     if (await conferma({
       title: "Registrare l'arrivo sugli ordini?",
@@ -178,11 +184,17 @@ export function DDTRigheCard({
   const importi = righe.map((r) => importoRiga(r)).filter((v): v is number => v != null);
   const totale = importi.length > 0 ? importi.reduce((s, v) => s + v, 0) : null;
   const quantitaRighe = righe.reduce((s, r) => s + (r.quantita ?? 0), 0);
+  const quantitaPerUnita = new Map<string, number>();
+  for (const r of righe) {
+    if (r.quantita == null) continue;
+    const um = r.unita_misura?.trim().toLowerCase() || "UM da indicare";
+    quantitaPerUnita.set(um, (quantitaPerUnita.get(um) ?? 0) + r.quantita);
+  }
   const senzaPrezzo = righe.filter((r) => importoRiga(r) == null).length;
   // Scarto fra la quantità in testata e la somma delle righe. Due numeri che
   // dicono la stessa cosa e non coincidono sono peggio di un numero solo.
   const scartoQuantita =
-    quantitaInTestata != null && quantitaRighe > 0
+    quantitaInTestata != null && quantitaRighe > 0 && quantitaPerUnita.size === 1
       ? Math.round((quantitaInTestata - quantitaRighe) * 1000) / 1000
       : 0;
 
@@ -233,6 +245,8 @@ export function DDTRigheCard({
   };
 
   const inCorso = aggiornaRiga.isPending || aggiungiRighe.isPending || eliminaRiga.isPending;
+
+  if (isError) return <Card><CardHeader><CardTitle className="text-base">Merce sulla bolla</CardTitle></CardHeader><CardContent><p role="alert" className="text-sm text-destructive">Le righe non sono disponibili: il documento non è vuoto. <button type="button" className="underline" onClick={() => void refetch()}>Riprova</button></p></CardContent></Card>;
 
   return (
     <>
@@ -537,8 +551,9 @@ export function DDTRigheCard({
                     <td colSpan={2} className="text-muted-foreground">
                       Totale
                     </td>
-                    <td className="text-right tabular-nums">{numero(quantitaRighe)}</td>
-                    <td colSpan={2} />
+                    <td colSpan={3} className="text-right tabular-nums">
+                      {[...quantitaPerUnita].map(([um, q]) => `${numero(q)} ${um}`).join(" · ") || "—"}
+                    </td>
                     <td className="text-right tabular-nums">
                       {totale != null ? euro(totale) : "—"}
                     </td>
@@ -564,8 +579,8 @@ export function DDTRigheCard({
         {senzaPrezzo > 0 && (
           <p className="text-[11px] text-muted-foreground">
             {senzaPrezzo} {senzaPrezzo === 1 ? "riga" : "righe"} senza prezzo: la bolla
-            non è valorizzabile per intero, e la fattura di fine mese non si potrà
-            ripartire su quella parte.
+            non è ancora valorizzabile per intero. Potrai completare i prezzi
+            collegando la fattura del fornitore.
           </p>
         )}
 
@@ -579,7 +594,8 @@ export function DDTRigheCard({
             ))}
           </ul>
         )}
-        {modificabile && daRegistrare.length > 0 && (
+        {consegnaDiretta && <p className="mt-3 text-xs text-emerald-800">Consegna diretta in cantiere: le righe documentano la consegna e non generano carichi di magazzino.</p>}
+        {modificabile && !consegnaDiretta && !gestioneConsegneEsplicita && daRegistrare.length > 0 && (
           <Button size="sm" className="mt-3" disabled={registraArrivo.isPending} onClick={() => void chiediRegistrazione()}>
             {registraArrivo.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
             Registra arrivo sugli ordini

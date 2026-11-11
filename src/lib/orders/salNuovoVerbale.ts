@@ -43,12 +43,21 @@ export function vociCheCambiano(voci: ReadonlyArray<VoceSalDraft>, prec: Percent
 
 const tondo = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
+export type Arrotondamento = 0 | 10 | 100;
+
+/** L'arrotondamento che usava il certificato prima: chi arrotonda a 100 € lo fa ogni volta. */
+export function arrotondamentoAbituale(precedente: SalCertificato | null): Arrotondamento {
+  if (!precedente || !(Number(precedente.rinviato) > 0)) return 0;
+  const cent = Math.round(Number(precedente.netto) * 100);
+  return cent % 10000 === 0 ? 100 : cent % 1000 === 0 ? 10 : 0;
+}
+
 /**
  * Il certificato del verbale nuovo: la proposta di sempre (ritenuta del certificato prima, acconti =
- * già maturato), con la ritenuta % e le altre detrazioni che chi compila può cambiare.
- *
- * Niente arrotondamento automatico del netto: messo nelle altre detrazioni (che sono cumulative) il
- * certificato dopo non lo restituirebbe. Per farlo bene serve una colonna a sé in sal_certificati.
+ * quanto certificato davvero, rinviato del certificato prima compreso), con la ritenuta % e le altre
+ * detrazioni che chi compila può cambiare, e il netto arrotondato per difetto a 10 o 100 €.
+ * Quello che l'arrotondamento toglie va nel «rinviato» (sal_certificati.rinviato, 10/11/2026), non
+ * nelle altre detrazioni: il certificato dopo lo restituisce.
  */
 export function certificatoNelModulo(p: {
   cumulativo: number;
@@ -57,6 +66,7 @@ export function certificatoNelModulo(p: {
   ritenutaPct?: number | null;
   altreDetrazioni?: number | null;
   nota?: string | null;
+  arrotonda?: Arrotondamento;
 }): SalCertificato {
   const base = certificatoProposto(p.cumulativo, p.precedente, p.giaMaturato);
   const ritenutaPct = p.ritenutaPct != null && Number.isFinite(p.ritenutaPct) ? p.ritenutaPct : base.ritenuta_pct;
@@ -68,5 +78,9 @@ export function certificatoNelModulo(p: {
     altre_detrazioni: tondo(altre),
     altre_detrazioni_nota: p.nota?.trim() || base.altre_detrazioni_nota || null,
   };
-  return { ...c, netto: nettoCertificato(c) };
+  const netto = nettoCertificato(c);
+  const passo = p.arrotonda ?? 0;
+  const rinviato = passo > 0 && netto > 0 ? tondo(netto - Math.floor(netto / passo) * passo) : 0;
+  const finale = { ...c, rinviato };
+  return { ...finale, netto: nettoCertificato(finale) };
 }

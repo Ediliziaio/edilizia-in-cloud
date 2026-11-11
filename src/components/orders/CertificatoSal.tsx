@@ -24,6 +24,7 @@ const CAMPI = [
   ["recupero_anticipazione", "Recupero anticipazione (totale a oggi)"],
   ["altre_detrazioni", "Altre detrazioni (totale a oggi)"],
   ["acconti_precedenti", "Acconti precedenti"],
+  ["rinviato", "Rinviato al prossimo certificato (arrotondamento)"],
 ] as const;
 type Campo = (typeof CAMPI)[number][0];
 type Bozza = Record<Campo, string> & { nota: string };
@@ -61,6 +62,7 @@ export function CertificatoSal({ salId, orderId, companyId, numero, cumulativo, 
         recupero_anticipazione: valore(bozza.recupero_anticipazione),
         altre_detrazioni: valore(bozza.altre_detrazioni),
         acconti_precedenti: valore(bozza.acconti_precedenti),
+        rinviato: valore(bozza.rinviato),
       }
     : null;
   const validi = !!numeri && Object.values(numeri).every((n) => Number.isFinite(n) && n >= 0) && numeri.ritenuta_pct <= 100;
@@ -93,6 +95,7 @@ export function CertificatoSal({ salId, orderId, companyId, numero, cumulativo, 
           <div><dt className="text-muted-foreground">Ritenuta {Number(certificato.ritenuta_pct)}%</dt><dd className="font-medium tabular-nums">{formatCurrency(certificato.ritenuta)}</dd></div>
           {Number(certificato.recupero_anticipazione) > 0 && <div><dt className="text-muted-foreground">Recupero anticipazione</dt><dd className="font-medium tabular-nums">{formatCurrency(certificato.recupero_anticipazione)}</dd></div>}
           {Number(certificato.altre_detrazioni) > 0 && <div title={certificato.altre_detrazioni_nota ?? undefined}><dt className="text-muted-foreground">Altre detrazioni</dt><dd className="font-medium tabular-nums">{formatCurrency(certificato.altre_detrazioni)}</dd></div>}
+          {Number(certificato.rinviato) > 0 && <div title="Torna nel certificato dopo"><dt className="text-muted-foreground">Rinviato al prossimo</dt><dd className="font-medium tabular-nums">{formatCurrency(Number(certificato.rinviato))}</dd></div>}
           <div><dt className="text-muted-foreground">Acconti precedenti</dt><dd className="font-medium tabular-nums">{formatCurrency(certificato.acconti_precedenti)}</dd></div>
           <div><dt className="text-muted-foreground">Netto certificato</dt><dd className="font-semibold tabular-nums">{formatCurrency(certificato.netto)}</dd></div>
           {puoModificare && !bloccato && <div className="col-span-full"><Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={apri}>Modifica certificato</Button></div>}

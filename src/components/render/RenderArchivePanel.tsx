@@ -336,7 +336,7 @@ export function RenderArchivePanel({
               ]
             : []),
         ].map(({ id, label, short }) => {
-          const count = isLoading
+          const count = isLoading || !!error || !companyId
             ? "—"
             : items.filter((item) => matchesRecentStatus(item, id)).length;
           return (

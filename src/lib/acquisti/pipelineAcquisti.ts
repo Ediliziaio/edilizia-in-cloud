@@ -145,7 +145,7 @@ export function leggiFiltriAcquisti(
   params: URLSearchParams,
 ): FiltriAcquisti & { vista: VistaAcquisti } {
   return {
-    vista: params.get("vista") === "elenco" ? "elenco" : "pipeline",
+    vista: params.get("vista") === "pipeline" ? "pipeline" : "elenco",
     commessa: params.get("commessa") || null,
     fornitore: params.get("forn") || null,
     fase: params.get("fase") || null,

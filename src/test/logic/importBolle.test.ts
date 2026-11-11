@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  articoloCerto, articoloSimile, bollaDaFile, chiaveBolla, conLettura, doppioni, dubbi, motivoScartoFile, perAttenzione, problemiBloccanti, pronte,
+  richiedeCaricoManuale, riabbinaFornitori, articoloCerto, articoloSimile, bollaDaFile, chiaveBolla, conLettura, doppioni, dubbi, motivoScartoFile, perAttenzione, problemiBloccanti, pronte,
   quantitaAPezzi, scelteCerte, type BollaLetta, type RigaDaCaricare,
 } from "@/lib/ddt/importBolle";
 import { leggiDDTdaAI } from "@/lib/ddt/letturaAI";
@@ -118,6 +118,36 @@ describe("dalla riga della bolla all'articolo", () => {
     expect(scelteCerte([riga({ quantita: 12.5 })], articoli)).toEqual([]);
     expect(scelteCerte([riga({ unita_misura: "kg" })], articoli)).toEqual([]);
     expect(scelteCerte([riga({ quantita: null })], articoli)).toEqual([]);
-    expect(quantitaAPezzi({ quantita: 3, unita_misura: null })).toBe(true);
+    expect(quantitaAPezzi({ quantita: 3, unita_misura: null })).toBe(false);
+  });
+});
+
+
+describe("fornitore creato dopo la lettura", () => {
+  it("riabbina per partita IVA senza spendere un'altra lettura e senza perdere correzioni", () => {
+    const originale = bolla({ numero: "CORRETTO A MANO", data: "2026-11-10", supplierId: null, grezzo: { mittente: { ragione_sociale: "KLASSE Materiale Edile.eu", partita_iva: "IT08236870963" } } });
+    const [risultato] = riabbinaFornitori([originale], [{ id: "nuovo-fornitore", name: "Klasse S.r.l. — SIMULAZIONE", vat_number: "08236870963" }]);
+    expect(risultato.supplierId).toBe("nuovo-fornitore"); expect(risultato.abbinatoPer).toBe("partita IVA");
+    expect(risultato.numero).toBe("CORRETTO A MANO"); expect(risultato.data).toBe("2026-11-10"); expect(risultato.righe).toBe(originale.righe);
+    expect(originale.supplierId).toBeNull();
+  });
+  it("conserva il fornitore già scelto manualmente", () => {
+    const originale = bolla({ supplierId: "manuale", grezzo: { mittente: { partita_iva: "08236870963" } } });
+    expect(riabbinaFornitori([originale], [{ id: "altro", name: "Klasse", vat_number: "08236870963" }])[0]).toBe(originale);
+  });
+});
+
+describe("DDT reali: controlli prima del carico", () => {
+  it("non presume pezzi quando l’unità manca", () => {
+    expect(quantitaAPezzi({quantita:1, unita_misura:null})).toBe(false);
+    expect(quantitaAPezzi({quantita:1, unita_misura:"cad"})).toBe(true);
+  });
+  it("non carica i costi pulizia anche con un codice corrispondente", () => {
+    expect(scelteCerte([{id:"r",codice_articolo:"40372",descrizione:"Costi pulizia cat 3",quantita:1,unita_misura:"pz"}], [{id:"a",name:"Costi pulizia cat 3",internal_code:"40372",barcode:null}])).toEqual([]);
+  });
+  it("richiede la verifica per restituzioni e quantità divise tra cantiere e magazzino", () => {
+    expect(richiedeCaricoManuale({intestazione:{causale:"Restituzione noleggio"}})).toBe(true);
+    expect(richiedeCaricoManuale({riferimenti:{note_libere:"Lasciate in cantiere 20 matassine resto in magazzino"}})).toBe(true);
+    expect(richiedeCaricoManuale({intestazione:{causale:"Vendita"}})).toBe(false);
   });
 });

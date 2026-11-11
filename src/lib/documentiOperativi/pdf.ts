@@ -21,6 +21,7 @@ import {
   oreIt,
   dataIt,
   documentoIncompleto,
+  haImportiDocumento,
 } from "./modello";
 
 import { disegnaPiedeJsPdf, fontPiedeBase64, limiteContenutoJsPdf, personalizzazioneDocumento, puntiInMm } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
@@ -355,19 +356,22 @@ export function creaPdfOperativo(
       disegnaRiquadro(x, y, w, hStat);
       etichetta(c.titolo, x + pad, y + pad + mm(stileRiquadro.etichettaCorpo) * 0.75);
       font(stileRiquadro.numeroCorpo, i === 3, i === 3 ? ACCENTO : INCHIOSTRO);
-      pdf.text(euro(c.totale), x + pad, y + pad + altoEtichetta + hNumero * 0.75);
       const entries =
         i < 3
           ? d.righe.filter((r) => categorie[i].match.test(r.descrizione))
           : d.righe;
+      const valorizzate = entries.filter((r) => r.prezzo != null || r.importo != null);
+      const parziale = valorizzate.length > 0 && valorizzate.length < entries.length;
+      pdf.text(!entries.length ? "—" : !valorizzate.length ? "Da definire" : euro(c.totale), x + pad, y + pad + altoEtichetta + hNumero * 0.75);
+      const interventi = new Set(d.righe.map((r) => r.gruppo || "Intervento")).size;
       const detail =
         i === 3
-          ? `${new Set(d.righe.map((r) => r.gruppo || "Intervento")).size} interventi`
+          ? `${interventi} ${interventi === 1 ? "intervento" : "interventi"}`
           : i === 0
             ? `${numeroIt(entries.reduce((sum, r) => sum + (r.unita.toLowerCase() === "h" ? r.quantita : 0), 0))} ore`
             : `${entries.length} voci`;
       font(pagina.nota, false, TENUE);
-      pdf.text(detail, x + pad, y + hStat - pad);
+      pdf.text(`${detail}${parziale ? " · parziale" : ""}`, x + pad, y + hStat - pad);
     });
     y += hStat + 5;
   }
@@ -546,7 +550,7 @@ export function creaPdfOperativo(
     y += h;
     filetto(LINEA, stileTabella.filetto, left, y, left + width, y);
   };
-  let groupTotal = 0,
+  let groupTotal = 0, groupKnown = false, groupUnknown = false,
     currentGroup = "";
   /** Riga del totale: grassetto, filetto inchiostro sopra. */
   const groupFooter = () => {
@@ -555,8 +559,8 @@ export function creaPdfOperativo(
       filetto(INCHIOSTRO, stileTabella.filettoTotale, left, y, left + width, y);
       font(stileTabella.corpo, true);
       const base = y + rigaMin / 2 + mm(stileTabella.corpo) * 0.3;
-      pdf.text("Totale intervento", left + padX, base);
-      pdf.text(euro(groupTotal), left + width - padX, base, { align: "right" });
+      pdf.text(groupKnown && groupUnknown ? "Totale intervento parziale" : "Totale intervento", left + padX, base);
+      pdf.text(groupKnown ? euro(groupTotal) : "Da definire", left + width - padX, base, { align: "right" });
       y += rigaMin + 3;
     }
   };
@@ -566,6 +570,8 @@ export function creaPdfOperativo(
       groupFooter();
       currentGroup = row.gruppo || "Lavori in economia";
       groupTotal = 0;
+      groupKnown = false;
+      groupUnknown = false;
       if (y + 2 * rigaMin > bottom) {
         nuovaPagina();
         tableHeader();
@@ -620,6 +626,8 @@ export function creaPdfOperativo(
     });
     filetto(LINEA, stileTabella.filetto, left, y, left + width, y);
     groupTotal += importoRiga(row);
+    if (row.prezzo != null || row.importo != null) groupKnown = true;
+    else groupUnknown = true;
   });
   groupFooter();
 
@@ -633,7 +641,7 @@ export function creaPdfOperativo(
   let py = titoloSezioneA("Pagamento", payX, payWidth, sy);
   const pay = [
     d.tipo === "richiesta" ? "Condizione concordata con voi:" : "",
-    d.pagamento || "Da definire con il fornitore",
+    d.pagamento || (d.tipo === "economia" ? "Da concordare con il committente" : "Da definire con il fornitore"),
     d.inversioneContabile ? "Fatturazione" : null,
     d.inversioneContabile ? testoInversioneContabile(d) : null,
     d.banca,
@@ -700,7 +708,7 @@ export function creaPdfOperativo(
       base,
     );
     font(stileRiquadro.numeroCorpo, true, ACCENTO);
-    pdf.text(euro(t.totale), tx + tw - pad, base, { align: "right" });
+    pdf.text(haImportiDocumento(d) ? euro(t.totale) : "Da definire", tx + tw - pad, base, { align: "right" });
     fine = Math.max(fine, ty + hTot + 2);
     y = fine;
     if (documentoIncompleto(d))

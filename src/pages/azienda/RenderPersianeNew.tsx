@@ -538,8 +538,10 @@ export default function RenderPersianeNew() {
                   accento="emerald"
                 />
               ) : !photoPreview ? (
-                <div
-                  className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer hover:border-green-600/50 transition-colors"
+                <button
+                  type="button"
+                  aria-label="Carica una foto per le persiane"
+                  className="w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border-2 border-dashed rounded-xl p-8 text-center cursor-pointer hover:border-green-600/50 transition-colors"
                   onClick={() => fileRef.current?.click()}
                 >
                   <ImageIcon className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
@@ -547,7 +549,7 @@ export default function RenderPersianeNew() {
                   <p className="text-xs text-muted-foreground mt-1">
                     Facciata o finestra, JPG/PNG/WEBP, max 20 MB.
                   </p>
-                </div>
+                </button>
               ) : (
                 <div className="space-y-3">
                   <div className="rounded-xl overflow-hidden border bg-muted/20">

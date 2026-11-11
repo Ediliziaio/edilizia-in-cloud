@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -46,6 +46,8 @@ interface RenderCrmLinkerProps {
   opportunityId: string | null;
   onContactChange: (id: string | null) => void;
   onOpportunityChange: (id: string | null) => void;
+  onLinksChange?: (contactId: string | null, opportunityId: string | null) => void;
+  disabled?: boolean;
 }
 
 export function RenderCrmLinker({
@@ -53,7 +55,10 @@ export function RenderCrmLinker({
   opportunityId,
   onContactChange,
   onOpportunityChange,
+  onLinksChange,
+  disabled = false,
 }: RenderCrmLinkerProps) {
+  const formId = useId();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const [isOpen, setIsOpen] = useState(false);
@@ -101,10 +106,25 @@ export function RenderCrmLinker({
   const selectedOpp = opportunities.find((o) => o.id === opportunityId);
   const hasLink = !!contactId || !!opportunityId;
 
+  const changeContact = (id: string | null) => {
+    if (disabled) return;
+    if (onLinksChange) onLinksChange(id, null);
+    else {
+      onContactChange(id);
+      if (opportunityId) onOpportunityChange(null);
+    }
+  };
+  const changeOpportunity = (id: string | null) => {
+    if (disabled) return;
+    if (onLinksChange) onLinksChange(contactId, id);
+    else onOpportunityChange(id);
+  };
+
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <CollapsibleTrigger asChild>
         <Button
+          disabled={disabled}
           variant="ghost"
           size="sm"
           className="w-full justify-between text-muted-foreground hover:text-foreground"
@@ -125,12 +145,14 @@ export function RenderCrmLinker({
       <CollapsibleContent className="space-y-3 pt-2 px-1">
         {/* Contact selector */}
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Contatto</Label>
+          <Label htmlFor={`${formId}-contatto`} className="text-xs text-muted-foreground">Contatto</Label>
           <div className="flex gap-1.5">
             <Popover open={contactOpen} onOpenChange={setContactOpen}>
               <PopoverTrigger asChild>
                 <Button
+                  disabled={disabled}
                   variant="outline"
+                  id={`${formId}-contatto`}
                   role="combobox"
                   size="sm"
                   className="flex-1 justify-between font-normal text-xs h-8"
@@ -152,8 +174,7 @@ export function RenderCrmLinker({
                           key={c.id}
                           value={`${c.first_name} ${c.last_name || ""} ${c.company_name || ""} ${c.email || ""}`}
                           onSelect={() => {
-                            onContactChange(c.id);
-                            if (opportunityId) onOpportunityChange(null);
+                            changeContact(c.id);
                             setContactOpen(false);
                           }}
                         >
@@ -175,10 +196,12 @@ export function RenderCrmLinker({
             </Popover>
             {contactId && (
               <Button
+                disabled={disabled}
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 shrink-0"
-                onClick={() => { onContactChange(null); onOpportunityChange(null); }}
+                aria-label="Rimuovi collegamenti a contatto e opportunità"
+                onClick={() => changeContact(null)}
               >
                 <X className="h-3.5 w-3.5" />
               </Button>
@@ -188,14 +211,16 @@ export function RenderCrmLinker({
 
         {/* Opportunity selector */}
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">
+          <Label htmlFor={`${formId}-opportunita`} className="text-xs text-muted-foreground">
             Opportunità{contactId ? " (filtrate per contatto)" : ""}
           </Label>
           <div className="flex gap-1.5">
             <Popover open={oppOpen} onOpenChange={setOppOpen}>
               <PopoverTrigger asChild>
                 <Button
+                  disabled={disabled}
                   variant="outline"
+                  id={`${formId}-opportunita`}
                   role="combobox"
                   size="sm"
                   className="flex-1 justify-between font-normal text-xs h-8"
@@ -215,7 +240,7 @@ export function RenderCrmLinker({
                           key={o.id}
                           value={o.name}
                           onSelect={() => {
-                            onOpportunityChange(o.id);
+                            changeOpportunity(o.id);
                             setOppOpen(false);
                           }}
                         >
@@ -237,10 +262,12 @@ export function RenderCrmLinker({
             </Popover>
             {opportunityId && (
               <Button
+                disabled={disabled}
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 shrink-0"
-                onClick={() => onOpportunityChange(null)}
+                aria-label="Rimuovi collegamento all’opportunità"
+                onClick={() => changeOpportunity(null)}
               >
                 <X className="h-3.5 w-3.5" />
               </Button>

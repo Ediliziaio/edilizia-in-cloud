@@ -23,6 +23,17 @@ const riga = (id: string, order: unknown = { client_name: "Rossi" }) => ({ id, o
 beforeEach(() => { stato.pagine = []; stato.range = []; stato.filtri = []; stato.select = ""; stato.rpc = []; stato.costi = []; });
 
 describe("la lettura dei rapportini del mese", () => {
+  it("può leggere tutti i periodi senza perdere il vincolo aziendale", async () => {
+    stato.pagine = [[riga("a")]];
+    await leggiRapportiniMese("azienda-2", {}, false);
+    expect(stato.filtri).toContainEqual(["eq", "company_id", "azienda-2"]);
+    expect(stato.filtri.some((f) => f[0] === "gte" || f[0] === "lte")).toBe(false);
+  });
+  it("legge un intervallo libero che attraversa più mesi", async () => {
+    await leggiRapportiniMese("c1", { da: "2026-08-10", a: "2026-11-11" }, false);
+    expect(stato.filtri).toContainEqual(["gte", "data_lavoro", "2026-08-10"]);
+    expect(stato.filtri).toContainEqual(["lte", "data_lavoro", "2026-11-11"]);
+  });
   it("legge oltre le mille righe e resta nel mese e nell'azienda", async () => {
     stato.pagine = [Array.from({ length: 1000 }, (_, i) => riga(`a${i}`)), [riga("b")]];
     const righe = await leggiRapportiniMese("c1", "2026-02", true);

@@ -65,3 +65,9 @@ describe("dai tagli ai gruppi di pagine", () => {
     expect(gruppiDaTagli(3, [0, 3, 1, 1])).toEqual([[0], [1, 2]]);
   });
 });
+
+it("divide un archivio di 191 scansioni senza perdere o ripetere pagine",()=>{
+ const proposta=tagliProposti(Array.from({length:191},()=>""));
+ const gruppi=gruppiDaTagli(191,proposta.tagli);
+ expect(gruppi).toHaveLength(191);expect(gruppi.flat()).toEqual(Array.from({length:191},(_,i)=>i));
+});

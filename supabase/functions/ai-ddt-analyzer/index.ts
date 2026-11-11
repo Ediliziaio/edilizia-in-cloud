@@ -25,35 +25,14 @@ import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
+import { PROMPT_LETTORE_DDT as SYSTEM_PROMPT, parteFileDdt, improntaDdt } from "../_shared/lettoreDdt.ts";
 import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
 import { erroreAiPerUtente } from "../_shared/erroriAi.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObj = Record<string, any>;
 
-const SYSTEM_PROMPT = `Sei un assistente esperto di logistica edile che legge i Documenti Di Trasporto (DDT) italiani.
-Estrai i dati in JSON STRUTTURATO. Non inventare: se un dato non è leggibile metti null.
 
-REGOLE:
-- "quantity": numero (usa il punto come separatore decimale). Se non c'è, null.
-- "unit": unità di misura (es. "pz", "mq", "ml", "kg", "cf", "bancale"). Se assente "pz".
-- "unit_price": prezzo unitario in euro come numero (punto decimale, niente simbolo €). null se il DDT non riporta prezzi (spesso i DDT non hanno prezzi).
-- "code": codice articolo/fornitore se presente, altrimenti null.
-- "barcode": codice a barre/EAN se presente, altrimenti null.
-- "ddt_date": formato ISO "YYYY-MM-DD".
-- Includi UNA riga per ogni articolo elencato nel documento. Ignora righe di intestazione, totali, note di trasporto.
-
-OUTPUT JSON ESATTO (no markdown):
-{
-  "supplier_name": "string | null",
-  "supplier_vat": "string | null (P.IVA fornitore)",
-  "ddt_number": "string | null",
-  "ddt_date": "string | null (YYYY-MM-DD)",
-  "items": [
-    { "description": "string", "quantity": number|null, "unit": "string", "unit_price": number|null, "code": "string|null", "barcode": "string|null" }
-  ],
-  "confidenza_estrazione": "alta" | "media" | "bassa"
-}`;
 
 function norm(s: unknown): string {
   return String(s ?? "")
@@ -78,7 +57,8 @@ Deno.serve(async (req: Request) => {
     const { userId, supabaseAdmin } = await requireAuth(req, cors);
 
     const body = await req.json().catch(() => ({}));
-    const { file_base64, mime, image_url, company_id, warehouse_id } = body as {
+    const { file_base64, mime, image_url, company_id, warehouse_id, file_name } = body as {
+      file_name?: string;
       file_base64?: string;
       mime?: string;
       image_url?: string;
@@ -94,11 +74,10 @@ Deno.serve(async (req: Request) => {
       return errorResponse("file_base64 o image_url obbligatorio", 400, cors);
     }
 
-    const fileContent = file_base64
-      ? `data:${mime || "image/jpeg"};base64,${file_base64}`
-      : image_url!;
+    if (file_base64 && file_base64.length > 24 * 1024 * 1024) return errorResponse("DDT troppo grande (max 18 MB)", 413, cors);
+    const fileContent = parteFileDdt({ base64: file_base64, url: image_url, mime, fileName: file_name });
     const fingerprint = file_base64
-      ? await buildStableAiIdempotencyKey("ddt_file", [file_base64.slice(0, 4000)])
+      ? await improntaDdt(file_base64)
       : image_url!;
     const idempotencyKey = await buildStableAiIdempotencyKey("ddt_ocr", [
       company_id,
@@ -119,12 +98,12 @@ Deno.serve(async (req: Request) => {
             role: "user",
             content: [
               { type: "text", text: "Estrai fornitore, numero/data DDT e tutte le righe prodotto da questo documento di trasporto." },
-              { type: "image_url", image_url: { url: fileContent } },
+              fileContent,
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
             ] as any,
           },
         ],
-        params: { temperature: 0.05, max_tokens: 2500 },
+        params: { temperature: 0.05, max_tokens: 4500 },
         responseFormat: { type: "json_object" },
         companyId: company_id,
         userId,

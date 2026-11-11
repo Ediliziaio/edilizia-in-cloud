@@ -1,5 +1,7 @@
+import { useStatisticheIscrizioniCorsi } from "@/hooks/useStatisticheIscrizioniCorsi";
+import { type StatisticheIscrizioniCorso } from "@/lib/formazione/statisticheIscrizioni";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useSearchParams } from "react-router-dom";
 import {
   AlertCircle,
@@ -1343,6 +1345,16 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
     });
   }, [areaFilter, courses, search]);
 
+  const { query: iscrizioniQuery, metrics: metricheCorsi } = useStatisticheIscrizioniCorsi(
+    companyId, courses.map((course) => course.id), !isAdminContext,
+  );
+  const usaIscrizioniReali = !!companyId && !isAdminContext;
+  const metricheCorso = (id: string) => usaIscrizioniReali ? metricheCorsi?.get(id) ?? null : undefined;
+  const totaliIscrizioni = metricheCorsi ? {
+    enrolled: [...metricheCorsi.values()].reduce((sum, metriche) => sum + metriche.enrolled, 0),
+    completion: metricheCorsi.size ? Math.round([...metricheCorsi.values()].reduce((sum, metriche) => sum + metriche.completion, 0) / metricheCorsi.size) : 0,
+  } : null;
+
   const stats = useMemo(() => {
     const published = courses.filter((course) => course.status === "pubblicato").length;
     const totalEnrolled = courses.reduce((sum, course) => sum + course.enrolled, 0);
@@ -1866,12 +1878,12 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-700">Area</label>
+                        <label className="text-sm font-medium text-slate-700" htmlFor="course-area">Area</label>
                         <Select
                           value={courseDraft.area}
                           onValueChange={(value) => setCourseDraft((prev) => ({ ...prev, area: value as PortalArea }))}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger id="course-area">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1889,14 +1901,14 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                           conforme allo schema DB. */}
                       {!isAdminContext && (
                         <div className="space-y-2">
-                          <label className="text-sm font-medium text-slate-700">Accesso</label>
+                          <label className="text-sm font-medium text-slate-700" htmlFor="course-access">Accesso</label>
                           <Select
                             value={courseDraft.audience}
                             onValueChange={(value) =>
                               setCourseDraft((prev) => ({ ...prev, audience: value as PortalAudience }))
                             }
                           >
-                            <SelectTrigger>
+                            <SelectTrigger id="course-access">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -1960,7 +1972,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-700">Tipo</label>
+                        <label className="text-sm font-medium text-slate-700" htmlFor="asset-type">Tipo</label>
                         <Select
                           value={assetDraft.type}
                           onValueChange={(value) =>
@@ -1971,7 +1983,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                             }))
                           }
                         >
-                          <SelectTrigger>
+                          <SelectTrigger id="asset-type">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1996,12 +2008,12 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-slate-700">Modulo collegato</label>
+                      <label className="text-sm font-medium text-slate-700" htmlFor="asset-module">Modulo collegato</label>
                       <Select
                         value={assetDraft.moduleId}
                         onValueChange={(value) => setAssetDraft((prev) => ({ ...prev, moduleId: value }))}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger id="asset-module">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -2120,12 +2132,19 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
 
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <StatCard label="Corsi pubblicati" value={String(stats.published)} icon={BookMarked} tone="blue" />
-            <StatCard label="Iscrizioni team" value={String(stats.totalEnrolled)} icon={Users} tone="orange" />
-            <StatCard label="Completamento" value={`${stats.avgCompletion}%`} icon={CheckCircle2} tone="green" />
+            <StatCard label="Iscrizioni team" value={usaIscrizioniReali ? totaliIscrizioni ? String(totaliIscrizioni.enrolled) : "—" : String(stats.totalEnrolled)} icon={Users} tone="orange" />
+            <StatCard label="Completamento" value={usaIscrizioniReali ? totaliIscrizioni ? `${totaliIscrizioni.completion}%` : "—" : `${stats.avgCompletion}%`} icon={CheckCircle2} tone="green" />
             <StatCard label="Materiali" value={String(stats.assets)} icon={FileArchive} tone="slate" />
           </div>
         </div>
       </section>
+      )}
+
+      {usaIscrizioniReali && iscrizioniQuery.isError && (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          Iscrizioni e avanzamento non disponibili. I valori dei corsi non sostituiscono i dati delle persone.
+          <Button variant="outline" size="sm" className="ml-2" onClick={() => void iscrizioniQuery.refetch()}>Riprova dati formazione</Button>
+        </div>
       )}
 
       <Tabs value={effectiveTab} onValueChange={setActiveTab} className="space-y-5">
@@ -2195,13 +2214,14 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     className="h-11 rounded-xl border-slate-200 pl-9 text-sm"
+                    aria-label="Cerca corso, manuale o procedura"
                     placeholder="Cerca corso, manuale o procedura"
                   />
                 </div>
                 <div className="flex items-center gap-2">
                   <Filter className="h-4 w-4 text-slate-500" />
                   <Select value={areaFilter} onValueChange={(value) => setAreaFilter(value as PortalArea | "tutte")}>
-                    <SelectTrigger className="h-11 w-full rounded-xl border-slate-200 lg:w-[180px]">
+                    <SelectTrigger aria-label="Filtra corsi per area" className="h-11 w-full rounded-xl border-slate-200 lg:w-[180px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -2221,6 +2241,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                   <CourseCard
                     key={course.id}
                     course={course}
+                    metriche={metricheCorso(course.id)}
                     active={course.id === selectedCourse?.id}
                     onSelect={() => setSelectedCourseId(course.id)}
                   />
@@ -2238,6 +2259,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
 
             <CourseDetailPanel
               course={selectedCourse}
+              metriche={selectedCourse ? metricheCorso(selectedCourse.id) : null}
               onPublish={togglePublish}
               onDuplicate={duplicateCourse}
               onOpenAccess={() => setAccessDialogOpen(true)}
@@ -2292,7 +2314,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
         </TabsContent>
 
         <TabsContent value="persone">
-          <PeopleProgressPanel course={selectedCourse} courses={courses} companyId={companyId} userId={userId} />
+          <PeopleProgressPanel course={selectedCourse} courses={courses} companyId={companyId} userId={userId} metriche={usaIscrizioniReali ? metricheCorsi : undefined} />
         </TabsContent>
 
         <TabsContent value="riepilogo">
@@ -2328,12 +2350,12 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
               <p className="text-xs text-slate-500">{selectedCourse?.description}</p>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">Pubblico</label>
+              <label className="text-sm font-medium text-slate-700" htmlFor="course-audience">Pubblico</label>
               <Select
                 value={selectedCourse?.audience ?? "tutti"}
                 onValueChange={(value) => updateSelectedCourse({ audience: value as PortalAudience })}
               >
-                <SelectTrigger>
+                <SelectTrigger id="course-audience">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -2607,7 +2629,9 @@ function PortalCommandCenter({
   );
 }
 
-function CourseCard({ course, active, onSelect }: { course: PortalCourse; active: boolean; onSelect: () => void }) {
+function CourseCard({ course, active, onSelect, metriche }: { course: PortalCourse; active: boolean; onSelect: () => void; metriche?: StatisticheIscrizioniCorso | null }) {
+  const enrolled = metriche === undefined ? course.enrolled : metriche?.enrolled;
+  const completion = metriche === undefined ? course.completion : metriche?.completion;
   return (
     <button
       type="button"
@@ -2649,27 +2673,29 @@ function CourseCard({ course, active, onSelect }: { course: PortalCourse; active
           <p>moduli</p>
         </div>
         <div>
-          <p className="font-semibold text-slate-900">{course.enrolled}</p>
+          <p className="font-semibold text-slate-900">{enrolled ?? "—"}</p>
           <p>iscritti</p>
         </div>
         <div>
-          <p className="font-semibold text-slate-900">{course.completion}%</p>
+          <p className="font-semibold text-slate-900">{completion == null ? "—" : `${completion}%`}</p>
           <p>completato</p>
         </div>
       </div>
-      <Progress value={course.completion} className="mt-4 h-2" />
+      {completion != null && <Progress value={completion} className="mt-4 h-2" />}
     </button>
   );
 }
 
 function CourseDetailPanel({
   course,
+  metriche,
   onPublish,
   onDuplicate,
   onOpenAccess,
   hideAudienceUi = false,
 }: {
   course?: PortalCourse;
+  metriche?: StatisticheIscrizioniCorso | null;
   onPublish: () => void;
   onDuplicate: () => void;
   onOpenAccess: () => void;
@@ -2681,6 +2707,7 @@ function CourseDetailPanel({
    */
   hideAudienceUi?: boolean;
 }) {
+  const completion = metriche === undefined ? course?.completion : metriche?.completion;
   const isPlatform = course?.sourceType === "platform";
   if (!course) {
     return (
@@ -2732,9 +2759,9 @@ function CourseDetailPanel({
         <div className="mt-5 space-y-2">
           <div className="flex items-center justify-between text-sm">
             <span className="font-medium text-slate-700">Completamento medio</span>
-            <span className="font-bold text-slate-950">{course.completion}%</span>
+            <span className="font-bold text-slate-950">{completion == null ? "—" : `${completion}%`}</span>
           </div>
-          <Progress value={course.completion} className="h-2" />
+          {completion != null && <Progress value={completion} className="h-2" />}
         </div>
 
         <div className="mt-5 grid gap-2 sm:grid-cols-3">
@@ -3731,12 +3758,15 @@ function AccessPanel({
 }
 
 function PortalRiepilogoPanel({ courses, companyId }: { courses: PortalCourse[]; companyId: string | null }) {
-  const { data: enrollments = [], isLoading } = useQuery({
+  const { data: enrollments = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["portal-all-enrollments", companyId],
     queryFn: () => listAllPortalCourseEnrollments(companyId as string),
     enabled: !!companyId,
     staleTime: 30_000,
   });
+
+  if (isLoading) return <p role="status" className="p-4 text-sm text-slate-500">Caricamento dati formazione…</p>;
+  if (isError) return <div role="alert" className="rounded-xl border border-red-200 p-4 text-sm text-red-800">Riepilogo formazione non disponibile. <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova riepilogo</Button></div>;
 
   const published = courses.filter((c) => c.status === "pubblicato");
 
@@ -3893,11 +3923,13 @@ function PeopleProgressPanel({
   courses,
   companyId,
   userId,
+  metriche,
 }: {
   course?: PortalCourse;
   courses: PortalCourse[];
   companyId: string | null;
   userId: string | null;
+  metriche?: Map<string, StatisticheIscrizioniCorso> | null;
 }) {
   // Avanzamento reale dalle iscrizioni. Hook prima di ogni early-return.
   const { data: people = [], isLoading } = useQuery({
@@ -4187,7 +4219,7 @@ function PeopleProgressPanel({
               <div key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <p className="truncate text-sm font-semibold text-slate-950">{item.title}</p>
-                  <Badge variant="outline">{item.completion}%</Badge>
+                  <Badge variant="outline">{metriche === undefined ? `${item.completion}%` : metriche?.has(item.id) ? `${metriche.get(item.id)!.completion}%` : "—"}</Badge>
                 </div>
                 <Progress value={item.completion} className="mt-3 h-2" />
               </div>
@@ -4330,9 +4362,6 @@ function PortalPreview({
   );
   const previewCourseCompletion = getCourseCompletion(activeLearnerCourse);
   const isActiveModuleCompleted = activeModule ? getPreviewModuleCompletion(activeModule) >= 100 : false;
-  const isPreviewCourseCompleted = activeLearnerCourse?.modules.length
-    ? activeLearnerCourse.modules.every((module) => getPreviewModuleCompletion(module, activeLearnerCourse.id) >= 100)
-    : false;
   const courseAssets = activeLearnerCourse?.assets ?? [];
   const activeModuleAssets = activeModule ? courseAssets.filter((asset) => asset.moduleId === activeModule.id) : [];
   const generalCourseAssets = courseAssets.filter((asset) => !asset.moduleId);
@@ -4923,11 +4952,23 @@ function PortalPreview({
         )}
       </section>
         </>
-      ) : typeof document === "undefined" ? null : createPortal(
+      ) : typeof document === "undefined" ? null : (
+        <DialogPrimitive.Root open onOpenChange={(open) => { if (!open) backToLearnerLibrary(); }}>
+          <DialogPrimitive.Portal>
+            <DialogPrimitive.Content
+              asChild
+              aria-describedby={undefined}
+              onOpenAutoFocus={(event) => {
+                event.preventDefault();
+                document.getElementById("portal-course-back")?.focus();
+              }}
+              onCloseAutoFocus={(event) => {
+                event.preventDefault();
+                window.requestAnimationFrame(() => document.getElementById(`portal-course-open-${activeLearnerCourse.id}`)?.focus());
+              }}
+            >
         <section
           id="portal-course-detail"
-          role="dialog"
-          aria-modal="true"
           aria-label={`Pagina corso ${activeLearnerCourse.title}`}
           className="fixed inset-0 z-[9999] isolate min-h-dvh overflow-y-auto overscroll-contain bg-slate-50"
         >
@@ -4935,6 +4976,8 @@ function PortalPreview({
             <div className="mx-auto flex max-w-[1640px] flex-col gap-3 px-4 py-3 lg:px-6 xl:flex-row xl:items-center xl:justify-between max-sm:gap-2 max-sm:px-3 max-sm:py-2">
               <div className="flex min-w-0 items-center gap-3 max-sm:gap-2">
                 <Button
+                  id="portal-course-back"
+                  aria-label={courseExperienceView === "lesson" ? "Torna al corso" : "Torna alla piattaforma"}
                   variant="outline"
                   className="h-11 shrink-0 gap-2 rounded-2xl border-slate-200 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 tap-compact max-sm:h-9 max-sm:w-9 max-sm:rounded-xl max-sm:px-0"
                   onClick={() => {
@@ -4960,7 +5003,9 @@ function PortalPreview({
                   </span>
                 </Button>
                 <div className="min-w-0">
-                  <h3 className="truncate text-lg font-bold text-slate-950 lg:text-xl max-sm:text-base">{activeLearnerCourse.title}</h3>
+                  <DialogPrimitive.Title asChild>
+                    <h3 className="truncate text-lg font-bold text-slate-950 lg:text-xl max-sm:text-base">{activeLearnerCourse.title}</h3>
+                  </DialogPrimitive.Title>
                 </div>
               </div>
 
@@ -5286,17 +5331,18 @@ function PortalPreview({
                   }}
                 />
 
-                {/* Mobile no: nota e chiarimento sono solo un avviso a video, il
-                    prossimo passo è già il bottone «Prossimo» della lezione. */}
+                {/* Su mobile il percorso prosegue dai controlli della lezione.
+                    Note, chiarimenti e attestati attendono un flusso effettivo. */}
                 <div className="grid gap-4 lg:grid-cols-3 max-sm:hidden">
                   <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
                     <h4 className="font-bold text-slate-950">Azioni studente</h4>
-                    <p className="mt-1 text-sm text-slate-500">Note, domande e presa visione restano nel percorso.</p>
+                    <p className="mt-1 text-sm text-slate-500">Note e richieste di chiarimento non sono ancora disponibili. Le conferme richieste sono nel registro presa visione.</p>
                     <div className="mt-4 space-y-2">
                       <Button
                         variant="outline"
                         className="h-10 w-full justify-start gap-2 border-slate-200 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                        onClick={() => toast.info("Nota salvata.")}
+                        disabled
+                        title="Le note del corso non sono ancora disponibili"
                       >
                         <FileText className="h-4 w-4" />
                         Aggiungi nota
@@ -5304,7 +5350,8 @@ function PortalPreview({
                       <Button
                         variant="outline"
                         className="h-10 w-full justify-start gap-2 border-slate-200 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                        onClick={() => toast.info("Richiesta di chiarimento inviata al responsabile.")}
+                        disabled
+                        title="Le richieste di chiarimento non sono ancora disponibili"
                       >
                         <UserRoundCheck className="h-4 w-4" />
                         Chiedi chiarimento
@@ -5323,7 +5370,7 @@ function PortalPreview({
                   <div className="rounded-3xl border border-orange-200 bg-orange-50 p-4 shadow-sm">
                     <h4 className="font-bold text-orange-950">Prossimo passo</h4>
                     <p className="mt-2 text-sm leading-6 text-orange-900">
-                      {nextModule ? `Continua con: ${nextModule.title}.` : "Completa il quiz finale e scarica l'attestato interno."}
+                      {nextModule ? `Continua con: ${nextModule.title}.` : "Rivedi i materiali del corso e verifica le conferme richieste."}
                     </p>
                     {nextModule && (
                       <Button
@@ -5345,16 +5392,12 @@ function PortalPreview({
                       <h4 className="font-bold text-emerald-950">Attestato</h4>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-emerald-900">
-                      Si sblocca al completamento del corso con storico e presa visione.
+                      La generazione dell’attestato interno non è ancora disponibile.
                     </p>
                     <Button
                       variant="outline"
                       className="mt-4 h-10 w-full border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-100"
-                      onClick={() =>
-                        isPreviewCourseCompleted
-                          ? toast.success("Attestato interno disponibile.")
-                          : toast.info("Completa tutti i moduli per sbloccare l'attestato.")
-                      }
+                      disabled
                     >
                       <FileText className="mr-2 h-4 w-4" />
                       Vedi attestato
@@ -5365,8 +5408,10 @@ function PortalPreview({
             </div>
             )}
           </div>
-        </section>,
-        document.body,
+        </section>
+            </DialogPrimitive.Content>
+          </DialogPrimitive.Portal>
+        </DialogPrimitive.Root>
       )}
     </section>
   );
@@ -5951,6 +5996,7 @@ function LearnerCourseCard({
 
   return (
     <button
+      id={`portal-course-open-${course.id}`}
       type="button"
       onClick={onOpen}
       aria-pressed={active}

@@ -7,7 +7,7 @@ vi.mock('@/lib/planimetrie/archivio',()=>({usePlanimetria:()=>({data:{riga:{tito
 vi.mock('@/lib/planimetrie/render/renderDallaPianta',()=>({useRenderDellaPianta:()=>({data:[] as never[]})}));
 vi.mock('@/lib/planimetrie/collegamenti',async(importOriginal)=>({
  ...await importOriginal<typeof import('@/lib/planimetrie/collegamenti')>(),
- useCollegamentiPiante:()=>({data:undefined}),
+ useCollegamentiPiante:(): {data: undefined}=>({data:undefined}),
 }));
 vi.mock('@/hooks/usePermissions',()=>({usePermissions:()=>({solaLettura:false})}));
 vi.mock('@/components/planimetrie/MaterialiProgetto',()=>({MaterialiProgetto:()=> <section aria-label="Materiali comuni">Materiali</section>}));

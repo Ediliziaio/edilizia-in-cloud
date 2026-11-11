@@ -179,6 +179,7 @@ export function AssignSerialsDialog({
             <div className="flex gap-2">
               <form onSubmit={handleManualSubmit} className="flex-1 flex gap-2">
                 <Input
+                  aria-label="Seriale da assegnare"
                   placeholder="Digita o incolla seriale e premi Invio"
                   value={serialInput}
                   onChange={(e) => setSerialInput(e.target.value)}

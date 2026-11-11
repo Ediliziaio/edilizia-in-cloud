@@ -55,7 +55,9 @@ export function OfficeSelect({
   }
   return (
     <Select
-      value={value || EMPTY}
+      // Nothing chosen and no "none" option: "" lets the placeholder show
+      // (with EMPTY the trigger stayed blank, e.g. «Scegli la ditta», 11/11/2026).
+      value={value || (options.some((o) => !o.value) ? EMPTY : "")}
       onValueChange={(next) => onValueChange(next === EMPTY ? "" : next)}
       disabled={disabled}
     >

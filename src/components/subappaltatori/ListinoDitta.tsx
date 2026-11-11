@@ -11,7 +11,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { History, Loader2, Plus, Search } from "lucide-react";
+import { FileUp, History, Loader2, Plus, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +28,7 @@ import { parseAssignmentAmount } from "@/lib/orders/assignmentAmounts";
 import { vociListinoPerDitta } from "@/lib/orders/costoDitta";
 import { prezziPerVoce, righeDaSalvare, scartoDalCosto, type PrezzoDitta } from "@/lib/subappaltatori/listinoDitta";
 import { oggiInItalia } from "../../../shared/silvio-commessa/date.ts";
+import { ImportaListinoDittaDialog } from "./ImportaListinoDittaDialog";
 
 // Colonne recenti (subappaltatore_id): passiamo dal client non tipizzato come il resto del modulo.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -92,6 +93,7 @@ export function ListinoDitta({ companyId, anagraficaId, nomeDitta }: { companyId
   const [soloConPrezzo, setSoloConPrezzo] = useState(false);
   const [storiaAperta, setStoriaAperta] = useState(false);
   const [voceNuova, setVoceNuova] = useState(false);
+  const [caricaFile, setCaricaFile] = useState(false);
 
   // I prezzi del giorno da cui valgono le modifiche: è lo stesso giorno su cui ragiona listino_ditta_salva.
   const perVoce = useMemo(() => prezziPerVoce(dati.data?.prezzi ?? [], validoDal), [dati.data, validoDal]);
@@ -136,14 +138,19 @@ export function ListinoDitta({ companyId, anagraficaId, nomeDitta }: { companyId
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-end gap-2">
-        <div className="min-w-0 flex-1">
+        {/* Su telefono il testo prende tutta la riga e i pulsanti vanno sotto. */}
+        <div className="min-w-[min(100%,20rem)] flex-1">
           <h3 className="text-sm font-semibold">Listino di {nomeDitta}</h3>
           <p className="text-xs text-muted-foreground">
             {conPrezzo} voci con un prezzo della ditta su {voci.length}{validoDal !== oggi ? ` (prezzi al ${data(validoDal)})` : ""}. I prezzi valgono per tutte le commesse: li propongono «Ditte e contratti» e «Aggiungi manodopera». I contratti già fatti non cambiano.
           </p>
         </div>
         {puoScrivere && (
-          <Button size="sm" variant="outline" onClick={() => setVoceNuova(true)}><Plus className="mr-1 h-4 w-4" />Voce sua</Button>
+          <>
+            <Button size="sm" variant="outline" disabled={Object.keys(modifiche).length > 0} title={Object.keys(modifiche).length ? "Salva prima le modifiche a mano" : undefined}
+              onClick={() => setCaricaFile(true)}><FileUp className="mr-1 h-4 w-4" />Carica listino</Button>
+            <Button size="sm" variant="outline" onClick={() => setVoceNuova(true)}><Plus className="mr-1 h-4 w-4" />Voce sua</Button>
+          </>
         )}
       </div>
 
@@ -185,10 +192,11 @@ export function ListinoDitta({ companyId, anagraficaId, nomeDitta }: { companyId
             const scarto = scartoDalCosto(modifiche[v.id]?.trim() === "" ? null : numero, v.costo);
             const sbagliato = errori.includes(v.id);
             return (
-              <div key={v.id} className="grid grid-cols-[minmax(0,1fr)_8rem] items-center gap-2 px-3 py-2 sm:grid-cols-[minmax(0,1fr)_4rem_6.5rem_8rem]">
-                <div className="min-w-0">
-                  <p className="truncate text-sm">{v.codice && <span className="mr-1 text-xs text-muted-foreground">{v.codice}</span>}{v.nome}</p>
-                  <div className="flex flex-wrap gap-1">
+              <div key={v.id} className="grid grid-cols-[minmax(0,1fr)_8rem] items-center gap-2 px-3 py-1 sm:grid-cols-[minmax(0,1fr)_4rem_6.5rem_8rem]">
+                {/* Una voce, una riga (11/11/2026): il nome e, accanto, i suoi contrassegni. */}
+                <div className="flex min-w-0 flex-wrap items-center gap-x-2 sm:flex-nowrap">
+                  <p className="min-w-0 truncate text-sm" title={v.nome}>{v.codice && <span className="mr-1 text-xs text-muted-foreground">{v.codice}</span>}{v.nome}</p>
+                  <div className="flex shrink-0 flex-wrap items-center gap-1">
                     {(v.subappaltatore_id || v.external_team_id) && <Badge variant="secondary" className="h-4 px-1.5 text-[10px] font-normal">Voce sua</Badge>}
                     {pv && pv.altri.length > 0 && (
                       <Badge variant="outline" className="h-4 px-1.5 text-[10px] font-normal" title={pv.altri.map((a) => `${a.nome}: ${formatCurrency(a.costo)}`).join(" · ")}>
@@ -237,6 +245,18 @@ export function ListinoDitta({ companyId, anagraficaId, nomeDitta }: { companyId
         </div>
       )}
 
+      {caricaFile && (
+        <ImportaListinoDittaDialog companyId={companyId} anagraficaId={anagraficaId} nomeDitta={nomeDitta} voci={voci} validoDal={validoDal}
+          onChiudi={() => setCaricaFile(false)}
+          onFatto={() => {
+            setCaricaFile(false);
+            void qc.invalidateQueries({ queryKey: chiave });
+            void qc.invalidateQueries({ queryKey: ["tariffa-costi-varianti", companyId] });
+            void qc.invalidateQueries({ queryKey: ["ditte-contratti-commessa", companyId] });
+            void qc.invalidateQueries({ queryKey: ["tariffe-manodopera", companyId] });
+            void qc.invalidateQueries({ queryKey: ["listino-manodopera-voci", companyId] });
+          }} />
+      )}
       {voceNuova && (
         <VoceSuaDialog companyId={companyId} anagraficaId={anagraficaId} nomeDitta={nomeDitta} validoDal={validoDal}
           onChiudi={() => setVoceNuova(false)}

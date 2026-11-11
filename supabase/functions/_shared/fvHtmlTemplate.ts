@@ -1,3 +1,15 @@
+import {personalizzaDocumentoFv,contestoPersonalizzazioneFv,immaginiPersonalizzateFv} from "./fvPersonalizzazioneCompleta.ts";
+import {htmlMonitoraggioFv,leggiMonitoraggioFv,IMMAGINE_MONITORAGGIO_FV} from "./fvMonitoraggio.ts";
+import {htmlConfrontoFinanziamentoCasa} from "./fvConfrontoPagamento.ts";
+import {svgIconaEditorialeFv} from "./fvIconeEditoriali.ts";
+import {htmlRiepilogoCasa,spiegazioneComponenteCasa} from "./fvCasaSintesi.ts";
+import {STILE_CASA_EDITORIALE,htmlBollettaCasa,htmlGiornoSeraCasa,htmlPercorsoCasa} from "./fvCasaEditoriale.ts";
+import {htmlBilancioEnergia} from "./fvBilancioEnergia.ts";
+import {pagineSimulazioneAzienda,renderSimulazioneAzienda} from "./fvSimulazioneAziendaHtml.ts";
+import type {SnapshotEconomiaAzienda} from "./fvEconomiaAzienda.ts";
+import {modelloAzienda,isFvPaginaAzienda,FV_AZIENDA_PAGINE_OBBLIGATORIE,verificaFormulaModelloAzienda} from "./fvModelliAzienda.ts";
+import {calcolaEconomiaAzienda} from "./fvEconomiaAzienda.ts";
+import {sezioniEconomiaAzienda,capitoliEconomiaAzienda} from "./fvEconomiaAziendaHtml.ts";
 /**
  * Template HTML del preventivo Fotovoltaico v2 — pagine A4 configurabili.
  * Replica fedele del riferimento /Users/florinandriciuc/Downloads/preventivo-fv-mario-rossi-v2.html
@@ -8,6 +20,8 @@
  */
 
 import { MODULO_RECESSO } from "./condizioniStandard.ts";
+import { leggiDisegnoCommerciale, svgDisegnoCommerciale } from "./fvDisegnoCommerciale.ts";
+import { preventivoSenzaMappa } from "./fvModalitaProgettazione.ts";
 import { substituteMergeTags } from './quoteTemplateComposer.ts';
 import { contrattoInHtml, leggiTestoRiccoContratto, separaFirmeContratto, segmentaRigaContratto } from './testoRiccoContratto.ts';
 import { isFvAccumulo, isFvLocalIntervention, fvInterventionLabel, FV_ACCUMULO_PAGINE_NON_APPLICABILI } from "./fvIntervento.ts";
@@ -35,18 +49,13 @@ import {
   calcolaProducibilitaMensile,
   calcolaCO2Equivalenze,
   calcolaCosti20Anni,
-  calcolaBollettaPrimaDopo,
   type FvFlows,
 } from "./fvCalcoli.ts";
 import { normalizzaHex, fondoPerTestoBianco, scurisci, schiarisci, testoSuChiaro, testoSuScuro, rgbElenco } from "./temaColori.ts";
 import {
   svgProducibilitaMensile,
-  svgSankeyDoveVa,
-  svgSankeyDaDoveViene,
   svgCosti20Anni,
-  svgCassaCumulata,
   svgForbice,
-  svgRataRisparmio,
   svgVistaSatellitareMock,
   svgVistaLayoutReale,
   svgProdottoIcona,
@@ -107,6 +116,9 @@ export function fotoDeiBlocchiFv(template: FvPdfTemplateData["template"] | null 
     const chiave = PAGINE_BLOCCO[page.id as PaginaBlocco];
     out[chiave] = leggiBlocco(chiave, "fotovoltaico", template?.pdf_blocchi).foto.slice(0, 2);
   }
+  Object.assign(out,immaginiPersonalizzateFv(template?.pdf_blocchi));
+  const cfg=leggiMonitoraggioFv(template?.pdf_blocchi);
+  if(cfg.attivo&&cfg.mostraImmagine&&normalizeFvPdfPagesOrder(template?.pdf_pages_order).some(p=>p.id==="monitoraggio"&&p.visible))out.monitoraggio=[IMMAGINE_MONITORAGGIO_FV];
   return out;
 }
 
@@ -150,6 +162,13 @@ export function fotoBlocchiDalSito(
 }
 
 export interface FvPdfTemplateData {
+  economia_azienda?:SnapshotEconomiaAzienda|null;
+  economia_azienda_richiesta?:boolean;
+  render_impianto?:{img:string;didascalia:string};
+  simulazione_azienda?:boolean;
+  /** Anteprima locale esplicita: nessuna offerta o pagina contrattuale nel campione. */
+  anteprima_dimostrativa?:boolean;
+  simulazione_azienda_compatta?:boolean;
   /** Unsaved configuration preview: never print stale/uncomputed finance. */
   configurationOnly?: boolean;
   azienda: {
@@ -191,12 +210,15 @@ export interface FvPdfTemplateData {
     capacita_accumulo_kwh: number;
     consumo_annuo_kwh: number;
     costo_kwh_attuale: number;
+    /** Quote fisse separate dalla tariffa sui kWh; assente = non disponibili. */
+    costi_fissi_annui_eur?: number | null;
     profilo_consumo?: string | null;
     ore_sole_annue?: number | null;
     superficie_tetto_disponibile_mq?: number | null;
     azimut?: string | null; // es. "SE 28°"
     inclinazione_tetto?: number | null;
     fonte_dati_tetto?: string | null;
+    layout_overlay?: unknown;
     qualita_dati_tetto?: string | null;
     imagery_date?: string | null;
     tetto_mock?: boolean | null;
@@ -315,6 +337,8 @@ export interface FvPdfTemplateData {
     capacita_kwh?: number | null;
     garanzia_anni?: number | null;
     image_url?: string | null;
+    /** Solo per campioni o immagini di categoria, mai una foto attribuita al prodotto reale. */
+    image_illustrativa?: boolean;
     articolo_descrizione_estesa?: string | null;
     scheda_tecnica_url?: string | null;
   }>;
@@ -860,23 +884,6 @@ function plainText(value: string | null | undefined): string {
     .trim();
 }
 
-function guaranteeIconLabel(icon: string | null | undefined): string {
-  switch (icon) {
-    case "award":
-      return "★";
-    case "clock":
-      return "◷";
-    case "tools":
-      return "✓";
-    case "battery":
-      return "kWh";
-    case "sun":
-      return "PV";
-    default:
-      return "✓";
-  }
-}
-
 function websiteHref(value: string | null | undefined): string | null {
   const raw = plainText(value);
   if (!raw) return null;
@@ -934,7 +941,7 @@ function renderPdfActionBar(d: FvPdfTemplateData): string {
   return `<div class="pdf-action-bar" role="region" aria-label="Azioni preventivo fotovoltaico">
     <div class="pdf-action-meta">
       <strong>${escHtml(d.progetto.numero)} · ${escHtml(cliente || d.progetto.titolo)}</strong>
-      <span>${escHtml(d.azienda.name)} · valido ${d.progetto.valido_giorni} giorni · apri la stampa per salvare il PDF definitivo</span>
+      <span>${escHtml(d.azienda.name)} · ${d.simulazione_azienda?"simulazione non impegnativa":`valido ${d.progetto.valido_giorni} giorni`} · apri la stampa per salvare il PDF definitivo</span>
     </div>
     <div class="pdf-action-links">
       ${contatti}
@@ -1252,10 +1259,12 @@ function pageCover(d: FvPdfTemplateData): string {
       <div class="client-meta">${escHtml(indirizzoCliente)} · ${escHtml(tipologia)}</div>
     </div>` : ""}
     <div class="cover-footer">
-      <div class="doc-meta">Preventivo <strong>${escHtml(d.progetto.numero)}</strong><br/>${escHtml(fmtData(d.progetto.creato_il))} · valido ${d.progetto.valido_giorni} giorni</div>
+      <div class="doc-meta">Preventivo <strong>${escHtml(d.progetto.numero)}</strong><br/>${escHtml(fmtData(d.progetto.creato_il))} · ${d.simulazione_azienda?"Simulazione non impegnativa":`valido ${d.progetto.valido_giorni} giorni`}</div>
     </div>
   </div></div></div>`;
 }
+
+function propostaConCanoniAzienda(d:FvPdfTemplateData){return d.economia_azienda?.input.parametri.modo==="noleggio"||d.economia_azienda?.input.parametri.modo==="leasing";}
 
 function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): string {
   const valoreProposta = safeRichText(d.template?.valore_proposta_html);
@@ -1288,14 +1297,14 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
     ${header(d.progetto.numero, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">L'investimento</div>
-      <h1 class="page-title">${isFvLocalIntervention(d.template) ? "La tua proposta,<br/>voce per voce." : "Il tuo impianto,<br/>tutto compreso."}</h1>
-      <p class="page-subtitle">${isFvLocalIntervention(d.template) ? "Il prezzo delle sole componenti e attività elencate. Eventuali servizi aggiuntivi si concordano separatamente." : "Il prezzo, cosa comprende e quanto recuperi con la detrazione."}</p>
+      <h1 class="page-title">${isFvLocalIntervention(d.template) ? "La tua proposta,<br/>voce per voce." : propostaConCanoniAzienda(d)?"La fornitura,<br/>base del canone.":modelloAzienda(d.template)?"Il valore<br/>della fornitura.":"Il tuo impianto,<br/>tutto compreso."}</h1>
+      <p class="page-subtitle">${isFvLocalIntervention(d.template) ? "Il prezzo delle sole componenti e attività elencate. Eventuali servizi aggiuntivi si concordano separatamente." : d.economia_azienda?"Il valore del bene e la fornitura. Canoni, rate e ipotesi sono descritti nel prospetto economico aziendale.":"Il prezzo, cosa comprende e quanto recuperi con la detrazione."}</p>
       ${valoreProposta ? `<div class="callout callout-info">
         <span class="callout-icon">i</span>
         <div><strong>Perché questa proposta è costruita su misura</strong><div class="rich-text">${valoreProposta}</div></div>
       </div>` : ""}
       <div class="invest-hero">
-        <div class="label">${isFvLocalIntervention(d.template) ? "Importo della proposta" : "Prezzo chiavi in mano"}</div>
+        <div class="label">${isFvLocalIntervention(d.template) ? "Importo della proposta" : propostaConCanoniAzienda(d)?"Valore della fornitura · riferimento per i canoni":modelloAzienda(d.template)?"Valore della fornitura":"Prezzo chiavi in mano"}</div>
         <div class="price">${fmtEur(d.costi.prezzo_vendita_iva_inclusa)}</div>
         <div class="desc">IVA ${d.costi.iva_perc}% inclusa${inclusi.length > 0 ? " · componenti e servizi elencati qui sotto." : "."}</div>
       </div>
@@ -1419,6 +1428,15 @@ function pageAnteprima(d: FvPdfTemplateData, pageN: number, total: number): stri
 
 /** Il piano di posa: i moduli disegnati in scala sulla vista satellitare, con scala, nord e numeri. */
 function pagePianoTetto(d: FvPdfTemplateData, pageN: number, total: number): string {
+  const commerciale = leggiDisegnoCommerciale(d.progetto.layout_overlay);
+  if (commerciale) return `<div class="page">
+    ${header(d.progetto.numero, d.azienda.name)}
+    <div class="content"><div class="eyebrow">Il tuo impianto, in pianta</div>
+      <h1 class="page-title">Disposizione proposta<br/>dei pannelli.</h1>
+      <p class="page-subtitle">Schema del tetto in ${escHtml(indirizzoCompleto(d.cliente))}. ${commerciale.pannelli.length} moduli · ${fmtNum(d.progetto.potenza_kwp, 2)} kWp.</p>
+      <style>.fv-commercial-plan{border:1px solid #DCE5EB;border-radius:12px;overflow:hidden;margin:4mm 0;height:150mm}.fv-commercial-plan svg{display:block;width:100%;height:100%!important}</style><div class="fv-commercial-plan">${svgDisegnoCommerciale(commerciale)}</div>
+      <div class="callout callout-info"><span class="callout-icon">i</span><div><strong>Disposizione commerciale indicativa.</strong>Quantità collegate alla composizione della fornitura. Misure, posa e condizioni del tetto saranno confermate nel sopralluogo. Questa tavola non costituisce un progetto tecnico dell’impianto.</div></div>
+    </div>${footer(d, pageN, total)}</div>`;
   const pt = d.piano_tetto!;
   const mpp = metriPerPunto(pt.latitudine);
   const disegno = disponiPannelli({ moduli: pt.moduli, piano: pt.piano, metriPerPuntoVista: mpp });
@@ -1546,6 +1564,25 @@ function pageComponenti(d: FvPdfTemplateData, pageN: number, total: number, comp
   </div>`;
 }
 
+function gruppiSchedeProdotti(d:FvPdfTemplateData){
+ const gruppi:FvPdfTemplateData["componenti"][]=[];let h=0;
+ for(const c of d.componenti){
+  const testo=[c.marca,c.modello,c.descrizione].filter(Boolean).join(" ");
+  const estesa=plainText(c.articolo_descrizione_estesa).slice(0,320);
+  const altezza=Math.max(52,28+Math.ceil(testo.length/42)*4+Math.ceil(estesa.length/65)*3.8)+4;
+  if(!gruppi.length||h+altezza>178||gruppi.at(-1)!.length>=3){gruppi.push([]);h=0;}
+  gruppi.at(-1)!.push(c);h+=altezza;
+ }return gruppi;
+}
+function pageSchedeProdotti(d:FvPdfTemplateData,componenti:FvPdfTemplateData["componenti"],pageN:number,total:number,parte:number){
+ const cards=componenti.map(c=>{
+  const ruolo=spiegazioneComponenteCasa(c.categoria),media=productCategoryMedia(d,c.categoria),foto=imageHref(c.image_url),estesa=plainText(c.articolo_descrizione_estesa),testo=estesa.length>320?`${estesa.slice(0,317)}…`:estesa;
+  const specifiche=[`Quantità ${fmtNum(c.quantita)}`,c.potenza_w?`${fmtNum(c.potenza_w)} Wp`:null,c.capacita_kwh?`${fmtNum(c.capacita_kwh,1)} kWh`:null,c.garanzia_anni?`Garanzia ${fmtNum(c.garanzia_anni)} anni`:null].filter(Boolean);
+  return `<article class="fc-product"><div class="fc-product-media">${foto?`<img src="${escHtml(foto)}" alt="${escHtml(c.descrizione)}"/>`:svgProdottoIcona(productIconType(c.categoria)).replace(/<text\b[^>]*>[\s\S]*?<\/text>/g,"")}<small>${foto?(c.image_illustrativa?"Immagine illustrativa della categoria":"Immagine associata all’articolo"):"Schema illustrativo della categoria"}</small></div><div class="fc-product-copy"><div class="fc-kicker">${escHtml(media.label||c.categoria)}</div><h2>${escHtml([c.marca,c.modello].filter(v=>v&&v!=="—").join(" · ")||c.descrizione)}</h2>${c.descrizione!==c.modello?`<p>${escHtml(c.descrizione)}</p>`:""}${testo?`<p>${escHtml(testo)}</p>`:""}<div class="fc-product-purpose"><strong>${escHtml(ruolo.titolo)}</strong><p>${escHtml(ruolo.testo)}</p></div><div class="fc-specs">${specifiche.map(v=>`<span>${escHtml(v!)}</span>`).join("")}</div>${!c.garanzia_anni?'<p>Garanzia da confermare nella scheda prodotto.</p>':""}${imageHref(c.scheda_tecnica_url)?`<p><a href="${escHtml(imageHref(c.scheda_tecnica_url)!)}" style="color:#188569">Consulta la scheda tecnica</a></p>`:""}</div></article>`;
+ }).join("");
+ return `<div class="page">${header(d.progetto.numero,d.azienda.name)}<div class="content">${STILE_CASA_EDITORIALE}<style>.fc .fc-product{min-height:52mm}.fc .fc-product-media img{height:36mm}.fc-product-purpose{padding-top:2mm;margin-top:2mm;border-top:1px solid #E4EBE5;font-size:8pt;color:#376B58}.fc-product-purpose p{font-size:7.5pt;line-height:1.35;margin:1mm 0}.fc-product-purpose strong{font-weight:650}</style><section class="fc"><div class="eyebrow">La tecnologia scelta${parte?` · continua ${parte+1}`:""}</div><h1>Ogni componente,<br/><em>una scelta riconoscibile.</em></h1><p class="fc-lead">I prodotti previsti, il loro ruolo e le dotazioni comprese nella proposta.</p>${cards}<p class="fc-note">Le immagini illustrative non identificano il prodotto fornito. Modello, caratteristiche e garanzie valgono come indicati nelle schede e nelle condizioni confermate. Le descrizioni estese sono presentate in sintesi.</p></section></div>${footer(d,pageN,total)}</div>`;
+}
+
 /**
  * «Composizione della fornitura»: la pagina tabellare (come serramenti e
  * ristrutturazioni) con foto del prodotto, categoria, descrizione, specifiche e
@@ -1619,7 +1656,7 @@ function pagineFornitura(d: FvPdfTemplateData): RigaFornitura[][] {
 
 /** Una pagina della tabella: `righe` sono le sue, `prima` quante ne sono già uscite nelle pagine di prima (la numerazione continua). */
 function pageComposizioneFornitura(d: FvPdfTemplateData, pageN: number, total: number, righe: RigaFornitura[], ultima: boolean, parte: number, prima: number): string {
-  const local = isFvLocalIntervention(d.template);
+  const local = isFvLocalIntervention(d.template)||!!modelloAzienda(d.template);
 
   // I pezzi sono quelli di tutta la fornitura, non solo quelli di questa pagina.
   const pezzi = righeFornitura(d).reduce((s, r) => s + (Number(r.qta) || 0), 0);
@@ -1647,7 +1684,7 @@ function pageComposizioneFornitura(d: FvPdfTemplateData, pageN: number, total: n
         <tbody>${rows || `<tr><td colspan="4" style="padding:6mm;color:#94A3B8;">Nessun prodotto configurato.</td></tr>`}</tbody>
       </table>
       ${ultima ? `<div class="forn-tot">
-        <div class="forn-tot-l">${local ? "Totale della proposta" : "Fornitura chiavi in mano"}<span>IVA ${fmtNum(d.costi.iva_perc, 0)}% inclusa · installazione e collaudo compresi</span></div>
+        <div class="forn-tot-l">${local ? "Totale della proposta" : propostaConCanoniAzienda(d)?"Valore della fornitura":"Fornitura chiavi in mano"}<span>IVA ${fmtNum(d.costi.iva_perc, 0)}% inclusa · ${modelloAzienda(d.template)?"componenti e servizi elencati":"installazione e collaudo compresi"}</span></div>
         <div class="forn-tot-v">${fmtEur(d.costi.prezzo_vendita_iva_inclusa)}</div>
       </div>` : ""}
     </div>
@@ -1702,7 +1739,7 @@ function pageMacroCategoriaDedicata(
 }
 
 function pageProduzione(d: FvPdfTemplateData, pageN: number, total: number): string {
-  const mensili = calcolaProducibilitaMensile(d.flows.produzione_kwh);
+  const mensili = d.economia_azienda&&modelloAzienda(d.template)?d.economia_azienda.input.parametri.produzionePesiMensili.map(p=>p*d.economia_azienda!.input.produzioneAnnua):calcolaProducibilitaMensile(d.flows.produzione_kwh);
   const source = roofSourceLabel(d.progetto.fonte_dati_tetto);
   return `<div class="page">
     ${header(d.progetto.numero, d.azienda.name)}
@@ -1713,12 +1750,12 @@ function pageProduzione(d: FvPdfTemplateData, pageN: number, total: number): str
       ${renderRoofSourcePanel(d)}
       <div class="chart-card">
         <div class="chart-title">Producibilità mensile attesa (kWh)</div>
-        <div class="chart-sub">Picchi maggio-luglio · ${escHtml(d.cliente.comune ?? "Italia")}${d.progetto.azimut ? ` · azimut ${escHtml(d.progetto.azimut)}` : ""}${d.progetto.inclinazione_tetto ? ` · inclinazione ${d.progetto.inclinazione_tetto}°` : ""}</div>
+        <div class="chart-sub">${d.economia_azienda?"Profilo mensile della simulazione":"Picchi maggio-luglio"} · ${escHtml(d.cliente.comune ?? "Italia")}${d.progetto.azimut ? ` · azimut ${escHtml(d.progetto.azimut)}` : ""}${d.progetto.inclinazione_tetto ? ` · inclinazione ${d.progetto.inclinazione_tetto}°` : ""}</div>
         ${svgProducibilitaMensile(mensili)}
       </div>
       <div class="kpi-row">
         <div class="kpi-block green"><div class="kpi-label">Producibilità totale</div><div class="kpi-value">${fmtNum(d.flows.produzione_kwh)} <span class="unit">kWh</span></div><div class="kpi-sub">Primo anno</div></div>
-        <div class="kpi-block orange"><div class="kpi-label">Autoconsumato</div><div class="kpi-value">${fmtNum(d.flows.autoconsumo_kwh)} <span class="unit">kWh</span></div><div class="kpi-sub">Diretto + da accumulo</div></div>
+        <div class="kpi-block orange"><div class="kpi-label">Autoconsumato</div><div class="kpi-value">${fmtNum(d.flows.autoconsumo_kwh)} <span class="unit">kWh</span></div><div class="kpi-sub">${d.progetto.has_accumulo?"Diretto + da accumulo":"Utilizzo diretto"}</div></div>
         <div class="kpi-block"><div class="kpi-label">Ceduto in rete</div><div class="kpi-value">${fmtNum(d.flows.ceduto_rete_kwh)} <span class="unit">kWh</span></div><div class="kpi-sub">Energia non autoconsumata</div></div>
       </div>
       ${fasciaFotoPagina(d, "produzione", "center 45%")}
@@ -1749,65 +1786,12 @@ function calloutAccumulo(d: FvPdfTemplateData): string {
 }
 
 function pageFlussi(d: FvPdfTemplateData, pageN: number, total: number): string {
-  return `<div class="page">
-    ${header(d.progetto.numero, d.azienda.name)}
-    <div class="content">
-      <div class="eyebrow">Flussi energetici</div>
-      <h1 class="page-title">Dove va<br/>la tua energia.</h1>
-      <p class="page-subtitle">Spiegato in modo semplice: cosa succede ai ${fmtNum(d.flows.produzione_kwh)} kWh che produci e ai ${fmtNum(d.progetto.consumo_annuo_kwh)} kWh che consumi.</p>
-      <div class="chart-card">
-        <div class="chart-title">Dove va l'energia che produci</div>
-        <div class="chart-sub">L'elettricità non utilizzata direttamente in casa viene immessa nella rete</div>
-        ${svgSankeyDoveVa(d.flows)}
-      </div>
-      <div class="chart-card">
-        <div class="chart-title">Da dove viene l'energia che consumi</div>
-        <div class="chart-sub">Dei ${fmtNum(d.progetto.consumo_annuo_kwh)} kWh che la tua casa usa in un anno, il ${fmtPct(d.flows.consumo_da_fv_pct, 0)} arriva dal tuo impianto</div>
-        ${svgSankeyDaDoveViene(d.flows, d.progetto.consumo_annuo_kwh)}
-      </div>
-      <div class="kpi-row cols-2">
-        <div class="kpi-big orange"><div class="kbig-label">Autoconsumo</div><div class="kbig-value">${fmtPct(d.flows.autoconsumo_pct, 0)}</div><div class="kbig-sub">della produzione la usi tu, non la regali alla rete.</div></div>
-        <div class="kpi-big"><div class="kbig-label">Autosufficienza</div><div class="kbig-value">${fmtPct(d.flows.autosufficienza_pct, 0)}</div><div class="kbig-sub">del consumo casa arriva dal tuo sole, non dalla rete.</div></div>
-      </div>
-    </div>
-    ${footer(d, pageN, total)}
-  </div>`;
+  const opzioni={tipo:modelloAzienda(d.template)?"azienda" as const:"casa" as const,hasAccumulo:d.progetto.has_accumulo};
+  return `<div class="page">${header(d.progetto.numero,d.azienda.name)}<div class="content">${htmlBilancioEnergia(d.flows,d.progetto.consumo_annuo_kwh,opzioni)}</div>${footer(d,pageN,total)}</div>`;
 }
 
 function pageRisparmio(d: FvPdfTemplateData, pageN: number, total: number): string {
-  const bolletta = calcolaBollettaPrimaDopo({
-    consumo_annuo_kwh: d.progetto.consumo_annuo_kwh,
-    prelievo_rete_kwh: d.flows.prelievo_rete_kwh,
-    prezzo_kwh: d.progetto.costo_kwh_attuale,
-    ricavi_rid_eur: d.scenario.ricavi_rid_anno1_eur ?? null,
-  });
-  const conRid = Number(d.scenario.ricavi_rid_anno1_eur) > 0;
-  return `<div class="page">
-    ${header(d.progetto.numero, d.azienda.name)}
-    <div class="content">
-      <div class="eyebrow">Il risparmio</div>
-      <h1 class="page-title">${fmtEur(d.scenario.risparmio_mensile_eur)} al mese<br/>che restano a te.</h1>
-      <p class="page-subtitle">${conRid ? "Quello che non paghi più in bolletta, più quello che il GSE ti paga per l'energia che immetti in rete." : "Quello che non paghi più in bolletta."} Stima del primo anno, con il prezzo che paghi oggi.</p>
-      <div class="kpi-row cols-2">
-        <div class="kpi-big"><div class="kbig-label">Al mese</div><div class="kbig-value">${fmtEur(d.scenario.risparmio_mensile_eur)}</div><div class="kbig-sub">in media, il primo anno</div></div>
-        <div class="kpi-big"><div class="kbig-label">All'anno</div><div class="kbig-value">${fmtEur(d.scenario.risparmio_anno1_eur)}</div><div class="kbig-sub">${conRid ? "bolletta più energia venduta, il primo anno" : "in bolletta, il primo anno"}</div></div>
-      </div>
-      <h3 style="font-size:11pt;color:#1E3A5F;margin:4mm 0 2mm;">La tua bolletta — prima e dopo</h3>
-      <table>
-        <thead><tr><th>Voce</th><th class="num-cell">Oggi (senza FV)</th><th class="num-cell">Con il fotovoltaico</th><th class="num-cell">Risparmio</th></tr></thead>
-        <tbody>
-          ${bolletta.map((r) => `<tr${r.is_total ? ' class="row-total"' : ""}><td>${escHtml(r.voce)}</td><td class="num-cell">${r.is_kwh_row ? `${fmtNum(r.oggi_eur)} kWh` : r.oggi_eur === 0 && r.con_fv_eur < 0 ? "—" : fmtEur(r.oggi_eur)}</td><td class="num-cell">${r.is_kwh_row ? `${fmtNum(r.con_fv_eur)} kWh` : fmtEur(r.con_fv_eur)}</td><td class="num-cell ${r.risparmio_eur === 0 ? "saving-zero" : "saving"}">${r.is_kwh_row ? `−${Math.abs(r.risparmio_eur)}%` : r.risparmio_eur === 0 ? "0 €" : fmtEur(r.risparmio_eur)}</td></tr>`).join("")}
-        </tbody>
-      </table>
-      ${fasciaFotoPagina(d, "risparmio", "center 55%")}
-      <div class="callout callout-success">
-        <span class="callout-icon">★</span>
-        <div><strong>Il risparmio si misura in kWh, non in euro.</strong>
-        La stima usa il prezzo che paghi oggi, ${escHtml(fmtNum(d.progetto.costo_kwh_attuale, 2))} € per kWh: se l'energia rincara, ogni kWh prodotto in casa vale di più; se cala, vale un po' meno.</div>
-      </div>
-    </div>
-    ${footer(d, pageN, total)}
-  </div>`;
+ return `<div class="page">${header(d.progetto.numero,d.azienda.name)}<div class="content">${htmlBollettaCasa(d)}</div>${footer(d,pageN,total)}</div>`;
 }
 
 function pageCostiFuturi(d: FvPdfTemplateData, pageN: number, total: number): string {
@@ -1844,44 +1828,11 @@ function pageCostiFuturi(d: FvPdfTemplateData, pageN: number, total: number): st
 
 type FvFinanziamentoPdf = NonNullable<FvPdfTemplateData["finanziamento"]>;
 
-/** Un tasso che non c'è si dichiara, non si inventa. */
-function fmtTasso(valore: number | null): string {
-  return valore == null ? "n.d." : `${fmtNum(valore, 2)}%`;
-}
-
 // Esce solo con un finanziamento vero (vedi pagineDaDisegnare). Prima, senza,
 // stampava una rata pari al 120% del prezzo in 84 mesi con TAN 4,75% e TAEG 5,4%.
-function pagePiano(d: FvPdfTemplateData, fin: FvFinanziamentoPdf, pageN: number, total: number): string {
-  const rata = fin.rata_mensile;
-  const risparmioM = d.scenario.risparmio_mensile_eur;
-  const netto = Math.max(0, rata - risparmioM);
-  return `<div class="page">
-    ${header(d.progetto.numero, d.azienda.name)}
-    <div class="content">
-      <div class="eyebrow">★ Il piano economico</div>
-      <h1 class="page-title">${fmtRata(netto)} al mese.<br/><span style="color:#F97316">Tutto qui.</span></h1>
-      <p class="page-subtitle">Quello che esce davvero dal tuo conto, ogni mese.${netto / 30 <= 1.5 ? " Meno di un caffè al giorno." : ""}</p>
-      <div class="split-3">
-        <div class="num-card navy"><div class="nc-label">Rata ${escHtml(fin.finanziaria.split(" ")[0])}</div><div class="nc-value">${fmtRata(rata)}</div><div class="nc-period">×${fin.durata_mesi} mesi${fin.taeg_perc != null ? ` · TAEG ${fmtNum(fin.taeg_perc, 2)}%` : ""}</div></div>
-        <div class="num-card green"><div class="nc-label">Risparmio bolletta</div><div class="nc-value">${fmtEur(risparmioM)}</div><div class="nc-period">/mese · primo anno</div></div>
-        <div class="num-card orange"><div class="nc-label">Costo netto reale</div><div class="nc-value">${fmtRata(netto)}</div><div class="nc-period">/mese · ${fmtRata(rata)} − ${fmtEur(risparmioM)}</div></div>
-      </div>
-      <div class="chart-card">
-        <div class="chart-title">Rata vs risparmio bolletta — visivamente</div>
-        <div class="chart-sub">La rata pesa ${fmtRata(rata)}. Ne recuperi ${fmtEur(risparmioM)} subito. Esborso netto: ${fmtRata(netto)}.</div>
-        ${svgRataRisparmio(rata, risparmioM, netto)}
-      </div>
-      <table>
-        <tbody>
-          <tr><td>Importo finanziato</td><td class="num-cell">${fmtEur(fin.importo_finanziato)}</td><td>Durata</td><td class="num-cell">${fin.durata_mesi} rate</td></tr>
-          <tr><td>Finanziaria</td><td class="num-cell">${escHtml(fin.finanziaria)}</td><td>Rata mensile</td><td class="num-cell" style="color:#F97316;">${fmtRata(rata)}</td></tr>
-          <tr><td>TAN nominale</td><td class="num-cell">${fmtTasso(fin.tan_perc)}</td><td>TAEG (incluse spese)</td><td class="num-cell">${fmtTasso(fin.taeg_perc)}</td></tr>
-        </tbody>
-      </table>
-      ${fasciaFotoPagina(d, "piano", "center 45%", true)}
-    </div>
-    ${footer(d, pageN, total)}
-  </div>`;
+function pagePiano(d: FvPdfTemplateData, _fin: FvFinanziamentoPdf, pageN: number, total: number): string {
+  const html=htmlConfrontoFinanziamentoCasa(d);
+  return html?`<div class="page">${header(d.progetto.numero,d.azienda.name)}<div class="content">${html}</div>${footer(d,pageN,total)}</div>`:"";
 }
 
 function pageBollette240(d: FvPdfTemplateData, pageN: number, total: number): string {
@@ -1919,42 +1870,7 @@ function pageBollette240(d: FvPdfTemplateData, pageN: number, total: number): st
 }
 
 function pageCassa25(d: FvPdfTemplateData, pageN: number, total: number): string {
-  const cassa = d.scenario.cassa_anno_per_anno;
-  const final = cassa.length > 0 ? cassa[cassa.length - 1].cumulato : d.scenario.risparmio_25_anni_eur;
-  // Gli eventi seguono il calcolo (fv-calcolo-finanziario): investimento pagato
-  // all'anno 0, inverter sostituito al 12°. Prima la tabella parlava di una
-  // «rata Cofidis» finita al 7° anno, di un inverter da ~1.000 € al 15°, di un
-  // pareggio al 9° anche quando non era calcolato, e dava 0 € agli anni mancanti.
-  const payback = d.scenario.payback_anni;
-  const eventi = [
-    { anno: 0, descr: "Installazione · investimento iniziale", cumulato: cassa[0]?.cumulato ?? -d.costi.prezzo_vendita_iva_inclusa },
-    ...(payback != null ? [{ anno: payback, descr: "★ La spesa è ripagata: da qui in poi è guadagno", cumulato: 0 }] : []),
-    { anno: 12, descr: "Anno indicativo di sostituzione dell'inverter", cumulato: cassa.find((c) => c.anno === 12)?.cumulato },
-    { anno: 25, descr: "Fine del periodo analizzato", cumulato: final },
-  ]
-    .filter((e): e is { anno: number; descr: string; cumulato: number } => e.cumulato != null)
-    .sort((a, b) => a.anno - b.anno);
-  return `<div class="page">
-    ${header(d.progetto.numero, d.azienda.name)}
-    <div class="content">
-      <div class="eyebrow">La cassa nei 25 anni</div>
-      <h1 class="page-title">${final > 0 ? "+" : ""}${fmtEur(final)}<br/>nelle tue tasche.</h1>
-      <p class="page-subtitle">Quello che ti resta dopo 25 anni, tolta la spesa${payback != null ? `: la ripaghi in circa ${escHtml(fmtNum(Math.round(payback)))} anni` : ""}. Stima con le ipotesi del preventivo.</p>
-      <div class="chart-card">
-        <div class="chart-title">Cassa cumulata anno per anno</div>
-        <div class="chart-sub">Investimento iniziale, risparmio in bolletta, energia ceduta alla rete${d.costi.detrazione_eur > 0 ? " e detrazione fiscale" : ""}</div>
-        ${svgCassaCumulata(cassa, d.scenario.payback_anni, final)}
-      </div>
-      <table>
-        <thead><tr><th>Anno</th><th>Cosa succede</th><th class="num-cell">Cassa cumulata</th></tr></thead>
-        <tbody>
-          ${eventi.map((e) => `<tr${e.anno === payback ? ' class="row-total"' : ""}><td><strong>${escHtml(Number.isInteger(e.anno) ? String(e.anno) : fmtNum(e.anno, 1))}</strong></td><td>${escHtml(e.descr)}</td><td class="num-cell" style="color:${(e.cumulato ?? 0) >= 0 ? "#16A34A" : "#DC2626"};">${fmtEur(e.cumulato ?? 0)}</td></tr>`).join("")}
-        </tbody>
-      </table>
-      ${fasciaFotoPagina(d, "cassa", "center 55%", true)}
-    </div>
-    ${footer(d, pageN, total)}
-  </div>`;
+ return `<div class="page">${header(d.progetto.numero,d.azienda.name)}<div class="content">${htmlPercorsoCasa(d)}</div>${footer(d,pageN,total)}</div>`;
 }
 
 /**
@@ -2174,7 +2090,7 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
           const badge = imageHref(d.badge_garanzie?.[g.icona as keyof typeof BADGE_GARANZIE_FV] ?? d.badge_garanzie?.shield);
           return badge
             ? `<div class="guarantee-card con-badge"><img class="g-badge" src="${escHtml(badge)}" alt="" /><div><div class="g-title">${escHtml(g.titolo)}</div><div class="g-desc">${escHtml(g.descrizione)}</div></div></div>`
-            : `<div class="guarantee-card"><div class="g-num">${escHtml(guaranteeIconLabel(g.icona))}</div><div class="g-title">${escHtml(g.titolo)}</div><div class="g-desc">${escHtml(g.descrizione)}</div></div>`;
+            : `<div class="guarantee-card"><div class="g-num">${svgIconaEditorialeFv(g.icona,{colore:d.template?.colore_accento,dimensione:24})}</div><div class="g-title">${escHtml(g.titolo)}</div><div class="g-desc">${escHtml(g.descrizione)}</div></div>`;
         }).join("")}
       </div>
       <h3 style="font-size:11pt;color:#1E3A5F;margin:4mm 0 2mm;">${customUsp.length > 0 ? "Perché scegliere noi" : "L'azienda"}</h3>
@@ -2235,9 +2151,9 @@ function pageIter(d: FvPdfTemplateData, pageN: number, total: number): string {
   return `<div class="page">
     ${header(d.progetto.numero, d.azienda.name)}
     <div class="content">
-      <div class="eyebrow">${isFvLocalIntervention(d.template) ? "Il percorso dell'intervento" : "Iter pratiche"}</div>
-      <h1 class="page-title">${isFvLocalIntervention(d.template) ? "Dalla verifica<br/>alla consegna." : "Pensiamo a<br/>tutto noi."}</h1>
-      <p class="page-subtitle">${isFvLocalIntervention(d.template) ? escHtml(fvInterventionLabel(d.template)) + ": attività e tempi da concordare." : "Tu firmi una sola volta. Ecco i passaggi fino all'accensione dell'impianto."}</p>
+      <div class="eyebrow">${(isFvLocalIntervention(d.template)||!!modelloAzienda(d.template)) ? "Il percorso dell'intervento" : "Iter pratiche"}</div>
+      <h1 class="page-title">${(isFvLocalIntervention(d.template)||!!modelloAzienda(d.template)) ? "Dalla verifica<br/>alla consegna." : "Pensiamo a<br/>tutto noi."}</h1>
+      <p class="page-subtitle">${(isFvLocalIntervention(d.template)||!!modelloAzienda(d.template)) ? escHtml(fvInterventionLabel(d.template)) + ": attività e tempi da concordare." : "Tu firmi una sola volta. Ecco i passaggi fino all'accensione dell'impianto."}</p>
       ${intro ? `<div class="callout callout-info"><span class="callout-icon">i</span><div><strong>Il percorso cliente</strong><div class="rich-text">${intro}</div></div></div>` : ""}
       <div class="tl">
         ${customCrono.length > 0 ? customTimeline : defaultTimeline}
@@ -2246,7 +2162,7 @@ function pageIter(d: FvPdfTemplateData, pageN: number, total: number): string {
       ${d.foto_di_serie?.installatori ? `<div class="foto-fascia"><img src="${d.foto_di_serie.installatori}" alt="" style="object-position:center 55%;" /></div>` : ""}
       <div class="callout callout-success">
         <span class="callout-icon">✓</span>
-        <div>${isFvLocalIntervention(d.template) ? "<strong>Prima si conferma il perimetro.</strong> Tempi, attività e documentazione si concordano sul caso concreto. Servizi e funzioni aggiuntive devono essere esplicitamente inclusi." : "<strong>Tu firmi una volta sola.</strong> Le pratiche comprese nella proposta le seguiamo noi. I tempi dipendono anche dal Comune e dal distributore di rete."}</div>
+        <div>${(isFvLocalIntervention(d.template)||!!modelloAzienda(d.template)) ? "<strong>Prima si conferma il perimetro.</strong> Tempi, attività e documentazione si concordano sul caso concreto. Servizi e funzioni aggiuntive devono essere esplicitamente inclusi." : "<strong>Tu firmi una volta sola.</strong> Le pratiche comprese nella proposta le seguiamo noi. I tempi dipendono anche dal Comune e dal distributore di rete."}</div>
       </div>
     </div>
     ${footer(d, pageN, total)}
@@ -2260,12 +2176,12 @@ function faqDellAzienda(d: FvPdfTemplateData): Array<{ q: string; a: string }> {
   return (d.template?.faq_items ?? [])
     .filter((f) => plainText(f.domanda).length > 0 && plainText(f.risposta).length > 0)
     .map((f) => ({ q: plainText(f.domanda), a: plainText(f.risposta) }))
-    .slice(0, isFvLocalIntervention(d.template) ? undefined : 8);
+    .slice(0, isFvLocalIntervention(d.template)||modelloAzienda(d.template) ? undefined : 8);
 }
 
 function gruppiFaq(d: FvPdfTemplateData): Array<Array<{ q: string; a: string }>> {
   const faqs = faqDellAzienda(d);
-  if (!isFvLocalIntervention(d.template)) return [faqs];
+  if (!isFvLocalIntervention(d.template)&&!modelloAzienda(d.template)) return [faqs];
   const groups: typeof faqs[] = [[]];
   let used = 0;
   for (const faq of faqs) {
@@ -2376,7 +2292,7 @@ function pageFAQ(d: FvPdfTemplateData, pageN: number, total: number, faqs = faqD
  * quelli che ci sono davvero (niente zeri, niente rientro oltre i 25 anni).
  */
 function numeriDellImpianto(d: FvPdfTemplateData): Array<{ etichetta: string; valore: string; unita?: string; nota: string; tono?: "green" | "orange" }> {
-  if (isFvLocalIntervention(d.template)) return [];
+  if (d.economia_azienda || d.economia_azienda_richiesta || isFvLocalIntervention(d.template)) return [];
   const out: Array<{ etichetta: string; valore: string; unita?: string; nota: string; tono?: "green" | "orange" }> = [];
   if (d.flows.produzione_kwh > 0) out.push({ etichetta: "Energia prodotta", valore: fmtNum(d.flows.produzione_kwh), unita: "kWh", nota: "ogni anno, dal primo", tono: "green" });
   if (d.flows.autosufficienza_pct > 0) out.push({ etichetta: "Autosufficienza", valore: fmtPct(d.flows.autosufficienza_pct, 0), nota: "del consumo di casa dal tuo sole" });
@@ -2404,6 +2320,8 @@ function altezzaRiquadro(testo: string, caratteriPerRiga = 90): number {
 
 function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): string {
   const fin = d.finanziamento;
+  const business=!!modelloAzienda(d.template),sim=d.simulazione_azienda,b2b=d.economia_azienda?calcolaEconomiaAzienda(d.economia_azienda.input):null,periodo=d.economia_azienda?.input.parametri.modo==="leasing"?d.economia_azienda.input.parametri.leasing?.periodoMesi:d.economia_azienda?.input.parametri.periodoNoleggioMesi;
+  const canone=b2b?.canonePeriodo,prezzo=canone!=null?Math.round(canone*(1+d.costi.iva_perc/100)*100)/100:d.costi.prezzo_vendita_iva_inclusa;
   // Rata e costo netto mensile solo con un finanziamento vero.
   const netto = fin && !isFvAccumulo(d.template) ? Math.max(0, fin.rata_mensile - d.scenario.risparmio_mensile_eur) : null;
   const docMeta = `${d.azienda.name}${d.azienda.vat_number ? ` · P.IVA ${d.azienda.vat_number}` : ""} · Doc ${d.progetto.numero} · ${fmtData(d.progetto.creato_il)}`;
@@ -2427,6 +2345,13 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
     consulenteDescrizione ? Math.max(0, Math.ceil(consulenteDescrizione.length / 45) - 2) * 4.5 : 0,
     Math.max(0, righeTitolo - 2) * 9.5,
   ].reduce((a, b) => a + b, 0);
+  const sceltaFoto=d.template?.pdf_blocchi?.pagina_decisione as {foto?:unknown[]}|undefined;
+  const fotoPersonalizzata=Array.isArray(sceltaFoto?.foto)&&sceltaFoto.foto.some(v=>typeof v==="string"&&v.trim());
+  if(!business&&!d.economia_azienda&&!isFvLocalIntervention(d.template)&&!isNoleggioOperativo&&!fotoPersonalizzata&&occupato<=40){
+    const extra=[d.template?.urgenza_attiva&&urgenzaDescrizione?`<p><strong>${escHtml(urgenzaTitolo)}</strong> ${escHtml(urgenzaDescrizione)}</p>`:"",!haPaginaCondizioni(d)&&condizioni?`<div class="rich-text"><strong>Condizioni commerciali</strong>${condizioni}</div>`:"",consulenteDescrizione?`<p>${escHtml(consulenteDescrizione)}</p>`:""].filter(Boolean).join("");
+    const firma=d.anteprima_dimostrativa?"":`<strong>Come si firma</strong> Online, con il link ricevuto via email. Oppure su carta, nella pagina «Accettazione proposta»${haPaginaCondizioni(d)?", dopo le condizioni generali":" che segue"}: c’è il riepilogo e lo spazio per le firme.`;
+    return `<div class="page">${header(d.progetto.numero,d.azienda.name)}<div class="content">${htmlRiepilogoCasa(d,{titolo:d.template?.pdf_cta_finale_titolo?ctaTitolo:undefined,testoHtml:ctaTesto,extraHtml:extra,firmaHtml:firma})}</div>${footerDocumento(d,docMeta,pageN,total)}</div>`;
+  }
   const conNumeri = numeri.length >= 3 && occupato <= 60;
   return `<div class="page">
     ${header(d.progetto.numero, d.azienda.name)}
@@ -2438,10 +2363,10 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
         <div><strong>Prossimo passo</strong><div class="rich-text">${ctaTesto}</div></div>
       </div>` : ""}
       <div class="offer-box">
-        <div class="offer-eyebrow">★ Riepilogo offerta — valida ${d.progetto.valido_giorni} giorni</div>
-        <h3>${isFvAccumulo(d.template) ? `Aggiunta accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh<br/>su impianto esistente` : isFvLocalIntervention(d.template) ? escHtml(fvInterventionLabel(d.template)) + "<br/>Limitato alle voci elencate" : `Impianto FV ${fmtNum(d.progetto.potenza_kwp, 1)} kWp${d.progetto.has_accumulo ? ` + accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh` : ""}<br/>chiavi in mano`}</h3>
-        <div class="offer-num">${fmtEur(d.costi.prezzo_vendita_iva_inclusa)}</div>
-        <div style="font-size:10pt;opacity:0.85;margin-top:2mm;position:relative;">IVA ${d.costi.iva_perc}% inclusa${fin ? ` · ${fmtRata(fin.rata_mensile)}/mese × ${fin.durata_mesi} mesi (${escHtml(fin.finanziaria)}${fin.taeg_perc != null ? ` TAEG ${fmtNum(fin.taeg_perc, 2)}%` : ""})` : ""}${netto != null ? `<br/>Costo netto reale: <strong style="color:#FBBF24;">${fmtRata(netto)}/mese</strong> (rata − risparmio)` : ""}</div>
+        <div class="offer-eyebrow">${sim?"Riepilogo della simulazione · non è un’offerta":`Riepilogo offerta · valida ${d.progetto.valido_giorni} giorni`}</div>
+        <h3>${isFvAccumulo(d.template) ? `Aggiunta accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh<br/>su impianto esistente` : isFvLocalIntervention(d.template) ? escHtml(fvInterventionLabel(d.template)) + "<br/>Limitato alle voci elencate" : `Impianto FV ${fmtNum(d.progetto.potenza_kwp, 1)} kWp${d.progetto.has_accumulo ? ` + accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh` : ""}<br/>${business?"fornitura descritta":"chiavi in mano"}`}</h3>
+        <div class="offer-num">${fmtEur(prezzo)}</div>
+        <div style="font-size:10pt;opacity:0.85;margin-top:2mm;position:relative;">${canone!=null?`Canone ogni ${periodo} mesi · `:""}IVA ${d.costi.iva_perc}% inclusa${business?`<br/>Valore della fornitura: ${fmtEur(d.costi.prezzo_vendita_iva_inclusa)} IVA inclusa. Condizioni nel prospetto aziendale.`:""}${fin ? ` · ${fmtRata(fin.rata_mensile)}/mese × ${fin.durata_mesi} mesi (${escHtml(fin.finanziaria)}${fin.taeg_perc != null ? ` TAEG ${fmtNum(fin.taeg_perc, 2)}%` : ""})` : ""}${netto != null ? `<br/>Costo netto reale: <strong style="color:#FBBF24;">${fmtRata(netto)}/mese</strong> (rata − risparmio)` : ""}</div>
       </div>
       ${d.template?.urgenza_attiva && urgenzaDescrizione ? `<div class="callout callout-tip">
         <span class="callout-icon">★</span>
@@ -2451,15 +2376,15 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
         <span class="callout-icon">i</span>
         <div><strong>Nota noleggio operativo</strong><div class="rich-text">${noleggioNote}</div></div>
       </div>` : ""}
-      ${conNumeri ? `<h3 style="font-size:11pt;color:#1E3A5F;margin:3mm 0 0;">Cosa ti porta a casa</h3>
+      ${conNumeri ? `<h3 style="font-size:11pt;color:#1E3A5F;margin:3mm 0 0;">${business?"I numeri dell’impianto":"Cosa ti porta a casa"}</h3>
       <div class="kpi-row cols-${numeri.length} grandi" style="margin-bottom:5mm;">
         ${numeri.map((n) => `<div class="kpi-block${n.tono ? ` ${n.tono}` : ""}"><div class="kpi-label">${escHtml(n.etichetta)}</div><div class="kpi-value">${escHtml(n.valore)}${n.unita ? ` <span class="unit">${escHtml(n.unita)}</span>` : ""}</div><div class="kpi-sub">${escHtml(n.nota)}</div></div>`).join("")}
       </div>` : ""}
       <div class="two-col">
         <div>
-          <h3 style="font-size:11pt;color:#1E3A5F;margin-bottom:2mm;">Per accettare la proposta</h3>
+          <h3 style="font-size:11pt;color:#1E3A5F;margin-bottom:2mm;">${sim?"Per completare la proposta":"Per accettare la proposta"}</h3>
           <ol style="font-size:10pt;padding-left:5mm;line-height:1.8;color:#475569;">
-            <li>Firma la proposta: online, con il link ricevuto via email, oppure su carta</li>
+            ${sim?"<li>Conferma consumi, configurazione e servizi richiesti</li><li>Verifica sopralluogo e condizioni della formula scelta</li>":"<li>Firma la proposta: online, con il link ricevuto via email, oppure su carta</li>"}
             ${fin ? `<li>Invia alla finanziaria i documenti richiesti</li>
             <li>Attendi l'esito della finanziaria</li>` : ""}
             <li>Avvio delle pratiche e sopralluogo tecnico</li>
@@ -2477,10 +2402,10 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
       </div>
       ${!haPaginaCondizioni(d) && condizioni ? `<div class="legal-box"><strong>Condizioni commerciali:</strong><div class="rich-text">${condizioni}</div></div>` : ""}
       ${fasciaFotoPagina(d, "decisione", "center 55%")}
-      <div class="callout callout-info">
+      ${sim?`<div class="callout callout-info"><span class="callout-icon">i</span><div><strong>Simulazione non impegnativa.</strong> Configurazione e condizioni economiche devono essere confermate. Nessuna approvazione del concedente o proprietà finale è presunta.</div></div>`:`<div class="callout callout-info">
         <span class="callout-icon">i</span>
         <div><strong>Come si firma</strong>Online, con il link ricevuto via email. Oppure su carta, nella pagina «Accettazione proposta»${haPaginaCondizioni(d) ? ", dopo le condizioni generali" : " che segue"}: c'è il riepilogo di quello che si firma, e lo spazio per le firme.</div>
-      </div>
+      </div>`}
     </div>
     ${footerDocumento(d, docMeta, pageN, total)}
   </div>`;
@@ -2713,17 +2638,25 @@ function quantePagineContratto(d: FvPdfTemplateData): number {
 
 function pagineDaDisegnare(d: FvPdfTemplateData): FvPdfPageOrderItem[] {
   const hasMap = hasRealMapImages(d);
+  const commerciale = leggiDisegnoCommerciale(d.progetto.layout_overlay);
   return normalizeFvPdfPagesOrder(d.template?.pdf_pages_order).filter((page) => {
+    if(isFvPaginaAzienda(page.id)&&(!modelloAzienda(d.template)||!d.economia_azienda))return false;
+    if(["giorno_sera","schede_prodotti"].includes(page.id)&&(!!d.economia_azienda||!!modelloAzienda(d.template)||isFvLocalIntervention(d.template)||d.configurationOnly))return false;
+    if(page.id==="schede_prodotti"&&!d.componenti.length)return false;
+    if(page.id==="monitoraggio"&&!leggiMonitoraggioFv(d.template?.pdf_blocchi).attivo)return false;
+    if(d.simulazione_azienda&&page.id==="decisione"&&!modelloAzienda(d.template))return false;
+    if (preventivoSenzaMappa(d.progetto.layout_overlay) && (page.id === "anteprima" || page.id === "piano_tetto")) return false;
+    if (d.economia_azienda && [...(!modelloAzienda(d.template)?["produzione","flussi"]:[]),"risparmio","costi_futuri","piano_pagamento","bollette_240","cassa_25","co2"].includes(page.id)) return false;
     if (d.configurationOnly && ['produzione','flussi','risparmio','costi_futuri','piano_pagamento','bollette_240','cassa_25','co2','decisione'].includes(page.id)) return false;
     if (isFvLocalIntervention(d.template) && FV_ACCUMULO_PAGINE_NON_APPLICABILI.has(page.id)) return false;
     if (isFvLocalIntervention(d.template) && page.id === "componenti" && d.componenti.length === 0) return false;
-    if (!page.visible) return false;
+    if (!page.visible&&!(modelloAzienda(d.template)&&FV_AZIENDA_PAGINE_OBBLIGATORIE.has(page.id))) return false;
     // Senza immagini satellite reali l'anteprima non ha niente da mostrare.
-    if (page.id === "anteprima" && !hasMap) return false;
+    if (page.id === "anteprima" && (!hasMap || commerciale)) return false;
     // Il piano di posa esce solo se è stato disegnato e la vista satellitare è arrivata.
-    if (page.id === "piano_tetto" && !(d.piano_tetto?.img && d.piano_tetto.moduli > 0)) return false;
+    if (page.id === "piano_tetto" && !(commerciale?.pannelli.length || (d.piano_tetto?.img && d.piano_tetto.moduli > 0))) return false;
     // Rata, TAN e TAEG esistono solo con un finanziamento vero.
-    if (page.id === "piano_pagamento" && !d.finanziamento) return false;
+    if (page.id === "piano_pagamento" && (!d.finanziamento||d.modalita_pagamento?.tipo==="diretto"||d.modalita_pagamento?.tipo==="noleggio")) return false;
     // Senza cassa calcolata non c'è niente da proiettare sui 25 anni.
     if (page.id === "cassa_25" && d.scenario.cassa_anno_per_anno.length === 0) return false;
     // Le domande frequenti sono quelle scritte dall'azienda.
@@ -2747,11 +2680,12 @@ function haPaginaCondizioni(d: FvPdfTemplateData): boolean {
 }
 
 export function getFvPdfRenderedPagesCount(d: FvPdfTemplateData): number {
+  if(d.simulazione_azienda_compatta&&d.simulazione_azienda&&d.economia_azienda)return pagineSimulazioneAzienda(d).length;
   const macroPages = dedicatedMacroPages(d);
   // Il contratto (condizioni, firma, modulo di recesso) si conta con la decisione,
   // che lo porta con sé.
-  return 1 + (haPaginaKit(d) ? 1 : 0) + pagineDaDisegnare(d).reduce((count, page) => (
-    count + (page.id === "macro_categorie" ? macroPages.length : page.id === "componenti" ? pagineFornitura(d).length : page.id === "faq" ? gruppiFaq(d).length : page.id === "decisione" ? 1 + quantePagineContratto(d) : 1)
+  return 1 + (imageHref(d.render_impianto?.img)?1:0) + (d.economia_azienda&&!modelloAzienda(d.template)?sezioniEconomiaAzienda(d.economia_azienda).length:0) + (haPaginaKit(d) ? 1 : 0) + pagineDaDisegnare(d).reduce((count, page) => (
+    count + (isFvPaginaAzienda(page.id)&&d.economia_azienda?capitoliEconomiaAzienda(d.economia_azienda,d.template?.pdf_blocchi)[page.id].length:page.id === "macro_categorie" ? macroPages.length : page.id === "componenti" ? pagineFornitura(d).length : page.id === "schede_prodotti" ? gruppiSchedeProdotti(d).length : page.id === "faq" ? gruppiFaq(d).length : page.id === "decisione" ? d.simulazione_azienda||d.anteprima_dimostrativa?1:1 + quantePagineContratto(d) : 1)
   ), 0);
 }
 
@@ -2769,7 +2703,7 @@ export function applicaTemaFv(html: string, template: FvPdfTemplateData["templat
   const accento = normalizzaHex(template?.colore_accento);
   const cambiaPrimario = !!primario && primario !== BLU_DI_SERIE;
   const cambiaAccento = !!accento && accento !== ARANCIO_DI_SERIE;
-  if (!cambiaPrimario && !cambiaAccento) return html;
+  if (!cambiaPrimario && !cambiaAccento&&!modelloAzienda(template)) return html;
   // Le foto incorporate (base64) sono megabyte: le sostituzioni di colore le attraverserebbero una a una
   // (fino a undici passate sul documento intero). Si mettono da parte, si cambiano i colori sul resto
   // e si rimettono: i colori non possono stare in un base64, il risultato è lo stesso.
@@ -2778,6 +2712,7 @@ export function applicaTemaFv(html: string, template: FvPdfTemplateData["templat
     immagini.push(m);
     return `\u0000IMG${immagini.length - 1}\u0000`;
   });
+  if(modelloAzienda(template)){const blu=fondoPerTestoBianco(primario||BLU_DI_SERIE);out=out.replace(/#173f3c/gi,blu).replace(/#497b72/gi,blu);}
   if (primario && primario !== BLU_DI_SERIE) {
     const fondo = fondoPerTestoBianco(primario);
     // Ordine: prima le varianti, poi il colore base (che è sottostringa di nessuna).
@@ -2801,7 +2736,9 @@ export function applicaTemaFv(html: string, template: FvPdfTemplateData["templat
   return immagini.length ? out.replace(/\u0000IMG(\d+)\u0000/g, (_m, i) => immagini[Number(i)]) : out;
 }
 
-export function renderFvPdfHtml(d: FvPdfTemplateData): string {
+function renderFvPdfHtmlBase(d: FvPdfTemplateData): string {
+  if(modelloAzienda(d.template)&&!d.configurationOnly){if(!d.economia_azienda)throw new Error("Completa e conferma l’analisi aziendale nella fase Finanza prima di generare il documento.");verificaFormulaModelloAzienda(d.template,d.economia_azienda.input.parametri.modo);}
+  if(d.simulazione_azienda_compatta&&d.simulazione_azienda&&d.economia_azienda)return renderSimulazioneAzienda(d);
   // Live editor and server export must resolve the same contract fields.
   // On the server these may already be resolved; substitution is idempotent.
   if(d.template?.condizioni_legali_testo) d={...d,template:{...d.template,condizioni_legali_testo:substituteMergeTags(d.template.condizioni_legali_testo,{
@@ -2810,6 +2747,11 @@ export function renderFvPdfHtml(d: FvPdfTemplateData): string {
     cantiere:{indirizzo:indirizzoCompleto(d.cliente)},
     preventivo:{numero:d.progetto.numero,data:fmtData(d.progetto.creato_il),totale:fmtEur(d.costi.prezzo_vendita_iva_inclusa),piano_pagamenti:plainText((d.template as {condizioni_pagamento_testo?:string}).condizioni_pagamento_testo)||'come da piano di pagamento concordato'},
   })}};
+  if(d.economia_azienda||d.economia_azienda_richiesta)d={...d,finanziamento:null,modalita_pagamento:null,costi:{...d.costi,detrazione_eur:0,detrazione_perc:0,costo_netto_dopo_detrazione:d.costi.prezzo_vendita_iva_inclusa}};
+  if(d.economia_azienda&&modelloAzienda(d.template)){
+    const input=d.economia_azienda.input,r=calcolaEconomiaAzienda(input),mesi=r.mesi.filter(m=>m.mese>0&&m.mese<=12),produzione=mesi.reduce((n,m)=>n+m.produzione,0),autoconsumo=mesi.reduce((n,m)=>n+m.autoconsumo,0),consumo=input.parametri.consumiMensili.reduce((a,b)=>a+b,0),ceduto=mesi.reduce((n,m)=>n+m.immissione,0),rete=consumo-autoconsumo;
+    d={...d,progetto:{...d.progetto,consumo_annuo_kwh:consumo},flows:{produzione_kwh:produzione,autoconsumo_kwh:autoconsumo,ceduto_rete_kwh:ceduto,prelievo_rete_kwh:rete,autoconsumo_pct:produzione?autoconsumo/produzione:0,autosufficienza_pct:consumo?autoconsumo/consumo:0,consumo_da_rete_pct:consumo?rete/consumo:0,consumo_da_fv_pct:consumo?autoconsumo/consumo:0}};
+  }
   const macroPages = dedicatedMacroPages(d);
   const orderedPages = pagineDaDisegnare(d);
   const TOTAL = getFvPdfRenderedPagesCount(d);
@@ -2830,7 +2772,12 @@ export function renderFvPdfHtml(d: FvPdfTemplateData): string {
   if (haPaginaKit(d)) {
     append("kit", pageBundleKit(d, ++pageN, TOTAL));
   }
+  if(imageHref(d.render_impianto?.img))append("render_impianto",`<div class="page">${header(d.progetto.numero,d.azienda.name)}<div class="content"><div class="eyebrow">Configurazione proposta</div><h1 class="page-title">L’impianto sulla<br/>${d.economia_azienda||modelloAzienda(d.template)?"copertura aziendale":"tua copertura"}.</h1><p class="page-subtitle">${fmtNum(d.progetto.potenza_kwp,1)} kWp · ${d.progetto.numero_pannelli} moduli · disposizione commerciale.</p><img src="${escHtml(imageHref(d.render_impianto!.img)!)}" style="width:100%;height:125mm;object-fit:contain" alt="Render dell’impianto fotovoltaico sul tetto"/><div class="callout callout-info"><span class="callout-icon">i</span><div>${escHtml(d.render_impianto!.didascalia)}</div></div></div>${footer(d,++pageN,TOTAL)}</div>`);
+  let economiaInserita=false;
+  const appendEconomia=()=>{if(economiaInserita||!d.economia_azienda||modelloAzienda(d.template))return;economiaInserita=true;append("economia_azienda",...sezioniEconomiaAzienda(d.economia_azienda).map(contenuto=>`<div class="page">${header(d.progetto.numero,d.azienda.name)}<div class="content" style="font-size:10pt;line-height:1.5">${contenuto}</div>${footer(d,++pageN,TOTAL)}</div>`));};
   for (const page of orderedPages) {
+    if(page.id==="decisione")appendEconomia();
+    if(isFvPaginaAzienda(page.id)&&d.economia_azienda){append(page.id,...capitoliEconomiaAzienda(d.economia_azienda,d.template?.pdf_blocchi)[page.id].map(contenuto=>`<div class="page">${header(d.progetto.numero,d.azienda.name)}<div class="content" style="font-size:10pt;line-height:1.5">${contenuto}</div>${footer(d,++pageN,TOTAL)}</div>`));continue;}
     switch (page.id) {
       case "investimento":
         append(page.id, pageInvestimento(d, ++pageN, TOTAL));
@@ -2855,6 +2802,15 @@ export function renderFvPdfHtml(d: FvPdfTemplateData): string {
             return html;
           }));
         }
+        break;
+      case "schede_prodotti":
+        append(page.id,...gruppiSchedeProdotti(d).map((gruppo,i)=>pageSchedeProdotti(d,gruppo,++pageN,TOTAL,i)));
+        break;
+      case "monitoraggio":
+        append(page.id,`<div class="page">${header(d.progetto.numero,d.azienda.name)}<div class="content">${htmlMonitoraggioFv(leggiMonitoraggioFv(d.template?.pdf_blocchi),d.blocchi_foto?.monitoraggio?.[0]?.src??IMMAGINE_MONITORAGGIO_FV)}</div>${footer(d,++pageN,TOTAL)}</div>`);
+        break;
+      case "giorno_sera":
+        append(page.id,`<div class="page">${header(d.progetto.numero,d.azienda.name)}<div class="content">${htmlGiornoSeraCasa(d.progetto.has_accumulo)}</div>${footer(d,++pageN,TOTAL)}</div>`);
         break;
       case "macro_categorie":
         append(page.id, ...macroPages.map((macro) => pageMacroCategoriaDedicata(d, macro, ++pageN, TOTAL)));
@@ -2904,6 +2860,7 @@ export function renderFvPdfHtml(d: FvPdfTemplateData): string {
         break;
       case "decisione":
         append(page.id, pageDecisione(d, ++pageN, TOTAL));
+        if(d.simulazione_azienda||d.anteprima_dimostrativa)break;
         // Le condizioni si firmano dopo averle lette: prima le condizioni, poi la
         // pagina della firma, poi il modulo di recesso se le condizioni lo prevedono.
         if (haPaginaCondizioni(d)) {
@@ -2917,6 +2874,7 @@ export function renderFvPdfHtml(d: FvPdfTemplateData): string {
     }
   }
 
+  appendEconomia();
   return applicaTemaFv(`<!DOCTYPE html>
 <html lang="it">
 <head>
@@ -2937,3 +2895,6 @@ ${pages.join("\n")}
 </body>
 </html>`, d.template);
 }
+
+/** Personalizzazioni editoriali del modello, applicate allo stesso HTML usato dall’export. */
+export function renderFvPdfHtml(d:FvPdfTemplateData):string{return personalizzaDocumentoFv(renderFvPdfHtmlBase(d),d.template?.pdf_blocchi,contestoPersonalizzazioneFv(d));}

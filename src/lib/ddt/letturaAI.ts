@@ -124,7 +124,13 @@ export function leggiDDTdaAI(grezzo: unknown): LetturaDDT {
   const riferimenti = oggetto(d.riferimenti);
   const righeGrezze = Array.isArray(d.righe_merce) ? d.righe_merce : [];
 
-  const righe: DDTRigaNuova[] = righeGrezze.map((grezza, i): DDTRigaNuova => {
+  const noteLogistiche = righeGrezze.filter(g => {
+    const r = oggetto(g);
+    return /^materiale caricato da\b/i.test(testoONull(r.descrizione) ?? "")
+      && !testoONull(r.codice_articolo) && !testoONull(r.unita_misura)
+      && numeroONull(r.quantita) == null && numeroONull(r.prezzo_unitario_eur) == null && numeroONull(r.importo_eur) == null;
+  });
+  const righe: DDTRigaNuova[] = righeGrezze.filter(r => !noteLogistiche.includes(r)).map((grezza, i): DDTRigaNuova => {
     const r = oggetto(grezza);
     const descrizione = testoONull(r.descrizione) ?? "";
     return {
@@ -174,7 +180,7 @@ export function leggiDDTdaAI(grezzo: unknown): LetturaDDT {
     oraInizioTrasporto: testoONull(intestazione.ora_inizio_trasporto)?.slice(0, 5) ?? null,
     colli: numeroONull(trasporto.n_colli),
     pesoKg: numeroONull(trasporto.peso_lordo_kg) ?? numeroONull(trasporto.peso_netto_kg),
-    note: testoONull(riferimenti.note_libere),
+    note: [testoONull(riferimenti.note_libere), ...noteLogistiche.map(r => testoONull(oggetto(r).descrizione))].filter(Boolean).join("\n") || null,
     imponibile: numeroONull(totali.imponibile_eur),
     totaleDocumento: numeroONull(totali.totale_documento_eur),
     confidenza: numeroONull(d.confidence),

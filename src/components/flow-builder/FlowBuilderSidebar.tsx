@@ -1,14 +1,17 @@
 import {
-  MessageSquare, AlertCircle, Clock, BarChart2, Sparkles, X,
+  MessageSquare, AlertCircle, Clock, BarChart2, Sparkles, Search, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type { Node } from "@xyflow/react";
+import { WorkflowNodeSearch } from "./panels/WorkflowNodeSearch";
+import { WorkflowStatsPanel } from "./panels/WorkflowStatsPanel";
 import { WorkflowNotesPanel } from "./panels/WorkflowNotesPanel";
 import { WorkflowErrorsPanel, type WorkflowError } from "./panels/WorkflowErrorsPanel";
 import { WorkflowVersionsPanel } from "./panels/WorkflowVersionsPanel";
 import type { RestoredAutomationGraph } from "@/types/automationBuilder";
 
-export type LeftPanel = "none" | "notes" | "errors" | "versions" | "history" | "stats" | "ai";
+export type LeftPanel = "none" | "search" | "notes" | "errors" | "versions" | "history" | "stats" | "ai";
 
 interface SidebarItem {
   key: LeftPanel;
@@ -21,18 +24,22 @@ interface FlowBuilderSidebarProps {
   activePanel: LeftPanel;
   onPanelChange: (p: LeftPanel) => void;
   flowId?: string;
+  companyId?: string;
+  nodes?: Node[];
+  onFocusNode?: (id: string) => void;
   errors?: WorkflowError[];
   readinessChecks?: { label: string; ok: boolean }[];
   onVersionRestored?: (snapshot: RestoredAutomationGraph) => void;
   isSaving?: boolean;
 }
 
-export function FlowBuilderSidebar({ activePanel, onPanelChange, flowId, errors = [], readinessChecks = [], onVersionRestored, isSaving }: FlowBuilderSidebarProps) {
+export function FlowBuilderSidebar({ activePanel, onPanelChange, flowId, errors = [], readinessChecks = [], onVersionRestored, isSaving, companyId, nodes = [], onFocusNode }: FlowBuilderSidebarProps) {
   const toggle = (key: LeftPanel) => onPanelChange(activePanel === key ? "none" : key);
 
   const erroriCount = errors.filter(e => e.tipo === "errore").length;
 
   const ITEMS: SidebarItem[] = [
+    { key: "search", icon: <Search className="h-4 w-4" />, label: "Cerca passi" },
     { key: "notes", icon: <MessageSquare className="h-4 w-4" />, label: "Note" },
     { key: "errors", icon: <AlertCircle className="h-4 w-4" />, label: "Errori", badgeCount: erroriCount },
     { key: "versions", icon: <Clock className="h-4 w-4" />, label: "Versioni" },
@@ -49,6 +56,8 @@ export function FlowBuilderSidebar({ activePanel, onPanelChange, flowId, errors 
             key={item.key}
             onClick={() => toggle(item.key)}
             title={item.label}
+            aria-label={item.label}
+            aria-pressed={activePanel === item.key}
             className={cn(
               "relative flex h-9 w-9 items-center justify-center rounded-lg transition-colors",
               activePanel === item.key
@@ -73,7 +82,7 @@ export function FlowBuilderSidebar({ activePanel, onPanelChange, flowId, errors 
             <h3 className="text-sm font-semibold">
               {ITEMS.find((i) => i.key === activePanel)?.label}
             </h3>
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onPanelChange("none")}>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onPanelChange("none")} aria-label="Chiudi pannello">
               <X className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -88,13 +97,8 @@ export function FlowBuilderSidebar({ activePanel, onPanelChange, flowId, errors 
           {activePanel === "versions" && flowId && (
             <WorkflowVersionsPanel flowId={flowId} onRestored={onVersionRestored} isSaving={isSaving} />
           )}
-          {activePanel === "stats" && (
-            <div className="flex-1 flex items-center justify-center p-4">
-              <p className="text-xs text-muted-foreground text-center">
-                Le statistiche di esecuzione verranno mostrate qui.
-              </p>
-            </div>
-          )}
+          {activePanel === "search" && onFocusNode && <WorkflowNodeSearch nodes={nodes} onFocusNode={onFocusNode} />}
+          {activePanel === "stats" && <WorkflowStatsPanel flowId={flowId} companyId={companyId} />}
           {activePanel === "ai" && (
             <div className="flex-1 space-y-3 p-4 text-sm">
               <div className="rounded-lg border bg-primary/5 p-3">

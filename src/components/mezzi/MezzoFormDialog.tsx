@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { useDialogFocusReturn } from "@/hooks/useDialogFocusReturn";
 import { Loader2, ScanLine, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { OrderSelectCombobox } from "@/components/warehouse/OrderSelectCombobox";
 import { useAllHrProfili } from "@/hooks/useOrganigramma";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { useIsMobile } from "@/hooks/use-mobile";
 import {
   allegaLibretto, caricaFileMezzo, leggiDocumentoConAI, rimuoviFileMezzo, useMezzi, useMezziCategorie, useSalvaMezzo,
   type MezzoInput,
@@ -74,14 +74,20 @@ function daMezzo(mezzo: MezzoConAssegnazione): MezzoInput {
 }
 
 export function MezzoFormDialog({ open, onOpenChange, mezzo, onSalvato, classe, codiceIniziale }: Props) {
+  const salvataggioRef = useRef(false);
+  const cambiaApertura = (next: boolean) => {
+    if (!next && salvataggioRef.current) return;
+    onOpenChange(next);
+  };
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={cambiaApertura}>
       {/* Montato solo da aperto: a ogni apertura il modulo riparte dai dati del mezzo. */}
       {open && (
         <MezzoForm
           key={mezzo?.id ?? `nuovo-${classe ?? "mezzo"}-${codiceIniziale ?? ""}`}
           mezzo={mezzo}
-          onOpenChange={onOpenChange}
+          onOpenChange={cambiaApertura}
+          salvataggioRef={salvataggioRef}
           onSalvato={onSalvato}
           classe={classe}
           codiceIniziale={codiceIniziale}
@@ -98,11 +104,11 @@ interface LibrettoLetto {
   prossimaRevisione: string | null;
 }
 
-function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, codiceIniziale }: Omit<Props, "open">) {
-  // Mobile: niente tastiera aperta appena si apre il foglio (copre metà form).
-  const isMobile = useIsMobile();
+function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, codiceIniziale, salvataggioRef }: Omit<Props, "open"> & { salvataggioRef: MutableRefObject<boolean> }) {
+  const focusReturn = useDialogFocusReturn();
   const companyId = useEffectiveCompanyId();
   const salva = useSalvaMezzo();
+  const [salvando, setSalvando] = useState(false);
   const { data: profili = [] } = useAllHrProfili();
   const { data: tuttiIMezzi = [] } = useMezzi();
   const { data: categorie = [] } = useMezziCategorie();
@@ -225,36 +231,44 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, cod
   };
 
   const invia = async () => {
-    if (!nomeValido || !quantitaValida || !companyId) return;
-    const contatoreCambiato = (form.contatore ?? null) !== (mezzo?.contatore ?? null);
-    let id: string;
+    if (!nomeValido || !quantitaValida || !companyId || leggendo || salvataggioRef.current) return;
+    salvataggioRef.current = true;
+    setSalvando(true);
     try {
-      id = await salva.mutateAsync({
-        ...form,
-        nome: form.nome.trim(),
-        // Un attrezzo non ha targa; un mezzo non ha categoria degli attrezzi.
-        ...(attrezzo ? { targa: null } : { categoria_id: null }),
-        quantita_totale: aQuantita ? totale : null,
-        unita_misura: aQuantita ? form.unita_misura ?? null : null,
-        gestione: aQuantita ? "quantita" : "singola",
-        // Le rate hanno senso solo per leasing e noleggio.
-        rata_mensile: form.possesso === "proprieta" ? null : form.rata_mensile ?? null,
-        ...(contatoreCambiato && form.contatore != null ? { contatore_aggiornato_il: oggiIso() } : {}),
-      });
-    } catch {
-      return; // l'errore lo mostra la mutation; la finestra resta aperta con i dati
-    }
-    if (libretto && !attrezzo) {
-      // Da qui il file è del mezzo: non va tolto alla chiusura.
-      librettoDaTogliere.current = null;
+      const contatoreCambiato = (form.contatore ?? null) !== (mezzo?.contatore ?? null);
+      let id: string;
       try {
-        await allegaLibretto({ companyId, mezzoId: id, ...libretto });
-      } catch (e) {
-        toast.error(e instanceof Error ? `Mezzo salvato, ma non ho allegato il libretto: ${e.message}` : "Mezzo salvato, ma non ho allegato il libretto");
+        id = await salva.mutateAsync({
+          ...form,
+          nome: form.nome.trim(),
+          // Un attrezzo non ha targa; un mezzo non ha categoria degli attrezzi.
+          ...(attrezzo ? { targa: null } : { categoria_id: null }),
+          quantita_totale: aQuantita ? totale : null,
+          unita_misura: aQuantita ? form.unita_misura ?? null : null,
+          gestione: aQuantita ? "quantita" : "singola",
+          // Le rate hanno senso solo per leasing e noleggio.
+          rata_mensile: form.possesso === "proprieta" ? null : form.rata_mensile ?? null,
+          ...(contatoreCambiato && form.contatore != null ? { contatore_aggiornato_il: oggiIso() } : {}),
+        });
+      } catch {
+        return; // l'errore lo mostra la mutation; la finestra resta aperta con i dati
       }
+      if (libretto && !attrezzo) {
+        // Da qui il file è del mezzo: non va tolto alla chiusura.
+        librettoDaTogliere.current = null;
+        try {
+          await allegaLibretto({ companyId, mezzoId: id, ...libretto });
+        } catch (e) {
+          toast.error(e instanceof Error ? `Mezzo salvato, ma non ho allegato il libretto: ${e.message}` : "Mezzo salvato, ma non ho allegato il libretto");
+        }
+      }
+      salvataggioRef.current = false;
+      onOpenChange(false);
+      onSalvato?.(id);
+    } finally {
+      salvataggioRef.current = false;
+      setSalvando(false);
     }
-    onOpenChange(false);
-    onSalvato?.(id);
   };
 
   const titolo = mezzo
@@ -263,6 +277,8 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, cod
 
   return (
     <DialogContent
+      {...focusReturn}
+      aria-busy={salvando}
       className="max-h-[90vh] max-w-lg overflow-y-auto"
       // Un clic fuori per sbaglio non deve buttare via i dati scritti: si chiude con Annulla, X o Esc.
       onInteractOutside={(e) => e.preventDefault()}
@@ -276,7 +292,7 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, cod
         </DialogDescription>
       </DialogHeader>
 
-      <div className="space-y-4 max-sm:space-y-3">
+      <fieldset disabled={salvando} className="space-y-4 max-sm:space-y-3">
         {/* Mezzo o attrezzatura: decide quali campi servono. */}
         <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1" role="radiogroup" aria-label="Mezzo o attrezzatura">
           {(["mezzo", "attrezzatura"] as const).map((c) => (
@@ -328,7 +344,6 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, cod
             value={form.nome}
             onChange={(e) => set("nome", e.target.value)}
             placeholder={attrezzo ? "es. Demolitore Hilti, Ponteggio a telai" : "es. Ducato bianco, Miniescavatore Kubota"}
-            autoFocus={!isMobile}
           />
         </div>
 
@@ -563,6 +578,7 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, cod
               <div className="flex items-center gap-2">
                 <div className="min-w-0 flex-1">
                   <OrderSelectCombobox
+                    ariaLabel="Cantiere (commessa)"
                     companyId={companyId ?? undefined}
                     value={form.assegnato_order_id ?? undefined}
                     onChange={(orderId) => set("assegnato_order_id", orderId)}
@@ -643,12 +659,12 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato, classe: classeIniziale, cod
           <Label htmlFor="mezzo-note">Note</Label>
           <Textarea id="mezzo-note" rows={2} value={form.note ?? ""} onChange={(e) => set("note", e.target.value)} />
         </div>
-      </div>
+      </fieldset>
 
       <DialogFooter className="gap-2">
-        <Button variant="outline" className="max-sm:hidden" onClick={() => onOpenChange(false)}>Annulla</Button>
-        <Button onClick={invia} disabled={!nomeValido || !quantitaValida || salva.isPending || leggendo}>
-          {salva.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        <Button variant="outline" className="max-sm:hidden" disabled={salvando} onClick={() => onOpenChange(false)}>Annulla</Button>
+        <Button onClick={invia} disabled={!nomeValido || !quantitaValida || salvando || salva.isPending || leggendo}>
+          {salvando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {mezzo ? "Salva" : attrezzo ? "Crea attrezzatura" : "Crea mezzo"}
         </Button>
       </DialogFooter>

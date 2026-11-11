@@ -447,6 +447,7 @@ function PrimaNotaInner() {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Cerca..."
+            aria-label="Cerca nella prima nota"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="pl-8 h-10"
@@ -473,7 +474,7 @@ function PrimaNotaInner() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="h-9 w-[110px]"><SelectValue placeholder="Direzione" /></SelectTrigger>
+            <SelectTrigger aria-label="Filtra movimenti per direzione" className="h-9 w-[110px]"><SelectValue placeholder="Direzione" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tutte</SelectItem>
               <SelectItem value="entrata">Entrate</SelectItem>
@@ -483,9 +484,9 @@ function PrimaNotaInner() {
         </div>
         {/* Date range */}
         <div className="flex items-center gap-2">
-          <Input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(1); }} className="h-9 w-full sm:w-36" />
+          <Input type="date" aria-label="Movimenti dal" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(1); }} className="h-9 w-full sm:w-36" />
           <span className="text-muted-foreground text-sm shrink-0">→</span>
-          <Input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1); }} className="h-9 w-full sm:w-36" />
+          <Input type="date" aria-label="Movimenti al" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1); }} className="h-9 w-full sm:w-36" />
         </div>
       </div>
 

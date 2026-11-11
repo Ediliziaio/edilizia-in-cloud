@@ -4641,7 +4641,7 @@ function GestioneSocial({
         <div className="rounded-2xl border bg-white shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none">
           <div className="flex overflow-x-auto border-b scrollbar-none">
             {tabs.map(({ id, label, icon: Icon, badge, badgeBreve }) => (
-              <button key={id} type="button" onClick={() => setTab(id)}
+              <button key={id} type="button" onClick={() => setTab(id)} aria-pressed={activeTab === id}
                 // Icone e spaziatura larga da 1280: a 1024 le linguette uscivano
                 // dalla riga (814px in 686).
                 className={cn("flex shrink-0 items-center gap-2 border-b-2 px-4 py-3.5 text-sm font-semibold transition-colors md:py-4 xl:px-5",

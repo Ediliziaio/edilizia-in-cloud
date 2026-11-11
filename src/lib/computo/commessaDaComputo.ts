@@ -12,6 +12,7 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import { getModuleQuote, upsertModuleQuote } from "@/lib/moduli/quoteBridge";
+import { personalizzazioneDocumento } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
 import { esitoOffertaModulo } from "@/lib/moduli/esitoOffertaModulo";
 import { calcolaVoce, numeroEditor, type BozzaComputo } from "./editorNativo";
 
@@ -86,6 +87,7 @@ export async function preparaCommessaDaComputo(d: DatiCommessaComputo): Promise<
     titolo: d.bozza.titolo.trim() || "Preventivo con computo", clientName: d.bozza.committente.trim() || "Cliente",
     clientEmail: d.bozza.clienteEmail || null, clientPhone: d.bozza.clienteTelefono || null,
     subtotal: d.subtotal, vatAmount: d.vatAmount, total: d.total, validityDays: d.validityDays, pdfBlob: await d.generaPdf(),
+    numeroDocumento: personalizzazioneDocumento(d.companyId).numeroAutomaticoComputo ? d.bozza.numero : null,
   });
   const { count, error: erroreConta } = await supabase.from("quote_items").select("id", { count: "exact", head: true }).eq("quote_id", riga.id);
   if (erroreConta) throw new Error("Non riesco a leggere le righe del preventivo: riprova.");

@@ -40,6 +40,8 @@ import {
 interface Props {
   companyId: string;
   moduleKey: string;
+  /** Il numero già scritto sul documento: il preventivo prende quello, se è libero. */
+  numeroDocumento?: string | null;
   progettoId: string;
   titolo: string;
   clientName: string;
@@ -130,6 +132,7 @@ export function InviaFirmaCard(props: Props) {
         total: props.total,
         validityDays: props.validityDays ?? 30,
         pdfBlob,
+        numeroDocumento: props.numeroDocumento,
       });
       const esitoInvio = await sendModuleQuoteSignature(row.id, email.trim(), props.clientName, messaggio.trim() || undefined, telefono.trim() || undefined,
         co ? { nome: co.nome.trim(), email: coEmail.trim(), telefono: coTelefono.trim() || null } : null, clausole);

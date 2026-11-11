@@ -304,7 +304,7 @@ export default function ControlloGestione() {
             <TabHealthCheck anno={filters.anno} />
           </TabsContent>
           <TabsContent value="piano" className="mt-0">
-            <TabPianoIndustriale scenarioId={filters.scenarioId} />
+            <TabPianoIndustriale scenarioId={filters.scenarioId} onClearScenarioFilter={() => setFilters(prev => ({ ...prev, scenarioId: null }))} />
           </TabsContent>
           <TabsContent value="rating" className="mt-0">
             <TabRatingBancario anno={filters.anno} />

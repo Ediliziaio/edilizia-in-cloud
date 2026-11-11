@@ -3,7 +3,7 @@
  * sempre visibile e, accanto, il pannello della sezione scelta.
  * Il contenuto lo decide la pagina; qui ci sono solo la forma e l'apertura.
  */
-import type { ReactNode } from "react";
+import { useId, useRef, type ReactNode } from "react";
 import { X as XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -32,21 +32,23 @@ export function PannelloLateraleScheda({
   children: ReactNode;
 }) {
   const sezione = sezioni.find((s) => s.key === attiva);
+  const panelId = useId();
+  const activeButtonRef = useRef<HTMLButtonElement | null>(null);
   return (
     <div className="hidden lg:flex shrink-0">
       {attiva && (
-        <div className={cn(
+        <div id={panelId} role="region" aria-labelledby={`${panelId}-titolo`} className={cn(
           "w-[340px] rounded-2xl border bg-card shadow-sm flex flex-col overflow-hidden mr-2",
           sezione?.larga && "xl:w-[420px] 2xl:w-[560px]",
         )}>
           <div className="flex items-center justify-between px-3 py-2 border-b">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+            <h3 id={`${panelId}-titolo`} className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               {sezione?.label ?? "Pannello"}
               {sezione?.conteggio !== undefined && (
                 <span className="text-[10px] tabular-nums text-muted-foreground/70">({sezione.conteggio})</span>
               )}
             </h3>
-            <Button variant="ghost" size="icon" className="h-9 w-9 md:h-6 md:w-6" onClick={() => onCambia(null)} aria-label="Chiudi pannello">
+            <Button variant="ghost" size="icon" className="h-9 w-9 md:h-6 md:w-6" onClick={() => { activeButtonRef.current?.focus(); onCambia(null); }} aria-label="Chiudi pannello">
               <XIcon className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -63,6 +65,9 @@ export function PannelloLateraleScheda({
               <TooltipTrigger asChild>
                 <button
                   type="button"
+                  ref={accesa ? activeButtonRef : undefined}
+                  aria-expanded={accesa}
+                  aria-controls={accesa ? panelId : undefined}
                   className={cn(
                     "h-8 w-8 rounded flex items-center justify-center transition-colors",
                     accesa ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",

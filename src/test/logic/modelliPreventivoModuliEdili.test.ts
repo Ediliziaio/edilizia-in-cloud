@@ -247,7 +247,8 @@ describe("Fotovoltaico: il modello nasce col progetto, dal server", () => {
     const file = readdirSync(cartella).find((f) => f.endsWith("_modelli_preventivo_fotovoltaico.sql"));
     expect(file).toBeDefined();
     const sql = readFileSync(resolve(cartella, file!), "utf8");
-    const nelDb = [...sql.match(/'modelId' in \(([^)]+)\)/)![1].matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
+    const estensione = readFileSync(resolve(cartella, "20281110224501_fv_noleggio_economia_azienda.sql"), "utf8");
+    const nelDb = [...estensione.match(/'modelId' in \(([^)]+)\)/)![1].matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
     expect(nelDb).toEqual([...FULL_FV_MODULES].sort());
     expect(sql).toContain("execute function public.preventivo_modello_immutabile()");
   });

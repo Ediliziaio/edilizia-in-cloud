@@ -10,11 +10,13 @@ import { Badge } from '@/components/ui/badge';
 import { AnteprimaDocumento, apriDocumento } from '@/components/fea/AnteprimaDocumento';
 import { IdentificazioneFirmatario } from '@/components/fea/IdentificazioneFirmatario';
 import { corpoErroreEdge } from '@/lib/fea/erroreEdge';
-import { ETICHETTA_PASSO, elencoPassi, passiFirma, type PassoFirma } from '@/lib/fea/passiFirma';
+import { ETICHETTA_PASSO, passiFirma, type PassoFirma } from '@/lib/fea/passiFirma';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 
-type Step = 'loading' | 'errore' | 'riepilogo' | 'otp' | 'identificazione' | 'b2c_recesso' | 'b2c_clausole' | 'firma' | 'successo' | 'gia_firmato' | 'rifiutato';
+// Dall'11/11/2026 si accetta una volta sola, prima del codice; col codice giusto il documento è firmato.
+// 'firmando' è l'attesa della registrazione; 'firma' resta solo per riprovare se la registrazione non riesce.
+type Step = 'loading' | 'errore' | 'riepilogo' | 'otp' | 'identificazione' | 'firmando' | 'firma' | 'successo' | 'gia_firmato' | 'rifiutato';
 
 // Testo di recesso di fallback (14 giorni, art. 52 Cod. Consumo): usato quando
 // l'azienda non ha una riga fea_configurazione con b2c_testo_recesso.
@@ -42,6 +44,12 @@ async function messaggioErroreEdge(error: unknown, fallback: string): Promise<st
 /** Le clausole da approvare a parte: per tutti i contratti (il vecchio campo è dei soli privati). */
 function clausoleDaApprovare(s: FEASessionePubblica | null): FEAClausolaVessatoria[] {
   return ((s?.clausole_1341 ?? s?.b2c_clausole ?? []) as FEAClausolaVessatoria[]);
+}
+
+/** «Art. 5 – Pagamenti»: il nome della clausola, senza il testo. */
+function titoloClausola(c: FEAClausolaVessatoria): string {
+  const prima = c.testo.split(':')[0].trim();
+  return prima.length <= 80 ? prima : `${c.testo.slice(0, 60).trim()}…`;
 }
 
 /** Secondi che mancano alla scadenza di un OTP (0 se assente o passata). */
@@ -86,10 +94,8 @@ export default function FirmaDocumento() {
   const [otpTimer, setOtpTimer] = useState(600);
   const [otpTentativi, setOtpTentativi] = useState(0);
   const [otpError, setOtpError] = useState('');
-  const [recessoAccettato, setRecessoAccettato] = useState(false);
-  const [clausoleApprovate, setClausoleApprovate] = useState<string[]>([]);
-  const [documentoLetto, setDocumentoLetto] = useState(false);
-  const [privacyAccettata, setPrivacyAccettata] = useState(false);
+  // L'unico consenso: documento, clausole 1341, recesso e privacy, prima che parta il codice.
+  const [accettato, setAccettato] = useState(false);
   const [invioOtpInCorso, setInvioOtpInCorso] = useState(false);
   const [verificaOtpInCorso, setVerificaOtpInCorso] = useState(false);
   const [firmaInCorso, setFirmaInCorso] = useState(false);
@@ -115,17 +121,6 @@ export default function FirmaDocumento() {
     caricaSessione();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
-
-  // Dalla pagina di anteprima (/stima) il cliente ha già letto il documento:
-  // con ?avvia=1 si va dritti al codice, una volta sola.
-  const avviatoDaAnteprima = useRef(false);
-  useEffect(() => {
-    if (step !== 'riepilogo' || !sessione || avviatoDaAnteprima.current) return;
-    if (new URLSearchParams(window.location.search).get('avvia') !== '1') return;
-    avviatoDaAnteprima.current = true;
-    void continuaVersoOtp();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, sessione]);
 
   // Titolo della scheda: il cliente apre il link dal telefono e deve capire
   // subito cos'è, non leggere lo slogan del sito.
@@ -293,7 +288,8 @@ export default function FirmaDocumento() {
         setStep('identificazione');
         return;
       }
-      vaiDopoIdentificazione();
+      // Codice giusto: il documento è firmato, nessun altro passaggio.
+      await completaFirma(data.sessione_firma);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Codice non corretto';
       setOtpError(msg);
@@ -305,14 +301,6 @@ export default function FirmaDocumento() {
     }
   };
 
-  function vaiDopoIdentificazione() {
-    // OTP verificato — passa allo step successivo.
-    // B2C: mostra SEMPRE lo step recesso (il consenso è obbligatorio lato server).
-    // Se l'azienda non ha configurato il testo, lo step usa il fallback di legge.
-    if (sessione?.tipo_firmatario === 'b2c') setStep('b2c_recesso');
-    else setStep(clausoleDaApprovare(sessione).length > 0 ? 'b2c_clausole' : 'firma');
-  }
-
   /** Il tempo per firmare (15 minuti dal codice) è finito: si richiede un codice nuovo. */
   const sessioneScaduta = () => {
     setSessioneFirma(null);
@@ -321,25 +309,29 @@ export default function FirmaDocumento() {
     void inviaOtp();
   };
 
-  const completaFirma = async () => {
+  const completaFirma = async (chiave: string | null = sessioneFirma) => {
     setFirmaInCorso(true);
+    setStep('firmando');
+    // Il consenso è stato dato prima del codice: si manda quel consenso, per tutto ciò che il server pretende.
+    const idClausole = clausoleDaApprovare(sessione).map((c) => c.id);
+    let riuscita = false;
     try {
       const { data, error } = await supabase.functions.invoke('fea-completa-firma', {
         body: {
           token,
-          sessione_firma: sessioneFirma,
+          sessione_firma: chiave,
           lat: geo?.lat ?? null,
           lng: geo?.lng ?? null,
-          b2c_recesso_accettato: sessione?.tipo_firmatario === 'b2c' ? recessoAccettato : null,
-          b2c_clausole_approvate: sessione?.tipo_firmatario === 'b2c' ? clausoleApprovate : null,
-          clausole_approvate: clausoleApprovate,
-          privacy_accettata: sessione?.informativa_privacy ? privacyAccettata : null,
+          b2c_recesso_accettato: sessione?.tipo_firmatario === 'b2c' ? accettato : null,
+          b2c_clausole_approvate: sessione?.tipo_firmatario === 'b2c' ? idClausole : null,
+          clausole_approvate: idClausole,
+          privacy_accettata: sessione?.informativa_privacy ? accettato : null,
         },
       });
       if (error) {
         const corpo = await corpoErroreEdge(error);
-        if (corpo.code === 'sessione_scaduta') { sessioneScaduta(); return; }
-        if (corpo.code === 'identificazione_richiesta' && sessione?.dichiarazione_fea) { setStep('identificazione'); return; }
+        if (corpo.code === 'sessione_scaduta') { riuscita = true; sessioneScaduta(); return; }
+        if (corpo.code === 'identificazione_richiesta' && sessione?.dichiarazione_fea) { riuscita = true; setStep('identificazione'); return; }
         throw new Error(corpo.error ?? 'Errore nella firma');
       }
       if (data?.error) throw new Error(data.error);
@@ -347,12 +339,14 @@ export default function FirmaDocumento() {
       setFirmaTimestamp(data.firma_timestamp ?? new Date().toISOString());
       // Preventivo cointestato: manca ancora la firma dell'altro intestatario?
       setManca(data.completo === false);
+      riuscita = true;
       setStep('successo');
       void recuperaCopiaFirmata(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Errore nella firma');
     } finally {
       setFirmaInCorso(false);
+      if (!riuscita) setStep('firma');
     }
   };
 
@@ -387,6 +381,7 @@ export default function FirmaDocumento() {
   /** «Passo 2 di 4» con i nomi dei passaggi, e dopo il codice il tempo che resta per firmare. */
   const avanzamento = (passo: PassoFirma) => {
     const passi = passiFirma(sessione);
+    if (passi.length < 2) return null;
     const i = Math.max(0, passi.indexOf(passo));
     const dopoCodice = passo !== 'codice' && !!sessioneScadenza;
     return (
@@ -400,7 +395,7 @@ export default function FirmaDocumento() {
         </div>
         {dopoCodice && secondiSessione > 0 && (
           <p role="status" className={`text-xs ${secondiSessione < 300 ? 'font-medium text-amber-700' : 'text-slate-500'}`}>
-            Tempo per completare la firma: {formatTimer(secondiSessione)}{secondiSessione < 300 ? ' — arriva fino ad «Accetto e firmo»' : ''}
+            Tempo per completare la firma: {formatTimer(secondiSessione)}{secondiSessione < 300 ? ' — completa prima che scada' : ''}
           </p>
         )}
         {dopoCodice && secondiSessione === 0 && (
@@ -422,6 +417,63 @@ export default function FirmaDocumento() {
   };
 
   // ── RENDER ──────────────────────────────────────────────────────────────
+  const dialogoRifiuto = (
+    <>
+      {rifiutoDialogAperto && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="rifiuto-titolo"
+        >
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 space-y-4">
+            <div>
+              <h3 id="rifiuto-titolo" className="text-lg font-bold text-slate-800">Rifiuta il documento</h3>
+              <p className="text-slate-500 text-sm mt-1">
+                Stai per rifiutare la firma di questo documento. L&apos;azione è definitiva.
+              </p>
+            </div>
+            <div>
+              <label htmlFor="rifiuto-motivo" className="text-sm font-medium text-slate-700">
+                Motivo (opzionale)
+              </label>
+              <textarea
+                id="rifiuto-motivo"
+                value={rifiutoMotivo}
+                onChange={e => setRifiutoMotivo(e.target.value)}
+                rows={3}
+                maxLength={500}
+                placeholder="Es. i dati non sono corretti, importo errato..."
+                className="mt-1 w-full rounded-xl border-2 border-slate-200 p-3 text-sm outline-none focus:border-red-400 resize-none"
+              />
+            </div>
+            <div className="flex flex-col-reverse sm:flex-row gap-2">
+              <Button
+                variant="outline"
+                className="w-full sm:flex-1"
+                disabled={rifiutoInCorso}
+                onClick={() => setRifiutoDialogAperto(false)}
+              >
+                Annulla
+              </Button>
+              <Button
+                className="w-full sm:flex-1 bg-red-600 hover:bg-red-700 text-white font-bold"
+                disabled={rifiutoInCorso}
+                onClick={confermaRifiuto}
+              >
+                {rifiutoInCorso ? (
+                  <><Loader2 className="h-4 w-4 animate-spin mr-2" />Rifiuto in corso...</>
+                ) : (
+                  'Conferma rifiuto'
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   if (step === 'loading') return (
     <Wrapper>
       <div className="flex flex-col items-center gap-3 py-8">
@@ -447,9 +499,10 @@ export default function FirmaDocumento() {
       <div className="space-y-6">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Documento da firmare</h2>
-          <p className="text-slate-500 text-sm mt-1">Leggi il documento qui sotto, poi procedi con il codice</p>
+          <p className="text-slate-500 text-sm mt-1">Leggilo, accetta e inserisci il codice: è tutto qui.</p>
         </div>
-        {sessione.pdf_url && <AnteprimaDocumento url={sessione.pdf_url} />}
+        {/* Da /stima (?avvia=1) il documento è appena stato letto: si resta sul consenso, senza riproporlo. */}
+        {sessione.pdf_url && new URLSearchParams(window.location.search).get('avvia') !== '1' && <AnteprimaDocumento url={sessione.pdf_url} />}
         <div className="bg-slate-50 rounded-xl p-4 space-y-3">
           <div className="flex items-start gap-3">
             <FileText className="h-5 w-5 text-orange-500 shrink-0 mt-0.5" />
@@ -506,19 +559,66 @@ export default function FirmaDocumento() {
             </a>
           )}
         </div>
+        {(() => {
+          const clausole = clausoleDaApprovare(sessione);
+          const b2c = sessione.tipo_firmatario === 'b2c';
+          return (
+            <div className="space-y-3 rounded-xl border-2 border-orange-200 bg-orange-50/40 p-4">
+              <div className="flex items-start gap-3">
+                <Checkbox id="accetto" className="mt-0.5" checked={accettato} onCheckedChange={v => setAccettato(!!v)} />
+                <label htmlFor="accetto" className="cursor-pointer text-sm text-slate-800">
+                  <strong>Ho letto il documento e lo accetto in ogni sua parte.</strong>
+                  {clausole.length > 0 && <> Approvo specificamente, ai sensi degli artt. 1341 e 1342 c.c.: {clausole.map(titoloClausola).join('; ')}.</>}
+                  {b2c && <> Ho letto il diritto di recesso di 14 giorni.</>}
+                  {sessione.informativa_privacy && <> Ho letto l&apos;informativa privacy.</>}
+                </label>
+              </div>
+              {clausole.length > 0 && (
+                <details className="text-xs text-slate-600">
+                  <summary className="cursor-pointer font-medium text-slate-700">Leggi il testo delle clausole</summary>
+                  <div className="mt-2 max-h-56 space-y-2 overflow-y-auto">{clausole.map((c) => <p key={c.id}>{c.testo}</p>)}</div>
+                </details>
+              )}
+              {b2c && (
+                <details className="text-xs text-slate-600">
+                  <summary className="cursor-pointer font-medium text-slate-700">Leggi il diritto di recesso</summary>
+                  <p className="mt-2">{sessione.b2c_testo_recesso ?? RECESSO_FALLBACK}</p>
+                </details>
+              )}
+              {sessione.informativa_privacy && (
+                <details className="text-xs text-slate-600">
+                  <summary className="cursor-pointer font-medium text-slate-700">Leggi l&apos;informativa privacy</summary>
+                  <p className="mt-2 whitespace-pre-line">{sessione.informativa_privacy}</p>
+                </details>
+              )}
+            </div>
+          );
+        })()}
         <Button
           className="w-full h-12 text-base bg-orange-500 hover:bg-orange-600 text-white font-bold"
           onClick={continuaVersoOtp}
-          disabled={invioOtpInCorso}
+          disabled={invioOtpInCorso || !accettato}
         >
-          {invioOtpInCorso ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Invio in corso...</> : 'Continua con il codice'}
+          {invioOtpInCorso ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Invio in corso...</> : 'Accetto e ricevo il codice'}
         </Button>
         <p className="text-slate-500 text-xs text-center">
           Il codice a 6 cifre arriva via email{sessione.signer_email_mascherata ? ` a ${sessione.signer_email_mascherata}` : ''}{sessione.signer_telefono_mascherato ? ` e via SMS al ${sessione.signer_telefono_mascherato}` : ''}. {sessione.identificazione_richiesta
             ? 'Essendo il primo documento con questa azienda, ti chiederemo anche una foto del tuo documento d\'identità.'
-            : `Dopo il documento: ${elencoPassi(passiFirma(sessione))}. Pochi minuti: il bottone finale è «Accetto e firmo».`}
+            : 'Quando lo inserisci, il documento è firmato.'}
         </p>
+        <p className="text-slate-400 text-xs text-center">
+          La tua firma elettronica ha valore legale ai sensi del CAD e del Regolamento eIDAS
+        </p>
+        <Button
+          variant="outline"
+          className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+          disabled={invioOtpInCorso}
+          onClick={() => { setRifiutoMotivo(''); setRifiutoDialogAperto(true); }}
+        >
+          Rifiuta il documento
+        </Button>
       </div>
+      {dialogoRifiuto}
     </Wrapper>
   );
 
@@ -615,211 +715,35 @@ export default function FirmaDocumento() {
         soloDichiarazione={!sessione.identificazione_richiesta}
         onFatto={() => {
           setSessione({ ...sessione, identificazione_richiesta: false, dichiarazione_richiesta: false });
-          vaiDopoIdentificazione();
+          void completaFirma();
         }}
         onSessioneScaduta={sessioneScaduta}
       />
     </Wrapper>
   );
 
-  if (step === 'b2c_recesso' && sessione) return (
+  if (step === 'firmando') return (
     <Wrapper>
-      <div className="space-y-6">
-        {avanzamento('recesso')}
-        <div>
-          <h2 className="text-xl font-bold text-slate-800">Diritto di recesso</h2>
-          <p className="text-slate-500 text-sm mt-1">Leggi attentamente prima di procedere</p>
-        </div>
-        <div className="bg-blue-50 rounded-xl p-4 text-sm text-slate-700 max-h-48 overflow-y-auto leading-relaxed">
-          {sessione.b2c_testo_recesso ?? RECESSO_FALLBACK}
-        </div>
-        <div className="flex items-start gap-3">
-          <Checkbox
-            id="recesso"
-            checked={recessoAccettato}
-            onCheckedChange={v => setRecessoAccettato(!!v)}
-          />
-          <label htmlFor="recesso" className="text-sm text-slate-700 cursor-pointer">
-            Ho letto e compreso il diritto di recesso di 14 giorni
-          </label>
-        </div>
-        <Button
-          className="w-full h-12 text-base bg-orange-500 hover:bg-orange-600 text-white font-bold"
-          disabled={!recessoAccettato}
-          onClick={() => {
-            setStep(clausoleDaApprovare(sessione).length > 0 ? 'b2c_clausole' : 'firma');
-          }}
-        >
-          Continua
-        </Button>
+      <div className="flex flex-col items-center gap-3 py-8" role="status">
+        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+        <p className="text-slate-600 text-sm">Firma in corso...</p>
       </div>
     </Wrapper>
   );
 
-  if (step === 'b2c_clausole' && sessione) {
-    const clausole = clausoleDaApprovare(sessione);
-    const tutteApprovate = clausole.every(c => clausoleApprovate.includes(c.id));
-    return (
-      <Wrapper>
-        <div className="space-y-6">
-          {avanzamento('clausole')}
-          <div>
-            <h2 className="text-xl font-bold text-slate-800">Seconda firma: clausole specifiche</h2>
-            <p className="text-slate-500 text-sm mt-1">Ai sensi degli artt. 1341 e 1342 c.c. ogni clausola va approvata singolarmente, oltre alla firma del documento</p>
-          </div>
-          <div className="space-y-3 max-h-64 overflow-y-auto">
-            {clausole.map((c, i) => (
-              <div key={c.id} className="border rounded-xl p-4 space-y-3">
-                <p className="text-sm text-slate-700">{c.testo}</p>
-                <Button
-                  size="sm"
-                  variant={clausoleApprovate.includes(c.id) ? 'default' : 'outline'}
-                  className={clausoleApprovate.includes(c.id) ? 'bg-green-600 hover:bg-green-700 text-white' : ''}
-                  onClick={() => setClausoleApprovate(prev =>
-                    prev.includes(c.id) ? prev.filter(x => x !== c.id) : [...prev, c.id]
-                  )}
-                >
-                  {clausoleApprovate.includes(c.id) ? '✓ Approvata' : `Approva clausola ${i + 1}`}
-                </Button>
-              </div>
-            ))}
-          </div>
-          <Button
-            className="w-full h-12 text-base bg-orange-500 hover:bg-orange-600 text-white font-bold"
-            disabled={!tutteApprovate}
-            onClick={() => setStep('firma')}
-          >
-            Continua ({clausoleApprovate.length}/{clausole.length} approvate)
-          </Button>
-        </div>
-      </Wrapper>
-    );
-  }
-
+  // Il codice era giusto ma la registrazione non è riuscita: si riprova, senza rifare nulla.
   if (step === 'firma' && sessione) return (
     <Wrapper>
-      <div className="space-y-6">
-        {avanzamento('firma')}
+      <div className="space-y-5">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">Firma il documento</h2>
-          <p className="text-slate-500 text-sm mt-1">Ultimo passo — nessun disegno richiesto</p>
+          <h2 className="text-xl font-bold text-slate-800">Firma non registrata</h2>
+          <p className="text-slate-500 text-sm mt-1">Il codice è giusto, ma la firma non si è registrata. Riprova: non serve rifare nulla.</p>
         </div>
-        <div className="bg-slate-50 rounded-xl p-4 text-sm text-slate-600 space-y-1">
-          <p><strong>Documento:</strong> {sessione.documento_titolo}</p>
-          <p><strong>Firmatario:</strong> {sessione.signer_name}</p>
-          {altriFirmatari.length > 0 && (
-            <p><strong>Firma anche:</strong> {altriFirmatari.map((f) => `${f.nome}${f.firmato ? ' (ha firmato)' : ''}`).join(', ')} — il documento è valido quando firmano tutti.</p>
-          )}
-          <p><strong>Azienda:</strong> {sessione.azienda_nome}</p>
-          <p><strong>Data e ora:</strong> {format(new Date(), 'dd/MM/yyyy HH:mm', { locale: it })}</p>
-        </div>
-        {sessione.pdf_url && (
-          <a href={sessione.pdf_url} onClick={(e) => apriDocumento(e, sessione.pdf_url)} target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-2 text-orange-500 text-sm underline">
-            <FileText className="h-4 w-4" />
-            Visualizza il documento
-          </a>
-        )}
-        <div className="flex items-start gap-3">
-          <Checkbox
-            id="letto"
-            checked={documentoLetto}
-            onCheckedChange={v => setDocumentoLetto(!!v)}
-          />
-          <label htmlFor="letto" className="text-sm text-slate-700 cursor-pointer">
-            Confermo di aver letto e compreso il documento e di accettarne il contenuto
-          </label>
-        </div>
-        {sessione.informativa_privacy && (
-          <div className="flex items-start gap-3">
-            <Checkbox
-              id="privacy"
-              checked={privacyAccettata}
-              onCheckedChange={v => setPrivacyAccettata(!!v)}
-            />
-            <label htmlFor="privacy" className="text-sm text-slate-700 cursor-pointer whitespace-pre-line">
-              {sessione.informativa_privacy}
-            </label>
-          </div>
-        )}
-        <Button
-          className="w-full h-14 text-base bg-orange-500 hover:bg-orange-600 text-white font-bold"
-          disabled={!documentoLetto || (!!sessione.informativa_privacy && !privacyAccettata) || firmaInCorso}
-          onClick={completaFirma}
-        >
-          {firmaInCorso ? (
-            <><Loader2 className="h-5 w-5 animate-spin mr-2" />Firma in corso...</>
-          ) : (
-            '✍️ Accetto e firmo'
-          )}
+        {avanzamento('codice')}
+        <Button className="w-full h-14 text-base bg-orange-500 hover:bg-orange-600 text-white font-bold" disabled={firmaInCorso} onClick={() => void completaFirma()}>
+          Riprova a firmare
         </Button>
-        <p className="text-slate-400 text-xs text-center">
-          La tua firma elettronica ha valore legale ai sensi del CAD e del Regolamento eIDAS
-        </p>
-        <div className="pt-2 border-t border-slate-100">
-          <Button
-            variant="outline"
-            className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
-            disabled={firmaInCorso}
-            onClick={() => { setRifiutoMotivo(''); setRifiutoDialogAperto(true); }}
-          >
-            Rifiuta il documento
-          </Button>
-        </div>
       </div>
-
-      {rifiutoDialogAperto && (
-        <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="rifiuto-titolo"
-        >
-          <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 space-y-4">
-            <div>
-              <h3 id="rifiuto-titolo" className="text-lg font-bold text-slate-800">Rifiuta il documento</h3>
-              <p className="text-slate-500 text-sm mt-1">
-                Stai per rifiutare la firma di questo documento. L&apos;azione è definitiva.
-              </p>
-            </div>
-            <div>
-              <label htmlFor="rifiuto-motivo" className="text-sm font-medium text-slate-700">
-                Motivo (opzionale)
-              </label>
-              <textarea
-                id="rifiuto-motivo"
-                value={rifiutoMotivo}
-                onChange={e => setRifiutoMotivo(e.target.value)}
-                rows={3}
-                maxLength={500}
-                placeholder="Es. i dati non sono corretti, importo errato..."
-                className="mt-1 w-full rounded-xl border-2 border-slate-200 p-3 text-sm outline-none focus:border-red-400 resize-none"
-              />
-            </div>
-            <div className="flex flex-col-reverse sm:flex-row gap-2">
-              <Button
-                variant="outline"
-                className="w-full sm:flex-1"
-                disabled={rifiutoInCorso}
-                onClick={() => setRifiutoDialogAperto(false)}
-              >
-                Annulla
-              </Button>
-              <Button
-                className="w-full sm:flex-1 bg-red-600 hover:bg-red-700 text-white font-bold"
-                disabled={rifiutoInCorso}
-                onClick={confermaRifiuto}
-              >
-                {rifiutoInCorso ? (
-                  <><Loader2 className="h-4 w-4 animate-spin mr-2" />Rifiuto in corso...</>
-                ) : (
-                  'Conferma rifiuto'
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </Wrapper>
   );
 

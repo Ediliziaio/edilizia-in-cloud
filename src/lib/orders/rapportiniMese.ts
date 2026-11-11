@@ -28,7 +28,7 @@ export interface RapportinoRiga {
   dipendente?: { first_name?: string | null; last_name?: string | null } | null;
 }
 
-export type VistaRapportini = "giorni" | "cantieri" | "persone" | "mappa";
+export type VistaRapportini = "elenco" | "giorni" | "cantieri" | "persone" | "mappa";
 export interface FiltriRapportini { giorno?: string; cantiere?: string; persona?: string; stato?: string; testo?: string }
 
 export interface PersonaDelRapportino {

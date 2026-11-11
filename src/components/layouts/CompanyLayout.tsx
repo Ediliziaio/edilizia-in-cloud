@@ -1,4 +1,7 @@
-import { Link, Navigate, Outlet, useNavigate, useLocation } from "react-router-dom";
+import { useLoadingTimeout } from "@/hooks/useLoadingTimeout";
+import { useSidebarOpenArea } from "@/hooks/useSidebarOpenArea";
+import { Link, Navigate, useNavigate, useLocation } from "react-router-dom";
+import { CompanyPageOutlet } from "./CompanyPageOutlet";
 import { useContabilitaGeneraleAttiva } from "@/components/contabilita/ContabilitaInCasa";
 import { SoftphoneProvider } from "@/components/telephony/SoftphoneProvider";
 import { navigateToSubdomain } from "@/utils/subdomainNav";
@@ -910,7 +913,7 @@ const CompanySidebar = memo(function CompanySidebar() {
   // Mostriamo skeleton finché plan + feature flags non sono risolti: con
   // `isModuleEnabled` fail-closed, altrimenti la sidebar flickererebbe a vuoto.
   const gatingLoading = limitsLoading || flagsLoading;
-  const [menuLoadingFallback, setMenuLoadingFallback] = useState(false);
+  const menuLoadingFallback = useLoadingTimeout(gatingLoading, 1500);
   const { branding } = useBranding();
   const { effectiveBrand } = useBrandSettings();
   const { mode: billingMode } = useBillingMode();
@@ -983,34 +986,9 @@ const CompanySidebar = memo(function CompanySidebar() {
     return bestAreaId;
   }, [isCommercialistaMode]);
 
-  const [openAreaId, setOpenAreaId] = useState<string | null>(() => {
-    try {
-      const stored = localStorage.getItem("sidebar_open_area");
-      if (stored) return stored;
-    } catch { /* storage non disponibile — silenzioso */ }
-    return findActiveAreaId(location.pathname);
-  });
-
-  // BUG FIX: la dep `openAreaId` qui causava un loop di accordion: se l'utente
-  // cliccava su un'altra macroArea (es. "Persone") mentre era su una route di
-  // un'altra area (es. /azienda/fatture in area_finanza), `setOpenAreaId(area_persone)`
-  // veniva immediatamente sovrascritto da questo effect che ri-leggeva il
-  // pathname e riportava `openAreaId` ad area_finanza. Risultato: la sidebar
-  // restava "incollata" all'area della route corrente e non si poteva esplorare.
-  //
-  // Soluzione: l'effect deve allineare la sidebar SOLO quando cambia il
-  // pathname (navigazione effettiva). I click manuali sull'accordion sono
-  // gestiti da onOpenChange e devono essere preservati. Quindi: dep array
-  // include solo `location.pathname` (con `findActiveAreaId` stabile via
-  // useCallback).
-  useEffect(() => {
-    const active = findActiveAreaId(location.pathname);
-    if (active) {
-      setOpenAreaId(active);
-      try { localStorage.setItem("sidebar_open_area", active); } catch { /* storage non disponibile — silenzioso */ }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname]);
+  const [openAreaId, setOpenAreaId] = useSidebarOpenArea(
+    location.pathname, findActiveAreaId(location.pathname),
+  );
 
   // Applica i colori brand al design system (--primary, --accent, sidebar)
   useEffect(() => {
@@ -1161,16 +1139,6 @@ const CompanySidebar = memo(function CompanySidebar() {
     }));
   }, [permissions, gatingLoading, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan, isDemoBaseline, limitsLoading, currentPlan, isCommercialistaMode, hasMultipleCompanies, schedeManodopera, effectiveCompany?.management_mode, contabilitaGenerale]);
 
-  useEffect(() => {
-    if (!gatingLoading) {
-      setMenuLoadingFallback(false);
-      return;
-    }
-    setMenuLoadingFallback(false);
-    const timer = window.setTimeout(() => setMenuLoadingFallback(true), 1500);
-    return () => window.clearTimeout(timer);
-  }, [gatingLoading]);
-
   const { state: sidebarState, toggleSidebar, isMobile: sidebarAPannello } = useSidebar();
   const isCollapsed = sidebarState === "collapsed" && !sidebarAPannello;
   const showMenuSkeleton = gatingLoading && !menuLoadingFallback;
@@ -1262,7 +1230,6 @@ const CompanySidebar = memo(function CompanySidebar() {
                       onOpenChange={(isOpen) => {
                         const newId = isOpen ? area.id : null;
                         setOpenAreaId(newId);
-                        try { localStorage.setItem("sidebar_open_area", newId ?? ""); } catch { /* storage non disponibile — silenzioso */ }
                       }}
                     />
                   );
@@ -1829,7 +1796,7 @@ export function CompanyLayout() {
                 <SoftphoneProvider>
                   {effectiveCompany?.management_mode === "accounting" && !isCompanyPathAvailable("accounting", location.pathname)
                     ? <Navigate to={accountingHome(permissions)} replace />
-                    : <Outlet />}
+                    : <CompanyPageOutlet />}
                 </SoftphoneProvider>
               </Suspense>
             </ErrorBoundary>

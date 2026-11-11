@@ -29,9 +29,9 @@ describe("contratto dalle voci affidate", () => {
     const righe = elencoDaAffidamenti(fasi, voci, affidamenti, "rossi", null);
     expect(righe.map((r) => r.affidamento_id)).toEqual(["a1", "a3"]);
     expect(righe[0]).toMatchObject({ fase: "Intonaci", descrizione: "Intonaco civile", quantita: 300, prezzo: 14, importo: 4200, voce_id: "v1", fase_id: "f1", comprende: "posa", origine: "listino_ditta" });
-    // Al centesimo, riga per riga: 100 × 11,115 = 1111,50.
-    expect(righe[1]).toMatchObject({ fase: "Sottofondi", importo: 1111.5, sottofase_id: "s1", comprende: "fornitura_e_posa" });
-    expect(totaleElencoLavori(righe)).toBe(5311.5);
+    // Il prezzo nel contratto è al centesimo (11,115 → 11,12), l'importo riga per riga: 100 × 11,12 = 1112.
+    expect(righe[1]).toMatchObject({ fase: "Sottofondi", prezzo: 11.12, importo: 1112, sottofase_id: "s1", comprende: "fornitura_e_posa" });
+    expect(totaleElencoLavori(righe)).toBe(5312);
   });
 
   it("le quote già di questo contratto restano; quelle di un altro contratto no; senza ditta collegata niente", () => {
@@ -66,5 +66,12 @@ describe("contratto dalle voci affidate", () => {
     const html = costruisciContrattoSubappaltoHtml(d);
     expect(html).toContain("Intonaco civile <em>(solo posa)</em>");
     expect(html).toContain("Massetto <em>(fornitura e posa)</em>");
+    // 11/11/2026: l'elenco apre il contratto e il riquadro con imponibile e reverse charge sta subito sotto;
+    // niente più Allegato A in fondo.
+    expect(html).not.toMatch(/Allegato A|ALLEGATO A/);
+    const elenco = html.indexOf("Elenco dei lavori");
+    expect(elenco).toBeGreaterThan(-1);
+    expect(elenco).toBeLessThan(html.indexOf("reverse charge"));
+    expect(html.indexOf("reverse charge")).toBeLessThan(html.indexOf("Art. 1 –"));
   });
 });

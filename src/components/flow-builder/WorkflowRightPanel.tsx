@@ -66,6 +66,7 @@ export function WorkflowRightPanel({
 
   return (
     <CatalogPanel
+      key={catalogContext}
       catalogTab={catalogTab}
       catalogContext={catalogContext}
       onCatalogTabChange={onCatalogTabChange}
@@ -129,7 +130,7 @@ function CatalogPanel({
           <Zap className="h-4 w-4 text-primary" />
           <span className="text-sm font-semibold">{headerLabel}</span>
         </div>
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose}>
+        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose} aria-label="Chiudi catalogo">
           <X className="h-3.5 w-3.5" />
         </Button>
       </div>
@@ -139,7 +140,8 @@ function CatalogPanel({
         <div className="relative">
           <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
-            placeholder="Cerca..."
+            placeholder={catalogContext === "trigger" ? "Cerca un evento di avvio…" : "Cerca un’azione o una condizione…"}
+            aria-label="Cerca nel catalogo"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-7 pl-8 text-xs"
@@ -153,6 +155,7 @@ function CatalogPanel({
           {visibleTabs.map((tab) => (
             <button
               key={tab.key}
+              aria-pressed={effectiveTab === tab.key}
               onClick={() => onCatalogTabChange(tab.key)}
               className={cn(
                 "flex-1 py-2 text-xs font-semibold transition-colors",
@@ -177,7 +180,8 @@ function CatalogPanel({
             search={search}
             onSelect={handleSelect}
             onDragStart={onDragStart}
-            includeConditions={effectiveTab === "condition" || effectiveTab === "action"}
+            includeConditions={true}
+            onlyConditions={effectiveTab === "condition"}
             isAdmin={isAdmin}
           />
         )}

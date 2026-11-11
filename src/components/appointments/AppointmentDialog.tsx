@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -295,6 +295,7 @@ type SearchableOption = {
 };
 
 function SearchableSelect({
+  id,
   value,
   options,
   placeholder,
@@ -303,6 +304,7 @@ function SearchableSelect({
   disabled,
   onChange,
 }: {
+  id?: string;
   value: string;
   options: SearchableOption[];
   placeholder: string;
@@ -321,6 +323,7 @@ function SearchableSelect({
           type="button"
           variant="outline"
           role="combobox"
+          id={id}
           aria-expanded={open}
           disabled={disabled}
           className="w-full justify-between gap-2 px-3 font-normal"
@@ -458,6 +461,7 @@ export function AppointmentDialog({
   const [reminderMinutes, setReminderMinutes] = useState<string>("none");
   const [addressData, setAddressData] = useState<AddressData>(emptyAddress);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [dataAperta, setDataAperta] = useState(false);
   const [luogoAperto, setLuogoAperto] = useState(false);
 
@@ -849,6 +853,7 @@ export function AppointmentDialog({
   });
 
   const handleSave = async () => {
+    if (savingRef.current || solaLettura) return;
     if (!title.trim()) {
       toast({ title: "Inserisci un titolo", variant: "destructive" });
       return;
@@ -871,6 +876,7 @@ export function AppointmentDialog({
     }
     if (!companyId || !user) return;
 
+    savingRef.current = true;
     setSaving(true);
     try {
       const effectiveOrderId = referenceType === "maintenance" ? "" : orderId;
@@ -989,6 +995,7 @@ export function AppointmentDialog({
       toast({ title: "Errore", description: getErrorMessage(e), variant: "destructive" });
     } finally {
       setSaving(false);
+      savingRef.current = false;
     }
   };
 
@@ -996,7 +1003,8 @@ export function AppointmentDialog({
   // e sparisce solo dai calendari esterni. Prima la riga veniva cancellata e
   // di quell'appuntamento non restava traccia da nessuna parte (18/09/2026).
   const handleDelete = async () => {
-    if (!currentAppointment?.id) return;
+    if (savingRef.current || solaLettura || !currentAppointment?.id) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       // Fire-and-forget Google delete: l'evento esterno va comunque tolto.
@@ -1016,6 +1024,7 @@ export function AppointmentDialog({
       toast({ title: "Errore", description: getErrorMessage(e), variant: "destructive" });
     } finally {
       setSaving(false);
+      savingRef.current = false;
     }
   };
 
@@ -1034,9 +1043,9 @@ export function AppointmentDialog({
   ].filter(Boolean).join(" · ");
   const selettoreCalendario = (
     <div className="space-y-1">
-      <Label className="text-xs">Calendario</Label>
+      <Label htmlFor="apt-calendar" className="text-xs">Calendario</Label>
       <Select value={calendarId} onValueChange={setCalendarId}>
-        <SelectTrigger className="h-9"><SelectValue placeholder="Nessun calendario" /></SelectTrigger>
+        <SelectTrigger id="apt-calendar" className="h-9"><SelectValue placeholder="Nessun calendario" /></SelectTrigger>
         <SelectContent>
           <SelectItem value="none">Nessuno</SelectItem>
           {marketingCalendars.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
@@ -1046,7 +1055,7 @@ export function AppointmentDialog({
   );
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => { if (!savingRef.current) onOpenChange(next); }}>
       <DialogContent className="flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
         <DialogHeader className="border-b py-2.5 pl-4 pr-11 text-left">
           <DialogTitle className="text-sm font-semibold">{isEditing ? "Modifica appuntamento" : "Nuovo appuntamento"}</DialogTitle>
@@ -1056,7 +1065,7 @@ export function AppointmentDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
+        <fieldset disabled={saving || solaLettura} className="min-h-0 min-w-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
           <div className="space-y-1">
             <Label htmlFor="apt-title" className="text-xs">Titolo *</Label>
             <Input id="apt-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Es. Sopralluogo tecnico" className="h-9" />
@@ -1064,7 +1073,7 @@ export function AppointmentDialog({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
-              <Label className="text-xs">Tipo</Label>
+              <Label htmlFor="apt-type" className="text-xs">Tipo</Label>
               <Select
                 value={appointmentType}
                 onValueChange={(nuovo) => {
@@ -1075,7 +1084,7 @@ export function AppointmentDialog({
                   setAppointmentType(nuovo);
                 }}
               >
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectTrigger id="apt-type" className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {APPOINTMENT_TYPE_GROUPS.map(group => {
                     const groupTypes = APPOINTMENT_TYPES.filter(t => t.group === group);
@@ -1095,8 +1104,9 @@ export function AppointmentDialog({
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Assegna a</Label>
+              <Label htmlFor="apt-assignee" className="text-xs">Assegna a</Label>
               <SearchableSelect
+                id="apt-assignee"
                 value={assignedTo || "none"}
                 options={assigneeOptions}
                 placeholder="Nessun assegnatario"
@@ -1116,10 +1126,10 @@ export function AppointmentDialog({
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-[1.5fr_1fr_1fr_1fr]">
             <div className="space-y-1 max-sm:col-span-2">
-              <Label className="text-xs">Data *</Label>
+              <Label htmlFor="apt-date" className="text-xs">Data *</Label>
               <Popover open={dataAperta} onOpenChange={setDataAperta}>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("h-9 w-full justify-start px-2.5 text-left font-normal", !appointmentDate && "text-muted-foreground")}>
+                  <Button id="apt-date" variant="outline" className={cn("h-9 w-full justify-start px-2.5 text-left font-normal", !appointmentDate && "text-muted-foreground")}>
                     <CalendarDays className="mr-1.5 h-4 w-4 shrink-0" />
                     <span className="truncate">{appointmentDate ? format(appointmentDate, "EEE d MMM yyyy", { locale: it }) : "Seleziona data"}</span>
                   </Button>
@@ -1160,7 +1170,7 @@ export function AppointmentDialog({
               />
             </div>
             <div className="space-y-1 max-sm:col-span-2">
-              <Label className="text-xs">Durata</Label>
+              <Label htmlFor="apt-duration" className="text-xs">Durata</Label>
               <Select
                 value={durationMinutes}
                 onValueChange={(value) => {
@@ -1168,7 +1178,7 @@ export function AppointmentDialog({
                   if (appointmentTime) setAppointmentEndTime(addMinutesToTime(appointmentTime, Number(value)));
                 }}
               >
-                <SelectTrigger className="h-9 px-2"><SelectValue /></SelectTrigger>
+                <SelectTrigger id="apt-duration" className="h-9 px-2"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {durateDisponibili(DURATE_FISSE, durata).map((m) => <SelectItem key={m} value={String(m)}>{etichettaDurata(m)}</SelectItem>)}
                 </SelectContent>
@@ -1218,7 +1228,7 @@ export function AppointmentDialog({
 
               <div className="grid gap-3 sm:grid-cols-[180px_1fr]">
                 <div className="space-y-2">
-                  <Label>Tipo riferimento</Label>
+                  <Label htmlFor="apt-reference-type">Tipo riferimento</Label>
                   <Select
                     value={referenceType}
                     onValueChange={(value) => {
@@ -1231,7 +1241,7 @@ export function AppointmentDialog({
                       if (next === "maintenance") setAppointmentType("manutenzione");
                     }}
                   >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger id="apt-reference-type"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Nessun riferimento</SelectItem>
                       <SelectItem value="order">Commessa</SelectItem>
@@ -1243,8 +1253,9 @@ export function AppointmentDialog({
 
                 {referenceType === "order" && (
                   <div className="space-y-2">
-                    <Label>Commessa collegata</Label>
+                    <Label htmlFor="apt-order">Commessa collegata</Label>
                     <SearchableSelect
+                      id="apt-order"
                       value={orderId || "none"}
                       options={orderOptions}
                       placeholder="Nessuna commessa"
@@ -1257,8 +1268,9 @@ export function AppointmentDialog({
 
                 {referenceType === "ticket" && (
                   <div className="space-y-2">
-                    <Label>Assistenza collegata</Label>
+                    <Label htmlFor="apt-ticket">Assistenza collegata</Label>
                     <SearchableSelect
+                      id="apt-ticket"
                       value={ticketId || "none"}
                       options={ticketOptions}
                       placeholder="Nessuna assistenza"
@@ -1274,8 +1286,9 @@ export function AppointmentDialog({
 
                 {referenceType === "maintenance" && (
                   <div className="space-y-2">
-                    <Label>Manutenzione collegata</Label>
+                    <Label htmlFor="apt-maintenance">Manutenzione collegata</Label>
                     <SearchableSelect
+                      id="apt-maintenance"
                       value={maintenancePlanId || "none"}
                       options={maintenanceOptions}
                       placeholder="Nessuna manutenzione"
@@ -1331,9 +1344,9 @@ export function AppointmentDialog({
             </summary>
             <div className="mt-2 grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
-                <Label className="text-xs">Stato</Label>
+                <Label htmlFor="apt-status" className="text-xs">Stato</Label>
                 <Select value={status} onValueChange={setStatus}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectTrigger id="apt-status" className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {STATI_APPUNTAMENTO.map((x) => <SelectItem key={x.value} value={x.value}>{x.label}</SelectItem>)}
                     {!STATI_APPUNTAMENTO.some((x) => x.value === status) && <SelectItem value={status}>{etichettaCodice(status)}</SelectItem>}
@@ -1341,9 +1354,9 @@ export function AppointmentDialog({
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Promemoria</Label>
+                <Label htmlFor="apt-reminder" className="text-xs">Promemoria</Label>
                 <Select value={reminderMinutes} onValueChange={setReminderMinutes}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Nessun promemoria" /></SelectTrigger>
+                  <SelectTrigger id="apt-reminder" className="h-9"><SelectValue placeholder="Nessun promemoria" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Nessuno</SelectItem>
                     <SelectItem value="60">1 ora prima</SelectItem>
@@ -1355,9 +1368,9 @@ export function AppointmentDialog({
               {!hideMarketingFields && !calendarioInVista && selettoreCalendario}
               {!hideMarketingFields && (
                 <div className="space-y-1">
-                  <Label className="text-xs">Contatto CRM</Label>
+                  <Label htmlFor="apt-contact" className="text-xs">Contatto CRM</Label>
                   <Select value={contactId} onValueChange={setContactId}>
-                    <SelectTrigger className="h-9"><SelectValue placeholder="Nessun contatto" /></SelectTrigger>
+                    <SelectTrigger id="apt-contact" className="h-9"><SelectValue placeholder="Nessun contatto" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Nessuno</SelectItem>
                       {contacts.map((c) => (
@@ -1381,7 +1394,7 @@ export function AppointmentDialog({
               <EntityCustomFieldsSection entityType="appointment" entityId={appointment.id} disabled={solaLettura} />
             </div>
           )}
-        </div>
+        </fieldset>
 
         <DialogFooter className="shrink-0 gap-2 border-t px-4 py-2.5">
           {isEditing && (

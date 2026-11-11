@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
@@ -20,10 +20,13 @@ const oppPiuRecente = { id: OPP_PIU_RECENTE, contact_id: TARTANI, name: "Tartani
 
 const permessi = { canViewMarketingContacts: true, canViewMarketingOpportunities: true };
 
+const writing = vi.hoisted(() => ({ promise: null as Promise<unknown> | null, update: vi.fn(), close: vi.fn() }));
+
 type Risposta = { data: unknown; error: { message: string } | null };
 
 function builder(tabella: string) {
   const filtri: Record<string, unknown> = {};
+  let mutation = false;
   const b: Record<string, unknown> = {};
   for (const m of ["select", "eq", "neq", "in", "is", "gte", "lte", "order", "limit", "or", "not"]) {
     b[m] = (...args: unknown[]) => {
@@ -31,6 +34,7 @@ function builder(tabella: string) {
       return b;
     };
   }
+  b.update = (payload: unknown) => { mutation = true; writing.update(payload); return b; };
   const risposta = (): Risposta => {
     if (tabella === "marketing_contacts") {
       // Solo per id: nella ricerca non c'è, come un contatto oltre il millesimo cognome (TARTANI in Ener è il 1.740°).
@@ -45,7 +49,7 @@ function builder(tabella: string) {
   };
   b.maybeSingle = async () => risposta();
   b.single = async () => risposta();
-  b.then = (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) => Promise.resolve(risposta()).then(ok, ko);
+  b.then = (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) => (mutation && writing.promise ? writing.promise : Promise.resolve(risposta())).then(ok, ko);
   return b;
 }
 
@@ -102,7 +106,7 @@ function apri(contestoScheda?: "contatto" | "opportunita") {
       <QueryClientProvider client={client}>
         <MarketingAppointmentDialog
           open
-          onOpenChange={() => {}}
+          onOpenChange={writing.close}
           appointment={appuntamento}
           onSaved={() => {}}
           calendars={[{ id: "cal-1", name: "Agenda commerciale" }]}
@@ -115,6 +119,7 @@ function apri(contestoScheda?: "contatto" | "opportunita") {
 }
 
 beforeEach(() => {
+  writing.promise = null; writing.update.mockClear(); writing.close.mockClear();
   permessi.canViewMarketingContacts = true;
   permessi.canViewMarketingOpportunities = true;
 });
@@ -123,6 +128,23 @@ afterEach(cleanup);
 const TIMEOUT = 30_000;
 
 describe("appuntamento: aprire contatto e opportunità collegati", () => {
+  it("blocca campi, chiusura e doppio salvataggio fino al termine della richiesta", async () => {
+    let finish!: (value: unknown) => void;
+    writing.promise = new Promise(resolve => { finish = resolve; });
+    apri();
+    await screen.findByRole("link", { name: /Apri contatto/ });
+    fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
+    await waitFor(() => expect(writing.update).toHaveBeenCalledTimes(1));
+    expect(screen.getByLabelText("Titolo dell'appuntamento *")).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Calendario *" })).toBeDisabled();
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(writing.close).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Salvataggio..." }));
+    expect(writing.update).toHaveBeenCalledTimes(1);
+    finish({ data: null, error: null });
+    await waitFor(() => expect(writing.close).toHaveBeenCalledWith(false));
+  });
+
   it("apre l'opportunità DELL'APPUNTAMENTO, non l'ultima aggiornata del contatto", async () => {
     apri();
     const opp = await screen.findByRole("link", { name: /Apri opportunità/ }, { timeout: TIMEOUT });

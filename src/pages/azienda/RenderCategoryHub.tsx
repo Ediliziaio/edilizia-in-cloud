@@ -1,5 +1,5 @@
 import { useRenderHistory } from "@/lib/render/renderHistory";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -150,12 +150,12 @@ const categories: RenderCategory[] = [
   {
     id: "ristrutturazioni",
     title: "Ristrutturazioni",
-    description: "Orchestra più sistemi nello stesso render senza conflitti",
+    description: "Coordina più interventi nello stesso render",
     icon: Hammer,
     color: "bg-indigo-50 text-indigo-600",
     path: "/azienda/render/ristrutturazioni",
     active: true,
-    badge: "Motore",
+    badge: "Attivo",
     group: "multi",
     groupLabel: "Multi-sistema",
     tags: ["bagno", "facciata", "pavimento", "coordinato"],
@@ -168,7 +168,7 @@ const categories: RenderCategory[] = [
     color: "bg-lime-50 text-lime-700",
     path: "/azienda/render/pavimenti-esterni",
     active: true,
-    badge: "Motore",
+    badge: "Attivo",
     group: "outdoor",
     groupLabel: "Outdoor",
     tags: ["gres outdoor", "deck", "carrabile", "coping"],
@@ -181,7 +181,7 @@ const categories: RenderCategory[] = [
     color: "bg-green-50 text-green-700",
     path: "/azienda/render/giardini",
     active: true,
-    badge: "Motore",
+    badge: "Attivo",
     group: "outdoor",
     groupLabel: "Outdoor",
     tags: ["prato", "aiuole", "siepi", "camminamenti"],
@@ -194,7 +194,7 @@ const categories: RenderCategory[] = [
     color: "bg-slate-100 text-slate-700",
     path: "/azienda/render/porte-blindate",
     active: true,
-    badge: "Motore",
+    badge: "Attivo",
     group: "aperture",
     groupLabel: "Aperture",
     tags: ["blindata", "rasomuro", "fiancoluce", "maniglia"],
@@ -207,7 +207,7 @@ const categories: RenderCategory[] = [
     color: "bg-violet-50 text-violet-600",
     path: "/azienda/render/porte-interne",
     active: true,
-    badge: "Motore",
+    badge: "Attivo",
     group: "aperture",
     groupLabel: "Aperture",
     tags: ["scorrevole", "rasomuro", "vetrata", "doppia anta"],
@@ -228,12 +228,14 @@ export default function RenderCategoryHub() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const { isScopriPlan } = useSubscriptionLimits();
+  const categorySearchRef = useRef<HTMLInputElement>(null);
   const [modulePicker, setModulePicker] = useState(false);
   const [categorySearch, setCategorySearch] = useState("");
   const [groupFilter, setGroupFilter] = useState<CategoryGroup>("all");
 
   const history = useRenderHistory(companyId, undefined, !isScopriPlan);
   const recentRenders = history.items;
+  const recentStatsAvailable = Boolean(companyId) && !history.isLoading && !history.isError;
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -265,20 +267,20 @@ export default function RenderCategoryHub() {
     <Dialog open={modulePicker} onOpenChange={setModulePicker}>
       <DialogContent className="max-h-[85dvh] max-w-4xl overflow-y-auto">
         <DialogHeader><DialogTitle>Che cosa vuoi trasformare?</DialogTitle><DialogDescription>Scegli un ambiente o un intervento per iniziare il render.</DialogDescription></DialogHeader>
-        <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" /><Input aria-label="Cerca modulo render" value={categorySearch} onChange={(event) => setCategorySearch(event.target.value)} placeholder="Cerca bagno, cucina, infissi, giardino…" className="pl-9" /></div>
+        <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" /><Input ref={categorySearchRef} aria-label="Cerca modulo render" value={categorySearch} onChange={(event) => setCategorySearch(event.target.value)} placeholder="Cerca bagno, cucina, infissi, giardino…" className="pl-9" /></div>
         <div role="group" aria-label="Categorie dei moduli" className="flex flex-wrap gap-1.5">
           {(Object.keys(groupLabels) as CategoryGroup[]).map((group) => <Button key={group} size="sm" variant={groupFilter === group ? "secondary" : "ghost"} aria-pressed={groupFilter === group} onClick={() => setGroupFilter(group)}>{groupLabels[group]}</Button>)}
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {filteredCategories.map((category) => {
             const Icon = category.icon;
-            return <Link key={category.id} to={category.path} aria-label={category.title} onClick={() => setModulePicker(false)} className="group flex items-start gap-3 rounded-xl border p-4 transition-colors hover:border-primary/40 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            return <Link key={category.id} to={category.path} aria-label={category.title} aria-disabled={!category.active} onClick={() => setModulePicker(false)} className="group flex items-start gap-3 rounded-xl border p-4 transition-colors hover:border-primary/40 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
               <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${category.color}`}><Icon className="h-5 w-5" aria-hidden="true" /></span>
-              <span className="min-w-0 flex-1"><span className="flex items-center justify-between gap-2 text-sm font-semibold">{category.title}<ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-primary" /></span><span className="mt-1 block text-xs leading-relaxed text-muted-foreground">{category.description}</span><span className="mt-2 block text-[11px] text-muted-foreground">{categoryCounts[category.id] ?? 0} render recenti</span></span>
+              <span className="min-w-0 flex-1"><span className="flex items-center justify-between gap-2 text-sm font-semibold">{category.title}<ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-primary" /></span><span className="mt-1 block text-xs leading-relaxed text-muted-foreground">{category.description}</span><span className="mt-2 block text-[11px] text-muted-foreground">{recentStatsAvailable ? categoryCounts[category.id] ?? 0 : "—"} render recenti</span></span>
             </Link>;
           })}
         </div>
-        {!filteredCategories.length && <div className="py-8 text-center"><p className="text-sm text-muted-foreground">Nessun modulo trovato.</p><Button size="sm" variant="ghost" onClick={() => { setCategorySearch(""); setGroupFilter("all"); }}>Mostra tutti i moduli</Button></div>}
+        {!filteredCategories.length && <div className="py-8 text-center"><p role="status" className="text-sm text-muted-foreground">Nessun modulo trovato.</p><Button size="sm" variant="ghost" onClick={() => { setCategorySearch(""); setGroupFilter("all"); categorySearchRef.current?.focus(); }}>Mostra tutti i moduli</Button></div>}
         <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-4 text-xs text-muted-foreground"><span>Vuoi partire dal disegno di una casa?</span><Button variant="link" size="sm" asChild><Link to={percorsiPlanimetrie.elenco} onClick={() => setModulePicker(false)}>Apri Planimetrie e progetti<ArrowUpRight className="ml-1 h-3.5 w-3.5" /></Link></Button></div>
       </DialogContent>
     </Dialog>

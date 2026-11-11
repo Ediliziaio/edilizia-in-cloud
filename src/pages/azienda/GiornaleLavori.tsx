@@ -1,5 +1,5 @@
 import type { TablesUpdate } from "@/integrations/supabase/types";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useId } from "react";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { leggiPaginaGiornale } from "@/hooks/useGiornaliPeriodo";
 import { useGPS } from "@/hooks/useGPS";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -132,6 +133,7 @@ const conteggio = (n: number, uno: string, molti: string) => `${n} ${n === 1 ? u
  * solo sulle sue pagine e senza i selettori della commessa.
  */
 export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: string }) {
+  const formId = useId();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
@@ -142,6 +144,7 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
   const queryClient = useQueryClient();
   const { isScopriPlan } = useSubscriptionLimits();
   const [searchParams] = useSearchParams();
+  const paginaDaAprire = searchParams.get("pagina");
   const { lat: gpsLat, lng: gpsLng, status: gpsStatus, requestPosition } = useGPS(companyId || null);
 
   const [selectedOrderId, setSelectedOrderId] = useState(orderIdFisso || searchParams.get("ordine") || "");
@@ -195,8 +198,8 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
 
   // Fetch giornale entries
   const { data: entries = [], isLoading, isError: entriesError } = useQuery({
-    queryKey: ["giornale-lavori", companyId, selectedOrderId],
-    queryFn: async () => {
+    queryKey: ["giornale-lavori", companyId, selectedOrderId, paginaDaAprire],
+    queryFn: async ({ signal }) => {
       let q = supabase
         .from("giornale_lavori")
         .select("*, giornale_foto(id, url, storage_path)")
@@ -206,6 +209,11 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
       if (selectedOrderId) q = q.eq("order_id", selectedOrderId);
       const { data, error } = await q;
       if (error) throw error;
+      if (paginaDaAprire && !(data ?? []).some((r) => r.id === paginaDaAprire) && (!selectedOrderId || selectedOrderId === searchParams.get("ordine"))) {
+        const pagina = await leggiPaginaGiornale(companyId!, paginaDaAprire, selectedOrderId || undefined, signal);
+        if (!pagina) throw new Error("La pagina richiesta non è disponibile per questa commessa.");
+        return [...(data ?? []), pagina];
+      }
       return data || [];
     },
     enabled: !!companyId,
@@ -408,14 +416,20 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
   };
 
   // Dalla commessa: ?pagina=<id> apre direttamente quella pagina, una volta sola.
-  const paginaDaAprire = searchParams.get("pagina");
   const paginaGiaAperta = useRef(false);
   useEffect(() => {
     if (!paginaDaAprire || paginaGiaAperta.current) return;
     const riga = (entries as RigaGiornale[]).find((e) => e.id === paginaDaAprire);
     if (!riga) return;
-    paginaGiaAperta.current = true;
-    openEdit(riga);
+    // La pagina arriva da una lettura asincrona: aprila dopo questo commit,
+    // annullando l'apertura se nel frattempo cambiano i dati o la navigazione.
+    let attiva = true;
+    queueMicrotask(() => {
+      if (!attiva || paginaGiaAperta.current) return;
+      paginaGiaAperta.current = true;
+      openEdit(riga);
+    });
+    return () => { attiva = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paginaDaAprire, entries]);
 
@@ -1040,9 +1054,9 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
             {/* Ordine (se non già selezionato) */}
             {!selectedOrderId && (
               <div className="space-y-2">
-                <Label>Cantiere / Ordine *</Label>
+                <Label htmlFor={`${formId}-commessa`}>Cantiere / Ordine *</Label>
                 <Select value={selectedOrderId || undefined} onValueChange={setSelectedOrderId}>
-                  <SelectTrigger><SelectValue placeholder="Seleziona ordine" /></SelectTrigger>
+                  <SelectTrigger id={`${formId}-commessa`}><SelectValue placeholder="Seleziona ordine" /></SelectTrigger>
                   <SelectContent>
                     {orders.map((o: any) => (
                       <SelectItem key={o.id} value={o.id}>
@@ -1056,8 +1070,8 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
 
             {/* Data */}
             <div className="space-y-2">
-              <Label>Data lavori</Label>
-              <Input
+              <Label htmlFor={`${formId}-data`}>Data lavori</Label>
+              <Input id={`${formId}-data`}
                 type="date"
                 value={formData.data_lavori}
                 onChange={(e) => setFormData((p) => ({ ...p, data_lavori: e.target.value }))}
@@ -1074,6 +1088,7 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
                     <button
                       key={m.value}
                       type="button"
+                      aria-pressed={formData.condizioni_meteo === m.value}
                       onClick={() => setFormData((p) => ({ ...p, condizioni_meteo: m.value }))}
                       className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm transition-colors ${
                         formData.condizioni_meteo === m.value
@@ -1091,8 +1106,8 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
 
             {/* Temperatura */}
             <div className="space-y-2">
-              <Label>Temperatura (opzionale)</Label>
-              <Input
+              <Label htmlFor={`${formId}-temperatura`}>Temperatura (opzionale)</Label>
+              <Input id={`${formId}-temperatura`}
                 placeholder="es. 18°C"
                 value={formData.temperatura}
                 onChange={(e) => setFormData((p) => ({ ...p, temperatura: e.target.value }))}
@@ -1101,8 +1116,8 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
 
             {/* Lavorazioni */}
             <div className="space-y-2">
-              <Label>Lavorazioni eseguite oggi *</Label>
-              <Textarea
+              <Label htmlFor={`${formId}-lavorazioni`}>Lavorazioni eseguite oggi *</Label>
+              <Textarea id={`${formId}-lavorazioni`}
                 placeholder="Descrivi le attività svolte nella giornata..."
                 value={formData.lavorazioni_eseguite}
                 onChange={(e) => setFormData((p) => ({ ...p, lavorazioni_eseguite: e.target.value }))}
@@ -1115,8 +1130,8 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
 
             {/* Materiali */}
             <div className="space-y-2">
-              <Label>Materiali utilizzati</Label>
-              <Textarea
+              <Label htmlFor={`${formId}-materiali`}>Materiali utilizzati</Label>
+              <Textarea id={`${formId}-materiali`}
                 placeholder="Cemento, ferro, laterizi..."
                 value={formData.materiali_utilizzati}
                 onChange={(e) => setFormData((p) => ({ ...p, materiali_utilizzati: e.target.value }))}
@@ -1127,8 +1142,8 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
 
             {/* Personale */}
             <div className="space-y-2">
-              <Label>N. operai presenti</Label>
-              <Input
+              <Label htmlFor={`${formId}-personale`}>N. operai presenti</Label>
+              <Input id={`${formId}-personale`}
                 type="number"
                 inputMode="numeric"
                 min="0"
@@ -1146,6 +1161,8 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
                 <span className="text-sm font-semibold text-primary">{formData.avanzamento_percentuale}%</span>
               </div>
               <Slider
+                aria-label="Avanzamento lavori"
+                aria-valuetext={`${formData.avanzamento_percentuale}%`}
                 min={0}
                 max={100}
                 step={5}
@@ -1158,8 +1175,8 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
 
             {/* Note */}
             <div className="space-y-2">
-              <Label>Note aggiuntive</Label>
-              <Textarea
+              <Label htmlFor={`${formId}-note`}>Note aggiuntive</Label>
+              <Textarea id={`${formId}-note`}
                 placeholder="Problemi, osservazioni, comunicazioni..."
                 value={formData.note}
                 onChange={(e) => setFormData((p) => ({ ...p, note: e.target.value }))}
@@ -1298,6 +1315,7 @@ export function GiornaleLavoriContenuto({ orderIdFisso }: { orderIdFisso?: strin
               </div>
               <div className="space-y-2">
                 <Input
+                  aria-label="Nome e cognome del firmatario"
                   placeholder="Nome e cognome firmatario"
                   value={formData.firmato_da}
                   onChange={(e) => setFormData((p) => ({ ...p, firmato_da: e.target.value }))}

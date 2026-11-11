@@ -226,7 +226,7 @@ export function RenderSessionDetailPage({ moduleId }: { moduleId: string }) {
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           <Button asChild variant="outline" size="icon" className="shrink-0">
-            <Link to={back} aria-label="Torna alla galleria con i filtri">
+            <Link to={back} aria-label={`Torna alla galleria ${spec.moduleName.toLowerCase()} con i filtri`}>
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>

@@ -43,6 +43,8 @@ export default function WarehouseKanbanColumn({
 
   return (
     <div
+      role="region"
+      aria-label={`Articoli ${config.label}`}
       className={cn(
         "flex h-[calc(100vh-330px)] min-h-[520px] flex-col overflow-hidden rounded-lg border bg-background shadow-sm transition-shadow",
         isOver && "ring-2 ring-primary shadow-md",

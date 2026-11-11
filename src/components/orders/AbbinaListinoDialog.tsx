@@ -9,7 +9,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, Plus, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +28,7 @@ const db = supabase as any;
 
 export interface VoceCommessaDaAbbinare extends VoceDaAbbinare { phase_id: string; quantita: number; importo: number | null }
 
-const MOTIVO: Record<MotivoProposta, string> = { codice: "stesso codice", ricordato: "come l'ultima volta", descrizione: "stessa descrizione" };
+const MOTIVO: Record<MotivoProposta, string> = { codice: "stesso codice", ricordato: "come l'ultima volta", descrizione: "stessa descrizione", simile: "nome simile: controlla" };
 
 export function AbbinaListinoDialog({ orderId, companyId, codiceCommessa, voci, fasi, listino, onChiudi, onFatto }: {
   orderId: string; companyId: string; codiceCommessa?: string | null;
@@ -60,7 +60,37 @@ export function AbbinaListinoDialog({ orderId, companyId, codiceCommessa, voci, 
   const [cerca, setCerca] = useState("");
   const [nuove, setNuove] = useState<Record<string, string>>({});
 
-  const sceltaDi = (id: string) => scelte[id] ?? nuove[id] ?? proposte.find((p) => p.voceId === id)?.tariffaId ?? "";
+  // Proposte per significato (11/11/2026): solo per le voci che a nome non trovano niente; mai spuntate da sole.
+  const [ai, setAi] = useState<Record<string, { tariffaId: string; certezza: "alta" | "media"; perche: string }>>({});
+  const [aiFatte, setAiFatte] = useState<Set<string>>(new Set());
+  const senzaProposta = daFare.filter((v) => !proposte.find((p) => p.voceId === v.id)?.tariffaId && !scelte[v.id] && !nuove[v.id] && !aiFatte.has(v.id));
+  const proponiAi = useMutation({
+    mutationFn: async () => {
+      const da = senzaProposta.map((v) => v.id);
+      let trovate = 0;
+      for (let i = 0; i < da.length; i += 40) {
+        const pezzo = da.slice(i, i + 40);
+        const { data, error } = await supabase.functions.invoke("listino-abbina-ai", { body: { order_id: orderId, voce_ids: pezzo } });
+        if (error) {
+          let msg = "La proposta con l'AI non è riuscita. Riprova tra poco.";
+          try { const c = await (error as { context?: Response }).context?.json?.(); if (typeof c?.error === "string") msg = c.error; } catch { /* messaggio generico */ }
+          throw new Error(msg);
+        }
+        const elenco = (data?.proposte ?? []) as Array<{ voce_id: string; tariffa_id: string; certezza: "alta" | "media"; perche: string }>;
+        const valide = elenco.filter((x) => perId.has(x.tariffa_id));
+        trovate += valide.length;
+        setAi((a) => ({ ...a, ...Object.fromEntries(valide.map((x) => [x.voce_id, { tariffaId: x.tariffa_id, certezza: x.certezza, perche: x.perche }])) }));
+        setAiFatte((f) => new Set([...f, ...pezzo]));
+      }
+      return { trovate, cercate: da.length };
+    },
+    onSuccess: ({ trovate, cercate }) => toast.success(trovate
+      ? `L'AI propone ${trovate} ${trovate === 1 ? "voce" : "voci"} su ${cercate}: controllale e spunta quelle giuste.`
+      : `L'AI non ha trovato voci del listino per queste ${cercate} voci: scegli a mano o aggiungile al listino.`),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const sceltaDi = (id: string) => scelte[id] ?? nuove[id] ?? proposte.find((p) => p.voceId === id)?.tariffaId ?? ai[id]?.tariffaId ?? "";
   const spuntata = (id: string) => spunte[id] ?? !!proposte.find((p) => p.voceId === id)?.sicura;
   const daApplicare = daFare.filter((v) => spuntata(v.id) && sceltaDi(v.id));
 
@@ -115,7 +145,7 @@ export function AbbinaListinoDialog({ orderId, companyId, codiceCommessa, voci, 
           <DialogTitle>Collega le voci al listino</DialogTitle>
           <DialogDescription>
             {daFare.length} voci della commessa non hanno la voce del listino: senza, il prezzo della ditta non le trova.
-            {" "}{riepilogo.sicure} si collegano da sole, {riepilogo.daGuardare} sono da guardare (unità diverse), {riepilogo.daScegliere} da scegliere a mano.
+            {" "}{riepilogo.sicure} si collegano da sole, {riepilogo.daGuardare} sono da guardare (unità diverse o nome simile), {riepilogo.daScegliere} da scegliere a mano.
             L'abbinamento si ricorda: la prossima commessa con la stessa voce lo propone.
           </DialogDescription>
         </DialogHeader>
@@ -144,6 +174,11 @@ export function AbbinaListinoDialog({ orderId, companyId, codiceCommessa, voci, 
                         <span>→ {t?.nome ?? nomeNuova(scelta) ?? "voce nuova del listino"}</span>
                         {t && <span className="text-muted-foreground">({t.unita === "a_corpo" ? "a corpo" : t.unita})</span>}
                         {p?.motivo && p.tariffaId === scelta && <Badge variant="outline" className="h-4 px-1.5 text-[10px] font-normal">{MOTIVO[p.motivo]}</Badge>}
+                        {!p?.tariffaId && ai[v.id]?.tariffaId === scelta && (
+                          <Badge variant="outline" className="h-4 border-violet-300 bg-violet-50 px-1.5 text-[10px] font-normal text-violet-900" title={ai[v.id].perche || undefined}>
+                            proposta AI{ai[v.id].certezza === "media" ? ", da verificare" : ""}: controlla
+                          </Badge>
+                        )}
                         {diverse && <Badge variant="outline" className="h-4 border-amber-300 bg-amber-50 px-1.5 text-[10px] font-normal text-amber-900">unità diverse</Badge>}
                       </p>
                     ) : <p className="text-xs text-amber-800">Da scegliere</p>}
@@ -181,6 +216,13 @@ export function AbbinaListinoDialog({ orderId, companyId, codiceCommessa, voci, 
 
         <DialogFooter className="items-center gap-2">
           <span className="mr-auto text-sm text-muted-foreground">{daApplicare.length} da collegare</span>
+          {senzaProposta.length > 0 && (
+            <Button variant="outline" disabled={proponiAi.isPending || applica.isPending} onClick={() => proponiAi.mutate()}
+              title="Per le voci senza proposta, l'AI cerca nel listino la stessa lavorazione. Le proposte non si collegano da sole.">
+              {proponiAi.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}
+              Proponi con l'AI ({senzaProposta.length})
+            </Button>
+          )}
           <Button variant="ghost" disabled={applica.isPending} onClick={onChiudi}>Chiudi</Button>
           <Button disabled={applica.isPending || daApplicare.length === 0} onClick={() => applica.mutate()}>
             {applica.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Collega {daApplicare.length || ""}

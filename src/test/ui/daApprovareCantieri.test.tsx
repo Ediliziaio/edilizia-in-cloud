@@ -59,14 +59,14 @@ describe("Attività: dal cantiere, da approvare", () => {
   it("raggruppa per commessa (niente doppioni) e apre il popup per approvare tutto", async () => {
     state.permessi = { canViewOrders: true, canEditOrders: true, isLoading: false };
     mostra();
-    const apri = await screen.findByRole("button", { name: "Apri e approva" });
+    const apri = await screen.findByRole("button", { name: /^Apri e approva:/ });
     expect(screen.getByText("Dal cantiere, da approvare")).toBeInTheDocument();
     // Una sola riga per la commessa o1 (1 rapportino + 1 bolla): nome cliente + indirizzo, codice come riferimento.
     await waitFor(() => expect(document.body.textContent).toMatch(/Mario Rossi · Via Roma 1 · 2 da approvare/));
     expect(document.body.textContent).toMatch(/1 rapportino · 1 bolla/);
     expect(document.body.textContent).toContain("ORD-1");
     // Niente righe doppie: un solo pulsante per la commessa.
-    expect(screen.getAllByRole("button", { name: "Apri e approva" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: /^Apri e approva:/ })).toHaveLength(1);
     // Il popup mostra tutto il da approvare della commessa.
     fireEvent.click(apri);
     expect(await screen.findByText("Approvazione rapportini di o1")).toBeInTheDocument();
@@ -87,12 +87,28 @@ describe("Attività: dal cantiere, da approvare", () => {
       { id: "o2", client_name: "Cliente Nuovo", description: "", order_code: "ORD-2", indirizzo_lavori: "Via B" },
     ];
     mostra();
-    await screen.findAllByRole("button", { name: "Apri e approva" });
+    await screen.findAllByRole("button", { name: /^Apri e approva:/ });
     await waitFor(() => expect(document.body.textContent).toContain("in ritardo"));
     // Due commesse distinte, la più vecchia in cima, un pulsante ciascuna.
     const testo = document.body.textContent ?? "";
     expect(testo.indexOf("Cliente Vecchio")).toBeLessThan(testo.indexOf("Cliente Nuovo"));
-    expect(screen.getAllByRole("button", { name: "Apri e approva" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: /^Apri e approva:/ })).toHaveLength(2);
+  });
+
+  it("l'anteprima mobile si espande senza eliminare voci o cambiare il totale", async () => {
+    state.role = "company_admin";
+    state.dati.rapportini = Array.from({ length: 4 }, (_, i) => ({ id: `r${i}`, order_id: `o${i}`, codice: `ORD-${i}`, giorno: "2026-10-18", autore: "Operaio demo", collaudo: false, ore: 8 }));
+    state.dati.bolle = [];
+    mostra();
+    const espandi = await screen.findByRole("button", { name: "Mostra tutte le 4 voci" });
+    expect(espandi).toHaveAttribute("aria-expanded", "false");
+    const lista = document.getElementById(espandi.getAttribute("aria-controls")!)!;
+    expect(lista.children).toHaveLength(4);
+    fireEvent.click(espandi);
+    expect(screen.getByRole("button", { name: "Mostra meno" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getAllByRole("button", { name: /^Apri e approva:/ })).toHaveLength(4);
+    fireEvent.click(screen.getByRole("button", { name: "Mostra meno" }));
+    expect(screen.getByRole("button", { name: "Mostra tutte le 4 voci" })).toHaveAttribute("aria-expanded", "false");
   });
 
   it("niente in attesa: il riquadro non occupa posto", async () => {

@@ -529,7 +529,8 @@ export function useAutomationBuilder(flowId: string | undefined) {
   // per distinguere "il flusso è davvero vuoto" da "i nodi stanno ancora arrivando":
   // senza questo, una race mostrava il placeholder vuoto su flussi che HANNO nodi.
   const remoteEmpty =
-    !isLoading && (dbNodes?.length ?? 0) === 0 && (dbConnections?.length ?? 0) === 0;
+    !!companyId && !!flowId && !isLoading && dbNodes !== undefined && dbConnections !== undefined
+    && dbNodes.length === 0 && dbConnections.length === 0;
 
   return {
     flow, nodes, connections, isLoading, remoteEmpty, isSaving, hasUnsavedChanges, canPersist,

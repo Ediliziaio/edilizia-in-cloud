@@ -142,7 +142,7 @@ export default function CompanyCustomerDetail() {
   const moduloAppaltatori = isFeatureEnabled(APPALTATORE_MODULE_FLAG);
 
   // ── Core customer data ──────────────────────────────────────────────────────
-  const { data: customer, isLoading, refetch: refetchCustomer } = useQuery({
+  const { data: customer, isLoading, isError: customerError, refetch: refetchCustomer } = useQuery({
     queryKey: ["company-customer-detail", id, effectiveCompany?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) throw new Error("Azienda non trovata");
@@ -165,7 +165,7 @@ export default function CompanyCustomerDetail() {
   // preventivi, ticket, interventi, appuntamenti, rate, da incassare): ognuna
   // ripreparava le regole di accesso, oltre 200 ms a tabella. La funzione
   // scheda_cliente le legge con i permessi di chi guarda e prepara una volta.
-  const { data: scheda, error: schedaError } = useQuery({
+  const { data: scheda, error: schedaError, isLoading: schedaLoading, refetch: refetchScheda } = useQuery({
     queryKey: ["scheda-cliente", id, effectiveCompany?.id],
     enabled: !!id && !!effectiveCompany?.id && !!customer,
     queryFn: async () => {
@@ -301,6 +301,21 @@ export default function CompanyCustomerDetail() {
     );
   }
 
+  if (customerError) {
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>Impossibile caricare il cliente</AlertTitle>
+        <AlertDescription className="space-y-3">
+          <p>La lettura non è riuscita. Riprova oppure torna all’elenco clienti.</p>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" aria-label="Riprova caricamento cliente" onClick={() => void refetchCustomer()}>Riprova</Button>
+            <Button variant="outline" onClick={() => navigate("/azienda/clienti")}>Torna ai clienti</Button>
+          </div>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
   if (!customer) {
     // 2026-05-26 (audit fix P1): dead-end mobile risolto. Prima il back arrow
     // era `hidden md:inline-flex` → mobile senza modo di tornare alla lista
@@ -415,7 +430,7 @@ export default function CompanyCustomerDetail() {
                   <Ticket className="h-3.5 w-3.5 mr-2" /> Nuovo ticket
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <VoceEliminaCliente id={customer.id} commesse={orderCount} />
+                <VoceEliminaCliente id={customer.id} commesse={orderCount} disabled={!scheda || Boolean(schedaError)} />
               </DropdownMenuContent>
             </DropdownMenu>
             </>
@@ -475,6 +490,17 @@ export default function CompanyCustomerDetail() {
           onAppuntamento={() => setAppointmentDialogOpen(true)}
         />
 
+        {(schedaError || (!scheda && !schedaLoading)) && (
+          <Alert variant="destructive" className="mt-3">
+            <AlertTitle>Impossibile caricare il riepilogo cliente</AlertTitle>
+            <AlertDescription className="space-y-2">
+              <p>{scheda ? "I numeri già caricati restano visibili, ma potrebbero non essere aggiornati." : "I numeri del cliente non sono disponibili. Riprova il caricamento."}</p>
+              <Button variant="outline" size="sm" aria-label="Riprova riepilogo cliente" onClick={() => void refetchScheda()}>Riprova</Button>
+            </AlertDescription>
+          </Alert>
+        )}
+        {!scheda && schedaLoading && <p role="status" className="mt-3 text-sm text-muted-foreground">Caricamento riepilogo cliente…</p>}
+        {scheda && <>
         {/* KPI strip — desktop grid 4 col, mobile scroll-x compatto stile marketing */}
         {/* MOBILE: 4 chips inline, scroll-x se serve, no subtext (compatto) */}
         <div className="mt-3 md:hidden grid grid-cols-4 gap-1.5">
@@ -527,6 +553,7 @@ export default function CompanyCustomerDetail() {
           onEmail={apriSollecito}
           onApri={apri}
         />
+        </>}
       </div>
 
       {/* ───── Banner data hygiene ───── */}

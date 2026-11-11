@@ -41,6 +41,7 @@ import { cn } from "@/lib/utils";
 
 interface TabPianoIndustrialeProps {
   scenarioId: string | null;
+  onClearScenarioFilter: () => void;
 }
 
 function isNoScenarioError(err: unknown): boolean {
@@ -80,7 +81,7 @@ function ratingTone(classe?: string): { bg: string; text: string } {
   }
 }
 
-export function TabPianoIndustriale({ scenarioId }: TabPianoIndustrialeProps) {
+export function TabPianoIndustriale({ scenarioId, onClearScenarioFilter }: TabPianoIndustrialeProps) {
   const scenariQuery = useScenari();
   const [whatIf, setWhatIf] = useState<PianoResult | null>(null);
   const [scenarioAttivo, setScenarioAttivo] = useState<PianoScenario>("base");
@@ -91,17 +92,26 @@ export function TabPianoIndustriale({ scenarioId }: TabPianoIndustrialeProps) {
   const annoCorrente = new Date().getFullYear();
   const qc = useQueryClient();
 
-  // Risoluzione scenario → riga di assunzioni da passare alla RPC.
-  // Il toggle Prudente/Base/Aggressivo è la sorgente primaria (per nome);
-  // il selettore Scenario della FilterBar viene onorato quando punta a uno
-  // scenario CUSTOM (nome fuori dai 3 base), che il toggle non può mostrare.
+  // Menu e toggle devono riferirsi alla stessa riga di assunzioni.
+  // Una scelta esplicita nel menu vale anche per gli scenari standard.
   const scenari = scenariQuery.data ?? [];
   const rowFromFilter = scenarioId ? scenari.find((s) => s.id === scenarioId) ?? null : null;
   const isCustomFilter =
     !!rowFromFilter && !(SCENARI_BASE as string[]).includes(rowFromFilter.scenario);
   const assumptionFromToggle =
     scenari.find((s) => s.scenario === scenarioAttivo)?.id ?? null;
-  const activeAssumptionId = isCustomFilter ? scenarioId : assumptionFromToggle;
+  const scenarioSelezionato = rowFromFilter && (SCENARI_BASE as string[]).includes(rowFromFilter.scenario)
+    ? rowFromFilter.scenario as PianoScenario
+    : scenarioAttivo;
+  const activeAssumptionId = rowFromFilter?.id ?? assumptionFromToggle;
+
+  // Anche un cambio dal menu esterno invalida la simulazione locale.
+  // Riallineamento condizionale prima del commit, senza un frame con dati vecchi.
+  const [previousScenarioId, setPreviousScenarioId] = useState(scenarioId);
+  if (previousScenarioId !== scenarioId) {
+    setPreviousScenarioId(scenarioId);
+    setWhatIf(null);
+  }
 
   const baseQuery = usePianoIndustriale(activeAssumptionId, annoPartenza);
 
@@ -109,6 +119,7 @@ export function TabPianoIndustriale({ scenarioId }: TabPianoIndustrialeProps) {
   // appartengono allo scenario su cui sono state costruite.
   const handleChangeScenario = (s: PianoScenario) => {
     setScenarioAttivo(s);
+    onClearScenarioFilter();
     setWhatIf(null);
   };
   const handleChangeAnno = (a: number | null) => {
@@ -203,7 +214,7 @@ export function TabPianoIndustriale({ scenarioId }: TabPianoIndustrialeProps) {
     <div className="space-y-4">
       <PianoHeader
         piano={piano}
-        scenarioAttivo={scenarioAttivo}
+        scenarioAttivo={scenarioSelezionato}
         scenarioCustomNome={isCustomFilter ? rowFromFilter?.scenario ?? null : null}
         scenariDisponibili={scenariDisponibili}
         onChangeScenario={handleChangeScenario}
@@ -234,6 +245,7 @@ export function TabPianoIndustriale({ scenarioId }: TabPianoIndustrialeProps) {
               <AccordionContent>
                 <div className="pt-2">
                   <AssumptionEditor
+                    key={`${activeAssumptionId ?? "default"}:${annoPartenza ?? "scenario"}`}
                     scenarioId={activeAssumptionId}
                     onResult={setWhatIf}
                     onReset={() => setWhatIf(null)}
@@ -311,7 +323,7 @@ function PianoHeader({
           <div className="flex flex-col gap-2">
             <ToggleGroup
               type="single"
-              value={scenarioAttivo}
+              value={scenarioCustomNome ? "" : scenarioAttivo}
               onValueChange={(v) => v && onChangeScenario(v as PianoScenario)}
               className="justify-start"
               aria-label="Scenario"

@@ -741,7 +741,7 @@ export default function Warehouse() {
                 onValueChange={(value) => setWarehouseFilter(value === "__all__" ? null : value)}
                 disabled={warehousesLoading}
               >
-                <SelectTrigger className="h-9 w-full sm:w-[300px] xl:w-[320px]">
+                <SelectTrigger aria-label="Filtra per magazzino" className="h-9 w-full sm:w-[300px] xl:w-[320px]">
                   <SelectValue placeholder="Scegli magazzino" />
                 </SelectTrigger>
                 <SelectContent>

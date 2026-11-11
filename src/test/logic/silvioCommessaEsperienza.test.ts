@@ -17,7 +17,7 @@ import { adempimentiPrimaDiPartire } from "../../../shared/silvio-commessa/parte
 import type { FaseDelPiano, Frammento, PianoCommessa, RataDelPiano } from "../../../shared/silvio-commessa/piano.ts";
 import { completezzaPiano } from "../../../shared/silvio-commessa/completezza.ts";
 import { scritturaDalPiano } from "@/lib/silvio-commessa/scrittura";
-import { scartaAltreBozzeCrea, type ClientBozze } from "@/lib/silvio-commessa/bozze";
+import { scartaBozza, type ClientBozze } from "@/lib/silvio-commessa/bozze";
 import { frammentoDaComputo } from "@/lib/silvio-commessa/lettori/computo";
 import { bozzaComputoSchema, type BozzaComputo } from "@/lib/computo/editorNativo";
 import {
@@ -192,7 +192,7 @@ describe("8. Durate irrealistiche", () => {
   });
 });
 
-describe("4. Una sola bozza «crea» aperta", () => {
+describe("4. Le bozze si eliminano solo una alla volta, esplicitamente", () => {
   const riga = (id: string, extra: Record<string, unknown> = {}) => ({ id, company_id: AZ, created_by: "u1", modo: "crea", stato: "bozza", ...extra });
   const seme = () => new DbFinto({ commessa_bozze: [
     riga("nuova"), riga("vecchia"),
@@ -203,16 +203,16 @@ describe("4. Una sola bozza «crea» aperta", () => {
   ] });
   const restano = (db: DbFinto) => db.righe("commessa_bozze").map((r) => r.id).sort();
 
-  it("parte una nuova: si scarta la vecchia di quell'utente, e nient'altro", async () => {
+  it("elimina soltanto la bozza scelta e conserva tutte le altre", async () => {
     const db = seme();
-    expect(await scartaAltreBozzeCrea({ companyId: AZ, userId: "u1", tieni: "nuova" }, db.client as unknown as ClientBozze)).toBe(1);
+    await scartaBozza("vecchia", db.client as unknown as ClientBozze);
     expect(restano(db)).toEqual(["altra", "collega", "completa", "creata", "nuova"]);
   });
 
-  it("«Ricomincia»: via tutte le sue, ma mai una bozza già «creata»", async () => {
+  it("non elimina una bozza che ha già creato una commessa", async () => {
     const db = seme();
-    expect(await scartaAltreBozzeCrea({ companyId: AZ, userId: "u1" }, db.client as unknown as ClientBozze)).toBe(2);
-    expect(restano(db)).toEqual(["altra", "collega", "completa", "creata"]);
+    await scartaBozza("creata", db.client as unknown as ClientBozze);
+    expect(restano(db)).toEqual(["altra", "collega", "completa", "creata", "nuova", "vecchia"]);
   });
 });
 

@@ -22,6 +22,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { chiaveVociPreviste, useVociPrevisteFasi } from "@/hooks/useVociPrevisteFasi";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/formatters";
@@ -41,7 +42,9 @@ import { clausoleArchivioDelContratto, testoComprende, totaleElencoLavori, unisc
 import { OfficeSelect } from "./OfficeSelect";
 import { AbbinaListinoDialog } from "./AbbinaListinoDialog";
 import { AffidaVociDialog, useAffidamentiCommessa } from "./AffidaVociDialog";
-import { chiaveAffidamenti } from "@/lib/subappaltatori/affidamentiCommessa";
+import { AffidaContrattoDialog } from "./AffidaContrattoDialog";
+import { VarianteVociDialog } from "./VarianteVociDialog";
+import { chiaveAffidamenti, type AffidamentoChiFaCosa } from "@/lib/subappaltatori/affidamentiCommessa";
 
 // Tabelle recenti, non ancora tutte nei tipi generati.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -150,6 +153,7 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
   const [vociAperte, setVociAperte] = useState<string | null>(null);
   const [abbinaAperto, setAbbinaAperto] = useState(false);
   const [affidaAperto, setAffidaAperto] = useState(false);
+  const [affidaContratto, setAffidaContratto] = useState(false);
   const invalida = () => {
     void qc.invalidateQueries({ queryKey: ["ditte-contratti-commessa", companyId, orderId] });
     void qc.invalidateQueries({ queryKey: chiaveVociPreviste(companyId, orderId) });
@@ -224,9 +228,14 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
     <div className="space-y-5">
       {listaVoci.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border px-3 py-2 text-sm">
-          <span className="min-w-0 flex-1">Chi fa cosa: affida fasi o singole voci alle ditte, anche dividendo la quantità, col prezzo del loro listino.</span>
-          <Button size="sm" onClick={() => setAffidaAperto(true)}>Affida le voci alle ditte</Button>
+          <span className="min-w-0 flex-1">Scegli le voci e la ditta, scrivi quantità e prezzi, e manda il contratto: tutto in un passaggio.</span>
+          <Button size="sm" variant="outline" onClick={() => setAffidaAperto(true)} title="Quote divise fra più ditte, prezzi delle quote già affidate">Chi fa cosa</Button>
+          <Button size="sm" onClick={() => setAffidaContratto(true)}>Affida e manda il contratto</Button>
         </div>
+      )}
+      {affidaContratto && (
+        <AffidaContrattoDialog orderId={orderId} companyId={companyId} fasi={d.fasi} voci={listaVoci} contratti={d.contratti} schede={d.schede}
+          onChiudi={() => setAffidaContratto(false)} onFatto={invalida} />
       )}
       {affidaAperto && (
         <AffidaVociDialog orderId={orderId} companyId={companyId} fasi={d.fasi}
@@ -351,6 +360,8 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
                 fasi={d.fasi}
                 assegnazioni={d.assegnazioni.filter((a) => a.external_team_id === x.id && a.phase_id)}
                 daAffidamenti={dalleQuote.length > 0}
+                quote={(affidamenti.data ?? []).filter((a) => a.subappaltatore_id === ditta.subappaltatore_id && (a.stato === "bozza" || (!!contratto && a.contratto_id === contratto.id)))}
+                vociCommessa={listaVoci}
                 elenco={dalleQuote.length ? dalleQuote : elencoLavoriDitta(d.fasi, listaVoci, x.fasi, x.id, d.varianti, {
                   sottofasi: d.sottofasi,
                   // Il previsto delle assegnazioni è con l'IVA della ditta: nel contratto va senza.
@@ -459,7 +470,9 @@ function VociFase({ orderId, companyId, fase, voci, tariffe, caricoTariffe, onCa
 }
 
 /** Il contratto di una ditta: crearlo in bozza con l'elenco dei lavori, aggiornarlo, scaricare il PDF. */
-function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, contratto, schede, tariffe, varianti, onCambio, fasi = [], assegnazioni = [], daAffidamenti = false }: {
+function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, contratto, schede, tariffe, varianti, onCambio, fasi = [], assegnazioni = [], daAffidamenti = false, quote = [], vociCommessa = [] }: {
+  /** Le quote della ditta (nel contratto e in bozza) e le voci della commessa: per la variante sulle voci (lotto 8). */
+  quote?: AffidamentoChiFaCosa[]; vociCommessa?: Array<{ id: string; descrizione: string; unita: string | null; quantita: number }>;
   orderId: string; companyId: string; ditta: Ditta; elenco: RigaElencoLavori[];
   /** L'elenco viene dalle voci affidate alla ditta (lotto 5), non da tutte le voci delle sue fasi. */
   daAffidamenti?: boolean;
@@ -477,7 +490,8 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
     .reduce((t, a) => t + (Number(a.cost_preventivo) || 0) / (1 + (Number(a.vat_rate) || 0) / 100), 0);
   const fasiSenzaDitta = pattuito ? [...pattuito.perFase.keys()].filter((id) => !assegnazioni.some((a) => a.phase_id === id)) : [];
   const totalePattuito = pattuito ? [...pattuito.perFase.values()].reduce((t, v) => t + v, 0) : 0;
-  const daAllineare = !!pattuito && pattuito.perFase.size > 0 && Math.abs(totalePattuito - previstoOra) >= 1;
+  // Con le voci affidate il previsto segue gli affidamenti (anche dopo una variante): niente «porta al contratto».
+  const daAllineare = !daAffidamenti && !!pattuito && pattuito.perFase.size > 0 && Math.abs(totalePattuito - previstoOra) >= 1;
   const qcRiga = useQueryClient();
   const assegnaFasi = useAssegnaAlleFasi(orderId);
   const allinea = useMutation({
@@ -505,6 +519,8 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
   const elencoSalvato = contratto && Array.isArray(contratto.elenco_lavori) ? (contratto.elenco_lavori as RigaElencoLavori[]) : [];
   // L'elenco si rivede prima di salvarlo (Dimora, 31/10/2026): null = finestra chiusa.
   const [bozzaElenco, setBozzaElenco] = useState<RigaElencoLavori[] | null>(null);
+  const [varianteAperta, setVarianteAperta] = useState(false);
+  const conQuoteNelContratto = !!contratto?.firmato_il && quote.some((a) => a.contratto_id === contratto.id);
   const apriElenco = () => setBozzaElenco((elencoSalvato.length ? elencoSalvato : elenco).map(conChiave));
   /** La scheda sicurezza per un contratto nuovo: se la ditta non ce l'ha, la si crea dalla scheda del campo. */
   // La scheda creata qui per un contratto nuovo: se poi il contratto non si salva va tolta, altrimenti
@@ -660,13 +676,13 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
           {daAffidamenti ? "Voci affidate" : nomiFasi.join(", ")} · {elenco.length} {elenco.length === 1 ? "lavoro" : "lavori"} · {formatCurrency(totale)}
         </p>
         {contratto && (
-          <p className="mt-0.5 text-xs">
+          <div className="mt-0.5 text-xs">
             <Badge variant="outline" className="mr-1 text-[11px]">{contratto.firmato_il ? "Firmato" : contratto.stato === "bozza" ? "Bozza" : contratto.stato}</Badge>
             {formatCurrency(Number(contratto.importo_contrattuale) || 0)}
             {diverso && <span className="ml-1 text-amber-800">· i lavori ora valgono {formatCurrency(totale)}</span>}
-          </p>
+          </div>
         )}
-        {contratto?.firmato_il && <p className="mt-0.5 text-xs text-muted-foreground">Contratto firmato: lavori e prezzi non si modificano più. Per cambiare l'importo usa «Variante» da «Condizioni e firma».</p>}
+        {contratto?.firmato_il && <p className="mt-0.5 text-xs text-muted-foreground">Contratto firmato: lavori e prezzi non si modificano più. {conQuoteNelContratto ? "Per cambiare quantità o voci usa «Variante sulle voci»." : "Per cambiare l'importo usa «Variante» da «Condizioni e firma»."}</p>}
         {!ditta.subappaltatore_id && <p className="mt-0.5 text-xs text-amber-800">Collega la ditta a un subappaltatore per fare il contratto.</p>}
         {daAllineare && (
           <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-amber-800">
@@ -691,6 +707,9 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
             {!contratto ? "Crea contratto…" : "Lavori e prezzi…"}
           </Button>
         )}
+        {conQuoteNelContratto && (
+          <Button size="sm" variant="outline" onClick={() => setVarianteAperta(true)}>Variante sulle voci</Button>
+        )}
         {contratto && (
           <Button size="sm" variant="outline" disabled={scarica.isPending} onClick={() => scarica.mutate()}>
             {scarica.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileText className="mr-1 h-4 w-4" />}PDF
@@ -709,6 +728,10 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
           </Button>
         )}
       </div>
+      {varianteAperta && contratto && (
+        <VarianteVociDialog companyId={companyId} contrattoId={contratto.id} nomeDitta={ditta.name} importo={Number(contratto.importo_contrattuale) || 0}
+          quote={quote} voci={vociCommessa} elencoContratto={contratto.elenco_lavori} onChiudi={() => setVarianteAperta(false)} onFatto={() => { setVarianteAperta(false); onCambio(); }} />
+      )}
       {bozzaElenco && (
         <ElencoLavoriDialog
           titolo={`${contratto ? "Lavori e prezzi del contratto" : "Nuovo contratto"} · ${ditta.name}`}
@@ -790,59 +813,70 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
   const fasiScelta = [...new Set([...fasi, ...righe.map((r) => r.fase), "Altri lavori"])];
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onChiudi(); }}>
-      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-4xl">
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-6xl">
         <DialogHeader>
           <DialogTitle>{titolo}</DialogTitle>
           <DialogDescription>
-            Lavori, quantità e prezzi che la ditta accetta (Allegato A del contratto), senza IVA. Le voci della commessa non cambiano.
+            Lavori, quantità e prezzi che la ditta accetta: aprono il contratto, senza IVA. Le voci della commessa non cambiano.
           </DialogDescription>
         </DialogHeader>
         {affidateSenzaPrezzo > 0 && <p role="alert" className="rounded-md bg-red-50 px-2 py-1 text-xs text-red-900">{affidateSenzaPrezzo === 1 ? "Una voce affidata è" : `${affidateSenzaPrezzo} voci affidate sono`} senza prezzo: la ditta non ce l'ha a listino. Scrivi il prezzo concordato, o togli la riga, per salvare il contratto.</p>}
         {senzaPrezzo > 0 && <p role="status" className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900">{senzaPrezzo === 1 ? "Una riga è" : `${senzaPrezzo} righe sono`} senza prezzo: nel contratto varrebbero 0 €. Scrivi il prezzo qui sotto.</p>}
         <div className="overflow-x-auto rounded-lg border">
-          <table className="w-full min-w-[640px] text-sm">
+          <table className="w-full min-w-[820px] text-sm">
             <thead className="bg-muted/50 text-xs text-muted-foreground">
               <tr>
-                <th className="px-2 py-1.5 text-left font-medium">Lavorazione e descrizione</th>
-                <th className="w-16 px-1 py-1.5 text-left font-medium">U.M.</th>
+                <th className="w-40 px-2 py-1.5 text-left font-medium">Lavorazione</th>
+                <th className="px-1 py-1.5 text-left font-medium">Descrizione</th>
+                <th className="w-14 px-1 py-1.5 text-left font-medium">U.M.</th>
                 <th className="w-24 px-1 py-1.5 text-right font-medium">Quantità</th>
                 <th className="w-28 px-1 py-1.5 text-right font-medium">Prezzo €</th>
                 <th className="w-28 px-2 py-1.5 text-right font-medium">Importo</th>
+                {daAffidamenti && <th className="w-36 px-1 py-1.5 text-left font-medium">Voce affidata</th>}
                 <th className="w-8" />
               </tr>
             </thead>
             <tbody>
               {righe.map((r, i) => (
-                <tr key={chiaveRiga(r)} className="border-t align-top">
-                  <td className="px-2 py-1.5">
+                // Una riga per lavoro (11/11/2026): lavorazione, descrizione, U.M., quantità, prezzo, importo. Da dove
+                // viene la voce sta in una riga sottile sotto la descrizione, solo per le voci affidate.
+                <tr key={chiaveRiga(r)} className="border-t align-middle">
+                  <td className="px-2 py-1">
                     <OfficeSelect
                       label={`Lavorazione della riga ${i + 1}`}
                       value={r.fase}
                       onValueChange={(v) => cambia(i, { fase: v, fase_id: null, sottofase_id: null })}
-                      className="mb-1 h-7 max-w-full rounded-lg px-1 text-xs text-muted-foreground"
+                      className="h-8 w-40 rounded-lg px-2 text-xs text-muted-foreground"
                       options={fasiScelta.map((f) => ({ value: f, label: f }))}
                     />
-                    <Input aria-label={`Descrizione della riga ${i + 1}`} value={r.descrizione} onChange={(e) => cambia(i, { descrizione: e.target.value })} className="h-8" />
-                    {r.affidamento_id && (
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        Voce affidata{r.comprende ? ` · ${testoComprende(r.comprende)}` : ""}
-                        {r.origine && <> · prezzo: <span className={r.origine === "costo_aziendale" ? "text-amber-800" : undefined}>{ORIGINE_PREZZO[r.origine]}</span></>}
-                      </p>
-                    )}
                   </td>
-                  <td className="px-1 py-1.5">
-                    <Input aria-label={`Unità della riga ${i + 1}`} value={r.unita ?? ""} onChange={(e) => cambia(i, { unita: e.target.value || null })} className="mt-8 h-8" />
+                  <td className="px-1 py-1">
+                    <Input aria-label={`Descrizione della riga ${i + 1}`} value={r.descrizione} onChange={(e) => cambia(i, { descrizione: e.target.value })} className="h-8"
+                      title={r.affidamento_id ? `Voce affidata${r.comprende ? ` · ${testoComprende(r.comprende)}` : ""}${r.origine ? ` · prezzo: ${ORIGINE_PREZZO[r.origine]}` : ""}` : undefined} />
                   </td>
-                  <td className="px-1 py-1.5">
+                  <td className="px-1 py-1">
+                    <Input aria-label={`Unità della riga ${i + 1}`} value={r.unita ?? ""} onChange={(e) => cambia(i, { unita: e.target.value || null })} className="h-8" />
+                  </td>
+                  <td className="px-1 py-1">
                     <Input aria-label={`Quantità della riga ${i + 1}`} inputMode="decimal" defaultValue={String(r.quantita).replace(".", ",")}
-                      onBlur={(e) => cambia(i, { quantita: numero(e.target.value) })} className="mt-8 h-8 text-right tabular-nums" />
+                      onBlur={(e) => cambia(i, { quantita: numero(e.target.value) })} className="h-8 text-right tabular-nums" />
                   </td>
-                  <td className="px-1 py-1.5">
-                    <Input aria-label={`Prezzo della riga ${i + 1}`} inputMode="decimal" defaultValue={String(r.prezzo).replace(".", ",")}
-                      onBlur={(e) => cambia(i, { prezzo: numero(e.target.value) })} className="mt-8 h-8 text-right tabular-nums" />
+                  <td className="px-1 py-1">
+                    <Input aria-label={`Prezzo della riga ${i + 1}`}
+                      title={r.origine ? `Prezzo: ${ORIGINE_PREZZO[r.origine]}` : undefined} inputMode="decimal" defaultValue={String(r.prezzo).replace(".", ",")}
+                      onBlur={(e) => cambia(i, { prezzo: numero(e.target.value) })}
+                      className={cn("h-8 text-right tabular-nums", r.origine === "costo_aziendale" && "border-amber-400 bg-amber-50")} />
                   </td>
-                  <td className="whitespace-nowrap px-2 pt-10 text-right tabular-nums">{formatCurrency(r.importo)}</td>
-                  <td className="pt-9 text-right">
+                  <td className="whitespace-nowrap px-2 text-right tabular-nums">{formatCurrency(r.importo)}</td>
+                  {daAffidamenti && (
+                    <td className="px-1 text-[11px] leading-tight text-muted-foreground">
+                      {r.affidamento_id ? <>
+                        {r.comprende ? testoComprende(r.comprende) : "affidata"}
+                        {r.origine && <> · prezzo: <span className={r.origine === "costo_aziendale" ? "text-amber-800" : undefined}>{ORIGINE_PREZZO[r.origine]}</span></>}
+                      </> : "a mano, fuori dalle voci"}
+                    </td>
+                  )}
+                  <td className="text-right">
                     <button type="button" aria-label={`Togli ${r.descrizione || `la riga ${i + 1}`}`} className="p-1 text-muted-foreground hover:text-destructive"
                       onClick={() => onRighe(righe.filter((_, j) => j !== i))}>
                       <Trash2 className="h-4 w-4" />
@@ -851,7 +885,7 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
                 </tr>
               ))}
               {!righe.length && (
-                <tr><td colSpan={6} className="px-2 py-4 text-center text-sm text-muted-foreground">Nessun lavoro: aggiungili dal listino o a mano.</td></tr>
+                <tr><td colSpan={daAffidamenti ? 8 : 7} className="px-2 py-4 text-center text-sm text-muted-foreground">Nessun lavoro: aggiungili dal listino o a mano.</td></tr>
               )}
             </tbody>
           </table>

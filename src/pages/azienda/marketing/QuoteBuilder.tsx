@@ -3,7 +3,7 @@ import { avvisiDatiFiscali, type TipoCliente } from "@/lib/preventivatore/datiFi
 import { SceltaTipoCliente } from "@/components/preventivatore/DatiFiscaliCliente";
 import { QuoteCustomFieldsPanel } from "@/components/shared/QuoteCustomFieldsPanel";
 import { QuoteLineKindFields } from "@/components/marketing/preventivi/QuoteLineKindFields";
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, lazy, Suspense } from "react";
+import { useState, useId, useEffect, useLayoutEffect, useRef, useCallback, useMemo, lazy, Suspense } from "react";
 import type { QuoteWizardProjectContext } from '@/components/quotes/dev/QuoteWizardProjectPanel';
 const QuoteWizardProjectPanel = lazy(() => import('@/components/quotes/dev/QuoteWizardProjectPanel'));
 import { descrizioneCommerciale, prezziVenditaCompleti } from "@/lib/preventivi/configurazioneSemplice";
@@ -320,6 +320,7 @@ function ContactCombobox({
         <Button
           variant="outline"
           role="combobox"
+          aria-label="Seleziona contatto esistente"
           aria-expanded={open}
           className="w-full justify-between font-normal"
         >
@@ -408,6 +409,7 @@ async function caricaGriglieFamiglie(ids: string[]): Promise<Record<string, Grid
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function QuoteBuilder({ localEditor }: { localEditor?: { initial: QuoteDraft; projectContext?: QuoteWizardProjectContext; onChange: (draft: QuoteDraft) => void; onBack: () => void } } = {}) {
+  const formId = useId();
   const localEditorInitial = useRef(localEditor?.initial);
   const localEditorChange = useRef(localEditor?.onChange);
   useEffect(() => { localEditorChange.current = localEditor?.onChange; }, [localEditor?.onChange]);
@@ -2580,16 +2582,16 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
               {/* Telefono: email e telefono affiancati, il resto a tutta riga. */}
               <div className="grid grid-cols-2 gap-4 max-sm:gap-3">
                 <div className="max-md:col-span-2">
-                  <Label>Nome cliente *</Label>
-                  <Input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Mario Rossi" />
+                  <Label htmlFor={`${formId}-clientName`}>Nome cliente *</Label>
+                  <Input id={`${formId}-clientName`} value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Mario Rossi" />
                 </div>
                 <div>
-                  <Label>Email</Label>
-                  <Input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="mario@example.com" />
+                  <Label htmlFor={`${formId}-clientEmail`}>Email</Label>
+                  <Input id={`${formId}-clientEmail`} type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="mario@example.com" />
                 </div>
                 <div>
-                  <Label>Telefono</Label>
-                  <Input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="+39 333 1234567" />
+                  <Label htmlFor={`${formId}-clientPhone`}>Telefono</Label>
+                  <Input id={`${formId}-clientPhone`} value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="+39 333 1234567" />
                 </div>
                 {/* Privato o azienda (30/10/2026): i dati fiscali stavano in un riquadro chiuso «facoltativi»;
                     ora il privato vede il codice fiscale, l'azienda ragione sociale e partita IVA. */}
@@ -2631,12 +2633,13 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
               {/* Telefono: titolo e validità sulla stessa riga. */}
               <div className="grid grid-cols-3 gap-4 max-sm:gap-3">
                 <div className="col-span-2">
-                  <Label>Titolo offerta</Label>
-                  <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="es. Fornitura e posa serramenti PVC" />
+                  <Label htmlFor={`${formId}-title`}>Titolo offerta</Label>
+                  <Input id={`${formId}-title`} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="es. Fornitura e posa serramenti PVC" />
                 </div>
                 <div>
-                  <Label><span className="max-sm:hidden">Validità (giorni)</span><span className="sm:hidden">Validità gg</span></Label>
+                  <Label htmlFor={`${formId}-validity`}><span className="max-sm:hidden">Validità (giorni)</span><span className="sm:hidden">Validità gg</span></Label>
                   <Input
+                    id={`${formId}-validity`}
                     type="number"
                     min={1}
                     value={validityDays || ""}
@@ -2645,21 +2648,21 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                   />
                 </div>
                 <div className="col-span-3">
-                  <Label>Descrizione</Label>
-                  <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
+                  <Label htmlFor={`${formId}-description`}>Descrizione</Label>
+                  <Textarea id={`${formId}-description`} value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
                     placeholder="Breve descrizione dei lavori (appare sul PDF)" />
                 </div>
                 <details className="col-span-3 rounded-lg border p-3">
                   <summary className="cursor-pointer text-sm font-medium">Note per il cliente e per il team</summary>
                 <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label>Note visibili al cliente</Label>
-                    <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} maxLength={localEditor ? 3000 : undefined}
+                    <Label htmlFor={`${formId}-notes`}>Note visibili al cliente</Label>
+                    <Textarea id={`${formId}-notes`} value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} maxLength={localEditor ? 3000 : undefined}
                       placeholder="Pagamento, tempi consegna, garanzia..." />
                   </div>
                   <div>
-                    <Label>Note interne <span className="text-muted-foreground font-normal">(non mostrate al cliente)</span></Label>
-                    <Textarea value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} rows={2}
+                    <Label htmlFor={`${formId}-internal-notes`}>Note interne <span className="text-muted-foreground font-normal">(non mostrate al cliente)</span></Label>
+                    <Textarea id={`${formId}-internal-notes`} value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} rows={2}
                       placeholder="Info riservate per il team" />
                   </div>
                 </div>

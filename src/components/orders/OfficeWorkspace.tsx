@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
@@ -103,6 +103,7 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const addInFlightRef = useRef(false);
   const [draft, setDraft] = useState(emptyDraft);
   const [config, setConfig] = useState(false);
   const [applyTemplate, setApplyTemplate] = useState(false);
@@ -339,6 +340,7 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
       invalidateOfficeWorkspace(qc, orderId);
     },
     onError: (e) => toast.error(messaggioErrore(e, "Attività non creata.")),
+    onSettled: () => { addInFlightRef.current = false; },
   });
   const visible = rows.filter(
     (r) =>
@@ -739,7 +741,7 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
       <Dialog
         open={creating}
         onOpenChange={(v) => {
-          if (!add.isPending) setCreating(v);
+          if (!addInFlightRef.current) setCreating(v);
         }}
       >
         <DialogContent className="sm:max-w-2xl">
@@ -755,9 +757,12 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
             className="space-y-4"
             onSubmit={(e) => {
               e.preventDefault();
+              if (addInFlightRef.current) return;
+              addInFlightRef.current = true;
               add.mutate();
             }}
           >
+            <fieldset disabled={add.isPending} aria-busy={add.isPending} className="min-w-0 space-y-4">
             <label className="block space-y-1.5 text-sm">
               <span className="font-medium">Cosa c’è da fare</span>
               <Input
@@ -877,11 +882,12 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
                 rows={3}
               />
             </label>
+            </fieldset>
           </form>
           <DialogFooter>
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               onClick={() => setCreating(false)}
               disabled={add.isPending}
             >

@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { createElement, memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { getCatalogItem } from "@/lib/flow-node-catalog";
 import { getTriggerIcon } from "./nodeIcons";
@@ -12,6 +12,10 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
   if (isEmpty) {
     return (
       <div
+        role="button"
+        tabIndex={0}
+        aria-label="Aggiungi il primo trigger"
+        onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); (data as any).onOpenCatalog?.(); } }}
         onClick={() => (data as any).onOpenCatalog?.()}
         className={`w-[300px] rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 px-5 py-5 cursor-pointer transition-colors hover:border-primary/70 hover:bg-primary/10 ${selected ? "ring-2 ring-primary shadow-lg" : ""}`}
       >
@@ -30,7 +34,7 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
   }
 
   // Populated state
-  const Icon = getTriggerIcon(data.itemId as string);
+  const icon = createElement(getTriggerIcon(data.itemId as string), { className: "h-4 w-4" });
 
   return (
     <div className="relative group w-[300px]">
@@ -40,7 +44,7 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
         {/* Colored header bar */}
         <div className="flex items-center gap-2 rounded-t-[10px] bg-emerald-50 dark:bg-emerald-950/40 px-4 py-2.5">
           <div className="rounded-lg bg-emerald-100 dark:bg-emerald-900/60 p-1.5 text-emerald-600 dark:text-emerald-400">
-            <Icon className="h-4 w-4" />
+            {icon}
           </div>
           <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
             Trigger
@@ -73,7 +77,8 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
           e.stopPropagation();
           (data as any).onAddTrigger?.();
         }}
-        className="absolute -right-8 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-md border-2 border-background"
+        className="absolute -right-8 top-1/2 -translate-y-1/2 opacity-100 transition-opacity flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-md border-2 border-background"
+        aria-label="Aggiungi trigger parallelo"
         title="Aggiungi trigger parallelo"
       >
         <Plus className="h-3.5 w-3.5" />

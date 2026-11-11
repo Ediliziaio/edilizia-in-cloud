@@ -287,7 +287,7 @@ export default function Tesoreria() {
             tutte e otto su una riga). */}
         <TabsList className="flex h-auto w-full flex-nowrap overflow-x-auto scrollbar-hide justify-start gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:flex-wrap sm:overflow-visible [&>button]:shrink-0 sm:max-2xl:[&_[role=tab]>svg]:hidden max-sm:grid max-sm:grid-cols-3 max-sm:rounded-lg max-sm:p-1 max-sm:shadow-none max-sm:[&_svg]:hidden">
           <TabsTrigger value="overview" className="tap-compact gap-2 max-sm:h-8 max-sm:text-xs">
-            <LayoutDashboard className="h-4 w-4" /> <span className="max-sm:hidden">Overview</span><span className="sm:hidden">Panoramica</span>
+            <LayoutDashboard className="h-4 w-4" /> <span>Panoramica</span>
           </TabsTrigger>
           <TabsTrigger value="conti" className="tap-compact gap-2 max-sm:h-8 max-sm:text-xs">
             <CreditCard className="h-4 w-4" /> Conti

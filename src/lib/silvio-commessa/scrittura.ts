@@ -116,6 +116,7 @@ export interface RataScritta {
   amount: number;
   trigger_evento: string;
   trigger_numero: number | null;
+  expected_date?: string;
 }
 
 /** Una riga della commessa nei nomi che legge `create_order_atomic`. */
@@ -265,8 +266,10 @@ function rateScritte(rate: RataDelPiano[]): RataScritta[] {
       label: (r.label ?? "").trim() || `Rata ${i + 1}`,
       type: r.type === "balance" || r.type === "financing" ? r.type : "deposit",
       amount: Math.round(Number(r.amount) * 100) / 100,
-      trigger_evento: r.trigger_evento && EVENTI_RATA.has(r.trigger_evento) ? r.trigger_evento : "data_fissa",
+      // Le rate a evento vengono ridatate dal database: una scadenza esplicita deve restare fissa.
+      trigger_evento: dataVera(r.expected_date) ? "data_fissa" : r.trigger_evento && EVENTI_RATA.has(r.trigger_evento) ? r.trigger_evento : "data_fissa",
       trigger_numero: r.trigger_numero ?? null,
+      ...(typeof r.expected_date === "string" && dataVera(r.expected_date) ? { expected_date: r.expected_date } : {}),
     }));
 }
 
@@ -533,8 +536,8 @@ export function scritturaDalPiano(piano: PianoCommessa, autonomia: Autonomia | n
   // Il nome e l'email del cliente servono a ritrovarlo, anche se le colonne restano fuori.
   const nome = valoreDi("cliente.nome")?.valore as Record<string, unknown> | undefined;
   const contatto = valoreDi("cliente.contatto")?.valore as Record<string, unknown> | undefined;
-  s.cliente.nome = typeof nome?.client_name === "string" && nome.client_name.trim() ? nome.client_name.trim()
-    : typeof nome?.client_company === "string" && nome.client_company.trim() ? nome.client_company.trim() : null;
+  s.cliente.nome = typeof nome?.client_company === "string" && nome.client_company.trim() ? nome.client_company.trim()
+    : typeof nome?.client_name === "string" && nome.client_name.trim() ? nome.client_name.trim() : null;
   s.cliente.email = typeof contatto?.client_email === "string" && contatto.client_email.includes("@")
     ? contatto.client_email.trim() : null;
   s.escluse = s.escluse.map((e) => (entraNellaScrittura(e.chiave, s) ? { ...e, parziale: true as const } : e));

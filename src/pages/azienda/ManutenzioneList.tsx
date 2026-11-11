@@ -183,6 +183,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
 
   const pianificaMutation = useMutation({
     mutationFn: async (piano: PianoAttivo) => {
+      if (permissions.solaLettura) throw new Error("Modalità di sola lettura");
       const customerId = piano.contratto?.customer_id;
       if (!customerId || !effectiveCompany?.id) throw new Error("Dati mancanti");
       const giorni = piano.frequenza_giorni ?? FREQ_GIORNI[piano.frequenza_tipo] ?? 365;
@@ -210,6 +211,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
 
   const completaMutation = useMutation({
     mutationFn: async (piano: PianoAttivo) => {
+      if (permissions.solaLettura) throw new Error("Modalità di sola lettura");
       if (!effectiveCompany?.id) return;
       const todayIso = new Date().toISOString().split("T")[0];
       const giorni = piano.frequenza_giorni ?? FREQ_GIORNI[piano.frequenza_tipo] ?? 365;
@@ -306,10 +308,12 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
 
   const openImpianto = (id: string) => navigate(`/azienda/manutenzione/impianto/${id}`);
   const pianificaImpianto = (impiantoId: string) => {
+    if (permissions.solaLettura) return;
     const piano = pianoPerImpianto.get(impiantoId);
     if (piano) pianificaMutation.mutate(piano);
   };
   const completaImpianto = (impiantoId: string) => {
+    if (permissions.solaLettura) return;
     const piano = pianoPerImpianto.get(impiantoId);
     if (piano) completaMutation.mutate(piano);
   };
@@ -343,7 +347,8 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
         />
       </div>
       <Button
-        onClick={() => setWizardOpen(true)}
+        disabled={permissions.solaLettura}
+        onClick={() => { if (!permissions.solaLettura) setWizardOpen(true); }}
         className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:px-3 max-sm:text-xs"
       >
         <Plus className="mr-2 h-4 w-4" />
@@ -392,6 +397,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
           return (
             <button
               key={tab.value}
+              aria-pressed={active}
               onClick={() => setPill(tab.value)}
               className={cn(
                 "tap-compact flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium transition-all whitespace-nowrap max-sm:h-8 max-sm:rounded-full max-sm:border max-sm:px-3 max-sm:py-0 max-sm:text-xs",
@@ -427,6 +433,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
         <div className="relative flex-1 min-w-0 sm:min-w-[220px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
+            aria-label={mostraContratti ? "Cerca contratti di manutenzione" : "Cerca impianti per cliente o tipo"}
             placeholder={mostraContratti ? "Cerca un contratto…" : "Cerca per cliente o impianto…"}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -504,6 +511,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
                 onPianifica={pianificaImpianto}
                 onCompleta={completaImpianto}
                 busy={busy}
+                solaLettura={permissions.solaLettura}
               />
             </div>
           )}
@@ -522,7 +530,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
       )}
 
       <NuovoImpiantoWizard
-        open={wizardOpen}
+        open={wizardOpen && !permissions.solaLettura}
         onClose={() => setWizardOpen(false)}
         companyId={effectiveCompany?.id ?? ""}
         onSuccess={() => {

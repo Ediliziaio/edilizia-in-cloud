@@ -66,6 +66,7 @@ export function EditorConSalvataggio({
   const ricalcoArchivio = useMemo(() => archivioRicalco(companyId), [companyId]);
   const [titolo, setTitolo] = useState(titoloProposto);
   const [salvando, setSalvando] = useState(false);
+  const salvataggioInCorso = useRef(false);
   // Schermo intero: sul tablet il menu e la testata della pagina tolgono metà del disegno.
   const [intero, setIntero] = useState(false);
   useEffect(() => {
@@ -107,7 +108,8 @@ export function EditorConSalvataggio({
   useSettingsDraftGuard(modificata);
 
   const salva = async () => {
-    if (!documento.current) return;
+    if (!documento.current || salvataggioInCorso.current || solaLettura) return;
+    salvataggioInCorso.current = true;
     setSalvando(true);
     let daSalvare = documento.current;
     try {
@@ -117,7 +119,7 @@ export function EditorConSalvataggio({
         try { percorso = await sorgenteCaricata.current; } catch (e) { sorgenteCaricata.current = null; throw e; }
         daSalvare = { ...daSalvare, letturaDocumento: { ...daSalvare.letturaDocumento, sorgente: { percorso, nome: sorgenteDocumento.nome.slice(0, 250) } } };
       }
-    } catch (e) { setSalvando(false); toast.error(e instanceof Error ? e.message : "Foto originale non salvata: riprova."); return; }
+    } catch (e) { salvataggioInCorso.current = false; setSalvando(false); toast.error(e instanceof Error ? e.message : "Foto originale non salvata: riprova."); return; }
     const esito = await salvaPianta(
       { crea: creaPlanimetria, salva: salvaNuovaVersione },
       {
@@ -131,6 +133,7 @@ export function EditorConSalvataggio({
         collegamenti,
       },
     );
+    salvataggioInCorso.current = false;
     setSalvando(false);
     if (esito.ok === false) {
       if (esito.conflitto) setConflitto(esito.messaggio);
@@ -159,6 +162,7 @@ export function EditorConSalvataggio({
             {nuova && (
               <Input
                 aria-label="Nome della pianta"
+                disabled={salvando}
                 value={titolo}
                 maxLength={200}
                 placeholder="Nome, es. Appartamento Rossi"
@@ -201,7 +205,7 @@ export function EditorConSalvataggio({
 
       {sopra}
 
-      <EditorPlanimetria className="min-h-0 flex-1" piantaIniziale={iniziale} onChange={suCambio} ricalco={ricalcoArchivio} sorgenteDocumento={sorgenteDocumento} soloVista={solaLettura || undefined} />
+      <EditorPlanimetria className="min-h-0 flex-1" piantaIniziale={iniziale} onChange={suCambio} ricalco={ricalcoArchivio} sorgenteDocumento={sorgenteDocumento} soloVista={solaLettura || salvando || undefined} />
     </div>
   );
 }

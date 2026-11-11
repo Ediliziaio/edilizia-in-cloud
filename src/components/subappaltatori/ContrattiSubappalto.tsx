@@ -13,7 +13,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
  * firma registrata, e la riconciliazione contratto / SAL / fatturato / pagato /
  * ritenute con le fatture ricevute collegate.
  */
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { AlertTriangle, Clock, Download, FileText, Link2, Loader2, Pencil, Plus, Printer, Send, Trash2, Unlink, XCircle } from "lucide-react";
@@ -142,7 +142,8 @@ function useFirmeSubappalto(subId: string, ids: string[]) {
       return (data ?? []) as unknown as Array<{ id: string; contratto_subappalto_id: string; status: string; signer_name: string | null; signer_email: string | null; created_at: string; signed_at: string | null }>;
     },
     enabled: ids.length > 0,
-    refetchInterval: 60_000,
+    // Mentre una ditta sta firmando l'esito si vede da solo in pochi secondi (11/11/2026); senza firme aperte, come prima.
+    refetchInterval: (q) => ((q.state.data ?? []).some((r) => ["pending", "otp_verified"].includes(r.status)) ? 8_000 : 60_000),
   });
 }
 
@@ -197,9 +198,12 @@ async function scaricaFirmato(richiestaId: string) {
 }
 
 export function ContrattiSubappalto({
-  companyId, sub, selezionatoId, onSeleziona, onApriContabilita, richiestaApertura, onAperturaGestita,
+  companyId, sub, selezionatoId, onSeleziona, onApriContabilita, richiestaApertura, onAperturaGestita, invioRichiesto, onInvioGestito,
 }: {
   richiestaApertura?: string | null;
+  /** Il contratto per cui aprire subito l'invio in firma (da «Affida e manda il contratto»). */
+  invioRichiesto?: string | null;
+  onInvioGestito?: () => void;
   onAperturaGestita?: () => void;
   companyId: string;
   sub: SubPerContratto;
@@ -301,6 +305,19 @@ export function ContrattiSubappalto({
   // L'ultima richiesta di firma di ogni contratto: inviata, aperta, firmata, rifiutata.
   const {data: richieste = [], isLoading: caricoFirme, isError: erroreFirme} = useFirmeSubappalto(sub.id, ids);
   const richiestaDi = (id: string) => richieste.find((r) => r.contratto_subappalto_id === id);
+  // Una firma appena arrivata: il contratto risulta firmato senza ricaricare la pagina.
+  const firmeRegistrate = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (caricoFirme) return;
+    const firmate = richieste.filter((r) => r.status === "signed");
+    const viste = firmeRegistrate.current;
+    firmeRegistrate.current = new Set(firmate.map((r) => r.id));
+    if (!viste) return;
+    const nuove = firmate.filter((r) => !viste.has(r.id));
+    if (!nuove.length) return;
+    void qc.invalidateQueries({ queryKey: chiaviContratti.elenco(sub.id) });
+    toast.success(nuove.length === 1 ? `${nuove[0].signer_name ?? "La ditta"} ha firmato il contratto.` : `${nuove.length} contratti firmati.`);
+  }, [richieste, caricoFirme, qc, sub.id]);
 
   const { data: azienda } = useQuery({
     queryKey: ["contratto-sub-azienda", companyId],
@@ -349,6 +366,17 @@ export function ContrattiSubappalto({
     },
     enabled: contratti.length > 0 && !!sub.campo_subappaltatore_id,
   });
+  // «Crea e manda in firma»: appena IVA della ditta e condizioni sono lette, si apre l'invio di quel contratto.
+  useEffect(() => {
+    if (!invioRichiesto || caricoIva || caricoModello || erroreModello || caricoFirme) return;
+    const c = contratti.find((x) => x.id === invioRichiesto);
+    if (!c) return;
+    onInvioGestito?.();
+    const r = richiestaDi(c.id);
+    if (c.firmato_il || (r && ["pending", "otp_verified"].includes(r.status))) return;
+    setInvio({ c, nome: c.referente_subappaltatore || sub.responsabile || "", email: sub.pec || sub.email || "", telefono: sub.telefono || "" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invioRichiesto, caricoIva, caricoModello, erroreModello, caricoFirme, contratti]);
 
   const riepiloghi = useMemo(() => new Map<string, RiepilogoContratto>(contratti.map((c) => [
     c.id,
@@ -604,13 +632,14 @@ export function ContrattiSubappalto({
       const percorso = `${companyId}/subappalti/${c.id}/${Date.now()}.pdf`;
       const { error: errFile } = await supabase.storage.from("quote-pdfs").upload(percorso, blob, { contentType: "application/pdf" });
       if (errFile) throw new Error("Non riesco a salvare il PDF del contratto. Riprova tra poco.");
-      const { error: errC } = await supabase.from("contratti_subappalto" as never).update({ pdf_path: percorso, articoli_personalizzati: { ...(c.articoli_personalizzati as Record<string, unknown> | null ?? {}), [CHIAVE_CLAUSOLE_FISSATE]: JSON.stringify(datiInvio.clausoleArchivio ?? []) } } as never).eq("id", c.id);
-      if (errC) throw new Error("Non riesco a collegare il PDF al contratto. Riprova tra poco.");
       // Il reinvio sostituisce la richiesta vecchia: altrimenti restano due link validi, e quella vecchia
-      // blocca anche il caricamento della copia firmata su carta.
+      // blocca anche il caricamento della copia firmata su carta. Prima di scrivere sul contratto: con una
+      // richiesta aperta il database non lascia cambiare le clausole (lotto 6).
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: errAnnulla } = await (supabase as any).rpc("subappalto_firma_annulla", { p_company: companyId, p_contratto: c.id });
       if (errAnnulla) throw new Error("Non riesco ad annullare la richiesta di firma precedente. Riprova tra poco.");
+      const { error: errC } = await supabase.from("contratti_subappalto" as never).update({ pdf_path: percorso, articoli_personalizzati: { ...(c.articoli_personalizzati as Record<string, unknown> | null ?? {}), [CHIAVE_CLAUSOLE_FISSATE]: JSON.stringify(datiInvio.clausoleArchivio ?? []) } } as never).eq("id", c.id);
+      if (errC) throw new Error("Non riesco a collegare il PDF al contratto. Riprova tra poco.");
       const { data, error } = await supabase.functions.invoke("fea-richiedi-firma", {
         body: {
           tipo_documento: "subappalto", documento_id: c.id, tipo_firmatario: "b2b",
@@ -714,7 +743,8 @@ export function ContrattiSubappalto({
                     <FileText className="h-3.5 w-3.5" />Elenco lavori per il cantiere
                   </Button>
                 )}
-                {!c.firmato_il && !permessiLavori.solaLettura && permessiLavori.canEditOrders && (
+                {/* In firma non si elimina: la ditta ha in mano il link. Prima si annulla la richiesta (11/11/2026). */}
+                {!c.firmato_il && !permessiLavori.solaLettura && permessiLavori.canEditOrders && !(richiesta && ["pending", "otp_verified"].includes(richiesta.status)) && (
                   <Button size="sm" variant="ghost" className="gap-1 text-destructive" disabled={eliminaContratto.isPending}
                     onClick={() => { if (window.confirm("Eliminare questo contratto? Non si può se ha SAL, fatture o una base lavori registrata (allora si segna Risolto).")) eliminaContratto.mutate(c); }}>
                     <Trash2 className="h-3.5 w-3.5" />Elimina
@@ -974,7 +1004,7 @@ export function ContrattiSubappalto({
           <DialogHeader>
             <DialogTitle>Invia il contratto per la firma</DialogTitle>
             <DialogDescription>
-              Il subappaltatore riceve per email il link al contratto in PDF: lo legge, approva le clausole e firma con un codice
+              Il subappaltatore riceve per email il link al contratto in PDF: lo legge, accetta con una spunta e firma con un codice
               che gli arriva per email o, se metti il cellulare, per SMS. A firma fatta il contratto risulta firmato da solo.
             </DialogDescription>
           </DialogHeader>

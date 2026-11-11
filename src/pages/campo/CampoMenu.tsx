@@ -3,6 +3,7 @@
  * Home, Lavori, Timbra e Chat sono nella barra in basso, Impostazioni e avvisi nella testata: ripeterli qui
  * (e una ricerca su una dozzina di icone) faceva solo cercare più a lungo. Sostituisce la sidebar su mobile.
  */
+import type { ComponentType } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Clock, CalendarDays, Receipt,
@@ -17,7 +18,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useFieldSurveyAccess } from "@/hooks/useFieldSurveys";
 
 interface AppItem {
-  icon: React.ComponentType<{ className?: string }>;
+  icon: ComponentType<{ className?: string }>;
   label: string;
   url: string;
   color: string; // tailwind bg + text classes
@@ -48,6 +49,7 @@ export default function CampoMenu() {
         // Il rapportino si scrive dal cantiere (e lì si detta a voce): niente voce doppia.
         { icon: ListChecks, label: "Avanzamento", url: "/campo/avanzamento", color: "text-cyan-600 bg-cyan-50" },
         { icon: Package, label: "Magazzino", url: "/campo/magazzino", color: "text-amber-700 bg-amber-50" },
+        { icon: ShoppingBag, label: "Bolle e DDT", url: "/campo/ddt", color: "text-orange-700 bg-orange-50" },
         { icon: ShoppingBag, label: "Merce presa", url: "/campo/merce", color: "text-orange-700 bg-orange-50" },
         { icon: Truck, label: mieiMezzi.length ? "Mezzi e attrezzi" : "Scansiona attrezzo", url: mieiMezzi.length ? "/campo/mezzi" : "/campo/mezzi?scansiona=1", color: "text-slate-700 bg-slate-100" },
       ],

@@ -8,7 +8,9 @@
  *   2. come l'ultima volta: un abbinamento già fatto a mano, ricordato in `product_aliases`
  *      (`learned_from = 'voce_computo'`) con la descrizione normalizzata;
  *   3. stessa descrizione: una sola voce di listino con lo stesso nome (normalizzato);
- *   4. niente: si sceglie a mano. (La proposta per significato con l'AI verrà dopo: il listino
+ *   4. simile (11/11/2026): il nome di una sola voce di listino, parole in fila e stessa unità, dentro la
+ *      descrizione lunga del computo. Mai applicata da sola: si guarda.
+ *   5. niente: si sceglie a mano. (La proposta per significato con l'AI verrà dopo: il listino
  *      di Bonarrigo non ha gli embedding, 10/11/2026.)
  * Una proposta con unità diverse (mq contro pezzo) non è mai sicura: si chiede conferma.
  * Una descrizione ricordata per due voci di listino diverse non propone niente: si sceglie.
@@ -33,7 +35,7 @@ export interface VoceListinoAbbinabile {
 }
 export interface AbbinamentoRicordato { alias_normalized: string; tariffa_id: string | null }
 
-export type MotivoProposta = "codice" | "ricordato" | "descrizione";
+export type MotivoProposta = "codice" | "ricordato" | "descrizione" | "simile";
 export interface Proposta {
   voceId: string;
   tariffaId: string | null;
@@ -58,6 +60,39 @@ export function chiaveDescrizione(testo: string): string {
     .replace(/\s+/g, " ")
     .slice(0, 300)
     .trim();
+}
+
+const PAROLE_VUOTE = new Set(["di", "del", "dello", "della", "dei", "degli", "delle", "da", "dal", "dalla", "in", "nel", "nella", "con", "per", "a", "al", "alla", "ai", "alle", "e", "ed", "il", "lo", "la", "i", "gli", "le", "un", "una", "uno"]);
+
+/** Le parole che contano, senza articoli e senza la vocale finale (finestra = finestre, pavimento = pavimenti). */
+export function paroleChiave(testo: string): string[] {
+  const parole = chiaveDescrizione(testo).split(" ").filter((w) => w && !PAROLE_VUOTE.has(w));
+  return [...new Set(parole.map((w) => (w.length > 3 ? w.replace(/[aeiou]$/, "") : w)))];
+}
+
+/** Due nomi con le stesse parole chiave danno la stessa chiave, in qualunque ordine. */
+export const chiaveSimile = (testo: string) => paroleChiave(testo).sort().join(" ");
+
+/** Le parole chiave in fila, come sono scritte: serve per cercare un nome dentro un testo. */
+const inFila = (testo: string) => ` ${chiaveDescrizione(testo).split(" ").filter((w) => w && !PAROLE_VUOTE.has(w)).map((w) => (w.length > 3 ? w.replace(/[aeiou]$/, "") : w)).join(" ")} `;
+
+/**
+ * La sola voce il cui nome (almeno due parole) sta dentro la descrizione con le parole una dopo l'altra e con la
+ * stessa unità; vince il nome più lungo, a parità nessuna. Provato sui computi veri (11/11/2026): bastava che le
+ * parole ci fossero, sparse, e un ponteggio «di un piano» con «tiro» da qualche parte diventava «Tiro al piano».
+ */
+function nomeDentroDescrizione<T extends { nome: string; unita: string }>(descrizione: string, unita: string | null, voci: ReadonlyArray<T>): T | null {
+  const testo = inFila(descrizione);
+  let migliori: T[] = [];
+  let quante = 1;
+  for (const t of voci) {
+    const nome = inFila(t.nome).trim();
+    const parole = nome.split(" ").length;
+    if (parole < 2 || !testo.includes(` ${nome} `) || !unitaCompatibili(unita, unitaDelListino(t.unita))) continue;
+    if (parole > quante) { quante = parole; migliori = [t]; }
+    else if (parole === quante) migliori.push(t);
+  }
+  return migliori.length === 1 ? migliori[0] : null;
 }
 
 /** Il listino scrive le unità di fatturazione col trattino basso («a_corpo»): per il confronto valgono come scritte a parole. */
@@ -106,9 +141,13 @@ export function proponiAbbinamenti(
       const stessoNome = perNome.get(chiave) ?? [];
       if (ricordata?.size === 1) { scelta = perId.get([...ricordata][0]) ?? null; motivo = scelta ? "ricordato" : null; }
       else if (!ricordata && stessoNome.length === 1) { scelta = stessoNome[0]; motivo = "descrizione"; }
+      else if (!ricordata && stessoNome.length === 0) {
+        scelta = nomeDentroDescrizione(v.descrizione, v.unita, aziendali);
+        motivo = scelta ? "simile" : null;
+      }
     }
     const unitaDiverse = !!scelta && !unitaCompatibili(v.unita, unitaDelListino(scelta.unita));
-    return { voceId: v.id, tariffaId: scelta?.id ?? null, motivo, sicura: !!scelta && !unitaDiverse, unitaDiverse };
+    return { voceId: v.id, tariffaId: scelta?.id ?? null, motivo, sicura: !!scelta && !unitaDiverse && motivo !== "simile", unitaDiverse };
   });
 }
 

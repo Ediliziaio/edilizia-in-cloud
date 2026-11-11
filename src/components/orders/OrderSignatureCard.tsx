@@ -57,6 +57,8 @@ export function OrderSignatureCard({ orderId, customerEmail, customerName }: Ord
       return (data ?? []) as SignatureRequestRow[];
     },
     staleTime: 2 * 60 * 1000,
+    // Mentre qualcuno sta firmando l'esito si vede da solo (11/11/2026).
+    refetchInterval: (q) => ((q.state.data ?? []).some((r) => r.status === "pending" || r.status === "otp_verified") ? 8_000 : false),
   });
 
   const createMutation = useMutation({

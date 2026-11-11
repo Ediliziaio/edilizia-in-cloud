@@ -4,7 +4,7 @@
  * approvarle (chi può modificare le commesse, o il titolare): l'elenco lo decide il database
  * (ufficio_da_approvare) con le commesse che quella persona vede. Approvata una cosa, sparisce per tutti.
  */
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useId, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
@@ -17,6 +17,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { messaggioErrore } from "@/lib/campo/messaggioErrore";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 // Pesante (approvazione con verifica economica e delle fasi): caricato solo
 // quando si apre il popup, per non appesantire la pagina Attività.
@@ -63,6 +64,8 @@ export function totaleDaApprovare(a: DaApprovare | undefined) {
 }
 
 export function DaApprovareCantieri() {
+  const [elencoEsteso, setElencoEsteso] = useState(false);
+  const elencoId = useId();
   const puoApprovare = usePuoApprovareCantiere();
   const { effectiveCompany } = useAuth();
   const qc = useQueryClient();
@@ -157,6 +160,7 @@ export function DaApprovareCantieri() {
   if (!approvare.data && !approvare.isLoading && !approvare.isError) return null;
   const a = approvare.data;
   const tot = totaleDaApprovare(a);
+  const righe = gruppi.commesse.length + gruppi.correzioniSenza.length + gruppi.bolleSenza.length;
   // Niente in attesa: il riquadro non occupa posto in Attività.
   if (approvare.isSuccess && tot === 0) return null;
 
@@ -169,7 +173,7 @@ export function DaApprovareCantieri() {
       {approvare.isLoading ? <p className="p-4 text-sm text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />Carico…</p>
         : approvare.isError ? <p role="alert" className="p-4 text-sm text-destructive">Non riesco a leggere le approvazioni. <button className="underline" onClick={() => void approvare.refetch()}>Riprova</button></p>
         : (
-          <ul className="divide-y">
+          <ul id={elencoId} className={cn("divide-y", !elencoEsteso && "max-sm:[&>li:nth-child(n+3)]:hidden")}>
             {gruppi.commesse.map((g) => {
               const pezzi = [
                 g.nRapportini > 0 ? `${g.nRapportini} rapportin${g.nRapportini === 1 ? "o" : "i"}` : null,
@@ -184,7 +188,7 @@ export function DaApprovareCantieri() {
                     <strong>{etichetta(g.orderId, g.codiceFallback)}</strong> · {g.totale} da approvare <span className="text-muted-foreground">({pezzi})</span>
                     {codice ? <span className="text-muted-foreground"> · {codice}</span> : null}
                   </span>
-                  <button type="button" onClick={() => setCommessaPopup({ id: g.orderId, titolo: etichetta(g.orderId, g.codiceFallback) })} className="whitespace-nowrap font-medium text-primary underline underline-offset-4">Apri e approva</button>
+                  <button type="button" aria-label={`Apri e approva: ${etichetta(g.orderId, g.codiceFallback)}`} onClick={() => setCommessaPopup({ id: g.orderId, titolo: etichetta(g.orderId, g.codiceFallback) })} className="whitespace-nowrap font-medium text-primary underline underline-offset-4">Apri e approva</button>
                 </li>
               );
             })}
@@ -208,6 +212,13 @@ export function DaApprovareCantieri() {
             ))}
           </ul>
         )}
+      {approvare.isSuccess && righe > 2 && (
+        <div className="border-t px-3 py-2 sm:hidden">
+          <Button type="button" variant="ghost" className="w-full" aria-expanded={elencoEsteso} aria-controls={elencoId} onClick={() => setElencoEsteso(value => !value)}>
+            {elencoEsteso ? "Mostra meno" : `Mostra tutte le ${righe} voci`}
+          </Button>
+        </div>
+      )}
       <Dialog open={!!commessaPopup} onOpenChange={(aperto) => { if (!aperto) chiudiPopup(); }}>
         <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>

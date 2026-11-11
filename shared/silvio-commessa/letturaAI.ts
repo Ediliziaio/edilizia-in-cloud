@@ -54,9 +54,9 @@ export const CHIAVI_LETTURA: readonly ChiaveLettura[] = [
   { chiave: "identita.work_description", forma: "testo_lungo", istruzione: "descrizione dei lavori, con misure e materiali se ci sono" },
   { chiave: "identita.tipo_lavoro", forma: "tipo_lavoro", istruzione: "uno fra: bagno, tetti, fotovoltaico, serramenti, impianti, ristrutturazione, generico" },
   { chiave: "identita.internal_notes", forma: "testo_lungo", istruzione: "da una foto o da una piantina: locali, misure, stato dei luoghi, note utili alle fasi" },
-  { chiave: "cliente.nome", forma: "cliente_nome", istruzione: "oggetto { client_name (persona), client_company (ditta, condominio, ente) } del committente" },
+  { chiave: "cliente.nome", forma: "cliente_nome", istruzione: "oggetto { client_name (nome COMPLETO della persona), client_company (ragione sociale completa di ditta, condominio o ente) } del committente. Non separare parti dello stesso nome fra questi campi. Usa entrambi solo quando il documento distingue espressamente un'azienda committente e il suo referente" },
   { chiave: "cliente.contatto", forma: "cliente_contatto", istruzione: "oggetto { client_phone, client_email } del committente" },
-  { chiave: "cliente.client_address", forma: "testo", istruzione: "indirizzo o sede del committente" },
+  { chiave: "cliente.client_address", forma: "testo", istruzione: "indirizzo o sede del committente, SOLO se esplicitamente indicato come tale. L'indirizzo etichettato Cantiere è solo il luogo dei lavori, mai la residenza o la sede del cliente" },
   { chiave: "cantiere.indirizzo", forma: "indirizzo_cantiere", istruzione: "indirizzo del cantiere (dove si fanno i lavori), come testo" },
   { chiave: "cantiere.materials_location", forma: "testo", istruzione: "dove si scaricano o si tengono i materiali" },
   { chiave: "economia.total_amount", forma: "importo", istruzione: "importo dei lavori SENZA IVA, in euro. «IVA inclusa» vuol dire che la cifra va scorporata. «più IVA», «oltre IVA», «+ IVA», «IVA esclusa» vogliono dire che la cifra è GIÀ senza IVA: scrivila com'è. Scorpora solo se il documento dice «IVA inclusa» o «ivato», e dillo nel campo nota. Se l'importo è una somma di più voci (12 × 1.250,50 + 2 × 3.000), somma TUTTE le voci e scrivi il conto nel campo nota" },
@@ -68,7 +68,7 @@ export const CHIAVI_LETTURA: readonly ChiaveLettura[] = [
   { chiave: "fasi.work_start_date", forma: "data", istruzione: "data d'inizio lavori, solo se il documento la scrive" },
   { chiave: "fasi.work_end_date", forma: "data", istruzione: "data di fine lavori, solo se il documento la scrive" },
   { chiave: "fasi.expected_date", forma: "data", istruzione: "data di consegna prevista, solo se il documento la scrive" },
-  { chiave: "sal_scadenze.sal", forma: "sal", istruzione: "oggetto { cadenza, importo_minimo_eur, percentuali[] } dei SAL" },
+  { chiave: "sal_scadenze.sal", forma: "sal", istruzione: "oggetto { cadenza, importo_minimo_eur, percentuali[] } SOLO se il documento prevede esplicitamente stati di avanzamento lavori (SAL). Acconto alla firma e saldo finale sono rate, non SAL: non duplicarli qui" },
   { chiave: "comunicazione.direttore_lavori", forma: "direttore_lavori", istruzione: "oggetto { dl_notification_email, dl_notification_phone } del direttore dei lavori" },
 ];
 
@@ -144,7 +144,8 @@ ritenuta_garanzia_pct, anticipo_pct, anticipo_eur, pagamento_giorni (giorni dall
 subappalto_massimo_pct, garanzia_anni, cig (10 caratteri), cup (15 caratteri).
 
 RATE ("pagamenti.rate"): elenco di { "label", "type": "deposit"|"balance"|"financing", "amount" (euro IVA inclusa, SOLO se scritto nel documento: non calcolarlo),
-"percent" (se scritta), "trigger_evento": firma_contratto|inizio_lavori|sal_numero|fine_lavori|consegna_cantiere|data_fissa, "trigger_numero" (numero del SAL) }.
+"percent" (se scritta), "expected_date" (scadenza AAAA-MM-GG, SOLO se esplicita), "trigger_evento": firma_contratto|inizio_lavori|sal_numero|fine_lavori|consegna_cantiere|data_fissa, "trigger_numero" (numero del SAL) }.
+Conserva SEMPRE la scadenza scritta, anche per rate alla firma o a fine lavori. Non ricavarla dalle date delle fasi. La citazione dell'elenco deve riportare importi, percentuali e date.
 
 FASI ("fasi.order_work_phases"), solo se il documento elenca le lavorazioni (mai «inizio lavori» o «fine lavori»): elenco di { "name", "giorni" (giorni lavorativi, solo se il documento li dice), "start_date", "end_date" }, nell'ordine dei lavori.
 
@@ -340,7 +341,7 @@ function pulisciTipoLavoro(v: unknown): Esito<string> {
  * (revisione 1/11, L3) si calcola sull'imponibile, ma tutte le rate restano una proposta con
  * «manca l'IVA»: prima 30 % di 100.000 imponibile diventava 30.000 «fatto» invece di 33.000.
  */
-function pulisciRate(v: unknown, totaleIvato: number | null, imponibile: number | null = null): Esito<RataDelPiano[]> & { senzaIva?: boolean } {
+function pulisciRate(v: unknown, totaleIvato: number | null, imponibile: number | null = null, testo: string | null = null): Esito<RataDelPiano[]> & { senzaIva?: boolean } {
   if (!Array.isArray(v)) return { ok: false, motivo: "le rate non sono un elenco" };
   const rate: RataDelPiano[] = [];
   const scartate: string[] = [];
@@ -369,11 +370,13 @@ function pulisciRate(v: unknown, totaleIvato: number | null, imponibile: number 
     const type = r.type === "balance" || r.type === "financing" ? r.type : "deposit";
     const evento = typeof r.trigger_evento === "string" && EVENTI_RATA.has(r.trigger_evento) ? r.trigger_evento : null;
     const numeroSal = numeroDa(r.trigger_numero);
+    const scadenza = dataValida(r.expected_date);
     rate.push({
       label, type, amount: tondo(amount),
       ...(percent != null ? { percent } : {}),
       ...(daPercentuale ? { daPercentuale } : {}),
       trigger_evento: evento,
+      ...(scadenza && (testo == null || dataNelTesto(testo, scadenza)) ? { expected_date: scadenza } : {}),
       ...(evento === "sal_numero" && numeroSal != null && numeroSal >= 1 ? { trigger_numero: Math.round(numeroSal) } : {}),
     });
   });
@@ -583,7 +586,6 @@ function cifraConIvaInclusa(valore: number | null, iva: number, testo: string | 
 }
 
 /** Il nome che legge chi lavora in cantiere, mai la chiave tecnica. */
-const etichettaAvviso = (chiave: string): string => variabile(chiave)?.etichetta ?? "un campo del documento";
 
 /** Le coppie (chiave, valore grezzo) della risposta: nelle aree, o (tollerato) in un elenco piatto. */
 function coppie(json: Grezzo, avvisi: string[]): Array<[string, Grezzo]> {
@@ -642,6 +644,13 @@ export function frammentoDaRispostaAI(risposta: unknown, ctx: ContestoLettura): 
   const letti = new Map<string, { valore: unknown; prov: Provenienza }>();
 
   const grezzi = coppie(json, avvisi);
+  // Una citazione del luogo dei lavori non prova la sede anagrafica, neanche in una foto.
+  const sede = grezzi.find(([k]) => k === "cliente.client_address");
+  if (sede && /\bcantiere\b|luogo (?:dei )?lavori/i.test(String(sede[1].citazione ?? ""))
+    && !/\bcommittente\b|\bresiden(?:te|za)\b|sede (?:legale|del cliente)/i.test(String(sede[1].citazione ?? ""))) {
+    grezzi.splice(grezzi.indexOf(sede), 1);
+    avvisi.push("L'indirizzo citato è quello del cantiere: la sede del cliente resta da indicare.");
+  }
   // Nel testo della persona un solo indirizzo è quello dove si lavora: il modello lo metteva sul cliente.
   if (ctx.fonte.tipo === "testo") {
     const delCliente = grezzi.find(([k]) => k === "cliente.client_address");
@@ -810,7 +819,7 @@ function pulisci(forma: Forma, grezzo: Grezzo, amb: Ambiente): Pulito {
       return s ? semplice({ ok: true, valore: { indirizzo_lavori: s } }) : { ok: false, motivo: "indirizzo vuoto" };
     }
     case "rate": {
-      const e = pulisciRate(v, amb.totaleIvato, amb.imponibile);
+      const e = pulisciRate(v, amb.totaleIvato, amb.imponibile, amb.ctx.testo ?? null);
       const p = semplice(e);
       // Calcolate senza l'IVA: mai «fatto», anche con la citazione giusta.
       return p.ok && e.ok && e.senzaIva
@@ -818,7 +827,12 @@ function pulisci(forma: Forma, grezzo: Grezzo, amb: Ambiente): Pulito {
         : p;
     }
     case "fasi": return semplice(pulisciFasi(v));
-    case "sal": return semplice(pulisciSal(v));
+    case "sal": {
+      if (amb.ctx.testo && !/\bs\.?a\.?l\.?\b|stat[oi]\s+(?:di\s+)?avanzamento/i.test(amb.ctx.testo)) {
+        return { ok: false, motivo: "il documento non prevede stati di avanzamento lavori: acconto e saldo restano nelle rate" };
+      }
+      return semplice(pulisciSal(v));
+    }
     case "condizioni": return pulisciCondizioni(v, grezzo, amb);
   }
 }

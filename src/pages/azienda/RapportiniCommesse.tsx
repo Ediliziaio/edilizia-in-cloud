@@ -1,7 +1,7 @@
 /**
- * Commesse → Rapportini: ogni giorno cosa si è lavorato e dove, un mese alla volta.
- * Quattro divisioni dello stesso elenco (giorni, cantieri, persone, mappa del mese):
- * i filtri valgono per tutte. L'approvazione resta dove sta, nella commessa.
+ * Commesse → Rapportini: documenti operativi e pagine del giornale nello stesso
+ * elenco. Le viste delle ore lavorano soltanto sui rapportini: il giornale
+ * riepiloga la giornata e non duplica ore o costi. Periodi e cantieri sono comuni.
  */
 import { useMemo, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -13,6 +13,11 @@ import { ArrowUpRight, ChevronLeft, ChevronRight, ClipboardList, Download, FileD
 import { RapportiPeriodoDialog } from "@/components/documentiOperativi/RapportiPeriodoDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { useGiornaliPeriodo } from "@/hooks/useGiornaliPeriodo";
+import { TabellaDocumentiCantiere } from "@/components/orders/TabellaDocumentiCantiere";
+import { COLONNE_DOCUMENTI_CANTIERE, documentiCantiere, filtraGiornali, nomeCantiereGiornale, righeCsvDocumenti, type TipoDocumentoCantiere, type GiornaleRiga } from "@/lib/orders/documentiCantiere";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useNomiFasiCommessa, useRapportiniMese, type RapportinoCompleto } from "@/hooks/useRapportiniMese";
 import { OfficeSelect } from "@/components/orders/OfficeSelect";
@@ -40,10 +45,12 @@ import {
   oreDi, perCantiere, perGiorno, perPersona, personeDi, righeCsv, spostaMese, statoDi, totaliRapportini,
   type RapportinoRiga, type VistaRapportini,
 } from "@/lib/orders/rapportiniMese";
+import { etichettaPeriodoRapportini, intervalloRapportini, type PeriodoRapportini } from "@/lib/orders/periodoRapportini";
 import type { StatoRapportino } from "@/lib/campo/rapportinoStato";
 
 const VISTE: { id: VistaRapportini; label: string; soloScrivania?: boolean }[] = [
-  { id: "giorni", label: "Giorno per giorno" },
+  { id: "elenco", label: "Elenco" },
+  { id: "giorni", label: "Per giorno" },
   { id: "cantieri", label: "Per cantiere" },
   { id: "persone", label: "Per persona" },
   { id: "mappa", label: "Mappa del mese", soloScrivania: true },
@@ -56,6 +63,8 @@ const STATI: Record<StatoRapportino, { label: string; classe: string }> = {
   bozza: { label: "Bozza", classe: "border-slate-200 bg-slate-50 text-slate-600" },
 };
 
+const RAPPORTINI_VUOTI: RapportinoCompleto[] = [];
+const GIORNALI_VUOTI: GiornaleRiga[] = [];
 const ORE_CELLA = ["", "bg-blue-100 text-blue-900", "bg-blue-200 text-blue-950", "bg-blue-500 text-white", "bg-blue-700 text-white"];
 
 const ore = (n: number) => `${n.toLocaleString("it-IT", { maximumFractionDigits: 1 })} h`;
@@ -97,7 +106,10 @@ export default function RapportiniCommesse() {
 }
 
 function Pagina({ companyId }: { companyId?: string }) {
-  const { canViewCosts, canEditOrders } = usePermissions();
+  const { canViewCosts, canEditOrders, canViewGiornaleLavori } = usePermissions();
+  const accessoGiornale = useFeatureAccess("cantieri_avanzati");
+  const { isScopriPlan } = useSubscriptionLimits();
+  const puoLeggereGiornali = !!canViewGiornaleLavori && !isScopriPlan && (accessoGiornale.isEnabled || accessoGiornale.isPreview);
   const [personaAperta, setPersonaAperta] = useState<string | null>(null);
   const [segna, setSegna] = useState<{ employeeId?: string } | null>(null);
   const isMobile = useIsMobile();
@@ -107,8 +119,17 @@ function Pagina({ companyId }: { companyId?: string }) {
   const meseCorrente = oggi.slice(0, 7);
   const mese = meseScelto(params.get("rap_mese"), meseCorrente);
   const vistaRichiesta = params.get("rap_vista") as VistaRapportini | null;
-  const visteDisponibili = VISTE.filter((v) => !(v.soloScrivania && isMobile));
-  const vista = visteDisponibili.some((v) => v.id === vistaRichiesta) ? vistaRichiesta! : "giorni";
+  const periodoRichiesto = params.get("rap_periodo");
+  const periodo: PeriodoRapportini = ["tutti", "mese", "ultimi30", "anno", "personalizzato"].includes(periodoRichiesto ?? "")
+    ? periodoRichiesto as PeriodoRapportini
+    : params.has("rap_mese") || vistaRichiesta === "mappa" ? "mese" : "tutti";
+  const intervallo = intervalloRapportini(periodo, oggi, mese, params.get("rap_da") ?? "", params.get("rap_a") ?? "");
+  const periodoLabel = intervallo ? etichettaPeriodoRapportini(intervallo) : "Periodo da completare";
+  const tipoRichiesto = params.get("rap_tipo");
+  const tipo: TipoDocumentoCantiere = !puoLeggereGiornali ? "rapportino" : ["tutti", "rapportino", "giornale"].includes(tipoRichiesto ?? "")
+    ? tipoRichiesto as TipoDocumentoCantiere : (vistaRichiesta && vistaRichiesta !== "elenco") || params.get("rap_persona") ? "rapportino" : "tutti";
+  const visteDisponibili = VISTE.filter((v) => (tipo === "rapportino" || v.id === "elenco") && !(v.soloScrivania && (isMobile || periodo !== "mese")));
+  const vista = visteDisponibili.some((v) => v.id === vistaRichiesta) ? vistaRichiesta! : "elenco";
   const giorno = params.get("rap_giorno") || "";
   const cantiere = params.get("rap_cantiere") || "";
   const persona = params.get("rap_persona") || "";
@@ -126,10 +147,22 @@ function Pagina({ companyId }: { companyId?: string }) {
       return next;
     }, { replace });
 
-  const { data: righe = [], isLoading, isError, isFetching, refetch } = useRapportiniMese(companyId, mese, canViewCosts);
+  const letturaRapportini = useRapportiniMese(companyId, tipo === "giornale" ? null : periodo === "mese" ? mese : intervallo, canViewCosts);
+  const letturaGiornali = useGiornaliPeriodo(companyId, intervallo, puoLeggereGiornali && tipo !== "rapportino");
+  const righe = tipo === "giornale" ? RAPPORTINI_VUOTI : letturaRapportini.data ?? RAPPORTINI_VUOTI;
+  const giornali = puoLeggereGiornali && tipo !== "rapportino" ? letturaGiornali.data ?? GIORNALI_VUOTI : GIORNALI_VUOTI;
+  const isLoading = (tipo !== "giornale" && letturaRapportini.isLoading) || (puoLeggereGiornali && tipo !== "rapportino" && letturaGiornali.isLoading);
+  const isError = (tipo !== "giornale" && letturaRapportini.isError) || (puoLeggereGiornali && tipo !== "rapportino" && letturaGiornali.isError);
+  const isFetching = letturaRapportini.isFetching || letturaGiornali.isFetching;
+  const refetch = () => Promise.all([
+    tipo !== "giornale" ? letturaRapportini.refetch() : undefined,
+    puoLeggereGiornali && tipo !== "rapportino" ? letturaGiornali.refetch() : undefined,
+  ]);
 
   const senzaGiorno = useMemo(() => filtraRapportini(righe, { cantiere, persona, stato, testo }), [righe, cantiere, persona, stato, testo]);
   const filtrate = useMemo(() => filtraRapportini(senzaGiorno, { giorno }), [senzaGiorno, giorno]);
+  const giornaliFiltrati = useMemo(() => filtraGiornali(giornali, { cantiere, persona, stato, testo, giorno }), [giornali, cantiere, persona, stato, testo, giorno]);
+  const documenti = useMemo(() => documentiCantiere(filtrate, giornaliFiltrati, tipo), [filtrate, giornaliFiltrati, tipo]);
   const totali = useMemo(() => totaliRapportini(filtrate), [filtrate]);
   const andamento = andamentoMese(senzaGiorno, mese);
   const cantieri = useMemo(() => perCantiere(filtrate), [filtrate]);
@@ -138,11 +171,13 @@ function Pagina({ companyId }: { companyId?: string }) {
 
   // Le tendine propongono tutto il mese, non solo quello che i filtri lasciano.
   const opzioniCantieri = useMemo(() => {
-    const voci = perCantiere(righe).map((c) => ({ value: c.orderId, label: c.codice ? `${c.nome} · ${c.codice}` : c.nome }))
+    const uniche = new Map(perCantiere(righe).map((c) => [c.orderId, { value: c.orderId, label: c.codice ? `${c.nome} · ${c.codice}` : c.nome }]));
+    for (const g of giornali) if (!uniche.has(g.order_id)) uniche.set(g.order_id, { value: g.order_id, label: [nomeCantiereGiornale(g), g.order?.order_code].filter(Boolean).join(" · ") });
+    const voci = [...uniche.values()]
       .sort((a, b) => a.label.localeCompare(b.label, "it"));
     const scelto = cantiere && !voci.some((v) => v.value === cantiere) ? [{ value: cantiere, label: "Cantiere scelto" }] : [];
     return [{ value: "", label: "Cantieri" }, ...scelto, ...voci];
-  }, [righe, cantiere]);
+  }, [righe, giornali, cantiere]);
   const opzioniPersone = useMemo(() => {
     const voci = perPersona(righe).map((p) => ({ value: p.chiave, label: p.ditta ? `${p.nome} (ditta)` : p.nome }))
       .sort((a, b) => a.label.localeCompare(b.label, "it"));
@@ -154,20 +189,25 @@ function Pagina({ companyId }: { companyId?: string }) {
   const elencoNavigabile = giorni.flatMap((g) => g.righe);
   const indiceAperto = elencoNavigabile.findIndex((r) => r.id === aperto);
   const selezionato = righe.find((r) => r.id === aperto) ?? null;
-  const filtriAttivi = !!(giorno || cantiere || persona || stato || testo);
-  const pulisci = () => imposta({ rap_giorno: null, rap_cantiere: null, rap_persona: null, rap_stato: null, rap_q: null });
+  const filtriAttivi = !!(giorno || cantiere || persona || stato || testo || (puoLeggereGiornali && tipo !== "tutti"));
+  const pulisci = () => imposta({ rap_giorno: null, rap_cantiere: null, rap_persona: null, rap_stato: null, rap_q: null, rap_tipo: null, rap_vista: null });
   const vaiA = (patch: Record<string, string | null>) => imposta({ rap_vista: null, ...patch });
 
-  const numeri: { label: string; valore: string; nota?: string; onClick?: () => void; evidenza?: boolean; soloScrivania?: boolean }[] = [
-    { label: "Rapportini", valore: totali.rapportini.toLocaleString("it-IT") },
-    { label: "Ore lavorate", valore: ore(totali.ore) },
-    { label: "Cantieri", valore: totali.cantieri.toLocaleString("it-IT") },
+  const numeri: { label: string; valore: string; nota?: string; onClick?: () => void; evidenza?: boolean; soloScrivania?: boolean }[] = tipo === "giornale" ? [
+    { label: "Giornali lavori", valore: giornaliFiltrati.length.toLocaleString("it-IT") },
+    { label: "Firmati", valore: giornaliFiltrati.filter((g) => g.stato === "firmata").length.toLocaleString("it-IT") },
+    { label: "Cantieri", valore: new Set(giornaliFiltrati.map((g) => g.order_id)).size.toLocaleString("it-IT") },
+    { label: "Da firmare", valore: giornaliFiltrati.filter((g) => g.stato !== "firmata").length.toLocaleString("it-IT"), onClick: () => imposta({ rap_stato: stato === "bozza" ? null : "bozza" }) },
+  ] : [
+    { label: tipo === "rapportino" ? "Rapportini" : "Documenti", valore: (tipo === "rapportino" ? totali.rapportini : documenti.length).toLocaleString("it-IT"), nota: tipo === "tutti" ? `${filtrate.length} rapportini · ${giornaliFiltrati.length} giornali` : undefined },
+    { label: "Ore lavorate", valore: ore(totali.ore), nota: tipo === "tutti" ? "Dai rapportini, senza duplicati" : undefined },
+    { label: "Cantieri", valore: (tipo === "rapportino" ? totali.cantieri : new Set(documenti.map((d) => d.riga.order_id)).size).toLocaleString("it-IT") },
     { label: "Persone", valore: totali.persone.toLocaleString("it-IT"), soloScrivania: true },
     {
       label: "Giorni lavorati",
       soloScrivania: true,
       valore: totali.giorni.toLocaleString("it-IT"),
-      nota: giorno ? undefined : `${feriali(mese, oggi)} feriali`,
+      nota: giorno || periodo !== "mese" ? undefined : `${feriali(mese, oggi)} feriali`,
     },
     { label: "Media al giorno", soloScrivania: true, valore: totali.giorni ? ore(Math.round((totali.ore / totali.giorni) * 10) / 10) : "—" },
     {
@@ -189,17 +229,26 @@ function Pagina({ companyId }: { companyId?: string }) {
       {/* Testata: titolo e mese */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">Rapportini</h1>
-        <div className="flex items-center gap-1.5">
+        <div className="flex max-w-full flex-wrap items-center gap-1.5">
           {isFetching && !isLoading && <Loader2 className="h-4 w-4 animate-spin text-slate-400" aria-label="Aggiornamento" />}
-          {!isMobile && filtrate.length > 0 && (
-            <Button variant="outline" size="sm" className="h-9" onClick={() => exportToCSV(righeCsv(filtrate, canViewCosts), COLONNE_CSV.filter((c) => canViewCosts || c.key !== "costo"), `rapportini-${giorno || mese}.csv`)}>
+          {!isMobile && !isLoading && !isError && documenti.length > 0 && (
+            <Button variant="outline" size="sm" className="h-9" onClick={() => tipo !== "rapportino" ? exportToCSV(righeCsvDocumenti(documenti), COLONNE_DOCUMENTI_CANTIERE, `documenti-cantiere-${giorno || (periodo === "mese" ? mese : intervallo?.da ? `${intervallo.da}_${intervallo.a}` : "tutti")}.csv`) : exportToCSV(righeCsv(filtrate, canViewCosts), COLONNE_CSV.filter((c) => canViewCosts || c.key !== "costo"), `rapportini-${giorno || (periodo === "mese" ? mese : intervallo?.da ? `${intervallo.da}_${intervallo.a}` : "tutti")}.csv`)}>
               <FileDown className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />Esporta
             </Button>
           )}
-          {mese !== meseCorrente && (
-            <Button variant="ghost" size="sm" onClick={() => imposta({ rap_mese: null, rap_giorno: null })}>Questo mese</Button>
+          {puoLeggereGiornali && <OfficeSelect label="Tipo documento" value={tipo} onValueChange={(v) => imposta({ rap_tipo: v, rap_vista: null, rap_persona: null, rap_stato: null })}
+            options={[{ value: "tutti", label: "Tutti i documenti" }, { value: "rapportino", label: "Rapportini" }, { value: "giornale", label: "Giornali lavori" }]} className="h-9 w-48" />}
+          <OfficeSelect label="Periodo" value={periodo} onValueChange={(v) => imposta({ rap_periodo: v, rap_giorno: null, rap_da: null, rap_a: null })}
+            options={[{ value: "tutti", label: "Tutti i periodi" }, { value: "ultimi30", label: "Ultimi 30 giorni" }, { value: "mese", label: "Mese" }, { value: "anno", label: "Quest’anno" }, { value: "personalizzato", label: "Periodo personalizzato" }]} className="h-9 w-48" />
+          {periodo === "personalizzato" && <div className="flex flex-wrap items-center gap-2">
+            <Input type="date" aria-label="Dal giorno" className="h-9 w-36" value={params.get("rap_da") ?? ""} onChange={(e) => imposta({ rap_da: e.target.value, rap_giorno: null })} />
+            <span className="text-xs text-slate-500">al</span>
+            <Input type="date" aria-label="Al giorno" className="h-9 w-36" value={params.get("rap_a") ?? ""} onChange={(e) => imposta({ rap_a: e.target.value, rap_giorno: null })} />
+          </div>}
+          {periodo === "mese" && mese !== meseCorrente && (
+            <Button variant="ghost" size="sm" onClick={() => imposta({ rap_periodo: "mese", rap_mese: null, rap_giorno: null })}>Questo mese</Button>
           )}
-          <div className="flex items-center rounded-lg border border-slate-200 bg-white">
+          {periodo === "mese" && <div className="flex items-center rounded-lg border border-slate-200 bg-white">
             <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Mese precedente"
               onClick={() => imposta({ rap_mese: spostaMese(mese, -1), rap_giorno: null })}>
               <ChevronLeft className="h-4 w-4" />
@@ -209,14 +258,14 @@ function Pagina({ companyId }: { companyId?: string }) {
               onClick={() => imposta({ rap_mese: spostaMese(mese, 1), rap_giorno: null })}>
               <ChevronRight className="h-4 w-4" />
             </Button>
-          </div>
+          </div>}
         </div>
       </div>
 
-      {!isError && !isLoading && <RapportiPeriodoDialog key={companyId} companyId={companyId} mese={mese} righe={filtrate as RapportinoCompleto[]} />}
-      {isError ? (
+      {tipo !== "giornale" && intervallo && !isError && !isLoading && <RapportiPeriodoDialog key={companyId} companyId={companyId} mese={periodo === "mese" ? mese : periodoLabel} righe={filtrate as RapportinoCompleto[]} conDatiEconomici={canViewCosts} />}
+      {!intervallo ? <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">Scegli una data iniziale e una finale valide. La data finale deve essere uguale o successiva a quella iniziale.</p> : isError ? (
         <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          Non riesco a leggere i rapportini: i numeri non sarebbero affidabili.
+          Non riesco a leggere tutti i documenti: i numeri non sarebbero affidabili.
           <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCcw className="mr-1.5 h-3.5 w-3.5" />Riprova</Button>
         </div>
       ) : isLoading ? (
@@ -225,13 +274,13 @@ function Pagina({ companyId }: { companyId?: string }) {
           {!isMobile && <Skeleton className="h-40 w-full rounded-xl" />}
           <Skeleton className="h-64 w-full rounded-xl" />
         </div>
-      ) : righe.length === 0 ? (
+      ) : righe.length === 0 && giornali.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
           <ClipboardList className="mx-auto h-8 w-8 text-slate-300" aria-hidden="true" />
-          <p className="mt-2 text-sm font-medium text-slate-700">Nessun rapportino {alMese(mese)}</p>
-          <Button variant="outline" size="sm" className="mt-3" onClick={() => imposta({ rap_mese: spostaMese(mese, -1), rap_giorno: null })}>
+          <p className="mt-2 text-sm font-medium text-slate-700">Nessun {tipo === "rapportino" ? "rapportino" : "documento"} {periodo === "mese" ? alMese(mese) : periodo === "tutti" ? "registrato" : `dal ${periodoLabel}`}</p>
+          {periodo === "mese" && <Button variant="outline" size="sm" className="mt-3" onClick={() => imposta({ rap_mese: spostaMese(mese, -1), rap_giorno: null })}>
             Vai {alMese(spostaMese(mese, -1))}
-          </Button>
+          </Button>}
         </div>
       ) : (
         <>
@@ -245,16 +294,16 @@ function Pagina({ companyId }: { companyId?: string }) {
                   </div>
                   <div className="min-w-0">
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">Riepilogo rapportini</p>
-                    <h2 className="mt-0.5 text-base font-semibold text-white sm:text-lg">{giorno ? giornoLungo(giorno) : "Il lavoro del mese"}</h2>
+                    <h2 className="mt-0.5 text-base font-semibold text-white sm:text-lg">{giorno ? giornoLungo(giorno) : periodo === "mese" ? "Il lavoro del mese" : periodo === "tutti" ? tipo === "rapportino" ? "Tutti i rapportini" : "Tutti i documenti del cantiere" : periodoLabel}</h2>
                   </div>
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {numeri.filter((n) => !n.soloScrivania).map((n) => {
                     const Elemento = n.onClick ? "button" : "div";
                     return (
-                      <Elemento key={n.label} {...(n.onClick ? { type: "button" as const, onClick: n.onClick, "aria-pressed": stato === "inviato" } : {})}
+                      <Elemento key={n.label} {...(n.onClick ? { type: "button" as const, onClick: n.onClick, "aria-pressed": stato === (tipo === "giornale" ? "bozza" : "inviato") } : {})}
                         className={cn("flex min-w-0 flex-col items-start justify-start rounded-xl border border-white/15 bg-white/10 p-2 text-left [&>span]:w-full", n.soloScrivania && "hidden sm:flex",
-                          n.onClick && "transition-colors hover:bg-white/15", n.onClick && stato === "inviato" && "border-amber-300/70 bg-white/15")}>
+                          n.onClick && "transition-colors hover:bg-white/15", n.onClick && stato === (tipo === "giornale" ? "bozza" : "inviato") && "border-amber-300/70 bg-white/15")}>
                         <span className="block truncate text-[11px] font-semibold uppercase tracking-wide text-blue-100">{n.label}</span>
                         <span className={cn("mt-0.5 block truncate text-lg font-bold tabular-nums leading-tight text-white", n.evidenza && "text-amber-300")}>{n.valore}</span>
                         {n.nota && <span className="block truncate text-xs text-blue-50/70">{n.nota}</span>}
@@ -264,8 +313,8 @@ function Pagina({ companyId }: { companyId?: string }) {
                 </div>
               </div>
 
-              <details className="group border-t border-slate-200">
-                <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">Statistiche del mese</summary>
+              {tipo !== "giornale" && <details className="group border-t border-slate-200">
+                <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">{tipo === "tutti" ? "Statistiche dei rapportini" : periodo === "mese" ? "Statistiche del mese" : "Statistiche del periodo"}</summary>
                 <div className="grid grid-cols-2 gap-3 px-4 pb-3 sm:grid-cols-4">
                   {numeri.filter((n) => n.soloScrivania).map((n) => <div key={n.label}>
                     <span className="block text-xs font-semibold uppercase text-slate-500">{n.label}</span>
@@ -274,7 +323,7 @@ function Pagina({ companyId }: { companyId?: string }) {
                   </div>)}
                 </div>
               {/* Le statistiche: l'andamento del mese e dove sono andate le ore */}
-              {!isMobile && (
+              {!isMobile && periodo === "mese" && (
                 <aside className="grid min-w-0 gap-3 border-t border-slate-200 p-3 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:border-l xl:border-t-0">
                   <div aria-label="Ore per giorno" className="min-w-0">
                     <div className="mb-1 flex items-baseline justify-between gap-2">
@@ -323,7 +372,7 @@ function Pagina({ companyId }: { companyId?: string }) {
                   </div>
                 </aside>
               )}
-              </details>
+              </details>}
             </div>
           </section>
 
@@ -333,7 +382,7 @@ function Pagina({ companyId }: { companyId?: string }) {
               <div role="tablist" aria-label="Dividi i rapportini" className="flex max-w-full gap-1 overflow-x-auto rounded-lg p-0.5 [scrollbar-width:none]">
                 {visteDisponibili.map((v) => (
                   <button key={v.id} type="button" role="tab" aria-selected={vista === v.id}
-                    onClick={() => imposta({ rap_vista: v.id === "giorni" ? null : v.id })}
+                    onClick={() => imposta({ rap_vista: v.id === "elenco" ? null : v.id })}
                     className={cn("shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-sm transition-colors",
                       vista === v.id ? "bg-orange-50 font-semibold text-slate-950 shadow-sm ring-1 ring-orange-100" : "text-slate-500 hover:text-slate-900")}>
                     {v.label}
@@ -347,9 +396,9 @@ function Pagina({ companyId }: { companyId?: string }) {
                     aria-label="Cerca nei rapportini" className="h-9 w-56 pl-8 text-sm max-sm:w-full" />
                 </div>
                 <OfficeSelect label="Cantiere" value={cantiere} onValueChange={(v) => imposta({ rap_cantiere: v || null })} options={opzioniCantieri} className="h-9 w-44 text-sm max-sm:flex-1" />
-                <OfficeSelect label="Persona" value={persona} onValueChange={(v) => imposta({ rap_persona: v || null })} options={opzioniPersone} className="h-9 w-40 text-sm max-sm:flex-1" />
+                {tipo === "rapportino" && <OfficeSelect label="Persona" value={persona} onValueChange={(v) => imposta({ rap_persona: v || null })} options={opzioniPersone} className="h-9 w-40 text-sm max-sm:flex-1" />}
                 <OfficeSelect label="Stato" value={stato} onValueChange={(v) => imposta({ rap_stato: v || null })} className="h-9 w-36 text-sm max-sm:flex-1"
-                  options={[{ value: "", label: "Stati" }, ...(["inviato", "approvato", "rifiutato"] as const).map((s) => ({ value: s, label: STATI[s].label }))]} />
+                  options={[{ value: "", label: "Stati" }, ...(tipo === "giornale" ? [] : (["inviato", "approvato", "rifiutato"] as const).map((s) => ({ value: s, label: STATI[s].label }))), { value: "bozza", label: "Bozza" }, ...(tipo === "rapportino" ? [] : [{ value: "firmata", label: "Firmata" }])]} />
               </div>
             </div>
             {filtriAttivi && (
@@ -362,19 +411,22 @@ function Pagina({ companyId }: { companyId?: string }) {
                 {[
                   { key: "rap_cantiere", value: cantiere, label: opzioniCantieri.find((v) => v.value === cantiere)?.label },
                   { key: "rap_persona", value: persona, label: opzioniPersone.find((v) => v.value === persona)?.label },
-                  { key: "rap_stato", value: stato, label: STATI[stato as StatoRapportino]?.label },
+                  { key: "rap_stato", value: stato, label: stato === "firmata" ? "Firmata" : STATI[stato as StatoRapportino]?.label },
                   { key: "rap_q", value: testo, label: `Ricerca: ${testo}` },
                 ].filter((f) => f.value).map((f) => <button key={f.key} type="button" aria-label={`Togli filtro: ${f.label}`} onClick={() => imposta({ [f.key]: null })}
                   className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-slate-700 hover:bg-slate-100">
                   {f.label}<X className="h-3 w-3" aria-hidden="true" />
                 </button>)}
-                <span>{conto(filtrate.length, "rapportino", "rapportini")} su {righe.length.toLocaleString("it-IT")}</span>
+                {puoLeggereGiornali && tipo !== "tutti" && <span className="rounded-full border border-slate-200 bg-white px-2 py-1">{tipo === "giornale" ? "Giornali lavori" : "Rapportini"}</span>}
+                <span>{conto(documenti.length, "documento", "documenti")} su {(righe.length + giornali.length).toLocaleString("it-IT")}</span>
                 <button type="button" className="ml-auto font-medium text-slate-700 underline-offset-2 hover:underline" onClick={pulisci}>Togli i filtri</button>
               </div>
             )}
 
-            {filtrate.length === 0 ? (
-              <p className="px-4 py-10 text-center text-sm text-slate-500">Nessun rapportino con questi filtri.</p>
+            {documenti.length === 0 ? (
+              <p className="px-4 py-10 text-center text-sm text-slate-500">Nessun {tipo === "rapportino" ? "rapportino" : "documento"} con questi filtri.</p>
+            ) : vista === "elenco" ? (
+              <TabellaDocumentiCantiere key={[tipo, periodo, periodoLabel, giorno, cantiere, persona, stato, testo].join("|")} righe={documenti} onApri={(id) => imposta({ rap_id: id }, false)} onPdf={(r) => pdf.scarica(r as RapportinoCompleto)} pdfInCorso={pdf.inCorso} giornoLungo={giornoLungo} />
             ) : vista === "giorni" ? (
               <div>
                 <div aria-hidden="true" className="hidden border-b border-slate-200 bg-slate-50 py-2 pl-3 pr-[3.25rem] text-xs font-semibold text-slate-500 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)_13rem_3.5rem_2.5rem_6.5rem] lg:gap-x-3">

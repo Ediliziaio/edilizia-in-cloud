@@ -44,6 +44,8 @@ export interface StatoVoce {
   residua: number;
   /** Tutta la quantità ha una ditta. */
   piena: boolean;
+  /** Affidato più della voce: la voce è scesa dopo (variante del computo). Da rivedere (R12). */
+  oltre: number;
   quote: AffidamentoChiFaCosa[];
   /** Venduto della parte affidata e della parte senza ditta. */
   vendutoAffidato: number;
@@ -69,6 +71,7 @@ export function statoVoce(v: VoceChiFaCosa, affidamenti: ReadonlyArray<Affidamen
   const materialiNostri = cent(quote.filter((a) => a.comprende === "posa").reduce((t, a) => t + num(a.quantita) * num(v.costo_materiali), 0));
   return {
     affidata, residua, piena: totale > 0 && residua <= 0.0005, quote,
+    oltre: Math.max(0, Math.round((affidata - totale) * 1000) / 1000),
     vendutoAffidato, vendutoResiduo: cent(venduto - vendutoAffidato),
     costoDitte, senzaPrezzo: quote.filter((a) => a.prezzo_unitario == null).length, materialiNostri,
     margine: quote.length ? cent(vendutoAffidato - costoDitte - materialiNostri) : null,

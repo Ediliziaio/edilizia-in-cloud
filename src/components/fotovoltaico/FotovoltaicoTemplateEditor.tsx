@@ -1,3 +1,8 @@
+import type {CampioneEditorFv} from "./FvPersonalizzazionePagine";
+import {FvMonitoraggioSettings} from "./FvMonitoraggioSettings";
+import {leggiMonitoraggioFv} from "../../../supabase/functions/_shared/fvMonitoraggio";
+import {ICONE_EDITORIALI_FV,svgIconaEditorialeFv} from "../../../supabase/functions/_shared/fvIconeEditoriali";
+import {modelloAzienda,isFvPaginaAzienda,FV_AZIENDA_PAGINE_OBBLIGATORIE,FV_AZIENDA_PAGINE_NON_APPLICABILI,testiPaginaAzienda,type TestiPaginaAzienda} from "../../../supabase/functions/_shared/fvModelliAzienda";
 import { TemplateSectionNavigation } from "@/components/preventivi/TemplateSectionNavigation";
 import { CondizioniContratto } from '@/components/preventivi/CondizioniContratto';
 import { orderedSectionExcluded } from "@/components/preventivi/templateNavigationState";
@@ -80,6 +85,7 @@ import {
 } from "@/lib/fotovoltaico/preventivatore";
 
 // Anteprima PDF completa (lazy: trascina renderFvPdfHtml ~1700 righe fuori dal chunk iniziale)
+const FvPersonalizzazionePagine = lazy(()=>import("./FvPersonalizzazionePagine"));
 const FvTemplatePreviewDialog = lazy(() => import("./FvTemplatePreviewDialog"));
 // Pannello anteprima live persistente (lazy per lo stesso motivo: usa renderFvPdfHtml).
 const FvLivePreviewPanel = lazy(() => import("./FvLivePreviewPanel").then((m) => ({ default: m.FvLivePreviewPanel })));
@@ -227,6 +233,9 @@ interface Props {
   embedded?: boolean;
   localModule?: {
     id: FullFvModuleId;
+    renderCampione?: (template:Record<string,unknown>)=>CampioneEditorFv;
+    /** Solo il banco di prova locale: nessuna scrittura remota. */
+    soloLocale?:boolean;
     template: FullFvTemplate;
     saved: boolean;
     onDirtyChange: (dirty: boolean) => void;
@@ -272,6 +281,8 @@ type FvEditorSection =
   | "contenuti"
   | "default"
   | "page_cover"
+  | "page_testi_immagini"
+  | "page_monitoraggio"
   | "page_chi_siamo"
   | "page_percorso"
   | "page_consulente"
@@ -281,6 +292,7 @@ type FvEditorSection =
   | "page_conversione"
   | "page_ordine"
   // Le pagine nuove del documento, una sezione ciascuna (vedi pagineEditor.ts).
+  | "page_azienda_sintesi" | "page_azienda_flussi" | "page_azienda_scadenze" | "page_azienda_ipotesi"
   | "page_come_funziona" | "page_protezione" | "page_controlli" | "page_documenti" | "page_diario" | "page_faq";
 
 const FV_EDITOR_SECTIONS: Array<{
@@ -705,6 +717,7 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
   // Chiudere/ricaricare la scheda con modifiche non salvate ora chiede conferma
   // (il salvataggio qui è solo manuale: prima si perdeva tutto in silenzio).
   useBeforeUnload(dirty);
+  const [paginaPersonalizzata,setPaginaPersonalizzata]=useState("cover");
   const [activeSection, setActiveSection] = useState<FvEditorSection>(initialSection);
 
   const [delRecIdx, setDelRecIdx] = useState<number | null>(null);
@@ -806,11 +819,11 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
   const handleSave = () => {
     if (localModule) {
       try {
-        if (companyId !== localModule.template.company_id) throw new Error("L'azienda è cambiata. Riapri il modulo prima di salvare.");
+        if (!localModule.soloLocale&&companyId !== localModule.template.company_id) throw new Error("L'azienda è cambiata. Riapri il modulo prima di salvare.");
         localModule.save({ ...localModule.template, ...form });
         setLocalSaved(true);
         setDirty(false);
-        toast.success("Modello salvato", { description: "Salvato per l'azienda: lo usano i nuovi preventivi con questo intervento. Il template aziendale non è stato modificato." });
+        toast.success("Modello salvato", { description: localModule.soloLocale?"Salvato soltanto in questo browser. L’ambiente online non è stato modificato.":"Salvato per l’azienda. Il modello di base non è stato modificato." });
       } catch (error) { toast.error("Salvataggio non riuscito", { description: String(error) }); }
       return;
     }
@@ -958,7 +971,8 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
   );
   const qualityCriticalCount = qualityItems.filter((item) => item.level === "critical").length;
   const qualityWarningCount = qualityItems.filter((item) => item.level === "warning").length;
-  const editorSections = FV_EDITOR_SECTIONS.filter(section => !localModule || !["page_render", "strategia"].includes(section.id)).map(section => {
+  const aziendale=!!modelloAzienda(form);
+  const editorSections = FV_EDITOR_SECTIONS.filter(section => (aziendale||!section.id.startsWith("page_azienda_"))&&(!localModule || ![...(aziendale?[]:["page_render"]),"strategia"].includes(section.id))).map(section => {
     const key = section.id === "page_percorso" ? "iter" : section.id.replace(/^page_/, "");
     const custom = localModule?.id === "accumulo" ? FV_ACCUMULO_LABELS[key] : undefined;
     return custom ? { ...section, description: custom.descrizione } : section;
@@ -1125,7 +1139,7 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
   // La sezione aperta, se è una pagina del documento, e se la pagina esce.
   const paginaFv = paginaEditor("fotovoltaico", activeSection);
   const IconaPaginaFv = paginaFv?.icona ?? ImageIcon;
-  const ordinePagineFv = normalizeFvPdfPagesOrder(form.pdf_pages_order ?? null);
+  const ordinePagineFv = normalizeFvPdfPagesOrder(form.pdf_pages_order ?? null).map(p=>aziendale&&FV_AZIENDA_PAGINE_OBBLIGATORIE.has(p.id)?{...p,visible:true}:p);
   const paginaFvVisibile = paginaFv?.pagina ? ordinePagineFv.find((p) => p.id === paginaFv.pagina)?.visible ?? false : false;
   const campoFotoFv = (valore: string | null, onChange: (url: string | null) => void) => (
     <CampoFotoModello localOnly={!!localModule} valore={valore} onChange={onChange} bucket="fv-progetti" cartella={companyId ? `${companyId}/template-blocchi` : null} />
@@ -1292,14 +1306,10 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
                   }
                   className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs"
                 >
-                  <option value="shield">Shield</option>
-                  <option value="award">Award</option>
-                  <option value="clock">Clock</option>
-                  <option value="tools">Tools</option>
-                  <option value="battery">Battery</option>
-                  <option value="sun">Sun</option>
-                  <option value="custom">Custom</option>
+                  {ICONE_EDITORIALI_FV.map(icona=><option key={icona.id} value={icona.id}>{icona.nome}</option>)}
+                  <option value="custom">Personalizzata</option>
                 </select>
+                <div className="mt-2 flex items-center gap-2 text-xs text-slate-500"><span className="inline-flex" dangerouslySetInnerHTML={{__html:svgIconaEditorialeFv(garanzia.icona,{colore:form.colore_accento,dimensione:24})}}/>Anteprima icona</div>
               </div>
               <div className="col-span-12 md:col-span-4">
                 <Label className="text-xs">Titolo</Label>
@@ -1600,7 +1610,7 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
 <div className="my-4"><TemplateCoverTextFields value={{ eyebrow: form.pdf_cover_eyebrow, title: form.pdf_cover_hero, subtitle: form.pdf_cover_subhero, dynamicSubtitle: form.pdf_cover_subhero_template }} onChange={(field, value) => { if (field === "eyebrow") { update("pdf_cover_eyebrow", (value ?? "") || null); }
 if (field === "title") { update("pdf_cover_hero", (value ?? "") || null); }
 if (field === "subtitle") { update("pdf_cover_subhero", (value ?? "") || null); }
-if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?? "") || null); } }} dynamicSubtitle  placeholders={(value, onChange) => <PlaceholderChips value={value} onChange={onChange} accumulo={!!localModule} />} /></div>
+if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?? "") || null); } }} dynamicSubtitle  placeholders={(value, onChange) => <PlaceholderChips value={value} onChange={onChange} accumulo={localModule?.id==="accumulo"} />} /></div>
           {/* Colonna singola: l'anteprima è ora nel pannello live globale a destra. */}
           <div className="grid gap-4">
             <TemplateCoverDesignControls hasImage={!!form.pdf_cover_image_url} fields={[
@@ -1791,6 +1801,18 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
         </>
       )}
 
+      {activeSection === "page_testi_immagini" && (<>
+        <FvSectionHeader title="Testi e immagini di tutte le pagine" description="Personalizza titoli, testi, etichette e immagini. I dati del preventivo rimangono automatici."/>
+        <Suspense fallback={<p>Caricamento dei contenuti del modello…</p>}><FvPersonalizzazionePagine form={form as unknown as Record<string,unknown>} onBlocchi={b=>update("pdf_blocchi",b)} campoFoto={campoFotoFv} renderCampione={localModule?.renderCampione} onPagina={setPaginaPersonalizzata}/></Suspense>
+      </>)}
+      {activeSection === "page_monitoraggio" && (<>
+        <FvSectionHeader title="App e monitoraggio" description="Condizioni personalizzabili per questa azienda: app, immagine e servizi facoltativi."/>
+        <FvMonitoraggioSettings value={leggiMonitoraggioFv(form.pdf_blocchi)} onChange={monitoraggio=>{
+          update("pdf_blocchi",{...form.pdf_blocchi,monitoraggio});
+          update("pdf_pages_order",normalizeFvPdfPagesOrder(form.pdf_pages_order).map(p=>p.id==="monitoraggio"?{...p,visible:monitoraggio.attivo}:p));
+        }}/>
+
+      </>)}
       {activeSection === "page_chi_siamo" && (
         <>
           <FvSectionHeader
@@ -2074,7 +2096,9 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
           >
             <FvPagesOrderEditor
               ordineDiSerie={moduleDefaults?.pdf_pages_order}
-              escluse={localModule ? FV_ACCUMULO_PAGINE_NON_APPLICABILI : undefined}
+              obbligatorie={aziendale?FV_AZIENDA_PAGINE_OBBLIGATORIE:undefined}
+              escluse={aziendale?FV_AZIENDA_PAGINE_NON_APPLICABILI:localModule?new Set([...FV_ACCUMULO_PAGINE_NON_APPLICABILI,"azienda_sintesi","azienda_flussi","azienda_scadenze","azienda_ipotesi"]):new Set(["azienda_sintesi","azienda_flussi","azienda_scadenze","azienda_ipotesi"])}
+              notaEscluse={aziendale?"Le pagine economiche residenziali sono sostituite dai capitoli aziendali. I dati economici arrivano dalla fase Finanza.":localModule?undefined:"Le pagine aziendali appartengono ai modelli Fotovoltaico aziende."}
               labels={localModule?.id === "accumulo" ? FV_ACCUMULO_LABELS : undefined}
               value={form.pdf_pages_order ?? null}
               onChange={(next) => update("pdf_pages_order", next)}
@@ -2480,6 +2504,11 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
         </>
       )}
 
+      {aziendale&&paginaFv?.pagina&&isFvPaginaAzienda(paginaFv.pagina)&&(()=>{
+        const id=paginaFv.pagina,testi=testiPaginaAzienda(form.pdf_blocchi,id);
+        const cambia=(campo:keyof TestiPaginaAzienda,valore:string)=>{const pagine=(form.pdf_blocchi?.azienda_pagine??{}) as Record<string,TestiPaginaAzienda>;update("pdf_blocchi",{...form.pdf_blocchi,azienda_pagine:{...pagine,[id]:{...testi,[campo]:valore}}});};
+        return <><FvSectionHeader title={paginaFv.voce} description={paginaFv.descrizione}/><FvSettingsCard title="Testi della pagina"><p className="mb-4 text-sm text-muted-foreground">Personalizza la presentazione. Importi, grafici, scadenze e avvertenze vengono calcolati dal preventivo; le tabelle del noleggio restano in Impostazioni → Finanziamenti.</p><div className="space-y-4"><div><Label>Occhiello</Label><Input aria-label="Occhiello pagina aziendale" maxLength={160} value={testi.occhiello} onChange={e=>cambia("occhiello",e.target.value)}/></div><div><Label>Titolo</Label><Textarea aria-label="Titolo pagina aziendale" maxLength={160} value={testi.titolo} onChange={e=>cambia("titolo",e.target.value)}/></div><div><Label>Introduzione</Label><Textarea aria-label="Introduzione pagina aziendale" maxLength={600} value={testi.intro} onChange={e=>cambia("intro",e.target.value)}/></div><label className="flex items-center gap-2"><input type="checkbox" disabled={FV_AZIENDA_PAGINE_OBBLIGATORIE.has(id)} checked={paginaFvVisibile} onChange={e=>update("pdf_pages_order",conPaginaVisibile(ordinePagineFv,id,e.target.checked))}/>Mostra questa pagina nel PDF</label></div></FvSettingsCard></>;
+      })()}
       {/* Le pagine nuove del documento, una sezione ciascuna (vedi pagineEditor.ts); per
           «Chi siamo e garanzie» e la pagina finale, quello che alla loro sezione mancava. */}
       {paginaFv && !paginaFv.esistente && (
@@ -2531,7 +2560,8 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                 form={form as unknown as Record<string, unknown>}
                 companyName={form.ragione_sociale || companyAnagrafica?.ragione_sociale || null}
                 logoUrl={logoAnteprima}
-                activeSection={activeSection}
+                activeSection={activeSection==="page_testi_immagini"?`pdf:${paginaPersonalizzata}`:activeSection}
+                renderCampione={localModule?.renderCampione}
               />
             </Suspense>
           </div>
@@ -2646,6 +2676,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
         <Suspense fallback={null}>
           <FvTemplatePreviewDialog
             open={previewOpen}
+            renderCampione={localModule?.renderCampione}
             onOpenChange={setPreviewOpen}
             form={form as unknown as Record<string, unknown>}
             companyName={form.ragione_sociale || companyAnagrafica?.ragione_sociale || null}

@@ -313,9 +313,9 @@ export default function BlogPost() {
     "@id": `https://www.ediliziaincloud.com/blog/${post.slug}`,
     ...(post.video ? { video: {
       "@type": "VideoObject",
-      name: post.title,
+      name: post.video.title || post.title,
       description: post.excerpt,
-      thumbnailUrl: `https://i.ytimg.com/vi/${post.video.youtubeId}/hqdefault.jpg`,
+      thumbnailUrl: post.video.poster ? `https://www.ediliziaincloud.com${post.video.poster}` : `https://i.ytimg.com/vi/${post.video.youtubeId}/hqdefault.jpg`,
       uploadDate: post.video.uploadedAt,
       duration: post.video.duration,
       embedUrl: `https://www.youtube-nocookie.com/embed/${post.video.youtubeId}`,
@@ -503,7 +503,7 @@ export default function BlogPost() {
                   <iframe
                     className="w-full h-full border-0"
                     src={`https://www.youtube-nocookie.com/embed/${post.video.youtubeId}`}
-                    title={post.title}
+                    title={post.video.title || post.title}
                     loading="lazy"
                     referrerPolicy="strict-origin-when-cross-origin"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"

@@ -67,6 +67,14 @@ const scegliRighe = (valore: string) => {
 };
 
 describe("Contatti: righe per pagina", () => {
+  it("nomina selezioni e modifica e rende il nome un collegamento utilizzabile da tastiera", () => {
+    disegna();
+    expect(screen.getByRole("checkbox", { name: "Seleziona i contatti di questa pagina" })).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: "Seleziona Nome1 Cognome1" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Modifica contatto: Nome1 Cognome1" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Nome1 Cognome1" })).toHaveAttribute("href", expect.stringContaining("/contatti/c1"));
+    expect(screen.getByRole("button", { name: "Email" })).toBeTruthy();
+  });
   it("parte da 25 righe e 6 pagine", () => {
     disegna();
     expect(screen.getByRole("combobox")).toHaveTextContent("25");
@@ -105,10 +113,10 @@ describe("Contatti: righe per pagina", () => {
 
   it("Succ e Prec continuano a scorrere le pagine con la misura scelta", () => {
     disegna("/contatti?per_pagina=50");
-    fireEvent.click(screen.getByRole("button", { name: "Succ" }));
+    fireEvent.click(screen.getByRole("button", { name: "Successive" }));
     expect(screen.getByText("Pagina 2 di 3")).toBeInTheDocument();
     expect(url().get("per_pagina")).toBe("50");
-    fireEvent.click(screen.getByRole("button", { name: "Prec" }));
+    fireEvent.click(screen.getByRole("button", { name: "Precedenti" }));
     expect(screen.getByText("Pagina 1 di 3")).toBeInTheDocument();
   });
 });

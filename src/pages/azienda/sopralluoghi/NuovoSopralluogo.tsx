@@ -692,7 +692,7 @@ function SurveyCreateForm({
           type="button"
           variant="outline"
           size="icon"
-          aria-label="Torna ai sopralluoghi"
+          aria-label={step > 1 ? "Torna al passaggio precedente" : "Torna ai sopralluoghi"}
           className="h-11 w-11 shrink-0 rounded-xl"
           disabled={createMutation.isPending}
           onClick={() =>

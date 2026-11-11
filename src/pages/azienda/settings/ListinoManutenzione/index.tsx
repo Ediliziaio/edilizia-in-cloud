@@ -57,9 +57,10 @@ export default function ListinoManutenzione({ scheda }: { scheda: SchedaManutenz
   // 13/7/2026: la pagina rispetta il permesso Impostazioni dedicato (prima solo ruolo admin,
   // e il toggle dato dall'admin non apriva nulla). Modifica ⇒ tutte le azioni; Visualizza ⇒ accesso.
   const eAmministratore = role === "company_admin" || role === "super_admin" || permissions.isAdmin;
-  const puoModificarePrezzi = eAmministratore || permissions.canEditSettingsPricing;
-  const puoModificareTipi = eAmministratore;
-  const canView = puoModificarePrezzi || permissions.canViewSettingsPricing;
+  const scritturaAbilitata = !permissions.isLoading && !permissions.solaLettura;
+  const puoModificarePrezzi = scritturaAbilitata && (eAmministratore || permissions.canEditSettingsPricing);
+  const puoModificareTipi = scritturaAbilitata && eAmministratore;
+  const canView = eAmministratore || permissions.canEditSettingsPricing || permissions.canViewSettingsPricing;
   const puoModificare = scheda === "prezzi" ? puoModificarePrezzi : puoModificareTipi;
 
   // Impianti state
@@ -138,7 +139,9 @@ export default function ListinoManutenzione({ scheda }: { scheda: SchedaManutenz
       {!puoModificare && (
         <Alert>
           <AlertDescription>
-            {scheda === "prezzi"
+            {permissions.solaLettura
+              ? "Modalità sola lettura: puoi consultare il listino di manutenzione senza modificarlo o importare cataloghi."
+              : scheda === "prezzi"
               ? "Stai consultando i prezzi di manutenzione: li cambia chi ha il permesso «Listino & Prezzi» in modifica."
               : `Stai consultando ${scheda === "impianti" ? "i tipi di impianto" : "i tipi di intervento"}: li cambia l'amministratore dell'azienda.`}
           </AlertDescription>
@@ -184,7 +187,7 @@ export default function ListinoManutenzione({ scheda }: { scheda: SchedaManutenz
       )}
 
       {/* ── Dialogs ── */}
-      {impiantoDialogOpen && (
+      {impiantoDialogOpen && puoModificareTipi && (
         <ImpiantoDialog
           key={editingImpianto?.id ?? "new-impianto"}
           open={impiantoDialogOpen}
@@ -195,7 +198,7 @@ export default function ListinoManutenzione({ scheda }: { scheda: SchedaManutenz
         />
       )}
 
-      {interventoDialogOpen && (
+      {interventoDialogOpen && puoModificareTipi && (
         <InterventoDialog
           key={editingIntervento?.id ?? "new-intervento"}
           open={interventoDialogOpen}
@@ -206,7 +209,7 @@ export default function ListinoManutenzione({ scheda }: { scheda: SchedaManutenz
         />
       )}
 
-      {listinoDialogOpen && (
+      {listinoDialogOpen && puoModificarePrezzi && (
         <ListinoDialog
           key={editingListino?.id ?? "new-listino"}
           open={listinoDialogOpen}
@@ -220,7 +223,7 @@ export default function ListinoManutenzione({ scheda }: { scheda: SchedaManutenz
       )}
 
       {/* ── Delete Confirmations con FK guard (cascade counter) ── */}
-      <AlertDialog open={!!deleteImpiantoId} onOpenChange={(v) => !v && setDeleteImpiantoId(null)}>
+      <AlertDialog open={!!deleteImpiantoId && puoModificareTipi} onOpenChange={(v) => !v && setDeleteImpiantoId(null)}>
         <AlertDialogContent>
           {(() => {
             const impiantoInUso = listino.filter((l) => l.tipo_impianto_id === deleteImpiantoId).length;
@@ -251,7 +254,7 @@ export default function ListinoManutenzione({ scheda }: { scheda: SchedaManutenz
                     className="bg-destructive text-destructive-foreground"
                     disabled={blocked}
                     onClick={() => {
-                      if (!blocked && deleteImpiantoId) {
+                      if (puoModificareTipi && !blocked && deleteImpiantoId) {
                         deleteImpiantoMutation.mutate(deleteImpiantoId);
                         setDeleteImpiantoId(null);
                       }
@@ -266,7 +269,7 @@ export default function ListinoManutenzione({ scheda }: { scheda: SchedaManutenz
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={!!deleteInterventoId} onOpenChange={(v) => !v && setDeleteInterventoId(null)}>
+      <AlertDialog open={!!deleteInterventoId && puoModificareTipi} onOpenChange={(v) => !v && setDeleteInterventoId(null)}>
         <AlertDialogContent>
           {(() => {
             const interventoInUso = listino.filter((l) => l.tipo_intervento_id === deleteInterventoId).length;
@@ -297,7 +300,7 @@ export default function ListinoManutenzione({ scheda }: { scheda: SchedaManutenz
                     className="bg-destructive text-destructive-foreground"
                     disabled={blocked}
                     onClick={() => {
-                      if (!blocked && deleteInterventoId) {
+                      if (puoModificareTipi && !blocked && deleteInterventoId) {
                         deleteInterventoMutation.mutate(deleteInterventoId);
                         setDeleteInterventoId(null);
                       }
@@ -312,7 +315,7 @@ export default function ListinoManutenzione({ scheda }: { scheda: SchedaManutenz
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={!!deleteListinoId} onOpenChange={(v) => !v && setDeleteListinoId(null)}>
+      <AlertDialog open={!!deleteListinoId && puoModificarePrezzi} onOpenChange={(v) => !v && setDeleteListinoId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Elimina prezzo di manutenzione</AlertDialogTitle>
@@ -325,7 +328,7 @@ export default function ListinoManutenzione({ scheda }: { scheda: SchedaManutenz
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground"
               onClick={() => {
-                if (deleteListinoId) {
+                if (puoModificarePrezzi && deleteListinoId) {
                   deleteListinoMutation.mutate(deleteListinoId);
                   setDeleteListinoId(null);
                 }
@@ -338,12 +341,13 @@ export default function ListinoManutenzione({ scheda }: { scheda: SchedaManutenz
       </AlertDialog>
 
       {/* ── Catalogo pronto ── */}
-      {templateDialogOpen && (
+      {templateDialogOpen && puoModificareTipi && (
         <StandardListinoDialog
           open={templateDialogOpen}
           onClose={() => setTemplateDialogOpen(false)}
           existingCount={tipiImpianto.length + tipiIntervento.length + listino.length}
           onImport={async (params) => {
+            if (!puoModificareTipi) return;
             const ok = await seedFromTemplate(params);
             if (ok) setTemplateDialogOpen(false);
           }}

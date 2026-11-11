@@ -963,7 +963,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                 </section>
                 <section className="rounded-xl border bg-white p-5">
                   <h3 className="mb-3 font-semibold text-blue-950">
-                    Firma registrata
+                    {survey.client_signature_at ? "Firma registrata" : "Firma cliente"}
                   </h3>
                   {survey.client_signature_at ? (
                     <>

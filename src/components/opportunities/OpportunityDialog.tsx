@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useId, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -59,6 +59,10 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^\+?[0-9\s().-]{6,20}$/;
 
 export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName, stages, initialStageId, initialContactId }: Props) {
+  const fieldId = useId();
+  const submittingRef = useRef(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -139,7 +143,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
   // La ricerca parte 300 ms dopo l'ultima lettera, non a ogni tasto: il 15/09/2026
   // con il database saturo ogni lettera diventava una query da 8 secondi.
   const ricercaContatti = useDebounce(contactSearch, 300);
-  const { data: contacts = [] } = useQuery({
+  const { data: contacts = [], isLoading: contactsLoading, isError: contactsError, refetch: refetchContacts } = useQuery({
     queryKey: ["marketing_contacts_search", companyId, ricercaContatti],
     queryFn: async () => {
       let query = supabase
@@ -194,6 +198,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
   };
 
   const resetForm = () => {
+    setSubmitError(null);
     setSelectedContactId("");
     setContactSearch("");
     setShowNewContact(false);
@@ -272,7 +277,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
       .find((contact) => contact.id !== excludeId) || null;
   };
 
-  const handleSubmit = async () => {
+  const submitOpportunity = async () => {
     if (!canEditOpportunities) {
       toast.error("Non hai i permessi per creare opportunità");
       return;
@@ -386,7 +391,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
       return;
     }
 
-    createOpportunity.mutate(
+    const data = await createOpportunity.mutateAsync(
       {
         contact_id: contactId,
         pipeline_id: pipelineId,
@@ -399,54 +404,65 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
         follower_id: followerId || undefined,
         call_center_id: callCenterId || undefined,
         company_name: oppCompanyName || undefined,
-      },
-      {
-        onSuccess: async (data: { id?: string } | null | undefined) => {
-          const oppId = data?.id;
-          if (oppId) {
-            // Servizio AEDIX: come per i tag, si scrive dopo la creazione perche'
-            // la mutation condivisa non porta questi campi (esistono solo per il
-            // CRM di piattaforma).
-            if (isPlatformCrm && productLineId) {
-              const { error: svcErr } = await supabase
-                .from("marketing_opportunities")
-                .update({ product_line_id: productLineId, package_id: packageId })
-                .eq("id", oppId)
-                .eq("company_id", companyId!);
-              if (svcErr) {
-                toast.error("Opportunità creata, ma il servizio non è stato salvato", { description: svcErr.message });
-              }
-            }
-            // Save tags and sync to contact
-            const normalizedTags = normalizeTagList(tags);
-            if (normalizedTags.length > 0) {
-              const { error: tagsErr } = await supabase.from("marketing_opportunities").update({ tags: normalizedTags }).eq("id", oppId).eq("company_id", companyId!);
-              if (tagsErr) {
-                toast.error("Opportunità creata, ma i tag non sono stati salvati", { description: tagsErr.message });
-              } else {
-                await syncTagsToContact(contactId, normalizedTags, companyId);
-              }
-            }
-            // Save custom field values
-            if (Object.keys(customFieldValues).length > 0) {
-              const rows = Object.entries(customFieldValues)
-                .filter(([, v]) => v.trim())
-                .map(([fieldId, val]) => ({ opportunity_id: oppId, field_id: fieldId, value: val }));
-              if (rows.length > 0) {
-                const { error: cfErr } = await supabase.from("marketing_opportunity_field_values").insert(rows);
-                if (cfErr) toast.error("Opportunità creata, ma i campi personalizzati non sono stati salvati", { description: cfErr.message });
-              }
-            }
-            // Ri-invalida DOPO tag/campi custom: l'onSuccess del hook aveva
-            // già invalidato prima di queste scritture → la card appariva
-            // in kanban senza etichette fino allo scadere dello staleTime.
-            queryClient.invalidateQueries({ queryKey: ["marketing-opportunities"] });
-          }
-          resetForm();
-          onOpenChange(false);
-        },
       }
     );
+    const oppId = data?.id;
+    if (oppId) {
+      // Servizio AEDIX: come per i tag, si scrive dopo la creazione perche'
+      // la mutation condivisa non porta questi campi (esistono solo per il
+      // CRM di piattaforma).
+      if (isPlatformCrm && productLineId) {
+        const { error: svcErr } = await supabase
+          .from("marketing_opportunities")
+          .update({ product_line_id: productLineId, package_id: packageId })
+          .eq("id", oppId)
+          .eq("company_id", companyId!);
+        if (svcErr) {
+          toast.error("Opportunità creata, ma il servizio non è stato salvato", { description: svcErr.message });
+        }
+      }
+      // Save tags and sync to contact
+      const normalizedTags = normalizeTagList(tags);
+      if (normalizedTags.length > 0) {
+        const { error: tagsErr } = await supabase.from("marketing_opportunities").update({ tags: normalizedTags }).eq("id", oppId).eq("company_id", companyId!);
+        if (tagsErr) {
+          toast.error("Opportunità creata, ma i tag non sono stati salvati", { description: tagsErr.message });
+        } else {
+          await syncTagsToContact(contactId, normalizedTags, companyId);
+        }
+      }
+      // Save custom field values
+      if (Object.keys(customFieldValues).length > 0) {
+        const rows = Object.entries(customFieldValues)
+          .filter(([, v]) => v.trim())
+          .map(([fieldId, val]) => ({ opportunity_id: oppId, field_id: fieldId, value: val }));
+        if (rows.length > 0) {
+          const { error: cfErr } = await supabase.from("marketing_opportunity_field_values").insert(rows);
+          if (cfErr) toast.error("Opportunità creata, ma i campi personalizzati non sono stati salvati", { description: cfErr.message });
+        }
+      }
+      // Ri-invalida DOPO tag/campi custom: l'onSuccess del hook aveva
+      // già invalidato prima di queste scritture → la card appariva
+      // in kanban senza etichette fino allo scadere dello staleTime.
+      queryClient.invalidateQueries({ queryKey: ["marketing-opportunities"] });
+    }
+    resetForm();
+    onOpenChange(false);
+  };
+
+  const handleSubmit = async () => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      await submitOpportunity();
+    } catch {
+      setSubmitError("Impossibile completare il salvataggio. Controlla i dati e riprova.");
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
   };
 
   const searchTrimmed = contactSearch.trim();
@@ -454,7 +470,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
   const statusOptions = STATUS_OPTIONS;
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) resetForm(); onOpenChange(v); }}>
+    <Dialog open={open} onOpenChange={(v) => { if (submittingRef.current) return; if (!v) resetForm(); onOpenChange(v); }}>
       <DialogContent className="max-w-2xl max-h-[92vh] flex flex-col p-0 gap-0">
         {/* Header */}
         <div className="border-b px-4 py-4 sm:px-6">
@@ -465,20 +481,22 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
         {/* Body */}
         <div className="flex flex-1 min-h-0">
           <ScrollArea className="flex-1">
-            <div className="space-y-6 p-4 sm:p-5">
+            <fieldset disabled={submitting} aria-busy={submitting} className="space-y-6 p-4 sm:p-5">
+              {submitError && <p role="alert" className="text-sm text-destructive">{submitError}</p>}
               {/* Section 1: Contatto Dettagli */}
               <div className="space-y-4">
                 <h3 className="text-sm font-bold text-foreground border-b pb-2">Dettagli contatto</h3>
 
                 {/* Contact combobox */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-medium">
+                  <Label htmlFor={`${fieldId}-contact`} className="text-xs font-medium">
                     Nome del contatto primario <span className="text-red-500">*</span>
                   </Label>
                   {!showNewContact && (
                   <div className="flex gap-2">
                   <div className="relative flex-1">
                     <Input
+                      id={`${fieldId}-contact`}
                       placeholder="Cerca per nome o email..."
                       value={contactSearch}
                       onChange={(e) => {
@@ -495,7 +513,14 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                     />
                     {showDropdown && !showNewContact && (
                       <div className="absolute z-50 w-full mt-1 border rounded-lg bg-popover shadow-lg max-h-[220px] overflow-y-auto">
-                        {contacts.length > 0 ? (
+                        {contactsError ? (
+                          <div role="alert" className="p-3 text-sm">
+                            <p>Impossibile caricare i contatti.</p>
+                            <Button type="button" variant="outline" size="sm" onClick={() => refetchContacts()}>Riprova</Button>
+                          </div>
+                        ) : contactsLoading ? (
+                          <p role="status" className="p-3 text-sm text-muted-foreground">Caricamento contatti…</p>
+                        ) : contacts.length > 0 ? (
                           contacts.map((c) => (
                             <button
                               key={c.id}
@@ -516,7 +541,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                         ) : (
                           <div className="flex flex-col items-center py-6 text-muted-foreground">
                             <DatabaseZap className="h-8 w-8 mb-2 opacity-40" />
-                            <p className="text-xs">No Data</p>
+                            <p className="text-xs">Nessun contatto trovato</p>
                           </div>
                         )}
                         {/* Create new contact option */}
@@ -556,10 +581,10 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                       <button type="button" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowNewContact(false)}>Cerca un contatto esistente</button>
                     </div>
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <Input placeholder="Nome *" value={newContactFirstName} onChange={(e) => setNewContactFirstName(e.target.value)} className="h-8 text-sm" autoFocus />
-                      <Input placeholder="Cognome" value={newContactLastName} onChange={(e) => setNewContactLastName(e.target.value)} className="h-8 text-sm" />
-                      <Input placeholder="Email" value={newContactEmail} onChange={(e) => setNewContactEmail(e.target.value)} className="h-8 text-sm" type="email" />
-                      <Input placeholder="Telefono" value={newContactPhone} onChange={(e) => setNewContactPhone(e.target.value)} className="h-8 text-sm" type="tel" />
+                      <Input aria-label="Nome *" placeholder="Nome *" value={newContactFirstName} onChange={(e) => setNewContactFirstName(e.target.value)} className="h-8 text-sm" autoFocus />
+                      <Input aria-label="Cognome" placeholder="Cognome" value={newContactLastName} onChange={(e) => setNewContactLastName(e.target.value)} className="h-8 text-sm" />
+                      <Input aria-label="Email" placeholder="Email" value={newContactEmail} onChange={(e) => setNewContactEmail(e.target.value)} className="h-8 text-sm" type="email" />
+                      <Input aria-label="Telefono" placeholder="Telefono" value={newContactPhone} onChange={(e) => setNewContactPhone(e.target.value)} className="h-8 text-sm" type="tel" />
                     </div>
                     <p className="text-[11px] text-muted-foreground">Email o telefono: ne basta uno.</p>
                   </div>
@@ -569,8 +594,8 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                 {selectedContactId && selectedContact && (
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <Label className="text-xs font-medium">Email primaria</Label>
-                      <Input
+                      <Label htmlFor={`${fieldId}-primary-email`} className="text-xs font-medium">Email primaria</Label>
+                      <Input id={`${fieldId}-primary-email`}
                         value={newContactEmail}
                         onChange={(e) => setNewContactEmail(e.target.value)}
                         placeholder="Inserisci email"
@@ -579,8 +604,8 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs font-medium">Telefono primario</Label>
-                      <Input
+                      <Label htmlFor={`${fieldId}-primary-phone`} className="text-xs font-medium">Telefono primario</Label>
+                      <Input id={`${fieldId}-primary-phone`}
                         value={newContactPhone}
                         onChange={(e) => setNewContactPhone(e.target.value)}
                         placeholder="Telefono"
@@ -597,10 +622,11 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                 <h3 className="text-sm font-bold text-foreground border-b pb-2">Dettagli opportunità</h3>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-medium">
+                  <Label htmlFor={`${fieldId}-name`} className="text-xs font-medium">
                     Nome opportunità <span className="text-red-500">*</span>
                   </Label>
                   <Input
+                    id={`${fieldId}-name`}
                     value={oppName}
                     onChange={(e) => { setOppName(e.target.value); setNameManuallySet(true); }}
                     placeholder="Auto: nome e cognome del contatto"
@@ -611,21 +637,21 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                 {/* Pipeline + Stage */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs font-medium">Sequenza</Label>
-                    <Input
+                    <Label htmlFor={`${fieldId}-pipeline`} className="text-xs font-medium">Sequenza</Label>
+                    <Input id={`${fieldId}-pipeline`}
                       value={pipelineName || "Pipeline"}
                       readOnly
                       className="h-9 text-sm bg-muted cursor-not-allowed"
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs font-medium">Fase</Label>
+                    <Label htmlFor={`${fieldId}-stage`} className="text-xs font-medium">Fase</Label>
                     <Select value={stageId} onValueChange={(v) => {
                       setStageId(v);
                       const stage = stages.find((s) => s.id === v);
                       setStatus(inferOpportunityStatusFromStage(stage, "open"));
                     }}>
-                      <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectTrigger id={`${fieldId}-stage`} className="h-9 text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                       </SelectContent>
@@ -636,19 +662,19 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                 {/* Status + Value */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs font-medium">Stato</Label>
+                    <Label htmlFor={`${fieldId}-status`} className="text-xs font-medium">Stato</Label>
                     <Select value={status} onValueChange={setStatus}>
-                      <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectTrigger id={`${fieldId}-status`} className="h-9 text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {statusOptions.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs font-medium">Valore dell'opportunità</Label>
+                    <Label htmlFor={`${fieldId}-value`} className="text-xs font-medium">Valore dell'opportunità</Label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">EUR</span>
-                      <Input
+                      <Input id={`${fieldId}-value`}
                         value={value}
                         onChange={(e) => setValue(e.target.value)}
                         placeholder="0"
@@ -674,9 +700,9 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                     schiacciava i select troncando "Non assegnato" in "Non…"). */}
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div className="space-y-1">
-                    <Label className="flex items-center gap-1 text-xs font-medium"><Briefcase className="h-3.5 w-3.5 text-muted-foreground" /> Venditore</Label>
+                    <Label htmlFor={`${fieldId}-owner`} className="flex items-center gap-1 text-xs font-medium"><Briefcase className="h-3.5 w-3.5 text-muted-foreground" /> Venditore</Label>
                     <Select value={assignedTo || "none"} onValueChange={(v) => setAssignedTo(v === "none" ? "" : v)}>
-                      <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Non assegnato" /></SelectTrigger>
+                      <SelectTrigger id={`${fieldId}-owner`} className="h-9 text-sm"><SelectValue placeholder="Non assegnato" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Non assegnato</SelectItem>
                         {salespeople.length > 0 && salespeople[0]?.source === "all" && (
@@ -689,9 +715,9 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="flex items-center gap-1 text-xs font-medium"><Users className="h-3.5 w-3.5 text-muted-foreground" /> Follower</Label>
+                    <Label htmlFor={`${fieldId}-follower`} className="flex items-center gap-1 text-xs font-medium"><Users className="h-3.5 w-3.5 text-muted-foreground" /> Follower</Label>
                     <Select value={followerId || "none"} onValueChange={(v) => setFollowerId(v === "none" ? "" : v)}>
-                      <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Nessuno" /></SelectTrigger>
+                      <SelectTrigger id={`${fieldId}-follower`} className="h-9 text-sm"><SelectValue placeholder="Nessuno" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Nessuno</SelectItem>
                         {staff.map((s: { id: string; name: string }) => (
@@ -701,9 +727,9 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="flex items-center gap-1 text-xs font-medium"><Headset className="h-3.5 w-3.5 text-muted-foreground" /> Call Center</Label>
+                    <Label htmlFor={`${fieldId}-callcenter`} className="flex items-center gap-1 text-xs font-medium"><Headset className="h-3.5 w-3.5 text-muted-foreground" /> Call Center</Label>
                     <Select value={callCenterId || "none"} onValueChange={(v) => setCallCenterId(v === "none" ? "" : v)}>
-                      <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Nessuno" /></SelectTrigger>
+                      <SelectTrigger id={`${fieldId}-callcenter`} className="h-9 text-sm"><SelectValue placeholder="Nessuno" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Nessuno</SelectItem>
                         {callCenterUsers.length > 0 && callCenterUsers[0]?.source === "all" && (
@@ -720,12 +746,12 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                 {/* Company + Source */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs font-medium">Nome dell'azienda</Label>
-                    <Input value={oppCompanyName} onChange={(e) => setOppCompanyName(e.target.value)} placeholder="Nome azienda" className="h-9 text-sm" />
+                    <Label htmlFor={`${fieldId}-company`} className="text-xs font-medium">Nome dell'azienda</Label>
+                    <Input id={`${fieldId}-company`} value={oppCompanyName} onChange={(e) => setOppCompanyName(e.target.value)} placeholder="Nome azienda" className="h-9 text-sm" />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs font-medium">Fonte dell'opportunità</Label>
-                    <Input value={source} onChange={(e) => setSource(e.target.value)} placeholder="es. Passaparola" className="h-9 text-sm" />
+                    <Label htmlFor={`${fieldId}-source`} className="text-xs font-medium">Fonte dell'opportunità</Label>
+                    <Input id={`${fieldId}-source`} value={source} onChange={(e) => setSource(e.target.value)} placeholder="es. Passaparola" className="h-9 text-sm" />
                   </div>
                 </div>
 
@@ -760,13 +786,14 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                   </div>
                 )}
               </div>
-            </div>
+            </fieldset>
           </ScrollArea>
         </div>
 
         {/* Footer */}
         <div className="flex items-center justify-between border-t px-4 py-3 sm:px-6">
           <button
+            disabled={submitting}
             className="text-xs text-primary hover:underline flex items-center gap-1"
             onClick={() => {
               onOpenChange(false);
@@ -777,9 +804,9 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
             Aggiungi/gestisci campi
           </button>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => { resetForm(); onOpenChange(false); }}>Annulla</Button>
-            <Button size="sm" onClick={handleSubmit} disabled={createOpportunity.isPending || !canEditOpportunities}>
-              {createOpportunity.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Button variant="outline" size="sm" disabled={submitting} onClick={() => { resetForm(); onOpenChange(false); }}>Annulla</Button>
+            <Button size="sm" onClick={handleSubmit} disabled={submitting || createOpportunity.isPending || !canEditOpportunities}>
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Crea
             </Button>
           </div>

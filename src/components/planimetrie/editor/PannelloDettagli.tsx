@@ -441,9 +441,9 @@ function DettaglioStanza({
         />
       </div>
       <div className="space-y-1">
-        <Label>Che stanza è</Label>
+        <Label htmlFor="pl-tipo-stanza">Che stanza è</Label>
         <Select value={locale.destinazione} onValueChange={(v) => azioni.destinazioneStanza(locale.id, v as Destinazione)}>
-          <SelectTrigger>
+          <SelectTrigger id="pl-tipo-stanza">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

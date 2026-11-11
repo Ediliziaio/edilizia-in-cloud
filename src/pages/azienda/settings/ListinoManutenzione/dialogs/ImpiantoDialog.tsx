@@ -4,7 +4,8 @@
  * Etichette collegate ai campi (il lettore di schermo nomina «Nome», «Ordine», «Attivo»); una modifica che il database
  * ignora senza errore (permesso mancante) non si annuncia più come «aggiornato».
  */
-import { useId, useState } from "react";
+import { useId, useState, useRef } from "react";
+import { useDialogFocusReturn } from "@/hooks/useDialogFocusReturn";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,9 @@ export function ImpiantoDialog({
   companyId: string; onSaved: () => void;
 }) {
   const idBase = useId();
+  const focusReturn = useDialogFocusReturn();
+  const pendingRef = useRef(false);
+  const handleClose = () => { if (!pendingRef.current) onClose(); };
   const [nome, setNome] = useState(editing?.nome ?? "");
   const [icona, setIcona] = useState(editing?.icona ?? "🔧");
   const [ordine, setOrdine] = useState(String(editing?.ordine ?? ""));
@@ -32,7 +36,9 @@ export function ImpiantoDialog({
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
+    if (pendingRef.current) return;
     if (!nome.trim()) { toast.error("Il nome è obbligatorio"); return; }
+    pendingRef.current = true;
     setSaving(true);
     try {
       const payload = {
@@ -55,24 +61,26 @@ export function ImpiantoDialog({
         if (error) throw error;
       }
       toast.success(editing ? "Tipo di impianto aggiornato" : "Tipo di impianto creato");
+      pendingRef.current = false;
       onSaved(); onClose();
     } catch (err: unknown) {
       toast.error(testoErrore(err, "Tipo di impianto non salvato."));
     } finally {
+      pendingRef.current = false;
       setSaving(false);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={(value) => { if (!value) handleClose(); }}>
+      <DialogContent {...focusReturn} className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editing ? "Modifica tipo di impianto" : "Nuovo tipo di impianto"}</DialogTitle>
           <DialogDescription>
             Gli impianti che segui in manutenzione (per esempio Caldaia, Condizionatore): a ognuno si collegano i prezzi.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        <fieldset disabled={saving} className="min-w-0 space-y-4">
           <div>
             <Label htmlFor={`${idBase}-nome`}>Nome *</Label>
             <Input
@@ -120,9 +128,9 @@ export function ImpiantoDialog({
               <Switch id={`${idBase}-attivo`} checked={attivo} onCheckedChange={setAttivo} />
             </div>
           </div>
-        </div>
+        </fieldset>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button variant="outline" disabled={saving} onClick={handleClose}>Annulla</Button>
           <Button onClick={handleSave} disabled={saving}>
             {saving ? "Salvataggio..." : "Salva"}
           </Button>

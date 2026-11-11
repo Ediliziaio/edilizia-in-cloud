@@ -21,8 +21,9 @@ interface TabRatingBancarioProps {
 // Il database fino alla migrazione 20281022104300 scriveva la differenza senza
 // formattarla («differenza 1346331.55 €»): la si rende leggibile qui.
 function motivoLeggibile(m: string): string {
-  return m.replace(/(-?\d+(?:\.\d+)?)\s*€/g, (_, n: string) =>
-    `${new Intl.NumberFormat("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n))} €`,
+  // Non intercettare i centesimi di un importo già italiano (…948,32 €).
+  return m.replace(/(^|[^\d.,])(-?\d+(?:\.\d{1,2})?)\s*€/g, (_, prefix: string, n: string) =>
+    `${prefix}${new Intl.NumberFormat("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true }).format(Number(n))} €`,
   );
 }
 

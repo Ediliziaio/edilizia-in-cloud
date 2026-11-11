@@ -7,6 +7,7 @@
  * flusso operativo, investimenti, finanziamenti, flusso netto, saldo finale.
  * Un clic su un importo apre i movimenti che lo compongono.
  */
+import { useDialogFocusReturn } from "@/hooks/useDialogFocusReturn";
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Plus } from "lucide-react";
@@ -363,10 +364,10 @@ function TabellaRendiconto({ r, chiusi, onToggle, onApri }: {
   onApri: (titolo: string, voci: VoceCassa[], mese: number | null) => void;
 }) {
   const totale = (a: number[]) => a.reduce((s, c) => s + c, 0);
-  const cellaImporto = (cents: number, onClick?: () => void, extra?: string) => (
-    <span className={cn("tabular-nums", cents < 0 && "text-rose-700", extra)}>
+  const cellaImporto = (cents: number, label: string, onClick?: () => void) => (
+    <span className={cn("tabular-nums", cents < 0 && "text-rose-700")}>
       {cents === 0 ? <span className="text-muted-foreground">—</span> : onClick ? (
-        <button type="button" onClick={onClick} className="rounded px-0.5 hover:bg-muted hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+        <button type="button" aria-label={`Apri il dettaglio di ${label}: ${euro(cents)}`} onClick={onClick} className="rounded px-0.5 hover:bg-muted hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
           {euro(cents)}
         </button>
       ) : euro(cents)}
@@ -380,11 +381,11 @@ function TabellaRendiconto({ r, chiusi, onToggle, onApri }: {
       <th scope="row" className={cn(prima, "font-normal", primaClasse)}>{label}</th>
       {r.colonne.map((c, i) => (
         <td key={c.mese} className={td(c.tipo, forte ? "font-semibold" : undefined)}>
-          {cellaImporto(valori[i], voci.length ? () => onApri(`${label} · ${MESI_LUNGHI[c.mese - 1]} ${r.anno}`, voci, c.mese) : undefined)}
+          {cellaImporto(valori[i], `${label} · ${MESI_LUNGHI[c.mese - 1]} ${r.anno}`, voci.length ? () => onApri(`${label} · ${MESI_LUNGHI[c.mese - 1]} ${r.anno}`, voci, c.mese) : undefined)}
         </td>
       ))}
       <td className="whitespace-nowrap bg-muted/50 px-2 py-1.5 text-right text-xs font-semibold">
-        {cellaImporto(totale(valori), voci.length ? () => onApri(`${label} · ${r.anno}`, voci, null) : undefined)}
+        {cellaImporto(totale(valori), `${label} · ${r.anno}`, voci.length ? () => onApri(`${label} · ${r.anno}`, voci, null) : undefined)}
       </td>
     </tr>
   );
@@ -501,6 +502,7 @@ function VistaMese({ r, onApri }: { r: RendicontoCassa; onApri: (titolo: string,
       ) : (
         <button
           type="button"
+          aria-label={`Apri il dettaglio di ${label} · ${MESI_LUNGHI[i]} ${r.anno}: ${euro(cents)}`}
           onClick={() => onApri(`${label} · ${MESI_LUNGHI[i]} ${r.anno}`, voci, mese)}
           className={cn("shrink-0 text-[13px] tabular-nums underline-offset-2 hover:underline", cents < 0 && "text-rose-700")}
         >
@@ -554,11 +556,12 @@ function VistaMese({ r, onApri }: { r: RendicontoCassa; onApri: (titolo: string,
 // ── Pannello dei movimenti ──────────────────────────────────────────────────
 
 function DettaglioSheet({ r, selezione, onClose }: { r: RendicontoCassa; selezione: Selezione | null; onClose: () => void }) {
+  const focusReturn = useDialogFocusReturn();
   const righe: DettaglioCella[] = selezione ? dettagliCella(r, selezione.voci, selezione.mese) : [];
   const totale = righe.reduce((s, d) => s + d.cents, 0);
   return (
     <Sheet open={!!selezione} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-xl">
+      <SheetContent {...focusReturn} side="right" className="w-full overflow-y-auto sm:max-w-xl">
         <SheetHeader>
           <SheetTitle className="pr-6 text-base">{selezione?.titolo}</SheetTitle>
           <SheetDescription>

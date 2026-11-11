@@ -121,6 +121,8 @@ export function AffidaVociDialog({ orderId, companyId, voci, fasi, onChiudi, onC
       const vuoto = !inModifica.prezzo.trim();
       const p = vuoto ? null : parseAssignmentAmount(inModifica.prezzo, 4);
       if (!vuoto && p == null) throw new Error("Il prezzo non si legge.");
+      // Il contratto è al centesimo: 12,345 qui e 12,35 nel contratto davano due totali diversi.
+      if (p != null && Math.abs(Math.round(p * 100) - p * 100) > 1e-6) throw new Error("Il prezzo va al centesimo (es. 12,35, non 12,345).");
       const { error } = await db.rpc("affidamento_modifica", {
         p_id: inModifica.id, p_quantita: q, p_prezzo: p, p_comprende: inModifica.comprende, p_togli_prezzo: vuoto,
       });
@@ -165,7 +167,7 @@ export function AffidaVociDialog({ orderId, companyId, voci, fasi, onChiudi, onC
               <Riquadro titolo={`Alle ditte (${riepilogo.ditte})`} valore={formatCurrency(riepilogo.costoDitte)}
                 nota={riepilogo.quoteSenzaPrezzo ? `${riepilogo.quoteSenzaPrezzo} senza prezzo` : riepilogo.materialiNostri ? `+ materiali nostri ${formatCurrency(riepilogo.materialiNostri)}` : undefined} />
               <Riquadro titolo="Margine sull'affidato" valore={formatCurrency(riepilogo.margine)}
-                nota={riepilogo.marginePct != null ? `${riepilogo.marginePct.toLocaleString("it-IT")}%` : undefined} rosso={riepilogo.margine < 0} />
+                nota={riepilogo.quoteSenzaPrezzo ? `provvisorio: ${riepilogo.quoteSenzaPrezzo} ${riepilogo.quoteSenzaPrezzo === 1 ? "quota" : "quote"} senza prezzo` : riepilogo.marginePct != null ? `${riepilogo.marginePct.toLocaleString("it-IT")}%` : undefined} rosso={riepilogo.margine < 0} />
               <Riquadro titolo="Senza ditta" valore={formatCurrency(riepilogo.vendutoSenzaDitta)} nota={`${riepilogo.vociSenzaDitta} ${riepilogo.vociSenzaDitta === 1 ? "voce" : "voci"} su ${riepilogo.voci}`} />
             </div>
 
@@ -207,18 +209,20 @@ export function AffidaVociDialog({ orderId, companyId, voci, fasi, onChiudi, onC
                       {vf.map((v) => {
                         const s = statoVoce(v, lista);
                         return (
-                          <li key={v.id} className="px-3 py-2">
+                          <li key={v.id} className="px-3 py-1.5">
+                            {/* Una voce, una riga (11/11/2026): nome, quantità e venduto, chi la fa. */}
                             <div className="flex items-start gap-2">
-                              <Checkbox className="mt-0.5" checked={scelte.has(v.id)} disabled={s.piena} aria-label={`Scegli ${v.descrizione}`}
+                              <Checkbox className="mt-[3px]" checked={scelte.has(v.id)} disabled={s.piena} aria-label={`Scegli ${v.descrizione}`}
                                 onCheckedChange={(c) => cambiaScelta([v.id], c === true)} />
-                              <div className="min-w-0 flex-1">
-                                <p className="line-clamp-2 text-sm">{v.descrizione}</p>
-                                <p className="text-[11px] text-muted-foreground">
+                              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+                                <p className="min-w-[10rem] flex-1 truncate text-sm" title={v.descrizione}>{v.descrizione}</p>
+                                <p className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
                                   {qt(Number(v.quantita))} {v.unita ?? ""} · venduto {formatCurrency(Number(v.importo) || 0)}
                                   {!s.piena && s.affidata > 0 && <> · <span className="text-amber-800">restano {qt(s.residua)} {v.unita ?? ""}</span></>}
                                   {s.margine != null && <> · margine <span className={s.margine < 0 ? "text-destructive" : ""}>{formatCurrency(s.margine)}</span></>}
                                 </p>
-                                <div className="mt-1 flex flex-wrap gap-1">
+                                {s.oltre > 0.0005 && <p className="w-full text-[11px] font-medium text-red-700">Affidati {qt(s.oltre)} {v.unita ?? ""} più della voce: da rivedere (togli una quota, o variante del contratto)</p>}
+                                <div className="flex shrink-0 flex-wrap gap-1">
                                   {s.quote.length === 0 && <Badge variant="outline" className="h-5 px-1.5 text-[11px] font-normal">Senza ditta</Badge>}
                                   {s.quote.map((a) => (
                                     <button key={a.id} type="button" disabled={a.stato === "a_contratto" || occupato}
@@ -232,7 +236,7 @@ export function AffidaVociDialog({ orderId, companyId, voci, fasi, onChiudi, onC
                                   ))}
                                 </div>
                                 {inModifica && s.quote.some((a) => a.id === inModifica.id) && (
-                                  <div className="mt-2 flex flex-wrap items-end gap-2 rounded-md border bg-muted/30 p-2">
+                                  <div className="flex w-full flex-wrap items-end gap-2 rounded-md border bg-muted/30 p-2">
                                     <label className="text-xs">Quantità
                                       <Input value={inModifica.quantita} onChange={(e) => setInModifica({ ...inModifica, quantita: e.target.value })} inputMode="decimal" className="h-8 w-24 text-right" />
                                     </label>

@@ -73,7 +73,7 @@ export function previewAutomationPath(nodes: PreviewNode[], edges: PreviewEdge[]
       else {
         const rows = Array.isArray(cfg.condizioni) ? cfg.condizioni : [{ campo: cfg.condition_field ?? cfg.variabile, operatore: cfg.condition_operator ?? cfg.operatore, valore: cfg.condition_value ?? cfg.valore }];
         const conditionFields = rows.map((row: any) => String(row.campo ?? row.variabile ?? "").replace(/^\{\{\s*|\s*\}\}$/g, ""));
-        if (conditionFields.some((field: string) => scenario ? !Object.hasOwn(fields, field) : field.includes(".") && !/^(contatto|contact)\./.test(field)) || rows.some((row: any) => eOperatoreData(row.operatore))) {
+        if (conditionFields.some((field: string) => scenario ? !Object.hasOwn(fields, field) : (field.includes(".") && !/^(contatto|contact)\./.test(field)) || !Object.hasOwn(fields, field.replace(/^(contatto|contact)\./, ""))) || rows.some((row: any) => eOperatoreData(row.operatore))) {
           step.status = "unverified"; step.detail = "Questo criterio richiede dati aggiuntivi o il calendario: ramo non simulato."; outgoing = [];
         } else {
           const matched = evaluateAutomationFilters({ logic: cfg.operatore_logico ?? "AND", conditions: rows.map((row: any, index: number) => ({ field: scenario ? conditionFields[index] : conditionFields[index].replace(/^(contatto|contact)\./, ""), operator: conditionOperatorAliases[row.operatore ?? "uguale"] ?? row.operatore, value: row.valore })) }, fields, { timeZone });

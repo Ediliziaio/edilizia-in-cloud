@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 /**
  * Pagina «Crea Ticket» — raggiunta dai link profondi (?order=, ?tipo=,
  * ?customer_id=, ?impiantoId=). Il modulo è lo stesso del popup «Nuovo Ticket»
@@ -11,6 +12,8 @@ import { NuovoTicketForm } from "@/components/tickets/NuovoTicketForm";
 
 export default function CreateCompanyTicket() {
   const navigate = useNavigate();
+  const pendingRef = useRef(false);
+  const [pending, setPending] = useState(false);
   const [searchParams] = useSearchParams();
 
   const rawTipo = searchParams.get("tipo") ?? "supporto";
@@ -27,7 +30,10 @@ export default function CreateCompanyTicket() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => navigate(isIntervento ? "/azienda/assistenza?tipo=intervento" : "/azienda/assistenza")}>
+        <Button aria-label={isIntervento ? "Torna agli interventi" : "Torna all’assistenza"} variant="ghost" size="icon" disabled={pending} className="hidden md:inline-flex" onClick={() => {
+          if (pendingRef.current) return;
+          navigate(isIntervento ? "/azienda/assistenza?tipo=intervento" : "/azienda/assistenza");
+        }}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex items-center gap-2">
@@ -47,7 +53,10 @@ export default function CreateCompanyTicket() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <NuovoTicketForm initial={initial} variant="page" />
+          <NuovoTicketForm initial={initial} variant="page" onPendingChange={(value) => {
+            pendingRef.current = value;
+            setPending(value);
+          }} />
         </CardContent>
       </Card>
     </div>

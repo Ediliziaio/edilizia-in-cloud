@@ -7,7 +7,7 @@
  * condizioni del servizio. Da qui si vedono le foto (link di un minuto) e si
  * revoca un'identificazione quando chi firma lo chiede.
  */
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -53,6 +53,7 @@ async function chiama(fd: FormData): Promise<Record<string, unknown>> {
 const vuoto = { email: "", nome: "", cognome: "", codiceFiscale: "", tipo: "carta_identita", numero: "", rilasciatoDa: "", scadenza: "" };
 
 export function FirmatariIdentificati() {
+  const formId = useId();
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
   const [aperto, setAperto] = useState(false);
@@ -125,8 +126,8 @@ export function FirmatariIdentificati() {
 
   const campo = (k: keyof typeof vuoto, etichetta: string, extra: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
     <div className="space-y-1">
-      <Label>{etichetta}</Label>
-      <Input value={dati[k]} onChange={(e) => setDati({ ...dati, [k]: e.target.value })} {...extra} />
+      <Label htmlFor={`${formId}-${k}`}>{etichetta}</Label>
+      <Input id={`${formId}-${k}`} value={dati[k]} onChange={(e) => setDati({ ...dati, [k]: e.target.value })} {...extra} />
     </div>
   );
 
@@ -190,18 +191,18 @@ export function FirmatariIdentificati() {
             <div className="grid grid-cols-2 gap-3">{campo("nome", "Nome")}{campo("cognome", "Cognome")}</div>
             {campo("codiceFiscale", "Codice fiscale (facoltativo)", { maxLength: 16 })}
             <div className="space-y-1">
-              <Label>Documento</Label>
-              <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={dati.tipo} onChange={(e) => setDati({ ...dati, tipo: e.target.value })}>
+              <Label htmlFor={`${formId}-tipo`}>Documento</Label>
+              <select id={`${formId}-tipo`} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={dati.tipo} onChange={(e) => setDati({ ...dati, tipo: e.target.value })}>
                 {Object.entries(TIPI).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             </div>
             <div className="grid grid-cols-2 gap-3">{campo("numero", "Numero")}{campo("scadenza", "Scade il", { type: "date" })}</div>
             {campo("rilasciatoDa", "Rilasciato da (facoltativo)")}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1"><Label>{serveRetro ? "Foto del fronte" : "Pagina con i dati"}</Label>
-                <Input type="file" accept="image/*,application/pdf" onChange={(e) => setFronte(e.target.files?.[0] ?? null)} /></div>
-              {serveRetro && <div className="space-y-1"><Label>Foto del retro</Label>
-                <Input type="file" accept="image/*,application/pdf" onChange={(e) => setRetro(e.target.files?.[0] ?? null)} /></div>}
+              <div className="space-y-1"><Label htmlFor={`${formId}-fronte`}>{serveRetro ? "Foto del fronte" : "Pagina con i dati"}</Label>
+                <Input id={`${formId}-fronte`} type="file" accept="image/*,application/pdf" onChange={(e) => setFronte(e.target.files?.[0] ?? null)} /></div>
+              {serveRetro && <div className="space-y-1"><Label htmlFor={`${formId}-retro`}>Foto del retro</Label>
+                <Input id={`${formId}-retro`} type="file" accept="image/*,application/pdf" onChange={(e) => setRetro(e.target.files?.[0] ?? null)} /></div>}
             </div>
             <label className="flex cursor-pointer items-start gap-2 text-sm text-slate-700">
               <Checkbox checked={visto} onCheckedChange={(v) => setVisto(v === true)} className="mt-0.5" />

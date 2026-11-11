@@ -17,7 +17,7 @@ interface WarehouseKanbanViewProps {
   readOnly?: boolean;
 }
 
-const STATUSES: OrderItemStatus[] = ["da_ordinare", "ordinato", "in_arrivo", "in_magazzino", "prenotato", "installato"];
+const STATUSES: OrderItemStatus[] = ["da_ordinare", "ordinato", "in_arrivo", "in_magazzino", "in_cantiere", "prenotato", "installato"];
 
 export default function WarehouseKanbanView({
   items,
@@ -40,7 +40,7 @@ export default function WarehouseKanbanView({
 
   const itemsByStatus = useMemo(() => {
     const grouped: Record<OrderItemStatus, WarehouseItem[]> = {
-      da_ordinare: [], ordinato: [], in_arrivo: [], in_magazzino: [], prenotato: [], installato: [],
+      da_ordinare: [], ordinato: [], in_arrivo: [], in_magazzino: [], in_cantiere: [], prenotato: [], installato: [],
     };
     items.forEach((item) => { if (grouped[item.status]) grouped[item.status].push(item); });
     return grouped;
@@ -73,7 +73,7 @@ export default function WarehouseKanbanView({
         </div>
 
         <div className="overflow-x-auto pb-2">
-          <div className="grid min-w-[1480px] grid-cols-6 gap-3">
+          <div className="grid min-w-[1680px] grid-cols-7 gap-3">
             {STATUSES.map((status) => (
               <WarehouseKanbanColumn
                 key={status}
