@@ -387,7 +387,10 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
         onFocus={(e) => { if (campoDiTesto(e.target)) alFuoco(true); }}
         onBlur={(e) => { if (campoDiTesto(e.target)) alFuoco(false); }}
         // Esc mentre si modifica un valore annulla la modifica, non chiude il popup.
-        onEscapeKeyDown={(e) => { if (aperta) { e.preventDefault(); setAperta(null); } }}
+        onEscapeKeyDown={(e) => {
+          if ((e.target as HTMLElement | null)?.closest?.("[data-silvio-elenco]")) e.preventDefault();
+          else if (aperta) { e.preventDefault(); setAperta(null); }
+        }}
         style={altezza ? { height: altezza, maxHeight: altezza } : undefined}
         className={cn(
           // La X del popup: 44 px sotto lg, come ogni altro tocco.

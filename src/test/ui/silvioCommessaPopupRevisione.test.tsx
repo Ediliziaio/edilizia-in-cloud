@@ -411,6 +411,17 @@ describe("P8: si tocca col dito", () => {
 });
 
 describe("P9: il telefono e le uscite", () => {
+  it("Escape nella ricerca chiude l'elenco senza uscire dalla bozza", async () => {
+    const { s } = servizi();
+    const chiudi = vi.fn();
+    apri(s, { iniziale: undefined, onOpenChange: chiudi });
+    fireEvent.click(within(fontiColonna()).getByRole("button", { name: "Preventivo", exact: true }));
+    const ricerca = await screen.findByRole("textbox", { name: "Cerca un preventivo" });
+    fireEvent.keyDown(ricerca, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("textbox", { name: "Cerca un preventivo" })).not.toBeInTheDocument());
+    expect(chiudi).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Nuova commessa con Silvio" })).toBeInTheDocument();
+  });
   it("un errore nel recupero delle bozze si vede e si può riprovare", async () => {
     const opzioni: OpzioniDb = { erroreSelect: { message: "Failed to fetch" } };
     const { s } = servizi({}, [], opzioni);

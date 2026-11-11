@@ -200,7 +200,9 @@ function ElencoDaScegliere({ tipo, companyId, servizi, onScegli, onChiudi }: {
   const errore = tipo === "preventivo" ? preventivi.error : computi.error;
 
   return (
-    <div className="rounded-lg border border-orange-200 bg-orange-50/50 p-2">
+    <div data-silvio-elenco className="rounded-lg border border-orange-200 bg-orange-50/50 p-2" onKeyDown={(event) => {
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onChiudi(); }
+    }}>
       <div className="flex items-center gap-2">
         <label htmlFor={idRicerca} className="sr-only">Cerca {tipo === "preventivo" ? "un preventivo" : "un computo"}</label>
         <div className="relative flex-1">
