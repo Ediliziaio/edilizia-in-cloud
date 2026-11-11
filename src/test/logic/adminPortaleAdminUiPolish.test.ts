@@ -56,7 +56,7 @@ describe("Admin Portale — UI polish round 3", () => {
   describe("Dialog 'Crea corso': Audience select nascosta in admin", () => {
     it("select audience wrapped in {!isAdminContext}", () => {
       expect(portalPageSource).toMatch(
-        /\{!isAdminContext && \(\s*<div className="space-y-2">\s*<label className="text-sm font-medium text-slate-700">Accesso<\/label>/,
+        /\{!isAdminContext && \(\s*<div className="space-y-2">\s*<label className="text-sm font-medium text-slate-700"[^>]*>Accesso<\/label>/,
       );
     });
   });

@@ -47,6 +47,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { testoTecnico } from "@/lib/userErrorMessage";
+import { isDemoCompanyId } from "@/lib/constants/demoCompany";
 
 type ReputationTab = "dashboard" | "richieste" | "recensioni" | "automazioni" | "integrazioni";
 type ReviewSource = "Google" | "Facebook" | "Sito" | "Manuale";
@@ -546,6 +547,7 @@ function loadLocalState(key: string, fallback: ReputationLocalState): Reputation
 export default function ReputationManager() {
   const { effectiveCompany, profile, user } = useAuth();
   const companyId = effectiveCompany?.id ?? "local";
+  const isDemoCompany = isDemoCompanyId(companyId);
   const companyName = effectiveCompany?.name ?? "Demo Azienda";
   const companyNameForCopy = companyName.replace(/[.!?]+$/, "");
   const actorName = profile?.first_name || profile?.last_name
@@ -559,10 +561,10 @@ export default function ReputationManager() {
   const schedaVisibile: ReputationTab =
     isMobile && tabs.find((tab) => tab.value === activeTab)?.soloComputer ? "dashboard" : activeTab;
   const [reviewFilter, setReviewFilter] = useState<"tutte" | "da_rispondere" | "critiche">("tutte");
-  const [reviews, setReviews] = useState<ReputationReview[]>(seedReviews);
-  const [campaigns, setCampaigns] = useState<ReviewCampaign[]>(seedCampaigns);
+  const [reviews, setReviews] = useState<ReputationReview[]>(isDemoCompany ? seedReviews : []);
+  const [campaigns, setCampaigns] = useState<ReviewCampaign[]>(isDemoCompany ? seedCampaigns : []);
   const [automation, setAutomation] = useState<AutomationState>(defaultAutomation);
-  const [events, setEvents] = useState<ReputationEvent[]>(seedEvents);
+  const [events, setEvents] = useState<ReputationEvent[]>(isDemoCompany ? seedEvents : []);
   const [hydratedStorageKey, setHydratedStorageKey] = useState<string | null>(null);
   const [persistenceMode, setPersistenceMode] = useState<PersistenceMode>("local");
   const [isHydrating, setIsHydrating] = useState(true);
@@ -577,9 +579,19 @@ export default function ReputationManager() {
 
   const storageKey = `eic_reputation_manager_${companyId}`;
   const reviewOrigin = typeof window !== "undefined" ? window.location.origin : "https://app.ediliziaincloud.com";
-  const publicReviewSlug = buildPublicReviewSlug(companyNameForCopy, companyId);
-  const reviewLink = `${reviewOrigin}/review/${publicReviewSlug}?company_id=${encodeURIComponent(companyId)}`;
   const hasDatabaseCompany = isUuid(companyId);
+  const publicLinkQuery = useQuery({
+    queryKey: ["reputation-public-link", companyId],
+    enabled: hasDatabaseCompany,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("reputation_public_links")
+        .select("public_slug,active").eq("company_id", companyId).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+  const publicReviewSlug = publicLinkQuery.data?.public_slug || buildPublicReviewSlug(companyNameForCopy, companyId);
+  const reviewLink = `${reviewOrigin}/review/${publicReviewSlug}?company_id=${encodeURIComponent(companyId)}`;
 
   const { data: integrations = [] } = useQuery({
     queryKey: ["reputation-integrations", companyId],
@@ -663,7 +675,18 @@ export default function ReputationManager() {
   }, [companyId, publicReviewSlug, reviewOrigin, selectedTargetOrder]);
 
   const hydrateReputationState = useCallback(async () => {
-    const local = loadLocalState(storageKey, { campaigns: seedCampaigns, automation: defaultAutomation, reviews: seedReviews, events: seedEvents });
+    const loaded = loadLocalState(storageKey, {
+      campaigns: isDemoCompany ? seedCampaigns : [], automation: defaultAutomation,
+      reviews: isDemoCompany ? seedReviews : [], events: isDemoCompany ? seedEvents : [],
+    });
+    // I vecchi fallback salvavano gli esempi anche nelle aziende reali.
+    // Rimuoviamo solo gli ID noti degli esempi, preservando le bozze dell’azienda.
+    const local = isDemoCompany ? loaded : {
+      ...loaded,
+      campaigns: loaded.campaigns.filter((item) => !seedCampaigns.some((seed) => seed.id === item.id)),
+      reviews: loaded.reviews.filter((item) => !seedReviews.some((seed) => seed.id === item.id)),
+      events: loaded.events.filter((item) => !seedEvents.some((seed) => seed.id === item.id)),
+    };
     setCampaigns(Array.isArray(local.campaigns) ? local.campaigns : seedCampaigns);
     setAutomation(normalizeAutomation(local.automation));
     setReviews(Array.isArray(local.reviews) ? local.reviews : seedReviews);
@@ -723,9 +746,9 @@ export default function ReputationManager() {
         ? eventResult.data.filter(isRecord).map(mapEventRow)
         : [];
 
-      setCampaigns(dbCampaigns.length ? dbCampaigns : local.campaigns);
-      setReviews(dbReviews.length ? dbReviews : local.reviews);
-      setEvents(dbEvents.length ? dbEvents : local.events);
+      setCampaigns(isDemoCompany && !dbCampaigns.length ? local.campaigns : dbCampaigns);
+      setReviews(isDemoCompany && !dbReviews.length ? local.reviews : dbReviews);
+      setEvents(isDemoCompany && !dbEvents.length ? local.events : dbEvents);
       setAutomation(isRecord(automationResult.data) ? mapAutomationRow(automationResult.data) : normalizeAutomation(local.automation));
       setPersistenceMode("database");
     } catch (error) {
@@ -736,7 +759,7 @@ export default function ReputationManager() {
     } finally {
       setIsHydrating(false);
     }
-  }, [companyId, storageKey]);
+  }, [companyId, isDemoCompany, storageKey]);
 
   useEffect(() => {
     void hydrateReputationState();
@@ -776,7 +799,8 @@ export default function ReputationManager() {
             active: true,
             settings: { source: "marketing_reputation" },
           },
-          { onConflict: "company_id" },
+          // La visita non deve riattivare link sospesi o sovrascrivere slug/impostazioni.
+          { onConflict: "company_id", ignoreDuplicates: true },
         );
         if (error) throw error;
       } catch (error) {
@@ -1469,7 +1493,7 @@ export default function ReputationManager() {
                   <div className="space-y-2">
                     <Label>Segmento</Label>
                     <Select value={requestSegment} onValueChange={setRequestSegment}>
-                      <SelectTrigger>
+                      <SelectTrigger aria-label="Segmento">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1482,7 +1506,7 @@ export default function ReputationManager() {
                   <div className="space-y-2">
                     <Label>Canale</Label>
                     <Select value={requestChannel} onValueChange={(value) => setRequestChannel(value as Channel)}>
-                      <SelectTrigger>
+                      <SelectTrigger aria-label="Canale">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1496,7 +1520,7 @@ export default function ReputationManager() {
                 <div className="space-y-2">
                   <Label>Commessa o cliente</Label>
                   <Select value={targetOrderId} onValueChange={setTargetOrderId}>
-                    <SelectTrigger>
+                    <SelectTrigger aria-label="Commessa o cliente">
                       <SelectValue placeholder="Nessun collegamento specifico" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1655,15 +1679,15 @@ export default function ReputationManager() {
                 <CardDescription className="max-sm:hidden">Vista unica da Google, Facebook e moduli proprietari.</CardDescription>
               </div>
               <div className="flex flex-wrap gap-2 max-sm:flex-nowrap max-sm:gap-1.5">
-                <Button variant={reviewFilter === "tutte" ? "default" : "outline"} size="sm" className="max-sm:flex-1 max-sm:px-1 max-sm:text-[13px]" onClick={() => setReviewFilter("tutte")}>
+                <Button variant={reviewFilter === "tutte" ? "default" : "outline"} size="sm" className="max-sm:flex-1 max-sm:px-1 max-sm:text-[13px]" onClick={() => setReviewFilter("tutte")} aria-pressed={reviewFilter === "tutte"}>
                   <Filter className="mr-1.5 h-3.5 w-3.5 max-sm:hidden" />
                   Tutte
                 </Button>
-                <Button variant={reviewFilter === "da_rispondere" ? "default" : "outline"} size="sm" className="max-sm:flex-1 max-sm:px-1 max-sm:text-[13px]" onClick={() => setReviewFilter("da_rispondere")}>
+                <Button variant={reviewFilter === "da_rispondere" ? "default" : "outline"} size="sm" className="max-sm:flex-1 max-sm:px-1 max-sm:text-[13px]" onClick={() => setReviewFilter("da_rispondere")} aria-pressed={reviewFilter === "da_rispondere"}>
                   <Reply className="mr-1.5 h-3.5 w-3.5 max-sm:hidden" />
                   Da rispondere
                 </Button>
-                <Button variant={reviewFilter === "critiche" ? "default" : "outline"} size="sm" className="max-sm:flex-1 max-sm:px-1 max-sm:text-[13px]" onClick={() => setReviewFilter("critiche")}>
+                <Button variant={reviewFilter === "critiche" ? "default" : "outline"} size="sm" className="max-sm:flex-1 max-sm:px-1 max-sm:text-[13px]" onClick={() => setReviewFilter("critiche")} aria-pressed={reviewFilter === "critiche"}>
                   <AlertTriangle className="mr-1.5 h-3.5 w-3.5 max-sm:hidden" />
                   Critiche
                 </Button>
@@ -1679,7 +1703,7 @@ export default function ReputationManager() {
                   <Star className="mx-auto h-8 w-8 text-slate-300" />
                   <p className="mt-3 text-sm font-semibold text-slate-900">Nessuna recensione in questo filtro</p>
                   <p className="mt-1 text-sm text-muted-foreground">Cambia filtro o crea una nuova richiesta recensioni.</p>
-                  <Button className="mt-4" variant="outline" onClick={() => setReviewFilter("tutte")}>
+                  <Button className="mt-4" variant="outline" onClick={() => setReviewFilter("tutte")} aria-pressed={reviewFilter === "tutte"}>
                     Mostra tutte
                   </Button>
                 </div>
@@ -1775,7 +1799,7 @@ export default function ReputationManager() {
                   <div className="space-y-2">
                     <Label>Trigger</Label>
                     <Select value={automation.trigger} onValueChange={(trigger) => updateAutomation({ trigger }, `Trigger impostato su ${trigger}`)}>
-                      <SelectTrigger>
+                      <SelectTrigger aria-label="Trigger">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1788,7 +1812,7 @@ export default function ReputationManager() {
                   <div className="space-y-2">
                     <Label>Prima richiesta dopo</Label>
                     <Select value={String(automation.delayDays)} onValueChange={(delayDays) => updateAutomation({ delayDays: Number(delayDays) }, `Prima richiesta dopo ${delayDays} giorni`)}>
-                      <SelectTrigger>
+                      <SelectTrigger aria-label="Prima richiesta dopo">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1802,7 +1826,7 @@ export default function ReputationManager() {
                   <div className="space-y-2">
                     <Label>Follow-up dopo</Label>
                     <Select value={String(automation.followUpAfterDays)} onValueChange={(followUpAfterDays) => updateAutomation({ followUpAfterDays: Number(followUpAfterDays) }, `Follow-up dopo ${followUpAfterDays} giorni`)}>
-                      <SelectTrigger>
+                      <SelectTrigger aria-label="Follow-up dopo">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1816,7 +1840,7 @@ export default function ReputationManager() {
                   <div className="space-y-2">
                     <Label>Alert sotto</Label>
                     <Select value={String(automation.minRatingAlert)} onValueChange={(minRatingAlert) => updateAutomation({ minRatingAlert: Number(minRatingAlert) }, `Alert sotto ${minRatingAlert} stelle`)}>
-                      <SelectTrigger>
+                      <SelectTrigger aria-label="Alert sotto">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1946,8 +1970,14 @@ export default function ReputationManager() {
               <CardDescription>Da usare in firma email, QR code, WhatsApp e post-cantiere. Slug: {publicReviewSlug}</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 lg:grid-cols-[1fr_auto]">
-              <Input readOnly value={reviewLink} />
-              <Button variant="outline" onClick={copyReviewLink}>
+              {publicLinkQuery.data?.active === false && (
+                <p role="status" className="text-sm text-amber-700 lg:col-span-2">Questo link è disattivato. La visita a questa pagina non lo riattiva.</p>
+              )}
+              {publicLinkQuery.isError && (
+                <p role="alert" className="text-sm text-red-700 lg:col-span-2">Impossibile verificare il link pubblico. Riprova ricaricando la pagina.</p>
+              )}
+              <Input aria-label="Link recensione pubblico" readOnly value={reviewLink} />
+              <Button variant="outline" onClick={copyReviewLink} disabled={publicLinkQuery.data?.active === false || (hasDatabaseCompany && (publicLinkQuery.isLoading || publicLinkQuery.isError))}>
                 <Link2 className="mr-2 h-4 w-4" />
                 Copia link
               </Button>

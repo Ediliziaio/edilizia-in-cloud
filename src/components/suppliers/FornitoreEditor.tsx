@@ -78,6 +78,7 @@ import {
 export interface FornitoreDialogProps {
   /** Il fornitore da modificare; null = nuovo. */
   fornitore: Supplier | null;
+  datiIniziali?: Partial<SupplierFormData>;
   /** Per un fornitore nuovo: parte dalla scheda aperta (Italiani o Esteri). */
   esteroIniziale: boolean;
   fornitori: Supplier[];
@@ -99,6 +100,7 @@ export function FornitoreEditor({
 function FornitoreDialogAperta({
   fornitore,
   esteroIniziale,
+  datiIniziali,
   fornitori,
   categorieEsistenti,
   salvataggio,
@@ -108,7 +110,7 @@ function FornitoreDialogAperta({
   const [formIniziale] = useState<SupplierFormData>(() =>
     fornitore
       ? supplierToForm(fornitore)
-      : { ...emptyForm, is_foreign: esteroIniziale },
+      : { ...emptyForm, is_foreign: esteroIniziale, ...datiIniziali },
   );
   const [formData, setFormData] = useState<SupplierFormData>(formIniziale);
   const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);

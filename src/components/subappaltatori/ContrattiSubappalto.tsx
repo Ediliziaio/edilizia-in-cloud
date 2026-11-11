@@ -604,13 +604,14 @@ export function ContrattiSubappalto({
       const percorso = `${companyId}/subappalti/${c.id}/${Date.now()}.pdf`;
       const { error: errFile } = await supabase.storage.from("quote-pdfs").upload(percorso, blob, { contentType: "application/pdf" });
       if (errFile) throw new Error("Non riesco a salvare il PDF del contratto. Riprova tra poco.");
-      const { error: errC } = await supabase.from("contratti_subappalto" as never).update({ pdf_path: percorso, articoli_personalizzati: { ...(c.articoli_personalizzati as Record<string, unknown> | null ?? {}), [CHIAVE_CLAUSOLE_FISSATE]: JSON.stringify(datiInvio.clausoleArchivio ?? []) } } as never).eq("id", c.id);
-      if (errC) throw new Error("Non riesco a collegare il PDF al contratto. Riprova tra poco.");
       // Il reinvio sostituisce la richiesta vecchia: altrimenti restano due link validi, e quella vecchia
-      // blocca anche il caricamento della copia firmata su carta.
+      // blocca anche il caricamento della copia firmata su carta. Prima di scrivere sul contratto: con una
+      // richiesta aperta il database non lascia cambiare le clausole (lotto 6).
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: errAnnulla } = await (supabase as any).rpc("subappalto_firma_annulla", { p_company: companyId, p_contratto: c.id });
       if (errAnnulla) throw new Error("Non riesco ad annullare la richiesta di firma precedente. Riprova tra poco.");
+      const { error: errC } = await supabase.from("contratti_subappalto" as never).update({ pdf_path: percorso, articoli_personalizzati: { ...(c.articoli_personalizzati as Record<string, unknown> | null ?? {}), [CHIAVE_CLAUSOLE_FISSATE]: JSON.stringify(datiInvio.clausoleArchivio ?? []) } } as never).eq("id", c.id);
+      if (errC) throw new Error("Non riesco a collegare il PDF al contratto. Riprova tra poco.");
       const { data, error } = await supabase.functions.invoke("fea-richiedi-firma", {
         body: {
           tipo_documento: "subappalto", documento_id: c.id, tipo_firmatario: "b2b",

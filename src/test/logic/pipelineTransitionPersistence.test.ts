@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
   readError: false,
   writeError: false,
   responses: 1,
+  deliveries: 0,
 }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
@@ -18,6 +19,7 @@ vi.mock("@/integrations/supabase/client", () => ({
       let updating = false;
       const query = {
         select: () => query,
+        limit: () => query,
         eq: (...args: unknown[]) => {
           state.filters.push(args);
           return query;
@@ -46,7 +48,11 @@ vi.mock("@/integrations/supabase/client", () => ({
             data:
               table === "supplier_rfq_suppliers"
                 ? Array.from({ length: state.responses }, () => ({ id: "s" }))
-                : [],
+                : table === "ddt_consegne"
+                  ? Array.from({ length: state.deliveries }, () => ({
+                      id: "consegna",
+                    }))
+                  : [],
             error: null,
           }),
       };
@@ -76,6 +82,7 @@ beforeEach(() => {
   state.readError = false;
   state.writeError = false;
   state.responses = 1;
+  state.deliveries = 0;
 });
 describe("Salvataggio pipeline", () => {
   it("salva con perimetro aziendale, confronto stato e timestamp, e aggiorna le date del rilievo", async () => {
@@ -157,3 +164,34 @@ describe("Salvataggio pipeline", () => {
     expect(state.filters).toContainEqual(["quantita_ricevuta", 2]);
   });
 });
+
+it.each([0, 1])(
+  "il nuovo flusso verifica le consegne effettive (%i) senza fidarsi della testata 308",
+  async (delivered) => {
+    state.row = {
+      id: "1",
+      stato: "ricevuto",
+      ricezione_esplicita: true,
+      quantita_ricevuta: 308,
+      has_damages: false,
+    };
+    state.deliveries = delivered;
+    const plan = planPipelineTransition(
+      "ddt",
+      { ...doc, status: "ricevuto", stage: "ricevuto", quantity: 1 },
+      "verificato",
+    )!;
+    if (!delivered) {
+      await expect(savePipelineTransition(plan, "co", "user")).rejects.toThrow(
+        "controllo nel dettaglio",
+      );
+      expect(state.updates).toHaveLength(0);
+    } else {
+      await savePipelineTransition(plan, "co", "user");
+      expect(state.updates[0]).toMatchObject({ stato: "verificato" });
+      expect(state.updates[0]).not.toHaveProperty("quantita_ricevuta");
+    }
+    expect(state.filters).toContainEqual(["ddt_id", "1"]);
+    expect(state.filters).toContainEqual(["company_id", "co"]);
+  },
+);

@@ -68,7 +68,7 @@ type DbError = { message?: string } | null;
 type DbQuery = {
   select: (columns?: string) => DbQuery;
   eq: (column: string, value: unknown) => DbQuery;
-  single: () => PromiseLike<{ data: unknown; error: DbError }>;
+  maybeSingle: () => PromiseLike<{ data: unknown; error: DbError }>;
 };
 type DynamicSupabase = { from: (table: string) => DbQuery };
 
@@ -92,7 +92,7 @@ export default function RenderTechnicalModuleGalleryDetail({ moduleId }: { modul
   const hubConfig = renderModuleHubConfigs[moduleId];
   const ModuleIcon = hubConfig.icon;
 
-  const { data: session, isLoading } = useQuery({
+  const { data: session, isLoading, isError, refetch } = useQuery({
     queryKey: ["render-technical-detail", companyId, moduleId, id],
     queryFn: async () => {
       if (!id || !companyId) return null;
@@ -102,7 +102,7 @@ export default function RenderTechnicalModuleGalleryDetail({ moduleId }: { modul
         .eq("id", id)
         .eq("company_id", companyId)
         .eq("module_type", moduleId)
-        .single();
+        .maybeSingle();
       if (error) throw error;
       return data as TechnicalDetailRow | null;
     },
@@ -137,6 +137,17 @@ export default function RenderTechnicalModuleGalleryDetail({ moduleId }: { modul
     );
   }
 
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center gap-4 py-20 text-center" role="alert">
+        <p className="font-medium">Impossibile caricare il render</p>
+        <p className="text-sm text-muted-foreground">Si è verificato un errore durante il recupero. Riprova fra qualche istante.</p>
+        <Button variant="outline" onClick={() => refetch()}>Riprova caricamento</Button>
+        <Button variant="ghost" onClick={() => navigate(`/azienda/render/${moduleId}/gallery`)}>Torna alla galleria</Button>
+      </div>
+    );
+  }
+
   if (!session) {
     return (
       <div className="flex flex-col items-center gap-4 py-20">
@@ -165,7 +176,7 @@ export default function RenderTechnicalModuleGalleryDetail({ moduleId }: { modul
     try {
       await downloadRenderImage(resultUrl, `render_${moduleId}_${id ?? "session"}_${Date.now()}.png`);
     } catch {
-      toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
+      toast.error("Impossibile scaricare il render. Tieni premuto sull'immagine per salvarla.");
     }
   };
 
@@ -177,7 +188,7 @@ export default function RenderTechnicalModuleGalleryDetail({ moduleId }: { modul
   return (
     <div className="mx-auto max-w-5xl space-y-6 pb-12">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate(`/azienda/render/${moduleId}/gallery`)}>
+        <Button variant="ghost" size="icon" aria-label="Torna alla galleria render" onClick={() => navigate(`/azienda/render/${moduleId}/gallery`)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
@@ -258,7 +269,7 @@ export default function RenderTechnicalModuleGalleryDetail({ moduleId }: { modul
           />
           <Button variant="outline" className="gap-2" onClick={handleDownload}>
             <Download className="h-4 w-4" />
-            Download
+            Scarica render
           </Button>
         </div>
       )}
@@ -296,16 +307,18 @@ export default function RenderTechnicalModuleGalleryDetail({ moduleId }: { modul
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base max-md:text-[13px]">Controlli backend</CardTitle>
-        </CardHeader>
+        <details>
+          <summary className="cursor-pointer rounded-lg p-6 text-base font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-md:text-[13px]">
+            Dettagli di elaborazione
+          </summary>
         <CardContent className="flex flex-wrap gap-2">
           {summarizeTechnicalConfig(cfg).slice(0, 6).map((item) => (
             <Badge key={item} variant="outline">{item.replace(/_/g, " ")}</Badge>
           ))}
-          {session.validation_result && <Badge variant="secondary">Validazione prompt registrata</Badge>}
-          {session.replacement_manifest && <Badge variant="secondary">Manifest backend salvato</Badge>}
+          {session.validation_result && <Badge variant="secondary">Validazione registrata</Badge>}
+          {session.replacement_manifest && <Badge variant="secondary">Dati di generazione disponibili</Badge>}
         </CardContent>
+        </details>
       </Card>
     </div>
   );

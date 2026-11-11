@@ -118,7 +118,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
   // can_edit_customers): gli altri vedevano i campi modificabili e scoprivano
   // il divieto solo al salvataggio. Ora li vedono in sola lettura.
   const permessi = usePermissions();
-  const puoModificare = permessi.isAdmin || permessi.canEditCustomers;
+  const puoModificare = !permessi.isLoading && !permessi.solaLettura && (permessi.isAdmin || permessi.canEditCustomers);
   const solaLettura = !puoModificare;
 
   // Titolare = agente/venditore dell'azienda (tabella salespeople), collegato
@@ -148,6 +148,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
   // Update singolo campo (pattern marketing updateField)
   const updateField = useMutation({
     mutationFn: async ({ field, value, extra }: { field: string; value: string | null; extra?: Record<string, string | number | null> }) => {
+      if (!puoModificare) throw new Error("Non hai il permesso di modificare questo cliente.");
       const { data, error } = await supabase
         .from("profiles")
         .update({ [field]: value, ...(extra ?? {}) } as never)
@@ -210,6 +211,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
   const proponiAzienda = !perCommittente && !customer.is_business && sembraAzienda(nomeIntero);
   const segnaAzienda = useMutation({
     mutationFn: async () => {
+      if (!puoModificare) throw new Error("Non hai il permesso di modificare questo cliente.");
       const { data, error } = await supabase.from("profiles")
         // Il nome passa nella ragione sociale; nome e cognome restano per il referente.
         .update({ is_business: true, business_name: customer.business_name?.trim() || nomeIntero } as never)

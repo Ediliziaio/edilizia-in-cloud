@@ -37,13 +37,13 @@ export function formatCount(n: number | null | undefined): string {
   return CONTEGGIO_IT.format(Number.isFinite(v) ? v : 0);
 }
 
-/** Compact currency for chart axes: €1.2M, €45k, €800 */
+/** Valuta compatta per KPI e assi: 1,2M €, 45k €, 800 €. */
 export function formatCurrencyCompact(v: number): string {
   // Simbolo DOPO il numero, come ovunque in italiano ("836k €", non "€836k"):
   // questo formatter alimenta 35 file tra KPI e assi dei grafici.
   const abs = Math.abs(v);
   const sign = v < 0 ? "-" : "";
-  if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}M €`;
+  if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1).replace(".", ",")}M €`;
   if (abs >= 1_000) return `${sign}${(abs / 1_000).toFixed(0)}k €`;
   return `${sign}${Math.round(abs)} €`;
 }

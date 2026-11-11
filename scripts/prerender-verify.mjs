@@ -14,11 +14,13 @@
 
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { validateJsonLd } from "./validate-jsonld.mjs";
-import { join, dirname } from "node:path";
+import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DIST = join(__dirname, "..", "dist");
+const DIST = process.env.PRERENDER_VERIFY_DIST
+  ? resolve(process.env.PRERENDER_VERIFY_DIST)
+  : join(__dirname, "..", "dist");
 
 // Title hardcoded dell'index.html (non deve apparire su altre rotte)
 const HOMEPAGE_TITLE_FRAGMENT = "Gestionale Edilizia Cloud | Software per Imprese Edili";
@@ -53,7 +55,8 @@ function extract(html, re) {
 
 function checkFile(file) {
   const route = "/" + file.replace(DIST + "/", "").replace("/index.html", "").replace(/^index\.html$/, "");
-  const normalizedRoute = route === "/index.html" ? "/" : route;
+  // Il prerender salva la Home in /_home: Cloudflare la serve pubblicamente su /.
+  const normalizedRoute = route === "/index.html" || route === "/_home" ? "/" : route;
   const size = statSync(file).size;
   const html = readFileSync(file, "utf-8");
 
@@ -66,6 +69,10 @@ function checkFile(file) {
   const h1Match = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/);
   const h1 = h1Match ? h1Match[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim() : null;
   const isPrerendered = /name=["']x-prerendered["']/.test(html);
+  // index.html è il guscio applicativo per le rotte riservate. La Home vera
+  // viene verificata separatamente: non si considera valido un sito senza /_home.
+  const isAppShell = file === join(DIST, "index.html") && !isPrerendered
+    && existsSync(join(DIST, "_home", "index.html"));
 
   const errors = validateJsonLd(html);
   const warnings = [];
@@ -96,8 +103,11 @@ function checkFile(file) {
   }
 
   // 4. H1 check
-  if (!h1) {
+  if (!h1 && !isAppShell) {
     errors.push("h1 mancante (body vuoto?)");
+  }
+  if (isAppShell && (!/<div[^>]+\bid=["']root["']/.test(html) || !/<script[^>]+type=["']module["']/.test(html))) {
+    errors.push("guscio applicativo privo del nodo root o del modulo di avvio");
   }
 
   // 5. og:title coerente
@@ -116,12 +126,13 @@ function checkFile(file) {
   }
 
   // 7. Marker prerender
-  if (!isPrerendered) {
+  if (!isPrerendered && !isAppShell) {
     warnings.push("manca marker x-prerendered (file non pre-renderizzato?)");
   }
 
   return {
-    route: normalizedRoute,
+    file,
+    route: isAppShell ? "/ (app)" : normalizedRoute,
     size,
     title,
     titleLen: title?.length ?? 0,
@@ -130,6 +141,7 @@ function checkFile(file) {
     errors,
     warnings,
     isPrerendered,
+    isAppShell,
   };
 }
 
@@ -145,13 +157,13 @@ function main() {
   }
 
   const files = findAllIndexHtml(DIST);
-  console.log(`▶ Verifica ${files.length} HTML pre-renderizzati\n`);
+  console.log(`▶ Verifica ${files.length} HTML generati\n`);
 
   const results = files.map(checkFile);
   const ok = results.filter((r) => r.errors.length === 0 && r.warnings.length === 0).length;
   const warn = results.filter((r) => r.errors.length === 0 && r.warnings.length > 0).length;
   const err = results.filter((r) => r.errors.length > 0).length;
-  const noPrerender = results.filter((r) => !r.isPrerendered).length;
+  const noPrerender = results.filter((r) => !r.isPrerendered && !r.isAppShell).length;
 
   // Header
   console.log(
@@ -196,6 +208,7 @@ function main() {
   const titleMap = new Map();
   const descMap = new Map();
   for (const r of results) {
+    if (r.isAppShell) continue;
     if (r.title) {
       const k = r.title.trim();
       if (!titleMap.has(k)) titleMap.set(k, []);
@@ -203,8 +216,9 @@ function main() {
     }
   }
   for (const r of results) {
+    if (r.isAppShell) continue;
     if (!r.errors.length) {
-      const desc = readFileSync(join(DIST, r.route === "/" ? "index.html" : r.route + "/index.html"), "utf-8")
+      const desc = readFileSync(r.file, "utf-8")
         .match(/<meta[^>]+name="description"[^>]+content="([^"]*)"/)?.[1];
       if (desc) {
         const k = desc.trim();

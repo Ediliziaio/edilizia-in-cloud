@@ -241,12 +241,12 @@ export function SezioneFigure({ d, modifica, ro, mancanti }: BaseProps) {
       <div className="grid gap-3 rounded-lg border p-3 sm:grid-cols-2">
         <h3 className="text-sm font-semibold sm:col-span-2">Responsabile del servizio di prevenzione e protezione (RSPP)</h3>
         <div className="space-y-1">
-          <Label className="text-xs font-medium text-slate-700">Il ruolo è svolto da</Label>
+          <Label htmlFor="pos-rspp-svolto-da" className="text-xs font-medium text-slate-700">Il ruolo è svolto da</Label>
           <Select value={d.rspp.svolto_da} disabled={ro} onValueChange={(v) => modifica((y) => {
             y.rspp.svolto_da = v as RsppSvoltoDa;
             if (v === "datore" && !y.rspp.nominativo) y.rspp.nominativo = y.impresa.datore_lavoro;
           })}>
-            <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+            <SelectTrigger id="pos-rspp-svolto-da" className="h-9"><SelectValue /></SelectTrigger>
             <SelectContent>
               {(Object.keys(RSPP_LABEL) as RsppSvoltoDa[]).map((k) => <SelectItem key={k} value={k}>{RSPP_LABEL[k]}</SelectItem>)}
             </SelectContent>
@@ -278,9 +278,9 @@ export function SezioneFigure({ d, modifica, ro, mancanti }: BaseProps) {
       <div className="grid gap-3 rounded-lg border p-3 sm:grid-cols-2">
         <h3 className="text-sm font-semibold sm:col-span-2">Rappresentante dei lavoratori per la sicurezza</h3>
         <div className="space-y-1">
-          <Label className="text-xs font-medium text-slate-700">Tipo</Label>
+          <Label htmlFor="pos-rls-tipo" className="text-xs font-medium text-slate-700">Tipo</Label>
           <Select value={d.rls.tipo} disabled={ro} onValueChange={(v) => modifica((y) => { y.rls.tipo = v as "rls" | "rlst"; })}>
-            <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+            <SelectTrigger id="pos-rls-tipo" className="h-9"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="rls">RLS aziendale</SelectItem>
               <SelectItem value="rlst">RLST territoriale</SelectItem>
@@ -573,9 +573,9 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
             <Campo id={`lv-${n}-durata`} label="Durata presunta (giorni)" type="number" value={l.durata_giorni == null ? "" : String(l.durata_giorni)} readOnly={ro}
               onChange={(v) => modifica((x) => { x.lavorazioni[n].durata_giorni = v === "" ? null : Math.max(0, Math.round(Number(v) || 0)); invalidaProdottiLavorazione(x.lavorazioni[n]); if(x.lavorazioni[n].origine!=="utente") x.lavorazioni[n].verificata=false; })} />
             <div className="space-y-1">
-              <Label className="text-xs font-medium text-slate-700">Svolgimento</Label>
+              <Label htmlFor={`lv-${n}-svolgimento`} className="text-xs font-medium text-slate-700">Svolgimento</Label>
               <Select value={l.svolgimento} disabled={ro} onValueChange={(v) => modifica((x) => { x.lavorazioni[n].svolgimento = v as Svolgimento; invalidaProdottiLavorazione(x.lavorazioni[n]); if(x.lavorazioni[n].origine!=="utente") x.lavorazioni[n].verificata=false; })}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`lv-${n}-svolgimento`} className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {(Object.keys(SVOLGIMENTO_LABEL) as Svolgimento[]).map((k) => <SelectItem key={k} value={k}>{SVOLGIMENTO_LABEL[k]}</SelectItem>)}
                 </SelectContent>
@@ -690,15 +690,15 @@ export function SezioneAllegati({ d, modifica, ro, mancanti, companyId, posId }:
       {!ro && (
         <div className="flex flex-wrap items-end gap-2">
           <div className="space-y-1">
-            <Label className="text-xs font-medium text-slate-700">Tipo di allegato</Label>
+            <Label htmlFor="pos-allegato-tipo" className="text-xs font-medium text-slate-700">Tipo di allegato</Label>
             <Select value={tipo} onValueChange={(v) => setTipo(v as TipoAllegato)}>
-              <SelectTrigger className="h-9 w-56"><SelectValue /></SelectTrigger>
+              <SelectTrigger id="pos-allegato-tipo" className="h-9 w-56"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {(Object.keys(ALLEGATO_LABEL) as TipoAllegato[]).map((k) => <SelectItem key={k} value={k}>{ALLEGATO_LABEL[k]}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
-          <input ref={input} id="pos-allegato" type="file" className="sr-only" multiple accept=".pdf,image/*,.doc,.docx" onChange={(e) => carica(e.target.files)} />
+          <input ref={input} id="pos-allegato" aria-label="File da allegare al POS" type="file" className="sr-only" multiple accept=".pdf,image/*,.doc,.docx" onChange={(e) => carica(e.target.files)} />
           <Button variant="outline" disabled={caricando} onClick={() => input.current?.click()}>
             {caricando ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Paperclip className="mr-1 h-4 w-4" />}Carica file
           </Button>

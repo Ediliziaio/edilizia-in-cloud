@@ -15,6 +15,8 @@ import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
 import { normalizzaDdtLetto, sembraDdtDallaDidascalia, testoDdtPerAssistente } from "../_shared/ddtLetto.ts";
 import { tipoDocumento } from "../_shared/documentoInGingresso.ts";
+import { PROMPT_LETTORE_DDT, parteFileDdt } from "../_shared/lettoreDdt.ts";
+import { acquisisciDdtWhatsapp } from "../_shared/ddtWhatsappPersistente.ts";
 import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
 
 /** Quanto vale il link a un file salvato: basta per registrare DDT e foto nei giorni seguenti. */
@@ -188,37 +190,7 @@ export async function analyzeImage(
 }
 
 // Stesso prompt di ai-ddt-analyzer (lettore DDT dell'app, task ddt_ocr).
-const PROMPT_LETTORE_DDT = `Sei un assistente esperto di logistica edile che legge i Documenti Di Trasporto (DDT) italiani.
-Estrai i dati in JSON STRUTTURATO. Non inventare: se un dato non è leggibile metti null.
 
-REGOLE:
-- "quantity": numero (usa il punto come separatore decimale). Se non c'è, null.
-- "unit": unità di misura (es. "pz", "mq", "ml", "kg", "cf", "bancale"). Se assente "pz".
-- "unit_price": prezzo unitario in euro come numero (punto decimale, niente simbolo €). null se il DDT non riporta prezzi (spesso i DDT non hanno prezzi).
-- "code": codice articolo/fornitore se presente, altrimenti null.
-- "barcode": codice a barre/EAN se presente, altrimenti null.
-- "ddt_date": formato ISO "YYYY-MM-DD".
-- "document_type": "ddt" per bolla/documento di trasporto, "scontrino" per scontrino o ricevuta di cassa, "fattura" per fattura, altrimenti "altro".
-- "total_amount": totale del documento in euro come numero, null se non c'è (le bolle spesso non hanno prezzi).
-- "delivery_address": indirizzo di consegna o destinazione merce, null se assente.
-- "order_reference": numero d'ordine citato (es. «Rif. Vs ordine 2025/128»), null se assente.
-- Includi UNA riga per ogni articolo elencato nel documento. Ignora righe di intestazione, totali, note di trasporto.
-
-OUTPUT JSON ESATTO (no markdown):
-{
-  "document_type": "ddt" | "scontrino" | "fattura" | "altro",
-  "total_amount": "number | null",
-  "delivery_address": "string | null",
-  "order_reference": "string | null",
-  "supplier_name": "string | null",
-  "supplier_vat": "string | null (P.IVA fornitore)",
-  "ddt_number": "string | null",
-  "ddt_date": "string | null (YYYY-MM-DD)",
-  "items": [
-    { "description": "string", "quantity": number|null, "unit": "string", "unit_price": number|null, "code": "string|null", "barcode": "string|null" }
-  ],
-  "confidenza_estrazione": "alta" | "media" | "bassa"
-}`;
 
 const PROMPT_FOTO =
   "Guarda l'immagine. Nella PRIMA riga scrivi solo DOCUMENTO se è un documento stampato o scritto " +
@@ -237,7 +209,13 @@ export async function leggiFotoOperativa(
 ): Promise<string> {
   const { data: file, error } = await supabase.storage.from("whatsapp-media").download(opts.storagePath);
   if (error || !file) throw new Error(error?.message ?? "foto non scaricabile");
-  const immagine = `data:${file.type || "image/jpeg"};base64,${bytesToBase64(new Uint8Array(await file.arrayBuffer()))}`;
+  let bytesFoto = new Uint8Array(await file.arrayBuffer());
+  let mimeFoto = file.type || "image/jpeg";
+  if (/hei[cf]/i.test(mimeFoto) || /\.hei[cf]$/i.test(opts.storagePath)) {
+    const {heicInJpeg} = await import("../_shared/conversioneHeic.ts");
+    bytesFoto = new Uint8Array(await heicInJpeg(bytesFoto)); mimeFoto = "image/jpeg";
+  }
+  const immagine = `data:${mimeFoto};base64,${bytesToBase64(bytesFoto)}`;
   const didascalia = opts.didascalia?.trim() || null;
 
   let descrizione = "";
@@ -280,13 +258,17 @@ export async function leggiFotoOperativa(
             ],
           },
         ],
-        params: { temperature: 0.05, max_tokens: 2500 },
+        params: { temperature: 0.05, max_tokens: 4500 },
         responseFormat: { type: "json_object" },
         companyId: opts.companyId,
         userId: opts.userId,
         idempotencyKey: `wa_ddt_${opts.messageId}`,
       });
-      const testo = testoDdtPerAssistente(normalizzaDdtLetto(JSON.parse(letto.content)), didascalia);
+      const raw = JSON.parse(letto.content);
+      if (raw.document_type === "ddt" || sembraDdtDallaDidascalia(didascalia)) {
+        await acquisisciDdtWhatsapp(supabase, {...opts,result:raw}).catch(() => console.error("[ddt-whatsapp] Originale salvato, acquisizione da completare alla conferma"));
+      }
+      const testo = testoDdtPerAssistente(normalizzaDdtLetto(raw), didascalia);
       if (testo) return testo;
     } catch (e) {
       console.error(JSON.stringify({ level: "error", fn: "leggi_ddt", error: String(e) }));
@@ -336,13 +318,39 @@ export async function leggiDocumentoOperativo(
         max_chars: 8000,
       }),
     });
-    const j = await res.json().catch(() => null) as { text?: string; error?: string } | null;
+    const j = await res.json().catch((): null => null) as { text?: string; error?: string } | null;
     if (!res.ok) console.error(JSON.stringify({ level: "error", fn: "leggi_documento_pdf", status: res.status, error: j?.error ?? null }));
     testo = res.ok ? (j?.text ?? "").trim() : "";
   } catch (e) {
     console.error(JSON.stringify({ level: "error", fn: "leggi_documento_pdf", error: String(e) }));
   }
   if (!testo) {
+    // Un PDF scansionato può non avere testo selezionabile: leggiamo le pagine con la visione.
+    try {
+      const { data: file, error } = await supabase.storage.from("whatsapp-media").download(opts.storagePath);
+      if (error || !file || file.size > 18 * 1024 * 1024) throw new Error("PDF non disponibile o superiore a 18 MB");
+      const letto = await aiRouterComplete({
+        supabase, taskKey: "pdf_vision_extract", companyId: opts.companyId, userId: opts.userId,
+        idempotencyKey: `wa_ddt_pdf_${opts.companyId}_${opts.messageId}`,
+        messages: [
+          { role: "system", content: conRegoleDocumento(PROMPT_LETTORE_DDT) },
+          { role: "user", content: [
+            { type: "text", text: "Leggi questo PDF scansionato. Estrai tutte le righe leggibili, senza inventare dati mancanti." },
+            parteFileDdt({ base64: bytesToBase64(new Uint8Array(await file.arrayBuffer())), mime: "application/pdf", fileName: "documento-whatsapp.pdf" }),
+          ] },
+        ],
+        params: { temperature: 0.05, max_tokens: 4500 }, responseFormat: { type: "json_object" },
+      });
+      const raw = JSON.parse(letto.content);
+      const documento = normalizzaDdtLetto(raw);
+      if(documento.tipo === "ddt") await acquisisciDdtWhatsapp(supabase,{...opts,result:raw}).catch(()=>console.error("[ddt-whatsapp] Acquisizione da completare alla conferma"));
+      if (documento.tipo === "ddt" || documento.tipo === "fattura" || documento.tipo === "scontrino") {
+        const risultato = testoDdtPerAssistente(documento, opts.didascalia);
+        if (risultato) return risultato;
+      }
+    } catch (e) {
+      console.error(JSON.stringify({ level: "error", fn: "leggi_documento_pdf_vision", error: String(e) }));
+    }
     return `[Documento PDF ricevuto — non sono riuscito a leggerlo]\n\nTesto dell'utente: ${opts.didascalia ?? "(nessuno)"}`;
   }
   const etichetta: Record<string, string> = {
@@ -353,5 +361,6 @@ export async function leggiDocumentoOperativo(
     altro: "documento",
   };
   const tipo = tipoDocumento(testo, opts.didascalia);
+  if(tipo === "ddt") await acquisisciDdtWhatsapp(supabase,opts).catch(()=>console.error("[ddt-whatsapp] Originale salvato, lettura recuperabile alla conferma"));
   return `[Documento PDF — ${etichetta[tipo]}, testo letto]:\n${testo}\n\nTesto dell'utente: ${opts.didascalia ?? "(nessuno)"}`;
 }

@@ -68,8 +68,9 @@ function RegistroContent() {
     enabled: !!company,
     queryFn: async ({ signal }) => {
       // Una fattura scartata dallo SDI per l'Agenzia non esiste: fuori dal registro.
-      const { data: scartate } = await supabase.from("documenti_fiscali" as never)
+      const { data: scartate, error: scartateError } = await supabase.from("documenti_fiscali" as never)
         .select("id").eq("company_id", company!).eq("sdi_stato", "NS").abortSignal(signal);
+      if (scartateError) throw scartateError;
       const fuori = new Set(((scartate ?? []) as unknown as { id: string }[]).map((d) => d.id));
       const righe = (await readAllPages((from, to) =>
         supabase

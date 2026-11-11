@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useId, useState, useRef } from "react";
 import { ArchivioDocument } from "@/hooks/useArchivioSostitutivo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,6 +43,7 @@ interface FormState {
 }
 
 export function ArchivioUploader({ onUpload, isUploading, anno }: Props) {
+  const formId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<FormState>({
     tipo_documento: "",
@@ -89,7 +90,7 @@ export function ArchivioUploader({ onUpload, isUploading, anno }: Props) {
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <Label>Tipo documento</Label>
+            <Label htmlFor={`${formId}-tipo`}>Tipo documento</Label>
             <Select
               value={form.tipo_documento}
               onValueChange={(v) =>
@@ -99,7 +100,7 @@ export function ArchivioUploader({ onUpload, isUploading, anno }: Props) {
                 }))
               }
             >
-              <SelectTrigger>
+              <SelectTrigger id={`${formId}-tipo`}>
                 <SelectValue placeholder="Seleziona tipo..." />
               </SelectTrigger>
               <SelectContent>
@@ -118,8 +119,9 @@ export function ArchivioUploader({ onUpload, isUploading, anno }: Props) {
           </div>
 
           <div className="space-y-1.5">
-            <Label>Anno fiscale</Label>
+            <Label htmlFor={`${formId}-anno`}>Anno fiscale</Label>
             <Input
+              id={`${formId}-anno`}
               type="number"
               min="2000"
               max="2099"
@@ -131,8 +133,10 @@ export function ArchivioUploader({ onUpload, isUploading, anno }: Props) {
           </div>
 
           <div className="space-y-1.5">
-            <Label>File</Label>
+            <Label htmlFor={`${formId}-file`}>File</Label>
             <Input
+              id={`${formId}-file`}
+              aria-describedby={`${formId}-formati`}
               ref={fileInputRef}
               type="file"
               accept=".pdf,.xml,.p7m"
@@ -140,14 +144,15 @@ export function ArchivioUploader({ onUpload, isUploading, anno }: Props) {
                 setForm((f) => ({ ...f, file: e.target.files?.[0] ?? null }))
               }
             />
-            <p className="text-xs text-muted-foreground">
+            <p id={`${formId}-formati`} className="text-xs text-muted-foreground">
               Formati accettati: PDF, XML, P7M
             </p>
           </div>
 
           <div className="space-y-1.5">
-            <Label>Note</Label>
+            <Label htmlFor={`${formId}-note`}>Note</Label>
             <Textarea
+              id={`${formId}-note`}
               placeholder="Note opzionali sul documento..."
               value={form.note}
               onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}

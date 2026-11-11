@@ -1,8 +1,10 @@
 import { memo } from "react";
+import { useDialogFocusReturn } from "@/hooks/useDialogFocusReturn";
+import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { fmtCur } from "@/components/marketing/dashboard/utils";
@@ -19,13 +21,15 @@ interface Props {
 }
 
 export const DrilldownDrawer = memo(function DrilldownDrawer({ type, onClose, dateFrom, dateTo }: Props) {
+  const focusReturn = useDialogFocusReturn();
   if (!type) return null;
 
   return (
     <Sheet open={!!type} onOpenChange={() => onClose()}>
-      <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+      <SheetContent {...focusReturn} side="right" className="w-full sm:max-w-lg overflow-y-auto">
         <SheetHeader>
           <SheetTitle>{TITLES[type]}</SheetTitle>
+          <SheetDescription>Il dettaglio mostra fino a 50 righe.</SheetDescription>
         </SheetHeader>
         <div className="mt-4">
           {type === "revenue" && <RevenueDrill dateFrom={dateFrom} dateTo={dateTo} />}
@@ -39,7 +43,7 @@ export const DrilldownDrawer = memo(function DrilldownDrawer({ type, onClose, da
 });
 
 const TITLES: Record<string, string> = {
-  revenue: "Dettaglio Ricavi",
+  revenue: "Dettaglio venduto",
   margin: "Dettaglio Margini per Ordine",
   "late-orders": "Ordini in Ritardo",
   tickets: "Ticket Aperti",
@@ -55,7 +59,7 @@ function custName(c: unknown): string {
 
 function RevenueDrill({ dateFrom, dateTo }: { dateFrom: Date; dateTo: Date }) {
   const { effectiveCompany } = useAuth();
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["drill-revenue", effectiveCompany?.id, dateFrom.toISOString(), dateTo.toISOString()],
     queryFn: async () => {
       // Come il KPI: commesse non nel cestino, contratto più varianti approvate (IVA esclusa).
@@ -75,6 +79,7 @@ function RevenueDrill({ dateFrom, dateTo }: { dateFrom: Date; dateTo: Date }) {
   });
 
   if (isLoading) return <DrillSkeleton />;
+  if (isError) return <DrillError onRetry={() => { void refetch(); }} />;
   if (!data?.length) return <EmptyDrill />;
 
   return (
@@ -95,7 +100,7 @@ function RevenueDrill({ dateFrom, dateTo }: { dateFrom: Date; dateTo: Date }) {
 
 function MarginDrill({ dateFrom, dateTo }: { dateFrom: Date; dateTo: Date }) {
   const { effectiveCompany } = useAuth();
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["drill-margin", effectiveCompany?.id, dateFrom.toISOString(), dateTo.toISOString()],
     queryFn: async () => {
       // Le commesse come il dettaglio del venduto (non nel cestino); i numeri dalla
@@ -123,6 +128,7 @@ function MarginDrill({ dateFrom, dateTo }: { dateFrom: Date; dateTo: Date }) {
   });
 
   if (isLoading) return <DrillSkeleton />;
+  if (isError) return <DrillError onRetry={() => { void refetch(); }} />;
   if (!data?.length) return <EmptyDrill />;
 
   return (
@@ -161,7 +167,7 @@ function MarginDrill({ dateFrom, dateTo }: { dateFrom: Date; dateTo: Date }) {
 
 function LateOrdersDrill() {
   const { effectiveCompany } = useAuth();
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["drill-late", effectiveCompany?.id],
     queryFn: async () => {
       const todayStr = new Date().toISOString().split("T")[0];
@@ -180,6 +186,7 @@ function LateOrdersDrill() {
   });
 
   if (isLoading) return <DrillSkeleton />;
+  if (isError) return <DrillError onRetry={() => { void refetch(); }} />;
   if (!data?.length) return <EmptyDrill />;
 
   const today = new Date();
@@ -206,7 +213,7 @@ function LateOrdersDrill() {
 
 function TicketsDrill() {
   const { effectiveCompany } = useAuth();
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["drill-tickets", effectiveCompany?.id],
     queryFn: async () => {
       const { data, error } = await supabase.from("tickets")
@@ -222,6 +229,7 @@ function TicketsDrill() {
   });
 
   if (isLoading) return <DrillSkeleton />;
+  if (isError) return <DrillError onRetry={() => { void refetch(); }} />;
   if (!data?.length) return <EmptyDrill />;
 
   return (
@@ -256,6 +264,15 @@ function DrillSkeleton() {
 
 function EmptyDrill() {
   return (
-    <p className="text-sm text-muted-foreground text-center py-8">Nessun dato per il periodo selezionato</p>
+    <p className="text-sm text-muted-foreground text-center py-8">Nessun dato da mostrare</p>
+  );
+}
+
+function DrillError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div role="alert" className="space-y-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+      <p>Impossibile caricare il dettaglio.</p>
+      <Button variant="outline" onClick={onRetry} aria-label="Riprova caricamento dettaglio">Riprova</Button>
+    </div>
   );
 }

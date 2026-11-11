@@ -187,12 +187,13 @@ function MeteoWidget({ compatto = false }: { compatto?: boolean }) {
   const todayStr = format(new Date(), "yyyy-MM-dd");
   const todayWeather = weatherMap?.get(todayStr);
 
-  const forecastDays = useMemo(() => {
-    if (!weatherMap) return [];
-    const result: { date: string; weather: WeatherDay }[] = [];
-    weatherMap.forEach((w, d) => { if (d !== todayStr) result.push({ date: d, weather: w }); });
-    return result.slice(0, 3);
-  }, [weatherMap, todayStr]);
+  const forecastDays: { date: string; weather: WeatherDay }[] = [];
+  if (weatherMap) {
+    for (const [date, weather] of weatherMap) {
+      if (date !== todayStr) forecastDays.push({ date, weather });
+      if (forecastDays.length === 3) break;
+    }
+  }
 
   // Mostra skeleton solo quando non abbiamo ancora nessun dato (primo caricamento).
   // Con keepPreviousData, weatherMap può avere dati placeholder anche quando
@@ -327,7 +328,7 @@ const GROUP_OPTIONS: { value: GroupBy; label: string }[] = [
   { value: "date", label: "Data" },
 ];
 
-export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear, openTaskRequest }: { initialDueDate?: AddTaskRequest | null; calendarDate?: string | null; onCalendarDateClear?: () => void; openTaskRequest?: { id: string; requestId: number } | null }) {
+export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear, openTaskRequest, filter: controlledFilter, onFilterChange }: { initialDueDate?: AddTaskRequest | null; calendarDate?: string | null; onCalendarDateClear?: () => void; openTaskRequest?: { id: string; requestId: number } | null; filter?: TaskFilter; onFilterChange?: (filter: TaskFilter) => void }) {
   const { user, effectiveCompany, role } = useAuth();
   const isAdmin = role === "company_admin";
   const { canViewTeamTasks, solaLettura, canViewMarketingContacts, canViewMarketingOpportunities, canViewOrders } = usePermissions();
@@ -337,7 +338,9 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
   const seesTeamTasks = isAdmin || canViewTeamTasks;
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
-  const [filter, setFilter] = useState<TaskFilter>("tutte");
+  const [localFilter, setLocalFilter] = useState<TaskFilter>("tutte");
+  const filter = controlledFilter ?? localFilter;
+  const setFilter = (next: TaskFilter) => { setLocalFilter(next); onFilterChange?.(next); };
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<any>(null);
   const [quickAddTitle, setQuickAddTitle] = useState("");
@@ -386,7 +389,6 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
   const observedStatuses = useMemo(() => [...new Set(allTasks.map(t => t.status))], [allTasks]);
   const { statuses: taskStatuses } = useTaskStatuses(companyId, observedStatuses);
   const today = startOfDay(new Date());
-  const weekEnd = addDays(today, 7);
   const tasksDiChi = useMemo(() => dashboardTasksForAssignee(allTasks, "me", user?.id), [allTasks, user?.id]);
   const filteredTasks = useMemo(() => filterDashboardTasks(tasksDiChi, filter, today, searchQuery, calendarDate, taskStatuses), [tasksDiChi, filter, today, searchQuery, calendarDate, taskStatuses]);
   const stats = useMemo(() => dashboardTaskStats(tasksDiChi, today, taskStatuses), [tasksDiChi, today, taskStatuses]);
@@ -799,7 +801,7 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
     const isCollapsed = collapsedGroups.has(key);
     return (
       <div key={key} className="space-y-1.5">
-        <button onClick={() => toggleGroup(key)} className="flex items-center gap-2 w-full text-left py-1 hover:bg-muted/30 rounded px-1 -mx-1">
+        <button aria-expanded={!isCollapsed} onClick={() => toggleGroup(key)} className="flex items-center gap-2 w-full text-left py-1 hover:bg-muted/30 rounded px-1 -mx-1">
           <ChevronRight className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${isCollapsed ? "" : "rotate-90"}`} />
           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{key}</span>
           <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{tasks.length}</Badge>
@@ -982,13 +984,13 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
               {(!isMobile || aggiuntaAperta) && (
               <div className="flex items-center gap-2">
                 <div className="flex-1 relative">
-                  <Input ref={quickAddRef} placeholder={solaLettura ? "Sei in sola lettura" : "Aggiungi attività…"} value={quickAddTitle}
+                  <Input ref={quickAddRef} aria-label="Titolo della nuova attività rapida" placeholder={solaLettura ? "Sei in sola lettura" : "Aggiungi attività…"} value={quickAddTitle}
                     disabled={solaLettura || mutationBusy}
                     onBlur={() => { if (isMobile && !quickAddTitle.trim()) setAggiuntaAperta(false); }}
                     onChange={e => setQuickAddTitle(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter" && !createTask.isPending) handleQuickAdd(); if (e.key === "Escape") { setQuickAddTitle(""); quickAddRef.current?.blur(); } }}
                     className="h-9 text-base md:text-sm pr-8" />
-                  {quickAddTitle && <button onClick={() => setQuickAddTitle("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>}
+                  {quickAddTitle && <button aria-label="Cancella il titolo della nuova attività" onClick={() => setQuickAddTitle("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>}
                 </div>
                 <Button variant="outline" size="sm" className="h-9 shrink-0" aria-label="Aggiungi attività rapida" onClick={handleQuickAdd} disabled={solaLettura || !quickAddTitle.trim() || mutationBusy} title={creaTitle}>
                   {createTask.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
@@ -1066,8 +1068,8 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
             {/* Senza questo campo l'attività nasceva slegata: non si vedeva né
                 nella scheda del cliente né in quella dell'opportunità. */}
             <div className="space-y-1.5">
-              <Label>Collegata a</Label>
-              <CollegaAttivitaPicker companyId={companyId} valore={formCollegamento} onChange={setFormCollegamento} />
+              <Label htmlFor="task-link">Collegata a</Label>
+              <CollegaAttivitaPicker id="task-link" companyId={companyId} valore={formCollegamento} onChange={setFormCollegamento} />
               {formCollegamento?.tipo === "opportunita" && canViewMarketingOpportunities && (
                 <Link to={linkOpportunita("/azienda/marketing", formCollegamento.id)} onClick={() => setDialogOpen(false)} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
                   <ExternalLink className="h-3 w-3" />
@@ -1089,9 +1091,9 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
             <div className="grid grid-cols-2 gap-3 max-sm:contents">
               {isAdmin && (
                 <div className="space-y-1.5">
-                  <Label>Assegna a</Label>
+                  <Label htmlFor="task-assignee">Assegna a</Label>
                   <Select value={formAssignedTo} onValueChange={setFormAssignedTo}>
-                    <SelectTrigger className="h-9"><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+                    <SelectTrigger id="task-assignee" className="h-9"><SelectValue placeholder="Seleziona..." /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value={user?.id ?? ""}>
                         <span className="flex items-center gap-2">Me stesso</span>
@@ -1104,9 +1106,9 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
                 </div>
               )}
               <div className="space-y-1.5">
-                <Label>Priorità</Label>
+                <Label htmlFor="task-priority">Priorità</Label>
                 <Select value={formPriority} onValueChange={setFormPriority}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectTrigger id="task-priority" className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {Object.entries(PRIORITY_CONFIG).map(([k, v]) => {
                       const Icon = v.icon;
@@ -1117,9 +1119,9 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
               </div>
               {!isAdmin && (
                 <div className="space-y-1.5 max-sm:hidden">
-                  <Label>Categoria</Label>
+                  <Label htmlFor="task-category">Categoria</Label>
                   <Select value={formCategory} onValueChange={setFormCategory}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectTrigger id="task-category" className="h-9"><SelectValue /></SelectTrigger>
                     <SelectContent>{CATEGORY_OPTIONS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
@@ -1129,9 +1131,9 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
             <div className={`grid gap-3 max-sm:contents ${editingTask ? "grid-cols-3" : "grid-cols-2"}`}>
               {isAdmin && (
                 <div className="space-y-1.5 max-sm:hidden">
-                  <Label>Categoria</Label>
+                  <Label htmlFor="task-category">Categoria</Label>
                   <Select value={formCategory} onValueChange={setFormCategory}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectTrigger id="task-category" className="h-9"><SelectValue /></SelectTrigger>
                     <SelectContent>{CATEGORY_OPTIONS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
@@ -1142,9 +1144,9 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
               </div>
               {editingTask && (
                 <div className="space-y-1.5">
-                  <Label>Stato</Label>
+                  <Label htmlFor="task-status">Stato</Label>
                   <Select disabled={!!editingTask && isTaskBlockedStatus(editingTask.status, taskStatuses)} value={formStatus} onValueChange={setFormStatus}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectTrigger id="task-status" className="h-9"><SelectValue /></SelectTrigger>
                     <SelectContent>{taskStatuses.map(v => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
@@ -1245,11 +1247,11 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
 // Tab content — Attività (Dashboard Widget)
 // ─────────────────────────────────────────────────────────────────────────────
 function TabAttivita() {
-  const { user, effectiveCompany, role } = useAuth();
-  const isAdmin = role === "company_admin";
+  const { user, effectiveCompany } = useAuth();
   const isMobile = useIsMobile();
   const [addTaskDate, setAddTaskDate] = useState<AddTaskRequest | null>(null);
   const [calendarDate, setCalendarDate] = useState<string | null>(null);
+  const [taskFilter, setTaskFilter] = useState<TaskFilter>("tutte");
   const [openTaskRequest, setOpenTaskRequest] = useState<{ id: string; requestId: number } | null>(null);
   const [mobileAgenda, setMobileAgenda] = useState(false);
   const [mobileTeam, setMobileTeam] = useState(false);
@@ -1265,10 +1267,15 @@ function TabAttivita() {
   // dell'utente. Toccare un numero porta all'elenco giusto.
   const focus = dashboardTaskStats(agendaTasks, new Date(), statuses);
   const vaiAlleAttivita = () => document.getElementById("le-mie-attivita")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const mostraAttivita = (filter: TaskFilter) => {
+    setCalendarDate(null);
+    setTaskFilter(filter);
+    vaiAlleAttivita();
+  };
   const focusTiles = [
-    focus.overdue > 0 ? { key: "scadute", n: focus.overdue, label: "Scadute", cls: "border-red-300 bg-red-50 text-red-700", onClick: vaiAlleAttivita } : null,
-    { key: "oggi", n: focus.today, label: "Oggi", cls: "border-primary/30 bg-primary/5 text-primary", onClick: () => { setCalendarDate(format(new Date(), "yyyy-MM-dd")); vaiAlleAttivita(); } },
-    { key: "settimana", n: focus.week, label: "Prossimi 7 giorni", cls: "border-border bg-muted/40 text-foreground", onClick: vaiAlleAttivita },
+    focus.overdue > 0 ? { key: "scadute", n: focus.overdue, label: "Scadute", cls: "border-red-300 bg-red-50 text-red-700", onClick: () => mostraAttivita("scadute") } : null,
+    { key: "oggi", n: focus.today, label: "Oggi", cls: "border-primary/30 bg-primary/5 text-primary", onClick: () => mostraAttivita("oggi") },
+    { key: "settimana", n: focus.week, label: "Prossimi 7 giorni", cls: "border-border bg-muted/40 text-foreground", onClick: () => mostraAttivita("settimana") },
   ].filter(Boolean) as Array<{ key: string; n: number; label: string; cls: string; onClick: () => void }>;
 
   return (
@@ -1277,10 +1284,10 @@ function TabAttivita() {
           da ogni pagina, non più qui nel corpo di Attività. */}
 
       {/* Focus del giorno: cosa aspetta l'utente, in un colpo d'occhio. */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2" aria-busy={taskQuery.isLoading}>
         {focusTiles.map((t) => (
-          <button key={t.key} type="button" onClick={t.onClick} className={cn("flex min-w-[88px] flex-1 flex-col rounded-xl border px-3 py-2 text-left transition hover:brightness-[0.97]", t.cls)}>
-            <span className="text-xl font-bold tabular-nums">{t.n}</span>
+          <button key={t.key} type="button" disabled={taskQuery.isLoading || taskQuery.isError} onClick={t.onClick} className={cn("flex min-w-[88px] flex-1 flex-col rounded-xl border px-3 py-2 text-left transition hover:brightness-[0.97] disabled:cursor-default", t.cls)}>
+            <span className="text-xl font-bold tabular-nums">{taskQuery.isLoading || taskQuery.isError ? "—" : t.n}</span>
             <span className="text-xs font-medium">{t.label}</span>
           </button>
         ))}
@@ -1305,6 +1312,8 @@ function TabAttivita() {
         {/* Primaria: le mie attività — è quello che si usa ogni giorno, quindi in colonna larga. */}
         <div id="le-mie-attivita" className="min-w-0 space-y-4 scroll-mt-20">
           <MieAttivita
+            filter={taskFilter}
+            onFilterChange={setTaskFilter}
             initialDueDate={addTaskDate}
             calendarDate={calendarDate}
             onCalendarDateClear={() => setCalendarDate(null)}

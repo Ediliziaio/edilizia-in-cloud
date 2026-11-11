@@ -318,3 +318,16 @@ describe("Nuovo sopralluogo: flusso e riepilogo", () => {
     expect(m.create).not.toHaveBeenCalled();
   });
 });
+
+it("distingue il ritorno al passo precedente dall’uscita verso l’elenco", async () => {
+  render(<Page />);
+  await ready();
+  expect(screen.getByRole("button", { name: "Torna ai sopralluoghi" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Continua" }));
+  fireEvent.click(screen.getByRole("button", { name: "Torna al passaggio precedente" }));
+  await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: "Tipo di rilievo" })).toHaveFocus());
+  fireEvent.click(screen.getByRole("button", { name: "Torna ai sopralluoghi" }));
+  expect(screen.getByLabelText("Route corrente")).toHaveTextContent("/azienda/sopralluoghi");
+  expect(screen.getByLabelText("Route corrente")).not.toHaveTextContent("/nuovo");
+  expect(m.create).not.toHaveBeenCalled();
+});

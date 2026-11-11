@@ -118,7 +118,7 @@ export default function RenderFacciataGalleryDetail() {
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/render/facciata/gallery")}>
+        <Button variant="ghost" size="icon" aria-label="Torna alla galleria facciata" onClick={() => navigate("/azienda/render/facciata/gallery")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">

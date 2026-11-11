@@ -93,6 +93,8 @@ export interface DDTRicezione {
   ddt_file_url?: string | null;
   ddt_file_name?: string | null;
   ddt_file_mime?: string | null;
+  ddt_file_bucket?: string | null;
+  ricezione_esplicita?: boolean;
   attachments?: DDTAttachment[];
 
   // Corriere / mezzo / autista
@@ -130,6 +132,7 @@ export interface DDTRicezione {
 }
 
 export interface DDTRicezioneWithJoins extends DDTRicezione {
+  consegne?: import("@/lib/ddt/riepilogoConsegne").ConsegnaRiepilogo[];
   purchase_orders?: {
     id: string;
     oda_number: string;
@@ -163,6 +166,8 @@ export interface DDTRiga {
   purchase_order_item_id?: string | null;
   abbinamento?: "auto" | "manuale" | null;
   arrivo_registrato_il?: string | null;
+  movimento_id?: string | null;
+  stock_item_id?: string | null;
   origine: "ai" | "manuale";
   ai_originale?: Record<string, unknown> | null;
   testo_grezzo: string | null;
@@ -227,7 +232,7 @@ export function useDDTRicezioneList(filters?: {
   const companyId = effectiveCompany?.id;
 
   return useQuery<DDTRicezioneWithJoins[]>({
-    queryKey: queryKeys.ddtRicezione.list(companyId, filters),
+    queryKey: [...queryKeys.ddtRicezione.list(companyId, filters), "consegne-v1"],
     queryFn: async () => {
       // Tutte le pagine, a blocchi di 500. Prima c'era un tetto di 500 bolle:
       // contatori, schede ed esportazione vedevano solo quelle senza dirlo.
@@ -239,7 +244,7 @@ export function useDDTRicezioneList(filters?: {
             // Left join sull'ODA, non !inner: dal 29/10/2026 una bolla può non
             // averne, e con l'inner join sarebbe sparita dalla lista senza che
             // nessuno lo dicesse. Commessa e fornitore si leggono dalla bolla.
-            "*, purchase_orders(id, oda_number, status, order_id, supplier_id, suppliers(name, email), orders(id, order_code)), warehouses(id, name), orders(id, order_code), suppliers(id, name)"
+            "*, purchase_orders(id, oda_number, status, order_id, supplier_id, suppliers(name, email), orders(id, order_code)), warehouses(id, name), orders(id, order_code), suppliers(id, name), consegne:ddt_consegne(tipo, quantita, unita_misura, destinazione, warehouses(name))"
           )
           .eq("company_id", companyId!)
           .order("data_ricezione", { ascending: false })
@@ -367,7 +372,7 @@ export function useDDTRighe(ddtId: string | null | undefined) {
     queryFn: async () => {
       const { data, error } = await db
         .from("ddt_righe")
-        .select("*, order_items(id, description, order_id)")
+        .select("*, order_items!ddt_righe_order_item_id_fkey(id, description, order_id)")
         .eq("ddt_ricezione_id", ddtId!)
         .order("posizione")
         .order("created_at");
@@ -559,6 +564,8 @@ export function useDDTRicezioneMutations(poId?: string | null) {
     mutationFn: async (params: {
       /** Caricando tante bolle insieme l'esito lo dice la finestra: niente messaggio per ognuna. */
       silenzioso?: boolean;
+      /** Import documentale: collega l’OdA senza ricevere il residuo dell’ordine. */
+      soloDocumento?: boolean;
       /** Facoltativo: in cantiere la merce arriva anche senza ordine. */
       purchase_order_id?: string | null;
       /** La commessa su cui va la merce, quando l'ODA non c'è. */
@@ -597,8 +604,10 @@ export function useDDTRicezioneMutations(poId?: string | null) {
       if (!params.numero_ddt.trim()) throw new Error("Numero DDT obbligatorio");
       const odaId = params.purchase_order_id ?? null;
 
-      let warehouseId = params.warehouse_id ?? null;
-      if (!warehouseId && odaId) {
+      const inCantiere = params.destinazione === "cantiere";
+      const riceviInteroOrdine = !!odaId && !params.soloDocumento && !inCantiere;
+      let warehouseId = inCantiere ? null : params.warehouse_id ?? null;
+      if (!inCantiere && !warehouseId && odaId) {
         const { data: po } = await supabase
           .from("purchase_orders")
           .select("delivery_warehouse_id")
@@ -606,7 +615,7 @@ export function useDDTRicezioneMutations(poId?: string | null) {
           .single();
         warehouseId = (po as { delivery_warehouse_id?: string | null })?.delivery_warehouse_id ?? null;
       }
-      if (!warehouseId) {
+      if (!inCantiere && !warehouseId) {
         const { data: defWh } = await supabase
           .from("warehouses")
           .select("id")
@@ -616,7 +625,7 @@ export function useDDTRicezioneMutations(poId?: string | null) {
           .maybeSingle();
         warehouseId = (defWh as { id?: string })?.id ?? null;
       }
-      if (!warehouseId) {
+      if (!inCantiere && !warehouseId) {
         throw new Error(
           "Nessun magazzino disponibile: impostare un magazzino di default per l'azienda"
         );
@@ -629,6 +638,7 @@ export function useDDTRicezioneMutations(poId?: string | null) {
         order_id: params.order_id ?? null,
         supplier_id: params.supplier_id ?? null,
         destinazione: params.destinazione ?? "magazzino",
+        ricezione_esplicita: !!params.soloDocumento,
         trasporto_a_cura_di: params.trasporto_a_cura_di ?? null,
         porto: params.porto ?? null,
         warehouse_id: warehouseId,
@@ -638,14 +648,14 @@ export function useDDTRicezioneMutations(poId?: string | null) {
         // partire dal numero digitato la conterebbe due volte. Senza ODA non
         // c'è nessun residuo d'ordine, e la quantità è quella della bolla.
         quantita_ricevuta:
-          odaId && (params.stato === "ricevuto" || params.stato === "verificato")
+          riceviInteroOrdine && (params.stato === "ricevuto" || params.stato === "verificato")
             ? 0
             : params.quantita_ricevuta,
         // Con l'ODA «ricevuto completo» nasce «atteso»: lo stato vero lo scrive
         // la funzione dell'arrivo, così se l'arrivo non va a buon fine la bolla
         // non resta «ricevuta» senza merce. Senza ODA lo stato è quello scelto.
         stato:
-          odaId && (params.stato === "ricevuto" || params.stato === "verificato")
+          riceviInteroOrdine && (params.stato === "ricevuto" || params.stato === "verificato")
             ? "atteso"
             : params.stato,
         note: params.note?.trim() || null,
@@ -717,7 +727,7 @@ export function useDDTRicezioneMutations(poId?: string | null) {
       // e a scrivere lo stato della bolla. Prima qui si scriveva solo lo stato:
       // ordine ricevuto, costo pieno in commessa, nessuna quantità, niente
       // magazzino. Se l'arrivo non riesce la bolla resta «attesa» e lo si dice.
-      if (odaId && (params.stato === "ricevuto" || params.stato === "verificato")) {
+      if (riceviInteroOrdine && (params.stato === "ricevuto" || params.stato === "verificato")) {
         try {
           const esito = await riceviResiduoOda({
             companyId,
@@ -1001,6 +1011,7 @@ export function useDDTAttachments(ddtId?: string | null) {
           ddt_file_url: uploaded.url,
           ddt_file_name: uploaded.name,
           ddt_file_mime: uploaded.mime,
+          ddt_file_bucket: null,
         } as never)
         .eq("id", params.ddtId);
       if (error) throw error;

@@ -1,3 +1,4 @@
+import { etichettaAnalisiPersiane } from "@/components/render-persiane/etichetteAnalisiPersiane";
 import { useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -153,6 +154,7 @@ export default function RenderPersianeGalleryDetail() {
         <Button
           variant="ghost"
           size="icon"
+          aria-label="Torna alla galleria persiane"
           onClick={() => navigate("/azienda/render/persiane/gallery")}
         >
           <ArrowLeft className="h-4 w-4" />
@@ -321,7 +323,7 @@ export default function RenderPersianeGalleryDetail() {
                 <Badge variant="secondary">{renderConfig.scene_analysis.facadeType}</Badge>
                 <Badge variant="secondary">{renderConfig.scene_analysis.buildingStyle}</Badge>
                 <Badge variant="secondary">{renderConfig.scene_analysis.openingsVisible} aperture visibili</Badge>
-                <Badge variant="secondary">{renderConfig.scene_analysis.imageOrientation}</Badge>
+                <Badge variant="secondary">{etichettaAnalisiPersiane("orientamento", renderConfig.scene_analysis.imageOrientation)}</Badge>
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 {renderConfig.scene_analysis.noteAnalisi}
@@ -331,13 +333,13 @@ export default function RenderPersianeGalleryDetail() {
                   <div key={opening.id} className="rounded-lg border bg-muted/20 p-3">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-medium">Apertura {opening.label}</p>
-                      <Badge variant="outline">{opening.position.replace(/_/g, " ")}</Badge>
+                      <Badge variant="outline">{etichettaAnalisiPersiane("posizione", opening.position)}</Badge>
                     </div>
                     <p className="text-sm mt-1 capitalize">
-                      {opening.existingShutterType.replace(/_/g, " ")}
+                      {etichettaAnalisiPersiane("oscurante", opening.existingShutterType)}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {opening.openingKind.replace(/_/g, " ")} · {opening.materialPerceived} · {opening.colorPerceived}
+                      {etichettaAnalisiPersiane("apertura", opening.openingKind)} · {opening.materialPerceived} · {opening.colorPerceived}
                     </p>
                   </div>
                 ))}

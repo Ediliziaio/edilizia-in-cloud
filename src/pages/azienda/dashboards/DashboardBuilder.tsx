@@ -50,6 +50,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
+import { usePermissions } from "@/hooks/usePermissions";
 import {
   useDashboard,
   useMetricCatalog,
@@ -170,7 +171,7 @@ function useLayoutHistory(initial: DashboardLayout) {
 
 function BuilderSkeleton() {
   return (
-    <div className="flex flex-col h-[calc(100vh-0px)] min-h-0 bg-background">
+    <div className="flex flex-col w-full min-w-0 lg:h-[calc(100vh-0px)] min-h-0 bg-background">
       <header className="flex items-center gap-2 border-b bg-background px-3 py-2 shrink-0">
         <div className="h-7 w-16 rounded-md bg-muted animate-pulse" />
         <div className="h-5 w-px bg-border" />
@@ -215,10 +216,13 @@ export default function DashboardBuilder() {
   const isEdit = !!id && id !== "nuova";
   const navigate = useNavigate();
   const { isFeatureEnabled, isLoading: flagsLoading } = useFeatureFlags();
+  const permissions = usePermissions();
+  const canSave = !permissions.isLoading && !permissions.solaLettura;
 
   const dash = useDashboard(isEdit ? id : undefined);
   const catalog = useMetricCatalog();
   const save = useSaveDashboard();
+  const savingRef = useRef(false);
 
   const [name, setName] = useState("Nuova dashboard");
   const [description, setDescription] = useState("");
@@ -371,6 +375,8 @@ export default function DashboardBuilder() {
 
   const handleSave = useCallback(
     async (opts?: { silent?: boolean }) => {
+      if (!canSave || savingRef.current) return;
+      savingRef.current = true;
       try {
         const result = await save.mutateAsync({
           dashboardId: isEdit ? id : null,
@@ -396,15 +402,18 @@ export default function DashboardBuilder() {
           description: (e as Error).message,
           variant: "destructive",
         });
+      } finally {
+        savingRef.current = false;
       }
     },
-    [description, id, isEdit, layout, name, navigate, note, save, scope],
+    [canSave, description, id, isEdit, layout, name, navigate, note, save, scope],
   );
 
   // ── Auto-save (solo edit mode, debounce 3s) ─────────────────────
   const lastSavedRef = useRef<string>("");
   useEffect(() => {
     if (!isEdit) return;
+    if (!canSave) return;
     if (!dirty) return;
     if (!name.trim()) return;
 
@@ -416,7 +425,7 @@ export default function DashboardBuilder() {
       handleSave({ silent: true });
     }, 3000);
     return () => window.clearTimeout(timer);
-  }, [dirty, isEdit, name, description, scope, layout, handleSave]);
+  }, [canSave, dirty, isEdit, name, description, scope, layout, handleSave]);
 
   // ── Keyboard shortcuts ──────────────────────────────────────────
   useEffect(() => {
@@ -514,9 +523,9 @@ export default function DashboardBuilder() {
 
   // ── Main render ──────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-[calc(100vh-0px)] min-h-0 bg-background">
+    <div className="flex flex-col w-full min-w-0 lg:h-[calc(100vh-0px)] min-h-0 bg-background">
       {/* ── Header ─────────────────────────────────────────────── */}
-      <header className="flex items-center gap-2 border-b bg-background px-3 py-2 shrink-0 z-10">
+      <header className="flex flex-wrap items-center gap-2 border-b bg-background px-3 py-2 shrink-0 z-10">
         {/* Back */}
         <Button
           asChild
@@ -535,6 +544,8 @@ export default function DashboardBuilder() {
         {/* Dashboard name — inline editable */}
         <div className="flex items-center gap-1.5 min-w-0">
           <Input
+            aria-label="Nome dashboard"
+            disabled={!canSave}
             value={name}
             onChange={(e) => {
               setName(e.target.value);
@@ -585,7 +596,7 @@ export default function DashboardBuilder() {
             variant="ghost"
             className="h-8 w-8 p-0"
             onClick={duplicateSelected}
-            disabled={!selectedId}
+            disabled={!selectedId || !canSave}
             title="Duplica widget (⌘D)"
           >
             <Copy className="h-4 w-4" />
@@ -598,7 +609,7 @@ export default function DashboardBuilder() {
         <div className="flex items-center gap-1.5 shrink-0">
           <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
           <Select value={globalPeriod} onValueChange={(v) => setGlobalPeriod(v as PeriodPreset)}>
-            <SelectTrigger className="h-8 text-xs w-[160px] border-dashed">
+            <SelectTrigger aria-label="Periodo della dashboard" className="h-8 text-xs w-[160px] border-dashed">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -619,6 +630,7 @@ export default function DashboardBuilder() {
           <button
             type="button"
             onClick={() => setPreviewMode("desktop")}
+            aria-pressed={previewMode === "desktop"}
             className={cn(
               "h-7 w-7 inline-flex items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors",
               previewMode === "desktop" && "bg-background text-foreground shadow-sm",
@@ -630,6 +642,7 @@ export default function DashboardBuilder() {
           <button
             type="button"
             onClick={() => setPreviewMode("tablet")}
+            aria-pressed={previewMode === "tablet"}
             className={cn(
               "h-7 w-7 inline-flex items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors",
               previewMode === "tablet" && "bg-background text-foreground shadow-sm",
@@ -641,6 +654,7 @@ export default function DashboardBuilder() {
           <button
             type="button"
             onClick={() => setPreviewMode("mobile")}
+            aria-pressed={previewMode === "mobile"}
             className={cn(
               "h-7 w-7 inline-flex items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors",
               previewMode === "mobile" && "bg-background text-foreground shadow-sm",
@@ -656,6 +670,7 @@ export default function DashboardBuilder() {
           size="sm"
           variant={viewerPreview ? "secondary" : "ghost"}
           onClick={() => setViewerPreview((v) => !v)}
+          aria-pressed={viewerPreview}
           className="h-8 gap-1.5 shrink-0"
           title="Anteprima utente"
         >
@@ -666,7 +681,7 @@ export default function DashboardBuilder() {
         {/* Save */}
         <Button
           onClick={() => handleSave()}
-          disabled={save.isPending || !name.trim()}
+          disabled={!canSave || save.isPending || !name.trim()}
           size="sm"
           className="gap-1.5 shrink-0"
         >
@@ -680,10 +695,10 @@ export default function DashboardBuilder() {
       </header>
 
       {/* ── Body ───────────────────────────────────────────────── */}
-      <div className="flex-1 flex min-h-0">
+      <div className="flex-1 flex flex-col lg:flex-row min-h-0 min-w-0">
         {/* Canvas */}
         <main
-          className="flex-1 overflow-auto min-h-0"
+          className="flex-1 overflow-auto min-h-0 min-w-0"
           style={{ background: "hsl(var(--muted) / 0.3)" }}
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) setSelectedId(null);
@@ -701,8 +716,7 @@ export default function DashboardBuilder() {
             >
               {layout.widgets.length === 0 ? (
                 <div
-                  className="flex flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed border-border/50 text-center"
-                  style={{ minHeight: "calc(100vh - 180px)" }}
+                  className="flex min-h-[360px] lg:min-h-[calc(100vh-180px)] flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed border-border/50 text-center"
                 >
                   <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
                     <LayoutGrid className="h-7 w-7 text-primary/60" />
@@ -710,7 +724,7 @@ export default function DashboardBuilder() {
                   <div className="max-w-sm">
                     <p className="text-sm font-medium text-foreground/70">Canvas vuoto</p>
                     <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                      Scegli un widget dal pannello a destra. Puoi trascinare, ridimensionare e
+                      Scegli un widget dal pannello degli strumenti. Puoi trascinare, ridimensionare e
                       configurare ogni elemento — le modifiche si vedono in tempo reale.
                     </p>
                     <p className="text-[11px] text-muted-foreground/70 mt-3 inline-flex items-center gap-1.5">
@@ -731,7 +745,7 @@ export default function DashboardBuilder() {
                   onDuplicate={viewerPreview ? undefined : duplicateWidget}
                   onDelete={viewerPreview ? undefined : deleteWidget}
                   width={previewWidth - 48}
-                  readonly={viewerPreview}
+                  readonly={viewerPreview || !canSave}
                 />
               )}
             </div>
@@ -739,8 +753,8 @@ export default function DashboardBuilder() {
         </main>
 
         {/* ── Right Panel ────────────────────────────────────────── */}
-        {!viewerPreview && (
-          <aside className="w-80 border-l flex flex-col bg-background shrink-0 min-h-0">
+        {!viewerPreview && canSave && (
+          <aside className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l flex flex-col bg-background shrink-0 min-h-0 h-[min(75dvh,640px)] lg:h-auto">
             {selected ? (
               /* Config mode: widget selected */
               <ConfigPanel
@@ -781,7 +795,7 @@ export default function DashboardBuilder() {
                             setDirty(true);
                           }}
                         >
-                          <SelectTrigger className="h-8 text-sm">
+                          <SelectTrigger aria-label="Visibilità della dashboard" className="h-8 text-sm">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -795,6 +809,7 @@ export default function DashboardBuilder() {
                       <div className="space-y-1.5">
                         <Label className="text-xs font-medium">Descrizione</Label>
                         <Textarea
+                          aria-label="Descrizione della dashboard"
                           value={description}
                           onChange={(e) => {
                             setDescription(e.target.value);
@@ -808,6 +823,7 @@ export default function DashboardBuilder() {
                       <div className="space-y-1.5">
                         <Label className="text-xs font-medium">Nota versione</Label>
                         <Input
+                          aria-label="Nota versione"
                           value={note}
                           onChange={(e) => setNote(e.target.value)}
                           placeholder="Opzionale (es. v1.2 — aggiunto KPI vendite)"

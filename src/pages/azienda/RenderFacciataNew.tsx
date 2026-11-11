@@ -522,20 +522,24 @@ export default function RenderFacciataNew() {
               accento="orange"
             />
           ) : !photoPreview ? (
-            <Card
-              className="cursor-pointer border-2 border-dashed hover:border-orange-400 transition-colors"
+            <button
+              type="button"
+              aria-label="Carica una foto della facciata"
+              className="block w-full rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               onClick={() => fileRef.current?.click()}
             >
-              <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-orange-50">
-                  <Upload className="h-8 w-8 text-orange-500" />
-                </div>
-                <div>
-                  <p className="font-medium">Carica una foto della facciata</p>
-                  <p className="mt-1 text-sm text-muted-foreground">JPG, PNG o WEBP — max 20 MB</p>
-                </div>
-              </CardContent>
-            </Card>
+              <Card className="border-2 border-dashed hover:border-orange-400 transition-colors">
+                <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-orange-50">
+                    <Upload className="h-8 w-8 text-orange-500" />
+                  </div>
+                  <div>
+                    <p className="font-medium">Carica una foto della facciata</p>
+                    <p className="mt-1 text-sm text-muted-foreground">JPG, PNG o WEBP — max 20 MB</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </button>
           ) : (
             <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
               <CardContent className="p-4 space-y-4 max-md:space-y-3 max-md:p-0">

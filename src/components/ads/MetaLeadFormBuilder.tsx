@@ -19,7 +19,7 @@
  *     context_card, thank_you_page
  */
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import {
   Check,
   ChevronDown,
@@ -48,6 +48,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { isValidHttpsUrl } from "@/lib/ads/httpsUrl";
 
 // ════════════════════════════════════════════════════════════════════
 // TYPES — Meta Lead Form structure
@@ -262,6 +263,8 @@ export function MetaLeadFormBuilder({
   defaultCompanyName,
   defaultCompanyPhone,
 }: Props) {
+  const fieldId = useId();
+  const privacyValid = isValidHttpsUrl(value.privacyPolicyUrl);
   const [activeSection, setActiveSection] = useState<"intro" | "fields" | "privacy" | "thanks">("fields");
 
   const update = (patch: Partial<MetaLeadFormState>) => onChange({ ...value, ...patch });
@@ -379,15 +382,16 @@ export function MetaLeadFormBuilder({
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Label className="text-xs">Mostra intro</Label>
-              <Switch checked={value.showIntro} onCheckedChange={(v) => update({ showIntro: v })} />
+              <Label htmlFor={`${fieldId}-show-intro`} className="text-xs">Mostra intro</Label>
+              <Switch id={`${fieldId}-show-intro`} checked={value.showIntro} onCheckedChange={(v) => update({ showIntro: v })} />
             </div>
           </header>
           {value.showIntro && (
             <>
               <div>
-                <Label className="mb-1 block text-xs font-semibold">Titolo</Label>
+                <Label htmlFor={`${fieldId}-introHeadline`} className="mb-1 block text-xs font-semibold">Titolo</Label>
                 <Input
+                  id={`${fieldId}-introHeadline`}
                   value={value.introHeadline}
                   onChange={(e) => update({ introHeadline: e.target.value.slice(0, 60) })}
                   maxLength={60}
@@ -396,8 +400,9 @@ export function MetaLeadFormBuilder({
                 <p className="mt-0.5 text-[10px] text-slate-500 max-md:text-[11px]">{value.introHeadline.length}/60</p>
               </div>
               <div>
-                <Label className="mb-1 block text-xs font-semibold">Descrizione</Label>
+                <Label htmlFor={`${fieldId}-introBody`} className="mb-1 block text-xs font-semibold">Descrizione</Label>
                 <Textarea
+                  id={`${fieldId}-introBody`}
                   value={value.introBody}
                   onChange={(e) => update({ introBody: e.target.value.slice(0, 600) })}
                   maxLength={600}
@@ -542,23 +547,27 @@ export function MetaLeadFormBuilder({
             </p>
           </header>
           <div>
-            <Label className="mb-1 block text-xs font-semibold">URL Privacy Policy *</Label>
+            <Label htmlFor={`${fieldId}-privacy-url`} className="mb-1 block text-xs font-semibold">URL Privacy Policy *</Label>
             <Input
+              id={`${fieldId}-privacy-url`}
+              aria-invalid={Boolean(value.privacyPolicyUrl) && !privacyValid}
+              aria-describedby={value.privacyPolicyUrl ? `${fieldId}-privacy-status` : undefined}
               value={value.privacyPolicyUrl}
               onChange={(e) => update({ privacyPolicyUrl: e.target.value.trim() })}
               placeholder="https://www.tuaazienda.it/privacy-policy"
               type="url"
             />
-            {value.privacyPolicyUrl && !value.privacyPolicyUrl.startsWith("https://") && (
-              <p className="mt-1 text-xs text-rose-600">⚠ Meta richiede HTTPS</p>
+            {value.privacyPolicyUrl && !privacyValid && (
+              <p id={`${fieldId}-privacy-status`} className="mt-1 text-xs text-rose-600">Inserisci un URL HTTPS completo con un dominio valido.</p>
             )}
-            {value.privacyPolicyUrl && value.privacyPolicyUrl.startsWith("https://") && (
-              <p className="mt-1 text-xs text-emerald-600">✓ URL valida</p>
+            {value.privacyPolicyUrl && privacyValid && (
+              <p id={`${fieldId}-privacy-status`} className="mt-1 text-xs text-emerald-600">✓ Formato URL valido</p>
             )}
           </div>
           <div>
-            <Label className="mb-1 block text-xs font-semibold">Disclaimer custom (opzionale)</Label>
+            <Label htmlFor={`${fieldId}-privacy-disclaimer`} className="mb-1 block text-xs font-semibold">Disclaimer custom (opzionale)</Label>
             <Textarea
+              id={`${fieldId}-privacy-disclaimer`}
               value={value.customPrivacyDisclaimer ?? ""}
               onChange={(e) => update({ customPrivacyDisclaimer: e.target.value.slice(0, 500) })}
               placeholder="Es. Trattiamo i tuoi dati solo per inviarti il preventivo. Niente spam, niente terze parti."
@@ -592,16 +601,18 @@ export function MetaLeadFormBuilder({
           </header>
           <div className="grid gap-3 md:grid-cols-2">
             <div>
-              <Label className="mb-1 block text-xs font-semibold">Titolo</Label>
+              <Label htmlFor={`${fieldId}-thankYouHeadline`} className="mb-1 block text-xs font-semibold">Titolo</Label>
               <Input
+                id={`${fieldId}-thankYouHeadline`}
                 value={value.thankYouHeadline}
                 onChange={(e) => update({ thankYouHeadline: e.target.value.slice(0, 60) })}
                 maxLength={60}
               />
             </div>
             <div>
-              <Label className="mb-1 block text-xs font-semibold">Testo CTA bottone</Label>
+              <Label htmlFor={`${fieldId}-thankYouButtonText`} className="mb-1 block text-xs font-semibold">Testo CTA bottone</Label>
               <Input
+                id={`${fieldId}-thankYouButtonText`}
                 value={value.thankYouButtonText}
                 onChange={(e) => update({ thankYouButtonText: e.target.value.slice(0, 30) })}
                 maxLength={30}
@@ -609,9 +620,10 @@ export function MetaLeadFormBuilder({
             </div>
           </div>
           <div>
-            <Label className="mb-1 block text-xs font-semibold">Testo schermata</Label>
+            <Label htmlFor={`${fieldId}-thankYouBody`} className="mb-1 block text-xs font-semibold">Testo schermata</Label>
             <Textarea
-              value={value.thankYouBody}
+              id={`${fieldId}-thankYouBody`}
+                value={value.thankYouBody}
               onChange={(e) => update({ thankYouBody: e.target.value.slice(0, 500) })}
               maxLength={500}
               className="min-h-20"
@@ -619,12 +631,12 @@ export function MetaLeadFormBuilder({
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             <div>
-              <Label className="mb-1 block text-xs font-semibold">Tipo bottone CTA</Label>
+              <Label htmlFor={`${fieldId}-cta-type`} className="mb-1 block text-xs font-semibold">Tipo bottone CTA</Label>
               <Select
                 value={value.thankYouButtonType}
                 onValueChange={(v: MetaLeadFormState["thankYouButtonType"]) => update({ thankYouButtonType: v })}
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${fieldId}-cta-type`}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="VIEW_WEBSITE">Apri sito web</SelectItem>
                   <SelectItem value="CALL_BUSINESS">Chiama azienda</SelectItem>
@@ -634,10 +646,11 @@ export function MetaLeadFormBuilder({
               </Select>
             </div>
             <div>
-              <Label className="mb-1 block text-xs font-semibold">
+              <Label htmlFor={`${fieldId}-cta-destination`} className="mb-1 block text-xs font-semibold">
                 {value.thankYouButtonType === "CALL_BUSINESS" ? "Numero telefono *" : "URL destinazione *"}
               </Label>
               <Input
+                id={`${fieldId}-cta-destination`}
                 value={value.thankYouButtonType === "CALL_BUSINESS" ? (value.thankYouBusinessPhone ?? "") : (value.thankYouButtonUrl ?? "")}
                 onChange={(e) => {
                   if (value.thankYouButtonType === "CALL_BUSINESS") {
@@ -661,10 +674,10 @@ export function MetaLeadFormBuilder({
           <Badge variant="outline">{value.questions.length} domande</Badge>
           <Badge variant="outline">{value.questions.filter((q) => q.kind === "prefilled").length} prefilled</Badge>
           <Badge variant="outline">{value.questions.filter((q) => q.kind === "custom").length} custom</Badge>
-          {value.privacyPolicyUrl?.startsWith("https://") ? (
+          {privacyValid ? (
             <Badge variant="outline" className="border-emerald-300 bg-emerald-50 text-emerald-700">✓ Privacy ok</Badge>
           ) : (
-            <Badge variant="outline" className="border-rose-300 bg-rose-50 text-rose-700">⚠ Privacy URL mancante</Badge>
+            <Badge variant="outline" className="border-rose-300 bg-rose-50 text-rose-700">{value.privacyPolicyUrl ? "⚠ Privacy URL non valido" : "⚠ Privacy URL mancante"}</Badge>
           )}
         </div>
       </div>

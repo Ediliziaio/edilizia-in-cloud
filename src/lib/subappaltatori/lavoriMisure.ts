@@ -7,6 +7,9 @@ export type VoceSub = {
   quantita: number;
   prezzo: number;
   importo?: number;
+  /** Lotto 6 (10/11/2026): la voce della commessa e l'affidamento da cui viene, se il contratto nasce dagli affidamenti. */
+  voce_commessa_id?: string;
+  affidamento_id?: string;
 };
 export type QuadroSub = {
   id: string;
@@ -113,13 +116,18 @@ export function vociDaAllegato(
     const prezzo = Math.round(Number(r?.prezzo) * 100) / 100;
     if (descrizione.length < 2 || !(quantita > 0) || !(prezzo >= 0)) return null;
     const testo = descrizione.slice(0, 2000);
+    // Il collegamento alla voce della commessa e all'affidamento passa al quadro: misure e SAL sanno da dove vengono.
+    const legami = {
+      ...(typeof r?.voce_id === "string" && r.voce_id ? { voce_commessa_id: r.voce_id } : {}),
+      ...(typeof r?.affidamento_id === "string" && r.affidamento_id ? { affidamento_id: r.affidamento_id } : {}),
+    };
     if (/corpo/.test(unita)) {
       const importo = Math.round(quantita * prezzo * 100) / 100;
-      voci.push({ id: nuovoId(), fase_id: faseId, descrizione: testo, base: "corpo", unita: "quota", quantita: 1, prezzo: importo });
+      voci.push({ id: nuovoId(), fase_id: faseId, descrizione: testo, base: "corpo", unita: "quota", quantita: 1, prezzo: importo, ...legami });
     } else if (/^(h|ore|ora)$/.test(unita)) {
-      voci.push({ id: nuovoId(), fase_id: faseId, descrizione: testo, base: "ore", unita: "h", quantita, prezzo });
+      voci.push({ id: nuovoId(), fase_id: faseId, descrizione: testo, base: "ore", unita: "h", quantita, prezzo, ...legami });
     } else {
-      voci.push({ id: nuovoId(), fase_id: faseId, descrizione: testo, base: "misura", unita: (unita || "cad").slice(0, 15), quantita, prezzo });
+      voci.push({ id: nuovoId(), fase_id: faseId, descrizione: testo, base: "misura", unita: (unita || "cad").slice(0, 15), quantita, prezzo, ...legami });
     }
   }
   const totale = voci.reduce((s, v) => s + Math.round(v.quantita * v.prezzo * 100) / 100, 0);

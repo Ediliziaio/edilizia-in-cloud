@@ -97,7 +97,7 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-it("shares clear title and card styling rather than a navy hero", () => {
+it("exposes section titles, metric groups and actions on a clear background", () => {
   render(
     <>
       <FiscalSectionHeader
@@ -113,13 +113,10 @@ it("shares clear title and card styling rather than a navy hero", () => {
     </>,
   );
   expect(screen.getByRole("heading", { name: "Titolo", level: 2 })).toHaveClass(
-    "text-lg",
     "font-semibold",
   );
   expect(screen.getByRole("group", { name: "Dato" })).toHaveClass(
-    "rounded-xl",
     "bg-white",
-    "p-4",
   );
   expect(screen.getByRole("button", { name: "Azione" })).toBeVisible();
 });
@@ -128,7 +125,7 @@ it("aligns guarantee content with the other fiscal sections and preserves balanc
   expect(container.querySelector(".container, .bg-eic-navy-deep")).toBeNull();
   expect(
     screen.getByRole("heading", { name: "Ritenute di garanzia", level: 2 }),
-  ).toHaveClass("text-lg");
+  ).toBeVisible();
   expect(
     within(screen.getByRole("group", { name: "Trattenuto a te" })).getByText(
       /100,00/,

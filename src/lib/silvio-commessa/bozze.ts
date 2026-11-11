@@ -284,7 +284,7 @@ export async function bozzeDaRiprendere(
   companyId: string,
   db: ClientBozze = clientVero,
   adesso: Date = new Date(),
-  filtro: { modo?: Bozza["modo"]; orderId?: string } = {},
+  filtro: { modo?: Bozza["modo"]; orderId?: string; userId?: string } = {},
 ): Promise<Bozza[]> {
   let q = tabella(db)
     .select("*")
@@ -293,35 +293,20 @@ export async function bozzeDaRiprendere(
     .gt("scade_il", adesso.toISOString());
   if (filtro.modo) q = q.eq("modo", filtro.modo);
   if (filtro.orderId) q = q.eq("order_id", filtro.orderId);
+  if (filtro.userId) q = q.eq("created_by", filtro.userId);
   const { data, error } = await q.order("updated_at", { ascending: false }).limit(20);
   if (error) lancia(error);
   return (data ?? []) as Bozza[];
 }
 
 /**
- * «Ricomincia»: la bozza si butta via davvero (revisione 2/11, P9), altrimenti torna la volta dopo.
+ * Eliminazione esplicita della sola bozza scelta; iniziarne un'altra non elimina le precedenti.
  * Solo una bozza ancora aperta: quella che ha già scritto una commessa serve all'annullamento.
  * I file caricati restano nel loro spazio: lo stesso file può servire a un'altra bozza.
  */
 export async function scartaBozza(id: string, db: ClientBozze = clientVero): Promise<void> {
   const { error } = await tabella(db).delete().eq("id", id).eq("stato", "bozza");
   if (error) lancia(error);
-}
-
-/**
- * Una sola bozza «crea» aperta per utente e azienda (2/11): ne parte una nuova, o si ricomincia, e le
- * altre si scartano. Solo le righe `stato='bozza'` di quell'utente, con le regole che ci sono già: una
- * bozza «creata» serve all'annullamento, e una «completa» è di una commessa. Quante ne ha tolte.
- */
-export async function scartaAltreBozzeCrea(
-  dati: { companyId: string; userId: string; tieni?: string | null }, db: ClientBozze = clientVero,
-): Promise<number> {
-  let q = tabella(db).delete()
-    .eq("company_id", dati.companyId).eq("created_by", dati.userId).eq("modo", "crea").eq("stato", "bozza");
-  if (dati.tieni) q = q.neq("id", dati.tieni);
-  const { data, error } = await q.select("id");
-  if (error) lancia(error);
-  return Array.isArray(data) ? data.length : 0;
 }
 
 export async function leggiBozza(id: string, db: ClientBozze = clientVero): Promise<Bozza> {

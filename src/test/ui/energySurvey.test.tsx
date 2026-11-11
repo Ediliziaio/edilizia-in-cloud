@@ -25,6 +25,7 @@ const m = vi.hoisted(() => ({
   save: vi.fn(),
   upload: vi.fn(),
 }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company1" }, user: { id: "utente-demo" } }) }));
 vi.mock("@/components/computo/VoiceComputoDialog",()=>({VoiceComputoDialog:(): null =>null}));
 vi.mock("@/components/computo/ComputoUploadModal",()=>({ComputoUploadModal:(): null =>null}));
 vi.mock("@/hooks/useSurveyDetail", () => ({

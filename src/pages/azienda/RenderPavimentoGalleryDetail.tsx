@@ -134,7 +134,7 @@ export default function RenderPavimentoGalleryDetail() {
     <div className="space-y-6 max-w-4xl mx-auto max-md:space-y-3">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/render/pavimento/gallery")}>
+        <Button variant="ghost" size="icon" aria-label="Torna alla galleria pavimento" onClick={() => navigate("/azienda/render/pavimento/gallery")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import bilocale from "../../../shared/planimetrie/esempi/bilocale.json";
@@ -204,4 +204,36 @@ describe("Nuova pianta", () => {
     expect(avviso.textContent).toMatch(/crediti AI sono finiti/);
     expect(screen.getByRole("link", { name: /Disegnala a mano/ })).toBeTruthy();
   });
+});
+
+
+it("salvataggio pianta: una sola creazione e disegno/nome bloccati finché risponde", async () => {
+  let finish!: (id: string) => void;
+  archivio.creaPlanimetria.mockImplementationOnce(() => new Promise<string>(resolve => { finish = resolve; }));
+  monta(<EditorConSalvataggio companyId="azienda-1" titoloPagina="Disegna una pianta" indietro="/x" iniziale={bilocale as never} />, "/n", "/n");
+  fireEvent.change(screen.getByLabelText("Nome della pianta"), { target: { value: "Pianta demo" } });
+  const salva = screen.getByRole("button", { name: "Salva" });
+  act(() => { fireEvent.click(salva); fireEvent.click(salva); });
+  await waitFor(() => expect(archivio.creaPlanimetria).toHaveBeenCalledTimes(1));
+  expect(screen.getByLabelText("Nome della pianta")).toBeDisabled();
+  expect(screen.queryByRole("button", { name: "Scrivi le misure" })).toBeNull();
+  expect(screen.queryByText("Scheda della pianta")).toBeNull();
+  await act(async () => finish("nuova-protetta"));
+  expect(await screen.findByText("Scheda della pianta")).toBeInTheDocument();
+});
+
+it("salvataggio pianta: errore e retry conservano nome e disegno", async () => {
+  archivio.creaPlanimetria.mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce("nuova-retry");
+  monta(<EditorConSalvataggio companyId="azienda-1" titoloPagina="Disegna una pianta" indietro="/x" iniziale={bilocale as never} />, "/n", "/n");
+  fireEvent.change(screen.getByLabelText("Nome della pianta"), { target: { value: "Pianta da conservare" } });
+  fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+  await waitFor(() => expect(screen.getByLabelText("Nome della pianta")).toBeEnabled());
+  expect(screen.getByLabelText("Nome della pianta")).toHaveValue("Pianta da conservare");
+  expect(screen.getByRole("button", { name: "Scrivi le misure" })).toBeInTheDocument();
+  expect(screen.queryByText("Scheda della pianta")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+  expect(await screen.findByText("Scheda della pianta")).toBeInTheDocument();
+  expect(archivio.creaPlanimetria).toHaveBeenCalledTimes(2);
+  const [prima, seconda] = archivio.creaPlanimetria.mock.calls;
+  expect(seconda[0].documento).toEqual(prima[0].documento);
 });

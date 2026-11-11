@@ -70,7 +70,7 @@ describe("Disegno commerciale FV", () => {
   it("quantità reali e potenza alimentano gli stessi prezzi del preventivatore", () => {
     const p = disponiModuliAutomaticamente(tetto(), 16);
     const d = {...INITIAL,con_accumulo:false,pannello_id:"p",inverter_id:"i",...datiDalDisegno(p,450)};
-    const listino={pannelli:[{id:"p",descrizione:"Modulo",potenza_w:450,prezzo_acquisto:120,prezzo_vendita:180}],inverter:[{id:"i",prezzo_vendita:1500,prezzo_acquisto:1000}],accumuli:[]};
+    const listino={pannelli:[{id:"p",descrizione:"Modulo",potenza_w:450,prezzo_acquisto:120,prezzo_vendita:180}],inverter:[{id:"i",prezzo_vendita:1500,prezzo_acquisto:1000}],accumuli:[] as never[]};
     const calcola=(data:typeof d)=>calcolaPrezzoFv({componenti:righeComponentiFv(data,listino),manodopera:[],servizi:[],prezzoManuale:null,sconto:{tipo:"pct",valore:0},scontoMaxPct:100,margineMinPct:0,ivaAliquota:.1});
     expect(d.potenza_kwp).toBe(7.2);
     expect(righeComponentiFv(d,listino)[0].quantita).toBe(16);
@@ -109,7 +109,7 @@ const simulazioni = (["due_falde","singola","elle"] as const).flatMap(tipo=>[fal
 it.each(simulazioni)("simulazione $tipo $larghezza × $altezza, $watt W, orizzontale=$orientamento",({tipo,orientamento,larghezza,altezza,watt})=>{
   const p=disponiModuliAutomaticamente(creaDisegnoTetto(tipo,larghezza,altezza,{corto:1.134,lungo:watt===450?1.762:1.962,stimato:false}),16,orientamento);
   const d={...INITIAL,con_accumulo:false,pannello_id:"p",inverter_id:"i",...datiDalDisegno(p,watt)};
-  const listino={pannelli:[{id:"p",potenza_w:watt,prezzo_vendita:180,prezzo_acquisto:120}],inverter:[{id:"i",prezzo_vendita:1500,prezzo_acquisto:1000}],accumuli:[]};
+  const listino={pannelli:[{id:"p",potenza_w:watt,prezzo_vendita:180,prezzo_acquisto:120}],inverter:[{id:"i",prezzo_vendita:1500,prezzo_acquisto:1000}],accumuli:[] as never[]};
   expect(p.pannelli.length).toBeLessThanOrEqual(16);
   expect(pannelliDaRivedere(p)).toEqual([]);
   expect(leggiDisegnoCommerciale(JSON.parse(JSON.stringify(p)))).toEqual(p);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +27,7 @@ type FormState = Omit<LeadScoringConfig, "company_id" | "updated_at" | "updated_
 type NumericFormField = Exclude<keyof FormState, "source_scores">;
 
 export function LeadScoringConfigForm({ companyId }: Props) {
+  const formId = useId();
   const { data, isLoading, isError, error } = useLeadScoringConfig(companyId);
   const upsert = useUpsertLeadScoringConfig(companyId);
   const [form, setForm] = useState<FormState | null>(null);
@@ -114,8 +115,9 @@ export function LeadScoringConfigForm({ companyId }: Props) {
 
   const intField = (key: NumericFormField, label: string, max = 50) => (
     <div className="space-y-1">
-      <Label className="text-xs">{label}</Label>
+      <Label htmlFor={`${formId}-${key}`} className="text-xs">{label}</Label>
       <Input
+        id={`${formId}-${key}`}
         type="number"
         min={0}
         max={max}
@@ -135,7 +137,7 @@ export function LeadScoringConfigForm({ companyId }: Props) {
           Configurazione Lead Scoring
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          Personalizza i pesi del punteggio lead per la tua azienda. ICP max 50 + Behavioral max 50 = Lead Score 0-100.
+          Personalizza i pesi del punteggio lead: fino a 50 punti per il profilo cliente ideale (ICP) e 50 per il comportamento. Il totale va da 0 a 100.
         </p>
         {(isError || usedLocalFallback) && (
           <p className="mt-2 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -149,7 +151,7 @@ export function LeadScoringConfigForm({ companyId }: Props) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <p className="text-xs font-semibold mb-2 uppercase text-muted-foreground">Fattori ICP</p>
+          <p className="text-xs font-semibold mb-2 uppercase text-muted-foreground">Profilo cliente ideale (ICP)</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {intField("weight_company_name", "Azienda compilata")}
             {intField("weight_phone", "Telefono")}
@@ -174,8 +176,9 @@ export function LeadScoringConfigForm({ companyId }: Props) {
         <Separator />
 
         <div>
-          <p className="text-xs font-semibold mb-2 uppercase text-muted-foreground">Fonti lead (chiave: punti)</p>
+          <Label htmlFor={`${formId}-fonti`} className="mb-2 block text-xs font-semibold uppercase text-muted-foreground">Fonti lead (chiave: punti)</Label>
           <textarea
+            id={`${formId}-fonti`}
             value={sourcesText}
             onChange={(e) => {
               setSourcesText(e.target.value);
@@ -194,12 +197,12 @@ export function LeadScoringConfigForm({ companyId }: Props) {
 
         <div>
           <p className="text-xs font-semibold mb-2 uppercase text-muted-foreground">
-            Soglie Tier ICP (su ICP score 0-50)
+            Soglie del profilo ICP (0–50 punti)
           </p>
           <div className="grid grid-cols-3 gap-3">
-            {intField("tier_a_threshold", "Tier A ≥")}
-            {intField("tier_b_threshold", "Tier B ≥")}
-            {intField("tier_c_threshold", "Tier C ≥")}
+            {intField("tier_a_threshold", "Livello A ≥")}
+            {intField("tier_b_threshold", "Livello B ≥")}
+            {intField("tier_c_threshold", "Livello C ≥")}
           </div>
         </div>
 

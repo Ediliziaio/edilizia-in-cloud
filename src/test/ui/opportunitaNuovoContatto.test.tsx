@@ -39,7 +39,7 @@ vi.mock("sonner", () => ({ toast }));
 
 const mutate = vi.fn();
 vi.mock("@/hooks/useOpportunitiesData", () => ({
-  useCreateOpportunity: () => ({ mutate, isPending: false }),
+  useCreateOpportunity: () => ({ mutateAsync: mutate, isPending: false }),
   useCompanyStaff: () => ({ data: [] as unknown[] }),
   useCompanySalespeople: () => ({ data: [] as unknown[] }),
   useCompanyCallCenterUsers: () => ({ data: [] as unknown[] }),
@@ -79,7 +79,7 @@ describe("Nuova opportunità con un contatto nuovo", () => {
 
   beforeEach(async () => {
     inserimenti.length = 0;
-    mutate.mockReset();
+    mutate.mockReset().mockResolvedValue({ id: "opportunita-nuova" });
     Object.values(toast).forEach((f) => f.mockReset());
     contenitore = document.createElement("div");
     document.body.appendChild(contenitore);
@@ -128,6 +128,40 @@ describe("Nuova opportunità con un contatto nuovo", () => {
     expect(contatto?.phone).toBeTruthy();
     expect(mutate).toHaveBeenCalledTimes(1);
     expect(mutate.mock.calls[0][0]).toMatchObject({ contact_id: "contatto-nuovo", name: "Mario Rossi", pipeline_id: "pipe-1" });
+  });
+
+  it("durante la creazione impedisce una seconda richiesta e disabilita i campi", async () => {
+    let finish!: (value: { id: string }) => void;
+    mutate.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    await act(async () => document.body.querySelector<HTMLButtonElement>('button[aria-label="Crea un nuovo contatto"]')!.click());
+    await act(async () => scrivi(campo("Nome *")!, "Demo"));
+    await act(async () => scrivi(campo("Telefono")!, "333 1234567"));
+    await act(async () => bottone("Crea")!.click());
+    await attendi();
+    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(bottone("Crea")).toBeDisabled();
+    expect(bottone("Annulla")).toBeDisabled();
+    expect(campo("Auto: nome e cognome del contatto")).toBeDisabled();
+    await act(async () => bottone("Crea")!.click());
+    expect(inserimenti.filter(r => r.tabella === "marketing_contacts")).toHaveLength(1);
+    await act(async () => finish({ id: "opportunita-nuova" }));
+  });
+
+  it("se l'opportunità fallisce, riprova riusando il contatto già creato", async () => {
+    mutate.mockRejectedValueOnce(new Error("offline"));
+    await act(async () => document.body.querySelector<HTMLButtonElement>('button[aria-label="Crea un nuovo contatto"]')!.click());
+    await act(async () => scrivi(campo("Nome *")!, "Demo"));
+    await act(async () => scrivi(campo("Telefono")!, "333 1234567"));
+    await act(async () => bottone("Crea")!.click());
+    await attendi();
+    expect(document.querySelector('[role="alert"]')).toHaveTextContent("Impossibile completare il salvataggio");
+    expect(bottone("Crea")).toBeEnabled();
+    expect(campo("Auto: nome e cognome del contatto")!.value).toBe("Demo");
+    await act(async () => bottone("Crea")!.click());
+    await attendi();
+    expect(mutate).toHaveBeenCalledTimes(2);
+    expect(mutate.mock.calls[1][0].contact_id).toBe("contatto-nuovo");
+    expect(inserimenti.filter(r => r.tabella === "marketing_contacts")).toHaveLength(1);
   });
 
   it("senza email né telefono non crea nulla e lo dice", async () => {

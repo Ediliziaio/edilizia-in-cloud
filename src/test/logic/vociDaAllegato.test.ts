@@ -52,3 +52,15 @@ describe("Dal contratto ai SAL della ditta", () => {
     expect(fattoInCantiere({ fase_id: "f1", descrizione: "Altro", base: "misura", quantita: 1 }, cantiere)).toBeNull();
   });
 });
+
+describe("quadro lavori dal contratto nato dagli affidamenti (lotto 6, 10/11/2026)", () => {
+  it("ogni voce del quadro ricorda la voce della commessa e l'affidamento; le righe a mano restano senza", () => {
+    const voci = vociDaAllegato([
+      { fase: "Intonaci", fase_id: "f1", descrizione: "Intonaco civile", unita: "mq", quantita: 300, prezzo: 14, importo: 4200, voce_id: "vc1", affidamento_id: "a1" },
+      { fase: "Intonaci", descrizione: "Pulizia finale", unita: "a corpo", quantita: 1, prezzo: 100, importo: 100 },
+    ], 4300, id)!;
+    expect(voci[0]).toMatchObject({ fase_id: "f1", base: "misura", voce_commessa_id: "vc1", affidamento_id: "a1" });
+    expect(voci[1]).not.toHaveProperty("voce_commessa_id");
+    expect(voci[1]).not.toHaveProperty("affidamento_id");
+  });
+});

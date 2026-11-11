@@ -31,6 +31,42 @@ env:
   SUPABASE_PROJECT_ID: rsbrguhkodgnqfomrevo
 
 jobs:
+  frontend-build:
+    name: Frontend production build
+    # Playwright 1.60 del lockfile usa i browser distribuiti per Ubuntu 24.04.
+    runs-on: ubuntu-24.04
+    env:
+      # Identificazione pubblica del frontend, sempre soggetta a RLS. Nessuna chiave server.
+      VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://rsbrguhkodgnqfomrevo.supabase.co' }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_DA4gwckTQ2eiYjDKvfVO4Q_sEKCmyKH' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        id: bun
+        continue-on-error: true
+        with:
+          bun-version: '1.4.4'
+      - name: Install Bun from npm if GitHub download fails
+        if: steps.bun.outcome == 'failure'
+        run: npm install --global bun@1.4.4
+      - name: Install frozen dependencies
+        run: bun install --frozen-lockfile
+      - name: Install supported browser and system libraries
+        run: npx --no-install playwright install --with-deps chromium-headless-shell
+      - name: Build application and prerender public routes
+        run: npm run build
+      - name: Verify prerendered routes
+        run: npm run prerender:verify
+      - name: Save build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-${{ github.sha }}
+          path: dist
+          retention-days: 3
+
   # ─────────────────────────────────────────────────────────────────────────
   # 1. TypeScript check (frontend)
   # ─────────────────────────────────────────────────────────────────────────
@@ -126,6 +162,7 @@ jobs:
           src/test/ui/rdoCampoVoce.test.tsx
           src/test/logic/sentinellaMemoria.test.ts
           src/test/logic/sentinellaDatabase.test.ts
+          src/test/logic/migrazioneChatIntelDipendenze.test.ts
           src/test/logic/planimetrieArchivio.test.ts
           src/test/wizard-audit/verticalConversation.test.ts
 
@@ -148,6 +185,29 @@ jobs:
           src/test/ui/acquistiStorico.test.tsx
           src/test/ui/acquistiAnteprima.test.tsx
 
+      - name: Run DDT ingestion, deliveries and invoice valuation regressions
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/logic/ddt*.test.ts
+          src/test/logic/ddt*.test.tsx
+          src/test/logic/dividiPdf.test.ts
+          src/test/logic/importBolle.test.ts
+          src/test/logic/lettoreDdtInput.test.ts
+          src/test/logic/proposteImportazioneDdt.test.ts
+          src/test/logic/whatsappMercePresa.test.ts
+          src/test/logic/whatsappPdfScansione.test.ts
+          src/test/ui/campoDdtPersistente.test.tsx
+          src/test/ui/warehouseConsegnaCantiere.test.tsx
+          src/test/ui/caricoRapidoNuovaSessione.test.tsx
+          src/test/ui/correggiRigheBolla.test.tsx
+          src/test/ui/righeLetteBolla.test.tsx
+          src/test/ui/offlineAziendaAttiva.test.tsx
+          src/test/ui/documentiDdtPaginazione.test.tsx
+          src/test/ui/cambioAziendaBozze.test.tsx
+          src/test/ui/ddtConfrontoFattura.test.tsx
+          src/test/ui/supplyDocumentBoards.test.tsx
+          src/test/ui/acquistiPermessi.test.tsx
+
       - name: Run computo persistence, tenant isolation and PDF regressions
         run: >-
           bunx vitest run --maxWorkers=2
@@ -158,6 +218,12 @@ jobs:
         run: |
           bun run test:preventivatore-ai
           bunx vitest run --config vitest.wizard-audit.config.ts
+
+      - name: Run Silvio worksite creation and document regressions
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/logic/silvioCommessa*.test.ts
+          src/test/ui/silvioCommessa*.test.tsx
 
       - name: Run public website and structured data regressions
         run: >-
@@ -174,6 +240,7 @@ jobs:
           src/test/logic/marketingPrerenderSlugs.test.ts
           src/test/logic/comparisonCrawlerParity.test.ts
           src/test/logic/prerenderJsonLd.test.ts
+          src/test/logic/prerenderIndexShell.test.ts
           src/test/logic/searchConsoleStructuredData.test.ts
           src/test/logic/prerenderPerIBot.test.ts
 
@@ -287,6 +354,7 @@ jobs:
           bunx vitest run --maxWorkers=1
           src/test/logic/sidebarPreview.test.ts
           src/test/logic/sidebarMenuStability.test.ts
+          src/test/ui/sidebarState.test.tsx
 
       - name: Run confirmed catalogue variants regression tests
         run: >-

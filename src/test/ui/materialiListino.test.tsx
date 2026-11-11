@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import SettingsCatalog from "@/pages/azienda/settings/SettingsCatalog";
 import type { MaterialeListino } from "@/hooks/useMaterialiListino";
 
-const state = vi.hoisted(() => ({ company: "a", edit: true, rows: [] as MaterialeListino[], updates: [] as Array<{ values: Record<string, unknown>; filters: Record<string, unknown> }>, error: vi.fn() }));
+const state = vi.hoisted(() => ({ company: "a", edit: true, rows: [] as MaterialeListino[], updates: [] as Array<{ values: Record<string, unknown>; filters: Record<string, unknown> }>, error: vi.fn(), pendingUpdate: null as Promise<{ data: { id: string }; error: null }> | null }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ role: "company_staff", effectiveCompany: { id: state.company } }) }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => state.company }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewSettingsPricing: true, canEditSettingsPricing: state.edit }) }));
@@ -21,7 +21,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => {
     is: () => q, order: () => q, abortSignal: () => q,
     range: (from: number, to: number) => { start = from; end = to; return q; },
     update: (data: Record<string, unknown>) => { values = data; return q; },
-    single: async () => { state.updates.push({ values: values!, filters }); return { data: { id: filters.id }, error: null as null }; },
+    single: async () => { state.updates.push({ values: values!, filters }); return state.pendingUpdate ?? { data: { id: filters.id }, error: null as null }; },
     then: (resolve: (r: unknown) => unknown) => Promise.resolve({ data: state.rows.filter(r => Object.entries(filters).every(([key, value]) => (r as unknown as Record<string, unknown>)[key] === value)).slice(start, end + 1), error: null as null }).then(resolve),
   }; return q;
 } } }));
@@ -36,7 +36,7 @@ function open() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(<QueryClientProvider client={qc}><MemoryRouter><SettingsCatalog /></MemoryRouter></QueryClientProvider>);
 }
-beforeEach(() => { state.company = "a"; state.edit = true; state.updates = []; state.error.mockReset(); state.rows = [row("uno"), row("due", { attivo: false, standard_cost: null, prezzo_acquisto_netto: null, supplier_id: "s2", suppliers: { name: "Fornace Due" } }), row("estraneo", { company_id: "b" })]; });
+beforeEach(() => { state.company = "a"; state.edit = true; state.pendingUpdate = null; state.updates = []; state.error.mockReset(); state.rows = [row("uno"), row("due", { attivo: false, standard_cost: null, prezzo_acquisto_netto: null, supplier_id: "s2", suppliers: { name: "Fornace Due" } }), row("estraneo", { company_id: "b" })]; });
 afterEach(cleanup);
 
 describe("Materiali nel Listino", () => {
@@ -80,4 +80,38 @@ describe("Materiali nel Listino", () => {
     await waitFor(() => expect(state.updates).toHaveLength(1));
     expect(state.updates[0]).toMatchObject({ filters: { company_id: "a", id: "due" }, values: { standard_cost: 1.22625, prezzo_acquisto_netto: 1.22625, unit_of_measure: "m3", prezzo_vendita: null, vat_rate: null, attivo: true, custom_field_values: { source_sha256: "hash", import_batch: "lotto", source_import_cost: null } } });
   });
+});
+
+it("chiudere la scheda con Escape restituisce il focus alla riga aperta", async () => {
+  open();
+  const trigger = await screen.findByRole("button", { name: "Apri Laterizio uno" });
+  trigger.focus();
+  fireEvent.click(trigger);
+  expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  fireEvent.keyDown(screen.getByRole("textbox", { name: "Descrizione" }), { key: "Escape" });
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(trigger).toHaveFocus();
+  expect(state.updates).toEqual([]);
+});
+
+it("durante il salvataggio non chiude la scheda e non invia richieste duplicate", async () => {
+  let resolve!: (value: { data: { id: string }; error: null }) => void;
+  state.pendingUpdate = new Promise((r) => { resolve = r; });
+  open();
+  const trigger = await screen.findByRole("button", { name: "Apri Laterizio uno" });
+  trigger.focus();
+  fireEvent.click(trigger);
+  const save = screen.getByRole("button", { name: "Salva materiale" });
+  fireEvent.click(save);
+  fireEvent.click(save);
+  await waitFor(() => expect(state.updates).toHaveLength(1));
+  expect(screen.getByRole("textbox", { name: "Descrizione" })).toBeDisabled();
+  const close = screen.getAllByRole("button", { name: "Chiudi" });
+  expect(close[0]).toBeDisabled();
+  fireEvent.click(close[1]);
+  fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+  expect(screen.getByRole("dialog")).toBeInTheDocument();
+  await act(async () => resolve({ data: { id: "uno" }, error: null }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(trigger).toHaveFocus();
 });

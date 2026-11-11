@@ -926,9 +926,9 @@ function StalledOpportunitiesPanel({ companyId, pipelineId }: { companyId: strin
       <TableHeader>
         <TableRow>
           <TableHead>Opportunità</TableHead>
-          <TableHead>Stage</TableHead>
+          <TableHead>Fase</TableHead>
           <TableHead>Ferma da</TableHead>
-          <TableHead>Threshold</TableHead>
+          <TableHead>Soglia</TableHead>
           <TableHead>Prossima azione</TableHead>
           <TableHead className="text-right">Valore</TableHead>
         </TableRow>
@@ -1134,7 +1134,7 @@ function TopLeadsTable({ companyId, limit = 10 }: { companyId: string; limit?: n
       [
         { key: "nome", label: "Nome" },
         { key: "azienda", label: "Azienda" },
-        { key: "tier_icp", label: "Tier ICP" },
+        { key: "tier_icp", label: "Livello ICP" },
         { key: "lead_score", label: "Lead score" },
         { key: "icp_score", label: "ICP score" },
         { key: "fonte", label: "Fonte" },
@@ -1198,7 +1198,7 @@ function TopLeadsTable({ companyId, limit = 10 }: { companyId: string; limit?: n
       <TableHeader>
         <TableRow>
           <TableHead>Lead</TableHead>
-          <TableHead>Tier ICP</TableHead>
+          <TableHead>Livello ICP</TableHead>
           <TableHead>Score</TableHead>
           <TableHead>Fonte</TableHead>
           <TableHead className="text-right">Opp. aperte</TableHead>

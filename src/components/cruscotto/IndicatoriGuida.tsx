@@ -90,7 +90,7 @@ const DEFINIZIONI: DefIndicatore[] = [
     soglia: `allarme < ${s.coperturaGiorniAllarme}`,
     href: "/azienda/prima-nota",
     comeSiCalcola:
-      "Saldo di Prima Nota ÷ (costi fissi mensili ÷ 30). Risponde a: se da domani non incasso più, per quanti giorni pago comunque tutto?",
+      "Saldo di Prima Nota ÷ (costi fissi mensili ÷ 30). Stima la copertura dei costi fissi mensili a partire dal saldo registrato, assumendo mesi di 30 giorni.",
   },
   {
     chiave: "portafoglio",
@@ -101,7 +101,7 @@ const DEFINIZIONI: DefIndicatore[] = [
     soglia: `allarme < ${s.portafoglioMesiAllarme} mesi`,
     href: "/azienda/ordini",
     comeSiCalcola:
-      "Venduto ancora da fare sulle commesse aperte (preventivo con le variazioni approvate, per la parte non ancora avanzata, IVA esclusa) ÷ venduto medio mensile degli ultimi 12 mesi. Dice per quanti mesi la squadra ha lavoro senza vendere altro.",
+      "Venduto ancora da fare sulle commesse aperte (preventivo con le variazioni approvate, per la parte non ancora avanzata, IVA esclusa) ÷ venduto medio mensile degli ultimi 12 mesi. Esprime il portafoglio in mesi equivalenti alla media storica di venduto.",
   },
   {
     chiave: "accontiSuSaldi",
@@ -112,7 +112,7 @@ const DEFINIZIONI: DefIndicatore[] = [
     soglia: `allarme > ${s.accontiSuSaldiAllarme.toLocaleString("it-IT")}`,
     href: "/azienda/ordini",
     comeSiCalcola:
-      "Acconti incassati ÷ saldi incassati negli ultimi 90 giorni. L'acconto è denaro per lavoro ancora da fare: se supera stabilmente i saldi, la cassa sale con soldi non ancora guadagnati.",
+      "Acconti incassati ÷ saldi incassati negli ultimi 90 giorni. Confronta il valore degli acconti con quello dei saldi registrati come incassati nel periodo.",
   },
   {
     chiave: "quotaPrimoCliente",
@@ -122,7 +122,7 @@ const DEFINIZIONI: DefIndicatore[] = [
     soglia: `allarme > ${s.quotaPrimoClienteAllarme}%`,
     href: "/azienda/documenti",
     comeSiCalcola:
-      "Fatturato del cliente più grande ÷ fatturato totale degli ultimi 12 mesi, IVA esclusa e al netto delle note di credito (fatture emesse dall'app e importate, senza contarle due volte). Sopra il 25% non è più un cliente: è un socio senza capitale che può andarsene quando vuole.",
+      "Fatturato del cliente più grande ÷ fatturato totale degli ultimi 12 mesi, IVA esclusa e al netto delle note di credito (fatture emesse dall'app e importate, senza contarle due volte). Misura la concentrazione dei ricavi sul cliente principale.",
   },
   {
     chiave: "margineSicurezza",
@@ -132,7 +132,7 @@ const DEFINIZIONI: DefIndicatore[] = [
     soglia: `allarme < ${s.margineSicurezzaAllarme}%`,
     href: "/azienda/costi",
     comeSiCalcola:
-      "(Venduto 12 mesi − break-even annuo) ÷ venduto. Dice quanto fatturato puoi perdere prima di andare in perdita: sotto il 20%, basta un cliente perso per chiudere l'anno in rosso.",
+      "(Venduto 12 mesi − break-even annuo) ÷ venduto. Scostamento del venduto degli ultimi 12 mesi rispetto al break-even annuo stimato, rapportato al venduto.",
   },
 ];
 

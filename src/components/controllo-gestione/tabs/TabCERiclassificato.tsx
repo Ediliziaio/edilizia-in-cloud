@@ -944,28 +944,23 @@ function CEMensileView({ anno }: { anno: number }) {
                           <td
                             key={i}
                             className={cn(
-                              "px-2 py-2 text-right tabular-nums text-xs",
+                              "text-right tabular-nums text-xs",
+                              isClickable ? "p-0" : "px-2 py-2",
                               val < 0 && "text-destructive",
-                              isClickable &&
-                                "cursor-pointer hover:bg-primary/10 hover:underline",
+                              isClickable && "hover:bg-primary/10 hover:underline",
                             )}
-                            onClick={
-                              isClickable
-                                ? () =>
-                                    setDrill({
-                                      mese,
-                                      codice: v.codice,
-                                      label: etichettaVoce(v.codice, v.label),
-                                    })
-                                : undefined
-                            }
-                            title={
-                              isClickable
-                                ? `Apri il dettaglio di ${etichettaVoce(v.codice, v.label)} · ${MESI_LABELS[i]}`
-                                : undefined
-                            }
                           >
-                            {val !== 0 ? formatCurrencyCompact(val) : "—"}
+                            {isClickable ? (
+                              <button
+                                type="button"
+                                className="block w-full px-2 py-2 text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                                aria-label={`Apri il dettaglio di ${etichettaVoce(v.codice, v.label)} · ${MESI_LABELS[i]} ${anno}`}
+                                title={`Apri il dettaglio di ${etichettaVoce(v.codice, v.label)} · ${MESI_LABELS[i]}`}
+                                onClick={() => setDrill({ mese, codice: v.codice, label: etichettaVoce(v.codice, v.label) })}
+                              >
+                                {formatCurrencyCompact(val)}
+                              </button>
+                            ) : val !== 0 ? formatCurrencyCompact(val) : "—"}
                           </td>
                         );
                       })}

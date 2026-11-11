@@ -244,8 +244,10 @@ export default function SettingsDocumentiAzienda() {
   const permissions = usePermissions();
   const puoModificare = permissions.isAdmin || permissions.canEditSettingsProfile;
 
-  const { data: documenti = [], isLoading } = useDocumentiAzienda();
+  const { data: documenti = [], isLoading, isError, refetch } = useDocumentiAzienda();
   const { data: mostraPartenza = false } = useElencoDiPartenzaDaMostrare();
+
+  const bulkInputRef = useRef<HTMLInputElement>(null);
 
   const [filtro, setFiltro] = useState<Filtro>('tutti');
   const [cerca, setCerca] = useState('');
@@ -347,6 +349,16 @@ export default function SettingsDocumentiAzienda() {
         </div>
       )}
 
+      {isError && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <p>Impossibile caricare i documenti aziendali. Eventuali documenti già visibili risalgono all’ultimo caricamento riuscito.</p>
+            <Button variant="outline" size="sm" className="mt-2" onClick={() => refetch()}>Riprova caricamento</Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {!puoModificare && (
         <Alert>
           <Lock className="h-4 w-4" />
@@ -419,9 +431,10 @@ export default function SettingsDocumentiAzienda() {
           <>
             <input
               id="carica-in-blocco"
+              ref={bulkInputRef}
               type="file"
               multiple
-              className="sr-only"
+              className="hidden"
               accept={TIPI_AMMESSI}
               onChange={(e) => {
                 const scelti = Array.from(e.target.files ?? []).slice(0, MASSIMO_FILE);
@@ -429,11 +442,9 @@ export default function SettingsDocumentiAzienda() {
                 e.target.value = '';
               }}
             />
-            <Button asChild variant="outline" className="shrink-0">
-              <label htmlFor="carica-in-blocco" className="cursor-pointer">
-                <FolderUp className="mr-2 h-4 w-4" />
-                Carica più file
-              </label>
+            <Button type="button" variant="outline" className="shrink-0" onClick={() => bulkInputRef.current?.click()}>
+              <FolderUp className="mr-2 h-4 w-4" />
+              Carica più file
             </Button>
           </>
         )}
@@ -459,9 +470,9 @@ export default function SettingsDocumentiAzienda() {
       )}
 
       {/* Il suggerimento sta sotto il comando: chi sa già cosa caricare non deve scavalcarlo. */}
-      {mostraPartenza && puoModificare && documenti.length === 0 && <ElencoDiPartenza />}
+      {!isError && mostraPartenza && puoModificare && documenti.length === 0 && <ElencoDiPartenza />}
 
-      {visibili.length === 0 ? (
+      {visibili.length === 0 ? (isError ? null : (
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
             <FileText className="h-8 w-8 text-muted-foreground" />
@@ -475,7 +486,7 @@ export default function SettingsDocumentiAzienda() {
             </p>
           </CardContent>
         </Card>
-      ) : (
+      )) : (
         <div className="space-y-6">
           {[...perCategoria.entries()].map(([categoria, righe]) => (
             <div key={categoria} className="space-y-2">
@@ -643,10 +654,10 @@ function Riga({ documento, aperta, onApri, puoModificare, onModifica, onRinnova,
                   <span className="ml-1 hidden lg:inline">Rinnovato</span>
                 </Button>
               )}
-              <Button variant="ghost" size="icon" onClick={onModifica} aria-label="Modifica">
+              <Button variant="ghost" size="icon" onClick={onModifica} aria-label={`Modifica documento ${documento.titolo}`}>
                 <Pencil className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="icon" onClick={onElimina} aria-label="Elimina">
+              <Button variant="ghost" size="icon" onClick={onElimina} aria-label={`Elimina documento ${documento.titolo}`}>
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
@@ -1183,6 +1194,7 @@ function ModuloDocumento({ documento, onChiudi }: {
   const [note, setNote] = useState(documento?.note ?? '');
   const [file, setFile] = useState<File | null>(null);
   const [inCorso, setInCorso] = useState(false);
+  const richiestaInCorso = useRef(false);
   // Salvato con un file e senza scadenza: la scadenza sta scritta sul documento.
   const [daLeggere, setDaLeggere] = useState<CartaDaLeggere[]>([]);
 
@@ -1200,10 +1212,17 @@ function ModuloDocumento({ documento, onChiudi }: {
   };
 
   const salvaTutto = async () => {
+    if (richiestaInCorso.current) return;
     if (!titolo.trim()) {
       toast.error('Dai un nome al documento');
       return;
     }
+    const giorniPreavviso = preavviso.trim() === '' ? 30 : Number(preavviso);
+    if (!Number.isInteger(giorniPreavviso) || giorniPreavviso < 0 || giorniPreavviso > 365) {
+      toast.error('Scegli un preavviso intero tra 0 e 365 giorni');
+      return;
+    }
+    richiestaInCorso.current = true;
     setInCorso(true);
     let caricato: { path: string; name: string } | null = null;
     try {
@@ -1219,7 +1238,7 @@ function ModuloDocumento({ documento, onChiudi }: {
           data_documento: dataDocumento || null,
           data_scadenza: dataScadenza || null,
           rinnovo_mesi: Number(rinnovo) || null,
-          alert_giorni_prima: Number(preavviso) || 30,
+          alert_giorni_prima: giorniPreavviso,
           alert_destinatari: destinatari,
           note: note.trim() || null,
           ...(caricato ? { file_path: caricato.path, file_name: caricato.name } : {}),
@@ -1250,6 +1269,7 @@ function ModuloDocumento({ documento, onChiudi }: {
       // Il file caricato senza la riga salvata resterebbe orfano nel bucket.
       if (caricato) await rimuoviFileDocumento(caricato.path);
     } finally {
+      richiestaInCorso.current = false;
       setInCorso(false);
     }
   };
@@ -1259,7 +1279,7 @@ function ModuloDocumento({ documento, onChiudi }: {
   }
 
   return (
-    <Dialog open onOpenChange={(v) => !v && onChiudi()}>
+    <Dialog open onOpenChange={(v) => { if (!v && !richiestaInCorso.current) onChiudi(); }}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{documento ? 'Modifica il documento' : 'Aggiungi un documento'}</DialogTitle>
@@ -1268,7 +1288,7 @@ function ModuloDocumento({ documento, onChiudi }: {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <fieldset disabled={inCorso} aria-label="Dati del documento" className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="titolo">Nome del documento</Label>
             <Input
@@ -1278,9 +1298,9 @@ function ModuloDocumento({ documento, onChiudi }: {
           </div>
 
           <div className="space-y-2">
-            <Label>Dove lo metto</Label>
+            <Label htmlFor="documento-categoria">Dove lo metto</Label>
             <Select value={categoria} onValueChange={(v) => cambiaCategoria(v as CategoriaDocumento)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger id="documento-categoria"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {CATEGORIE_DOCUMENTO.map((c) => (
                   <SelectItem key={c} value={c}>{ETICHETTA_CATEGORIA[c]}</SelectItem>
@@ -1324,9 +1344,9 @@ function ModuloDocumento({ documento, onChiudi }: {
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Si rinnova</Label>
+              <Label htmlFor="documento-rinnovo">Si rinnova</Label>
               <Select value={rinnovo} onValueChange={cambiaRinnovo}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id="documento-rinnovo"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {SCELTE_RINNOVO.map((s) => (
                     <SelectItem key={s.valore} value={s.valore}>{s.etichetta}</SelectItem>
@@ -1380,9 +1400,9 @@ function ModuloDocumento({ documento, onChiudi }: {
 
           {sedi.length > 0 && (
             <div className="space-y-2">
-              <Label>Vale per</Label>
+              <Label htmlFor="documento-sede">Vale per</Label>
               <Select value={sedeId} onValueChange={setSedeId}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id="documento-sede"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="nessuna">Tutta l’azienda</SelectItem>
                   {sedi.map((s: { id: string; nome: string }) => (
@@ -1402,11 +1422,11 @@ function ModuloDocumento({ documento, onChiudi }: {
             <Label htmlFor="note">Note</Label>
             <Textarea id="note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} />
           </div>
-        </div>
+        </fieldset>
 
         <DialogFooter>
           <Button variant="outline" onClick={onChiudi} disabled={inCorso}>Annulla</Button>
-          <Button onClick={salvaTutto} disabled={inCorso}>
+          <Button onClick={salvaTutto} disabled={inCorso || !titolo.trim()}>
             {inCorso ? 'Salvo…' : 'Salva'}
           </Button>
         </DialogFooter>
@@ -1428,12 +1448,15 @@ function ModuloRinnovo({ documento, onChiudi }: { documento: DocumentoAzienda; o
   const [numero, setNumero] = useState(documento.numero ?? '');
   const [file, setFile] = useState<File | null>(null);
   const [inCorso, setInCorso] = useState(false);
+  const richiestaInCorso = useRef(false);
 
   const conferma = async () => {
+    if (richiestaInCorso.current) return;
     if (!dataScadenza) {
       toast.error('Metti la nuova scadenza');
       return;
     }
+    richiestaInCorso.current = true;
     setInCorso(true);
     let caricato: { path: string; name: string } | null = null;
     try {
@@ -1450,12 +1473,13 @@ function ModuloRinnovo({ documento, onChiudi }: { documento: DocumentoAzienda; o
     } catch {
       if (caricato) await rimuoviFileDocumento(caricato.path);
     } finally {
+      richiestaInCorso.current = false;
       setInCorso(false);
     }
   };
 
   return (
-    <Dialog open onOpenChange={(v) => !v && onChiudi()}>
+    <Dialog open onOpenChange={(v) => { if (!v && !richiestaInCorso.current) onChiudi(); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Hai rinnovato «{documento.titolo}»</DialogTitle>
@@ -1464,7 +1488,7 @@ function ModuloRinnovo({ documento, onChiudi }: { documento: DocumentoAzienda; o
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <fieldset disabled={inCorso} aria-label="Dati del rinnovo" className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="rin-data">Rinnovato il</Label>
@@ -1499,11 +1523,11 @@ function ModuloRinnovo({ documento, onChiudi }: { documento: DocumentoAzienda; o
             <Label htmlFor="rin-file">Il file nuovo</Label>
             <SceltaFile id="rin-file" file={file} onFile={setFile} />
           </div>
-        </div>
+        </fieldset>
 
         <DialogFooter>
           <Button variant="outline" onClick={onChiudi} disabled={inCorso}>Annulla</Button>
-          <Button onClick={conferma} disabled={inCorso}>
+          <Button onClick={conferma} disabled={inCorso || !dataScadenza}>
             <Upload className="mr-2 h-4 w-4" />
             {inCorso ? 'Salvo…' : 'Registra il rinnovo'}
           </Button>

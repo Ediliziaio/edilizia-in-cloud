@@ -27,6 +27,7 @@ const state = vi.hoisted(() => ({
   tabelle: {} as Record<string, unknown[]>,
   righeScritte: [{ id: "x" }] as unknown[],
   erroreScrittura: null as unknown,
+  pendingWrite: null as Promise<{ data: unknown[]; error: unknown }> | null,
   scritture: [] as { tabella: string; azione: string; dati?: unknown }[],
   errore: vi.fn(),
   successo: vi.fn(),
@@ -42,6 +43,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: (tabella: s
   let azione = "lettura";
   const risposta = () => {
     if (azione === "lettura") return { data: (state.tabelle[tabella] ?? []) as unknown[], error: null as unknown };
+    if (state.pendingWrite) return state.pendingWrite;
     if (state.erroreScrittura) return { data: null as unknown, error: state.erroreScrittura };
     return { data: state.righeScritte, error: null as unknown };
   };
@@ -96,6 +98,7 @@ beforeEach(() => {
   state.tabelle = { tipi_impianto: IMPIANTI, tipi_intervento: INTERVENTI, listino_prezzi: PREZZI, tariffe_aziendali: [], external_teams: [] };
   state.righeScritte = [{ id: "x" }];
   state.erroreScrittura = null;
+  state.pendingWrite = null;
   state.scritture.length = 0;
   state.errore.mockClear();
   state.successo.mockClear();
@@ -381,5 +384,45 @@ describe("Manutenzione: eliminare", () => {
     result.current.deleteImpiantoMutation.mutate("i1");
     await waitFor(() => expect(state.errore).toHaveBeenCalledOnce());
     expect(state.errore).toHaveBeenCalledWith("Tipo di impianto non eliminato. Impossibile completare: l'elemento è collegato ad altri dati.");
+  });
+});
+
+describe("Sola lettura globale prevale anche sui privilegi dell’amministratore", () => {
+  it.each([
+    ["impianti", "Caldaia", "Nuovo impianto"],
+    ["interventi", "Manutenzione ordinaria", "Nuovo intervento"],
+    ["prezzi", "120,00 €", "Nuovo prezzo"],
+  ])("mantiene consultabile %s senza modifiche o importazioni", async (tab, record, nuovo) => {
+    state.permissions = { ...AMMINISTRATORE, solaLettura: true };
+    apri(`/azienda/impostazioni/tariffe?tab=${tab}`);
+    await waitFor(() => expect(screen.getAllByText(record).length).toBeGreaterThan(0));
+    expect(screen.queryByRole("button", { name: nuovo })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Importa un catalogo pronto" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Azioni per/ })).toBeNull();
+    expect(screen.getByRole("alert")).toHaveTextContent("Modalità sola lettura");
+    expect(state.scritture).toHaveLength(0);
+  });
+});
+
+describe("Salvataggio listino protetto", () => {
+  it.each(["impianto", "intervento", "prezzo"] as const)("non chiude né cambia i campi di %s mentre salva", async (tipo) => {
+    let finish!: (value: { data: unknown[]; error: unknown }) => void;
+    state.pendingWrite = new Promise(resolve => { finish = resolve; });
+    const close = vi.fn(), saved = vi.fn();
+    const props = { open: true, onClose: close, onSaved: saved, companyId: "company-1" };
+    if (tipo === "impianto") render(<ImpiantoDialog {...props} editing={IMPIANTI[0]} />);
+    else if (tipo === "intervento") render(<InterventoDialog {...props} editing={INTERVENTI[0]} />);
+    else render(<ListinoDialog {...props} editing={PREZZI[0]} tipiImpianto={IMPIANTI} tipiIntervento={INTERVENTI} />);
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+    await waitFor(() => expect(state.scritture).toHaveLength(1));
+    fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
+    fireEvent.click(screen.getByRole("button", { name: "Chiudi" }));
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(close).not.toHaveBeenCalled();
+    expect(screen.getAllByRole("textbox").every(el => el.matches(":disabled"))).toBe(true);
+    finish({ data: [{ id: "saved" }], error: null });
+    await waitFor(() => expect(saved).toHaveBeenCalledOnce());
+    expect(close).toHaveBeenCalledOnce();
+    expect(state.scritture).toHaveLength(1);
   });
 });

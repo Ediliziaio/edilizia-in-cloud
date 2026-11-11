@@ -58,9 +58,9 @@ export function gruppiDaTagli(pagine: number, tagli: ReadonlyArray<number>): num
   });
 }
 
-export const MAX_PAGINE_DIVISIONE = 120;
+export const MAX_PAGINE_DIVISIONE = 300;
 /** Un PDF da dividere può pesare più di una bolla: il limite vale per i pezzi. */
-export const MAX_BYTE_DA_DIVIDERE = 80 * 1024 * 1024;
+export const MAX_BYTE_DA_DIVIDERE = 300 * 1024 * 1024;
 
 export interface PdfDaDividere {
   file: File;
@@ -79,7 +79,7 @@ async function pdfjs() {
 export async function contaPagine(file: File): Promise<number | null> {
   try {
     const lib = await pdfjs();
-    const doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+    const doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()), wasmUrl: `${import.meta.env.BASE_URL}pdfjs-wasm/` }).promise;
     const n = doc.numPages;
     void doc.loadingTask.destroy();
     return n;
@@ -88,13 +88,15 @@ export async function contaPagine(file: File): Promise<number | null> {
   }
 }
 
-export async function leggiPerDividere(file: File): Promise<PdfDaDividere> {
+export async function leggiPerDividere(file: File, progresso?: (pagina: number, totale: number) => void, annullato?: () => boolean): Promise<PdfDaDividere> {
   const lib = await pdfjs();
-  const doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  const doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()), wasmUrl: `${import.meta.env.BASE_URL}pdfjs-wasm/` }).promise;
   try {
     const testi: string[] = [];
     const miniature: string[] = [];
     for (let n = 1; n <= doc.numPages; n++) {
+      if (annullato?.()) throw new Error("Preparazione annullata");
+      progresso?.(n, doc.numPages);
       const pagina = await doc.getPage(n);
       const contenuto = await pagina.getTextContent();
       testi.push(contenuto.items.map((i) => ("str" in i ? i.str : "")).join(" "));
@@ -105,6 +107,8 @@ export async function leggiPerDividere(file: File): Promise<PdfDaDividere> {
       canvas.height = Math.ceil(viewport.height);
       await pagina.render({ canvas, viewport }).promise;
       miniature.push(canvas.toDataURL("image/jpeg", 0.6));
+      canvas.width = 0; canvas.height = 0;
+      pagina.cleanup();
     }
     return { file, testi, miniature };
   } finally {
@@ -125,4 +129,32 @@ export async function dividiFile(file: File, gruppi: ReadonlyArray<ReadonlyArray
     pezzi.push(new File([byte as unknown as BlobPart], `${base}-bolla-${i + 1}.pdf`, { type: "application/pdf" }));
   }
   return pezzi;
+}
+
+/** Rilettura di una scansione singola: l'originale resta il PDF, all'AI va una foto leggibile. */
+export async function scansioneComeFoto(file: File): Promise<File> {
+  const lib = await pdfjs();
+  const doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()), wasmUrl: `${import.meta.env.BASE_URL}pdfjs-wasm/`, isOffscreenCanvasSupported: false, isImageDecoderSupported: false }).promise;
+  const canvas = document.createElement("canvas");
+  try {
+    if (doc.numPages !== 1) throw new Error("Dividi prima il PDF in singole bolle: la rilettura non deve perdere pagine.");
+    const pagina = await doc.getPage(1);
+    const base = pagina.getViewport({ scale: 1 });
+    const viewport = pagina.getViewport({ scale: 1800 / Math.max(base.width, base.height) });
+    canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
+    await pagina.render({ canvas, viewport, background: "#ffffff" }).promise;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) throw new Error("Impossibile verificare la scansione.");
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let ink = 0;
+    for (let i = 0; i < pixels.length; i += 16) {
+      if (pixels[i + 3] > 0 && Math.min(pixels[i], pixels[i + 1], pixels[i + 2]) < 220) ink++;
+    }
+    if (ink < 50) throw new Error("La scansione risulta vuota: la lettura precedente è conservata.");
+    const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error("Non riesco a preparare la scansione")), "image/jpeg", 0.95));
+    return new File([blob], `${file.name.replace(/\.pdf$/i, "")}-rilettura.jpg`, { type: "image/jpeg" });
+  } finally {
+    canvas.width = 0; canvas.height = 0;
+    await doc.loadingTask.destroy();
+  }
 }

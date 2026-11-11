@@ -116,6 +116,20 @@ describe("Lotto C, il modulo", () => {
     expect(cert.textContent).toContain("2.850,00");
   });
 
+  it("arrotonda il netto a 100 €: il resto è rinviato al prossimo certificato", async () => {
+    disegna();
+    await screen.findByText("SAL #1");
+    fireEvent.click(screen.getByRole("button", { name: /Nuovo verbale/ }));
+    await screen.findByText(/1 voce è uguale/);
+    fireEvent.click(screen.getByRole("button", { name: "a 100 €" }));
+    const cert = screen.getByLabelText("Certificato di pagamento", { selector: "dl" });
+    expect(cert.textContent).toContain("Rinviato al prossimo certificato");
+    expect(cert.textContent).toContain("2.800,00");
+    fireEvent.click(screen.getByRole("button", { name: "Controlla riepilogo" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Salva bozza SAL" }));
+    await waitFor(() => expect(stato.upsert).toHaveBeenCalledWith("sal_certificati", expect.objectContaining({ netto: 2800, rinviato: 50 })));
+  });
+
   it("«Salva ed emetti»: bozza, certificato e emissione in un passaggio", async () => {
     disegna();
     await screen.findByText("SAL #1");

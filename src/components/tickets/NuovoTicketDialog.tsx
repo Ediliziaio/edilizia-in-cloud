@@ -1,3 +1,5 @@
+import { useRef } from "react";
+import { useDialogFocusReturn } from "@/hooks/useDialogFocusReturn";
 /**
  * Popup «Nuovo Ticket» — stesso contenuto della pagina Crea Ticket, aperto in
  * finestra come «Nuovo Impianto», così le due creazioni sono coerenti.
@@ -19,9 +21,11 @@ interface NuovoTicketDialogProps {
 
 export function NuovoTicketDialog({ open, onOpenChange, initial, onCreated }: NuovoTicketDialogProps) {
   const navigate = useNavigate();
+  const pendingRef = useRef(false);
+  const focusReturn = useDialogFocusReturn();
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-lg">
+    <Dialog open={open} onOpenChange={(next) => { if (next || !pendingRef.current) onOpenChange(next); }}>
+      <DialogContent {...focusReturn} className="max-h-[92dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Headset className="h-5 w-5 text-primary" /> Nuovo ticket
@@ -35,7 +39,9 @@ export function NuovoTicketDialog({ open, onOpenChange, initial, onCreated }: Nu
           key={open ? "aperto" : "chiuso"}
           initial={initial}
           variant="dialog"
+          onPendingChange={(pending) => { pendingRef.current = pending; }}
           onCreated={(id) => {
+            pendingRef.current = false;
             onOpenChange(false);
             if (onCreated) onCreated(id);
             else navigate(`/azienda/assistenza/${id}`);

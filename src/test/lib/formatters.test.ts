@@ -50,7 +50,7 @@ describe("formatCurrencyCompact", () => {
   });
 
   it("formatta milioni come M", () => {
-    expect(formatCurrencyCompact(1_200_000)).toBe("1.2M €");
+    expect(formatCurrencyCompact(1_200_000)).toBe("1,2M €");
   });
 
   it("gestisce valori negativi", () => {

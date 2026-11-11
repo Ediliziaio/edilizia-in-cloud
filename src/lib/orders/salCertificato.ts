@@ -13,6 +13,11 @@ export interface SalCertificato {
   altre_detrazioni: number;
   altre_detrazioni_nota?: string | null;
   acconti_precedenti: number;
+  /**
+   * Rinviato al certificato dopo (arrotondamento del netto, dal 10/11/2026). Non è una detrazione:
+   * il certificato dopo lo restituisce, perché i suoi acconti sono quanto certificato davvero.
+   */
+  rinviato?: number;
   netto: number;
 }
 
@@ -36,8 +41,13 @@ export function restanoCertificato(c: Pick<SalCertificato, "lavori_contrattuali"
   return arrotonda(lordoCertificato(c) - numero(c.ritenuta) - numero(c.recupero_anticipazione) - numero(c.altre_detrazioni));
 }
 
-export function nettoCertificato(c: Pick<SalCertificato, "lavori_contrattuali" | "varianti" | "ritenuta" | "recupero_anticipazione" | "altre_detrazioni" | "acconti_precedenti">): number {
-  return arrotonda(restanoCertificato(c) - numero(c.acconti_precedenti));
+export function nettoCertificato(c: Pick<SalCertificato, "lavori_contrattuali" | "varianti" | "ritenuta" | "recupero_anticipazione" | "altre_detrazioni" | "acconti_precedenti" | "rinviato">): number {
+  return arrotonda(restanoCertificato(c) - numero(c.acconti_precedenti) - numero(c.rinviato));
+}
+
+/** Quanto un certificato ha certificato davvero, a tutto oggi: gli acconti del certificato dopo. */
+export function certificatoATuttoOggi(c: Pick<SalCertificato, "lavori_contrattuali" | "varianti" | "ritenuta" | "recupero_anticipazione" | "altre_detrazioni" | "rinviato">): number {
+  return arrotonda(restanoCertificato(c) - numero(c.rinviato));
 }
 
 /**
@@ -59,9 +69,11 @@ export function certificatoProposto(cumulativo: number, precedente: SalCertifica
     recupero_anticipazione: numero(precedente?.recupero_anticipazione),
     altre_detrazioni: numero(precedente?.altre_detrazioni),
     altre_detrazioni_nota: precedente?.altre_detrazioni_nota ?? null,
+    // Il rinviato del certificato prima torna qui: gli acconti sono quanto certificato davvero.
     acconti_precedenti: precedente
-      ? arrotonda(restanoCertificato(precedente) + Math.max(0, numero(giaMaturato) - lordoCertificato(precedente)))
+      ? arrotonda(certificatoATuttoOggi(precedente) + Math.max(0, numero(giaMaturato) - lordoCertificato(precedente)))
       : numero(giaMaturato),
+    rinviato: 0,
   };
   return { ...bozza, netto: nettoCertificato(bozza) };
 }

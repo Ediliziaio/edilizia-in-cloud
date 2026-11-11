@@ -1,3 +1,4 @@
+import { isValidHttpsUrl } from "@/lib/ads/httpsUrl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -526,26 +527,6 @@ function formatEuro(cents: number) {
   // Guardia NaN/Infinity: una divisione anomala a monte mostrava "€NaN" nei KPI
   if (!Number.isFinite(cents)) return "—";
   return new Intl.NumberFormat("it-IT", OPZIONI_EURO).format(cents / 100);
-}
-
-/**
- * FIX P1: validazione URL https più rigorosa di startsWith("https://").
- * Rifiuta "https://", "https://x", "https://-bad", URL relativi.
- * Accetta solo URL con host valido (almeno un punto, non IP solo).
- */
-function isValidHttpsUrl(value: string | null | undefined): boolean {
-  if (!value || typeof value !== "string") return false;
-  const trimmed = value.trim();
-  if (!trimmed.startsWith("https://")) return false;
-  try {
-    const url = new URL(trimmed);
-    if (url.protocol !== "https:") return false;
-    if (!url.hostname || url.hostname.length < 4) return false;
-    if (!url.hostname.includes(".")) return false;
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 /** Clamp numeric input nel range Meta consentito. */
@@ -3243,7 +3224,7 @@ function CampaignBuilderTab({
     const v2Form = lf && lf.questions.length >= 2 && isValidHttpsUrl(lf.privacyPolicyUrl);
     const v1Form =
       state.requiredFields.trim().length >= 8 &&
-      state.privacyUrl.trim().startsWith("https://");
+      isValidHttpsUrl(state.privacyUrl);
     const v3 = (v2Form || v1Form) && state.followUp.trim().length >= 10;
 
     // STEP 4: copy — supporta ENTRAMBI (v1 copyVariants, v2 copyTitles/copyDescriptions/copyHooks)
@@ -3501,11 +3482,11 @@ function CampaignBuilderTab({
               />
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Nome campagna">
-                  <Input value={state.name} onChange={(event) => update("name", event.target.value)} placeholder="Es. Serramenti - Lead Milano" />
+                  <Input aria-label="Nome campagna" value={state.name} onChange={(event) => update("name", event.target.value)} placeholder="Es. Serramenti - Lead Milano" />
                 </Field>
                 <Field label="Cosa vuoi ottenere?">
                   <Select value={state.objective} onValueChange={(value) => update("objective", value)}>
-                    <SelectTrigger>
+                    <SelectTrigger aria-label="Cosa vuoi ottenere?">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -3518,7 +3499,7 @@ function CampaignBuilderTab({
                 </Field>
               </div>
               <Field label="Offerta / motivo per lasciare il contatto">
-                <Textarea
+                <Textarea aria-label="Offerta / motivo per lasciare il contatto"
                   value={state.offer}
                   onChange={(event) => update("offer", event.target.value)}
                   className="min-h-20"
@@ -3528,7 +3509,7 @@ function CampaignBuilderTab({
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Come vuoi ricevere i contatti?">
                   <Select value={state.conversionPlace} onValueChange={(value: BuilderState["conversionPlace"]) => update("conversionPlace", value)}>
-                    <SelectTrigger>
+                    <SelectTrigger aria-label="Come vuoi ricevere i contatti?">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -3552,7 +3533,7 @@ function CampaignBuilderTab({
                   </p>
                 </Field>
                 <Field label="Indirizzo del sito (URL)">
-                  <Input
+                  <Input aria-label="Indirizzo del sito (URL)"
                     value={state.landingUrl}
                     onChange={(event) => update("landingUrl", event.target.value)}
                     placeholder="https://..."
@@ -3568,7 +3549,7 @@ function CampaignBuilderTab({
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Come gestire il budget">
                   <Select value={state.budgetMode} onValueChange={(value: BuilderState["budgetMode"]) => update("budgetMode", value)}>
-                    <SelectTrigger>
+                    <SelectTrigger aria-label="Come gestire il budget">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -3579,7 +3560,7 @@ function CampaignBuilderTab({
                 </Field>
                 <Field label="Budget giornaliero">
                   <div className="flex items-center gap-3">
-                    <Input
+                    <Input aria-label="Budget giornaliero"
                       type="number"
                       min={5}
                       max={500}
@@ -3690,14 +3671,14 @@ function CampaignBuilderTab({
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Zona principale">
-                  <Input value={state.zone} onChange={(e) => setState((p) => ({ ...p, zone: e.target.value }))} placeholder="Es. Milano, Monza, Brianza" />
+                  <Input aria-label="Zona principale" value={state.zone} onChange={(e) => setState((p) => ({ ...p, zone: e.target.value }))} placeholder="Es. Milano, Monza, Brianza" />
                 </Field>
                 <Field label="Lingue">
-                  <Input value={state.languages} onChange={(e) => setState((p) => ({ ...p, languages: e.target.value }))} placeholder="Italiano" />
+                  <Input aria-label="Lingue" value={state.languages} onChange={(e) => setState((p) => ({ ...p, languages: e.target.value }))} placeholder="Italiano" />
                 </Field>
               </div>
               <Field label="Keyword (separate da virgola)">
-                <Textarea
+                <Textarea aria-label="Keyword (separate da virgola)"
                   value={state.interests}
                   onChange={(e) => setState((p) => ({ ...p, interests: e.target.value }))}
                   className="min-h-24"
@@ -3706,7 +3687,7 @@ function CampaignBuilderTab({
               </Field>
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Keyword negative / ricerche da escludere">
-                  <Textarea
+                  <Textarea aria-label="Keyword negative / ricerche da escludere"
                     value={state.customAudienceSource}
                     onChange={(e) => setState((p) => ({ ...p, customAudienceSource: e.target.value }))}
                     className="min-h-20"
@@ -3714,7 +3695,7 @@ function CampaignBuilderTab({
                   />
                 </Field>
                 <Field label="Segnali audience / PMax">
-                  <Textarea
+                  <Textarea aria-label="Segnali audience / PMax"
                     value={state.lookalikeSource}
                     onChange={(e) => setState((p) => ({ ...p, lookalikeSource: e.target.value }))}
                     className="min-h-20"
@@ -3738,7 +3719,7 @@ function CampaignBuilderTab({
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Zona principale">
-                  <Input
+                  <Input aria-label="Zona principale"
                     value={state.zone}
                     onChange={(event) => {
                       const zone = event.target.value;
@@ -3751,7 +3732,7 @@ function CampaignBuilderTab({
                   />
                 </Field>
                 <Field label="Raggio km">
-                  <Input
+                  <Input aria-label="Raggio km"
                     type="number"
                     min={1}
                     max={80}
@@ -3769,7 +3750,7 @@ function CampaignBuilderTab({
               </div>
               <div className="grid gap-4 md:grid-cols-4">
                 <Field label="Eta minima">
-                  <Input
+                  <Input aria-label="Eta minima"
                     type="number"
                     min={18}
                     max={65}
@@ -3785,7 +3766,7 @@ function CampaignBuilderTab({
                   />
                 </Field>
                 <Field label="Eta massima">
-                  <Input
+                  <Input aria-label="Eta massima"
                     type="number"
                     min={18}
                     max={65}
@@ -3811,7 +3792,7 @@ function CampaignBuilderTab({
                       }));
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger aria-label="Genere">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -3822,7 +3803,7 @@ function CampaignBuilderTab({
                   </Select>
                 </Field>
                 <Field label="Lingua">
-                  <Input
+                  <Input aria-label="Lingua"
                     value={state.languages}
                     onChange={(event) => {
                       const languages = event.target.value;
@@ -3838,7 +3819,7 @@ function CampaignBuilderTab({
               </div>
               <AudienceControlsPanel state={state} setState={setState} />
               <Field label="Interessi e segnali">
-                <Textarea
+                <Textarea aria-label="Interessi e segnali"
                   value={state.interests}
                   onChange={(event) => {
                     const interests = event.target.value;
@@ -3925,7 +3906,7 @@ function CampaignBuilderTab({
             <div className="space-y-5">
               {/* Brief — usato come input per AI */}
               <Field label="Brief per il copy AI (cosa vuoi comunicare)">
-                <Textarea
+                <Textarea aria-label="Brief per il copy AI (cosa vuoi comunicare)"
                   value={state.copyBrief}
                   onChange={(event) => update("copyBrief", event.target.value)}
                   className="min-h-20"
@@ -3982,7 +3963,7 @@ function CampaignBuilderTab({
                   </Button>
                 </div>
                 <Field label="Prompt immagine/video (per generazione AI nello studio)">
-                  <Textarea
+                  <Textarea aria-label="Prompt immagine/video (per generazione AI nello studio)"
                     value={state.imagePrompt}
                     onChange={(event) => update("imagePrompt", event.target.value)}
                     className="min-h-20"
@@ -4166,7 +4147,7 @@ function OfferStrategyCheck({
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Field label="Ticket medio vendita">
-          <Input
+          <Input aria-label="Ticket medio vendita"
             type="number"
             min={0}
             value={strategy.averageTicketEur ?? ""}
@@ -4175,7 +4156,7 @@ function OfferStrategyCheck({
           />
         </Field>
         <Field label="Margine medio %">
-          <Input
+          <Input aria-label="Margine medio %"
             type="number"
             min={0}
             max={100}
@@ -4185,7 +4166,7 @@ function OfferStrategyCheck({
           />
         </Field>
         <Field label="CPL massimo sostenibile">
-          <Input
+          <Input aria-label="CPL massimo sostenibile"
             type="number"
             min={0}
             value={strategy.maxSustainableCplEur ?? ""}
@@ -4197,21 +4178,21 @@ function OfferStrategyCheck({
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <Field label="Zona servibile">
-          <Input
+          <Input aria-label="Zona servibile"
             value={strategy.serviceArea ?? state.zone}
             onChange={(event) => setStrategy("serviceArea", event.target.value)}
             placeholder="Comuni/province dove puoi lavorare davvero"
           />
         </Field>
         <Field label="Capacita commerciale">
-          <Input
+          <Input aria-label="Capacita commerciale"
             value={strategy.commercialCapacity ?? ""}
             onChange={(event) => setStrategy("commercialCapacity", event.target.value)}
             placeholder="Lead/settimana e tempo massimo di risposta"
           />
         </Field>
         <Field label="Cliente ideale">
-          <Textarea
+          <Textarea aria-label="Cliente ideale"
             value={strategy.idealCustomer ?? ""}
             onChange={(event) => setStrategy("idealCustomer", event.target.value)}
             className="min-h-20"
@@ -4220,14 +4201,14 @@ function OfferStrategyCheck({
         </Field>
         <div className="grid gap-4">
           <Field label="Urgenza">
-            <Input
+            <Input aria-label="Urgenza"
               value={strategy.urgency ?? ""}
               onChange={(event) => setStrategy("urgency", event.target.value)}
               placeholder="Subito, 30 giorni, 90 giorni, solo preventivo"
             />
           </Field>
           <Field label="Stagionalita">
-            <Input
+            <Input aria-label="Stagionalita"
               value={strategy.seasonality ?? ""}
               onChange={(event) => setStrategy("seasonality", event.target.value)}
               placeholder="Mesi forti/deboli e vincoli operativi"
@@ -4458,7 +4439,7 @@ function PerformanceRulesPanel({
       <div className="grid gap-4 md:grid-cols-3">
         <Field label="CPL target">
           <div className="flex items-center gap-2">
-            <Input
+            <Input aria-label="CPL target"
               type="number"
               min={1}
               value={state.targetCpl}
@@ -4469,7 +4450,7 @@ function PerformanceRulesPanel({
         </Field>
         <Field label="Tasso opportunità target">
           <div className="flex items-center gap-2">
-            <Input
+            <Input aria-label="Tasso opportunità target"
               type="number"
               min={1}
               max={100}
@@ -4481,7 +4462,7 @@ function PerformanceRulesPanel({
         </Field>
         <Field label="Durata test minimo">
           <div className="flex items-center gap-2">
-            <Input
+            <Input aria-label="Durata test minimo"
               type="number"
               min={3}
               max={14}
@@ -4494,10 +4475,10 @@ function PerformanceRulesPanel({
       </div>
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <Field label="Regola pausa">
-          <Textarea value={state.pauseRule} onChange={(event) => updateBuilderState(setState, "pauseRule", event.target.value)} className="min-h-20" />
+          <Textarea aria-label="Regola pausa" value={state.pauseRule} onChange={(event) => updateBuilderState(setState, "pauseRule", event.target.value)} className="min-h-20" />
         </Field>
         <Field label="Regola scaling">
-          <Textarea value={state.scaleRule} onChange={(event) => updateBuilderState(setState, "scaleRule", event.target.value)} className="min-h-20" />
+          <Textarea aria-label="Regola scaling" value={state.scaleRule} onChange={(event) => updateBuilderState(setState, "scaleRule", event.target.value)} className="min-h-20" />
         </Field>
       </div>
     </div>
@@ -4558,7 +4539,7 @@ function AudienceControlsPanel({
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Field label="Escludi zone non lavorabili">
-          <Textarea
+          <Textarea aria-label="Escludi zone non lavorabili"
             value={state.excludedLocations}
             onChange={(event) => updateBuilderState(setState, "excludedLocations", event.target.value)}
             className="min-h-20"
@@ -4566,7 +4547,7 @@ function AudienceControlsPanel({
           />
         </Field>
         <Field label="Sorgenti retargeting">
-          <Textarea
+          <Textarea aria-label="Sorgenti retargeting"
             value={state.customAudienceSource}
             onChange={(event) => updateBuilderState(setState, "customAudienceSource", event.target.value)}
             className="min-h-20"
@@ -4574,7 +4555,7 @@ function AudienceControlsPanel({
           />
         </Field>
         <Field label="Base lookalike">
-          <Textarea
+          <Textarea aria-label="Base lookalike"
             value={state.lookalikeSource}
             onChange={(event) => updateBuilderState(setState, "lookalikeSource", event.target.value)}
             className="min-h-20"
@@ -4583,7 +4564,7 @@ function AudienceControlsPanel({
         </Field>
         <Field label="Ampiezza lookalike">
           <div className="flex items-center gap-3">
-            <Input
+            <Input aria-label="Ampiezza lookalike"
               type="number"
               min={1}
               max={10}
@@ -4676,14 +4657,14 @@ function AdSetPlanner({
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               <Field label="Nome gruppo">
-                <Input value={adSet.name} onChange={(event) => onUpdate(adSet.id, "name", event.target.value)} />
+                <Input aria-label="Nome gruppo" value={adSet.name} onChange={(event) => onUpdate(adSet.id, "name", event.target.value)} />
               </Field>
               <Field label="Angolo di test">
-                <Input value={adSet.angle} onChange={(event) => onUpdate(adSet.id, "angle", event.target.value)} />
+                <Input aria-label="Angolo di test" value={adSet.angle} onChange={(event) => onUpdate(adSet.id, "angle", event.target.value)} />
               </Field>
               <Field label="Strategia pubblico">
                 <Select value={adSet.audienceStrategy} onValueChange={(value: AudienceStrategy) => onUpdate(adSet.id, "audienceStrategy", value)}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Strategia pubblico">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -4695,11 +4676,11 @@ function AdSetPlanner({
                 </Select>
               </Field>
               <Field label="Zona">
-                <Input value={adSet.zone} onChange={(event) => onUpdate(adSet.id, "zone", event.target.value)} />
+                <Input aria-label="Zona" value={adSet.zone} onChange={(event) => onUpdate(adSet.id, "zone", event.target.value)} />
               </Field>
               <Field label="Budget gruppo">
                 <div className="flex items-center gap-3">
-                  <Input
+                  <Input aria-label="Budget gruppo"
                     type="number"
                     min={5}
                     max={500}
@@ -4711,12 +4692,12 @@ function AdSetPlanner({
               </Field>
               <Field label="Limite automatico min/max">
                 <div className="grid grid-cols-2 gap-2">
-                  <Input type="number" min={1} value={adSet.minDailyBudget} onChange={(event) => onUpdate(adSet.id, "minDailyBudget", Number(event.target.value || 0))} />
-                  <Input type="number" min={1} value={adSet.maxDailyBudget} onChange={(event) => onUpdate(adSet.id, "maxDailyBudget", Number(event.target.value || 0))} />
+                  <Input aria-label="Budget minimo automatico del gruppo" type="number" min={1} value={adSet.minDailyBudget} onChange={(event) => onUpdate(adSet.id, "minDailyBudget", Number(event.target.value || 0))} />
+                  <Input aria-label="Budget massimo automatico del gruppo" type="number" min={1} value={adSet.maxDailyBudget} onChange={(event) => onUpdate(adSet.id, "maxDailyBudget", Number(event.target.value || 0))} />
                 </div>
               </Field>
               <Field label="Raggio km (max 80)">
-                <Input
+                <Input aria-label="Raggio km (max 80)"
                   type="number"
                   min={1}
                   max={80}
@@ -4725,11 +4706,11 @@ function AdSetPlanner({
                 />
               </Field>
               <Field label="Età">
-                <Input value={adSet.ageRange} onChange={(event) => onUpdate(adSet.id, "ageRange", event.target.value)} placeholder="Es. 28-65" />
+                <Input aria-label="Età" value={adSet.ageRange} onChange={(event) => onUpdate(adSet.id, "ageRange", event.target.value)} placeholder="Es. 28-65" />
               </Field>
               <Field label="Genere">
                 <Select value={adSet.gender} onValueChange={(value: GenderTarget) => onUpdate(adSet.id, "gender", value)}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Genere">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -4741,7 +4722,7 @@ function AdSetPlanner({
               </Field>
               <Field label="Evento ottimizzazione">
                 <Select value={adSet.optimizationEvent} onValueChange={(value: CampaignAdSet["optimizationEvent"]) => onUpdate(adSet.id, "optimizationEvent", value)}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Evento ottimizzazione">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -4753,18 +4734,18 @@ function AdSetPlanner({
                 </Select>
               </Field>
               <Field label="Lingue">
-                <Input value={adSet.languages} onChange={(event) => onUpdate(adSet.id, "languages", event.target.value)} placeholder="Italiano" />
+                <Input aria-label="Lingue" value={adSet.languages} onChange={(event) => onUpdate(adSet.id, "languages", event.target.value)} placeholder="Italiano" />
               </Field>
             </div>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
               <Field label="Segnali pubblico">
-                <Textarea value={adSet.audience} onChange={(event) => onUpdate(adSet.id, "audience", event.target.value)} className="min-h-20" />
+                <Textarea aria-label="Segnali pubblico" value={adSet.audience} onChange={(event) => onUpdate(adSet.id, "audience", event.target.value)} className="min-h-20" />
               </Field>
               <Field label="Esclusioni pubblico">
-                <Textarea value={adSet.excludedAudiences} onChange={(event) => onUpdate(adSet.id, "excludedAudiences", event.target.value)} className="min-h-20" />
+                <Textarea aria-label="Esclusioni pubblico" value={adSet.excludedAudiences} onChange={(event) => onUpdate(adSet.id, "excludedAudiences", event.target.value)} className="min-h-20" />
               </Field>
               <Field label="Posizionamenti">
-                <Textarea value={adSet.placementStrategy} onChange={(event) => onUpdate(adSet.id, "placementStrategy", event.target.value)} className="min-h-20" />
+                <Textarea aria-label="Posizionamenti" value={adSet.placementStrategy} onChange={(event) => onUpdate(adSet.id, "placementStrategy", event.target.value)} className="min-h-20" />
               </Field>
               <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
                 <p className="text-xs font-semibold uppercase text-blue-700">Sintesi Meta</p>
@@ -4869,11 +4850,11 @@ function CreativeMixPlanner({
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               <Field label="Nome creatività">
-                <Input value={creative.title} onChange={(event) => onUpdate(creative.id, "title", event.target.value)} />
+                <Input aria-label="Nome creatività" value={creative.title} onChange={(event) => onUpdate(creative.id, "title", event.target.value)} />
               </Field>
               <Field label="Angolo">
                 <Select value={creative.angle ?? ""} onValueChange={(value) => onUpdate(creative.id, "angle", value as CreativeAngle)}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Angolo">
                     <SelectValue placeholder="Seleziona angolo" />
                   </SelectTrigger>
                   <SelectContent>
@@ -4888,15 +4869,15 @@ function CreativeMixPlanner({
             </div>
             <div className="mt-3">
               <Field label="Hook">
-                <Input value={creative.hook} onChange={(event) => onUpdate(creative.id, "hook", event.target.value)} />
+                <Input aria-label="Hook" value={creative.hook} onChange={(event) => onUpdate(creative.id, "hook", event.target.value)} />
               </Field>
             </div>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
               <Field label="Obiettivo del test">
-                <Textarea value={creative.goal} onChange={(event) => onUpdate(creative.id, "goal", event.target.value)} className="min-h-20" />
+                <Textarea aria-label="Obiettivo del test" value={creative.goal} onChange={(event) => onUpdate(creative.id, "goal", event.target.value)} className="min-h-20" />
               </Field>
               <Field label="Prompt operativo">
-                <Textarea value={creative.prompt} onChange={(event) => onUpdate(creative.id, "prompt", event.target.value)} className="min-h-20" />
+                <Textarea aria-label="Prompt operativo" value={creative.prompt} onChange={(event) => onUpdate(creative.id, "prompt", event.target.value)} className="min-h-20" />
               </Field>
             </div>
           </div>
@@ -5347,7 +5328,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Settore">
                 <Select value={segment} onValueChange={setSegment}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label="Settore"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="serramenti">Serramenti / Infissi</SelectItem>
                     <SelectItem value="bagni">Ristrutturazione bagni</SelectItem>
@@ -5360,7 +5341,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                 </Select>
               </Field>
               <Field label="Zona (opzionale)">
-                <Input value={zone} onChange={(e) => setZone(e.target.value)} placeholder="Es. Monza e Brianza" />
+                <Input aria-label="Zona (opzionale)" value={zone} onChange={(e) => setZone(e.target.value)} placeholder="Es. Monza e Brianza" />
               </Field>
             </div>
             <div className="space-y-1">
@@ -5801,7 +5782,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
             </Field>
             <Field label="Stile narrativo">
               <Select value={videoStyle} onValueChange={(v) => setVideoStyle(v as VideoScriptStyle)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label="Stile narrativo"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="problema-soluzione">🔥 Problema → Soluzione</SelectItem>
                   <SelectItem value="prima-dopo">✨ Prima → Dopo</SelectItem>
@@ -6703,11 +6684,11 @@ function CampaignDetailEditor({
               <CardContent className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
                   <Field label="Nome campagna">
-                    <Input value={state.name} onChange={(e) => update("name", e.target.value)} />
+                    <Input aria-label="Nome campagna" value={state.name} onChange={(e) => update("name", e.target.value)} />
                   </Field>
                   <Field label="Obiettivo">
                     <Select value={state.objective} onValueChange={(v) => update("objective", v)}>
-                      <SelectTrigger>
+                      <SelectTrigger aria-label="Obiettivo">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -6720,7 +6701,7 @@ function CampaignDetailEditor({
                   </Field>
                 </div>
                 <Field label="Offerta / motivo per lasciare il contatto">
-                  <Textarea
+                  <Textarea aria-label="Offerta / motivo per lasciare il contatto"
                     value={state.offer}
                     onChange={(e) => update("offer", e.target.value)}
                     className="min-h-20"
@@ -6728,10 +6709,10 @@ function CampaignDetailEditor({
                 </Field>
                 <div className="grid gap-4 md:grid-cols-3">
                   <Field label="Zona">
-                    <Input value={state.zone} onChange={(e) => update("zone", e.target.value)} />
+                    <Input aria-label="Zona" value={state.zone} onChange={(e) => update("zone", e.target.value)} />
                   </Field>
                   <Field label="Raggio km">
-                    <Input
+                    <Input aria-label="Raggio km"
                       type="number"
                       min={1}
                       max={80}
@@ -6740,7 +6721,7 @@ function CampaignDetailEditor({
                     />
                   </Field>
                   <Field label="Budget campagna (€/giorno)">
-                    <Input
+                    <Input aria-label="Budget campagna (€/giorno)"
                       type="number"
                       min={5}
                       max={500}
@@ -6751,14 +6732,14 @@ function CampaignDetailEditor({
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
                   <Field label="Privacy URL">
-                    <Input
+                    <Input aria-label="Privacy URL"
                       value={state.privacyUrl}
                       onChange={(e) => update("privacyUrl", e.target.value)}
                       placeholder="https://..."
                     />
                   </Field>
                   <Field label="Landing URL">
-                    <Input
+                    <Input aria-label="Landing URL"
                       value={state.landingUrl}
                       onChange={(e) => update("landingUrl", e.target.value)}
                       placeholder="https://..."
@@ -6766,20 +6747,20 @@ function CampaignDetailEditor({
                   </Field>
                 </div>
                 <Field label="Campi modulo lead">
-                  <Textarea
+                  <Textarea aria-label="Campi modulo lead"
                     value={state.requiredFields}
                     onChange={(e) => update("requiredFields", e.target.value)}
                     className="min-h-20"
                   />
                 </Field>
                 <Field label="Domanda di qualificazione">
-                  <Input
+                  <Input aria-label="Domanda di qualificazione"
                     value={state.qualityQuestion}
                     onChange={(e) => update("qualityQuestion", e.target.value)}
                   />
                 </Field>
                 <Field label="Follow-up dopo il lead">
-                  <Textarea
+                  <Textarea aria-label="Follow-up dopo il lead"
                     value={state.followUp}
                     onChange={(e) => update("followUp", e.target.value)}
                     className="min-h-20"
@@ -6945,7 +6926,7 @@ function CampaignDetailEditor({
                 />
                 <div className="mt-4">
                   <Field label="Prompt immagine principale">
-                    <Textarea
+                    <Textarea aria-label="Prompt immagine principale"
                       value={state.imagePrompt}
                       onChange={(e) => update("imagePrompt", e.target.value)}
                       className="min-h-24"
@@ -7553,7 +7534,7 @@ function SpendGuardCard({ companyId }: { companyId?: string }) {
         <div className="grid gap-4 md:grid-cols-2">
           <Field label="Cap mensile (€)">
             <div className="flex items-center gap-2">
-              <Input
+              <Input aria-label="Cap mensile (€)"
                 type="number"
                 min={0}
                 step={50}
@@ -7568,7 +7549,7 @@ function SpendGuardCard({ companyId }: { companyId?: string }) {
           </Field>
           <Field label="Cap giornaliero (€)">
             <div className="flex items-center gap-2">
-              <Input
+              <Input aria-label="Cap giornaliero (€)"
                 type="number"
                 min={0}
                 step={10}
@@ -7583,7 +7564,7 @@ function SpendGuardCard({ companyId }: { companyId?: string }) {
           </Field>
           <Field label="Soglia approvazione per campagna (€/giorno)">
             <div className="flex items-center gap-2">
-              <Input
+              <Input aria-label="Soglia approvazione per campagna (€/giorno)"
                 type="number"
                 min={0}
                 step={5}
@@ -7601,7 +7582,7 @@ function SpendGuardCard({ companyId }: { companyId?: string }) {
           </Field>
           <Field label="Soglia alert (%)">
             <div className="flex items-center gap-2">
-              <Input
+              <Input aria-label="Soglia alert (%)"
                 type="number"
                 min={0}
                 max={100}
@@ -7632,7 +7613,7 @@ function SpendGuardCard({ companyId }: { companyId?: string }) {
         </div>
 
         <Field label="Email per alert (opzionale)">
-          <Input
+          <Input aria-label="Email per alert (opzionale)"
             type="email"
             value={draft.alert_email ?? ""}
             onChange={(e) => set("alert_email", e.target.value || null)}

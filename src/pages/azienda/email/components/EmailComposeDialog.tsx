@@ -9,13 +9,13 @@ import { serializeProcurement } from "@/lib/acquisti/storico";
  * - Send → status='queued' → invoca edge email-send → status='sending'/'sent'
  * - Textarea leggera con conversione newline → <br> per HTML basico.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -109,6 +109,7 @@ function buildQuoteText(src: ComposeContext["source"]): string {
 }
 
 export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverride, orderId, onSent, documentSummary }: EmailComposeDialogProps) {
+  const formId = useId();
   const qc = useQueryClient();
   const { user, effectiveCompany } = useAuth();
   const userId = user?.id;
@@ -168,6 +169,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
   const [bcc, setBcc] = useState(initial.bcc);
   const [showCcBcc, setShowCcBcc] = useState(initial.cc.length > 0 || initial.bcc.length > 0);
   const [subject, setSubject] = useState(initial.subject);
+  const [sendError, setSendError] = useState<string | null>(null);
   // bodyHtml: contenuto rich (con tag), bodyText: derivato per fallback plain
   const [bodyHtml, setBodyHtml] = useState(() =>
     context.initialBodyHtml
@@ -209,6 +211,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
     const key = `${context.mode}::${context.source?.id ?? ""}::${context.source?.thread_id ?? ""}::${(context.initialTo ?? []).join("|")}::${context.initialSubject ?? ""}`;
     if (initKeyRef.current === key) return; // già inizializzato per questo context
     initKeyRef.current = key;
+    setSendError(null);
     setTo(initial.to);
     setCc(initial.cc);
     setBcc(initial.bcc);
@@ -480,6 +483,16 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
 
   const handleSend = () => {
     if (sendingRef.current || sendMutation.isPending || savingDraftRef.current) return;
+    const recipients = parseEmails(to);
+    const invalid = invalidEmails([...recipients, ...parseEmails(cc), ...parseEmails(bcc)]);
+    const validation = !userId || !companyId ? "Sessione scaduta. Accedi di nuovo."
+      : !accountId ? "Seleziona un account mittente"
+      : recipients.length === 0 ? "Aggiungi almeno un destinatario"
+      : invalid.length > 0 ? `Email non valida: ${invalid[0]}`
+      : !subject.trim() ? "Aggiungi un oggetto"
+      : attachments.some((a) => a.uploading) ? "Attendi il caricamento degli allegati" : null;
+    setSendError(validation);
+    if (validation) return;
     if(debounceTimerRef.current)clearTimeout(debounceTimerRef.current);
     sendingRef.current = true;
     sendMutation.mutate();
@@ -517,17 +530,19 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
             {documentSummary ? "Email al fornitore" : context.mode === "reply" || context.mode === "replyAll" ? "Rispondi" :
              context.mode === "forward" ? "Inoltra" : "Nuova email"}
           </DialogTitle>
+          <DialogDescription className="sr-only">Controlla mittente, destinatari, oggetto e messaggio prima di inviare l’email.</DialogDescription>
           {documentSummary && <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600"><span className="font-medium">{documentSummary.title}</span><Badge variant="outline" className="border-blue-200 bg-white text-blue-800">{documentSummary.mode === "pdf" ? "PDF allegato" : "Testo completo"}</Badge><span>{documentSummary.rows} {documentSummary.rows === 1 ? "voce" : "voci"}</span><span className="text-slate-500">Controlla e modifica prima di inviare.</span></div>}
         </DialogHeader>
 
         <div className="flex-1 space-y-3 overflow-y-auto bg-white px-4 py-3">
+          {sendError && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{sendError}</p>}
           {/* Account mittente */}
           {senderError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800">Impossibile caricare le caselle email. <Button variant="link" size="sm" onClick={()=>void reloadSenders()}>Riprova</Button></div>}
           {connections && connections.length > 0 && (
             <div>
-              <Label className="text-xs">Da</Label>
+              <Label htmlFor={`${formId}-sender`} className="text-xs">Da</Label>
               <Select value={accountId} onValueChange={setAccountId}>
-                <SelectTrigger className="h-9">
+                <SelectTrigger id={`${formId}-sender`} className="h-9">
                   <SelectValue placeholder="Seleziona account…" />
                 </SelectTrigger>
                 <SelectContent>
@@ -567,14 +582,15 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
                 type="button"
                 className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1"
                 onClick={() => setShowCcBcc((v) => !v)}
+                aria-expanded={showCcBcc}
               >
                 {showCcBcc ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                Cc/Bcc
+                Cc/Ccn
               </button>
             </div>
             <RecipientField
               value={to}
-              onChange={setTo}
+              onChange={(value) => { setTo(value); setSendError(null); }}
               placeholder="Inizia a digitare nome o email…"
               companyId={companyId}
               ariaLabel="Destinatari"
@@ -595,11 +611,11 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
                 />
               </div>
               <div>
-                <Label className="text-xs">Bcc</Label>
+                <Label className="text-xs">Ccn</Label>
                 <RecipientField
                   value={bcc}
                   onChange={setBcc}
-                  placeholder="bcc@… (nascosti agli altri)"
+                  placeholder="ccn@… (nascosti agli altri)"
                   companyId={companyId}
                   ariaLabel="Destinatari in copia nascosta"
                 />
@@ -608,10 +624,11 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
           )}
 
           <div>
-            <Label className="text-xs">Oggetto</Label>
+            <Label htmlFor={`${formId}-subject`} className="text-xs">Oggetto</Label>
             <Input
+              id={`${formId}-subject`}
               value={subject}
-              onChange={(e) => setSubject(e.target.value)}
+              onChange={(e) => { setSubject(e.target.value); setSendError(null); }}
               placeholder="Oggetto del messaggio"
               className="h-9"
             />

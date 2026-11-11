@@ -5,7 +5,7 @@ import { SafetyWorkflow } from "@/components/sicurezza/SafetyWorkflow";
  * elenco con filtri e stato della scadenza. Si usa sia nella pagina Sicurezza
  * cantiere (tutte le commesse) sia nella vista Sicurezza della commessa.
  */
-import { useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -130,6 +130,8 @@ export function CaricaDocumentoSicurezzaDialog({
   onOpenChange: (v: boolean) => void;
   preset?: PresetCaricamento;
 }) {
+  const formId = useId();
+  const uploadInCorso = useRef(false);
   const { commesse, subappaltatori } = useCommesseESub(companyId, open);
   const carica = useCaricaDocumentiSicurezza(companyId);
   const [file, setFile] = useState<FileInAttesa[]>([]);
@@ -163,7 +165,9 @@ export function CaricaDocumentoSicurezzaDialog({
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     // Qualunque formato: PDF, foto, Word, Excel, disegni. Il limite è la dimensione.
     maxSize: LIMITE_FILE_SICUREZZA,
+    disabled: carica.isPending,
     onDrop: (accettati, rifiutati) => {
+      if (uploadInCorso.current) return;
       if (rifiutati.length)
         toast.error(
           `${rifiutati.length} file superano i 50 MB e sono rimasti fuori.`,
@@ -198,6 +202,7 @@ export function CaricaDocumentoSicurezzaDialog({
   const conScadenza = TIPI_SICUREZZA[tipo]?.scade;
 
   const salva = () => {
+    if (uploadInCorso.current || carica.isPending) return;
     if (tipo === "psc" && (commessa === NESSUNA || commessa === AZIENDA || sub !== NESSUNA)) {
       toast.error("Il PSC deve riferirsi a una commessa precisa, senza associarlo alla sola anagrafica di un subappaltatore.");
       return;
@@ -206,6 +211,7 @@ export function CaricaDocumentoSicurezzaDialog({
       toast.error("Aggiungi almeno un file");
       return;
     }
+    uploadInCorso.current = true;
     carica.mutate(
       file.map((f) => ({
         file: f.file,
@@ -218,6 +224,7 @@ export function CaricaDocumentoSicurezzaDialog({
         note: note.trim() || null,
       })),
       {
+        onSettled: () => { uploadInCorso.current = false; },
         onSuccess: () => {
           toast.success(
             file.length === 1
@@ -238,7 +245,7 @@ export function CaricaDocumentoSicurezzaDialog({
     <Dialog
       open={open}
       onOpenChange={(v) => {
-        if (!carica.isPending) onOpenChange(v);
+        if (!uploadInCorso.current && !carica.isPending) onOpenChange(v);
       }}
     >
       <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto">
@@ -248,9 +255,9 @@ export function CaricaDocumentoSicurezzaDialog({
             Qualunque formato (PDF, foto, Word, Excel…), fino a 50 MB per file.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-3">
+        <fieldset disabled={carica.isPending} className="min-w-0 space-y-3">
           <div
-            {...getRootProps()}
+            {...getRootProps({ role: "button", "aria-label": "Scegli o trascina i documenti di sicurezza" })}
             className={cn(
               "flex cursor-pointer flex-col items-center gap-1 rounded-xl border-2 border-dashed px-4 py-6 text-center",
               isDragActive
@@ -258,7 +265,7 @@ export function CaricaDocumentoSicurezzaDialog({
                 : "border-muted-foreground/25 hover:bg-muted/40",
             )}
           >
-            <input {...getInputProps()} />
+            <input {...getInputProps({ "aria-label": "File dei documenti di sicurezza" })} />
             <FileUp className="h-6 w-6 text-primary" aria-hidden="true" />
             <p className="text-sm font-medium">
               Trascina qui i file, o clicca per sceglierli
@@ -287,7 +294,7 @@ export function CaricaDocumentoSicurezzaDialog({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 shrink-0"
-                    aria-label="Togli il file"
+                    aria-label={`Togli il file ${f.file.name}`}
                     onClick={() => setFile((x) => x.filter((_, j) => j !== i))}
                   >
                     <X className="h-4 w-4" />
@@ -297,12 +304,12 @@ export function CaricaDocumentoSicurezzaDialog({
             </div>
           )}
           <div className="space-y-1">
-            <Label>Tipo di documento</Label>
+            <Label htmlFor={`${formId}-tipo`}>Tipo di documento</Label>
             <Select
               value={tipo}
               onValueChange={(v) => setTipo(v as TipoDocumentoSicurezza)}
             >
-              <SelectTrigger>
+              <SelectTrigger id={`${formId}-tipo`}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -321,9 +328,9 @@ export function CaricaDocumentoSicurezzaDialog({
           </div>
           {!orderId && (
             <div className="space-y-1">
-              <Label>Commessa</Label>
+              <Label htmlFor={`${formId}-commessa`}>Commessa</Label>
               <Select value={commessa} onValueChange={setCommessa}>
-                <SelectTrigger>
+                <SelectTrigger id={`${formId}-commessa`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -342,9 +349,9 @@ export function CaricaDocumentoSicurezzaDialog({
           )}
           {orderId && (
             <div className="space-y-1">
-              <Label>Vale per</Label>
+              <Label htmlFor={`${formId}-ambito`}>Vale per</Label>
               <Select value={commessa} onValueChange={setCommessa}>
-                <SelectTrigger>
+                <SelectTrigger id={`${formId}-ambito`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -357,9 +364,9 @@ export function CaricaDocumentoSicurezzaDialog({
             </div>
           )}
           <div className="space-y-1">
-            <Label>Impresa</Label>
+            <Label htmlFor={`${formId}-impresa`}>Impresa</Label>
             <Select value={sub} onValueChange={setSub}>
-              <SelectTrigger>
+              <SelectTrigger id={`${formId}-impresa`}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -380,16 +387,16 @@ export function CaricaDocumentoSicurezzaDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Data del documento</Label>
-              <Input
+              <Label htmlFor={`${formId}-data`}>Data del documento</Label>
+              <Input id={`${formId}-data`}
                 type="date"
                 value={dataDoc}
                 onChange={(e) => setDataDoc(e.target.value)}
               />
             </div>
             <div className="space-y-1">
-              <Label>Scadenza{conScadenza ? " (consigliata)" : ""}</Label>
-              <Input
+              <Label htmlFor={`${formId}-scadenza`}>Scadenza{conScadenza ? " (consigliata)" : ""}</Label>
+              <Input id={`${formId}-scadenza`}
                 type="date"
                 value={scadenza}
                 onChange={(e) => setScadenza(e.target.value)}
@@ -402,15 +409,15 @@ export function CaricaDocumentoSicurezzaDialog({
             </div>
           </div>
           <div className="space-y-1">
-            <Label>Note</Label>
-            <Textarea
+            <Label htmlFor={`${formId}-note`}>Note</Label>
+            <Textarea id={`${formId}-note`}
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={2}
               placeholder="Facoltative"
             />
           </div>
-        </div>
+        </fieldset>
         <DialogFooter>
           <Button
             variant="outline"
@@ -539,13 +546,14 @@ export function DocumentiSicurezza({
             <Input
               value={cerca}
               onChange={(e) => setCerca(e.target.value)}
+              aria-label="Cerca documento"
               placeholder="Cerca documento"
               className="h-8 w-44 pl-7 text-sm"
             />
           </div>
         )}
         <Select value={filtroTipo} onValueChange={setFiltroTipo}>
-          <SelectTrigger className="h-8 w-52">
+          <SelectTrigger aria-label="Tipo di documento" className="h-8 w-52">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -561,7 +569,7 @@ export function DocumentiSicurezza({
         </Select>
         {!workflow && !orderId && (
           <Select value={filtroCommessa} onValueChange={setFiltroCommessa}>
-            <SelectTrigger className="h-8 w-52">
+            <SelectTrigger aria-label="Commessa dei documenti" className="h-8 w-52">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -580,6 +588,7 @@ export function DocumentiSicurezza({
           variant={soloScadenze ? "default" : "outline"}
           size="sm"
           className="h-8 gap-1"
+          aria-pressed={soloScadenze}
           onClick={() => setSoloScadenze((v) => !v)}
         >
           <CalendarClock className="h-3.5 w-3.5" />
