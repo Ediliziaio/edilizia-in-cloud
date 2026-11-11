@@ -28,7 +28,7 @@ const db = supabase as any;
 
 export interface VoceCommessaDaAbbinare extends VoceDaAbbinare { phase_id: string; quantita: number; importo: number | null }
 
-const MOTIVO: Record<MotivoProposta, string> = { codice: "stesso codice", ricordato: "come l'ultima volta", descrizione: "stessa descrizione" };
+const MOTIVO: Record<MotivoProposta, string> = { codice: "stesso codice", ricordato: "come l'ultima volta", descrizione: "stessa descrizione", simile: "nome simile: controlla" };
 
 export function AbbinaListinoDialog({ orderId, companyId, codiceCommessa, voci, fasi, listino, onChiudi, onFatto }: {
   orderId: string; companyId: string; codiceCommessa?: string | null;
@@ -115,7 +115,7 @@ export function AbbinaListinoDialog({ orderId, companyId, codiceCommessa, voci, 
           <DialogTitle>Collega le voci al listino</DialogTitle>
           <DialogDescription>
             {daFare.length} voci della commessa non hanno la voce del listino: senza, il prezzo della ditta non le trova.
-            {" "}{riepilogo.sicure} si collegano da sole, {riepilogo.daGuardare} sono da guardare (unità diverse), {riepilogo.daScegliere} da scegliere a mano.
+            {" "}{riepilogo.sicure} si collegano da sole, {riepilogo.daGuardare} sono da guardare (unità diverse o nome simile), {riepilogo.daScegliere} da scegliere a mano.
             L'abbinamento si ricorda: la prossima commessa con la stessa voce lo propone.
           </DialogDescription>
         </DialogHeader>

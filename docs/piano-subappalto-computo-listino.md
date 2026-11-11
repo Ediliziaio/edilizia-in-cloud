@@ -488,3 +488,5 @@ Aggiornamento dell'11/11/2026, dopo la prova:
 - Listino PDF letto dall'AI provato con un PDF generato, senza colonna quantità: 4 righe su 4.
 
 Firma elettronica (11/11/2026, richiesta del titolare, vale per tutte le firme di `FirmaDocumento`): un'unica spunta prima del codice (documento, clausole 1341 nominate una per una, recesso, privacy); col codice giusto il documento è firmato, senza altri passaggi. Il server continua a pretendere clausole, recesso e privacy. Resta solo l'identificazione della firma avanzata, dove è attiva. Nell'app l'esito arriva da solo in circa 8 secondi mentre una firma è aperta.
+
+Simulazione con listini realistici (11/11/2026). Corretti: prezzi col contorno («30,00 €/mq», «+ IVA»), colonne sbagliate («Articolo» presa per descrizione, «Costo materiali» per prezzo, «Designazione», «P.U.», «Euro» non riconosciute), righe di totale diventate voci. Aggiunto il «nome simile», sempre da controllare. Limite: sui 557 computi veri della Demo 2 il collegamento automatico a nome non trova nulla, perché le descrizioni dei computi sono troppo diverse dai nomi del listino: si collega a mano, oppure serve la proposta per significato con l'AI.
