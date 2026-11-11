@@ -481,3 +481,8 @@ Richieste del titolare durante la prova:
 
 Limite noto: togliendo tutte le quote da una fase, il previsto della ditta resta l'ultimo importo affidato (`affidamenti_allinea_ditta` non ricorda il valore manuale di prima).
 Non provati a schermo: firma vera con email/OTP (sulla prova la firma è stata scritta nel database) e un PDF di listino letto con l'AI.
+
+Aggiornamento dell'11/11/2026, dopo la prova:
+- Il previsto scritto a mano torna quando si tolgono tutte le voci (`20290218120000`, colonna `cost_preventivo_manuale`): il limite sopra è chiuso.
+- Un contratto in firma non si elimina (`20290218130000`): prima si annulla la richiesta.
+- Listino PDF letto dall'AI provato con un PDF generato, senza colonna quantità: 4 righe su 4.

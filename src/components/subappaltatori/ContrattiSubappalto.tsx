@@ -715,7 +715,8 @@ export function ContrattiSubappalto({
                     <FileText className="h-3.5 w-3.5" />Elenco lavori per il cantiere
                   </Button>
                 )}
-                {!c.firmato_il && !permessiLavori.solaLettura && permessiLavori.canEditOrders && (
+                {/* In firma non si elimina: la ditta ha in mano il link. Prima si annulla la richiesta (11/11/2026). */}
+                {!c.firmato_il && !permessiLavori.solaLettura && permessiLavori.canEditOrders && !(richiesta && ["pending", "otp_verified"].includes(richiesta.status)) && (
                   <Button size="sm" variant="ghost" className="gap-1 text-destructive" disabled={eliminaContratto.isPending}
                     onClick={() => { if (window.confirm("Eliminare questo contratto? Non si può se ha SAL, fatture o una base lavori registrata (allora si segna Risolto).")) eliminaContratto.mutate(c); }}>
                     <Trash2 className="h-3.5 w-3.5" />Elimina
