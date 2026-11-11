@@ -78,9 +78,9 @@ vi.mock("@/components/marketing/CalendarSuggestions", () => ({ default: (): null
 // di Radix (dialog + menu) che in jsdom si contendono il focus.
 vi.mock("@/components/ui/select", async () => {
   const React = await import("react");
-  const Empty = () => null;
-  const Trigger = () => null;
-  const Item = () => null;
+  const Empty = (): null => null;
+  const Trigger = (): null => null;
+  const Item = (): null => null;
   return {
     Select: ({ value, onValueChange, children, disabled }: any) => {
       const nodes = React.Children.toArray(children) as any[];

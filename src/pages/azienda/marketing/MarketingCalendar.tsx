@@ -1689,7 +1689,7 @@ export default function MarketingCalendar() {
         onSaved={(saved) => {
           // Dopo un trasferimento rendi visibile la destinazione: i filtri
           // precedenti non devono far sembrare cancellato l'appuntamento.
-          if (saved && !onlyAssigned) {
+          if (saved && !permissions.onlyAssigned) {
             if (saved.calendar_id) setSelectedCalendarIds(ids => ids.includes(saved.calendar_id!) ? ids : [...ids, saved.calendar_id!]);
             if (saved.assigned_to) setSelectedUserIds(ids => ids.includes(saved.assigned_to!) ? ids : [...ids, saved.assigned_to!]);
           }
