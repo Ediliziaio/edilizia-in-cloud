@@ -136,7 +136,7 @@ describe("Lotto C, il modulo", () => {
     fireEvent.click(screen.getByRole("button", { name: /Nuovo verbale/ }));
     await screen.findByText(/1 voce è uguale/);
     fireEvent.change(screen.getByLabelText("Altre detrazioni (totale a oggi)"), { target: { value: "5000" } });
-    expect(screen.getByText(/certifica meno di quanto già certificato/)).toBeInTheDocument();
+    expect(screen.getByText(/superano i lavori di questo verbale/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Controlla riepilogo" }));
     expect(await screen.findByRole("button", { name: "Salva bozza SAL" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Salva ed emetti" })).toBeDisabled();

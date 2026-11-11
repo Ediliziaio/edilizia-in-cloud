@@ -189,9 +189,8 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   const salMatura = useSalMatura(companyId);
   const sostituisciRate = useSostituisciRate(orderId);
 
-  // Fasi di lavorazione della commessa: per compilare il verbale dall'avanzamento
-  // dichiarato in cantiere (nome, % e venduto). importo_venduto può tornare null
-  // senza il permesso sugli importi: in quel caso la % arriva lo stesso.
+  // Fasi di lavorazione della commessa, con sottofasi e voci: per compilare il verbale
+  // dall'avanzamento dichiarato in cantiere (src/lib/orders/leggiFasiPerSal.ts).
   const leggiFasi = (): Promise<FasePerSal[]> => leggiFasiPerSal(supabase, orderId, companyId);
   const chiaveFasi = ["sal-fasi-commessa", orderId, companyId];
   const { data: fasiSal = [], isError: fasiError, refetch: refetchFasi } = useQuery<FasePerSal[]>({
@@ -1141,7 +1140,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                       <div className="flex justify-between text-muted-foreground"><dt>Con l'IVA {vatRate}%</dt><dd className="tabular-nums">{formatCurrency(rataDaSal(certificatoNuovo.netto, vatRate))}</dd></div>
                     </dl>
                   ) : <p role="alert" className="text-xs text-destructive">{certificatoNegativo
-                    ? `Il netto del certificato viene ${formatCurrency(certificatoCalcolato!.netto)}: questo verbale certifica meno di quanto già certificato. Controlla le voci, oppure togli il certificato se è una rettifica.`
+                    ? `Il netto del certificato viene ${formatCurrency(certificatoCalcolato!.netto)}: ritenuta, detrazioni e acconti superano i lavori di questo verbale. Controlla le voci e le detrazioni, oppure togli il certificato se è una rettifica.`
                     : "Ritenuta tra 0 e 100%, detrazioni non negative."}</p>}
                   <p className="text-[11px] text-muted-foreground">Gli acconti sono il netto dei certificati prima{certificatoPrima ? "" : " (o il cumulativo dei SAL emessi)"}: non si riscrivono a mano. Quello che l'arrotondamento toglie torna nel certificato dopo.</p>
                 </>

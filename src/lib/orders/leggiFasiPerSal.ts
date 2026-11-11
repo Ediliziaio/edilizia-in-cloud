@@ -35,13 +35,8 @@ export async function leggiFasiPerSal(client: SupabaseClient<Database>, orderId:
     .eq("company_id", companyId)
     .order("position");
   if (error) throw error;
-  const fasi: FasePerSal[] = (data ?? []).map((f) => ({
-    id: f.id,
-    name: f.name,
-    status: f.status,
-    percentuale: f.percentuale,
-    importo_venduto: f.importo_venduto,
-  }));
+  // La select dà già la forma di FasePerSal: si legge e basta, il venduto non si scrive mai qui.
+  const fasi: FasePerSal[] = data ?? [];
   const ids = fasi.map((f) => f.id).filter((x): x is string => !!x);
   if (!ids.length) return fasi;
 
