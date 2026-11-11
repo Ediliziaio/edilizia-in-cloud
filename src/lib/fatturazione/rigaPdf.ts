@@ -60,6 +60,15 @@ export function trovaRighePdf(
         ),
     ),
   ];
+  const corrisponde = (testo: string) => {
+    const normal = pulito(testo),
+      tokens = new Set(normal.split(" "));
+    return (
+      normal.includes(target) ||
+      (parole.length >= 3 &&
+        parole.filter((w) => tokens.has(w)).length / parole.length >= 0.85)
+    );
+  };
   const out: RigaPdfTrovata[] = [];
   for (let i = 0; i < righe.length; i++) {
     for (let n = 1; n <= 2 && i + n <= righe.length; n++) {
@@ -70,17 +79,17 @@ export function trovaRighePdf(
           Math.max(...gruppi.flatMap((g) => g.items.map((t) => t.height))) * 2.2
       )
         continue;
+      // Una riga già completa non deve essere accorpata all'intestazione o alla voce precedente.
+      if (
+        n > 1 &&
+        gruppi.some((g) => corrisponde(g.items.map((t) => t.str).join(" ")))
+      )
+        continue;
       const ts = gruppi.flatMap((g) =>
         g.items.sort((a, b) => a.transform[4] - b.transform[4]),
       );
-      const testo = ts.map((t) => t.str).join(" "),
-        normal = pulito(testo),
-        tokens = new Set(normal.split(" "));
-      const esatto = normal.includes(target),
-        simile =
-          parole.length >= 3 &&
-          parole.filter((w) => tokens.has(w)).length / parole.length >= 0.85;
-      if (!esatto && !simile) continue;
+      const testo = ts.map((t) => t.str).join(" ");
+      if (!corrisponde(testo)) continue;
       if (out.some((r) => Math.abs(r.y - gruppi[0].y) < 2)) break;
       const x = Math.min(...ts.map((t) => t.transform[4])),
         y = Math.min(

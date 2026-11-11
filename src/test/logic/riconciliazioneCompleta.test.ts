@@ -149,6 +149,12 @@ describe("riconciliazione completa", () => {
   it("evidenzia coordinate tratte dal PDF e non confonde una descrizione diversa", () => {
     const items = [
       {
+        str: "Descrizione Quantità Prezzo",
+        transform: [10, 0, 0, 10, 40, 720],
+        width: 475,
+        height: 10,
+      },
+      {
         str: "Malta adesiva A81 bianca 25 kg",
         transform: [10, 0, 0, 10, 40, 700],
         width: 180,
@@ -164,7 +170,10 @@ describe("riconciliazione completa", () => {
     ];
     expect(
       trovaRighePdf(items, "Malta adesiva A81 bianca 25 kg")[0],
-    ).toMatchObject({ x: 40, larghezza: 475 });
+    ).toMatchObject({ x: 40, y: 697.5, larghezza: 475 });
+    expect(trovaRighePdf(items, "Malta adesiva A81 bianca 25 kg")).toHaveLength(
+      1,
+    );
     expect(trovaRighePdf(items, "Cemento grigio 425 50kg")).toEqual([]);
     expect(trovaRighePdf([], "Malta adesiva A81")).toEqual([]);
   });
