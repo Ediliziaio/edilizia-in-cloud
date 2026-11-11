@@ -136,6 +136,7 @@ jobs:
 
       - name: Run floorplan, 3D orientation and document verification regressions
         run: bun run test:planimetrie
+
       - name: Verify photovoltaic quotes, PDF templates and rental isolation
         run: bun run test:fotovoltaico
 
