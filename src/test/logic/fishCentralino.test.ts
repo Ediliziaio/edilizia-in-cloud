@@ -176,7 +176,7 @@ describe("Fish management and outbound", () => {
     const d = deps(db);
     const response = await createFishManagementHandler(d)(new Request("https://local", { method: "POST", body: JSON.stringify({ action: "configure", agent_id: "local-A", voice_id: "voice" }) }));
     expect(response.status).toBe(200);
-    const writes = d.send.mock.calls.filter((c: any) => String(c[0]).includes("/tools/"));
+    const writes = vi.mocked(d.send).mock.calls.filter((c: any) => String(c[0]).includes("/tools/"));
     expect(writes).toHaveLength(enabledFishTools(agent).length);
     for (const call of writes as any[]) {
       expect(call[1].method).toBe("PATCH");
