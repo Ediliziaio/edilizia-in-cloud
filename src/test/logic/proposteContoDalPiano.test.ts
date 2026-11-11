@@ -64,5 +64,8 @@ describe("rigaPuoEssereCespite", () => {
     expect(rigaPuoEssereCespite("Spese di incasso", 5)).toBe(false);
     expect(rigaPuoEssereCespite("Noleggio gru", 3000)).toBe(false);
     expect(rigaPuoEssereCespite("Trapano", 300)).toBe(false);
+    // Un mezzo «per trasporto» è un bene; un «servizio di trasporto» no.
+    expect(rigaPuoEssereCespite("Autocarro per trasporto merci", 38000)).toBe(true);
+    expect(rigaPuoEssereCespite("Servizio di trasporto", 900)).toBe(false);
   });
 });

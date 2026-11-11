@@ -143,5 +143,5 @@ export function proposteDalPiano({ righe, riferimenti = "", conti, storico }: {
  */
 export function rigaPuoEssereCespite(descrizione: string | null | undefined, imponibile: number): boolean {
   if (!(imponibile > 516.46)) return false;
-  return !/\b(canon[ei]|leasing|locazion|nolegg|nolo\b|noli\b|affitt|abbonament|spes[ae]\b|commission|interess|assicuraz|trasport|servizi|manodopera|consulenz|manutenz|riparaz|bollo|rata\b|rate\b)/i.test(descrizione ?? "");
+  return !/\b(canon[ei]|leasing|locazion|nolegg|nolo\b|noli\b|affitt|abbonament|spes[ae]\b|commission|interess|assicuraz|serviz(?:i|io)\b|manodopera|consulenz|manutenz|riparaz|bollo|rata\b|rate\b)/i.test(descrizione ?? "");
 }
