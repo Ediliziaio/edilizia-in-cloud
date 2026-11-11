@@ -225,6 +225,10 @@ function ModificaRate({ rate, onSalva, onAnnulla }: { rate: RataDelPiano[]; onSa
               onChange={(e) => cambia(i, { testo: e.target.value })} className="col-span-3 h-11 max-sm:order-3 sm:col-span-1 lg:h-9" />
             <Button type="button" size="icon" variant="ghost" className="h-11 w-11 max-sm:order-2 lg:h-9 lg:w-9" aria-label={`Togli la rata ${i + 1}`}
               onClick={() => setRighe(righe.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>
+            <label className="col-span-3 text-xs text-slate-600 max-sm:order-4">Scadenza della rata
+              <Input type="date" aria-label={`Scadenza della rata ${i + 1}`} value={r.expected_date ?? ""}
+                onChange={(e) => cambia(i, { expected_date: e.target.value || null })} className="mt-1 h-11 lg:h-9" />
+            </label>
           </li>
         ))}
       </ol>
@@ -420,7 +424,7 @@ function Dettaglio({ chiave, valore, onTogli, vedeCosti }: { chiave: string; val
     return (
       <ul className="mt-1 space-y-0.5 text-xs lg:text-[11px] text-slate-600">
         {(valore as RataDelPiano[]).map((r, i) => (
-          <li key={i} className="flex justify-between gap-2"><span className="min-w-0 break-words">{r.label}</span><span className="shrink-0">{importoRata(r)}</span></li>
+          <li key={i} className="flex justify-between gap-2"><span className="min-w-0 break-words">{r.label}{r.expected_date ? ` · ${r.expected_date.split("-").reverse().join("/")}` : ""}</span><span className="shrink-0">{importoRata(r)}</span></li>
         ))}
       </ul>
     );

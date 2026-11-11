@@ -14,6 +14,7 @@ import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { trovaCitazione } from "./documentoCitato";
+import { convertiHeic } from "@/lib/files/convertiHeic";
 import { erroreLeggibile } from "@/lib/silvio-commessa/testoErrore";
 
 export interface DocumentoDelVisore {
@@ -74,7 +75,10 @@ export function VisoreFonte({ documento, onChiudi }: { documento: DocumentoDelVi
         const blob = await documento.carica();
         if (annullato) return;
         if (documento.tipo === "immagine") {
-          indirizzo = URL.createObjectURL(blob);
+          const heic = /image\/hei[cf]/i.test(blob.type) || /\.hei[cf]$/i.test(documento.titolo);
+          const visibile = heic ? await convertiHeic(new File([blob], documento.titolo, { type: blob.type })) : blob;
+          if (annullato) return;
+          indirizzo = URL.createObjectURL(visibile);
           setImmagine(indirizzo);
           return;
         }

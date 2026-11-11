@@ -116,6 +116,7 @@ export interface RataScritta {
   amount: number;
   trigger_evento: string;
   trigger_numero: number | null;
+  expected_date?: string;
 }
 
 /** Una riga della commessa nei nomi che legge `create_order_atomic`. */
@@ -267,6 +268,7 @@ function rateScritte(rate: RataDelPiano[]): RataScritta[] {
       amount: Math.round(Number(r.amount) * 100) / 100,
       trigger_evento: r.trigger_evento && EVENTI_RATA.has(r.trigger_evento) ? r.trigger_evento : "data_fissa",
       trigger_numero: r.trigger_numero ?? null,
+      ...(typeof r.expected_date === "string" && dataVera(r.expected_date) ? { expected_date: r.expected_date } : {}),
     }));
 }
 

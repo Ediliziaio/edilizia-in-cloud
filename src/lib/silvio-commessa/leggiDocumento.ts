@@ -87,7 +87,7 @@ export function nomePerLoStorage(nome: string): string {
 }
 
 /** Il percorso nella cartella che la policy di silvio-uploads concede a chi carica. */
-export function percorsoDocumento(opz: Pick<OpzioniLettura, "companyId" | "userId">, nome: string, adesso = Date.now()): string {
+export function percorsoDocumento(opz: Pick<OpzioniLettura, "companyId" | "userId">, nome: string, adesso: string | number = crypto.randomUUID()): string {
   return `${opz.companyId}/${opz.userId}/commessa-${adesso}-${nomePerLoStorage(nome)}`;
 }
 

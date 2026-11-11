@@ -216,6 +216,12 @@ jobs:
           bun run test:preventivatore-ai
           bunx vitest run --config vitest.wizard-audit.config.ts
 
+      - name: Run Silvio worksite creation and document regressions
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/logic/silvioCommessa*.test.ts
+          src/test/ui/silvioCommessa*.test.tsx
+
       - name: Run public website and structured data regressions
         run: >-
           bunx vitest run --maxWorkers=1

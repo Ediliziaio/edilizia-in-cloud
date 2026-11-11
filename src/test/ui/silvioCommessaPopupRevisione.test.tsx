@@ -76,7 +76,7 @@ function dbFinto(o: OpzioniDb = {}) {
       if (k === "update" || k === "delete" || k === "insert") ultimo = k;
       if (k === "insert") inserite.push(a[0]);
       if (k === "eq" && ultimo === "delete" && a[0] === "id") cancellate.push(a[1]);
-      // «Ricomincia» su Nuova commessa: tutte le bozze «crea» dell'utente, per azienda e autore.
+      // Rileva anche un'eventuale regressione che tenti di eliminare tutte le bozze dell'autore.
       if (k === "eq" && ultimo === "delete" && a[0] === "created_by") cancellate.push(...(o.bozze ?? []).map((b) => (b as { id: string }).id));
       return q;
     };
@@ -154,7 +154,9 @@ const pdf = () => new File(["x"], "Contratto.pdf", { type: "application/pdf" });
 // Aspettano il salvataggio vero, con la sua attesa: sotto carico i 5 secondi di serie non bastano.
 vi.setConfig({ testTimeout: 20_000 });
 
-beforeEach(() => { permessi.canViewOrderAmounts = true; permessi.canViewMargins = true; permessi.canViewCosts = true; });
+beforeEach(() => {
+  permessi.canViewOrderAmounts = true; permessi.canViewMargins = true; permessi.canViewCosts = true;
+});
 
 describe("P1: «Crea» non scrive una bozza vecchia", () => {
   it("se l'ultima modifica non si salva si ferma e lo dice", async () => {
@@ -443,15 +445,35 @@ describe("P9: il telefono e le uscite", () => {
     expect(riletto.aree.economia?.["economia.total_amount"]?.valore).toBe(48500);
   });
 
-  it("«Ricomincia» chiede conferma e cancella davvero la bozza", async () => {
+  it("l'eliminazione della bozza scelta richiede conferma e conserva le altre", async () => {
     const bozza = { id: "b9", created_by: UTENTE, modo: "crea", updated_at: "2026-11-01T10:00:00Z", fonti: [] as unknown[], storia: [] as unknown[], piano: fondi(pianoVuoto(AZIENDA), base()) };
-    const { s, db } = servizi({}, [], { bozze: [bozza] });
+    const { s, db } = servizi({}, [], { bozze: [bozza, { ...bozza, id: "b10" }] });
     apri(s, { iniziale: null });
-    fireEvent.click(await screen.findByRole("button", { name: "Ricomincia" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Elimina bozza" }));
     expect(db.cancellate).toEqual([]);
     fireEvent.click(await screen.findByRole("button", { name: "Sì, buttala via" }));
     await waitFor(() => expect(db.cancellate).toEqual(["b9"]));
     await waitFor(() => expect(screen.queryByRole("region", { name: "Bozza da riprendere" })).toBeNull());
+  });
+
+  it("inizia un'altra commessa senza eliminare o modificare la bozza lasciata a metà", async () => {
+    const bozza = { id: "b9", created_by: UTENTE, modo: "crea", updated_at: "2026-11-01T10:00:00Z", fonti: [] as unknown[], storia: [] as unknown[], piano: fondi(pianoVuoto(AZIENDA), base()) };
+    const { s, db } = servizi({}, [], { bozze: [bozza] });
+    apri(s, { iniziale: null });
+    fireEvent.click(await screen.findByRole("button", { name: "Inizia un’altra" }));
+    expect(screen.queryByRole("region", { name: "Bozza da riprendere" })).toBeNull();
+    expect(db.cancellate).toEqual([]);
+    expect(db.inserite).toEqual([]);
+  });
+
+  it("sceglie e riprende una bozza precedente senza cancellare le altre", async () => {
+    const bozza = (id: string, titolo: string) => ({ id, created_by: UTENTE, modo: "crea", updated_at: "2026-11-01T10:00:00Z", fonti: [] as unknown[], storia: [] as unknown[], piano: fondi(pianoVuoto(AZIENDA), base({ identita: { "identita.description": { valore: titolo, fiducia: 1, stato: "fatto" } } })) });
+    const { s, db } = servizi({}, [], { bozze: [bozza("b9", "Casa A"), bozza("b10", "Casa B")] });
+    apri(s, { iniziale: null });
+    fireEvent.change(await screen.findByRole("combobox", { name: "Bozza da riprendere" }), { target: { value: "b10" } });
+    fireEvent.click(screen.getByRole("button", { name: "Riprendi la commessa" }));
+    expect((await within(commessa()).findAllByText("Casa B")).length).toBeGreaterThan(0);
+    expect(db.cancellate).toEqual([]);
   });
 });
 
@@ -731,12 +753,13 @@ describe("Le correzioni d'esperienza del 2/11: a schermo", () => {
     await waitFor(() => expect(within(commessa()).getByRole("button", { name: /^importo 48\.500\s€: scritto da te/ })).toBeInTheDocument());
   });
 
-  it("4: partita una bozza nuova le altre si scartano, e la persona lo legge", async () => {
+  it("4: salvare una bozza nuova conserva il lavoro lasciato nelle altre", async () => {
     const { s, db } = servizi({}, [base()], { bozze: [{ id: "vecchia" }] });
     apri(s);
     await pronto();
-    await waitFor(() => expect(db.cancellate).toEqual(["vecchia"]), { timeout: 3000 });
-    await within(screen.getByRole("tabpanel", { name: "Chat con Silvio" })).findByText(/l'ho scartata: ne tengo una sola/);
+    await screen.findByText("bozza salvata ✓", {}, { timeout: 3000 });
+    expect(db.inserite).toHaveLength(1);
+    expect(db.cancellate).toEqual([]);
   });
 
   it("5: «il totale è 15.000» non chiede anche «Va bene»; un'altra cifra sì", async () => {

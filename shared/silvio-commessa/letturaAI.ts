@@ -144,7 +144,8 @@ ritenuta_garanzia_pct, anticipo_pct, anticipo_eur, pagamento_giorni (giorni dall
 subappalto_massimo_pct, garanzia_anni, cig (10 caratteri), cup (15 caratteri).
 
 RATE ("pagamenti.rate"): elenco di { "label", "type": "deposit"|"balance"|"financing", "amount" (euro IVA inclusa, SOLO se scritto nel documento: non calcolarlo),
-"percent" (se scritta), "trigger_evento": firma_contratto|inizio_lavori|sal_numero|fine_lavori|consegna_cantiere|data_fissa, "trigger_numero" (numero del SAL) }.
+"percent" (se scritta), "expected_date" (scadenza AAAA-MM-GG, SOLO se esplicita), "trigger_evento": firma_contratto|inizio_lavori|sal_numero|fine_lavori|consegna_cantiere|data_fissa, "trigger_numero" (numero del SAL) }.
+Conserva SEMPRE la scadenza scritta, anche per rate alla firma o a fine lavori. Non ricavarla dalle date delle fasi. La citazione dell'elenco deve riportare importi, percentuali e date.
 
 FASI ("fasi.order_work_phases"), solo se il documento elenca le lavorazioni (mai «inizio lavori» o «fine lavori»): elenco di { "name", "giorni" (giorni lavorativi, solo se il documento li dice), "start_date", "end_date" }, nell'ordine dei lavori.
 
@@ -340,7 +341,7 @@ function pulisciTipoLavoro(v: unknown): Esito<string> {
  * (revisione 1/11, L3) si calcola sull'imponibile, ma tutte le rate restano una proposta con
  * «manca l'IVA»: prima 30 % di 100.000 imponibile diventava 30.000 «fatto» invece di 33.000.
  */
-function pulisciRate(v: unknown, totaleIvato: number | null, imponibile: number | null = null): Esito<RataDelPiano[]> & { senzaIva?: boolean } {
+function pulisciRate(v: unknown, totaleIvato: number | null, imponibile: number | null = null, testo = ""): Esito<RataDelPiano[]> & { senzaIva?: boolean } {
   if (!Array.isArray(v)) return { ok: false, motivo: "le rate non sono un elenco" };
   const rate: RataDelPiano[] = [];
   const scartate: string[] = [];
@@ -369,11 +370,13 @@ function pulisciRate(v: unknown, totaleIvato: number | null, imponibile: number 
     const type = r.type === "balance" || r.type === "financing" ? r.type : "deposit";
     const evento = typeof r.trigger_evento === "string" && EVENTI_RATA.has(r.trigger_evento) ? r.trigger_evento : null;
     const numeroSal = numeroDa(r.trigger_numero);
+    const scadenza = dataValida(r.expected_date);
     rate.push({
       label, type, amount: tondo(amount),
       ...(percent != null ? { percent } : {}),
       ...(daPercentuale ? { daPercentuale } : {}),
       trigger_evento: evento,
+      ...(scadenza && dataNelTesto(testo, scadenza) ? { expected_date: scadenza } : {}),
       ...(evento === "sal_numero" && numeroSal != null && numeroSal >= 1 ? { trigger_numero: Math.round(numeroSal) } : {}),
     });
   });
@@ -583,7 +586,6 @@ function cifraConIvaInclusa(valore: number | null, iva: number, testo: string | 
 }
 
 /** Il nome che legge chi lavora in cantiere, mai la chiave tecnica. */
-const etichettaAvviso = (chiave: string): string => variabile(chiave)?.etichetta ?? "un campo del documento";
 
 /** Le coppie (chiave, valore grezzo) della risposta: nelle aree, o (tollerato) in un elenco piatto. */
 function coppie(json: Grezzo, avvisi: string[]): Array<[string, Grezzo]> {
@@ -810,7 +812,7 @@ function pulisci(forma: Forma, grezzo: Grezzo, amb: Ambiente): Pulito {
       return s ? semplice({ ok: true, valore: { indirizzo_lavori: s } }) : { ok: false, motivo: "indirizzo vuoto" };
     }
     case "rate": {
-      const e = pulisciRate(v, amb.totaleIvato, amb.imponibile);
+      const e = pulisciRate(v, amb.totaleIvato, amb.imponibile, amb.ctx.testo ?? "");
       const p = semplice(e);
       // Calcolate senza l'IVA: mai «fatto», anche con la citazione giusta.
       return p.ok && e.ok && e.senzaIva

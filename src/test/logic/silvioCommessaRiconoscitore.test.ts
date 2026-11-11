@@ -56,10 +56,11 @@ describe("riconoscitore", () => {
   });
 
   it("i formati che non si leggono lo dicono subito, senza spendere crediti", () => {
-    for (const nome of ["preventivo.docx", "tavola.dwg", "foto.heic", "video.mp4"]) {
+    for (const nome of ["preventivo.docx", "tavola.dwg", "video.mp4"]) {
       expect(riconosciDocumento({ nome }), nome).toMatchObject({ lettore: "non_letto", ai: false });
     }
-    expect(riconosciDocumento({ nome: "foto", mime: "image/heic" }).lettore).toBe("non_letto");
+    for (const nome of ["foto.HEIC", "foto.heif"]) expect(riconosciDocumento({ nome })).toMatchObject({ lettore: "silvio_commessa", immagine: true });
+    expect(riconosciDocumento({ nome: "foto", mime: "image/heic" })).toMatchObject({ lettore: "silvio_commessa", immagine: true });
   });
 
   it("un foglio Excel è un computo, gratis; quelli da convertire chiedono il .xlsx", () => {

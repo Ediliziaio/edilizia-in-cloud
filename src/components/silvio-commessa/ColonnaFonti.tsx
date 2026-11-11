@@ -322,7 +322,7 @@ export function ColonnaFonti({
           <Plus className="h-4 w-4" aria-hidden />Scegli i file
         </Button>
         <input ref={inputFile} type="file" multiple className="sr-only" tabIndex={-1} aria-label="Scegli i file da far leggere a Silvio"
-          accept=".pdf,.jpg,.jpeg,.png,.webp,.txt,.xpwe,.dcf,.xml,.xlsx,.xlsm,.xls,application/pdf,image/jpeg,image/png,image/webp,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+          accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif,.txt,.xpwe,.dcf,.xml,.xlsx,.xlsm,application/pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           onChange={(e) => { file(e.target.files); e.target.value = ""; }} />
       </div>
 
