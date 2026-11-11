@@ -112,7 +112,7 @@ function Pagina({ companyId }: { companyId?: string }) {
   const periodoRichiesto = params.get("rap_periodo");
   const periodo: PeriodoRapportini = ["tutti", "mese", "ultimi30", "anno", "personalizzato"].includes(periodoRichiesto ?? "")
     ? periodoRichiesto as PeriodoRapportini
-    : params.has("rap_mese") || vistaRichiesta === "mappa" || vistaRichiesta === "giorni" ? "mese" : "tutti";
+    : params.has("rap_mese") || vistaRichiesta === "mappa" ? "mese" : "tutti";
   const intervallo = intervalloRapportini(periodo, oggi, mese, params.get("rap_da") ?? "", params.get("rap_a") ?? "");
   const periodoLabel = intervallo ? etichettaPeriodoRapportini(intervallo) : "Periodo da completare";
   const visteDisponibili = VISTE.filter((v) => !(v.soloScrivania && (isMobile || periodo !== "mese")));
@@ -212,7 +212,7 @@ function Pagina({ companyId }: { companyId?: string }) {
             <Input type="date" aria-label="Al giorno" className="h-9 w-36" value={params.get("rap_a") ?? ""} onChange={(e) => imposta({ rap_a: e.target.value, rap_giorno: null })} />
           </div>}
           {periodo === "mese" && mese !== meseCorrente && (
-            <Button variant="ghost" size="sm" onClick={() => imposta({ rap_mese: null, rap_giorno: null })}>Questo mese</Button>
+            <Button variant="ghost" size="sm" onClick={() => imposta({ rap_periodo: "mese", rap_mese: null, rap_giorno: null })}>Questo mese</Button>
           )}
           {periodo === "mese" && <div className="flex items-center rounded-lg border border-slate-200 bg-white">
             <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Mese precedente"

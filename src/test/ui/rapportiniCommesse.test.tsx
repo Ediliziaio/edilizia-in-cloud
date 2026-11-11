@@ -256,6 +256,18 @@ describe("Navigazione e filtri dei rapportini", () => {
 
 
 describe("Rapportini: elenco compatto e periodi", () => {
+  it("cambiare raggruppamento non cambia il periodo scelto", () => {
+    apri("?tab=rapportini", false);
+    fireEvent.click(screen.getByRole("tab", { name: "Per giorno" }));
+    expect(stato.chiamate.at(-1)?.[1]).toEqual({});
+    expect(screen.queryByRole("button", { name: "Mese precedente" })).not.toBeInTheDocument();
+  });
+  it("Questo mese rimane sul mese anche partendo da un vecchio collegamento", () => {
+    apri("?tab=rapportini&rap_mese=2026-08", false);
+    fireEvent.click(screen.getByRole("button", { name: "Questo mese" }));
+    expect(stato.chiamate.at(-1)?.[1]).toBe("2026-09");
+    expect(indirizzo()).toContain("rap_periodo=mese");
+  });
   it("apre tutti i rapportini in tabella, una riga per documento e stato nella seconda colonna", () => {
     apri("?tab=rapportini", false);
     expect(stato.chiamate[0]).toEqual(["c1", {}, true]);
