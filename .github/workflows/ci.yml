@@ -255,15 +255,16 @@ jobs:
           EIC_TEST_PG_CONTAINER: eic-fatture-ai-pg
         run: |
           docker run -d --name eic-fatture-ai-pg --network none -e POSTGRES_USER=supabase_admin -e POSTGRES_HOST_AUTH_METHOD=trust postgres:17-alpine
+          trap 'docker rm -f eic-fatture-ai-pg >/dev/null' EXIT
           for n in $(seq 1 60); do
-            if docker exec eic-fatture-ai-pg pg_isready -U supabase_admin -d postgres; then break; fi
+            # Il server temporaneo di init accetta socket ma non TCP: attendere quello definitivo.
+            if docker exec eic-fatture-ai-pg pg_isready -h 127.0.0.1 -U supabase_admin -d postgres; then break; fi
             sleep 1
           done
           docker exec eic-fatture-ai-pg psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 -c 'create role authenticated; create role anon; create role service_role bypassrls;'
           node scripts/test-riconciliazione-fatture-ai.mjs
           node scripts/test-riconciliazione-completa.mjs
           node scripts/test-riconciliazione-concorrenza.mjs
-          docker rm -f eic-fatture-ai-pg
 
       - name: Run computo persistence, tenant isolation and PDF regressions
         run: >-
