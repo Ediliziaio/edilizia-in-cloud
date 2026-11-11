@@ -9,17 +9,18 @@ import { useFileDDT } from "@/hooks/useFileDDT";
 //
 //   1. CHE COSA È ARRIVATO    le righe della merce, col prezzo, correggibili a
 //                             mano. È la prima cosa che si guarda su una bolla.
-//   2. COM'ERA IL DOCUMENTO   la foto o il PDF, e gli allegati: sta subito
-//                             sotto le righe perché si correggono guardandolo.
+//   2. COM'ERA IL DOCUMENTO   «Documenti della bolla»: l'originale e gli allegati
+//                             (le righe si correggono guardandolo).
 //   3. TORNA CON L'ORDINE?    ricezioni per articolo e articoli dell'ODA, con
 //                             le quantità che mancano.
 //   4. CHI L'HA PORTATA       corriere, mezzo, autista, orari.
 //   5. CHI L'HA PRESA         ricevente, firma, non conformità, danni.
 //
-//   Testata: numero, data, valore della merce, destinazione, stato, e le azioni
+//   Testata: numero, data, righe della merce, stato, e le azioni
 //            (verifica / non conforme / modifica).
 //   Colonna destra: collegamenti (ordini, fornitore, commesse, destinazione,
-//            fattura — modificabili), chi l'ha portata, chi l'ha presa, storia.
+//            fattura e confronto prezzi — modificabili), chi l'ha portata, chi
+//            l'ha presa, storia.
 //
 // 29/10/2026 — Prima l'ordine era un altro: il file, gli allegati, il corriere,
 // la targa, l'autista, e la merce al sesto posto. Il corriere veniva prima di
@@ -34,13 +35,11 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DDTRigheCard } from "@/components/ddt/DDTRigheCard";
-import { DDTOriginaliCard } from "@/components/ddt/DDTOriginaliCard";
-import { PrezziDaFatturaCard } from "@/components/ddt/PrezziDaFatturaCard";
+import { DocumentiBollaCard } from "@/components/ddt/DocumentiBollaCard";
 import { ConsegneDDTCard } from "@/components/ddt/ConsegneDDTCard";
 import { ControlloOrdiniDDTCard } from "@/components/ddt/ControlloOrdiniDDTCard";
 import { ArrivoPosizioniPanel } from "@/components/ddt/ArrivoPosizioniPanel";
 import { CollegamentiDDTCard, TimelineBolla } from "@/components/ddt/CollegamentiDDTCard";
-import { importoRiga } from "@/lib/ddt/letturaAI";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -56,10 +55,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  ArrowLeft, FileCheck, Loader2, Truck, FileText, Warehouse,
+  ArrowLeft, FileCheck, Loader2, Truck, FileText,
   Package, Plus, CheckCircle2, Trash2, Edit3, Save, X, ExternalLink,
-  Paperclip, Camera, User, Phone, Clock, MapPin, AlertTriangle, ShieldCheck,
-  FilePlus2, Hash, Calendar, Image as ImageIcon, PenLine, ListTree,
+  Camera, User, Phone, Clock, MapPin, AlertTriangle, ShieldCheck,
+  FilePlus2, Hash, Calendar, PenLine, ListTree,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -68,17 +67,11 @@ import {
   useDDTAttachments,
   useDDTRighe,
   type DDTStato,
-  type DDTAttachmentKind,
   type DDTAttachment,
 } from "@/hooks/useDDTRicezione";
 import { usePurchaseOrderDetail } from "@/hooks/usePurchaseOrders";
 import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
 import { DDTStatusBadge, DDT_STATO_META } from "@/components/ddt/DDTStatusBadge";
-import {
-  DDTFilePreview,
-  DDTMainFilePreview,
-} from "@/components/ddt/DDTFilePreview";
-import { DDTAttachmentUploader } from "@/components/ddt/DDTAttachmentUploader";
 import { cn } from "@/lib/utils";
 
 // Fallback icon import name — lucide-react's signature icon is exported as
@@ -119,15 +112,8 @@ export default function DDTRicezioneDetail() {
 
   const po = ddt?.purchase_orders;
   // Le righe servono già alla card della merce: stessa chiave di query, quindi
-  // qui non parte nessuna chiamata in più. Il valore della merce è il numero
-  // che conta per la fattura di fine mese, e in testata non c'era.
+  // qui non parte nessuna chiamata in più.
   const { data: righeMerce = [] } = useDDTRighe(ddtId);
-  const valoreMerce = (() => {
-    const importi = righeMerce
-      .map((r) => importoRiga(r))
-      .filter((v): v is number => v != null);
-    return importi.length > 0 ? importi.reduce((a, b) => a + b, 0) : null;
-  })();
   // Il fornitore sta sulla bolla dal 29/10/2026: una bolla senza ordine
   // d'acquisto lo ha solo lì. Prima la colonna propria, poi l'ODA.
   const fornitoreNome = ddt?.suppliers?.name ?? po?.suppliers?.name ?? null;
@@ -297,10 +283,6 @@ export default function DDTRicezioneDetail() {
       { onSuccess: () => setIsEditingQC(false) }
     );
   };
-
-  // ── Main DDT file replace ─────────────────────────────────
-  const replaceMainRef = useRef<HTMLInputElement>(null);
-  const onReplaceMainClick = () => replaceMainRef.current?.click();
 
   // ── Firma upload ─────────────────────────────────────────
   const signatureRef = useRef<HTMLInputElement>(null);
@@ -661,9 +643,12 @@ export default function DDTRicezioneDetail() {
             }[meta.dotColor] ?? "transparent",
         }}
       >
-        <CardContent className="pt-4 pb-4">
+        <CardContent className="py-3">
+          {/* 11/11/2026 — Solo quello che non sta altrove: valore della merce
+              e destinazione li dicono già la tabella e i Collegamenti, lo
+              stato «verificata» la testata. */}
           {!isEditingHeader ? (
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+            <div className="grid grid-cols-3 gap-4 sm:max-w-2xl">
               <MetaCell
                 icon={Hash}
                 label="Numero"
@@ -689,34 +674,8 @@ export default function DDTRicezioneDetail() {
                   )
                 }
               />
-              <MetaCell
-                icon={Package}
-                label="Valore merce"
-                value={
-                  valoreMerce != null ? (
-                    <span className="tabular-nums font-medium">
-                      {valoreMerce.toLocaleString("it-IT", {
-                        style: "currency",
-                        currency: "EUR",
-                        useGrouping: true,
-                      })}
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">da valorizzare</span>
-                  )
-                }
-              />
-              <MetaCell
-                icon={ddt.destinazione === "cantiere" ? Truck : Warehouse}
-                label="Destinazione"
-                value={
-                  destinazioneMista ? "cantiere e magazzino" : ddt.destinazione === "cantiere"
-                    ? "in cantiere"
-                    : (ddt.warehouses?.name ?? "magazzino")
-                }
-              />
               {ddt.note && (
-                <div className="col-span-2 sm:col-span-5 pt-1 border-t">
+                <div className="col-span-3 pt-1 border-t">
                   <p className="text-xs text-muted-foreground">Note</p>
                   <p className="text-sm">{ddt.note}</p>
                 </div>
@@ -841,120 +800,34 @@ export default function DDTRicezioneDetail() {
 
           <ControlloOrdiniDDTCard key={`controllo:${ddt.id}`} ddt={ddt} />
           <div id="consegne-ddt" className="scroll-mt-5"><ConsegneDDTCard key={ddt.id} ddt={ddt} /></div>
-          <PrezziDaFatturaCard key={`prezzi:${ddt.id}`} ddt={ddt} />
-
-          {ddt.ddt_file_bucket && <DDTOriginaliCard key={`originali:${ddt.id}`} ddtId={ddt.id} companyId={ddt.company_id} />}
-
-          {/* ─── 2. IL DOCUMENTO: la foto accanto alle righe, per correggerle ─── */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileCheck className="h-4 w-4 text-primary" />
-                Documento DDT
-                {ddt.ddt_file_url && (
-                  <Badge variant="secondary" className="text-[10px]">
-                    caricato
-                  </Badge>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0 space-y-3">
-              {/* Hidden input per replace */}
-              <input
-                ref={replaceMainRef}
-                type="file"
-                accept="image/*,application/pdf"
-                className="sr-only"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f && ddt) {
-                    uploadMainDDT.mutate({ ddtId: ddt.id, file: f });
-                  }
-                  if (replaceMainRef.current) replaceMainRef.current.value = "";
-                }}
-              />
-
-              {fileDocumento.isError && <p role="alert" className="text-sm text-destructive">Non riesco ad aprire l’originale. <button type="button" className="underline" onClick={() => void fileDocumento.refetch()}>Riprova</button></p>}
-              {ddt.ddt_file_bucket ? <p className="text-sm text-muted-foreground">L’originale del fornitore è conservato nella sezione qui sopra. Puoi aggiungere gli altri documenti negli allegati.</p> : ddt.ddt_file_url && ddt.ddt_file_name && ddt.ddt_file_mime && fileDocumento.data && !ddt.ddt_file_bucket ? (
-                <DDTMainFilePreview
-                  url={fileDocumento.data ?? ""}
-                  name={ddt.ddt_file_name}
-                  mime={ddt.ddt_file_mime}
-                  onReplace={onReplaceMainClick}
-                  onDelete={() => {
-                    updateDDT.mutate({
-                      id: ddt.id,
-                      updates: {
-                        ddt_file_url: null,
-                        ddt_file_name: null,
-                        ddt_file_mime: null,
-                        ddt_file_bucket: null,
-                      },
-                    });
-                  }}
-                />
-              ) : (
-                <DDTAttachmentUploader
-                  title="Carica il DDT cartaceo"
-                  description="Fotografa il documento ricevuto dal corriere o carica il PDF. Resta il documento di riferimento."
-                  defaultKind="ddt"
-                  multiple={false}
-                  isUploading={uploadMainDDT.isPending}
-                  onFilesSelected={(files) => {
-                    const first = files[0];
-                    if (first && ddt) {
-                      uploadMainDDT.mutate({ ddtId: ddt.id, file: first.file });
-                    }
-                  }}
-                />
-              )}
-            </CardContent>
-          </Card>
-
-          {/* ─── 2-bis. ALLEGATI ─── */}
-          <Card>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Paperclip className="h-4 w-4" />
-                  Allegati
-                  <Badge variant="secondary" className="text-xs">
-                    {attachments.length}
-                  </Badge>
-                </CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0 space-y-3">
-              {attachments.length > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                  {attachments.map((att) => (
-                    <DDTFilePreview
-                      key={att.path}
-                      url={att.url}
-                      name={att.name}
-                      mime={att.mime}
-                      size={att.size}
-                      kind={att.kind}
-                      uploadedAt={att.uploaded_at}
-                      onDelete={() =>
-                        deleteAttachment.mutate({
-                          ddtId: ddt.id,
-                          path: att.path,
-                        })
-                      }
-                    />
-                  ))}
-                </div>
-              )}
-
-              <AttachmentUploaderInline
-                uploading={uploadAttachments.isPending}
-                onSubmit={(files) => {
-                  uploadAttachments.mutate({ ddtId: ddt.id, files });
-                }}
-              />
-            </CardContent>
-          </Card>
+          {/* ─── 2. I DOCUMENTI: l'originale in cima, poi gli allegati ───
+              11/11/2026 — Erano due schede con due caricatori grandi
+              («Documento DDT» e «Allegati»): ora un elenco e un pulsante.
+              I prezzi dalla fattura stanno nei Collegamenti, vicino alla
+              fattura: ripeterli qui era una terza scheda per la stessa cosa. */}
+          <DocumentiBollaCard
+            key={`documenti:${ddt.id}`}
+            ddt={ddt}
+            fileUrl={fileDocumento.data}
+            fileErrore={fileDocumento.isError}
+            onRiprovaFile={() => void fileDocumento.refetch()}
+            allegati={attachments}
+            inCaricamento={uploadMainDDT.isPending || uploadAttachments.isPending}
+            onCaricaOriginale={(file) => uploadMainDDT.mutate({ ddtId: ddt.id, file })}
+            onRimuoviOriginale={() =>
+              updateDDT.mutate({
+                id: ddt.id,
+                updates: {
+                  ddt_file_url: null,
+                  ddt_file_name: null,
+                  ddt_file_mime: null,
+                  ddt_file_bucket: null,
+                },
+              })
+            }
+            onCaricaAllegati={(files) => uploadAttachments.mutate({ ddtId: ddt.id, files })}
+            onEliminaAllegato={(path) => deleteAttachment.mutate({ ddtId: ddt.id, path })}
+          />
 
           {/* ─── 3. TORNA CON L'ORDINE? ricezioni per articolo e articoli dell'ODA ─── */}
           {(!(ddt.ricezione_esplicita || consegneDocumento.data?.length) || receipts.length > 0) && <Card>
@@ -1751,45 +1624,3 @@ const TRASPORTO_ETICHETTA: Record<"fornitore" | "noi" | "terzi", string> = {
   noi: "ritirata da noi",
   terzi: "portata da un corriere",
 };
-
-// ─── Uploader inline che include kind selector + DDTAttachmentUploader ──
-function AttachmentUploaderInline({
-  onSubmit,
-  uploading,
-}: {
-  uploading?: boolean;
-  onSubmit: (files: { file: File; kind: DDTAttachmentKind }[]) => void;
-}) {
-  const [kind, setKind] = useState<DDTAttachmentKind>("bolla");
-  return (
-    <div className="rounded-md border bg-muted/10 p-3 space-y-2.5">
-      <div className="flex items-center gap-2">
-        <Label className="text-xs shrink-0 flex items-center gap-1">
-          <ImageIcon className="h-3.5 w-3.5" /> Tipo allegato:
-        </Label>
-        <Select
-          value={kind}
-          onValueChange={(v) => setKind(v as DDTAttachmentKind)}
-        >
-          <SelectTrigger className="h-8 text-xs flex-1">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="bolla">Bolla di consegna</SelectItem>
-            <SelectItem value="packing_list">Packing list</SelectItem>
-            <SelectItem value="danni">Foto danni / non conformità</SelectItem>
-            <SelectItem value="firma">Firma ricevente</SelectItem>
-            <SelectItem value="altro">Altro</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <DDTAttachmentUploader
-        compact
-        defaultKind={kind}
-        multiple
-        isUploading={uploading}
-        onFilesSelected={onSubmit}
-      />
-    </div>
-  );
-}

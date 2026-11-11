@@ -10,7 +10,7 @@
 import { useState } from "react";
 import {
   FileText, FileImage, Download, ExternalLink, X, Trash2, ZoomIn,
-  Eye, File as FileIcon,
+  Eye, File as FileIcon, RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -427,6 +427,125 @@ export function DDTMainFilePreview({
         </div>
       </div>
 
+      <Lightbox
+        open={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        url={url}
+        name={name}
+        mime={mime}
+      />
+    </>
+  );
+}
+
+// ─── Riga compatta (elenco «Documenti della bolla», 11/11/2026) ──────────
+// Una riga alta quanto un pulsante: miniatura, nome, tipo, e le azioni. Prima
+// gli allegati erano riquadri 4:3 in griglia e l'originale una scheda a sé:
+// due caricatori grandi e mezza pagina per due file.
+interface DDTFileRigaProps {
+  url: string;
+  name: string;
+  mime: string;
+  size?: number;
+  /** Etichetta del tipo: «Bolla originale», «Packing list»… */
+  etichetta?: string;
+  kind?: DDTAttachmentKind;
+  evidenziata?: boolean;
+  onReplace?: () => void;
+  onDelete?: () => void;
+  /** Testo della conferma di rimozione. */
+  confermaRimozione?: string;
+}
+
+export function DDTFileRiga({
+  url,
+  name,
+  mime,
+  size,
+  etichetta,
+  kind,
+  evidenziata = false,
+  onReplace,
+  onDelete,
+  confermaRimozione,
+}: DDTFileRigaProps) {
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const canPreview = isImage(mime) || isPdf(mime);
+  const tipo = etichetta ?? (kind ? KIND_LABELS[kind] : undefined);
+  return (
+    <>
+      <li
+        className={cn(
+          "flex items-center gap-2.5 px-2.5 py-1.5",
+          evidenziata && "bg-primary/5",
+        )}
+      >
+        <button
+          type="button"
+          onClick={() => canPreview && setLightboxOpen(true)}
+          disabled={!canPreview}
+          aria-label={`Anteprima ${name}`}
+          className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded border bg-muted/40"
+        >
+          {isImage(mime) ? (
+            <img src={url} alt="" loading="lazy" className="h-full w-full object-cover" />
+          ) : isPdf(mime) ? (
+            <FileText className="h-4 w-4 text-rose-500" />
+          ) : (
+            <FileIcon className="h-4 w-4 text-muted-foreground" />
+          )}
+        </button>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium" title={name}>{name}</p>
+          <p className="text-[11px] text-muted-foreground">
+            {tipo && (
+              <span
+                className={cn(
+                  "mr-1.5 rounded border px-1 py-px font-medium",
+                  kind ? KIND_COLORS[kind] : "bg-primary/10 text-primary border-primary/30",
+                )}
+              >
+                {tipo}
+              </span>
+            )}
+            {size ? formatBytes(size) : null}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-0.5">
+          <Button type="button" variant="ghost" size="sm" asChild className="h-7 px-2 text-xs">
+            <a href={url} target="_blank" rel="noreferrer">
+              <ExternalLink className="h-3.5 w-3.5 sm:mr-1" />
+              <span className="hidden sm:inline">Apri</span>
+            </a>
+          </Button>
+          <a
+            href={url}
+            download={name}
+            title="Scarica"
+            aria-label={`Scarica ${name}`}
+            className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <Download className="h-3.5 w-3.5" />
+          </a>
+          {onReplace && (
+            <Button type="button" variant="ghost" size="sm" onClick={onReplace} className="h-7 px-2 text-xs" aria-label={`Sostituisci ${name}`}>
+              <RefreshCw className="h-3.5 w-3.5 sm:mr-1" />
+              <span className="hidden sm:inline">Sostituisci</span>
+            </Button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              title="Rimuovi"
+              aria-label={`Rimuovi ${name}`}
+              onClick={() => confirm(confermaRimozione ?? `Rimuovere ${name}?`) && onDelete()}
+              className="rounded p-1.5 text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      </li>
       <Lightbox
         open={lightboxOpen}
         onClose={() => setLightboxOpen(false)}

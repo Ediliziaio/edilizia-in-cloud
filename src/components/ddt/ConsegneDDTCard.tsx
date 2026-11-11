@@ -5,7 +5,7 @@ import {
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { CheckCircle2, PackageCheck, Loader2 } from "lucide-react";
+import { CheckCircle2, PackageCheck, Loader2, Info } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +49,10 @@ interface Articolo {
 const numero = (n: number) =>
   n.toLocaleString("it-IT", { maximumFractionDigits: 4 });
 const input = "h-10 w-full rounded-md border bg-background px-2 text-sm";
+// 11/11/2026 — Le spiegazioni erano due paragrafi fissi, sopra e sotto le
+// righe: ora stanno nel suggerimento dell'icona accanto al titolo.
+const SPIEGAZIONE =
+  "Conferma ciò che è arrivato davvero. In cantiere aggiorna gli articoli della commessa; in magazzino aggiorna la giacenza. Ricevuto e consumato restano distinti. Per dividere una riga fra cantiere e magazzino, conferma la prima quota e poi assegna il resto. I prezzi mancanti restano da definire: la consegna non crea una nuova fattura o un secondo costo.";
 
 export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
   const permessi = usePermissions();
@@ -297,17 +301,48 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <PackageCheck className="h-4 w-4 text-orange-600" />
-          Consegne e materiali
-        </CardTitle>
-        <p className="text-xs text-muted-foreground">
-          Conferma ciò che è arrivato davvero. In cantiere aggiorna gli articoli
-          della commessa; in magazzino aggiorna la giacenza. Ricevuto e
-          consumato restano distinti.
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <PackageCheck className="h-4 w-4 text-orange-600" />
+            Consegne e materiali
+            <span
+              title={SPIEGAZIONE}
+              aria-label={SPIEGAZIONE}
+              role="img"
+              className="cursor-help text-muted-foreground"
+            >
+              <Info className="h-3.5 w-3.5" />
+            </span>
+          </CardTitle>
+          {puoConfermare && aperte.length > 0 && !righe.isLoading && !consegne.isLoading && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8"
+              disabled={salva.isPending}
+              onClick={() => {
+                setSelezione((p) =>
+                  p.size === aperte.length
+                    ? new Set()
+                    : new Set(aperte.map((r) => r.id)),
+                );
+                setConfermo(false);
+              }}
+            >
+              {selezione.size === aperte.length
+                ? "Deseleziona"
+                : "Seleziona tutte"}
+            </Button>
+          )}
+        </div>
+        {puoConfermare && aperte.length > 0 && (
+          <p className="text-xs text-muted-foreground">
+            Spunta le righe arrivate davvero per confermarle.
+          </p>
+        )}
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
         {righe.isLoading || consegne.isLoading ? (
           <p className="text-sm text-muted-foreground">Caricamento consegne…</p>
         ) : consegne.isError || righe.isError ? (
@@ -323,17 +358,25 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
         ) : (
           <>
             {!!consegne.data?.length && (
-              <ul className="space-y-2 rounded-xl border bg-emerald-50/40 p-3">
+              <ul
+                className="divide-y rounded-md border bg-emerald-50/30"
+                aria-label="Consegne confermate"
+              >
                 {consegne.data.map((c) => (
-                  <li key={c.id} className="flex items-start gap-2 text-sm">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
-                    <div>
-                      <span className="font-medium">
+                  <li
+                    key={c.id}
+                    className="flex items-center gap-2 px-2.5 py-1.5 text-sm"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-700" />
+                    <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5">
+                      <span className="font-medium tabular-nums">
                         {numero(Number(c.quantita))} {c.unita_misura}
-                      </span>{" "}
-                      ·{" "}
-                      {righe.data?.find((r) => r.id === c.riga_id)?.descrizione}
-                      <p className="text-xs text-muted-foreground">
+                      </span>
+                      <span className="min-w-0 truncate">
+                        {righe.data?.find((r) => r.id === c.riga_id)
+                          ?.descrizione ?? ""}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
                         {c.tipo === "reso"
                           ? "Reso"
                           : c.tipo === "servizio"
@@ -353,7 +396,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                             </Link>
                           </>
                         )}
-                      </p>
+                      </span>
                     </div>
                   </li>
                 ))}
@@ -361,47 +404,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
             )}
             {puoConfermare && aperte.length > 0 && (
               <>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={salva.isPending}
-                    onClick={() => {
-                      setSelezione((p) =>
-                        p.size === aperte.length
-                          ? new Set()
-                          : new Set(aperte.map((r) => r.id)),
-                      );
-                      setConfermo(false);
-                    }}
-                  >
-                    {selezione.size === aperte.length
-                      ? "Deseleziona"
-                      : "Seleziona tutte"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={!selezione.size || salva.isPending}
-                    onClick={() => {
-                      setScelte((p) => ({
-                        ...p,
-                        ...Object.fromEntries(
-                          [...selezione].map((id) => [
-                            id,
-                            { ...p[id], articolo: "__nuovo__" },
-                          ]),
-                        ),
-                      }));
-                      setConfermo(false);
-                    }}
-                  >
-                    Crea nuovi articoli per le selezionate
-                  </Button>
-                </div>
-                <ul className="space-y-3">
+                <ul className="space-y-2">
                   {aperte.map((r) => {
                     const s = scelte[r.id] ?? {};
                     const dest = destinazioneDi(s);
@@ -427,10 +430,10 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                       "";
                     return (
                       <li
-                        className="space-y-3 rounded-xl border p-3"
+                        className={`space-y-3 rounded-md border px-2.5 py-2 ${selezione.has(r.id) ? "border-primary/40 bg-primary/5" : ""}`}
                         key={r.id}
                       >
-                        <label className="flex items-start gap-2 text-sm font-medium">
+                        <label className="flex cursor-pointer items-start gap-2 text-sm font-medium">
                           <input
                             type="checkbox"
                             className="mt-1 h-4 w-4"
@@ -449,7 +452,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                           />
                           <span>
                             {r.descrizione}
-                            <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                            <span className="block text-xs font-normal text-muted-foreground">
                               Da confermare:{" "}
                               {numero(
                                 Number(r.quantita) -
@@ -678,39 +681,61 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                     );
                   })}
                 </ul>
-                <p className="text-xs text-muted-foreground">
-                  Per dividere una riga fra cantiere e magazzino, conferma la
-                  prima quota e poi assegna il resto. I prezzi mancanti restano
-                  da definire: la consegna non crea una nuova fattura o un
-                  secondo costo.
-                </p>
-                <label className="flex items-start gap-2 rounded-lg bg-muted/40 p-3 text-sm">
-                  <input
-                    type="checkbox"
-                    className="mt-1 h-4 w-4"
-                    checked={confermo}
-                    disabled={!righeDaInviare.length || salva.isPending}
-                    onChange={(e) => setConfermo(e.target.checked)}
-                  />
-                  Ho controllato quantità, destinazione e articoli delle righe
-                  selezionate.
-                </label>
-                <Button
-                  type="button"
-                  disabled={
-                    !confermo ||
-                    !righeDaInviare.length ||
-                    salva.isPending ||
-                    catalogo.isError
-                  }
-                  onClick={() => salva.mutate()}
-                >
-                  {salva.isPending && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  )}
-                  Conferma {righeDaInviare.length}{" "}
-                  {righeDaInviare.length === 1 ? "consegna" : "consegne"}
-                </Button>
+                {/* Le azioni compaiono quando c'è qualcosa da confermare. */}
+                {selezione.size > 0 && (
+                  <div className="space-y-2 rounded-md border bg-muted/30 p-2.5">
+                    <label className="flex items-start gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4"
+                        checked={confermo}
+                        disabled={!righeDaInviare.length || salva.isPending}
+                        onChange={(e) => setConfermo(e.target.checked)}
+                      />
+                      Ho controllato quantità, destinazione e articoli delle
+                      righe selezionate.
+                    </label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={
+                          !confermo ||
+                          !righeDaInviare.length ||
+                          salva.isPending ||
+                          catalogo.isError
+                        }
+                        onClick={() => salva.mutate()}
+                      >
+                        {salva.isPending && (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        )}
+                        Conferma {righeDaInviare.length}{" "}
+                        {righeDaInviare.length === 1 ? "consegna" : "consegne"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={salva.isPending}
+                        onClick={() => {
+                          setScelte((p) => ({
+                            ...p,
+                            ...Object.fromEntries(
+                              [...selezione].map((id) => [
+                                id,
+                                { ...p[id], articolo: "__nuovo__" },
+                              ]),
+                            ),
+                          }));
+                          setConfermo(false);
+                        }}
+                      >
+                        Crea nuovi articoli per le selezionate
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </>
             )}
             {!aperte.length && !consegne.data?.length && (

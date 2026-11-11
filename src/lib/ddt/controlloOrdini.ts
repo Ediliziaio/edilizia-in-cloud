@@ -113,3 +113,17 @@ export function progressoOrdine(
     daCompletare: valide.length - complete,
   };
 }
+
+/**
+ * Che cosa dire quando non c'è niente da confrontare. 11/11/2026 — Il testo
+ * «Nessun ordine collegato» guardava le righe degli ordini, il chip accanto
+ * gli ordini: un ordine senza articoli li faceva comparire insieme («ODA-…»
+ * e «Nessun ordine collegato»). Ora sono due casi distinti.
+ */
+export function avvisoSenzaConfronto(
+  ordiniCollegati: number,
+  righeOrdine: number,
+): "nessun_ordine" | "ordine_senza_articoli" | null {
+  if (righeOrdine > 0) return null;
+  return ordiniCollegati > 0 ? "ordine_senza_articoli" : "nessun_ordine";
+}

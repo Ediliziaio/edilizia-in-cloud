@@ -8,7 +8,8 @@
 // Ordini: quello della testata più quelli legati dalle righe o a mano (la
 // vista ddt_ordini_collegati, già letta dal controllo ordini: stessa chiave,
 // nessuna chiamata in più). Commesse: quella della testata più quelle delle
-// consegne confermate, una per riga. Fattura del fornitore: da fattura_ddt.
+// consegne confermate, una per riga. Fattura del fornitore: da fattura_ddt,
+// col confronto dei prezzi (PrezziDaFatturaCard incorporata).
 // Che cosa si può cambiare lo decide `bloccoCollegamento`.
 // ============================================================================
 
@@ -29,6 +30,7 @@ import { Label } from "@/components/ui/label";
 import { SupplierSelect } from "@/components/orders/SupplierSelect";
 import { OrderSelectCombobox } from "@/components/warehouse/OrderSelectCombobox";
 import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
+import { PrezziDaFatturaCard } from "@/components/ddt/PrezziDaFatturaCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useConsegneDDT } from "@/hooks/useConsegneDDT";
 import { useControlloOrdiniDDT } from "@/hooks/useControlloOrdiniDDT";
@@ -321,15 +323,23 @@ export function CollegamentiDDTCard({
                   ))}
                 </ul>
               )}
-              {modificabile && !collegaFattura && (
-                ddt.supplier_id ? (
-                  <button type="button" onClick={() => setCollegaFattura(true)} className="mt-1 text-xs text-primary hover:underline">
-                    Collega una fattura
-                  </button>
-                ) : (
-                  <p className="mt-1 text-xs text-muted-foreground">Indica il fornitore per collegare la fattura.</p>
-                )
-              )}
+              {/* «Confronta una fattura» (prezzi dalla fattura) sta qui, vicino
+                  alla fattura, dall'11/11/2026: prima era una scheda a sé. */}
+              <PrezziDaFatturaCard
+                ddt={ddt}
+                incorporato
+                altreAzioni={
+                  modificabile && !collegaFattura ? (
+                    ddt.supplier_id ? (
+                      <button type="button" onClick={() => setCollegaFattura(true)} className="text-xs text-primary hover:underline">
+                        Collega una fattura
+                      </button>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Indica il fornitore per collegare la fattura.</span>
+                    )
+                  ) : null
+                }
+              />
               {collegaFattura && ddt.supplier_id && (
                 <ScegliFattura ddt={ddt} onChiudi={() => setCollegaFattura(false)} />
               )}

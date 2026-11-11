@@ -29,7 +29,11 @@ import { useControlloOrdiniDDT } from "@/hooks/useControlloOrdiniDDT";
 import { useConsegneDDT } from "@/hooks/useConsegneDDT";
 import { useDDTRighe, type DDTRicezione } from "@/hooks/useDDTRicezione";
 import { usePermissions } from "@/hooks/usePermissions";
-import { controllaOrdini, progressoOrdine } from "@/lib/ddt/controlloOrdini";
+import {
+  avvisoSenzaConfronto,
+  controllaOrdini,
+  progressoOrdine,
+} from "@/lib/ddt/controlloOrdini";
 import { documentiDb as db } from "@/lib/ddt/documentiPersistenti";
 import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 import { ProposteOrdiniDDT } from "./ProposteOrdiniDDT";
@@ -169,6 +173,10 @@ export function ControlloOrdiniDDTCard({ ddt }: { ddt: DDTRicezione }) {
     consegne.data ?? [],
   );
   const progresso = progressoOrdine(risultati);
+  const avviso = avvisoSenzaConfronto(
+    controllo.data?.ordini.length ?? 0,
+    risultati.length,
+  );
   const errore = controllo.isError || righe.isError || consegne.isError;
   const caricamento =
     controllo.isLoading || righe.isLoading || consegne.isLoading;
@@ -396,10 +404,11 @@ export function ControlloOrdiniDDTCard({ ddt }: { ddt: DDTRicezione }) {
               Riprova
             </button>
           </p>
-        ) : !risultati.length ? (
+        ) : avviso ? (
           <p className="rounded-lg bg-slate-50 p-3 text-sm text-muted-foreground">
-            Nessun ordine collegato. Puoi collegarlo oppure registrare questa
-            consegna senza OdA.
+            {avviso === "nessun_ordine"
+              ? "Nessun ordine collegato. Puoi collegarlo oppure registrare questa consegna senza OdA."
+              : `${(controllo.data?.ordini.length ?? 0) > 1 ? "Gli ordini collegati non hanno" : "L’ordine collegato non ha"} articoli da confrontare: aggiungili nell’ordine, oppure conferma la consegna qui sotto senza confronto.`}
           </p>
         ) : (
           <>

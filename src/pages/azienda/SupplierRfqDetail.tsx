@@ -7,6 +7,9 @@ import { RdoCondizioniOfferta } from "@/components/acquisti/RdoCondizioniOfferta
 import { attivitaRdo, oggiLocale } from "@/lib/acquisti/attivita";
 import { confrontoOfferta, TRASPORTO_LABELS } from "@/lib/acquisti/confronto";
 import { RdoDettagliCard } from "@/components/rdo/RdoDettagliCard";
+import { EtichettaStatoVoce, StatoVoceCella } from "@/components/rdo/StatoVoceCella";
+import { aggiornamentoStatoVoce, statoVoceOfferta } from "@/lib/acquisti/statoVoceOfferta";
+import { STATO_RIGA_FORNITORE, statoRigaFornitore, totaleOffertoProposto } from "@/lib/acquisti/rigaFornitoreRdo";
 import { useQuery } from "@tanstack/react-query";
 import { OdaFornitoreCard } from "@/components/orders/OdaFornitoreCard";
 import type { Supplier } from "@/lib/suppliers/anagraficaFornitore";
@@ -40,7 +43,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  ArrowLeft, Plus, Trash2, Send, Trophy, Mail, ExternalLink, AlertTriangle,
+  ArrowLeft, Plus, Trash2, Send, Trophy, Mail, ExternalLink, AlertTriangle, ChevronRight,
   FileQuestion, Users, ClipboardList, Scale, CheckCircle2, Sparkles, MoreHorizontal, Paperclip, Inbox, FileDown, Loader2, Eye,
 } from "lucide-react";
 import {
@@ -62,7 +65,7 @@ import { buildRdoEmailBody, buildRdoEmailSubject } from "@/lib/rdoEmail";
 import { descrizioneConMisure } from "@/lib/acquisti/misureSuDocumenti";
 import { ControlloDocumentoCard } from "@/components/orders/ControlloDocumentoCard";
 import {
-  RDO_STATUS_LABELS, RDO_STATUS_COLORS, RDO_FORNITORE_LABELS, RDO_FORNITORE_COLORS,
+  RDO_STATUS_LABELS, RDO_STATUS_COLORS,
 } from "@/lib/rdoStatus";
 import { formatCurrency } from "@/lib/formatters";
 import { toast } from "sonner";
@@ -107,6 +110,9 @@ export default function SupplierRfqDetail() {
   const [previewFor,setPreviewFor]=useState<RfqSupplier|null>(null);
   const [editingOffers,setEditingOffers]=useState<string[]>([]);
   const [nuovoFornitore, setNuovoFornitore] = useState("");
+  // Un fornitore aperto alla volta; con un solo fornitore è aperto da subito.
+  // undefined = nessuna scelta fatta ancora.
+  const [fornitoreAperto, setFornitoreAperto] = useState<string | null | undefined>(undefined);
   const [inviaA, setInviaA] = useState<RfqSupplier | null>(null);
   const [aggiudicaA, setAggiudicaA] = useState<RfqSupplier | null>(null);
   const [estraiDa, setEstraiDa] = useState<RfqSupplier | null>(null);
@@ -199,6 +205,8 @@ export default function SupplierRfqDetail() {
   const senzaPrezzi = letturaSenzaPrezzi();
   const chiusa = senzaPrezzi || rfq.status === "aggiudicata" || rfq.status === "annullata";
   const haRisposte = fornitori.some((f) => f.status === "risposta");
+  const fornitoreApertoId =
+    fornitoreAperto === undefined ? (fornitori.length === 1 ? fornitori[0].id : null) : fornitoreAperto;
   const confrontoVisibile = !senzaPrezzi && fornitori.length > 0 && items.length > 0;
 
   const composeContext = (f: RfqSupplier): ComposeContext => {
@@ -428,8 +436,10 @@ export default function SupplierRfqDetail() {
                           const q = quotes.find((x) => x.rfq_item_id === it.id && x.rfq_supplier_id === f.id);
                           const tot = totaleRigaOfferta(q, Number(it.quantita));
                           const vince = migliorePerRiga[it.id] === f.id;
+                          const stato = statoVoceOfferta(q);
                           return (
                             <td key={f.id} className={`p-1 ${vince ? "bg-emerald-50" : ""}`}>
+                              <div className="flex items-center gap-0.5">
                               <Input
                                 // la chiave segue il valore salvato: un prezzo letto dall'AI
                                 // compare nella cella (con defaultValue restava «—», e uscendo
@@ -441,7 +451,7 @@ export default function SupplierRfqDetail() {
                                 defaultValue={chiusa && q?.prezzo_unitario != null ? Number(q.prezzo_unitario).toFixed(2) : q?.prezzo_unitario ?? ""}
                                 placeholder="—"
                                 disabled={chiusa}
-                                className={`h-8 text-sm text-right ${vince ? "font-semibold text-emerald-700" : ""}`}
+                                className={`h-8 min-w-0 text-sm text-right ${vince ? "font-semibold text-emerald-700" : ""}`}
                                 aria-label={`Prezzo offerto da ${f.suppliers?.name || "fornitore"} per ${it.descrizione}`}
                                 min="0"
                                 onBlur={async (e) => {
@@ -459,7 +469,23 @@ export default function SupplierRfqDetail() {
                                   }
                                 }}
                               />
-                              <select className="mt-1 h-7 w-full rounded border border-slate-200 bg-white px-1 text-[10px] text-slate-600" aria-label={`Disponibilità ${it.descrizione} da ${f.suppliers?.name}`} disabled={chiusa || setQuote.isPending} value={!q?"da_quotare":q.disponibile?"disponibile":"non_disponibile"} onChange={e=>setQuote.mutate({rfq_supplier_id:f.id,rfq_item_id:it.id,updates:e.target.value==="da_quotare"?{disponibile:true,prezzo_unitario:null}:{disponibile:e.target.value==="disponibile"}})}><option value="da_quotare" disabled={!!q}>Da quotare</option><option value="disponibile">Disponibile</option><option value="non_disponibile">Non disponibile</option></select>
+                              {/* 11/11/2026 — Era una tendina «Disponibile» in ogni cella:
+                                  ora la voce quotata è disponibile, le eccezioni si
+                                  scelgono dal comando accanto al prezzo. */}
+                              <StatoVoceCella
+                                stato={stato}
+                                etichettaAccessibile={`Disponibilità ${it.descrizione} da ${f.suppliers?.name ?? "fornitore"}`}
+                                disabled={chiusa || setQuote.isPending}
+                                onChange={(nuovo) =>
+                                  setQuote.mutate({
+                                    rfq_supplier_id: f.id,
+                                    rfq_item_id: it.id,
+                                    updates: aggiornamentoStatoVoce(nuovo, q?.note),
+                                  })
+                                }
+                              />
+                              </div>
+                              <div className="pr-5 text-right"><EtichettaStatoVoce stato={stato} /></div>
                               {tot != null && (
                                 <span className="block text-[10px] text-slate-400 text-right pr-1 mt-0.5">
                                   {formatCurrency(tot)}
@@ -567,32 +593,70 @@ export default function SupplierRfqDetail() {
             </CardHeader>
             <CardContent className="pt-0">
             {erroreAnagrafiche && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-800">Impossibile caricare i recapiti aggiornati dei fornitori. <Button variant="link" size="sm" onClick={()=>void ricaricaAnagrafiche()}>Riprova</Button></p>}
-            <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-1 [&>*]:min-w-0">
+            <div className="space-y-2 [&>*]:min-w-0">
               {fornitori.length === 0 && (
                 <p className="text-xs text-slate-500">
                   Nessun fornitore. Chiedere a due o tre è il modo più semplice per non
                   pagare troppo.
                 </p>
               )}
-              {fornitori.map((f) => (
-                <div key={f.id} className="min-w-0 rounded-lg border border-slate-200 p-2.5 space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-900 truncate">
-                        {f.suppliers?.name ?? "Fornitore"}
-                      </p>
-                      <p className="text-[11px] text-slate-500 truncate">
+              {fornitori.map((f) => {
+                const aperto = fornitoreApertoId === f.id;
+                const statoRiga = STATO_RIGA_FORNITORE[statoRigaFornitore(f, rfq.scadenza_offerte, oggiLocale())];
+                const c = confronti[f.id];
+                const proposto = totaleOffertoProposto(
+                  f.totale_offerto,
+                  c?.totale,
+                  f.trasporto_tipo === "extra" ? Number(f.costo_trasporto ?? 0) : 0,
+                );
+                const nome = f.suppliers?.name ?? "Fornitore";
+                return (
+                <div key={f.id} className={`min-w-0 rounded-lg border ${aperto ? "border-slate-300" : "border-slate-200"}`} data-testid="riga-fornitore-rdo">
+                  {/* 11/11/2026 — Una riga per fornitore: nome, stato, totale,
+                      consegna e «Scegli questo». Il resto (PDF, email,
+                      condizioni, offerta) si apre con un clic, uno alla volta. */}
+                  <div className="flex items-center gap-1.5 px-2 py-1.5">
+                    <button
+                      type="button"
+                      className="flex min-w-0 flex-1 items-center gap-2 rounded px-1 py-0.5 text-left hover:bg-slate-50"
+                      aria-expanded={aperto}
+                      aria-controls={`rdo-fornitore-${f.id}`}
+                      aria-label={`Dettagli ${nome}`}
+                      onClick={() => setFornitoreAperto(aperto ? null : f.id)}
+                    >
+                      <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${aperto ? "rotate-90" : ""}`} />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className="truncate text-sm font-semibold text-slate-900">{nome}</span>
+                          <Badge className={`${statoRiga.colore} shrink-0 px-1.5 py-0 text-[10px] font-medium`}>{statoRiga.etichetta}</Badge>
+                        </span>
+                        <span className="block truncate text-[11px] tabular-nums text-slate-500">
+                          {senzaPrezzi ? null : c?.totale != null ? <span className="font-medium text-slate-800">{formatCurrency(c.totale)}</span> : "totale —"}
+                          {senzaPrezzi ? null : " · "}
+                          {f.giorni_consegna != null ? `consegna ${f.giorni_consegna} gg` : "consegna —"}
+                        </span>
+                      </span>
+                    </button>
+                    {!chiusa && f.status === "risposta" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 shrink-0 px-2 text-xs"
+                        disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || updateFornitore.isPending || setQuote.isPending}
+                        onClick={() => setAggiudicaA(f)}
+                      >
+                        <Trophy className="h-3 w-3 sm:mr-1" /><span className="hidden sm:inline">Scegli questo</span><span className="sr-only sm:hidden">Scegli {nome}</span>
+                      </Button>
+                    )}
+                  </div>
+                  {aperto && (
+                  <div id={`rdo-fornitore-${f.id}`} className="space-y-2 border-t border-slate-100 px-2.5 pb-2.5 pt-2">
+                  <p className="text-[11px] text-slate-500">
                         {f.inviata_at
                           ? `Chiesta${f.inviata_via ? ` per ${CANALE_RICHIESTA_LABELS[f.inviata_via]}` : ""} il ${dataIt(f.inviata_at)}`
                           : f.suppliers?.email ?? "nessuna email in anagrafica"}
-                      </p>
-                    </div>
-                    <Badge className={`${RDO_FORNITORE_COLORS[f.status] ?? ""} text-[10px] shrink-0`}>
-                      {RDO_FORNITORE_LABELS[f.status] ?? f.status}
-                    </Badge>
-                  </div>
-
-                  <div className="flex flex-wrap gap-1.5 border-t border-slate-100 pt-2">
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
                     <Button size="sm" variant="outline" className="h-8 text-xs" disabled={loadingAnagrafiche || erroreAnagrafiche || editingOffers.some(id=>fornitori.some(f=>f.id===id)) || editingRfqId===rfq.id || updateRfq.isPending || updateFornitore.isPending || addItem.isPending || updateItem.isPending || deleteItem.isPending} onClick={()=>setPreviewFor(f)} aria-label={`Anteprima PDF per ${f.suppliers?.name??"fornitore"}`}><Eye className="mr-1 h-3.5 w-3.5"/>Anteprima PDF</Button>
                     <Button size="sm" variant="outline" className="h-8 text-xs" disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || !!downloadingFor || loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || updateRfq.isPending || updateFornitore.isPending || addItem.isPending || updateItem.isPending || deleteItem.isPending} onClick={()=>void downloadPdf(f)} aria-label={`Scarica PDF per ${f.suppliers?.name ?? "fornitore"}`}>{downloadingFor === f.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin"/> : <FileDown className="mr-1 h-3.5 w-3.5"/>}Scarica PDF</Button>
                     {!chiusa && <><Button size="sm" variant="outline" className="h-8 text-xs" disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || items.length===0 || addItem.isPending || updateItem.isPending || deleteItem.isPending || updateRfq.isPending || updateFornitore.isPending} onClick={()=>{setSendMode("testo");setInviaA(f);}} aria-label={`Email con testo a ${f.suppliers?.name ?? "fornitore"}`}><Mail className="mr-1 h-3.5 w-3.5"/>Email con testo</Button><Button size="sm" className="h-8 text-xs" disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || items.length===0 || addItem.isPending || updateItem.isPending || deleteItem.isPending || updateRfq.isPending || updateFornitore.isPending} onClick={()=>{setSendMode("pdf");setInviaA(f);}} aria-label={`Email con PDF a ${f.suppliers?.name ?? "fornitore"}`}><Paperclip className="mr-1 h-3.5 w-3.5"/>Email con PDF</Button></>}
@@ -659,7 +723,11 @@ export default function SupplierRfqDetail() {
                           className="h-7 text-xs"
                           disabled={chiusa}
                           aria-label={`Totale offerto ${f.suppliers?.name}`}
+                          aria-describedby={proposto && proposto.origine !== "scritto" ? `rdo-totale-proposto-${f.id}` : undefined}
                           min="0"
+                          // Non scritto a mano: si propone la somma delle voci,
+                          // senza salvarla (vedi totaleOffertoProposto).
+                          placeholder={proposto && proposto.origine !== "scritto" ? formatCurrency(proposto.valore) : undefined}
                           defaultValue={f.totale_offerto ?? ""}
                           onBlur={(e) => {
                             const v = e.target.value === "" ? null : Number(e.target.value);
@@ -669,6 +737,11 @@ export default function SupplierRfqDetail() {
                             }
                           }}
                         />
+                        {proposto && proposto.origine !== "scritto" && (
+                          <p id={`rdo-totale-proposto-${f.id}`} className="mt-0.5 text-[10px] text-slate-500">
+                            {proposto.origine === "voci_e_trasporto" ? "dalla somma delle voci e del trasporto" : "dalla somma delle voci"}
+                          </p>
+                        )}
                       </div>
                       {/* finisce nell'ordine fornitore all'aggiudicazione */}
                       <div>
@@ -728,17 +801,6 @@ export default function SupplierRfqDetail() {
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                    )}
-                    {!chiusa && f.status === "risposta" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs flex-1"
-                        disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || updateFornitore.isPending || setQuote.isPending}
-                        onClick={() => setAggiudicaA(f)}
-                      >
-                        <Trophy className="h-3 w-3 mr-1" /> Scegli questo
-                      </Button>
                     )}
                     {/* La lettura AI del preventivo: propone i prezzi nella
                         griglia, l'umano conferma. Sempre disponibile: anche chi
@@ -815,8 +877,11 @@ export default function SupplierRfqDetail() {
                       </Button>
                     )}
                   </div>
+                  </div>
+                  )}
                 </div>
-              ))}
+                );
+              })}
 
               {!chiusa && (
                 <div className="flex gap-2 pt-1">
@@ -842,7 +907,7 @@ export default function SupplierRfqDetail() {
       </div>
 
       {/* Invio al singolo fornitore: stesso compositore del resto dell'app. */}
-      <StoricoAcquistiCard tipo="rdo" id={rfq.id} revisionKey={JSON.stringify([rfq,items,fornitori,quotes])}/>
+      <StoricoAcquistiCard tipo="rdo" id={rfq.id} rigaSeVuoto revisionKey={JSON.stringify([rfq,items,fornitori,quotes])}/>
       {previewFor&&<DocumentoAnteprimaDialog documento={documentoInvio(previewFor)} onClose={()=>setPreviewFor(null)}/>}
       {inviaA && (
         <DocumentoEmailDialog

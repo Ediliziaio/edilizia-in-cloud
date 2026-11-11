@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Receipt, Loader2 } from "lucide-react";
@@ -26,7 +26,21 @@ interface Valore {
   prezzo_unitario: number;
   fatture_ricevute?: { numero_fattura: string };
 }
-export function PrezziDaFatturaCard({ ddt }: { ddt: DDTRicezione }) {
+export function PrezziDaFatturaCard({
+  ddt,
+  incorporato = false,
+  altreAzioni,
+}: {
+  ddt: DDTRicezione;
+  /**
+   * Dentro la voce «Fattura del fornitore» dei Collegamenti, senza scheda né
+   * spiegazione (11/11/2026): la sezione a sé ripeteva la fattura che i
+   * Collegamenti mostrano già. Il confronto è lo stesso.
+   */
+  incorporato?: boolean;
+  /** Azioni da mettere sulla stessa riga del pulsante (es. «Collega una fattura»). */
+  altreAzioni?: ReactNode;
+}) {
   const p = usePermissions();
   const qc = useQueryClient();
   const visibile = p.canViewCosts || p.canManagePurchasing;
@@ -130,7 +144,249 @@ export function PrezziDaFatturaCard({ ddt }: { ddt: DDTRicezione }) {
     onError: (e: Error) =>
       toast.error("Prezzi non aggiornati", { description: e.message }),
   });
-  if (!visibile) return null;
+  if (!visibile)
+    return incorporato && altreAzioni ? (
+      <div className="mt-1 flex flex-wrap gap-x-3">{altreAzioni}</div>
+    ) : null;
+  const precedenti = (
+    <>
+      {!!valori.data?.length && (
+        <ul className="divide-y rounded-xl border px-3">
+          {valori.data.map((v) => (
+            <li key={v.id} className="py-2 text-xs">
+              {righe.data?.find((r) => r.id === v.riga_id)?.descrizione} ·{" "}
+              {Number(v.quantita).toLocaleString("it-IT")} ×{" "}
+              {Number(v.prezzo_unitario).toLocaleString("it-IT", {
+                style: "currency",
+                currency: "EUR",
+              })}{" "}
+              ·{" "}
+              <Link
+                className="underline"
+                to={`/azienda/documenti/fatture-ricevute?cerca=${encodeURIComponent(v.fatture_ricevute?.numero_fattura ?? "")}`}
+              >
+                Fattura
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+      {valori.isError && (
+        <p role="alert" className="text-destructive">
+          Confronti precedenti non disponibili.{" "}
+          <button className="underline" onClick={() => void valori.refetch()}>
+            Riprova
+          </button>
+        </p>
+      )}
+    </>
+  );
+  const confronto = (
+    <>
+      {aperto && (
+        <fieldset
+          disabled={salva.isPending || valori.isError}
+          className="space-y-3"
+        >
+          <label className="block space-y-1 text-xs">
+            Cerca per numero o data
+            <Input
+              value={ricerca}
+              onChange={(e) => {
+                setRicerca(e.target.value);
+                setFattura("");
+                setConfermo(false);
+              }}
+              placeholder="Numero della fattura"
+            />
+          </label>
+          <label className="block space-y-1 text-xs">
+            Fattura dello stesso fornitore
+            <select
+              className="h-10 w-full rounded-md border bg-background px-2 text-sm"
+              value={fattura}
+              onChange={(e) => {
+                setFattura(e.target.value);
+                setConfermo(false);
+              }}
+            >
+              <option value="">
+                {fatture.isLoading ? "Caricamento…" : "Seleziona la fattura"}
+              </option>
+              {fatture.data?.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.numero_fattura} · {f.data_fattura} ·{" "}
+                  {f.cedente_ragione_sociale}
+                </option>
+              ))}
+            </select>
+          </label>
+          {(fatture.data?.length ?? 0) >= 100 && (
+            <p className="text-xs text-muted-foreground">
+              Mostrate le prime 100 fatture del fornitore. Cerca il numero o la
+              data per trovare quelle precedenti.
+            </p>
+          )}
+          {fatture.isError && (
+            <p className="text-destructive">
+              Fatture non disponibili.{" "}
+              <button
+                type="button"
+                className="underline"
+                onClick={() => void fatture.refetch()}
+              >
+                Riprova
+              </button>
+            </p>
+          )}
+          {!ddt.supplier_id && (
+            <p className="text-amber-800">
+              Associa prima il fornitore della bolla.
+            </p>
+          )}
+          {fatture.isSuccess && !fatture.data?.length && (
+            <p className="text-muted-foreground">
+              Nessuna fattura trovata per questo fornitore. Importa prima
+              l’originale nella sezione Fatture ricevute.
+            </p>
+          )}
+          <ul className="space-y-2">
+            {righe.data?.map((r) => {
+              const v = bozze[r.id];
+              return (
+                <li className="space-y-2 rounded-lg border p-3" key={r.id}>
+                  <label className="flex items-start gap-2">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={selezionate.has(r.id)}
+                      onChange={(e) => {
+                        const c = e.target.checked;
+                        setSelezionate((p) => {
+                          const n = new Set(p);
+                          if (c) n.add(r.id);
+                          else n.delete(r.id);
+                          return n;
+                        });
+                        setConfermo(false);
+                      }}
+                    />
+                    {r.descrizione}
+                  </label>
+                  {selezionate.has(r.id) && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="text-xs">
+                        Quantità fatturata ({r.unita_misura})
+                        <Input
+                          aria-label={`Quantità fatturata ${r.descrizione}`}
+                          inputMode="decimal"
+                          value={v?.q ?? String(r.quantita ?? "")}
+                          onChange={(e) => {
+                            setBozze((p) => ({
+                              ...p,
+                              [r.id]: {
+                                q: e.target.value,
+                                prezzo: p[r.id]?.prezzo ?? "",
+                              },
+                            }));
+                            setConfermo(false);
+                          }}
+                        />
+                      </label>
+                      <label className="text-xs">
+                        Prezzo unitario IVA esclusa
+                        <Input
+                          aria-label={`Prezzo in fattura ${r.descrizione}`}
+                          inputMode="decimal"
+                          value={v?.prezzo ?? ""}
+                          placeholder="Da fattura"
+                          onChange={(e) => {
+                            setBozze((p) => ({
+                              ...p,
+                              [r.id]: {
+                                q: p[r.id]?.q ?? String(r.quantita ?? ""),
+                                prezzo: e.target.value,
+                              },
+                            }));
+                            setConfermo(false);
+                          }}
+                        />
+                      </label>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          <label className="flex items-start gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={confermo}
+              onChange={(e) => setConfermo(e.target.checked)}
+            />
+            Ho confrontato le righe con la fattura originale. I prezzi sono
+            unitari e al netto dell’IVA.
+          </label>
+          <Button
+            disabled={
+              !confermo || !fattura || !selezionate.size || salva.isPending
+            }
+            onClick={() => salva.mutate()}
+          >
+            {salva.isPending && (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            )}
+            Salva il confronto prezzi
+          </Button>
+        </fieldset>
+      )}
+    </>
+  );
+  if (incorporato)
+    return (
+      <div className="space-y-2">
+        {!!valori.data?.length && (
+          <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+            {valori.data.map((v) => (
+              <li key={v.id} className="truncate">
+                {righe.data?.find((r) => r.id === v.riga_id)?.descrizione} ·{" "}
+                {Number(v.quantita).toLocaleString("it-IT")} ×{" "}
+                {Number(v.prezzo_unitario).toLocaleString("it-IT", {
+                  style: "currency",
+                  currency: "EUR",
+                })}
+              </li>
+            ))}
+          </ul>
+        )}
+        {valori.isError && (
+          <p role="alert" className="text-xs text-destructive">
+            Confronti precedenti non disponibili.{" "}
+            <button className="underline" onClick={() => void valori.refetch()}>
+              Riprova
+            </button>
+          </p>
+        )}
+        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+          {altreAzioni}
+          {modificabile && (
+            <button
+              type="button"
+              className="text-xs text-primary hover:underline"
+              aria-expanded={aperto}
+              onClick={() => setAperto((v) => !v)}
+            >
+              {aperto ? "Chiudi confronto" : "Confronta una fattura"}
+            </button>
+          )}
+        </div>
+        {aperto && (
+          <div className="rounded-md border bg-muted/20 p-2 text-sm">
+            {confronto}
+          </div>
+        )}
+      </div>
+    );
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -146,35 +402,7 @@ export function PrezziDaFatturaCard({ ddt }: { ddt: DDTRicezione }) {
           commessa e dei carichi di magazzino. La contabilizzazione e la
           ripartizione del costo restano nella fattura.
         </p>
-        {!!valori.data?.length && (
-          <ul className="divide-y rounded-xl border px-3">
-            {valori.data.map((v) => (
-              <li key={v.id} className="py-2 text-xs">
-                {righe.data?.find((r) => r.id === v.riga_id)?.descrizione} ·{" "}
-                {Number(v.quantita).toLocaleString("it-IT")} ×{" "}
-                {Number(v.prezzo_unitario).toLocaleString("it-IT", {
-                  style: "currency",
-                  currency: "EUR",
-                })}{" "}
-                ·{" "}
-                <Link
-                  className="underline"
-                  to={`/azienda/documenti/fatture-ricevute?cerca=${encodeURIComponent(v.fatture_ricevute?.numero_fattura ?? "")}`}
-                >
-                  Fattura
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-        {valori.isError && (
-          <p role="alert" className="text-destructive">
-            Confronti precedenti non disponibili.{" "}
-            <button className="underline" onClick={() => void valori.refetch()}>
-              Riprova
-            </button>
-          </p>
-        )}
+        {precedenti}
         {modificabile && (
           <Button
             variant="outline"
@@ -184,163 +412,7 @@ export function PrezziDaFatturaCard({ ddt }: { ddt: DDTRicezione }) {
             {aperto ? "Chiudi confronto" : "Confronta una fattura"}
           </Button>
         )}
-        {aperto && (
-          <fieldset
-            disabled={salva.isPending || valori.isError}
-            className="space-y-3"
-          >
-            <label className="block space-y-1 text-xs">
-              Cerca per numero o data
-              <Input
-                value={ricerca}
-                onChange={(e) => {
-                  setRicerca(e.target.value);
-                  setFattura("");
-                  setConfermo(false);
-                }}
-                placeholder="Numero della fattura"
-              />
-            </label>
-            <label className="block space-y-1 text-xs">
-              Fattura dello stesso fornitore
-              <select
-                className="h-10 w-full rounded-md border bg-background px-2 text-sm"
-                value={fattura}
-                onChange={(e) => {
-                  setFattura(e.target.value);
-                  setConfermo(false);
-                }}
-              >
-                <option value="">
-                  {fatture.isLoading ? "Caricamento…" : "Seleziona la fattura"}
-                </option>
-                {fatture.data?.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.numero_fattura} · {f.data_fattura} ·{" "}
-                    {f.cedente_ragione_sociale}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {(fatture.data?.length ?? 0) >= 100 && (
-              <p className="text-xs text-muted-foreground">
-                Mostrate le prime 100 fatture del fornitore. Cerca il numero o
-                la data per trovare quelle precedenti.
-              </p>
-            )}
-            {fatture.isError && (
-              <p className="text-destructive">
-                Fatture non disponibili.{" "}
-                <button
-                  type="button"
-                  className="underline"
-                  onClick={() => void fatture.refetch()}
-                >
-                  Riprova
-                </button>
-              </p>
-            )}
-            {!ddt.supplier_id && (
-              <p className="text-amber-800">
-                Associa prima il fornitore della bolla.
-              </p>
-            )}
-            {fatture.isSuccess && !fatture.data?.length && (
-              <p className="text-muted-foreground">
-                Nessuna fattura trovata per questo fornitore. Importa prima
-                l’originale nella sezione Fatture ricevute.
-              </p>
-            )}
-            <ul className="space-y-2">
-              {righe.data?.map((r) => {
-                const v = bozze[r.id];
-                return (
-                  <li className="space-y-2 rounded-lg border p-3" key={r.id}>
-                    <label className="flex items-start gap-2">
-                      <input
-                        type="checkbox"
-                        className="mt-1"
-                        checked={selezionate.has(r.id)}
-                        onChange={(e) => {
-                          const c = e.target.checked;
-                          setSelezionate((p) => {
-                            const n = new Set(p);
-                            if (c) n.add(r.id);
-                            else n.delete(r.id);
-                            return n;
-                          });
-                          setConfermo(false);
-                        }}
-                      />
-                      {r.descrizione}
-                    </label>
-                    {selezionate.has(r.id) && (
-                      <div className="grid grid-cols-2 gap-2">
-                        <label className="text-xs">
-                          Quantità fatturata ({r.unita_misura})
-                          <Input
-                            aria-label={`Quantità fatturata ${r.descrizione}`}
-                            inputMode="decimal"
-                            value={v?.q ?? String(r.quantita ?? "")}
-                            onChange={(e) => {
-                              setBozze((p) => ({
-                                ...p,
-                                [r.id]: {
-                                  q: e.target.value,
-                                  prezzo: p[r.id]?.prezzo ?? "",
-                                },
-                              }));
-                              setConfermo(false);
-                            }}
-                          />
-                        </label>
-                        <label className="text-xs">
-                          Prezzo unitario IVA esclusa
-                          <Input
-                            aria-label={`Prezzo in fattura ${r.descrizione}`}
-                            inputMode="decimal"
-                            value={v?.prezzo ?? ""}
-                            placeholder="Da fattura"
-                            onChange={(e) => {
-                              setBozze((p) => ({
-                                ...p,
-                                [r.id]: {
-                                  q: p[r.id]?.q ?? String(r.quantita ?? ""),
-                                  prezzo: e.target.value,
-                                },
-                              }));
-                              setConfermo(false);
-                            }}
-                          />
-                        </label>
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-            <label className="flex items-start gap-2 text-xs">
-              <input
-                type="checkbox"
-                checked={confermo}
-                onChange={(e) => setConfermo(e.target.checked)}
-              />
-              Ho confrontato le righe con la fattura originale. I prezzi sono
-              unitari e al netto dell’IVA.
-            </label>
-            <Button
-              disabled={
-                !confermo || !fattura || !selezionate.size || salva.isPending
-              }
-              onClick={() => salva.mutate()}
-            >
-              {salva.isPending && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              Salva il confronto prezzi
-            </Button>
-          </fieldset>
-        )}
+        {confronto}
       </CardContent>
     </Card>
   );

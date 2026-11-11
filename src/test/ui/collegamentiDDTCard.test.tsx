@@ -136,3 +136,21 @@ it("con righe ancora da consegnare propone di dividerle su più commesse", () =>
   fireEvent.click(screen.getByRole("button", { name: "Dividi le righe su più commesse" }));
   expect(vai).toHaveBeenCalled();
 });
+
+// 11/11/2026 — «Prezzi e fattura del fornitore» era una scheda a sé che
+// ripeteva la fattura: il confronto ora si apre dai Collegamenti, vicino alla
+// fattura, ed è lo stesso (stessi campi, stessa conferma, stessa chiamata).
+it("«Confronta una fattura» sta nei Collegamenti, accanto a «Collega una fattura»", async () => {
+  m.righe = [{ id: "r1", descrizione: "Rete", quantita: 2, unita_misura: "mq", movimento_id: null, arrivo_registrato_il: null }];
+  apri();
+  expect(await screen.findByText("n. FT-88")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Collega una fattura" })).toBeInTheDocument();
+  expect(screen.queryByText("Prezzi e fattura del fornitore")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Confronta una fattura" }));
+  expect(screen.getByLabelText("Cerca per numero o data")).toBeInTheDocument();
+  expect(screen.getByLabelText("Fattura dello stesso fornitore")).toBeInTheDocument();
+  expect(screen.getByText(/Ho confrontato le righe con la fattura originale/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Salva il confronto prezzi" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "Chiudi confronto" }));
+  expect(screen.queryByLabelText("Cerca per numero o data")).not.toBeInTheDocument();
+});

@@ -20,10 +20,16 @@ export function StoricoAcquistiCard({
   tipo,
   id,
   revisionKey,
+  rigaSeVuoto = false,
 }: {
   tipo: "oda" | "rdo";
   id: string;
   revisionKey?: string;
+  /**
+   * Senza eventi, una riga sola invece della scheda con titolo, spiegazione
+   * e «Nessun evento registrato» (richiesta d'offerta, 11/11/2026).
+   */
+  rigaSeVuoto?: boolean;
 }) {
   const { effectiveCompany } = useAuth();
   const [limite, setLimite] = useState(20);
@@ -52,6 +58,30 @@ export function StoricoAcquistiCard({
       return data ?? [];
     },
   });
+  if (rigaSeVuoto && !q.isError && (q.isLoading || !q.data?.length))
+    return (
+      <section
+        aria-label="Storico invii e revisioni"
+        className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs text-slate-500"
+      >
+        <History className="h-3.5 w-3.5 shrink-0 text-orange-500" />
+        <span className="min-w-0 flex-1 truncate">
+          <span className="font-medium text-slate-700">
+            Storico invii e revisioni
+          </span>
+          {q.isLoading ? " · caricamento…" : " · ancora nessun invio o modifica"}
+        </span>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2 text-xs"
+          disabled={q.isFetching}
+          onClick={() => void q.refetch()}
+        >
+          Aggiorna
+        </Button>
+      </section>
+    );
   return (
     <section
       aria-label="Storico invii e revisioni"

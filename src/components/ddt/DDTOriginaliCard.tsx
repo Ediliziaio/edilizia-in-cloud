@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Download, ExternalLink } from "lucide-react";
+import { FileText, Download, ExternalLink, Eye } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -11,11 +11,19 @@ import {
 export function DDTOriginaliCard({
   ddtId,
   companyId,
+  incorporato = false,
 }: {
   ddtId: string;
   companyId: string;
+  /**
+   * Righe di un elenco (<li>) invece di una scheda: è la prima voce di
+   * «Documenti della bolla» (11/11/2026). L'anteprima grande si apre a
+   * richiesta, non occupa più 36rem di pagina.
+   */
+  incorporato?: boolean;
 }) {
   const [pagina, setPagina] = useState(0);
+  const [anteprima, setAnteprima] = useState<number | null>(null);
   const q = useQuery({
     queryKey: ["ddt-originali", companyId, ddtId],
     staleTime: 40 * 60 * 1000,
@@ -57,6 +65,78 @@ export function DDTOriginaliCard({
   });
   const file = q.data?.[pagina] ?? q.data?.[0];
   if (!q.isError && !q.isLoading && !q.data?.length) return null;
+  if (incorporato) {
+    if (q.isLoading)
+      return <li className="px-2.5 py-2 text-xs text-muted-foreground">Apertura dell’originale…</li>;
+    if (q.isError)
+      return (
+        <li role="alert" className="px-2.5 py-2 text-sm text-destructive">
+          Non riesco ad aprire l’originale.{" "}
+          <button className="underline" onClick={() => void q.refetch()}>
+            Riprova
+          </button>
+        </li>
+      );
+    const tutte = q.data ?? [];
+    return (
+      <>
+        {tutte.map((f, i) => (
+          <li key={f.path} className="bg-primary/5">
+            <div className="flex items-center gap-2.5 px-2.5 py-1.5">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded border bg-background">
+                <FileText className="h-4 w-4 text-primary" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium" title={f.name}>{f.name}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  <span className="mr-1.5 rounded border border-primary/30 bg-primary/10 px-1 py-px font-medium text-primary">
+                    Bolla originale
+                  </span>
+                  {tutte.length > 1 ? `pagina ${i + 1} di ${tutte.length}` : null}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-0.5 text-xs">
+                <button
+                  type="button"
+                  aria-expanded={anteprima === i}
+                  aria-label={`Anteprima ${f.name}`}
+                  onClick={() => setAnteprima(anteprima === i ? null : i)}
+                  className="inline-flex h-7 items-center gap-1 rounded px-2 hover:bg-muted"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">{anteprima === i ? "Chiudi" : "Anteprima"}</span>
+                </button>
+                <a
+                  className="inline-flex h-7 items-center gap-1 rounded px-2 hover:bg-muted"
+                  href={f.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Apri</span>
+                  <span className="sr-only sm:hidden">Apri originale</span>
+                </a>
+                <a
+                  className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  href={f.url}
+                  download={f.name}
+                  title="Scarica originale"
+                  aria-label="Scarica originale"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </a>
+              </div>
+            </div>
+            {anteprima === i && (
+              <div className="px-2.5 pb-2.5">
+                <AnteprimaOriginale file={f} />
+              </div>
+            )}
+          </li>
+        ))}
+      </>
+    );
+  }
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -118,29 +198,41 @@ export function DDTOriginaliCard({
                   </a>
                 </div>
               </div>
-              {file.mimePreview === "application/pdf" ? (
-                <iframe
-                  title={`Originale ${file.name}`}
-                  src={file.preview}
-                  className="h-[36rem] w-full rounded-lg border bg-white"
-                />
-              ) : /image\/hei[cf]/.test(file.mimePreview) ? (
-                <p className="rounded-lg border bg-muted/30 p-4 text-sm">
-                  Foto HEIC originale conservata. Usa “Apri originale” o
-                  “Scarica originale” per visualizzarla sul dispositivo.
-                </p>
-              ) : (
-                <img
-                  loading="lazy"
-                  alt={`Originale ${file.name}`}
-                  src={file.preview}
-                  className="max-h-[45rem] w-full rounded-lg border bg-white object-contain"
-                />
-              )}
+              <AnteprimaOriginale file={file} />
             </>
           )
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function AnteprimaOriginale({
+  file,
+}: {
+  file: { name: string; preview: string; url: string; mimePreview: string };
+}) {
+  return (
+    <>
+      {file.mimePreview === "application/pdf" ? (
+        <iframe
+          title={`Originale ${file.name}`}
+          src={file.preview}
+          className="h-[36rem] w-full rounded-lg border bg-white"
+        />
+      ) : /image\/hei[cf]/.test(file.mimePreview) ? (
+        <p className="rounded-lg border bg-muted/30 p-4 text-sm">
+          Foto HEIC originale conservata. Usa “Apri originale” o
+          “Scarica originale” per visualizzarla sul dispositivo.
+        </p>
+      ) : (
+        <img
+          loading="lazy"
+          alt={`Originale ${file.name}`}
+          src={file.preview}
+          className="max-h-[45rem] w-full rounded-lg border bg-white object-contain"
+        />
+      )}
+    </>
   );
 }
