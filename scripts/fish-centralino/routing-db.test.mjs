@@ -3,6 +3,8 @@ const A='11111111-1111-4111-8111-111111111111',B='22222222-2222-4222-8222-222222
 test('Fish routing: free operator leases, retry isolation, scoped sales outcomes and exactly-once notes',async()=>{const db=new PGlite();try{
  await db.exec(`CREATE ROLE anon;CREATE ROLE authenticated;CREATE ROLE service_role BYPASSRLS;CREATE FUNCTION utente_bloccato() RETURNS boolean LANGUAGE sql AS $$ SELECT false $$;
  CREATE SCHEMA auth;CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;CREATE FUNCTION user_can_access_company(c uuid) RETURNS boolean LANGUAGE sql AS $$ SELECT c=nullif(current_setting('request.jwt.claim.company_id',true),'')::uuid $$;CREATE TABLE companies(id uuid PRIMARY KEY);CREATE TABLE profiles(id uuid PRIMARY KEY,company_id uuid,first_name text,last_name text);
+ -- Unrelated CRM prerequisites are present so the recovered migration guards execute.
+ CREATE TABLE ai_fish_crm_trials(id uuid PRIMARY KEY);CREATE TABLE ticket_ai_actions(id uuid PRIMARY KEY);
  CREATE TABLE ai_agents_v2(id uuid,company_id uuid,tools_config jsonb);CREATE TABLE ai_fish_agents(agent_id uuid,company_id uuid,transfer_destinations jsonb);
  CREATE TABLE marketing_contacts(id uuid PRIMARY KEY,company_id uuid,phone text,country text,deleted_at timestamptz);
  CREATE TABLE marketing_opportunities(id uuid PRIMARY KEY,company_id uuid,contact_id uuid,status text,notes text,next_action text,last_activity_at timestamptz,updated_at timestamptz,deleted_at timestamptz,stage_id text,value numeric);
