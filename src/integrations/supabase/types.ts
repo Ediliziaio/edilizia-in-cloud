@@ -50848,6 +50848,9 @@ export type Database = {
           booking_slug: string | null
           buffer_after_min: number
           buffer_before_min: number
+          team_calendar_ids: string[]
+          team_assignment_strategy: string
+          team_member_priorities: Json
           calendar_type: string
           color: string | null
           company_id: string
@@ -50891,6 +50894,9 @@ export type Database = {
           booking_slug?: string | null
           buffer_after_min?: number
           buffer_before_min?: number
+          team_calendar_ids?: string[]
+          team_assignment_strategy?: string
+          team_member_priorities?: Json
           calendar_type?: string
           color?: string | null
           company_id: string
@@ -50934,6 +50940,9 @@ export type Database = {
           booking_slug?: string | null
           buffer_after_min?: number
           buffer_before_min?: number
+          team_calendar_ids?: string[]
+          team_assignment_strategy?: string
+          team_member_priorities?: Json
           calendar_type?: string
           color?: string | null
           company_id?: string

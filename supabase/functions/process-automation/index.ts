@@ -1,3 +1,4 @@
+import {prenotaSuCalendario} from "../_shared/calendarioPrenotazione.ts";
 // Cambio piano in _shared/changeCompanyPlan.ts: lo stato dell'azienda segue il piano (30/10/2026).
 /**
  * process-automation — esegue i nodi delle automazioni (trigger, delay, azioni).
@@ -175,6 +176,10 @@ async function handleTrigger(supabase: any, body: any) {
     .eq("status", "published")
     .is("deleted_at", null);
   if (body.manual_flow_id) flowQuery = flowQuery.eq("id", body.manual_flow_id);
+  if (trigger_event === "webhook_received") {
+    if (typeof payload?._webhook_flow_id === "string" && /^[a-f0-9-]{36}$/i.test(payload._webhook_flow_id)) flowQuery=flowQuery.eq("id",payload._webhook_flow_id);
+    else if (!body.manual_flow_id) return jsonResponse({error:"Webhook senza automazione di destinazione"},400);
+  }
   const { data: flows, error: flowErr } = await flowQuery;
 
   if (flowErr) throw flowErr;
@@ -239,6 +244,7 @@ async function handleTrigger(supabase: any, body: any) {
     contatto_creato: "contact_created",
     contatto_aggiornato: "contact_updated",
     campo_custom_aggiornato: "custom_field_updated",
+    webhook_in: "webhook_received",
     // Trigger CRM riattivati/aggiunti (audit automazioni 2026-07-02):
     contatto_assegnato: "contact_assigned",
     tag_aggiunto: "tag_added",
@@ -3146,7 +3152,7 @@ Istruzione: ${aiPrompt}`;
         try {
           const c = await fissaChiamataDaFascia(supabase, {
             companyId, calendarId, contactId: appointmentContact.id,
-            messaggio: String(pPayload.message ?? ""), titolo: ncfg.titolo ? rv(String(ncfg.titolo)) : undefined,
+            requestKey:queueItem?.id?`queue:${queueItem.id}`:undefined, messaggio: String(pPayload.message ?? ""), titolo: ncfg.titolo ? rv(String(ncfg.titolo)) : undefined,
           });
           pPayload.giorno_chiamata = c.giornoEsteso;
           pPayload.ora_chiamata = c.ora;
@@ -3163,6 +3169,10 @@ Istruzione: ${aiPrompt}`;
       // Giorno ITALIANO, non UTC (convenzione anti UTC-drift).
       const appointmentDateStr = new Date(Date.now() + giorniDaOggi * 86_400_000)
         .toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+      if(calendarId){
+        const booking=await prenotaSuCalendario(supabase,{calendarId,companyId,dataIso:appointmentDateStr,ora:String(appointmentTime),contactId:appointmentContact.id,opportunityId:null,titolo:title,descrizione:"Creato dall’automazione",tipo:ncfg.tipo||"in_sede",requestKey:queueItem?.id?`queue:${queueItem.id}`:undefined});
+        return booking.ok?{success:true,output:{action:"crea_appuntamento",appuntamento_id:booking.appointmentId,esistente:booking.duplicate??false}}:{success:false,error:booking.messaggio};
+      }
       const { data, error } = await supabase.from("appointments").insert({
         company_id: companyId,
         title,

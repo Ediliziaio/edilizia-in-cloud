@@ -17,6 +17,7 @@
 
 // deno-lint-ignore-file no-explicit-any
 
+import {hashWebhookSecret} from "../_shared/inboundAutomationWebhook.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
@@ -138,13 +139,12 @@ Deno.serve(async (req) => {
       nome, cognome,
       slug,
     });
-    const { data: creato, error: insErr } = await admin.from("appointments").insert({
-      calendar_id: cal.id,
-      company_id: cal.company_id,
+    const {data:appointmentId,error:insErr}=await admin.rpc("reserve_calendar_booking",{
+      p_calendar_id:cal.id,p_company_id:cal.company_id,p_data:data,p_inizio:`${ora}:00`,p_fine:`${fineStr}:00`,
+      p_buffer_prima:cal.buffer_before_min??0,p_buffer_dopo:cal.buffer_after_min??0,p_durata_min:durata,
+      p_riga:{
+      request_key: "public:"+await hashWebhookSecret(`${cal.id}|${contactId}|${data}|${ora}`),
       contact_id: contactId,
-      appointment_date: data,
-      appointment_time: `${ora}:00`,
-      appointment_end_time: `${fineStr}:00`,
       title: `${titolo} — ${cal.name}`,
       description: [
         email && `Email: ${email}`,
@@ -163,8 +163,14 @@ Deno.serve(async (req) => {
       booking_email: email || null,
       // La conferma la manda questa funzione: il giro dei promemoria non la ripete.
       conferma_inviata_at: new Date().toISOString(),
-    }).select("id").single();
-    if (insErr) throw insErr;
+    }});
+    if(insErr)throw insErr;
+    if(!appointmentId)return json({error:"Questo orario è stato appena preso: scegline un altro."},409);
+    const creato={id:typeof appointmentId==="string"?appointmentId:String(appointmentId.id)};
+    if(appointmentId.duplicate)return json({ok:true,appointment_id:creato.id,duplicate:true,email_cliente:false,avviso_titolare:false});
+    const {data:responsabile,error:responsabileError}=await admin.from("appointments").select("assigned_to").eq("id",creato.id).eq("company_id",cal.company_id).single();
+    if(responsabileError)console.warn("[public-booking-crea] lettura responsabile:",responsabileError.message);
+    cal.owner_id=responsabileError?null:(responsabile?.assigned_to??null);
 
     // Sul Google/Apple Calendar del responsabile, subito: prima l'appuntamento
     // restava solo in EiC e il commerciale non lo vedeva sul telefono.

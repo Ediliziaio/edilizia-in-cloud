@@ -60,6 +60,7 @@ Deno.serve(async (req) => {
       .select("id, name, description, company_id, duration_minutes, owner_id, booking_slug, buffer_before_min, buffer_after_min, min_notice_minutes, max_per_day, slot_interval_min, link_videochiamata, whatsapp_numero_id, firma_messaggi, mittente_nome, mittente_email")
       .eq("id", app.calendar_id).maybeSingle();
     if (!cal) return json({ error: "Calendario non disponibile." }, 404);
+    cal.owner_id=app.assigned_to??cal.owner_id;
 
     const durata = cal.duration_minutes || 30;
     const adessoRoma = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Rome" }));
@@ -141,19 +142,12 @@ Deno.serve(async (req) => {
       return json({ error: "Questo orario non è più disponibile: scegline un altro." }, 409);
     }
 
-    const { error: updErr } = await admin.from("appointments").update({
-      appointment_date: data,
-      appointment_time: `${ora}:00`,
-      appointment_end_time: `${orarioDa(fine)}:00`,
-      status: "confermato",
-      reminder_24h_at: null,
-      reminder_1h_at: null,
-      reminder_5m_at: null,
-      // Lo spostamento lo comunica già questa funzione (email e WhatsApp):
-      // col timbro il giro dei promemoria non rimanda anche la conferma.
-      conferma_inviata_at: new Date().toISOString(),
-    }).eq("id", app.id);
-    if (updErr) throw updErr;
+    const {data:spostato,error:updErr}=await admin.rpc("prenota_su_calendario_con_blocco",{
+      p_calendar_id:cal.id,p_company_id:cal.company_id,p_data:data,p_inizio:`${ora}:00`,p_fine:`${orarioDa(fine)}:00`,
+      p_buffer_prima:cal.buffer_before_min??0,p_buffer_dopo:cal.buffer_after_min??0,p_durata_min:durata,p_riga:{appointment_id:app.id},
+    });
+    if(updErr)throw updErr;
+    if(!spostato)return json({error:"Questo orario è stato appena preso: scegline un altro."},409);
     // Lo spostamento arriva anche sul calendario esterno (se l'evento non c'era
     // ancora, update risponde 404 e il giro dei 15 minuti lo crea).
     await sincronizzaCalendariEsterni({ azione: "update-event", appointmentId: app.id, companyId: app.company_id, userId: app.assigned_to ?? cal.owner_id ?? null });

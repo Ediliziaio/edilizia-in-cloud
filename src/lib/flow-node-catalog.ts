@@ -113,6 +113,7 @@ export interface ConditionDefinition {
 // ALL outputVariables use REAL DB column names
 
 export const TRIGGER_CATALOG: TriggerDefinition[] = [
+  {id:'webhook_in',label:'Webhook in ingresso',description:'Riceve eventi autenticati da un servizio esterno. Mapping, segreto e registro in Impostazioni → Webhook in ingresso.',icon:'Webhook',categoria:'crm',configSchema:[{id:'webhook_endpoint_id',label:'Ingresso webhook',type:'text',required:true}],outputVariables:[{id:'webhook_event_id',label:'ID evento esterno',type:'string'},{id:'message',label:'Messaggio mappato',type:'string'}]},
 
   // ═══ CRM & CONTATTI ═══
   {
@@ -1927,7 +1928,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
         { value: 'sopralluogo', label: 'Sopralluogo' }, { value: 'video_call', label: 'Video call' },
         { value: 'telefonata', label: 'Telefonata' }, { value: 'in_sede', label: 'In sede' },
       ]},
-      { id: 'assegnato_a', label: 'Responsabile', type: 'user_select', required: false },
+      { id: 'assegnato_a', label: 'Responsabile', type: 'user_select', required: false, helpText: 'Senza calendario: responsabile indicato qui. Con calendario: usa la persona disponibile scelta dal calendario, rispettando la rotazione della squadra.' },
     ],
   },
   {

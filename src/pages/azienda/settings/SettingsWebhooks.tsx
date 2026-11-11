@@ -1,3 +1,4 @@
+import {InboundAutomationWebhooks} from '@/components/settings/InboundAutomationWebhooks';
 import { useState } from "react";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { useAuth } from "@/contexts/AuthContext";
@@ -610,6 +611,8 @@ export default function SettingsWebhooks() {
 
   return (
     <div className="space-y-5">
+      <InboundAutomationWebhooks companyId={companyId} canManage={canManageWebhooks}/>
+
       {/* La verità su cosa fa questa pagina, per prima. `send-webhook` è invocata da due soli posti: il pulsante «Prova»
           qui sotto e il rinvio manuale di un invio. Nessun evento del prodotto — ordine creato, opportunità vinta,
           pagamento ricevuto — la chiama. Chi costruisse un'integrazione sugli eventi sottoscritti resterebbe in

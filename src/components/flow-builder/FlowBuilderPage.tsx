@@ -1498,6 +1498,7 @@ export function FlowBuilderPage() {
         {/* Right panel — only in builder tab */}
         {activeTab === "builder" && rightPanelOpen && (
           <WorkflowRightPanel
+            flowId={flowId}
             mode={rightPanelMode}
             catalogTab={catalogTab}
             catalogContext={catalogContext}

@@ -40,7 +40,7 @@ const aperte = funzioniSenzaJwt(config);
  */
 const CONTROLLI: Record<string, RegExp> = {
   aiutante:
-    /\b(requireAuth|requireRole|requireCompanyAccess|requireInternalSecret|isInternalRequest|cronSecretValido|chiamataInternaValida|verifyServiceRoleOrSuperAdmin|verificaFirmaElevenLabs|chiaveUrlValida)\s*\(/,
+    /\b(requireAuth|requireRole|requireCompanyAccess|requireInternalSecret|isInternalRequest|cronSecretValido|chiamataInternaValida|verifyServiceRoleOrSuperAdmin|verificaFirmaElevenLabs|chiaveUrlValida|inboundWebhookHandler)\s*\(/,
   utente: /\bauth\s*\.\s*(getClaims|getUser)\s*\(/,
   autorizzazioneInArrivo: /headers\s*\.\s*get\(\s*["'`]authorization["'`]\s*\)/i,
   intestazioneSegreta:
@@ -89,6 +89,7 @@ const PUBBLICHE_DI_PROPOSITO: Record<string, string> = {
   "public-checkout": "pagina pubblica /offerta/:slug: crea l'azienda bloccata finché Stripe non conferma il pagamento",
   "public-lead-submit": "modulo contatti del sito pubblico: il visitatore è anonimo per definizione",
   "public-chat-widget": "chat incorporata nei siti dei clienti: widget_token dell'azienda, limite per visitatore e IP",
+  "public-booking-slots": "sola lettura degli orari: risolve solo uno slug pubblico attivo, senza accettare azienda o assegnatario",
   "public-booking-crea": "prenotazione da /prenota/:slug: vale solo per calendari pubblici e attivi, regole lato server",
   "public-booking-gestisci": "il cliente sposta o disdice dal link personale: il token vale per quel solo appuntamento",
   "form-render": "mostra un modulo pubblico incorporabile: sola lettura della configurazione del modulo",

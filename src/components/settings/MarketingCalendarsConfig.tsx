@@ -49,6 +49,9 @@ type MarketingCalendar = {
   reminder_1h?: boolean | null;
   max_daily_km: number | null;
   calendar_type: string;
+  team_calendar_ids?: string[];
+  team_member_priorities?: Record<string, number>;
+  team_assignment_strategy?: "round_robin" | "priority";
   booking_slug: string | null;
   is_active: boolean;
   owner_id: string | null;
@@ -200,6 +203,7 @@ export default function MarketingCalendarsConfig() {
     const calendarType = ["personal", "team", "event"].includes(data.calendar_type) ? data.calendar_type : "personal";
     const meetingProvider = data.default_meeting_provider === "google_meet" ? "google_meet" : "none";
 
+    if(calendarType==="team"&&!(data.team_calendar_ids?.length))throw new Error("Scegli almeno un calendario personale per la squadra.");
     if (!name) throw new Error("Inserisci un nome calendario.");
     if (!bookingSlug) throw new Error("Scrivi la parte finale del link, per esempio sopralluogo-milano.");
     if (!Number.isFinite(duration) || duration <= 0 || duration > 24 * 60) {
@@ -427,6 +431,9 @@ export default function MarketingCalendarsConfig() {
         mittente_email: data.mittente_email.trim().toLowerCase() || null,
         max_daily_km: maxDailyKm,
         calendar_type: calendarType,
+        team_calendar_ids: calendarType==="team"?(data.team_calendar_ids??[]):[],
+        team_assignment_strategy: data.team_assignment_strategy??"round_robin",
+        team_member_priorities: calendarType==="team"?(data.team_member_priorities??{}):{},
         default_meeting_provider: meetingProvider,
         default_meeting_enabled: meetingProvider === "google_meet",
         group_name: null,
@@ -501,6 +508,9 @@ export default function MarketingCalendarsConfig() {
         owner_id: data.owner_id || null,
         booking_slug: bookingSlug,
         calendar_type: calendarType,
+        team_calendar_ids: calendarType==="team"?(data.team_calendar_ids??[]):[],
+        team_assignment_strategy: data.team_assignment_strategy??"round_robin",
+        team_member_priorities: calendarType==="team"?(data.team_member_priorities??{}):{},
         default_meeting_provider: meetingProvider,
         default_meeting_enabled: meetingProvider === "google_meet",
         duration_minutes: duration,
@@ -703,7 +713,7 @@ export default function MarketingCalendarsConfig() {
   // base — chiederlo come "da completare" creava rumore inutile.
   const getConfigWarnings = (cal: MarketingCalendar) => {
     const warnings: string[] = [];
-    if (!cal.owner_id) warnings.push("responsabile");
+    if(cal.calendar_type==="team"){if(!cal.team_calendar_ids?.length)warnings.push("partecipanti squadra");}else if (!cal.owner_id) warnings.push("responsabile");
     if (!cal.booking_slug) warnings.push("link");
     if (!cal.duration_minutes || cal.duration_minutes <= 0) warnings.push("durata");
     // Senza fasce attive il link pubblico non propone alcun orario.
