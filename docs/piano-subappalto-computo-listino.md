@@ -486,3 +486,5 @@ Aggiornamento dell'11/11/2026, dopo la prova:
 - Il previsto scritto a mano torna quando si tolgono tutte le voci (`20290218120000`, colonna `cost_preventivo_manuale`): il limite sopra è chiuso.
 - Un contratto in firma non si elimina (`20290218130000`): prima si annulla la richiesta.
 - Listino PDF letto dall'AI provato con un PDF generato, senza colonna quantità: 4 righe su 4.
+
+Firma elettronica (11/11/2026, richiesta del titolare, vale per tutte le firme di `FirmaDocumento`): un'unica spunta prima del codice (documento, clausole 1341 nominate una per una, recesso, privacy); col codice giusto il documento è firmato, senza altri passaggi. Il server continua a pretendere clausole, recesso e privacy. Resta solo l'identificazione della firma avanzata, dove è attiva. Nell'app l'esito arriva da solo in circa 8 secondi mentre una firma è aperta.

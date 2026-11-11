@@ -19,7 +19,8 @@ describe("firma FEA: informativa privacy", () => {
   });
   it("la pagina pubblica la mostra e blocca il pulsante finché non è spuntata", () => {
     const f = leggi("src/pages/public/FirmaDocumento.tsx");
-    expect(f).toContain("sessione.informativa_privacy && !privacyAccettata");
-    expect(f).toContain("privacy_accettata: sessione?.informativa_privacy ? privacyAccettata : null");
+    expect(f).toContain("Ho letto l&apos;informativa privacy.");
+    expect(f).toContain("disabled={invioOtpInCorso || !accettato}");
+    expect(f).toContain("privacy_accettata: sessione?.informativa_privacy ? accettato : null");
   });
 });
