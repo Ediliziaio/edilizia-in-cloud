@@ -29,7 +29,8 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { contoTabella, destinoContratto, elencoUnito, prezzoDalVenduto, righeContratto, type RigaTabella } from "@/lib/subappaltatori/affidaEContratto";
 import { useAffidamentiCommessa } from "./AffidaVociDialog";
-import { useVociPrevisteFasi } from "@/hooks/useVociPrevisteFasi";
+import { chiaveVociPreviste, useVociPrevisteFasi } from "@/hooks/useVociPrevisteFasi";
+import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
 import { OfficeSelect } from "./OfficeSelect";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -90,7 +91,11 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
     for (const v of voci) m.set(v.id, statoVoce({ ...v, importo: v.importo, costo_materiali: v.costo_materiali }, lista).residua);
     return m;
   }, [voci, lista]);
-  const libere = useMemo(() => voci.filter((v) => (residua.get(v.id) ?? 0) > 0.0005), [voci, residua]);
+  // Revisione dell'11/11/2026: una quota in bozza della stessa ditta (da «Chi fa cosa» o da un tentativo non finito)
+  // fa parte della riga. Prima affida_voci la sommava alla quantità scritta e il contratto riportava il doppio.
+  const proprieBozza = useMemo(() => new Map(lista.filter((a) => a.subappaltatore_id === ditta && a.stato === "bozza" && !a.contratto_id).map((a) => [a.voce_id, a])), [lista, ditta]);
+  const residuaRiga = (id: string) => (residua.get(id) ?? 0) + (proprieBozza.get(id)?.quantita ?? 0);
+  const libere = useMemo(() => voci.filter((v) => (residua.get(v.id) ?? 0) + (proprieBozza.get(v.id)?.quantita ?? 0) > 0.0005), [voci, residua, proprieBozza]);
   const gruppi = useMemo(() => {
     const q = cerca.trim().toLowerCase();
     return [...fasi].sort((a, b) => (a.position ?? 0) - (b.position ?? 0)).map((f) => ({
@@ -116,7 +121,8 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
     // (una porta tagliafuoco presa per «Posa porta interna»). Nessuna si usa senza il «Sì» di chi affida.
     return a?.confermata ? a.tariffaId : null;
   };
-  const sceltiOrdinati = useMemo(() => voci.filter((v) => scelte.has(v.id)), [voci, scelte]);
+  // Solo le voci ancora libere: una voce affidata nel frattempo non resta scelta e invisibile (bloccava i pulsanti).
+  const sceltiOrdinati = useMemo(() => libere.filter((v) => scelte.has(v.id)), [libere, scelte]);
   const chiavePrezzi = sceltiOrdinati.map((v) => `${v.id}:${tariffaUsata(v.id) ?? ""}`).join(",");
   const proposti = useQuery({
     queryKey: ["affidamento-prezzi-proposti", orderId, ditta, chiavePrezzi],
@@ -152,8 +158,12 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
     return () => clearTimeout(t);
   }, [sceltiOrdinati, orderId]);
 
-  const quantitaDi = (v: VoceAffidabile) => (quantita[v.id] != null ? parseAssignmentAmount(quantita[v.id], 3) : residua.get(v.id) ?? 0);
-  const prezzoDi = (id: string) => (prezzi[id] != null ? (prezzi[id].trim() ? parseAssignmentAmount(prezzi[id], 4) : null) : proposti.data?.get(id)?.prezzo ?? null);
+  const quantitaDi = (v: VoceAffidabile) => (quantita[v.id] != null ? parseAssignmentAmount(quantita[v.id], 3) : residuaRiga(v.id));
+  // Il prezzo si legge al centesimo («1.250» = 1.250 €); con più decimali si legge lo stesso, e la riga lo segnala.
+  const leggiPrezzo = (t: string) => (t.trim() ? parseAssignmentAmount(t, 2) ?? parseAssignmentAmount(t, 4) : null);
+  // Quello proposto dal listino si arrotonda al centesimo, come fa il database sulle quote.
+  const proposto = (id: string) => { const p = proposti.data?.get(id)?.prezzo; return p == null ? null : Math.round(p * 100) / 100; };
+  const prezzoDi = (id: string) => (prezzi[id] != null ? leggiPrezzo(prezzi[id]) : proposto(id));
   const righe: RigaTabella[] = sceltiOrdinati.map((v) => ({ voceId: v.id, quantita: quantitaDi(v), prezzo: prezzoDi(v.id), descrizione: testi[v.id] ?? null }));
   /** Scrive il prezzo nelle righe scelte: solo in quelle senza prezzo, o in tutte. */
   const applicaPrezzi = (calcola: (v: VoceAffidabile) => number | null, tutte: boolean) => {
@@ -169,7 +179,7 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
     setPrezzi((s) => ({ ...s, ...nuovi }));
     toast.success(fatte ? `Prezzo scritto in ${fatte} ${fatte === 1 ? "riga" : "righe"}.` : "Nessuna riga da cambiare.");
   };
-  const conto = contoTabella(righe, voci, (id) => residua.get(id) ?? 0, comprende);
+  const conto = contoTabella(righe, voci, residuaRiga, comprende);
   const erroreDi = (id: string) => conto.errori.find((e) => e.voceId === id)?.motivo;
   // Un prezzo ancora da scrivere non è un errore: lo diventa solo se resta vuoto. In rosso le cose sbagliate.
   const daScrivere = conto.errori.filter((e) => e.motivo === "Prezzo mancante").length;
@@ -187,15 +197,29 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
     const daRicordare = sceltiOrdinati.filter((v) => {
       const p = prezzoDi(v.id);
       const prop = proposti.data?.get(v.id);
-      return p != null && p > 0 && !(prop?.origine === "listino_ditta" && prop.prezzo === p);
+      return p != null && p > 0 && !(prop?.origine === "listino_ditta" && proposto(v.id) === p);
     });
     if (!daRicordare.length) return 0;
     const righePrezzo: Array<{ tariffa_id: string; costo: number }> = [];
+    // Una voce che il listino ha già (stesso nome e unità) non si crea due volte: né in questo giro né nei successivi.
+    const giaFatte = new Map<string, string>();
     for (const v of daRicordare) {
       let tariffa = v.tariffa_id ?? tariffaUsata(v.id);
       if (!tariffa) {
         const u = unitaPerListino(v.unita);
         if (!u) continue;
+        const nome = v.descrizione.trim().slice(0, 500);
+        const chiave = `${nome.toLowerCase()}|${u.unita}`;
+        tariffa = giaFatte.get(chiave) ?? null;
+        if (!tariffa) {
+          const { data: esiste, error: errE } = await db.from("tariffe_aziendali").select("id").eq("company_id", companyId)
+            .ilike("nome", nome.replace(/[%_\\]/g, (c: string) => `\\${c}`)).eq("unita", u.unita).is("subappaltatore_id", null).is("external_team_id", null).limit(1);
+          if (errE) throw errE;
+          tariffa = (esiste?.[0]?.id as string | undefined) ?? null;
+        }
+      }
+      if (!tariffa) {
+        const u = unitaPerListino(v.unita)!;
         const venduto = v.quantita > 0 && v.importo ? Math.round((v.importo / v.quantita) * 10000) / 10000 : null;
         const { data, error } = await db.from("tariffe_aziendali").insert({
           company_id: companyId, tipo: "altro", nome: v.descrizione.trim().slice(0, 500), ...u,
@@ -203,6 +227,9 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
         }).select("id").single();
         if (error) throw error;
         tariffa = data.id as string;
+      }
+      giaFatte.set(`${v.descrizione.trim().slice(0, 500).toLowerCase()}|${unitaPerListino(v.unita)?.unita ?? ""}`, tariffa);
+      if (!v.tariffa_id) {
         const { error: e2 } = await db.rpc("voci_abbina_listino", { p_order: orderId, p_abbinamenti: [{ voce_id: v.id, tariffa_id: tariffa, chiave: chiaveDescrizione(v.descrizione) }], p_ricorda: true });
         if (e2) throw e2;
       }
@@ -222,7 +249,8 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
       // Prima si guarda il contratto della ditta: se è firmato o in firma ci si ferma prima di toccare qualcosa.
       let inFirmaOra = false;
       if (contrattoAttuale && !contrattoAttuale.firmato_il) {
-        const { data } = await db.rpc("contratto_in_firma", { p_contratto: contrattoAttuale.id });
+        const { data, error } = await db.rpc("contratto_in_firma", { p_contratto: contrattoAttuale.id });
+        if (error) throw new Error("Non riesco a sapere se il contratto della ditta è in firma: riprova tra poco.");
         inFirmaOra = data === true;
       }
       const destino = destinoContratto(contrattoAttuale, inFirmaOra);
@@ -235,12 +263,20 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
         const { error } = await db.rpc("voci_abbina_listino", { p_order: orderId, p_abbinamenti: collegamenti, p_ricorda: true });
         if (error) throw error;
       }
-      // 2. Le quote, con la quantità della tabella.
-      const { error: errAff } = await db.rpc("affida_voci", {
-        p_order: orderId, p_subappaltatore: ditta, p_comprende: comprende,
-        p_voci: righe.map((r) => ({ voce_id: r.voceId, quantita: r.quantita })),
-      });
-      if (errAff) throw errAff;
+      // 2. Le quote, con la quantità della tabella: quelle già in bozza della ditta si portano a quella quantità,
+      // le altre si creano (affida_voci sommerebbe, e il contratto riporterebbe più di quanto scritto).
+      for (const r of righe.filter((x) => proprieBozza.has(x.voceId))) {
+        const { error } = await db.rpc("affidamento_modifica", { p_id: proprieBozza.get(r.voceId)!.id, p_quantita: r.quantita, p_comprende: comprende });
+        if (error) throw error;
+      }
+      const nuove = righe.filter((x) => !proprieBozza.has(x.voceId));
+      if (nuove.length) {
+        const { error: errAff } = await db.rpc("affida_voci", {
+          p_order: orderId, p_subappaltatore: ditta, p_comprende: comprende,
+          p_voci: nuove.map((r) => ({ voce_id: r.voceId, quantita: r.quantita })),
+        });
+        if (errAff) throw errAff;
+      }
       const { data: quote, error: errQ } = await db.from("subappalto_affidamenti")
         .select("id, voce_id, subappaltatore_id, quantita, prezzo_unitario, origine_prezzo, comprende, stato, contratto_id")
         .eq("order_id", orderId).eq("subappaltatore_id", ditta).eq("stato", "bozza");
@@ -251,17 +287,20 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
       // 2b. I prezzi scritti a mano entrano nel listino della ditta: la prossima volta arrivano da soli.
       // Non blocca il contratto: se non riesce lo si dice e basta.
       let imparati = 0;
-      if (ricorda && canEditSettingsPricing) {
+      if (ricorda && canEditSettingsPricing && comprende === "posa") {
         try { imparati = await ricordaNelListino(); } catch { toast.warning("Il contratto si crea, ma i prezzi non sono entrati nel listino della ditta."); }
       }
       // 3. Il contratto: nuovo, o le righe in coda a quello in bozza. I prezzi della tabella vanno sulle quote dal database.
       if (destino.tipo === "aggiungi") {
-        const unito = elencoUnito(contrattoAttuale!.elenco_lavori, elenco);
+        // L'elenco si rilegge adesso: qualcuno può averlo cambiato da «Lavori e prezzi» dopo l'apertura del popup.
+        const { data: ora, error: errOra } = await db.from("contratti_subappalto").select("elenco_lavori").eq("id", destino.id).single();
+        if (errOra) throw errOra;
+        const unito = elencoUnito(ora?.elenco_lavori, elenco);
         const { data: toccati, error } = await db.from("contratti_subappalto")
           .update({ elenco_lavori: unito.elenco, importo_contrattuale: unito.importo })
           .eq("id", destino.id).eq("stato", "bozza").is("firmato_il", null).select("id");
         if (error) throw error;
-        if (!toccati?.length) throw new Error("Il contratto è cambiato nel frattempo: ricarica la pagina e riprova.");
+        if (!toccati?.length) throw new Error("Il contratto è cambiato nel frattempo: ricarica la pagina e riprova. Le voci restano affidate alla ditta in bozza.");
         return { contrattoId: destino.id, schedaId: contrattoAttuale!.subappaltatore_id, inFirma, nuovo: false, imparati };
       }
       const proprie = schedeSicurezzaDitta(ditta, schede, orderId);
@@ -277,10 +316,11 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
         if (errS) throw errS;
         schedaId = schedaCreata = nuova.id as string;
       }
-      const [{ data: ord }, { data: esistenti }] = await Promise.all([
+      const [{ data: ord, error: errO }, { data: esistenti, error: errN }] = await Promise.all([
         db.from("orders").select("order_code").eq("id", orderId).maybeSingle(),
         db.from("contratti_subappalto").select("numero_contratto").eq("order_id", orderId).eq("company_id", companyId),
       ]);
+      if (errO || errN) throw new Error("Non riesco a leggere i contratti della commessa per il numero: riprova.");
       const usati = ((esistenti ?? []) as Array<{ numero_contratto: string | null }>).map((c) => Number(/\/S(\d+)$/.exec(c.numero_contratto ?? "")?.[1] ?? 0));
       const faseIds = [...new Set(sceltiOrdinati.map((v) => v.phase_id))];
       const periodo = periodoFasi(fasi, faseIds);
@@ -377,12 +417,12 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
                           <div className="flex items-start gap-2">
                             <Checkbox className="mt-0.5" checked={si} aria-label={`Scegli ${v.descrizione}`} onCheckedChange={(c) => cambiaScelta([v.id], c === true)} />
                             <p className="line-clamp-2 min-w-0 flex-1">{testi[v.id] ?? v.descrizione}</p>
-                            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{qt(residua.get(v.id) ?? 0)} {v.unita ?? ""}</span>
+                            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{qt(residuaRiga(v.id))} {v.unita ?? ""}</span>
                           </div>
                           {si && (
                             <div className="flex items-center gap-2 pl-6">
                               <Input aria-label={`Quantità di ${v.descrizione}`} inputMode="decimal" className="h-9 w-20 text-right tabular-nums"
-                                value={quantita[v.id] ?? casella(residua.get(v.id), 3)} onChange={(e) => setQuantita((x) => ({ ...x, [v.id]: e.target.value }))} />
+                                value={quantita[v.id] ?? casella(residuaRiga(v.id), 3)} onChange={(e) => setQuantita((x) => ({ ...x, [v.id]: e.target.value }))} />
                               <span className="text-xs text-muted-foreground">×</span>
                               <Input aria-label={`Prezzo di ${v.descrizione}`} inputMode="decimal" className="h-9 w-24 text-right tabular-nums" placeholder={ditta ? "€" : "ditta?"}
                                 disabled={!ditta} value={prezzi[v.id] ?? casella(p?.prezzo)} onChange={(e) => setPrezzi((x) => ({ ...x, [v.id]: e.target.value }))} />
@@ -450,10 +490,10 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
                               </div>
                             )}
                           </td>
-                          <td className="whitespace-nowrap px-1 py-1 text-right text-xs tabular-nums text-muted-foreground">{qt(residua.get(v.id) ?? 0)} {v.unita ?? ""}</td>
+                          <td className="whitespace-nowrap px-1 py-1 text-right text-xs tabular-nums text-muted-foreground">{qt(residuaRiga(v.id))} {v.unita ?? ""}</td>
                           <td className="px-1 py-1">
                             {si && <Input aria-label={`Quantità di ${v.descrizione}`} inputMode="decimal" className="h-8 text-right tabular-nums"
-                              value={quantita[v.id] ?? casella(residua.get(v.id), 3)} onChange={(e) => setQuantita((s) => ({ ...s, [v.id]: e.target.value }))} />}
+                              value={quantita[v.id] ?? casella(residuaRiga(v.id), 3)} onChange={(e) => setQuantita((s) => ({ ...s, [v.id]: e.target.value }))} />}
                           </td>
                           <td className="px-1 py-1">
                             {si && <Input aria-label={`Prezzo di ${v.descrizione}`} inputMode="decimal" className="h-8 text-right tabular-nums" placeholder={ditta ? "—" : "ditta?"}
@@ -498,7 +538,7 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
               </button>
             );
           })()}
-          {canEditSettingsPricing && ditta && (
+          {canEditSettingsPricing && ditta && comprende === "posa" && (
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground" title="I prezzi scritti a mano entrano nel listino della ditta: la prossima volta arrivano da soli">
               <Checkbox checked={ricorda} onCheckedChange={(c) => setRicorda(c === true)} aria-label="Ricorda i prezzi nel listino della ditta" />
               ricorda i prezzi nel listino della ditta
@@ -539,11 +579,13 @@ export function AffidaContrattoDaCommessa({ orderId, companyId, onChiudi }: { or
       return { fasi: fasi.data ?? [], contratti: contratti.data ?? [], schede: schede.data ?? [] };
     },
   });
-  if (dati.isError || voci.isError) {
+  const errore = dati.isError || voci.isError;
+  useEffect(() => {
+    if (!errore) return;
     toast.error("Non riesco a leggere fasi e voci della commessa.");
     onChiudi();
-    return null;
-  }
+  }, [errore, onChiudi]);
+  if (errore) return null;
   if (!dati.data || !voci.data) {
     return (
       <Dialog open onOpenChange={(o) => !o && onChiudi()}>
@@ -561,6 +603,8 @@ export function AffidaContrattoDaCommessa({ orderId, companyId, onChiudi }: { or
         void qc.invalidateQueries({ queryKey: ["affida-contratto-commessa", companyId, orderId] });
         void qc.invalidateQueries({ queryKey: ["ditte-contratti-commessa", companyId, orderId] });
         void qc.invalidateQueries({ queryKey: chiaveAffidamenti(orderId) });
+        void qc.invalidateQueries({ queryKey: chiaveVociPreviste(companyId, orderId) });
+        refreshWorkQueries(qc, orderId, companyId);
       }} />
   );
 }

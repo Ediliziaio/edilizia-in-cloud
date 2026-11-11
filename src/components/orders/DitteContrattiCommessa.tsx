@@ -233,7 +233,7 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
         <div className="flex flex-wrap items-center gap-2 rounded-md border px-3 py-2 text-sm">
           <span className="min-w-0 flex-1">Scegli le voci e la ditta, scrivi quantità e prezzi, e manda il contratto: tutto in un passaggio.</span>
           <Button size="sm" variant="outline" onClick={() => setAffidaAperto(true)} title="Quote divise fra più ditte, prezzi delle quote già affidate">Chi fa cosa</Button>
-          <Button size="sm" onClick={() => setAffidaContratto(true)}>Affida e manda il contratto</Button>
+          {canViewSubappaltatoriAmministrazione && !solaLettura && <Button size="sm" onClick={() => setAffidaContratto(true)}>Affida e manda il contratto</Button>}
         </div>
       )}
       {affidaContratto && (
