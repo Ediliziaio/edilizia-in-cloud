@@ -12052,6 +12052,97 @@ export type Database = {
           },
         ]
       }
+      appointment_outlook_links: {
+        Row: {
+          appointment_id: string
+          calendar_id: string
+          company_id: string
+          connection_id: string
+          event_id: string
+          user_id: string
+        }
+        Insert: {
+          appointment_id: string
+          calendar_id: string
+          company_id: string
+          connection_id: string
+          event_id: string
+          user_id: string
+        }
+        Update: {
+          appointment_id?: string
+          calendar_id?: string
+          company_id?: string
+          connection_id?: string
+          event_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_outlook_links_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: true
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_outlook_links_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: true
+            referencedRelation: "public_appointment_manage"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_outlook_links_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: true
+            referencedRelation: "public_appointment_slots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_outlook_links_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "appointment_outlook_links_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_outlook_links_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "appointment_outlook_links_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "appointment_outlook_links_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+          {
+            foreignKeyName: "appointment_outlook_links_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "outlook_calendar_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointment_reminders_sent: {
         Row: {
           appointment_id: string
@@ -12109,6 +12200,8 @@ export type Database = {
           appointment_type: string
           assigned_to: string | null
           booking_email: string | null
+          booking_member_calendar_id: string | null
+          booking_reminders_handled: boolean
           calendar_id: string | null
           cancelled_at: string | null
           cancelled_by: string | null
@@ -12172,6 +12265,8 @@ export type Database = {
           appointment_type?: string
           assigned_to?: string | null
           booking_email?: string | null
+          booking_member_calendar_id?: string | null
+          booking_reminders_handled?: boolean
           calendar_id?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
@@ -12235,6 +12330,8 @@ export type Database = {
           appointment_type?: string
           assigned_to?: string | null
           booking_email?: string | null
+          booking_member_calendar_id?: string | null
+          booking_reminders_handled?: boolean
           calendar_id?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
@@ -12286,6 +12383,20 @@ export type Database = {
           wbraid?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "appointments_booking_member_calendar_id_fkey"
+            columns: ["booking_member_calendar_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_calendars"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_booking_member_calendar_id_fkey"
+            columns: ["booking_member_calendar_id"]
+            isOneToOne: false
+            referencedRelation: "public_booking_calendars"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "appointments_calendar_id_fkey"
             columns: ["calendar_id"]
@@ -15251,6 +15362,158 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_insoluti"
             referencedColumns: ["azienda_id"]
+          },
+        ]
+      }
+      automation_webhook_endpoints: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          flow_id: string
+          id: string
+          is_active: boolean
+          mapping_json: Json
+          name: string
+          secret_hash: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by: string
+          flow_id: string
+          id?: string
+          is_active?: boolean
+          mapping_json?: Json
+          name: string
+          secret_hash: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          flow_id?: string
+          id?: string
+          is_active?: boolean
+          mapping_json?: Json
+          name?: string
+          secret_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_webhook_endpoints_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "automation_webhook_endpoints_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_webhook_endpoints_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "automation_webhook_endpoints_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "automation_webhook_endpoints_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+          {
+            foreignKeyName: "automation_webhook_endpoints_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "automation_flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_webhook_receipts: {
+        Row: {
+          company_id: string
+          endpoint_id: string
+          event_id: string
+          id: string
+          is_test: boolean
+          payload_sha256: string
+          received_at: string
+        }
+        Insert: {
+          company_id: string
+          endpoint_id: string
+          event_id: string
+          id?: string
+          is_test?: boolean
+          payload_sha256: string
+          received_at?: string
+        }
+        Update: {
+          company_id?: string
+          endpoint_id?: string
+          event_id?: string
+          id?: string
+          is_test?: boolean
+          payload_sha256?: string
+          received_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_webhook_receipts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "automation_webhook_receipts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_webhook_receipts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "automation_webhook_receipts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "automation_webhook_receipts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+          {
+            foreignKeyName: "automation_webhook_receipts_endpoint_id_fkey"
+            columns: ["endpoint_id"]
+            isOneToOne: false
+            referencedRelation: "automation_webhook_endpoints"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -66358,9 +66621,6 @@ export type Database = {
           booking_slug: string | null
           buffer_after_min: number
           buffer_before_min: number
-          team_calendar_ids: string[]
-          team_assignment_strategy: string
-          team_member_priorities: Json
           calendar_type: string
           color: string | null
           company_id: string
@@ -66393,6 +66653,9 @@ export type Database = {
           reminder_1h: boolean
           reminder_24h: boolean
           slot_interval_min: number | null
+          team_assignment_strategy: string
+          team_calendar_ids: string[]
+          team_member_priorities: Json
           updated_at: string
           whatsapp_numero_id: string | null
         }
@@ -66409,9 +66672,6 @@ export type Database = {
           booking_slug?: string | null
           buffer_after_min?: number
           buffer_before_min?: number
-          team_calendar_ids?: string[]
-          team_assignment_strategy?: string
-          team_member_priorities?: Json
           calendar_type?: string
           color?: string | null
           company_id: string
@@ -66444,6 +66704,9 @@ export type Database = {
           reminder_1h?: boolean
           reminder_24h?: boolean
           slot_interval_min?: number | null
+          team_assignment_strategy?: string
+          team_calendar_ids?: string[]
+          team_member_priorities?: Json
           updated_at?: string
           whatsapp_numero_id?: string | null
         }
@@ -66460,9 +66723,6 @@ export type Database = {
           booking_slug?: string | null
           buffer_after_min?: number
           buffer_before_min?: number
-          team_calendar_ids?: string[]
-          team_assignment_strategy?: string
-          team_member_priorities?: Json
           calendar_type?: string
           color?: string | null
           company_id?: string
@@ -66495,6 +66755,9 @@ export type Database = {
           reminder_1h?: boolean
           reminder_24h?: boolean
           slot_interval_min?: number | null
+          team_assignment_strategy?: string
+          team_calendar_ids?: string[]
+          team_member_priorities?: Json
           updated_at?: string
           whatsapp_numero_id?: string | null
         }
@@ -139941,9 +140204,35 @@ export type Database = {
         Args: { p_failure_count: number }
         Returns: string
       }
+      automation_accept_webhook: {
+        Args: {
+          p_contact?: Json
+          p_digest: string
+          p_endpoint: string
+          p_entity_id: string
+          p_event_id: string
+          p_payload: Json
+          p_secret_hash: string
+          p_test?: boolean
+        }
+        Returns: Json
+      }
       automation_assign_next: {
         Args: { p_flow_id: string; p_n: number; p_node_id: string }
         Returns: number
+      }
+      automation_custom_fields_version: { Args: never; Returns: number }
+      automation_write_custom_field: {
+        Args: {
+          p_company: string
+          p_enrollment_id?: string
+          p_entity_id: string
+          p_entity_type: string
+          p_field_id: string
+          p_flow_path?: Json
+          p_value: string
+        }
+        Returns: string
       }
       automazione_elimina_definitivamente: {
         Args: { p_flow_id: string }
@@ -140226,6 +140515,36 @@ export type Database = {
       calculate_sublevel_commissions: {
         Args: { p_month: number; p_year: number }
         Returns: number
+      }
+      calendar_booking_candidates: {
+        Args: {
+          p_calendar: string
+          p_date: string
+          p_exclude?: string
+          p_start: string
+        }
+        Returns: {
+          member_calendar_id: string
+          user_id: string
+        }[]
+      }
+      calendar_booking_slots: {
+        Args: { p_calendar: string; p_date: string; p_exclude?: string }
+        Returns: string[]
+      }
+      calendar_team_slots: {
+        Args: { p_calendar: string; p_date: string; p_exclude?: string }
+        Returns: string[]
+      }
+      calendar_window_available: {
+        Args: {
+          p_calendar: string
+          p_date: string
+          p_end: string
+          p_grid?: boolean
+          p_start: string
+        }
+        Returns: boolean
       }
       calendario_esterno_sveglia: {
         Args: { p_action: string; p_body: Json; p_funzione: string }
@@ -141494,6 +141813,10 @@ export type Database = {
         Args: { p_categoria: string }
         Returns: string
       }
+      contabilita_conto_della_riga: {
+        Args: { k: Json; p_ruolo_fattura: string; p_valore: string }
+        Returns: string
+      }
       contabilita_crea_conto: {
         Args: {
           p_codice: string
@@ -141745,6 +142068,7 @@ export type Database = {
         }
         Returns: Json
       }
+      costo_nome_parte: { Args: { p_valore: string }; Returns: string }
       costo_orario_calcolato: {
         Args: { p_employee_id: string }
         Returns: number
@@ -148425,6 +148749,20 @@ export type Database = {
           p_sconto_richiesto_pct: number
         }
         Returns: string
+      }
+      reserve_calendar_booking: {
+        Args: {
+          p_buffer_dopo: number
+          p_buffer_prima: number
+          p_calendar_id: string
+          p_company_id: string
+          p_data: string
+          p_durata_min: number
+          p_fine: string
+          p_inizio: string
+          p_riga: Json
+        }
+        Returns: Json
       }
       reset_ai_monthly_counters: { Args: never; Returns: Json }
       reset_daily_budget_if_needed: {
