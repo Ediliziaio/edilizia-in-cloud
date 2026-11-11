@@ -189,6 +189,10 @@ const APPOINTMENT_TYPES = [
   { value: "generico",               label: "Generico",                 group: "Altro" },
   // Ci sono appuntamenti con questi tipi: senza, la tendina resterebbe vuota.
   { value: "videocall",              label: "Videochiamata",            group: "Altro" },
+  // «Telefonata» mancava, e la scrive solo l'agente AI con prenota_chiamata:
+  // una chiamata fissata a mano nasceva «generico», e i promemoria la
+  // trattavano come una visita in showroom (Il Bagno Group, 11/11/2026).
+  { value: "telefonata",             label: "Telefonata",               group: "Altro" },
   { value: "altro",                  label: "Altro",                    group: "Altro" },
 ];
 
