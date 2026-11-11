@@ -1,0 +1,1027 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Link } from "react-router-dom";
+import {
+  ArrowLeftRight,
+  CheckCircle2,
+  ClipboardList,
+  FileText,
+  RefreshCw,
+  Truck,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { formatCurrency, formatDateShort } from "@/lib/formatters";
+import {
+  confrontaRigheDocumenti,
+  numeroDocumento,
+  righeFatturaConfronto,
+  stessaVoce,
+  documentoCompatibileConFornitore,
+  type RigaConfronto,
+} from "@/lib/fatturazione/confrontoDocumenti";
+import { originaleDaRiferimento } from "@/lib/fatturazione/originaliConfronto";
+import { messaggioSalvataggio } from "@/lib/fatturazione/salvataggioFattura";
+import { fatturaVerificata } from "@/lib/fatturazione/ripartizioneFattura";
+import {
+  useConfrontoFattura,
+  useOriginaliConfronto,
+} from "@/hooks/useConfrontoFattura";
+import { OriginaliConfronto } from "./OriginaliConfronto";
+import { VerificaFatturaPill } from "./VerificaFatturaPill";
+import { CollegaDdtFattura } from "./CollegaDdtFattura";
+import { salvaCollegamentoDdt } from "@/lib/fatturazione/collegaDdt";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+
+const quantita = (n: number | null) =>
+  n == null ? "—" : n.toLocaleString("it-IT", { maximumFractionDigits: 4 });
+const euro = (n: number | null) =>
+  n == null ? "Da definire" : formatCurrency(n);
+const titoli = {
+  coerente: "Coerente",
+  scostamento: "Scostamento",
+  da_controllare: "Da controllare",
+  senza_riferimento: "Da abbinare",
+};
+const colori = {
+  coerente: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  scostamento: "border-red-200 bg-red-50 text-red-800",
+  da_controllare: "border-amber-200 bg-amber-50 text-amber-900",
+  senza_riferimento: "border-slate-200 bg-slate-50 text-slate-600",
+};
+
+function TabellaDocumenti({
+  righe,
+  evidenziate,
+  riferimenti,
+  onSeleziona,
+  allinea,
+}: {
+  righe: RigaConfronto[];
+  evidenziate: Set<string>;
+  riferimenti: Map<string, number[]>;
+  onSeleziona: (indice: number) => void;
+  allinea: boolean;
+}) {
+  const visualizzate = useMemo(
+    () =>
+      !allinea
+        ? righe
+        : righe
+            .map((r, i) => ({
+              r,
+              i,
+              priorita: Math.min(...(riferimenti.get(r.id) ?? [])),
+            }))
+            .sort((a, b) => a.priorita - b.priorita || a.i - b.i)
+            .map((x) => x.r),
+    [righe, riferimenti, allinea],
+  );
+  if (!righe.length)
+    return (
+      <p className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">
+        Nessuna riga strutturata disponibile. Controlla il file originale.
+      </p>
+    );
+  return (
+    <div className="overflow-x-auto rounded-lg border">
+      <table className="w-full text-xs">
+        <thead className="h-12 bg-muted/50 text-muted-foreground">
+          <tr>
+            <th
+              className="p-2 text-left"
+              title="Voci della fattura con codice o descrizione uguale, da confrontare"
+            >
+              Voce fattura
+            </th>
+            <th className="p-2 text-left">Articolo</th>
+            <th className="p-2 text-right">Quantità</th>
+            <th className="p-2 text-left">UM</th>
+            <th className="p-2 text-right">Prezzo netto</th>
+            <th className="p-2 text-right">Importo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {visualizzate.map((r) => (
+            <tr
+              key={r.id}
+              className={`h-20 border-t align-top ${evidenziate.has(r.id) ? "bg-blue-50 dark:bg-blue-950/30" : ""}`}
+            >
+              <td className="p-2">
+                <div className="flex gap-1">
+                  {riferimenti.get(r.id)?.length ? (
+                    riferimenti.get(r.id)!.map((i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        aria-label={`Metti a confronto la voce F${i + 1}`}
+                        title={`Voce F${i + 1} della fattura: confronta quantità e prezzi`}
+                        onClick={() => onSeleziona(i)}
+                        className="rounded border border-blue-200 bg-blue-50 px-1.5 py-1 font-semibold text-blue-800 hover:bg-blue-100"
+                      >
+                        F{i + 1}
+                      </button>
+                    ))
+                  ) : (
+                    <span
+                      className="text-muted-foreground"
+                      title="Nessuna voce con codice o descrizione uguale"
+                    >
+                      —
+                    </span>
+                  )}
+                </div>
+              </td>
+              <td className="min-w-44 p-2">
+                <p className="line-clamp-2 font-medium" title={r.descrizione}>
+                  {r.descrizione || "Senza descrizione"}
+                </p>
+                {r.codice && (
+                  <p className="mt-0.5 text-muted-foreground">{r.codice}</p>
+                )}
+              </td>
+              <td className="p-2 text-right tabular-nums">
+                {quantita(r.quantita)}
+              </td>
+              <td className="p-2">{r.um || "—"}</td>
+              <td className="whitespace-nowrap p-2 text-right tabular-nums">
+                {euro(r.prezzo)}
+              </td>
+              <td className="whitespace-nowrap p-2 text-right tabular-nums">
+                {r.importo == null ? "—" : euro(r.importo)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Dati reali, originali conservati e controllo deterministico: nessun esito inventato dall’AI. */
+export function ConfrontoFatturaDialog({
+  fattura,
+  companyId,
+  ordineIds,
+  puoModificare,
+  onClose,
+  onVersioneCompleta,
+}: {
+  fattura: Record<string, unknown>;
+  companyId: string;
+  ordineIds: string[];
+  puoModificare: boolean;
+  onClose: () => void;
+  onVersioneCompleta?: () => void;
+}) {
+  const id = String(fattura.id),
+    q = useConfrontoFattura(companyId, id, ordineIds);
+  const fornitoreId = fattura.fornitore_id
+    ? String(fattura.fornitore_id)
+    : null;
+  const documenti = useMemo(() => q.data?.documenti ?? [], [q.data?.documenti]);
+  const [attivo, setAttivo] = useState("");
+  const [selezione, setSelezione] = useState<Set<string> | null>(null);
+  const [controllo, setControllo] = useState(false);
+  const [rigaAttiva, setRigaAttiva] = useState<number | null>(null);
+  const [aggiungi, setAggiungi] = useState(false);
+  const [vistaDocumento, setVistaDocumento] = useState("righe");
+  const [vistaFattura, setVistaFattura] = useState("righe");
+  const [allineaVoci, setAllineaVoci] = useState(true);
+  const righeFatturaRef = useRef(new Map<number, HTMLTableRowElement>());
+  const [selezionatoreAperto, setSelezionatoreAperto] = useState(false);
+  const qc = useQueryClient();
+  const collegaBolla = useMutation({
+    mutationFn: (ddtId: string) =>
+      salvaCollegamentoDdt({
+        companyId,
+        fatturaId: id,
+        ddtId,
+        numero: "",
+        data: null,
+      }),
+    onSuccess: async (_r, ddtId) => {
+      setControllo(false);
+      setSelezione((s) => (s ? new Set([...s, ddtId]) : s));
+      await Promise.all(
+        [
+          "fattura-collegamenti",
+          "fattura-confronto",
+          "fatture-ricevute",
+          "fattura-ricevuta-riepilogo",
+        ].map((k) => qc.invalidateQueries({ queryKey: [k] })),
+      );
+      toast.success("Bolla collegata alla fattura");
+    },
+    onError: (e) =>
+      toast.error("Bolla non collegata", {
+        description: messaggioSalvataggio(e),
+      }),
+  });
+  const scelti = useMemo(
+    () =>
+      selezione ??
+      new Set(
+        documenti
+          .filter(
+            (d) =>
+              d.collegato &&
+              documentoCompatibileConFornitore(fornitoreId, d.dati.supplier_id),
+          )
+          .map((d) => d.id),
+      ),
+    [selezione, documenti, fornitoreId],
+  );
+  const doc = documenti.find((d) => d.id === attivo) ?? documenti[0];
+  const originali = useOriginaliConfronto(companyId, doc);
+  const righe = useMemo(
+    () => righeFatturaConfronto(fattura.righe),
+    [fattura.righe],
+  );
+  const esiti = useMemo(
+    () =>
+      confrontaRigheDocumenti(
+        righe,
+        documenti
+          .filter(
+            (d) =>
+              d.tipo === "ddt" &&
+              scelti.has(d.id) &&
+              documentoCompatibileConFornitore(fornitoreId, d.dati.supplier_id),
+          )
+          .flatMap((d) => d.bolle),
+        documenti
+          .filter(
+            (d) =>
+              d.tipo === "oda" &&
+              scelti.has(d.id) &&
+              documentoCompatibileConFornitore(fornitoreId, d.dati.supplier_id),
+          )
+          .flatMap((d) => d.righe),
+      ),
+    [righe, documenti, scelti, fornitoreId],
+  );
+  const riferimenti = useMemo(
+    () =>
+      new Map(
+        (doc?.righe ?? []).map((r) => [
+          r.id,
+          righe.flatMap((f, i) => (stessaVoce(f, r) ? [i] : [])),
+        ]),
+      ),
+    [doc?.righe, righe],
+  );
+  const evidenziate = new Set(
+    (doc?.righe ?? [])
+      .filter(
+        (r) =>
+          rigaAttiva != null && riferimenti.get(r.id)?.includes(rigaAttiva),
+      )
+      .map((r) => r.id),
+  );
+  const fileFattura = originaleDaRiferimento(
+    fattura.pdf_storage_path || fattura.pdf_url,
+    String(fattura.pdf_storage_bucket || "fatture-ricevute"),
+  );
+  const selezionaRiga = (indice: number) => {
+    if (!righe[indice]) return;
+    setRigaAttiva(indice);
+    setVistaFattura("righe");
+    if (!doc?.righe.some((r) => stessaVoce(righe[indice], r))) {
+      const corrispondente = documenti.find((d) =>
+        d.righe.some((r) => stessaVoce(righe[indice], r)),
+      );
+      if (corrispondente) setAttivo(corrispondente.id);
+    }
+  };
+  useEffect(() => {
+    if (rigaAttiva != null && vistaFattura === "righe")
+      righeFatturaRef.current
+        .get(rigaAttiva)
+        ?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [rigaAttiva, vistaFattura]);
+  const scegli = (idDoc: string, valore: boolean) => {
+    setSelezione((s) => {
+      const n = new Set(s ?? scelti);
+      if (valore) n.add(idDoc);
+      else n.delete(idDoc);
+      return n;
+    });
+    setControllo(false);
+    setRigaAttiva(null);
+  };
+  const fornitoreDiverso = !documentoCompatibileConFornitore(
+    fornitoreId,
+    doc?.dati.supplier_id,
+  );
+  return (
+    <Dialog
+      open
+      onOpenChange={(v) => {
+        if (!v) onClose();
+      }}
+    >
+      <DialogContent
+        className="flex h-[94dvh] max-h-[94dvh] w-[calc(100vw-1rem)] max-w-[1600px] flex-col gap-0 overflow-hidden p-0 sm:w-[calc(100vw-2rem)]"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        <DialogHeader className="shrink-0 border-b px-4 py-3 pr-12 sm:px-6">
+          <DialogTitle className="flex items-center gap-2 text-lg">
+            <ArrowLeftRight className="h-5 w-5 text-orange-600" />
+            Confronto fattura, DDT e ordini
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            {String(fattura.cedente_ragione_sociale ?? "Fornitore")} · Fattura{" "}
+            {String(fattura.numero_fattura ?? "")} del{" "}
+            {formatDateShort(String(fattura.data_fattura ?? ""))}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-muted/20 px-4 py-2 sm:px-6">
+          <span className="mr-auto text-xs text-muted-foreground">
+            Seleziona i documenti da confrontare e apri le rispettive righe o
+            gli originali.
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={q.isFetching || collegaBolla.isPending}
+            onClick={() => {
+              setControllo(false);
+              void q.refetch();
+              void originali.refetch();
+            }}
+          >
+            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+            Aggiorna
+          </Button>
+          <Button
+            size="sm"
+            disabled={
+              q.isError || q.isFetching || !righe.length || !scelti.size
+            }
+            onClick={() => setControllo(true)}
+          >
+            <CheckCircle2 className="mr-1.5 h-4 w-4" />
+            Controlla quantità e prezzi
+          </Button>
+        </div>
+        {q.isError ? (
+          <div
+            role="alert"
+            className="m-6 rounded-xl border border-destructive/30 p-5 text-sm text-destructive"
+          >
+            Documenti non disponibili: {messaggioSalvataggio(q.error)}{" "}
+            <button className="underline" onClick={() => void q.refetch()}>
+              Riprova
+            </button>
+          </div>
+        ) : (
+          <div className="min-h-0 flex-1 overflow-y-auto lg:grid lg:grid-cols-2 lg:grid-rows-[auto_auto_minmax(0,1fr)] lg:overflow-hidden">
+            <section
+              aria-label="Fattura ricevuta"
+              className="min-w-0 border-b lg:row-span-3 lg:grid lg:min-h-0 lg:[grid-template-rows:subgrid] lg:border-b-0 lg:border-r"
+            >
+              <div className="space-y-2 border-b bg-background px-4 py-3 sm:px-6">
+                <div className="flex min-h-8 items-center justify-between gap-3">
+                  <h2 className="flex items-center gap-2 text-sm font-semibold">
+                    <FileText className="h-4 w-4 text-blue-600" />
+                    Fattura ricevuta
+                  </h2>
+                  <Badge variant="secondary">
+                    {fattura.xml_url || fattura.xml_bytes
+                      ? "XML"
+                      : fileFattura
+                        ? "PDF / foto"
+                        : "Dati documento"}
+                  </Badge>
+                </div>
+                <div className="flex h-10 items-center justify-between gap-3 rounded-md border px-3 text-sm">
+                  <span
+                    className="truncate font-medium"
+                    title={String(fattura.numero_fattura ?? "")}
+                  >
+                    {String(fattura.numero_fattura ?? "Fattura")}
+                  </span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {formatDateShort(String(fattura.data_fattura ?? ""))}
+                  </span>
+                </div>
+                <div className="flex min-h-7 items-center justify-between gap-3 text-xs text-muted-foreground">
+                  <span
+                    className="truncate"
+                    title={String(fattura.cedente_ragione_sociale ?? "")}
+                  >
+                    {String(fattura.cedente_ragione_sociale ?? "Fornitore")}
+                  </span>
+                  <span className="shrink-0">{righe.length} voci</span>
+                </div>
+              </div>
+              <Tabs
+                value={vistaFattura}
+                onValueChange={setVistaFattura}
+                className="lg:contents"
+              >
+                <div className="flex flex-wrap items-center gap-2 px-4 pt-3 pb-2 sm:px-6">
+                  <TabsList>
+                    <TabsTrigger value="righe">Righe e importi</TabsTrigger>
+                    <TabsTrigger value="originale">File originale</TabsTrigger>
+                  </TabsList>
+                  {rigaAttiva != null && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="ml-auto h-8 text-xs"
+                      onClick={() => setRigaAttiva(null)}
+                    >
+                      F{rigaAttiva + 1} selezionata · mostra tutte
+                    </Button>
+                  )}
+                </div>
+                <TabsContent
+                  value="originale"
+                  className="mt-0 min-h-0 overflow-auto p-4 pt-1 sm:px-6"
+                >
+                  {fileFattura ? (
+                    <OriginaliConfronto
+                      files={[fileFattura]}
+                      companyId={companyId}
+                      adatta
+                    />
+                  ) : (
+                    <div className="space-y-3 rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
+                      <p>
+                        Il PDF o la foto della fattura non sono presenti. I dati
+                        disponibili sono riportati in “Righe e importi”.
+                      </p>
+                      {onVersioneCompleta && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={onVersioneCompleta}
+                        >
+                          Apri fattura XML e stampa
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </TabsContent>
+                <TabsContent
+                  value="righe"
+                  className="mt-0 min-h-0 space-y-4 overflow-auto p-4 pt-1 sm:px-6"
+                >
+                  {!righe.length ? (
+                    <p className="text-sm text-muted-foreground">
+                      Righe non disponibili: consulta il documento originale.
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto rounded-xl border">
+                      <table className="w-full text-xs">
+                        <thead className="h-12 bg-muted/50 text-muted-foreground">
+                          <tr>
+                            <th className="p-2 text-left">Voce</th>
+                            <th className="p-2 text-left">Descrizione</th>
+                            <th className="p-2 text-right">Qtà / UM</th>
+                            <th className="p-2 text-right">Prezzo netto</th>
+                            <th className="p-2 text-right">Imponibile</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {righe.map((r, i) => (
+                            <tr
+                              key={`${r.id}-${i}`}
+                              ref={(el) => {
+                                if (el) righeFatturaRef.current.set(i, el);
+                                else righeFatturaRef.current.delete(i);
+                              }}
+                              className={`h-20 border-t align-top ${rigaAttiva === i ? "bg-blue-50 dark:bg-blue-950/30" : ""}`}
+                            >
+                              <td className="p-2">
+                                <button
+                                  type="button"
+                                  aria-label={`Seleziona voce F${i + 1} della fattura`}
+                                  aria-pressed={rigaAttiva === i}
+                                  onClick={() => selezionaRiga(i)}
+                                  className={`rounded border px-1.5 py-1 text-[11px] font-semibold ${rigaAttiva === i ? "border-blue-400 bg-blue-100 text-blue-900" : "border-slate-200 bg-slate-50 text-slate-600 hover:border-blue-300"}`}
+                                >
+                                  F{i + 1}
+                                </button>
+                              </td>
+                              <td className="min-w-44 p-2">
+                                <button
+                                  type="button"
+                                  className="line-clamp-2 text-left font-medium underline-offset-2 hover:underline"
+                                  title={
+                                    r.codice
+                                      ? `${r.codice} · ${r.descrizione}`
+                                      : r.descrizione
+                                  }
+                                  onClick={() => selezionaRiga(i)}
+                                >
+                                  {r.codice && (
+                                    <span className="text-[11px] font-normal text-muted-foreground">
+                                      {r.codice} ·{" "}
+                                    </span>
+                                  )}
+                                  {r.descrizione || "Senza descrizione"}
+                                </button>
+                                {controllo && (
+                                  <span
+                                    title={esiti[i].motivo}
+                                    className={`mt-1 inline-block rounded border px-1.5 py-0.5 text-[11px] ${colori[esiti[i].stato]}`}
+                                  >
+                                    {titoli[esiti[i].stato]}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="whitespace-nowrap p-2 text-right tabular-nums">
+                                {quantita(r.quantita)} {r.um || "· UM assente"}
+                              </td>
+                              <td className="whitespace-nowrap p-2 text-right tabular-nums">
+                                {euro(r.prezzo)}
+                              </td>
+                              <td className="whitespace-nowrap p-2 text-right tabular-nums">
+                                {r.importo == null ? "—" : euro(r.importo)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  {controllo &&
+                    esiti.length > 0 &&
+                    (() => {
+                      const i =
+                          rigaAttiva != null && esiti[rigaAttiva]
+                            ? rigaAttiva
+                            : 0,
+                        e = esiti[i],
+                        r = righe[i];
+                      return (
+                        <div className="space-y-2 rounded-xl border border-blue-200 bg-blue-50/50 p-4 text-xs">
+                          <p className="font-semibold text-blue-900">
+                            Esito voce F{i + 1} · {r.descrizione}
+                          </p>
+                          <p>{e.motivo}</p>
+                          {e.quantitaDisponibile != null && (
+                            <p>
+                              Disponibili: {quantita(e.quantitaDisponibile)}{" "}
+                              {r.um}
+                            </p>
+                          )}
+                          {e.prezzoConcordato != null && (
+                            <p>
+                              Ordine: {euro(e.prezzoConcordato)}
+                              {e.deltaPrezzo
+                                ? ` · differenza ${euro(e.deltaPrezzo)}`
+                                : ""}
+                            </p>
+                          )}
+                          <p className="text-muted-foreground">
+                            Clicca una voce F1, F2… per seguire le righe
+                            corrispondenti. Una voce può riguardare più righe e
+                            più DDT.
+                          </p>
+                        </div>
+                      );
+                    })()}
+                  <div className="ml-auto max-w-xs space-y-2 rounded-xl bg-muted/30 p-4 text-sm">
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">Imponibile</span>
+                      <span>
+                        {euro(numeroDocumento(fattura.imponibile_totale))}
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">IVA</span>
+                      <span>{euro(numeroDocumento(fattura.iva_totale))}</span>
+                    </div>
+                    <div className="flex justify-between gap-4 border-t pt-2 font-semibold">
+                      <span>Totale fattura</span>
+                      <span>
+                        {euro(numeroDocumento(fattura.totale_documento))}
+                      </span>
+                    </div>
+                  </div>
+                  {controllo && (
+                    <p className="rounded-lg bg-blue-50 p-3 text-xs leading-relaxed text-blue-900">
+                      Controllo per codice o descrizione uguale, unità di misura
+                      e quantità residue dei confronti registrati. Descrizioni
+                      diverse, conversioni di unità, servizi e prezzi mancanti
+                      richiedono il tuo controllo sugli originali.
+                    </p>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </section>
+            <section
+              aria-label="DDT e ordini di confronto"
+              className="flex min-w-0 flex-col bg-muted/10 lg:row-span-3 lg:grid lg:min-h-0 lg:[grid-template-rows:subgrid] lg:overflow-hidden"
+            >
+              <div className="shrink-0 space-y-2 border-b bg-background px-4 py-3 sm:px-6">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="flex items-center gap-2 text-sm font-semibold">
+                    <ClipboardList className="h-4 w-4 text-orange-600" />
+                    Documento da visualizzare
+                  </h2>
+                  {puoModificare && (
+                    <Popover open={aggiungi} onOpenChange={setAggiungi}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          Collega DDT
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        align="end"
+                        className="w-96 max-w-[calc(100vw-2rem)]"
+                      >
+                        <CollegaDdtFattura
+                          companyId={companyId}
+                          fatturaId={id}
+                          fornitoreId={fornitoreId}
+                          onSalvato={() => {
+                            setAggiungi(false);
+                            setControllo(false);
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                </div>
+                {!!documenti.length && (
+                  <>
+                    <select
+                      aria-label="Documento da visualizzare"
+                      value={doc?.id ?? ""}
+                      onChange={(e) => {
+                        setAttivo(e.target.value);
+                        collegaBolla.reset();
+                      }}
+                      disabled={collegaBolla.isPending}
+                      className="h-10 w-full rounded-md border bg-background px-3 text-sm font-medium"
+                    >
+                      {documenti.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.tipo === "ddt" ? "DDT" : "Ordine"} · {d.numero}
+                          {d.data ? ` · ${formatDateShort(d.data)}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                      <Popover
+                        open={selezionatoreAperto}
+                        onOpenChange={setSelezionatoreAperto}
+                      >
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs"
+                          >
+                            Nel controllo (
+                            {
+                              documenti.filter(
+                                (d) =>
+                                  scelti.has(d.id) &&
+                                  documentoCompatibileConFornitore(
+                                    fornitoreId,
+                                    d.dati.supplier_id,
+                                  ),
+                              ).length
+                            }
+                            /{documenti.length})
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          align="start"
+                          className="w-96 max-w-[calc(100vw-2rem)] space-y-3"
+                        >
+                          <p className="text-xs text-muted-foreground">
+                            Scegli quali DDT e ordini usare nel controllo di
+                            quantità e prezzi. La selezione vale per questo
+                            confronto.
+                          </p>
+                          <div
+                            className="max-h-64 space-y-2 overflow-y-auto"
+                            aria-label="Documenti disponibili"
+                          >
+                            {documenti.map((d) => (
+                              <div
+                                key={d.id}
+                                className="flex items-center gap-2 rounded-md border p-2"
+                              >
+                                <input
+                                  type="checkbox"
+                                  aria-label={`Confronta ${d.tipo === "ddt" ? "DDT" : "ordine"} ${d.numero}`}
+                                  checked={
+                                    scelti.has(d.id) &&
+                                    documentoCompatibileConFornitore(
+                                      fornitoreId,
+                                      d.dati.supplier_id,
+                                    )
+                                  }
+                                  disabled={
+                                    !documentoCompatibileConFornitore(
+                                      fornitoreId,
+                                      d.dati.supplier_id,
+                                    )
+                                  }
+                                  onChange={(e) =>
+                                    scegli(d.id, e.target.checked)
+                                  }
+                                  className="h-4 w-4 shrink-0 accent-blue-600"
+                                />
+                                <button
+                                  type="button"
+                                  className="min-w-0 flex-1 text-left text-xs"
+                                  onClick={() => {
+                                    setAttivo(d.id);
+                                    setSelezionatoreAperto(false);
+                                  }}
+                                >
+                                  <span className="flex items-center gap-1 font-medium">
+                                    {d.tipo === "ddt" ? (
+                                      <Truck className="h-3.5 w-3.5" />
+                                    ) : (
+                                      <ClipboardList className="h-3.5 w-3.5" />
+                                    )}
+                                    {d.numero}
+                                  </span>
+                                  <span className="mt-1 block truncate text-muted-foreground">
+                                    {d.fornitore} · {d.righe.length} voci
+                                  </span>
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                      {doc && (
+                        <label className="inline-flex items-center gap-1.5">
+                          <input
+                            type="checkbox"
+                            aria-label={`Includi ${doc.numero} nel controllo`}
+                            checked={scelti.has(doc.id) && !fornitoreDiverso}
+                            disabled={fornitoreDiverso}
+                            onChange={(e) => scegli(doc.id, e.target.checked)}
+                            className="h-3.5 w-3.5 accent-blue-600"
+                          />
+                          Includi nel controllo
+                        </label>
+                      )}
+                      {doc && (
+                        <Link
+                          className="text-blue-700 underline-offset-2 hover:underline"
+                          to={
+                            doc.tipo === "ddt"
+                              ? `/azienda/ddt/${doc.id}`
+                              : `/azienda/ordini-acquisto/${doc.id}`
+                          }
+                        >
+                          Apri scheda
+                        </Link>
+                      )}
+                      {doc && (
+                        <>
+                          {doc.collegato ? (
+                            <span className="text-emerald-700">
+                              Collegato alla fattura
+                            </span>
+                          ) : (
+                            <>
+                              <span className="text-amber-800">
+                                Da collegare
+                              </span>
+                              {puoModificare && doc.tipo === "ddt" && (
+                                <button
+                                  type="button"
+                                  disabled={
+                                    collegaBolla.isPending || fornitoreDiverso
+                                  }
+                                  className="font-medium text-blue-700 underline underline-offset-2 disabled:opacity-50"
+                                  onClick={() => collegaBolla.mutate(doc.id)}
+                                >
+                                  {collegaBolla.isPending
+                                    ? "Collegamento…"
+                                    : "Collega questa bolla"}
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {collegaBolla.isError && (
+                      <p role="alert" className="text-xs text-destructive">
+                        {messaggioSalvataggio(collegaBolla.error)}
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+              {q.isLoading ? (
+                <p role="status" className="p-5 text-sm">
+                  Caricamento documenti…
+                </p>
+              ) : !doc ? (
+                <p className="m-4 rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
+                  Nessun DDT o ordine collegato. Aggiungi una bolla caricata o
+                  collega un ordine dalla scheda fattura.
+                </p>
+              ) : (
+                <Tabs
+                  value={vistaDocumento}
+                  onValueChange={setVistaDocumento}
+                  className="flex min-h-0 flex-1 flex-col lg:contents"
+                >
+                  <div className="flex shrink-0 flex-wrap items-center gap-2 px-4 pt-3 pb-2 sm:px-6">
+                    <TabsList>
+                      <TabsTrigger value="righe">Righe</TabsTrigger>
+                      <TabsTrigger value="originale">
+                        PDF / foto originali
+                      </TabsTrigger>
+                    </TabsList>
+                    {vistaDocumento === "righe" && (
+                      <Button
+                        size="sm"
+                        variant={allineaVoci ? "secondary" : "ghost"}
+                        className="h-8 text-xs"
+                        aria-label="Allinea righe alla fattura"
+                        aria-pressed={allineaVoci}
+                        title="Ordina le righe con codice o descrizione uguali seguendo le voci della fattura. Gli originali mantengono il loro ordine."
+                        onClick={() => setAllineaVoci((v) => !v)}
+                      >
+                        <ArrowLeftRight className="mr-1 h-3.5 w-3.5" />
+                        Allinea voci
+                      </Button>
+                    )}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="ml-auto h-8 text-xs"
+                        >
+                          Info e associazioni
+                          {q.data?.riferimenti.length
+                            ? ` (${q.data.riferimenti.length})`
+                            : ""}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        align="end"
+                        className="w-96 max-w-[calc(100vw-2rem)] space-y-3 text-xs"
+                      >
+                        <p className="font-medium">{doc.numero}</p>
+                        <p className="text-muted-foreground">{doc.fornitore}</p>
+                        {doc.avviso && (
+                          <p className="rounded-lg bg-amber-50 p-3 text-amber-900">
+                            {doc.avviso}
+                          </p>
+                        )}
+                        {!!q.data?.riferimenti.length && (
+                          <div className="space-y-2">
+                            <p className="font-medium">
+                              Riferimenti DDT da abbinare
+                            </p>
+                            <ul className="max-h-40 space-y-1 overflow-y-auto">
+                              {q.data.riferimenti.map((r) => (
+                                <li key={String(r.id)}>
+                                  {String(r.numero_ddt)}
+                                  {r.data_ddt
+                                    ? ` · ${formatDateShort(String(r.data_ddt))}`
+                                    : ""}
+                                </li>
+                              ))}
+                            </ul>
+                            <p className="text-muted-foreground">
+                              Il numero è registrato. Collega la bolla caricata
+                              per conservarne anche l’associazione alle righe e
+                              agli originali.
+                            </p>
+                          </div>
+                        )}
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  {!!q.data?.nonDisponibili && (
+                    <p
+                      role="alert"
+                      className="mx-4 mb-2 text-xs text-destructive"
+                    >
+                      {q.data.nonDisponibili} DDT collegati non leggibili. Il
+                      confronto è incompleto.
+                    </p>
+                  )}
+                  {fornitoreDiverso && (
+                    <p role="alert" className="text-xs text-destructive">
+                      Fornitore diverso dalla fattura: controlla l’associazione.
+                      Questo documento è escluso dal controllo automatico.
+                    </p>
+                  )}
+                  <TabsContent
+                    key={`${doc.id}-righe`}
+                    value="righe"
+                    className="mt-0 min-h-0 flex-1 space-y-3 overflow-auto p-4 pt-1 sm:px-6"
+                  >
+                    <TabellaDocumenti
+                      righe={doc.righe}
+                      evidenziate={evidenziate}
+                      riferimenti={riferimenti}
+                      onSeleziona={selezionaRiga}
+                      allinea={allineaVoci}
+                    />
+                    {doc.tipo === "ddt" && (
+                      <p className="text-xs text-muted-foreground">
+                        Destinazione:{" "}
+                        {doc.dati.destinazione === "cantiere"
+                          ? "consegna diretta in cantiere"
+                          : doc.dati.destinazione === "magazzino"
+                            ? "magazzino"
+                            : "da verificare"}
+                        .
+                        {doc.bolle.some((b) => b.giaFatturata > 0) &&
+                          " Parte delle quantità è già presente in precedenti confronti fattura."}
+                      </p>
+                    )}
+                  </TabsContent>
+                  <TabsContent
+                    key={`${doc.id}-originale`}
+                    value="originale"
+                    className="mt-0 min-h-0 flex-1 overflow-auto p-4 pt-1 sm:px-6"
+                  >
+                    {originali.isLoading ? (
+                      <p role="status" className="text-sm">
+                        Cerco gli originali…
+                      </p>
+                    ) : originali.isError ? (
+                      <p role="alert" className="text-sm text-destructive">
+                        Non riesco a recuperare gli originali.{" "}
+                        {messaggioSalvataggio(originali.error)}{" "}
+                        <button
+                          className="underline"
+                          onClick={() => void originali.refetch()}
+                        >
+                          Riprova
+                        </button>
+                      </p>
+                    ) : (
+                      <OriginaliConfronto
+                        key={doc.id}
+                        files={originali.data ?? []}
+                        companyId={companyId}
+                        adatta
+                      />
+                    )}
+                  </TabsContent>
+                </Tabs>
+              )}
+            </section>
+          </div>
+        )}
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t bg-background px-4 py-3 sm:px-6">
+          <div className="text-xs text-muted-foreground">
+            La verifica salva lo stato della fattura. Controlla gli scostamenti
+            prima di confermarla.
+          </div>
+          <div className="flex items-center gap-3">
+            <VerificaFatturaPill
+              id={id}
+              numero={String(fattura.numero_fattura ?? "")}
+              verificata={fatturaVerificata({
+                stato: String(fattura.stato ?? ""),
+                verifica_manuale: fattura.verifica_manuale
+                  ? String(fattura.verifica_manuale)
+                  : null,
+              })}
+              daRettificare={fattura.verifica_manuale === "da_rettificare"}
+              motivoRettifica={
+                fattura.rettifica_motivo
+                  ? String(fattura.rettifica_motivo)
+                  : null
+              }
+              puoCambiare={puoModificare}
+            />
+            <Button variant="outline" size="sm" onClick={onClose}>
+              Chiudi confronto
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

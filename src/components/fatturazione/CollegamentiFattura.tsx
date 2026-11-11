@@ -10,13 +10,15 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { ScegliMezzoFattura } from "./ScegliMezzoFattura";
+import { CollegaDdtFattura } from "./CollegaDdtFattura";
+import { chiaveCollegamenti, esigiRigaSalvata, messaggioSalvataggio } from "@/lib/fatturazione/salvataggioFattura";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
-const errore = (e: unknown) => toast.error("Non salvato", { description: e instanceof Error ? e.message : String(e) });
+const errore = (e: unknown) => toast.error("Non salvato", { description: messaggioSalvataggio(e) });
 const DDT_A_VISTA = 6;
 const pivaPulita = (p: string | null | undefined) => (p ?? "").replace(/\s/g, "").replace(/^IT/i, "");
 
@@ -33,21 +35,22 @@ const Azione = forwardRef<HTMLButtonElement, ComponentProps<typeof Button>>(func
 });
 
 export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numeroContratto, contrattoId, salId, cedentePiva, notaDiCredito,
-  primaNotaId, costoId, vaiPrimaNota, vaiTesoreria, vaiEmail }: {
+  primaNotaId, costoId, vaiPrimaNota, vaiTesoreria, vaiEmail, fornitoreId }: {
   fatturaId: string; companyId: string; puoModificare: boolean;
   numeroContratto?: string | null; contrattoId?: string | null; salId?: string | null; cedentePiva?: string | null; notaDiCredito: boolean;
   primaNotaId?: string | null; costoId?: string | null;
+  fornitoreId?: string | null;
   /** Chi non può aprire quelle pagine vede il testo, senza link. */
   vaiPrimaNota?: boolean; vaiTesoreria?: boolean; vaiEmail?: boolean;
 }) {
   const qc = useQueryClient();
-  const chiave = ["fattura-collegamenti", fatturaId];
-  const { data } = useQuery({
+  const chiave = chiaveCollegamenti(companyId, fatturaId);
+  const { data, isError, refetch } = useQuery({
     queryKey: chiave,
     queryFn: async () => {
       const [m, d, s] = await Promise.all([
-        db.from("fattura_ricevuta_mezzi").select("id, mezzo_id, importo, confermata, mezzi(nome, targa)").eq("fattura_ricevuta_id", fatturaId).order("created_at"),
-        db.from("fattura_ddt").select("id, numero_ddt, data_ddt, ddt_ricezione_id").eq("fattura_ricevuta_id", fatturaId).order("data_ddt"),
+        db.from("fattura_ricevuta_mezzi").select("id, mezzo_id, importo, confermata, mezzi(nome, targa)").eq("company_id", companyId).eq("fattura_ricevuta_id", fatturaId).order("created_at"),
+        db.from("fattura_ddt").select("id, numero_ddt, data_ddt, ddt_ricezione_id").eq("company_id", companyId).eq("fattura_ricevuta_id", fatturaId).order("data_ddt"),
         db.from("note_credito_storni").select("fattura_id, nota_id, importo").or(`fattura_id.eq.${fatturaId},nota_id.eq.${fatturaId}`),
       ]);
       if (m.error) throw m.error;
@@ -91,15 +94,6 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
     },
   });
   const [apriMezzo, setApriMezzo] = useState(false);
-  const { data: tuttiMezzi = [] } = useQuery({
-    queryKey: ["fattura-collegamenti-mezzi", companyId],
-    enabled: puoModificare && apriMezzo,
-    queryFn: async () => {
-      const { data: righe, error } = await db.from("mezzi").select("id, nome, targa").eq("company_id", companyId).is("deleted_at", null).order("nome").limit(1000);
-      if (error) throw error;
-      return (righe ?? []) as Array<{ id: string; nome: string; targa: string | null }>;
-    },
-  });
   // Solo i contratti di questo fornitore: uno di un altro subappaltatore sarebbe un errore.
   // La P.IVA si confronta qui, pulita: nella scheda della ditta può avere spazi o il prefisso IT.
   const { data: contratti = [] } = useQuery({
@@ -126,50 +120,39 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
     void qc.invalidateQueries({ queryKey: chiave });
     void qc.invalidateQueries({ queryKey: ["mezzo-fatture"] });
     void qc.invalidateQueries({ queryKey: ["fattura-ricevuta-riepilogo"] });
+    void qc.invalidateQueries({ queryKey: ["fattura-confronto"] });
+    void qc.invalidateQueries({ queryKey: ["fatture-ricevute"] });
   };
   const conferma = useMutation({
     mutationFn: async (id: string) => {
       const { data: u } = await supabase.auth.getUser();
-      const { error } = await db.from("fattura_ricevuta_mezzi").update({ confermata: true, confermata_da: u.user?.id ?? null, confermata_at: new Date().toISOString() }).eq("id", id);
-      if (error) throw error;
+      esigiRigaSalvata(await db.from("fattura_ricevuta_mezzi").update({ confermata: true, confermata_da: u.user?.id ?? null, confermata_at: new Date().toISOString() }).eq("id", id).eq("company_id", companyId).eq("fattura_ricevuta_id", fatturaId).select("id").maybeSingle());
     },
     onSuccess: aggiorna, onError: errore,
   });
   const togliMezzo = useMutation({
-    mutationFn: async (id: string) => { const { error } = await db.from("fattura_ricevuta_mezzi").delete().eq("id", id); if (error) throw error; },
+    mutationFn: async (id: string) => { esigiRigaSalvata(await db.from("fattura_ricevuta_mezzi").delete().eq("id", id).eq("company_id", companyId).eq("fattura_ricevuta_id", fatturaId).select("id").maybeSingle()); },
     onSuccess: aggiorna, onError: errore,
   });
   const aggiungiMezzo = useMutation({
     mutationFn: async (mezzoId: string) => {
-      const { error } = await db.from("fattura_ricevuta_mezzi").insert({ company_id: companyId, fattura_ricevuta_id: fatturaId, mezzo_id: mezzoId, origine: "manuale", confermata: true });
-      if (error) throw error;
+      esigiRigaSalvata(await db.from("fattura_ricevuta_mezzi").insert({ company_id: companyId, fattura_ricevuta_id: fatturaId, mezzo_id: mezzoId, origine: "manuale", confermata: true }).select("id").single());
     },
     onSuccess: () => { setApriMezzo(false); aggiorna(); }, onError: errore,
   });
   const [apriDdt, setApriDdt] = useState(false);
   const [tuttiDdt, setTuttiDdt] = useState(false);
-  const [numero, setNumero] = useState("");
-  const [dataDdt, setDataDdt] = useState("");
-  const aggiungiDdt = useMutation({
-    mutationFn: async () => {
-      const { error } = await db.from("fattura_ddt").insert({ company_id: companyId, fattura_ricevuta_id: fatturaId, numero_ddt: numero.trim(), data_ddt: dataDdt || null, origine: "manuale" });
-      if (error) throw error;
-    },
-    onSuccess: () => { setNumero(""); setDataDdt(""); setApriDdt(false); aggiorna(); }, onError: errore,
-  });
   const togliDdt = useMutation({
-    mutationFn: async (id: string) => { const { error } = await db.from("fattura_ddt").delete().eq("id", id); if (error) throw error; },
+    mutationFn: async (id: string) => { esigiRigaSalvata(await db.from("fattura_ddt").delete().eq("id", id).eq("company_id", companyId).eq("fattura_ricevuta_id", fatturaId).select("id").maybeSingle()); },
     onSuccess: aggiorna, onError: errore,
   });
   const salvaSubappalto = useMutation({
     mutationFn: async (campi: { contratto_subappalto_id?: string | null; sal_subappaltatore_id?: string | null }) => {
-      const { error } = await db.from("fatture_ricevute").update(campi).eq("id", fatturaId).eq("company_id", companyId);
-      if (error) throw error;
+      esigiRigaSalvata(await db.from("fatture_ricevute").update(campi).eq("id", fatturaId).eq("company_id", companyId).select("id").maybeSingle());
     },
     onSuccess: aggiorna, onError: errore,
   });
   const collegati = new Set((data?.mezzi ?? []).map((m) => m.mezzo_id));
-  const liberi = tuttiMezzi.filter((m) => !collegati.has(m.id));
   const ddt = data?.ddt ?? [];
   const ddtVisti = tuttiDdt ? ddt : ddt.slice(0, DDT_A_VISTA);
   return (
@@ -185,15 +168,13 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
             {puoModificare && <button type="button" className="text-muted-foreground hover:text-foreground" aria-label={`Togli ${m.mezzi?.nome ?? "mezzo"}`} title="Togli" onClick={() => togliMezzo.mutate(m.id)}><X className="h-3.5 w-3.5" /></button>}
           </span>
         ))}
-        {!data?.mezzi.length && <span className="text-muted-foreground">Nessuno</span>}
+        {isError ? <span role="alert" className="text-xs text-destructive">Collegamenti non disponibili. <button type="button" className="underline" onClick={() => void refetch()}>Riprova</button></span> : !data?.mezzi.length && <span className="text-muted-foreground">Nessuno</span>}
         {puoModificare && (
           <Popover open={apriMezzo} onOpenChange={setApriMezzo}>
             <PopoverTrigger asChild><Azione aria-label="Collega un mezzo">Collega</Azione></PopoverTrigger>
-            <PopoverContent align="start" className="w-72">
-              <Select value="" onValueChange={(v) => aggiungiMezzo.mutate(v)}>
-                <SelectTrigger aria-label="Collega a un mezzo"><SelectValue placeholder="Scegli il mezzo…" /></SelectTrigger>
-                <SelectContent>{liberi.map((m) => <SelectItem key={m.id} value={m.id}>{m.nome}{m.targa ? ` · ${m.targa}` : ""}</SelectItem>)}</SelectContent>
-              </Select>
+            <PopoverContent align="start" className="w-80 max-w-[calc(100vw-2rem)] p-0">
+              {apriMezzo && <ScegliMezzoFattura companyId={companyId} collegati={collegati} occupato={aggiungiMezzo.isPending} onSelect={(v) => aggiungiMezzo.mutate(v)} />}
+              {aggiungiMezzo.isError && <p role="alert" className="p-3 text-xs text-destructive">{messaggioSalvataggio(aggiungiMezzo.error)}</p>}
             </PopoverContent>
           </Popover>
         )}
@@ -213,10 +194,8 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
         {puoModificare && (
           <Popover open={apriDdt} onOpenChange={setApriDdt}>
             <PopoverTrigger asChild><Azione aria-label="Aggiungi un DDT">Aggiungi</Azione></PopoverTrigger>
-            <PopoverContent align="start" className="w-72 space-y-2">
-              <Input value={numero} onChange={(e) => setNumero(e.target.value)} maxLength={100} placeholder="Numero DDT" aria-label="Numero DDT" />
-              <Input type="date" value={dataDdt} onChange={(e) => setDataDdt(e.target.value)} aria-label="Data DDT" />
-              <Button size="sm" className="w-full" disabled={!numero.trim() || aggiungiDdt.isPending} onClick={() => aggiungiDdt.mutate()}>Aggiungi</Button>
+            <PopoverContent align="start" className="w-96 max-w-[calc(100vw-2rem)]">
+              {apriDdt && <CollegaDdtFattura companyId={companyId} fatturaId={fatturaId} fornitoreId={fornitoreId} onSalvato={() => { setApriDdt(false); aggiorna(); }} />}
             </PopoverContent>
           </Popover>
         )}

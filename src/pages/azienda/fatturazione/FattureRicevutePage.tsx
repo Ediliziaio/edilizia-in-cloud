@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef, useCallback, type ReactNode } from "react";
+import { useState, useMemo, useRef, useCallback, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,6 +28,7 @@ import { CaricaRicevutaPdfDialog } from "@/components/fatturazione/CaricaRicevut
 import { serveIntegrazione } from "@/lib/fatturazione/integrazioneRicevuta";
 import { useStorniNoteCredito } from "@/hooks/useStorniNoteCredito";
 import { VerificaFatturaPill } from "@/components/fatturazione/VerificaFatturaPill";
+import { leggiVerificheRicevute } from "@/lib/fatturazione/leggiVerificheRicevute";
 import { StatoPill } from "@/components/orders/TabellaCommessa";
 import { fatturaVerificata, quoteDelCosto } from "@/lib/fatturazione/ripartizioneFattura";
 import { RiepilogoFatturaRicevuta } from "@/components/fatturazione/RiepilogoFatturaRicevuta";
@@ -282,6 +283,7 @@ export default function FattureRicevutePage() {
   const { data: pagate } = usePagamentiRicevute(companyId);
   const { data: storni } = useStorniNoteCredito(companyId);
   const [collegaNota, setCollegaNota] = useState<FatturaRicevuta | null>(null);
+  const [contabilizzaFattura, setContabilizzaFattura] = useState<FatturaRicevuta | null>(null);
   // Una nota di credito senza ordine non si contabilizza da sola: va detto quale fattura storna.
   const apriContabilizza = useCallback((f: FatturaRicevuta) => {
     if (isNotaCreditoRicevuta(f.tipo_documento) && !f.purchase_order_id) setCollegaNota(f);
@@ -353,9 +355,8 @@ export default function FattureRicevutePage() {
   const [riepilogoId, setRiepilogoId] = useState<string | null>(null);
   const [fatturaVista, setFatturaVista] = useState<FatturaRicevutaVista | null>(null);
   const [esportando, setEsportando] = useState<string | null>(null);
-  const [contabilizzaFattura, setContabilizzaFattura] = useState<FatturaRicevuta | null>(null);
   const [collegaFattura, setCollegaFattura] = useState<FatturaRicevuta | null>(null);
-  const [progress, setProgress] = useState<{ fatte: number; totale: number; inizio?: number } | null>(null);
+  const [progress, setProgress] = useState<{ fatte: number; totale: number; inizio?: number; aggiornato?: number } | null>(null);
   // Prima di importare si dice cosa c'è nel file: quante nuove, quante già dentro.
   const [anteprima, setAnteprima] = useState<{ nuove: XmlDaImportare[]; presenti: XmlDaImportare[]; scartati: FileScartato[]; emesse: number; ricevute: number; incerte: number } | null>(null);
   const [report, setReport] = useState<{ esiti: EsitoImport[]; scartati: FileScartato[] } | null>(null);
@@ -476,16 +477,12 @@ export default function FattureRicevutePage() {
     (f: FatturaRicevuta) => !!f.purchase_order_id || (quoteOrdini[f.id]?.length ?? 0) > 0,
     [quoteOrdini],
   );
-  // La verifica scelta a mano: a parte, solo le poche scelte; finché la colonna non c'è vale la contabilità.
-  const { data: verifiche = {} } = useQuery({
-    queryKey: ["fatture-ricevute", "verifiche", companyId],
+  const { data: verifiche = {}, isError: erroreVerifiche, isPending: caricaVerifiche, refetch: rileggiVerifiche } = useQuery({
+    queryKey: ["fatture-ricevute", "verifiche", companyId, "complete-v2"],
     enabled: !!companyId,
-    queryFn: async () => {
-      const { data, error } = await (supabase as any).from("fatture_ricevute").select("id, verifica_manuale").eq("company_id", companyId!).not("verifica_manuale", "is", null);
-      if (error) return {} as Record<string, string>;
-      return Object.fromEntries(((data ?? []) as Array<{ id: string; verifica_manuale: string }>).map((v) => [v.id, v.verifica_manuale])) as Record<string, string>;
-    },
+    queryFn: () => leggiVerificheRicevute(companyId!),
   });
+  const verifichePronte = !erroreVerifiche && !caricaVerifiche;
   const verificata = useCallback((f: FatturaRicevuta) => fatturaVerificata({ stato: f.stato, verifica_manuale: verifiche[f.id] }), [verifiche]);
   // Le commesse di ogni fattura: stanno sul suo costo, una o più di una.
   const idCosti = useMemo(() => [...new Set(fatture.map((f) => f.company_cost_id).filter(Boolean))].sort() as string[], [fatture]);
@@ -657,8 +654,8 @@ export default function FattureRicevutePage() {
     } else if (ordineFilter === "senza") {
       result = result.filter((f) => !haCollegamento(f));
     }
-    if (soloDaVerificare) result = result.filter((f) => f.stato !== "rifiutata" && !verificata(f) && verifiche[f.id] !== "da_rettificare");
-    if (soloDaRettificare) result = result.filter((f) => verifiche[f.id] === "da_rettificare");
+    if (soloDaVerificare && verifichePronte) result = result.filter((f) => f.stato !== "rifiutata" && !verificata(f) && verifiche[f.id] !== "da_rettificare");
+    if (soloDaRettificare && verifichePronte) result = result.filter((f) => verifiche[f.id] === "da_rettificare");
     if (metodoFilter !== "all") result = result.filter((f) => metodiPagamento(f.piano_pagamento).includes(metodoFilter));
     if (allegatiFilter !== "all") result = result.filter((f) => ((conteggiAllegati?.get(f.id) ?? 0) > 0) === (allegatiFilter === "con"));
     if (contabFilter === "da_contabilizzare") {
@@ -689,12 +686,16 @@ export default function FattureRicevutePage() {
       }
       return segno * (a.data_fattura < b.data_fattura ? -1 : a.data_fattura > b.data_fattura ? 1 : 0);
     });
-  }, [fatture, haCollegamento, verificata, verifiche, metodoFilter, allegatiFilter, conteggiAllegati, soloDaRettificare, pagataSulCosto, soloDaVerificare, statoFilter, tipoFilter, categoriaFilter, ordineFilter, contabFilter, pagamentoFilter, pagataIl, stornataDelTutto, storni, searchQuery, ordinamento, haOrdine]);
+  }, [fatture, haCollegamento, verificata, verifiche, verifichePronte, metodoFilter, allegatiFilter, conteggiAllegati, soloDaRettificare, pagataSulCosto, soloDaVerificare, statoFilter, tipoFilter, categoriaFilter, ordineFilter, contabFilter, pagamentoFilter, pagataIl, stornataDelTutto, storni, searchQuery, ordinamento, haOrdine]);
 
   // Modifiche in blocco: si selezionano le fatture che l'elenco mostra, anche dopo aver filtrato.
   const puoInBlocco = !permessiCosti.solaLettura;
   const [selezionate, setSelezionate] = useState<Set<string>>(new Set());
-  useEffect(() => setSelezionate(new Set()), [companyId]);
+  const [aziendaSelezione, setAziendaSelezione] = useState(companyId);
+  if (aziendaSelezione !== companyId) {
+    setAziendaSelezione(companyId);
+    setSelezionate(new Set());
+  }
   const cambiaSelezione = useCallback((id: string, dentro: boolean) => {
     setSelezionate((prima) => {
       const dopo = new Set(prima);
@@ -1019,13 +1020,13 @@ export default function FattureRicevutePage() {
     setAnteprima(null);
     setReport(null);
     const inizio = Date.now();
-    setProgress({ fatte: 0, totale: nuove.length, inizio });
+    setProgress({ fatte: 0, totale: nuove.length, inizio, aggiornato: inizio });
     // Chi chiude la scheda a metà perde solo quelle non ancora partite: basta ricaricare il file.
     const avvisaUscita = (e: BeforeUnloadEvent) => { e.preventDefault(); };
     window.addEventListener("beforeunload", avvisaUscita);
     let esiti: EsitoImport[] = presenti.map((f) => ({ nome: f.nome, stato: "duplicata" as const }));
     try {
-      esiti = [...esiti, ...await inParallelo(nuove, 4, importaUna, (fatte) => setProgress({ fatte, totale: nuove.length, inizio }))];
+      esiti = [...esiti, ...await inParallelo(nuove, 4, importaUna, (fatte) => setProgress({ fatte, totale: nuove.length, inizio, aggiornato: Date.now() }))];
     } finally {
       window.removeEventListener("beforeunload", avvisaUscita);
     }
@@ -1223,7 +1224,7 @@ export default function FattureRicevutePage() {
             )}
             {progress !== null
               ? progress.totale > 0
-                ? `Importazione ${progress.fatte} di ${progress.totale}${progress.inizio && tempoRimanente(progress.fatte, progress.totale, Date.now() - progress.inizio) ? ` · ${tempoRimanente(progress.fatte, progress.totale, Date.now() - progress.inizio)}` : "…"}`
+                ? `Importazione ${progress.fatte} di ${progress.totale}${progress.inizio && progress.aggiornato && tempoRimanente(progress.fatte, progress.totale, progress.aggiornato - progress.inizio) ? ` · ${tempoRimanente(progress.fatte, progress.totale, progress.aggiornato - progress.inizio)}` : "…"}`
                 : "Lettura file…"
               : "Importa XML o PDF"}
           </Button>
@@ -1535,7 +1536,7 @@ export default function FattureRicevutePage() {
             { attivo: contabFilter === "da_contabilizzare", fai: () => setContabFilter((v) => (v === "all" ? "da_contabilizzare" : "all")), n: conteggi.daContabilizzare, testo: "Da contabilizzare" },
             { attivo: pagamentoFilter === "da_pagare", fai: () => setPagamentoFilter((v) => (v === "da_pagare" ? "all" : "da_pagare")), n: conteggi.daPagare, testo: "Da pagare" },
             { attivo: categoriaFilter === "__nessuna__", fai: () => setCategoriaFilter((v) => (v === "__nessuna__" ? "all" : "__nessuna__")), n: kpi.daClassificare, testo: "Da classificare" },
-          ]).filter((c) => c.n > 0 || c.attivo).map((c) => (
+          ]).filter((c) => (verifichePronte || !["Da verificare", "Da rettificare"].includes(c.testo)) && (c.n > 0 || c.attivo)).map((c) => (
             <ChipFiltro key={c.testo} attivo={c.attivo} onClick={c.fai} conteggio={c.n}>{c.testo}</ChipFiltro>
           ))}
           {filtriAttivi > 0 && (
@@ -1549,6 +1550,7 @@ export default function FattureRicevutePage() {
         </div>
       </div>
 
+      {erroreVerifiche && <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><span>Stati di verifica non disponibili. I filtri di verifica sono sospesi finché i dati non vengono riletti.</span><Button variant="outline" size="sm" onClick={() => void rileggiVerifiche()}>Rileggi verifiche</Button></div>}
       {/* Table */}
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
@@ -1689,7 +1691,7 @@ export default function FattureRicevutePage() {
                   {colonne.has("netto") && <TableCell className="whitespace-nowrap text-right">{f.netto_a_pagare != null ? formatCurrency(f.netto_a_pagare) : <span className="text-muted-foreground">—</span>}</TableCell>}
                   {colonne.has("stato") && <TableCell><StatoBadge stato={f.stato} storico={f.storico_esterno} /></TableCell>}
                   {colonne.has("verifica") && <TableCell>
-                    {f.stato === "rifiutata" ? <span className="text-muted-foreground">—</span> : <VerificaFatturaPill daRettificare={verifiche[f.id] === "da_rettificare"} motivoRettifica={f.rettifica_motivo} id={f.id} numero={f.numero_fattura} verificata={verificata(f)} puoCambiare={!!permessiCosti.canViewCosts && !permessiCosti.solaLettura} />}
+                    {f.stato === "rifiutata" ? <span className="text-muted-foreground">—</span> : !verifichePronte ? <span className="text-xs text-muted-foreground">{caricaVerifiche ? "Lettura verifica…" : "Verifica non disponibile"}</span> : <VerificaFatturaPill daRettificare={verifiche[f.id] === "da_rettificare"} motivoRettifica={f.rettifica_motivo} id={f.id} numero={f.numero_fattura} verificata={verificata(f)} puoCambiare={!!permessiCosti.canViewCosts && !permessiCosti.solaLettura} />}
                   </TableCell>}
                   {colonne.has("pagamento") && <TableCell>
                     {isNotaCreditoRicevuta(f.tipo_documento) ? (
