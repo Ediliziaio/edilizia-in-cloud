@@ -17,7 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Phone, Receipt, Mail, FileText, CalendarPlus, Loader2, BellRing, UserCog, FolderOpen, StickyNote, PenLine, ChevronDown, Zap, ListPlus, Sparkles, MoreHorizontal, BookOpen, FileDown, Copy, Trash2, Pencil, type LucideIcon } from "lucide-react";
+import { Phone, Receipt, Mail, FileText, CalendarPlus, Loader2, BellRing, UserCog, FolderOpen, StickyNote, PenLine, ChevronDown, Zap, ListPlus, Sparkles, MoreHorizontal, BookOpen, FileDown, Copy, Trash2, Pencil, HardHat, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -77,6 +77,8 @@ interface Props {
   invoiceDisabled?: boolean;
   invoiceHint?: string;
   onCreateTask?: () => void;
+  /** «Affida e manda il contratto» (11/11/2026): voci alle ditte e contratto, da qualunque scheda della commessa. */
+  onAffidaDitte?: () => void;
   onApplyPlaybook?: () => void;
   applyingPlaybook?: boolean;
   playbookLabel?: string;
@@ -107,7 +109,7 @@ export function OrderQuickActions({
   orderId, orderCode, customer, workAddress, workCity, workProvince, getPdfBlob, paymentDue, onOpenOps, onOpenFiles, onOpenNotes, onOpenFirma, askSilvio, sollecitoRef,
   onCreateTask, onApplyPlaybook, applyingPlaybook = false, playbookLabel,
   onCreateInvoice, invoiceDisabled = false, invoiceHint, inline = false,
-  onModifica, onOpenRegistro, onScaricaPdf, scaricaPdfBusy = false, onDuplica, onElimina,
+  onModifica, onOpenRegistro, onScaricaPdf, scaricaPdfBusy = false, onDuplica, onElimina, onAffidaDitte,
 }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -211,6 +213,7 @@ export function OrderQuickActions({
       ? [{ id: "sollecito", label: "Sollecita pagamento", icon: BellRing, iconClass: "text-amber-600", onClick: openSollecito, group: "comunica" as const, tone: "warning" as const, hint: `Sollecita il pagamento di ${fmtEur(paymentDue.amount)}` }]
       : []),
     // Gestisci commessa
+    ...(onAffidaDitte ? [{ id: "affida", label: "Affida e manda contratto", icon: HardHat, iconClass: "text-orange-700", onClick: onAffidaDitte, group: "gestisci" as const, hint: "Voci alle ditte, prezzi e contratto di subappalto in un passaggio" }] : []),
     ...(isMobile && onModifica ? [{ id: "modifica", label: "Modifica commessa", icon: Pencil, iconClass: "text-blue-950", onClick: onModifica, group: "gestisci" as const }] : []),
     ...(onOpenFiles ? [{ id: "files", label: "Documenti", icon: FolderOpen, iconClass: "text-amber-600", onClick: onOpenFiles, group: "gestisci" as const, hint: "Tutti i file: PDF, fatture, allegati commessa e schede articoli" }] : []),
     ...(onOpenFirma ? [{ id: "firma", label: "Firma", icon: PenLine, iconClass: "text-blue-600", onClick: onOpenFirma, group: "gestisci" as const, hint: "Firma digitale: invia il documento al cliente e gestisci la firma" }] : []),
