@@ -268,9 +268,10 @@ describe("Salvataggio: riga di sconto in negativo, margine vuoto se mancano cost
     const contesto: Record<string, unknown> = {
       Error, console, JSON, companyId: "company-a", user: { id: "user-a" }, id: "quote-a", isEdit: true,
       existingQuote: { status: "bozza" }, existingItemsLoaded: true, existingAttachmentsLoaded: true,
-      partialQuoteId: null, pendingEditNavId: null, paymentPhases: [], paymentPlanError: (): string | null => null,
+      partialQuoteId: null, pendingEditNavId: null, recoverableDraft: null, paymentPhases: [], paymentPlanError: (): string | null => null,
       persistLocalDraft: () => {}, saveInFlightRef: { current: false }, versioneCaricataRef: { current: "v0" },
       setSaving: () => {}, setAutosaveFailed: () => {}, setLastSavedHash: () => {}, draftSerialized: "bozza",
+      latestDraftSerializedRef: { current: "bozza" }, lastCloudSavedSnapshotRef: { current: "bozza" },
       setPartialQuoteId: () => {}, setPendingEditNavId: () => {}, newQuoteCompletedRef: { current: false },
       searchParams: new URLSearchParams(), items, selectedMaterials: [], bonusLines: [], totaliPro,
       subtotal, discountAmt, vatAmount, total, financingProposal: null, validityDays: 30, discountPercent: 0,
