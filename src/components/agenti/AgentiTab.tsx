@@ -64,8 +64,8 @@ export function AgentiTab() {
   const updateStatus = useUpdateUnifiedAgentStatus();
   const duplicateAgent = useDuplicateUnifiedAgent();
 
-  const handleCrea = (tipo?: TipoAgente) => {
-    setTipoPreselezionato(tipo || null);
+  const handleCrea = (tipo: TipoAgente = "vocale") => {
+    setTipoPreselezionato(tipo);
     setShowCreate(true);
   };
 

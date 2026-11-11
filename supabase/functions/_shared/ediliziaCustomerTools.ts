@@ -27,6 +27,8 @@ export interface CustomerToolResult {
 }
 
 export interface CustomerToolCtx {
+  /** Provider session id, used to join a human handoff to its conversation. */
+  conversationId?: string;
   /** Numero del chiamante così come arrivato (per note/ticket). */
   rawPhone: string;
   /** Ultimi 9 caratteri normalizzati per il match, o null se ignoto. */
@@ -107,16 +109,16 @@ export async function profiloPerConto(admin: SupabaseClient, companyId: string, 
   return fallback ?? null;
 }
 
-export async function trovaContattoPerTelefono(admin: SupabaseClient, companyId: string, suffix: string | null) {
+export async function trovaContattoPerTelefono(admin: SupabaseClient, companyId: string, suffix: string | null, rawPhone?: string) {
   if (!suffix) return null;
   const { data } = await admin
     .from("marketing_contacts")
-    .select("id, first_name, last_name")
+    .select("id, first_name, last_name, phone")
     .eq("company_id", companyId)
     .ilike("phone", `%${suffix}%`)
-    .limit(1)
-    .maybeSingle();
-  return data ?? null;
+    .limit(2);
+  const candidates=(data || []).filter((row:any)=>!rawPhone || String(row.phone || "").replace(/\D/g,"")===rawPhone.replace(/\D/g,""));
+  return candidates.length===1 && (data || []).length===1 ? candidates[0] : null;
 }
 
 // In produzione gli stati dei preventivi convivono in DUE vocaboli (inviata e
@@ -150,7 +152,7 @@ export async function statoConsegna(admin: SupabaseClient, companyId: string, ct
   // chi aveva due lavori sentiva parlare solo di uno.
   const { data: ordini } = await admin
     .from("orders")
-    .select("id, order_code, tipo_lavoro, status, percentuale_avanzamento, expected_date, warehouse_arrival_date, work_start_date")
+    .select("id, client_phone, order_code, tipo_lavoro, status, percentuale_avanzamento, expected_date, warehouse_arrival_date, work_start_date")
     .eq("company_id", companyId)
     .is("deleted_at", null)
     .not("status", "in", '("completato","annullato")')
@@ -158,7 +160,7 @@ export async function statoConsegna(admin: SupabaseClient, companyId: string, ct
     .order("created_at", { ascending: false })
     .limit(3);
 
-  const elenco = (ordini ?? []) as Array<Record<string, unknown>>;
+  const elenco = ((ordini ?? []) as Array<Record<string, unknown>>).filter(o=>!ctx.rawPhone || String(o.client_phone || "").replace(/\D/g,"")===ctx.rawPhone.replace(/\D/g,""));
   if (elenco.length === 0) {
     return { risposta: "Con questo numero non trovo lavori in corso. Se il lavoro è intestato a un altro numero o a un familiare, posso comunque prendere nota e farla richiamare dall'ufficio." };
   }
@@ -213,7 +215,7 @@ export async function creaTicketAssistenza(
     String(params.urgenza ?? "") + " " + descrizione,
   );
 
-  const contact = await trovaContattoPerTelefono(admin, companyId, ctx.suffix);
+  const contact = await trovaContattoPerTelefono(admin, companyId, ctx.suffix, ctx.rawPhone);
   let nomeCliente = String(params.nome ?? "").trim();
   if (contact && !nomeCliente) nomeCliente = [contact.first_name, contact.last_name].filter(Boolean).join(" ");
 
@@ -239,12 +241,12 @@ export async function creaTicketAssistenza(
 
   if (tErr || !ticket) {
     console.error("[CUSTOMER-TOOLS] crea_ticket:", tErr?.message);
-    return { risposta: "Ho registrato la sua richiesta e la passo subito all'ufficio, che la ricontatterà in giornata." };
+    return { creato: false, risposta: "Non sono riuscito a salvare la segnalazione. Non risulta confermata: posso provare a collegarla all’ufficio o raccogliere una richiesta di richiamo." };
   }
 
   const rif = String(ticket.id).slice(0, 8).toUpperCase();
   return {
-    risposta: `Fatto: ho aperto la segnalazione con riferimento ${rif}${urgente ? ", marcata come urgente" : ""}. Il tecnico la ricontatterà ${urgente ? "il prima possibile" : "entro un giorno lavorativo"}.`,
+    risposta: `Fatto: ho aperto la segnalazione con riferimento ${rif}${urgente ? ", marcata come urgente" : ""}. Può comunicare questo riferimento all’ufficio per gli aggiornamenti.`,
     ticket_id: ticket.id,
   };
 }
@@ -308,7 +310,7 @@ export async function fissaAppuntamento(
     return { risposta: `Alle ${oraH} è già occupato. Lo stesso giorno posso proporle ${proposte}. Quale preferisce?` };
   }
 
-  const contact = await trovaContattoPerTelefono(admin, companyId, ctx.suffix);
+  const contact = await trovaContattoPerTelefono(admin, companyId, ctx.suffix, ctx.rawPhone);
   let nomeCliente = String(params.nome ?? "").trim();
   if (contact && !nomeCliente) nomeCliente = [contact.first_name, contact.last_name].filter(Boolean).join(" ");
   const motivo = String(params.motivo ?? "").trim() || "Sopralluogo";
@@ -333,7 +335,7 @@ export async function fissaAppuntamento(
 
   if (aErr || !appt) {
     console.error("[CUSTOMER-TOOLS] fissa_appuntamento:", aErr?.message);
-    return { risposta: "Non riesco a confermare in questo momento, ma ho preso nota della sua preferenza: l'ufficio la richiamerà per confermare giorno e orario." };
+    return { creato: false, risposta: "Non riesco a salvare l’appuntamento in questo momento. La prenotazione non è confermata: posso raccogliere una richiesta di richiamo per l’ufficio." };
   }
   return {
     risposta: `Perfetto, appuntamento fissato per ${dataParlata(dataISO)} alle ${oraH}${ora.slice(3, 5) !== "00" ? ` e ${Number(ora.slice(3, 5))}` : ""}. Riceverà conferma dall'ufficio. Posso aiutarla con altro?`,
@@ -369,22 +371,25 @@ export async function richiestaRichiamo(
   admin: SupabaseClient,
   companyId: string,
   ctx: CustomerToolCtx,
-  params: { motivo?: string; nome?: string; urgenza?: string },
+  params: { motivo?: string; nome?: string; urgenza?: string; recapito?: string },
 ): Promise<CustomerToolResult> {
-  const contact = await trovaContattoPerTelefono(admin, companyId, ctx.suffix);
+  const contact = await trovaContattoPerTelefono(admin, companyId, ctx.suffix, ctx.rawPhone);
   let nomeCliente = String(params.nome ?? "").trim();
   if (contact && !nomeCliente) nomeCliente = [contact.first_name, contact.last_name].filter(Boolean).join(" ");
   const motivo = String(params.motivo ?? "").trim();
+  // A callback destination is a write-only contact detail. The authenticated
+  // session number above remains the only identity used for CRM lookups.
+  const recapito = String(params.recapito ?? ctx.rawPhone ?? "").trim().slice(0, 80);
   const urgente = /urgent|subito|oggi|emergenz/i.test(String(params.urgenza ?? "") + " " + motivo);
 
   const domani = new Date(Date.now() + 24 * 3600 * 1000).toISOString().slice(0, 10);
   const { error: kErr } = await admin.from("tasks").insert({
     company_id: companyId,
     created_by: await profiloPerConto(admin, companyId, ctx.fallbackCreatedBy),
-    title: `Richiamare ${nomeCliente || ctx.rawPhone || "cliente"} (assistente AI)`,
+    title: `Richiamare ${nomeCliente || recapito || "cliente"} (assistente AI)`,
     notes: [
       motivo ? `Motivo: ${motivo}` : null,
-      ctx.rawPhone ? `Numero: ${ctx.rawPhone}` : null,
+      recapito ? `Numero: ${recapito}` : null,
       "Richiesta raccolta dall'assistente AI.",
     ].filter(Boolean).join("\n"),
     due_date: urgente ? new Date().toISOString().slice(0, 10) : domani,
@@ -399,8 +404,8 @@ export async function richiestaRichiamo(
   }
   return {
     risposta: urgente
-      ? "Ho segnato la richiesta come urgente: l'ufficio la richiamerà oggi stesso a questo numero."
-      : "Perfetto, ho lasciato il messaggio all'ufficio: la richiameranno entro domani a questo numero.",
+      ? `Ho segnato la richiesta come urgente: l'ufficio la richiamerà oggi stesso ${params.recapito ? "al recapito concordato" : "a questo numero"}.`
+      : `Perfetto, ho lasciato il messaggio all'ufficio: la richiameranno entro domani ${params.recapito ? "al recapito concordato" : "a questo numero"}.`,
   };
 }
 
@@ -427,7 +432,7 @@ export async function passaAOperatore(
   ctx: CustomerToolCtx,
   params: { riassunto?: string; nome?: string },
 ): Promise<CustomerToolResult> {
-  const contact = await trovaContattoPerTelefono(admin, companyId, ctx.suffix);
+  const contact = await trovaContattoPerTelefono(admin, companyId, ctx.suffix, ctx.rawPhone);
   let nomeCliente = String(params.nome ?? "").trim();
   if (contact && !nomeCliente) nomeCliente = [contact.first_name, contact.last_name].filter(Boolean).join(" ");
   const riassunto = String(params.riassunto ?? "").trim();
@@ -439,7 +444,7 @@ export async function passaAOperatore(
     p_riassunto: riassunto || null,
     p_contact_id: contact?.id ?? null,
     p_opportunity_id: null,
-    p_conversation_id: null,
+    p_conversation_id: ctx.conversationId || null,
   });
 
   if (error) {
@@ -495,7 +500,7 @@ export async function infoProdotto(admin: SupabaseClient, companyId: string, par
 }
 
 export async function infoCliente(admin: SupabaseClient, companyId: string, ctx: CustomerToolCtx): Promise<CustomerToolResult> {
-  const contact = await trovaContattoPerTelefono(admin, companyId, ctx.suffix);
+  const contact = await trovaContattoPerTelefono(admin, companyId, ctx.suffix, ctx.rawPhone);
   const [{ count: nOrdini }, { count: nPreventivi }] = await Promise.all([
     admin.from("orders").select("id", { count: "exact", head: true })
       .eq("company_id", companyId).is("deleted_at", null)

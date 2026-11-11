@@ -83,6 +83,7 @@ serveConMetriche("ai-conversations-sweeper", async (req) => {
     .from("ai_agent_conversations")
     .select("id, elevenlabs_conversation_id, started_at, company_id")
     .eq("status", "in_progress")
+    .or("metadata->>voice_provider.is.null,metadata->>voice_provider.neq.fish_audio")
     .lt("started_at", cutoff)
     .order("started_at", { ascending: true })
     .limit(MAX_PER_RUN);

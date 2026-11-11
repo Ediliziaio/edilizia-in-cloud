@@ -4,6 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "centralino:local": "node --env-file-if-exists=.env.fish.local scripts/fish-centralino-local.mjs",
+    "test:fish": "vitest run src/test/logic/fishActionConsent.test.ts src/test/logic/fishItalianSpeech.test.ts src/test/logic/fishDemoHandoff.test.ts src/test/ui/fishHandoffSimulation.test.tsx src/test/logic/fishCaseMemory.test.ts src/test/ui/fishCaseMemory.test.tsx src/test/logic/fishAudio.test.ts src/test/logic/fishCentralino.test.ts src/test/logic/fishSimulation.test.ts src/test/logic/centralinoCalls.test.ts src/test/logic/fishCalendarTools.test.ts src/test/logic/fishConnectionRequests.test.ts src/test/logic/fishAgentProxy.test.ts src/test/logic/fishCustomerTools.test.ts src/test/ui/fishAgentPanel.test.tsx src/test/ui/fishAgentWorkspace.test.tsx src/test/ui/centralinoCallHistory.test.tsx src/test/ui/fishOnboarding.test.tsx src/test/ui/fishCreation.test.tsx src/test/ui/fishCrmTrial.test.tsx src/test/ui/fishLiveTranscript.test.tsx src/test/ui/ticketAIConversation.test.tsx src/test/logic/fishTranscript.test.ts && node --test scripts/fish-centralino/lead-optout-db.test.mjs scripts/fish-centralino/local-server.test.mjs scripts/fish-centralino/db-integration.test.mjs scripts/fish-centralino/crm-trial-db.test.mjs scripts/fish-centralino/routing-db.test.mjs",
     "dev": "vite",
     "build": "npm run build:preventivi && NODE_OPTIONS=--max-old-space-size=8192 vite build && npm run playwright:ensure && NODE_OPTIONS=--max-old-space-size=8192 node scripts/prerender.mjs",
     "build:fast": "npm run build:preventivi && NODE_OPTIONS=--max-old-space-size=8192 vite build",
@@ -159,7 +161,8 @@
     "zod": "4.6.6",
     "zustand": "^5.0.13",
     "heic-to": "1.6.7",
-    "react-image-crop": "11.0.10"
+    "react-image-crop": "11.0.10",
+    "@fishaudio/agent-client": "1.0.0"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",

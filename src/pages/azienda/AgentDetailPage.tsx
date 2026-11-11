@@ -25,6 +25,10 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { callElevenLabsProxy, requireAgentProxyV2 } from "@/modules/ai-agents/hooks/useElevenLabsProxy";
 import type { UnifiedAgent } from "@/types/unifiedAgent.types";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { FishAgentPanel } from "@/components/agenti/FishAgentPanel";
+import { callFishAgent } from "@/lib/fishAgentProxy";
+import { FISH_LLM_MODELS } from "../../../supabase/functions/_shared/fishAgentConfig";
+import { FishAgentWorkspace } from "@/components/agenti/FishAgentWorkspace";
 
 type SubTab = "panoramica" | "configurazione" | "conversazioni" | "statistiche";
 
@@ -108,9 +112,11 @@ export default function AgentDetailPage() {
   const [editTrasferisci, setEditTrasferisci] = useState(false);
   const [editNumeroOperatore, setEditNumeroOperatore] = useState("");
   const [hasLoadedEdit, setHasLoadedEdit] = useState(false);
+  const [showFish, setShowFish] = useState(false);
 
   useEffect(() => {
     setHasLoadedEdit(false);
+    setShowFish(false);
   }, [agentId, companyId]);
 
   // Load edit state from agent — in useEffect per evitare setState durante
@@ -176,8 +182,12 @@ export default function AgentDetailPage() {
         trasferimento: { ...(prevConfig.trasferimento ?? {}), numero: numeroOperatore },
       };
 
+      const isFish = agent?.tools_config?.voice_provider === "fish_audio";
+      // Pause first: a failed save/sync must never leave the published agent
+      // answering calls with an older version of the company's rules.
+      if (isFish) await callFishAgent(companyId, agentId!, "pause");
       let syncedToolIds: string[] | undefined;
-      if (agent?.elevenlabs_agent_id) {
+      if (agent?.elevenlabs_agent_id && agent.tools_config?.voice_provider !== "fish_audio") {
         await requireAgentProxyV2(companyId);
         const synced = await callElevenLabsProxy<{ elevenlabs_tool_ids?: string[] }>({
           action: "update_agent",
@@ -211,13 +221,22 @@ export default function AgentDetailPage() {
         .eq("company_id", companyId)
         .eq("id", agentId!).select("id").single();
       if (error || !saved) throw error || new Error("Agente non aggiornato");
+      if (isFish) {
+        try { await callFishAgent(companyId, agentId!, "configure"); }
+        catch { throw new Error("Modifiche salvate nel gestionale. Fish resta in pausa: ripeti la sincronizzazione della bozza prima di pubblicare e riattivare."); }
+      }
     },
     onSuccess: () => {
       toast.success("Agente aggiornato");
       queryClient.invalidateQueries({ queryKey: ["agent-detail", companyId, agentId] });
       queryClient.invalidateQueries({ queryKey: ["unified-ai-agents"] });
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => {
+      toast.error(err.message);
+      queryClient.invalidateQueries({ queryKey: ["agent-detail", companyId, agentId] });
+      queryClient.invalidateQueries({ queryKey: ["fish-agent", companyId, agentId] });
+      queryClient.invalidateQueries({ queryKey: ["unified-ai-agents"] });
+    },
   });
 
   const connectAgent = useMutation({
@@ -264,9 +283,13 @@ export default function AgentDetailPage() {
   const configIssues = [
     !editNome.trim() ? "Nome mancante" : null,
     editPrompt.trim().length < 20 ? "Prompt di sistema troppo breve" : null,
-    (isVoice && agent.stato === "attivo" && !agent.elevenlabs_agent_id) ? "Collegamento ElevenLabs mancante" : null,
+    (isVoice && agent.stato === "attivo" && !agent.elevenlabs_agent_id && agent.tools_config?.voice_provider !== "fish_audio") ? "Collegamento vocale mancante" : null,
   ].filter(Boolean);
   const canSaveConfig = configIssues.length === 0;
+
+  if (isVoice && agent.tools_config?.voice_provider === "fish_audio" && companyId) {
+    return <FishAgentWorkspace key={`${companyId}:${agent.id}`} agent={agent} companyId={companyId} onBack={() => navigate(basePath)} />;
+  }
 
   return (
     <div className="space-y-0">
@@ -292,9 +315,9 @@ export default function AgentDetailPage() {
                 >
                   {agent.stato}
                 </Badge>
-                {agent.elevenlabs_agent_id && (
+                {(agent.elevenlabs_agent_id || agent.tools_config?.voice_provider === "fish_audio") && (
                   <Badge variant="outline" className="text-[10px]">
-                    <Zap className="h-2.5 w-2.5 mr-0.5" /> ElevenLabs
+                    <Zap className="h-2.5 w-2.5 mr-0.5" /> {agent.tools_config?.voice_provider === "fish_audio" ? "Fish Audio" : "ElevenLabs"}
                   </Badge>
                 )}
               </div>
@@ -303,7 +326,7 @@ export default function AgentDetailPage() {
         </div>
       </div>
 
-      {isVoice && !agent.elevenlabs_agent_id && (
+      {isVoice && !agent.elevenlabs_agent_id && agent.tools_config?.voice_provider !== "fish_audio" && (
         <div role="status" className="mx-6 mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 max-md:mx-0">
           <p className="text-sm">Bozza non collegata: l'agente non può ancora chiamare o rispondere. Salva le modifiche alla configurazione prima di collegarlo.</p>
           <Button className="mt-3" variant="outline" onClick={() => connectAgent.mutate()}
@@ -386,6 +409,10 @@ export default function AgentDetailPage() {
 
         {/* Configurazione */}
         <TabsContent value="configurazione" className="mt-0 p-6">
+          {isVoice && companyId && <div className="mb-6 space-y-3">
+            {!showFish && agent.tools_config?.voice_provider !== "fish_audio" && <Button variant="outline" onClick={() => setShowFish(true)}>Configura Fish Audio come motore vocale</Button>}
+            {(showFish || agent.tools_config?.voice_provider === "fish_audio") && <FishAgentPanel key={`${companyId}:${agent.id}`} companyId={companyId} agentId={agent.id} agent={agent} />}
+          </div>}
           <div className="max-w-2xl space-y-4">
             <Card className={configIssues.length ? "border-amber-200 bg-amber-50/60" : "border-emerald-200 bg-emerald-50/60"}>
               <CardContent className="p-4">
@@ -541,11 +568,11 @@ export default function AgentDetailPage() {
                 <Select value={editModel} onValueChange={setEditModel}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
+                    {(showFish || agent.tools_config?.voice_provider === "fish_audio") ? FISH_LLM_MODELS.map(model => <SelectItem key={model.id} value={model.id}>{model.label}</SelectItem>) : <><SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
                     <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
                     <SelectItem value="gpt-4o">GPT-4o</SelectItem>
                     <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
-                    <SelectItem value="claude-3.5-sonnet">Claude 3.5 Sonnet</SelectItem>
+                    <SelectItem value="claude-3.5-sonnet">Claude 3.5 Sonnet</SelectItem></>}
                   </SelectContent>
                 </Select>
               </div>
@@ -553,6 +580,7 @@ export default function AgentDetailPage() {
                 <label className="text-sm font-medium mb-1 block">Temperatura ({editTemp})</label>
                 <input
                   type="range"
+                  disabled={showFish || agent.tools_config?.voice_provider === "fish_audio"}
                   min="0"
                   max="1"
                   step="0.1"
@@ -560,6 +588,7 @@ export default function AgentDetailPage() {
                   onChange={(e) => setEditTemp(parseFloat(e.target.value))}
                   className="w-full mt-2"
                 />
+                {(showFish || agent.tools_config?.voice_provider === "fish_audio") && <p className="text-xs text-muted-foreground">Fish gestisce la temperatura del modello. La scelta del modello può cambiare il costo del provider: verifica la tariffa prima di attivare.</p>}
               </div>
             </div>
             <Button onClick={() => updateAgent.mutate()} disabled={updateAgent.isPending || !canSaveConfig}>

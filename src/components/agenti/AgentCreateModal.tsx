@@ -46,6 +46,7 @@ import { useCreateUnifiedAgent } from "@/hooks/useUnifiedAgents";
 import type { TipoAgente, UnifiedAgentInsert } from "@/types/unifiedAgent.types";
 import { LANGUAGE_OPTIONS } from "@/modules/ai-agents/types/agent.types";
 import { Badge } from "@/components/ui/badge";
+import { FishOnboardingWizard } from "./FishOnboardingWizard";
 
 // ─── Type card definitions ───
 const TIPO_OPTIONS: { value: TipoAgente; label: string; icon: typeof Phone; desc: string; examples: string }[] = [
@@ -158,6 +159,7 @@ interface Props {
 }
 
 export function AgentCreateModal({ open, tipoPreselezionato, onClose, onSuccess }: Props) {
+  const [fishWizard,setFishWizard]=useState(tipoPreselezionato==="vocale");
   const [currentStep, setCurrentStep] = useState(0);
   const [state, setState] = useState<WizardState>(() => ({
     ...INITIAL_STATE,
@@ -184,6 +186,7 @@ export function AgentCreateModal({ open, tipoPreselezionato, onClose, onSuccess 
   };
 
   const handleNext = () => {
+    if(stepId==="tipo" && state.tipo==="vocale"){setFishWizard(true);return;}
     if (isLastStep) {
       handleCreate();
     } else {
@@ -231,12 +234,14 @@ export function AgentCreateModal({ open, tipoPreselezionato, onClose, onSuccess 
   };
 
   const resetWizard = () => {
+    setFishWizard(false);
     setCurrentStep(0);
     setState({ ...INITIAL_STATE, tipo: tipoPreselezionato || "vocale" });
   };
 
   useEffect(() => {
     if (!open) return;
+    setFishWizard(tipoPreselezionato==="vocale");
     setCurrentStep(0);
     setState({ ...INITIAL_STATE, tipo: tipoPreselezionato || "vocale" });
   }, [open, tipoPreselezionato]);
@@ -248,6 +253,7 @@ export function AgentCreateModal({ open, tipoPreselezionato, onClose, onSuccess 
     }
   };
 
+  if(open && fishWizard)return <FishOnboardingWizard open onClose={()=>{resetWizard();onClose();}} onSuccess={id=>{resetWizard();onSuccess(id);}} onChangeType={()=>{setFishWizard(false);setCurrentStep(0);}}/>;
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">

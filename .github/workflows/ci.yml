@@ -173,6 +173,10 @@ jobs:
         if: matrix.group == 'core'
         run: bun run test:critical
 
+      - name: Run Fish centralino and CRM regressions
+        if: matrix.group == 'core'
+        run: bun run test:fish
+
       - name: Run floorplan, 3D orientation and document verification regressions
         if: matrix.group == 'worksite'
         run: bun run test:planimetrie

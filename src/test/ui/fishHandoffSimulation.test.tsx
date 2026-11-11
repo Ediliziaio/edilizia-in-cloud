@@ -1,0 +1,12 @@
+import{act,render,screen,fireEvent,waitFor,cleanup}from'@testing-library/react';
+import{beforeEach,afterEach,describe,it,expect,vi}from'vitest';
+const state=vi.hoisted(()=>({options:null as any,api:vi.fn(),end:vi.fn()}));
+vi.mock('@/lib/fishAgentProxy',()=>({callFishAgent:state.api}));
+vi.mock('@fishaudio/agent-client',()=>({AgentSession:{start:vi.fn(async(options:any)=>{state.options=options;return{getTranscript:(): unknown[]=>[],startAudio:vi.fn(),end:state.end};})}}));
+import{FishLiveVoice}from'@/components/agenti/FishLiveVoice';
+beforeEach(()=>{state.options=null;state.api.mockReset();state.api.mockResolvedValue({session_token:{},mock_tools:{passa_a_operatore:{}}});state.end.mockReset();});afterEach(cleanup);
+async function start(){render(<FishLiveVoice companyId='own' agentId='draft' ready initialScenario='handoff_no_answer'/>);fireEvent.click(screen.getByRole('button',{name:'Ascolta senza microfono'}));await waitFor(()=>expect(state.options).not.toBeNull());}
+describe('Operator exercise in the management app',()=>{
+ it('waits for the operator result and returns to the AI on no answer without CRM calls',async()=>{await start();let reply:any;await act(async()=>{reply=state.options.clientTools.passa_a_operatore({riassunto:'Chiarimento sulla commessa'});});expect(screen.getByText('Squillo simulato a Anna')).toBeInTheDocument();expect(screen.getByText('Luca · occupato')).toBeInTheDocument();fireEvent.click(screen.getByRole('button',{name:'Non risponde: torna all’AI'}));expect(await reply).toMatchObject({simulazione:true,collegato:false,ritorno_ai:true});expect(screen.getByText('Anna non ha risposto · ritorno all’AI')).toBeInTheDocument();expect(state.api).toHaveBeenCalledTimes(1);expect(state.api).toHaveBeenCalledWith('own','draft','preview_session',{scenario:'handoff_no_answer'});});
+ it('does not claim a connection before acceptance and cancels pending work at session end',async()=>{await start();let reply:any;await act(async()=>{reply=state.options.clientTools.passa_a_operatore({riassunto:'Consulente'});});expect(screen.queryByText('Anna ha accettato · passaggio dimostrativo')).not.toBeInTheDocument();fireEvent.click(screen.getByRole('button',{name:'Operatore risponde'}));expect(await reply).toMatchObject({collegato:true,ritorno_ai:false});let again:any;await act(async()=>{again=await state.options.clientTools.passa_a_operatore({});});expect(again.risposta).toContain('già terminato');fireEvent.click(screen.getByRole('button',{name:'Termina'}));await waitFor(()=>expect(state.end).toHaveBeenCalled());});
+});

@@ -145,6 +145,7 @@ export interface TicketListItem {
 export interface TicketDetail {
   id: string;
   subject: string;
+  descrizione?: string | null;
   status: TicketStatus;
   priority: TicketPriority;
   tipo?: TicketTipo | string | null;
