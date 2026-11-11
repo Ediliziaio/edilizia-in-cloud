@@ -23,6 +23,7 @@ import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
 import { NoteInterneFattura } from "@/components/fatturazione/NoteInterneFattura";
 import { ContoDiCosto } from "@/components/fatturazione/ContoDiCosto";
 import { ContoRigaMenu, ProposteContiRighe, useContiRighe } from "@/components/fatturazione/ContoPerRiga";
+import { CespiteDaRiga, useCespitiDellaFattura } from "@/components/contabilita/CespiteDaRiga";
 import {
   etichettaAliquota,
   nomeNatura,
@@ -278,6 +279,9 @@ export function RiepilogoFatturaRicevuta({
   const contiRighe = useContiRighe({ companyId: companyId ?? "", fatturaId: String(f?.id ?? ""), salvati: contiSalvati, righe, onCambiato: aggiorna });
   const contiPerRiga = !!f && permessi.canViewCosts && !permessi.solaLettura && f.stato !== "rifiutata" && righe.length > 1;
   const nota = String(f?.tipo_documento ?? "") === "TD04";
+  // Con la contabilità generale accesa una riga può diventare un cespite (registro dei beni ammortizzabili).
+  const cespitiPerRiga = !!f && contiRighe.modo === "piano" && permessi.canViewCosts && !permessi.solaLettura && f.stato !== "rifiutata" && !nota;
+  const cespitiFattura = useCespitiDellaFattura(companyId ?? "", String(f?.id ?? ""), cespitiPerRiga);
   const haXml = !!f && (Number(f.xml_bytes) > 0 || !!f.xml_url);
   const imponibile = f?.imponibile_totale != null ? Number(f.imponibile_totale) : aliquote.reduce((s, a) => s + a.imponibile, 0);
   const iva = f?.iva_totale != null ? Number(f.iva_totale) : aliquote.reduce((s, a) => s + a.imposta, 0);
@@ -545,6 +549,9 @@ export function RiepilogoFatturaRicevuta({
                         <span className="font-medium text-foreground tabular-nums">{formatCurrency(r.imponibile)}</span>
                       </p>
                       {contiPerRiga && r.imponibile !== 0 ? <div className="mt-1.5"><ContoRigaMenu chiave={r.chiave} conti={contiRighe} /></div> : null}
+                      {cespitiPerRiga && r.imponibile > 0 ? (
+                        <div className="mt-1"><CespiteDaRiga companyId={companyId!} fatturaId={String(f.id)} chiave={r.chiave} descrizione={r.descrizione ?? ""} gia={cespitiFattura.data?.get(r.chiave)} /></div>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
@@ -558,6 +565,7 @@ export function RiepilogoFatturaRicevuta({
                         <th className="px-2 py-1.5 text-right font-medium">Importo</th>
                         <th className="px-2 py-1.5 text-right font-medium">IVA</th>
                         {contiPerRiga ? <th className="px-2 py-1.5 text-left font-medium">Conto di costo</th> : null}
+                        {cespitiPerRiga ? <th className="px-2 py-1.5" /> : null}
                       </tr>
                     </thead>
                     <tbody>
@@ -571,6 +579,9 @@ export function RiepilogoFatturaRicevuta({
                             {r.aliquota ? `${String(r.aliquota).replace(".", ",")}%` : r.natura?.toUpperCase().startsWith("N6") ? "RC" : r.natura ? r.natura : "0%"}
                           </td>
                           {contiPerRiga ? <td className="px-2 py-1">{r.imponibile !== 0 ? <ContoRigaMenu chiave={r.chiave} conti={contiRighe} /> : null}</td> : null}
+                          {cespitiPerRiga ? (
+                            <td className="px-2 py-1 text-right">{r.imponibile > 0 ? <CespiteDaRiga companyId={companyId!} fatturaId={String(f.id)} chiave={r.chiave} descrizione={r.descrizione ?? ""} gia={cespitiFattura.data?.get(r.chiave)} /> : null}</td>
+                          ) : null}
                         </tr>
                       ))}
                     </tbody>

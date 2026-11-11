@@ -21,7 +21,7 @@ const conti = [
 function builder(table: string) {
   let singola = false;
   const b: Record<string, unknown> = {};
-  for (const m of ["select", "eq", "order", "range", "limit", "in", "is", "single"]) b[m] = () => b;
+  for (const m of ["select", "eq", "order", "range", "limit", "in", "is", "single", "not", "gte", "lte"]) b[m] = () => b;
   b.maybeSingle = () => { singola = true; return b; };
   b.then = (ok: (v: unknown) => unknown) => {
     const dati = table === "contabilita_conti" ? conti
@@ -40,8 +40,18 @@ vi.mock("@/integrations/supabase/client", () => ({
       if (fn === "contabilita_fine_anno") {
         return {
           data: {
-            ammortamenti: [{ cespite: "Escavatore finto", codice: "C01", costo: 10000, aliquota: 20, fondo_inizio: 1000, quota: 2000, residuo: 7000 }],
             totale_ammortamenti: 2000, retribuzioni: 27000, tfr: 2000, ammortamenti_registrati: false, tfr_registrato: false, registrate: [] as string[],
+          },
+          error: null as { message: string } | null,
+        };
+      }
+      // Il registro dei cespiti ha la sua anteprima (RegistroCespiti).
+      if (fn === "contabilita_ammortamenti") {
+        return {
+          data: {
+            quote: [{ id: "c1", cespite: "Escavatore finto", codice: "C01", categoria: "materiale", costo: 10000, aliquota: 20,
+              fondo_inizio: 1000, fondo_stimato: true, quota: 2000, residuo: 7000, conto_bene: null as string | null, conto_fondo: null as string | null, conto_ammortamento: null as string | null }],
+            totale: 2000, registrati: false, da_aggiornare: false, conti_mancanti: [] as string[],
           },
           error: null as { message: string } | null,
         };

@@ -46,6 +46,16 @@ ha magazzino.
 - Il fondo si legge dalle quote registrate, non si ricostruisce dagli anni.
 - Cespite nato da una riga di fattura ricevuta.
 - Cessione e dismissione con plusvalenza o minusvalenza.
+- Fatto l'11/11 (20290312100000):
+  - conti per cespite (bene, fondo, ammortamento), proposti dalla categoria con i ruoli;
+  - fondo noto al 01/01 di un anno (fondo_iniziale) e quote registrate in contabilita_cespiti_quote:
+    il fondo è il noto più le quote, e dove non c'è né l'uno né le altre è «stimato» e lo si dice;
+  - contabilita_ammortamenti: anteprima, registrazione, e rifacimento se il registro cambia;
+  - contabilita_cespite_cessione: quota in proporzione ai giorni fino alla cessione, chiusura di bene e
+    fondo, prezzo in dare sul conto scelto (il ricavo della fattura di vendita, o banca/cassa),
+    plusvalenza in 20.04 o minusvalenza in 30.40; si annulla con contabilita_cespite_annulla_cessione;
+  - contabilita_cespite_da_fattura: dalla riga di una fattura ricevuta (pulsante «Cespite»), la riga
+    passa sul conto del bene e la fattura già registrata si storna e si rifà.
 
 ## Fuori
 
