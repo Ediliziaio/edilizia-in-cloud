@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,7 +34,8 @@ export function useOperationalDeletion(kind: DeletionKind, rows: Row[], enabled:
   const canDelete = enabled && options.canDelete !== false;
   const canChangePhase = enabled && options.canChangePhase !== false;
   const context = JSON.stringify([company, user?.id, kind, enabled, canDelete, canChangePhase, rows.map(r => r.id)]);
-  const current = useRef(context); current.current = context;
+  const current = useRef(context);
+  useLayoutEffect(() => { current.current = context; }, [context]);
   const lock = useRef(false);
   const [selection, setSelection] = useState<{ context: string; ids: Set<string> }>({ context: "", ids: new Set() });
   const selected = enabled && selection.context === context ? selection.ids : new Set<string>();
