@@ -59,6 +59,9 @@ vi.mock("@/hooks/useRiconciliazioneFatturaAI", () => ({
 vi.mock("@/components/fatturazione/VerificaFatturaPill", () => ({
   VerificaFatturaPill: () => <span>Verifica fattura</span>,
 }));
+vi.mock("@/components/fatturazione/PdfRigaConfronto", () => ({
+  PdfRigaConfronto: ({ nome }: { nome: string }) => <canvas title={`Originale ${nome}`} />,
+}));
 vi.mock("@/components/fatturazione/CollegaDdtFattura", () => ({
   CollegaDdtFattura: () => <span>Scelta bolle reali</span>,
 }));
