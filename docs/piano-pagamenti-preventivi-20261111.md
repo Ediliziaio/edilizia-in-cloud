@@ -684,9 +684,26 @@ lavorazione. Niente errori per quantità, unità e prezzo mancanti, importo fuor
 totale, riga nel PDF con «Da quantificare» al posto dell'importo, e il documento non si
 blocca.
 
-## Quello che resta
+## Quello che resta (aggiornato la sera dell'11/11/2026)
 
-**La migrazione delle rate a misura non è applicata.** Sta pronta in
+Fatto anche: la migrazione delle rate a misura è applicata e riallineata
+(`20290313110000`), il flag arriva fino allo scadenzario; i SAL numerati si spalmano
+sul cantiere invece di cadere tutti a metà lavori; la rata a misura nasce in commessa
+con la sua previsione; e il termine di pagamento e la rata a misura sono anche negli
+altri otto preventivatori (`PianoPagamentoCard`, `lib/preventivi/pianoPagamento.ts`,
+PDF edile).
+
+Resta una cosa sola, e non si può fare da qui: **la migrazione
+`docs/rate-momenti-termine-ritenuta-20261111.sql`**. Aggiunge i momenti che oggi si
+perdono al confine (`sal_percentuale`, `fase_completata`, `collaudo`), le colonne del
+termine di pagamento e `orders.ritenuta_garanzia`, e insegna a `data_attesa_rata` le tre
+regole nuove. La prova a secco è passata; il tool MCP l'ha rifiutata come «Production
+Deploy». Finché non si applica: «al 30% dei lavori» e «a completamento di una fase»
+arrivano in commessa come SAL numerati, «al collaudo» come «a fine lavori», il termine
+di pagamento resta scritto nel documento e la ritenuta a garanzia si ferma al
+preventivo.
+
+**Storico: la migrazione delle rate a misura non era applicata.** Sta pronta in
 `docs/rate-a-misura-commessa-20261111.sql`: aggiunge `order_installments.importo_da_misurare`
 e insegna a `order_rate_sostituisci` a leggerlo, perché oggi una rata a misura, arrivata
 in commessa, sembra un importo certo. Fuori da `supabase/migrations/` apposta: va
