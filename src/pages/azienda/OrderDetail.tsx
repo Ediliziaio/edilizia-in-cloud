@@ -1520,7 +1520,7 @@ function OrderDetailInner() {
       })()}
       sollecitoRef={sollecitoRef}
       onCreateTask={permissions.canViewOrders ? () => setTaskDialogOpen(true) : undefined}
-      onAffidaDitte={!isMobile && !operationalIntervention && permissions.canEditOrders && permissions.canViewCosts && !permissions.solaLettura ? () => setAffidaDitteOpen(true) : undefined}
+      onAffidaDitte={!operationalIntervention && permissions.canEditOrders && permissions.canViewCosts && !permissions.solaLettura ? () => setAffidaDitteOpen(true) : undefined}
       // Applica flusso solo se manca qualcosa e la commessa non è già chiusa.
       onApplyPlaybook={permissions.canViewOrders && haFlussoDaApplicare && !statoConclusivo(statuses, order.current_status_id) ? handleApplyPlaybook : undefined}
       applyingPlaybook={applyingPlaybook}

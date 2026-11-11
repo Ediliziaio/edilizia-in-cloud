@@ -44,6 +44,9 @@ import { AbbinaListinoDialog } from "./AbbinaListinoDialog";
 import { AffidaVociDialog, useAffidamentiCommessa } from "./AffidaVociDialog";
 import { AffidaContrattoDialog } from "./AffidaContrattoDialog";
 import { VarianteVociDialog } from "./VarianteVociDialog";
+import { LavoriMisureSubDialog } from "@/components/subappaltatori/LavoriMisureSubDialog";
+import type { SALSubappaltatore } from "@/types/subappaltatori";
+import { VerbaleSalSubDialog } from "@/components/subappaltatori/VerbaleSalSubDialog";
 import { chiaveAffidamenti, type AffidamentoChiFaCosa } from "@/lib/subappaltatori/affidamentiCommessa";
 
 // Tabelle recenti, non ancora tutte nei tipi generati.
@@ -520,6 +523,21 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
   // L'elenco si rivede prima di salvarlo (Dimora, 31/10/2026): null = finestra chiusa.
   const [bozzaElenco, setBozzaElenco] = useState<RigaElencoLavori[] | null>(null);
   const [varianteAperta, setVarianteAperta] = useState(false);
+  // Misure e SAL dalla commessa (11/11/2026): prima solo dalla scheda della ditta.
+  const [misure, setMisure] = useState<{ id: string; order_id: string; numero_contratto: string | null; descrizione_lavori: string; importo_contrattuale: number; oneri_sicurezza: number; ritenuta_garanzia_pct: number; elenco_lavori?: unknown } | null>(null);
+  const [verbale, setVerbale] = useState<SALSubappaltatore | null>(null);
+  const apriMisure = useMutation({
+    mutationFn: async () => {
+      if (!contratto) return null;
+      const { data, error } = await db.from("contratti_subappalto")
+        .select("id, order_id, numero_contratto, descrizione_lavori, importo_contrattuale, oneri_sicurezza, ritenuta_garanzia_pct, elenco_lavori")
+        .eq("id", contratto.id).eq("company_id", companyId).single();
+      if (error) throw error;
+      return { ...data, importo_contrattuale: Number(data.importo_contrattuale) || 0, oneri_sicurezza: Number(data.oneri_sicurezza) || 0, ritenuta_garanzia_pct: Number(data.ritenuta_garanzia_pct) || 0 };
+    },
+    onSuccess: (c) => setMisure(c),
+    onError: (e: Error) => toast.error(e.message || "Non riesco ad aprire misure e SAL."),
+  });
   const conQuoteNelContratto = !!contratto?.firmato_il && quote.some((a) => a.contratto_id === contratto.id);
   const apriElenco = () => setBozzaElenco((elencoSalvato.length ? elencoSalvato : elenco).map(conChiave));
   /** La scheda sicurezza per un contratto nuovo: se la ditta non ce l'ha, la si crea dalla scheda del campo. */
@@ -710,6 +728,12 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
         {conQuoteNelContratto && (
           <Button size="sm" variant="outline" onClick={() => setVarianteAperta(true)}>Variante sulle voci</Button>
         )}
+        {contratto?.firmato_il && (
+          <Button size="sm" variant="outline" disabled={apriMisure.isPending} onClick={() => apriMisure.mutate()}
+            title="Lavori eseguiti, misure e SAL della ditta su questo contratto">
+            {apriMisure.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Misure e SAL
+          </Button>
+        )}
         {contratto && (
           <Button size="sm" variant="outline" disabled={scarica.isPending} onClick={() => scarica.mutate()}>
             {scarica.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileText className="mr-1 h-4 w-4" />}PDF
@@ -728,6 +752,17 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
           </Button>
         )}
       </div>
+      {misure && (
+        <LavoriMisureSubDialog key={misure.id} companyId={companyId} contratto={misure} sezioneIniziale="misure"
+          onClose={() => { setMisure(null); onCambio(); }}
+          onApriVerbale={async (id) => {
+            const { data, error } = await db.from("sal_subappaltatori").select("*").eq("id", id).eq("company_id", companyId).eq("contratto_id", misure.id).single();
+            if (error || !data) throw Error("SAL registrato ma non ancora consultabile: riprova la lettura");
+            setVerbale(data as SALSubappaltatore);
+            setMisure(null);
+          }} />
+      )}
+      {verbale && <VerbaleSalSubDialog key={verbale.id} companyId={companyId} sal={verbale} onClose={() => { setVerbale(null); onCambio(); }} />}
       {varianteAperta && contratto && (
         <VarianteVociDialog companyId={companyId} contrattoId={contratto.id} nomeDitta={ditta.name} importo={Number(contratto.importo_contrattuale) || 0}
           quote={quote} voci={vociCommessa} elencoContratto={contratto.elenco_lavori} onChiudi={() => setVarianteAperta(false)} onFatto={() => { setVarianteAperta(false); onCambio(); }} />
