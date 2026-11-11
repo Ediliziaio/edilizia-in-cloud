@@ -44,7 +44,8 @@ function setup(nodes = [node("trigger", "trigger", "contatto_creato"),node("azio
   };
   state.builder = b;
 }
-function mount() { return render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><MemoryRouter initialEntries={["/azienda/marketing/automazioni/flow"]}><Routes><Route path="/azienda/marketing/automazioni/:id" element={<FlowBuilderPage/>}/></Routes></MemoryRouter></QueryClientProvider>); }
+function app() { return <QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><MemoryRouter initialEntries={["/azienda/marketing/automazioni/flow"]}><Routes><Route path="/azienda/marketing/automazioni/:id" element={<FlowBuilderPage/>}/></Routes></MemoryRouter></QueryClientProvider>; }
+function mount() { return render(app()); }
 beforeEach(() => { state.saved = null; setup(); }); afterEach(cleanup);
 describe("builder trigger recovery and persisted entry", () => {
   it("delete from panel → reinsert → save → reopen keeps the action connected", async () => {
@@ -103,6 +104,18 @@ describe("builder trigger recovery and persisted entry", () => {
     expect(created.node_type).toBe("action");
     expect(state.builder.addConnection).toHaveBeenCalledWith(expect.objectContaining({from_node_id:"trigger",to_node_id:created.id,label:null}));
     expect(state.builder.addConnection).toHaveBeenCalledWith(expect.objectContaining({from_node_id:created.id,to_node_id:"azione",label:null}));
+  });
+
+  it("waits for restored authentication/company context instead of locking an empty canvas", async () => {
+    state.builder.effectiveCompany=undefined;state.builder.user=undefined;
+    state.builder.dbNodes=[];state.builder.dbConnections=[];state.builder.remoteEmpty=true;
+    const view=mount();
+    expect(screen.getByText("Seleziona un'azienda")).toBeInTheDocument();
+    setup();view.rerender(app());
+    expect(await screen.findByRole("button",{name:"trigger"})).toBeInTheDocument();
+    expect(screen.getByRole("button",{name:"azione"})).toBeInTheDocument();
+    expect(screen.getByTestId("edges").textContent).toContain('["trigger","azione",null]');
+    expect(screen.queryByRole("button",{name:"Aggiungi il primo trigger"})).not.toBeInTheDocument();
   });
 
 });
