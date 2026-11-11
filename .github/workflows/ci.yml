@@ -233,6 +233,8 @@ jobs:
           bunx vitest run --maxWorkers=2
           src/test/logic/rapportiniMese.test.ts
           src/test/logic/leggiRapportiniMese.test.ts
+          src/test/logic/documentiCantiere.test.ts
+          src/test/logic/leggiGiornaliPeriodo.test.ts
           src/test/logic/rapportiniPeriodoEconomia.test.ts
           src/test/logic/destinatarioRapporto.test.ts
           src/test/logic/documentiOperativi.test.ts
