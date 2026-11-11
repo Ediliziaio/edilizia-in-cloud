@@ -167,7 +167,7 @@ describe("appuntamento: aprire contatto e opportunità collegati", () => {
   it("conserva Google quando l'annullamento CRM non viene salvato", async () => {
     writing.google = true; writing.missing = true;
     apri();
-    fireEvent.click(screen.getAllByRole("button", { name: "Annulla", exact: true })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Annulla" })[0]);
     fireEvent.click(await screen.findByRole("button", { name: "Annulla l'appuntamento" }));
     await waitFor(() => expect(writing.update).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.getByRole("button", { name: "Salva modifiche" })).toBeEnabled());
@@ -178,7 +178,7 @@ describe("appuntamento: aprire contatto e opportunità collegati", () => {
     let finish!: (value: unknown) => void;
     writing.promise = new Promise(resolve => { finish = resolve; });
     apri();
-    fireEvent.click(screen.getAllByRole("button", { name: "Annulla", exact: true })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Annulla" })[0]);
     fireEvent.click(await screen.findByRole("button", { name: "Annulla l'appuntamento" }));
     await waitFor(() => expect(writing.update).toHaveBeenCalledTimes(1));
     expect(writing.googleDelete).not.toHaveBeenCalled();
