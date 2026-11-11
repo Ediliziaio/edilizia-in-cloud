@@ -33,9 +33,7 @@ async function segna() {
     screen.getByRole("button", { name: "Cambia la verifica della fattura QA" }),
     { button: 0, ctrlKey: false },
   );
-  fireEvent.click(
-    await screen.findByRole("menuitem", { name: "Verificata", exact: true }),
-  );
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Verificata" }));
 }
 beforeEach(() => {
   vi.clearAllMocks();

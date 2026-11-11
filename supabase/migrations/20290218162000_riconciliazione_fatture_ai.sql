@@ -83,8 +83,8 @@ begin
   if not found then raise exception 'Analisi non disponibile.' using errcode='P0002'; end if;
   c:=public.fattura_riconciliazione_contesto(a.fattura_id,a.documenti);
   if not (c->>'puo_modificare')::boolean then raise exception 'Il tuo ruolo consente solo la lettura.' using errcode='42501'; end if;
-  if c->>'impronta'<>a.impronta then raise exception 'I documenti sono cambiati. Aggiorna il confronto e ripeti l’analisi.' using errcode='40001'; end if;
-  if a.revisione<>p_revisione then raise exception 'Un collega ha aggiornato la revisione. Ricarica prima di salvare.' using errcode='40001'; end if;
+  if c->>'impronta'<>a.impronta then raise exception 'I documenti sono cambiati. Aggiorna il confronto e ripeti l’analisi.' using errcode='PT409'; end if;
+  if a.revisione<>p_revisione then raise exception 'Un collega ha aggiornato la revisione. Ricarica prima di salvare.' using errcode='PT409'; end if;
   if jsonb_typeof(p_decisioni) is distinct from 'object' or (select count(*) from jsonb_object_keys(p_decisioni))<>jsonb_array_length(a.proposta->'righe') then
     raise exception 'Controlla tutte le voci prima di salvare.' using errcode='22023';
   end if;
