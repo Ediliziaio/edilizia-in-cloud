@@ -141,9 +141,11 @@ export default function SubappaltatoreDetail() {
   const { data: contratti = [], isLoading: caricoContratti, error: erroreContratti, refetch: ricaricaContratti } = useContrattiSubappaltatore(id);
   // Dalla commessa si arriva col contratto da aprire (?tab=contratto&contratto=…, Ditte e contratti)
   // o coi suoi SAL (?tab=contabilita&contratto=…, Fatture e costi).
-  const [parametri] = useSearchParams();
+  const [parametri, setParametri] = useSearchParams();
   const [contrattoSelId, setContrattoSelId] = useState<string | null>(() => parametri.get('contratto'));
   const [contrattoDaAprire, setContrattoDaAprire] = useState<string | null>(() => parametri.get('tab') === 'contabilita' ? null : parametri.get('contratto'));
+  // Da «Affida e manda il contratto» (11/11/2026): il contratto si apre con l'invio in firma già pronto.
+  const [invioDaAprire, setInvioDaAprire] = useState<string | null>(() => (parametri.get('invia') === '1' ? parametri.get('contratto') : null));
   const [tabAttiva, setTabAttiva] = useState(() => {
     const scheda = parametri.get('tab');
     return scheda === 'contratto' || scheda === 'contabilita' || scheda === 'listino' ? scheda : 'anagrafica';
@@ -1071,7 +1073,7 @@ export default function SubappaltatoreDetail() {
 
         {/* ─── Tab 2: Contratto ──────────────────────────────────────────────── */}
         <TabsContent value="contratto" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
-          <ContrattiSubappalto companyId={companyId} sub={sub} selezionatoId={contratto?.id ?? null} richiestaApertura={contrattoDaAprire} onAperturaGestita={() => setContrattoDaAprire(null)}
+          <ContrattiSubappalto companyId={companyId} sub={sub} selezionatoId={contratto?.id ?? null} richiestaApertura={contrattoDaAprire} onAperturaGestita={() => setContrattoDaAprire(null)} invioRichiesto={invioDaAprire} onInvioGestito={() => { setInvioDaAprire(null); setParametri((p) => { const n = new URLSearchParams(p); n.delete('invia'); return n; }, { replace: true }); }}
             onSeleziona={(cid) => setContrattoSelId(cid)}
             onApriContabilita={(cid) => {setContrattoDaAprire(null);setContrattoSelId(cid);setVistaContabilita('sal');setTabAttiva('contabilita');}} />
         </TabsContent>

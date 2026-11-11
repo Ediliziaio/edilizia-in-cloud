@@ -198,9 +198,12 @@ async function scaricaFirmato(richiestaId: string) {
 }
 
 export function ContrattiSubappalto({
-  companyId, sub, selezionatoId, onSeleziona, onApriContabilita, richiestaApertura, onAperturaGestita,
+  companyId, sub, selezionatoId, onSeleziona, onApriContabilita, richiestaApertura, onAperturaGestita, invioRichiesto, onInvioGestito,
 }: {
   richiestaApertura?: string | null;
+  /** Il contratto per cui aprire subito l'invio in firma (da «Affida e manda il contratto»). */
+  invioRichiesto?: string | null;
+  onInvioGestito?: () => void;
   onAperturaGestita?: () => void;
   companyId: string;
   sub: SubPerContratto;
@@ -363,6 +366,17 @@ export function ContrattiSubappalto({
     },
     enabled: contratti.length > 0 && !!sub.campo_subappaltatore_id,
   });
+  // «Crea e manda in firma»: appena IVA della ditta e condizioni sono lette, si apre l'invio di quel contratto.
+  useEffect(() => {
+    if (!invioRichiesto || caricoIva || caricoModello || erroreModello || caricoFirme) return;
+    const c = contratti.find((x) => x.id === invioRichiesto);
+    if (!c) return;
+    onInvioGestito?.();
+    const r = richiestaDi(c.id);
+    if (c.firmato_il || (r && ["pending", "otp_verified"].includes(r.status))) return;
+    setInvio({ c, nome: c.referente_subappaltatore || sub.responsabile || "", email: sub.pec || sub.email || "", telefono: sub.telefono || "" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invioRichiesto, caricoIva, caricoModello, erroreModello, caricoFirme, contratti]);
 
   const riepiloghi = useMemo(() => new Map<string, RiepilogoContratto>(contratti.map((c) => [
     c.id,
