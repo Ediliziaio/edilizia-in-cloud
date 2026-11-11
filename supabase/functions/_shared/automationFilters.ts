@@ -219,6 +219,21 @@ export function matchesAutomationTriggerConfig(tcfg: Record<string, any>, payloa
     if (typeof tcfg.calendario_id === "string" && tcfg.calendario_id !== "") {
       if (String(ep?.calendar_id ?? "") !== tcfg.calendario_id) return false;
     }
+    // Più calendari (trigger degli appuntamenti), dall'11/11/2026. Un solo
+    // calendario non bastava: Il Bagno Group ha sette showroom più il
+    // calendario delle chiamate, e il flusso del nutrimento showroom partiva
+    // per OGNI appuntamento dell'azienda — 93 iscrizioni per 3 invii — perché
+    // a scegliere chi entrava erano le condizioni, dopo. Il 10/11 Giusy si è
+    // fissata a mano una «call conoscitiva» sul proprio calendario e il
+    // flusso showroom è partito lo stesso: le condizioni guardavano il TIPO,
+    // e il tipo era «generico». Chi entra si decide qui, sul calendario.
+    // Elenco vuoto = nessun filtro, come se non ci fosse.
+    if (Array.isArray(tcfg.calendari_filtro) && tcfg.calendari_filtro.length > 0) {
+      const ammessi = (tcfg.calendari_filtro as unknown[]).map((c) => String(c ?? "").trim()).filter(Boolean);
+      // Un evento senza calendar_id (più vecchio del 22/09/2026) non passa:
+      // non si può dire da che calendario arrivi.
+      if (ammessi.length > 0 && !ammessi.includes(String(ep?.calendar_id ?? ""))) return false;
+    }
     // Numero WhatsApp Locale (whatsapp_ricevuto): solo i messaggi arrivati a
     // quel numero. Le risposte ai promemoria arrivano al numero degli
     // appuntamenti, e lì un «non posso» va visto subito.

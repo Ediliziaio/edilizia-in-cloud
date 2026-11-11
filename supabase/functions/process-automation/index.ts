@@ -364,6 +364,14 @@ async function handleTrigger(supabase: any, body: any) {
 
     if (payload?._automation_flow_id && payload._automation_flow_id !== flow.id) continue;
     if (payload?._automation_trigger_id && payload._automation_trigger_id !== candidate.id) continue;
+    // Qui si decide CHI ENTRA, e conviene che decida qui: un flusso che
+    // iscrive tutti e si affida alle condizioni per fermarli dopo sbaglia al
+    // primo buco nelle condizioni. Il 10/11/2026 «DVS 7 · Nutrimento
+    // pre-appuntamento» di Il Bagno Group aveva 93 iscrizioni per 3 invii,
+    // perché il trigger non filtrava niente; la «call conoscitiva» che Giusy
+    // si era fissata da sola è entrata e si è presa i messaggi dello
+    // showroom. Dall'11/11/2026 i trigger degli appuntamenti filtrano anche
+    // su un ELENCO di calendari (`calendari_filtro`), non solo su uno.
     if (!matchesAutomationTriggerConfig(candidate.config_json ?? {}, enrichedPayload, fusoDelFlusso(flow.timezone))) continue;
 
     matchingTrigger = candidate;

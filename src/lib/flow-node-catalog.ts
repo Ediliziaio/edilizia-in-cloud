@@ -32,6 +32,7 @@ export type ConfigFieldType =
   | 'pipeline_select'        // pipeline CRM (marketing_pipelines)
   | 'pipeline_stage_select'  // fase della pipeline scelta (marketing_pipeline_stages)
   | 'calendar_select'        // calendario di prenotazione (marketing_calendars)
+  | 'calendar_multi_select'  // più calendari insieme (marketing_calendars)
   | 'order_status_select'    // fase commessa dell'azienda (order_statuses)
   | 'whatsapp_locale_number_select' // numero WhatsApp Locale della piattaforma (openwa_numbers)
   | 'whatsapp_template_select' // modello WhatsApp approvato da Meta (wa_meta_templates)
@@ -392,6 +393,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     ],
     configSchema: [
       { id: 'calendario_id', label: 'Calendario (opzionale)', type: 'calendar_select', required: false, helpText: 'Solo gli appuntamenti di questo calendario: con più marchi, ognuno ha il suo.' },
+      { id: 'calendari_filtro', label: 'Oppure più calendari (opzionale)', type: 'calendar_multi_select', required: false, helpText: 'Quando i calendari da prendere sono più d\'uno: i sette showroom sì, quello delle chiamate no. Senza questo filtro il flusso parte per ogni appuntamento dell\'azienda e a decidere chi entra restano le condizioni, che guardano il tipo e lo sbagliano.' },
       { id: 'tipo_filtro', label: 'Tipo appuntamento (opzionale)', type: 'select', required: false, options: [
         { value: '', label: 'Tutti i tipi' }, { value: 'sopralluogo', label: 'Sopralluogo' },
         { value: 'videocall', label: 'Video call' }, { value: 'telefonata', label: 'Telefonata' }, { value: 'in_sede', label: 'In sede' },
@@ -415,6 +417,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     ],
     configSchema: [
       { id: 'calendario_id', label: 'Calendario (opzionale)', type: 'calendar_select', required: false, helpText: 'Solo gli appuntamenti di questo calendario: con più marchi, ognuno ha il suo.' },
+      { id: 'calendari_filtro', label: 'Oppure più calendari (opzionale)', type: 'calendar_multi_select', required: false, helpText: 'Quando i calendari da prendere sono più d\'uno: i sette showroom sì, quello delle chiamate no. Senza questo filtro il flusso parte per ogni appuntamento dell\'azienda e a decidere chi entra restano le condizioni, che guardano il tipo e lo sbagliano.' },
     ],
   },
   {
@@ -433,6 +436,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     ],
     configSchema: [
       { id: 'calendario_id', label: 'Calendario (opzionale)', type: 'calendar_select', required: false, helpText: 'Solo gli appuntamenti di questo calendario: con più marchi, ognuno ha il suo.' },
+      { id: 'calendari_filtro', label: 'Oppure più calendari (opzionale)', type: 'calendar_multi_select', required: false, helpText: 'Quando i calendari da prendere sono più d\'uno: i sette showroom sì, quello delle chiamate no. Senza questo filtro il flusso parte per ogni appuntamento dell\'azienda e a decidere chi entra restano le condizioni, che guardano il tipo e lo sbagliano.' },
     ],
   },
   {
@@ -450,6 +454,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     ],
     configSchema: [
       { id: 'calendario_id', label: 'Calendario (opzionale)', type: 'calendar_select', required: false, helpText: 'Solo gli appuntamenti di questo calendario: con più marchi, ognuno ha il suo.' },
+      { id: 'calendari_filtro', label: 'Oppure più calendari (opzionale)', type: 'calendar_multi_select', required: false, helpText: 'Quando i calendari da prendere sono più d\'uno: i sette showroom sì, quello delle chiamate no. Senza questo filtro il flusso parte per ogni appuntamento dell\'azienda e a decidere chi entra restano le condizioni, che guardano il tipo e lo sbagliano.' },
     ],
   },
   {
@@ -467,6 +472,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     ],
     configSchema: [
       { id: 'calendario_id', label: 'Calendario (opzionale)', type: 'calendar_select', required: false, helpText: 'Solo gli appuntamenti di questo calendario: con più marchi, ognuno ha il suo.' },
+      { id: 'calendari_filtro', label: 'Oppure più calendari (opzionale)', type: 'calendar_multi_select', required: false, helpText: 'Quando i calendari da prendere sono più d\'uno: i sette showroom sì, quello delle chiamate no. Senza questo filtro il flusso parte per ogni appuntamento dell\'azienda e a decidere chi entra restano le condizioni, che guardano il tipo e lo sbagliano.' },
     ],
   },
   {
