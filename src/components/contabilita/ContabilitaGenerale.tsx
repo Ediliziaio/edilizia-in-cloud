@@ -349,7 +349,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
       if (error) throw error;
       return data as {
         fatture_emesse: number; fatture_ricevute: number; incassi: number; pagamenti: number; altre?: number; movimenti?: number; giroconti_saltati?: number; cedolini?: number;
-        saltate_solo_testata: number; gia_generate: number; riallineate?: number; errori: string[];
+        saltate_solo_testata: number; gia_generate: number; riallineate?: number; errori: string[]; avvisi?: string[];
       };
     },
     onSuccess: (r) => {
@@ -361,13 +361,14 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
         r.riallineate ? `${r.riallineate} stornate e rifatte: documenti cambiati, annullati o cancellati dopo la registrazione` : "",
         r.saltate_solo_testata ? `${r.saltate_solo_testata} saltati: senza imponibile (solo testata) o senza la loro fattura in contabilità` : "",
         r.errori.length ? `${r.errori.length} non registrati: ${r.errori.slice(0, 3).join("; ")}` : "",
+        r.avvisi?.length ? `${r.avvisi.length} cose da guardare (elenco sopra le scritture)` : "",
       ].filter(Boolean).join(" · ");
-      (r.errori.length ? toast.warning : toast.success)(`${nuove} scritture generate`, { description: dettagli, duration: 12000 });
+      (r.errori.length || r.avvisi?.length ? toast.warning : toast.success)(`${nuove} scritture generate`, { description: dettagli, duration: 12000 });
       // Tutta la contabilità: scritture, liquidazioni, fine anno e chiusura leggono le stesse scritture.
       void qc.invalidateQueries({ queryKey: chiave(companyId) });
       // L'ora dell'ultimo aggiornamento la scrive il giro automatico; quello a mano la mostra subito.
       qc.setQueryData<StatoEsercizioRiga | null>(chiave(companyId, "esercizio", anno),
-        (e) => e ? { ...e, generato_il: new Date().toISOString() } : e);
+        (e) => e ? { ...e, generato_il: new Date().toISOString(), generato_esito: { ...(e.generato_esito ?? {}), avvisi: r.avvisi ?? [], errori: r.errori } } : e);
     },
     onError: (e) => toast.error("Scritture non generate", { description: e instanceof Error ? e.message : String(e) }),
   });
@@ -399,6 +400,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
         <PrintPreviewModal open onOpenChange={(v) => { if (!v) setStampa(null); }} htmlContent={stampa}
           title="Libro giornale — anteprima di stampa" fileName={`libro-giornale-${anno}`} soloPdf />
       )}
+      <DaGuardare esito={esercizio?.generato_esito} />
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
         <span className="text-muted-foreground">
           {anno}: {g.scritture} scritture · dare {euro(g.totaleDare)} · avere {euro(g.totaleAvere)}
@@ -1044,7 +1046,12 @@ function LiquidazioneIva({ companyId, anno }: { companyId: string; anno: number 
   );
 }
 
-interface StatoEsercizioRiga { anno: number; chiuso_il: string | null; stampato_fino_al: string | null; generato_il: string | null; stampe: Array<{ dal: string; al: string; scritture: number; il: string }> }
+interface StatoEsercizioRiga {
+  anno: number; chiuso_il: string | null; stampato_fino_al: string | null; generato_il: string | null;
+  stampe: Array<{ dal: string; al: string; scritture: number; il: string }>;
+  /** L'esito dell'ultima generazione: avvisi (documenti da guardare) ed errori. */
+  generato_esito?: { avvisi?: string[]; errori?: string[] } | null;
+}
 
 /** «Aggiornata alle 10:15» oggi, «Aggiornata il 09/11 alle 18:52» gli altri giorni (ora italiana). */
 function aggiornataAlle(iso: string, adesso: Date = new Date()): string {
@@ -1055,12 +1062,33 @@ function aggiornataAlle(iso: string, adesso: Date = new Date()): string {
   return stessoGiorno ? `aggiornata alle ${ora}` : `aggiornata il ${giorno(d)} alle ${ora}`;
 }
 
+/**
+ * Quello che la generazione non ha saputo classificare (documenti col solo totale, differenze fra totale
+ * e imponibile più IVA, movimenti su «Partite da verificare»): va guardato, non resta nascosto.
+ */
+function DaGuardare({ esito }: { esito: StatoEsercizioRiga["generato_esito"] }) {
+  const avvisi = esito?.avvisi ?? [];
+  const errori = esito?.errori ?? [];
+  if (avvisi.length + errori.length === 0) return null;
+  return (
+    <details className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+      <summary className="cursor-pointer font-medium">
+        Da guardare: {avvisi.length} {avvisi.length === 1 ? "cosa" : "cose"}{errori.length ? ` · ${errori.length} non registrati` : ""}
+      </summary>
+      <ul className="mt-2 max-h-64 list-disc space-y-0.5 overflow-y-auto pl-5 text-xs">
+        {errori.map((t, i) => <li key={`e${i}`} className="text-destructive">{t}</li>)}
+        {avvisi.map((t, i) => <li key={`a${i}`}>{t}</li>)}
+      </ul>
+    </details>
+  );
+}
+
 function useEsercizio(companyId: string | undefined, anno: number) {
   return useQuery({
     queryKey: chiave(companyId, "esercizio", anno),
     enabled: !!companyId,
     queryFn: async () => {
-      const { data, error } = await db.from("contabilita_esercizi").select("anno, chiuso_il, stampato_fino_al, stampe, generato_il")
+      const { data, error } = await db.from("contabilita_esercizi").select("anno, chiuso_il, stampato_fino_al, stampe, generato_il, generato_esito")
         .eq("company_id", companyId).eq("anno", anno).maybeSingle();
       if (error) throw error;
       return (data ?? null) as StatoEsercizioRiga | null;

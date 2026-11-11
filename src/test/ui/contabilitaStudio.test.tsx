@@ -33,8 +33,14 @@ const scritture = [
   scrittura(3, "2026-02-20", "fattura_ricevuta", "Fattura ricevuta A7", [["materie", 40, 0, null], ["fornitori", 0, 40, null]]),
 ];
 
+// L'esito dell'ultima generazione, con due documenti da guardare.
+const esercizio = { anno: 2026, chiuso_il: null as string | null, stampato_fino_al: null as string | null, stampe: [] as unknown[], generato_il: null as string | null,
+  generato_esito: { avvisi: ["Fattura ricevuta 7 del 01/02/2026: 40.00 € fra totale e imponibile più IVA, su «Partite da verificare».",
+    "Movimento di prima nota del 03/02/2026 (1000 €, «bonifico»): su «Partite da verificare», va classificato."], errori: [] as string[] } };
+
 function builder(table: string) {
-  const dati = table === "contabilita_conti" ? conti : table === "contabilita_scritture" ? scritture : [];
+  const dati = table === "contabilita_conti" ? conti : table === "contabilita_scritture" ? scritture
+    : table === "contabilita_esercizi" ? esercizio : [];
   const b: Record<string, unknown> = {};
   for (const m of ["select", "eq", "order", "range", "limit", "in", "is", "maybeSingle", "single"]) b[m] = () => b;
   b.then = (ok: (v: unknown) => unknown) => Promise.resolve({ data: dati, error: null }).then(ok);
@@ -101,4 +107,12 @@ it("le scritture si filtrano per origine: fatture ricevute, emesse, incassi", as
   fireEvent.click(screen.getByRole("button", { name: /Fatture emesse \(ricavi\)/ }));
   expect(await screen.findByText("Fattura emessa F1")).toBeTruthy();
   expect(screen.queryByText("Incasso F1")).toBeNull();
+});
+
+it("quello che la generazione non sa classificare si vede: «Da guardare»", async () => {
+  apri("scritture");
+  const riquadro = await screen.findByText(/Da guardare: 2 cose/);
+  fireEvent.click(riquadro);
+  expect(screen.getByText(/40.00 € fra totale e imponibile più IVA/)).toBeTruthy();
+  expect(screen.getByText(/va classificato/)).toBeTruthy();
 });
