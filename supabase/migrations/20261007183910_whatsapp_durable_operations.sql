@@ -1,4 +1,42 @@
 begin;
+-- Permission helper is required here, before the later WhatsApp permissions migration.
+create or replace function public.puo_gestire_whatsapp(p_company_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path to ''
+as $$
+  select coalesce(
+    p_company_id is not null
+    and (select auth.uid()) is not null
+    and not public.utente_bloccato()
+    and (
+      public.has_role((select auth.uid()), 'super_admin'::public.app_role)
+      or (
+        public.has_role((select auth.uid()), 'company_admin'::public.app_role)
+        and exists (
+          select 1 from public.profiles p
+           where p.id = (select auth.uid()) and p.company_id = p_company_id
+        )
+      )
+      or exists (
+        select 1 from public.multi_company_access m
+         where m.user_id = (select auth.uid())
+           and m.company_id = p_company_id
+           and m.status = 'active'
+           and (m.expires_at is null or m.expires_at > now())
+           and m.access_role = 'company_admin'
+      )
+    ),
+    false
+  );
+$$;
+
+revoke all on function public.puo_gestire_whatsapp(uuid) from public, anon;
+grant execute on function public.puo_gestire_whatsapp(uuid) to authenticated, service_role;
+
+
 set local lock_timeout = '3s';
 
 create table public.whatsapp_operations (

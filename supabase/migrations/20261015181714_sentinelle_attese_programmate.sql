@@ -3,6 +3,8 @@
 SET LOCAL lock_timeout = '2s';
 SET LOCAL statement_timeout = '10s';
 
+-- Applied again immediately after the later sentinel function is defined.
+DO $history$ BEGIN IF to_regprocedure('public.sentinelle_effetti_cron()') IS NOT NULL THEN
 DO $migration$
 DECLARE
   definition text := pg_get_functiondef('public.sentinelle_effetti_cron()'::regprocedure);
@@ -47,3 +49,5 @@ $migration$;
 -- È una funzione interna con effetti (storico/notifiche), non una RPC utente.
 REVOKE ALL ON FUNCTION public.sentinelle_effetti_cron() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.sentinelle_effetti_cron() TO service_role;
+
+END IF; END $history$;

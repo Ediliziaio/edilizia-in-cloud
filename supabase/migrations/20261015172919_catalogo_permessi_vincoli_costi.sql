@@ -82,6 +82,21 @@ BEGIN
   END LOOP;
 END $catalogo$;
 
+-- Optional UUID links must exist before these tenant-scoped foreign keys.
+ALTER TABLE public.tariffe_aziendali ADD COLUMN IF NOT EXISTS external_team_id uuid;
+ALTER TABLE public.article_templates ADD COLUMN IF NOT EXISTS family_id uuid;
+ALTER TABLE public.article_templates ADD COLUMN IF NOT EXISTS supplier_id uuid;
+ALTER TABLE public.article_templates ADD COLUMN IF NOT EXISTS montaggio_tariffa_id uuid;
+ALTER TABLE public.article_templates ADD COLUMN IF NOT EXISTS categoria_id uuid;
+ALTER TABLE public.article_families ADD COLUMN IF NOT EXISTS supplier_id uuid;
+ALTER TABLE public.article_families ADD COLUMN IF NOT EXISTS posa_tariffa_default_id uuid;
+ALTER TABLE public.article_families ADD COLUMN IF NOT EXISTS categoria_id uuid;
+ALTER TABLE public.article_families ADD COLUMN IF NOT EXISTS macrocategoria_id uuid;
+ALTER TABLE public.listino_griglia ADD COLUMN IF NOT EXISTS family_id uuid;
+ALTER TABLE public.listino_griglia ADD COLUMN IF NOT EXISTS prodotto_id uuid;
+ALTER TABLE public.listino_griglia ADD COLUMN IF NOT EXISTS supplier_catalog_id uuid;
+ALTER TABLE public.listino_griglia ADD COLUMN IF NOT EXISTS supplier_product_line_id uuid;
+
 ALTER TABLE public.tariffe_aziendali DROP CONSTRAINT IF EXISTS tariffe_aziendali_external_team_id_fkey;
 ALTER TABLE public.tariffe_aziendali ADD CONSTRAINT tariffe_aziendali_external_team_id_fkey
 FOREIGN KEY (company_id, external_team_id) REFERENCES public.external_teams(company_id, id)

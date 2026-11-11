@@ -1,3 +1,24 @@
+-- External-customer guard required by these storage policies before its later hardening migration.
+CREATE OR REPLACE FUNCTION public.utente_e_cliente_esterno()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+  SELECT EXISTS (SELECT 1 FROM public.user_roles ur
+                  WHERE ur.user_id = (SELECT auth.uid()) AND ur.role = 'customer'::public.app_role)
+     AND NOT EXISTS (SELECT 1 FROM public.user_roles ur
+                      WHERE ur.user_id = (SELECT auth.uid()) AND ur.role <> 'customer'::public.app_role);
+$function$;
+
+COMMENT ON FUNCTION public.utente_e_cliente_esterno() IS
+  'Vero quando l''utente entra solo come cliente. Serve a togliere ai clienti le policy scritte per lo staff: aggiungerne una accanto non basterebbe, perché le policy permissive si sommano in OR.';
+
+REVOKE ALL ON FUNCTION public.utente_e_cliente_esterno() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.utente_e_cliente_esterno() TO authenticated, service_role;
+
+
 -- Fence the legacy authenticated-wide policies. Other buckets are unchanged.
 -- No new user, membership or role is created. Super admins retain their existing
 -- platform-wide authority; ordinary users are limited to their selected company.

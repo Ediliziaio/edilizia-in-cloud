@@ -94,9 +94,10 @@ it("non blocca i cataloghi ancora assenti e applica la protezione quando vengono
   const marker =
     "-- Sicurezza dei cataloghi anche nelle ricostruzioni da zero.";
   expect(ottobre).toContain(marker);
-  const protezione = ottobre
-    .slice(ottobre.indexOf(marker))
-    .replace(/COMMIT;\s*$/, "");
+  const inizio = ottobre.indexOf(marker);
+  const fine = ottobre.indexOf("COMMIT;", inizio);
+  expect(fine).toBeGreaterThan(inizio);
+  const protezione = ottobre.slice(inizio, fine);
   await db.exec(protezione);
   await db.exec(anticipata);
   for (const table of tables) {
