@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { StatoPill } from "@/components/orders/TabellaCommessa";
 import { supabase } from "@/integrations/supabase/client";
+import { messaggioSalvataggio } from "@/lib/fatturazione/salvataggioFattura";
 
 export function VerificaFatturaPill({ id, numero, verificata, puoCambiare, avviso = false, altreAzioni, daRettificare = false, motivoRettifica }: {
   id: string; numero: string | null; verificata: boolean; puoCambiare: boolean; daRettificare?: boolean; motivoRettifica?: string | null; /** Verificata, ma con qualcosa che non torna. */ avviso?: boolean; altreAzioni?: Array<{ testo: string; fai: () => void }>;
@@ -22,6 +23,7 @@ export function VerificaFatturaPill({ id, numero, verificata, puoCambiare, avvis
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any).rpc("fattura_segna_rettifica", { p_fattura_id: id, p_motivo: motivo });
       if (error) throw error;
+      if ((data as { fattura_id?: string } | null)?.fattura_id !== id) throw new Error("Il server non ha confermato il salvataggio della rettifica. Aggiorna e riprova.");
       return Number((data as { riba_aperte?: number } | null)?.riba_aperte ?? 0);
     },
     onSuccess: (riba) => {
@@ -30,19 +32,20 @@ export function VerificaFatturaPill({ id, numero, verificata, puoCambiare, avvis
         : undefined);
       setChiediMotivo(false); setMotivo(""); aggiorna();
     },
-    onError: (e) => toast.error("Non salvato", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Non salvato", { description: messaggioSalvataggio(e) }),
   });
   const segna = useMutation({
     mutationFn: async (valore: boolean) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any).rpc("fattura_segna_verifica", { p_fattura_id: id, p_verificata: valore });
+      const { data, error } = await (supabase as any).rpc("fattura_segna_verifica", { p_fattura_id: id, p_verificata: valore });
       if (error) throw error;
+      if (data?.fattura_id !== id || data?.verificata !== valore) throw new Error("Il server non ha confermato il cambio di verifica. Aggiorna e riprova.");
     },
     onSuccess: (_d, valore) => {
       toast.success(`Fattura ${numero ?? ""} ${valore ? "verificata" : "da verificare"}`);
       for (const k of ["fatture-ricevute", "commessa-fatture-fornitori", "fattura-ricevuta-riepilogo"]) void queryClient.invalidateQueries({ queryKey: [k] });
     },
-    onError: (e) => toast.error("Verifica non salvata", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Verifica non salvata", { description: messaggioSalvataggio(e) }),
   });
   const tono = daRettificare ? "rosso" : verificata && !avviso ? "verde" : "ambra";
   const testo = daRettificare ? "Da rettificare" : verificata ? "Verificata" : "Da verificare";
@@ -51,7 +54,7 @@ export function VerificaFatturaPill({ id, numero, verificata, puoCambiare, avvis
   return (
     <>
     <DropdownMenu>
-      <DropdownMenuTrigger disabled={segna.isPending} title={titolo} aria-label={`Cambia la verifica della fattura ${numero ?? ""}`}>
+      <DropdownMenuTrigger disabled={segna.isPending || rettifica.isPending} title={titolo} aria-label={`Cambia la verifica della fattura ${numero ?? ""}`}>
         <StatoPill tono={tono}>{testo}<ChevronDown className="ml-1 inline h-3 w-3" aria-hidden="true" /></StatoPill>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
@@ -61,6 +64,7 @@ export function VerificaFatturaPill({ id, numero, verificata, puoCambiare, avvis
         {altreAzioni?.map((a) => <DropdownMenuItem key={a.testo} onSelect={a.fai}>{a.testo}</DropdownMenuItem>)}
       </DropdownMenuContent>
     </DropdownMenu>
+    {segna.isError && <span role="alert" className="block max-w-sm text-xs text-destructive">{messaggioSalvataggio(segna.error)}</span>}
     <Dialog open={chiediMotivo} onOpenChange={setChiediMotivo}>
       <DialogContent>
         <DialogHeader>
