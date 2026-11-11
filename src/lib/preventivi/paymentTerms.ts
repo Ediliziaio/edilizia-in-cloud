@@ -36,6 +36,11 @@ export interface QuotePaymentPhase {
   evento?: EventoRataPreventivo;
   /** Quale SAL, quando l'evento è `sal_numero`. */
   numero?: number | null;
+  /**
+   * Rata a misura (11/11/2026): l'importo scritto è una previsione, quello vero lo dirà il
+   * verbale SAL. Viene dal preventivo con computo e arriva fino a `order_installments`.
+   */
+  aMisura?: boolean;
 }
 
 /** Preset comuni per la modalità (l'utente può comunque scrivere testo libero). */
@@ -138,6 +143,7 @@ export function parseQuotePaymentPhases(raw: unknown): QuotePaymentPhase[] {
         ? (x.evento as EventoRataPreventivo) : "data_fissa";
       const numero = evento === "sal_numero" ? Math.trunc(Number(x.numero)) || null : null;
       return {
+        ...(x.a_misura === true ? { aMisura: true } : {}),
         label: String(x.label ?? ""),
         type: (t === "balance" || t === "financing" ? t : "deposit") as QuotePaymentPhaseType,
         percent: Number(x.percent) || 0,

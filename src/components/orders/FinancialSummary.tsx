@@ -1041,7 +1041,7 @@ export function FinancialSummaryReadOnly({
       : scaduta && inst.expected_date
         ? `doveva entrare il ${formatPaymentDate(inst.expected_date)} · da ${giorniDa(inst.expected_date)} giorni`
         : aEvento
-          ? `Si incassa ${quandoSiIncassa(inst.trigger_evento, inst.trigger_numero)}${inst.expected_date ? ` · il ${formatPaymentDate(inst.expected_date)}` : " · data ancora da conoscere"}`
+          ? `Si incassa ${quandoSiIncassa(inst.trigger_evento, inst.trigger_numero)}${inst.importo_da_misurare ? ", a misura sull'avanzamento" : ""}${inst.expected_date ? ` · il ${formatPaymentDate(inst.expected_date)}` : " · data ancora da conoscere"}`
           : canEditExpected ? null : inst.expected_date ? `prevista il ${formatPaymentDate(inst.expected_date)}` : "senza data prevista";
     // Al telefono il selettore della data non c'è (si corregge dal computer): la data si legge qui.
     const dataTelefono = inst.is_paid

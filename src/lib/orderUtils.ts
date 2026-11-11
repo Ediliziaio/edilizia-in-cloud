@@ -29,6 +29,11 @@ export interface Installment {
   /** Giorni di anticipo dell'avviso "non hai ancora incassato". */
   giorni_preavviso?: number | null;
   /**
+   * Rata pagata sull'avanzamento misurato (11/11/2026): l'importo è una previsione finché
+   * il verbale SAL non lo fissa. Arriva dal preventivo con computo, dove la rata è «a misura».
+   */
+  importo_da_misurare?: boolean | null;
+  /**
    * Solo nel modulo di nuova commessa, mai salvata: la percentuale che il modello di pagamento
    * dà a questa rata. Se cambia il totale, l'importo la segue; un importo scritto a mano la toglie.
    */

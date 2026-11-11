@@ -100,6 +100,8 @@ export function prefillDaPreventivo(quote: Record<string, unknown>, rows: Array<
     percent: p.percent || undefined,
     trigger_evento: p.evento ?? "data_fissa",
     trigger_numero: p.evento === "sal_numero" ? p.numero ?? null : null,
+    // Una rata a misura arriva in commessa con la stima, ma lo dice (11/11/2026).
+    importo_da_misurare: p.aMisura === true,
   }));
   const paymentMethod = typeof q.payment_method === "string" ? q.payment_method : null;
   const hasFinancing = (Number(q.financing_amount) || 0) > 0 || q.financing_table_id != null;

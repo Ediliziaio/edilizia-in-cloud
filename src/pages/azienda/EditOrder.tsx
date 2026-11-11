@@ -481,6 +481,7 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
         trigger_status_id: i.trigger_status_id,
         trigger_numero: i.trigger_numero,
         giorni_preavviso: i.giorni_preavviso,
+        importo_da_misurare: i.importo_da_misurare ?? false,
       })));
       setNumInstallments(dbInstallments.length);
     } else {
@@ -697,6 +698,7 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
         trigger_status_id: i.trigger_status_id || null,
         trigger_numero: i.trigger_numero ?? null,
         giorni_preavviso: i.giorni_preavviso ?? 7,
+        importo_da_misurare: i.importo_da_misurare ?? false,
       }));
 
       // Con la funzione bonus spenta la card non si vede: mandare un elenco,

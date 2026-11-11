@@ -12,6 +12,17 @@ import { prefillExpectedDates, type Installment } from "@/lib/orderUtils";
 import { prefillDaPreventivo } from "@/lib/preventivi/prefillPreventivo";
 
 describe("le fasi di pagamento del preventivo portano il loro momento d'incasso", () => {
+  // 11/11/2026: una rata «a misura» del computo deve dirsi tale anche nello scadenzario.
+  it("la rata a misura arriva in commessa marcata come da misurare", () => {
+    const fasi = parseQuotePaymentPhases([
+      { label: "Acconto", type: "deposit", percent: 20, amount: 200, evento: "firma_contratto" },
+      { label: "1° SAL", type: "deposit", percent: 0, amount: 0, evento: "sal_numero", numero: 1, a_misura: true },
+    ]);
+    expect(fasi.map(f => f.aMisura)).toEqual([undefined, true]);
+    const prefill = prefillDaPreventivo({ payment_phases: fasi.map(f => ({ ...f, a_misura: f.aMisura })) }, []);
+    expect(prefill.installments.map(r => r.importo_da_misurare)).toEqual([false, true]);
+  });
+
   it("legge evento e numero del SAL", () => {
     const fasi = parseQuotePaymentPhases([
       { label: "Acconto", type: "deposit", percent: 20, amount: 200, evento: "firma_contratto" },
