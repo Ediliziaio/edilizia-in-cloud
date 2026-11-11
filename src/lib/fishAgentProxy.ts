@@ -15,7 +15,7 @@ export async function callFishAgent<T = Record<string, unknown>>(companyId: stri
   if (error) {
     let message = "Backend Fish non disponibile. Verifica funzioni locali, migrazione e configurazione del server.";
     if (error.context instanceof Response) {
-      const body = await error.context.clone().json().catch(() => null);
+      const body = await error.context.clone().json().catch((): null => null);
       if (typeof body?.error === "string") message = body.error;
     }
     throw new Error(message);

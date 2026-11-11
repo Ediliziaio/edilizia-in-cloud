@@ -2,14 +2,14 @@ import { render,screen,fireEvent,waitFor,cleanup } from "@testing-library/react"
 import { QueryClient,QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach,afterEach,describe,it,expect,vi } from "vitest";
 const state=vi.hoisted(()=>({create:vi.fn(),api:vi.fn(),ready:true,request:null as any}));
-vi.mock("@/contexts/AuthContext",()=>({useAuth:()=>({role:"company_admin",viewAsRole:null,effectiveCompany:{id:"company-a",name:"Azienda Demo"}})}));
+vi.mock("@/contexts/AuthContext",()=>({useAuth:()=>({role:"company_admin",viewAsRole: null as string | null,effectiveCompany:{id:"company-a",name:"Azienda Demo"}})}));
 vi.mock("@/hooks/usePermissions",()=>({usePermissions:()=>({isAdmin:true})}));
 vi.mock("@/hooks/useEffectiveCompanyId",()=>({useEffectiveCompanyId:()=>"company-a"}));
 vi.mock("@/hooks/useUnifiedAgents",()=>({useCreateUnifiedAgent:()=>({mutateAsync:state.create,isPending:false})}));
 vi.mock("@/lib/fishAgentProxy",()=>({callFishAgent:(...args:any[])=>state.api(...args)}));
-vi.mock("@/integrations/supabase/client",()=>({supabase:{from:()=>{const q:any={select:()=>q,eq:()=>q,order:async()=>({data:[{id:"calendar-a",name:"Agenda sopralluoghi",duration_minutes:60}],error:null})};return q;}}}));
+vi.mock("@/integrations/supabase/client",()=>({supabase:{from:()=>{const q:any={select:()=>q,eq:()=>q,order:async()=>({data:[{id:"calendar-a",name:"Agenda sopralluoghi",duration_minutes:60}],error:null as Error | null})};return q;}}}));
 vi.mock("@/components/agenti/FishLiveVoice",()=>({FishLiveVoice:({initialScenario,onConnected}:any)=><div><p>Scenario {initialScenario}</p><button onClick={onConnected}>Verifica collegamento vocale</button></div>}));
-vi.mock("@/components/ui/select",async()=>{const {Children,isValidElement}=await import("react");return {Select:({value,onValueChange,children}:any)=>{const trigger=Children.toArray(children).find((child:any)=>isValidElement(child) && child.props["aria-label"]);return <select aria-label={(trigger as any)?.props["aria-label"] || "Selezione"} value={value} onChange={event=>onValueChange(event.target.value)}>{children}</select>;},SelectTrigger:()=>null,SelectValue:()=>null,SelectContent:({children}:any)=><>{children}</>,SelectItem:({value,children}:any)=><option value={value}>{children}</option>};});
+vi.mock("@/components/ui/select",async()=>{const {Children,isValidElement}=await import("react");return {Select:({value,onValueChange,children}:any)=>{const trigger=Children.toArray(children).find((child:any)=>isValidElement<Record<string, unknown>>(child) && child.props["aria-label"]);return <select aria-label={(trigger as any)?.props["aria-label"] || "Selezione"} value={value} onChange={event=>onValueChange(event.target.value)}>{children}</select>;},SelectTrigger:(): null=>null,SelectValue:(): null=>null,SelectContent:({children}:any)=><>{children}</>,SelectItem:({value,children}:any)=><option value={value}>{children}</option>};});
 import { FishOnboardingWizard } from "@/components/agenti/FishOnboardingWizard";
 function mount(existingAgent?:any){return render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><FishOnboardingWizard open existingAgent={existingAgent} onClose={()=>{}} onSuccess={()=>{}}/></QueryClientProvider>);}
 beforeEach(()=>{state.ready=true;state.request=null;state.create.mockReset();state.api.mockReset();state.create.mockResolvedValue({id:"agent-a"});state.api.mockImplementation(async(company,id,action,input)=>{

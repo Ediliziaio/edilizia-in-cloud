@@ -7,8 +7,8 @@ vi.mock("@/hooks/useEffectiveCompanyId",()=>({useEffectiveCompanyId:()=>"company
 vi.mock("@/hooks/usePermissions",()=>({usePermissions:()=>({isAdmin:true})}));
 vi.mock("@/lib/fishAgentProxy",()=>({callFishAgent:(...args:any[])=>state.api(...args)}));
 vi.mock("sonner",()=>({toast:{success:vi.fn(),error:vi.fn(),info:vi.fn()}}));
-vi.mock("@/integrations/supabase/client",()=>({supabase:{from:()=>{const q:any={select:()=>q,eq:(...v:any[])=>{state.filters.push(v);return q;},single:async()=>({data:{trascrizione_json:[{role:"agent",message:"Richiesta assistenza ricevuta"}]},error:null})};return q;}}}));
-vi.mock("@/hooks/useCentralinoCalls",()=>({useCentralinoCalls:()=>({isLoading:false,isError:false,data:[{id:"call-a",kind:"ai",agentId:"agent-a",provider:"fish_audio",direction:"inbound",number:"+39020000001",status:"completata",seconds:80,date:"2026-11-10T10:00:00Z",contactId:null,customerId:"customer-a",name:"Cliente Demo",who:"Agente AI",audio:null,summary:"Assistenza richiesta",transcript:[]}]})}));
+vi.mock("@/integrations/supabase/client",()=>({supabase:{from:()=>{const q:any={select:()=>q,eq:(...v:any[])=>{state.filters.push(v);return q;},single:async()=>({data:{trascrizione_json:[{role:"agent",message:"Richiesta assistenza ricevuta"}]},error:null as Error | null})};return q;}}}));
+vi.mock("@/hooks/useCentralinoCalls",()=>({useCentralinoCalls:()=>({isLoading:false,isError:false,data:[{id:"call-a",kind:"ai",agentId:"agent-a",provider:"fish_audio",direction:"inbound",number:"+39020000001",status:"completata",seconds:80,date:"2026-11-10T10:00:00Z",contactId:null as string | null,customerId:"customer-a",name:"Cliente Demo",who:"Agente AI",audio:null as string | null,summary:"Assistenza richiesta",transcript:[] as {role: string; message: string}[]}]})}));
 import {CentralinoCallHistory} from "@/components/telephony/CentralinoCallHistory";
 beforeEach(()=>{state.filters=[];state.api.mockReset();state.api.mockResolvedValue({status:"complete",tracks:[{role:"agent",url:"https://audio.example.invalid/signed-recording"}]});});
 afterEach(cleanup);

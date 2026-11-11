@@ -12,7 +12,7 @@ const binding = { agent_id: "local-A", company_id: "company-A", fish_agent_id: "
 const agent = { id: "local-A", company_id: "company-A", tipo: "vocale", stato: "attivo", system_prompt: "Rispondi alle richieste dei clienti.", tools_config: { voice_provider: "fish_audio", edilizia_tools: { get_lead_info: { enabled: true }, crea_ticket: { enabled: true }, passa_a_operatore: { enabled: true }, assign_to_user: { enabled: true } } } };
 function database(resolve: (table: string, steps: any[]) => any) {
   const queries: { table: string; steps: any[] }[] = [];
-  return { queries, rpc: vi.fn(async () => ({ data: { id: "call" }, error: null })), from(table: string) {
+  return { queries, rpc: vi.fn(async (_name: string, _params?: unknown): Promise<{data: unknown; error: unknown}> => ({ data: { id: "call" }, error: null })), from(table: string) {
     const steps: any[] = []; const query: any = new Proxy({}, { get(_, key) {
       if (key === "then") return (ok: any, bad: any) => { queries.push({ table, steps }); return Promise.resolve(resolve(table, steps)).then(ok, bad); };
       return (...args: any[]) => { steps.push([key, ...args]); return query; };
@@ -20,7 +20,7 @@ function database(resolve: (table: string, steps: any[]) => any) {
   } };
 }
 const reply = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status });
-function deps(db: any, send = vi.fn(async () => reply({}))) {
+function deps(db: any, send: typeof fetch = vi.fn(async () => reply({}))) {
   return { db, secret, fish: new FishAudioClient("test-key", send), backendUrl: "https://backend.example.com/functions/v1", allowInbound: async () => true,
     authorize: async () => ({ companyId: "company-A", userId: "u", isAdmin: true, isSuperAdmin: false }), executeTool: vi.fn(async () => ({ risposta: "Fatto" })), send };
 }
@@ -199,7 +199,7 @@ describe("Fish management and outbound", () => {
     expect(() => fishLlmModel({ llm_model: "unavailable-model" })).toThrow("non è supportato");
   });
   it("runs only fully mocked tests even if the browser requests real tools", async () => {
-    const b = { ...binding, tool_ids: Object.fromEntries(enabledFishTools(agent).map(n => [n, `tool-${n}`])), test_ids: {}, test_batches: [], config_fingerprint: await fishConfigurationFingerprint(agent, binding) };
+    const b = { ...binding, tool_ids: Object.fromEntries(enabledFishTools(agent).map(n => [n, `tool-${n}`])), test_ids: {}, test_batches: [] as string[], config_fingerprint: await fishConfigurationFingerprint(agent, binding) };
     const db = database(table => ({ data: table === "ai_fish_agents" ? b : agent, error: null }));
     const send = vi.fn(async (url: any) => reply(String(url).endsWith("/tests/run") ? { batch_id: "batch-own", completed: false } : { test_id: "test-own" }));
     const response = await createFishManagementHandler(deps(db, send))(new Request("https://local", { method: "POST", body: JSON.stringify({ action: "simulate", agent_id: "local-A", scenario: "outbound", tool_mocks: { strategy: "none" }, real_tools: ["crea_ticket"] }) }));
@@ -244,7 +244,7 @@ describe("Fish management and outbound", () => {
 
 describe('Serramenti lead boundaries',()=>{
  it('records opt-out only for the authenticated phone session, ignoring model identity fields',async()=>{const active={...agent,tools_config:{voice_provider:'fish_audio',edilizia_tools:{non_richiamare:{enabled:true}}}};const db=database(table=>({data:table==='ai_fish_agents'?binding:table==='ai_agents_v2'?active:null,error:null}));const d=deps(db);vi.spyOn(d.fish,'agentRequest').mockResolvedValue({agent_id:'fish-A',source:'phone',status:'active',direction:'outbound',dialed_number:'+390000000002',items:[{type:'message',role:'user',content:'Non mi richiamate più.'}]});db.rpc.mockResolvedValue({data:{registrato:true,bloccato:true},error:null});const token=await fishDerivedToken(secret,'fish-A');const r=await createFishToolHandler(d)(new Request('https://local',{method:'POST',headers:{'X-Eic-Fish-Token':token},body:JSON.stringify({agent_id:'fish-A',session_id:'trusted-session',tool:'non_richiamare',parameters:{motivo:'Non chiamare più',company_id:'foreign',phone:'+399999999999'}})}));expect(r.status).toBe(200);expect(db.rpc).toHaveBeenCalledWith('fish_record_call_optout',{p_company:'company-A',p_agent:'local-A',p_session:'trusted-session',p_reason:'Non chiamare più'});expect(JSON.stringify(db.rpc.mock.calls)).not.toContain('foreign');});
- it('sends a lead name only from the scoped contact whose number matches the actual recipient',async()=>{const db=database(table=>({data:table==='ai_fish_numbers'?[{phone_id:'phone'}]:table==='marketing_contacts'?{first_name:'Laura',last_name:'Bianchi',phone:'030 2345678'}:null,error:null}));db.rpc.mockImplementation(async(name:string)=>({data:name==='fish_prepare_outbound'?{id:'call-a',contact_id:'contact-a',fish_agent_id:'fish-A',fish_phone_id:'phone-a'}:{},error:null}));const fish=new FishAudioClient('test-key');const call=vi.spyOn(fish,'agentRequest').mockResolvedValue({session_id:'session-a'});await initiateFishCall(db,fish,{companyId:'company-A',agentId:'local-A',targetPhone:'+390302345678',contactId:'contact-a',requestKey:'test-attempt',dynamicVars:{eic_lead_name:'Foreign spoof'}});expect(call.mock.calls[0][2].dynamic_variables.eic_lead_name).toBe('Laura Bianchi');expect(db.queries.find(q=>q.table==='marketing_contacts')?.steps).toContainEqual(['eq','company_id','company-A']);});
+ it('sends a lead name only from the scoped contact whose number matches the actual recipient',async()=>{const db=database(table=>({data:table==='ai_fish_numbers'?[{phone_id:'phone'}]:table==='marketing_contacts'?{first_name:'Laura',last_name:'Bianchi',phone:'030 2345678'}:null,error:null}));db.rpc.mockImplementation(async(name:string): Promise<{data: unknown; error: unknown}>=>({data:name==='fish_prepare_outbound'?{id:'call-a',contact_id:'contact-a',fish_agent_id:'fish-A',fish_phone_id:'phone-a'}:{},error:null}));const fish=new FishAudioClient('test-key');const call=vi.spyOn(fish,'agentRequest').mockResolvedValue({session_id:'session-a'});await initiateFishCall(db,fish,{companyId:'company-A',agentId:'local-A',targetPhone:'+390302345678',contactId:'contact-a',requestKey:'test-attempt',dynamicVars:{eic_lead_name:'Foreign spoof'}});expect((call.mock.calls[0][2] as {dynamic_variables: {eic_lead_name: string}}).dynamic_variables.eic_lead_name).toBe('Laura Bianchi');expect(db.queries.find(q=>q.table==='marketing_contacts')?.steps).toContainEqual(['eq','company_id','company-A']);});
 });
 
 describe('Fish speech model selection',()=>{

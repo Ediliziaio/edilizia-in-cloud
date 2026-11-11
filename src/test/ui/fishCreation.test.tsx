@@ -6,7 +6,7 @@ vi.mock("@/hooks/useEffectiveCompanyId",()=>({useEffectiveCompanyId:()=>"company
 vi.mock("@/lib/fishAgentProxy",()=>({callFishAgent:(...args:any[])=>state.fish(...args)}));
 vi.mock("@/modules/ai-agents/hooks/useElevenLabsProxy",()=>({callElevenLabsProxy:(...args:any[])=>state.eleven(...args),requireAgentProxyV2:(...args:any[])=>state.requireEleven(...args)}));
 vi.mock("sonner",()=>({toast:{success:vi.fn(),warning:vi.fn(),error:vi.fn()}}));
-vi.mock("@/integrations/supabase/client",()=>({supabase:{auth:{getUser:async()=>({data:{user:{id:"user-a"}}})},from:()=>{let inserting=false;const q:any={insert:(v:any)=>{inserting=true;state.inserted.push(v);return q;},select:()=>q,eq:(...args:any[])=>{state.filters.push(args);return q;},single:async()=>inserting && state.duplicate?{data:null,error:{code:"23505"}}:{data:{id:"draft-a"},error:null}};return q;}}}));
+vi.mock("@/integrations/supabase/client",()=>({supabase:{auth:{getUser:async()=>({data:{user:{id:"user-a"}}})},from:()=>{let inserting=false;const q:any={insert:(v:any)=>{inserting=true;state.inserted.push(v);return q;},select:()=>q,eq:(...args:any[])=>{state.filters.push(args);return q;},single:async()=>inserting && state.duplicate?{data:null as {id: string} | null,error:{code:"23505"}}:{data:{id:"draft-a"},error:null}};return q;}}}));
 import { useCreateUnifiedAgent } from "@/hooks/useUnifiedAgents";
 import { fishOnboardingInput } from "@/lib/fishOnboarding";
 const input=()=>({...fishOnboardingInput({name:"Centralino aziendale",flowId:"appointment",calendarId:"calendar-a",operatorNumber:"+39 (02) 123-4567",greeting:"Buongiorno, sono un assistente virtuale.",expressive:true}),client_id:"11111111-1111-4111-8111-111111111111"});

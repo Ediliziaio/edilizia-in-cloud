@@ -20,7 +20,7 @@ describe("Phone connection requests",()=>{
  });
  it("saves authenticated company and requestor, without provisioning a line or needing Fish credit",async()=>{
   const d=setup();const response=await d.send("request_number_connection",{number_mode:"existing",existing_number:"+39021234567",requested_by:"forged-user"});
-  expect(response.status).toBe(200);expect(d.writes[0].steps.find(s=>s[0]==="insert")[1]).toMatchObject({company_id:"company-a",requested_by:"user-a",existing_number:"+39021234567"});expect(d.fish.agentRequest).not.toHaveBeenCalled();
+  expect(response.status).toBe(200);expect(d.writes[0].steps.find((s: unknown[])=>s[0]==="insert")[1]).toMatchObject({company_id:"company-a",requested_by:"user-a",existing_number:"+39021234567"});expect(d.fish.agentRequest).not.toHaveBeenCalled();
  });
  it("returns the existing request after a duplicate submission",async()=>{
   const d=setup({duplicate:true});const response=await d.send("request_number_connection",{number_mode:"new"});

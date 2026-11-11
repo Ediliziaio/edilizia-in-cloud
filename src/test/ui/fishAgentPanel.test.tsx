@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({ superAdmin: true, key: true, binding: null as any, api: vi.fn() }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ isAdmin: true }) }));
-vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ role: state.superAdmin ? "super_admin" : "company_admin", viewAsRole: null }) }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ role: state.superAdmin ? "super_admin" : "company_admin", viewAsRole: null as string | null }) }));
 vi.mock("@/lib/fishAgentProxy", () => ({ callFishAgent: (...args: any[]) => state.api(...args) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => { const q: any = new Proxy({}, { get(_, k) { if (k === "then") return (ok: any) => Promise.resolve({ data: [], error: null }).then(ok); return () => q; } }); return q; } } }));

@@ -2,7 +2,7 @@ import{act,render,screen,fireEvent,waitFor,cleanup}from'@testing-library/react';
 import{beforeEach,afterEach,describe,it,expect,vi}from'vitest';
 const state=vi.hoisted(()=>({options:null as any,api:vi.fn(),end:vi.fn()}));
 vi.mock('@/lib/fishAgentProxy',()=>({callFishAgent:state.api}));
-vi.mock('@fishaudio/agent-client',()=>({AgentSession:{start:vi.fn(async(options:any)=>{state.options=options;return{getTranscript:()=>[],startAudio:vi.fn(),end:state.end};})}}));
+vi.mock('@fishaudio/agent-client',()=>({AgentSession:{start:vi.fn(async(options:any)=>{state.options=options;return{getTranscript:(): unknown[]=>[],startAudio:vi.fn(),end:state.end};})}}));
 import{FishLiveVoice}from'@/components/agenti/FishLiveVoice';
 beforeEach(()=>{state.options=null;state.api.mockReset();state.api.mockResolvedValue({session_token:{},mock_tools:{passa_a_operatore:{}}});state.end.mockReset();});afterEach(cleanup);
 async function start(){render(<FishLiveVoice companyId='own' agentId='draft' ready initialScenario='handoff_no_answer'/>);fireEvent.click(screen.getByRole('button',{name:'Ascolta senza microfono'}));await waitFor(()=>expect(state.options).not.toBeNull());}

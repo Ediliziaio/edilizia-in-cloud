@@ -4,7 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ query: vi.fn(), proxy: vi.fn(), capability: vi.fn(), success: vi.fn(), warning: vi.fn(), error: vi.fn(),
   prepare: vi.fn(), removeChannel: vi.fn(), on: vi.fn(), subscribe: vi.fn(), channel: vi.fn() }));
-vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ role: "company_admin", viewAsRole: null }) }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ role: "company_admin", viewAsRole: null as string | null }) }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "company" }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ solaLettura: false }) }));
 vi.mock("@/hooks/useUnifiedAgents", () => ({ useUnifiedAgents: () => ({ data: [{ id: "agent", tipo: "vocale", nome: "Demo", elevenlabs_agent_id: "remote" }] }) }));
