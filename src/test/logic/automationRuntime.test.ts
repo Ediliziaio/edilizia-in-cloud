@@ -1031,4 +1031,19 @@ describe("Solaria bridge is wired into the real worker", () => {
       migration_timeout_override_hours: 12, migration_timeout_hours: 12, delay_unita: "ore", delay_durata: 12 }, id, company, queue);
     expect(result).toMatchObject({ success: true, isWaiting: true, timeoutDays: 0.5 });
   });
+  it("saves the migrated calendar date through the real worker without an absent generic RPC", async () => {
+    const mock = db(q => {
+      if (q.table === "automation_flows") return { data: { id: flowId, created_by: chosen }, error: null };
+      if (q.table === "marketing_custom_fields") return { data: { id: chosen, company_id: company, object_type: "contact", field_type: "date", deleted_at: null }, error: null };
+      if (q.table === "marketing_contact_field_values") return { data: has(q, "upsert") ? q.steps.find(s => s[0] === "upsert")![1] : null, error: null };
+      throw new Error("Unexpected database access: " + q.table);
+    });
+    const execute = load("executeAction", { resolveAutomationRecord: async () => ({ id, company_id: company }) });
+    const result = await execute(mock, { ...migration, item_id: "aggiorna_campo", migration_value: "Data attuale", campo: "custom_field." + chosen }, id, company, queue);
+    expect(result).toMatchObject({ success: true, output: { field_id: chosen, entity_id: id } });
+    expect(result.output.value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(mock.calls.some(q => has(q, "rpc"))).toBe(false);
+    expect(mock.calls.find(q => q.table === "marketing_custom_fields")?.steps).toContainEqual(["eq", "company_id", company]);
+  });
+
 });

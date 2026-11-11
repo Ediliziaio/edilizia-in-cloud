@@ -1653,7 +1653,6 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     db: supabase, cfg: ncfg, companyId, entityId, queue: queueItem,
     contact: () => resolveAutomationRecord(supabase, "contact", entityId, companyId, queueItem),
     resolveText: (text: string, contact: any) => resolveContactText(supabase, text, contact, companyId, { queueItem, entityId, strict: true }),
-    writeCustom: (id: string, value: string) => writeAutomationCustomField(supabase, companyId, entityId, queueItem, "contacts", id, value),
   });
   if (migrated) return migrated;
   // These senders resolve text themselves (including HTML escaping); do not pre-expand unescaped values.

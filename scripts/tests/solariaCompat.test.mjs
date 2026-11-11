@@ -5,18 +5,18 @@ const Q='10000000-0000-4000-8000-000000000001',F='10000000-0000-4000-8000-000000
 const cfg={migration_source_node_id:'source-node'};
 const queue={id:Q,flow_id:F,current_node_id:N,context_json:{payload:{message:'Ciao, vorrei informazioni'}}};
 class FakeDb {
-  constructor(){this.data={automation_flows:[{id:F,company_id:C,created_by:N}],marketing_contact_notes:[],marketing_pipelines:[{id:P,company_id:C}],marketing_pipeline_stages:[{id:S,pipeline_id:P,company_id:C,position:2}],marketing_opportunities:[]};this.writes=[];this.rpcCalls=[];}
+  constructor(){this.data={automation_flows:[{id:F,company_id:C,created_by:N}],marketing_contact_notes:[],marketing_custom_fields:[{id:S,company_id:C,object_type:'contact',field_type:'date',deleted_at:null}],marketing_contact_field_values:[],marketing_pipelines:[{id:P,company_id:C}],marketing_pipeline_stages:[{id:S,pipeline_id:P,company_id:C,position:2}],marketing_opportunities:[]};this.writes=[];this.rpcCalls=[];}
   from(t){const self=this;let filters=[],mode='read',value,opts,limit;
     const q={select(){return q},eq(k,v){filters.push(x=>x[k]===v);return q},is(k,v){filters.push(x=>(x[k]??null)===v);return q},order(){return q},limit(n){limit=n;return q},update(v){mode='update';value=v;return q},upsert(v,o){mode='upsert';value=v;opts=o;return q},maybeSingle:async()=>{const r=await exec();return {...r,data:r.data[0]??null}},then(resolve,reject){return exec().then(resolve,reject)}};
     async function exec(){let rows=self.data[t]??[];let matches=rows.filter(x=>filters.every(f=>f(x)));if(limit)matches=matches.slice(0,limit);
-      if(mode==='upsert'){const old=rows.find(x=>x.id===value.id);if(!old){rows.push({...value});self.writes.push({table:t,value});}else if(!opts?.ignoreDuplicates)Object.assign(old,value);self.data[t]=rows;return {data:[],error:null};}
+      if(mode==='upsert'){const old=opts?.onConflict==='contact_id,field_id'?rows.find(x=>x.contact_id===value.contact_id&&x.field_id===value.field_id):rows.find(x=>x.id===value.id);if(!old){rows.push({...value});self.writes.push({table:t,value});}else if(!opts?.ignoreDuplicates)Object.assign(old,value);self.data[t]=rows;return {data:[old??value],error:null};}
       if(mode==='update'){for(const x of matches)Object.assign(x,value);self.writes.push({table:t,value,filters:filters.length});}
       return {data:matches,error:null};}
     return q;
   }
   async rpc(name,args){this.rpcCalls.push({name,args});return {data:'2026-11-10T10:03:00Z',error:null}}
 }
-function args(db,extra={}){return {db,cfg:{...cfg,item_id:'squadd_add_notes',migration_note_text:'Risposta Fb Form'},companyId:C,entityId:N,queue,contact:async()=>({id:N,company_id:C}),resolveText:async s=>s,writeCustom:async(id,value)=>({success:true,output:{id,value}}),now:new Date('2026-11-10T10:00:00Z'),...extra}}
+function args(db,extra={}){return {db,cfg:{...cfg,item_id:'squadd_add_notes',migration_note_text:'Risposta Fb Form'},companyId:C,entityId:N,queue,contact:async()=>({id:N,company_id:C}),resolveText:async s=>s,now:new Date('2026-11-10T10:00:00Z'),...extra}}
 test('other companies and unmarked nodes retain existing engine paths',async()=>{
  const db=new FakeDb();assert.equal(await runSolariaAction(args(db,{companyId:P})),null);assert.equal(await runSolariaAction(args(db,{cfg:{item_id:'squadd_add_notes'}})),null);assert.deepEqual(db.writes,[]);
 });
@@ -50,7 +50,7 @@ test('cross-company contacts, flows, and note collisions are rejected',async()=>
 });
 test('current date writes only a validated custom field',async()=>{
  const db=new FakeDb();const result=await runSolariaAction(args(db,{cfg:{...cfg,item_id:'aggiorna_campo',migration_value:'Data attuale',campo:'custom_field.'+S}}));
- assert.deepEqual(result.output,{id:S,value:'2026-11-10T10:00:00.000Z'});
+ assert.equal(result.output.value,'2026-11-10');assert.deepEqual(db.data.marketing_contact_field_values,[{contact_id:N,field_id:S,value:'2026-11-10'}]);assert.equal(db.rpcCalls.length,0);
  await assert.rejects(()=>runSolariaAction(args(db,{cfg:{...cfg,item_id:'aggiorna_campo',migration_value:'Data attuale',campo:'company_id'}})),/Campo/);
 });
 test('drip waits for the reserved slot rather than delaying every contact equally',async()=>{
@@ -86,4 +86,20 @@ test('pipeline tags resolve the event pipeline and keep the canonical routing ta
  const db=new FakeDb();db.data.marketing_pipelines[0].name='Fotovoltaico Lead Fb Noleggio';db.data.marketing_contacts=[{id:N,company_id:C,tags:['cliente']}];
  const result=await runSolariaAction(args(db,{cfg:{...cfg,item_id:'aggiungi_tag',migration_pipeline_tag:true,migration_pipeline_category_tags:{[P]:'pl - impianto fotovoltaico'}},queue:{...queue,context_json:{payload:{pipeline_id:P}}},contact:async()=>db.data.marketing_contacts[0]}));
  assert.equal(result.success,true);assert.deepEqual(db.data.marketing_contacts[0].tags,['cliente','pl - fotovoltaico lead fb noleggio','pl - impianto fotovoltaico']);
+});
+
+test('current date uses Rome midnight and a same-day retry does not write again',async()=>{
+ const db=new FakeDb();const input=args(db,{cfg:{...cfg,item_id:'aggiorna_campo',migration_value:'Data attuale',campo:'custom_field.'+S},now:new Date('2026-11-10T23:30:00Z')});
+ const first=await runSolariaAction(input);assert.equal(first.output.value,'2026-11-11');const writes=db.writes.length;
+ const retry=await runSolariaAction(input);assert.equal(retry.output.existing,true);assert.equal(db.writes.length,writes);assert.equal(db.data.marketing_contact_field_values.length,1);
+});
+test('current date rejects foreign, deleted, wrong-object and non-date fields before a write',async()=>{
+ for(const patch of [{company_id:P},{deleted_at:'2026-11-01'},{object_type:'opportunity'},{field_type:'text'}]){
+  const db=new FakeDb();Object.assign(db.data.marketing_custom_fields[0],patch);
+  await assert.rejects(()=>runSolariaAction(args(db,{cfg:{...cfg,item_id:'aggiorna_campo',migration_value:'Data attuale',campo:'custom_field.'+S}})),/Campo data/);assert.equal(db.writes.length,0);
+ }
+});
+test('current date never reports success if storage does not confirm the value',async()=>{
+ const db=new FakeDb();const from=db.from.bind(db);db.from=t=>{const q=from(t);if(t==='marketing_contact_field_values'){q.upsert=()=>{q.maybeSingle=async()=>({data:null,error:null});return q;};}return q;};
+ await assert.rejects(()=>runSolariaAction(args(db,{cfg:{...cfg,item_id:'aggiorna_campo',migration_value:'Data attuale',campo:'custom_field.'+S}})),/confermato/);
 });

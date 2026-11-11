@@ -34,7 +34,7 @@ function check(result, message) {
   return result.data;
 }
 
-export async function runSolariaAction({ db, cfg, companyId, entityId, queue, contact, resolveText, writeCustom, now = new Date() }) {
+export async function runSolariaAction({ db, cfg, companyId, entityId, queue, contact, resolveText, now = new Date() }) {
   if (!isSolariaCompat(cfg, companyId)) return null;
   const action = cfg.action_type ?? cfg.item_id;
   const relevant = action === 'squadd_add_notes' || action === 'squadd_drip' ||
@@ -71,7 +71,19 @@ export async function runSolariaAction({ db, cfg, companyId, entityId, queue, co
   if (action === 'aggiorna_campo') {
     const id = String(cfg.campo ?? '').replace(/^custom_field\./, '');
     if (!UUID.test(id)) throw new Error('Campo personalizzato non valido');
-    return await writeCustom(id, now.toISOString());
+    const def = check(await db.from('marketing_custom_fields').select('id,company_id,object_type,field_type,deleted_at').eq('id', id).eq('company_id', companyId).is('deleted_at', null).maybeSingle(), 'Verifica campo fallita');
+    if (!def || def.id !== id || def.company_id !== companyId || def.object_type !== 'contact' || def.field_type !== 'date' || def.deleted_at) throw new Error('Campo data non disponibile per questo contatto');
+    // The imported field is a calendar date, not an ISO timestamp. Match Solaria's Rome timezone.
+    const parts = new Intl.DateTimeFormat('en', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);
+    const part = type => parts.find(p => p.type === type)?.value;
+    const value = `${part('year')}-${part('month')}-${part('day')}`;
+    const old = check(await db.from('marketing_contact_field_values').select('value').eq('contact_id', c.id).eq('field_id', id).maybeSingle(), 'Lettura data fallita');
+    if (old?.value !== value) {
+      // cf_validate_value rechecks contact/field company and type atomically on the server.
+      const saved = check(await db.from('marketing_contact_field_values').upsert({ contact_id: c.id, field_id: id, value }, { onConflict: 'contact_id,field_id' }).select('field_id,value').maybeSingle(), 'Data non salvata');
+      if (saved?.field_id !== id || saved?.value !== value) throw new Error('Il server non ha confermato la data salvata');
+    }
+    return { success: true, output: { action: 'update_field', field_id: id, entity_type: 'contact', entity_id: c.id, value, existing: old?.value === value } };
   }
   if (action === 'aggiungi_tag') {
     const payload = queue.context_json?.payload ?? {};
