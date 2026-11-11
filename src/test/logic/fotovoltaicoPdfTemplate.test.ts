@@ -743,22 +743,26 @@ describe("fotovoltaico PDF — le foto di serie", () => {
     }
   });
 
-  it("con le foto: la CO₂ ha il bosco e tre riquadri, fasi e investimento la loro fascia", () => {
+  it("la CO₂ ha la nuova immagine, tre equivalenze e la nota sul metodo", () => {
     const html = renderFvPdfHtml(conFoto());
     const co2 = pagina(html, "L'impatto sul pianeta");
-    expect(co2).toContain('class="co2-foto"');
-    expect(co2).toContain("co2-bosco.jpg");
-    expect(co2.match(/class="co2-carta"/g)?.length).toBe(3);
+    expect(co2).toContain('class="fe-hero"');
+    expect(co2).toContain("tetto-solare-verde-v1.webp");
+    expect(co2.match(/class="fe-equivalent"/g)?.length).toBe(3);
+    expect(co2).toContain('produzione costante');
+    expect(co2).toContain('0,40 kg CO₂/kWh');
     expect(co2).not.toContain('class="eq-row"');
     expect(pagina(html, "Iter pratiche")).toContain("fasi-installatori.jpg");
     expect(pagina(html, "L'investimento")).toContain("investimento-impianto.jpg");
   });
 
-  it("senza foto (o con una che manca) le pagine restano quelle di prima", () => {
+  it("senza le foto delle equivalenze usa comunque la nuova illustrazione di serie", () => {
     const d = conFoto();
     d.foto_di_serie = { ...d.foto_di_serie, voli: null };
     const co2 = pagina(renderFvPdfHtml(d), "L'impatto sul pianeta");
-    expect(co2).toContain('class="eq-row"');
+    expect(co2).toContain('class="fe-hero"');
+    expect(co2).toContain('tetto-solare-verde-v1.webp');
+    expect(co2.match(/class="fe-equivalent"/g)).toHaveLength(3);
     expect(co2).not.toContain('class="co2-carta"');
     const nessuna = renderFvPdfHtml(basePdfData());
     expect(nessuna).not.toContain('class="foto-fascia"');
@@ -804,7 +808,8 @@ describe("fotovoltaico PDF — le pagine: un elenco solo, e i blocchi", () => {
     expect(PAGINE_DELL_EDITOR).toBe(FV_PDF_PAGES_META);
     expect(ordineDellEditor).toBe(normalizeFvPdfPagesOrder);
     const ordine = ids(FV_PDF_PAGES_DEFAULT);
-    expect(ordine.slice(0, 2)).toEqual(["garanzie", "iter"]);
+    expect(ordine.slice(0, 3)).toEqual(["chi_siamo", "garanzie", "iter"]);
+    expect(visibile(FV_PDF_PAGES_DEFAULT, "chi_siamo")).toBe(false);
     expect(ordine.indexOf("investimento")).toBeGreaterThan(ordine.indexOf("cassa_25"));
     expect(ordine[ordine.length - 1]).toBe("decisione");
   });

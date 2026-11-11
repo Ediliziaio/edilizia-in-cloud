@@ -12,6 +12,7 @@
  */
 
 export type FvPdfPageId =
+  | "chi_siamo" | "ambito_offerta"
   | "azienda_sintesi" | "azienda_flussi" | "azienda_scadenze" | "azienda_ipotesi"
   | "recensioni"
   | "investimento"
@@ -64,6 +65,7 @@ export const FV_PDF_PAGES_META: FvPdfPageMeta[] = [
   // (investimento + rata) e l'URGENZA. Il prezzo non si mostra mai prima del
   // valore. Questo e' lo standard; l'utente puo' sempre ri-trascinare.
   // — Atto 1: Fiducia —
+  { id: "chi_siamo", label: "Chi siamo · presentazione", descrizione: "Presentazione, foto del team, punti di forza e contatti dell’installatore.", obbligatoria: false, diSerie: false },
   { id: "garanzie", label: "Chi siamo e garanzie", descrizione: "Azienda, prova sociale, certificazioni e garanzie.", obbligatoria: false },
   { id: "iter", label: "Percorso cliente", descrizione: "Iter pratiche, installazione, allaccio e servizi inclusi.", obbligatoria: false },
   // — Atto 2: Desiderio (prodotto e prova) —
@@ -73,7 +75,7 @@ export const FV_PDF_PAGES_META: FvPdfPageMeta[] = [
   // Il piano di posa disegnato nel preventivo (editor in Fase 5): esce solo se è stato disegnato.
   { id: "piano_tetto", label: "Piano di posa sul tetto", descrizione: "I pannelli disegnati in scala sulla vista satellitare del tetto. Esce solo se il piano è stato disegnato nella Fase 5.", obbligatoria: false },
   { id: "componenti", label: "Componenti scelti", descrizione: "Prodotti reali scelti nel preventivo e arricchiti dal listino.", obbligatoria: true },
-  { id: "schede_prodotti", label: "Casa · schede prodotto", descrizione: "Foto, modelli, quantità e caratteristiche dei prodotti della proposta.", obbligatoria: false, diSerie: false },
+  { id: "schede_prodotti", label: "Prodotti · foto e caratteristiche", descrizione: "Foto, modelli, quantità e caratteristiche dei prodotti della proposta, per casa e azienda.", obbligatoria: false, diSerie: false },
   { id: "monitoraggio", label: "App e monitoraggio", descrizione: "App inclusa, gratuita o a pagamento e servizi aggiuntivi. Esce solo quando il monitoraggio è attivato nel modello.", obbligatoria: false },
   { id: "macro_categorie", label: "Pagine linee prodotto", descrizione: "Pagine dedicate lette dalle macro-categorie del listino.", obbligatoria: false },
   { id: "produzione", label: "Produzione", descrizione: "Producibilita mensile, fonte dati e qualita tetto.", obbligatoria: false },
@@ -86,6 +88,7 @@ export const FV_PDF_PAGES_META: FvPdfPageMeta[] = [
   { id: "co2", label: "Impatto CO2", descrizione: "Beneficio ambientale in equivalenze semplici.", obbligatoria: false },
   // — Atto 4: Offerta (ora il prezzo, e sembra piccolo) —
   { id: "investimento", label: "Investimento", descrizione: "Prezzo, proposta di valore, inclusi e detrazione.", obbligatoria: true },
+  { id: "ambito_offerta", label: "Inclusioni ed esclusioni", descrizione: "Attività incluse, escluse e verifiche da confermare, scritte nel modello.", obbligatoria: false, diSerie: false },
   { id:"azienda_sintesi",label:"Azienda · risparmio e pagamenti",descrizione:"Risparmio, formula selezionata, canoni o rate e saldo aziendale.",obbligatoria:false,diSerie:false },
   { id:"azienda_flussi",label:"Azienda · flussi negli anni",descrizione:"Grafico e tabella dei flussi di cassa aziendali.",obbligatoria:false,diSerie:false },
   { id:"azienda_scadenze",label:"Azienda · scadenze e bolletta",descrizione:"Bolletta residua e scadenze effettive del primo anno.",obbligatoria:false,diSerie:false },

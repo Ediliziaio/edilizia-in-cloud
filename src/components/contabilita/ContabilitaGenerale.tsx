@@ -23,7 +23,7 @@ import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 import { scaricaCsv } from "@/lib/csv";
 import { FiscalSectionHeader } from "@/components/fatturazione/FiscalSectionLayout";
 import { FiscalQueryState } from "@/components/fatturazione/FiscalQueryState";
-import { bilancioCee, bilancioDiVerifica, htmlBilancioCee, htmlBilancioVerifica, saldiPerConto } from "@/lib/contabilita/bilancioCee";
+import { bilancioASezioni, bilancioCee, bilancioDiVerifica, htmlBilancioCee, htmlBilancioSezioni, htmlBilancioVerifica, saldiPerConto, type LatoBilancio } from "@/lib/contabilita/bilancioCee";
 import type { AziendaIntestazione } from "@/lib/contabilita/documentoContabile";
 import { contoAPartite, htmlMastrino, mastrino, partitario } from "@/lib/contabilita/mastrini";
 import {
@@ -42,7 +42,8 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-const euro = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
+// «always»: in italiano 4000 resterebbe senza il punto delle migliaia.
+const euro = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" } as Intl.NumberFormatOptions).format(n);
 const dataIt = (d: string) => d.split("-").reverse().join("/");
 const oggi = () => new Date().toLocaleDateString("en-CA");
 const rigaVuota = (): RigaBozza => ({ conto_id: "", dare: "", avere: "", descrizione: "" });
@@ -295,6 +296,21 @@ function PianoDeiConti({ companyId, conti }: { companyId: string; conti: ContoCo
   );
 }
 
+/**
+ * Da dove viene una scrittura, per leggere separati i costi delle fatture ricevute e i ricavi
+ * delle emesse (richiesta dello studio, 11/11/2026).
+ */
+const GRUPPI_ORIGINE = [
+  ["ricevute", "Fatture ricevute (costi)", ["fattura_ricevuta"]],
+  ["emesse", "Fatture emesse (ricavi)", ["fattura_emessa"]],
+  ["movimenti", "Incassi, pagamenti e F24", ["incasso", "incasso_fattura", "incasso_documento", "pagamento", "prima_nota", "f24", "giroconto", "ritenuta_subita"]],
+] as const;
+type GruppoOrigine = (typeof GRUPPI_ORIGINE)[number][0] | "tutte" | "altre";
+function gruppoDi(origine: string | null | undefined): Exclude<GruppoOrigine, "tutte"> {
+  for (const [k, , origini] of GRUPPI_ORIGINE) if ((origini as readonly string[]).includes(origine ?? "")) return k;
+  return "altre";
+}
+
 function Scritture({ companyId, anno, conti, giornale }: { companyId: string; anno: number; conti: ContoContabile[]; giornale: boolean }) {
   const qc = useQueryClient();
   const scritture = useScritture(companyId, anno);
@@ -306,6 +322,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
   // Un esercizio vero ha migliaia di scritture: a video le prime, la stampa le ha tutte.
   const [mostra, setMostra] = useState(300);
   const [definitiva, setDefinitiva] = useState(false);
+  const [filtro, setFiltro] = useState<GruppoOrigine>("tutte");
   const nomi = useMemo(() => new Map(conti.map((c) => [c.id, `${c.codice} ${c.descrizione}`])), [conti]);
   // Fatture emesse e ricevute, incassi e pagamenti, movimenti di prima nota e F24 pagati
   // dell'esercizio diventano scritture.
@@ -345,6 +362,9 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
   }
   const elenco = scritture.data ?? [];
   const g = costruisciGiornale(elenco, conti);
+  // Il filtro vale per l'elenco delle scritture; il libro giornale resta intero.
+  const visibili = filtro === "tutte" ? elenco : elenco.filter((s) => gruppoDi(s.origine) === filtro);
+  const quante = (k: GruppoOrigine) => (k === "tutte" ? elenco.length : elenco.filter((s) => gruppoDi(s.origine) === k).length);
   const apriStampa = () => {
     const a = anagrafica.data;
     setStampa(htmlLibroGiornale({
@@ -410,9 +430,21 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
         </div>
       ) : (
         <div className="space-y-2">
+          {elenco.length > 0 ? (
+            <div className="flex flex-wrap gap-1" role="group" aria-label="Da dove vengono le scritture">
+              {([["tutte", "Tutte"], ...GRUPPI_ORIGINE.map(([k, l]) => [k, l] as const), ["altre", "Altre"]] as Array<readonly [GruppoOrigine, string]>).map(([k, l]) => (
+                <button key={k} type="button" aria-pressed={filtro === k} onClick={() => { setFiltro(k); setMostra(300); }}
+                  className={`rounded-full border px-2.5 py-0.5 text-xs ${filtro === k ? "border-primary bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:bg-muted"}`}>
+                  {l} <span className="tabular-nums">{quante(k)}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
           {elenco.length === 0 ? (
             <p className="rounded-xl border p-4 text-sm text-muted-foreground">Nessuna scrittura nel {anno}. Fatture, incassi e pagamenti si registrano da soli ogni quarto d'ora («Aggiorna adesso» per non aspettare); le altre operazioni si registrano con «Nuova scrittura».</p>
-          ) : elenco.slice(0, mostra).map((s) => {
+          ) : visibili.length === 0 ? (
+            <p className="rounded-xl border p-4 text-sm text-muted-foreground">Nessuna scrittura di questo tipo nel {anno}.</p>
+          ) : visibili.slice(0, mostra).map((s) => {
             const tot = s.contabilita_righe.reduce((t, r) => t + Number(r.dare || 0), 0);
             return (
               <details key={s.id} className="rounded-xl border p-3 text-sm">
@@ -446,9 +478,9 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
           })}
         </div>
       )}
-      {(giornale ? g.righe.length > mostra * 5 : elenco.length > mostra) ? (
+      {(giornale ? g.righe.length > mostra * 5 : visibili.length > mostra) ? (
         <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground">
-          <span>{giornale ? `Righe ${mostra * 5} di ${g.righe.length}` : `Scritture ${mostra} di ${elenco.length}`}: la stampa le contiene tutte.</span>
+          <span>{giornale ? `Righe ${mostra * 5} di ${g.righe.length}` : `Scritture ${mostra} di ${visibili.length}`}: la stampa le contiene tutte.</span>
           <Button size="sm" variant="outline" onClick={() => setMostra((n) => n + 300)}>Mostra altre</Button>
         </div>
       ) : null}
@@ -592,12 +624,15 @@ function Bilancio({ companyId, anno, conti }: { companyId: string; anno: number;
   const scritture = useScritture(companyId, anno);
   const anagrafica = useAnagraficaAzienda();
   const [stampa, setStampa] = useState<{ html: string; nome: string } | null>(null);
+  // Per default la lettura dello studio: stato patrimoniale e conto economico divisi (11/11/2026).
+  const [vista, setVista] = useState<"sezioni" | "verifica">("sezioni");
   if (scritture.isLoading || scritture.isError) {
     return <FiscalQueryState loading={scritture.isLoading} error={scritture.isError} onRetry={() => void scritture.refetch()} />;
   }
   const saldi = saldiPerConto(scritture.data ?? [], conti);
   const verifica = bilancioDiVerifica(saldi);
   const cee = bilancioCee(saldi);
+  const sezioni = bilancioASezioni(saldi, conti);
   const azienda = intestazioneDa(anagrafica.data);
   const periodo = `Esercizio ${anno}`;
   const sbilancio = Math.round((cee.totaleAttivo - cee.totalePassivo) * 100) / 100;
@@ -608,6 +643,15 @@ function Bilancio({ companyId, anno, conti }: { companyId: string; anno: number;
           title={`${stampa.nome} — anteprima di stampa`} fileName={`${stampa.nome.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${anno}`} soloPdf />
       )}
       <div className="flex flex-wrap gap-2">
+        <div className="mr-2 flex rounded-md border p-0.5">
+          {([["sezioni", "Stato patrimoniale e conto economico"], ["verifica", "Bilancio di verifica"]] as const).map(([k, l]) => (
+            <button key={k} type="button" aria-pressed={vista === k} onClick={() => setVista(k)}
+              className={`rounded px-2.5 py-1 text-xs ${vista === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>{l}</button>
+          ))}
+        </div>
+        <Button size="sm" variant="outline" onClick={() => setStampa({ html: htmlBilancioSezioni({ azienda, bilancio: sezioni, periodo }), nome: "Bilancio a sezioni" })}>
+          <Printer className="mr-1 h-4 w-4" />Stampa stato patrimoniale e conto economico
+        </Button>
         <Button size="sm" variant="outline" onClick={() => setStampa({ html: htmlBilancioVerifica({ azienda, verifica, periodo }), nome: "Bilancio di verifica" })}>
           <Printer className="mr-1 h-4 w-4" />Stampa bilancio di verifica
         </Button>
@@ -627,6 +671,27 @@ function Bilancio({ companyId, anno, conti }: { companyId: string; anno: number;
           {cee.vociNonIndicate.length > 0 ? <p>Conti senza una voce CEE riconosciuta: {cee.vociNonIndicate.join(", ")}.</p> : null}
         </div>
       ) : null}
+      {vista === "sezioni" ? (
+        <div className="space-y-4">
+          <section aria-label="Stato patrimoniale" className="space-y-2">
+            <h3 className="text-sm font-semibold">Stato patrimoniale</h3>
+            <div className="grid gap-3 lg:grid-cols-2">
+              <LatoDelBilancio titolo="Attivo" lato={sezioni.attivo} />
+              <LatoDelBilancio titolo="Passivo e netto" lato={sezioni.passivo}
+                chiusura={{ etichetta: sezioni.utile >= 0 ? "Utile dell'esercizio" : "Perdita dell'esercizio", importo: sezioni.utile }} />
+            </div>
+          </section>
+          <section aria-label="Conto economico" className="space-y-2">
+            <h3 className="text-sm font-semibold">Conto economico</h3>
+            <div className="grid gap-3 lg:grid-cols-2">
+              <LatoDelBilancio titolo="Costi" lato={sezioni.costi}
+                chiusura={sezioni.utile > 0 ? { etichetta: "Utile dell'esercizio", importo: sezioni.utile } : undefined} />
+              <LatoDelBilancio titolo="Ricavi" lato={sezioni.ricavi}
+                chiusura={sezioni.utile < 0 ? { etichetta: "Perdita dell'esercizio", importo: -sezioni.utile } : undefined} />
+            </div>
+          </section>
+        </div>
+      ) : (
       <div className="overflow-x-auto rounded-xl border">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
@@ -646,6 +711,45 @@ function Bilancio({ companyId, anno, conti }: { companyId: string; anno: number;
           </tbody>
         </table>
       </div>
+      )}
+    </div>
+  );
+}
+
+/** Un lato del bilancio: i mastri col loro totale, e sotto i conti (si aprono). In fondo il totale del lato. */
+function LatoDelBilancio({ titolo, lato, chiusura }: { titolo: string; lato: LatoBilancio; chiusura?: { etichetta: string; importo: number } }) {
+  const totale = lato.totale + (chiusura?.importo ?? 0);
+  return (
+    <div className="overflow-hidden rounded-xl border">
+      <div className="flex items-center justify-between bg-muted/50 px-3 py-2 text-xs font-semibold uppercase text-muted-foreground">
+        <span>{titolo}</span><span className="tabular-nums">{euro(totale)}</span>
+      </div>
+      {lato.mastri.length === 0 && !chiusura ? <p className="p-3 text-sm text-muted-foreground">Nessun conto movimentato.</p> : null}
+      <ul className="divide-y text-sm">
+        {lato.mastri.map((m) => (
+          <li key={`${m.codice}-${m.descrizione}`}>
+            <details>
+              <summary className="flex cursor-pointer items-center justify-between gap-2 px-3 py-1.5 font-medium hover:bg-muted/40">
+                <span className="min-w-0 truncate">{m.codice ? <span className="mr-1.5 font-mono text-xs text-muted-foreground">{m.codice}</span> : null}{m.descrizione}</span>
+                <span className="shrink-0 tabular-nums">{euro(m.totale)}</span>
+              </summary>
+              <ul className="pb-1">
+                {m.conti.map((c) => (
+                  <li key={c.codice} className="flex items-center justify-between gap-2 py-0.5 pl-8 pr-3 text-xs">
+                    <span className="min-w-0 truncate"><span className="mr-1.5 font-mono text-muted-foreground">{c.codice}</span>{c.descrizione}</span>
+                    <span className="shrink-0 tabular-nums">{euro(c.importo)}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </li>
+        ))}
+        {chiusura ? (
+          <li className="flex items-center justify-between bg-muted/30 px-3 py-1.5 font-semibold">
+            <span>{chiusura.etichetta}</span><span className="tabular-nums">{euro(chiusura.importo)}</span>
+          </li>
+        ) : null}
+      </ul>
     </div>
   );
 }

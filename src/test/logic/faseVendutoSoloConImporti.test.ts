@@ -110,24 +110,25 @@ describe("l'app scrive il venduto solo con gli stessi due permessi", () => {
     expect(conVenduto).toEqual([
       "src/components/orders/CreaFatturaDialog.tsx", // legge le fasi vendute per preparare le righe fattura
       "src/components/orders/OrderWorkPhases.tsx",
-      "src/components/orders/SalTab.tsx",
       "src/components/silvio-commessa/presentazione.ts", // solo dizionario etichette
       "src/hooks/useOrderWorkPhases.ts",
       "src/lib/orders/dossierEconomico.ts", // lettura del dossier, non aggiorna il venduto
       "src/lib/orders/economiaFasi.ts",
+      "src/lib/orders/leggiFasiPerSal.ts", // le fasi per il verbale SAL: solo lettura (11/11/2026)
       "src/lib/orders/registroCommessa.ts", // solo dizionario etichette
       "src/lib/orders/salDaFasi.ts",
     ]);
   });
 
   it("il verbale SAL legge il venduto delle fasi ma non lo scrive mai", () => {
-    for (const percorso of ["src/components/orders/SalTab.tsx", "src/lib/orders/salDaFasi.ts"]) {
+    for (const percorso of ["src/lib/orders/leggiFasiPerSal.ts", "src/lib/orders/salDaFasi.ts"]) {
       const senzaCommenti = readFileSync(resolve(process.cwd(), percorso), "utf8")
         .replace(/\/\*[\s\S]*?\*\//g, "")
         .replace(/^\s*\/\/.*$/gm, "");
       const tutte = senzaCommenti.match(/importo_venduto/g) ?? [];
-      // Il tipo della fase, la select, e la lettura sulla fase: niente update, insert o proprietà scritte.
-      const letture = senzaCommenti.match(/importo_venduto: number \| null;|\.select\("[^"]*importo_venduto"\)|\bf\.importo_venduto\b/g) ?? [];
+      // Il tipo della fase, la select, la lettura sulla fase, e il venduto della fase nell'oggetto in
+      // memoria del verbale (dalle voci se manca): niente update, insert o scritture sul database.
+      const letture = senzaCommenti.match(/importo_venduto: number \| null;|\.select\("[^"]*importo_venduto"\)|\bf\.importo_venduto\b|^\s*importo_venduto: venduto,$/gm) ?? [];
       expect(letture, `${percorso} usa importo_venduto in un modo che non è una lettura`).toHaveLength(tutte.length);
       expect(tutte.length, `${percorso} non nomina più il venduto: togli il file dall'elenco qui sopra`).toBeGreaterThan(0);
     }

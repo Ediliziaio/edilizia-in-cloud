@@ -12,6 +12,9 @@ const variation: Database["public"]["Tables"]["ordini_variazione"]["Row"] = {
   impatto_economico: 120, impatto_giorni: 2, created_at: "2026-10-09T08:00:00Z",
   created_by: null, richiesto_il: "2026-10-09T08:00:00Z", firma_cliente: null,
   firmato_da: null, firmato_il: null, firma_token: "PRIVATE_TOKEN", note_interne: "PRIVATE_NOTES",
+  approval_channel: null, approval_evidence_id: null, approval_recorded_at: null, approved_document_hash: null,
+  current_document_id: null, day_unit: null, link_expires_at: null, link_revoked_at: null,
+  offline_signed_on: null, work_phase_id: null,
 };
 const props = { variation, orderId: "order", companyId: "company", context: { companyName: "Impresa", customerName: "Cliente", currentNet: 1000 } };
 beforeEach(() => { vi.clearAllMocks(); mock.generate.mockResolvedValue({ output: () => "data:application/pdf;base64,TEST" }); });
