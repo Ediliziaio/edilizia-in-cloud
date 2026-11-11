@@ -53,7 +53,7 @@ REVOKE ALL ON public.ai_fish_crm_trials FROM PUBLIC,anon,authenticated;
 GRANT SELECT ON public.ai_fish_crm_trials TO authenticated;
 GRANT ALL ON public.ai_fish_crm_trials TO service_role;
 CREATE POLICY fish_crm_trial_read ON public.ai_fish_crm_trials FOR SELECT TO authenticated USING (
- company_id=public.get_my_company_id() AND requested_by=(SELECT auth.uid()) AND EXISTS(SELECT 1 FROM user_roles WHERE user_id=(SELECT auth.uid()) AND role='company_admin')
+ company_id=public.get_my_company_id() AND requested_by=(SELECT auth.uid()) AND public.e_amministratore_di(company_id)
  OR EXISTS(SELECT 1 FROM user_roles WHERE user_id=(SELECT auth.uid()) AND role='super_admin')
 );
 CREATE FUNCTION public.fish_create_trial_ticket(p_company uuid,p_agent uuid,p_user uuid,p_trial uuid,p_problem text) RETURNS jsonb
