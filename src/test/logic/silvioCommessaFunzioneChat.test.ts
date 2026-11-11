@@ -39,8 +39,9 @@ vi.mock("../../../supabase/functions/_shared/auth.ts", () => ({
 }));
 vi.mock("../../../supabase/functions/_shared/requirePaymentMethod.ts", () => ({ gateAiPayment: async (): Promise<null> => null }));
 vi.mock("../../../supabase/functions/_shared/aiRouter.ts", () => {
-  class AiRouterError extends Error {}
-  class AiCompanyCreditError extends AiRouterError {}
+  // Con il nome delle classi vere: _shared/erroriAi riconosce gli errori dal nome (11/11/2026).
+  class AiRouterError extends Error { name = "AiRouterError"; }
+  class AiCompanyCreditError extends AiRouterError { name = "AiCompanyCreditError"; }
   return {
     AiRouterError,
     AiCompanyCreditError,

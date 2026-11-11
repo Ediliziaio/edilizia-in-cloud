@@ -365,3 +365,5 @@ Deno.serve(async (req) => {
     return errorResponse(err instanceof Error ? err.message : String(err), 500, getCorsHeaders(req));
   }
 });
+
+// 11/11/2026: ripubblicata per _shared/erroriAi.ts — anche «Abbonamento sospeso o scaduto» risponde 402 payment_method_required col testo vero.

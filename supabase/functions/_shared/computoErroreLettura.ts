@@ -8,8 +8,9 @@
  * senza AI e senza carta: chi ha quel file può importare il computo subito.
  * Qui si aggiunge l'indicazione; non si regala la lettura AI.
  */
-// Ferma l'azienda: niente carta, o crediti AI dell'azienda finiti.
-const FERMO_AZIENDA = /carta di pagamento|crediti ai dell.azienda sono insufficienti/i;
+// Ferma l'azienda: niente carta, abbonamento sospeso o scaduto (11/11/2026),
+// o crediti AI dell'azienda finiti.
+const FERMO_AZIENDA = /carta di pagamento|abbonamento sospeso o scaduto|crediti ai dell.azienda sono insufficienti/i;
 // Ferma la piattaforma: il credito OpenRouter è finito (402).
 const CREDITO_PIATTAFORMA = /openrouter 402|insufficient credits|in balance for/i;
 

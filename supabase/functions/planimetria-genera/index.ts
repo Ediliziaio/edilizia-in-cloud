@@ -253,3 +253,5 @@ serveConMetricheRapida(NOME, async (req: Request) => {
     return rifiuto("errore", "Qualcosa non ha funzionato: riprova fra poco.", 500, cors);
   }
 });
+
+// 11/11/2026: ripubblicata per _shared/erroriAi.ts — anche «Abbonamento sospeso o scaduto» risponde 402 payment_method_required col testo vero.

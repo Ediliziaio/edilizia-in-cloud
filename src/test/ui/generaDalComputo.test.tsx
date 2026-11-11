@@ -16,6 +16,7 @@ vi.mock("@/hooks/useComputoCommessa", () => ({
   computoLetto: (c: ComputoCommessa | null) => !!c && ["review", "completed"].includes(c.extraction_status),
   useComputiCommessa: () => ({ data: computi, isLoading: false }),
   useVociComputo: () => ({ data: [] as unknown[], isLoading: false }),
+  useRiprovaLetturaComputo: () => ({ mutate: vi.fn(), isPending: false }),
   useCaricaComputo: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useModificaComputo: () => ({ mutateAsync: vi.fn() }),
 }));

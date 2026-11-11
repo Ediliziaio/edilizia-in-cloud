@@ -35,7 +35,7 @@ import { ClassificazioneQuadro, ProspettoQuadro } from "./QuadroEconomicoLavori"
 import ContabilitaLavoriPubblici from "./contabilita/ContabilitaLavoriPubblici";
 import type { SchedaContabilita } from "./contabilita/comune";
 import {
-  computoInLettura, computoLetto, useClassificaVoci, useComputiCommessa, useModificaComputo, useSbloccaComputo, useScartaComputo, useVociComputo,
+  computoInLettura, computoLetto, useClassificaVoci, useComputiCommessa, useModificaComputo, useRiprovaLetturaComputo, useSbloccaComputo, useScartaComputo, useVociComputo,
   type ComputoCommessa, type ModificaComputo, type StatoComputo,
 } from "@/hooks/useComputoCommessa";
 
@@ -143,6 +143,7 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
   const { data: voci = [], isLoading: vociLoading } = useVociComputo(computo?.id, letto);
   const modifica = useModificaComputo(orderId, companyId);
   const scarta = useScartaComputo(orderId, companyId);
+  const riprova = useRiprovaLetturaComputo(orderId, companyId);
   const classificaVoci = useClassificaVoci(computo?.id);
   const sblocca = useSbloccaComputo(orderId);
   const [sblocco, setSblocco] = useState<{ aperto: boolean; motivo: string }>({ aperto: false, motivo: "" });
@@ -307,8 +308,13 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
           {computo.extraction_status === "failed" && (
             <div role="alert" className="space-y-2 rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm">
               <p>Lettura non riuscita: {computo.extraction_error || "errore sconosciuto"}.</p>
-              {canEdit && <div className="flex gap-2">
-                <Button type="button" size="sm" onClick={() => setNuovo(true)}>Carica un altro file</Button>
+              {canEdit && <div className="flex flex-wrap gap-2">
+                {/* Dopo un blocco tolto (carta, abbonamento, crediti) si rilegge lo stesso file. */}
+                <Button type="button" size="sm" disabled={riprova.isPending}
+                  onClick={() => riprova.mutate(computo.id, { onError: e => toast.error(e instanceof Error ? e.message : "Lettura non riuscita.") })}>
+                  {riprova.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Riprova la lettura
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => setNuovo(true)}>Carica un altro file</Button>
                 <Button type="button" size="sm" variant="ghost" onClick={() => scarta.mutate(computo.id)}>Elimina questo caricamento</Button>
               </div>}
             </div>

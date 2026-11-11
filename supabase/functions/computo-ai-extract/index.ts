@@ -4,6 +4,11 @@
  * Prima i lettori deterministici (PDF di PriMus, XPWE), poi l'AI come ripiego
  * per PDF di altri programmi, Excel e foto.
  * Multi-strategy: pdf_text, pdf_vision, xlsx_parse, xpwe_parse
+ *
+ * 11/11/2026: carta mancante, abbonamento sospeso o scaduto e credito finito rispondono
+ * 402/503 col codice (erroreAiPerUtente) invece di un 500; l'OCR di _shared/pdfExtraction
+ * li rilancia invece di contarli come pagine non lette. Il computo resta `failed` e si
+ * rilegge dal pulsante «Riprova la lettura».
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -11,6 +16,7 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { messaggioErroreLettura } from "../_shared/computoErroreLettura.ts";
+import { bloccoAiPerUtente, erroreAiPerUtente } from "../_shared/erroriAi.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { generateEmbedding } from "../_shared/brainEmbed.ts";
 import { extractPdfWithCoverage, splitPdfTextAtRows } from "../_shared/pdfExtraction.ts";
@@ -254,6 +260,8 @@ async function callOpenAI(
       throw new Error(`AI returned invalid JSON: ${content.substring(0, 200)}`);
     }
   } catch (err) {
+    // Carta, abbonamento o credito: l'errore resta quello del router, così la risposta dice il motivo vero.
+    if (bloccoAiPerUtente(err)) throw err;
     throw new Error(`AI Router error: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
@@ -529,6 +537,7 @@ async function extractFromPDFVision(
     return result;
   } catch (err: any) {
     console.error("PDF Vision (OpenRouter) error:", err.message);
+    if (bloccoAiPerUtente(err)) throw err;
     throw new Error(
       `OCR vision fallito: ${err.message}. Prova un PDF testuale o un Excel/XPWE.`
     );
@@ -1047,6 +1056,8 @@ serve(async (req) => {
       await updateStatus(computoUploadId, "failed", {
         extraction_error: messaggioErroreLettura(String(err?.message ?? err), String(upload.file_type ?? "")),
       });
+      const perUtente = erroreAiPerUtente(err);
+      if (perUtente) return jsonResponse(perUtente.body, perUtente.status, cors);
       return errorResponse(err.message, 500, cors);
     }
 

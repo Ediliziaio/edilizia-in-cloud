@@ -33,6 +33,7 @@ vi.mock("@/hooks/useComputoCommessa", () => ({
   useVociComputo: () => ({ data: voci, isLoading: false }),
   useModificaComputo: () => ({ mutate: vi.fn(), mutateAsync: vi.fn() }),
   useScartaComputo: () => ({ mutate: vi.fn() }),
+  useRiprovaLetturaComputo: () => ({ mutate: vi.fn(), isPending: false }),
   useCaricaComputo: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useClassificaVoci: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
   useSbloccaComputo: () => ({ mutate: vi.fn(), isPending: false }),

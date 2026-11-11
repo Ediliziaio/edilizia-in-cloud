@@ -81,3 +81,5 @@ serve(async (req: Request) => {
     return errorResponse("La proposta con l'AI non è riuscita. Riprova tra poco.", 500, corsHeaders);
   }
 });
+
+// 11/11/2026: ripubblicata per _shared/erroriAi.ts — anche «Abbonamento sospeso o scaduto» risponde 402 payment_method_required col testo vero.

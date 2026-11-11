@@ -26,11 +26,17 @@
  *   - Cron triage_pending: x-cron-secret (env PROACTIVE_CRON_SECRET)
  *   Nessuno dei due manda un JWT: in config.toml verify_jwt = false, il
  *   controllo del segreto è quello in fondo al file.
+ *
+ * 11/11/2026: carta mancante, abbonamento sospeso o scaduto e credito finito non
+ * diventano più «triage failed» con un tentativo bruciato: il motivo vero resta in
+ * ai_error e l'email si riprova fra un'ora (persistenza.ts). Anche l'ingest guarda
+ * la carta prima di chiamare l'AI. Le email ferme fuori finestra restano come sono.
  */
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { bloccoAiPerUtente } from "../_shared/erroriAi.ts";
 import { salvaTriage, type TriageResult } from "./persistenza.ts";
 import { checkPaymentMethod } from "../_shared/requirePaymentMethod.ts";
 
@@ -348,6 +354,8 @@ async function triageOneEmail(
     const parsed = JSON.parse(res.content ?? "{}");
     return sanitizeTriage(parsed);
   } catch (e) {
+    // Un blocco di carta, abbonamento o credito sale a salvaTriage, che non consuma il tentativo.
+    if (bloccoAiPerUtente(e)) throw e;
     console.error("[email-triage] ai failure:", e);
     return null;
   }
@@ -401,6 +409,16 @@ async function processIngest(
     return new Response(JSON.stringify({ status: "duplicate_skipped" }), { headers: cors });
   }
 
+  // Senza carta o con l'abbonamento sospeso l'AI non parte: l'email resta salvata con
+  // i tentativi interi, la classifica il poller quando il blocco è tolto (11/11/2026).
+  const gate = await checkPaymentMethod(supa, companyId);
+  if (!gate.allowed) {
+    return new Response(JSON.stringify({
+      success: true, email_id: inserted.id, triaged: false,
+      triage_saltato: gate.message ?? "metodo di pagamento mancante",
+    }), { headers: cors, status: 202 });
+  }
+
   // Triage immediato (best-effort)
   const outcome = await salvaTriage(supa, inserted.id, companyId, () => triageOneEmail(
     supa, inserted.id, companyId,
@@ -411,7 +429,8 @@ async function processIngest(
   return new Response(JSON.stringify({
     success: true, email_id: inserted.id, triaged: result !== null,
     category: result?.category, priority: result?.priority,
-  }), { headers: cors, status: outcome.state === 'failed' ? 202 : 200 });
+    triage_sospeso: outcome.state === 'blocked' ? outcome.motivo : undefined,
+  }), { headers: cors, status: outcome.state === 'failed' || outcome.state === 'blocked' ? 202 : 200 });
 }
 
 async function processTriagePending(
@@ -459,6 +478,7 @@ async function processTriagePending(
   let failed = 0;
   let skipped = 0;
   let senzaCarta = 0;
+  let bloccate = 0;
 
   // Un'azienda senza metodo di pagamento non può usare l'AI: aiRouterComplete
   // lancia subito, prima di qualunque chiamata al provider. Il gate si guarda
@@ -489,12 +509,16 @@ async function processTriagePending(
     ));
     if (outcome.state === 'saved') triaged++;
     else if (outcome.state === 'failed') failed++;
-    else skipped++;
+    else if (outcome.state === 'blocked') {
+      // Il blocco vale per tutta l'azienda: le altre sue email di questo giro aspettano.
+      bloccate++;
+      cartaPerAzienda.set(row.company_id, false);
+    } else skipped++;
   }
 
   return new Response(JSON.stringify({
     processed: triaged + failed, triaged, failed, skipped,
-    saltate_senza_carta: senzaCarta,
+    saltate_senza_carta: senzaCarta, sospese_per_blocco: bloccate,
   }), { headers: { "Content-Type": "application/json" } });
 }
 

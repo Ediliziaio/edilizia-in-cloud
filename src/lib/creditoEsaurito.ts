@@ -33,6 +33,14 @@ const CODICI_CREDITO = new Set([
 /** Codice del gate "carta obbligatoria" (requirePaymentMethod.ts). */
 const CODICE_CARTA = "payment_method_required";
 
+/**
+ * Le frasi del gate carta (requirePaymentMethod.ts): PAYMENT_METHOD_REQUIRED_MESSAGE
+ * («Registra una carta di pagamento aziendale…», anche nella variante del router
+ * «…per usare l'AI.») e SUBSCRIPTION_REQUIRED_MESSAGE («Abbonamento sospeso o
+ * scaduto: rinnova…»).
+ */
+const TESTO_CARTA = /\bregistra una carta di pagamento\b|\babbonamento sospeso o scaduto\b/i;
+
 /** Codice dell'add-on WhatsApp Business non attivo (_shared/whatsappAddon.ts). */
 const CODICE_ADDON_WHATSAPP = "whatsapp_addon_required";
 
@@ -71,6 +79,9 @@ export function classificaBloccoPagamento(status: number, corpo: unknown): Payme
   // Anche questo e' un 402, ma non chiede una carta: chiede l'add-on.
   if (stringhe.some((s) => s.trim().toLowerCase() === CODICE_ADDON_WHATSAPP)) return "addon_whatsapp";
   if (stringhe.some((s) => s.trim().toLowerCase() === CODICE_CARTA)) return "payment";
+  // Le ~39 funzioni che non passano da erroreAiPerUtente rilanciano il testo del gate
+  // in un 500 senza codice: lo si riconosce dalla frase (11/11/2026).
+  if (stringhe.some((s) => TESTO_CARTA.test(s))) return "payment";
   if (stringhe.some((s) => CODICI_CREDITO.has(s.trim().toLowerCase()) || TESTO_CREDITO.test(s))) {
     return "credits";
   }

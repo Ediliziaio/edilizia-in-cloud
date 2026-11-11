@@ -79,6 +79,8 @@ interface Props {
   progress: string;
   error: string | null;
   onRetry: () => void;
+  /** Rilegge lo stesso file, senza ricaricarlo (dopo un blocco di carta, abbonamento o crediti tolto). */
+  onRetryRead?: () => void;
   onCancel?: () => void;
   /** Fix 8: nodo React opzionale che sostituisce il bottone Annulla default
    * (usato da ComputoUploadModal per inserire un AlertDialog di conferma). */
@@ -87,6 +89,19 @@ interface Props {
 
 /** Fix 19: mappa errori tecnici → messaggi leggibili dall'utente */
 const ERROR_MESSAGES: Record<string, { title: string; hint: string }> = {
+  // Blocchi dell'azienda (11/11/2026): il motivo vero, non «file danneggiato».
+  "carta di pagamento": {
+    title: "Manca la carta di pagamento aziendale",
+    hint: "Registrala in Impostazioni → Fatturazione, poi riprova la lettura.",
+  },
+  "abbonamento sospeso o scaduto": {
+    title: "Abbonamento sospeso o scaduto",
+    hint: "Rinnova l'abbonamento, poi riprova la lettura.",
+  },
+  "crediti ai dell": {
+    title: "Crediti AI esauriti",
+    hint: "Ricarica i crediti AI dell'azienda, poi riprova la lettura.",
+  },
   corrupted: {
     title: "File danneggiato o non leggibile",
     hint: "Prova a riesportare il PDF dall'applicazione originale (senza protezione).",
@@ -122,7 +137,7 @@ function friendlyError(raw: string | null): { title: string; hint: string } {
   return { title: "Errore durante l'estrazione", hint: raw };
 }
 
-export function AIProcessingStage({ status, progress, error, onRetry, onCancel, cancelButton }: Props) {
+export function AIProcessingStage({ status, progress, error, onRetry, onRetryRead, onCancel, cancelButton }: Props) {
   const isFailed = status === "failed";
   const startedAtRef = useRef<number>(Date.now());
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -203,8 +218,13 @@ export function AIProcessingStage({ status, progress, error, onRetry, onCancel, 
         </div>
         <div className="flex justify-center gap-2">
           {cancelButton ?? (onCancel ? <Button variant="outline" onClick={onCancel}>Chiudi</Button> : null)}
-          <Button onClick={onRetry}>
-            <RotateCw className="h-4 w-4 mr-1" /> Riprova
+          {onRetryRead && (
+            <Button onClick={onRetryRead}>
+              <RotateCw className="h-4 w-4 mr-1" /> Riprova la lettura
+            </Button>
+          )}
+          <Button variant={onRetryRead ? "outline" : "default"} onClick={onRetry}>
+            <RotateCw className="h-4 w-4 mr-1" /> {onRetryRead ? "Carica un altro file" : "Riprova"}
           </Button>
         </div>
       </div>

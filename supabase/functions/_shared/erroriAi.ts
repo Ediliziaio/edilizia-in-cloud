@@ -16,7 +16,7 @@
  * funzione si comporta come prima.
  *
  *   saldo/budget dell'azienda  → 402, code insufficient_credits (finestra di ricarica)
- *   carta mancante             → 402, code payment_method_required
+ *   carta mancante / abbonamento sospeso o scaduto → 402, code payment_method_required
  *   credito del provider       → 503, servizio_non_disponibile, senza parole di credito
  *   modelli tutti falliti      → 502, lettura_non_riuscita
  *   esito della richiesta incerto → 409, esito_incerto
@@ -41,6 +41,13 @@ const STATO_PER_CODICE: Record<string, number> = {
   lettura_non_riuscita: 502,
   esito_incerto: 409,
 };
+
+/**
+ * Il gate di requirePaymentMethod.ts: PAYMENT_METHOD_REQUIRED_MESSAGE («Registra una
+ * carta di pagamento…») e SUBSCRIPTION_REQUIRED_MESSAGE («Abbonamento sospeso o
+ * scaduto…»). Si riconoscono per testo perché il router li rilancia come AiRouterError.
+ */
+export const BLOCCO_PAGAMENTO = /carta di pagamento|abbonamento sospeso o scaduto/i;
 
 /** Credito finito presso il provider: dell'azienda non è, e non c'è nulla da ricaricare. */
 const CREDITO_PROVIDER = /OpenRouter(?:\s+error)?\s*402\b|requires (?:at least \$|more credits)|credito provider/i;
@@ -72,7 +79,10 @@ export function erroreAiPerUtente(err: unknown): ErroreAiPerUtente | null {
   if (nome === "AiRouterError" && /^Budget AI\b/i.test(messaggio)) {
     return { status: 402, body: { error: messaggio, code: "insufficient_credits", motivo: "budget_piano" } };
   }
-  if (nome === "AiRouterError" && /carta di pagamento/i.test(messaggio)) {
+  // Carta mancante o abbonamento sospeso/scaduto (requirePaymentMethod.ts): stesso
+  // codice, così si apre la finestra della carta; il testo resta quello vero
+  // (11/11/2026: l'abbonamento sospeso finiva in un 500 «riprova» o «problema del file»).
+  if (nome === "AiRouterError" && BLOCCO_PAGAMENTO.test(messaggio)) {
     return { status: 402, body: { error: messaggio, code: "payment_method_required" } };
   }
 
@@ -89,6 +99,21 @@ export function erroreAiPerUtente(err: unknown): ErroreAiPerUtente | null {
   if (nome === "AiRequestGuardError" && /provider_outcome_unknown/.test(messaggio)) return risposta("esito_incerto");
 
   return null;
+}
+
+/**
+ * I codici dei blocchi che nessun «riprova» toglie da solo (11/11/2026): carta
+ * mancante o abbonamento sospeso/scaduto, credito dell'azienda finito, credito del
+ * provider finito. Chi inghiotte gli errori (l'OCR pagina per pagina, il triage
+ * delle email) deve lasciarli passare: altrimenti diventano «pagina non letta»,
+ * «problema del file» o un tentativo consumato.
+ */
+const CODICI_BLOCCO = new Set(["payment_method_required", "insufficient_credits", "servizio_non_disponibile"]);
+
+/** La risposta per l'utente se l'errore è un blocco di carta, abbonamento o credito; altrimenti `null`. */
+export function bloccoAiPerUtente(err: unknown): ErroreAiPerUtente | null {
+  const risposta = erroreAiPerUtente(err);
+  return risposta && CODICI_BLOCCO.has(risposta.body.code) ? risposta : null;
 }
 
 /**

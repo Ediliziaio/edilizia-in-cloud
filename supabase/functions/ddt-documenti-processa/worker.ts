@@ -41,10 +41,12 @@ export function messaggioBloccoLettura(e: unknown): string | null {
   const nome = e instanceof Error ? e.name : "";
   const testo = e instanceof Error ? e.message : String(e ?? "");
   const perUtente = erroreAiPerUtente(e);
-  if (perUtente?.body.code === "payment_method_required")
-    return "La lettura automatica richiede una carta registrata (Impostazioni → Abbonamento). Intanto compila la bolla a mano.";
+  // Prima l'abbonamento: da quando erroriAi lo mappa anche lui su payment_method_required
+  // (11/11/2026), guardato dopo avrebbe detto «richiede una carta» a chi la carta ce l'ha.
   if (nome === "AiRouterError" && /^Abbonamento sospeso/i.test(testo))
     return "La lettura automatica è ferma perché l'abbonamento è sospeso o scaduto: rinnovalo in Impostazioni → Abbonamento. Intanto compila la bolla a mano.";
+  if (perUtente?.body.code === "payment_method_required")
+    return "La lettura automatica richiede una carta registrata (Impostazioni → Abbonamento). Intanto compila la bolla a mano.";
   if (perUtente?.body.code === "insufficient_credits")
     return "Credito AI esaurito: ricaricalo per riattivare la lettura automatica. Intanto compila la bolla a mano.";
   return null;

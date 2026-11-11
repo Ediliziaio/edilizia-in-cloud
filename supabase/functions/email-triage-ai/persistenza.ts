@@ -1,4 +1,6 @@
 /** Nessun messaggio o contenuto email nei log degli errori di persistenza. */
+import { bloccoAiPerUtente } from "../_shared/erroriAi.ts";
+
 export interface TriageResult {
   category: string;
   priority: string;
@@ -6,7 +8,25 @@ export interface TriageResult {
   extracted: Record<string, unknown>;
   suggested_action: string;
 }
-export type TriageOutcome = { state: 'saved'; result: TriageResult } | { state: 'failed' | 'skipped' };
+export type TriageOutcome =
+  | { state: 'saved'; result: TriageResult }
+  | { state: 'failed' | 'skipped' }
+  /** Carta, abbonamento o credito: il tentativo NON si consuma, si riprova fra un'ora. */
+  | { state: 'blocked'; motivo: string };
+
+/** Fra quanto si riprova un'email ferma per un blocco di carta, abbonamento o credito. */
+export const ATTESA_BLOCCO_MS = 3_600_000;
+
+/**
+ * Il motivo da scrivere in `ai_error` per un blocco (11/11/2026): quello vero, non
+ * «triage failed». Il credito del provider non è dell'azienda: lo si dice così.
+ */
+export function motivoBloccoTriage(err: unknown): string | null {
+  const blocco = bloccoAiPerUtente(err);
+  if (!blocco) return null;
+  if (blocco.body.code === 'servizio_non_disponibile') return "triage sospeso: l'AI della piattaforma è momentaneamente ferma";
+  return `triage sospeso: ${blocco.body.error}`.slice(0, 500);
+}
 
 // Unico confine strutturale condiviso con il client Edge e i fake dei test.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -33,7 +53,23 @@ export async function salvaTriage(db: any, id: string, companyId: string,
       // Una lease superata non può modificare né rilasciare il lavoro di un altro worker.
       if (!error && !data) return { state: 'skipped' };
     }
-  } catch {
+  } catch (err) {
+    // Carta mancante, abbonamento sospeso o scaduto, credito finito (11/11/2026): non è
+    // l'email, e in cinque minuti non cambia. Il tentativo torna indietro (il claim lo
+    // aveva contato), il motivo resta scritto e si riprova fra un'ora: quando il blocco
+    // è tolto l'email si classifica, se è ancora dentro la finestra del poller.
+    const motivo = motivoBloccoTriage(err);
+    if (motivo) {
+      try {
+        await update({
+          ai_error: motivo,
+          ai_triage_attempts: attempt - 1,
+          ai_triage_claimed_at: null,
+          ai_triage_retry_at: new Date(now().getTime() + ATTESA_BLOCCO_MS).toISOString(),
+        });
+      } catch { /* La lease scade comunque dopo 10 minuti. */ }
+      return { state: 'blocked', motivo };
+    }
     // Errore AI/rete: il tentativo resta registrato anche se il salvataggio fallisce.
   }
   try {

@@ -1,4 +1,6 @@
 // MP02 — whatsapp-ai-processor refactored con tool-calling + loop agentico.
+// 11/11/2026: carta mancante e abbonamento sospeso o scaduto non finiscono più in «Ho avuto un problema. Riprova»
+// (erroreBot.ts): frase neutra a chi scrive, motivo vero all'ufficio con un ticket.
 // 07/11/2026: ripubblicata insieme a bgn-genera-pdf — l'impronta del PDF del bagno ora contiene le condizioni
 // di «Contratti e condizioni» (_shared/bathroomDocumentState.ts), e le due funzioni devono calcolarla uguale.
 // Sostituisce la pipeline a switch-case (941 righe pre-MP02).
@@ -69,6 +71,7 @@ import { checkBudget, consumeBudget } from "./budget.ts";
 import { logToolCall } from "./observability.ts";
 import { BotSessionState } from "./sessionState.ts";
 import { ticketPerUfficio } from "./ticketUfficio.ts";
+import { classificaErroreBot } from "./erroreBot.ts";
 import { freezeConfirmation, confirmationReplyMatches, frozenConfirmationValid, confirmationHash, canonicalJson, confirmationPreview, ConfirmationReviewError, rispostaCantiere, elencoCantieri, AZIONI_CON_CANTIERE } from "./frozenConfirmation.ts";
 import { validateToolArguments } from "./toolArguments.ts";
 import { requireSiteAccess } from "./tools/shared/siteAccess.ts";
@@ -1083,9 +1086,23 @@ Deno.serve(async (req) => {
     );
     // Credito AI finito o chiave rifiutata (18/10/2026): non è un «riprova tra un
     // momento». Il router ha già avvisato il titolare (allarme credito AI).
-    const aiFerma = /provider_credits_exhausted|insufficient[_ ]credits|\b402\b|credito|quota|api[_ ]key|unauthori[sz]ed|\b401\b/i.test(errorMsg);
+    // Carta mancante o abbonamento sospeso/scaduto (11/11/2026): frase neutra a chi
+    // scrive, il motivo vero all'ufficio con un ticket (uno al giorno per numero).
+    const esito = classificaErroreBot(err);
     try {
-      await sendReply(msg, aiFerma ? STR.shared.ai_ferma : STR.shared.generic_error);
+      if (esito.tipo === "blocco_azienda") {
+        const avvisato = await ticketPerUfficio(supabase, {
+          companyId: msg.company_id, telefono: msg.from_phone, fonte: "api",
+          titolo: "Assistente WhatsApp fermo",
+          descrizione: [
+            `L'assistente WhatsApp non ha potuto rispondere: ${esito.motivo}`,
+            msg.content_text ? `Messaggio: ${msg.content_text.slice(0, 500)}` : null,
+          ].filter(Boolean).join("\n"),
+        });
+        await sendReply(msg, avvisato ? STR.shared.ai_non_disponibile_avvisato : STR.shared.ai_non_disponibile);
+      } else {
+        await sendReply(msg, esito.tipo === "ai_ferma" ? STR.shared.ai_ferma : STR.shared.generic_error);
+      }
     } catch {
       // nada
     }

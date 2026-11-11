@@ -28,6 +28,12 @@ export const STR = {
       "Ho avuto un problema. Riprova tra un momento.",
     ai_ferma:
       "L'assistente è fermo per un problema del servizio AI: il titolare è già avvisato. Nel frattempo puoi fare la stessa cosa dall'app.",
+    // Carta mancante o abbonamento sospeso/scaduto dell'azienda (11/11/2026): chi scrive
+    // non ne sa nulla e non può farci niente. Frase neutra; il motivo va all'ufficio.
+    ai_non_disponibile_avvisato:
+      "Al momento non posso rispondere in automatico: ho passato il messaggio all'ufficio, ti ricontatterà una persona dell'azienda.",
+    ai_non_disponibile:
+      "Al momento non posso rispondere in automatico. Riprova più tardi oppure contatta direttamente l'azienda.",
     tool_unavailable:
       "Questa operazione non è disponibile per te.",
   },

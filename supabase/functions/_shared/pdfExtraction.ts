@@ -1,4 +1,6 @@
 /** Shared PDF reader: preserve rows/columns, inspect every page, report real coverage. */
+import { bloccoAiPerUtente } from "./erroriAi.ts";
+
 export interface PdfTextItem { str?: string; transform?: number[]; hasEOL?: boolean; width?: number }
 export interface PdfPageLike {
   getTextContent(): Promise<{ items: PdfTextItem[] }>;
@@ -123,7 +125,11 @@ export async function readPdfPages(pdf: PdfDocumentLike, options: {
           pages.push({ page: number, text: result.text.trim(), method: "unreadable", warning: "OCR vuoto, interrotto o completezza non confermata." });
         } else pages.push({ page: number, text: result.text.trim(), method: "ocr" });
       } else pages.push({ page: number, text, method: "unreadable", warning: "Pagina da leggere con OCR: limite di elaborazione raggiunto." });
-    } catch {
+    } catch (error) {
+      // Carta mancante, abbonamento sospeso o scaduto, credito finito (11/11/2026): non è
+      // la pagina, e vale per tutte le pagine. Si rilancia, così chi legge dice il motivo
+      // vero invece di «pagina non letta» o «verifica il file».
+      if (bloccoAiPerUtente(error)) throw error;
       pages.push({ page: number, text: "", method: "unreadable", warning: "Lettura della pagina non riuscita." });
     } finally { try { page?.cleanup?.(); } catch { /* Cleanup does not change page coverage. */ } }
   }

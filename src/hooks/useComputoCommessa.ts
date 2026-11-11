@@ -115,6 +115,31 @@ export function useCaricaComputo(orderId: string, companyId: string, userId: str
   });
 }
 
+/**
+ * Rilegge un computo la cui lettura è fallita (11/11/2026): stesso caricamento, stesso
+ * file, nessun nuovo upload. Serve soprattutto dopo un blocco tolto (carta registrata,
+ * abbonamento rinnovato, crediti ricaricati): la funzione accetta un computo `failed`.
+ * Se il blocco c'è ancora, il 402 riapre la finestra giusta (lib/creditoEsaurito).
+ */
+export function useRiprovaLetturaComputo(orderId: string, companyId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (computoUploadId: string) => {
+      const { error: errFn } = await supabase.functions.invoke("computo-ai-extract", { body: { computoUploadId } });
+      if (errFn) {
+        // La chiamata può scadere anche a lettura finita: conta lo stato salvato.
+        const { data: salvato } = await supabase.from("computo_uploads").select("extraction_status, extraction_error")
+          .eq("id", computoUploadId).eq("company_id", companyId).single();
+        if (salvato?.extraction_status === "failed") throw new Error(salvato.extraction_error || "Lettura del computo non riuscita.");
+      }
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["computo-commessa", orderId] });
+      qc.invalidateQueries({ queryKey: ["computo-commessa-voci"] });
+    },
+  });
+}
+
 export type ModificaComputo = Partial<Pick<ComputoCommessa, "stato" | "titolo" | "lavoro_pubblico" | "stazione_appaltante" | "cig" | "cup" | "ribasso_percentuale">>;
 
 export function useModificaComputo(orderId: string, companyId: string) {

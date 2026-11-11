@@ -9,8 +9,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { arrayBufferToBase64 } from "../_shared/base64.ts";
 import { extractPdfWithCoverage } from "../_shared/pdfExtraction.ts";
+import { erroreAiPerUtente } from "../_shared/erroriAi.ts";
 import { nomeBucketSicuro, percorsoStorageSicuro } from "../_shared/storageAmmesso.ts";
 // 18/10/2026: il lettore PDF condiviso ora carica le librerie in modo che il deploy le includa.
+// 11/11/2026: carta mancante, abbonamento sospeso o scaduto e credito finito non diventano più
+// «Verifica il file»: l'OCR li rilancia e qui si risponde col motivo vero (erroreAiPerUtente).
 
 interface Payload {
   storage_path: string;
@@ -92,6 +95,8 @@ Deno.serve(async (req: Request) => {
     }, 200, corsHeaders);
   } catch (error) {
     if (error instanceof Response) return error;
+    const perUtente = erroreAiPerUtente(error);
+    if (perUtente) return jsonResponse(perUtente.body, perUtente.status, corsHeaders);
     console.warn("[silvio-extract-pdf] extraction failed", error);
     return errorResponse("Estrazione PDF non riuscita. Verifica il file, eventuali protezioni o suddividilo in documenti più piccoli.", 500, corsHeaders);
   }

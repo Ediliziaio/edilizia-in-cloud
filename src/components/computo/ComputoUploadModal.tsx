@@ -135,6 +135,8 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
     generatePreventivo,
     isGenerating,
     loadExistingComputo,
+    computoId,
+    riprovaLettura,
     reset,
   } = useComputoExtract();
 
@@ -647,6 +649,7 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
             progress={progress}
             error={error}
             onRetry={() => { reset(); setStep(1); setFile(null); }}
+            onRetryRead={computoId ? () => { void riprovaLettura(); } : undefined}
             /* Fix 8: wrap cancel in AlertDialog per evitare perdita accidentale */
             onCancel={undefined}
             cancelButton={

@@ -19,7 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { computoInLettura, computoLetto, useComputiCommessa, useVociComputo } from "@/hooks/useComputoCommessa";
+import { computoInLettura, computoLetto, useComputiCommessa, useRiprovaLetturaComputo, useVociComputo } from "@/hooks/useComputoCommessa";
 import { usePermissions } from "@/hooks/usePermissions";
 import { CaricaComputo } from "@/components/computo/commessa/CaricaComputo";
 import { chiaviMateriali } from "@/hooks/useMaterialiPerFase";
@@ -60,6 +60,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
   const voci = useVociComputo(scelto?.id, open);
   const inLettura = (computi.data ?? []).find(computoInLettura);
   const nonLetto = !letti.length && !inLettura ? (computi.data ?? []).find((c) => c.extraction_status === "failed") : undefined;
+  const riprova = useRiprovaLetturaComputo(orderId, companyId);
 
   const dati = useQuery({
     queryKey: ["genera-materiali", orderId, companyId],
@@ -240,7 +241,13 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
           ) : !computi.isLoading && companyId ? (
             <>
               <p className="font-medium">{scelto ? "Carica un altro computo" : "Carica il computo della commessa"}</p>
-              {nonLetto && <p role="alert" className="text-xs text-rose-700">L'ultimo file («{nonLetto.file_name}») non si è letto: {nonLetto.extraction_error || "riprova con il PDF di PriMus o l'XPWE"}.</p>}
+              {nonLetto && <div role="alert" className="flex flex-wrap items-center gap-2 text-xs text-rose-700">
+                <span className="min-w-0 flex-1">L'ultimo file («{nonLetto.file_name}») non si è letto: {nonLetto.extraction_error || "riprova con il PDF di PriMus o l'XPWE"}.</span>
+                <Button type="button" size="sm" variant="outline" className="h-7" disabled={riprova.isPending}
+                  onClick={() => riprova.mutate(nonLetto.id, { onError: (e) => toast.error(e instanceof Error ? e.message : "Lettura non riuscita.") })}>
+                  {riprova.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" aria-hidden />}Riprova la lettura
+                </Button>
+              </div>}
               <CaricaComputo orderId={orderId} companyId={companyId} sostituisce={caricaAltro ? scelto : null} onFatto={() => setCaricaAltro(false)} />
               {caricaAltro && <Button type="button" size="sm" variant="ghost" onClick={() => setCaricaAltro(false)}>Tieni quello attuale</Button>}
             </>

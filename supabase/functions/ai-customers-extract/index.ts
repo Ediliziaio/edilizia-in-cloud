@@ -334,3 +334,5 @@ serve(async (req: Request) => {
     return errorResponse(msg, 500, corsHeaders);
   }
 });
+
+// 11/11/2026: ripubblicata per _shared/erroriAi.ts — anche «Abbonamento sospeso o scaduto» risponde 402 payment_method_required col testo vero.

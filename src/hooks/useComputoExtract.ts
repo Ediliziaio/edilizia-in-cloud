@@ -26,6 +26,8 @@ export function useComputoExtract() {
   const [status, setStatus] = useState<ComputoExtractionStatus | null>(null);
   const [progress, setProgress] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  // Riaccende il polling dopo una rilettura (che parte da uno stato `failed`, già terminale).
+  const [giroLettura, setGiroLettura] = useState(0);
 
   // ── Upload + create record ─────────────────────────────────────────────────
   const uploadMutation = useMutation({
@@ -166,7 +168,7 @@ export function useComputoExtract() {
     }, 2000);
 
     return () => { disposed = true; clearInterval(interval); };
-  }, [computoId, companyId, qc]);
+  }, [computoId, companyId, qc, giroLettura]);
 
   // ── Load extracted voci ────────────────────────────────────────────────────
   const {
@@ -268,6 +270,34 @@ export function useComputoExtract() {
     setError(null);
   }, []);
 
+  /**
+   * Rilegge lo stesso caricamento dopo una lettura fallita (11/11/2026): tipicamente
+   * dopo aver registrato la carta, rinnovato l'abbonamento o ricaricato i crediti.
+   * Niente nuovo upload: la funzione accetta un computo `failed`.
+   */
+  const riprovaLettura = useCallback(async () => {
+    if (!computoId || !companyId) return;
+    const run = uploadRun.current;
+    setStatus("extracting_text");
+    setError(null);
+    setProgress("Nuova lettura del documento...");
+    setGiroLettura((g) => g + 1);
+    const { error: fnErr } = await supabase.functions.invoke("computo-ai-extract", { body: { computoUploadId: computoId } });
+    if (run !== uploadRun.current) return;
+    if (fnErr) {
+      const { data: saved } = await supabase.from("computo_uploads").select("extraction_status, extraction_error")
+        .eq("id", computoId).eq("company_id", companyId).single();
+      if (run !== uploadRun.current) return;
+      if (saved?.extraction_status === "failed") {
+        setStatus("failed");
+        setError(saved.extraction_error || fnErr.message);
+        return;
+      }
+    }
+    // Lo stato vero lo dice il polling, che riparte.
+    setGiroLettura((g) => g + 1);
+  }, [computoId, companyId]);
+
   const loadExistingComputo = useCallback((id: string) => {
     uploadRun.current += 1;
     setComputoId(id);
@@ -299,6 +329,7 @@ export function useComputoExtract() {
     isGenerating: generateMutation.isPending,
     refetchVoci,
     loadExistingComputo,
+    riprovaLettura,
     reset,
   };
 }
