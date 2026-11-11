@@ -7,19 +7,19 @@ set local statement_timeout = '60s';
 
 drop policy if exists fattura_ddt_legge on public.fattura_ddt;
 create policy fattura_ddt_legge on public.fattura_ddt for select to authenticated
-  using (company_id = any ((select public.aziende_con_permesso('can_view_costs') || public.aziende_con_permesso('can_manage_purchasing'))::uuid[]));
+  using (not public.utente_bloccato() and not public.utente_e_cliente_esterno() and company_id = any ((select public.aziende_con_permesso('can_view_costs') || public.aziende_con_permesso('can_manage_purchasing'))::uuid[]));
 drop policy if exists fattura_ddt_scrive on public.fattura_ddt;
 create policy fattura_ddt_scrive on public.fattura_ddt for all to authenticated
-  using (company_id = any ((select public.aziende_con_permesso('can_view_costs') || public.aziende_con_permesso('can_manage_purchasing'))::uuid[]) and not public.utente_sola_lettura(company_id))
-  with check (company_id = any ((select public.aziende_con_permesso('can_view_costs') || public.aziende_con_permesso('can_manage_purchasing'))::uuid[]) and not public.utente_sola_lettura(company_id));
+  using (not public.utente_bloccato() and not public.utente_e_cliente_esterno() and company_id = any ((select public.aziende_con_permesso('can_view_costs') || public.aziende_con_permesso('can_manage_purchasing'))::uuid[]) and not public.utente_sola_lettura(company_id))
+  with check (not public.utente_bloccato() and not public.utente_e_cliente_esterno() and company_id = any ((select public.aziende_con_permesso('can_view_costs') || public.aziende_con_permesso('can_manage_purchasing'))::uuid[]) and not public.utente_sola_lettura(company_id));
 
 drop policy if exists fattura_ricevuta_mezzi_legge on public.fattura_ricevuta_mezzi;
 create policy fattura_ricevuta_mezzi_legge on public.fattura_ricevuta_mezzi for select to authenticated
-  using (company_id = any ((select public.aziende_con_permesso('can_view_costs') || public.aziende_con_permesso('can_manage_purchasing'))::uuid[]));
+  using (not public.utente_bloccato() and not public.utente_e_cliente_esterno() and company_id = any ((select public.aziende_con_permesso('can_view_costs') || public.aziende_con_permesso('can_manage_purchasing'))::uuid[]));
 drop policy if exists fattura_ricevuta_mezzi_scrive on public.fattura_ricevuta_mezzi;
 create policy fattura_ricevuta_mezzi_scrive on public.fattura_ricevuta_mezzi for all to authenticated
-  using (company_id = any ((select public.aziende_con_permesso('can_view_costs') || public.aziende_con_permesso('can_manage_purchasing'))::uuid[]) and not public.utente_sola_lettura(company_id))
-  with check (company_id = any ((select public.aziende_con_permesso('can_view_costs') || public.aziende_con_permesso('can_manage_purchasing'))::uuid[]) and not public.utente_sola_lettura(company_id));
+  using (not public.utente_bloccato() and not public.utente_e_cliente_esterno() and company_id = any ((select public.aziende_con_permesso('can_view_costs') || public.aziende_con_permesso('can_manage_purchasing'))::uuid[]) and not public.utente_sola_lettura(company_id))
+  with check (not public.utente_bloccato() and not public.utente_e_cliente_esterno() and company_id = any ((select public.aziende_con_permesso('can_view_costs') || public.aziende_con_permesso('can_manage_purchasing'))::uuid[]) and not public.utente_sola_lettura(company_id));
 
 create or replace function public.fattura_segna_verifica(p_fattura_id uuid, p_verificata boolean)
 returns jsonb language plpgsql security definer set search_path = public set lock_timeout to '3s'
@@ -59,3 +59,6 @@ begin
   return jsonb_build_object('fattura_id', p_fattura_id, 'riba_aperte', v_riba);
 end $$;
 
+
+revoke all on function public.fattura_segna_verifica(uuid,boolean),public.fattura_segna_rettifica(uuid,text) from public,anon;
+grant execute on function public.fattura_segna_verifica(uuid,boolean),public.fattura_segna_rettifica(uuid,text) to authenticated;
