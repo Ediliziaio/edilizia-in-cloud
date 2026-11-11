@@ -54,9 +54,9 @@ export const CHIAVI_LETTURA: readonly ChiaveLettura[] = [
   { chiave: "identita.work_description", forma: "testo_lungo", istruzione: "descrizione dei lavori, con misure e materiali se ci sono" },
   { chiave: "identita.tipo_lavoro", forma: "tipo_lavoro", istruzione: "uno fra: bagno, tetti, fotovoltaico, serramenti, impianti, ristrutturazione, generico" },
   { chiave: "identita.internal_notes", forma: "testo_lungo", istruzione: "da una foto o da una piantina: locali, misure, stato dei luoghi, note utili alle fasi" },
-  { chiave: "cliente.nome", forma: "cliente_nome", istruzione: "oggetto { client_name (persona), client_company (ditta, condominio, ente) } del committente" },
+  { chiave: "cliente.nome", forma: "cliente_nome", istruzione: "oggetto { client_name (nome COMPLETO della persona), client_company (ragione sociale completa di ditta, condominio o ente) } del committente. Non separare parti dello stesso nome fra questi campi. Usa entrambi solo quando il documento distingue espressamente un'azienda committente e il suo referente" },
   { chiave: "cliente.contatto", forma: "cliente_contatto", istruzione: "oggetto { client_phone, client_email } del committente" },
-  { chiave: "cliente.client_address", forma: "testo", istruzione: "indirizzo o sede del committente" },
+  { chiave: "cliente.client_address", forma: "testo", istruzione: "indirizzo o sede del committente, SOLO se esplicitamente indicato come tale. L'indirizzo etichettato Cantiere è solo il luogo dei lavori, mai la residenza o la sede del cliente" },
   { chiave: "cantiere.indirizzo", forma: "indirizzo_cantiere", istruzione: "indirizzo del cantiere (dove si fanno i lavori), come testo" },
   { chiave: "cantiere.materials_location", forma: "testo", istruzione: "dove si scaricano o si tengono i materiali" },
   { chiave: "economia.total_amount", forma: "importo", istruzione: "importo dei lavori SENZA IVA, in euro. «IVA inclusa» vuol dire che la cifra va scorporata. «più IVA», «oltre IVA», «+ IVA», «IVA esclusa» vogliono dire che la cifra è GIÀ senza IVA: scrivila com'è. Scorpora solo se il documento dice «IVA inclusa» o «ivato», e dillo nel campo nota. Se l'importo è una somma di più voci (12 × 1.250,50 + 2 × 3.000), somma TUTTE le voci e scrivi il conto nel campo nota" },
@@ -644,6 +644,13 @@ export function frammentoDaRispostaAI(risposta: unknown, ctx: ContestoLettura): 
   const letti = new Map<string, { valore: unknown; prov: Provenienza }>();
 
   const grezzi = coppie(json, avvisi);
+  // Una citazione del luogo dei lavori non prova la sede anagrafica, neanche in una foto.
+  const sede = grezzi.find(([k]) => k === "cliente.client_address");
+  if (sede && /\bcantiere\b|luogo (?:dei )?lavori/i.test(String(sede[1].citazione ?? ""))
+    && !/\bcommittente\b|\bresiden(?:te|za)\b|sede (?:legale|del cliente)/i.test(String(sede[1].citazione ?? ""))) {
+    grezzi.splice(grezzi.indexOf(sede), 1);
+    avvisi.push("L'indirizzo citato è quello del cantiere: la sede del cliente resta da indicare.");
+  }
   // Nel testo della persona un solo indirizzo è quello dove si lavora: il modello lo metteva sul cliente.
   if (ctx.fonte.tipo === "testo") {
     const delCliente = grezzi.find(([k]) => k === "cliente.client_address");

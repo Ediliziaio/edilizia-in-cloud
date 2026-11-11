@@ -5,6 +5,26 @@ import { frammentoDaRispostaAI } from "../../../shared/silvio-commessa/letturaAI
 import { scritturaDalPiano } from "@/lib/silvio-commessa/scrittura";
 
 describe("Le scadenze esplicite delle rate arrivano alla scrittura", () => {
+  it("l'indirizzo citato come cantiere non viene copiato nell'anagrafica cliente", () => {
+    const fr = frammentoDaRispostaAI({ aree: { cliente: { "cliente.client_address": {
+      valore: "Via della Simulazione 31, Milano", citazione: "Cantiere: Via della Simulazione 31, Milano", fiducia: 0.9,
+    } }, cantiere: { "cantiere.indirizzo": { valore: "Via della Simulazione 31, Milano", citazione: "Cantiere: Via della Simulazione 31, Milano" } } } },
+    { fonte: { tipo: "documento", etichetta: "Foto.heic" }, immagine: true });
+    expect(fr.aree.cliente?.["cliente.client_address"]).toBeUndefined();
+    expect(fr.aree.cantiere?.["cantiere.indirizzo"]).toBeDefined();
+  });
+  it("la sede del committente esplicitamente uguale al cantiere resta valida", () => {
+    const testo = "Residenza del committente e cantiere: Via della Simulazione 31, Milano";
+    const fr = frammentoDaRispostaAI({ aree: { cliente: { "cliente.client_address": { valore: "Via della Simulazione 31, Milano", citazione: testo } } } },
+      { fonte: { tipo: "contratto", etichetta: "Prova.pdf" }, testo });
+    expect(fr.aree.cliente?.["cliente.client_address"]?.valore).toBe("Via della Simulazione 31, Milano");
+  });
+  it("se il documento distingue azienda e referente cerca l'azienda committente", () => {
+    const piano = fondi(pianoVuoto("azienda"), { fonte: { tipo: "contratto", etichetta: "Contratto" }, aree: {
+      cliente: { "cliente.nome": { valore: { client_name: "Mario Referente", client_company: "Collaudo Costruzioni S.r.l." }, stato: "fatto", fiducia: 1 } },
+    } });
+    expect(scritturaDalPiano(piano).cliente.nome).toBe("Collaudo Costruzioni S.r.l.");
+  });
   it("un acconto non viene duplicato come SAL, anche se il modello lo propone", () => {
     const fr = frammentoDaRispostaAI({ aree: { sal_scadenze: { "sal_scadenze.sal": {
       valore: { cadenza: "alla firma", importo_minimo_eur: 3300 }, citazione: "Acconto alla firma: 3.300 euro", fiducia: 0.9,

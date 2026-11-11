@@ -536,8 +536,8 @@ export function scritturaDalPiano(piano: PianoCommessa, autonomia: Autonomia | n
   // Il nome e l'email del cliente servono a ritrovarlo, anche se le colonne restano fuori.
   const nome = valoreDi("cliente.nome")?.valore as Record<string, unknown> | undefined;
   const contatto = valoreDi("cliente.contatto")?.valore as Record<string, unknown> | undefined;
-  s.cliente.nome = typeof nome?.client_name === "string" && nome.client_name.trim() ? nome.client_name.trim()
-    : typeof nome?.client_company === "string" && nome.client_company.trim() ? nome.client_company.trim() : null;
+  s.cliente.nome = typeof nome?.client_company === "string" && nome.client_company.trim() ? nome.client_company.trim()
+    : typeof nome?.client_name === "string" && nome.client_name.trim() ? nome.client_name.trim() : null;
   s.cliente.email = typeof contatto?.client_email === "string" && contatto.client_email.includes("@")
     ? contatto.client_email.trim() : null;
   s.escluse = s.escluse.map((e) => (entraNellaScrittura(e.chiave, s) ? { ...e, parziale: true as const } : e));

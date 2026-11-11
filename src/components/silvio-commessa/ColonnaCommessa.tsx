@@ -277,8 +277,8 @@ export function SceltaCliente({ companyId, piano, onScegli }: {
       {nuovo && (
         <CreateCustomerDialog open onOpenChange={setNuovo} defaultCreatePortalAccount={false}
           initialValues={{
-            fullName: nome?.client_name || nome?.client_company || undefined,
-            isBusiness: !nome?.client_name && !!nome?.client_company,
+            fullName: nome?.client_company || nome?.client_name || undefined,
+            isBusiness: !!nome?.client_company,
             email: contatto?.client_email, phone: contatto?.client_phone,
             address: typeof indirizzo === "string" ? indirizzo : undefined,
           }}
