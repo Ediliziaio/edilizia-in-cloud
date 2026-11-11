@@ -12,6 +12,8 @@ export type LivelloMemoria = "ok" | "attenzione" | "critico";
 
 type SogliaMemoria = { impegnataPct: number; disponibilePct: number; swapPct: number };
 export const SOGLIE: { attenzione: SogliaMemoria; critico: SogliaMemoria };
+export const COMMIT_CONTA_SOTTO_DISPONIBILE_PCT: number;
+export const SWAP_CONTA_SOTTO_DISPONIBILE_PCT: number;
 
 type MetricheFetch = (url: string, init?: RequestInit) => Promise<Response>;
 

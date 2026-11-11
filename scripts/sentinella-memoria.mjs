@@ -9,8 +9,8 @@ import { pathToFileURL } from "node:url";
  * La sentinella del database se ne accorge quando è già fermo; questa guarda la memoria PRIMA.
  *
  * Tre numeri, dalle metriche che Supabase espone (customer/v1/privileged/metrics, formato Prometheus):
- *  - memoria impegnata (Committed_AS) sul tetto (CommitLimit): sul server di Supabase il tetto vale davvero,
- *    quando lo si tocca le nuove richieste di memoria falliscono. È il numero del grafico di Supabase;
+ *  - memoria virtuale prenotata (Committed_AS) rispetto a CommitLimit: non è RAM usata.
+ *    Il limite è vincolante solo con vm.overcommit_memory=2, che queste metriche non espongono;
  *  - memoria disponibile (MemAvailable) sul totale;
  *  - swap usato: quando cresce il server sta già soffrendo (il 15/10 era pieno un minuto prima del riavvio).
  *
@@ -35,6 +35,11 @@ export const SOGLIE = {
  * Con la RAM sopra questa soglia lo swap alto è solo un avviso, non un fallimento.
  */
 export const SWAP_CONTA_SOTTO_DISPONIBILE_PCT = 30;
+// 11/11/2026: 121–132% di commit con 38–43% di RAM disponibile, zero OOM e nessuna
+// query attiva. Il commit da solo resta un avviso diagnostico, non prova RAM esaurita.
+// Con meno margine fisico mantiene le soglie preventive originali.
+// https://docs.kernel.org/mm/overcommit-accounting.html
+export const COMMIT_CONTA_SOTTO_DISPONIBILE_PCT = 30;
 
 const NOMI = ["MemTotal", "MemAvailable", "SwapTotal", "SwapFree", "Committed_AS", "CommitLimit"];
 
@@ -64,7 +69,8 @@ export function leggiMemoria(testo) {
 /** "ok" | "attenzione" | "critico" per una lettura. */
 export function livello(l) {
   const swapConta = l.disponibilePct <= SWAP_CONTA_SOTTO_DISPONIBILE_PCT;
-  const sopra = (s) => l.impegnataPct >= s.impegnataPct || l.disponibilePct <= s.disponibilePct || (swapConta && l.swapPct >= s.swapPct);
+  const commitConta = l.disponibilePct <= COMMIT_CONTA_SOTTO_DISPONIBILE_PCT;
+  const sopra = (s) => (commitConta && l.impegnataPct >= s.impegnataPct) || l.disponibilePct <= s.disponibilePct || (swapConta && l.swapPct >= s.swapPct);
   if (sopra(SOGLIE.critico)) return "critico";
   if (sopra(SOGLIE.attenzione)) return "attenzione";
   return "ok";
@@ -135,7 +141,10 @@ export async function controllaMemoria(env = process.env, send = fetch, wait = (
     if (i < 2) await wait(20_000);
   }
   const massimo = env.PROVA === "true" ? "critico" : livelloMassimo(letture);
-  const foto = massimo === "ok" ? null : await scattaFoto(env, env.PROVA === "true" ? "prova" : massimo, letture, send);
+  // Anche le prenotazioni alte senza pressione fisica conservano la foto diagnostica.
+  const prenotazioniAlte = letture.some((l) => l.impegnataPct >= SOGLIE.attenzione.impegnataPct);
+  const foto = massimo === "ok" && !prenotazioniAlte ? null
+    : await scattaFoto(env, env.PROVA === "true" ? "prova" : massimo === "ok" ? "attenzione" : massimo, letture, send);
   return { letture, livello: env.PROVA === "true" ? "critico" : livelloPersistente(letture), foto };
 }
 
@@ -160,7 +169,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     const { letture, livello: liv, foto } = await controllaMemoria();
     const righe = letture.map((l, i) =>
       `| ${i + 1} | ${f(l.impegnataGiB)} / ${f(l.tettoGiB)} GiB (${Math.round(l.impegnataPct)}%) | ${f(l.disponibileGiB)} / ${f(l.totaleGiB)} GiB (${Math.round(l.disponibilePct)}%) | ${Math.round(l.swapPct)}% | ${livello(l)} |`);
-    const riepilogo = `### Memoria del database\n\n| Lettura | Impegnata / tetto | Disponibile | Swap usato | Livello |\n|---|---|---|---|---|\n${righe.join("\n")}\n`;
+    const riepilogo = `### Memoria del database\n\nCommitted_AS misura prenotazioni virtuali; CommitLimit è vincolante solo in modalità overcommit 2, non esposta dalle metriche. La pressione fisica conferma gli allarmi del commit.\n\n| Lettura | Prenotata / CommitLimit | RAM disponibile | Swap usato | Livello |\n|---|---|---|---|---|\n${righe.join("\n")}\n`;
     if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, riepilogo + testoFoto(foto));
     console.log(riepilogo + testoFoto(foto));
     if (letture.length === 0) {
@@ -171,6 +180,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     } else if (liv === "critico") {
       console.error("::error title=MEMORIA del database quasi finita::Edilizia in Cloud: il server del database è al limite della memoria da almeno un minuto. Rischio blocco o riavvio entro pochi minuti. Guarda cosa sta girando (invii di massa, importazioni, automazioni) e fermalo.");
       process.exitCode = 1;
+    } else if (liv === "ok" && letture.some((l) => l.impegnataPct >= SOGLIE.attenzione.impegnataPct)) {
+      console.warn("::warning title=Prenotazioni virtuali alte con RAM disponibile::Committed_AS supera la soglia diagnostica, ma la RAM disponibile non conferma pressione fisica. CommitLimit non è un limite di RAM. Valori e foto sono nel riepilogo; il controllo resta attivo per RAM bassa e swap con poco margine fisico.");
     } else if (liv === "ok" && letture.length && letture.every((l) => l.swapPct >= SOGLIE.critico.swapPct)) {
       // Swap rimasto pieno da un picco passato, RAM disponibile: si dice, ma non è un allarme.
       console.warn(`::warning title=Swap del database alto ma RAM disponibile::Swap al ${Math.round(letture[0].swapPct)}% con ${Math.round(letture[0].disponibilePct)}% di RAM disponibile: resto di un picco passato, non un blocco in corso. Se i picchi si ripetono, riduci il pool di connessioni di PostgREST o aumenta il piano.`);

@@ -33,8 +33,8 @@ describe("sentinella della memoria del database", () => {
   });
 
   it("i livelli seguono impegnata, disponibile e swap", () => {
-    expect(livello(leggiMemoria(metriche({ impegnata: 4.4, disponibile: 3 }))!)).toBe("attenzione");
-    expect(livello(leggiMemoria(metriche({ impegnata: 4.7, disponibile: 3 }))!)).toBe("critico");
+    expect(livello(leggiMemoria(metriche({ impegnata: 4.4, disponibile: 2.3 }))!)).toBe("attenzione");
+    expect(livello(leggiMemoria(metriche({ impegnata: 4.7, disponibile: 2.3 }))!)).toBe("critico");
     expect(livello(leggiMemoria(metriche({ impegnata: 3, disponibile: 0.6 }))!)).toBe("critico");
     // Swap al 30% con la RAM quasi finita (20%): conta.
     expect(livello(leggiMemoria(metriche({ impegnata: 3, disponibile: 1.6, swapLibero: 0.7 }))!)).toBe("attenzione");
@@ -45,14 +45,35 @@ describe("sentinella della memoria del database", () => {
     expect(livello(leggiMemoria(metriche({ impegnata: 4.0, disponibile: 4.8, swapLibero: 0.49 }))!)).toBe("ok");
     // Con la RAM sotto il 30% lo stesso swap torna critico.
     expect(livello(leggiMemoria(metriche({ impegnata: 4.0, disponibile: 2.0, swapLibero: 0.49 }))!)).toBe("critico");
-    // I picchi veri della memoria impegnata restano critici, swap o no.
-    expect(livello(leggiMemoria(metriche({ impegnata: 6.9, disponibile: 4.8 }))!)).toBe("critico");
+    // La prenotazione virtuale da sola non dimostra RAM esaurita.
+    expect(livello(leggiMemoria(metriche({ impegnata: 6.9, disponibile: 4.8 }))!)).toBe("ok");
+  });
+
+  it("il caso online con prenotazioni 132%, RAM disponibile 38% e swap 66% resta diagnostico", () => {
+    const l = leggiMemoria(metriche({ impegnata: 6.3, disponibile: 3.04, swapLibero: 0.34 }))!;
+    expect(l.impegnataPct).toBeGreaterThan(130);
+    expect(livello(l)).toBe("ok");
+    // Con gli stessi valori virtuali, il margine fisico al 30% conferma il rischio.
+    expect(livello(leggiMemoria(metriche({ impegnata: 6.3, disponibile: 2.4, swapLibero: 0.34 }))!)).toBe("critico");
+    expect(livello(leggiMemoria(metriche({ impegnata: 3, disponibile: 1.5 }))!)).toBe("attenzione");
+    expect(livello(leggiMemoria(metriche({ impegnata: 3, disponibile: 0.8 }))!)).toBe("critico");
+  });
+
+  it("con prenotazioni alte conserva la foto senza segnalare RAM esaurita", async () => {
+    const send = vi.fn(async (url: string) =>
+      url.includes("api-keys") ? Response.json([{ name: "service_role", api_key: "k" }])
+        : url.endsWith("/database/query") ? Response.json([{ foto: { query_attive: 0 } }])
+        : new Response(metriche({ impegnata: 6.3, disponibile: 3.04, swapLibero: 0.34 })));
+    const r = await controllaMemoria({ TOKEN: "t", REF: "rsbrguhkodgnqfomrevo" }, send, vi.fn());
+    expect(r.livello).toBe("ok");
+    expect(r.foto?.query_attive).toBe(0);
+    expect(send.mock.calls.some(([u]) => String(u).endsWith("/database/query"))).toBe(true);
   });
 
   it("un picco in una sola lettura non fa scattare l'avviso", () => {
     const ok = leggiMemoria(metriche({ impegnata: 3, disponibile: 4 }))!;
     const critico = leggiMemoria(metriche({ impegnata: 4.7, disponibile: 0.5 }))!;
-    const attenzione = leggiMemoria(metriche({ impegnata: 4.4, disponibile: 3 }))!;
+    const attenzione = leggiMemoria(metriche({ impegnata: 4.4, disponibile: 2.3 }))!;
     expect(livelloPersistente([ok, critico, critico])).toBe("ok");
     expect(livelloPersistente([attenzione, critico, critico])).toBe("attenzione");
     expect(livelloPersistente([critico, critico, critico])).toBe("critico");
