@@ -70,7 +70,14 @@ export async function caricaModelloLocale(m: ModelloLocale): Promise<THREE.Group
             for (const r of [...json.buffers ?? [], ...json.images ?? []])
                 if (r.uri && /^(?:[a-z]+:|\/\/)/i.test(r.uri) && !r.uri.startsWith("data:"))
                     throw new Error("Il GLB deve avere risorse incorporate o file locali allegati.");
-            risultato = (await new GLTFLoader(manager).parseAsync(buffer, "")).scene;
+            const loader = new GLTFLoader(manager);
+            // ImageBitmapLoader usa fetch(blob:), vietato dalla CSP del sito.
+            // TextureLoader decodifica le stesse immagini con img-src, già autorizzato.
+            loader.register(parser => {
+                parser.textureLoader = new THREE.TextureLoader(manager);
+                return { name: "FV_texture_locali" };
+            });
+            risultato = (await loader.parseAsync(buffer, "")).scene;
         }
         else {
             let fine: () => void = () => { }, errore: (e: Error) => void = () => { };

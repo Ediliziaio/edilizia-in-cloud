@@ -90,11 +90,9 @@ function QuoteEdificio({ piano, runtime, onChange, modificabile }: Props) {
             return;
         setBusy(true);
         try {
-            let originale = runtime.fonte;
-            if (!originale) {
-                const orto = runtime.orto, blob = orto ? await (await fetch(orto.url)).blob() : null;
-                originale = { versione: 1, id: "campione", nome: "Edificio campione", creato: new Date().toISOString(), edificioBase: runtime.edificio, modello: null, orto: orto && blob ? { ...orto, blob, originale: blob, crs: "EPSG:28992", origine: runtime.edificio.origine, metrica: "georiferita" } : null, altezzaManuale: null, allineamentoConfermato: true, provenienza: "campione" };
-            }
+            const originale = runtime.fonte;
+            if (!originale)
+                throw new Error("Il rilievo originale non è disponibile. Riapri il disegno oppure reimporta i file prima di modificare le quote.");
             const nuova: RilievoLocale = { ...originale, id: `rilievo-${crypto.randomUUID()}`, altezzaManuale: ripristina ? null : altezza };
             const next = conservaPosaDopoCorrezione(piano, runtime.edificio, edificioCorretto(nuova));
             next.rilievo = { versione: 1, id: nuova.id, nome: nuova.nome };
