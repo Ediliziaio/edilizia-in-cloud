@@ -37,6 +37,7 @@ import { DDTRigheCard } from "@/components/ddt/DDTRigheCard";
 import { DDTOriginaliCard } from "@/components/ddt/DDTOriginaliCard";
 import { PrezziDaFatturaCard } from "@/components/ddt/PrezziDaFatturaCard";
 import { ConsegneDDTCard } from "@/components/ddt/ConsegneDDTCard";
+import { ControlloOrdiniDDTCard } from "@/components/ddt/ControlloOrdiniDDTCard";
 import { ArrivoPosizioniPanel } from "@/components/ddt/ArrivoPosizioniPanel";
 import { importoRiga } from "@/lib/ddt/letturaAI";
 import { Badge } from "@/components/ui/badge";
@@ -102,7 +103,7 @@ export default function DDTRicezioneDetail() {
   const ddtId = useIdDocumento(ddtIdIndirizzo);
   const navigate = useNavigaDocumento();
   const inPopup = useDentroPopupDocumento();
-  const { ddt, isLoading, receipts, isReceiptsLoading, isReceiptsError } = useDDTRicezioneDetail(ddtId);
+  const { ddt, isLoading, isError: erroreDDT, refetch: rileggiDDT, receipts, isReceiptsLoading, isReceiptsError } = useDDTRicezioneDetail(ddtId);
   const fileDocumento = useFileDDT(ddt);
   const consegneDocumento = useConsegneDDT(ddt?.company_id ?? "",ddtId ?? "");
   const destinazioneMista = new Set((consegneDocumento.data ?? []).filter(c=>c.tipo!=="servizio").map(c=>c.destinazione)).size>1;
@@ -490,7 +491,8 @@ export default function DDTRicezioneDetail() {
     return (
       <div className="text-center py-12 space-y-3">
         <FileCheck className="h-12 w-12 mx-auto text-muted-foreground/40" />
-        <p className="text-muted-foreground">DDT non trovato</p>
+        <p role={erroreDDT ? "alert" : undefined} className="text-muted-foreground">{erroreDDT ? "Non riesco a caricare il DDT. Riprova; il documento non è stato eliminato." : "DDT non trovato"}</p>
+        {erroreDDT && <Button variant="outline" onClick={() => rileggiDDT()}>Riprova</Button>}
         <Button variant="outline" onClick={() => navigate("/azienda/ordini?tab=ddt")}>
           <ArrowLeft className="h-4 w-4 mr-1" /> Torna ai DDT
         </Button>
@@ -821,7 +823,8 @@ export default function DDTRicezioneDetail() {
           {/* Le posizioni su misura dell'ordine: la bolla propone, chi riceve conferma. */}
           {ddt?.purchase_order_id && <ArrivoPosizioniPanel odaId={ddt.purchase_order_id} ddtId={ddtId} nascondiSeVuoto />}
 
-          <ConsegneDDTCard key={ddt.id} ddt={ddt} />
+          <ControlloOrdiniDDTCard key={`controllo:${ddt.id}`} ddt={ddt} />
+          <div id="consegne-ddt" className="scroll-mt-5"><ConsegneDDTCard key={ddt.id} ddt={ddt} /></div>
           <PrezziDaFatturaCard key={`prezzi:${ddt.id}`} ddt={ddt} />
 
           {ddt.ddt_file_bucket && <DDTOriginaliCard key={`originali:${ddt.id}`} ddtId={ddt.id} companyId={ddt.company_id} />}

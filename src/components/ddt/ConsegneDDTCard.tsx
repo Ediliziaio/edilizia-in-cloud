@@ -23,8 +23,10 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { documentiDb as db } from "@/lib/ddt/documentiPersistenti";
 import { queryKeys } from "@/lib/queryKeys";
 import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
+import { useControlloOrdiniDDT } from "@/hooks/useControlloOrdiniDDT";
 
 interface Scelta {
+  ordineAcquisto?: string;
   quantita?: string;
   destinazione?: "cantiere" | "magazzino";
   orderId?: string;
@@ -56,6 +58,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
       permessi.canManagePurchasing ||
       permessi.canEditWarehouse);
   const righe = useDDTRighe(ddt.id);
+  const controlloOrdini = useControlloOrdiniDDT(ddt);
   // Senza magazzini (11/11/2026) le righe partono per il cantiere: la commessa
   // della bolla se c'è, altrimenti si sceglie. Il magazzino non si propone.
   const elencoMagazzini = useWarehouses();
@@ -124,12 +127,11 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
       ordini,
       magazzini,
       righe.data?.map((r) => r.purchase_order_item_id).filter(Boolean),
+      Object.values(scelte).map((s) => s.ordineAcquisto).filter(Boolean),
     ],
     enabled: puoConfermare,
     queryFn: async () => {
-      const ids = (righe.data ?? [])
-        .map((r) => r.purchase_order_item_id)
-        .filter(Boolean);
+      const ids = [...new Set([...(righe.data ?? []).map((r) => r.purchase_order_item_id), ...Object.values(scelte).map((s) => s.ordineAcquisto).filter((v) => v !== "__fuori__")].filter(Boolean))];
       const [commessa, stock, poi] = await Promise.all([
         ordini.length
           ? loadCatalogPages<Articolo>((a, b) =>
@@ -199,14 +201,14 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
     .map((r) => {
       const s = scelte[r.id] ?? {};
       const dest = destinazioneDi(s);
+      const poiScelto = s.ordineAcquisto === "__fuori__" ? null : s.ordineAcquisto ?? r.purchase_order_item_id;
       const articolo =
         s.articolo ??
-        (r.purchase_order_item_id
-          ? catalogo.data?.poi[r.purchase_order_item_id]
-          : r.order_item_id) ??
+        (poiScelto ? catalogo.data?.poi[poiScelto] : s.ordineAcquisto ? null : r.order_item_id) ??
         "";
       return {
         riga_id: r.id,
+        ...(s.ordineAcquisto !== undefined ? { purchase_order_item_id: poiScelto } : {}),
         quantita: Number(
           (
             s.quantita ??
@@ -270,6 +272,10 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
       toast.success("Consegna confermata: aggiornate solo le quantità scelte");
       for (const key of [
         ["ddt-consegne"],
+        ["ddt-controllo-ordini"],
+        ["ddt-righe-ordine"],
+        ["ddt-ricezione"],
+        ["fattura-confronto"],
         queryKeys.ddtRicezione.all,
         ["purchase-orders"],
         ["purchase-order-items"],
@@ -402,6 +408,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                     const oid = s.orderId ?? ddt.order_id;
                     const wid = s.warehouseId ?? ddt.warehouse_id;
                     const tipo = s.tipo ?? "ingresso";
+                    const poiScelto = s.ordineAcquisto === "__fuori__" ? null : s.ordineAcquisto ?? r.purchase_order_item_id;
                     const articoli =
                       (dest === "cantiere"
                         ? catalogo.data?.commessa.filter(
@@ -413,8 +420,8 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                     const valore =
                       s.articolo ??
                       (dest === "cantiere"
-                        ? r.purchase_order_item_id
-                          ? catalogo.data?.poi[r.purchase_order_item_id]
+                        ? poiScelto
+                          ? catalogo.data?.poi[poiScelto]
                           : r.order_item_id
                         : null) ??
                       "";
@@ -462,7 +469,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                           >
                             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                               <label className="space-y-1 text-xs">
-                                Quantità arrivata
+                                Quantità accettata
                                 <Input
                                   aria-label={`Quantità consegnata ${r.descrizione}`}
                                   inputMode="decimal"
@@ -524,6 +531,17 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                                 </select>
                               </label>
                             </div>
+                            {tipo === "ingresso" && !!controlloOrdini.data?.righe.length && <label className="block space-y-1 text-xs">Riga dell’ordine a cui attribuire questo arrivo
+                              <select className={input} aria-label={`Ordine per ${r.descrizione}`} value={poiScelto ?? "__fuori__"} onChange={(e) => {
+                                const item = controlloOrdini.data?.righe.find((i) => i.id === e.target.value);
+                                const po = controlloOrdini.data?.ordini.find((o) => o.id === item?.purchase_order_id);
+                                cambia(r.id, { ordineAcquisto: e.target.value, ...(po?.order_id ? { orderId: po.order_id } : {}), articolo: "" });
+                              }}>
+                                <option value="__fuori__">Articolo fuori ordine</option>
+                                {controlloOrdini.data.righe.map((i) => <option key={i.id} value={i.id}>{i.oda_number} · {i.description} · residuo {numero(Math.max(0, Number(i.quantity) - Number(i.quantity_received ?? 0)))} {i.unit_of_measure}</option>)}
+                              </select><span className="block text-muted-foreground">Puoi confermare una parte su un ordine e attribuire il residuo a un altro, senza duplicare la bolla.</span>
+                            </label>}
+                            {tipo === "ingresso" && <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900">Inserisci solo la merce accettata: quantità mancanti o danneggiate restano da gestire. I servizi e i resi si registrano con l’operazione dedicata.</p>}
                             {dest === "cantiere" ? (
                               <OrderSelectCombobox
                                 companyId={ddt.company_id}

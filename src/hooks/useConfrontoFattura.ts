@@ -52,43 +52,19 @@ export function useConfrontoFattura(
     queryKey: ["fattura-confronto", companyId, fatturaId, ordini.join(",")],
     staleTime: 20_000,
     queryFn: async () => {
-      const [legami, ordiniDb, ddtDaOrdini] = await Promise.all([
-        tutte(() =>
-          db
-            .from("fattura_ddt")
-            .select("id,numero_ddt,data_ddt,ddt_ricezione_id")
-            .eq("company_id", companyId)
-            .eq("fattura_ricevuta_id", fatturaId)
-            .order("id"),
-        ),
-        ordini.length
-          ? tutte(() =>
-              db
-                .from("purchase_orders")
-                .select(
-                  "id,oda_number,created_at,attachment_url,supplier_id,status,suppliers(name)",
-                )
-                .eq("company_id", companyId)
-                .in("id", ordini)
-                .order("id"),
-            )
-          : [],
-        ordini.length
-          ? tutte(() =>
-              db
-                .from("ddt_ricezione")
-                .select("id")
-                .eq("company_id", companyId)
-                .in("purchase_order_id", ordini)
-                .order("id"),
-            )
-          : [],
+      const legami = await tutte(() => db.from("fattura_ddt").select("id,numero_ddt,data_ddt,ddt_ricezione_id").eq("company_id", companyId).eq("fattura_ricevuta_id", fatturaId).order("id"));
+      const bolleCollegate = legami.map(l => l.ddt_ricezione_id).filter(Boolean);
+      const daBolle = bolleCollegate.length ? await tutte(() => db.from("ddt_ordini_collegati").select("id,purchase_order_id").eq("company_id", companyId).in("ddt_id", bolleCollegate).order("id")) : [];
+      const ordiniEffettivi = [...new Set([...ordini, ...daBolle.map(l => String(l.purchase_order_id))])].sort();
+      const [ordiniDb, ddtDaOrdini] = await Promise.all([
+        ordiniEffettivi.length ? tutte(() => db.from("purchase_orders").select("id,oda_number,created_at,attachment_url,supplier_id,status,suppliers(name)").eq("company_id", companyId).in("id", ordiniEffettivi).order("id")) : [],
+        ordiniEffettivi.length ? tutte(() => db.from("ddt_ordini_collegati").select("id,ddt_id").eq("company_id", companyId).in("purchase_order_id", ordiniEffettivi).order("id")) : [],
       ]);
       const collegati = new Set(
         legami.map((l) => l.ddt_ricezione_id).filter(Boolean),
       );
       const ddtIds = [
-        ...new Set([...collegati, ...ddtDaOrdini.map((d) => d.id)]),
+        ...new Set([...collegati, ...ddtDaOrdini.map((d) => d.ddt_id)]),
       ];
       const [ddtDb, righeDdt, righeOda, valori, altre] = await Promise.all([
         ddtIds.length
@@ -116,7 +92,7 @@ export function useConfrontoFattura(
                 .order("id"),
             )
           : [],
-        ordini.length
+        ordiniEffettivi.length
           ? tutte(() =>
               db
                 .from("purchase_order_items")
@@ -124,7 +100,7 @@ export function useConfrontoFattura(
                   "id,purchase_order_id,description,sku,unit_of_measure,quantity,unit_price,price_pending,discount_percent,line_total",
                 )
                 .eq("company_id", companyId)
-                .in("purchase_order_id", ordini)
+                .in("purchase_order_id", ordiniEffettivi)
                 .order("sort_order")
                 .order("id"),
             )

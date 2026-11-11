@@ -10,15 +10,20 @@ import type {
 interface Occorrenza extends RigaPdfTrovata {
   pagina: number;
 }
-export function PdfRigaConfronto({
-  url,
-  nome,
-  ricerca,
-}: {
+interface PropsPdfOriginale {
   url: string;
   nome: string;
-  ricerca: string;
-}) {
+  ricerca?: string;
+}
+export function PdfRigaConfronto(props: PropsPdfOriginale) {
+  return (
+    <PdfOriginaleCanvas
+      key={`${props.url}:${props.ricerca ?? ""}`}
+      {...props}
+    />
+  );
+}
+function PdfOriginaleCanvas({ url, nome, ricerca = "" }: PropsPdfOriginale) {
   const doc = useRef<PDFDocumentProxy | null>(null),
     canvas = useRef<HTMLCanvasElement | null>(null);
   const [pronto, setPronto] = useState(false),
@@ -26,6 +31,8 @@ export function PdfRigaConfronto({
     [paginaLetta, setPaginaLetta] = useState(0),
     [totale, setTotale] = useState(0),
     [indice, setIndice] = useState(0),
+    [paginaPdf, setPaginaPdf] = useState(1),
+    [avvisoRicerca, setAvvisoRicerca] = useState<string | null>(null),
     [errore, setErrore] = useState<string | null>(null);
   const [box, setBox] = useState<{
     left: number;
@@ -59,9 +66,7 @@ export function PdfRigaConfronto({
         setPronto(true);
       } catch {
         if (!annullato)
-          setErrore(
-            "Ricerca nel PDF non disponibile. Puoi aprire l’originale.",
-          );
+          setErrore("Anteprima PDF non disponibile. Puoi aprire l’originale.");
       }
     })();
     return () => {
@@ -72,6 +77,7 @@ export function PdfRigaConfronto({
   }, [url]);
   useEffect(() => {
     if (!pronto || !doc.current) return;
+    if (!ricerca.trim()) return;
     let annullato = false;
     const p = doc.current;
     void (async () => {
@@ -95,8 +101,8 @@ export function PdfRigaConfronto({
         }
       } catch {
         if (!annullato)
-          setErrore(
-            "Non è stato possibile cercare su tutte le pagine. Consulta l’originale.",
+          setAvvisoRicerca(
+            "Non è stato possibile cercare su tutte le pagine. Puoi comunque sfogliare il PDF.",
           );
       }
     })();
@@ -105,13 +111,14 @@ export function PdfRigaConfronto({
     };
   }, [pronto, ricerca]);
   const attiva = risultati[indice];
+  const visualizzata = attiva?.pagina ?? Math.min(paginaPdf, totale || 1);
   useEffect(() => {
-    if (!attiva || !doc.current) return;
+    if (!pronto || !doc.current) return;
     let annullato = false,
       render: RenderTask | undefined;
     void (async () => {
       try {
-        const pagina = await doc.current!.getPage(attiva.pagina);
+        const pagina = await doc.current!.getPage(visualizzata);
         if (annullato || !canvas.current) return;
         const view = pagina.getViewport({ scale: 1.5 }),
           el = canvas.current,
@@ -126,6 +133,10 @@ export function PdfRigaConfronto({
         });
         await render.promise;
         if (annullato) return;
+        if (!attiva) {
+          setBox(null);
+          return;
+        }
         const coords = [
           ...view.convertToViewportPoint(attiva.x, attiva.y),
           ...view.convertToViewportPoint(
@@ -151,16 +162,49 @@ export function PdfRigaConfronto({
       annullato = true;
       render?.cancel();
     };
-  }, [attiva]);
-  const finita = totale > 0 && paginaLetta === totale;
+  }, [attiva, visualizzata, pronto]);
+  const finita = pronto && (!ricerca.trim() || paginaLetta === totale);
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2 rounded border bg-blue-50/50 p-2 text-xs">
-        <Search className="h-3.5 w-3.5" />
-        <span className="min-w-0 flex-1 truncate" title={ricerca}>
-          Voce: {ricerca}
-        </span>
-        {!finita && !errore && (
+        {ricerca ? (
+          <>
+            <Search className="h-3.5 w-3.5" />
+            <span className="min-w-0 flex-1 truncate" title={ricerca}>
+              Voce: {ricerca}
+            </span>
+          </>
+        ) : (
+          <span className="min-w-0 flex-1 truncate">Anteprima PDF</span>
+        )}
+        {pronto && !attiva && (
+          <>
+            <span>
+              Pagina {visualizzata} di {totale}
+            </span>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7"
+              aria-label="Pagina PDF precedente"
+              disabled={visualizzata <= 1}
+              onClick={() => setPaginaPdf((p) => p - 1)}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7"
+              aria-label="Pagina PDF successiva"
+              disabled={visualizzata >= totale}
+              onClick={() => setPaginaPdf((p) => p + 1)}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </>
+        )}
+        {ricerca && !finita && !errore && !avvisoRicerca && (
           <span role="status" className="flex items-center gap-1">
             <Loader2 className="h-3 w-3 animate-spin" />
             Ricerca {paginaLetta}/{totale || "…"}
@@ -199,19 +243,24 @@ export function PdfRigaConfronto({
           {errore}
         </p>
       )}
-      {finita && !risultati.length && !errore && (
+      {avvisoRicerca && (
+        <p role="alert" className="text-xs text-amber-800">
+          {avvisoRicerca}
+        </p>
+      )}
+      {ricerca && finita && !risultati.length && !errore && !avvisoRicerca && (
         <p role="status" className="text-xs text-muted-foreground">
           Voce non trovata nel testo del PDF. Se è una scansione senza testo,
           confronta l’immagine originale.
         </p>
       )}
-      {attiva && !errore ? (
+      {pronto && !errore ? (
         <div className="min-h-0 flex-1 overflow-auto rounded border bg-slate-100 p-2">
           <div className="relative mx-auto w-full max-w-4xl">
             <canvas
               ref={canvas}
               className="block h-auto w-full bg-white"
-              aria-label={`Pagina ${attiva.pagina} di ${nome}`}
+              aria-label={`Pagina ${visualizzata} di ${nome}`}
             />
             {box && (
               <div
@@ -228,12 +277,15 @@ export function PdfRigaConfronto({
           </div>
         </div>
       ) : (
-        <iframe
-          title={`Originale ${nome}`}
-          src={url}
-          className="min-h-64 w-full flex-1 rounded border bg-white"
-          referrerPolicy="no-referrer"
-        />
+        !errore && (
+          <p
+            role="status"
+            className="flex items-center gap-2 p-4 text-sm text-muted-foreground"
+          >
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Caricamento PDF…
+          </p>
+        )
       )}
     </div>
   );

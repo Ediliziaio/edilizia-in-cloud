@@ -125,24 +125,21 @@ export function OriginaliConfronto({
                 </Button>
               )}
             </div>
-            {q.data.mime === "application/pdf" && ricerca ? (
-              <PdfRigaConfronto
-                key={`${q.data.url}:${ricerca}`}
-                url={q.data.url}
-                nome={file.nome}
-                ricerca={ricerca}
-              />
-            ) : q.data.mime === "application/pdf" ? (
-              <iframe
-                title={`Originale ${file.nome}`}
-                src={q.data.preview}
-                referrerPolicy="no-referrer"
+            {q.data.mime === "application/pdf" ? (
+              <div
                 className={
                   adatta
-                    ? "min-h-0 w-full flex-1 rounded-lg border bg-white"
-                    : "h-[58dvh] min-h-80 w-full rounded-lg border bg-white"
+                    ? "flex min-h-0 flex-1 flex-col"
+                    : "flex h-[58dvh] min-h-80 flex-col"
                 }
-              />
+              >
+                <PdfRigaConfronto
+                  key={`${q.data.url}:${ricerca ?? ""}`}
+                  url={q.data.url}
+                  nome={file.nome}
+                  ricerca={ricerca}
+                />
+              </div>
             ) : /^image\/(jpeg|png|webp|gif|bmp|avif)$/.test(q.data.mime) &&
               nonVisibile !== file.id ? (
               <div

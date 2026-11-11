@@ -12,6 +12,11 @@ vi.mock("@/integrations/supabase/client", () => ({
     },
   },
 }));
+vi.mock("@/components/fatturazione/PdfRigaConfronto", () => ({
+  PdfRigaConfronto: ({ url, nome }: { url: string; nome: string }) => (
+    <canvas title={`Originale ${nome}`} data-source={url} />
+  ),
+}));
 import {
   originaleDaRiferimento,
   originaliBolla,
@@ -43,7 +48,7 @@ describe("originali PDF e foto del confronto", () => {
     )!;
     monta([f]);
     const iframe = await screen.findByTitle("Originale ordine.pdf");
-    expect(iframe.getAttribute("src")).toBe(
+    expect(iframe.getAttribute("data-source")).toBe(
       "https://files.example.test/oda/id/ordine.pdf",
     );
     expect(fake.firma).toHaveBeenCalledWith(

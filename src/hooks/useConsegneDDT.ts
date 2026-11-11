@@ -10,6 +10,8 @@ export interface ConsegnaDdt {
   warehouse_id: string | null;
   order_item_id: string | null;
   stock_item_id: string | null;
+  purchase_order_item_id: string | null;
+  consegna_origine_id: string | null;
   ddt_id: string;
   unita_misura: string;
   created_at: string;

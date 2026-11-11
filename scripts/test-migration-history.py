@@ -66,7 +66,13 @@ try:
         # SQL may contain legacy credentials; never print stderr/context or bodies.
         applied=[x.removeprefix('MIGRATION ') for x in result.stdout.splitlines() if x.startswith('MIGRATION ')]
         if result.returncode:
-            print(json.dumps({'ok':False,'file':applied[-1] if applied else 'foundation','completed':max(0,len(applied)-1)}),flush=True)
+            # Report only known metadata/error classes, never SQL bodies or credentials.
+            reason = 'migration_error'
+            if 'lock timeout' in result.stderr: reason = 'lock_timeout'
+            elif 'statement timeout' in result.stderr: reason = 'statement_timeout'
+            elif 'cambiata dopo il censimento' in result.stderr: reason = 'policy_fingerprint_changed'
+            elif 'non trovata: lotto fermo' in result.stderr: reason = 'policy_missing'
+            print(json.dumps({'ok':False,'file':applied[-1] if applied else 'foundation','completed':max(0,len(applied)-1),'reason':reason}),flush=True)
             if os.getenv('EIC_LOCAL_PRIVATE_ERROR'):
                 Path(os.environ['EIC_LOCAL_PRIVATE_ERROR']).write_text(result.stderr)
             raise RuntimeError('Migration replay failed; SQL context withheld')

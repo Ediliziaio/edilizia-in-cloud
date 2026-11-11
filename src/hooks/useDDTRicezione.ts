@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
 import { riceviResiduoOda } from "@/lib/orders/riceviResiduoOda";
+import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 import { readAllOrderRows } from "@/lib/orders/listScope";
 
 // `ddt_righe` e le colonne nuove di `ddt_ricezione` (order_id, supplier_id,
@@ -237,6 +238,8 @@ export function useDDTRicezioneList(filters?: {
       // Tutte le pagine, a blocchi di 500. Prima c'era un tetto di 500 bolle:
       // contatori, schede ed esportazione vedevano solo quelle senza dirlo.
       // La query si ricostruisce a ogni pagina: un builder già eseguito non si riusa.
+      const idsOrdine = filters?.purchaseOrderId ? await loadCatalogPages<{ id: string; ddt_id: string }>((a, b) => db.from("ddt_ordini_collegati").select("id,ddt_id").eq("company_id", companyId!).eq("purchase_order_id", filters.purchaseOrderId).order("ddt_id").range(a, b)) : null;
+      if (idsOrdine && !idsOrdine.length) return [];
       const pagina = (da: number, a: number) => {
         let q = db
           .from("ddt_ricezione")
@@ -244,7 +247,7 @@ export function useDDTRicezioneList(filters?: {
             // Left join sull'ODA, non !inner: dal 29/10/2026 una bolla può non
             // averne, e con l'inner join sarebbe sparita dalla lista senza che
             // nessuno lo dicesse. Commessa e fornitore si leggono dalla bolla.
-            "*, purchase_orders(id, oda_number, status, order_id, supplier_id, suppliers(name, email), orders(id, order_code)), warehouses(id, name), orders(id, order_code), suppliers(id, name), consegne:ddt_consegne(tipo, quantita, unita_misura, destinazione, warehouses(name))"
+            "*, purchase_orders!ddt_ricezione_purchase_order_id_fkey(id, oda_number, status, order_id, supplier_id, suppliers(name, email), orders(id, order_code)), warehouses(id, name), orders(id, order_code), suppliers(id, name), consegne:ddt_consegne(tipo, quantita, unita_misura, destinazione, warehouses(name))"
           )
           .eq("company_id", companyId!)
           .order("data_ricezione", { ascending: false })
@@ -254,7 +257,7 @@ export function useDDTRicezioneList(filters?: {
           q = q.eq("stato", filters.stato);
         }
         if (filters?.purchaseOrderId) {
-          q = q.eq("purchase_order_id", filters.purchaseOrderId);
+          q = q.in("id", idsOrdine!.map((r) => r.ddt_id));
         }
         if (filters?.warehouseId) {
           q = q.eq("warehouse_id", filters.warehouseId);
@@ -287,17 +290,9 @@ export function useDDTByPurchaseOrder(poId: string | null | undefined) {
   return useQuery<DDTRicezione[]>({
     queryKey: queryKeys.ddtRicezione.byPurchaseOrder(poId),
     queryFn: async () => {
-      // Safety cap: un PO ha tipicamente 1-5 DDT (consegne parziali), ma in
-      // casi patologici (importazioni storiche) può averne molti. Limite 200
-      // → copre 100% dei casi reali senza scaricare payload inutili.
-      const { data, error } = await supabase
-        .from("ddt_ricezione")
-        .select("*")
-        .eq("purchase_order_id", poId!)
-        .order("data_ricezione", { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      return (data || []) as unknown as DDTRicezione[];
+      const legami = await loadCatalogPages<{ id: string; ddt_id: string }>((a, b) => db.from("ddt_ordini_collegati").select("id,ddt_id").eq("purchase_order_id", poId!).order("ddt_id").range(a, b));
+      if (!legami.length) return [];
+      return loadCatalogPages<DDTRicezione>((a, b) => db.from("ddt_ricezione").select("*").in("id", legami.map((l) => l.ddt_id)).order("data_ricezione", { ascending: false }).order("id").range(a, b));
     },
     enabled: !!poId,
     staleTime: 2 * 60 * 1000,
@@ -315,7 +310,7 @@ export function useDDTRicezioneDetail(ddtId: string | null | undefined) {
       const { data, error } = await supabase
         .from("ddt_ricezione")
         .select(
-          "*, purchase_orders(id, oda_number, status, order_id, supplier_id, suppliers(name, email), orders(id, order_code)), warehouses(id, name), orders(id, order_code), suppliers(id, name)"
+          "*, purchase_orders!ddt_ricezione_purchase_order_id_fkey(id, oda_number, status, order_id, supplier_id, suppliers(name, email), orders(id, order_code)), warehouses(id, name), orders(id, order_code), suppliers(id, name)"
         )
         .eq("id", ddtId!)
         .maybeSingle();
@@ -349,6 +344,8 @@ export function useDDTRicezioneDetail(ddtId: string | null | undefined) {
   return {
     ddt: detailQuery.data ?? null,
     isLoading: detailQuery.isLoading,
+    isError: detailQuery.isError,
+    error: detailQuery.error,
     receipts: receiptsQuery.data ?? [],
     isReceiptsLoading: receiptsQuery.isLoading,
     isReceiptsError: receiptsQuery.isError,
@@ -445,20 +442,7 @@ export function useDDTCountsByPO() {
   return useQuery<Record<string, DDTCountAggregate>>({
     queryKey: queryKeys.ddtRicezione.countsByPO(companyId),
     queryFn: async () => {
-      // A pagine: oltre le 1.000 bolle PostgREST tronca e i conteggi verrebbero bassi.
-      const data: { purchase_order_id: string | null; stato: DDTStato }[] = [];
-      for (let da = 0; ; da += 1000) {
-        const { data: pagina, error } = await supabase
-          .from("ddt_ricezione")
-          .select("id, purchase_order_id, stato")
-          .eq("company_id", companyId!)
-          .not("purchase_order_id", "is", null)
-          .order("id")
-          .range(da, da + 999);
-        if (error) throw error;
-        data.push(...((pagina ?? []) as unknown as { purchase_order_id: string | null; stato: DDTStato }[]));
-        if (!pagina || pagina.length < 1000) break;
-      }
+      const data = await loadCatalogPages<{ id: string; purchase_order_id: string; stato: DDTStato }>((a, b) => db.from("ddt_ordini_collegati").select("id,purchase_order_id,stato").eq("company_id", companyId!).order("id").range(a, b));
 
       const map: Record<string, DDTCountAggregate> = {};
       for (const row of data || []) {
