@@ -26,12 +26,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
+import { ClienteCombobox } from "@/components/orders/ClienteCombobox";
 import { AssignedToSelect } from "@/components/orders/AssignedToSelect";
 import { SedeSelect } from "@/components/sedi/SedeSelect";
 import { useCompanyCustomers, type CompanyCustomer } from "@/hooks/useCompanyCustomers";
-import { emailVera } from "@/lib/preventivatore/selezionaCliente";
 import { modificheSceltaCliente } from "@/lib/silvio-commessa/sceltaCliente";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { useSediList } from "@/hooks/useSediAnalytics";
@@ -260,18 +259,11 @@ export function SceltaCliente({ companyId, piano, onScegli }: {
   return (
     <div className="mt-2 space-y-2">
       <label htmlFor={id} className="text-xs lg:text-[11px] font-medium text-slate-600">Cliente del gestionale</label>
-      <div className="flex gap-2">
-        <Select value={typeof scelto === "string" ? scelto : ""} onValueChange={(v) => {
+      <div className="flex min-w-0 gap-2 [&_button[role=combobox]]:h-11 lg:[&_button[role=combobox]]:h-9">
+        <ClienteCombobox id={id} clienti={clienti} value={typeof scelto === "string" ? scelto : ""} onChange={(v) => {
           const c = clienti.find((x) => x.id === v);
           onScegli(v, c ? `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() : "", c);
-        }}>
-          <SelectTrigger id={id} className="h-11 flex-1 lg:h-9"><SelectValue placeholder="Scegli un cliente" /></SelectTrigger>
-          <SelectContent>
-            {clienti.map((c) => (
-              <SelectItem key={c.id} value={c.id}>{`${c.first_name ?? ""} ${c.last_name ?? ""}`.trim()}{emailVera(c.email) ? ` (${emailVera(c.email)})` : ""}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        }} />
         <Button type="button" variant="outline" size="sm" className="h-11 gap-1 lg:h-9" onClick={() => setNuovo(true)}>
           <UserPlus className="h-4 w-4" aria-hidden />Nuovo
         </Button>
