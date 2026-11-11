@@ -5,7 +5,7 @@ import type { WebhookDelivery } from "@/types/webhooks";
 
 const state = vi.hoisted(() => ({ error: false, loading: false, logsError: false, refetch: vi.fn(), mutate: vi.fn(), toast: vi.fn(), manage: true }));
 // The incoming-webhook card has its own integration suite and query provider.
-vi.mock("@/components/settings/InboundAutomationWebhooks", () => ({InboundAutomationWebhooks: () => null}));
+vi.mock("@/components/settings/InboundAutomationWebhooks", () => ({InboundAutomationWebhooks: (): null => null}));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: state.toast }) }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "c1" }, role: "employee" }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canEditSettingsIntegrations: state.manage }) }));

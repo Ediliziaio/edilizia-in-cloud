@@ -21,7 +21,7 @@ export async function globalWebhookTarget(raw:string,resolve:(host:string,type:'
  return url;
 }
 export type GlobalDelivery={id:string;event_type:string;payload:unknown;event_id?:string;occurred_at?:string;url:string;secret?:string|null;timeout_seconds?:number;allowed_ips?:string[];lease_token?:string};
-export async function deliverGlobalWebhook(delivery:GlobalDelivery,fetcher:typeof fetch=fetch,resolve:(host:string,type:'A'|'AAAA')=>Promise<string[]>=(h,t)=>Deno.resolveDns(h,t,{signal:AbortSignal.timeout(3000)})){
+export async function deliverGlobalWebhook(delivery:GlobalDelivery,fetcher:typeof fetch=fetch,resolve:(host:string,type:'A'|'AAAA')=>Promise<string[]>=async(h,t)=>{const addresses:unknown=await Deno.resolveDns(h,t,{signal:AbortSignal.timeout(3000)});if(!Array.isArray(addresses)||!addresses.every((value):value is string=>typeof value==='string'))throw new Error('Risposta DNS non valida');return addresses;}){
  const started=Date.now();try{
   const url=await globalWebhookTarget(delivery.url,resolve,delivery.allowed_ips??[]);
   const timestamp=delivery.occurred_at??new Date().toISOString();const eventId=delivery.event_id??delivery.id;
