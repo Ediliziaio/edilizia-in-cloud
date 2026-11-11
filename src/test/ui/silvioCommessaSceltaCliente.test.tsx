@@ -4,11 +4,11 @@ import { pianoVuoto } from "../../../shared/silvio-commessa/fondi.ts";
 
 vi.mock("@/hooks/useCompanyCustomers", () => ({
   useCompanyCustomers: () => ({ data: [
-    ...Array.from({ length: 80 }, (_, i) => ({ id: `demo-${i}`, first_name: "Azienda Demo", last_name: String(i), email: null })),
+    ...Array.from({ length: 80 }, (_, i) => ({ id: `demo-${i}`, first_name: "Azienda Demo", last_name: String(i), email: null as string | null })),
     { id: "cliente-beta", first_name: "Collaudo", last_name: "Beta", email: "cliente-beta@no-email.ediliziaincloud.local" },
   ] }),
 }));
-vi.mock("@/components/orders/CreateCustomerDialog", () => ({ CreateCustomerDialog: () => null }));
+vi.mock("@/components/orders/CreateCustomerDialog", () => ({ CreateCustomerDialog: (): null => null }));
 
 import { SceltaCliente } from "@/components/silvio-commessa/ColonnaCommessa";
 
