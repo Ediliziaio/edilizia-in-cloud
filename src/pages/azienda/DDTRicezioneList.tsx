@@ -68,7 +68,6 @@ import {
   type DDTStato,
   type DDTRicezioneWithJoins,
 } from "@/hooks/useDDTRicezione";
-import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import {
   DDTStatusBadge,
   DDT_STATO_META,
@@ -306,12 +305,9 @@ export default function DDTRicezioneList() {
     isError,
     refetch,
   } = useDDTRicezioneList();
-  const { orders } = usePurchaseOrders();
-
-  const availablePOs = useMemo(
-    () => orders.filter((o) => o.status !== "annullato"),
-    [orders],
-  );
+  // 11/11/2026: «Nuovo DDT» non dipende più dagli ordini. La bolla senza ordine
+  // si registra già (NewDDTDialog, origine «senza ordine»): chi non usa gli
+  // ordini al fornitore, come Bonarrigo con 0 ordini, aveva il pulsante spento.
 
   const activeFiltersCount = [
     filterOrder !== "all",
@@ -805,7 +801,7 @@ export default function DDTRicezioneList() {
               if (canCreate) setNewOpen(true);
             }}
             size="sm"
-            disabled={!canCreate || availablePOs.length === 0}
+            disabled={!canCreate}
             className="shrink-0 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25 max-sm:flex-1"
           >
             <Plus className="h-4 w-4 mr-1" />
@@ -990,7 +986,7 @@ export default function DDTRicezioneList() {
       ) : rows.length === 0 ? (
         <EmptyState
           hasFilter={activeFiltersCount > 0}
-          canCreate={canCreate && availablePOs.length > 0}
+          canCreate={canCreate}
           onCreate={() => {
             if (canCreate) setNewOpen(true);
           }}
