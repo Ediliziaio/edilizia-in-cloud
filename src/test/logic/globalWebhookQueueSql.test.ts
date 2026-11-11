@@ -56,3 +56,9 @@ it('treats a task due today as current and recognizes the final custom order pha
  await db.exec(`insert into order_statuses(id,company_id,name,position) values('${phase}','${co}','Consegna cliente',5);insert into orders(id,company_id) values('${record}','${co}');update orders set current_status_id='${phase}' where id='${record}'`);
  expect((await receipts()).map(x=>x.event_type)).toEqual(['order.completed']);
 });
+
+it('emits cancellation when an order still references its final custom phase',async()=>{
+ const phase='50000000-0000-4000-a000-000000000001';
+ await db.exec(`update webhooks set events=array['order.cancelled','order.completed'];insert into order_statuses(id,company_id,name,position) values('${phase}','${co}','Concluso',5);insert into orders(id,company_id,current_status_id) values('${record}','${co}','${phase}');truncate webhook_deliveries cascade;update orders set status='cancelled' where id='${record}'`);
+ expect((await receipts()).map(x=>x.event_type)).toEqual(['order.cancelled']);
+});

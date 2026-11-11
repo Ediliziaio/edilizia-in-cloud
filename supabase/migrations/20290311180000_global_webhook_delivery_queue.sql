@@ -73,9 +73,16 @@ begin
   select lower(replace(s.name,' ','_')) into current_state from public.order_statuses s where s.id=(n->>'current_status_id')::uuid and s.company_id=co;
   select lower(replace(s.name,' ','_')) into previous_state from public.order_statuses s where s.id=nullif(o->>'current_status_id','')::uuid and s.company_id=co;
   data:=data||jsonb_build_object('status_name',current_state,'current_status_id',n->'current_status_id');
+  if current_state in ('cancelled','canceled','annullato','annullata','annullati','cancellato','cancellata') then current_state:='cancelled';end if;
+  if previous_state in ('cancelled','canceled','annullato','annullata','annullati','cancellato','cancellata') then previous_state:='cancelled';end if;
   -- Same closure rule as Commesse: the final phase excluding support phases.
-  if (n->>'current_status_id')::uuid=(select s.id from public.order_statuses s where s.company_id=co and not s.is_support_phase order by s.position desc,s.id limit 1) then current_state:='completed';end if;
-  if nullif(o->>'current_status_id','')::uuid=(select s.id from public.order_statuses s where s.company_id=co and not s.is_support_phase order by s.position desc,s.id limit 1) then previous_state:='completed';end if;
+  if current_state is distinct from 'cancelled' and (n->>'current_status_id')::uuid=(select s.id from public.order_statuses s where s.company_id=co and not s.is_support_phase order by s.position desc,s.id limit 1) then current_state:='completed';end if;
+  if previous_state is distinct from 'cancelled' and nullif(o->>'current_status_id','')::uuid=(select s.id from public.order_statuses s where s.company_id=co and not s.is_support_phase order by s.position desc,s.id limit 1) then previous_state:='completed';end if;
+ end if;
+ -- Explicit cancellation wins over a final custom phase still attached to the order.
+ if prefix='order' then
+  if lower(coalesce(n->>'status','')) in ('cancelled','canceled','annullato','annullata','annullati','cancellato','cancellata') or lower(coalesce(data->>'status_name','')) in ('cancelled','canceled','annullato','annullata','annullati','cancellato','cancellata') then current_state:='cancelled';end if;
+  if lower(coalesce(o->>'status','')) in ('cancelled','canceled','annullato','annullata','annullati','cancellato','cancellata') then previous_state:='cancelled';end if;
  end if;
  if tg_table_name='invoice_payments' then
   if tg_op='INSERT' then perform private.enqueue_global_webhook(co,'payment.received',data);end if;return null;
