@@ -147,7 +147,7 @@ describe("listino della ditta da un file", () => {
       { id: "f", nome: "Posa finestra singola", codice: null, unita: "pz", costo: 55 },
       { id: "t", nome: "Tiro al piano", codice: null, unita: "piano", costo: 8 },
     ];
-    const riga = (descrizione: string, unita: string, riga = 2) => ({ riga, codice: null, descrizione, unita, prezzo: 90 });
+    const riga = (descrizione: string, unita: string, riga = 2) => ({ riga, codice: null as string | null, descrizione, unita, prezzo: 90 });
     const [simile] = proponiImport([riga("Posa di finestre singole", "pz")], voci, "rossi");
     expect(simile).toMatchObject({ scelta: { tipo: "voce", tariffaId: "f" }, motivo: "simile" });
     expect(simile.avviso).toMatch(/Nome simile/);
