@@ -1,3 +1,6 @@
+import { useOperationalDeletion } from "@/hooks/useOperationalDeletion";
+import { OperationalExtraFilters } from "@/components/orders/OperationalExtraFilters";
+import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
 import { FornitoreCombobox } from "@/components/orders/FornitoreCombobox";
 import { useOperationalViewMemory } from "@/hooks/useOperationalViewMemory";
 import {
@@ -82,7 +85,6 @@ import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
 import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
 import { cn } from "@/lib/utils";
-import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import {
   ODA_ORIGINI,
   ODA_ORIGINE_INFO,
@@ -365,7 +367,7 @@ export default function PurchaseOrdersList() {
     "ritardo",
     "periodo",
     "raggruppa",
-  ]);
+  ], { restoreView: false });
   const filtri = useMemo(() => leggiFiltriAcquisti(params), [params]);
   const imposta = useCallback(
     (chiave: string, valore: string | null | boolean) => {
@@ -572,6 +574,15 @@ export default function PurchaseOrdersList() {
     Math.min(Math.floor(Number(params.get("oda_pagina")) || 1), pagineElenco),
   );
   const visibili = filtered.slice((paginaElenco - 1) * 25, paginaElenco * 25);
+  const selection = useOperationalDeletion("oda", visibili.map(o => ({
+    id: o.id, label: o.oda_number, href: `/azienda/ordini-acquisto/${o.id}`,
+    phase: { id: o.id, label: o.oda_number, href: `/azienda/ordini-acquisto/${o.id}`, status: o.status, stage: o.status === "bozza" ? "da_ordinare" : o.status === "ricevuto" ? "consegnato" : o.status === "parziale" ? "in_consegna" : "ordinato" },
+    values: { fornitore: o.suppliers?.name ?? "", commessa: o.orders?.order_code ?? "", data: o.issue_date, consegna: o.expected_delivery_date ?? "", stato: STATUS_LABELS[o.status] ?? o.status, ...(vedeCosti ? { totale: String(o.total) } : {}) },
+  })), puoAgire && vistaPrincipale === "elenco" && vista === "elenco", {
+    filename: "ordini-acquisto", columns: [
+      { key: "documento", label: "N° OdA" }, { key: "fornitore", label: "Fornitore" }, { key: "commessa", label: "Commessa" }, { key: "data", label: "Emissione" }, { key: "consegna", label: "Consegna prevista" }, { key: "stato", label: "Stato" }, ...(vedeCosti ? [{ key: "totale", label: "Totale €" }] : []),
+    ],
+  });
 
   // Per commessa: quanto si è impegnato e quanto è arrivato per ogni cantiere.
   // Gli ordini senza commessa (scorte, attrezzatura) stanno in un gruppo loro.
@@ -924,6 +935,7 @@ export default function PurchaseOrdersList() {
       className={`border-b hover:bg-muted/30 cursor-pointer ${o.status === "annullato" ? "opacity-50" : ""}`}
       onClick={() => navigate(`/azienda/ordini-acquisto/${o.id}`)}
     >
+      {selection.enabled && <td onClick={e => e.stopPropagation()}>{selection.checkbox(o.id, o.oda_number)}</td>}
       <td className="p-3 font-mono text-xs font-medium">{o.oda_number}</td>
       <td className="p-3" onClick={(e) => e.stopPropagation()}>
         <div className="flex flex-wrap items-center gap-1.5">
@@ -1087,11 +1099,9 @@ export default function PurchaseOrdersList() {
       {/* Riepilogo comune a pipeline ed elenco; segue i filtri di ricerca e di emissione. */}
       {(vistaPrincipale === "elenco" ||
         ["tutte", "ordini"].includes(fonte)) && (
-        <section
-          aria-label="Riepilogo acquisti"
-          className="grid grid-cols-2 sm:grid-cols-4 gap-3"
-        >
-          <OperationalKpiCard
+        <OperationalSummary label="Riepilogo acquisti" title="Materiali e consegne" icon={ShoppingCart} error={isError} note="Segue i filtri di ricerca e di emissione degli ordini.">
+          <OperationalSummaryMetric
+            isLoading={isLoading}
             label="In ritardo"
             value={kpis.lateCount}
             icon={AlertTriangle}
@@ -1106,7 +1116,8 @@ export default function PurchaseOrdersList() {
             onClick={() => imposta("ritardo", !filtri.soloRitardo)}
             active={filtri.soloRitardo}
           />
-          <OperationalKpiCard
+          <OperationalSummaryMetric
+            isLoading={isLoading}
             label="Da mandare"
             value={kpis.draftCount}
             icon={Send}
@@ -1121,7 +1132,8 @@ export default function PurchaseOrdersList() {
             onClick={() => setTab(tab === "bozze" ? "tutti" : "bozze")}
             active={tab === "bozze"}
           />
-          <OperationalKpiCard
+          <OperationalSummaryMetric
+            isLoading={isLoading}
             label="In arrivo"
             value={kpis.inCorsoCount}
             icon={Truck}
@@ -1134,7 +1146,8 @@ export default function PurchaseOrdersList() {
             onClick={() => setTab(tab === "attivi" ? "tutti" : "attivi")}
             active={tab === "attivi"}
           />
-          <OperationalKpiCard
+          <OperationalSummaryMetric
+            isLoading={isLoading}
             label={vedeCosti ? "Impegnato" : "Ricevuti"}
             value={
               vedeCosti ? euroCompatto(kpis.committedTotal) : counts.ricevuti
@@ -1143,14 +1156,25 @@ export default function PurchaseOrdersList() {
             hint={vedeCosti ? "escluse bozze e annullati" : "ordini completati"}
             tone="green"
           />
-        </section>
+        </OperationalSummary>
       )}
 
       {/* Vista e filtri comuni: valgono per la pipeline e per l'elenco, e stanno nell'URL. */}
-      <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2">
-          <div>
-          <OperationalViewSwitch
+      <section aria-label="Filtri acquisti" className="space-y-2 rounded-xl border bg-white p-2.5 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2"><div className="relative min-w-[180px] flex-1 sm:max-w-xs">
+            <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder={
+                vistaPrincipale === "pipeline"
+                  ? "Cerca ordine, richiesta o materiale…"
+                  : "Cerca OdA, fornitore o commessa…"
+              }
+              aria-label="Cerca negli acquisti"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-8 border-slate-200 pl-8 text-xs shadow-none"
+            />
+          </div>{(vistaPrincipale === "elenco" || ["tutte", "ordini"].includes(fonte)) && <select aria-label="Stato degli OdA" className="h-8 max-w-full rounded-md border bg-background px-3 text-xs" value={tab} onChange={e => setTab(e.target.value)}>{hubTabs.map(item => <option key={item.key} value={item.key}>{item.key === "tutti" ? "Tutti gli stati" : item.label}</option>)}</select>}<OperationalViewSwitch
             value={vistaPrincipale}
             onChange={(v) =>
               setParams(
@@ -1166,8 +1190,10 @@ export default function PurchaseOrdersList() {
                 { replace: true },
               )
             }
-          />
-          </div>
+          /></div>
+        <OperationalExtraFilters count={Number(!!filtri.commessa) + Number(!!filtri.fornitore) + Number(!!filtri.fase) + Number(filtri.soloRitardo) + Number(filterPeriodo !== "tutto") + Number(params.has("oda_fonte")) + Number(archive.scope !== "all")}>      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+
           {vistaPrincipale === "pipeline" && (
             <Select
               value={fonte}
@@ -1192,7 +1218,7 @@ export default function PurchaseOrdersList() {
             >
               <SelectTrigger
                 aria-label="Contenuto pipeline acquisti"
-                className="h-8 w-[145px] text-xs max-md:hidden"
+                className="h-8 w-[145px] text-xs "
               >
                 <SelectValue />
               </SelectTrigger>
@@ -1204,20 +1230,7 @@ export default function PurchaseOrdersList() {
               </SelectContent>
             </Select>
           )}
-          <div className="relative min-w-[180px] flex-1 sm:max-w-xs">
-            <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder={
-                vistaPrincipale === "pipeline"
-                  ? "Cerca ordine, richiesta o materiale…"
-                  : "Cerca OdA, fornitore o commessa…"
-              }
-              aria-label="Cerca negli acquisti"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-8 border-slate-200 pl-8 text-xs shadow-none"
-            />
-          </div>
+
           <Select
             value={filterOrder}
             onValueChange={(v) => imposta("commessa", v === "all" ? null : v)}
@@ -1225,7 +1238,7 @@ export default function PurchaseOrdersList() {
             <SelectTrigger
               aria-label="Commessa"
               className={cn(
-                "h-8 w-auto min-w-[140px] text-xs max-md:hidden",
+                "h-8 w-auto min-w-[140px] text-xs ",
                 filtri.commessa && "border-orange-300 bg-orange-50",
               )}
             >
@@ -1249,7 +1262,7 @@ export default function PurchaseOrdersList() {
             <SelectTrigger
               aria-label="Fornitore"
               className={cn(
-                "h-8 w-auto min-w-[140px] text-xs max-md:hidden",
+                "h-8 w-auto min-w-[140px] text-xs ",
                 filtri.fornitore && "border-orange-300 bg-orange-50",
               )}
             >
@@ -1275,7 +1288,7 @@ export default function PurchaseOrdersList() {
               <SelectTrigger
                 aria-label="Fase"
                 className={cn(
-                  "h-8 w-auto min-w-[120px] text-xs max-md:hidden",
+                  "h-8 w-auto min-w-[120px] text-xs ",
                   filtri.fase && "border-orange-300 bg-orange-50",
                 )}
               >
@@ -1296,7 +1309,7 @@ export default function PurchaseOrdersList() {
             aria-pressed={filtri.soloRitardo}
             onClick={() => imposta("ritardo", !filtri.soloRitardo)}
             className={cn(
-              "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium max-md:hidden",
+              "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium ",
               filtri.soloRitardo
                 ? "border-red-300 bg-red-50 text-red-700"
                 : "border-slate-200 text-slate-600 hover:bg-slate-50",
@@ -1309,65 +1322,7 @@ export default function PurchaseOrdersList() {
         {(vistaPrincipale === "elenco" ||
           ["tutte", "ordini"].includes(fonte)) && (
           <div className="flex flex-col gap-2 border-t border-slate-100 pt-2 sm:flex-row sm:items-center">
-            <div
-              className="flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-lg bg-slate-50 p-0.5"
-              role="group"
-              aria-label="Stato degli OdA"
-            >
-              {hubTabs
-                .filter(
-                  (item) =>
-                    item.key === "tutti" ||
-                    inOperationalScope(
-                      ["ricevuti", "annullati"].includes(item.key),
-                      archive.scope,
-                    ),
-                )
-                .map((item) => {
-                  const isActive = item.key === tab;
-                  return (
-                    <button
-                      key={item.key}
-                      type="button"
-                      onClick={() => setTab(item.key)}
-                      className={cn(
-                        "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-all",
-                        isActive
-                          ? "bg-orange-50 text-slate-950 shadow-sm ring-1 ring-orange-100"
-                          : "text-slate-500 hover:bg-white hover:text-slate-900",
-                      )}
-                    >
-                      <span
-                        className={
-                          isActive ? "text-orange-500" : "text-slate-400"
-                        }
-                      >
-                        {item.icon}
-                      </span>
-                      {item.label}
-                      {typeof item.count === "number" && (
-                        <span
-                          className={cn(
-                            "rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums",
-                            isActive
-                              ? "bg-orange-100 text-orange-700"
-                              : "bg-slate-200 text-slate-500",
-                          )}
-                        >
-                          {item.key === "tutti"
-                            ? tuttiFiltrati.filter((o) =>
-                                inOperationalScope(
-                                  ["ricevuto", "annullato"].includes(o.status),
-                                  archive.scope,
-                                ),
-                              ).length
-                            : item.count}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-            </div>
+
             <div className="flex items-center gap-2">
               <Select
                 value={filterPeriodo}
@@ -1379,7 +1334,7 @@ export default function PurchaseOrdersList() {
                   aria-label="Emissione OdA"
                   title="Data di emissione degli ordini di acquisto"
                   className={cn(
-                    "h-8 w-auto min-w-[130px] text-xs max-md:hidden",
+                    "h-8 w-auto min-w-[130px] text-xs ",
                     filterPeriodo !== "tutto" &&
                       "border-orange-300 bg-orange-50",
                   )}
@@ -1396,7 +1351,7 @@ export default function PurchaseOrdersList() {
               </Select>
               {vistaPrincipale === "elenco" && (
                 <div
-                  className="flex rounded-lg bg-slate-100 p-0.5 max-sm:hidden"
+                  className="flex rounded-lg bg-slate-100 p-0.5 "
                   role="group"
                   aria-label="Raggruppa"
                 >
@@ -1485,6 +1440,8 @@ export default function PurchaseOrdersList() {
           </Link>
         </div>
       </div>
+</OperationalExtraFilters>
+      </section>
 
       {/* Pipeline o tabella */}
       {vistaPrincipale === "pipeline" ? (
@@ -1589,9 +1546,12 @@ export default function PurchaseOrdersList() {
         </div>
       ) : (
         <>
+          {selection.toolbar}
+          {selection.confirmation}
           <OperationalTable label="Elenco ordini d’acquisto">
             <thead>
               <tr className="border-b bg-muted/50">
+                {selection.enabled && <th scope="col">{selection.header}</th>}
                 <th className="text-left p-3 font-medium">N° OdA</th>
                 <th className="text-left p-3 font-medium">Stato</th>
                 <th className="text-left p-3 font-medium">Fornitore</th>

@@ -18,8 +18,8 @@ export function OperationalViewSwitch({
     >
       {(
         [
-          ["pipeline", "Pipeline", Columns3],
           ["elenco", "Elenco", List],
+          ["pipeline", "Pipeline", Columns3],
         ] as const
       ).map(([id, nome, Icona]) => (
         <button

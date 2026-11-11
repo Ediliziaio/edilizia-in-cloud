@@ -1,3 +1,4 @@
+import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
 /**
  * Commesse → Rapportini: documenti operativi e pagine del giornale nello stesso
  * elenco. Le viste delle ore lavorano soltanto sui rapportini: il giornale
@@ -287,31 +288,9 @@ function Pagina({ companyId }: { companyId?: string }) {
           {/* Il riepilogo del mese: stessa fascia blu della scheda Commesse */}
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="grid gap-0">
-              <div className="bg-eic-navy-deep p-3 text-white">
-                <div className="flex items-start gap-2.5 sm:gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white">
-                    <NotebookPen className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">Riepilogo rapportini</p>
-                    <h2 className="mt-0.5 text-base font-semibold text-white sm:text-lg">{giorno ? giornoLungo(giorno) : periodo === "mese" ? "Il lavoro del mese" : periodo === "tutti" ? tipo === "rapportino" ? "Tutti i rapportini" : "Tutti i documenti del cantiere" : periodoLabel}</h2>
-                  </div>
-                </div>
-                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {numeri.filter((n) => !n.soloScrivania).map((n) => {
-                    const Elemento = n.onClick ? "button" : "div";
-                    return (
-                      <Elemento key={n.label} {...(n.onClick ? { type: "button" as const, onClick: n.onClick, "aria-pressed": stato === (tipo === "giornale" ? "bozza" : "inviato") } : {})}
-                        className={cn("flex min-w-0 flex-col items-start justify-start rounded-xl border border-white/15 bg-white/10 p-2 text-left [&>span]:w-full", n.soloScrivania && "hidden sm:flex",
-                          n.onClick && "transition-colors hover:bg-white/15", n.onClick && stato === (tipo === "giornale" ? "bozza" : "inviato") && "border-amber-300/70 bg-white/15")}>
-                        <span className="block truncate text-[11px] font-semibold uppercase tracking-wide text-blue-100">{n.label}</span>
-                        <span className={cn("mt-0.5 block truncate text-lg font-bold tabular-nums leading-tight text-white", n.evidenza && "text-amber-300")}>{n.valore}</span>
-                        {n.nota && <span className="block truncate text-xs text-blue-50/70">{n.nota}</span>}
-                      </Elemento>
-                    );
-                  })}
-                </div>
-              </div>
+              <OperationalSummary embedded label="Riepilogo rapportini" title={giorno ? giornoLungo(giorno) : periodo === "mese" ? "Il lavoro del mese" : periodo === "tutti" ? tipo === "rapportino" ? "Tutti i rapportini" : "Tutti i documenti del cantiere" : periodoLabel} icon={NotebookPen}>
+                {numeri.filter(n => !n.soloScrivania).map(n => <OperationalSummaryMetric key={n.label} label={n.label} value={n.valore} hint={n.nota} tone={n.evidenza ? "amber" : undefined} onClick={n.onClick} active={!!n.onClick && stato === (tipo === "giornale" ? "bozza" : "inviato")} />)}
+              </OperationalSummary>
 
               {tipo !== "giornale" && <details className="group border-t border-slate-200">
                 <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">{tipo === "tutti" ? "Statistiche dei rapportini" : periodo === "mese" ? "Statistiche del mese" : "Statistiche del periodo"}</summary>
