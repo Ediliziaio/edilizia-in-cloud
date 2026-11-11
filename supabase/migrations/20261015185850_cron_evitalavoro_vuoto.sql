@@ -1,3 +1,12 @@
+-- Fresh reconstruction only: production already applied these recovered files.
+-- Markers are created only where a recovered patch precedes its actual dependencies.
+set local lock_timeout='3s';
+set local statement_timeout='60s';
+create schema if not exists private;
+create table if not exists private.recovered_dependency_patches(id text primary key);
+alter table private.recovered_dependency_patches enable row level security;
+revoke all on private.recovered_dependency_patches from public,anon,authenticated,service_role;
+DO $defer_recovered_12$ BEGIN IF not exists(select 1 from cron.job where command ~ 'cron-secret' and command !~ 'decrypted_secret') THEN
 -- Mantiene cadenze, autenticazione, job disattivati e guardie dei worker.
 -- Evita HTTP/Edge/telemetria quando non esiste lavoro; non avvia invii di prova.
 SET LOCAL lock_timeout='2s';
@@ -62,3 +71,5 @@ BEGIN
   END LOOP;
 END;
 $migration$;
+
+ELSE INSERT INTO private.recovered_dependency_patches(id) VALUES ('20261015185850_cron_evitalavoro_vuoto.sql') ON CONFLICT DO NOTHING; END IF; END $defer_recovered_12$;

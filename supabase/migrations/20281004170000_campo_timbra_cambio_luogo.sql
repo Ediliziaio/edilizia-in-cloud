@@ -69,7 +69,7 @@ begin
   end if;
   select company_id into v_company from public.profiles where id = v_uid;
   if v_company is null then
-    raise exception using errcode = 'P0001', message = 'Il tuo profilo non è collegato a un\'azienda: avvisa l\'ufficio.';
+    raise exception using errcode = 'P0001', message = 'Il tuo profilo non è collegato a un''azienda: avvisa l''ufficio.';
   end if;
   if (p_order_id is null) = (p_sede_id is null) then
     raise exception using errcode = 'P0001', message = 'Scegli dove sei: un cantiere oppure la sede.';

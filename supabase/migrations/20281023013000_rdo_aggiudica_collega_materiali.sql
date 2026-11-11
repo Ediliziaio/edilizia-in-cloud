@@ -47,6 +47,9 @@ BEGIN
     RAISE NOTICE 'rdo_aggiudica collega già i materiali: niente da fare';
     RETURN;
   END IF;
+  IF position(vecchio_campi in def)=0 AND position('-- coalesce e non nullif: l''IVA 0 è legittima (fornitore intra-UE)' in def)>0 THEN
+    vecchio_campi:=replace(vecchio_campi,E'         coalesce(q.aliquota_iva, 22), i.sku',E'         -- coalesce e non nullif: l''IVA 0 è legittima (fornitore intra-UE)\n         coalesce(q.aliquota_iva, 22), i.sku');
+  END IF;
   IF position(vecchio_campi in def) = 0 THEN
     RAISE EXCEPTION 'rdo_aggiudica è cambiata: testo da sostituire non trovato, migrazione da rivedere';
   END IF;

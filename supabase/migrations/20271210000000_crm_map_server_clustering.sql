@@ -55,6 +55,10 @@ end; $$;
 grant execute on function public.crm_map_cells(uuid,double precision,double precision,double precision,double precision,int) to authenticated;
 
 -- Punti singoli con dettaglio dentro un riquadro, cap p_limit (zoom alto + export).
+-- Preserve the known expanded RPC contract installed by the recovered predecessor.
+DO $preserve_contract$ DECLARE shape text;BEGIN
+ shape:=pg_get_function_result(to_regprocedure('public.crm_map_points_bbox(uuid,double precision,double precision,double precision,double precision,integer)'));
+ IF shape IS NULL OR shape='TABLE(id text, tipo text, nome text, categoria text, stato text, temperatura text, fatturato numeric, email text, telefono text, citta text, provincia text, regione text, indirizzo text, lat double precision, lng double precision, precise boolean)' THEN
 create or replace function public.crm_map_points_bbox(
   p_company uuid,
   p_min_lat double precision, p_min_lng double precision,
@@ -95,4 +99,6 @@ begin
     and p.lat between p_min_lat and p_max_lat and p.lng between p_min_lng and p_max_lng
   limit p_limit;
 end; $$;
+ ELSIF shape<>'TABLE(id text, tipo text, nome text, categoria text, stato text, temperatura text, fatturato numeric, email text, telefono text, citta text, provincia text, regione text, indirizzo text, lat double precision, lng double precision, precise boolean, attivita jsonb)' THEN RAISE EXCEPTION 'Contratto RPC inatteso: crm_map_points_bbox';END IF;
+END $preserve_contract$;
 grant execute on function public.crm_map_points_bbox(uuid,double precision,double precision,double precision,double precision,int) to authenticated;

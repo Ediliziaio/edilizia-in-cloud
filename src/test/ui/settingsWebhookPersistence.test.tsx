@@ -16,7 +16,7 @@ beforeEach(() => {
   const builder = { select: db.select, eq: db.eq, single: db.single, update: db.update };
   db.from.mockReturnValue(builder); db.select.mockReturnValue(builder); db.eq.mockReturnValue(builder); db.update.mockReturnValue(builder);
   db.single.mockResolvedValue({ data: { webhook_id: "w1", event_type: "contact.created", payload: { example: true } }, error: null });
-  db.invoke.mockResolvedValue({ data: { status: "success", http_status: 200 }, error: null });
+  db.invoke.mockResolvedValue({ data: { status: "queued", http_status: 200 }, error: null });
 });
 describe("Webhook: salvataggi e nuovi tentativi", () => {
   it("il rinvio mantiene la storia e verifica il risultato del server", async () => {
@@ -24,7 +24,7 @@ describe("Webhook: salvataggi e nuovi tentativi", () => {
     await act(async () => { await result.current.mutateAsync("d1"); });
     expect(db.eq).toHaveBeenCalledWith("webhook_id", "w1");
     expect(db.update).not.toHaveBeenCalled();
-    expect(db.invoke).toHaveBeenCalledWith("send-webhook", { body: { webhook_id: "w1", event_type: "contact.created", payload: { example: true } } });
+    expect(db.invoke).toHaveBeenCalledWith("send-webhook", { body: { webhook_id: "w1", delivery_id: "d1" } });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["webhook-deliveries", "w1"] });
   });
   it("HTTP 200 della funzione non significa consegna riuscita se l'endpoint risponde 500", async () => {

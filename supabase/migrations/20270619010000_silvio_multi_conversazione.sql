@@ -9,6 +9,9 @@
 -- (resta la "conversazione principale").
 
 -- ── Lista conversazioni dell'utente corrente ────────────────────────────────
+DO $conversation_contract$ DECLARE result text;BEGIN
+ SELECT pg_get_function_result(to_regprocedure('public.silvio_lista_conversazioni()')) INTO result;
+ IF result IS NULL OR result='TABLE(id uuid, titolo text, ultimo_messaggio_at timestamp with time zone, n_messaggi integer)' THEN
 CREATE OR REPLACE FUNCTION public.silvio_lista_conversazioni()
 RETURNS TABLE (id uuid, titolo text, ultimo_messaggio_at timestamptz, n_messaggi integer)
 LANGUAGE sql
@@ -31,6 +34,8 @@ AS $$
    GROUP BY c.id, c.description, c.created_at
    ORDER BY ultimo_messaggio_at DESC;
 $$;
+ ELSIF result<>'TABLE(id uuid, titolo text, ultimo_messaggio_at timestamp with time zone, n_messaggi integer, pinned boolean, folder_id uuid)' THEN RAISE EXCEPTION 'Contratto silvio_lista_conversazioni inatteso';END IF;
+END $conversation_contract$;
 
 -- ── Crea una nuova conversazione (nuovo canale silvio-ai) ────────────────────
 CREATE OR REPLACE FUNCTION public.silvio_crea_conversazione(p_titolo text DEFAULT 'Nuova conversazione')

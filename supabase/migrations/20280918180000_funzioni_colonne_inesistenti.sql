@@ -150,7 +150,7 @@ BEGIN
 END;
 $function$;
 
-CREATE OR REPLACE FUNCTION public.populate_broadcast_recipients(p_broadcast_id uuid, p_segment_filter jsonb, p_variable_mapping jsonb)
+CREATE OR REPLACE FUNCTION public.populate_broadcast_recipients(p_broadcast_id uuid, p_segment_filter jsonb DEFAULT '{}'::jsonb, p_variable_mapping jsonb DEFAULT '{}'::jsonb)
  RETURNS integer
  LANGUAGE plpgsql
  SECURITY DEFINER

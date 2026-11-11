@@ -1,3 +1,12 @@
+-- Fresh reconstruction only: production already applied these recovered files.
+-- Markers are created only where a recovered patch precedes its actual dependencies.
+set local lock_timeout='3s';
+set local statement_timeout='60s';
+create schema if not exists private;
+create table if not exists private.recovered_dependency_patches(id text primary key);
+alter table private.recovered_dependency_patches enable row level security;
+revoke all on private.recovered_dependency_patches from public,anon,authenticated,service_role;
+DO $defer_recovered_9$ BEGIN IF to_regclass('public.passaggi_chiamata') is not null and to_regclass('public.ticket_ai_actions') is not null THEN
 ALTER TABLE public.passaggi_chiamata ADD COLUMN contesto_ai jsonb CHECK(contesto_ai IS NULL OR (jsonb_typeof(contesto_ai)='object' AND octet_length(contesto_ai::text)<=12000));
 
 CREATE OR REPLACE FUNCTION public.fish_reserve_operator(p_company uuid,p_agent uuid,p_session text,p_phone text,p_name text,p_summary text) RETURNS jsonb
@@ -105,3 +114,5 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.fish_protect_handoff_context() FROM PUBLIC,anon,authenticated;
 CREATE TRIGGER fish_protect_handoff_context BEFORE INSERT OR UPDATE OF contesto_ai ON public.passaggi_chiamata FOR EACH ROW EXECUTE FUNCTION public.fish_protect_handoff_context();
+
+ELSE INSERT INTO private.recovered_dependency_patches(id) VALUES ('20261110192455_fish_handoff_context.sql') ON CONFLICT DO NOTHING; END IF; END $defer_recovered_9$;

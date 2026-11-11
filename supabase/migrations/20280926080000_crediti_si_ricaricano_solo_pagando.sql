@@ -27,7 +27,7 @@ set local lock_timeout = '3s';
 
 do $revoca$
 declare
-  elenco constant text[] := array[
+  elenco text[] := array[
     'topup_pool', 'topup_service_credits', 'adjust_credits_atomic', 'adjust_render_credits_atomic',
     'purchase_extra_render_credit', 'maybe_auto_recharge', 'ensure_monthly_free_ai_credits',
     'silvio_crea_bozza_campagna_ads', 'log_audit_event', 'email_seed_user_folders', 'create_persona_session'
@@ -35,6 +35,10 @@ declare
   f record;
   n integer := 0;
 begin
+  -- Explicitly removed by cleanup_doppioni_db; every remaining routine is required.
+  if to_regprocedure('public.create_persona_session(text,text)') is null then
+    elenco:=array_remove(elenco,'create_persona_session');
+  end if;
   for f in
     select p.oid::regprocedure as firma
       from pg_proc p join pg_namespace s on s.oid = p.pronamespace

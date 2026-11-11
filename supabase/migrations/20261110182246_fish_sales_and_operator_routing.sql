@@ -1,3 +1,12 @@
+-- Fresh reconstruction only: production already applied these recovered files.
+-- Markers are created only where a recovered patch precedes its actual dependencies.
+set local lock_timeout='3s';
+set local statement_timeout='60s';
+create schema if not exists private;
+create table if not exists private.recovered_dependency_patches(id text primary key);
+alter table private.recovered_dependency_patches enable row level security;
+revoke all on private.recovered_dependency_patches from public,anon,authenticated,service_role;
+DO $defer_recovered_6$ BEGIN IF to_regclass('public.passaggi_chiamata') is not null and to_regclass('public.ai_fish_crm_trials') is not null THEN
 CREATE TABLE public.ai_fish_opportunity_outcomes (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), company_id uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
  call_id uuid NOT NULL REFERENCES ai_fish_calls(id), opportunity_id uuid NOT NULL REFERENCES marketing_opportunities(id),
@@ -66,3 +75,5 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.fish_reserve_operator(uuid,uuid,text,text,text,text) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.fish_reserve_operator(uuid,uuid,text,text,text,text) TO service_role;
+
+ELSE INSERT INTO private.recovered_dependency_patches(id) VALUES ('20261110182246_fish_sales_and_operator_routing.sql') ON CONFLICT DO NOTHING; END IF; END $defer_recovered_6$;

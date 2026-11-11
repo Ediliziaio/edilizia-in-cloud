@@ -174,4 +174,4 @@ create trigger trg_employees_autolink_user
   for each row execute function public.fn_employees_autolink_user();
 
 select
-  (select count(*) from employees where user_id is not null) as agganciati,
+  (select count(*) from employees where user_id is not null) as agganciati;

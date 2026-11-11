@@ -4,6 +4,8 @@
 -- Sotto c'è l'SQL esattamente come applicato.
 
 -- ITALA: original tax breakdown and atomic issued-invoice import.
+-- La colonna canonica dell’impronta arriva dopo il file recuperato.
+alter table public.fatture_ricevute add column if not exists xml_sha256 text;
 set local lock_timeout = '3s';
 alter table public.invoices add column if not exists external_tax_summary jsonb not null default '[]'::jsonb;
 alter table public.invoices add column if not exists external_document_type text;

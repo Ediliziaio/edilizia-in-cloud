@@ -85,14 +85,16 @@ BEGIN
 END $$;
 
 -- Catalogo effettivo per la UI: ogni azione + autorizzazione risolta per chi chiama.
+-- Keep the expanded result contract already introduced by the recovered May patch.
+ALTER TABLE public.silvio_azioni ADD COLUMN IF NOT EXISTS ambito text NOT NULL DEFAULT 'generale';
 CREATE OR REPLACE FUNCTION public.silvio_catalogo()
 RETURNS TABLE (
   chiave text, descrizione text, modulo text, funzione_target text,
-  reversibilita text, categoria_rischio text, autorizzazione_default text,
+  reversibilita text, categoria_rischio text, ambito text, autorizzazione_default text,
   autorizzazione_effettiva text, ruoli_consentiti text[], attiva boolean
 ) LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
   SELECT a.chiave, a.descrizione, a.modulo, a.funzione_target,
-         a.reversibilita, a.categoria_rischio, a.autorizzazione AS autorizzazione_default,
+         a.reversibilita, a.categoria_rischio, a.ambito, a.autorizzazione AS autorizzazione_default,
          public.silvio_puo_eseguire(a.chiave) AS autorizzazione_effettiva,
          coalesce(o.ruoli_consentiti, a.ruoli_consentiti) AS ruoli_consentiti,
          coalesce(o.attiva, a.attiva) AS attiva
@@ -147,19 +149,25 @@ ALTER TABLE public.silvio_azioni_override ENABLE ROW LEVEL SECURITY;
 
 -- catalogo: leggibile da ogni utente autenticato; scrittura solo service/super
 DROP POLICY IF EXISTS silvio_azioni_read ON public.silvio_azioni;
+DROP POLICY IF EXISTS silvio_azioni_read ON public.silvio_azioni;
 CREATE POLICY silvio_azioni_read ON public.silvio_azioni FOR SELECT TO authenticated USING (true);
 DROP POLICY IF EXISTS silvio_azioni_service ON public.silvio_azioni;
+DROP POLICY IF EXISTS silvio_azioni_service ON public.silvio_azioni;
 CREATE POLICY silvio_azioni_service ON public.silvio_azioni FOR ALL TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS silvio_azioni_super ON public.silvio_azioni;
 DROP POLICY IF EXISTS silvio_azioni_super ON public.silvio_azioni;
 CREATE POLICY silvio_azioni_super ON public.silvio_azioni FOR ALL TO authenticated USING (public.is_super_admin(auth.uid())) WITH CHECK (public.is_super_admin(auth.uid()));
 
 -- override: staff interno della propria azienda
 DROP POLICY IF EXISTS silvio_ovr_staff ON public.silvio_azioni_override;
+DROP POLICY IF EXISTS silvio_ovr_staff ON public.silvio_azioni_override;
 CREATE POLICY silvio_ovr_staff ON public.silvio_azioni_override FOR ALL TO authenticated
   USING (company_id = public.get_effective_company_id() AND public.is_email_staff_interno())
   WITH CHECK (company_id = public.get_effective_company_id() AND public.is_email_staff_interno());
 DROP POLICY IF EXISTS silvio_ovr_service ON public.silvio_azioni_override;
+DROP POLICY IF EXISTS silvio_ovr_service ON public.silvio_azioni_override;
 CREATE POLICY silvio_ovr_service ON public.silvio_azioni_override FOR ALL TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS silvio_ovr_super ON public.silvio_azioni_override;
 DROP POLICY IF EXISTS silvio_ovr_super ON public.silvio_azioni_override;
 CREATE POLICY silvio_ovr_super ON public.silvio_azioni_override FOR ALL TO authenticated USING (public.is_super_admin(auth.uid()));
 

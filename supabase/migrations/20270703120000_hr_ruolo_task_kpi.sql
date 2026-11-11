@@ -72,21 +72,25 @@ ALTER TABLE public.hr_task ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.hr_kpi ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.hr_kpi_valori ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS hr_mansioni_admin ON public.hr_mansioni;
 CREATE POLICY hr_mansioni_admin ON public.hr_mansioni
   FOR ALL
   USING (company_id = get_my_company_id() AND (has_role(auth.uid(), 'company_admin'::app_role) OR has_role(auth.uid(), 'super_admin'::app_role)))
   WITH CHECK (company_id = get_my_company_id() AND (has_role(auth.uid(), 'company_admin'::app_role) OR has_role(auth.uid(), 'super_admin'::app_role)));
 
+DROP POLICY IF EXISTS hr_task_admin ON public.hr_task;
 CREATE POLICY hr_task_admin ON public.hr_task
   FOR ALL
   USING (company_id = get_my_company_id() AND (has_role(auth.uid(), 'company_admin'::app_role) OR has_role(auth.uid(), 'super_admin'::app_role)))
   WITH CHECK (company_id = get_my_company_id() AND (has_role(auth.uid(), 'company_admin'::app_role) OR has_role(auth.uid(), 'super_admin'::app_role)));
 
+DROP POLICY IF EXISTS hr_kpi_admin ON public.hr_kpi;
 CREATE POLICY hr_kpi_admin ON public.hr_kpi
   FOR ALL
   USING (company_id = get_my_company_id() AND (has_role(auth.uid(), 'company_admin'::app_role) OR has_role(auth.uid(), 'super_admin'::app_role)))
   WITH CHECK (company_id = get_my_company_id() AND (has_role(auth.uid(), 'company_admin'::app_role) OR has_role(auth.uid(), 'super_admin'::app_role)));
 
+DROP POLICY IF EXISTS hr_kpi_valori_admin ON public.hr_kpi_valori;
 CREATE POLICY hr_kpi_valori_admin ON public.hr_kpi_valori
   FOR ALL
   USING (EXISTS (SELECT 1 FROM public.hr_kpi k WHERE k.id = hr_kpi_valori.kpi_id AND k.company_id = get_my_company_id())

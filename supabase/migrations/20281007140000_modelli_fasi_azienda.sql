@@ -344,3 +344,9 @@ revoke all on function public.inizializza_modelli_fasi(uuid, jsonb, boolean) fro
 grant execute on function public.inizializza_modelli_fasi(uuid, jsonb, boolean) to authenticated;
 revoke all on function public.aggiungi_fasi_commessa(uuid, jsonb) from public, anon;
 grant execute on function public.aggiungi_fasi_commessa(uuid, jsonb) to authenticated;
+
+-- Profilo del contratto recuperato: richiede la tabella appena creata.
+alter table public.company_fasi_settings add column if not exists contract_workflow_profile text not null default 'standard' constraint company_fasi_settings_contract_workflow_check check (contract_workflow_profile in ('standard', 'manutenzione_stradale_su_ordine'));
+
+-- Ambito dei modelli recuperato dopo la loro creazione.
+alter table public.work_phase_templates add column if not exists template_scope text not null default 'cantiere' check(template_scope in ('cantiere','contratto'));

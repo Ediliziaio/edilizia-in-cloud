@@ -34,8 +34,11 @@ BEGIN
     USING (NOT (SELECT public.utente_bloccato())) WITH CHECK (NOT (SELECT public.utente_bloccato()));
   ALTER POLICY blocco_utente_bloccato ON public.nps_surveys
     USING (NOT (SELECT public.utente_bloccato())) WITH CHECK (NOT (SELECT public.utente_bloccato()));
+  -- Optional/archived table: optimize only an existing policy, never create or weaken one.
+  IF EXISTS(SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='openapi_document_requests' AND policyname='blocco_utente_bloccato') THEN
   ALTER POLICY blocco_utente_bloccato ON public.openapi_document_requests
     USING (NOT (SELECT public.utente_bloccato())) WITH CHECK (NOT (SELECT public.utente_bloccato()));
+  END IF;
   ALTER POLICY blocco_utente_bloccato ON public.operatori_presenza
     USING (NOT (SELECT public.utente_bloccato())) WITH CHECK (NOT (SELECT public.utente_bloccato()));
   ALTER POLICY blocco_utente_bloccato ON public.opportunity_loss_reasons
@@ -54,8 +57,11 @@ BEGIN
     USING (NOT (SELECT public.utente_bloccato())) WITH CHECK (NOT (SELECT public.utente_bloccato()));
   ALTER POLICY blocco_utente_bloccato ON public.order_messages
     USING (NOT (SELECT public.utente_bloccato())) WITH CHECK (NOT (SELECT public.utente_bloccato()));
+  -- Optional/archived table: optimize only an existing policy, never create or weaken one.
+  IF EXISTS(SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='order_phase_assignments' AND policyname='blocco_utente_bloccato') THEN
   ALTER POLICY blocco_utente_bloccato ON public.order_phase_assignments
     USING (NOT (SELECT public.utente_bloccato())) WITH CHECK (NOT (SELECT public.utente_bloccato()));
+  END IF;
   ALTER POLICY blocco_utente_bloccato ON public.order_statuses
     USING (NOT (SELECT public.utente_bloccato())) WITH CHECK (NOT (SELECT public.utente_bloccato()));
   ALTER POLICY blocco_utente_bloccato ON public.order_task_template

@@ -74,6 +74,6 @@ DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM pg_extension WHERE extname='pg_cron')
      AND EXISTS (SELECT 1 FROM pg_extension WHERE extname='pg_net') THEN
     PERFORM cron.schedule('email-ai-dispatch-fatture-7min','*/7 * * * *',
-      $cron$ SELECT public.silvio_email_dispatch_fatture(current_setting('app.proactive_cron_secret', true), 5); $cron$);
+      $cron$ SELECT public.silvio_email_dispatch_fatture((select decrypted_secret from vault.decrypted_secrets where name = 'proactive_cron_secret'), 5); $cron$);
   END IF;
 END $$;

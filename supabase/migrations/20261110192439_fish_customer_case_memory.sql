@@ -1,3 +1,12 @@
+-- Fresh reconstruction only: production already applied these recovered files.
+-- Markers are created only where a recovered patch precedes its actual dependencies.
+set local lock_timeout='3s';
+set local statement_timeout='60s';
+create schema if not exists private;
+create table if not exists private.recovered_dependency_patches(id text primary key);
+alter table private.recovered_dependency_patches enable row level security;
+revoke all on private.recovered_dependency_patches from public,anon,authenticated,service_role;
+DO $defer_recovered_8$ BEGIN IF to_regclass('public.ai_fish_crm_trials') is not null and to_regclass('public.ticket_ai_conversations') is not null THEN
 -- Customer memory and explicitly confirmed updates; the original request is preserved.
 ALTER TABLE public.ai_fish_crm_trials ADD COLUMN ticket_action text CHECK(ticket_action IN ('created','updated'));
 CREATE TABLE public.ticket_ai_actions (
@@ -83,3 +92,5 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.fish_resume_trial_ticket(uuid,uuid,uuid,uuid,uuid,text) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.fish_resume_trial_ticket(uuid,uuid,uuid,uuid,uuid,text) TO service_role;
+
+ELSE INSERT INTO private.recovered_dependency_patches(id) VALUES ('20261110192439_fish_customer_case_memory.sql') ON CONFLICT DO NOTHING; END IF; END $defer_recovered_8$;

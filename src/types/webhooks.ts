@@ -66,4 +66,8 @@ export interface WebhookDelivery {
   attempt_count: number;
   last_attempt_at: string;
   created_at: string;
+  event_id?: string | null;
+  occurred_at?: string | null;
+  next_attempt_at?: string | null;
+  lease_until?: string | null;
 }
