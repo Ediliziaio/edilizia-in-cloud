@@ -293,6 +293,7 @@ jobs:
           src/test/logic/riconciliazioneFattureAI.test.ts
           src/test/logic/riconciliazioneCompleta.test.ts
           src/test/ui/originaliConfronto.test.tsx
+          src/test/ui/pdfOriginaleCanvas.test.tsx
           src/test/ui/confrontoFatturaDialog.test.tsx
           src/test/ui/riconciliazioneFatturaAI.test.tsx
           src/test/ui/ripartizioneQuantitaFattura.test.tsx
