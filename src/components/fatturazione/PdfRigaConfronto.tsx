@@ -14,16 +14,17 @@ interface PropsPdfOriginale {
   url: string;
   nome: string;
   ricerca?: string;
+  paginaIniziale?:number;
 }
 export function PdfRigaConfronto(props: PropsPdfOriginale) {
   return (
     <PdfOriginaleCanvas
-      key={`${props.url}:${props.ricerca ?? ""}`}
+      key={`${props.url}:${props.ricerca ?? ""}:${props.paginaIniziale??1}`}
       {...props}
     />
   );
 }
-function PdfOriginaleCanvas({ url, nome, ricerca = "" }: PropsPdfOriginale) {
+function PdfOriginaleCanvas({ url, nome, ricerca = "",paginaIniziale=1 }: PropsPdfOriginale) {
   const doc = useRef<PDFDocumentProxy | null>(null),
     canvas = useRef<HTMLCanvasElement | null>(null);
   const [pronto, setPronto] = useState(false),
@@ -31,7 +32,7 @@ function PdfOriginaleCanvas({ url, nome, ricerca = "" }: PropsPdfOriginale) {
     [paginaLetta, setPaginaLetta] = useState(0),
     [totale, setTotale] = useState(0),
     [indice, setIndice] = useState(0),
-    [paginaPdf, setPaginaPdf] = useState(1),
+    [paginaPdf, setPaginaPdf] = useState(Math.max(1,paginaIniziale)),
     [avvisoRicerca, setAvvisoRicerca] = useState<string | null>(null),
     [errore, setErrore] = useState<string | null>(null);
   const [box, setBox] = useState<{
@@ -63,6 +64,7 @@ function PdfOriginaleCanvas({ url, nome, ricerca = "" }: PropsPdfOriginale) {
         }
         doc.current = p;
         setTotale(p.numPages);
+        setPaginaPdf(n=>Math.min(n,p.numPages));
         setPronto(true);
       } catch {
         if (!annullato)

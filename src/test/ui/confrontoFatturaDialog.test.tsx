@@ -276,11 +276,11 @@ describe("confronto affiancato della fattura", () => {
       { target: { value: "o" } },
     );
     fireEvent.mouseDown(
-      within(destra).getByRole("tab", { name: "PDF / foto originali" }),
+      within(destra).getByRole("tab", { name: "Conferma fornitore" }),
       { button: 0, ctrlKey: false },
     );
     expect(
-      within(destra).getByText(/Nessun file originale conservato/),
+      within(destra).getByText(/Nessuna conferma del fornitore caricata/),
     ).toBeTruthy();
   });
   it("mantiene la vista originale e carica subito il nuovo PDF o la nuova foto cambiando documento", async () => {
@@ -301,7 +301,7 @@ describe("confronto affiancato della fattura", () => {
     expect(await screen.findByAltText("Originale ordine.png")).toBeTruthy();
     expect(screen.queryByTitle("Originale bolla.pdf")).toBeNull();
     expect(
-      within(destra).getByRole("tab", { name: "PDF / foto originali" }),
+      within(destra).getByRole("tab", { name: "Conferma fornitore" }),
     ).toHaveAttribute("aria-selected", "true");
   });
   it("collega direttamente la bolla visualizzata usando ID e azienda della fattura", async () => {

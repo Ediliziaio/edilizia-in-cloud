@@ -14,18 +14,26 @@ export interface ControlloDocumento {
   tipo: "offerta" | "conferma";
   file_path: string | null;
   file_nome: string | null;
-  stato: "in_lettura" | "letto";
+  stato: "in_lettura" | "letto" | "errore";
   esito: Esito | null;
   righe: RigaConfronto[];
   accettato_motivo: string | null;
   accettato_il: string | null;
   created_at: string;
+  versione?: number;
+  impronta_ordine?: string|null;
+  base_ordine?: import("../../../supabase/functions/_shared/revisioniConferma").BaseConferma|null;
+  errore?: string|null;
+  originale_path?: string|null;
+  originale_mime?: string|null;
+  lettura?: import("../../../supabase/functions/_shared/revisioniConferma").LetturaConferma|null;
+  decisioni_storico?:Array<{azione:string;chiave?:string;nota?:string;utente:string;data:string;versione:number}>;
 }
 
 export const ESITO_LABEL: Record<Esito, string> = {
-  verde: "Giusto",
-  giallo: "Da guardare",
-  rosso: "Errore",
+  verde: "Coerente",
+  giallo: "Differenza",
+  rosso: "Differenza",
   da_controllare: "Da controllare",
 };
 

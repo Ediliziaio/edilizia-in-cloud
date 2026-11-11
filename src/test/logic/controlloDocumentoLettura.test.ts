@@ -36,9 +36,10 @@ function nuovoDb() {
     email_inbox: [{ id: "m1", company_id: "az", purchase_order_id: "altro" }],
   });
   db.rispostaRpc.has_permission_for_company = true;
+  db.rispostaRpc.controllo_documento_base = {impronta:"rev1",fonte:"ordine_corrente",testata:{numero:"ODA-TEST"},righe:db.righe("purchase_order_items")};
   db.rifiuta = (tabella, riga) => {
     if (tabella !== "controlli_documento_fornitore") return null;
-    const doppia = db.righe(tabella).some((r) => r.file_hash === riga.file_hash && r.tipo === riga.tipo && r.purchase_order_id === riga.purchase_order_id && r.rfq_supplier_id === riga.rfq_supplier_id);
+    const doppia = db.righe(tabella).some((r) => r.impronta_ordine === riga.impronta_ordine && r.file_hash === riga.file_hash && r.tipo === riga.tipo && r.purchase_order_id === riga.purchase_order_id && r.rfq_supplier_id === riga.rfq_supplier_id);
     return doppia ? { message: "duplicate key", code: "23505" } : null;
   };
   return db;
@@ -100,11 +101,12 @@ describe("il controllo del documento nella funzione", () => {
     expect(db.righe("controlli_documento_fornitore")).toHaveLength(1);
   });
 
-  it("lettura fallita: non resta niente e si può riprovare", async () => {
+  it("lettura fallita: originale conservato e risultato riprovabile", async () => {
     ai.ko = true;
     const { controllaDocumento } = await modulo();
     await expect(controllaDocumento({ tipo: "conferma", purchase_order_id: "po", document_base64: pdf("x") }, "u", db.client, {})).rejects.toBeInstanceOf(Response);
-    expect(db.righe("controlli_documento_fornitore")).toHaveLength(0);
+    expect(db.righe("controlli_documento_fornitore")).toHaveLength(1);
+    expect(db.righe("controlli_documento_fornitore")[0]).toMatchObject({stato:"errore",file_path:expect.stringContaining("order-attachments/")});
   });
 
   it("conferma uguale all'offerta già controllata: non si rilegge", async () => {
@@ -114,6 +116,7 @@ describe("il controllo del documento nella funzione", () => {
     const offerta = db.righe("controlli_documento_fornitore")[0];
     offerta.esito = "verde"; offerta.stato = "letto";
     ai.chiamate = [];
+    db.rispostaRpc.controllo_documento_base = {...db.rispostaRpc.controllo_documento_base as object,righe:db.righe("purchase_order_items")};
     const r = await chiedi({ document_base64: pdf("stesso") });
     expect(ai.chiamate).toHaveLength(0);
     expect(r.status).toBe(200);
@@ -128,4 +131,18 @@ describe("il controllo del documento nella funzione", () => {
     expect((await chiedi()).status).toBe(403);
     expect(ai.chiamate).toHaveLength(0);
   });
+  it("stesso PDF su una nuova revisione: conserva entrambi i controlli e riusa solo la trascrizione", async()=>{
+    await chiedi();
+    const nuova=structuredClone(db.rispostaRpc.controllo_documento_base) as {impronta:string;righe:Array<Record<string,unknown>>};
+    nuova.impronta="rev2";nuova.righe[0].quantity=2;db.rispostaRpc.controllo_documento_base=nuova;
+    const r=await chiedi();expect(r.esito).toBe("rosso");expect(db.righe("controlli_documento_fornitore")).toHaveLength(2);expect(ai.chiamate).toHaveLength(1);
+  });
+  it("una lettura di 9 pagine su 10 resta da controllare",async()=>{
+    ai.risposta={righe:[giusta],pagine_lette:9,pagine_totali:10,lettura_completa:true};
+    const r=await chiedi({pagine_attese:10});expect(r.esito).toBe("da_controllare");
+  });
+  it("il documento che cita un altro ordine non diventa conforme",async()=>{
+    ai.risposta={righe:[giusta],riferimenti_ordini:["ALTRO-ODA"]};expect((await chiedi()).esito).toBe("da_controllare");
+  });
+
 });

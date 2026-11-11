@@ -240,7 +240,19 @@ export function useOriginaliConfronto(
         documento.dati.attachment_url,
         "order-attachments",
       );
-      const files: OriginaleConfronto[] = file ? [file] : [];
+      const files: OriginaleConfronto[] = file ? [{...file,tipo:"fornitore",etichetta:"Allegato fornitore"}] : [];
+      const conferme = await tutte(() => db.from("controlli_documento_fornitore")
+        .select("id,file_path,file_nome,stato,accettato_il,created_at,impronta_ordine,originale_path,originale_mime")
+        .eq("company_id",companyId).eq("purchase_order_id",documento.id).eq("tipo","conferma")
+        .order("created_at",{ascending:false}).order("id"));
+      const {data:baseAttuale}=conferme.some(c=>c.accettato_il)?await db.rpc("controllo_documento_base",{p_po:documento.id,p_rfq:null}):{data:null};
+      for (const c of conferme) {
+        const lettura = originaleDaRiferimento(c.file_path,"order-attachments",String(c.file_nome || "Conferma del fornitore"),String(c.file_path||'').endsWith('.pdf')?'application/pdf':String(c.file_path||'').endsWith('.png')?'image/png':'image/jpeg');
+        const originale=c.originale_path?originaleDaRiferimento(c.originale_path,'order-attachments',String(c.file_nome),c.originale_mime):null;
+        const f=originale&&lettura?{...originale,previewPath:lettura.path,previewMime:lettura.mime}:lettura;
+        const etichetta=c.accettato_il?(c.impronta_ordine&&c.impronta_ordine===baseAttuale?.impronta?'Approvata':'Approvata su versione precedente'):c.stato==='errore'?'Lettura da riprovare':'Ricevuta';
+        if (f) files.push({...f,tipo:"fornitore",controlloId:String(c.id),etichetta:`${etichetta} · ${String(c.created_at).slice(0,10).split("-").reverse().join("/")}`});
+      }
       const eventi = await tutte(() =>
         db
           .from("procurement_document_events")
@@ -248,6 +260,7 @@ export function useOriginaliConfronto(
           .eq("company_id", companyId)
           .eq("purchase_order_id", documento.id)
           .eq("kind", "email")
+          .eq("operation", "sent")
           .order("created_at", { ascending: false })
           .order("id"),
       );
@@ -261,7 +274,7 @@ export function useOriginaliConfronto(
             String(f.filename || "PDF ordine inviato"),
             f.mime,
           );
-          if (originale) files.push(originale);
+          if (originale) files.push({...originale,tipo:"inviato",etichetta:`Inviato · ${String(e.created_at).slice(0,10).split("-").reverse().join("/")}`});
         }
       }
       return [...new Map(files.map((f) => [f.id, f])).values()];

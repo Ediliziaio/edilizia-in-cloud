@@ -39,6 +39,8 @@ import {
   useOriginaliConfronto,
 } from "@/hooks/useConfrontoFattura";
 import { OriginaliConfronto } from "./OriginaliConfronto";
+import { OriginaliOrdineConfronto } from "@/components/acquisti/OriginaliOrdineConfronto";
+import { RiepilogoConfronto, CLASSE_DIALOG_CONFRONTO, PannelliConfrontoMobile } from "@/components/acquisti/RiepilogoConfronto";
 import { VerificaFatturaPill } from "./VerificaFatturaPill";
 import {
   useRiconciliazioneFatturaAI,
@@ -209,6 +211,8 @@ export function ConfrontoFatturaDialog({
     : null;
   const documenti = useMemo(() => q.data?.documenti ?? [], [q.data?.documenti]);
   const [attivo, setAttivo] = useState("");
+  const [pannelloMobile,setPannelloMobile]=useState("sinistra");
+  const [filtroRighe,setFiltroRighe]=useState("tutte");
   const [selezione, setSelezione] = useState<Set<string> | null>(null);
   const [controllo, setControllo] = useState(false);
   const [revisioneAperta, setRevisioneAperta] = useState(false);
@@ -434,7 +438,7 @@ export function ConfrontoFatturaDialog({
       }}
     >
       <DialogContent
-        className="flex h-[94dvh] max-h-[94dvh] w-[calc(100vw-1rem)] max-w-[1600px] flex-col gap-0 overflow-hidden p-0 sm:w-[calc(100vw-2rem)]"
+        className={CLASSE_DIALOG_CONFRONTO}
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <DialogHeader className="shrink-0 border-b px-4 py-3 pr-12 sm:px-6">
@@ -512,6 +516,11 @@ export function ConfrontoFatturaDialog({
                   : "Analizza con AI"}
           </Button>
         </div>
+        <div className="shrink-0 border-b px-4 py-2 sm:px-6"><RiepilogoConfronto indicatori={[
+          {label:"Voci coerenti",valore:esiti.filter(e=>e.stato==="coerente").length,tono:"verde",attivo:filtroRighe==="coerenti",onClick:()=>setFiltroRighe(filtroRighe==="coerenti"?"tutte":"coerenti")},
+          {label:"Da verificare",valore:esiti.filter(e=>e.stato!=="coerente").length,tono:"ambra",attivo:filtroRighe==="differenze",onClick:()=>setFiltroRighe(filtroRighe==="differenze"?"tutte":"differenze")},
+          {label:"Documenti selezionati",valore:scelti.size,onClick:()=>setFiltroRighe("tutte")},
+        ]}/></div>
         {import.meta.env.DEV && parametri.has("qa_riconciliazione") && (
           <SimulazioniRiconciliazioneAI
             fatturaId={id}
@@ -571,10 +580,11 @@ export function ConfrontoFatturaDialog({
             </button>
           </div>
         ) : (
+          <div className="contents"><PannelliConfrontoMobile valore={pannelloMobile} onChange={setPannelloMobile} sinistra="Fattura" destra="DDT e ordini"/>
           <div className="min-h-0 flex-1 overflow-y-auto lg:grid lg:grid-cols-2 lg:grid-rows-[auto_auto_minmax(0,1fr)] lg:overflow-hidden">
             <section
               aria-label="Fattura ricevuta"
-              className="min-w-0 border-b lg:row-span-3 lg:grid lg:min-h-0 lg:[grid-template-rows:subgrid] lg:border-b-0 lg:border-r"
+              className={`${pannelloMobile==="sinistra"?"block":"hidden"} min-w-0 border-b lg:row-span-3 lg:grid lg:min-h-0 lg:[grid-template-rows:subgrid] lg:border-b-0 lg:border-r`}
             >
               <div className="space-y-2 border-b bg-background px-4 py-3 sm:px-6">
                 <div className="flex min-h-8 items-center justify-between gap-3">
@@ -689,6 +699,7 @@ export function ConfrontoFatturaDialog({
                           {righe.map((r, i) => (
                             <tr
                               key={`${r.id}-${i}`}
+                              hidden={filtroRighe==="coerenti"&&esiti[i]?.stato!=="coerente"||filtroRighe==="differenze"&&esiti[i]?.stato==="coerente"}
                               ref={(el) => {
                                 if (el) righeFatturaRef.current.set(i, el);
                                 else righeFatturaRef.current.delete(i);
@@ -816,7 +827,7 @@ export function ConfrontoFatturaDialog({
             </section>
             <section
               aria-label="DDT e ordini di confronto"
-              className="flex min-w-0 flex-col bg-muted/10 lg:row-span-3 lg:grid lg:min-h-0 lg:[grid-template-rows:subgrid] lg:overflow-hidden"
+              className={`${pannelloMobile==="destra"?"flex":"hidden"} min-w-0 flex-col bg-muted/10 lg:row-span-3 lg:grid lg:min-h-0 lg:[grid-template-rows:subgrid] lg:overflow-hidden`}
             >
               <div className="shrink-0 space-y-2 border-b bg-background px-4 py-3 sm:px-6">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1031,16 +1042,14 @@ export function ConfrontoFatturaDialog({
                 </p>
               ) : (
                 <Tabs
-                  value={vistaDocumento}
+                  value={doc.tipo==="oda"&&vistaDocumento==="originale"?"fornitore":doc.tipo==="ddt"&&["inviato","fornitore"].includes(vistaDocumento)?"originale":vistaDocumento}
                   onValueChange={setVistaDocumento}
                   className="flex min-h-0 flex-1 flex-col lg:contents"
                 >
                   <div className="flex shrink-0 flex-wrap items-center gap-2 px-4 pt-3 pb-2 sm:px-6">
                     <TabsList>
                       <TabsTrigger value="righe">Righe</TabsTrigger>
-                      <TabsTrigger value="originale">
-                        PDF / foto originali
-                      </TabsTrigger>
+                      {doc.tipo==="oda"?<><TabsTrigger value="inviato">PDF nostro</TabsTrigger><TabsTrigger value="fornitore">Conferma fornitore</TabsTrigger></>:<TabsTrigger value="originale">PDF / foto originali</TabsTrigger>}
                     </TabsList>
                     {vistaDocumento === "righe" && (
                       <Button
@@ -1146,12 +1155,13 @@ export function ConfrontoFatturaDialog({
                       </p>
                     )}
                   </TabsContent>
+                  {(doc.tipo==="oda"?["inviato","fornitore"]:["originale"]).map(vista=>(
                   <TabsContent
-                    key={`${doc.id}-originale`}
-                    value="originale"
+                    key={`${doc.id}-${vista}`}
+                    value={vista}
                     className="mt-0 min-h-0 flex-1 overflow-auto p-4 pt-1 sm:px-6"
                   >
-                    {originali.isLoading ? (
+                    {doc.tipo==="oda"?<OriginaliOrdineConfronto companyId={companyId} ordineId={doc.id} numero={doc.numero} attachmentUrl={typeof doc.dati.attachment_url==="string"?doc.dati.attachment_url:undefined} tipo={vista==="inviato"?"inviato":"fornitore"} adatta/>:originali.isLoading ? (
                       <p role="status" className="text-sm">
                         Cerco gli originali…
                       </p>
@@ -1176,16 +1186,17 @@ export function ConfrontoFatturaDialog({
                             : undefined
                         }
                         key={doc.id}
-                        files={originali.data ?? []}
+                        files={(originali.data ?? []).filter(f=>vista==="originale"||(f.tipo??"fornitore")===vista)}
                         companyId={companyId}
                         adatta
                       />
                     )}
                   </TabsContent>
+                  ))}
                 </Tabs>
               )}
             </section>
-          </div>
+          </div></div>
         )}
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t bg-background px-4 py-3 sm:px-6">
           <div className="text-xs text-muted-foreground">

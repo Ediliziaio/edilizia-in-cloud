@@ -12,7 +12,9 @@ export function ProposteOrdiniDDT({
   ddtId,
   righe,
   ordini,
+  compatto=false,
 }: {
+  compatto?:boolean;
   ddtId: string;
   righe: DDTRiga[];
   ordini: RigaOrdine[];
@@ -67,11 +69,11 @@ export function ProposteOrdiniDDT({
       toast.error("Abbinamento non salvato", { description: e.message }),
   });
   return (
-    <div className="space-y-3 rounded-xl border border-violet-100 bg-violet-50/30 p-3">
+    <div className={compatto?"space-y-2":"space-y-3 rounded-xl border border-violet-100 bg-violet-50/30 p-3"}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-sm font-medium">
-            Trova le corrispondenze con l’AI
+          <p className="text-xs font-medium">
+            Controllo delle corrispondenze
           </p>
           <p className="text-xs text-muted-foreground">
             L’AI confronta gli articoli; le quantità e gli arrivi restano da
@@ -97,7 +99,7 @@ export function ProposteOrdiniDDT({
           ) : (
             <Sparkles className="mr-1.5 h-4 w-4" />
           )}
-          Abbina con AI
+          Controlla con AI
         </Button>
       </div>
       {analisi.isError && (
@@ -106,7 +108,7 @@ export function ProposteOrdiniDDT({
         </p>
       )}
       {!!proposte.length && (
-        <ul className="divide-y rounded-lg border bg-white">
+        <ul className="max-h-44 divide-y overflow-auto rounded-lg border bg-white">
           {proposte.map((p) => {
             const r = righe.find((r) => r.id === p.riga_id);
             if (!r) return null;

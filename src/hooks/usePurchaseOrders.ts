@@ -57,6 +57,9 @@ export interface PurchaseOrderItem {
   misure_testo?: string | null;
   riferimento?: string | null;
   misure_fonte?: string | null;
+  misure?: Record<string, unknown> | null;
+  colore?: string | null;
+  apertura?: string | null;
   /** Prezzo ricavato da un'offerta a corpo, ripartita sui mq. */
   ripartito?: boolean;
   sku: string | null;

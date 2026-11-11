@@ -11,6 +11,9 @@ export interface OriginaleConfronto {
   url?: string;
   previewPath?: string;
   previewMime?: string;
+  tipo?: "inviato" | "fornitore";
+  etichetta?: string;
+  controlloId?: string;
 }
 const stringa = (v: unknown) => (typeof v === "string" ? v : "");
 export function mimeOriginale(nome: string, mime?: unknown): string {

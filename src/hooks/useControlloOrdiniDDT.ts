@@ -9,6 +9,7 @@ export interface OrdineCollegatoDDT {
   oda_number: string;
   status: string;
   order_id: string | null;
+  attachment_url?:string|null;
 }
 export function useControlloOrdiniDDT(ddt: DDTRicezione) {
   return useQuery({
@@ -44,7 +45,7 @@ export function useControlloOrdiniDDT(ddt: DDTRicezione) {
         loadCatalogPages<OrdineCollegatoDDT>((a, b) =>
           db
             .from("purchase_orders")
-            .select("id,oda_number,status,order_id")
+            .select("id,oda_number,status,order_id,attachment_url")
             .eq("company_id", ddt.company_id)
             .in("id", ids)
             .order("id")
