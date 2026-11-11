@@ -298,6 +298,15 @@ jobs:
           src/test/ui/ripartizioneQuantitaFattura.test.tsx
           src/test/ui/verificaFatturaSalvataggio.test.tsx
 
+      - name: Verify partial deliveries and multiple purchase orders
+        if: matrix.group == 'worksite'
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/logic/ddtControlloOrdini.test.ts
+          src/test/logic/ddtOrdiniMultipliSql.test.ts
+          src/test/logic/ddtConfrontoAI.test.ts
+          src/test/ui/controlloOrdiniDDT.test.tsx
+
       - name: Verify reconciliation SQL and concurrent saves in isolated Postgres
         if: matrix.group == 'economics'
         env:

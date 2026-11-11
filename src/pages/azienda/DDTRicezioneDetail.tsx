@@ -37,6 +37,7 @@ import { DDTRigheCard } from "@/components/ddt/DDTRigheCard";
 import { DDTOriginaliCard } from "@/components/ddt/DDTOriginaliCard";
 import { PrezziDaFatturaCard } from "@/components/ddt/PrezziDaFatturaCard";
 import { ConsegneDDTCard } from "@/components/ddt/ConsegneDDTCard";
+import { ControlloOrdiniDDTCard } from "@/components/ddt/ControlloOrdiniDDTCard";
 import { ArrivoPosizioniPanel } from "@/components/ddt/ArrivoPosizioniPanel";
 import { importoRiga } from "@/lib/ddt/letturaAI";
 import { Badge } from "@/components/ui/badge";
@@ -821,7 +822,8 @@ export default function DDTRicezioneDetail() {
           {/* Le posizioni su misura dell'ordine: la bolla propone, chi riceve conferma. */}
           {ddt?.purchase_order_id && <ArrivoPosizioniPanel odaId={ddt.purchase_order_id} ddtId={ddtId} nascondiSeVuoto />}
 
-          <ConsegneDDTCard key={ddt.id} ddt={ddt} />
+          <ControlloOrdiniDDTCard key={`controllo:${ddt.id}`} ddt={ddt} />
+          <div id="consegne-ddt" className="scroll-mt-5"><ConsegneDDTCard key={ddt.id} ddt={ddt} /></div>
           <PrezziDaFatturaCard key={`prezzi:${ddt.id}`} ddt={ddt} />
 
           {ddt.ddt_file_bucket && <DDTOriginaliCard key={`originali:${ddt.id}`} ddtId={ddt.id} companyId={ddt.company_id} />}

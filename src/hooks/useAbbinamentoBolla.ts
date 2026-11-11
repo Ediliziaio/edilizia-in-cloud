@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
+import { esigiRigaSalvata } from "@/lib/fatturazione/salvataggioFattura";
 import { abbinamentiCertiPiuOrdini, ordinateNonInBolla, ordiniDellaBolla, type RigaOrdine } from "@/lib/ddt/abbinaRigheOrdine";
 import type { DDTRiga } from "@/hooks/useDDTRicezione";
 
@@ -44,11 +46,11 @@ export function useAbbinamentoBolla(
         if (error) throw error;
         fornitore = data?.supplier_id ?? null;
       }
-      const aperti = fornitore
-        ? await db.from("purchase_orders").select("id").eq("supplier_id", fornitore).in("status", STATI_APERTI).limit(100)
-        : { data: [], error: null };
-      if (aperti.error) throw aperti.error;
-      const idOrdini = [...new Set([...(odaId ? [odaId] : []), ...(aperti.data ?? []).map((o: { id: string }) => o.id)])];
+      const [aperti, collegati] = await Promise.all([
+        fornitore ? loadCatalogPages<{ id: string }>((a, b) => db.from("purchase_orders").select("id").eq("supplier_id", fornitore).in("status", STATI_APERTI).order("id").range(a, b)) : [],
+        ddtId ? loadCatalogPages<{ id: string; purchase_order_id: string }>((a, b) => db.from("ddt_ordini_collegati").select("id,purchase_order_id").eq("ddt_id", ddtId).order("purchase_order_id").range(a, b)) : [],
+      ]);
+      const idOrdini = [...new Set([...(odaId ? [odaId] : []), ...aperti.map((o) => o.id), ...collegati.map((o) => o.purchase_order_id)])];
       const [diOrdini, abbinate] = await Promise.all([
         idOrdini.length ? db.from("purchase_order_items").select(COLONNE).in("purchase_order_id", idOrdini).order("sort_order") : { data: [], error: null },
         giaAbbinate.length ? db.from("purchase_order_items").select(COLONNE).in("id", giaAbbinate) : { data: [], error: null },
@@ -79,8 +81,10 @@ export function useAbbinamentoBolla(
     nuove.forEach(([riga]) => tentate.current.add(riga));
     void (async () => {
       const esiti = await Promise.all(nuove.map(([riga, poi]) =>
-        db.from("ddt_righe").update({ purchase_order_item_id: poi, abbinamento: "auto" }).eq("id", riga)));
-      if (esiti.some((e: { error: unknown }) => !e.error)) invalida();
+        db.from("ddt_righe").update({ purchase_order_item_id: poi, abbinamento: "auto" }).eq("id", riga).eq("ddt_ricezione_id", ddtId).is("purchase_order_item_id", null).is("arrivo_registrato_il", null).select("id").maybeSingle()));
+      if (esiti.some((e: { data: unknown }) => !!e.data)) {
+        invalida(); void queryClient.invalidateQueries({ queryKey: ["ddt-controllo-ordini"] });
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [certi, modificabile]);
@@ -88,10 +92,9 @@ export function useAbbinamentoBolla(
   /** Scelta di una persona: `null` vuol dire «non è merce di questo ordine». */
   const abbina = useMutation({
     mutationFn: async ({ riga, poi }: { riga: string; poi: string | null }) => {
-      const { error } = await db.from("ddt_righe").update({ purchase_order_item_id: poi, abbinamento: "manuale" }).eq("id", riga);
-      if (error) throw error;
+      esigiRigaSalvata(await db.from("ddt_righe").update({ purchase_order_item_id: poi, abbinamento: "manuale" }).eq("id", riga).eq("ddt_ricezione_id", ddtId).select("id").maybeSingle());
     },
-    onSuccess: invalida,
+    onSuccess: () => { invalida(); void queryClient.invalidateQueries({ queryKey: ["ddt-controllo-ordini"] }); },
     onError: (e: Error) => toast.error("Abbinamento non salvato", { description: e.message }),
   });
 

@@ -1,3 +1,6 @@
+import { progressoOrdine } from "@/lib/ddt/controlloOrdini";
+import { documentiDb } from "@/lib/ddt/documentiPersistenti";
+import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 import { DocumentoAnteprimaDialog } from "@/components/acquisti/DocumentoAnteprimaDialog";
 import { StoricoAcquistiCard } from "@/components/acquisti/StoricoAcquistiCard";
 import { AttivitaAcquistoCard } from "@/components/acquisti/AttivitaAcquistoCard";
@@ -141,11 +144,8 @@ export default function PurchaseOrderDetail() {
     queryFn: async () => {
       const { data, error } = await supabase.from("ddt_ricezione").select("*").eq("purchase_order_id", odaId!).order("data_ricezione", { ascending: false });
       if (error) throw error;
-      // Una bolla può consegnare più ordini: conta anche quella collegata a un altro ordine
-      // che ha righe di questo. Si legge dalle righe della bolla.
-      const { data: legate, error: errLegate } = await (supabase as unknown as { from: (t: string) => { select: (c: string) => { eq: (k: string, v: string) => Promise<{ data: Array<{ ddt_ricezione_id: string }> | null; error: Error | null }> } } })
-        .from("ddt_righe").select("ddt_ricezione_id, purchase_order_items!inner(purchase_order_id)").eq("purchase_order_items.purchase_order_id", odaId!);
-      if (errLegate) throw errLegate;
+      const legami = await loadCatalogPages<{ id: string; ddt_id: string }>((a, b) => documentiDb.from("ddt_ordini_collegati").select("id,ddt_id").eq("company_id", order!.company_id).eq("purchase_order_id", odaId!).order("ddt_id").range(a, b));
+      const legate = legami.map((r) => ({ ddt_ricezione_id: r.ddt_id }));
       const note = new Set((data ?? []).map((d) => d.id));
       const altre = [...new Set((legate ?? []).map((r) => r.ddt_ricezione_id))].filter((id) => !note.has(id));
       if (altre.length === 0) return data || [];
@@ -153,7 +153,7 @@ export default function PurchaseOrderDetail() {
       if (errExtra) throw errExtra;
       return [...(data ?? []), ...(extra ?? [])].sort((a, b) => String(b.data_ricezione).localeCompare(String(a.data_ricezione)));
     },
-    enabled: !!odaId,
+    enabled: !!odaId && !!order,
   });
 
   if (isLoading) {
@@ -635,9 +635,8 @@ export default function PurchaseOrderDetail() {
 
           {/* Progresso Ricezione */}
           {order.status !== "bozza" && order.status !== "annullato" && items.length > 0 && (() => {
-            const totalQty = items.reduce((s, i) => s + Number(i.quantity), 0);
-            const receivedQty = items.reduce((s, i) => s + Number(i.quantity_received || 0), 0);
-            const pct = totalQty > 0 ? Math.round((receivedQty / totalQty) * 100) : 0;
+            const avanzamento = progressoOrdine(items);
+            const pct = avanzamento.percentuale;
             return (
               <QuoteCard noHeader compact>
                 <div className="space-y-2">
@@ -645,7 +644,7 @@ export default function PurchaseOrderDetail() {
                     <span className="text-slate-500 flex items-center gap-1.5">
                       <Package className="h-3.5 w-3.5 text-orange-500" /> Ricezione merce
                     </span>
-                    <span className="font-semibold text-slate-900 tabular-nums">{receivedQty}/{totalQty} pz ({pct}%)</span>
+                    <span className="font-semibold text-slate-900 tabular-nums">{avanzamento.complete}/{avanzamento.totali} articoli completi ({pct}%)</span>
                   </div>
                   <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                     <div
@@ -655,6 +654,7 @@ export default function PurchaseOrderDetail() {
                       style={{ width: `${pct}%` }}
                     />
                   </div>
+                  {avanzamento.daCompletare > 0 && <div className="space-y-1 pt-1 text-xs">{items.filter(i => Number(i.quantity_received ?? 0) < Number(i.quantity)).map(i => <p key={i.id} className="flex justify-between gap-2"><span className="truncate text-slate-600" title={i.description}>{i.description}</span><span className="shrink-0 font-semibold text-amber-800">Mancano {(Number(i.quantity) - Number(i.quantity_received ?? 0)).toLocaleString("it-IT", { maximumFractionDigits: 4 })} {i.unit_of_measure || "· UM da verificare"}</span></p>)}</div>}
                   {pct === 100 && (
                     <p className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
                       <CheckCircle2 className="h-3 w-3" /> Tutti gli articoli ricevuti

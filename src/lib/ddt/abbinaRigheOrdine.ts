@@ -67,7 +67,7 @@ export function punteggioAbbinamento(riga: RigaBollaDaAbbinare, ordine: RigaOrdi
  */
 export function abbinamentiCerti(righe: RigaBollaDaAbbinare[], ordine: RigaOrdine[]): Record<string, string> {
   const occupate = new Set(righe.map((r) => r.purchase_order_item_id).filter(Boolean));
-  const libere = righe.filter((r) => !r.purchase_order_item_id && r.abbinamento !== "manuale");
+  const libere = righe.filter((r) => !r.purchase_order_item_id && !r.arrivo_registrato_il && r.abbinamento !== "manuale");
   const disponibili = ordine.filter((o) => !occupate.has(o.id));
   const esito: Record<string, string> = {};
 
