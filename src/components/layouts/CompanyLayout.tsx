@@ -2,7 +2,6 @@ import { useLoadingTimeout } from "@/hooks/useLoadingTimeout";
 import { useSidebarOpenArea } from "@/hooks/useSidebarOpenArea";
 import { Link, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { CompanyPageOutlet } from "./CompanyPageOutlet";
-import { useContabilitaGeneraleAttiva } from "@/components/contabilita/ContabilitaInCasa";
 import { SoftphoneProvider } from "@/components/telephony/SoftphoneProvider";
 import { navigateToSubdomain } from "@/utils/subdomainNav";
 // Apple Guideline 3.1.1 — su iOS nativo nascondiamo voci che linkano a checkout Stripe
@@ -1019,7 +1018,6 @@ const CompanySidebar = memo(function CompanySidebar() {
   }, [isImpersonating, exitImpersonation, navigate, signOut]);
 
   // La partita doppia si vede solo con «Contabilità generale in casa» accesa.
-  const { attiva: contabilitaGenerale } = useContabilitaGeneraleAttiva();
   const filterNavItems = useCallback((items: NavItem[]) => {
     // v8.6.83 — Demo Mode policy:
     //   - featureKey con access_level=preview → visibile con badge DEMO
@@ -1058,7 +1056,6 @@ const CompanySidebar = memo(function CompanySidebar() {
         if (item.url === "/azienda/contenuti-multimediali") return true;
         if (item.demoCompanyOnly && !isDemoBaseline) return false;
         if (item.multiCompanyOnly && !hasMultipleCompanies) return false;
-        if (item.soloConContabilitaGenerale && contabilitaGenerale !== true) return false;
         if (!item.featureKey) return true;
         if (item.featureKey === "billing_external" || item.featureKey === "billing_native") {
           return passesFeatureGate(item.featureKey) !== "hidden";
@@ -1072,7 +1069,6 @@ const CompanySidebar = memo(function CompanySidebar() {
       }
       if (item.demoCompanyOnly && !isDemoBaseline) return false;
       if (item.multiCompanyOnly && !hasMultipleCompanies) return false;
-      if (item.soloConContabilitaGenerale && contabilitaGenerale !== true) return false;
       // Voci con `hideWhenLocked` (es. Assistenza, moduleKey "tickets"): quando
       // il modulo NON è incluso nel piano, la voce si nasconde del tutto — niente
       // teaser DEMO — su qualunque piano con un piano risolto (limited O full),
@@ -1137,7 +1133,7 @@ const CompanySidebar = memo(function CompanySidebar() {
       }
       return true;
     }));
-  }, [permissions, gatingLoading, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan, isDemoBaseline, limitsLoading, currentPlan, isCommercialistaMode, hasMultipleCompanies, schedeManodopera, effectiveCompany?.management_mode, contabilitaGenerale]);
+  }, [permissions, gatingLoading, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan, isDemoBaseline, limitsLoading, currentPlan, isCommercialistaMode, hasMultipleCompanies, schedeManodopera, effectiveCompany?.management_mode]);
 
   const { state: sidebarState, toggleSidebar, isMobile: sidebarAPannello } = useSidebar();
   const isCollapsed = sidebarState === "collapsed" && !sidebarAPannello;

@@ -1,8 +1,9 @@
 /**
  * La Contabilità generale nel menu Contabilità (10/11/2026, docs/piano-contabilita-un-posto-solo.md).
  *
- * Prima stava dentro Fatture → Fiscalità. Si vede con l'interruttore «Contabilità generale in casa»
- * acceso; spento, la pagina dice cos'è e, a chi può, lo fa accendere (invece del piano vuoto).
+ * Prima stava dentro Fatture → Fiscalità. Dall'11/11/2026 la voce è nel menu di tutte le aziende:
+ * con l'interruttore «Contabilità generale in casa» spento la pagina dice cos'è e, a chi può, lo fa
+ * accendere (invece del piano vuoto); acceso, mostra la contabilità.
  */
 import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { Suspense } from "react";
@@ -22,8 +23,10 @@ export default function ContabilitaGeneralePagina() {
           <h1 className="text-lg font-semibold">Contabilità generale</h1>
         </div>
         <p className="text-sm text-muted-foreground">
-          La partita doppia è spenta per questa azienda. Serve a chi tiene la contabilità in casa; incassi e
-          pagamenti si registrano comunque in Prima nota, e IVA e F24 sono in Fatture → Fiscalità.
+          La partita doppia è spenta per questa azienda. Serve a chi tiene la contabilità in casa: libro giornale,
+          mastrini, bilancio, e a fine anno ammortamenti dal registro dei cespiti, rimanenze, ratei e risconti e la
+          chiusura dell'esercizio. Incassi e pagamenti si registrano comunque in Prima nota, e IVA e F24 sono in
+          Fatture → Fiscalità.
         </p>
         <ContabilitaInCasa />
       </div>

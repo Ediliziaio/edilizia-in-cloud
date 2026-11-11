@@ -24,6 +24,7 @@ import { scaricaCsv } from "@/lib/csv";
 import { FiscalSectionHeader } from "@/components/fatturazione/FiscalSectionLayout";
 import { FiscalQueryState } from "@/components/fatturazione/FiscalQueryState";
 import { RateiRiscontiFineAnno } from "@/components/contabilita/RateiRiscontiFineAnno";
+import { RegistroCespiti } from "@/components/contabilita/RegistroCespiti";
 import { RimanenzeFineAnno } from "@/components/contabilita/RimanenzeFineAnno";
 import { bilancioASezioni, bilancioCee, bilancioDiVerifica, htmlBilancioCee, htmlBilancioSezioni, htmlBilancioVerifica, saldiPerConto, type LatoBilancio } from "@/lib/contabilita/bilancioCee";
 import type { AziendaIntestazione } from "@/lib/contabilita/documentoContabile";
@@ -1122,10 +1123,9 @@ function StampaDefinitiva({ open, onOpenChange, companyId, anno, onStampa }: {
   );
 }
 
-interface QuotaAmmortamento { cespite: string; codice: string | null; costo: number; aliquota: number; fondo_inizio: number; quota: number; residuo: number }
 interface EsitoFineAnno {
-  ammortamenti: QuotaAmmortamento[]; totale_ammortamenti: number; retribuzioni: number; tfr: number;
-  ammortamenti_registrati: boolean; tfr_registrato: boolean;
+  totale_ammortamenti: number; retribuzioni: number; tfr: number;
+  ammortamenti_registrati: boolean; ammortamenti_da_aggiornare?: boolean; tfr_registrato: boolean;
 }
 interface EsitoChiusura {
   utile: number; conti_economici: number; conti_patrimoniali: number; apertura_gia_presente: boolean;
@@ -1133,7 +1133,7 @@ interface EsitoChiusura {
 }
 
 /**
- * Fine anno: ammortamenti dei cespiti (dal registro del Controllo di gestione) e TFR dai
+ * Fine anno: ammortamenti dal registro dei cespiti (RegistroCespiti) e TFR dai
  * cedolini, poi la chiusura dell'esercizio con la riapertura dei conti al 1° gennaio.
  */
 function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
@@ -1203,7 +1203,8 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
     return <FiscalQueryState loading={fine.isLoading} error={fine.isError} onRetry={() => void fine.refetch()} />;
   }
   const f = fine.data!;
-  const daRegistrare = (f.totale_ammortamenti > 0 && !f.ammortamenti_registrati) || (f.tfr > 0 && !f.tfr_registrato);
+  // Anche ammortamenti da rifare (registro cambiato dopo, o sceso a zero): «Registra» li riallinea.
+  const daRegistrare = (f.totale_ammortamenti > 0 && !f.ammortamenti_registrati) || !!f.ammortamenti_da_aggiornare || (f.tfr > 0 && !f.tfr_registrato);
   return (
     <div className="space-y-4">
       <section className="space-y-2">
@@ -1214,38 +1215,17 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          I cespiti sono quelli del registro in Controllo di gestione: quote costanti, metà nel primo anno, fino a esaurire il costo.
+          I cespiti sono quelli del registro in Controllo di gestione: quote costanti, metà nel primo anno, fino a esaurire il costo;
+          il fondo è la somma delle quote registrate. «Registra» scrive ammortamenti e TFR al 31/12, e li rifà se il registro cambia.
+        </p>
+        <RegistroCespiti companyId={companyId} anno={anno} chiuso={chiuso} />
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm font-medium">
+          <span>Accantonamento TFR {f.tfr_registrato ? "· registrato" : ""}</span>
+          <span className="tabular-nums">{euro(f.tfr)}</span>
+        </div>
+        <p className="text-xs text-muted-foreground">
           Il TFR è un tredicesimo e mezzo delle retribuzioni lorde dei cedolini ({euro(f.retribuzioni)}), senza rivalutazione.
         </p>
-        <div className="overflow-x-auto rounded-xl border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
-              <tr><th className="p-2">Cespite</th><th className="p-2 text-right">Costo</th><th className="p-2 text-right">Aliquota</th><th className="p-2 text-right">Fondo a inizio anno</th><th className="p-2 text-right">Quota {anno}</th><th className="p-2 text-right">Residuo</th></tr>
-            </thead>
-            <tbody>
-              {f.ammortamenti.length === 0 ? (
-                <tr><td colSpan={6} className="p-4 text-center text-muted-foreground">Nessun cespite da ammortizzare nel {anno}.</td></tr>
-              ) : f.ammortamenti.map((q, i) => (
-                <tr key={`${q.codice ?? ""}-${i}`} className="border-t">
-                  <td className="p-2">{q.codice ? <span className="mr-2 font-mono text-xs">{q.codice}</span> : null}{q.cespite}</td>
-                  <td className="p-2 text-right tabular-nums">{euro(q.costo)}</td>
-                  <td className="p-2 text-right tabular-nums">{q.aliquota}%</td>
-                  <td className="p-2 text-right tabular-nums text-muted-foreground">{euro(q.fondo_inizio)}</td>
-                  <td className="p-2 text-right font-medium tabular-nums">{euro(q.quota)}</td>
-                  <td className="p-2 text-right tabular-nums">{euro(q.residuo)}</td>
-                </tr>
-              ))}
-              <tr className="border-t bg-muted/30 font-medium">
-                <td className="p-2">Totale ammortamenti {f.ammortamenti_registrati ? "· registrati" : ""}</td>
-                <td colSpan={3} /><td className="p-2 text-right tabular-nums">{euro(f.totale_ammortamenti)}</td><td />
-              </tr>
-              <tr className="border-t font-medium">
-                <td className="p-2">Accantonamento TFR {f.tfr_registrato ? "· registrato" : ""}</td>
-                <td colSpan={3} /><td className="p-2 text-right tabular-nums">{euro(f.tfr)}</td><td />
-              </tr>
-            </tbody>
-          </table>
-        </div>
       </section>
 
       <section className="space-y-2">

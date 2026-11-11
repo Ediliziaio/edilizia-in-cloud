@@ -21564,16 +21564,25 @@ export type Database = {
           categoria: string
           codice: string | null
           company_id: string
+          conto_ammortamento_id: string | null
+          conto_bene_id: string | null
+          conto_fondo_id: string | null
           costo_storico: number
           created_at: string
           created_by: string | null
           data_acquisto: string
           data_dismissione: string | null
           descrizione: string
+          fattura_linea: string | null
+          fattura_ricevuta_id: string | null
           fondo_amm: number
+          fondo_iniziale: number | null
+          fondo_iniziale_anno: number | null
           id: string
           is_active: boolean
           note: string | null
+          prezzo_cessione: number | null
+          prima_della_cessione: Json | null
           sede_id: string | null
           sottocategoria: string | null
           updated_at: string
@@ -21585,16 +21594,25 @@ export type Database = {
           categoria: string
           codice?: string | null
           company_id: string
+          conto_ammortamento_id?: string | null
+          conto_bene_id?: string | null
+          conto_fondo_id?: string | null
           costo_storico: number
           created_at?: string
           created_by?: string | null
           data_acquisto: string
           data_dismissione?: string | null
           descrizione: string
+          fattura_linea?: string | null
+          fattura_ricevuta_id?: string | null
           fondo_amm?: number
+          fondo_iniziale?: number | null
+          fondo_iniziale_anno?: number | null
           id?: string
           is_active?: boolean
           note?: string | null
+          prezzo_cessione?: number | null
+          prima_della_cessione?: Json | null
           sede_id?: string | null
           sottocategoria?: string | null
           updated_at?: string
@@ -21606,16 +21624,25 @@ export type Database = {
           categoria?: string
           codice?: string | null
           company_id?: string
+          conto_ammortamento_id?: string | null
+          conto_bene_id?: string | null
+          conto_fondo_id?: string | null
           costo_storico?: number
           created_at?: string
           created_by?: string | null
           data_acquisto?: string
           data_dismissione?: string | null
           descrizione?: string
+          fattura_linea?: string | null
+          fattura_ricevuta_id?: string | null
           fondo_amm?: number
+          fondo_iniziale?: number | null
+          fondo_iniziale_anno?: number | null
           id?: string
           is_active?: boolean
           note?: string | null
+          prezzo_cessione?: number | null
+          prima_della_cessione?: Json | null
           sede_id?: string | null
           sottocategoria?: string | null
           updated_at?: string
@@ -21657,6 +21684,48 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_insoluti"
             referencedColumns: ["azienda_id"]
+          },
+          {
+            foreignKeyName: "cespiti_conto_ammortamento_id_fkey"
+            columns: ["conto_ammortamento_id"]
+            isOneToOne: false
+            referencedRelation: "contabilita_conti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cespiti_conto_bene_id_fkey"
+            columns: ["conto_bene_id"]
+            isOneToOne: false
+            referencedRelation: "contabilita_conti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cespiti_conto_fondo_id_fkey"
+            columns: ["conto_fondo_id"]
+            isOneToOne: false
+            referencedRelation: "contabilita_conti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cespiti_fattura_ricevuta_id_fkey"
+            columns: ["fattura_ricevuta_id"]
+            isOneToOne: false
+            referencedRelation: "fatture_ricevute"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cespiti_fattura_ricevuta_id_fkey"
+            columns: ["fattura_ricevuta_id"]
+            isOneToOne: false
+            referencedRelation: "fatture_ricevute_pagamento"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cespiti_fattura_ricevuta_id_fkey"
+            columns: ["fattura_ricevuta_id"]
+            isOneToOne: false
+            referencedRelation: "fatture_ricevute_periodo_iva"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "cespiti_sede_id_fkey"
@@ -31252,6 +31321,76 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "condizioni_modelli"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      contabilita_cespiti_quote: {
+        Row: {
+          cespite_id: string
+          company_id: string
+          created_at: string
+          esercizio: number
+          origine: string
+          quota: number
+        }
+        Insert: {
+          cespite_id: string
+          company_id: string
+          created_at?: string
+          esercizio: number
+          origine: string
+          quota: number
+        }
+        Update: {
+          cespite_id?: string
+          company_id?: string
+          created_at?: string
+          esercizio?: number
+          origine?: string
+          quota?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contabilita_cespiti_quote_cespite_id_fkey"
+            columns: ["cespite_id"]
+            isOneToOne: false
+            referencedRelation: "cespiti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contabilita_cespiti_quote_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "contabilita_cespiti_quote_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contabilita_cespiti_quote_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "contabilita_cespiti_quote_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "contabilita_cespiti_quote_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
           },
         ]
       }
@@ -45992,6 +46131,114 @@ export type Database = {
             columns: ["purchase_order_id"]
             isOneToOne: false
             referencedRelation: "purchase_orders_senza_prezzi"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fattura_riconciliazioni_ai: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          decisioni: Json
+          documenti: Json
+          esiti: Json
+          fattura_id: string
+          id: string
+          impronta: string
+          modello: string
+          proposta: Json
+          revisione: number
+          rivista_da: string | null
+          rivista_il: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by: string
+          decisioni?: Json
+          documenti: Json
+          esiti: Json
+          fattura_id: string
+          id?: string
+          impronta: string
+          modello: string
+          proposta: Json
+          revisione?: number
+          rivista_da?: string | null
+          rivista_il?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          decisioni?: Json
+          documenti?: Json
+          esiti?: Json
+          fattura_id?: string
+          id?: string
+          impronta?: string
+          modello?: string
+          proposta?: Json
+          revisione?: number
+          rivista_da?: string | null
+          rivista_il?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fattura_riconciliazioni_ai_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "fattura_riconciliazioni_ai_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fattura_riconciliazioni_ai_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "fattura_riconciliazioni_ai_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "fattura_riconciliazioni_ai_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+          {
+            foreignKeyName: "fattura_riconciliazioni_ai_fattura_id_fkey"
+            columns: ["fattura_id"]
+            isOneToOne: false
+            referencedRelation: "fatture_ricevute"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fattura_riconciliazioni_ai_fattura_id_fkey"
+            columns: ["fattura_id"]
+            isOneToOne: false
+            referencedRelation: "fatture_ricevute_pagamento"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fattura_riconciliazioni_ai_fattura_id_fkey"
+            columns: ["fattura_id"]
+            isOneToOne: false
+            referencedRelation: "fatture_ricevute_periodo_iva"
             referencedColumns: ["id"]
           },
         ]
@@ -141982,9 +142229,82 @@ export type Database = {
         }
         Returns: undefined
       }
+      contabilita_ammortamenti: {
+        Args: { p_anno: number; p_anteprima?: boolean; p_company: string }
+        Returns: Json
+      }
       contabilita_assegna_ruolo: {
         Args: { p_company: string; p_conto: string; p_ruolo: string }
         Returns: undefined
+      }
+      contabilita_cespite_aliquota: {
+        Args: { c: Database["public"]["Tables"]["cespiti"]["Row"] }
+        Returns: number
+      }
+      contabilita_cespite_annulla_cessione: {
+        Args: { p_cespite: string }
+        Returns: undefined
+      }
+      contabilita_cespite_cessione: {
+        Args: {
+          p_anteprima?: boolean
+          p_cespite: string
+          p_conto_prezzo?: string
+          p_data: string
+          p_prezzo: number
+        }
+        Returns: Json
+      }
+      contabilita_cespite_conti: {
+        Args: { c: Database["public"]["Tables"]["cespiti"]["Row"]; k: Json }
+        Returns: Json
+      }
+      contabilita_cespite_da_fattura: {
+        Args: {
+          p_aliquota: number
+          p_categoria: string
+          p_conto_bene?: string
+          p_descrizione: string
+          p_fattura: string
+          p_linea: string
+          p_sottocategoria: string
+        }
+        Returns: string
+      }
+      contabilita_cespite_fondo: {
+        Args: {
+          c: Database["public"]["Tables"]["cespiti"]["Row"]
+          p_anno: number
+        }
+        Returns: Json
+      }
+      contabilita_cespite_imposta: {
+        Args: {
+          p_cespite: string
+          p_conto_ammortamento: string
+          p_conto_bene: string
+          p_conto_fondo: string
+          p_fondo_iniziale: number
+          p_fondo_iniziale_anno: number
+        }
+        Returns: undefined
+      }
+      contabilita_cespite_quota: {
+        Args: {
+          c: Database["public"]["Tables"]["cespiti"]["Row"]
+          p_anno: number
+          p_fino_al?: string
+          p_fondo: number
+        }
+        Returns: number
+      }
+      contabilita_cespite_ruoli: {
+        Args: {
+          p_categoria: string
+          p_descrizione: string
+          p_sottocategoria: string
+        }
+        Returns: Json
       }
       contabilita_chiudi_esercizio: {
         Args: { p_anno: number; p_anteprima?: boolean; p_company: string }
@@ -143427,6 +143747,14 @@ export type Database = {
         Returns: undefined
       }
       fattura_ricevuta_verifica: { Args: { p_id: string }; Returns: Json }
+      fattura_riconciliazione_contesto: {
+        Args: { p_documenti: Json; p_fattura: string }
+        Returns: Json
+      }
+      fattura_riconciliazione_salva: {
+        Args: { p_analisi: string; p_decisioni: Json; p_revisione: number }
+        Returns: Json
+      }
       fattura_segna_rettifica: {
         Args: { p_fattura_id: string; p_motivo: string }
         Returns: Json
