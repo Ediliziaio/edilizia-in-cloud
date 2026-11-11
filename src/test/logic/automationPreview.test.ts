@@ -47,3 +47,21 @@ describe("safe automation path preview", () => {
     expect(path[0].text).toBe("{{appuntamento.date}}"); expect(path[0].detail).toContain("variabili");
   });
 });
+
+describe("preview distinguishes missing data from an explicitly empty owner", () => {
+  const condition: PreviewNode = { id: "condition", type: "condition", data: { condizioni: [{ campo: "contatto.assigned_to", operatore: "vuoto" }] } };
+  const edges = [{ source: "condition", target: "yes", label: "Sì" }, { source: "condition", target: "no", label: "No" }];
+  const nodes = [condition, { ...email, id: "yes" }, { ...email, id: "no" }];
+  it("does not pretend an unloaded owner is empty", () => {
+    const path = previewAutomationPath(nodes, edges, contact);
+    expect(path).toHaveLength(1); expect(path[0].status).toBe("unverified");
+  });
+  it("follows Yes for a known null owner", () => {
+    const path = previewAutomationPath(nodes, edges, { ...contact, assigned_to: null });
+    expect(path.map(s => s.nodeId)).toEqual(["condition", "yes"]);
+  });
+  it("follows No for an assigned contact", () => {
+    const path = previewAutomationPath(nodes, edges, { ...contact, assigned_to: "seller-id" });
+    expect(path.map(s => s.nodeId)).toEqual(["condition", "no"]);
+  });
+});

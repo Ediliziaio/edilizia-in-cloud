@@ -60,7 +60,7 @@ export function TriggerCatalogList({ search, onSelect, onDragStart, isAdmin = fa
       if (items.length > 0) result.push({ category: cat, items });
     }
     return result;
-  }, [search]);
+  }, [search, CATEGORY_ORDER]);
 
   const recentItems = useMemo(() => {
     if (search) return [];

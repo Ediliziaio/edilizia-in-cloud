@@ -28,6 +28,7 @@ import { useIsAdminMarketing } from "@/hooks/useMarketingRoutePrefix";
 import { nodesToReactFlow, connectionsToEdges, insertedStepIncomingEdge } from "@/components/flow-builder/hooks/useFlowAdapter";
 import { nodeTypes, edgeTypes } from "@/components/flow-builder/nodes";
 import { NodeMeasureFix } from "@/components/flow-builder/NodeMeasureFix";
+import { withTriggerScaffold, triggerEntryTargets } from "./triggerScaffold";
 import { FlowAutoLayout } from "@/components/flow-builder/FlowAutoLayout";
 import { computeAutoLayout } from "@/components/flow-builder/autoLayout";
 import { FlowBuilderHeader, type BuilderTab } from "./FlowBuilderHeader";
@@ -98,6 +99,82 @@ export function FlowBuilderPage() {
     setRfNodes((nds) => nds.map((n) => positions[n.id] ? { ...n, position: positions[n.id] } : n));
   }, [setRfNodes]);
 
+  // Open catalog panel with context filtering
+  const openCatalog = useCallback((tab?: "trigger" | "action" | "condition") => {
+    const ctx = tab === "trigger" ? "trigger" : "action";
+    setPendingInsertEdgeId(null);
+    setCatalogContext(ctx);
+    setRightPanelOpen(true);
+    setRightPanelMode("catalog");
+    setSelectedNodeId(null);
+    if (tab) setCatalogTab(tab);
+  }, []);
+
+  // Open catalog for edge insertion (tracks which edge was clicked)
+  const openCatalogForEdge = useCallback((edgeId: string) => {
+    openCatalog("action");
+    setPendingInsertEdgeId(edgeId);
+  }, [openCatalog]);
+
+
+  // Scaffold "Fine" (function declaration: hoisted, usata dagli effect sopra).
+  // Due garanzie:
+  //  1. Gli archi salvati in DB verso un nodo Fine mai materializzato (il nodo
+  //     end non viene persistito) vengono resi renderizzabili ricreando il
+  //     nodo end con lo STESSO id — senza, ReactFlow scartava l'arco e il "+"
+  //     spariva sotto l'ultimo passo.
+  //  2. Ogni nodo foglia (nessun arco uscente) riceve un arco visivo
+  //     tratteggiato verso un nodo Fine condiviso: il "+" c'è SEMPRE.
+  function withEndScaffold(nodes: Node[], edges: Edge[]): { nodes: Node[]; edges: Edge[] } {
+    const outNodes = [...nodes];
+    const outEdges = [...edges];
+    const nodeIds = new Set(outNodes.map((n) => n.id));
+
+    for (const e of outEdges) {
+      if (!nodeIds.has(e.target) && nodeIds.has(e.source)) {
+        const src = outNodes.find((n) => n.id === e.source);
+        outNodes.push({
+          id: e.target,
+          type: "end",
+          position: { x: (src?.position?.x ?? 300) + 60, y: (src?.position?.y ?? 200) + 180 },
+          data: { label: "Fine", nodeType: "end" },
+        });
+        nodeIds.add(e.target);
+      }
+    }
+
+    const leaves = outNodes.filter(
+      (n) => n.type !== "end" && n.type !== "note" && !n.data?.isEmpty && !outEdges.some((e) => e.source === n.id),
+    );
+    if (leaves.length > 0) {
+      let endNode = outNodes.find((n) => n.type === "end");
+      if (!endNode) {
+        const maxY = Math.max(...leaves.map((n) => n.position?.y ?? 0));
+        const anchor = leaves.find((n) => (n.position?.y ?? 0) === maxY) ?? leaves[0];
+        endNode = {
+          id: "visual-end",
+          type: "end",
+          position: { x: (anchor.position?.x ?? 300) + 60, y: maxY + 180 },
+          data: { label: "Fine", nodeType: "end" },
+        };
+        outNodes.push(endNode);
+      }
+      for (const leaf of leaves) {
+        outEdges.push({
+          id: `visual-fine-${leaf.id}`,
+          source: leaf.id,
+          target: endNode.id,
+          type: "addStep",
+          animated: false,
+          style: { strokeWidth: 1.5, strokeDasharray: "6 3" },
+          data: { onAddStep: (eid: string) => openCatalogForEdge(eid) },
+        });
+      }
+    }
+    return { nodes: outNodes, edges: outEdges };
+  }
+
+
   // Reset initialized flag when flowId changes (e.g. /nuova → /{realId})
   useEffect(() => { initializedRef.current = false; }, [flowId]);
   // Reset creation guard on route change
@@ -137,35 +214,9 @@ export function FlowBuilderPage() {
       // Scaffold "Fine": senza, l'ultimo nodo del flusso non ha l'arco col
       // "+" e non si può aggiungere nulla in coda (bug segnalato).
       const scaffolded = withEndScaffold(mappedNodes, mappedEdges);
-      // Una bozza può avere azioni PRIMA del trigger (si costruisce in
-      // qualsiasi ordine), ma riaprendola senza trigger il segnaposto non
-      // veniva ricreato: si vedeva un'azione orfana e nessun invito visivo —
-      // "come mai c'è un'azione senza trigger?". Il segnaposto torna sempre.
-      const nodiFinali = [...scaffolded.nodes];
-      const edgesFinali = [...scaffolded.edges];
-      if (!nodiFinali.some((n) => n.type === "trigger")) {
-        const primo = nodiFinali.filter((n) => n.type !== "end").sort((a, b) => a.position.y - b.position.y)[0];
-        const triggerId = "placeholder-trigger";
-        nodiFinali.unshift({
-          id: triggerId,
-          type: "trigger",
-          position: { x: primo?.position.x ?? 300, y: (primo?.position.y ?? 280) - 200 },
-          data: { label: "Aggiungi trigger", isEmpty: true, nodeType: "trigger", onOpenCatalog: () => openCatalog("trigger") },
-        });
-        if (primo) {
-          edgesFinali.unshift({
-            id: "e-placeholder-trigger",
-            source: triggerId,
-            target: primo.id,
-            type: "addStep",
-            animated: false,
-            style: { strokeWidth: 1.5, strokeDasharray: "6 3" },
-            data: { onAddStep: (edgeId: string) => openCatalogForEdge(edgeId) },
-          });
-        }
-      }
-      setRfNodes(nodiFinali);
-      setRfEdges(edgesFinali);
+      const entry = withTriggerScaffold(scaffolded.nodes, scaffolded.edges, () => openCatalog("trigger"), openCatalogForEdge);
+      setRfNodes(entry.nodes);
+      setRfEdges(entry.edges);
       initializedRef.current = true;
     } else if (builder.remoteEmpty && (flowId || isNewFlowRoute)) {
       // Empty canvas placeholder: trigger + end node.
@@ -232,8 +283,10 @@ export function FlowBuilderPage() {
       .map((e) => ({ ...e, data: { ...e.data, onAddStep: (edgeId: string) => openCatalogForEdge(edgeId) } }));
     const visualOnlyEdges = rfEdges.filter(
       (e) => !mirrorEdgeIds.has(e.id) && allIds.has(e.source) && allIds.has(e.target)
+        && (e.id.startsWith("visual-") || visualOnlyNodes.some(n => n.id === e.source || n.id === e.target))
     );
-    const rebuiltScaffolded = withEndScaffold([...rebuilt, ...visualOnlyNodes], [...rebuiltEdges, ...visualOnlyEdges]);
+    const ends = withEndScaffold([...rebuilt, ...visualOnlyNodes], [...rebuiltEdges, ...visualOnlyEdges]);
+    const rebuiltScaffolded = withTriggerScaffold(ends.nodes, ends.edges, () => openCatalog("trigger"), openCatalogForEdge);
     setRfNodes(rebuiltScaffolded.nodes);
     setRfEdges(rebuiltScaffolded.edges);
     setSelectedNodeId((prev) => (prev && !allIds.has(prev) ? null : prev));
@@ -241,6 +294,16 @@ export function FlowBuilderPage() {
     // rimetterli qui creerebbe un loop; servono solo come snapshot corrente.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [builder.revision]);
+
+  // Deleting the last trigger (keyboard or config panel) must leave an accessible entry card.
+  useEffect(() => {
+    if (!initializedRef.current || !rfNodes.length || isLoading) return;
+    const entry = withTriggerScaffold(rfNodes, rfEdges, () => openCatalog("trigger"), openCatalogForEdge);
+    if (entry.nodes !== rfNodes) setRfNodes(entry.nodes);
+    if (entry.edges !== rfEdges) setRfEdges(entry.edges);
+    // Topology only: moving a card or editing its config must not reset the graph.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topologyKey]);
 
   // Il riordino visivo vive dentro ReactFlow (FlowAutoLayout), dove sono
   // disponibili le misure effettive. Nessun timer basato sul caricamento DB.
@@ -335,79 +398,6 @@ export function FlowBuilderPage() {
     e.dataTransfer.dropEffect = "move";
   }, []);
 
-  // Open catalog panel with context filtering
-  const openCatalog = useCallback((tab?: "trigger" | "action" | "condition") => {
-    const ctx = tab === "trigger" ? "trigger" : "action";
-    setCatalogContext(ctx);
-    setRightPanelOpen(true);
-    setRightPanelMode("catalog");
-    setSelectedNodeId(null);
-    if (tab) setCatalogTab(tab);
-  }, []);
-
-  // Open catalog for edge insertion (tracks which edge was clicked)
-  const openCatalogForEdge = useCallback((edgeId: string) => {
-    setPendingInsertEdgeId(edgeId);
-    openCatalog("action");
-  }, [openCatalog]);
-
-  // Scaffold "Fine" (function declaration: hoisted, usata dagli effect sopra).
-  // Due garanzie:
-  //  1. Gli archi salvati in DB verso un nodo Fine mai materializzato (il nodo
-  //     end non viene persistito) vengono resi renderizzabili ricreando il
-  //     nodo end con lo STESSO id — senza, ReactFlow scartava l'arco e il "+"
-  //     spariva sotto l'ultimo passo.
-  //  2. Ogni nodo foglia (nessun arco uscente) riceve un arco visivo
-  //     tratteggiato verso un nodo Fine condiviso: il "+" c'è SEMPRE.
-  function withEndScaffold(nodes: Node[], edges: Edge[]): { nodes: Node[]; edges: Edge[] } {
-    const outNodes = [...nodes];
-    const outEdges = [...edges];
-    const nodeIds = new Set(outNodes.map((n) => n.id));
-
-    for (const e of outEdges) {
-      if (!nodeIds.has(e.target) && nodeIds.has(e.source)) {
-        const src = outNodes.find((n) => n.id === e.source);
-        outNodes.push({
-          id: e.target,
-          type: "end",
-          position: { x: (src?.position?.x ?? 300) + 60, y: (src?.position?.y ?? 200) + 180 },
-          data: { label: "Fine", nodeType: "end" },
-        });
-        nodeIds.add(e.target);
-      }
-    }
-
-    const leaves = outNodes.filter(
-      (n) => n.type !== "end" && n.type !== "note" && !n.data?.isEmpty && !outEdges.some((e) => e.source === n.id),
-    );
-    if (leaves.length > 0) {
-      let endNode = outNodes.find((n) => n.type === "end");
-      if (!endNode) {
-        const maxY = Math.max(...leaves.map((n) => n.position?.y ?? 0));
-        const anchor = leaves.find((n) => (n.position?.y ?? 0) === maxY) ?? leaves[0];
-        endNode = {
-          id: "visual-end",
-          type: "end",
-          position: { x: (anchor.position?.x ?? 300) + 60, y: maxY + 180 },
-          data: { label: "Fine", nodeType: "end" },
-        };
-        outNodes.push(endNode);
-      }
-      for (const leaf of leaves) {
-        outEdges.push({
-          id: `visual-fine-${leaf.id}`,
-          source: leaf.id,
-          target: endNode.id,
-          type: "addStep",
-          animated: false,
-          style: { strokeWidth: 1.5, strokeDasharray: "6 3" },
-          data: { onAddStep: (eid: string) => openCatalogForEdge(eid) },
-        });
-      }
-    }
-    return { nodes: outNodes, edges: outEdges };
-  }
-
   const addNodeFromItem = useCallback(
     (item: CatalogItem, position?: { x: number; y: number }) => {
       if (!flowId || !effectiveCompany || !user) {
@@ -439,9 +429,8 @@ export function FlowBuilderPage() {
             )
           );
           // Update edges that referenced the placeholder
-          setRfEdges((eds) =>
-            eds.map((e) => (e.source === placeholder.id ? { ...e, source: newNodeId } : e))
-          );
+          const entryEdges = rfEdges.filter(e => e.source === placeholder.id).map(e => ({ ...e, id: crypto.randomUUID(), source: newNodeId }));
+          setRfEdges(eds => [...eds.filter(e => e.source !== placeholder.id && e.target !== placeholder.id), ...entryEdges]);
           addNode({
             id: newNodeId, flow_id: flowId, company_id: effectiveCompany.id,
             node_type: "trigger",
@@ -449,6 +438,12 @@ export function FlowBuilderPage() {
             config_json: { item_id: item.id, ...seedConfigDefaults(item.id) },
             label: item.label, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
           });
+          // Persist real entry connections too; otherwise they disappear on save/reload.
+          for (const edge of entryEdges) {
+            if (!rfNodes.some(n => n.id === edge.target && n.type !== "end" && !n.data?.isEmpty)) continue;
+            addConnection({ id: edge.id, flow_id: flowId, company_id: effectiveCompany.id,
+              from_node_id: newNodeId, to_node_id: edge.target, label: (edge.label as string) ?? null, created_at: new Date().toISOString() });
+          }
           // Auto-open config for the new trigger
           setSelectedNodeId(newNodeId);
           setRightPanelMode("config");
@@ -474,7 +469,7 @@ export function FlowBuilderPage() {
         // Connect to the first action or end node
         const endNode = rfNodes.find((n) => n.type === "end");
         const firstActionEdge = rfEdges.find((e) => e.source === existingTriggers[0]?.id);
-        const targetId = firstActionEdge?.target ?? endNode?.id;
+        const targetId = firstActionEdge?.target ?? triggerEntryTargets(rfNodes, rfEdges)[0]?.id ?? endNode?.id;
         if (targetId) {
           const edgeId = crypto.randomUUID();
           const newEdge: Edge = {
@@ -869,13 +864,17 @@ export function FlowBuilderPage() {
 
       // Build reconnection edges: for each (source → deleted → target), create source → target
       const newEdges: Edge[] = [];
+      if (incomingEdges.length && outgoingEdges.length > 1) toast.info("Passo con più rami rimosso: ricollega esplicitamente il percorso desiderato.");
       for (const inEdge of incomingEdges) {
-        for (const outEdge of outgoingEdges) {
+        for (const outEdge of outgoingEdges.length <= 1 ? outgoingEdges : []) {
           const newEdgeId = crypto.randomUUID();
           newEdges.push({
             id: newEdgeId,
             source: inEdge.source,
+            sourceHandle: inEdge.sourceHandle,
+            label: inEdge.label,
             target: outEdge.target,
+            targetHandle: outEdge.targetHandle,
             type: "addStep",
             animated: false,
             style: { strokeWidth: 2 },
@@ -888,7 +887,7 @@ export function FlowBuilderPage() {
             company_id: effectiveCompany?.id ?? "",
             from_node_id: inEdge.source,
             to_node_id: outEdge.target,
-            label: null, created_at: new Date().toISOString(),
+            label: (inEdge.label as string) ?? null, created_at: new Date().toISOString(),
           });
         }
       }
@@ -1370,7 +1369,10 @@ export function FlowBuilderPage() {
       <div className="flex flex-1 overflow-hidden">
         {/* Left sidebar — only in builder tab */}
         {activeTab === "builder" && (
-          <FlowBuilderSidebar activePanel={leftPanel} onPanelChange={setLeftPanel} flowId={flowId} errors={validationErrors} readinessChecks={readinessChecks} onVersionRestored={builder.applyRestoredGraph} isSaving={builder.isSaving} />
+          <FlowBuilderSidebar activePanel={leftPanel} onPanelChange={setLeftPanel} flowId={flowId} companyId={effectiveCompany?.id} nodes={rfNodes} onFocusNode={(id) => {
+            setSelectedNodeId(id); setRightPanelMode("config"); setRightPanelOpen(true);
+            void reactFlowInstance?.fitView({ nodes: [{ id }], duration: 300, maxZoom: 1, padding: 0.8 });
+          }} errors={validationErrors} readinessChecks={readinessChecks} onVersionRestored={builder.applyRestoredGraph} isSaving={builder.isSaving} />
         )}
 
         {/* Center content */}

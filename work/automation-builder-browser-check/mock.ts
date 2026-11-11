@@ -1,0 +1,3 @@
+// Synthetic read-only provider. No credentials, network, outgoing messages or real database.
+export const useAuth=()=>({effectiveCompany:{id:"qa-company",name:"Collaudo locale"},user:{id:"qa-user"},profile:{},roles:[]});
+export const supabase={from(table:string){const chain:any=new Proxy({},{get(_,method){if(method==="then")return(resolve:any)=>Promise.resolve({data:[],count:0,error:null}).then(resolve);if(!["select","eq","neq","is","in","order","limit","single","maybeSingle","or","gte","lte","range","abortSignal"].includes(String(method)))throw new Error("Scritture vietate nel collaudo");return()=>chain;}});return chain;},functions:{invoke:async()=>({error:new Error("Servizi reali disabilitati")})}};
