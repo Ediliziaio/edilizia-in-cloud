@@ -1,3 +1,6 @@
+import { useOperationalDeletion } from "@/hooks/useOperationalDeletion";
+import { OperationalExtraFilters } from "@/components/orders/OperationalExtraFilters";
+import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
 import { PipelineCardHeading } from "@/components/orders/PipelineDrag";
 import { useOperationalViewMemory } from "@/hooks/useOperationalViewMemory";
 import {
@@ -42,7 +45,6 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import { OperationalViewSwitch } from "@/components/orders/OperationalViewSwitch";
 import { OperationalBoard } from "@/components/orders/OperationalBoard";
 import { usePipelineTransition } from "@/hooks/usePipelineTransition";
@@ -267,9 +269,9 @@ export default function SopralluoghiList() {
     "sop_tecnico",
     "sop_senza_preventivo",
     "sop_ferme",
-  ]);
+  ], { restoreView: false });
   const filtri = useMemo(() => leggiFiltriBacheca(params), [params]);
-  const vista = params.get("sop_vista") === "elenco" ? "elenco" : "pipeline";
+  const vista = params.get("sop_vista") === "pipeline" ? "pipeline" : "elenco";
   const [pagina, setPagina] = useState(1);
   const [daPianificare, setDaPianificare] = useState<SopralluogoBacheca | null>(
     null,
@@ -328,6 +330,7 @@ export default function SopralluoghiList() {
   const totale = Object.values(contaPerFase(tutti)).reduce((a, b) => a + b, 0);
   const pagine = Math.max(1, Math.ceil(elenco.length / 24));
   const paginaAttuale = Math.min(pagina, pagine);
+  const selection = useOperationalDeletion("surveys", elenco.slice((paginaAttuale - 1) * 24, paginaAttuale * 24).map(s => ({ id: s.id, label: s.code })), !!permessi.isAdmin && !permessi.solaLettura && vista === "elenco");
   const imposta = (p: Partial<FiltriBacheca>) => {
     setPagina(1);
     setParams(
@@ -389,14 +392,14 @@ export default function SopralluoghiList() {
         </div>
       </header>
       {!isError && (
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <OperationalSummary label="Riepilogo sopralluoghi" title="Dalla visita al preventivo" icon={Calendar} note="I numeri principali seguono le regole dell’agenda e delle fasi. Seleziona un indicatore per filtrare.">
           {isLoading ? (
             [0, 1, 2, 3].map((i) => (
               <Skeleton key={i} className="h-24 rounded-xl" />
             ))
           ) : (
             <>
-              <OperationalKpiCard
+              <OperationalSummaryMetric
                 label="Oggi in agenda"
                 value={ora.oggi.length}
                 icon={Calendar}
@@ -406,7 +409,7 @@ export default function SopralluoghiList() {
                 }
                 active={filtri.periodo === "oggi"}
               />
-              <OperationalKpiCard
+              <OperationalSummaryMetric
                 label="Da pianificare"
                 value={contaPerFase(tutti).da_pianificare}
                 icon={CalendarClock}
@@ -416,7 +419,7 @@ export default function SopralluoghiList() {
                 }
                 active={filtri.fase === "da_pianificare"}
               />
-              <OperationalKpiCard
+              <OperationalSummaryMetric
                 label="In ritardo"
                 value={ora.inRitardo.length}
                 icon={AlertCircle}
@@ -426,7 +429,7 @@ export default function SopralluoghiList() {
                 }
                 active={filtri.periodo === "in_ritardo"}
               />
-              <OperationalKpiCard
+              <OperationalSummaryMetric
                 label="Da preventivare"
                 value={ora.senzaPreventivo.length}
                 icon={FileCheck}
@@ -439,32 +442,10 @@ export default function SopralluoghiList() {
               />
             </>
           )}
-        </div>
+        </OperationalSummary>
       )}
-      <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2">
-          <OperationalViewSwitch
-            value={vista}
-            label="Vista sopralluoghi"
-            onChange={(v) =>
-              setParams(
-                (prima) => {
-                  const p = new URLSearchParams(prima);
-                  p.set("sop_ambito", archive.scope);
-                  if (v === "pipeline") p.delete("sop_vista");
-                  else p.set("sop_vista", v);
-                  return p;
-                },
-                { replace: true },
-              )
-            }
-          />
-          <OperationalHelp>
-            Trascina la scheda nella fase desiderata oppure usa l’icona con le
-            frecce. Firma, preventivo e pianificazione aprono il passaggio
-            dedicato.
-          </OperationalHelp>
-          <div className="relative min-w-52 flex-1">
+      <section aria-label="Filtri sopralluoghi" className="space-y-2 rounded-xl border bg-white p-2.5 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2"><div className="relative min-w-52 flex-1">
             <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
             <Input
               aria-label="Cerca per cliente, telefono, indirizzo o codice"
@@ -473,14 +454,39 @@ export default function SopralluoghiList() {
               value={filtri.testo}
               onChange={(e) => imposta({ testo: e.target.value })}
             />
-          </div>
+          </div><select aria-label="Fase dei sopralluoghi" className="h-8 max-w-full rounded-md border bg-background px-3 text-xs" value={filtri.fase} onChange={e => imposta({ fase: e.target.value as FasePratica | "tutte" })}>
+          <option value="tutte">Tutte le fasi</option>{FASI.map(f => <option key={f.fase} value={f.fase}>{f.etichetta}</option>)}
+        </select><OperationalViewSwitch
+            value={vista}
+            label="Vista sopralluoghi"
+            onChange={(v) =>
+              setParams(
+                (prima) => {
+                  const p = new URLSearchParams(prima);
+                  p.set("sop_ambito", archive.scope);
+                  p.set("sop_vista", v);
+                  return p;
+                },
+                { replace: true },
+              )
+            }
+          /></div>
+        <OperationalExtraFilters count={Number(filtri.periodo !== "tutti") + Number(filtri.tecnico !== "tutti") + Number(!!filtri.soloSenzaPreventivo) + Number(!!filtri.soloBozzeFerme) + Number(archive.scope !== "all")}>      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+
+          <OperationalHelp>
+            Trascina la scheda nella fase desiderata oppure usa l’icona con le
+            frecce. Firma, preventivo e pianificazione aprono il passaggio
+            dedicato.
+          </OperationalHelp>
+
           <Select
             value={filtri.periodo}
             onValueChange={(v) => imposta({ periodo: v as PeriodoFiltro })}
           >
             <SelectTrigger
               aria-label="Periodo sopralluoghi"
-              className="h-8 w-44 text-xs max-md:hidden"
+              className="h-8 w-44 text-xs "
             >
               <SelectValue />
             </SelectTrigger>
@@ -496,7 +502,7 @@ export default function SopralluoghiList() {
             value={filtri.tecnico}
             onValueChange={(v) => imposta({ tecnico: v })}
           >
-            <SelectTrigger aria-label="Tecnico" className="h-8 w-44 text-xs max-md:hidden">
+            <SelectTrigger aria-label="Tecnico" className="h-8 w-44 text-xs ">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -522,46 +528,7 @@ export default function SopralluoghiList() {
             </Button>
           )}
         </div>
-        <div
-          className="flex gap-1 overflow-x-auto border-t border-slate-100 pt-2"
-          role="group"
-          aria-label="Fase dei sopralluoghi"
-        >
-          {[{ fase: "tutte", etichetta: "Tutti" }, ...FASI]
-            .filter(
-              (f) =>
-                f.fase === "tutte" ||
-                inOperationalScope(f.fase === "preventivo", archive.scope),
-            )
-            .map((f) => (
-              <button
-                key={f.fase}
-                type="button"
-                aria-pressed={filtri.fase === f.fase}
-                onClick={() =>
-                  imposta({ fase: f.fase as FasePratica | "tutte" })
-                }
-                className={cn(
-                  "flex shrink-0 items-center gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium",
-                  filtri.fase === f.fase
-                    ? "bg-orange-50 text-orange-800 ring-1 ring-inset ring-orange-100"
-                    : "text-slate-500 hover:bg-slate-50",
-                )}
-              >
-                {f.etichetta}
-                <span className="rounded-full bg-slate-100 px-1.5 text-[10px] tabular-nums text-slate-600">
-                  {f.fase === "tutte"
-                    ? base.filter((s) =>
-                        inOperationalScope(
-                          fasePratica(s) === "preventivo",
-                          archive.scope,
-                        ),
-                      ).length
-                    : conteggi[f.fase as FasePratica]}
-                </span>
-              </button>
-            ))}
-        </div>
+
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
           <OperationalArchive
             label="sopralluoghi"
@@ -608,7 +575,8 @@ export default function SopralluoghiList() {
             )}
           </div>
         </div>
-      </div>
+      </div></OperationalExtraFilters>
+      </section>
       {isLoading ? (
         <div className="grid gap-3 md:grid-cols-3">
           {[0, 1, 2].map((i) => (
@@ -660,9 +628,12 @@ export default function SopralluoghiList() {
         />
       ) : (
         <>
+          {selection.toolbar}
+          {selection.confirmation}
           <OperationalTable label="Elenco sopralluoghi">
             <thead>
               <tr>
+                {selection.enabled && <th scope="col">{selection.header}</th>}
                 {[
                   "Codice",
                   "Cliente",
@@ -695,6 +666,7 @@ export default function SopralluoghiList() {
                     ["da_pianificare", "pianificato"].includes(fase);
                   return (
                     <tr key={s.id}>
+                      {selection.enabled && <td>{selection.checkbox(s.id, s.code)}</td>}
                       <td>
                         <Link
                           to={href}

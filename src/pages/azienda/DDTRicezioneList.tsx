@@ -1,3 +1,6 @@
+import { useOperationalDeletion } from "@/hooks/useOperationalDeletion";
+import { OperationalExtraFilters } from "@/components/orders/OperationalExtraFilters";
+import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
 import { PipelineCardHeading } from "@/components/orders/PipelineDrag";
 import { useOperationalViewMemory } from "@/hooks/useOperationalViewMemory";
 import {
@@ -248,7 +251,7 @@ export default function DDTRicezioneList() {
     "ddt_fornitore",
     "ddt_periodo",
     "ddt_focus",
-  ]);
+  ], { restoreView: false });
   const update = (values: Record<string, string | null>) =>
     setParams(
       updateOperationalParams(
@@ -471,6 +474,7 @@ export default function DDTRicezioneList() {
   );
   const page = operationalPage(params.get("ddt_pagina"), rows.length);
   const visibleRows = rows.slice((page - 1) * 25, page * 25);
+  const selection = useOperationalDeletion("ddt", visibleRows.flatMap(row => row.tipo === "ddt" ? [{ id: row.ddt.id, label: row.ddt.numero_ddt }] : []), canCreate && view === "elenco");
 
   // Export
   const buildExportRows = () => {
@@ -802,21 +806,12 @@ export default function DDTRicezioneList() {
         </div>
       </div>
 
-      <section
-        aria-label="Filtri DDT"
-        className="space-y-2 rounded-xl border bg-white p-2.5 shadow-sm"
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <OperationalViewSwitch
-            value={view}
-            onChange={(v) => update({ vista: v, ambito: archive.scope })}
-          />
-          <OperationalHelp>
-            Apri un DDT per registrare la ricezione, verificare la merce o
-            consultare gli allegati. I documenti con danni sono raccolti tra le
-            non conformità.
-          </OperationalHelp>
-          <div className="relative min-w-[200px] flex-1">
+      <OperationalSummary label="Riepilogo DDT" title="Ricezioni e controlli" icon={Truck} error={isError} note="DDT registrati nei filtri di ricerca, commessa, fornitore e periodo; i documenti ancora da registrare restano nell’elenco dedicato.">
+        {([{ key: "atteso", label: "Attesi" }, { key: "parziale", label: "Ricezioni parziali" }, { key: "ricevuto", label: "Da verificare" }, { key: "non_conforme", label: "Non conformi" }] as const).map(item => <OperationalSummaryMetric key={item.key} label={item.label} value={baseFiltered.filter(d => stage(d) === item.key).length} isLoading={isLoading} tone={item.key === "non_conforme" && baseFiltered.some(d => stage(d) === item.key) ? "amber" : undefined} onClick={() => setTab(tab === item.key ? "tutti" : item.key)} active={tab === item.key} />)}
+      </OperationalSummary>
+
+      <section aria-label="Filtri DDT" className="space-y-2 rounded-xl border bg-white p-2.5 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2"><div className="relative min-w-[200px] flex-1">
             <Search className="absolute left-3 top-2 h-4 w-4 text-muted-foreground" />
             <Input
               aria-label="Cerca DDT"
@@ -825,7 +820,19 @@ export default function DDTRicezioneList() {
               onChange={(e) => setSearch(e.target.value)}
               className="h-8 pl-9 text-xs"
             />
-          </div>
+          </div><select aria-label="Stato DDT" className="h-8 max-w-full rounded-md border bg-background px-3 text-xs" value={tab} onChange={e => setTab(e.target.value as FilterKey)}>{FILTERS.map(f => <option key={f.key} value={f.key}>{f.key === "tutti" ? "Tutti gli stati" : f.label}</option>)}</select><OperationalViewSwitch
+            value={view}
+            onChange={(v) => update({ vista: v, ambito: archive.scope })}
+          /></div>
+        <OperationalExtraFilters count={Number(filterOrder !== "all") + Number(filterSupplier !== "all") + Number(filterPeriodo !== "tutto") + Number(!!focus) + Number(archive.scope !== "all")}>      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+
+          <OperationalHelp>
+            Apri un DDT per registrare la ricezione, verificare la merce o
+            consultare gli allegati. I documenti con danni sono raccolti tra le
+            non conformità.
+          </OperationalHelp>
+
           <Select value={filterOrder} onValueChange={setFilterOrder}>
             <SelectTrigger
               aria-label="Commessa DDT"
@@ -867,45 +874,7 @@ export default function DDTRicezioneList() {
           )}
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 sm:flex-nowrap">
-          <div
-            role="group"
-            aria-label="Stato DDT"
-            className="flex min-w-0 max-w-full gap-1 overflow-x-auto rounded-lg bg-slate-50 p-1 sm:flex-1"
-          >
-            {FILTERS.filter(
-              (f) =>
-                f.key === "tutti" ||
-                inOperationalScope(f.key === "verificato", archive.scope),
-            ).map((f) => (
-              <button
-                type="button"
-                key={f.key}
-                aria-pressed={tab === f.key && !focus}
-                onClick={() => setTab(f.key)}
-                className={cn(
-                  "shrink-0 rounded-md px-2.5 py-1.5 text-xs font-medium",
-                  tab === f.key && !focus
-                    ? "bg-orange-50 text-slate-950 ring-1 ring-orange-100"
-                    : "text-muted-foreground hover:bg-white",
-                )}
-              >
-                {f.key === "non_conforme" ? "Non conformi / danni" : f.label}{" "}
-                <span className="ml-1 rounded-full bg-slate-100 px-1.5 text-[10px]">
-                  {baseFiltered.filter(
-                    (d) =>
-                      (f.key === "tutti" || stage(d) === f.key) &&
-                      inOperationalScope(
-                        stage(d) === "verificato",
-                        archive.scope,
-                      ),
-                  ).length +
-                    (f.key === "tutti" || f.key === "da_registrare"
-                      ? pendingBase.length
-                      : 0)}
-                </span>
-              </button>
-            ))}
-          </div>
+
           <Select value={filterPeriodo} onValueChange={setFilterPeriodo}>
             <SelectTrigger
               aria-label="Data ricezione DDT"
@@ -946,6 +915,7 @@ export default function DDTRicezioneList() {
           </span>
           <span>Le esportazioni includono i DDT registrati filtrati.</span>
         </div>
+      </div></OperationalExtraFilters>
       </section>
 
       {canCreate && ingresso.ripresaLocale.queueCount > 0 && (
@@ -1060,9 +1030,12 @@ export default function DDTRicezioneList() {
         </>
       ) : (
         <>
+          {selection.toolbar}
+          {selection.confirmation}
           <OperationalTable label="Elenco DDT">
             <thead>
               <tr className="border-b bg-muted/50">
+                {selection.enabled && <th scope="col">{selection.header}</th>}
                 <SortableTh
                   label="N° DDT"
                   active={sort.key === "numero"}
@@ -1128,6 +1101,7 @@ export default function DDTRicezioneList() {
                       apri={ingresso.apri}
                       riprova={ingresso.riprova}
                       riprovando={ingresso.riprovando}
+                      colonnaSelezione={selection.enabled}
                     />
                   );
                 const ddt = row.ddt;
@@ -1140,6 +1114,7 @@ export default function DDTRicezioneList() {
                     className="border-b hover:bg-muted/30 cursor-pointer transition-colors"
                     onClick={() => navigate(`/azienda/ddt/${ddt.id}`)}
                   >
+                    {selection.enabled && <td onClick={e => e.stopPropagation()}>{selection.checkbox(ddt.id, ddt.numero_ddt)}</td>}
                     <td className="p-3">
                       <div className="flex items-center gap-1.5">
                         {ddt.ddt_file_url && (

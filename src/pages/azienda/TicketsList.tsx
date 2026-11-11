@@ -1,3 +1,4 @@
+import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
 import React, { useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { TICKET_STATI, TICKET_STATI_CHIUSI, TICKET_FASI } from "@/types/tickets";
@@ -6,7 +7,7 @@ import { AssistenzaPipeline } from "@/components/tickets/AssistenzaPipeline";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { NuovoTicketDialog } from "@/components/tickets/NuovoTicketDialog";
-import { StatTile, type StatTileTone } from "@/components/common/StatTile";
+import { type StatTileTone } from "@/components/common/StatTile";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Enums } from "@/integrations/supabase/types";
@@ -290,13 +291,10 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
 
   // Vista tabella o pipeline, come in Commesse. Su mobile il trascinamento non
   // è usabile: lì resta sempre la tabella.
-  const [vista, setVista] = useState<"tabella" | "pipeline">(() => {
-    try { return (localStorage.getItem("assistenza-vista") as "tabella" | "pipeline") || "tabella"; }
-    catch { return "tabella"; }
-  });
+  const [vista, setVista] = useState<"tabella" | "pipeline">("tabella");
   const cambiaVista = (v: "tabella" | "pipeline") => {
     setVista(v);
-    try { localStorage.setItem("assistenza-vista", v); } catch { /* private mode */ }
+
   };
 
   // Filtri client-side: fonte, scadenza, assegnato, ricerca testuale
@@ -694,18 +692,10 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
         })}
       </div>
 
-      {/* Testata navy famiglia (come Costi/Commesse/Personale): i cinque numeri
-          dell'assistenza, ognuno un filtro veloce cliccabile. I segnali d'azione
-          (urgenti, in scadenza, non assegnati) si accendono d'arancio se > 0. */}
-      {/* Mobile: al posto dei nove riquadri blu (mezzo schermo di numeri con
-          spiegazione) una riga di filtri con il conteggio, solo quelli > 0. */}
+      {/* Scorciatoie secondarie su telefono; i quattro indicatori principali sono nel riepilogo comune. */}
       <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] sm:hidden">
         {[
-          { key: "aperti", label: "Aperti", n: metrics.aperti, attivo: statusFilter === "aperto", tono: "", onClick: () => setStatusFilter(statusFilter === "aperto" ? "all" : "aperto") },
-          { key: "urgenti", label: "Urgenti", n: metrics.urgenti, attivo: priorityFilter === "urgente", tono: "text-red-600", onClick: () => setPriorityFilter(priorityFilter === "urgente" ? "all" : "urgente") },
-          { key: "scadenza", label: "In scadenza", n: metrics.inScadenza, attivo: scadenzaFilter === "scaduto_oggi", tono: "text-orange-600", onClick: () => setScadenzaFilter(scadenzaFilter === "scaduto_oggi" ? "tutte" : "scaduto_oggi") },
           { key: "ferme", label: "Ferme", n: metrics.ferme, attivo: soloFerme, tono: "text-red-600", onClick: () => setSoloFerme((v) => !v) },
-          { key: "nonassegnati", label: "Non assegnati", n: metrics.nonAssegnati, attivo: assegnatoFilter === "unassigned", tono: "text-orange-600", onClick: () => setAssegnatoFilter(assegnatoFilter === "unassigned" ? "tutti" : "unassigned") },
           { key: "merce", label: "Merce in arrivo", n: metricheMerce.inArrivo, attivo: merceFilter !== "tutte", tono: "", onClick: () => setMerceFilter(merceFilter === "tutte" ? "in_arrivo" : "tutte") },
           { key: "richiami", label: "Richiamano", n: metricheMerce.solleciti, attivo: soloRichiami, tono: "text-amber-600", onClick: () => setSoloRichiami((v) => !v) },
         ].filter((f) => f.n > 0 || f.attivo).map((f) => (
@@ -725,16 +715,15 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
         ))}
       </div>
 
-      {/* Quattro numeri che contano (27/09): via le nove caselle blu. Gli altri
-          (ferme, merce, richiami, da incassare) sono in «Altri filtri». */}
-      <div className="hidden grid-cols-2 gap-2 sm:grid sm:grid-cols-4 sm:gap-3">
+      {/* Stesso riepilogo su desktop e telefono, con i filtri originali. */}
+      <OperationalSummary label="Riepilogo assistenza" title="Gli interventi da seguire" icon={LifeBuoy} note="Indicatori dell’assistenza nel perimetro caricato.">
         {([
           { key: "aperti", label: "Da lavorare", n: metrics.aperti, tono: "red", attivo: statusFilter === "aperto", onClick: () => setStatusFilter(statusFilter === "aperto" ? "all" : "aperto") },
           { key: "urgenti", label: "Urgenti", n: metrics.urgenti, tono: "amber", attivo: priorityFilter === "urgente" || priorityFilter === "alta", onClick: () => setPriorityFilter(priorityFilter === "urgente" ? "all" : "urgente") },
           { key: "scadenza", label: "In scadenza", n: metrics.inScadenza, tono: "amber", attivo: scadenzaFilter === "scaduto_oggi" || scadenzaFilter === "settimana", onClick: () => setScadenzaFilter(scadenzaFilter === "scaduto_oggi" ? "tutte" : "scaduto_oggi") },
           { key: "nonassegnati", label: "Senza tecnico", n: metrics.nonAssegnati, tono: "blue", attivo: assegnatoFilter === "unassigned", onClick: () => setAssegnatoFilter(assegnatoFilter === "unassigned" ? "tutti" : "unassigned") },
         ] as { key: string; label: string; n: number; tono: StatTileTone; attivo: boolean; onClick: () => void }[]).map((t) => (
-          <StatTile
+          <OperationalSummaryMetric
             key={t.key}
             label={t.label}
             value={t.n}
@@ -743,7 +732,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
             onClick={t.onClick}
           />
         ))}
-      </div>
+      </OperationalSummary>
 
       {selectedTicketIds.size > 0 && (
         <div className="flex flex-col gap-3 rounded-xl border border-blue-200 bg-blue-50/80 p-3 text-sm text-blue-950 sm:flex-row sm:items-center sm:justify-between">
