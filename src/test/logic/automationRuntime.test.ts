@@ -26,13 +26,15 @@ import { platformSubscriptionPlan } from "../../../supabase/functions/_shared/pl
 import { confrontoConOggi, eOperatoreData } from "../../../supabase/functions/_shared/condizioniData";
 
 const engine = fs.readFileSync("supabase/functions/process-automation/index.ts", "utf8");
+// Load the real opt-in bridge in the same isolated VM; never stub its tenant guard.
+const solariaCompat = fs.readFileSync("supabase/functions/_shared/solariaCompat.mjs", "utf8").replace(/^export /gm, "");
 const scheduler = fs.readFileSync("supabase/functions/check-scheduled-triggers/index.ts", "utf8");
 function load(name: string, globals: Record<string, any> = {}, source = engine): any {
   const ast = ts.createSourceFile("worker.ts", source, ts.ScriptTarget.Latest, true);
   const fn = ast.statements.find(n => ts.isFunctionDeclaration(n) && n.name?.text === name)!;
   if (!fn) throw new Error(`Missing worker function ${name}`);
   const code = ts.transpileModule(fn.getText(ast), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None } }).outputText;
-  return vm.runInNewContext(`${code}; ${name}`, {
+  return vm.runInNewContext(`${solariaCompat}\n${code}; ${name}`, {
     exports: {}, console: { log() {}, warn() {}, error() {} }, Date, Set, Map, Number, String, Response, TextEncoder,
     crypto: webcrypto, fetch: () => { throw new Error("NETWORK FORBIDDEN IN TEST"); },
     UUID_RE: /^[0-9a-f-]{36}$/i, PLATFORM_ACTION_IDS: new Set(), COMPANY_ONLY_ACTION_IDS: new Set(),
