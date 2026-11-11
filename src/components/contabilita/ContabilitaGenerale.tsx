@@ -303,7 +303,7 @@ function PianoDeiConti({ companyId, conti }: { companyId: string; conti: ContoCo
 const GRUPPI_ORIGINE = [
   ["ricevute", "Fatture ricevute (costi)", ["fattura_ricevuta"]],
   ["emesse", "Fatture emesse (ricavi)", ["fattura_emessa"]],
-  ["movimenti", "Incassi, pagamenti e F24", ["incasso", "pagamento", "prima_nota", "f24", "giroconto"]],
+  ["movimenti", "Incassi, pagamenti e F24", ["incasso", "incasso_fattura", "incasso_documento", "pagamento", "prima_nota", "f24", "giroconto", "ritenuta_subita"]],
 ] as const;
 type GruppoOrigine = (typeof GRUPPI_ORIGINE)[number][0] | "tutte" | "altre";
 function gruppoDi(origine: string | null | undefined): Exclude<GruppoOrigine, "tutte"> {
@@ -442,6 +442,8 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
           ) : null}
           {elenco.length === 0 ? (
             <p className="rounded-xl border p-4 text-sm text-muted-foreground">Nessuna scrittura nel {anno}. Fatture, incassi e pagamenti si registrano da soli ogni quarto d'ora («Aggiorna adesso» per non aspettare); le altre operazioni si registrano con «Nuova scrittura».</p>
+          ) : visibili.length === 0 ? (
+            <p className="rounded-xl border p-4 text-sm text-muted-foreground">Nessuna scrittura di questo tipo nel {anno}.</p>
           ) : visibili.slice(0, mostra).map((s) => {
             const tot = s.contabilita_righe.reduce((t, r) => t + Number(r.dare || 0), 0);
             return (

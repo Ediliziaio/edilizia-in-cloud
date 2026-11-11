@@ -19,7 +19,7 @@ const conti: ContoContabile[] = [
 ];
 const scrittura = (id: string, righe: Array<[string, number, number]>): Scrittura =>
   ({ id, esercizio: 2026, numero: 1, data_registrazione: "2026-05-01", causale: "x", descrizione: null, documento_numero: null, documento_data: null, origine: "manuale", storno_di: null,
-    contabilita_righe: righe.map(([conto_id, dare, avere], i) => ({ riga: i + 1, conto_id, dare, avere, descrizione: null })) } as unknown as Scrittura);
+    contabilita_righe: righe.map(([conto_id, dare, avere], i) => ({ riga: i + 1, conto_id, dare, avere, descrizione: null as string | null })) } as unknown as Scrittura);
 const scritture = [
   scrittura("a", [["ban", 1000, 0], ["cap", 0, 1000]]),
   scrittura("b", [["cli", 5000, 0], ["ric", 0, 5000]]),

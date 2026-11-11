@@ -142068,7 +142068,10 @@ export type Database = {
         }
         Returns: Json
       }
-      costo_nome_parte: { Args: { p_valore: string }; Returns: string }
+      costo_nome_parte: {
+        Args: { p_company: string; p_valore: string }
+        Returns: string
+      }
       costo_orario_calcolato: {
         Args: { p_employee_id: string }
         Returns: number
@@ -142103,6 +142106,7 @@ export type Database = {
       costo_ripartizione_da_righe: {
         Args: {
           p_categoria: string
+          p_company: string
           p_conti: Json
           p_importo: number
           p_righe: Json
