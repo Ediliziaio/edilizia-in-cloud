@@ -52,6 +52,13 @@ const VULCANO = "7c87c209-7868-42d0-ad98-6c95ac6de196";
 const ALTRA = "11111111-2222-4333-8444-555555555555";
 const LOGO = "/loghi/impresa-vulcano.png";
 
+describe("numero automatico del preventivo con computo", () => {
+  it("c'è solo per Impresa Vulcano", () => {
+    expect(personalizzazioneDocumento("7c87c209-7868-42d0-ad98-6c95ac6de196").numeroAutomaticoComputo).toBe(true);
+    expect(personalizzazioneDocumento("00000000-0000-4000-8000-000000000001").numeroAutomaticoComputo).toBeFalsy();
+  });
+});
+
 describe("personalizzazioneDocumento", () => {
   it("Vulcano ha logo grande e piè in EB Garamond blu scuro", () => {
     expect(personalizzazioneDocumento(VULCANO)).toMatchObject({ logoAltezza: 55, logoLarghezzaMax: 340, piedeFont: "EB Garamond", piedeColore: "#1C1650" });

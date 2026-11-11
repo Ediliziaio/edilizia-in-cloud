@@ -38,6 +38,8 @@ export interface ModuleQuoteInput {
   total: number;
   validityDays: number;
   pdfBlob: Blob;
+  /** Il numero già scritto sul documento: il preventivo prende quello, se è libero, invece di consumarne un altro. */
+  numeroDocumento?: string | null;
 }
 
 export interface ModuleQuoteRow {
@@ -116,7 +118,13 @@ export async function upsertModuleQuote(input: ModuleQuoteInput): Promise<Module
   const esito = esitoOffertaModulo(existing);
   if (esito) throw new Error(FRASI_OFFERTA_MODULO[esito]);
   let quoteNumber = existing?.quote_number ?? "";
-  if (!existing) {
+  const numeroScelto = input.numeroDocumento?.trim();
+  if (!existing && numeroScelto) {
+    const { data: gia } = await supabase.from("quotes").select("id")
+      .eq("company_id", input.companyId).eq("quote_number", numeroScelto).limit(1);
+    if (gia && gia.length === 0) quoteNumber = numeroScelto;
+  }
+  if (!existing && !quoteNumber) {
     const { data: numero, error: numberError } = await supabase.rpc("generate_quote_number", {
       p_company_id: input.companyId,
     } as never);

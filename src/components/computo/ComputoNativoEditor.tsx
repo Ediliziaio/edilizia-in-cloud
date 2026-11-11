@@ -36,6 +36,7 @@ import { creaBackupComputo, MAX_BACKUP_COMPUTO, ripristinaBackupComputo } from "
 import { applicaVarianteComputo } from "@/lib/computo/variantiPdf";
 import { formatEuro } from "@/lib/computo/computoStrutturato";
 import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
+import { personalizzazioneDocumento } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
 import {
   bozzaVuota, calcolaVoce, datiFiscaliBozza, numeroEditor, leggiBozzaComputo, salvaBozzaComputo, voceVuota, vociDaBozza, vociPerAnteprima, ConflittoBozzaComputo,
   type BozzaComputo, type VoceEditor,
@@ -149,6 +150,20 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
   const modificato = useRef(false);
   const corrente = useRef(bozza);
   useEffect(() => { corrente.current = bozza; }, [bozza]);
+  // Il numero del preventivo nuovo (solo per chi ha la numerazione automatica): alla prima modifica, così aprire e
+  // chiudere non consuma un numero. Le bozze già esistenti (iniziale.raw) restano come sono.
+  const numeroChiesto = useRef(false);
+  const aziendaNumero = firmaOnline?.companyId;
+  useEffect(() => {
+    if (numeroChiesto.current || !aziendaNumero || iniziale.raw || !modificato.current || bozza.numero.trim()) return;
+    if (!personalizzazioneDocumento(aziendaNumero).numeroAutomaticoComputo) return;
+    numeroChiesto.current = true;
+    void (async () => {
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { data } = await supabase.rpc("generate_quote_number", { p_company_id: aziendaNumero } as never);
+      if (typeof data === "string" && data.trim()) setBozza(b => (b.numero.trim() ? b : { ...b, numero: data }));
+    })();
+  }, [bozza, aziendaNumero, iniziale.raw]);
   // Nessuna voce aperta finché l'utente non ne sceglie una: il pannello di lato si apre solo a richiesta.
   const v = scelta ? bozza.voci.find(r => r.id === scelta) : undefined;
   const risultati = useMemo(() => bozza.voci.map(r => calcolaVoce(r, senzaPrezzi)), [bozza.voci, senzaPrezzi]);
@@ -493,6 +508,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
           titolo={bozza.titolo.trim() || "Preventivo con computo"} clientName={bozza.committente.trim() || "Cliente"} clientEmail={bozza.clienteEmail || null} clientPhone={bozza.clienteTelefono || null}
           cointestatario={nomeCointestatario(bozza) ? { nome: nomeCointestatario(bozza)!, email: bozza.cointestatario_email || null, telefono: bozza.cointestatario_telefono || null } : null}
           subtotal={fiscaleDocumento.imponibile ?? 0} vatAmount={fiscaleDocumento.iva ?? 0} total={fiscaleDocumento.totale ?? fiscaleDocumento.imponibile ?? 0}
+          numeroDocumento={personalizzazioneDocumento(firmaOnline.companyId).numeroAutomaticoComputo ? bozza.numero : null}
           validityDays={modello?.giorniValidita} pdfDisponibile={!!bozza.voci.length}
           disabled={!bozza.voci.length || !!invalide || !!erroreIva || !!sconto.errore || !!pianoErrore || !bozza.titolo.trim()}
           disabledReason="Completa il preventivo (voci, IVA, sconto e rate) prima di mandarlo in firma."
