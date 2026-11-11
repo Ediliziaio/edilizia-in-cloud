@@ -41,8 +41,12 @@ afterEach(cleanup);
 it("propone i lavori in corso dalle commesse e li registra al 31/12", async () => {
   disegna();
   const lavori = await screen.findByLabelText("Rimanenze finali: Lavori in corso su ordinazione") as HTMLInputElement;
-  expect(lavori.value).toBe("118922.5");
+  // Niente di precompilato: la proposta si prende col suo pulsante, e senza un valore non si registra.
+  expect(lavori.value).toBe("");
   expect(screen.getByText("11.127,50 €")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Registra le rimanenze" })).toHaveProperty("disabled", true);
+  fireEvent.click(screen.getByRole("button", { name: /Proposta: 118\.922,50/ }));
+  expect(lavori.value).toBe("118922.5");
   fireEvent.change(lavori, { target: { value: "100.000,00" } });
   fireEvent.click(screen.getByRole("button", { name: "Registra le rimanenze" }));
   // Dopo la registrazione l'anteprima si rilegge: si guarda la chiamata che registra.

@@ -25,6 +25,7 @@ import { NoteInterneFattura } from "@/components/fatturazione/NoteInterneFattura
 import { ContoDiCosto } from "@/components/fatturazione/ContoDiCosto";
 import { ContoRigaMenu, ProposteContiRighe, useContiRighe } from "@/components/fatturazione/ContoPerRiga";
 import { CespiteDaRiga, useCespitiDellaFattura } from "@/components/contabilita/CespiteDaRiga";
+import { rigaPuoEssereCespite } from "@/lib/fatturazione/contoPerRiga";
 import {
   etichettaAliquota,
   nomeNatura,
@@ -283,8 +284,10 @@ function ContenutoRiepilogo({
     const c = f?.conti_righe;
     return c && typeof c === "object" && !Array.isArray(c) ? (c as Record<string, string>) : {};
   }, [f?.conti_righe]);
-  const contiRighe = useContiRighe({ companyId: companyId ?? "", fatturaId: String(f?.id ?? ""), salvati: contiSalvati, righe, onCambiato: aggiorna });
-  const contiPerRiga = !!f && permessi.canViewCosts && !permessi.solaLettura && f.stato !== "rifiutata" && righe.length > 1;
+  const contiRighe = useContiRighe({ companyId: companyId ?? "", fatturaId: String(f?.id ?? ""), salvati: contiSalvati, righe, onCambiato: aggiorna,
+    fornitorePiva: f?.cedente_piva ? String(f.cedente_piva) : null });
+  // Con il piano dei conti anche una fattura di una riga sola sceglie il conto della riga: è quello che va nel giornale.
+  const contiPerRiga = !!f && permessi.canViewCosts && !permessi.solaLettura && f.stato !== "rifiutata" && (righe.length > 1 || (righe.length === 1 && contiRighe.modo === "piano"));
   const nota = String(f?.tipo_documento ?? "") === "TD04";
   // Con la contabilità generale accesa una riga può diventare un cespite (registro dei beni ammortizzabili).
   const cespitiPerRiga = !!f && contiRighe.modo === "piano" && permessi.canViewCosts && !permessi.solaLettura && f.stato !== "rifiutata" && !nota;
@@ -559,7 +562,7 @@ function ContenutoRiepilogo({
                         <span className="font-medium text-foreground tabular-nums">{formatCurrency(r.imponibile)}</span>
                       </p>
                       {contiPerRiga && r.imponibile !== 0 ? <div className="mt-1.5"><ContoRigaMenu chiave={r.chiave} conti={contiRighe} /></div> : null}
-                      {cespitiPerRiga && r.imponibile > 0 ? (
+                      {cespitiPerRiga && (rigaPuoEssereCespite(r.descrizione, r.imponibile) || cespitiFattura.data?.has(r.chiave)) ? (
                         <div className="mt-1"><CespiteDaRiga companyId={companyId!} fatturaId={String(f.id)} chiave={r.chiave} descrizione={r.descrizione ?? ""} gia={cespitiFattura.data?.get(r.chiave)} /></div>
                       ) : null}
                     </li>
@@ -590,7 +593,7 @@ function ContenutoRiepilogo({
                           </td>
                           {contiPerRiga ? <td className="px-2 py-1">{r.imponibile !== 0 ? <ContoRigaMenu chiave={r.chiave} conti={contiRighe} /> : null}</td> : null}
                           {cespitiPerRiga ? (
-                            <td className="px-2 py-1 text-right">{r.imponibile > 0 ? <CespiteDaRiga companyId={companyId!} fatturaId={String(f.id)} chiave={r.chiave} descrizione={r.descrizione ?? ""} gia={cespitiFattura.data?.get(r.chiave)} /> : null}</td>
+                            <td className="px-2 py-1 text-right">{rigaPuoEssereCespite(r.descrizione, r.imponibile) || cespitiFattura.data?.has(r.chiave) ? <CespiteDaRiga companyId={companyId!} fatturaId={String(f.id)} chiave={r.chiave} descrizione={r.descrizione ?? ""} gia={cespitiFattura.data?.get(r.chiave)} /> : null}</td>
                           ) : null}
                         </tr>
                       ))}

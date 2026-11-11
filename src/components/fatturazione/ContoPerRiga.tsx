@@ -26,7 +26,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CATEGORIE_DI_BASE, contoPropostoRiga, etichettaCategoria } from "@/lib/fatturazione/contoPerRiga";
+import { CATEGORIE_DI_BASE, contoPropostoRiga, etichettaCategoria, proposteDalPiano, type FatturaStorica } from "@/lib/fatturazione/contoPerRiga";
 
 const DELLA_FATTURA = "__fattura";
 
@@ -38,9 +38,11 @@ export interface ContoDiCosto { id: string; codice: string; descrizione: string;
 const VALORE_CONTO = /^conto:([0-9a-f-]{36})$/i;
 export const valoreDelConto = (id: string) => `conto:${id}`;
 
-export function useContiRighe({ companyId, fatturaId, salvati, righe, onCambiato }: {
+export function useContiRighe({ companyId, fatturaId, salvati, righe, onCambiato, fornitorePiva = null }: {
   companyId: string;
   fatturaId: string;
+  /** La partita IVA del fornitore: le sue fatture passate dicono quale conto dare alle righe. */
+  fornitorePiva?: string | null;
   salvati: Record<string, string>;
   righe: RigaPerConto[];
   onCambiato: () => void;
@@ -80,15 +82,46 @@ export function useContiRighe({ companyId, fatturaId, salvati, righe, onCambiato
     const nomi = proprie.map((c) => c.name).filter(Boolean);
     return Array.from(new Set([...(nomi.length > 0 ? nomi : CATEGORIE_DI_BASE), ...Object.values(salvati).filter((v) => !VALORE_CONTO.test(v))]));
   }, [proprie, salvati]);
+  // Le fatture passate dello stesso fornitore, con i conti che hanno avuto le loro righe (dalla più
+  // recente), e i riferimenti di questa (il contratto nell'XML): servono a proporre il conto giusto.
+  const { data: storico = { fatture: [], riferimenti: "" } } = useQuery({
+    queryKey: ["conti-righe-del-fornitore", companyId, fatturaId, fornitorePiva],
+    enabled: !!companyId && !!fornitorePiva && contiDelPiano.length > 0,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async (): Promise<{ fatture: FatturaStorica[]; riferimenti: string }> => {
+      const [passate, questa] = await Promise.all([
+        supabase.from("fatture_ricevute").select("righe, conti_righe")
+          .eq("company_id", companyId).eq("cedente_piva", fornitorePiva!).neq("id", fatturaId)
+          .order("data_fattura", { ascending: false }).limit(40),
+        supabase.from("fatture_ricevute").select("xml_raw").eq("id", fatturaId).eq("company_id", companyId).maybeSingle(),
+      ]);
+      const fatture: FatturaStorica[] = (passate.data ?? []).map((f) => {
+        const conti = (f.conti_righe ?? {}) as Record<string, string>;
+        const righeF = Array.isArray(f.righe) ? (f.righe as Array<{ numero_linea?: unknown; descrizione?: unknown }>) : [];
+        return { righe: righeF.map((r, i) => {
+          const chiave = r.numero_linea != null && String(r.numero_linea).trim() !== "" ? String(r.numero_linea).trim() : String(i + 1);
+          const conto = conti[chiave];
+          return { descrizione: String(r.descrizione ?? ""), conto: conto && VALORE_CONTO.test(conto) ? conto : null };
+        }) };
+      });
+      // I riferimenti della fattura: contratto, ordine, convenzione (dove le società di leasing mettono il numero).
+      const xml = typeof questa.data?.xml_raw === "string" ? questa.data.xml_raw : "";
+      const riferimenti = Array.from(xml.matchAll(/<(?:IdDocumento|RiferimentoTesto|CodiceCommessaConvenzione|Causale)>([^<]{3,200})</g), (m) => m[1]).join(" ");
+      return { fatture, riferimenti };
+    },
+  });
   const proposte = useMemo(() => {
     const m: Record<string, string> = {};
+    // Con il piano dei conti: il conto del contratto o quello delle fatture passate del fornitore.
+    const dalPiano = contiDelPiano.length > 0
+      ? proposteDalPiano({ righe, riferimenti: storico.riferimenti, conti: contiDelPiano, storico: storico.fatture }) : {};
     for (const r of righe) {
       if (salvati[r.chiave]) continue;
-      const p = contoPropostoRiga(r.descrizione, categorie);
+      const p = dalPiano[r.chiave] ?? contoPropostoRiga(r.descrizione, categorie);
       if (p) m[r.chiave] = p;
     }
     return m;
-  }, [righe, salvati, categorie]);
+  }, [righe, salvati, categorie, contiDelPiano, storico]);
 
   const salva = async (nuovi: Record<string, string>, messaggio: string) => {
     setSalvando(true);
@@ -204,7 +237,7 @@ function ContoDelPianoMenu({ chiave, conti }: { chiave: string; conti: ContiRigh
       <Popover open={aperto} onOpenChange={setAperto}>
         <PopoverTrigger asChild>
           <Button variant="outline" role="combobox" aria-expanded={aperto} aria-label="Conto di costo della riga" disabled={conti.salvando}
-            title={proposto ? "Proposto dalla descrizione: conferma o cambia" : testo}
+            title={proposto ? "Proposto (dal contratto, dalle fatture passate del fornitore o dalla descrizione): conferma o cambia" : testo}
             className={cn("h-7 w-full min-w-[9rem] justify-between px-2 text-xs font-normal", proposto && "border-dashed italic text-muted-foreground")}>
             <span className="truncate">{testo}</span>
             <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
@@ -294,7 +327,7 @@ export function ProposteContiRighe({ conti }: { conti: ContiRighe }) {
   if (conti.quanteProposte === 0) return null;
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-dashed px-3 py-1.5 text-xs text-muted-foreground">
-      <span>{conti.quanteProposte} {conti.quanteProposte === 1 ? "riga ha" : "righe hanno"} un conto proposto dalla descrizione (in corsivo).</span>
+      <span>{conti.quanteProposte} {conti.quanteProposte === 1 ? "riga ha" : "righe hanno"} un conto proposto (in corsivo): dal contratto, dalle fatture passate del fornitore o dalla descrizione.</span>
       <Button size="sm" variant="outline" className="h-7 text-xs" disabled={conti.salvando} onClick={conti.confermaProposte}>Conferma le proposte</Button>
     </div>
   );
