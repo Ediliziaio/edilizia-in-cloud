@@ -63,10 +63,14 @@ export function RimanenzeFineAnno({ companyId, anno, chiuso }: { companyId: stri
   const aggiorna = () => { void qc.invalidateQueries({ queryKey: ["contabilita-generale", companyId] }); };
 
   const a = anteprima.data;
-  const valore = (testo: string | null, p: Parte | undefined): string => testo ?? String(p?.finali ?? p?.proposta ?? 0);
+  // Il valore registrato, o quello scritto; la proposta solo col suo pulsante (un clic su «Registra» non
+  // deve scrivere un numero che nessuno ha guardato). Senza niente da contare, zero.
+  const valore = (testo: string | null, p: Parte | undefined): string =>
+    testo ?? (p?.finali != null ? String(p.finali) : p && p.proposta === 0 && p.iniziali === 0 ? "0" : "");
   const numLavori = leggiImportoItaliano(valore(lavori, a?.lavori));
   const numMateriali = leggiImportoItaliano(valore(materiali, a?.materiali));
-  const validi = Number.isFinite(numLavori) && numLavori >= 0 && Number.isFinite(numMateriali) && numMateriali >= 0;
+  const validi = valore(lavori, a?.lavori).trim() !== "" && valore(materiali, a?.materiali).trim() !== ""
+    && Number.isFinite(numLavori) && numLavori >= 0 && Number.isFinite(numMateriali) && numMateriali >= 0;
 
   const registra = useMutation({
     mutationFn: async () => {
@@ -93,7 +97,7 @@ export function RimanenzeFineAnno({ companyId, anno, chiuso }: { companyId: stri
       <td className="p-2">{titolo}<p className="text-xs text-muted-foreground">{nota}</p></td>
       <td className="p-2 text-right tabular-nums text-muted-foreground">{euro(p.iniziali)}</td>
       <td className="p-2 text-right">
-        <Input id={id} aria-label={`Rimanenze finali: ${titolo}`} inputMode="decimal" className="ml-auto h-8 w-36 text-right tabular-nums"
+        <Input id={id} aria-label={`Rimanenze finali: ${titolo}`} inputMode="decimal" placeholder="Da contare" className="ml-auto h-8 w-36 text-right tabular-nums"
           disabled={chiuso} value={valore(testo, p)} onChange={(e) => setTesto(e.target.value)} />
         {p.finali == null || Math.abs(p.proposta - (p.finali ?? 0)) >= 0.005 ? (
           <button type="button" className="mt-1 text-xs text-primary underline disabled:opacity-50" disabled={chiuso}

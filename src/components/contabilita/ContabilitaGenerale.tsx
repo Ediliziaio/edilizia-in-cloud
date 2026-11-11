@@ -25,6 +25,17 @@ import { FiscalSectionHeader } from "@/components/fatturazione/FiscalSectionLayo
 import { FiscalQueryState } from "@/components/fatturazione/FiscalQueryState";
 import { RateiRiscontiFineAnno } from "@/components/contabilita/RateiRiscontiFineAnno";
 import { RegistroCespiti } from "@/components/contabilita/RegistroCespiti";
+import { ContiPerRuolo, type RuoloConto } from "@/components/contabilita/ContiPerRuolo";
+
+/** I conti dell'accantonamento TFR, da scegliere in Fine anno quando il piano non ha i codici standard. */
+const RUOLI_TFR: readonly RuoloConto[] = [
+  { ruolo: "30.12", etichetta: "Accantonamento TFR (conto economico, B.9.c)", natura: "costo" },
+  { ruolo: "12.01", etichetta: "Fondo TFR (stato patrimoniale, C)", natura: "passivo" },
+];
+/** Dove va il risultato dell'anno chiuso all'apertura dell'anno dopo. */
+const RUOLI_CHIUSURA: readonly RuoloConto[] = [
+  { ruolo: "10.04", etichetta: "Utili (perdite) portati a nuovo (A.VIII): ci va il risultato dell'anno chiuso", natura: "passivo" },
+];
 import { RimanenzeFineAnno } from "@/components/contabilita/RimanenzeFineAnno";
 import { bilancioASezioni, bilancioCee, bilancioDiVerifica, htmlBilancioCee, htmlBilancioSezioni, htmlBilancioVerifica, saldiPerConto, type LatoBilancio } from "@/lib/contabilita/bilancioCee";
 import type { AziendaIntestazione } from "@/lib/contabilita/documentoContabile";
@@ -338,7 +349,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
       if (error) throw error;
       return data as {
         fatture_emesse: number; fatture_ricevute: number; incassi: number; pagamenti: number; altre?: number; movimenti?: number; giroconti_saltati?: number; cedolini?: number;
-        saltate_solo_testata: number; gia_generate: number; errori: string[];
+        saltate_solo_testata: number; gia_generate: number; riallineate?: number; errori: string[];
       };
     },
     onSuccess: (r) => {
@@ -347,6 +358,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
         `${r.fatture_emesse} fatture emesse, ${r.fatture_ricevute} ricevute, ${r.incassi} incassi, ${r.pagamenti} pagamenti${r.altre ? `, ${r.altre} ritenute subite` : ""}${r.movimenti ? `, ${r.movimenti} movimenti di prima nota e F24` : ""}${r.cedolini ? `, ${r.cedolini} mesi di cedolini` : ""}`,
         r.giroconti_saltati ? `${r.giroconti_saltati} giroconti fra conti propri non registrati` : "",
         r.gia_generate ? `${r.gia_generate} già registrati` : "",
+        r.riallineate ? `${r.riallineate} stornate e rifatte: documenti cambiati, annullati o cancellati dopo la registrazione` : "",
         r.saltate_solo_testata ? `${r.saltate_solo_testata} saltati: senza imponibile (solo testata) o senza la loro fattura in contabilità` : "",
         r.errori.length ? `${r.errori.length} non registrati: ${r.errori.slice(0, 3).join("; ")}` : "",
       ].filter(Boolean).join(" · ");
@@ -1127,10 +1139,11 @@ function StampaDefinitiva({ open, onOpenChange, companyId, anno, onStampa }: {
 interface EsitoFineAnno {
   totale_ammortamenti: number; retribuzioni: number; tfr: number;
   ammortamenti_registrati: boolean; ammortamenti_da_aggiornare?: boolean; tfr_registrato: boolean; tfr_da_aggiornare?: boolean;
+  conti_mancanti_tfr?: string[];
 }
 interface EsitoChiusura {
   utile: number; conti_economici: number; conti_patrimoniali: number; apertura_gia_presente: boolean;
-  iva_non_liquidata?: number; ammortamenti_da_registrare?: boolean; tfr_da_registrare?: boolean;
+  iva_non_liquidata?: number; ammortamenti_da_registrare?: boolean; tfr_da_registrare?: boolean; conto_utili_a_nuovo?: boolean;
   /** Il primo esercizio precedente ancora aperto: gli esercizi si chiudono in ordine. */
   esercizio_precedente_aperto?: number | null;
 }
@@ -1226,6 +1239,7 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
           <span>Accantonamento TFR {f.tfr_da_aggiornare ? <span className="text-amber-700">· da aggiornare: i cedolini sono cambiati</span> : f.tfr_registrato ? "· registrato" : ""}</span>
           <span className="tabular-nums">{euro(f.tfr)}</span>
         </div>
+        <ContiPerRuolo companyId={companyId} ruoli={RUOLI_TFR.filter((r) => (f.conti_mancanti_tfr ?? []).includes(r.ruolo))} chiuso={chiuso} />
         <p className="text-xs text-muted-foreground">
           Il TFR è un tredicesimo e mezzo delle retribuzioni lorde dei cedolini ({euro(f.retribuzioni)}), senza rivalutazione.
         </p>
@@ -1257,6 +1271,8 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
               {" "}· {chiusura.data!.conti_economici} conti economici da chiudere · {chiusura.data!.conti_patrimoniali} conti patrimoniali da riaprire
               {chiusura.data!.apertura_gia_presente ? ` · il ${anno + 1} ha già la sua apertura (non se ne farà un'altra)` : ""}.
             </p>
+            {/* Senza «utili portati a nuovo» il risultato riaperto si somma a quello dell'anno dopo, nella stessa voce A.IX. */}
+            <ContiPerRuolo companyId={companyId} ruoli={chiusura.data!.conto_utili_a_nuovo === false ? RUOLI_CHIUSURA : []} chiuso={chiuso} />
             {(chiusura.data!.iva_non_liquidata ?? 0) !== 0 || chiusura.data!.ammortamenti_da_registrare || chiusura.data!.tfr_da_registrare || chiusura.data!.esercizio_precedente_aperto ? (
               <ul className="list-disc rounded-lg border border-amber-200 bg-amber-50 py-2 pl-6 pr-3 text-amber-900">
                 {chiusura.data!.esercizio_precedente_aperto ? <li>L'esercizio {chiusura.data!.esercizio_precedente_aperto} è ancora aperto: gli esercizi si chiudono in ordine, prima quello.</li> : null}

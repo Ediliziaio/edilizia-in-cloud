@@ -11,6 +11,7 @@ import { MemoryRouter } from "react-router-dom";
 const state = vi.hoisted(() => ({
   rpc: [] as Array<{ fn: string; args: Record<string, unknown> }>,
   precedenteAperto: null as number | null,
+  mancantiTfr: [] as string[],
   esercizio: null as null | { anno: number; chiuso_il: string | null; stampato_fino_al: string | null; stampe: unknown[] },
 }));
 
@@ -42,6 +43,7 @@ vi.mock("@/integrations/supabase/client", () => ({
         return {
           data: {
             totale_ammortamenti: 2000, retribuzioni: 27000, tfr: 2000, ammortamenti_registrati: false, tfr_registrato: false, registrate: [] as string[],
+            conti_mancanti_tfr: state.mancantiTfr,
           },
           error: null as { message: string } | null,
         };
@@ -83,6 +85,7 @@ beforeEach(() => {
   state.rpc = [];
   state.esercizio = null;
   state.precedenteAperto = null;
+  state.mancantiTfr = [];
 });
 afterEach(cleanup);
 
@@ -101,6 +104,13 @@ it("fine anno: anteprime di ammortamenti, TFR e chiusura; si chiude solo dopo la
   fireEvent.click(within(screen.getByRole("dialog")).getAllByRole("button", { name: "Chiudi" }).find((b) => b.textContent === "Chiudi")!);
   await waitFor(() =>
     expect(state.rpc.some((c) => c.fn === "contabilita_chiudi_esercizio" && c.args.p_anteprima === false && c.args.p_anno === 2026)).toBe(true));
+});
+
+it("senza i conti del TFR chiede quali usare", async () => {
+  state.mancantiTfr = ["30.12", "12.01"];
+  apri();
+  expect(await screen.findByRole("combobox", { name: /Conto per: Accantonamento TFR/ })).toBeTruthy();
+  expect(screen.getByRole("combobox", { name: /Conto per: Fondo TFR/ })).toBeTruthy();
 });
 
 it("con l'anno prima ancora aperto la chiusura lo dice e non si fa", async () => {

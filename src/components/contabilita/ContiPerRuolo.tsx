@@ -8,6 +8,9 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+/** I conti del piano standard hanno per codice il loro ruolo (05.01, 30.40…): fanno già da quello. */
+const RUOLO_DAL_CODICE = /^\d{2}\.\d{2}$/;
+
 export interface RuoloConto { ruolo: string; etichetta: string; natura: "attivo" | "passivo" | "costo" | "ricavo" }
 
 /** I conti movimentabili dell'azienda, per scegliere ruoli e righe. Una query sola per tutta Fine anno. */
@@ -46,7 +49,7 @@ export function ContiPerRuolo({ companyId, ruoli, chiuso }: { companyId: string;
             <SelectTrigger aria-label={`Conto per: ${r.etichetta}`} className="h-8 bg-background text-xs"><SelectValue placeholder="Scegli il conto…" /></SelectTrigger>
             <SelectContent>
               {/* Un conto che fa già da un altro ruolo non si offre: perderebbe il suo (le fatture, l'IVA…). */}
-              {(conti.data ?? []).filter((c) => c.natura === r.natura && !c.codice_standard).map((c) => (
+              {(conti.data ?? []).filter((c) => c.natura === r.natura && !c.codice_standard && !RUOLO_DAL_CODICE.test(c.codice)).map((c) => (
                 <SelectItem key={c.id} value={c.id} className="text-xs">{c.codice} {c.descrizione}</SelectItem>
               ))}
             </SelectContent>

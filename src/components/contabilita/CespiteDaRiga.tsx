@@ -48,8 +48,8 @@ export function CespiteDaRiga({ companyId, fatturaId, chiave, descrizione, gia }
   if (gia) return <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] text-emerald-800" title={gia}>Cespite</span>;
   return (
     <>
-      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setAperto(true)}
-        title="È un bene durevole: va nel registro dei cespiti e si ammortizza">Cespite</Button>
+      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => setAperto(true)}
+        title="Se la riga è un bene comprato che dura più anni (macchina, attrezzatura, automezzo): va nel registro dei cespiti e si ammortizza">Fai cespite</Button>
       {aperto && <Dialogo companyId={companyId} fatturaId={fatturaId} chiave={chiave} descrizione={descrizione} onClose={() => setAperto(false)} />}
     </>
   );

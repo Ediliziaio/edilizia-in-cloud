@@ -72,7 +72,7 @@ it("annulla una cessione dell'anno", async () => {
 
 it("da una riga di fattura: crea il cespite con tipo e aliquota proposti", async () => {
   conClient(<CespiteDaRiga companyId="az" fatturaId="f1" chiave="2" descrizione="Betoniera 350 litri" gia={undefined} />);
-  fireEvent.click(screen.getByRole("button", { name: "Cespite" }));
+  fireEvent.click(screen.getByRole("button", { name: "Fai cespite" }));
   expect((await screen.findByLabelText("Descrizione del bene") as HTMLInputElement).value).toBe("Betoniera 350 litri");
   fireEvent.click(screen.getByRole("button", { name: "Crea il cespite" }));
   await waitFor(() => expect(m.rpc.find((c) => c.fn === "contabilita_cespite_da_fattura")?.args).toEqual(expect.objectContaining({
@@ -82,7 +82,7 @@ it("da una riga di fattura: crea il cespite con tipo e aliquota proposti", async
 
 it("una riga che è già un cespite lo dice e non offre di rifarlo", () => {
   conClient(<CespiteDaRiga companyId="az" fatturaId="f1" chiave="1" descrizione="x" gia="Betoniera" />);
-  expect(screen.queryByRole("button", { name: "Cespite" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Fai cespite" })).toBeNull();
   expect(screen.getByText("Cespite")).toBeTruthy();
 });
 
