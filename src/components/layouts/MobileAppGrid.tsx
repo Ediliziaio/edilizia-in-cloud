@@ -9,7 +9,6 @@
  *   3) Badge notifiche su icone (chat/email/attività non letti)
  *   4) Layout compatto: meno padding verticale → +30% info a colpo d'occhio
  */
-import { useContabilitaGeneraleAttiva } from "@/components/contabilita/ContabilitaInCasa";
 import { isCompanyPathAvailable } from "@/lib/companyManagementMode";
 import { useMemo, useEffect, useState, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
@@ -290,7 +289,6 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
     if (open) setRecents(loadRecents());
   }, [open]);
 
-  const { attiva: contabilitaGenerale } = useContabilitaGeneraleAttiva();
   const filterNavItems = useMemo(() => {
     return (items: NavItem[]) => {
       if (permissions.isLoading) {
@@ -299,7 +297,6 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
           if (MOBILE_HIDDEN_URLS.has(item.url) && !(effectiveCompany?.management_mode === "accounting" && item.url === "/azienda/prima-nota")) return false;
           if (item.url === "/azienda/contenuti-multimediali") return true;
           if (item.demoCompanyOnly && !isDemoBaseline) return false;
-          if (item.soloConContabilitaGenerale && contabilitaGenerale !== true) return false;
           if (item.featureKey === "billing_external" && billingMode !== "external") return false;
           if (item.featureKey === "billing_native" && billingMode !== "native") return false;
           if (item.featureKey && item.featureKey !== "billing_external" && item.featureKey !== "billing_native" && !isFeatureEnabled(item.featureKey)) return false;
@@ -311,7 +308,6 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
           if (MOBILE_HIDDEN_URLS.has(item.url) && !(effectiveCompany?.management_mode === "accounting" && item.url === "/azienda/prima-nota")) return false;
         if (item.url === "/azienda/contenuti-multimediali" && !canAccessMediaLibrary(permissions)) return false;
         if (item.demoCompanyOnly && !isDemoBaseline) return false;
-        if (item.soloConContabilitaGenerale && contabilitaGenerale !== true) return false;
         if (item.url === "/azienda/cruscotto") {
           if (!permissions.canViewCruscotto && !permissions.canViewDashboard && !permissions.canViewMarketingDashboard && !permissions.canViewCallcenterDashboard) return false;
         } else if (item.permissionKey && permissions[item.permissionKey as keyof typeof permissions] !== true) {
@@ -326,7 +322,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
         return true;
       });
     };
-  }, [permissions, isModuleEnabled, billingMode, isFeatureEnabled, isDemoBaseline, effectiveCompany?.management_mode, contabilitaGenerale]);
+  }, [permissions, isModuleEnabled, billingMode, isFeatureEnabled, isDemoBaseline, effectiveCompany?.management_mode]);
 
   const filteredAreas = useMemo(() => {
     const aree = macroAreas
