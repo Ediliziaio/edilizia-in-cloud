@@ -45,8 +45,12 @@ jobs:
 
   frontend-build:
     name: Frontend production build
-    # Playwright 1.60 del lockfile usa i browser distribuiti per Ubuntu 24.04.
+    # Official image matches the lockfile and already contains browser libraries.
+    # This avoids APT mirror/DNS failures before the actual build can start.
     runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.60.0-noble
+      options: --shm-size=1g
     env:
       # Identificazione pubblica del frontend, sempre soggetta a RLS. Nessuna chiave server.
       VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://rsbrguhkodgnqfomrevo.supabase.co' }}
@@ -66,8 +70,10 @@ jobs:
         run: npm install --global bun@1.4.4
       - name: Install frozen dependencies
         run: bun install --frozen-lockfile
-      - name: Install supported browser and system libraries
-        run: npx --no-install playwright install --with-deps chromium-headless-shell
+      - name: Verify bundled browser launches
+        run: >-
+          node --input-type=module -e
+          "import { chromium } from 'playwright'; const browser = await chromium.launch({headless:true}); await browser.close();"
       - name: Build application and prerender public routes
         run: npm run build
       - name: Verify prerendered routes
