@@ -64,6 +64,13 @@ describe("Il cliente selezionato e i recapiti della commessa", () => {
     expect(scritturaDalPiano(dopo).promemoria).toEqual([]);
   });
 
+  it("due anagrafiche con lo stesso nome non condividono il referente precedente", () => {
+    const piano = applica(prima(), { tipo: "cambia_valore", area: "cliente", chiave: "cliente.nome", valore: { client_company: "Impresa di Prova", client_name: "Referente Alfa" } }).piano;
+    const dopo = scegli(piano, BETA, "Impresa di Prova", "beta@example.org").piano;
+    expect(dopo.aree.cliente?.["cliente.nome"]?.valore).toEqual({ client_company: "Impresa di Prova" });
+    expect(dopo.aree.cliente?.["cliente.contatto"]?.valore).toEqual({ client_email: "beta@example.org" });
+  });
+
   it("annulla l'intera scelta del cliente in un solo passo", () => {
     const piano = prima();
     const dopo = scegli(piano, BETA, "Cliente Beta", "beta@example.org");

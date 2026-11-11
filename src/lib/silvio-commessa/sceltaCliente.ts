@@ -19,7 +19,7 @@ export function modificheSceltaCliente(
     {
       tipo: "cambia_valore", area: "cliente", chiave: "cliente.nome",
       valore: dati?.client_company && normalizza(dati.client_company) === normalizza(nome)
-        ? { ...dati, client_company: nome.trim() }
+        ? { ...(!cambiaIdentita ? dati : {}), client_company: nome.trim() }
         : { client_name: nome.trim() },
     },
   ];
