@@ -32,7 +32,7 @@ export function PannelloDocumento({ nome, lato, attivo, testata, viste, children
       <div data-confronto-testata className="min-w-0 [&>div]:h-full">{testata}</div>
       <div data-confronto-viste className="min-w-0">{viste}</div>
       <div data-confronto-comandi ref={setTarget} className="flex min-w-0 shrink-0 flex-col gap-2 px-4 pb-2 empty:pb-0 sm:px-5" />
-      <div data-confronto-documento ref={documento} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto">{children}</div>
+      <div data-confronto-documento ref={documento} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto [&>[role=tabpanel][data-state=inactive]]:hidden">{children}</div>
       <div data-confronto-note className="min-w-0 empty:hidden">{note}</div>
     </section>
   </ComandiDocumentoContext.Provider>;

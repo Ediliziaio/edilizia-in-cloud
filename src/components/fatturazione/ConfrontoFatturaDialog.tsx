@@ -828,7 +828,7 @@ export function ConfrontoFatturaDialog({
                   {puoModificare && (
                     <Popover open={aggiungi} onOpenChange={setAggiungi}>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" className="h-8">
                           Collega DDT
                         </Button>
                       </PopoverTrigger>
