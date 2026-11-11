@@ -103,7 +103,7 @@ const OPZ = { companyId: AZIENDA, userId: UTENTE, inizio: "2027-03-08" };
 const file = (nome: string, tipo: string, corpo = "x") => new File([corpo], nome, { type: tipo });
 
 describe("leggiDocumento", () => {
-  it("un foglio Excel si legge qui: niente caricamento, niente AI; se non è un computo lo dice senza ripiegare sull'AI", async () => {
+  it("il computo si legge senza AI e conserva l'originale; un file non valido non viene caricato", async () => {
     const computo: ComputoStrutturato = {
       formato: "excel", metadata: { oggetto_lavori: "Lavori di prova" }, totale_dichiarato: null, riepiloghi: [], prezzari: [], avvisi: [],
       voci: [{
@@ -118,8 +118,20 @@ describe("leggiDocumento", () => {
     expect(esito.riconosciuto).toMatchObject({ lettore: "computo_excel", ai: false });
     expect(esito.frammenti[0].fonte).toMatchObject({ tipo: "computo", etichetta: "Computo.xlsx" });
     expect(esito.frammenti[0].costoEur).toBe(0);
-    expect(buono.caricati).toEqual([]);
+    expect(buono.caricati).toEqual([esito.percorso]);
+    expect(esito.percorso).toMatch(new RegExp(`^${AZIENDA}/${UTENTE}/commessa-`));
+    expect(esito.frammenti[0].fonte.id).toBe(esito.percorso);
     expect(buono.invocate).toEqual([]);
+
+    const riaperto = servizi({ leggiComputo: vi.fn(async () => computo) });
+    const riletto = await leggiDocumento(file("Computo.xlsx", mime), { ...OPZ, origine: { percorso: esito.percorso! } }, riaperto.s);
+    expect(riletto.percorso).toBe(esito.percorso);
+    expect(riaperto.caricati).toEqual([]);
+    expect(riaperto.invocate).toEqual([]);
+
+    const offline = servizi({ leggiComputo: vi.fn(async () => computo), carica: vi.fn(async () => { throw new Error("Connessione assente"); }) });
+    await expect(leggiDocumento(file("Computo.xlsx", mime), OPZ, offline.s)).rejects.toThrow("Connessione assente");
+    expect(offline.invocate).toEqual([]);
 
     const cattivo = servizi({ leggiComputo: vi.fn(async (): Promise<ComputoStrutturato> => { throw new Error("Non sembra un computo: manca l'intestazione."); }) });
     await expect(leggiDocumento(file("Rubrica.xlsx", mime), OPZ, cattivo.s)).rejects.toThrow(/^Non sembra un computo/);
@@ -149,7 +161,7 @@ describe("leggiDocumento", () => {
     expect((esito.frammenti[1].aree.fasi!["fasi.order_work_phases"].valore as FaseDelPiano[])[0].start_date).toBe("2027-03-08");
   });
 
-  it("un computo di PriMus si legge nel browser, senza caricare niente e senza AI", async () => {
+  it("un computo di PriMus si legge nel browser senza AI e conserva il PDF originale", async () => {
     const computo: ComputoStrutturato = {
       formato: "primus_pdf", metadata: { oggetto_lavori: "Rifacimento bagno" }, totale_dichiarato: 600,
       voci: [{
@@ -163,7 +175,7 @@ describe("leggiDocumento", () => {
     const esito = await leggiDocumento(file("computo.pdf", "application/pdf"), OPZ, s);
     expect(esito.riconosciuto.lettore).toBe("computo_primus");
     expect(esito.frammenti.map((f) => f.fonte)).toEqual([expect.objectContaining({ tipo: "computo", etichetta: "computo.pdf" })]);
-    expect(caricati).toEqual([]);
+    expect(caricati).toEqual([esito.percorso]);
     expect(invocate).toEqual([]);
   });
 

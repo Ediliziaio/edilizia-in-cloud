@@ -14,7 +14,7 @@ const differita = <T,>() => {
 const bytes = () => Promise.resolve(new Uint8Array([37, 80, 68, 70]).buffer);
 const file = () => ({ type: "application/pdf", arrayBuffer: bytes }) as unknown as Blob;
 const doc = (carica = async () => file()): DocumentoDelVisore => ({ titolo: "Simulazione.pdf", tipo: "pdf", pagina: 10, citazione: null, dove: "pagina 10", carica });
-const pagina = { getViewport: () => ({ width: 500, height: 700, transform: [1, 0, 0, 1, 0, 0] }), getTextContent: async () => ({ items: [] }) };
+const pagina = { getViewport: () => ({ width: 500, height: 700, transform: [1, 0, 0, 1, 0, 0] }), getTextContent: async () => ({ items: [] as Array<{ str: string }> }) };
 let distruggi: ReturnType<typeof vi.fn>;
 let getPage: ReturnType<typeof vi.fn>;
 beforeEach(() => {
