@@ -66,5 +66,12 @@ describe("contratto dalle voci affidate", () => {
     const html = costruisciContrattoSubappaltoHtml(d);
     expect(html).toContain("Intonaco civile <em>(solo posa)</em>");
     expect(html).toContain("Massetto <em>(fornitura e posa)</em>");
+    // 11/11/2026: l'elenco apre il contratto e il riquadro con imponibile e reverse charge sta subito sotto;
+    // niente più Allegato A in fondo.
+    expect(html).not.toMatch(/Allegato A|ALLEGATO A/);
+    const elenco = html.indexOf("Elenco dei lavori");
+    expect(elenco).toBeGreaterThan(-1);
+    expect(elenco).toBeLessThan(html.indexOf("reverse charge"));
+    expect(html.indexOf("reverse charge")).toBeLessThan(html.indexOf("Art. 1 –"));
   });
 });

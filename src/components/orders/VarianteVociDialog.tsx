@@ -7,7 +7,7 @@
  * stesse voci (le misure restano valide), registro delle varianti. Qui solo la scelta e il conto.
  */
 import { useMemo, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { formatCurrency } from "@/lib/formatters";
 import { parseAssignmentAmount } from "@/lib/orders/assignmentAmounts";
 import type { AffidamentoChiFaCosa } from "@/lib/subappaltatori/affidamentiCommessa";
+import { vociDaAllegato } from "@/lib/subappaltatori/lavoriMisure";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -53,8 +54,10 @@ export function righeVariante(
   return { righe, differenza, errori };
 }
 
-export function VarianteVociDialog({ companyId, contrattoId, nomeDitta, importo, quote, voci, onChiudi, onFatto }: {
+export function VarianteVociDialog({ companyId, contrattoId, nomeDitta, importo, quote, voci, elencoContratto = [], onChiudi, onFatto }: {
   companyId: string; contrattoId: string; nomeDitta: string; importo: number;
+  /** L'elenco dei lavori del contratto firmato: se manca il quadro lavori (misure e SAL), si costruisce da qui. */
+  elencoContratto?: unknown;
   /** Le quote della ditta: nel contratto (a_contratto) e in bozza. */
   quote: AffidamentoChiFaCosa[];
   voci: VoceVariante[];
@@ -67,9 +70,32 @@ export function VarianteVociDialog({ companyId, contrattoId, nomeDitta, importo,
   const valore = (a: AffidamentoChiFaCosa) => scritte[a.id] ?? { quantita: a.stato === "a_contratto" ? inCasella(a.quantita, 3) : "", prezzo: inCasella(a.prezzo_unitario, 2) };
   const scrivi = (a: AffidamentoChiFaCosa, campo: "quantita" | "prezzo", testo: string) => setScritte((s) => ({ ...s, [a.id]: { ...valore(a), [campo]: testo } }));
   const { righe, differenza, errori } = useMemo(() => righeVariante(quote, scritte), [quote, scritte]);
+  // Prova a schermo dell'11/11/2026: appena firmato il contratto non ha ancora il quadro lavori e la variante
+  // rispondeva «prima imposta l'elenco lavori», da un'altra pagina. Qui si costruisce dall'elenco del contratto,
+  // con l'unica scelta che il contratto non dice: quando matura il compenso.
+  const quadro = useQuery({
+    queryKey: ["subappalto-quadro-c", contrattoId],
+    queryFn: async () => {
+      const { data, error } = await db.from("subappalto_quadri_lavori").select("id").eq("contratto_id", contrattoId).limit(1);
+      if (error) throw error;
+      return (data ?? []).length > 0;
+    },
+  });
+  const senzaQuadro = quadro.data === false;
+  const [maturazione, setMaturazione] = useState("");
 
   const salva = useMutation({
     mutationFn: async () => {
+      if (senzaQuadro) {
+        const base = vociDaAllegato(elencoContratto, importo);
+        if (!base) throw new Error("L'elenco lavori del contratto non si legge: imposta misure e SAL da «Condizioni e firma», poi la variante.");
+        const { error: e1 } = await db.rpc("subappalto_quadro_registra", {
+          p_company: companyId, p_contratto: contrattoId, p_id: crypto.randomUUID(), p_voci: base, p_maturazione: maturazione,
+          p_giorni: null, p_motivo: "Elenco lavori dal contratto firmato", p_importo_atteso: importo,
+        });
+        if (e1) throw new Error(e1.message);
+        void quadro.refetch();
+      }
       const { data, error } = await db.rpc("subappalto_variante_voci", { p_company: companyId, p_contratto: contrattoId, p_righe: righe, p_motivo: motivo.trim() });
       if (error) throw new Error(error.message);
       return data as { importo: number; differenza: number; revisione: number };
@@ -78,7 +104,7 @@ export function VarianteVociDialog({ companyId, contrattoId, nomeDitta, importo,
     onError: (e: Error) => toast.error(e.message || "Variante non registrata."),
   });
 
-  const pronta = righe.length > 0 && !errori.length && motivo.trim().length >= 5;
+  const pronta = righe.length > 0 && !errori.length && motivo.trim().length >= 5 && !quadro.isLoading && (!senzaQuadro || !!maturazione);
   return (
     <Dialog open onOpenChange={(o) => !o && !salva.isPending && onChiudi()}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl">
@@ -127,6 +153,17 @@ export function VarianteVociDialog({ companyId, contrattoId, nomeDitta, importo,
             </tbody>
           </table>
         </div>
+        {senzaQuadro && (
+          <label className="flex flex-wrap items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            <span className="min-w-0 flex-1">Prima variante: l'elenco per misure e SAL si crea adesso dal contratto. Quando matura il compenso?</span>
+            <select aria-label="Quando matura il compenso" className="h-8 rounded-md border bg-background px-2 text-sm" value={maturazione} onChange={(e) => setMaturazione(e.target.value)}>
+              <option value="">Scegli…</option>
+              <option value="saldo">Saldo a fine lavoro</option>
+              <option value="sal_periodici">SAL periodici</option>
+              <option value="traguardi">Traguardi concordati</option>
+            </select>
+          </label>
+        )}
         <Textarea aria-label="Motivo della variante" value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Motivo della variante (es. muri in più al piano terra)" rows={2} />
         <p className="text-sm" role="status">
           Contratto {formatCurrency(importo)} → <strong>{formatCurrency(cent(importo + differenza))}</strong>

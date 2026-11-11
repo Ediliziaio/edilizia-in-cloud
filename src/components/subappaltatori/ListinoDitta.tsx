@@ -138,7 +138,8 @@ export function ListinoDitta({ companyId, anagraficaId, nomeDitta }: { companyId
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-end gap-2">
-        <div className="min-w-0 flex-1">
+        {/* Su telefono il testo prende tutta la riga e i pulsanti vanno sotto. */}
+        <div className="min-w-[min(100%,20rem)] flex-1">
           <h3 className="text-sm font-semibold">Listino di {nomeDitta}</h3>
           <p className="text-xs text-muted-foreground">
             {conPrezzo} voci con un prezzo della ditta su {voci.length}{validoDal !== oggi ? ` (prezzi al ${data(validoDal)})` : ""}. I prezzi valgono per tutte le commesse: li propongono «Ditte e contratti» e «Aggiungi manodopera». I contratti già fatti non cambiano.
@@ -191,10 +192,11 @@ export function ListinoDitta({ companyId, anagraficaId, nomeDitta }: { companyId
             const scarto = scartoDalCosto(modifiche[v.id]?.trim() === "" ? null : numero, v.costo);
             const sbagliato = errori.includes(v.id);
             return (
-              <div key={v.id} className="grid grid-cols-[minmax(0,1fr)_8rem] items-center gap-2 px-3 py-2 sm:grid-cols-[minmax(0,1fr)_4rem_6.5rem_8rem]">
-                <div className="min-w-0">
-                  <p className="truncate text-sm">{v.codice && <span className="mr-1 text-xs text-muted-foreground">{v.codice}</span>}{v.nome}</p>
-                  <div className="flex flex-wrap gap-1">
+              <div key={v.id} className="grid grid-cols-[minmax(0,1fr)_8rem] items-center gap-2 px-3 py-1 sm:grid-cols-[minmax(0,1fr)_4rem_6.5rem_8rem]">
+                {/* Una voce, una riga (11/11/2026): il nome e, accanto, i suoi contrassegni. */}
+                <div className="flex min-w-0 flex-wrap items-center gap-x-2 sm:flex-nowrap">
+                  <p className="min-w-0 truncate text-sm" title={v.nome}>{v.codice && <span className="mr-1 text-xs text-muted-foreground">{v.codice}</span>}{v.nome}</p>
+                  <div className="flex shrink-0 flex-wrap items-center gap-1">
                     {(v.subappaltatore_id || v.external_team_id) && <Badge variant="secondary" className="h-4 px-1.5 text-[10px] font-normal">Voce sua</Badge>}
                     {pv && pv.altri.length > 0 && (
                       <Badge variant="outline" className="h-4 px-1.5 text-[10px] font-normal" title={pv.altri.map((a) => `${a.nome}: ${formatCurrency(a.costo)}`).join(" · ")}>

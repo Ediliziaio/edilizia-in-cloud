@@ -464,3 +464,20 @@ un utente vero in transazione annullata:
 - `contratto_in_firma` risponde solo a chi lavora nell'azienda del contratto.
 Resta noto: un contratto con più di 100 righe ha il quadro raggruppato per fase, senza collegamento alle
 voci affidate: la «Variante sulle voci» lì risponde «rifai l'elenco lavori» (si usa la variante a importo).
+
+## Lotto 9 — prova a schermo (11/11/2026) ✅
+
+Percorso provato in locale con la Demo Azienda 2 (dati di prova tolti alla fine): affida voci → prezzi → contratto → PDF → variante → carica listino, su computer e telefono.
+
+Trovato e corretto:
+- **Prezzo a 3 decimali**: la quota mostrava 12,35 e contava 12,345 (1.481,40 € contro 1.482,00 € del contratto). Ora il popup lo rifiuta e il database arrotonda al centesimo (`20290218110000`).
+- **Variante su contratto appena firmato**: rispondeva «prima imposta l'elenco lavori» da un'altra pagina. Ora chiede solo quando matura il compenso, crea il quadro dal contratto e registra la variante.
+- **Margine sull'affidato** al 100% con prezzi mancanti: ora dice «provvisorio».
+- **Menu ditta** vuoto: `OfficeSelect` non mostrava il segnaposto.
+
+Richieste del titolare durante la prova:
+- Una voce, una riga: «Affida le voci», «Lavori e prezzi», «Carica listino», listino della ditta.
+- **Niente più Allegato A**: l'elenco dei lavori apre il contratto, con totale, reverse charge, ritenuta e netto subito sotto.
+
+Limite noto: togliendo tutte le quote da una fase, il previsto della ditta resta l'ultimo importo affidato (`affidamenti_allinea_ditta` non ricorda il valore manuale di prima).
+Non provati a schermo: firma vera con email/OTP (sulla prova la firma è stata scritta nel database) e un PDF di listino letto con l'AI.

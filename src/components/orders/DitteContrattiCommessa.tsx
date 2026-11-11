@@ -22,6 +22,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { chiaveVociPreviste, useVociPrevisteFasi } from "@/hooks/useVociPrevisteFasi";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/formatters";
@@ -668,11 +669,11 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
           {daAffidamenti ? "Voci affidate" : nomiFasi.join(", ")} · {elenco.length} {elenco.length === 1 ? "lavoro" : "lavori"} · {formatCurrency(totale)}
         </p>
         {contratto && (
-          <p className="mt-0.5 text-xs">
+          <div className="mt-0.5 text-xs">
             <Badge variant="outline" className="mr-1 text-[11px]">{contratto.firmato_il ? "Firmato" : contratto.stato === "bozza" ? "Bozza" : contratto.stato}</Badge>
             {formatCurrency(Number(contratto.importo_contrattuale) || 0)}
             {diverso && <span className="ml-1 text-amber-800">· i lavori ora valgono {formatCurrency(totale)}</span>}
-          </p>
+          </div>
         )}
         {contratto?.firmato_il && <p className="mt-0.5 text-xs text-muted-foreground">Contratto firmato: lavori e prezzi non si modificano più. {conQuoteNelContratto ? "Per cambiare quantità o voci usa «Variante sulle voci»." : "Per cambiare l'importo usa «Variante» da «Condizioni e firma»."}</p>}
         {!ditta.subappaltatore_id && <p className="mt-0.5 text-xs text-amber-800">Collega la ditta a un subappaltatore per fare il contratto.</p>}
@@ -722,7 +723,7 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
       </div>
       {varianteAperta && contratto && (
         <VarianteVociDialog companyId={companyId} contrattoId={contratto.id} nomeDitta={ditta.name} importo={Number(contratto.importo_contrattuale) || 0}
-          quote={quote} voci={vociCommessa} onChiudi={() => setVarianteAperta(false)} onFatto={() => { setVarianteAperta(false); onCambio(); }} />
+          quote={quote} voci={vociCommessa} elencoContratto={contratto.elenco_lavori} onChiudi={() => setVarianteAperta(false)} onFatto={() => { setVarianteAperta(false); onCambio(); }} />
       )}
       {bozzaElenco && (
         <ElencoLavoriDialog
@@ -805,59 +806,70 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
   const fasiScelta = [...new Set([...fasi, ...righe.map((r) => r.fase), "Altri lavori"])];
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onChiudi(); }}>
-      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-4xl">
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-6xl">
         <DialogHeader>
           <DialogTitle>{titolo}</DialogTitle>
           <DialogDescription>
-            Lavori, quantità e prezzi che la ditta accetta (Allegato A del contratto), senza IVA. Le voci della commessa non cambiano.
+            Lavori, quantità e prezzi che la ditta accetta: aprono il contratto, senza IVA. Le voci della commessa non cambiano.
           </DialogDescription>
         </DialogHeader>
         {affidateSenzaPrezzo > 0 && <p role="alert" className="rounded-md bg-red-50 px-2 py-1 text-xs text-red-900">{affidateSenzaPrezzo === 1 ? "Una voce affidata è" : `${affidateSenzaPrezzo} voci affidate sono`} senza prezzo: la ditta non ce l'ha a listino. Scrivi il prezzo concordato, o togli la riga, per salvare il contratto.</p>}
         {senzaPrezzo > 0 && <p role="status" className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900">{senzaPrezzo === 1 ? "Una riga è" : `${senzaPrezzo} righe sono`} senza prezzo: nel contratto varrebbero 0 €. Scrivi il prezzo qui sotto.</p>}
         <div className="overflow-x-auto rounded-lg border">
-          <table className="w-full min-w-[640px] text-sm">
+          <table className="w-full min-w-[820px] text-sm">
             <thead className="bg-muted/50 text-xs text-muted-foreground">
               <tr>
-                <th className="px-2 py-1.5 text-left font-medium">Lavorazione e descrizione</th>
-                <th className="w-16 px-1 py-1.5 text-left font-medium">U.M.</th>
+                <th className="w-40 px-2 py-1.5 text-left font-medium">Lavorazione</th>
+                <th className="px-1 py-1.5 text-left font-medium">Descrizione</th>
+                <th className="w-14 px-1 py-1.5 text-left font-medium">U.M.</th>
                 <th className="w-24 px-1 py-1.5 text-right font-medium">Quantità</th>
                 <th className="w-28 px-1 py-1.5 text-right font-medium">Prezzo €</th>
                 <th className="w-28 px-2 py-1.5 text-right font-medium">Importo</th>
+                {daAffidamenti && <th className="w-36 px-1 py-1.5 text-left font-medium">Voce affidata</th>}
                 <th className="w-8" />
               </tr>
             </thead>
             <tbody>
               {righe.map((r, i) => (
-                <tr key={chiaveRiga(r)} className="border-t align-top">
-                  <td className="px-2 py-1.5">
+                // Una riga per lavoro (11/11/2026): lavorazione, descrizione, U.M., quantità, prezzo, importo. Da dove
+                // viene la voce sta in una riga sottile sotto la descrizione, solo per le voci affidate.
+                <tr key={chiaveRiga(r)} className="border-t align-middle">
+                  <td className="px-2 py-1">
                     <OfficeSelect
                       label={`Lavorazione della riga ${i + 1}`}
                       value={r.fase}
                       onValueChange={(v) => cambia(i, { fase: v, fase_id: null, sottofase_id: null })}
-                      className="mb-1 h-7 max-w-full rounded-lg px-1 text-xs text-muted-foreground"
+                      className="h-8 w-40 rounded-lg px-2 text-xs text-muted-foreground"
                       options={fasiScelta.map((f) => ({ value: f, label: f }))}
                     />
-                    <Input aria-label={`Descrizione della riga ${i + 1}`} value={r.descrizione} onChange={(e) => cambia(i, { descrizione: e.target.value })} className="h-8" />
-                    {r.affidamento_id && (
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        Voce affidata{r.comprende ? ` · ${testoComprende(r.comprende)}` : ""}
-                        {r.origine && <> · prezzo: <span className={r.origine === "costo_aziendale" ? "text-amber-800" : undefined}>{ORIGINE_PREZZO[r.origine]}</span></>}
-                      </p>
-                    )}
                   </td>
-                  <td className="px-1 py-1.5">
-                    <Input aria-label={`Unità della riga ${i + 1}`} value={r.unita ?? ""} onChange={(e) => cambia(i, { unita: e.target.value || null })} className="mt-8 h-8" />
+                  <td className="px-1 py-1">
+                    <Input aria-label={`Descrizione della riga ${i + 1}`} value={r.descrizione} onChange={(e) => cambia(i, { descrizione: e.target.value })} className="h-8"
+                      title={r.affidamento_id ? `Voce affidata${r.comprende ? ` · ${testoComprende(r.comprende)}` : ""}${r.origine ? ` · prezzo: ${ORIGINE_PREZZO[r.origine]}` : ""}` : undefined} />
                   </td>
-                  <td className="px-1 py-1.5">
+                  <td className="px-1 py-1">
+                    <Input aria-label={`Unità della riga ${i + 1}`} value={r.unita ?? ""} onChange={(e) => cambia(i, { unita: e.target.value || null })} className="h-8" />
+                  </td>
+                  <td className="px-1 py-1">
                     <Input aria-label={`Quantità della riga ${i + 1}`} inputMode="decimal" defaultValue={String(r.quantita).replace(".", ",")}
-                      onBlur={(e) => cambia(i, { quantita: numero(e.target.value) })} className="mt-8 h-8 text-right tabular-nums" />
+                      onBlur={(e) => cambia(i, { quantita: numero(e.target.value) })} className="h-8 text-right tabular-nums" />
                   </td>
-                  <td className="px-1 py-1.5">
-                    <Input aria-label={`Prezzo della riga ${i + 1}`} inputMode="decimal" defaultValue={String(r.prezzo).replace(".", ",")}
-                      onBlur={(e) => cambia(i, { prezzo: numero(e.target.value) })} className="mt-8 h-8 text-right tabular-nums" />
+                  <td className="px-1 py-1">
+                    <Input aria-label={`Prezzo della riga ${i + 1}`}
+                      title={r.origine ? `Prezzo: ${ORIGINE_PREZZO[r.origine]}` : undefined} inputMode="decimal" defaultValue={String(r.prezzo).replace(".", ",")}
+                      onBlur={(e) => cambia(i, { prezzo: numero(e.target.value) })}
+                      className={cn("h-8 text-right tabular-nums", r.origine === "costo_aziendale" && "border-amber-400 bg-amber-50")} />
                   </td>
-                  <td className="whitespace-nowrap px-2 pt-10 text-right tabular-nums">{formatCurrency(r.importo)}</td>
-                  <td className="pt-9 text-right">
+                  <td className="whitespace-nowrap px-2 text-right tabular-nums">{formatCurrency(r.importo)}</td>
+                  {daAffidamenti && (
+                    <td className="px-1 text-[11px] leading-tight text-muted-foreground">
+                      {r.affidamento_id ? <>
+                        {r.comprende ? testoComprende(r.comprende) : "affidata"}
+                        {r.origine && <> · prezzo: <span className={r.origine === "costo_aziendale" ? "text-amber-800" : undefined}>{ORIGINE_PREZZO[r.origine]}</span></>}
+                      </> : "a mano, fuori dalle voci"}
+                    </td>
+                  )}
+                  <td className="text-right">
                     <button type="button" aria-label={`Togli ${r.descrizione || `la riga ${i + 1}`}`} className="p-1 text-muted-foreground hover:text-destructive"
                       onClick={() => onRighe(righe.filter((_, j) => j !== i))}>
                       <Trash2 className="h-4 w-4" />
@@ -866,7 +878,7 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
                 </tr>
               ))}
               {!righe.length && (
-                <tr><td colSpan={6} className="px-2 py-4 text-center text-sm text-muted-foreground">Nessun lavoro: aggiungili dal listino o a mano.</td></tr>
+                <tr><td colSpan={daAffidamenti ? 8 : 7} className="px-2 py-4 text-center text-sm text-muted-foreground">Nessun lavoro: aggiungili dal listino o a mano.</td></tr>
               )}
             </tbody>
           </table>
