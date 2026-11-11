@@ -75,6 +75,7 @@ import { useBonusFiscaliFlags } from "@/hooks/useBonusFiscaliFlags";
 import { type BonusLine, serializeBonusLines } from "@/lib/orders/bonusFiscali";
 import { type QuotePaymentPhase, recalcPhaseAmounts, paymentPlanError } from "@/lib/preventivi/paymentTerms";
 import { readQuoteDraft, serializeQuoteDraft, type QuoteDraft } from "@/lib/preventivi/quoteDraft";
+import { useBoundedAutosave, useDraftExitFlush } from "@/hooks/useBoundedAutosave";
 import { assertSavedQuoteAmounts } from "@/lib/preventivi/quoteSaveValidation";
 import { fetchQuotePdf } from "@/lib/preventivi/quotePdfDownload";
 import { quoteWriteVersion } from "@/lib/preventivi/quoteWriteVersion";
@@ -1751,24 +1752,11 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   // Un solo percorso per salvataggio manuale e automatico.
   const saveInFlightRef = useRef(false);
   const [lastSavedHash, setLastSavedHash] = useState("");
+  const lastCloudSavedSnapshotRef = useRef("");
   const [autosaveFailed, setAutosaveFailed] = useState(false);
 
-  // Avvisa prima di uscire con modifiche non salvate
-  const isDirty = !saving && (items.length > 0 || clientName.trim() !== "");
-  useEffect(() => {
-    if (localEditor) return; // The shared chat memory owns the unsaved-change warning.
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (isDirty) {
-        e.preventDefault();
-        e.returnValue = "";
-      }
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [isDirty, localEditor]);
-
-  // Bozza completa: nessuna scrittura remota per un preventivo nuovo.
-  const quoteDraftKey = companyId && !localEditor ? `quote-draft-${companyId}` : null;
+  // Il recupero copre anche la modifica di un preventivo già esistente.
+  const quoteDraftKey = companyId && !localEditor ? `quote-draft-${companyId}${isEdit ? `-${id}` : ""}` : null;
   const [recoverableDraft, setRecoverableDraft] = useState<QuoteDraft | null>(null);
   const [localDraftFailed, setLocalDraftFailed] = useState(false);
   const [localDraftSaved, setLocalDraftSaved] = useState(false);
@@ -1777,7 +1765,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   const draftSnapshot: QuoteDraft = {
     partialQuoteId,
     step, contactId, clientName, clientEmail, clientPhone, clientCompany,
-    clientAddress, clientFiscalCode, clientVatNumber, clientCodiceUnivoco, title, description, validityDays,
+    clientAddress, clientFiscalCode, clientVatNumber, clientCodiceUnivoco, tipoClienteScelto, title, description, validityDays,
     notes, internalNotes, tipoLavoro, indirizzoLavori, pianoInstallazione, kmCantiere,
     salespersonId, sedeId, discountPercent, prezzoManuale, prezzoManualeIvaPct, provvigionePct,
     items, paymentMethod, paymentPhases, cronoprogramma, bonusLines, selectedRenders, selectedMaterials,
@@ -1787,6 +1775,20 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     condizioniTesto,
   };
   const draftSerialized = JSON.stringify(draftSnapshot);
+  const latestDraftSerializedRef = useRef(draftSerialized);
+  latestDraftSerializedRef.current = draftSerialized;
+  const draftReady = !isEdit || !!existingQuote && existingItemsLoaded && existingAttachmentsLoaded;
+  const isDirty = draftReady && (isEdit
+    ? !!lastSavedHash && lastSavedHash !== draftSerialized
+    : !!(items.length || clientName.trim() || description || notes));
+  useEffect(() => {
+    if (localEditor) return;
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (isDirty) { event.preventDefault(); event.returnValue = ""; }
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => window.removeEventListener("beforeunload", beforeUnload);
+  }, [isDirty, localEditor]);
   const previewNotes = [...new Set([notes, localEditor?.projectContext?.generatedNotes].filter(Boolean))].join('\n\n');
   const localPreviewProps = localEditor ? {
     taxPending: !items.some(item => !item.is_optional) || items.some(item => !item.is_optional && item.vat_rate == null),
@@ -1795,20 +1797,34 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   } : {};
 
   useEffect(() => {
-    if (isEdit || !quoteDraftKey || draftCheckedRef.current === quoteDraftKey) return;
-    draftCheckedRef.current = quoteDraftKey;
-    try {
-      const raw = localStorage.getItem(quoteDraftKey);
-      if (raw) setRecoverableDraft(readQuoteDraft(raw));
-    } catch {
-      draftReadFailedRef.current = true;
-      setLocalDraftFailed(true);
-      toast.error("Impossibile leggere la bozza locale", { description: "I dati non vengono cancellati. Conserva questa pagina aperta e salva il preventivo prima di uscire." });
-    }
-  }, [isEdit, quoteDraftKey]);
+    if (!draftReady || !quoteDraftKey || draftCheckedRef.current === quoteDraftKey) return;
+    // Gli effetti di idratazione di righe e testata devono avere completato
+    // il render: il form vuoto iniziale non è una bozza da salvare.
+    const timer = setTimeout(() => {
+      draftCheckedRef.current = quoteDraftKey;
+      draftReadFailedRef.current = false;
+      if (isEdit) { setLastSavedHash(draftSerialized); lastCloudSavedSnapshotRef.current = draftSerialized; }
+      try {
+        const raw = localStorage.getItem(quoteDraftKey);
+        setRecoverableDraft(raw ? readQuoteDraft(raw) : null);
+      } catch {
+        draftReadFailedRef.current = true;
+        setLocalDraftFailed(true);
+        toast.error("Impossibile leggere la bozza locale", { description: "I dati non vengono cancellati. Conserva questa pagina aperta e salva il preventivo prima di uscire." });
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [draftReady, quoteDraftKey, draftSerialized, isEdit]);
 
   const persistLocalDraft = useCallback(() => {
-    if (isEdit || newQuoteCompletedRef.current || !quoteDraftKey || recoverableDraft || draftReadFailedRef.current || draftCheckedRef.current !== quoteDraftKey) return;
+    if (!draftReady || newQuoteCompletedRef.current || !quoteDraftKey || recoverableDraft || draftReadFailedRef.current || draftCheckedRef.current !== quoteDraftKey) return;
+    if (isEdit && lastCloudSavedSnapshotRef.current === draftSerialized) {
+      // Anche un annulla/ripristina manuale può riportare tutti i campi alla
+      // versione sul server: una vecchia copia sporca non va riproposta.
+      try { localStorage.removeItem(quoteDraftKey); setLocalDraftSaved(false); }
+      catch { setLocalDraftFailed(true); }
+      return;
+    }
     const snapshot = JSON.parse(draftSerialized) as QuoteDraft;
     if (!snapshot.clientName?.trim() && !snapshot.items?.length && !snapshot.description && !snapshot.notes) return;
     try {
@@ -1816,15 +1832,15 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       setLocalDraftSaved(true);
       setLocalDraftFailed(false);
     } catch { setLocalDraftFailed(true); }
-  }, [isEdit, quoteDraftKey, recoverableDraft, draftSerialized]);
+  }, [draftReady, isEdit, lastSavedHash, quoteDraftKey, recoverableDraft, draftSerialized]);
+
+  useDraftExitFlush(persistLocalDraft);
 
   useEffect(() => {
     if (saving) return;
     const timer = setTimeout(persistLocalDraft, 500);
-    window.addEventListener("pagehide", persistLocalDraft);
     return () => {
       clearTimeout(timer);
-      window.removeEventListener("pagehide", persistLocalDraft);
     };
   }, [persistLocalDraft, saving]);
 
@@ -1849,6 +1865,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     if (d.clientFiscalCode !== undefined) setClientFiscalCode(d.clientFiscalCode);
     if (d.clientVatNumber !== undefined) setClientVatNumber(d.clientVatNumber);
     if (d.clientCodiceUnivoco !== undefined) setClientCodiceUnivoco(d.clientCodiceUnivoco);
+    if (d.tipoClienteScelto !== undefined) setTipoClienteScelto(d.tipoClienteScelto);
     if (d.title !== undefined) setTitle(d.title);
     if (d.description !== undefined) setDescription(d.description);
     if (d.validityDays !== undefined) setValidityDays(d.validityDays);
@@ -2135,6 +2152,10 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   const handleSave = async (status: string = "bozza", opts?: { anteprima?: boolean; autosave?: boolean; complete?: boolean }) => {
     if (localEditor) { toast.info('Bozza AI locale: nessuna scrittura nel gestionale e nessun PDF remoto.'); return; }
     if (!companyId || !user) return;
+    if (recoverableDraft) {
+      toast.error("Scegli se ripristinare o ignorare la bozza prima di salvare.");
+      return;
+    }
     if ((opts?.anteprima || opts?.complete || status !== 'bozza') && contractErrors.length) {
       toast.error('Completa i dati contrattuali', { description: contractErrors.slice(0, 3).join(' · ') });
       return;
@@ -2290,8 +2311,14 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       assertSavedQuoteAmounts(savedQuote, { subtotal, discount_amount: discountAmt, vat_amount: vatAmount, total });
       versioneCaricataRef.current = savedQuote.updated_at;
       setLastSavedHash(draftSerialized);
+      lastCloudSavedSnapshotRef.current = draftSerialized;
       setAutosaveFailed(false);
+      if (isEdit && latestDraftSerializedRef.current === draftSerialized) clearQuoteDraft();
       if (opts?.autosave) return; // Nessun refetch che possa cancellare input in corso.
+      if (isEdit && latestDraftSerializedRef.current !== draftSerialized) {
+        toast.info("Versione salvata. Le modifiche inserite durante il salvataggio restano da salvare.");
+        return;
+      }
       if (!isEdit) newQuoteCompletedRef.current = true;
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.detail(quoteId) });
@@ -2344,16 +2371,11 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   };
 
   // Payload completo e guardia di versione condivisi con il salvataggio manuale.
-  useEffect(() => {
-    if (!isEdit || !existingQuote || !existingItemsLoaded || !existingAttachmentsLoaded ||
-        autosaveFailed || saving || !clientName.trim() ||
-        !["bozza", "draft"].includes(existingQuote.status || "") ||
-        lastSavedHash === draftSerialized) return;
-    const timer = setTimeout(() => { void handleSave("bozza", { autosave: true }); }, 60_000);
-    return () => clearTimeout(timer);
-    // handleSave usa lo snapshot di questo render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draftSerialized, lastSavedHash, isEdit, existingQuote, existingItemsLoaded, existingAttachmentsLoaded, autosaveFailed, saving, companyId]);
+  useBoundedAutosave(draftSerialized,
+    !!(isEdit && existingQuote && draftReady && lastSavedHash &&
+      !recoverableDraft && !autosaveFailed && !saving && canEditPreventivi && clientName.trim() &&
+      ["bozza", "draft"].includes(existingQuote.status || "") && lastSavedHash !== draftSerialized),
+    () => { void handleSave("bozza", { autosave: true }); }, `${companyId}:${id}`);
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -2444,9 +2466,9 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   return (
     <div className="space-y-4 pb-24 [&_label]:text-xs sm:[&_label]:text-sm">
       {localEditor && <p role="note" className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">Stessa bozza della chat, solo su questo browser. Le modifiche tornano a Silvio AI. Le voci incomplete restano opzionali, fuori dal totale. Nessun salvataggio nel gestionale o PDF remoto.</p>}
-      {/* Recupero bozza locale (solo preventivo NUOVO) */}
+      {/* Recupero bozza locale, anche per un preventivo in modifica. */}
       {paymentError && step === 2 && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{paymentError} Correggi il piano prima di salvare o aprire il PDF. Le modifiche restano nella pagina.</div>}
-      {!isEdit && recoverableDraft && (
+      {recoverableDraft && (
         // Telefono: una riga («Bozza non salvata» + Ripristina / Ignora).
         <div className="flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center max-sm:gap-2 max-sm:px-3 max-sm:py-2">
           <div className="flex items-start gap-2 text-sm text-amber-900 max-sm:min-w-0 max-sm:flex-1 max-sm:items-center max-sm:text-xs">
@@ -2477,7 +2499,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
               <AlertTriangle className="h-3 w-3" />
               {localDraftFailed ? "Bozza locale non protetta: salva prima di uscire" : "Salvataggio non completato: controlla prima di uscire"}
             </span>
-          ) : undefined
+          ) : !isEdit && localDraftSaved ? "Bozza protetta su questo dispositivo. Premi Salva per renderla disponibile online." : undefined
         }
         icon={<FileCheck className="h-5 w-5" />}
         actions={
