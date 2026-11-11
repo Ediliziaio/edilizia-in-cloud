@@ -192,7 +192,9 @@ export function FlowBuilderPage() {
   // questo, una race disegnava i nodi ma con `connections` ancora vuoto → niente linee.
   useEffect(() => {
     if (initializedRef.current) return;
-    if (isLoading) return; // attendi flow + nodi + connessioni
+    // Disabled queries are not loading while authentication/company context restores.
+    // Do not lock an empty canvas before those queries have actually run.
+    if (!effectiveCompany?.id || !user?.id || isLoading) return;
     if (builder.dbNodes.length > 0 || builder.dbConnections.length > 0) {
       const rfNodesData = nodesToReactFlow(builder.dbNodes);
       // Inject onOpenCatalog on empty triggers
@@ -253,7 +255,7 @@ export function FlowBuilderPage() {
       ]);
       initializedRef.current = true;
     }
-  }, [builder.dbNodes, builder.dbConnections, builder.remoteEmpty, setRfNodes, setRfEdges, flowId, isNewFlowRoute, isLoading]);
+  }, [builder.dbNodes, builder.dbConnections, builder.remoteEmpty, setRfNodes, setRfEdges, flowId, isNewFlowRoute, isLoading, effectiveCompany?.id, user?.id]);
 
   // Undo/Redo → risincronizza il canvas dal mirror del hook. Il mirror
   // (builder.nodes/connections) è ciò che "Salva" persiste: senza questo
