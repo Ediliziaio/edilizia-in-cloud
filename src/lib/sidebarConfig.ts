@@ -74,8 +74,6 @@ export interface NavItem {
   demoCompanyOnly?: boolean;
   /** Visibile solo se l'utente ha accesso a più aziende (console agenzia). */
   multiCompanyOnly?: boolean;
-  /** Visibile solo con «Contabilità generale in casa» accesa (companies.contabilita_generale_attiva). */
-  soloConContabilitaGenerale?: boolean;
   category?: "internal" | "marketing";
   subcategory?: string;
   groupLabel?: string;
@@ -196,7 +194,7 @@ export const macroAreas: MacroArea[] = [
       { title: "Tesoreria", url: "/azienda/tesoreria", icon: Landmark, permissionKey: "canViewTesoreria", featureKey: "tesoreria" },
       { title: "Costi", url: "/azienda/costi", icon: TrendingDown, permissionKey: "canViewCosts", moduleKey: "forecast" },
       // La partita doppia, prima dentro Fatture → Fiscalità (docs/piano-contabilita-un-posto-solo.md).
-      { title: "Contabilità generale", url: "/azienda/contabilita-generale", icon: BookOpenCheck, permissionKey: "canViewPrimaNota", featureKey: "contabilita_fiscale", soloConContabilitaGenerale: true },
+      { title: "Contabilità generale", url: "/azienda/contabilita-generale", icon: BookOpenCheck, permissionKey: "canViewPrimaNota", featureKey: "contabilita_fiscale" },
       { title: "Analisi Acquisti", url: "/azienda/analisi-acquisti", icon: BarChart3, permissionKey: "canViewCosts", moduleKey: "forecast" },
       { title: "Previsionale", url: "/azienda/previsionale", icon: TrendingUp, permissionKey: "canViewForecast", moduleKey: "forecast" },
     ],
