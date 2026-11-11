@@ -153,6 +153,10 @@ jobs:
       - name: Install deps
         run: bun install --frozen-lockfile
 
+      - name: Verify deployment checkpoint selection
+        if: matrix.group == 'core'
+        run: node --test scripts/tests/ultimoDeployRiuscito.test.mjs
+
       - name: Typecheck webhook edge functions
         if: matrix.group == 'core'
         run: npx --yes deno@2.9.6 check supabase/functions/dispatch-global-webhooks/index.ts supabase/functions/send-webhook/index.ts
@@ -772,12 +776,14 @@ jobs:
           # da prima e riprova. Solo i push contano: un avvio a mano per poche
           # funzioni non dice niente sulle altre. Se l'elenco non si legge, si
           # resta sul comportamento di prima.
-          ULTIMO_OK=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=20" \
-            --jq '[.workflow_runs[] | select(.id != ${{ github.run_id }})] | .[0].head_sha // empty' 2>/dev/null || true)
+          # Use the deployment job result, independently of frontend failures.
+          # Otherwise a successful deploy followed by an APT/build failure
+          # could overwrite a newer manual hotfix on the next push.
+          ULTIMO_OK=$(node scripts/ultimo-deploy-riuscito.mjs)
           if [ -n "$ULTIMO_OK" ] \
               && git rev-parse --verify "$ULTIMO_OK^{commit}" >/dev/null 2>&1 \
               && git merge-base --is-ancestor "$ULTIMO_OK" HEAD; then
-            echo "Base del confronto: ultimo push riuscito ${ULTIMO_OK}"
+            echo "Base del confronto: ultimo deploy riuscito ${ULTIMO_OK}"
             BASE="$ULTIMO_OK"
           else
             echo "Ultimo push riuscito non disponibile: si usa il push precedente"
