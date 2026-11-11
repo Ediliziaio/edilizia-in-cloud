@@ -22,6 +22,10 @@ const ordineStabile = readFileSync(
   "supabase/migrations/20290312121000_riconciliazione_impronta_stabile.sql",
   "utf8",
 );
+const contestoCorretto = readFileSync(
+  "supabase/migrations/20290312122000_riconciliazione_ordinamento_contesto.sql",
+  "utf8",
+);
 const anchor = "set local qa.user_id='00000003-0000-4000-a000-000000000001';";
 sql = sql.replace(
   anchor,
@@ -37,7 +41,7 @@ create table orders(id uuid primary key,company_id uuid);
 create table order_items(id uuid primary key,order_id uuid,ddt_riga_origine_id uuid,purchase_price numeric,prezzo_da_definire boolean,updated_at timestamptz);
 create function user_can_access_company(p uuid) returns boolean language sql stable as $$select p=any(aziende_con_permesso('can_manage_purchasing')||aziende_con_permesso('can_view_costs'))$$;
 create function has_permission_for_company(u uuid,p text,c uuid) returns boolean language sql stable as $$select c=any(aziende_con_permesso(p))$$;
-${migrazione}\n${ordineStabile}\n${ordineStabile}\n${anchor}`,
+${migrazione}\n${ordineStabile}\n${ordineStabile}\n${contestoCorretto}\n${anchor}`,
 );
 const extra = `
 update ddt_ricezione set supplier_id='${supplier}' where id='${d}';
