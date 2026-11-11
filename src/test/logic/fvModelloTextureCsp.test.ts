@@ -9,7 +9,7 @@ it('legge un GLB con texture incorporate anche quando la CSP vieta fetch su blob
  vi.stubGlobal('createImageBitmap',vi.fn());
  vi.spyOn(URL,'createObjectURL').mockReturnValue('blob:http://localhost/texture-glb');vi.spyOn(URL,'revokeObjectURL').mockImplementation(()=>{});
  const bitmap=vi.spyOn(THREE.ImageBitmapLoader.prototype,'load');
- const immagini=vi.spyOn(THREE.TextureLoader.prototype,'load').mockImplementation((url,onLoad)=>{const t=new THREE.Texture();queueMicrotask(()=>onLoad?.(t));return t;});
+ const immagini=vi.spyOn(THREE.TextureLoader.prototype,'load').mockImplementation((url,onLoad?: (texture:THREE.Texture<HTMLImageElement>)=>void)=>{const t=new THREE.Texture(document.createElement('img'));queueMicrotask(()=>onLoad?.(t));return t;});
  const bytes=readFileSync('public/templates/fotovoltaico/examples/casa-test.glb');
  // Il buffer deve appartenere allo stesso realm del parser nel browser jsdom.
  const f={name:'casa.glb',size:bytes.length,arrayBuffer:async()=>{const out=new ArrayBuffer(bytes.length);new Uint8Array(out).set(bytes);return out;}} as File;
