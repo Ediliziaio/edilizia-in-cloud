@@ -1,3 +1,22 @@
+-- Dependency shared with the later user-blocking hardening migration.
+CREATE OR REPLACE FUNCTION public.utente_bloccato()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+     WHERE id = auth.uid()
+       AND coalesce(is_blocked, false)
+  );
+$function$;
+
+REVOKE ALL ON FUNCTION public.utente_bloccato() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.utente_bloccato() TO authenticated, service_role;
+
+
 -- The operational report is not a declaration of conformity or a client signature.
 -- Writes go through the authenticated collaudo-commessa endpoint, never the browser.
 create table public.order_acceptance_reports (

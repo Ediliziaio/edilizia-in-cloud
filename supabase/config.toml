@@ -1181,3 +1181,11 @@ verify_jwt = false
 # Autenticazione nel corpo: JWT utente e appartenenza aziendale oppure segreto cron.
 [functions.ddt-documenti-processa]
 verify_jwt = false
+
+# Per-endpoint bearer authentication, timestamp and atomic replay protection.
+[functions.automation-webhook-in]
+verify_jwt = false
+
+# Read-only public availability; calendar is resolved only from its public slug.
+[functions.public-booking-slots]
+verify_jwt = false

@@ -23,7 +23,10 @@ import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 import { scaricaCsv } from "@/lib/csv";
 import { FiscalSectionHeader } from "@/components/fatturazione/FiscalSectionLayout";
 import { FiscalQueryState } from "@/components/fatturazione/FiscalQueryState";
-import { bilancioCee, bilancioDiVerifica, htmlBilancioCee, htmlBilancioVerifica, saldiPerConto } from "@/lib/contabilita/bilancioCee";
+import { RateiRiscontiFineAnno } from "@/components/contabilita/RateiRiscontiFineAnno";
+import { RegistroCespiti } from "@/components/contabilita/RegistroCespiti";
+import { RimanenzeFineAnno } from "@/components/contabilita/RimanenzeFineAnno";
+import { bilancioASezioni, bilancioCee, bilancioDiVerifica, htmlBilancioCee, htmlBilancioSezioni, htmlBilancioVerifica, saldiPerConto, type LatoBilancio } from "@/lib/contabilita/bilancioCee";
 import type { AziendaIntestazione } from "@/lib/contabilita/documentoContabile";
 import { contoAPartite, htmlMastrino, mastrino, partitario } from "@/lib/contabilita/mastrini";
 import {
@@ -42,7 +45,8 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-const euro = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
+// «always»: in italiano 4000 resterebbe senza il punto delle migliaia.
+const euro = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" } as Intl.NumberFormatOptions).format(n);
 const dataIt = (d: string) => d.split("-").reverse().join("/");
 const oggi = () => new Date().toLocaleDateString("en-CA");
 const rigaVuota = (): RigaBozza => ({ conto_id: "", dare: "", avere: "", descrizione: "" });
@@ -295,6 +299,21 @@ function PianoDeiConti({ companyId, conti }: { companyId: string; conti: ContoCo
   );
 }
 
+/**
+ * Da dove viene una scrittura, per leggere separati i costi delle fatture ricevute e i ricavi
+ * delle emesse (richiesta dello studio, 11/11/2026).
+ */
+const GRUPPI_ORIGINE = [
+  ["ricevute", "Fatture ricevute (costi)", ["fattura_ricevuta"]],
+  ["emesse", "Fatture emesse (ricavi)", ["fattura_emessa"]],
+  ["movimenti", "Incassi, pagamenti e F24", ["incasso", "incasso_fattura", "incasso_documento", "pagamento", "prima_nota", "f24", "giroconto", "ritenuta_subita"]],
+] as const;
+type GruppoOrigine = (typeof GRUPPI_ORIGINE)[number][0] | "tutte" | "altre";
+function gruppoDi(origine: string | null | undefined): Exclude<GruppoOrigine, "tutte"> {
+  for (const [k, , origini] of GRUPPI_ORIGINE) if ((origini as readonly string[]).includes(origine ?? "")) return k;
+  return "altre";
+}
+
 function Scritture({ companyId, anno, conti, giornale }: { companyId: string; anno: number; conti: ContoContabile[]; giornale: boolean }) {
   const qc = useQueryClient();
   const scritture = useScritture(companyId, anno);
@@ -306,6 +325,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
   // Un esercizio vero ha migliaia di scritture: a video le prime, la stampa le ha tutte.
   const [mostra, setMostra] = useState(300);
   const [definitiva, setDefinitiva] = useState(false);
+  const [filtro, setFiltro] = useState<GruppoOrigine>("tutte");
   const nomi = useMemo(() => new Map(conti.map((c) => [c.id, `${c.codice} ${c.descrizione}`])), [conti]);
   // Fatture emesse e ricevute, incassi e pagamenti, movimenti di prima nota e F24 pagati
   // dell'esercizio diventano scritture.
@@ -345,6 +365,9 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
   }
   const elenco = scritture.data ?? [];
   const g = costruisciGiornale(elenco, conti);
+  // Il filtro vale per l'elenco delle scritture; il libro giornale resta intero.
+  const visibili = filtro === "tutte" ? elenco : elenco.filter((s) => gruppoDi(s.origine) === filtro);
+  const quante = (k: GruppoOrigine) => (k === "tutte" ? elenco.length : elenco.filter((s) => gruppoDi(s.origine) === k).length);
   const apriStampa = () => {
     const a = anagrafica.data;
     setStampa(htmlLibroGiornale({
@@ -410,9 +433,21 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
         </div>
       ) : (
         <div className="space-y-2">
+          {elenco.length > 0 ? (
+            <div className="flex flex-wrap gap-1" role="group" aria-label="Da dove vengono le scritture">
+              {([["tutte", "Tutte"], ...GRUPPI_ORIGINE.map(([k, l]) => [k, l] as const), ["altre", "Altre"]] as Array<readonly [GruppoOrigine, string]>).map(([k, l]) => (
+                <button key={k} type="button" aria-pressed={filtro === k} onClick={() => { setFiltro(k); setMostra(300); }}
+                  className={`rounded-full border px-2.5 py-0.5 text-xs ${filtro === k ? "border-primary bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:bg-muted"}`}>
+                  {l} <span className="tabular-nums">{quante(k)}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
           {elenco.length === 0 ? (
             <p className="rounded-xl border p-4 text-sm text-muted-foreground">Nessuna scrittura nel {anno}. Fatture, incassi e pagamenti si registrano da soli ogni quarto d'ora («Aggiorna adesso» per non aspettare); le altre operazioni si registrano con «Nuova scrittura».</p>
-          ) : elenco.slice(0, mostra).map((s) => {
+          ) : visibili.length === 0 ? (
+            <p className="rounded-xl border p-4 text-sm text-muted-foreground">Nessuna scrittura di questo tipo nel {anno}.</p>
+          ) : visibili.slice(0, mostra).map((s) => {
             const tot = s.contabilita_righe.reduce((t, r) => t + Number(r.dare || 0), 0);
             return (
               <details key={s.id} className="rounded-xl border p-3 text-sm">
@@ -446,9 +481,9 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
           })}
         </div>
       )}
-      {(giornale ? g.righe.length > mostra * 5 : elenco.length > mostra) ? (
+      {(giornale ? g.righe.length > mostra * 5 : visibili.length > mostra) ? (
         <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground">
-          <span>{giornale ? `Righe ${mostra * 5} di ${g.righe.length}` : `Scritture ${mostra} di ${elenco.length}`}: la stampa le contiene tutte.</span>
+          <span>{giornale ? `Righe ${mostra * 5} di ${g.righe.length}` : `Scritture ${mostra} di ${visibili.length}`}: la stampa le contiene tutte.</span>
           <Button size="sm" variant="outline" onClick={() => setMostra((n) => n + 300)}>Mostra altre</Button>
         </div>
       ) : null}
@@ -592,12 +627,15 @@ function Bilancio({ companyId, anno, conti }: { companyId: string; anno: number;
   const scritture = useScritture(companyId, anno);
   const anagrafica = useAnagraficaAzienda();
   const [stampa, setStampa] = useState<{ html: string; nome: string } | null>(null);
+  // Per default la lettura dello studio: stato patrimoniale e conto economico divisi (11/11/2026).
+  const [vista, setVista] = useState<"sezioni" | "verifica">("sezioni");
   if (scritture.isLoading || scritture.isError) {
     return <FiscalQueryState loading={scritture.isLoading} error={scritture.isError} onRetry={() => void scritture.refetch()} />;
   }
   const saldi = saldiPerConto(scritture.data ?? [], conti);
   const verifica = bilancioDiVerifica(saldi);
   const cee = bilancioCee(saldi);
+  const sezioni = bilancioASezioni(saldi, conti);
   const azienda = intestazioneDa(anagrafica.data);
   const periodo = `Esercizio ${anno}`;
   const sbilancio = Math.round((cee.totaleAttivo - cee.totalePassivo) * 100) / 100;
@@ -608,6 +646,15 @@ function Bilancio({ companyId, anno, conti }: { companyId: string; anno: number;
           title={`${stampa.nome} — anteprima di stampa`} fileName={`${stampa.nome.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${anno}`} soloPdf />
       )}
       <div className="flex flex-wrap gap-2">
+        <div className="mr-2 flex rounded-md border p-0.5">
+          {([["sezioni", "Stato patrimoniale e conto economico"], ["verifica", "Bilancio di verifica"]] as const).map(([k, l]) => (
+            <button key={k} type="button" aria-pressed={vista === k} onClick={() => setVista(k)}
+              className={`rounded px-2.5 py-1 text-xs ${vista === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>{l}</button>
+          ))}
+        </div>
+        <Button size="sm" variant="outline" onClick={() => setStampa({ html: htmlBilancioSezioni({ azienda, bilancio: sezioni, periodo }), nome: "Bilancio a sezioni" })}>
+          <Printer className="mr-1 h-4 w-4" />Stampa stato patrimoniale e conto economico
+        </Button>
         <Button size="sm" variant="outline" onClick={() => setStampa({ html: htmlBilancioVerifica({ azienda, verifica, periodo }), nome: "Bilancio di verifica" })}>
           <Printer className="mr-1 h-4 w-4" />Stampa bilancio di verifica
         </Button>
@@ -627,6 +674,27 @@ function Bilancio({ companyId, anno, conti }: { companyId: string; anno: number;
           {cee.vociNonIndicate.length > 0 ? <p>Conti senza una voce CEE riconosciuta: {cee.vociNonIndicate.join(", ")}.</p> : null}
         </div>
       ) : null}
+      {vista === "sezioni" ? (
+        <div className="space-y-4">
+          <section aria-label="Stato patrimoniale" className="space-y-2">
+            <h3 className="text-sm font-semibold">Stato patrimoniale</h3>
+            <div className="grid gap-3 lg:grid-cols-2">
+              <LatoDelBilancio titolo="Attivo" lato={sezioni.attivo} />
+              <LatoDelBilancio titolo="Passivo e netto" lato={sezioni.passivo}
+                chiusura={{ etichetta: sezioni.utile >= 0 ? "Utile dell'esercizio" : "Perdita dell'esercizio", importo: sezioni.utile }} />
+            </div>
+          </section>
+          <section aria-label="Conto economico" className="space-y-2">
+            <h3 className="text-sm font-semibold">Conto economico</h3>
+            <div className="grid gap-3 lg:grid-cols-2">
+              <LatoDelBilancio titolo="Costi" lato={sezioni.costi}
+                chiusura={sezioni.utile > 0 ? { etichetta: "Utile dell'esercizio", importo: sezioni.utile } : undefined} />
+              <LatoDelBilancio titolo="Ricavi" lato={sezioni.ricavi}
+                chiusura={sezioni.utile < 0 ? { etichetta: "Perdita dell'esercizio", importo: -sezioni.utile } : undefined} />
+            </div>
+          </section>
+        </div>
+      ) : (
       <div className="overflow-x-auto rounded-xl border">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
@@ -646,6 +714,45 @@ function Bilancio({ companyId, anno, conti }: { companyId: string; anno: number;
           </tbody>
         </table>
       </div>
+      )}
+    </div>
+  );
+}
+
+/** Un lato del bilancio: i mastri col loro totale, e sotto i conti (si aprono). In fondo il totale del lato. */
+function LatoDelBilancio({ titolo, lato, chiusura }: { titolo: string; lato: LatoBilancio; chiusura?: { etichetta: string; importo: number } }) {
+  const totale = lato.totale + (chiusura?.importo ?? 0);
+  return (
+    <div className="overflow-hidden rounded-xl border">
+      <div className="flex items-center justify-between bg-muted/50 px-3 py-2 text-xs font-semibold uppercase text-muted-foreground">
+        <span>{titolo}</span><span className="tabular-nums">{euro(totale)}</span>
+      </div>
+      {lato.mastri.length === 0 && !chiusura ? <p className="p-3 text-sm text-muted-foreground">Nessun conto movimentato.</p> : null}
+      <ul className="divide-y text-sm">
+        {lato.mastri.map((m) => (
+          <li key={`${m.codice}-${m.descrizione}`}>
+            <details>
+              <summary className="flex cursor-pointer items-center justify-between gap-2 px-3 py-1.5 font-medium hover:bg-muted/40">
+                <span className="min-w-0 truncate">{m.codice ? <span className="mr-1.5 font-mono text-xs text-muted-foreground">{m.codice}</span> : null}{m.descrizione}</span>
+                <span className="shrink-0 tabular-nums">{euro(m.totale)}</span>
+              </summary>
+              <ul className="pb-1">
+                {m.conti.map((c) => (
+                  <li key={c.codice} className="flex items-center justify-between gap-2 py-0.5 pl-8 pr-3 text-xs">
+                    <span className="min-w-0 truncate"><span className="mr-1.5 font-mono text-muted-foreground">{c.codice}</span>{c.descrizione}</span>
+                    <span className="shrink-0 tabular-nums">{euro(c.importo)}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </li>
+        ))}
+        {chiusura ? (
+          <li className="flex items-center justify-between bg-muted/30 px-3 py-1.5 font-semibold">
+            <span>{chiusura.etichetta}</span><span className="tabular-nums">{euro(chiusura.importo)}</span>
+          </li>
+        ) : null}
+      </ul>
     </div>
   );
 }
@@ -1016,10 +1123,9 @@ function StampaDefinitiva({ open, onOpenChange, companyId, anno, onStampa }: {
   );
 }
 
-interface QuotaAmmortamento { cespite: string; codice: string | null; costo: number; aliquota: number; fondo_inizio: number; quota: number; residuo: number }
 interface EsitoFineAnno {
-  ammortamenti: QuotaAmmortamento[]; totale_ammortamenti: number; retribuzioni: number; tfr: number;
-  ammortamenti_registrati: boolean; tfr_registrato: boolean;
+  totale_ammortamenti: number; retribuzioni: number; tfr: number;
+  ammortamenti_registrati: boolean; ammortamenti_da_aggiornare?: boolean; tfr_registrato: boolean;
 }
 interface EsitoChiusura {
   utile: number; conti_economici: number; conti_patrimoniali: number; apertura_gia_presente: boolean;
@@ -1027,7 +1133,7 @@ interface EsitoChiusura {
 }
 
 /**
- * Fine anno: ammortamenti dei cespiti (dal registro del Controllo di gestione) e TFR dai
+ * Fine anno: ammortamenti dal registro dei cespiti (RegistroCespiti) e TFR dai
  * cedolini, poi la chiusura dell'esercizio con la riapertura dei conti al 1° gennaio.
  */
 function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
@@ -1097,7 +1203,8 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
     return <FiscalQueryState loading={fine.isLoading} error={fine.isError} onRetry={() => void fine.refetch()} />;
   }
   const f = fine.data!;
-  const daRegistrare = (f.totale_ammortamenti > 0 && !f.ammortamenti_registrati) || (f.tfr > 0 && !f.tfr_registrato);
+  // Anche ammortamenti da rifare (registro cambiato dopo, o sceso a zero): «Registra» li riallinea.
+  const daRegistrare = (f.totale_ammortamenti > 0 && !f.ammortamenti_registrati) || !!f.ammortamenti_da_aggiornare || (f.tfr > 0 && !f.tfr_registrato);
   return (
     <div className="space-y-4">
       <section className="space-y-2">
@@ -1108,45 +1215,31 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          I cespiti sono quelli del registro in Controllo di gestione: quote costanti, metà nel primo anno, fino a esaurire il costo.
-          Il TFR è un tredicesimo e mezzo delle retribuzioni lorde dei cedolini ({euro(f.retribuzioni)}), senza rivalutazione.
+          I cespiti sono quelli del registro in Controllo di gestione: quote costanti, metà nel primo anno, fino a esaurire il costo;
+          il fondo è la somma delle quote registrate. «Registra» scrive ammortamenti e TFR al 31/12, e li rifà se il registro cambia.
         </p>
-        <div className="overflow-x-auto rounded-xl border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
-              <tr><th className="p-2">Cespite</th><th className="p-2 text-right">Costo</th><th className="p-2 text-right">Aliquota</th><th className="p-2 text-right">Fondo a inizio anno</th><th className="p-2 text-right">Quota {anno}</th><th className="p-2 text-right">Residuo</th></tr>
-            </thead>
-            <tbody>
-              {f.ammortamenti.length === 0 ? (
-                <tr><td colSpan={6} className="p-4 text-center text-muted-foreground">Nessun cespite da ammortizzare nel {anno}.</td></tr>
-              ) : f.ammortamenti.map((q, i) => (
-                <tr key={`${q.codice ?? ""}-${i}`} className="border-t">
-                  <td className="p-2">{q.codice ? <span className="mr-2 font-mono text-xs">{q.codice}</span> : null}{q.cespite}</td>
-                  <td className="p-2 text-right tabular-nums">{euro(q.costo)}</td>
-                  <td className="p-2 text-right tabular-nums">{q.aliquota}%</td>
-                  <td className="p-2 text-right tabular-nums text-muted-foreground">{euro(q.fondo_inizio)}</td>
-                  <td className="p-2 text-right font-medium tabular-nums">{euro(q.quota)}</td>
-                  <td className="p-2 text-right tabular-nums">{euro(q.residuo)}</td>
-                </tr>
-              ))}
-              <tr className="border-t bg-muted/30 font-medium">
-                <td className="p-2">Totale ammortamenti {f.ammortamenti_registrati ? "· registrati" : ""}</td>
-                <td colSpan={3} /><td className="p-2 text-right tabular-nums">{euro(f.totale_ammortamenti)}</td><td />
-              </tr>
-              <tr className="border-t font-medium">
-                <td className="p-2">Accantonamento TFR {f.tfr_registrato ? "· registrato" : ""}</td>
-                <td colSpan={3} /><td className="p-2 text-right tabular-nums">{euro(f.tfr)}</td><td />
-              </tr>
-            </tbody>
-          </table>
+        <RegistroCespiti companyId={companyId} anno={anno} chiuso={chiuso} />
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm font-medium">
+          <span>Accantonamento TFR {f.tfr_registrato ? "· registrato" : ""}</span>
+          <span className="tabular-nums">{euro(f.tfr)}</span>
         </div>
         <p className="text-xs text-muted-foreground">
-          Ratei, risconti e rimanenze finali si registrano con «Nuova scrittura» (causali Rateo, Risconto, Rettifica).
+          Il TFR è un tredicesimo e mezzo delle retribuzioni lorde dei cedolini ({euro(f.retribuzioni)}), senza rivalutazione.
         </p>
       </section>
 
+      <section className="space-y-2">
+        <h3 className="text-sm font-semibold">2. Rimanenze finali al 31/12/{anno}</h3>
+        <RimanenzeFineAnno companyId={companyId} anno={anno} chiuso={chiuso} />
+      </section>
+
+      <section className="space-y-2">
+        <h3 className="text-sm font-semibold">3. Ratei e risconti al 31/12/{anno}</h3>
+        <RateiRiscontiFineAnno companyId={companyId} anno={anno} chiuso={chiuso} />
+      </section>
+
       <section className="space-y-2 rounded-xl border p-4">
-        <h3 className="text-sm font-semibold">2. Chiusura dell'esercizio {anno}</h3>
+        <h3 className="text-sm font-semibold">4. Chiusura dell'esercizio {anno}</h3>
         {chiuso ? (
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
             <span>Chiuso il {dataIt(esercizio.data!.chiuso_il!.slice(0, 10))}. Costi e ricavi sono girati sull'utile, i conti sono riaperti al 01/01/{anno + 1}.</span>
@@ -1169,7 +1262,7 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
               </ul>
             ) : null}
             <p className="text-xs text-muted-foreground">
-              Prima di chiudere: tutto generato dai documenti, liquidazioni IVA registrate, ammortamenti e TFR fatti, ratei e risconti scritti.
+              Prima di chiudere: tutto generato dai documenti, liquidazioni IVA registrate, ammortamenti, TFR e rimanenze registrati, ratei e risconti scritti.
               Dopo, l'anno è bloccato: per correggere si riapre.
             </p>
             <Button size="sm" onClick={() => setConferma(true)} disabled={chiudi.isPending || (chiusura.data!.iva_non_liquidata ?? 0) !== 0}>Chiudi l'esercizio {anno}</Button>

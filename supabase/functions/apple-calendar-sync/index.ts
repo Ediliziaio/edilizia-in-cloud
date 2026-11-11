@@ -1,3 +1,4 @@
+import {bookingCalendarDestination} from '../_shared/bookingCalendarDestination.ts';
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getEncryptionKey, decrypt } from "../_shared/encryption.ts";
 import { cronSecretValido } from "../_shared/cronAuth.ts";
@@ -162,6 +163,7 @@ async function risolviBersaglio(
   fallbackUserId: string,
   companyId: string,
 ): Promise<{ ok: true; creds: { conn: any; appleId: string; appPassword: string }; userId: string; calendarUrl: string } | { ok: false; errore: string; status: number }> {
+  apt = await bookingCalendarDestination(admin, apt, companyId);
   if (apt.calendar_id) {
     const { data: cal } = await admin
       .from("marketing_calendars")

@@ -1,3 +1,5 @@
+-- Fresh replay dependency guard; identical ordered implementation: 20271212_crm_province_region.sql
+DO $deferred_history_0$ BEGIN IF to_regclass('public.crm_province_centroids') IS NOT NULL THEN
 -- Applicata direttamente in produzione dal pannello Supabase e ricostruita
 -- qui dal registro migrazioni (supabase_migrations.schema_migrations),
 -- per riallineare la cartella del repo alla storia reale del database.
@@ -58,3 +60,5 @@ begin
   order by n desc;
 end; $$;
 grant execute on function public.crm_map_region_stats(uuid) to authenticated;
+
+END IF; END $deferred_history_0$;

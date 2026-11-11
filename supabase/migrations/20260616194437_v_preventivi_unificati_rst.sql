@@ -2,6 +2,9 @@
 -- qui dal registro migrazioni (supabase_migrations.schema_migrations),
 -- per riallineare la cartella del repo alla storia reale del database.
 
+-- Complete module view is repeated after quote/FV/RST schema installation.
+DO $history$ BEGIN
+ IF to_regclass('public.rst_progetti') IS NOT NULL AND to_regclass('public.fv_progetti') IS NOT NULL AND EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='quotes' AND column_name='salesperson_id') THEN
 CREATE OR REPLACE VIEW public.v_preventivi_unificati
 WITH (security_invoker = true) AS
   SELECT
@@ -124,3 +127,6 @@ WITH (security_invoker = true) AS
 COMMENT ON VIEW public.v_preventivi_unificati IS
   'Convergenza preventivi cross-modulo (classico/serramenti/fotovoltaico/ristrutturazione). security_invoker=true. Mirror server-side di UnifiedPreventiviList.';
 GRANT SELECT ON public.v_preventivi_unificati TO authenticated;
+
+ END IF;
+END $history$;

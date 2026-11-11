@@ -4,6 +4,8 @@
 
 -- Listino come fonte unica: tagging macrocategoria + sync automatico verso il preventivatore FV.
 
+-- Repeated by 20270703200000 after the FV catalogue link exists.
+DO $history$ BEGIN IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='articoli_native' AND column_name='listino_family_id') THEN
 ALTER TABLE public.listino_macrocategorie
   ADD COLUMN IF NOT EXISTS tipologia text,
   ADD COLUMN IF NOT EXISTS fv_categoria text
@@ -183,3 +185,5 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.fv_sync_listino_macro(uuid) TO authenticated;
+
+END IF; END $history$;

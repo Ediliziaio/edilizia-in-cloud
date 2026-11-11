@@ -11,6 +11,9 @@
 --   • plan_feature_defaults sotto spegne fiscalità/cantieri/preventivi
 -- Prezzo 97 €/mese = placeholder modificabile da /admin (piani).
 
+-- This recovered timestamp precedes the full-plan/preview schema.
+-- Initialization is also appended to 20270519230000 after those dependencies.
+DO $history$ BEGIN IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='subscription_plans' AND column_name='is_full_plan') AND to_regtype('public.feature_access_level') IS NOT NULL THEN
 insert into public.subscription_plans
   (name, slug, description, price_monthly, price_yearly, max_orders, max_users,
    features, is_active, position, included_modules, trial_days, is_full_plan)
@@ -50,3 +53,5 @@ where p.slug = 'marketing'
     select 1 from public.plan_feature_defaults d
     where d.plan_id = p.id and d.feature_key = f.key
   );
+
+END IF; END $history$;

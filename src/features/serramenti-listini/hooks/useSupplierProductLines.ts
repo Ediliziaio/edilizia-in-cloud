@@ -19,11 +19,30 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
 import { captureVelocityError } from "@/lib/velocity/sentry";
-import type { TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
+import type { Json, Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
+import { leggiImmaginiCatalogo, type ImmagineCatalogo } from "@/lib/listino/immaginiCatalogo";
 import type {
   MaterialeProfilo,
   SupplierProductLine,
 } from "../types";
+
+// ─── Dal database e verso il database ───────────────────────────────────────
+// `immagini` è jsonb: si legge col parser del catalogo e si scrive come JSON semplice.
+// `materiale` è un text col CHECK sull'elenco di MaterialeProfilo.
+
+type RigaLinea = Tables<"supplier_product_lines">;
+
+function daRiga(r: RigaLinea): SupplierProductLine {
+  return { ...r, materiale: r.materiale as MaterialeProfilo, immagini: leggiImmaginiCatalogo(r.immagini) };
+}
+
+const immaginiInJson = (immagini: ImmagineCatalogo[]): Json =>
+  immagini.map((i) => ({ id: i.id, url: i.url, ruolo: i.ruolo, didascalia: i.didascalia }));
+
+function versoRiga<T extends { immagini?: ImmagineCatalogo[] }>(v: T): Omit<T, "immagini"> & { immagini?: Json } {
+  const { immagini, ...resto } = v;
+  return immagini === undefined ? resto : { ...resto, immagini: immaginiInJson(immagini) };
+}
 
 // ─── Input types ─────────────────────────────────────────────────────────────
 
@@ -75,7 +94,7 @@ export function useSupplierProductLines(
       if (!includeInactive) q = q.eq("attivo", true);
       const { data, error } = await q;
       if (error) throw Object.assign(new Error(error.message), { code: error.code });
-      return (data ?? []) as SupplierProductLine[];
+      return (data ?? []).map(daRiga);
     },
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
@@ -112,14 +131,11 @@ export function useSupplierProductLineMutations() {
       if (!companyId) throw new Error("Azienda non identificata");
       const { data, error } = await supabase
         .from("supplier_product_lines")
-        // `immagini` esiste dal 27/10/2026 (migrazione 20281027210000), ma non è
-        // ancora nei tipi generati di Supabase: il cast serve solo finché
-        // `integrations/supabase/types.ts` non viene rigenerato.
-        .insert({ ...payload, company_id: companyId } as TablesInsert<"supplier_product_lines">)
+        .insert({ ...versoRiga(payload), company_id: companyId } satisfies TablesInsert<"supplier_product_lines">)
         .select("*")
         .single();
       if (error) throw Object.assign(new Error(error.message), { code: error.code });
-      return data as SupplierProductLine;
+      return daRiga(data);
     },
     onSuccess: (line) => invalidate(line.supplier_catalog_id),
     onError: (err: Error) =>
@@ -139,14 +155,13 @@ export function useSupplierProductLineMutations() {
       if (!companyId) throw new Error("Azienda non identificata");
       const { data, error } = await supabase
         .from("supplier_product_lines")
-        // Stesso motivo dell'insert: la colonna c'è, i tipi generati no ancora.
-        .update(args.patch as TablesUpdate<"supplier_product_lines">)
+        .update(versoRiga(args.patch) satisfies TablesUpdate<"supplier_product_lines">)
         .eq("id", args.id)
         .eq("company_id", companyId)
         .select("*")
         .single();
       if (error) throw Object.assign(new Error(error.message), { code: error.code });
-      return data as SupplierProductLine;
+      return daRiga(data);
     },
     onSuccess: (line) => invalidate(line.supplier_catalog_id),
     onError: (err: Error) =>

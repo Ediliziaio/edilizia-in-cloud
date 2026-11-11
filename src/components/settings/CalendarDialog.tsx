@@ -6,6 +6,7 @@ import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,6 +44,9 @@ export interface CalendarFormData {
   color: string;
   owner_id: string;
   calendar_type: string;
+  team_calendar_ids?: string[];
+  team_member_priorities?: Record<string, number>;
+  team_assignment_strategy?: "round_robin" | "priority";
   booking_slug: string;
   duration_minutes: number;
   max_daily_km: number | null;
@@ -96,6 +100,9 @@ const FORM_VUOTO: CalendarFormData = {
   color: "",
   owner_id: "",
   calendar_type: "personal",
+  team_calendar_ids: [],
+  team_member_priorities: {},
+  team_assignment_strategy: "round_robin",
   booking_slug: "",
   duration_minutes: 30,
   buffer_before_min: 0,
@@ -141,6 +148,9 @@ function costruisciForm(initialData?: Partial<CalendarFormData> | null): Calenda
     color: initialData.color || "",
     owner_id: initialData.owner_id || "",
     calendar_type: initialData.calendar_type || "personal",
+    team_calendar_ids: initialData.team_calendar_ids ?? [],
+    team_member_priorities: initialData.team_member_priorities ?? {},
+    team_assignment_strategy: initialData.team_assignment_strategy ?? "round_robin",
     booking_slug: normalizeBookingSlug(initialData.booking_slug || initialData.name || ""),
     duration_minutes: initialData.duration_minutes || 30,
     buffer_before_min: initialData.buffer_before_min ?? 0,
@@ -258,6 +268,10 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
     });
   };
   const { effectiveCompany } = useAuth();
+  const {data:personalCalendars=[]}=useQuery({
+    queryKey:["calendar-team-options",effectiveCompany?.id],enabled:open&&!!effectiveCompany?.id,
+    queryFn:async()=>{const {data,error}=await supabase.from("marketing_calendars").select("id,name,owner_id").eq("company_id",effectiveCompany!.id).eq("calendar_type","personal").eq("is_active",true).order("name");if(error)throw error;return data??[];},
+  });
   const isEditing = !!initialData;
   const canOpenAdvancedSettings = isEditing && !!onAdvancedSettings;
   const [showDescription, setShowDescription] = useState(false);
@@ -325,6 +339,7 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
     { label: "Link di prenotazione", ok: !!form.booking_slug.trim() },
     { label: "Durata appuntamento", ok: form.duration_minutes > 0 },
     { label: "Orari di prenotazione", ok: haOrari },
+    ...(form.calendar_type==="team"?[{label:"Partecipanti della squadra",ok:!!form.team_calendar_ids?.length}]:[]),
   ];
   const consigliati = [
     { label: "Responsabile", ok: !!form.owner_id },
@@ -544,7 +559,7 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                 </div>
 
                 <div className="mt-4 space-y-2">
-                  <EtichettaConAiuto htmlFor="cal-owner" aiuto="Seleziona chi riceverà l'appuntamento quando il cliente prenota.">Responsabile</EtichettaConAiuto>
+                  <EtichettaConAiuto htmlFor="cal-owner" aiuto="Seleziona chi riceverà l'appuntamento quando il cliente prenota.">{form.calendar_type==="team"?"Responsabile di gestione":"Responsabile"}</EtichettaConAiuto>
                   <Select
                     value={form.owner_id || "none"}
                     onValueChange={(v) => setForm(f => ({ ...f, owner_id: v === "none" ? "" : v }))}
@@ -564,6 +579,21 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                 </div>
               </section>
 
+              {form.calendar_type==="team"&&<section className="space-y-3 rounded-lg border bg-background p-4">
+                <h3 className="font-semibold">Partecipanti della squadra</h3>
+                <p className="text-sm text-muted-foreground">Scegli un calendario personale per venditore. Valgono i suoi orari e impegni; ogni prenotazione riceve un responsabile disponibile.</p>
+                {personalCalendars.filter(c=>c.owner_id).map(c=><label key={c.id} className="flex items-center gap-3 rounded border p-3"><Checkbox checked={(form.team_calendar_ids??[]).includes(c.id)} onCheckedChange={on=>setForm(f=>({...f,team_calendar_ids:on?[...(f.team_calendar_ids??[]),c.id]:(f.team_calendar_ids??[]).filter(id=>id!==c.id),team_member_priorities:on?{...f.team_member_priorities,[c.id]:2}:Object.fromEntries(Object.entries(f.team_member_priorities??{}).filter(([id])=>id!==c.id))}))}/><span>{c.name}</span></label>)}
+                {!personalCalendars.length&&<p role="status">Crea prima un calendario personale con un responsabile.</p>}
+                <Label htmlFor="team-strategy">Distribuzione</Label>
+                <select id="team-strategy" className="h-10 w-full rounded border bg-background px-3" value={form.team_assignment_strategy??"round_robin"} onChange={e=>setForm(f=>({...f,team_assignment_strategy:e.target.value as "round_robin"|"priority"}))}>
+                  <option value="round_robin">A rotazione tra le persone disponibili</option><option value="priority">Priorità tra le persone disponibili</option>
+                </select>
+                {form.team_assignment_strategy==="priority"&&(form.team_calendar_ids??[]).map(id=><div key={id} className="flex items-center justify-between gap-3"><Label htmlFor={`priority-${id}`}>{personalCalendars.find(c=>c.id===id)?.name??"Calendario non disponibile"}</Label><select id={`priority-${id}`} className="h-10 rounded border bg-background px-3" value={form.team_member_priorities?.[id]??2} onChange={e=>setForm(f=>({...f,team_member_priorities:{...f.team_member_priorities,[id]:Number(e.target.value)}}))}><option value={1}>Alta</option><option value={2}>Media</option><option value={3}>Bassa</option></select></div>)}
+                <p className="text-xs text-muted-foreground">A parità di priorità, l’assegnazione ruota tra le persone disponibili.</p>
+                <p className="text-xs text-muted-foreground">Ordine: {(form.team_calendar_ids??[]).map((id,i)=>`${i+1}. ${personalCalendars.find(c=>c.id===id)?.name??"Calendario non disponibile"}`).join(" · ")||"nessun partecipante"}</p>
+                <p className="text-xs text-muted-foreground">Gli account esterni e i relativi calendari si collegano nei calendari personali dei partecipanti.</p>
+              </section>}
+
               {/* 08/09/2026: l'associazione al calendario esterno sta QUI, dentro
                   il calendario che stai configurando. Prima era in un'altra
                   pagina, valeva per tutti i calendari dello stesso responsabile
@@ -578,7 +608,7 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                     </p>
                   </div>
                 </div>
-                <CalendarioEsternoPicker
+                {form.calendar_type==="team"?<p className="text-sm text-muted-foreground">Usa gli account e le destinazioni dei calendari personali selezionati nella squadra.</p>:<CalendarioEsternoPicker
                   value={{
                     external_provider: form.external_provider,
                     external_connection_id: form.external_connection_id,
@@ -586,7 +616,7 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                     external_calendar_name: form.external_calendar_name,
                   }}
                   onChange={(next: SceltaCalendarioEsterno) => setForm(f => ({ ...f, ...next }))}
-                />
+                />}
 
                 {/* Descrizione degli eventi: come in GHL, con le variabili del cliente. */}
                 <div className="mt-5 space-y-2 border-t pt-4">

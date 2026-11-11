@@ -10,11 +10,12 @@
 --   v_ordine_marginalita     → margini/costi/ricavi di tutte le aziende
 --   v_conversazioni_messaggi → corpi messaggi email/SMS/WhatsApp di tutte le aziende
 --   portal_courses_available → contenuti corsi di tutte le aziende
-ALTER VIEW public.v_ordine_marginalita     SET (security_invoker = on);
-ALTER VIEW public.v_conversazioni_messaggi SET (security_invoker = on);
-ALTER VIEW public.portal_courses_available SET (security_invoker = on);
-
--- Defense in depth: queste viste non devono essere accessibili da anon.
-REVOKE SELECT ON public.v_ordine_marginalita     FROM anon;
-REVOKE SELECT ON public.v_conversazioni_messaggi FROM anon;
-REVOKE SELECT ON public.portal_courses_available FROM anon;
+-- Views recovered under this timestamp may be created later in a fresh replay.
+DO $$ DECLARE v text; BEGIN
+ FOREACH v IN ARRAY ARRAY['v_ordine_marginalita','v_conversazioni_messaggi','portal_courses_available'] LOOP
+  IF to_regclass('public.'||v) IS NOT NULL THEN
+   EXECUTE format('ALTER VIEW public.%I SET (security_invoker = on)',v);
+   EXECUTE format('REVOKE SELECT ON public.%I FROM PUBLIC, anon',v);
+  END IF;
+ END LOOP;
+END $$;

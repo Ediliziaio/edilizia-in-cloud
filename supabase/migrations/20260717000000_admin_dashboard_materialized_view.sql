@@ -86,3 +86,7 @@ EXCEPTION WHEN OTHERS THEN
   NULL;
 END
 $do$;
+
+-- Admin materialized views are server-only immediately after creation.
+REVOKE ALL ON public.admin_dashboard_summary FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.admin_dashboard_summary TO service_role;

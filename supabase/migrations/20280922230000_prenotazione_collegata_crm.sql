@@ -200,3 +200,46 @@ BEGIN
   END LOOP;
 END
 $no_show$;
+
+-- Preserve tag deltas after this complete emitter definition is installed.
+do $patch_tags$
+declare definition text; previous text; replacement text;
+begin
+  definition := pg_get_functiondef('public.fire_marketing_automation()'::regprocedure);
+  previous := $old$        IF OLD.tags IS DISTINCT FROM NEW.tags THEN
+          IF array_length(NEW.tags, 1) > COALESCE(array_length(OLD.tags, 1), 0) THEN
+            _trigger_event := 'tag_added';
+          ELSIF array_length(NEW.tags, 1) < COALESCE(array_length(OLD.tags, 1), 0) THEN
+            _trigger_event := 'tag_removed';
+          END IF;
+        ELSIF OLD.assigned_to IS DISTINCT FROM NEW.assigned_to AND NEW.assigned_to IS NOT NULL THEN
+          _trigger_event := 'contact_assigned';
+        END IF;$old$;
+  replacement := $new$        -- automation_tag_deltas_v1: replacement/removal of the last tag also counts.
+        _payload := _payload || jsonb_build_object(
+          'added_tags', to_jsonb(array(select unnest(coalesce(NEW.tags, '{}'::text[])) except select unnest(coalesce(OLD.tags, '{}'::text[])))),
+          'removed_tags', to_jsonb(array(select unnest(coalesce(OLD.tags, '{}'::text[])) except select unnest(coalesce(NEW.tags, '{}'::text[]))))
+        );
+        IF jsonb_array_length(_payload->'added_tags') > 0 THEN
+          INSERT INTO public.automation_trigger_events(company_id,trigger_event,entity_id,entity_type,payload)
+          VALUES(_company_id,'tag_added',_entity_id,_entity_type,_payload);
+        END IF;
+        IF jsonb_array_length(_payload->'removed_tags') > 0 THEN
+          INSERT INTO public.automation_trigger_events(company_id,trigger_event,entity_id,entity_type,payload)
+          VALUES(_company_id,'tag_removed',_entity_id,_entity_type,_payload);
+        END IF;
+        IF OLD.assigned_to IS DISTINCT FROM NEW.assigned_to AND NEW.assigned_to IS NOT NULL THEN
+          INSERT INTO public.automation_trigger_events(company_id,trigger_event,entity_id,entity_type,payload)
+          VALUES(_company_id,'contact_assigned',_entity_id,_entity_type,_payload);
+        END IF;
+        -- The ordinary contact_updated event is emitted by the unchanged tail.$new$;
+  if position('automation_tag_deltas_v1' in definition) > 0 then return; end if;
+  if position(previous in definition) = 0 then
+    -- The July emitter has the same dispatch block with this explanatory comment.
+    previous := replace(previous, '        ELSIF OLD.assigned_to', E'        -- NUOVO: contatto assegnato (o riassegnato) a un agente\n        ELSIF OLD.assigned_to');
+  end if;
+  if position(previous in definition) = 0 then
+    raise exception 'CRM emitter changed: review the tag dispatch block before applying this migration';
+  end if;
+  execute replace(definition,previous,replacement);
+end $patch_tags$;

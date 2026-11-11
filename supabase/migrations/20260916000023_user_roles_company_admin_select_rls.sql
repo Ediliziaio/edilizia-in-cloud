@@ -1,6 +1,7 @@
 -- Allow company_admin to view roles of users in their company.
 -- Previously only super_admin and the user themselves could see roles,
 -- which caused UsersConfig to show only the current admin.
+DROP POLICY IF EXISTS "company_admin_view_company_user_roles" ON public.user_roles;
 CREATE POLICY "company_admin_view_company_user_roles"
   ON public.user_roles
   FOR SELECT

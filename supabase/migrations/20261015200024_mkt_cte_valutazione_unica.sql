@@ -1,6 +1,8 @@
 -- Stessi calcoli/dati/permessi: impedisce la riespansione dei CTE riutilizzati.
 SET LOCAL lock_timeout='2s';
 SET LOCAL statement_timeout='10s';
+-- Reapply the unchanged optimization when its later metric function is installed.
+DO $history$ BEGIN IF to_regprocedure('public.mkt_calcola_metriche(date)') IS NOT NULL THEN
 DO $migration$
 DECLARE definition text; cte text;
 BEGIN
@@ -16,3 +18,5 @@ BEGIN
   EXECUTE definition;
 END;
 $migration$;
+
+END IF; END $history$;

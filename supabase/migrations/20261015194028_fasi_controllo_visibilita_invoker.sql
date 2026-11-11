@@ -2,6 +2,9 @@
 -- SECURITY INVOKER: le policy orders si applicano ancora all'utente chiamante.
 SET LOCAL lock_timeout='2s';
 SET LOCAL statement_timeout='10s';
+-- The scoped work-phase policies and warehouse visibility helper are recorded later.
+-- Reapply this exact optimization immediately after that policy migration.
+DO $history$ BEGIN IF to_regprocedure('public.can_see_order(uuid,uuid,uuid)') IS NOT NULL AND EXISTS(SELECT 1 FROM pg_policy WHERE polrelid='public.order_work_phases'::regclass AND polname='order_work_phases_lettura_public') THEN
 CREATE OR REPLACE FUNCTION public._order_visible_under_rls(p_order_id uuid,p_check_assignment boolean DEFAULT false)
 RETURNS boolean LANGUAGE sql STABLE SECURITY INVOKER SET search_path=''
 AS $fn$
@@ -43,3 +46,5 @@ BEGIN
   IF found_count<>2 THEN RAISE EXCEPTION 'Mancano le due policy attese'; END IF;
 END;
 $migration$;
+
+END IF; END $history$;

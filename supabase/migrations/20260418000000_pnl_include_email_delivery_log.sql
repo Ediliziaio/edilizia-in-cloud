@@ -107,3 +107,7 @@ SELECT cron.schedule(
   '0 * * * *',
   $refresh$REFRESH MATERIALIZED VIEW CONCURRENTLY public.superadmin_service_pnl$refresh$
 );
+
+-- Admin materialized views are server-only immediately after creation.
+REVOKE ALL ON public.superadmin_service_pnl FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.superadmin_service_pnl TO service_role;

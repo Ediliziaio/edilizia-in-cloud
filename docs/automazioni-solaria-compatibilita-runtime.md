@@ -10,4 +10,6 @@ Verifica: 736 regressioni native e 29 casi dedicati, con database in memoria e p
 
 `npm run test:automations` esegue entrambe le suite; il pool Vitest è limitato a due processi. Nessun test invia messaggi reali o iscrive contatti.
 
-Il nodo migrato Data attuale salva una data YYYY-MM-DD nel fuso Europe/Rome, verifica definizione, azienda, oggetto e tipo, e usa la tabella con validazione server già presente. Non dipende dalla RPC generica automation_write_custom_field, attualmente assente nel database. Un retry con la stessa data non riscrive il valore; la conferma del salvataggio è obbligatoria. Questa correzione non dichiara disponibile la capacità generica dei campi personalizzati (capabilities.custom_fields resta 0).
+Il nodo migrato Data attuale salva una data YYYY-MM-DD nel fuso Europe/Rome, verifica definizione, azienda, oggetto e tipo e usa ora la RPC atomica `automation_write_custom_field`. La migrazione `20290311150000_automation_custom_fields_contract.sql` abilita la capacità generica versione 1 e gli eventi di variazione con protezione dai cicli. Un retry con la stessa data non riscrive il valore. La conferma del salvataggio è obbligatoria.
+
+Il completamento di calendari di squadra, webhook e collegamenti esterni è descritto in [architettura](automazioni-completamento/architettura.md).

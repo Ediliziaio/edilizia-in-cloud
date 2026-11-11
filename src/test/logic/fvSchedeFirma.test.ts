@@ -17,6 +17,15 @@ describe("Schede autorizzate FV nella copia da firmare", () => {
   it("senza prodotti non aggiunge allegati", async () => {
     expect(await fvSchedeFirma(new DbMinimo(), "c1", "p1")).toEqual([]);
   });
+  it("Allega disattivato prevale sul vecchio URL della medesima scheda", async () => {
+    const db = new DbMinimo();
+    db.tabelle.fv_componenti_progetto = [{ progetto_id: "p1", articolo_id: "a1" }];
+    db.tabelle.articoli_native = [{ id: "a1", company_id: "c1", scheda_tecnica_url: "https://example.test/scheda.pdf" }];
+    db.tabelle.articoli_native_documenti = [{ articolo_id: "a1", company_id: "c1", autorizzata: false, url: "https://example.test/scheda.pdf" }];
+    expect(await fvSchedeFirma(db, "c1", "p1")).toEqual([]);
+    db.tabelle.articoli_native_documenti[0].autorizzata = true;
+    expect(await fvSchedeFirma(db, "c1", "p1")).toEqual(["https://example.test/scheda.pdf"]);
+  });
   it("non salta in silenzio un errore di lettura dei prodotti", async () => {
     const db = { from: () => ({ select: () => ({ eq: () => ({ order: async () => ({ error: { message: "offline" } }) }) }) }) };
     await expect(fvSchedeFirma(db, "c1", "p1")).rejects.toThrow("Impossibile leggere");

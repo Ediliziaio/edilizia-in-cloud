@@ -206,7 +206,7 @@ afterEach(() => {
 describe("la testata e le schede", () => {
   it("niente quattro riquadri di conteggio né secondo h1: una riga con i numeri", async () => {
     monta();
-    expect(await screen.findByText("2 calendari · 1 attivo")).toBeTruthy();
+    expect(await screen.findByText("2 calendari · 1 abilitato")).toBeTruthy();
     expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
     for (const sparito of ["Assegnati", "Sedi base", "con responsabile", /utili per scheduling/, /collegati ai calendari/, /Calendari Marketing/]) {
       expect(screen.queryByText(sparito), String(sparito)).toBeNull();
@@ -579,6 +579,20 @@ describe("la finestra del calendario", () => {
     fireEvent.click(await screen.findByRole("button", { name: `Modifica «${nome}»` }));
     return screen.findByRole("dialog");
   };
+
+  it("salva partecipanti e priorità della squadra senza perdere gli orari personali", async () => {
+    db.stato.calendari=[calendario("pool","Squadra",{calendar_type:"team",team_calendar_ids:["c1","c2"],team_assignment_strategy:"priority",team_member_priorities:{c1:1,c2:2}}),calendario("c1","Agenda Mario"),calendario("c2","Agenda Anna",{owner_id:"u2"})];
+    db.stato.orari.pool=settimana("pool");
+    const finestra=await apriModifica("Squadra");
+    const priorita=await within(finestra).findByLabelText("Agenda Anna",{selector:"select"});
+    expect(priorita).toHaveValue("2");
+    fireEvent.change(priorita,{target:{value:"1"}});
+    fireEvent.click(within(finestra).getByRole("button",{name:"Salva"}));
+    await waitFor(()=>expect(toast.success).toHaveBeenCalled());
+    const [write]=scritture("update","marketing_calendars");
+    expect(argomenti(write,"update")[0]).toMatchObject({team_calendar_ids:["c1","c2"],team_member_priorities:{c1:1,c2:1},team_assignment_strategy:"priority"});
+    expect(scritture("update","marketing_calendar_availability")).toHaveLength(0);
+  });
 
   it("sul telefono la finestra ha una colonna sola che può restringersi (non si allarga e il contenuto non esce a destra)", async () => {
     const finestra = await apriNuovo();

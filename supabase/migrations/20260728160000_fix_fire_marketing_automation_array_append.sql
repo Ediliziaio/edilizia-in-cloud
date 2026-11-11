@@ -53,3 +53,15 @@
 --
 -- ...e cosi' per phone, first_name, last_name, city, address, province, region,
 -- postal_code, source, assigned_to, tags, company_name.
+
+-- Executable form of the documented production repair; the former file only
+-- described it, leaving a fresh database with the malformed-array trigger.
+DO $append_fields$
+DECLARE definition text; field text;
+BEGIN
+ definition:=pg_get_functiondef('public.fire_marketing_automation()'::regprocedure);
+ FOREACH field IN ARRAY ARRAY['email','phone','first_name','last_name','city','address','province','region','postal_code','source','assigned_to','tags','company_name'] LOOP
+  definition:=replace(definition,format('_changed := _changed || %L;',field),format('_changed := array_append(_changed, %L);',field));
+ END LOOP;
+ EXECUTE definition;
+END $append_fields$;

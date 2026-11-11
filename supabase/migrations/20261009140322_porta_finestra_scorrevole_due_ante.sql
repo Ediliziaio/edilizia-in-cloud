@@ -32,6 +32,10 @@ begin
       '$configurazioni$' || (configurations || jsonb_build_array(cfg))::text || '$configurazioni$');
   end if;
 
+  -- A clean database has no company catalogue to backfill yet.
+  -- The universal configuration above is still installed for future catalogues.
+  if not exists(select 1 from public.article_families) then return; end if;
+
   -- All existing company/line scopes with the window model. No company names hardcoded.
   for target in
     select distinct company_id, macrocategoria_id, categoria_id from public.article_families

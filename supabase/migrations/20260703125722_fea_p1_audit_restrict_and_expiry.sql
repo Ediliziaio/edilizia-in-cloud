@@ -7,6 +7,8 @@
 -- 1) L'audit trail (prova legale, CAD) non deve sparire se si cancella la
 --    richiesta: da CASCADE a RESTRICT. Ora una signature_request con audit
 --    non è cancellabile (si usa lo stato 'cancelled', non il DELETE).
+-- The ordered FEA migration repeats this after the immutable audit table exists.
+DO $history$ BEGIN IF to_regclass('public.fea_audit_log') IS NOT NULL THEN
 ALTER TABLE public.fea_audit_log
   DROP CONSTRAINT IF EXISTS fea_audit_log_request_id_fkey;
 ALTER TABLE public.fea_audit_log
@@ -51,3 +53,5 @@ BEGIN
   PERFORM cron.schedule('fea-expire-stale-requests', '7 * * * *',
     $cron$ SELECT public.fea_expire_stale_requests(); $cron$);
 END $$;
+
+END IF; END $history$;

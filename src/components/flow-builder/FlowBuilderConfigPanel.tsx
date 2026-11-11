@@ -1,3 +1,4 @@
+import {InboundWebhookPicker} from './config-panels/InboundWebhookPicker';
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -52,6 +53,7 @@ interface FlowBuilderConfigPanelProps {
   onClose: () => void;
   onSave?: () => void;
   companyId?: string;
+  flowId?: string;
   triggerItemId?: string;
 }
 
@@ -77,6 +79,7 @@ const TRIGGER_CATEGORY_MAP: Record<string, string> = {
   tag_aggiunto: "contact",
   tag_rimosso: "contact",
   campo_custom_aggiornato: "contact",
+  webhook_in: "contact",
   compleanno_contatto: "contact",
   data_personalizzata: "contact",
   form_compilato: "contact",
@@ -159,6 +162,7 @@ export function FlowBuilderConfigPanel({
   onClose,
   onSave,
   companyId,
+  flowId,
   triggerItemId,
 }: FlowBuilderConfigPanelProps) {
   const catalog = useMemo(
@@ -255,7 +259,7 @@ export function FlowBuilderConfigPanel({
   const isSpecialized = SPECIALIZED_PANELS.has(itemId);
 
   // Determine trigger category for filter builder
-  const triggerCategory = itemId==="campo_custom_aggiornato" ? String(nodeData.object_type??"contact") : TRIGGER_CATEGORY_MAP[itemId] || null;
+  const triggerCategory = ["campo_custom_aggiornato","webhook_in"].includes(itemId) ? String(nodeData.object_type??"contact") : TRIGGER_CATEGORY_MAP[itemId] || null;
   const isTrigger = nodeType === "trigger" || catalog?.kind === "trigger";
 
   // Compute trigger entity type from the flow's trigger item
@@ -354,7 +358,7 @@ export function FlowBuilderConfigPanel({
           )}
 
           {/* Generic fields from configSchema (only if NOT specialized) */}
-          {!isSpecialized && schema.map((field) => {
+          {!isSpecialized && schema.filter(field=>!(itemId==="webhook_in"&&field.id==="webhook_endpoint_id")).map((field) => {
             const mancante = campiMancanti.some((f) => f.id === field.id);
             return (
               <div key={field.id} className={mancante ? "rounded-lg bg-destructive/5 ring-1 ring-destructive/40 p-2 -mx-2" : undefined}>
@@ -383,6 +387,7 @@ export function FlowBuilderConfigPanel({
           )}
 
           {/* Dynamic Filters section for triggers */}
+          {itemId==="webhook_in"&&<InboundWebhookPicker companyId={companyId} flowId={flowId} value={nodeData.webhook_endpoint_id??""} onChange={(id,type)=>handlePatch({webhook_endpoint_id:id,object_type:type})}/> }
           {itemId==="campo_custom_aggiornato"&&<CustomChangedPicker companyId={companyId} objectType={String(nodeData.object_type??"contact")} value={nodeData.custom_field_id??""} onChange={v=>handleChange("custom_field_id",v)} />}
           {isTrigger && triggerCategory && (
             <div className="space-y-3 pt-2">

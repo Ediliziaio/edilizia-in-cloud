@@ -1,3 +1,6 @@
+import {copertinaIndustrialeAttiva,IMMAGINE_COPERTINA_INDUSTRIALE} from "../../../supabase/functions/_shared/fvCopertinaIndustriale";
+import {FvAmbitoOffertaSettings} from "./FvAmbitoOffertaSettings";
+import {leggiAmbitoOffertaFv} from "../../../supabase/functions/_shared/fvAmbitoOfferta";
 import type {CampioneEditorFv} from "./FvPersonalizzazionePagine";
 import {FvMonitoraggioSettings} from "./FvMonitoraggioSettings";
 import {leggiMonitoraggioFv} from "../../../supabase/functions/_shared/fvMonitoraggio";
@@ -6,7 +9,7 @@ import {modelloAzienda,isFvPaginaAzienda,FV_AZIENDA_PAGINE_OBBLIGATORIE,FV_AZIEN
 import { TemplateSectionNavigation } from "@/components/preventivi/TemplateSectionNavigation";
 import { CondizioniContratto } from '@/components/preventivi/CondizioniContratto';
 import { orderedSectionExcluded } from "@/components/preventivi/templateNavigationState";
-import { TemplateCoverDesignControls, COVER_DESIGN_CHOICES } from "@/components/preventivi/TemplateCoverDesignControls";
+import { TemplateCoverDesignControls, COVER_DESIGN_CHOICES, type CoverDesignField } from "@/components/preventivi/TemplateCoverDesignControls";
 import { TemplateImageFieldView } from "@/components/preventivi/TemplateImageFieldView";
 import { TemplateCoverStylePicker, TemplateCoverTextFields, coverStyleOnly } from "@/components/preventivi/TemplateCoverControls";
 /**
@@ -50,7 +53,7 @@ import { readLocalTemplateImage } from "@/lib/moduli-vendita/localTemplateImage"
 import { InterventionTextPicker } from "@/components/preventivi/modules/InterventionTextPicker";
 import { accumuloCopyChoices } from "@/lib/moduli-vendita/fvInterventionCopy";
 import { createFullFvTemplate, type FullFvTemplate, type FullFvModuleId } from "@/lib/moduli-vendita/fullFvModules";
-import { fotoDellaLibreria } from "../../../supabase/functions/_shared/blocchiPreventivo";
+import { fotoDellaLibreria, eFotoDiSerie } from "../../../supabase/functions/_shared/blocchiPreventivo";
 import { FV_ACCUMULO_PAGINE_NON_APPLICABILI, FV_ACCUMULO_LABELS } from "../../../supabase/functions/_shared/fvIntervento";
 import type { AiTemplateDraft } from "@/components/preventivi/AiTemplateReviewDialog";
 import { FvPagesOrderEditor } from "@/components/fotovoltaico/FvPagesOrderEditor";
@@ -972,6 +975,8 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
   const qualityCriticalCount = qualityItems.filter((item) => item.level === "critical").length;
   const qualityWarningCount = qualityItems.filter((item) => item.level === "warning").length;
   const aziendale=!!modelloAzienda(form);
+  const usaCopertinaIndustriale=aziendale&&copertinaIndustrialeAttiva(form.pdf_blocchi);
+  const fotoCopertinaDiSerie=eFotoDiSerie(form.pdf_cover_image_url);
   const editorSections = FV_EDITOR_SECTIONS.filter(section => (aziendale||!section.id.startsWith("page_azienda_"))&&(!localModule || ![...(aziendale?[]:["page_render"]),"strategia"].includes(section.id))).map(section => {
     const key = section.id === "page_percorso" ? "iter" : section.id.replace(/^page_/, "");
     const custom = localModule?.id === "accumulo" ? FV_ACCUMULO_LABELS[key] : undefined;
@@ -1613,9 +1618,10 @@ if (field === "subtitle") { update("pdf_cover_subhero", (value ?? "") || null); 
 if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?? "") || null); } }} dynamicSubtitle  placeholders={(value, onChange) => <PlaceholderChips value={value} onChange={onChange} accumulo={localModule?.id==="accumulo"} />} /></div>
           {/* Colonna singola: l'anteprima è ora nel pannello live globale a destra. */}
           <div className="grid gap-4">
-            <TemplateCoverDesignControls hasImage={!!form.pdf_cover_image_url} fields={[
+            {aziendale&&<div className="space-y-2 rounded-lg border p-3"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={usaCopertinaIndustriale} onChange={e=>update("pdf_blocchi",{...form.pdf_blocchi,copertina_industriale:{...(form.pdf_blocchi?.copertina_industriale as Record<string,unknown>|undefined??{}),attiva:e.target.checked}})}/>Copertina industriale editoriale</label>{usaCopertinaIndustriale&&<label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={fotoCopertinaDiSerie} checked={fotoCopertinaDiSerie||(form.pdf_blocchi?.copertina_industriale as {foto_illustrativa?:boolean})?.foto_illustrativa===true} onChange={e=>update("pdf_blocchi",{...form.pdf_blocchi,copertina_industriale:{...(form.pdf_blocchi?.copertina_industriale as Record<string,unknown>|undefined??{}),foto_illustrativa:e.target.checked}})}/>Indica la foto come immagine illustrativa</label>}{usaCopertinaIndustriale&&<Button type="button" variant="outline" size="sm" onClick={()=>update("pdf_cover_image_url",IMMAGINE_COPERTINA_INDUSTRIALE)}>Usa immagine industriale standard</Button>}</div>}
+            <TemplateCoverDesignControls hasImage={!!form.pdf_cover_image_url} photoHint={usaCopertinaIndustriale?"Foto e testi hanno aree separate. Colori, dimensioni, logo e scheda cliente restano personalizzabili.":undefined} fields={([
 {id:"eyebrowSize",kind:"range",value:form.pdf_cover_eyebrow_size ?? 11,min:8,max:14,step:1,unit:"pt",onChange:value=>update("pdf_cover_eyebrow_size", value)},
-{id:"titleSize",kind:"range",value:form.pdf_cover_title_size ?? 40,min:28,max:64,step:1,unit:"pt",onChange:value=>update("pdf_cover_title_size", value)},
+{id:"titleSize",kind:"range",value:usaCopertinaIndustriale?Math.min(44,form.pdf_cover_title_size??40):form.pdf_cover_title_size??40,hint:usaCopertinaIndustriale?"Dimensione massima: il titolo si adatta se il testo è lungo.":undefined,min:28,max:usaCopertinaIndustriale?44:64,step:1,unit:"pt",onChange:value=>update("pdf_cover_title_size", value)},
 {id:"subtitleSize",kind:"range",value:form.pdf_cover_subtitle_size ?? 13,min:10,max:18,step:1,unit:"pt",onChange:value=>update("pdf_cover_subtitle_size", value)},
 {id:"overlayOpacity",kind:"range",value:form.pdf_cover_overlay_opacity ?? 62,min:0,max:100,step:1,unit:"%",onChange:value=>update("pdf_cover_overlay_opacity", value)},
 {id:"textAlign",kind:"choice",value:form.pdf_cover_text_align ?? "left",choices:COVER_DESIGN_CHOICES.textAlign,onChange:value=>update("pdf_cover_text_align", value as typeof form.pdf_cover_text_align)},
@@ -1627,7 +1633,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
 {id:"backgroundColor",kind:"color",value:form.pdf_cover_bg_color,fallback:"#0F2542",onChange:value=>update("pdf_cover_bg_color", value || null),onReset:()=>update("pdf_cover_bg_color", null)},
 {id:"showDecoration",kind:"toggle",value:form.pdf_cover_show_decoration !== false,onChange:value=>update("pdf_cover_show_decoration", value)},
 {id:"showClientCard",kind:"toggle",value:form.pdf_cover_show_client_card !== false,onChange:value=>update("pdf_cover_show_client_card", value)}
-]}><div className="col-span-12 md:col-span-6">
+] satisfies CoverDesignField[]).filter(f=>!usaCopertinaIndustriale||!["textVertical","overlayOpacity","overlayStyle","decorationStyle","showDecoration"].includes(f.id))}><div className="col-span-12 md:col-span-6">
                   <Label className="text-xs">URL immagine cover</Label>
                   <Input
                     value={form.pdf_cover_image_url ?? ""}
@@ -1825,6 +1831,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
             description="Racconta specializzazione FV, metodo, squadra e affidabilita operativa."
             icon={<Building2 className="h-4 w-4" />}
           >
+            <label className="mb-4 flex items-center gap-2 text-sm"><input type="checkbox" checked={normalizeFvPdfPagesOrder(form.pdf_pages_order).some(p=>p.id==="chi_siamo"&&p.visible)} onChange={e=>update("pdf_pages_order",conPaginaVisibile(ordinePagineFv,"chi_siamo",e.target.checked))}/>Presentazione Chi siamo su una pagina dedicata</label>
             <div className="grid grid-cols-12 gap-3">
               <div className="col-span-12 md:col-span-5">
                 <Label className="text-xs">Titolo pagina</Label>
@@ -1926,6 +1933,12 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
               minHeight={140}
               placeholder="Dal sopralluogo alla connessione, ti accompagniamo in ogni fase…"
             />
+          </FvSettingsCard>
+          <FvSettingsCard title="Inclusioni, esclusioni e verifiche" description="Perimetro della proposta, modificabile per questo modello.">
+            <FvAmbitoOffertaSettings value={leggiAmbitoOffertaFv(form.pdf_blocchi)} onChange={ambito=>{
+              update("pdf_blocchi",{...form.pdf_blocchi,ambito_offerta:ambito});
+              update("pdf_pages_order",conPaginaVisibile(ordinePagineFv,"ambito_offerta",ambito.attivo));
+            }}/>
           </FvSettingsCard>
           <FvSettingsCard
             title="Cronoprogramma lavori"

@@ -2,6 +2,8 @@
 -- qui dal registro migrazioni (supabase_migrations.schema_migrations),
 -- per riallineare la cartella del repo alla storia reale del database.
 
+-- Repeated after contact geo columns by the ordered CRM map migration.
+DO $history$ BEGIN IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='marketing_contacts' AND column_name='lat') THEN
 create table if not exists public.crm_province_centroids (
   sigla text primary key,
   lat double precision not null,
@@ -94,3 +96,5 @@ begin
   limit p_limit;
 end; $$;
 grant execute on function public.crm_map_points_bbox(uuid,double precision,double precision,double precision,double precision,int) to authenticated;
+
+END IF; END $history$;

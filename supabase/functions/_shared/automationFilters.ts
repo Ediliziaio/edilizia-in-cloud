@@ -138,6 +138,7 @@ export function evaluateAutomationFilters(filters: FilterGroup | null | undefine
   try { return evaluate(filters); } catch { return false; }
 }
 export function matchesAutomationTriggerConfig(tcfg: Record<string, any>, payload: Record<string, any>, timeZone = "Europe/Rome"): boolean {
+    if(tcfg.webhook_endpoint_id && tcfg.webhook_endpoint_id!==payload.webhook_endpoint_id)return false;
     if(tcfg.custom_field_id && tcfg.custom_field_id!==payload.custom_field_id)return false;
     if(tcfg.object_type && payload.custom_object_type && tcfg.object_type!==payload.custom_object_type)return false;
     if (automationTriggerConfigErrors(tcfg).length) return false;
@@ -273,6 +274,7 @@ export function matchesAutomationTriggerConfig(tcfg: Record<string, any>, payloa
 export function automationTriggerConfigErrors(config: Record<string, any>): string[] {
   const errors: string[] = [];
   const trigger = config.trigger_type ?? config.item_id ?? config.itemId ?? config.trigger_event;
+  if(["webhook_in","webhook_received"].includes(trigger)&&!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(String(config.webhook_endpoint_id??"")))errors.push("Scegli un ingresso webhook valido per il flusso.");
   const number = (key: string, min: number, max: number, integer = true) => {
     if (config[key] == null || config[key] === "") return;
     const value = numeric(config[key]);

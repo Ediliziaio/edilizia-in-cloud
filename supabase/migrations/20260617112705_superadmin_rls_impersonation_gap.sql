@@ -16,6 +16,8 @@ BEGIN
     'sms_templates','stock_lotti','stock_units','tipi_documento_operaio',
     'varianti_cliente','verbali_sicurezza','warehouse_lotti','warehouse_scan_events'
   ] LOOP
+    -- Recovered timestamp may precede optional modules; do not open missing tables.
+    IF to_regclass(format('public.%I',t)) IS NULL THEN CONTINUE; END IF;
     EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_superadmin', t);
     EXECUTE format(
       'CREATE POLICY %I ON public.%I FOR ALL USING (has_role((SELECT auth.uid()), ''super_admin''::app_role)) WITH CHECK (has_role((SELECT auth.uid()), ''super_admin''::app_role))',

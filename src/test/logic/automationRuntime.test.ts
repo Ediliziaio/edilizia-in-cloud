@@ -753,12 +753,12 @@ describe("automation audit regressions", () => {
   it("a missing/cross-tenant payment cannot borrow a customer from the payload", async () => {
     expect(await resolveAutomationRecord(db(() => ({ data: null })), "contact", id, "company", { entity_type: "payment", context_json: { payload: { contact_id: chosen, fattura_id: chosen } } })).toBeNull();
   });
-  it("fixed appointments resolve variables and save the tenant calendar", async () => {
-    const mock = db(q => ({ data: q.table === "marketing_contacts" ? { id, first_name: "Mario" } : q.table === "marketing_calendars" ? { id: chosen, is_active: true } : { id: "appointment" } }));
-    const result = await action(mock, { item_id: "crea_appuntamento", titolo: "Chiama {{contatto.full_name}}", contact_id: "{{contatto.id}}", calendario_id: chosen, giorni_da_oggi: 0 }, id, "company", { ...item, context_json: { payload: { "contatto.full_name": "Mario Rossi" } } });
-    expect(result.success).toBe(true);
-    const row = mock.calls.find(q => has(q, "insert"))!.steps.find(s => s[0] === "insert")![1];
-    expect(row).toMatchObject({ title: "Chiama Mario Rossi", contact_id: id, calendar_id: chosen });
+  it("fixed appointments resolve variables and reserve through the selected calendar", async () => {
+    const mock=db(q=>({data:q.table==="marketing_contacts"?{id,first_name:"Mario"}:q.table==="marketing_calendars"?{id:chosen,is_active:true}:{id:"appointment"}}));
+    let booking:any;
+    const execute=load("executeAction",{prenotaSuCalendario:async(_db:any,args:any)=>{booking=args;return{ok:true,appointmentId:chosen};}});
+    const result=await execute(mock,{item_id:"crea_appuntamento",titolo:"Chiama {{contatto.full_name}}",contact_id:"{{contatto.id}}",calendario_id:chosen,giorni_da_oggi:0},id,"company",{...item,context_json:{payload:{"contatto.full_name":"Mario Rossi"}}});
+    expect(result.success).toBe(true);expect(booking).toMatchObject({titolo:"Chiama Mario Rossi",contactId:id,calendarId:chosen,companyId:"company"});expect(mock.calls.some(q=>q.table==="appointments"&&has(q,"insert"))).toBe(false);
   });
   it.each([null, { id: chosen, is_active: false }])("refuses unavailable calendars: %j", async calendar => {
     const mock = db(q => ({ data: q.table === "marketing_contacts" ? { id } : calendar }));
@@ -1031,19 +1031,32 @@ describe("Solaria bridge is wired into the real worker", () => {
       migration_timeout_override_hours: 12, migration_timeout_hours: 12, delay_unita: "ore", delay_durata: 12 }, id, company, queue);
     expect(result).toMatchObject({ success: true, isWaiting: true, timeoutDays: 0.5 });
   });
-  it("saves the migrated calendar date through the real worker without an absent generic RPC", async () => {
+  it("saves the migrated calendar date through the atomic custom-field contract", async () => {
     const mock = db(q => {
       if (q.table === "automation_flows") return { data: { id: flowId, created_by: chosen }, error: null };
       if (q.table === "marketing_custom_fields") return { data: { id: chosen, company_id: company, object_type: "contact", field_type: "date", deleted_at: null }, error: null };
       if (q.table === "marketing_contact_field_values") return { data: has(q, "upsert") ? q.steps.find(s => s[0] === "upsert")![1] : null, error: null };
+      if(q.table === "automation_write_custom_field")return {data:chosen,error:null};
       throw new Error("Unexpected database access: " + q.table);
     });
     const execute = load("executeAction", { resolveAutomationRecord: async () => ({ id, company_id: company }) });
     const result = await execute(mock, { ...migration, item_id: "aggiorna_campo", migration_value: "Data attuale", campo: "custom_field." + chosen }, id, company, queue);
     expect(result).toMatchObject({ success: true, output: { field_id: chosen, entity_id: id } });
     expect(result.output.value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(mock.calls.some(q => has(q, "rpc"))).toBe(false);
+    expect(mock.calls.find(q => q.table === "automation_write_custom_field")?.steps[0][1]).toMatchObject({p_company:company,p_entity_id:id,p_field_id:chosen,p_flow_path:[flowId]});
     expect(mock.calls.find(q => q.table === "marketing_custom_fields")?.steps).toContainEqual(["eq", "company_id", company]);
   });
 
+});
+
+describe("authenticated incoming webhook routing",()=>{
+ it("restricts an inbox event to its configured company and destination flow",async()=>{
+  const mock=db();await load("handleTrigger")(mock,{trigger_event:"webhook_received",company_id:id,entity_id:chosen,entity_type:"contact",payload:{_webhook_flow_id:chosen}});
+  expect(mock.calls.find(q=>q.table==="automation_flows")?.steps).toContainEqual(["eq","company_id",id]);
+  expect(mock.calls.find(q=>q.table==="automation_flows")?.steps).toContainEqual(["eq","id",chosen]);
+ });
+ it("does not broadcast an incoming webhook without a destination",async()=>{
+  const mock=db();const result=await load("handleTrigger")(mock,{trigger_event:"webhook_received",company_id:id,entity_id:chosen,payload:{}});expect(result.status).toBe(400);expect(mock.calls).toHaveLength(0);
+ });
+ it("matches only the selected endpoint",()=>{expect(matchesAutomationTriggerConfig({webhook_endpoint_id:id},{webhook_endpoint_id:chosen})).toBe(false);expect(matchesAutomationTriggerConfig({webhook_endpoint_id:id},{webhook_endpoint_id:id})).toBe(true);});
 });

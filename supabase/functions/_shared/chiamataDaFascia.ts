@@ -1,3 +1,4 @@
+import {slotLiberiCalendario,prenotaSuCalendario} from "./calendarioPrenotazione.ts";
 /**
  * La chiamata fissata dal pulsante «15-16» del primo WhatsApp (06/10/2026,
  * Green Energy Group): il cliente tocca una fascia, l'appuntamento nasce
@@ -87,13 +88,14 @@ export async function fissaChiamataDaFascia(admin: any, opz: {
   contactId: string;
   messaggio: string;
   titolo?: string;
+  requestKey?: string;
   adesso?: Date;
 }): Promise<ChiamataDaFascia> {
   const fascia = fasciaDalMessaggio(opz.messaggio);
   if (!fascia) throw new Error(`«${opz.messaggio}» non è una fascia oraria (es. 15-16), massimo fino alle 18`);
 
   const { data: cal } = await admin.from("marketing_calendars")
-    .select("id, name, duration_minutes, owner_id").eq("id", opz.calendarId).eq("company_id", opz.companyId)
+    .select("id, name, duration_minutes, owner_id, calendar_type, team_calendar_ids").eq("id", opz.calendarId).eq("company_id", opz.companyId)
     .eq("is_active", true).maybeSingle();
   if (!cal?.id) throw new Error("Il calendario scelto non esiste o non è attivo");
   const durata = Math.max(5, Number(cal.duration_minutes ?? 15));
@@ -114,6 +116,15 @@ export async function fissaChiamataDaFascia(admin: any, opz: {
   }
 
   const { giorno, fascia: cerca } = giornoDellaChiamata(fascia, adesso, durata);
+  if(cal.calendar_type==="team"&&cal.team_calendar_ids?.length){
+    const available=await slotLiberiCalendario(admin,cal.id,giorno,{companyId:opz.companyId,adesso});
+    for(const ora of available.slot.filter(t=>minuti(t)>=cerca.da&&minuti(t)+durata<=cerca.a)){
+      const booked=await prenotaSuCalendario(admin,{calendarId:cal.id,companyId:opz.companyId,dataIso:giorno,ora,contactId:opz.contactId,opportunityId:null,titolo:opz.titolo?.trim()||"Richiamo",descrizione:`Fascia scelta dal cliente: ${opz.messaggio}`,tipo:"chiamata",adesso,requestKey:opz.requestKey,remindersHandled:true});
+      if(booked.ok===true)return{appointmentId:booked.appointmentId,giorno,ora,giornoEsteso:dataEstesa(giorno),esistente:booked.duplicate??false};
+      if(booked.ok===false&&booked.motivo!=="non_libero")throw Error(booked.messaggio);
+    }
+    throw Error("Nessun partecipante della squadra è libero nella fascia scelta");
+  }
   const { data: app } = await admin.from("appointments")
     .select("appointment_time, appointment_end_time")
     .eq("calendar_id", cal.id).eq("appointment_date", giorno)

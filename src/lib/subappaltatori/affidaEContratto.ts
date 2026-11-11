@@ -17,6 +17,8 @@ export interface RigaTabella {
   voceId: string;
   quantita: number | null;
   prezzo: number | null;
+  /** Il testo della riga nel contratto, se cambiato rispetto alla voce della commessa. */
+  descrizione?: string | null;
 }
 
 export interface VoceConVenduto { id: string; quantita: number; importo: number | null; costo_materiali?: number | null }
@@ -65,10 +67,11 @@ export function righeContratto(
   righe: ReadonlyArray<RigaTabella>,
 ): RigaElencoLavori[] {
   const prezzo = new Map(righe.map((r) => [r.voceId, r.prezzo]));
+  const testo = new Map(righe.filter((r) => r.descrizione?.trim()).map((r) => [r.voceId, r.descrizione!.trim()]));
   const elenco = elencoDaAffidamenti(fasi, voci, quote.filter((a) => a.stato === "bozza" && prezzo.has(a.voce_id)), anagraficaId, null);
   return elencoDaSalvare(elenco.map((r) => {
     const p = cent(Number(prezzo.get(r.voce_id ?? "")) || 0);
-    return { ...r, prezzo: p, importo: cent(r.quantita * p) };
+    return { ...r, descrizione: testo.get(r.voce_id ?? "") ?? r.descrizione, prezzo: p, importo: cent(r.quantita * p) };
   }));
 }
 
@@ -88,4 +91,11 @@ export function elencoUnito(esistente: unknown, nuove: RigaElencoLavori[]): { el
   const prima = Array.isArray(esistente) ? (esistente as RigaElencoLavori[]) : [];
   const elenco = [...prima, ...nuove];
   return { elenco, importo: totaleElencoLavori(elenco) };
+}
+
+/** Il prezzo della ditta dal nostro venduto meno una percentuale (es. venduto 18 €/mq − 30% = 12,60). */
+export function prezzoDalVenduto(v: VoceConVenduto, scontoPct: number): number | null {
+  const q = Number(v.quantita);
+  if (!(q > 0) || !(Number(v.importo) > 0) || !(scontoPct >= 0 && scontoPct < 100)) return null;
+  return cent((Number(v.importo) / q) * (1 - scontoPct / 100));
 }

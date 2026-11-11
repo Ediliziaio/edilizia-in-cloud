@@ -5,6 +5,9 @@
 -- FIX 1: hardening WITH CHECK enrollments (membership obbligatoria) — chiude scrittura cross-tenant
 DROP POLICY IF EXISTS portal_enrollments_company_access ON public.portal_course_enrollments;
 
+-- Courses cannot have grants before the grants table exists; require own-course membership then.
+DO $history$ BEGIN
+ IF to_regclass('public.portal_course_grants') IS NOT NULL THEN
 CREATE POLICY portal_enrollments_company_access
   ON public.portal_course_enrollments
   FOR ALL
@@ -41,6 +44,39 @@ CREATE POLICY portal_enrollments_company_access
       )
     )
   );
+ ELSE
+CREATE POLICY portal_enrollments_company_access
+  ON public.portal_course_enrollments
+  FOR ALL
+  TO authenticated
+  USING (
+    company_id IN (
+      SELECT profiles.company_id FROM profiles WHERE profiles.id = (SELECT auth.uid())
+      UNION
+      SELECT multi_company_access.company_id FROM multi_company_access WHERE multi_company_access.user_id = (SELECT auth.uid())
+    )
+    OR user_id = (SELECT auth.uid())
+    OR has_role((SELECT auth.uid()), 'super_admin'::app_role)
+  )
+  WITH CHECK (
+    has_role((SELECT auth.uid()), 'super_admin'::app_role)
+    OR (
+      company_id IN (
+        SELECT profiles.company_id FROM profiles WHERE profiles.id = (SELECT auth.uid())
+        UNION
+        SELECT multi_company_access.company_id FROM multi_company_access WHERE multi_company_access.user_id = (SELECT auth.uid())
+      )
+      AND (
+        EXISTS (
+          SELECT 1 FROM portal_courses pc
+          WHERE pc.company_id = portal_course_enrollments.company_id
+            AND pc.id = portal_course_enrollments.course_id
+        )
+      )
+    )
+  );
+ END IF;
+END $history$;
 
 -- FIX 2: la FK composita rompeva il log activity sui corsi CONCESSI (course_id platform, company_id azienda)
 ALTER TABLE public.portal_course_activity

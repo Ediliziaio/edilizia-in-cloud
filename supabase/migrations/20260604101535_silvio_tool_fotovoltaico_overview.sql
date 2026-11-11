@@ -4,12 +4,14 @@
 
 CREATE OR REPLACE FUNCTION public.silvio_tool_fotovoltaico_overview(p_company_id uuid)
 RETURNS jsonb
-LANGUAGE sql
+-- The FV module CREATE is recorded later; plan these queries when invoked.
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT jsonb_build_object(
+BEGIN
+  RETURN (SELECT jsonb_build_object(
     'totali', (
       SELECT jsonb_build_object(
         'progetti_attivi',     count(*),
@@ -53,7 +55,8 @@ AS $$
          LIMIT 12
       ) r
     ), '[]'::jsonb)
-  );
+  ));
+END;
 $$;
 
 REVOKE ALL ON FUNCTION public.silvio_tool_fotovoltaico_overview(uuid) FROM public, anon;

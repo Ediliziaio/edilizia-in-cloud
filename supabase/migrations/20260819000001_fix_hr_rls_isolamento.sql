@@ -11,6 +11,7 @@
 DROP POLICY IF EXISTS "hr_timbrature_own_company" ON public.hr_timbrature;
 
 -- Admin: company_admin e super_admin vedono/gestiscono tutto il team
+DROP POLICY IF EXISTS "hr_timbrature_admin" ON public.hr_timbrature;
 CREATE POLICY "hr_timbrature_admin"
 ON public.hr_timbrature FOR ALL TO authenticated
 USING (
@@ -30,6 +31,7 @@ WITH CHECK (
 
 -- Dipendente: SELECT solo le proprie timbrature
 DROP POLICY IF EXISTS "hr_timbrature_self_read" ON public.hr_timbrature;
+DROP POLICY IF EXISTS "hr_timbrature_self_read" ON public.hr_timbrature;
 CREATE POLICY "hr_timbrature_self_read"
 ON public.hr_timbrature FOR SELECT TO authenticated
 USING (profilo_id IN (
@@ -37,6 +39,7 @@ USING (profilo_id IN (
 ));
 
 -- Dipendente: INSERT solo per sé stesso
+DROP POLICY IF EXISTS "hr_timbrature_self_insert" ON public.hr_timbrature;
 CREATE POLICY "hr_timbrature_self_insert"
 ON public.hr_timbrature FOR INSERT TO authenticated
 WITH CHECK (profilo_id IN (
@@ -44,6 +47,7 @@ WITH CHECK (profilo_id IN (
 ));
 
 -- Dipendente: UPDATE solo le proprie (es. correzioni)
+DROP POLICY IF EXISTS "hr_timbrature_self_update" ON public.hr_timbrature;
 CREATE POLICY "hr_timbrature_self_update"
 ON public.hr_timbrature FOR UPDATE TO authenticated
 USING (profilo_id IN (
@@ -59,6 +63,7 @@ USING (profilo_id IN (
 DROP POLICY IF EXISTS "hr_richieste_own_company" ON public.hr_richieste;
 
 -- Admin: vede e gestisce tutte le richieste dell'azienda
+DROP POLICY IF EXISTS "hr_richieste_admin" ON public.hr_richieste;
 CREATE POLICY "hr_richieste_admin"
 ON public.hr_richieste FOR ALL TO authenticated
 USING (
@@ -78,6 +83,7 @@ WITH CHECK (
 
 -- Dipendente: SELECT solo le proprie richieste
 DROP POLICY IF EXISTS "hr_richieste_self" ON public.hr_richieste;
+DROP POLICY IF EXISTS "hr_richieste_self_read" ON public.hr_richieste;
 CREATE POLICY "hr_richieste_self_read"
 ON public.hr_richieste FOR SELECT TO authenticated
 USING (profilo_id IN (
@@ -85,6 +91,7 @@ USING (profilo_id IN (
 ));
 
 -- Dipendente: INSERT solo per sé stesso
+DROP POLICY IF EXISTS "hr_richieste_self_insert" ON public.hr_richieste;
 CREATE POLICY "hr_richieste_self_insert"
 ON public.hr_richieste FOR INSERT TO authenticated
 WITH CHECK (profilo_id IN (
@@ -92,6 +99,7 @@ WITH CHECK (profilo_id IN (
 ));
 
 -- Dipendente: UPDATE solo le proprie (es. annulla richiesta propria)
+DROP POLICY IF EXISTS "hr_richieste_self_update" ON public.hr_richieste;
 CREATE POLICY "hr_richieste_self_update"
 ON public.hr_richieste FOR UPDATE TO authenticated
 USING (profilo_id IN (
@@ -107,6 +115,7 @@ USING (profilo_id IN (
 DROP POLICY IF EXISTS "cedolini_company_access" ON public.cedolini;
 
 -- Admin: può creare, leggere, modificare, eliminare cedolini dell'azienda
+DROP POLICY IF EXISTS "cedolini_admin" ON public.cedolini;
 CREATE POLICY "cedolini_admin"
 ON public.cedolini FOR ALL TO authenticated
 USING (
@@ -133,11 +142,13 @@ WITH CHECK (
 );
 
 -- Dipendente: SELECT solo il proprio cedolino (employee_id = auth.uid() per profili moderni)
+DROP POLICY IF EXISTS "cedolini_self_read" ON public.cedolini;
 CREATE POLICY "cedolini_self_read"
 ON public.cedolini FOR SELECT TO authenticated
 USING (employee_id = auth.uid());
 
 -- Fallback: employee_id legacy — cerca tramite il record employees collegato al profilo
+DROP POLICY IF EXISTS "cedolini_self_read_via_employee" ON public.cedolini;
 CREATE POLICY "cedolini_self_read_via_employee"
 ON public.cedolini FOR SELECT TO authenticated
 USING (employee_id IN (
@@ -155,6 +166,7 @@ USING (employee_id IN (
 DROP POLICY IF EXISTS "hr_profili_own_company" ON public.hr_profili;
 
 -- Admin: gestisce tutti i profili dell'azienda
+DROP POLICY IF EXISTS "hr_profili_admin" ON public.hr_profili;
 CREATE POLICY "hr_profili_admin"
 ON public.hr_profili FOR ALL TO authenticated
 USING (
@@ -174,11 +186,13 @@ WITH CHECK (
 
 -- Dipendente: SELECT solo il proprio profilo (già era self_read, confermato)
 DROP POLICY IF EXISTS "hr_profili_self_read" ON public.hr_profili;
+DROP POLICY IF EXISTS "hr_profili_self_read" ON public.hr_profili;
 CREATE POLICY "hr_profili_self_read"
 ON public.hr_profili FOR SELECT TO authenticated
 USING (user_id = auth.uid());
 
 -- Dipendente: UPDATE solo il proprio profilo (es. aggiorna IBAN, recapiti)
+DROP POLICY IF EXISTS "hr_profili_self_update" ON public.hr_profili;
 CREATE POLICY "hr_profili_self_update"
 ON public.hr_profili FOR UPDATE TO authenticated
 USING (user_id = auth.uid())

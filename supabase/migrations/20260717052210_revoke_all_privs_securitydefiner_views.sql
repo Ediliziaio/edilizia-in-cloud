@@ -6,6 +6,6 @@
 -- REFERENCES/TRIGGER) per anon/authenticated — residui inerti (viste aggregate
 -- non-updatable) ma superficie inutile. Azzeriamo ogni privilegio: l'app le usa
 -- solo via RPC SECURITY DEFINER, che non richiede grant al chiamante.
-REVOKE ALL ON public.v_conversazioni_messaggi FROM anon, authenticated;
-REVOKE ALL ON public.v_subappaltatori_dashboard FROM anon, authenticated;
-REVOKE ALL ON public.v_fv_progetti_dashboard FROM anon, authenticated;
+DO $history$ BEGIN IF to_regclass('public.v_conversazioni_messaggi') IS NOT NULL THEN REVOKE ALL ON public.v_conversazioni_messaggi FROM anon, authenticated; END IF; END $history$;
+DO $history$ BEGIN IF to_regclass('public.v_subappaltatori_dashboard') IS NOT NULL THEN REVOKE ALL ON public.v_subappaltatori_dashboard FROM anon, authenticated; END IF; END $history$;
+DO $history$ BEGIN IF to_regclass('public.v_fv_progetti_dashboard') IS NOT NULL THEN REVOKE ALL ON public.v_fv_progetti_dashboard FROM anon, authenticated; END IF; END $history$;

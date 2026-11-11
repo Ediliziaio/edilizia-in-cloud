@@ -8,8 +8,12 @@
 -- risparmio_anno1_eur, risparmio_25_anni_eur, npv_25_anni_eur: metriche
 -- selezionate dalla query ma il cui valore reale viene da fv_progetti
 -- (risparmio_anno1 / npv_25_anni). Nullable → compatibili con righe esistenti.
+-- Repeated by 20271111000015 after FV finance tables are created.
+DO $$ BEGIN IF to_regclass('public.fv_calcolo_finanziario') IS NOT NULL THEN
 ALTER TABLE fv_calcolo_finanziario
   ADD COLUMN IF NOT EXISTS scenario_completo      JSONB,
   ADD COLUMN IF NOT EXISTS risparmio_anno1_eur    FLOAT8,
   ADD COLUMN IF NOT EXISTS risparmio_25_anni_eur  FLOAT8,
   ADD COLUMN IF NOT EXISTS npv_25_anni_eur        FLOAT8;
+
+END IF; END $$;

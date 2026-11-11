@@ -27,6 +27,7 @@ interface WorkflowRightPanelProps {
   onDragStart: (item: CatalogItem) => void;
   onSelectItem?: (item: CatalogItem) => void;
   companyId?: string;
+  flowId?: string;
   triggerItemId?: string;
   isAdmin?: boolean;
 }
@@ -44,6 +45,7 @@ export function WorkflowRightPanel({
   onDragStart,
   onSelectItem,
   companyId,
+  flowId,
   triggerItemId,
   isAdmin = false,
 }: WorkflowRightPanelProps) {
@@ -59,6 +61,7 @@ export function WorkflowRightPanel({
         onClose={onClose}
         onSave={onSave}
         companyId={companyId}
+        flowId={flowId}
         triggerItemId={triggerItemId}
       />
     );

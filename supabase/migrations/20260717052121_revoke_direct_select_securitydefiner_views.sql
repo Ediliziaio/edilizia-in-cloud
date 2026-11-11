@@ -15,6 +15,6 @@
 -- di leak sparisce senza toccare l'app.
 -- Le viste *_public (ai_personas_public, referral_leaderboard_public) sono
 -- pubbliche di proposito → lasciate intatte.
-REVOKE SELECT ON public.v_conversazioni_messaggi FROM anon, authenticated;
-REVOKE SELECT ON public.v_subappaltatori_dashboard FROM anon, authenticated;
-REVOKE SELECT ON public.v_fv_progetti_dashboard FROM anon, authenticated;
+DO $history$ BEGIN IF to_regclass('public.v_conversazioni_messaggi') IS NOT NULL THEN REVOKE SELECT ON public.v_conversazioni_messaggi FROM anon, authenticated; END IF; END $history$;
+DO $history$ BEGIN IF to_regclass('public.v_subappaltatori_dashboard') IS NOT NULL THEN REVOKE SELECT ON public.v_subappaltatori_dashboard FROM anon, authenticated; END IF; END $history$;
+DO $history$ BEGIN IF to_regclass('public.v_fv_progetti_dashboard') IS NOT NULL THEN REVOKE SELECT ON public.v_fv_progetti_dashboard FROM anon, authenticated; END IF; END $history$;

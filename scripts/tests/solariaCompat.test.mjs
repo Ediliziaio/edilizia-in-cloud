@@ -14,7 +14,7 @@ class FakeDb {
       return {data:matches,error:null};}
     return q;
   }
-  async rpc(name,args){this.rpcCalls.push({name,args});return {data:'2026-11-10T10:03:00Z',error:null}}
+  async rpc(name,args){this.rpcCalls.push({name,args});if(name==='automation_write_custom_field'){this.data.marketing_contact_field_values=[{contact_id:args.p_entity_id,field_id:args.p_field_id,value:args.p_value}];this.writes.push({table:'marketing_contact_field_values',value:args.p_value});return{data:args.p_field_id,error:null};}return {data:'2026-11-10T10:03:00Z',error:null}}
 }
 function args(db,extra={}){return {db,cfg:{...cfg,item_id:'squadd_add_notes',migration_note_text:'Risposta Fb Form'},companyId:C,entityId:N,queue,contact:async()=>({id:N,company_id:C}),resolveText:async s=>s,now:new Date('2026-11-10T10:00:00Z'),...extra}}
 test('other companies and unmarked nodes retain existing engine paths',async()=>{
@@ -50,7 +50,7 @@ test('cross-company contacts, flows, and note collisions are rejected',async()=>
 });
 test('current date writes only a validated custom field',async()=>{
  const db=new FakeDb();const result=await runSolariaAction(args(db,{cfg:{...cfg,item_id:'aggiorna_campo',migration_value:'Data attuale',campo:'custom_field.'+S}}));
- assert.equal(result.output.value,'2026-11-10');assert.deepEqual(db.data.marketing_contact_field_values,[{contact_id:N,field_id:S,value:'2026-11-10'}]);assert.equal(db.rpcCalls.length,0);
+ assert.equal(result.output.value,'2026-11-10');assert.deepEqual(db.data.marketing_contact_field_values,[{contact_id:N,field_id:S,value:'2026-11-10'}]);assert.equal(db.rpcCalls[0].name,'automation_write_custom_field');assert.deepEqual(db.rpcCalls[0].args.p_flow_path,[F]);
  await assert.rejects(()=>runSolariaAction(args(db,{cfg:{...cfg,item_id:'aggiorna_campo',migration_value:'Data attuale',campo:'company_id'}})),/Campo/);
 });
 test('drip waits for the reserved slot rather than delaying every contact equally',async()=>{
@@ -100,6 +100,6 @@ test('current date rejects foreign, deleted, wrong-object and non-date fields be
  }
 });
 test('current date never reports success if storage does not confirm the value',async()=>{
- const db=new FakeDb();const from=db.from.bind(db);db.from=t=>{const q=from(t);if(t==='marketing_contact_field_values'){q.upsert=()=>{q.maybeSingle=async()=>({data:null,error:null});return q;};}return q;};
+ const db=new FakeDb();db.rpc=async()=>({data:null,error:null});
  await assert.rejects(()=>runSolariaAction(args(db,{cfg:{...cfg,item_id:'aggiorna_campo',migration_value:'Data attuale',campo:'custom_field.'+S}})),/confermato/);
 });

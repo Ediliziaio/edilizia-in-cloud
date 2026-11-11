@@ -4,6 +4,8 @@
 
 -- La view dashboard FV esclude anche i progetti nel cestino (deleted_at):
 -- copre tutti i consumer (lista FV standalone inclusa) senza toccare il client.
+-- Applied again after FV creation so the trash exclusion is never lost.
+DO $history$ BEGIN IF to_regclass('public.fv_progetti') IS NOT NULL THEN
 create or replace view public.v_fv_progetti_dashboard as
  SELECT p.id,
     p.company_id,
@@ -27,3 +29,5 @@ create or replace view public.v_fv_progetti_dashboard as
      LEFT JOIN marketing_contacts c ON c.id = p.cliente_id
   WHERE p.annullato = false
     AND p.deleted_at IS NULL;
+
+END IF; END $history$;

@@ -4,6 +4,7 @@ SET LOCAL statement_timeout='10s';
 DO $migration$
 DECLARE definition text;
 BEGIN
+ IF to_regprocedure('public.opportunita_schede(uuid[])') IS NULL THEN RETURN; END IF;
  definition:=pg_get_functiondef('public.opportunita_schede(uuid[])'::regprocedure);
  IF strpos(definition,$after$a.richieste, a.ultima,
                          (select count(*) from public.marketing_opportunities o2

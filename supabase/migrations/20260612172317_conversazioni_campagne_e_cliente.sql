@@ -40,9 +40,9 @@ JOIN marketing_contacts ct ON ct.company_id = mc.company_id AND ct.telefono_norm
 UNION ALL
 -- 5) Messaggi cliente (portale, customer_messages)
 SELECT 'cliente'::text, cm.customer_id, cm.company_id,
-       CASE cm.channel WHEN 'nota_interna'::text THEN 'nota'::text WHEN 'internal'::text THEN 'nota'::text WHEN 'whatsapp'::text THEN 'whatsapp'::text WHEN 'sms'::text THEN 'sms'::text ELSE 'email'::text END,
+       CASE (to_jsonb(cm)->>'channel') WHEN 'nota_interna'::text THEN 'nota'::text WHEN 'internal'::text THEN 'nota'::text WHEN 'whatsapp'::text THEN 'whatsapp'::text WHEN 'sms'::text THEN 'sms'::text ELSE 'email'::text END,
        CASE WHEN cm.sender_role='customer'::text THEN 'in'::text ELSE 'out'::text END,
-       p.email, cm.subject, cm.body, NULL::text, cm.created_at, 'customer_messages'::text, cm.id
+       p.email, (to_jsonb(cm)->>'subject'), cm.body, NULL::text, cm.created_at, 'customer_messages'::text, cm.id
 FROM customer_messages cm
 JOIN profiles p ON p.id = cm.customer_id
 UNION ALL
@@ -51,7 +51,7 @@ SELECT 'contatto'::text, cm.contact_id, cm.company_id, 'whatsapp'::text, 'out'::
        ct.phone, NULL::text, cm.content, NULL::text, cm.created_at, 'contact_messages'::text, cm.id
 FROM contact_messages cm
 JOIN marketing_contacts ct ON ct.id = cm.contact_id
-WHERE cm.contact_id IS NOT NULL AND cm.channel = 'whatsapp'
+WHERE cm.contact_id IS NOT NULL AND (to_jsonb(cm)->>'channel') = 'whatsapp'
 UNION ALL
 -- 7) WhatsApp IN ARRIVO (contatto, whatsapp_messages per telefono al volo)
 SELECT 'contatto'::text, ct.id, wa.company_id, 'whatsapp'::text, 'in'::text,
@@ -82,7 +82,7 @@ SELECT 'cliente'::text, p.id, ei.company_id, 'email'::text, 'in'::text,
        "left"(COALESCE(NULLIF(ei.raw_text,''::text), regexp_replace(COALESCE(ei.raw_html,''::text),'<[^>]+>'::text,' '::text,'g'::text)),4000),
        NULL::text, ei.received_at, 'email_inbox'::text, ei.id
 FROM email_inbox ei
-JOIN profiles p ON p.company_id = ei.company_id AND p.customer_type IS NOT NULL
+JOIN profiles p ON p.company_id = ei.company_id AND (to_jsonb(p)->>'customer_type') IS NOT NULL
  AND ei.from_email IS NOT NULL AND lower(p.email)=lower(ei.from_email)
 WHERE ei.is_personale IS NOT TRUE AND COALESCE(ei.is_trashed,false)=false
 UNION ALL
@@ -93,7 +93,7 @@ SELECT 'cliente'::text, p.id, eo.company_id, 'email'::text, 'out'::text,
        NULL::text, COALESCE(eo.sent_at, eo.created_at), 'email_outbox'::text, eo.id
 FROM email_outbox eo
 CROSS JOIN LATERAL unnest(eo.to_emails) addr(email)
-JOIN profiles p ON p.company_id = eo.company_id AND p.customer_type IS NOT NULL
+JOIN profiles p ON p.company_id = eo.company_id AND (to_jsonb(p)->>'customer_type') IS NOT NULL
  AND lower(p.email)=lower(addr.email)
 WHERE COALESCE(eo.status,''::text) <> 'draft'::text
 UNION ALL
@@ -101,7 +101,7 @@ UNION ALL
 SELECT 'cliente'::text, p.id, wa.company_id, 'whatsapp'::text, 'in'::text,
        wa.from_phone, NULL::text, COALESCE(NULLIF(wa.content_text,''::text), '📎 allegato'), wa.media_url, wa.created_at, 'whatsapp_messages'::text, wa.id
 FROM whatsapp_messages wa
-JOIN profiles p ON p.company_id = wa.company_id AND p.customer_type IS NOT NULL
+JOIN profiles p ON p.company_id = wa.company_id AND (to_jsonb(p)->>'customer_type') IS NOT NULL
  AND regexp_replace(COALESCE(p.phone,''::text),'[^0-9]'::text,''::text,'g'::text) <> ''
  AND regexp_replace(COALESCE(p.phone,''::text),'[^0-9]'::text,''::text,'g'::text) = regexp_replace(COALESCE(wa.from_phone,''::text),'[^0-9]'::text,''::text,'g'::text)
 WHERE wa.direction = 'inbound'
@@ -112,6 +112,6 @@ SELECT 'cliente'::text, p.id, s.company_id, 'sms'::text,
        CASE WHEN s.direction='inbound'::text THEN s.from_number ELSE s.to_number END,
        NULL::text, s.body, NULL::text, s.created_at, 'sms_logs'::text, s.id
 FROM sms_logs s
-JOIN profiles p ON p.company_id = s.company_id AND p.customer_type IS NOT NULL
+JOIN profiles p ON p.company_id = s.company_id AND (to_jsonb(p)->>'customer_type') IS NOT NULL
  AND regexp_replace(COALESCE(p.phone,''::text),'[^0-9]'::text,''::text,'g'::text) <> ''
  AND regexp_replace(COALESCE(p.phone,''::text),'[^0-9]'::text,''::text,'g'::text) = regexp_replace(COALESCE(CASE WHEN s.direction='inbound'::text THEN s.from_number ELSE s.to_number END,''::text),'[^0-9]'::text,''::text,'g'::text);

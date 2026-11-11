@@ -37,15 +37,8 @@ function colonneDaiTipi(): Map<string, string[]> {
 
 const TABELLE = colonneDaiTipi();
 
-/**
- * Tabelle che nel database ci sono, con `order_id` (information_schema, 31/10/2026), ma
- * che i tipi generati non hanno ancora. Quando i tipi si rigenerano, il test qui sotto
- * chiede di toglierle da qui: da lì in poi si controllano come le altre.
- */
-const FUORI_DAI_TIPI = new Set([
-  "squadre_commesse", "subappaltatori_assegnazioni", "mezzi_piani_cantiere",
-  "sicurezza_fascicolo", "google_calendar_order_events",
-]);
+// Anche le cinque tabelle prima assenti sono ora nei tipi generati:
+// tutte passano dagli stessi controlli di esistenza, order_id e colonne.
 const ORDERS = TABELLE.get("orders") ?? [];
 
 describe("registro delle variabili della commessa", () => {
@@ -98,10 +91,6 @@ describe("registro delle variabili della commessa", () => {
       const tabelle = new Set([...(v.tabelle ?? []), ...(v.controllo.tipo === "righe" ? v.controllo.tabelle : [])]);
       for (const t of tabelle) {
         const cols = TABELLE.get(t);
-        if (FUORI_DAI_TIPI.has(t)) {
-          if (cols) problemi.push(`${t} adesso è nei tipi: toglierla da FUORI_DAI_TIPI`);
-          continue;
-        }
         if (!cols) problemi.push(`${v.chiave}: ${t} non esiste`);
         else if (!cols.includes("order_id")) problemi.push(`${v.chiave}: ${t} senza order_id`);
         else if (v.controllo.tipo === "righe" && v.controllo.conColonna && !cols.includes(v.controllo.conColonna)) {

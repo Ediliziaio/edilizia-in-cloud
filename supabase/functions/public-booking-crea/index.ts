@@ -17,13 +17,14 @@
 
 // deno-lint-ignore-file no-explicit-any
 
+import {hashWebhookSecret} from "../_shared/inboundAutomationWebhook.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { sincronizzaCalendariEsterni } from "../_shared/appuntamentiPubblici.ts";
 import { avvisaSuperAdmin } from "../_shared/avvisaSuperAdmin.ts";
 import { contattoDellaPrenotazione } from "../_shared/contattoPrenotazione.ts";
-import { slotLiberiCalendario } from "../_shared/calendarioPrenotazione.ts";
+
 import { emailAppuntamento, whatsappAppuntamento } from "../_shared/messaggiAppuntamento.ts";
 import { sendOpenWaMessage, OPENWA_PLATFORM_COMPANY_ID } from "../_shared/openwaSend.ts";
 import { opzioniMittenteCalendario } from "../_shared/mittenteCalendario.ts";
@@ -90,7 +91,7 @@ Deno.serve(async (req) => {
     const durata = cal.duration_minutes || 30;
     const inizio = minuti(ora);
     const fine = inizio + durata;
-    const fineStr = orario(fine);
+    const fineStr = fine === 1440 ? "24:00" : orario(fine);
 
     // 2. preavviso minimo (default 2 ore): niente prenotazioni "fra cinque minuti"
     const adessoRoma = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Rome" }));
@@ -104,19 +105,7 @@ Deno.serve(async (req) => {
       return json({ error: `Serve un preavviso di almeno ${preavviso < 60 ? `${preavviso} minuti` : ore === 1 ? "un'ora" : `${ore} ore`}: scegli un orario piu' avanti.` }, 409);
     }
 
-    // 3. l'orario deve essere fra quelli liberi del generatore condiviso
-    //    (calendarioSlot.ts, via slotLiberiCalendario): un posto solo per la
-    //    griglia del passo, le fasce di disponibilita', i margini, il tetto
-    //    giornaliero e gli impegni esterni del titolare (Google/Apple/Outlook).
-    //    Prima qui c'era una copia di quelle regole: con un passo diverso dalla
-    //    durata un orario fuori griglia (es. 09:30) sarebbe passato.
-    const { slot: liberi } = await slotLiberiCalendario(admin, cal.id, data, {
-      companyId: cal.company_id,
-      adesso: new Date(),
-    });
-    if (!liberi.includes(ora)) {
-      return json({ error: "Questo orario non e' piu' disponibile: scegline un altro." }, 409);
-    }
+    // Availability and stable retries are checked together inside the reservation RPC.
 
     // 4. crea l'appuntamento
     // Il link fisso del calendario (Meet, Zoom…) diventa il luogo dell'appuntamento:
@@ -138,13 +127,12 @@ Deno.serve(async (req) => {
       nome, cognome,
       slug,
     });
-    const { data: creato, error: insErr } = await admin.from("appointments").insert({
-      calendar_id: cal.id,
-      company_id: cal.company_id,
+    const {data:appointmentId,error:insErr}=await admin.rpc("reserve_calendar_booking",{
+      p_calendar_id:cal.id,p_company_id:cal.company_id,p_data:data,p_inizio:`${ora}:00`,p_fine:`${fineStr}:00`,
+      p_buffer_prima:cal.buffer_before_min??0,p_buffer_dopo:cal.buffer_after_min??0,p_durata_min:durata,
+      p_riga:{
+      request_key: "public:"+await hashWebhookSecret(`${cal.id}|${contactId}|${data}|${ora}`),
       contact_id: contactId,
-      appointment_date: data,
-      appointment_time: `${ora}:00`,
-      appointment_end_time: `${fineStr}:00`,
       title: `${titolo} — ${cal.name}`,
       description: [
         email && `Email: ${email}`,
@@ -163,8 +151,14 @@ Deno.serve(async (req) => {
       booking_email: email || null,
       // La conferma la manda questa funzione: il giro dei promemoria non la ripete.
       conferma_inviata_at: new Date().toISOString(),
-    }).select("id").single();
-    if (insErr) throw insErr;
+    }});
+    if(insErr)throw insErr;
+    if(!appointmentId)return json({error:"Questo orario è stato appena preso: scegline un altro."},409);
+    const creato={id:typeof appointmentId==="string"?appointmentId:String(appointmentId.id)};
+    if(appointmentId.duplicate)return json({ok:true,appointment_id:creato.id,duplicate:true,email_cliente:false,avviso_titolare:false});
+    const {data:responsabile,error:responsabileError}=await admin.from("appointments").select("assigned_to").eq("id",creato.id).eq("company_id",cal.company_id).single();
+    if(responsabileError)console.warn("[public-booking-crea] lettura responsabile:",responsabileError.message);
+    cal.owner_id=responsabileError?null:(responsabile?.assigned_to??null);
 
     // Sul Google/Apple Calendar del responsabile, subito: prima l'appuntamento
     // restava solo in EiC e il commerciale non lo vedeva sul telefono.

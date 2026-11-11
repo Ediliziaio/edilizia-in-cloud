@@ -122,3 +122,7 @@ $$;
 
 COMMENT ON MATERIALIZED VIEW public.mv_cg_storico_24m IS
   'Storico 24 mesi aggregato per company. Refresh via refresh_mv_cg_storico_24m().';
+
+-- Admin materialized views are server-only immediately after creation.
+REVOKE ALL ON public.mv_cg_storico_24m FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.mv_cg_storico_24m TO service_role;

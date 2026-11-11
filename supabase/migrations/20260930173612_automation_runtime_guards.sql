@@ -1,3 +1,14 @@
+-- Read-only helper needed by automation snapshots before the later permissions migration.
+-- The sentinel is deliberately not a staff column: has_permission_for_company
+-- returns true only for an administrator of this company. Optional flag is read safely.
+create or replace function public.utente_sola_lettura(p_company_id uuid)
+returns boolean language sql stable security definer set search_path=public as $$
+ select exists(select 1 from public.staff_permissions sp where sp.user_id=(select auth.uid()) and sp.company_id=p_company_id and coalesce((to_jsonb(sp)->>'sola_lettura')::boolean,false))
+ and not public.has_permission_for_company((select auth.uid()),'__solo_amministratori__',p_company_id);
+$$;
+revoke all on function public.utente_sola_lettura(uuid) from public,anon;
+grant execute on function public.utente_sola_lettura(uuid) to authenticated,service_role;
+
 -- Local rollout artifact. Apply BEFORE deploying the updated automation workers.
 set local lock_timeout = '3s';
 set local statement_timeout = '30s';
@@ -181,6 +192,10 @@ begin
         END IF;
         -- The ordinary contact_updated event is emitted by the unchanged tail.$new$;
   if position('automation_tag_deltas_v1' in definition) > 0 then return; end if;
+  if position(previous in definition) = 0 then
+    -- The July emitter has the same dispatch block with this explanatory comment.
+    previous := replace(previous, '        ELSIF OLD.assigned_to', E'        -- NUOVO: contatto assegnato (o riassegnato) a un agente\n        ELSIF OLD.assigned_to');
+  end if;
   if position(previous in definition) = 0 then
     raise exception 'CRM emitter changed: review the tag dispatch block before applying this migration';
   end if;

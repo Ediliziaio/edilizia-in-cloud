@@ -308,7 +308,8 @@ export function ContrattiSubappalto({
   // Una firma appena arrivata: il contratto risulta firmato senza ricaricare la pagina.
   const firmeRegistrate = useRef<Set<string> | null>(null);
   useEffect(() => {
-    if (caricoFirme) return;
+    // Con la lettura in errore l'elenco è vuoto: niente confronto, o al giro dopo ogni firma sembrerebbe nuova.
+    if (caricoFirme || erroreFirme) return;
     const firmate = richieste.filter((r) => r.status === "signed");
     const viste = firmeRegistrate.current;
     firmeRegistrate.current = new Set(firmate.map((r) => r.id));
@@ -317,7 +318,7 @@ export function ContrattiSubappalto({
     if (!nuove.length) return;
     void qc.invalidateQueries({ queryKey: chiaviContratti.elenco(sub.id) });
     toast.success(nuove.length === 1 ? `${nuove[0].signer_name ?? "La ditta"} ha firmato il contratto.` : `${nuove.length} contratti firmati.`);
-  }, [richieste, caricoFirme, qc, sub.id]);
+  }, [richieste, caricoFirme, erroreFirme, qc, sub.id]);
 
   const { data: azienda } = useQuery({
     queryKey: ["contratto-sub-azienda", companyId],
@@ -658,6 +659,15 @@ export function ContrattiSubappalto({
         throw new Error(messaggio);
       }
       if (data?.request_id) await supabase.from("contratti_subappalto" as never).update({ firma_richiesta_id: data.request_id } as never).eq("id", c.id);
+      // Chi firma per la ditta si ricorda (11/11/2026): dal secondo invio nome, email e cellulare sono già scritti.
+      // Solo dove la scheda non li ha: non si sovrascrive quello che qualcuno ha scritto a mano.
+      const ricorda: Record<string, string> = {};
+      if (!sub.responsabile?.trim()) ricorda.responsabile = nome.trim();
+      if (!sub.pec?.trim() && !sub.email?.trim()) ricorda.email = email.trim();
+      if (!sub.telefono?.trim() && telefono.trim()) ricorda.telefono = telefono.trim();
+      if (Object.keys(ricorda).length) {
+        await supabase.from("subappaltatori_sicurezza" as never).update(ricorda as never).eq("id", c.subappaltatore_id).eq("company_id", companyId);
+      }
       return data as { otp_inviato?: boolean };
     },
     onSuccess: () => {

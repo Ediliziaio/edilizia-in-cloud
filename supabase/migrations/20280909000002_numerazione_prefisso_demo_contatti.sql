@@ -284,3 +284,6 @@ begin
 end;
 $function$
 ;
+
+-- Keep the earlier documented executor private when its full body is first installed.
+REVOKE ALL ON FUNCTION public.demo_scenario_applica(uuid,date) FROM PUBLIC, anon, authenticated;

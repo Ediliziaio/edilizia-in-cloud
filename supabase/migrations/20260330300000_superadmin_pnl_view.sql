@@ -37,3 +37,7 @@ CREATE UNIQUE INDEX idx_pnl_month_service ON public.superadmin_service_pnl(month
 
 SELECT cron.schedule('refresh-pnl-view','0 * * * *',
   'REFRESH MATERIALIZED VIEW CONCURRENTLY public.superadmin_service_pnl');
+
+-- Admin materialized views are server-only immediately after creation.
+REVOKE ALL ON public.superadmin_service_pnl FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.superadmin_service_pnl TO service_role;

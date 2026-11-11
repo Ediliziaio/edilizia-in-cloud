@@ -96,12 +96,13 @@ JOIN public.marketing_contacts ct
 UNION ALL
 SELECT
     'cliente'::text, cm.customer_id, cm.company_id,
-    CASE cm.channel
+    -- channel is added by the later customer-messages migration.
+    CASE to_jsonb(cm)->>'channel'
       WHEN 'nota_interna' THEN 'nota' WHEN 'internal' THEN 'nota'
       WHEN 'whatsapp' THEN 'whatsapp' WHEN 'sms' THEN 'sms' ELSE 'email'
     END,
     CASE WHEN cm.sender_role = 'customer' THEN 'in' ELSE 'out' END,
-    p.email, cm.subject, cm.body, NULL, cm.created_at, 'customer_messages', cm.id
+    p.email, (to_jsonb(cm)->>'subject'), cm.body, NULL, cm.created_at, 'customer_messages', cm.id
 FROM public.customer_messages cm
 JOIN public.profiles p ON p.id = cm.customer_id;
 

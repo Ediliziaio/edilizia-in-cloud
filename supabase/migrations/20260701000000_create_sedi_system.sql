@@ -152,3 +152,7 @@ SELECT cron.schedule(
   '*/15 * * * *',
   $$REFRESH MATERIALIZED VIEW CONCURRENTLY public.mv_analytics_sede$$
 );
+
+-- Admin materialized views are server-only immediately after creation.
+REVOKE ALL ON public.mv_analytics_sede FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.mv_analytics_sede TO service_role;

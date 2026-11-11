@@ -1,3 +1,5 @@
+import {coverIndustrialeFv,copertinaIndustrialeAttiva} from "./fvCopertinaIndustriale.ts";
+import {leggiAmbitoOffertaFv} from "./fvAmbitoOfferta.ts";
 import {personalizzaDocumentoFv,contestoPersonalizzazioneFv,immaginiPersonalizzateFv} from "./fvPersonalizzazioneCompleta.ts";
 import {htmlMonitoraggioFv,leggiMonitoraggioFv,IMMAGINE_MONITORAGGIO_FV} from "./fvMonitoraggio.ts";
 import {htmlConfrontoFinanziamentoCasa} from "./fvConfrontoPagamento.ts";
@@ -68,7 +70,7 @@ export const FOTO_DI_SERIE_FV = {
   alberi: "co2-alberi.jpg",
   voli: "co2-voli.jpg",
   auto: "co2-auto.jpg",
-  bosco: "co2-bosco.jpg",
+  bosco: "ambientale/tetto-solare-verde-v1.webp",
   installatori: "fasi-installatori.jpg",
   impianto: "investimento-impianto.jpg",
 } as const;
@@ -376,6 +378,7 @@ export interface FvPdfTemplateData {
     pdf_cover_eyebrow_size?: number | null;
     presentazione_impresa_html?: string | null;
     foto_team_url?: string | null;
+    foto_team_illustrativa?: boolean;
     chi_siamo_titolo?: string | null;
     recensioni?: Array<{
       quote?: string | null;
@@ -813,8 +816,10 @@ table .saving-zero { color: #64748B; }
    Così una pagina piena non sborda mai per colpa di una foto. */
 /* Lo stacco sopra la foto sta dentro la fascia: a zero, la fascia non occupa niente. */
 .content > .foto-fascia { flex: 1 1 0; min-height: 0; max-height: 69mm; container-type: size; }
+.foto-fascia { position: relative; }
+.fv-photo-caption { position:absolute;right:3mm;bottom:2mm;max-width:90%;padding:1mm 2mm;border-radius:1.5mm;background:rgba(255,255,255,.92);color:#536d76;font-size:7.5pt;line-height:1.3; }
 .foto-fascia img { display: block; width: 100%; height: calc(100% - 5mm); margin-top: 4mm; object-fit: cover; border-radius: 12px; }
-@container (max-height: 39mm) { .foto-fascia img { display: none; } }
+@container (max-height: 39mm) { .foto-fascia img, .fv-photo-caption { display: none; } }
 /* La foto di una pagina che ha poco altro (le garanzie): può crescere di più. */
 .content > .foto-fascia.alta { max-height: 125mm; }
 .eq-row { display: grid; grid-template-columns: 26mm 1fr; gap: 4mm; align-items: center; padding: 3mm 4mm; background: white; border: 1px solid #E2E8F0; border-radius: 8px; margin-bottom: 2.2mm; }
@@ -915,7 +920,7 @@ function imageHref(value: string | null | undefined): string | null {
   // self-contained anche nel download browser): vanno accettate, non scartate.
   if (raw.startsWith("data:image/")) return raw;
   // Public artwork bundled with this site is valid in local previews too.
-  if (/^\/(?:module-art|cover-stock|pdf-stock)\/[a-zA-Z0-9_./-]+$/.test(raw) && !raw.includes("..")) return raw;
+  if (/^\/(?:module-art|cover-stock|pdf-stock|templates\/fotovoltaico\/products)\/[a-zA-Z0-9_./-]+$/.test(raw) && !raw.includes("..")) return raw;
   try {
     const url = new URL(raw);
     if (!["http:", "https:"].includes(url.protocol)) return null;
@@ -1218,7 +1223,8 @@ function pageCover(d: FvPdfTemplateData): string {
     const n = Number(v);
     return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : def;
   };
-  const titleSize = clampSize(d.template?.pdf_cover_title_size, 28, 64, 46);
+  const industrialCover = !!modelloAzienda(d.template) && copertinaIndustrialeAttiva(d.template?.pdf_blocchi);
+  const titleSize = clampSize(d.template?.pdf_cover_title_size, 28, industrialCover ? 44 : 64, industrialCover ? 40 : 46);
   const subtitleSize = clampSize(d.template?.pdf_cover_subtitle_size, 10, 18, 16);
   const eyebrowSize = clampSize(d.template?.pdf_cover_eyebrow_size, 8, 14, 10);
   const overlayBg = overlayStyle === "gradient"
@@ -1239,6 +1245,10 @@ function pageCover(d: FvPdfTemplateData): string {
   // l'azienda l'ha scritto, resta.
   const nomeAccantoAlLogo = logoUrl ? "" : `<div class="name">${escHtml(d.azienda.name)}</div>`;
   const sloganAccantoAlLogo = d.azienda.tagline ? `<div class="tagline">${escHtml(d.azienda.tagline)}</div>` : "";
+
+  if(industrialCover){
+    return coverIndustrialeFv(d,{cliente,indirizzo:indirizzoCliente,tipologia,eyebrow,hero,subtitle,bgColor,textColor,imageUrl,logoUrl,showBrand,brandJustify,align,showClientCard,titleSize,subtitleSize,eyebrowSize,fotoIllustrativa:eFotoDiSerie(d.template?.pdf_cover_image_url)||(d.template?.pdf_blocchi?.copertina_industriale as {foto_illustrativa?:boolean})?.foto_illustrativa===true});
+  }
 
   return `<div class="page"><div class="cover${showDecoration ? "" : " cover--flat"}" style="background:${escHtml(bgColor)};color:${escHtml(textColor)};">
     ${imageUrl ? `<img class="cover-bg-img" src="${escHtml(imageUrl)}" alt="Copertina fotovoltaico"/>` : ""}
@@ -1313,7 +1323,7 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
         ${inclusi.slice(0, 10).map((i) => `<li>${escHtml(i)}</li>`).join("")}
         ${altriInclusi > 0 ? `<li>e altre ${altriInclusi} voci del preventivo</li>` : ""}
       </ul>` : ""}
-      ${d.foto_di_serie?.impianto ? `<div class="foto-fascia"><img src="${d.foto_di_serie.impianto}" alt="" /></div>` : ""}
+      ${d.foto_di_serie?.impianto ? fasciaImmagineFv(d.foto_di_serie.impianto,"center",false,true) : ""}
       ${d.costi.detrazione_eur > 0 ? `<div class="callout callout-success">
         <span class="callout-icon">✓</span>
         <div><strong>Detrazione fiscale ${d.costi.detrazione_perc}% — recuperi ${fmtEur(d.costi.detrazione_eur)} in 10 anni.</strong>
@@ -1891,58 +1901,15 @@ function etichettaContatto(nome: string): string {
   return `<span style="display:inline-block;min-width:17mm;font-size:8pt;letter-spacing:0.08em;text-transform:uppercase;color:#94A3B8;font-weight:600;">${nome}</span>`;
 }
 
-function filaDiPittogrammi(quale: keyof typeof PITTOGRAMMI, quanti: number): string {
-  const uno = `<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" style="fill:#1E3A5F;margin-right:1.1mm;vertical-align:middle;"><path d="${PITTOGRAMMI[quale]}"/></svg>`;
-  return uno.repeat(Math.max(0, Math.floor(quanti) || 0));
-}
-
 function pageCO2(d: FvPdfTemplateData, pageN: number, total: number): string {
   const co2 = calcolaCO2Equivalenze({ produzione_kwh_anno: d.flows.produzione_kwh });
-  const treesIcons = filaDiPittogrammi("albero", Math.min(20, Math.round(co2.alberi_anno / 8)));
-  const flightsIcons = filaDiPittogrammi("volo", Math.min(20, co2.voli_anno));
-  const carsIcons = filaDiPittogrammi("auto", Math.min(10, Math.round(co2.km_auto_anno / 2500)));
-  // Un paragone calcolato sul numero vero: prima c'era scritto a tutti «quasi un
-  // giro del mondo all'anno», anche con 19.700 km (mezzo giro).
+  const foto = imageHref(d.foto_di_serie?.bosco) || "/pdf-stock/fotovoltaico/ambientale/tetto-solare-verde-v1.webp";
   const viaggiMilanoRoma = Math.round(co2.km_auto_anno / 575);
   const paragoneKm = viaggiMilanoRoma >= 1 ? ` Come ${fmtNum(viaggiMilanoRoma)} ${viaggiMilanoRoma === 1 ? "viaggio" : "viaggi"} Milano–Roma.` : "";
-  const foto = d.foto_di_serie;
-  const conFoto = Boolean(foto?.alberi && foto?.voli && foto?.auto && foto?.bosco);
-  return `<div class="page">
-    ${header(d.progetto.numero, d.azienda.name)}
-    <div class="content">
-      <div class="eyebrow">L'impatto sul pianeta</div>
-      <h1 class="page-title">${fmtNum(co2.ton_co2_anno, 2)} t di CO<sub>2</sub><br/>in meno ogni anno.</h1>
-      <p class="page-subtitle">Il tuo impianto è un bosco a casa tua. Ecco cosa significa, in modo concreto.</p>
-      ${conFoto ? `<div class="co2-foto">
-        <img src="${foto!.bosco}" alt="" />
-        <div class="co2-foto-testo">
-          <div class="etichetta">CO₂ evitata in 25 anni</div>
-          <div class="valore">${fmtNum(co2.ton_co2_totale, 1)} tonnellate</div>
-          <div class="sub">${fmtNum(co2.kg_co2_anno)} kg ogni anno: come una piccola foresta nel tuo cortile.</div>
-        </div>
-      </div>
-      <h3 style="font-size:11pt;color:#1E3A5F;margin:3mm 0 2mm;">Ciò corrisponde, ogni anno, a:</h3>
-      <div class="co2-carte">
-        <div class="co2-carta"><img src="${foto!.alberi}" alt="" /><div class="corpo"><div class="num">${fmtNum(co2.alberi_anno)}</div><div class="cosa">Alberi</div><div class="desc">che assorbono la stessa CO₂: un albero medio ne assorbe circa 25 kg l'anno.</div></div></div>
-        <div class="co2-carta"><img src="${foto!.voli}" alt="" /><div class="corpo"><div class="num">${fmtNum(co2.voli_anno)}</div><div class="cosa">Voli evitati</div><div class="desc">Milano–Maiorca, in CO₂: un volo breve in Europa ne emette circa 200 kg.</div></div></div>
-        <div class="co2-carta"><img src="${foto!.auto}" alt="" /><div class="corpo"><div class="num">${fmtNum(co2.km_auto_anno)}</div><div class="cosa">Km in auto</div><div class="desc">non percorsi con un'auto a benzina (circa 150 g di CO₂ al km).${paragoneKm}</div></div></div>
-      </div>` : `<div class="kpi-big" style="text-align:center;padding:8mm;margin:4mm 0;">
-        <div class="kbig-label" style="margin-bottom:2mm;">CO₂ evitata in 25 anni</div>
-        <div class="kbig-value" style="font-size:42pt;">${fmtNum(co2.ton_co2_totale, 1)} tonnellate</div>
-        <div class="kbig-sub" style="font-size:10pt;margin-top:2mm;">${fmtNum(co2.kg_co2_anno)} kg/anno · pari a una piccola foresta nel tuo cortile</div>
-      </div>
-      <h3 style="font-size:11pt;color:#1E3A5F;margin:4mm 0 2mm;">Ciò corrisponde a (ogni anno):</h3>
-      <div class="eq-row"><div class="eq-num">${fmtNum(co2.alberi_anno)}<small>Alberi</small></div><div><div class="eq-icons">${treesIcons}</div><div class="eq-desc">Una piccola foresta che assorbe la stessa CO₂. Ogni albero medio assorbe ~25 kg di CO₂ all'anno.</div></div></div>
-      <div class="eq-row"><div class="eq-num">${fmtNum(co2.voli_anno)}<small>Voli</small></div><div><div class="eq-icons">${flightsIcons}</div><div class="eq-desc">Voli evitati Milano → Maiorca, in equivalenza CO₂. Un volo medio EU breve emette ~200 kg di CO₂.</div></div></div>
-      <div class="eq-row"><div class="eq-num">${fmtNum(co2.km_auto_anno)}<small>Km auto</small></div><div><div class="eq-icons">${carsIcons}</div><div class="eq-desc">Chilometri non percorsi con un'auto a benzina (~150 g CO₂/km).${paragoneKm}</div></div></div>`}
-      <div class="callout callout-success">
-        <span class="callout-icon">✓</span>
-        <div><strong>Energia pulita, prodotta sul tuo tetto.</strong>
-        Ogni kWh che autoconsumi è energia che non prelevi dalla rete.</div>
-      </div>
-    </div>
-    ${footer(d, pageN, total)}
-  </div>`;
+  const card = (tipo: keyof typeof PITTOGRAMMI, valore: number, titolo: string, testo: string) => `<article class="fe-equivalent"><svg viewBox="0 0 24 24" width="23" height="23" aria-hidden="true"><path d="${PITTOGRAMMI[tipo]}" fill="#188569"/></svg><strong>${fmtNum(valore)}</strong><h2>${titolo}</h2><p>${testo}</p></article>`;
+  return `<div class="page">${header(d.progetto.numero,d.azienda.name)}<div class="content"><style>
+.fe{color:#203d50}.fe h1{font-size:29pt;line-height:1.08;letter-spacing:-1px;margin:3mm 0}.fe h1 em{color:#188569;font-style:normal}.fe-lead{font-size:10pt;line-height:1.5;color:#647986;margin:3mm 0 5mm}.fe-hero{margin:0;border:1px solid #dbe5de;border-radius:4mm;overflow:hidden;background:#edf4ee}.fe-hero:not(:has(img)){display:none}.fe-hero img{display:block;width:100%;height:83mm;object-fit:cover;object-position:center 45%}.fe-hero figcaption{font-size:7.5pt;line-height:1.4;color:#647986;padding:2mm 4mm;background:#f7faf5}.fe-impact{display:grid;grid-template-columns:1fr 1fr;gap:5mm;background:#203d50;color:white;padding:5mm 6mm;border-radius:3mm;margin:4mm 0 5mm}.fe-impact>div+div{border-left:1px solid #6c8e89;padding-left:6mm}.fe-impact small{display:block;font-size:7.5pt;letter-spacing:.4px;color:#d0e0d7}.fe-impact strong{display:block;font-size:29pt;letter-spacing:-.7px;line-height:1.2;margin:1.5mm 0}.fe-impact strong span{font-size:12pt;letter-spacing:0}.fe-impact p{font-size:8pt;line-height:1.4;margin:0;color:#d0e0d7}.fe-kicker{font-size:8pt;color:#647986;margin:0 0 3mm}.fe-equivalents{display:grid;grid-template-columns:repeat(3,1fr);gap:3mm}.fe-equivalent{padding:4mm;border:1px solid #dbe5de;border-radius:3mm;background:#f7faf5}.fe-equivalent svg{display:block;margin-bottom:2mm}.fe-equivalent strong{display:block;font-size:22pt;line-height:1.2;letter-spacing:-.6px;color:#188569}.fe-equivalent h2{font-size:9pt;line-height:1.35;margin:1mm 0 2mm}.fe-equivalent p{font-size:7.5pt;line-height:1.45;color:#647986;margin:0}.fe-method{font-size:7.5pt;line-height:1.45;color:#647986;border-top:1px solid #dbe5de;margin-top:4mm;padding-top:3mm}
+</style><section class="fe"><div class="eyebrow">L'impatto sul pianeta</div><h1>La tua energia.<br/><em>Un’impronta più leggera.</em></h1><p class="fe-lead">Il valore del tuo tetto si vede anche nell’energia che produci e nelle emissioni che puoi contribuire a evitare.</p><figure class="fe-hero"><img src="${escHtml(foto)}" alt="Immagine illustrativa di un tetto fotovoltaico immerso nel verde"/><figcaption>Immagine illustrativa · non rappresenta il sito del cliente.</figcaption></figure><div class="fe-impact"><div><small>RIDUZIONE STIMATA · PRIMO ANNO</small><strong>${fmtNum(co2.ton_co2_anno,2)} <span>t di CO₂</span></strong><p>${fmtNum(co2.kg_co2_anno)} kg secondo il fattore del modello.</p></div><div><small>PROIEZIONE CONVENZIONALE · 25 ANNI</small><strong>${fmtNum(co2.ton_co2_totale,1)} <span>tonnellate</span></strong><p>Scenario a produzione costante.</p></div></div><p class="fe-kicker">Per dare una misura al beneficio annuo · equivalenze indicative</p><div class="fe-equivalents">${card("albero",co2.alberi_anno,"Alberi · equivalenza CO₂","Assorbimento convenzionale di 25 kg di CO₂ per albero all’anno.")}${card("volo",co2.voli_anno,"Voli brevi · equivalenza CO₂","Confronto su 200 kg di CO₂ per volo: non indica voli realmente evitati.")}${card("auto",co2.km_auto_anno,"Km in auto · equivalenza CO₂",`Confronto su 150 g di CO₂/km.${paragoneKm}`)}</div><p class="fe-method">Stima convenzionale su ${fmtNum(d.flows.produzione_kwh)} kWh/anno con fattore 0,40 kg CO₂/kWh. La proiezione a 25 anni mantiene la produzione costante e non considera il ciclo di vita. Equivalenze illustrative, non un bilancio certificato delle emissioni.</p></section></div>${footer(d,pageN,total)}</div>`;
 }
 
 // ─── I blocchi della libreria: come funziona, sicurezza sul tetto… ──────────
@@ -1967,9 +1934,13 @@ function bloccoHaContenuto(d: FvPdfTemplateData, id: PaginaBlocco): boolean {
  * La foto di una pagina, nella fascia che prende solo lo spazio libero (.foto-fascia):
  * con la pagina piena si restringe o sparisce, mai una pagina che sborda.
  */
+function fasciaImmagineFv(src: string, posizione: string, alta: boolean, illustrativa: boolean) {
+  return `<div class="foto-fascia${alta ? " alta" : ""}"><img src="${escHtml(src)}" alt="${illustrativa?"Immagine illustrativa di un impianto fotovoltaico o delle lavorazioni":"Immagine scelta per la proposta"}" style="object-position:${posizione};"/>${illustrativa?'<span class="fv-photo-caption">Immagine illustrativa · non è un lavoro attribuito all’installatore.</span>':""}</div>`;
+}
 function fasciaFotoPagina(d: FvPdfTemplateData, pagina: PaginaConFotoFv, posizione = "center", alta = false): string {
   const src = imageHref(d.foto_pagine?.[pagina] ?? null);
-  return src ? `<div class="foto-fascia${alta ? " alta" : ""}"><img src="${escHtml(src)}" alt="" style="object-position:${posizione};" /></div>` : "";
+  const illustrativa = eFotoDiSerie(src ?? "") || eFotoDiSerie(leggiFotoPagina(pagina,"fotovoltaico",d.template?.pdf_blocchi) ?? "");
+  return src ? fasciaImmagineFv(src,posizione,alta,illustrativa) : "";
 }
 
 /** «Dal tuo tetto *alla tua presa*.»: la parola fra asterischi nel colore dell'accento. */
@@ -2030,15 +2001,64 @@ function testataFv(d: FvPdfTemplateData, pagina: PaginaConTestata): TestataPagin
 /** Un titolo scritto con gli a capo (\n): sicuro per l'HTML, e le righe restano quelle. */
 const titoloHtml = (titolo: string): string => escHtml(titolo).replace(/\n/g, "<br/>");
 
+type RigaEditorialeFv = { titolo: string; testo: string; tipo: string };
+function spezzaTestoEditorialeFv(testo: string): string[] {
+  const parole = testo.split(/\s+/).filter(Boolean), righe: string[] = []; let parte = "";
+  for (const parola of parole) {
+    if (parte && parte.length + parola.length > 480) { righe.push(parte); parte = ""; }
+    parte += (parte ? " " : "") + parola;
+  }
+  if (parte) righe.push(parte);
+  return righe;
+}
+function gruppiEditorialiFv(righe: RigaEditorialeFv[], budget: number): RigaEditorialeFv[][] {
+  const gruppi: RigaEditorialeFv[][] = [[]]; let altezza = 0;
+  for (const r of righe) {
+    const h = 12 + Math.ceil((r.testo.length + r.titolo.length) / 82) * 4.8;
+    if (altezza + h > budget && gruppi.at(-1)!.length) { gruppi.push([]); altezza = 0; }
+    gruppi.at(-1)!.push(r); altezza += h;
+  }
+  return gruppi;
+}
+const STILE_OFFERTA_FV = `<style>.fo{color:#203d50}.fo h1{overflow-wrap:anywhere;font-size:29pt;line-height:1.1;letter-spacing:-.9px;margin:3mm 0 5mm}.fo h1 em{color:#188569;font-style:normal}.fo-lead{font-size:10pt;line-height:1.5;color:#647986;margin:3mm 0 5mm}.fo-team{width:100%;height:45mm;object-fit:cover;border-radius:4mm;margin:2mm 0 5mm}.fo-row{padding:3mm 4mm;margin:0 0 3mm;border:1px solid #dfe7e1;border-radius:3mm;break-inside:avoid;overflow-wrap:anywhere}.fo-row h2{font-size:10pt;line-height:1.3;color:#188569;margin:0 0 1.5mm}.fo-row p{font-size:9pt;line-height:1.45;margin:0;color:#405b69}.fo-row.esclusioni{background:#faf8f3}.fo-row.verifiche{background:#f3f6f7}.fo-contact{font-size:8pt;line-height:1.5;color:#647986;padding-top:4mm;margin-top:4mm;border-top:1px solid #dfe7e1;overflow-wrap:anywhere}.fo-note{font-size:8pt;line-height:1.5;color:#647986;margin:3mm 0}</style>`;
+function righeChiSiamoFv(d: FvPdfTemplateData): RigaEditorialeFv[] {
+  const righe = spezzaTestoEditorialeFv(plainText(d.template?.presentazione_impresa_html)).map(testo => ({ titolo: "", testo, tipo: "presentazione" }));
+  for (const u of d.template?.usp ?? []) if (plainText(u.titolo)) {
+    const parti = spezzaTestoEditorialeFv(plainText(u.descrizione));
+    for (const [i, testo] of (parti.length ? parti : [""]).entries()) righe.push({ titolo: plainText(u.titolo) + (i ? " · continua" : ""), testo, tipo: "usp" });
+  }
+  for (const c of d.template?.certificazioni ?? []) if (plainText(c.nome)) righe.push({ titolo: "Certificazione indicata dall’installatore", testo: [plainText(c.nome), plainText(c.ente)].filter(Boolean).join(" · "), tipo: "certificazione" });
+  return righe;
+}
+function gruppiChiSiamoFv(d: FvPdfTemplateData) {
+  return gruppiEditorialiFv(righeChiSiamoFv(d), imageHref(d.template?.foto_team_url) ? 112 : 155);
+}
+function pageChiSiamoFv(d: FvPdfTemplateData, righe: RigaEditorialeFv[], parte: number, pageN: number, total: number) {
+  const foto = imageHref(d.template?.foto_team_url), contatti = [d.azienda.phone, d.azienda.email, d.azienda.website].filter(Boolean);
+  const titolo = String(d.template?.chi_siamo_titolo || d.azienda.name).split(/\n/).map(plainText).filter(Boolean).map((r,i) => i ? `<em>${escHtml(r)}</em>` : escHtml(r)).join("<br/>");
+  return `<div class="page">${header(d.progetto.numero,d.azienda.name)}<div class="content">${STILE_OFFERTA_FV}<section class="fo"><div class="eyebrow">L’INSTALLATORE · CHI SIAMO${parte ? " · CONTINUA" : ""}</div><h1>${titolo}</h1><p class="fo-lead">${escHtml(d.azienda.name)}</p>${foto ? `<img class="fo-team" src="${escHtml(foto)}" alt="${(d.template?.foto_team_illustrativa||eFotoDiSerie(d.template?.foto_team_url))?"Immagine illustrativa di un impianto fotovoltaico":"Foto azienda o squadra dell’installatore"}"/>${(d.template?.foto_team_illustrativa||eFotoDiSerie(d.template?.foto_team_url))?'<p class="fo-note">Immagine illustrativa · non è un lavoro attribuito all’installatore.</p>':""}` : ""}${righe.map(r => `<article class="fo-row">${r.titolo ? `<h2>${escHtml(r.titolo)}</h2>` : ""}<p>${escHtml(r.testo)}</p></article>`).join("")}<div class="fo-contact"><strong>Parliamone con un referente.</strong><br/>${contatti.map(escHtml).join(" · ")}${d.azienda.vat_number ? `<br/>P. IVA ${escHtml(d.azienda.vat_number)}` : ""}</div></section></div>${footer(d,pageN,total)}</div>`;
+}
+function gruppiAmbitoOffertaFv(d: FvPdfTemplateData) {
+  const c = leggiAmbitoOffertaFv(d.template?.pdf_blocchi), righe: RigaEditorialeFv[] = [];
+  for (const [tipo, titolo] of [["inclusioni", "Incluso nella proposta"], ["esclusioni", "Escluso dalla proposta"], ["verifiche", "Da verificare o confermare"]] as const) {
+    for (const testo of c[tipo]) for (const parte of spezzaTestoEditorialeFv(testo)) righe.push({ tipo, titolo, testo: parte });
+  }
+  return righe.length ? gruppiEditorialiFv(righe, 156) : [];
+}
+function pageAmbitoOffertaFv(d: FvPdfTemplateData, righe: RigaEditorialeFv[], parte: number, pageN: number, total: number) {
+  return `<div class="page">${header(d.progetto.numero,d.azienda.name)}<div class="content">${STILE_OFFERTA_FV}<section class="fo"><div class="eyebrow">IL PERIMETRO DELLA PROPOSTA${parte ? " · CONTINUA" : ""}</div><h1>Cosa comprende.<br/><em>Cosa concordiamo.</em></h1><p class="fo-lead">Componenti e prezzi restano nella fornitura. Qui trovi attività, esclusioni e condizioni indicate dall’installatore.</p>${righe.map(r => `<article class="fo-row ${r.tipo}"><h2>${escHtml(r.titolo)}</h2><p>${escHtml(r.testo)}</p></article>`).join("")}<p class="fo-note">I tempi delle lavorazioni sono nel percorso cliente. Connessione, autorizzazioni e approvazioni di terzi seguono le rispettive procedure.</p></section></div>${footer(d,pageN,total)}</div>`;
+}
+
 function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): string {
   const chiSiamoTitolo = plainText(d.template?.chi_siamo_titolo) || "L'azienda dietro al tuo impianto";
-  const presentazione = safeRichText(d.template?.presentazione_impresa_html);
-  const teamImage = imageHref(d.template?.foto_team_url);
+  const presentazioneSeparata = pagineDaDisegnare(d).some(p => p.id === "chi_siamo");
+  const presentazione = presentazioneSeparata ? "" : safeRichText(d.template?.presentazione_impresa_html);
+  const teamImage = presentazioneSeparata ? null : imageHref(d.template?.foto_team_url);
   // Con la pagina «Dicono di noi» le recensioni e i cantieri stanno lì, non qui.
   const provaAltrove = pagineDaDisegnare(d).some((pg) => pg.id === "recensioni");
   const recensioni = provaAltrove ? [] : recensioniFv(d).slice(0, 2);
   const cantieriQui = provaAltrove ? [] : (d.cantieri_foto ?? []);
-  const certificazioni = (d.template?.certificazioni ?? [])
+  const certificazioni = (presentazioneSeparata ? [] : d.template?.certificazioni ?? [])
     .filter((cert) => plainText(cert.nome).length > 0)
     .slice(0, 4);
   // Senza garanzie scritte nel modello si parla solo di ciò che è certo: la
@@ -2068,7 +2088,7 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
     }));
   const garanzie = (customGaranzie.length > 0 ? customGaranzie : defaultGaranzie).slice(0, 4);
   const testata = testataFv(d, "garanzie");
-  const customUsp = (d.template?.usp ?? [])
+  const customUsp = (presentazioneSeparata ? [] : d.template?.usp ?? [])
     .filter((u) => plainText(u.titolo).length > 0)
     .map((u) => ({ titolo: plainText(u.titolo), descrizione: plainText(u.descrizione) }))
     .slice(0, 6);
@@ -2159,7 +2179,7 @@ function pageIter(d: FvPdfTemplateData, pageN: number, total: number): string {
         ${customCrono.length > 0 ? customTimeline : defaultTimeline}
       </div>
       ${quanteFasi <= 6 ? renderServiziInclusi(d) : ""}
-      ${d.foto_di_serie?.installatori ? `<div class="foto-fascia"><img src="${d.foto_di_serie.installatori}" alt="" style="object-position:center 55%;" /></div>` : ""}
+      ${d.foto_di_serie?.installatori ? fasciaImmagineFv(d.foto_di_serie.installatori,"center 55%",false,true) : ""}
       <div class="callout callout-success">
         <span class="callout-icon">✓</span>
         <div>${(isFvLocalIntervention(d.template)||!!modelloAzienda(d.template)) ? "<strong>Prima si conferma il perimetro.</strong> Tempi, attività e documentazione si concordano sul caso concreto. Servizi e funzioni aggiuntive devono essere esplicitamente inclusi." : "<strong>Tu firmi una volta sola.</strong> Le pratiche comprese nella proposta le seguiamo noi. I tempi dipendono anche dal Comune e dal distributore di rete."}</div>
@@ -2641,7 +2661,10 @@ function pagineDaDisegnare(d: FvPdfTemplateData): FvPdfPageOrderItem[] {
   const commerciale = leggiDisegnoCommerciale(d.progetto.layout_overlay);
   return normalizeFvPdfPagesOrder(d.template?.pdf_pages_order).filter((page) => {
     if(isFvPaginaAzienda(page.id)&&(!modelloAzienda(d.template)||!d.economia_azienda))return false;
-    if(["giorno_sera","schede_prodotti"].includes(page.id)&&(!!d.economia_azienda||!!modelloAzienda(d.template)||isFvLocalIntervention(d.template)||d.configurationOnly))return false;
+    if(page.id==="giorno_sera"&&(!!d.economia_azienda||!!modelloAzienda(d.template)||isFvLocalIntervention(d.template)||d.configurationOnly))return false;
+    if(page.id==="schede_prodotti"&&isFvLocalIntervention(d.template))return false;
+    if(page.id==="chi_siamo"&&!righeChiSiamoFv(d).length&&!imageHref(d.template?.foto_team_url))return false;
+    if(page.id==="ambito_offerta"&&(!leggiAmbitoOffertaFv(d.template?.pdf_blocchi).attivo||!gruppiAmbitoOffertaFv(d).length))return false;
     if(page.id==="schede_prodotti"&&!d.componenti.length)return false;
     if(page.id==="monitoraggio"&&!leggiMonitoraggioFv(d.template?.pdf_blocchi).attivo)return false;
     if(d.simulazione_azienda&&page.id==="decisione"&&!modelloAzienda(d.template))return false;
@@ -2685,7 +2708,7 @@ export function getFvPdfRenderedPagesCount(d: FvPdfTemplateData): number {
   // Il contratto (condizioni, firma, modulo di recesso) si conta con la decisione,
   // che lo porta con sé.
   return 1 + (imageHref(d.render_impianto?.img)?1:0) + (d.economia_azienda&&!modelloAzienda(d.template)?sezioniEconomiaAzienda(d.economia_azienda).length:0) + (haPaginaKit(d) ? 1 : 0) + pagineDaDisegnare(d).reduce((count, page) => (
-    count + (isFvPaginaAzienda(page.id)&&d.economia_azienda?capitoliEconomiaAzienda(d.economia_azienda,d.template?.pdf_blocchi)[page.id].length:page.id === "macro_categorie" ? macroPages.length : page.id === "componenti" ? pagineFornitura(d).length : page.id === "schede_prodotti" ? gruppiSchedeProdotti(d).length : page.id === "faq" ? gruppiFaq(d).length : page.id === "decisione" ? d.simulazione_azienda||d.anteprima_dimostrativa?1:1 + quantePagineContratto(d) : 1)
+    count + (isFvPaginaAzienda(page.id)&&d.economia_azienda?capitoliEconomiaAzienda(d.economia_azienda,d.template?.pdf_blocchi)[page.id].length:page.id === "macro_categorie" ? macroPages.length : page.id === "chi_siamo" ? gruppiChiSiamoFv(d).length : page.id === "ambito_offerta" ? gruppiAmbitoOffertaFv(d).length : page.id === "componenti" ? pagineFornitura(d).length : page.id === "schede_prodotti" ? gruppiSchedeProdotti(d).length : page.id === "faq" ? gruppiFaq(d).length : page.id === "decisione" ? d.simulazione_azienda||d.anteprima_dimostrativa?1:1 + quantePagineContratto(d) : 1)
   ), 0);
 }
 
@@ -2838,6 +2861,12 @@ function renderFvPdfHtmlBase(d: FvPdfTemplateData): string {
         break;
       case "co2":
         append(page.id, pageCO2(d, ++pageN, TOTAL));
+        break;
+      case "chi_siamo":
+        append(page.id,...gruppiChiSiamoFv(d).map((righe,i)=>pageChiSiamoFv(d,righe,i,++pageN,TOTAL)));
+        break;
+      case "ambito_offerta":
+        append(page.id,...gruppiAmbitoOffertaFv(d).map((righe,i)=>pageAmbitoOffertaFv(d,righe,i,++pageN,TOTAL)));
         break;
       case "garanzie":
         append(page.id, pageGaranzie(d, ++pageN, TOTAL));

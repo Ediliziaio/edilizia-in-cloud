@@ -832,3 +832,43 @@ BEGIN
 END $$;
 
 COMMIT;
+
+-- Preserve the earlier recovered 30-day-trash contract when FV is created later.
+ALTER TABLE public.fv_progetti ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+
+-- Preserve the recovered FV dashboard trash exclusion.
+create or replace view public.v_fv_progetti_dashboard with (security_invoker = true) as
+ SELECT p.id,
+    p.company_id,
+    p.numero,
+    p.titolo,
+    p.stato,
+    p.archetipo,
+    p.indirizzo,
+    p.comune,
+    TRIM(BOTH FROM (COALESCE(c.first_name, ''::text) || ' '::text) || COALESCE(c.last_name, ''::text)) AS cliente_nome,
+    p.potenza_kwp,
+    p.prezzo_vendita_iva_inclusa,
+    p.margine_eur,
+    p.margine_pct,
+    p.payback_anni,
+    p.created_at,
+    p.updated_at,
+    p.emesso_il,
+    p.firmato_il
+   FROM fv_progetti p
+     LEFT JOIN marketing_contacts c ON c.id = p.cliente_id
+  WHERE p.annullato = false
+    AND p.deleted_at IS NULL;
+
+-- Preserve assigned-only visibility from the recovered security migration.
+drop policy if exists "co_fv_progetti_all" on public.fv_progetti;
+create policy "co_fv_progetti_all" on public.fv_progetti
+for all using (
+  company_id = get_effective_company_id()
+  and check_staff_visibility((select auth.uid()), created_by)
+) with check (
+  company_id = get_effective_company_id()
+);
+-- Keep the recovered private-view revocation when this late view is first created.
+REVOKE ALL ON public.v_fv_progetti_dashboard FROM PUBLIC, anon, authenticated;

@@ -10,6 +10,6 @@
 -- Azzeriamo ogni privilegio anon/authenticated: superficie di leak eliminata.
 -- Le viste *_public (ai_personas_public, referral_leaderboard_public) sono
 -- pubbliche di proposito -> intatte.
-REVOKE ALL ON public.v_conversazioni_messaggi FROM anon, authenticated;
-REVOKE ALL ON public.v_subappaltatori_dashboard FROM anon, authenticated;
-REVOKE ALL ON public.v_fv_progetti_dashboard FROM anon, authenticated;
+DO $history$ BEGIN IF to_regclass('public.v_conversazioni_messaggi') IS NOT NULL THEN REVOKE ALL ON public.v_conversazioni_messaggi FROM anon, authenticated; END IF; END $history$;
+DO $history$ BEGIN IF to_regclass('public.v_subappaltatori_dashboard') IS NOT NULL THEN REVOKE ALL ON public.v_subappaltatori_dashboard FROM anon, authenticated; END IF; END $history$;
+DO $history$ BEGIN IF to_regclass('public.v_fv_progetti_dashboard') IS NOT NULL THEN REVOKE ALL ON public.v_fv_progetti_dashboard FROM anon, authenticated; END IF; END $history$;

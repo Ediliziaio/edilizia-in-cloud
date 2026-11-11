@@ -209,7 +209,7 @@ export async function sincronizzaCalendariEsterni(args: {
   if (!base || !serviceKey || !args.userId) return;
   const body = JSON.stringify({ action: args.azione, appointmentId: args.appointmentId, companyId: args.companyId, userId: args.userId });
   await Promise.allSettled(
-    ["google-calendar-sync", "apple-calendar-sync"].map(async (fn) => {
+    ["google-calendar-sync", "apple-calendar-sync", "outlook-calendar-booking-sync"].map(async (fn) => {
       try {
         const res = await fetch(`${base}/functions/v1/${fn}`, {
           method: "POST",

@@ -127,95 +127,10 @@ export default function PublicBooking() {
 
   // Fetch Google Calendar busy slots for the calendar owner (if they have block_busy_slots enabled)
   const dateStr = selectedDate ? format(selectedDate, "yyyy-MM-dd") : null;
-  const selectedDayRange = useMemo(() => {
-    if (!selectedDate) return null;
-    const start = new Date(selectedDate);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(selectedDate);
-    end.setHours(23, 59, 59, 999);
-    return { startIso: start.toISOString(), endIso: end.toISOString() };
-  }, [selectedDate]);
-  // Fasce occupate del titolare, da UNA vista pubblica (08/09/2026).
-  //
-  // Prima erano tre query separate su google_/apple_/outlook_calendar_busy_slots:
-  // da visitatore anonimo le prime due davano 401 (anon non ha il GRANT) e la
-  // terza zero righe — cioè gli impegni del titolare non bloccavano MAI gli
-  // orari proposti, e un cliente poteva prenotare mentre eri in riunione.
-  // `public_calendar_busy_slots` espone solo inizio e fine, mai il titolo, e
-  // solo per chi ha un calendario pubblico attivo con il blocco fasce acceso.
-  const { data: busySlots = [], isFetching: busyFetching } = useQuery({
-    queryKey: ["public-busy-slots", calendar?.id, dateStr, selectedDayRange?.startIso, selectedDayRange?.endIso],
-    queryFn: async () => {
-      if (!calendar?.id || !selectedDayRange) return [];
-      // owner_id lo abbiamo gia' dalla vista: era una seconda query sulla
-      // tabella, che da anonimo ora non e' piu' leggibile.
-      if (!calendar.owner_id) return [];
-      const cal = { owner_id: calendar.owner_id };
-      // La vista non e' nei tipi generati (as never, come le altre del repo).
-      const { data, error } = await supabase
-        .from("public_calendar_busy_slots" as never)
-        .select("start_at, end_at")
-        .eq("user_id", cal.owner_id)
-        .lt("start_at", selectedDayRange.endIso)
-        .gt("end_at", selectedDayRange.startIso);
-      if (error) throw error;
-      return (data ?? []) as unknown as Array<{ start_at: string; end_at: string }>;
-    },
-    enabled: !!calendar?.id && !!selectedDayRange,
+  const {data:slots=[],isFetching:serverSlotsFetching,isError:serverSlotsError,refetch:reloadSlots}=useQuery({
+    queryKey:["public-booking-authoritative-slots",slug,dateStr],enabled:!!calendar?.id&&!!dateStr,refetchInterval:60_000,staleTime:15_000,
+    queryFn:async()=>{const {data,error}=await supabase.functions.invoke("public-booking-slots",{body:{slug,date:dateStr}});if(error||!Array.isArray(data?.slots))throw new Error("Disponibilità non disponibile");return data.slots as string[];},
   });
-
-  // Appuntamenti gia' fissati sul giorno scelto: la vista pubblica espone solo
-  // inizio e fine, mai il nome di chi ha prenotato. Anche il tempo bloccato
-  // dal titolare occupa l'orario (come in calendarioSlot.ts, che ora valida
-  // anche le prenotazioni): conta per le sovrapposizioni, non per il tetto.
-  const { data: existingAppointments = [], isFetching: existingAppointmentsFetching } = useQuery({
-    queryKey: queryKeys.publicBooking.appointments(calendar?.id, dateStr),
-    queryFn: async () => {
-      if (!calendar?.id || !dateStr) return [];
-      const { data, error } = await supabase
-        .from("public_appointment_slots")
-        .select("appointment_time, appointment_end_time, is_blocked_slot")
-        .eq("company_id", calendar.company_id)
-        .eq("calendar_id", calendar.id)
-        .eq("appointment_date", dateStr);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!calendar?.id && !!dateStr,
-  });
-
-  // Check if a time slot overlaps with any busy slot (Google or Apple)
-  const isSlotBusy = useCallback((slotTime: string, durationMinutes: number): boolean => {
-    const allBusySlots = busySlots;
-    if (!selectedDate || allBusySlots.length === 0) return false;
-    const slotStart = parse(slotTime, "HH:mm", selectedDate);
-    const slotEnd = new Date(slotStart.getTime() + durationMinutes * 60000);
-    return allBusySlots.some((busy) => {
-      const bStart = new Date(busy.start_at);
-      const bEnd = new Date(busy.end_at);
-      return slotStart < bEnd && slotEnd > bStart;
-    });
-  }, [busySlots, selectedDate]);
-
-  const parseAvailabilityTime = useCallback(
-    (value: string) => parse(value.length === 5 ? value : value.slice(0, 5), "HH:mm", selectedDate || new Date()),
-    [selectedDate],
-  );
-
-  // Regole del calendario: margini fra appuntamenti, preavviso minimo e tetto
-  // giornaliero. Erano colonne che nessuno leggeva.
-  const bufferPrima = calendar?.buffer_before_min ?? 0;
-  const bufferDopo = calendar?.buffer_after_min ?? 0;
-  const preavvisoMin = calendar?.min_notice_minutes ?? 0;
-  const maxAlGiorno = calendar?.max_per_day ?? null;
-  // Orologio di stato: il preavviso va confrontato con "adesso", ma leggere
-  // l'ora durante il render non e' puro. Aggiornandolo ogni minuto gli orari
-  // troppo vicini spariscono da soli mentre la pagina resta aperta.
-  const [adesso, setAdesso] = useState(() => Date.now());
-  useEffect(() => {
-    const id = window.setInterval(() => setAdesso(Date.now()), 60_000);
-    return () => window.clearInterval(id);
-  }, []);
 
   // Quando la pagina e' dentro un altro sito (script prenota.js) le si parla
   // via postMessage: l'altezza fa crescere il riquadro, la conferma permette al
@@ -261,68 +176,6 @@ export default function PublicBooking() {
     } catch { return hhmm; }
   }, [fusoVisitatore]);
 
-
-  const slotOverlapsExistingAppointments = useCallback((slotTime: string, durationMinutes: number, rows = existingAppointments) => {
-    if (!selectedDate) return false;
-    // I margini del calendario allargano gli estremi: fra due appuntamenti
-    // devono restare liberi buffer_before/after minuti, altrimenti si finisce
-    // con una consulenza attaccata all'altra senza un minuto in mezzo.
-    const inizio = parse(slotTime, "HH:mm", selectedDate).getTime() - bufferPrima * 60000;
-    const fineSlot = parse(slotTime, "HH:mm", selectedDate).getTime() + (durationMinutes + bufferDopo) * 60000;
-    return rows.some((apt) => {
-      if (!apt.appointment_time) return false;
-      const aptStart = parse(apt.appointment_time.slice(0, 5), "HH:mm", selectedDate).getTime();
-      const aptEnd = apt.appointment_end_time
-        ? parse(apt.appointment_end_time.slice(0, 5), "HH:mm", selectedDate).getTime()
-        : aptStart + durationMinutes * 60000;
-      return inizio < (aptEnd + bufferDopo * 60000) && fineSlot > (aptStart - bufferPrima * 60000);
-    });
-  }, [existingAppointments, selectedDate, bufferPrima, bufferDopo]);
-
-  // Calculate available slots for selected date
-  const slots = useMemo(() => {
-    if (!selectedDate || !calendar) return [];
-    const dayOfWeek = selectedDate.getDay(); // 0=Sun
-    const dateStr = format(selectedDate, "yyyy-MM-dd");
-    const duration = calendar.duration_minutes || 30;
-    // Il passo con cui si offrono gli orari: indipendente dalla durata, come lato
-    // server (calendarioSlot.ts). Vuoto/0 => usa la durata, com'era prima.
-    const passo = calendar.slot_interval_min && calendar.slot_interval_min > 0
-      ? calendar.slot_interval_min
-      : duration;
-
-    // Find matching availability rules (day_of_week or specific_date)
-    const rules = availability.filter(
-      (a) => (a.specific_date === dateStr) || (a.specific_date === null && a.day_of_week === dayOfWeek)
-    );
-    // Specific date overrides day_of_week
-    const effectiveRules = rules.filter(r => r.specific_date === dateStr).length > 0
-      ? rules.filter(r => r.specific_date === dateStr)
-      : rules.filter(r => r.specific_date === null);
-
-    if (effectiveRules.length === 0) return [];
-
-    const allSlots: string[] = [];
-    for (const rule of effectiveRules) {
-      const start = parseAvailabilityTime(rule.start_time);
-      const end = parseAvailabilityTime(rule.end_time);
-      let current = start;
-      while (current.getTime() + duration * 60000 <= end.getTime()) {
-        const slotTime = format(current, "HH:mm");
-        const isOccupied = slotOverlapsExistingAppointments(slotTime, duration);
-        // Preavviso minimo: niente prenotazioni "fra cinque minuti".
-        const troppoVicino = current.getTime() < adesso + preavvisoMin * 60000;
-        if (!isOccupied && !troppoVicino && !isSlotBusy(slotTime, duration)) {
-          allSlots.push(slotTime);
-        }
-        current = new Date(current.getTime() + passo * 60000);
-      }
-    }
-    // Tetto di appuntamenti al giorno: raggiunto, la giornata non ha piu' orari.
-    const appuntamentiNelTetto = existingAppointments.filter((a) => a.is_blocked_slot !== true).length;
-    if (maxAlGiorno && appuntamentiNelTetto >= maxAlGiorno) return [];
-    return [...new Set(allSlots)].sort();
-  }, [selectedDate, calendar, availability, parseAvailabilityTime, slotOverlapsExistingAppointments, isSlotBusy, preavvisoMin, maxAlGiorno, existingAppointments, adesso]);
 
   // Disable dates with no availability
   const isDateDisabled = (date: Date) => {
@@ -506,8 +359,8 @@ export default function PublicBooking() {
     );
   }
 
-  const slotsLoading = !!selectedDate && (existingAppointmentsFetching || busyFetching);
-  const canSubmit = selectedDate && selectedSlot && form.first_name.trim() && hasContactMethod && emailIsValid && !slotsLoading;
+  const slotsLoading = !!selectedDate && serverSlotsFetching;
+  const canSubmit = selectedDate && selectedSlot && form.first_name.trim() && hasContactMethod && emailIsValid && !slotsLoading && !serverSlotsError;
   // Due passi veri: prima quando, poi chi sei. Su telefono il secondo passo
   // prende tutto lo schermo — il calendario resta solo da tablet in su.
   const passo = selectedSlot ? 2 : 1;
@@ -674,7 +527,7 @@ export default function PublicBooking() {
                       )}
                     </div>
 
-                    {slotsLoading ? (
+                    {serverSlotsError ? <div role="alert" className="rounded border p-4 text-sm">Non riesco a leggere gli orari. Nessuna disponibilità viene presunta.<Button variant="outline" onClick={()=>void reloadSlots()}>Riprova</Button></div> : slotsLoading ? (
                       <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-3">
                         {Array.from({ length: 6 }).map((_, i) => (
                           <div key={i} className="h-12 animate-pulse rounded-lg bg-muted" />

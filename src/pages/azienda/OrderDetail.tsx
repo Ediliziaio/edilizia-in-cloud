@@ -126,6 +126,7 @@ import { LavoroExtraDaPreventivo } from "@/components/orders/LavoroExtraDaPreven
 
 import { useOrdinePDF, type OrdinePDFProps } from "@/hooks/useOrdinePDF";
 import { RiepilogoPdfDialog, type SceltaRiepilogo } from "@/components/orders/RiepilogoPdfDialog";
+import { AffidaContrattoDaCommessa } from "@/components/orders/AffidaContrattoDialog";
 import { OrderQuickActions } from "@/components/orders/OrderQuickActions";
 import { OrderOperationalPanel } from "@/components/orders/OrderOperationalPanel";
 import { OrderFilesDialog } from "@/components/orders/OrderFilesDialog";
@@ -425,6 +426,7 @@ function OrderDetailInner() {
   const [opsOpen, setOpsOpen] = useState(false);
   const [filesOpen, setFilesOpen] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+  const [affidaDitteOpen, setAffidaDitteOpen] = useState(false);
   const [applyingPlaybook, setApplyingPlaybook] = useState(false);
   const { vertical } = useVertical();
 
@@ -1518,6 +1520,7 @@ function OrderDetailInner() {
       })()}
       sollecitoRef={sollecitoRef}
       onCreateTask={permissions.canViewOrders ? () => setTaskDialogOpen(true) : undefined}
+      onAffidaDitte={!operationalIntervention && permissions.canEditOrders && permissions.canViewCosts && permissions.canViewSubappaltatoriAmministrazione && !permissions.solaLettura ? () => setAffidaDitteOpen(true) : undefined}
       // Applica flusso solo se manca qualcosa e la commessa non è già chiusa.
       onApplyPlaybook={permissions.canViewOrders && haFlussoDaApplicare && !statoConclusivo(statuses, order.current_status_id) ? handleApplyPlaybook : undefined}
       applyingPlaybook={applyingPlaybook}
@@ -2499,6 +2502,9 @@ function OrderDetailInner() {
         }} />
 
       {/* Crea Fattura Dialog — smart prefill from order installments */}
+      {affidaDitteOpen && effectiveCompany?.id && id && (
+        <AffidaContrattoDaCommessa orderId={id} companyId={effectiveCompany.id} onChiudi={() => setAffidaDitteOpen(false)} />
+      )}
       <CreaFatturaDialog
         open={creaFatturaOpen}
         indirizzoLavori={order.work_address || order.indirizzo_lavori}

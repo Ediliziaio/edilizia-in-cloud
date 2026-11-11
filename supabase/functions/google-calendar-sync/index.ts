@@ -1,3 +1,4 @@
+import {bookingCalendarDestination} from '../_shared/bookingCalendarDestination.ts';
 // Tocco del 09/11/2026: controllo degli eventi mancanti a blocchi (_shared/googleAppointmentReconcile.ts).
 import { costruisciEventoPosa, leggiDateDaEventoGoogle, stesseDate } from "../_shared/posaEvento.ts";
 import { descrizioneDaModello, senzaSchedaCliente, type ContattoPerEvento } from "../_shared/descrizioneAppuntamentoGoogle.ts";
@@ -420,6 +421,7 @@ async function risolviBersaglio(
   companyId: string,
   giro?: LettureGiro,
 ): Promise<{ ok: true; bersaglio: BersaglioAppuntamento } | { ok: false; errore: string; status: number }> {
+  apt = await bookingCalendarDestination(admin, apt, companyId);
   if (apt.calendar_id) {
     const { data: cal } = await admin
       .from("marketing_calendars")

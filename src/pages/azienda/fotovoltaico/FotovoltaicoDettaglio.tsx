@@ -1,3 +1,4 @@
+import {FvAllegatiTecniciPreventivo} from "@/components/fotovoltaico/FvAllegatiTecniciPreventivo";
 /**
  * Dettaglio progetto FV — vista post-wizard.
  * Tabs: Riepilogo / Componenti / Calcolo / PDF.
@@ -250,15 +251,10 @@ export default function FotovoltaicoDettaglio() {
       const res = await fetch(data.signedUrl);
       if (!res.ok) throw new Error("Recupero preventivo fallito.");
       const html = await res.text();
-      // Schede tecniche AUTORIZZATE dei prodotti usati → pagine A4 intere, subito
-      // prima delle condizioni contrattuali. Se falliscono (scheda irraggiungibile,
-      // nessuna autorizzata…) si stampa comunque il preventivo, senza allegati.
-      let finale = html;
-      try {
-        const articoloIds = (componenti ?? []).map((c) => (c as { articolo_id?: string | null }).articolo_id);
-        const pagineSchede = await costruisciPagineSchedeTecniche(articoloIds);
-        finale = inserisciPagineSchede(html, pagineSchede);
-      } catch { /* allegati non disponibili: preventivo senza schede */ }
+      // Gli allegati autorizzati devono esserci tutti, come nella copia da firmare.
+      const articoloIds = (componenti ?? []).map((c) => (c as { articolo_id?: string | null }).articolo_id);
+      const pagineSchede = await costruisciPagineSchedeTecniche(articoloIds, progetto.company_id);
+      const finale = inserisciPagineSchede(html, pagineSchede);
       await stampaPreventivoNativo(finale, `Preventivo-${progetto?.numero ?? "FV"}`);
       toast.success(
         "Nella finestra di stampa scegli “Salva come PDF”: il file sarà identico all'anteprima.",
@@ -766,6 +762,7 @@ export default function FotovoltaicoDettaglio() {
 
           {/* TAB Allegati / Preventivo */}
           <TabsContent value="allegati" className="mt-4">
+            {progetto.stato!=="firmato"&&<FvAllegatiTecniciPreventivo companyId={progetto.company_id} articoloIds={(componenti??[]).map(c=>(c as {articolo_id?:string|null}).articolo_id)}/>}
             <FvCard title="Preventivo cliente professionale">
               {!progetto.pdf_vendita_url && (
                 <>
@@ -793,7 +790,7 @@ export default function FotovoltaicoDettaglio() {
                   <div className="max-sm:hidden">
                     <FvCallout variant="success" title="Preventivo pronto">
                       <strong>Scarica PDF</strong> apre la stampa già pronta: scegli
-                      “Salva come PDF” e il file è identico all'anteprima. Oppure{" "}
+                      “Salva come PDF”: comprende il preventivo e le schede tecniche abilitate dei prodotti. Oppure{" "}
                       <strong>Apri preventivo</strong> per vederlo nel browser. Design
                       print-ready A4 con tutti i grafici inline.
                     </FvCallout>

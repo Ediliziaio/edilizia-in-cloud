@@ -79,9 +79,11 @@ export async function runSolariaAction({ db, cfg, companyId, entityId, queue, co
     const value = `${part('year')}-${part('month')}-${part('day')}`;
     const old = check(await db.from('marketing_contact_field_values').select('value').eq('contact_id', c.id).eq('field_id', id).maybeSingle(), 'Lettura data fallita');
     if (old?.value !== value) {
-      // cf_validate_value rechecks contact/field company and type atomically on the server.
-      const saved = check(await db.from('marketing_contact_field_values').upsert({ contact_id: c.id, field_id: id, value }, { onConflict: 'contact_id,field_id' }).select('field_id,value').maybeSingle(), 'Data non salvata');
-      if (saved?.field_id !== id || saved?.value !== value) throw new Error('Il server non ha confermato la data salvata');
+      const sourcePath=queue.context_json?.payload?.custom_field_flow_path;
+      const path=Array.isArray(sourcePath)?[...sourcePath]:[];
+      if(!path.includes(queue.flow_id))path.push(queue.flow_id);
+      const saved=check(await db.rpc('automation_write_custom_field',{p_company:companyId,p_entity_type:'contact',p_entity_id:c.id,p_field_id:id,p_value:value,p_enrollment_id:queue.enrollment_id??null,p_flow_path:path}), 'Data non salvata');
+      if(saved!==id)throw new Error('Il server non ha confermato la data salvata');
     }
     return { success: true, output: { action: 'update_field', field_id: id, entity_type: 'contact', entity_id: c.id, value, existing: old?.value === value } };
   }
