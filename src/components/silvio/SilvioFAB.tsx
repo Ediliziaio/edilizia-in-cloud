@@ -1,8 +1,14 @@
 /**
- * SilvioFAB — Floating Action Button desktop/tablet con accesso rapido a:
- *   1. Chat con Silvio (assistente AI principale)
- *   2. Azioni rapide (Documento intelligente, Computo metrico, Cerca commesse)
- *   3. "Cose da sapere" (tip rotanti AI/feature highlight)
+ * SilvioFAB — il tondo di Silvio in basso a destra e il suo pannello
+ * «Regia Silvio», dall'alto:
+ *   1. Testata con contesto pagina e, solo se c'è il briefing di oggi, il
+ *      badge delle priorità.
+ *   2. Casella «Scrivi a Silvio…» e 3-4 domande rapide della pagina
+ *      (src/lib/silvio/domandeRapide.ts) che aprono la chat già compilata.
+ *   3. Priorità di oggi: SOLO i punti del briefing del mattino, niente voci
+ *      fisse (prima, senza briefing, il badge diceva «3 priorità» finte).
+ *   4. Carica documento (una riga), Strumenti PDF e Cerca ⌘K affiancati.
+ *   5. «Cose da sapere», chiuso.
  *
  * Visibile in CompanyLayout da tablet/desktop. Su mobile resta disponibile
  * dalla sezione Chat, così non copre CTA, input e bottom navigation.
@@ -17,6 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSilvioPageContext } from "@/hooks/useSilvioPageContext";
 import { cn } from "@/lib/utils";
+import { badgePriorita, domandeRapide, prioritaDalBriefing } from "@/lib/silvio/domandeRapide";
 import {
   MessageSquare,
   Brain,
@@ -334,38 +341,14 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
     return "Pagina corrente";
   }, [location.pathname, pageContext?.route_label]);
 
-  type PriorityItem = {
-    text: string;
-    severity: "info" | "attention" | "urgent";
-    action: string;
-    /** Cosa fa il click: chat con prefill (default), modal documento, tips, route */
-    kind?: "chat" | "smart_doc" | "tips" | "route";
-    route?: string;
-  };
-
-  const operationalPriorities = useMemo<PriorityItem[]>(() => {
-    const fromBriefing = morningBrief?.key_points?.slice(0, 3).map((point): PriorityItem => ({
-      text: point.text,
-      severity: point.severity ?? "info",
-      action: point.action_hint ?? "Apri dettaglio",
-    })) ?? [];
-    if (fromBriefing.length > 0) return fromBriefing;
-    // Default specifici al mode — ogni voce fa davvero ciò che il label promette
-    if (mode === "admin") {
-      return [
-        { text: "Approvazioni AI in attesa — rivedi le azioni proposte", severity: "attention", action: "Apri approvazioni", kind: "route", route: content.routes.azioni_proposte },
-        { text: `Chiedi a Silvio Superadmin cosa conta ora in ${pageContextLabel}`, severity: "info", action: "Apri chat", kind: "chat" },
-        { text: "Aziende a rischio churn — controlla salute clienti", severity: "info", action: "Vedi aziende", kind: "route", route: content.routes.cross_tenant },
-      ];
-    }
-    return [
-      { text: `Chiedi a Silvio cosa conta ora in ${pageContextLabel}`, severity: "attention", action: "Apri chat", kind: "chat" },
-      { text: "Carica documenti, foto o computi senza scegliere il modulo", severity: "info", action: "Importa file", kind: "smart_doc" },
-      { text: "Scopri cosa sa fare Silvio per te", severity: "info", action: "Vedi suggerimenti", kind: "tips" },
-    ];
-  }, [morningBrief?.key_points, pageContextLabel, mode, content.routes]);
-
-  const pendingActionsCount = operationalPriorities.length + (morningBrief && !morningBrief.read_at ? 1 : 0);
+  // Priorità solo dal briefing del mattino: senza briefing niente sezione e
+  // niente badge (prima c'erano tre voci fisse e il badge diceva «3 priorità»).
+  const priorita = useMemo(() => prioritaDalBriefing(morningBrief), [morningBrief]);
+  const badge = useMemo(() => badgePriorita(morningBrief), [morningBrief]);
+  const domande = useMemo(
+    () => domandeRapide(location.pathname, pageContext?.route_label, mode),
+    [location.pathname, pageContext?.route_label, mode],
+  );
 
   const openChat = (prefill?: string) => {
     const cleanPrefill = prefill?.trim() ?? "";
@@ -488,160 +471,163 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
              in bottom-nav). Era w-[340px] fisso = overflow su iPhone SE. */
           className="w-[min(340px,calc(100vw-1.5rem))] sm:w-[380px] max-h-[calc(100vh-120px)] p-0 border-orange-100 shadow-2xl rounded-2xl overflow-hidden flex flex-col"
         >
-          <div className="shrink-0 border-b border-orange-100 bg-gradient-to-br from-orange-50 via-white to-amber-50 px-4 py-3">
-            <div className="flex items-start gap-3">
-              <SilvioAvatar size={40} className="rounded-2xl shadow-lg shadow-orange-200" />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-black leading-tight text-slate-950">Regia Silvio</p>
-                  <span className="rounded-full border border-orange-200 bg-white px-2 py-0.5 text-[10px] font-bold text-orange-700">
-                    {pendingActionsCount} priorità
-                  </span>
-                </div>
-                <p className="mt-0.5 truncate text-[11px] leading-tight text-slate-600">
-                  Contesto pagina: {pageContextLabel}
-                </p>
+          {/* Testata, casella e domande rapide in alto: scrivere a Silvio è la
+              cosa più usata e non deve stare in fondo, dopo uno scorrimento. */}
+          <div className="shrink-0 border-b border-orange-100 bg-gradient-to-br from-orange-50 via-white to-amber-50 px-3 py-2.5">
+            <div className="flex items-center gap-2">
+              <SilvioAvatar size={28} className="rounded-xl shadow shadow-orange-200" />
+              <p className="shrink-0 text-sm font-black leading-tight text-slate-950">Regia Silvio</p>
+              <p className="min-w-0 flex-1 truncate text-[11px] leading-tight text-slate-500" title="Contesto pagina">
+                · {pageContextLabel}
+              </p>
+              {badge.conteggio > 0 && (
+                <span
+                  data-testid="silvio-badge-priorita"
+                  className={cn(
+                    "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold",
+                    badge.nonLetto
+                      ? "border-orange-500 bg-orange-500 text-white"
+                      : "border-orange-200 bg-white text-orange-700",
+                  )}
+                >
+                  {badge.conteggio} priorità
+                </span>
+              )}
+            </div>
+            <form onSubmit={handleQuickPrompt} className="mt-2">
+              <div className="flex items-center gap-2 rounded-xl border border-orange-200 bg-white px-2.5 py-1 shadow-sm focus-within:border-orange-400 focus-within:ring-2 focus-within:ring-orange-100 transition-all">
+                <MessageSquare className="h-4 w-4 text-orange-500 shrink-0" />
+                <input
+                  value={quickPrompt}
+                  onChange={(event) => setQuickPrompt(event.target.value)}
+                  placeholder="Scrivi a Silvio..."
+                  aria-label="Scrivi a Silvio"
+                  className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                  autoFocus
+                />
+                <button
+                  type="submit"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-500 text-white transition-colors hover:bg-orange-600 shrink-0"
+                  aria-label="Apri chat con Silvio"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                </button>
               </div>
+            </form>
+            <div className="mt-1.5 flex flex-wrap gap-1" data-testid="silvio-domande-rapide">
+              {domande.map(({ etichetta, domanda }) => (
+                <button
+                  key={etichetta}
+                  type="button"
+                  onClick={() => openChat(domanda)}
+                  title={domanda}
+                  className="rounded-full border border-orange-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700 transition-colors hover:border-orange-400 hover:bg-orange-50 hover:text-orange-700"
+                >
+                  {etichetta}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* 2026-05-27 (richiesta utente "Scrivi a Silvio in basso"):
-              il form composer è stato spostato fuori dal contenitore
-              scrollabile e ancorato in fondo al popover. Pattern standard
-              chat (Slack, WhatsApp, ChatGPT): l'input è sempre visibile
-              senza dover scrollare. Il contenuto sopra scrolla
-              indipendentemente. */}
-          <div className="flex-1 space-y-3 overflow-y-auto bg-white p-3">
-            {morningBrief && (
-              <div className={`rounded-lg border-l-4 p-3 ${
-                morningBrief.severity === "urgent"
-                  ? "border-l-rose-500 bg-rose-50"
-                  : morningBrief.severity === "attention"
-                    ? "border-l-amber-500 bg-amber-50"
-                    : "border-l-sky-500 bg-sky-50"
-              }`}>
-                <div className="flex items-start gap-2 mb-1.5">
+          <div className="flex-1 space-y-2 overflow-y-auto bg-white p-3">
+            {morningBrief && priorita.length > 0 && (
+              <section
+                data-testid="silvio-priorita"
+                className={cn(
+                  "rounded-lg border-l-4 py-2 pl-2.5 pr-2",
+                  morningBrief.severity === "urgent"
+                    ? "border-l-rose-500 bg-rose-50"
+                    : morningBrief.severity === "attention"
+                      ? "border-l-amber-500 bg-amber-50"
+                      : "border-l-sky-500 bg-sky-50",
+                )}
+              >
+                <p className="mb-1 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wide text-slate-600">
                   {morningBrief.severity === "urgent"
-                    ? <AlertTriangle className="h-3.5 w-3.5 text-rose-600 mt-0.5 shrink-0" />
-                    : <Sparkles className="h-3.5 w-3.5 text-sky-600 mt-0.5 shrink-0" />
-                  }
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-700">
-                    Briefing del giorno · {new Date(morningBrief.brief_date).toLocaleDateString("it-IT", { day: "numeric", month: "short" })}
-                  </p>
-                </div>
-                {morningBrief.key_points.slice(0, 4).map((p, i) => (
-                  <p key={i} className="text-[12px] text-slate-700 leading-snug pl-5">
-                    {p.severity === "urgent" && <span className="text-rose-600 font-bold mr-1">•</span>}
-                    {p.severity !== "urgent" && <span className="text-slate-400 mr-1">•</span>}
-                    {p.text}
-                  </p>
-                ))}
-              </div>
-            )}
-
-            <section className="rounded-2xl border border-slate-200 bg-slate-50/60 p-3">
-              <p className="mb-2 text-[10px] font-black uppercase tracking-wide text-slate-600">Priorità operative</p>
-              <div className="space-y-1.5">
-                {operationalPriorities.map((priority, index) => (
-                  <button
-                    key={`${priority.text}-${index}`}
-                    type="button"
-                    onClick={() => {
-                      if (priority.kind === "smart_doc") { setOpen(false); setSmartImportOpen(true); return; }
-                      if (priority.kind === "tips") { setTipsExpanded(true); return; }
-                      if (priority.kind === "route" && priority.route) { setOpen(false); navigate(priority.route); return; }
-                      openChat(priority.text);
-                    }}
-                    className="group flex w-full items-start gap-2 rounded-xl border border-white bg-white px-2.5 py-2 text-left shadow-sm transition-colors hover:border-orange-200 hover:bg-orange-50/50"
-                  >
-                    <span className={`mt-0.5 h-2 w-2 rounded-full ${
-                      priority.severity === "urgent"
-                        ? "bg-rose-500"
-                        : priority.severity === "attention"
-                          ? "bg-amber-500"
-                          : "bg-sky-500"
-                    }`} />
-                    <span className="min-w-0 flex-1">
-                      <span className="line-clamp-2 text-[12px] font-semibold text-slate-800">{priority.text}</span>
-                      <span className="mt-0.5 flex items-center gap-1 text-[10px] font-semibold text-orange-600">
-                        {priority.action} <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
-                      </span>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <button
-              type="button"
-              onClick={() => handleAction("smart_doc")}
-              className={cn(
-                "w-full rounded-2xl border border-dashed border-orange-300 bg-orange-50/60 p-3 text-left transition-colors hover:bg-orange-50",
-                !content.uploadCard.visible && "hidden",
-              )}
-            >
-              <div className="flex items-start gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-orange-600 shadow-sm">
-                  <UploadCloud className="h-4.5 w-4.5" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-black text-slate-900">{content.uploadCard.title}</span>
-                  <span className="mt-0.5 block text-[11px] leading-snug text-slate-600">
-                    {content.uploadCard.description}
-                  </span>
-                  <span className="mt-2 flex flex-wrap gap-1">
-                    {content.uploadCard.chips.map((label) => (
-                      <span key={label} className="rounded-full bg-white px-2 py-0.5 text-[9px] font-bold text-slate-600 shadow-sm">
-                        {label}
-                      </span>
-                    ))}
-                  </span>
-                </span>
-              </div>
-            </button>
-
-            {content.hub.length > 0 && (
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 px-1 mb-1.5">
-                  {mode === "admin" ? "Hub AI Superadmin" : "Hub AI"}
+                    ? <AlertTriangle className="h-3 w-3 text-rose-600" />
+                    : <Sparkles className="h-3 w-3 text-sky-600" />}
+                  Priorità di oggi · {new Date(morningBrief.brief_date).toLocaleDateString("it-IT", { day: "numeric", month: "short" })}
                 </p>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {content.hub.map((item) => (
-                    <ActionCard
-                      key={item.action}
-                      icon={item.icon}
-                      title={item.title}
-                      subtitle={item.subtitle}
-                      tone={item.tone}
-                      onClick={() => handleAction(item.action)}
-                    />
+                <div className="space-y-0.5">
+                  {priorita.map((punto, index) => (
+                    <button
+                      key={`${punto.text}-${index}`}
+                      type="button"
+                      onClick={() => openChat(punto.text)}
+                      title={punto.action_hint ?? "Chiedi a Silvio"}
+                      className="group flex w-full items-start gap-1.5 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-white/70"
+                    >
+                      <span className={cn(
+                        "mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full",
+                        punto.severity === "urgent" ? "bg-rose-500" : punto.severity === "attention" ? "bg-amber-500" : "bg-sky-500",
+                      )} />
+                      <span className="min-w-0 flex-1 text-[12px] leading-snug text-slate-800">{punto.text}</span>
+                      <ArrowRight className="mt-0.5 h-3 w-3 shrink-0 text-orange-500 opacity-0 transition-opacity group-hover:opacity-100" />
+                    </button>
                   ))}
                 </div>
+              </section>
+            )}
+
+            {content.hub.length > 0 && (
+              <div className="grid grid-cols-2 gap-1.5">
+                {content.hub.map((item) => (
+                  <ActionCard
+                    key={item.action}
+                    icon={item.icon}
+                    title={item.title}
+                    subtitle={item.subtitle}
+                    tone={item.tone}
+                    compact
+                    onClick={() => handleAction(item.action)}
+                  />
+                ))}
               </div>
             )}
 
+            {/* Un solo accesso al caricamento: una riga con icona, titolo e chip. */}
             {content.uploadCard.visible && (
               <button
                 type="button"
-                onClick={() => { setOpen(false); setPdfToolsOpen(true); }}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors text-left"
+                onClick={() => handleAction("smart_doc")}
+                title={content.uploadCard.description}
+                className="flex w-full items-center gap-2 rounded-lg border border-dashed border-orange-300 bg-orange-50/60 px-2.5 py-1.5 text-left transition-colors hover:bg-orange-50"
               >
-                <FileText className="h-3.5 w-3.5 text-slate-500" />
-                <span className="text-xs text-slate-700 flex-1">Strumenti PDF: immagini→PDF, unisci, ruota</span>
+                <UploadCloud className="h-4 w-4 shrink-0 text-orange-600" />
+                <span className="shrink-0 text-[12px] font-black text-slate-900">{content.uploadCard.title}</span>
+                <span className="min-w-0 flex-1 truncate text-right text-[10px] font-semibold text-slate-500">
+                  {content.uploadCard.chips.join(" · ")}
+                </span>
               </button>
             )}
 
-            <button
-              type="button"
-              onClick={() => handleAction("command_palette")}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors text-left"
-            >
-              <Search className="h-3.5 w-3.5 text-slate-500" />
-              <span className="text-xs text-slate-700 flex-1">{content.searchPlaceholder}</span>
-              <kbd className="text-[9px] px-1.5 py-0.5 rounded border bg-white font-mono">⌘K</kbd>
-            </button>
+            <div className={cn("grid gap-1.5", content.uploadCard.visible ? "grid-cols-2" : "grid-cols-1")}>
+              {content.uploadCard.visible && (
+                <button
+                  type="button"
+                  onClick={() => { setOpen(false); setPdfToolsOpen(true); }}
+                  title="Immagini→PDF, unisci, ruota"
+                  className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-left transition-colors hover:bg-slate-50"
+                >
+                  <FileText className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                  <span className="truncate text-xs text-slate-700">Strumenti PDF</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => handleAction("command_palette")}
+                title={content.searchPlaceholder}
+                className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-left transition-colors hover:bg-slate-50"
+              >
+                <Search className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                <span className="min-w-0 flex-1 truncate text-xs text-slate-700">
+                  {content.uploadCard.visible ? "Cerca" : content.searchPlaceholder}
+                </span>
+                <kbd className="shrink-0 rounded border bg-white px-1.5 py-0.5 font-mono text-[9px]">⌘K</kbd>
+              </button>
+            </div>
 
-            <div className="mt-3 border-t pt-2">
+            <div className="border-t pt-1">
               <button
                 type="button"
                 onClick={() => setTipsExpanded((v) => !v)}
@@ -725,33 +711,6 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
               </AnimatePresence>
             </div>
           </div>
-
-          {/* Composer chat ancorato in fondo (sticky bottom) — sempre visibile */}
-          <form
-            onSubmit={handleQuickPrompt}
-            className="shrink-0 border-t border-orange-100 bg-gradient-to-br from-orange-50/40 via-white to-orange-50/40 px-3 py-2.5"
-          >
-            <div className="flex items-center gap-2 rounded-2xl border border-orange-200 bg-white px-2.5 py-1.5 shadow-sm focus-within:border-orange-400 focus-within:ring-2 focus-within:ring-orange-100 transition-all">
-              <MessageSquare className="h-4 w-4 text-orange-500 shrink-0" />
-              <input
-                value={quickPrompt}
-                onChange={(event) => setQuickPrompt(event.target.value)}
-                placeholder="Scrivi a Silvio..."
-                className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
-                autoFocus
-              />
-              <button
-                type="submit"
-                className="flex h-8 w-8 items-center justify-center rounded-xl bg-orange-500 text-white transition-colors hover:bg-orange-600 shrink-0"
-                aria-label="Apri chat con Silvio"
-              >
-                <Send className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            <p className="mt-1 px-1 text-[10px] leading-tight text-slate-500">
-              Scrivi una domanda o apri la chat con il contesto già pronto.
-            </p>
-          </form>
         </PopoverContent>
       </Popover>
 
