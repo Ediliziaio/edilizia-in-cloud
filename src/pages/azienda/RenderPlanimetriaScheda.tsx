@@ -1,3 +1,5 @@
+import { StatoVerificaDocumento } from "@/components/planimetrie/ControlloPrimaDellUso";
+import { useControlloPrimaDellUso } from "@/hooks/useVerificaPlanimetria";
 import { MaterialiProgetto } from "@/components/planimetrie/MaterialiProgetto";
 import { AssociazioniPiantaPanel, CollegamentiProgetto } from "@/components/planimetrie/CollegamentiPianta";
 import { accessiCollegamenti, useCollegamentiPiante, type TipoCollegamento } from "@/lib/planimetrie/collegamenti";
@@ -65,6 +67,7 @@ export default function RenderPlanimetriaScheda() {
   const [gestisciCollegamenti, setGestisciCollegamenti] = useState<{ tipo?: TipoCollegamento } | null>(null);
   const { data: renders = [] } = useRenderDellaPianta(id);
   const documento = data?.versione.documento;
+  const { primaDi, dialogo: controlloUso } = useControlloPrimaDellUso(documento, percorsiPlanimetrie.modifica(id));
   const livelloId = params.get("livello");
   const richiesto = params.get("ambito") ?? "fatto";
   const ambito = documento && ambitiDi(documento).some((a) => a.chiave === richiesto) ? richiesto : "fatto";
@@ -167,6 +170,8 @@ export default function RenderPlanimetriaScheda() {
         sottotitolo={`Versione ${data.versione.numero}`}
       />
 
+      {controlloUso}
+      <StatoVerificaDocumento documento={documento} modifica={percorsiPlanimetrie.modifica(id)} />
       <CollegamentiProgetto riga={data.riga} mappa={collegamenti.data} onAssocia={(tipo) => setGestisciCollegamenti({ tipo })} />
 
       {/* Azioni: una sola in evidenza (modificare), le altre sullo stesso piano e leggibili; sul telefono solo le icone. */}
@@ -178,19 +183,19 @@ export default function RenderPlanimetriaScheda() {
           </Link>
         </Button>
         <span className="mx-1 h-6 w-px bg-border max-md:hidden" aria-hidden="true" />
-        <Button variant={mostra3D ? "secondary" : "outline"} size="sm" className="gap-2" onClick={() => setMostra3D((v) => !v)} disabled={stanze.length === 0} aria-pressed={mostra3D} aria-label={mostra3D ? "Chiudi il 3D" : "Guarda in 3D"} title={mostra3D ? "Chiudi il 3D" : "Guarda in 3D"}>
+        <Button variant={mostra3D ? "secondary" : "outline"} size="sm" className="gap-2" onClick={() => mostra3D ? setMostra3D(false) : primaDi("3d", () => setMostra3D(true))} disabled={stanze.length === 0} aria-pressed={mostra3D} aria-label={mostra3D ? "Chiudi il 3D" : "Guarda in 3D"} title={mostra3D ? "Chiudi il 3D" : "Guarda in 3D"}>
           <Box className="h-4 w-4" />
           <span className="max-md:hidden">{mostra3D ? "Chiudi il 3D" : "Guarda in 3D"}</span>
         </Button>
-        <Button variant="outline" size="sm" className="gap-2" onClick={() => setEsterni(true)} disabled={stanze.length === 0} aria-label="Render esterni" title="Render esterni">
+        <Button variant="outline" size="sm" className="gap-2" onClick={() => primaDi("render", () => setEsterni(true))} disabled={stanze.length === 0} aria-label="Render esterni" title="Render esterni">
           <Trees className="h-4 w-4" />
           <span className="max-md:hidden">Render esterni</span>
         </Button>
-        <Button variant="outline" size="sm" className="gap-2" onClick={() => setProspetti(true)} aria-label="Prospetti e sezioni" title="Prospetti e sezioni">
+        <Button variant="outline" size="sm" className="gap-2" onClick={() => primaDi("3d", () => setProspetti(true))} aria-label="Prospetti e sezioni" title="Prospetti e sezioni">
           <Building2 className="h-4 w-4" />
           <span className="max-md:hidden">Prospetti e sezioni</span>
         </Button>
-        <Button variant="outline" size="sm" className="gap-2" onClick={() => setEsporta(true)} aria-label="Esporta" title="Esporta">
+        <Button variant="outline" size="sm" className="gap-2" onClick={() => primaDi("pdf", () => setEsporta(true))} aria-label="Esporta" title="Esporta">
           <Download className="h-4 w-4" />
           <span className="max-md:hidden">Esporta</span>
         </Button>
@@ -223,8 +228,8 @@ export default function RenderPlanimetriaScheda() {
       )}
 
       <section aria-label="Panoramica della pianta" className="overflow-hidden rounded-2xl border bg-card">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3"><div><h2 className="font-semibold">La tua pianta</h2><p className="text-xs text-muted-foreground">{livello.nome} · {ambito === "fatto" ? "Com'è oggi" : ambiti.find((a) => a.chiave === ambito)?.nome || "Progetto"}</p></div><div role="group" aria-label="Vista della pianta" className="flex gap-1 rounded-lg bg-muted p-1"><Button size="sm" variant={mostra3D ? "ghost" : "secondary"} aria-pressed={!mostra3D} onClick={() => setMostra3D(false)}>Pianta 2D</Button><Button size="sm" variant={mostra3D ? "secondary" : "ghost"} aria-pressed={mostra3D} disabled={stanze.length === 0} onClick={() => setMostra3D(true)}>Vista 3D</Button></div></div>
-        {mostra3D && piante3D ? <Vista3DPigra key={`${livello.id}:${ambito}`} piante={piante3D} piani={documento.livelli.length > 1 ? pianiDaPlanimetria(documento, ambito.startsWith("progetto:") ? ambito.slice("progetto:".length) : undefined) : undefined} nomeFile={data.riga.titolo} vistaIniziale={ambito === "fatto" ? "fatto" : "progetto"} /> : <div className="grid lg:grid-cols-[minmax(0,1fr)_240px]"><AnteprimaPianta anteprima={anteprima2D} titolo={data.riga.titolo} className="h-64 sm:h-80" /><div className="space-y-4 border-t p-4 lg:border-l lg:border-t-0"><p className="text-sm"><strong>{stanze.length} {stanze.length === 1 ? "stanza" : "stanze"}</strong>{anteprima2D ? ` · ${anteprima2D.superficie.toLocaleString("it-IT", { maximumFractionDigits: 1 })} m²` : ""}</p><ol className="space-y-3 text-sm text-muted-foreground"><li><strong className="text-foreground">1. Controlla il disegno</strong><br />Misure, porte, finestre e arredi.</li><li><a href="#materiali-progetto" className="font-semibold text-primary underline-offset-4 hover:underline">2. Scegli i materiali comuni</a><br />Una scelta per tutta la casa.</li><li><a href="#stanze" className="font-semibold text-primary underline-offset-4 hover:underline">3. Genera il render</a><br />Apri una stanza o avvia tutte le stanze.</li><li><button type="button" onClick={() => setEsporta(true)} className="font-semibold text-primary underline-offset-4 hover:underline">4. Prepara il fascicolo PDF</button><br />Disegni, 3D, materiali e render insieme.</li></ol></div></div>}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3"><div><h2 className="font-semibold">La tua pianta</h2><p className="text-xs text-muted-foreground">{livello.nome} · {ambito === "fatto" ? "Com'è oggi" : ambiti.find((a) => a.chiave === ambito)?.nome || "Progetto"}</p></div><div role="group" aria-label="Vista della pianta" className="flex gap-1 rounded-lg bg-muted p-1"><Button size="sm" variant={mostra3D ? "ghost" : "secondary"} aria-pressed={!mostra3D} onClick={() => setMostra3D(false)}>Pianta 2D</Button><Button size="sm" variant={mostra3D ? "secondary" : "ghost"} aria-pressed={mostra3D} disabled={stanze.length === 0} onClick={() => primaDi("3d", () => setMostra3D(true))}>Vista 3D</Button></div></div>
+        {mostra3D && piante3D ? <Vista3DPigra key={`${livello.id}:${ambito}`} piante={piante3D} piani={documento.livelli.length > 1 ? pianiDaPlanimetria(documento, ambito.startsWith("progetto:") ? ambito.slice("progetto:".length) : undefined) : undefined} nomeFile={data.riga.titolo} vistaIniziale={ambito === "fatto" ? "fatto" : "progetto"} /> : <div className="grid lg:grid-cols-[minmax(0,1fr)_240px]"><AnteprimaPianta anteprima={anteprima2D} titolo={data.riga.titolo} className="h-64 sm:h-80" /><div className="space-y-4 border-t p-4 lg:border-l lg:border-t-0"><p className="text-sm"><strong>{stanze.length} {stanze.length === 1 ? "stanza" : "stanze"}</strong>{anteprima2D ? ` · ${anteprima2D.superficie.toLocaleString("it-IT", { maximumFractionDigits: 1 })} m²` : ""}</p><ol className="space-y-3 text-sm text-muted-foreground"><li><strong className="text-foreground">1. Controlla il disegno</strong><br />Misure, porte, finestre e arredi.</li><li><a href="#materiali-progetto" className="font-semibold text-primary underline-offset-4 hover:underline">2. Scegli i materiali comuni</a><br />Una scelta per tutta la casa.</li><li><a href="#stanze" className="font-semibold text-primary underline-offset-4 hover:underline">3. Genera il render</a><br />Apri una stanza o avvia tutte le stanze.</li><li><button type="button" onClick={() => primaDi("pdf", () => setEsporta(true))} className="font-semibold text-primary underline-offset-4 hover:underline">4. Prepara il fascicolo PDF</button><br />Disegni, 3D, materiali e render insieme.</li></ol></div></div>}
       </section>
       {ambitoGeometria !== ambito && <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950">Questo piano mantiene il disegno esistente. I render seguono i materiali comuni del progetto selezionato.</p>}
 
@@ -260,6 +265,7 @@ export default function RenderPlanimetriaScheda() {
 
       {piante3D && (
         <RenderEsterniDialog
+          documento={documento}
           aperto={esterni}
           onChiudi={() => setEsterni(false)}
           pianta={ambito === "fatto" ? piante3D.fatto : piante3D.progetto}
@@ -337,7 +343,7 @@ export default function RenderPlanimetriaScheda() {
             </p>
           </div>
           {stanze.length > 1 && (
-            <Button size="sm" className="gap-1.5 max-md:w-full" onClick={() => setSerie("")}>
+            <Button size="sm" className="gap-1.5 max-md:w-full" onClick={() => primaDi("render", () => setSerie(""))}>
               <Sparkles className="h-4 w-4" />
               Render di tutte le stanze
             </Button>
@@ -398,7 +404,7 @@ export default function RenderPlanimetriaScheda() {
                           {fatti > 0 ? "Nuovo render" : "Fai il render"}
                         </Link>
                       </Button>
-                      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setSerie(v.locale.id)} aria-label="Più stili insieme" title="Più stili insieme">
+                      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => primaDi("render", () => setSerie(v.locale.id))} aria-label="Più stili insieme" title="Più stili insieme">
                         <Sparkles className="h-4 w-4" />
                         <span className="max-xl:hidden">Più stili</span>
                       </Button>
@@ -417,7 +423,7 @@ export default function RenderPlanimetriaScheda() {
       </section>
 
       <div id="verifiche" className="scroll-mt-4">
-        <VerifichePianta documento={documento} titolo={data.riga.titolo} ambito={ambito} nomeStato={ambito === "fatto" ? "Com'è oggi" : ambiti.find((x) => x.chiave === ambito)?.nome ?? "Progetto"} />
+        <VerifichePianta documento={documento} titolo={data.riga.titolo} ambito={ambito} nomeStato={ambito === "fatto" ? "Com'è oggi" : ambiti.find((x) => x.chiave === ambito)?.nome ?? "Progetto"} modifica={percorsiPlanimetrie.modifica(id)} />
       </div>
 
       <div id="unita" className="scroll-mt-4">

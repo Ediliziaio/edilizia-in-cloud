@@ -8,14 +8,14 @@ import { materialiDelProgetto, statoConMateriali } from "../../../../shared/plan
  *    schermo): y cambia segno. In 3D il punto (x, y) del modello finisce in
  *    (x/100, 0, -y/100), così dall'alto si rivede la pianta col suo «su» in cima;
  *  - aperture: il modello dà `offset` (inizio del vano dal p1), il 3D il centro;
- *  - elementi: il modello gira in senso antiorario e a 0° ha il retro verso il basso
- *    della pianta (negli esempi il wc contro il muro in alto ha 180°, la cucina contro
- *    il muro in basso 0°); il 3D gira in senso orario con il retro verso l'alto a 0°;
+ *  - elementi: il modello gira in senso antiorario, il 3D in senso orario.
+ *    Il retro a 0° è verso l'alto del foglio, come nei simboli dell'editor;
  *  - stati: `da_demolire` → `demolire`; `varco` è un'apertura senza infisso.
  *
  * Il livello si disegna alla sua quota zero: un livello per volta.
  */
 import { puntiTerreno } from "../../../../shared/planimetrie/terreno.ts";
+import { rotazioneSchermo } from "../../../../shared/planimetrie/orientamento.ts";
 import type { Apertura, Elemento, Livello, Planimetria, StatoLavori, StatoPianta } from "../../../../shared/planimetrie/modello.ts";
 import type { PiantaPer3D, StatoOggetto } from "./tipi";
 import { anteDi, eScorrevole, misureOscurante, sistemaDi, zanzarieraDi } from "../../../../shared/planimetrie/serramenti.ts";
@@ -23,8 +23,8 @@ import { anteDi, eScorrevole, misureOscurante, sistemaDi, zanzarieraDi } from ".
 const stato = (s: StatoLavori | undefined): StatoOggetto => (s === "da_demolire" ? "demolire" : s === "nuovo" ? "nuovo" : "esistente");
 const giu = (p: { x: number; y: number }) => ({ x: p.x, y: -p.y });
 
-/** Rotazione del modello (antioraria, retro in basso a 0°) → rotazione del 3D (oraria, retro in alto a 0°). */
-export const rotazione3D = (gradi: number) => (((180 - gradi) % 360) + 360) % 360;
+/** Stessa direzione dell'editor 2D, senza il precedente mezzo giro involontario. */
+export const rotazione3D = rotazioneSchermo;
 
 export function daStatoPianta(s: StatoPianta): PiantaPer3D {
   return {

@@ -57,6 +57,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/useTagSync";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { LinkedRendersList } from "@/components/render/LinkedRendersList";
+import { PlanimetrieAssociate } from "@/components/planimetrie/PlanimetrieAssociate";
 import { ContactTrackingPanel } from "@/components/marketing/contacts/ContactTrackingPanel";
 import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
 import { ContactAIConversations } from "@/modules/ai-agents/components/ContactAIConversations";
@@ -1867,6 +1868,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   la sua intestazione, niente Card+titolo doppio) */}
               {rightTab === "activities" && id && companyId && (
                 <div className="space-y-3">
+                  <PlanimetrieAssociate companyId={companyId} tipo="contatto" schedaId={id} />
                   <LinkedTasks
                     contactId={id}
                     category="contatti"
@@ -2051,6 +2053,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
           <Tooltip key={tab.key}>
             <TooltipTrigger asChild>
               <button
+                type="button"
+                aria-label={tab.label}
+                aria-pressed={rightTab === tab.key}
                 className={cn(
                   "h-8 w-8 rounded flex items-center justify-center transition-colors",
                   rightTab === tab.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"

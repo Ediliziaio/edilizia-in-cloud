@@ -170,6 +170,10 @@ function segniSistema(a: Apertura, muro: Muro): SegnoSerramento[] {
   const h = muro.spessore / 2;
   const out: SegnoSerramento[] = [];
   const x0 = -w / 2;
+  if (a.versoDaVerificare && ["battente", "anta_ribalta", "vasistas"].includes(sistema)) {
+    if (a.tipo === "porta") return [{ tipo: "linea", p: al(x0, 0), q: al(w / 2, 0), tratteggio: true }];
+    return simboloFinestra(a, muro).map(([p, q]) => ({ tipo: "linea" as const, p, q, tratteggio: true }));
+  }
   if (a.tipo === "finestra") {
     for (const [p, q] of simboloFinestra(a, muro)) out.push({ tipo: "linea", p, q });
     // montanti fra le ante

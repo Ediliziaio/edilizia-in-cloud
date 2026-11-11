@@ -5,6 +5,7 @@ import { CATALOGO } from "@/components/planimetrie/editor/catalogo";
 import { pdfVerifiche } from "@/lib/planimetrie/verifichePdf";
 import { riepilogoVerifiche, verificaPianta } from "../../../shared/planimetrie/verifiche.ts";
 import { nuovaPlanimetria } from "../../../shared/planimetrie/modello.ts";
+import { bagnoDaVerificare } from "../fixtures/bagnoDaVerificare";
 
 const voce = (t: string) => CATALOGO.find((v) => v.tipo === t)!;
 
@@ -49,7 +50,11 @@ describe("verifiche igienico-sanitarie", () => {
   });
   it("la relazione PDF", async () => {
     const { PDFDocument } = await import("pdf-lib");
-    const dati = await pdfVerifiche({ titolo: "Casa", stato: "Com'è oggi", verifiche: verificaPianta(casa()) });
+    const dati = await pdfVerifiche({ documento: casa(), titolo: "Casa", stato: "Com'è oggi", verifiche: verificaPianta(casa()) });
     expect((await PDFDocument.load(dati)).getPageCount()).toBe(1);
+  });
+  it("anche l'esportatore rifiuta il PDF con quote discordanti ancora aperte", async () => {
+    const documento = bagnoDaVerificare();
+    await expect(pdfVerifiche({ documento, titolo: "Bagno", stato: "Com'è oggi", verifiche: verificaPianta(documento) })).rejects.toThrow(/423 oppure 421,5/);
   });
 });

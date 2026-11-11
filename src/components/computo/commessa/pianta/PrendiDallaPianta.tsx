@@ -1,3 +1,6 @@
+import { controlloPrimaDellUso } from "../../../../../shared/planimetrie/verificaDocumento.ts";
+import { ControlloUsoBloccato } from "@/components/planimetrie/ControlloPrimaDellUso";
+import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
 /**
  * «Prendi dalla pianta» su una voce del computo di commessa (Planimetrie, fase 4).
  *
@@ -63,7 +66,7 @@ export default function PrendiDallaPianta({ voce, uploadId, companyId, orderId, 
   const aggiungi = useAggiungiMisureDaPianta(uploadId);
   const cambiaPianta = (id: string) => { setPiantaScelta(id); setStatoScelto(null); setSceltaId(null); setEsclusi(new Set()); };
   const conferma = () => {
-    if (!esito || !pianta || !esito.righe.length) return;
+    if (!esito || !pianta || !esito.righe.length || avviso || !controlloPrimaDellUso(pianta.versione.documento, "computo").ok) return;
     aggiungi.mutate({ voce, companyId, planimetriaId: pianta.riga.id, versione: pianta.versione.numero, righe: esito.righe }, {
       onSuccess: n => { toast.success(n === 1 ? "Aggiunta 1 riga dalla pianta" : `Aggiunte ${n} righe dalla pianta`); onChiudi(); },
       onError: e => toast.error(e instanceof Error ? e.message : "Righe non salvate."),
@@ -180,7 +183,8 @@ export default function PrendiDallaPianta({ voce, uploadId, companyId, orderId, 
                   <p className="flex items-start gap-1 text-xs text-amber-800"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                     {stimate === 1 ? "Una riga usa misure stimate" : `${stimate} righe usano misure stimate`}: la pianta non le ha misurate, controllale sul posto.</p>
                 )}
-                {esito.righe.length > 0 && (
+                {esito.righe.length > 0 && scelta && <p className="border-t pt-2 text-sm">Totale dalla pianta: <strong className="tabular-nums">{numero(somma)} {unitaLeggibile(scelta.unita)}</strong>.</p>}
+                {esito.righe.length > 0 && !avviso && (
                   <p className="border-t pt-2 text-sm">La voce passa da <strong className="tabular-nums">{numero(Number(voce.quantita ?? 0))}</strong> a <strong className="tabular-nums">{numero(dopo.quantita)} {u}</strong>.</p>
                 )}
               </section>
@@ -188,9 +192,10 @@ export default function PrendiDallaPianta({ voce, uploadId, companyId, orderId, 
           </div>
         )}
 
+        {documento && <ControlloUsoBloccato documento={documento} uso="computo" modifica={piantaId ? percorsiPlanimetrie.modifica(piantaId) : undefined} />}
         <DialogFooter>
           <Button type="button" variant="ghost" onClick={onChiudi}>Annulla</Button>
-          <Button type="button" onClick={conferma} disabled={!esito?.righe.length || aggiungi.isPending}>
+          <Button type="button" onClick={conferma} disabled={!esito?.righe.length || !!avviso || aggiungi.isPending || (!!documento && !controlloPrimaDellUso(documento, "computo").ok)}>
             {aggiungi.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <IconaPianta className="mr-1 h-4 w-4" />}
             {esito?.righe.length === 1 ? "Aggiungi 1 riga" : `Aggiungi ${esito?.righe.length ?? 0} righe`}
           </Button>

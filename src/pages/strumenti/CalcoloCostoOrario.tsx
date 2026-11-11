@@ -1,3 +1,4 @@
+import { constructionVideoGuides } from "@/lib/marketing/constructionVideoGuides";
 import { useMemo, useState } from "react";
 import { CalculatorShell, CampoNumero, RigaRisultato } from "@/components/strumenti/CalculatorShell";
 import { eur, num } from "@/lib/calcoli/formato";
@@ -40,6 +41,21 @@ export default function CalcoloCostoOrario() {
       }}
       spiegazione={
         <>
+          <section aria-label="Video sul costo orario" className="not-prose mb-8">
+            <h2 className="mb-4 text-2xl font-bold">Il costo orario spiegato con un esempio</h2>
+            <div className="aspect-video overflow-hidden rounded-xl bg-slate-950">
+              <iframe
+                className="h-full w-full border-0"
+                src={`https://www.youtube-nocookie.com/embed/${constructionVideoGuides.hourlyCost.youtubeId}`}
+                title={constructionVideoGuides.hourlyCost.title}
+                loading="lazy"
+                referrerPolicy="strict-origin-when-cross-origin"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            </div>
+            <p className="mt-3 text-sm text-slate-600">Le cifre del video sono dimostrative: usa i dati della tua azienda nel calcolatore.</p>
+          </section>
           <p>
             Il calcolo ha due termini, e quasi tutti li sbagliano entrambi nella stessa direzione —
             quella che fa sembrare il lavoro più redditizio di quanto sia.

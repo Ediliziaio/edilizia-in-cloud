@@ -5,6 +5,7 @@ import { validaPlanimetria, type Planimetria } from "../../../shared/planimetrie
 import { calcolaQuantita } from "../../../shared/planimetrie/quantita.ts";
 import { controllaPlanimetria, haErrori } from "../../../shared/planimetrie/controllo.ts";
 import { aPlanimetria, daPlanimetria, datiVista, piantaVuota } from "@/components/planimetrie/editor/adattatore";
+import { segniSerramento } from "@/components/planimetrie/editor/disegno";
 import {
   aggiungiApertura,
   aggiungiParete,
@@ -46,6 +47,21 @@ describe("dal documento all'editor e ritorno", () => {
     expect(dopo.livelli[0].fatto.aperture.map((a) => [a.id, a.offset, a.verso])).toEqual(
       doc.livelli[0].fatto.aperture.map((a) => [a.id, a.offset, a.verso]),
     );
+  });
+
+  it("un verso non letto resta nullo dopo apertura e salvataggio, senza disegnare un arco inventato", () => {
+    const doc = structuredClone(bilocale) as unknown as Planimetria;
+    const originale = doc.livelli[0].fatto.aperture.find((a) => a.tipo === "porta")!;
+    originale.verso = null;
+    const p = daPlanimetria(doc);
+    const apertura = p.aperture.find((a) => a.id === originale.id)!;
+    expect(apertura.versoDaVerificare).toBe(true);
+    const muro = p.muri.find((m) => m.id === apertura.muroId)!;
+    expect(segniSerramento(apertura, muro).some((s) => s.tipo === "arco")).toBe(false);
+    expect(aPlanimetria(p, doc).livelli[0].fatto.aperture.find((a) => a.id === originale.id)!.verso).toBeNull();
+    const confermata = giraApertura(p, apertura.id);
+    expect(confermata.aperture.find((a) => a.id === apertura.id)!.versoDaVerificare).toBe(false);
+    expect(aPlanimetria(confermata, doc).livelli[0].fatto.aperture.find((a) => a.id === originale.id)!.verso).not.toBeNull();
   });
 
   it("trilocale: la proposta tiene la zona giorno con il suo nome", () => {

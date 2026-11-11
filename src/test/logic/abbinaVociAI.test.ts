@@ -5,7 +5,8 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { candidati, leggiRisposta, parole, testoRichiesta } from "../../../supabase/functions/_shared/abbinaVociAI";
+import { candidati, leggiRisposta, parole, SINONIMI_UNITA as SINONIMI_EDGE, testoRichiesta } from "../../../supabase/functions/_shared/abbinaVociAI";
+import { SINONIMI_UNITA } from "@/lib/prezzario/confronto";
 
 const listino = [
   { id: "gres", nome: "Posa pavimento gres porcellanato", unita: "mq" },
@@ -59,5 +60,15 @@ describe("proposta per significato", () => {
     expect(s).toContain('_permission: "can_edit_orders"');
     expect(s).toContain("gateAiPayment(admin, companyId, corsHeaders)");
     expect(s).not.toMatch(/\.(insert|update|upsert|delete)\(/);
+  });
+
+  it("solo candidati con la stessa unità: il quadro elettrico (cad) non va sull'impianto a corpo", () => {
+    const l = [{ id: "imp", nome: "Rifacimento impianto elettrico bagno", unita: "fisso" }, { id: "km", nome: "Trasporto al km", unita: "km" }, { id: "q", nome: "Posa quadro elettrico", unita: "pz" }];
+    expect(candidati({ id: "v", descrizione: "Quadro elettrico piano terra QE03", unita: "cad" }, l).map((x) => x.id)).toEqual(["q"]);
+    expect(candidati({ id: "v", descrizione: "Trasporto e scarico di materiale a discarica", unita: "mc" }, l)).toEqual([]);
+  });
+
+  it("le unità della funzione sono quelle del programma", () => {
+    expect(SINONIMI_EDGE).toEqual(SINONIMI_UNITA);
   });
 });

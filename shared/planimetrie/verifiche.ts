@@ -127,6 +127,7 @@ export function verificaPianta(doc: Planimetria, ambitoChiave = "fatto"): Verifi
     }
   }
   for (const [nome, a] of alloggi) {
+    if (doc.ambitoDocumento === "ambiente") continue;
     if (a.mq <= 0) continue;
     const v = (esito: EsitoVerifica, messaggio: string, valore?: string, richiesto?: string) => out.push({ codice: "alloggio", esito, livello: a.livello, oggetto: nome, messaggio, valore, richiesto });
     if (a.mq < 28) v("non_conforme", "Sotto i 28 m² non è un alloggio abitabile.", mq(a.mq), "28 m²");

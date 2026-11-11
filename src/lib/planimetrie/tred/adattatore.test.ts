@@ -4,6 +4,8 @@ import trilocale from "../../../../shared/planimetrie/esempi/trilocale.json";
 import { controllaPlanimetria, haErrori } from "../../../../shared/planimetrie/controllo.ts";
 import { validaPlanimetria, type Planimetria } from "../../../../shared/planimetrie/modello.ts";
 import { BILOCALE_DA_RISTRUTTURARE, costruisciScena, esportaGlb, limitiDi, pianteDaPlanimetria, rotazione3D } from "./index";
+import { daPlanimetria } from "@/components/planimetrie/editor/adattatore";
+import { rotazioneVista } from "../esporta/adattatore";
 
 const esempi: [string, Planimetria][] = [
   ["bilocale (shared)", bilocale as Planimetria],
@@ -53,18 +55,20 @@ describe("dal modello della fase 1 al 3D", () => {
     expect(fatto.locali.map((l) => l.nome)).toEqual(["Soggiorno", "Camera", "Bagno"]);
   });
 
-  it("rotazione degli elementi: il wc a 180° contro il muro in alto ha il retro verso l'alto della pianta", () => {
-    expect(rotazione3D(0)).toBe(180);
-    expect(rotazione3D(180)).toBe(0);
-    expect(rotazione3D(90)).toBe(90);
-    // e2 del bilocale: wc a 180°, vicino al muro in alto (y grande). Il serbatoio (blocco del retro) deve stare verso -z.
-    const s = costruisciScena(pianteDaPlanimetria(bilocale as Planimetria).fatto);
-    const wc = s.mesh.find((m) => m.riferimento === "e2")!;
-    // i vertici del serbatoio sono gli unici sopra la seduta (40 cm)
-    const zSerbatoio: number[] = [];
-    for (let i = 0; i < wc.posizioni.length; i += 3) if (wc.posizioni[i + 1] > 0.45) zSerbatoio.push(wc.posizioni[i + 2]);
-    const centro = -590 / 100;
-    expect(zSerbatoio.length).toBeGreaterThan(0);
-    expect(Math.max(...zSerbatoio)).toBeLessThan(centro - 0.1);
+  it.each([0, 90, 180, 270, -90, 37])("a %s° il retro del WC coincide fra editor, modello 3D e PDF", (rotazione) => {
+    const doc = structuredClone(bilocale) as Planimetria, elemento = doc.livelli[0].fatto.elementi.find((e) => e.id === "e2")!;
+    elemento.rotazione = rotazione;
+    const prima = structuredClone(doc), vista2D = daPlanimetria(doc).elementi.find((e) => e.id === "e2")!;
+    const pianta = pianteDaPlanimetria(doc).fatto, elemento3D = pianta.elementi.find((e) => e.id === "e2")!;
+    const a = vista2D.rotazione * Math.PI / 180;
+    expect(Math.cos(elemento3D.rotazione * Math.PI / 180)).toBeCloseTo(Math.cos(a));
+    expect(Math.sin(elemento3D.rotazione * Math.PI / 180)).toBeCloseTo(Math.sin(a));
+    expect(rotazioneVista(rotazione)).toBe(rotazione3D(rotazione));
+    const wc = costruisciScena(pianta).mesh.find((m) => m.riferimento === "e2")!, serbatoio: Array<{ x: number; z: number }> = [];
+    for (let i = 0; i < wc.posizioni.length; i += 3) if (wc.posizioni[i + 1] > .45) serbatoio.push({ x: wc.posizioni[i] - elemento3D.centro.x / 100, z: wc.posizioni[i + 2] - elemento3D.centro.y / 100 });
+    const x = serbatoio.reduce((s, p) => s + p.x, 0) / serbatoio.length, z = serbatoio.reduce((s, p) => s + p.z, 0) / serbatoio.length;
+    expect(x * Math.sin(a) - z * Math.cos(a)).toBeGreaterThan(.1);
+    expect(x * Math.cos(a) + z * Math.sin(a)).toBeCloseTo(0);
+    expect(doc).toEqual(prima);
   });
 });

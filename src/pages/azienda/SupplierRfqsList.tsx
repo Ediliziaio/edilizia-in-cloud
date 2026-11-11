@@ -1,3 +1,6 @@
+import { useOperationalDeletion } from "@/hooks/useOperationalDeletion";
+import { OperationalExtraFilters } from "@/components/orders/OperationalExtraFilters";
+import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
 import { PipelineCardHeading } from "@/components/orders/PipelineDrag";
 import { useOperationalViewMemory } from "@/hooks/useOperationalViewMemory";
 import {
@@ -42,7 +45,6 @@ import {
   AlertTriangle,
   X,
 } from "lucide-react";
-import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import { OperationalViewSwitch } from "@/components/orders/OperationalViewSwitch";
 import {
   OperationalBoard,
@@ -120,14 +122,14 @@ export default function SupplierRfqsList() {
     "rdo_fornitore",
     "rdo_periodo",
     "rdo_focus",
-  ]);
+  ], { restoreView: false });
   const { rfqs, contatori, isLoading, isError, create } = useSupplierRfqs();
   const { suppliers } = useOperationalSuppliers();
   const perm = usePermissions();
   const canCreate =
     !perm.solaLettura &&
     (perm.canManagePurchasing || perm.canEditOrders || perm.isAdmin);
-  const view = params.get("rdo_vista") === "elenco" ? "elenco" : "pipeline";
+  const view = params.get("rdo_vista") === "pipeline" ? "pipeline" : "elenco";
   const search = params.get("rdo_cerca") ?? "";
   const archive = useOperationalArchive(
     "rdo_ambito",
@@ -266,6 +268,13 @@ export default function SupplierRfqsList() {
     });
   const page = operationalPage(params.get("rdo_pagina"), filtered.length);
   const visible = filtered.slice((page - 1) * 25, page * 25);
+  const selection = useOperationalDeletion("rfq", visible.map(r => ({
+    id: r.id, label: r.rfq_number, href: `/azienda/richieste-offerta/${r.id}`,
+    phase: { id: r.id, label: r.rfq_number, href: `/azienda/richieste-offerta/${r.id}`, status: r.status, stage: r.status, responses: contatori[r.id]?.risposte ?? 0 },
+    values: { titolo: r.titolo, stato: RDO_STATUS_LABELS[r.status] ?? r.status, scadenza: r.scadenza_offerte ?? "", risposte: String(contatori[r.id]?.risposte ?? 0) },
+  })), canCreate && view === "elenco", {
+    filename: "richieste-offerta", columns: [{ key: "documento", label: "N° RdO" }, { key: "titolo", label: "Titolo" }, { key: "stato", label: "Stato" }, { key: "scadenza", label: "Scadenza offerte" }, { key: "risposte", label: "Risposte ricevute" }],
+  });
   const selectKpi = (value: string, nextFocus = "") =>
     update({ stato: value, focus: nextFocus });
   const response = (r: SupplierRfq) => {
@@ -397,11 +406,8 @@ export default function SupplierRfqsList() {
           Nuova richiesta
         </Button>
       </div>
-      <section
-        aria-label="Riepilogo richieste d’offerta"
-        className="grid grid-cols-2 gap-3 sm:grid-cols-4"
-      >
-        <OperationalKpiCard
+      <OperationalSummary label="Riepilogo richieste d’offerta" title="Le richieste ai fornitori" icon={FileQuestion} error={isError} note="Richieste aperte, risposte e aggiudicazioni nel perimetro corrente.">
+        <OperationalSummaryMetric
           icon={FileQuestion}
           label="Aperte"
           value={kpis.aperte}
@@ -411,7 +417,7 @@ export default function SupplierRfqsList() {
           onClick={() => selectKpi("aperte")}
           active={status === "aperte" && !focus}
         />
-        <OperationalKpiCard
+        <OperationalSummaryMetric
           icon={Inbox}
           label="Da valutare"
           value={kpis.risposte}
@@ -421,7 +427,7 @@ export default function SupplierRfqsList() {
           onClick={() => selectKpi("aperte", "risposte")}
           active={focus === "risposte"}
         />
-        <OperationalKpiCard
+        <OperationalSummaryMetric
           icon={Clock}
           label="In attesa di risposte"
           value={kpis.attesa}
@@ -431,7 +437,7 @@ export default function SupplierRfqsList() {
           onClick={() => selectKpi("aperte", "attesa")}
           active={focus === "attesa"}
         />
-        <OperationalKpiCard
+        <OperationalSummaryMetric
           icon={Trophy}
           label="Aggiudicate"
           value={kpis.aggiudicate}
@@ -441,21 +447,9 @@ export default function SupplierRfqsList() {
           onClick={() => selectKpi("aggiudicata")}
           active={status === "aggiudicata"}
         />
-      </section>
-      <section
-        aria-label="Filtri richieste d’offerta"
-        className="space-y-2 rounded-xl border bg-white p-2.5 shadow-sm"
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <OperationalViewSwitch
-            value={view}
-            onChange={(v) => update({ vista: v, ambito: archive.scope })}
-          />
-          <OperationalHelp>
-            Apri una richiesta per invitare i fornitori, registrare una risposta
-            o confrontare le offerte.
-          </OperationalHelp>
-          <div className="relative min-w-[200px] flex-1">
+      </OperationalSummary>
+      <section aria-label="Filtri richieste d’offerta" className="space-y-2 rounded-xl border bg-white p-2.5 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2"><div className="relative min-w-[200px] flex-1">
             <Search className="absolute left-3 top-2 h-4 w-4 text-muted-foreground" />
             <Input
               aria-label="Cerca richieste d’offerta"
@@ -464,7 +458,18 @@ export default function SupplierRfqsList() {
               onChange={(e) => update({ cerca: e.target.value })}
               className="h-8 pl-9 text-xs"
             />
-          </div>
+          </div><select aria-label="Stato richieste d’offerta" className="h-8 max-w-full rounded-md border bg-background px-3 text-xs" value={status} onChange={e => update({ stato: e.target.value, focus: null })}>{STATUSES.map(id => <option key={id} value={id}>{id === "tutti" ? "Tutti gli stati" : id === "aperte" ? "Aperte" : RDO_STATUS_LABELS[id]}</option>)}</select><OperationalViewSwitch
+            value={view}
+            onChange={(v) => update({ vista: v, ambito: archive.scope })}
+          /></div>
+        <OperationalExtraFilters count={Number(order !== "all") + Number(supplier !== "all") + Number(period !== "tutto") + Number(!!focus) + Number(archive.scope !== "all")}>      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+
+          <OperationalHelp>
+            Apri una richiesta per invitare i fornitori, registrare una risposta
+            o confrontare le offerte.
+          </OperationalHelp>
+
           <Select value={order} onValueChange={(v) => update({ commessa: v })}>
             <SelectTrigger
               aria-label="Commessa richieste d’offerta"
@@ -509,50 +514,7 @@ export default function SupplierRfqsList() {
           )}
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 sm:flex-nowrap">
-          <div
-            role="group"
-            aria-label="Stato richieste d’offerta"
-            className="flex min-w-0 max-w-full gap-1 overflow-x-auto rounded-lg bg-slate-50 p-1 sm:flex-1"
-          >
-            {STATUSES.filter(
-              (id) =>
-                id === "tutti" ||
-                (id === "aperte"
-                  ? archive.scope !== "history"
-                  : inOperationalScope(!OPEN.includes(id), archive.scope)),
-            ).map((id) => (
-              <button
-                type="button"
-                key={id}
-                aria-pressed={status === id}
-                onClick={() => update({ stato: id, focus: null })}
-                className={cn(
-                  "shrink-0 rounded-md px-2.5 py-1.5 text-xs font-medium",
-                  status === id
-                    ? "bg-orange-50 text-slate-950 ring-1 ring-orange-100"
-                    : "text-muted-foreground hover:bg-white",
-                )}
-              >
-                {id === "tutti"
-                  ? "Tutte"
-                  : id === "aperte"
-                    ? "Aperte"
-                    : RDO_STATUS_LABELS[id]}{" "}
-                <span className="ml-1 rounded-full bg-slate-100 px-1.5 text-[10px]">
-                  {
-                    focused.filter(
-                      (r) =>
-                        matchesStatus(r, id) &&
-                        inOperationalScope(
-                          !OPEN.includes(r.status),
-                          archive.scope,
-                        ),
-                    ).length
-                  }
-                </span>
-              </button>
-            ))}
-          </div>
+
           <Select value={period} onValueChange={(v) => update({ periodo: v })}>
             <SelectTrigger
               aria-label="Creazione richiesta"
@@ -596,6 +558,7 @@ export default function SupplierRfqsList() {
             Risposta scaduta ({base.filter(overdue).length})
           </Button>
         </div>
+      </div></OperationalExtraFilters>
       </section>
       {isError ? (
         <div role="alert" className="rounded-xl border p-6 text-sm">
@@ -666,9 +629,12 @@ export default function SupplierRfqsList() {
         </>
       ) : (
         <>
+          {selection.toolbar}
+          {selection.confirmation}
           <OperationalTable label="Elenco richieste d’offerta">
             <thead className="border-b bg-muted/50 text-left">
               <tr>
+                {selection.enabled && <th scope="col">{selection.header}</th>}
                 {[
                   "N° richiesta",
                   "Oggetto",
@@ -691,6 +657,7 @@ export default function SupplierRfqsList() {
             <tbody>
               {visible.map((r) => (
                 <tr key={r.id} className="border-b hover:bg-muted/30">
+                  {selection.enabled && <td>{selection.checkbox(r.id, r.rfq_number)}</td>}
                   <td className="p-3">
                     <Link
                       to={`/azienda/richieste-offerta/${r.id}`}

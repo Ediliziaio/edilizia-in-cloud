@@ -8,9 +8,9 @@
  * Negli ultimi due la pianta la ricava l'AI (`planimetria-genera`, fase 3) e si apre
  * nell'editor con le misure stimate in evidenza; si salva solo dopo averla vista.
  */
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ClipboardList, FileUp, Loader2, Mic, MicOff, PenLine, Ruler, Wand2, X } from "lucide-react";
+import { CheckCircle2, ClipboardList, Crop, FileUp, Loader2, Mic, MicOff, PenLine, Ruler, Wand2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,7 @@ import { TestataPlanimetrie } from "@/components/planimetrie/render/TestataPlani
 import { leggiMisura } from "@/components/planimetrie/editor/misure";
 import {
   confermaScala,
+  anteprimaFoglio,
   fileNonValido,
   fotoPerRilievo,
   inBase64,
@@ -40,12 +41,24 @@ import {
 } from "@/components/planimetrie/editor/generazione";
 import type { CollegamentiPlanimetria } from "@/lib/planimetrie/archivio";
 import { percorsiPlanimetrie, type ModoNuovaPianta } from "@/lib/planimetrie/render/percorsi";
+import { ACCETTA_DOCUMENTO_PIANTA, eHeic, normalizzaDocumento, notaLetturaPianta, type RitaglioPianta } from "@/lib/planimetrie/documentoImmagine";
+import { AttesaLetturaPianta } from "@/components/planimetrie/AttesaLetturaPianta";
+import { EsitoLetturaPianta } from "@/components/planimetrie/EsitoLetturaPianta";
+
+const RitaglioDocumentoPianta = lazy(() => import("@/components/planimetrie/RitaglioDocumentoPianta"));
+const DocumentoPiantaIngrandito = lazy(() => import("@/components/planimetrie/DocumentoPiantaIngrandito"));
 
 interface DaDove { collegamenti?: CollegamentiPlanimetria; titolo: string; indietro: string }
-type Generata = Extract<EsitoAI, { ok: true }> & { ingresso: IngressoAI; titolo: string };
+type Generata = Extract<EsitoAI, { ok: true }> & { ingresso: IngressoAI; titolo: string; sorgente?: { file: Blob; nome: string }; richiesta?: RichiestaAI; letturaId?: string };
 
 async function chiediAllAI(richiesta: RichiestaAI): Promise<EsitoAI> {
   const { data, error } = await supabase.functions.invoke("planimetria-genera", { body: richiesta });
+  // Diagnostica locale del collaudo: nessuna immagine, credenziale o dato del cliente.
+  if (import.meta.env.DEV && data?.success) console.debug("[planimetria-lettura]", JSON.stringify({
+    versione: data.versione_prompt, tentativi: data.tentativi, generazione: data.generazione,
+    controlli_documento: data.planimetria?.letturaDocumento,
+    livelli: data.planimetria?.livelli?.map((l: { fatto: { locali: unknown[]; aperture: unknown[]; elementi: unknown[]; muri: unknown[] } }) => l.fatto),
+  }));
   if (!error) return leggiRispostaAI(data, 200);
   // l'errore della funzione ha il motivo nel corpo della risposta
   const risposta = (error as { context?: Response }).context;
@@ -117,6 +130,15 @@ function ChiediPianta({ companyId, modo, onPronta }: { companyId: string; modo: 
   const [file, setFile] = useState<File | null>(null);
   const [testo, setTesto] = useState("");
   const [inCorso, setInCorso] = useState(false);
+  const [fase, setFase] = useState<"preparazione" | "lettura">("preparazione");
+  const [preparandoFile, setPreparandoFile] = useState(false);
+  const [nomeOriginale, setNomeOriginale] = useState("");
+  const [convertitoHeic, setConvertitoHeic] = useState(false);
+  const [ambito, setAmbito] = useState<"completa" | "ambiente">("completa");
+  const [nomeAmbiente, setNomeAmbiente] = useState("");
+  const [nota, setNota] = useState("");
+  const sceltaFile = useRef(0);
+  useEffect(() => () => { sceltaFile.current++; }, []);
   const avvioInCorso = useRef(false);
   const [errore, setErrore] = useState<string | null>(null);
 
@@ -124,46 +146,73 @@ function ChiediPianta({ companyId, modo, onPronta }: { companyId: string; modo: 
   const [rotazione, setRotazione] = useState<Rotazione>(0);
   const [pagina, setPagina] = useState(1);
   const [pagine, setPagine] = useState(1);
-  const [anteprima, setAnteprima] = useState<string | null>(null);
+  const [ritaglio, setRitaglio] = useState<RitaglioPianta | null>(null);
+  const [ritagliando, setRitagliando] = useState(false);
+  const [ingrandita, setIngrandita] = useState(false);
+  const [vista, setVista] = useState<{ file: File; pagina: number; rotazione: Rotazione; ritaglio: RitaglioPianta | null; url: string | null } | null>(null);
+  const vistaAttuale = vista?.file === file && vista?.pagina === pagina && vista?.rotazione === rotazione && vista?.ritaglio === ritaglio;
+  const anteprima = vistaAttuale ? vista?.url ?? null : null;
+  const anteprimaInCorso = !!file && !vistaAttuale;
   useEffect(() => {
     let vivo = true;
     let url: string | null = null;
-    setAnteprima(null);
     if (!file) return;
-    if (file.type === "application/pdf") {
-      paginaPdf(file, pagina)
-        .then((r) => { if (vivo) { setPagine(r.pagine); setAnteprima(r.canvas.toDataURL("image/jpeg", 0.7)); } })
-        .catch(() => { if (vivo) setPagine(1); });
-    } else {
-      url = URL.createObjectURL(file);
-      setAnteprima(url);
-    }
+    anteprimaFoglio(file, pagina, rotazione, ritaglio).then((r) => {
+      if (!vivo) return;
+      url = URL.createObjectURL(r.file); setVista({ file, pagina, rotazione, ritaglio, url }); setPagine(r.pagine); setErrore(null);
+    }).catch((e: unknown) => { if (vivo) { setVista({ file, pagina, rotazione, ritaglio, url: null }); setErrore(e instanceof Error ? e.message : "Non riesco a preparare l’anteprima."); } });
     return () => { vivo = false; if (url) URL.revokeObjectURL(url); };
-  }, [file, pagina]);
+  }, [file, pagina, rotazione, ritaglio]);
 
-  const scegliFile = (f: File | null) => {
+  const scegliFile = async (f: File | null) => {
+    const numero = ++sceltaFile.current;
     setErrore(f ? fileNonValido(f) : null);
-    setFile(f && !fileNonValido(f) ? f : null);
+    setFile(null); setConvertitoHeic(false); setNomeOriginale(f?.name ?? "");
+    setRitaglio(null);
     setRotazione(0);
     setPagina(1);
     setPagine(1);
+    if (!f || fileNonValido(f)) { setPreparandoFile(false); return; }
+    setPreparandoFile(true);
+    try {
+      const pronta = await normalizzaDocumento(f);
+      if (numero !== sceltaFile.current) return;
+      setFile(pronta); setConvertitoHeic(eHeic(f));
+    } catch (e) {
+      if (numero === sceltaFile.current) setErrore(e instanceof Error ? e.message : "Non riesco a leggere il file.");
+    } finally { if (numero === sceltaFile.current) setPreparandoFile(false); }
+  };
+
+  const scegliFoto = async (files: File[]) => {
+    setErrore(null); setPreparandoFile(true);
+    try {
+      const pronte: File[] = [];
+      // Una foto alla volta: evita sei decodifiche HEIC da 24 MP in parallelo sul telefono.
+      for (const f of files.slice(0, MASSIMO_FOTO - foto.length)) pronte.push(await normalizzaDocumento(f));
+      setFoto((v) => [...v, ...pronte].slice(0, MASSIMO_FOTO));
+    } catch (e) { setErrore(e instanceof Error ? e.message : "Una delle foto non si legge."); }
+    finally { setPreparandoFile(false); }
   };
 
   const avvia = async () => {
     if (avvioInCorso.current) return;
     avvioInCorso.current = true;
     setInCorso(true);
+    setFase("preparazione");
     try {
       setErrore(null);
       riconoscitore.current?.stop();
       const ingresso: IngressoAI = modo === "testo" ? "descrizione" : modo === "sopralluogo" ? "rilievo" : tipo;
       const richiesta: RichiestaAI = { company_id: companyId, ingresso };
+      if (modo === "documento") richiesta.nota = notaLetturaPianta(ambito, nomeAmbiente, nota, tipo === "schizzo");
+      let sorgente: Generata["sorgente"];
       if (modo === "testo" || modo === "sopralluogo") {
         richiesta.testo = testo.trim();
       }
       if (modo === "sopralluogo" && foto.length) {
         try {
-          richiesta.foto_base64 = await Promise.all(foto.slice(0, MASSIMO_FOTO).map(fotoPerRilievo));
+          richiesta.foto_base64 = [];
+          for (const f of foto.slice(0, MASSIMO_FOTO)) richiesta.foto_base64.push(await fotoPerRilievo(f));
         } catch {
           setErrore("Una delle foto non si legge: toglila e riprova.");
           return;
@@ -175,29 +224,25 @@ function ChiediPianta({ companyId, modo, onPronta }: { companyId: string; modo: 
         // sui fogli larghi o alti). Anche i PDF si disegnano e si squadrano; se non si riesce parte il PDF così com'è.
         const pdf = file.type === "application/pdf";
         const pronta = pdf
-          ? await paginaPdf(file, pagina).then((r) => preparaImmagine(file, rotazione, r.canvas)).catch((): null => null)
-          : await preparaImmagine(file, rotazione);
-        richiesta.mime = pronta?.mime ?? file.type;
-        richiesta.file_base64 = await inBase64(pronta?.file ?? file);
-        if (pronta) {
-          richiesta.larghezza = pronta.larghezza;
-          richiesta.altezza = pronta.altezza;
-        } else if (file.type.startsWith("image/")) {
-          const url = URL.createObjectURL(file);
-          const misure = await misureImmagine(url);
-          URL.revokeObjectURL(url);
-          if (misure) Object.assign(richiesta, misure);
-        }
+          ? await paginaPdf(file, pagina).then((r) => preparaImmagine(file, rotazione, r.canvas, ritaglio))
+          : await preparaImmagine(file, rotazione, undefined, ritaglio);
+        if (!pronta) throw new Error("Il documento non è leggibile.");
+        richiesta.mime = pronta.mime;
+        richiesta.file_base64 = await inBase64(pronta.file);
+        sorgente = { file: pronta.file, nome: nomeOriginale || file.name };
+        richiesta.larghezza = pronta.larghezza;
+        richiesta.altezza = pronta.altezza;
       }
+      setFase("lettura");
       const esito = await chiediAllAI(richiesta).catch(() => leggiRispostaAI(null, null));
       if (esito.ok === false) {
         setErrore(esito.messaggio);
         return;
       }
-      const titolo = esito.planimetria.titolo ?? (modo === "sopralluogo" ? "Pianta dal sopralluogo" : file ? file.name.replace(/\.[^.]+$/, "") : "Pianta da descrizione");
+      const titolo = esito.planimetria.titolo ?? (modo === "sopralluogo" ? "Pianta dal sopralluogo" : ambito === "ambiente" && nomeAmbiente.trim() ? nomeAmbiente.trim() : file ? (nomeOriginale || file.name).replace(/\.[^.]+$/, "") : "Pianta da descrizione");
       // Il PDF viene rasterizzato per la lettura, ma l'origine resta il file scelto.
       const origine = ingresso === "documento" && file?.type === "application/pdf" ? "ai_pdf" : esito.origine;
-      onPronta({ ...esito, origine, ingresso, titolo });
+      onPronta({ ...esito, planimetria: { ...esito.planimetria, ...(modo === "documento" ? { ambitoDocumento: ambito === "ambiente" ? "ambiente" as const : "alloggio" as const } : {}) }, origine, ingresso, titolo, sorgente, richiesta, letturaId: crypto.randomUUID() });
     } catch {
       setErrore("Non riesco a preparare il documento: controlla il file e riprova.");
     } finally {
@@ -206,7 +251,7 @@ function ChiediPianta({ companyId, modo, onPronta }: { companyId: string; modo: 
     }
   };
 
-  const pronto = modo === "testo" || modo === "sopralluogo" ? testo.trim().length >= 10 : !!file;
+  const pronto = !preparandoFile && !anteprimaInCorso && (modo === "testo" || modo === "sopralluogo" ? testo.trim().length >= 10 : !!file && !!anteprima);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 pb-12">
@@ -217,6 +262,7 @@ function ChiediPianta({ companyId, modo, onPronta }: { companyId: string; modo: 
       />
       <Card>
         <CardContent className="space-y-5 p-6">
+          <fieldset disabled={inCorso || preparandoFile} aria-busy={inCorso || preparandoFile} className="min-w-0 space-y-5">
           {modo === "sopralluogo" ? (
             <>
               <div className="space-y-2">
@@ -244,8 +290,8 @@ function ChiediPianta({ companyId, modo, onPronta }: { companyId: string; modo: 
               </div>
               <div className="space-y-2">
                 <Label htmlFor="foto-sopralluogo">Foto delle stanze (facoltative, fino a {MASSIMO_FOTO})</Label>
-                <Input id="foto-sopralluogo" type="file" accept="image/*" multiple capture="environment"
-                  onChange={(e) => { const nuove = [...(e.target.files ?? [])].filter((f) => f.type.startsWith("image/")); setFoto((v) => [...v, ...nuove].slice(0, MASSIMO_FOTO)); e.target.value = ""; }} />
+                <Input id="foto-sopralluogo" type="file" accept="image/png,image/jpeg,image/webp,image/heic,image/heif,.heic,.heif" multiple capture="environment"
+                  onChange={(e) => { void scegliFoto([...(e.target.files ?? [])]); e.target.value = ""; }} />
                 {foto.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {foto.map((f, i) => (
@@ -260,7 +306,7 @@ function ChiediPianta({ companyId, modo, onPronta }: { companyId: string; modo: 
               </div>
               <div className="space-y-2">
                 <Label htmlFor="schizzo-sopralluogo">Schizzo fatto sul posto (facoltativo)</Label>
-                <Input id="schizzo-sopralluogo" type="file" accept="application/pdf,image/png,image/jpeg,image/webp" onChange={(e) => scegliFile(e.target.files?.[0] ?? null)} />
+                <Input id="schizzo-sopralluogo" type="file" accept={ACCETTA_DOCUMENTO_PIANTA} onClick={(e) => { e.currentTarget.value = ""; }} onChange={(e) => { void scegliFile(e.target.files?.[0] ?? null); }} />
               </div>
             </>
           ) : modo === "documento" ? (
@@ -292,17 +338,22 @@ function ChiediPianta({ companyId, modo, onPronta }: { companyId: string; modo: 
               </div>
               <div className="space-y-2">
                 <Label htmlFor="file-pianta">PDF o foto della pianta</Label>
-                <Input id="file-pianta" type="file" accept="application/pdf,image/png,image/jpeg,image/webp" onChange={(e) => scegliFile(e.target.files?.[0] ?? null)} />
+                <div className="rounded-xl border border-dashed border-primary/30 bg-primary/[0.025] p-4 transition-colors hover:border-primary/60">
+                  <div className="mb-3 flex items-center gap-3"><FileUp className="h-8 w-8 shrink-0 text-primary/60" /><div><p className="text-sm font-medium">PDF, foto o schizzo dal telefono</p><p className="text-xs text-muted-foreground">JPG, PNG, WebP, HEIC e HEIF · fino a 10 MB</p></div></div>
+                  <Input id="file-pianta" type="file" accept={ACCETTA_DOCUMENTO_PIANTA} onClick={(e) => { e.currentTarget.value = ""; }} onChange={(e) => { void scegliFile(e.target.files?.[0] ?? null); }} />
+                </div>
                 <p className="text-xs text-muted-foreground max-md:hidden">Va bene quasi tutto: catastale, disegno del tecnico, schermata di AutoCAD (anche a sfondo nero), foto del foglio, pianta arredata, condominio con più appartamenti, capannone, più piani sullo stesso foglio. Meglio se le misure si leggono.</p>
                 {file && anteprima && (
-                  <div className="space-y-2 rounded-md border bg-muted/30 p-2">
-                    <div className="flex h-56 items-center justify-center overflow-hidden rounded bg-white">
-                      <img src={anteprima} alt="Anteprima del foglio" className="max-h-52 max-w-full object-contain transition-transform" style={{ transform: `rotate(${rotazione}deg)` }} />
-                    </div>
+                  <div className="space-y-3 rounded-xl border bg-muted/20 p-3 motion-safe:animate-in motion-safe:fade-in-0">
+                    <p className="flex items-center gap-2 break-all text-xs"><CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />{nomeOriginale}{convertitoHeic && <span className="ml-auto shrink-0 rounded bg-emerald-50 px-2 py-1 text-emerald-700">HEIC convertito</span>}</p>
+                    <button type="button" aria-label="Ingrandisci il foglio" onClick={() => setIngrandita(true)} className="flex h-72 w-full cursor-zoom-in items-center justify-center overflow-hidden rounded-lg bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      <img src={anteprima} alt="Anteprima del foglio" className="max-h-72 max-w-full object-contain" />
+                    </button>
                     <div className="flex flex-wrap items-center gap-2 text-xs">
                       <Button type="button" size="sm" variant="outline" onClick={() => setRotazione((r) => ((r + 270) % 360) as Rotazione)}>Ruota ↺</Button>
                       <Button type="button" size="sm" variant="outline" onClick={() => setRotazione((r) => ((r + 90) % 360) as Rotazione)}>Ruota ↻</Button>
-                      <span className="text-muted-foreground">Gira il foglio finché le scritte si leggono dritte.</span>
+                      {file.type !== "application/pdf" && <Button type="button" size="sm" variant="outline" onClick={() => setRitagliando(true)}><Crop className="mr-1.5 h-3.5 w-3.5" />{ritaglio ? "Modifica ritaglio" : "Ritaglia foglio"}</Button>}
+                      {ritaglio && <Button type="button" size="sm" variant="ghost" onClick={() => setRitaglio(null)}>Togli ritaglio</Button>}
                       {pagine > 1 && (
                         <span className="ml-auto flex items-center gap-1">
                           <Button type="button" size="sm" variant="ghost" disabled={pagina <= 1} onClick={() => setPagina((x) => x - 1)}>‹</Button>
@@ -311,8 +362,14 @@ function ChiediPianta({ companyId, modo, onPronta }: { companyId: string; modo: 
                         </span>
                       )}
                     </div>
+                    <p className="text-xs text-muted-foreground">L’AI leggerà questo foglio. Tieni visibili disegno e quote; escludi altri fogli e oggetti sullo sfondo.</p>
                   </div>
                 )}
+              </div>
+              <div className="grid gap-4 rounded-xl border p-4 sm:grid-cols-2">
+                <div className="space-y-2"><Label htmlFor="ambito-pianta">Cosa rappresenta?</Label><Select value={ambito} onValueChange={(v) => setAmbito(v as "completa" | "ambiente")}><SelectTrigger id="ambito-pianta"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="completa">Pianta completa</SelectItem><SelectItem value="ambiente">Un solo ambiente</SelectItem></SelectContent></Select></div>
+                {ambito === "ambiente" && <div className="space-y-2"><Label htmlFor="nome-ambiente-pianta">Quale ambiente?</Label><Input id="nome-ambiente-pianta" value={nomeAmbiente} maxLength={60} placeholder="Es. Bagno" onChange={(e) => setNomeAmbiente(e.target.value)} /></div>}
+                <div className="space-y-2 sm:col-span-2"><Label htmlFor="nota-lettura-pianta">Cosa deve tenere presente l’AI? <span className="font-normal text-muted-foreground">Facoltativo</span></Label><Textarea id="nota-lettura-pianta" rows={2} maxLength={tipo === "schizzo" ? 120 : 300} value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Es. Leggi solo il foglio centrale. Il rientro in alto fa parte del bagno." /></div>
               </div>
             </>
           ) : (
@@ -329,6 +386,10 @@ function ChiediPianta({ companyId, modo, onPronta }: { companyId: string; modo: 
               <p className="text-xs text-muted-foreground">Va bene anche per una villa su due piani («con mansarda»), una bifamiliare («due appartamenti speculari da 90 mq su un lotto 14 × 11 m») o un capannone («20 × 40 m, alto 7 m, uffici e bagni su un lato, portone sul lato corto»). Le misure saranno tutte stimate: le controlli e le correggi nel disegno.</p>
             </div>
           )}
+          </fieldset>
+
+          {(preparandoFile || anteprimaInCorso) && <p role="status" className="flex items-center gap-2 rounded-lg bg-primary/5 p-3 text-sm"><Loader2 className="h-4 w-4 motion-safe:animate-spin" />{preparandoFile ? "Preparo il file… converto anche le foto HEIC del telefono." : "Aggiorno l’anteprima del foglio…"}</p>}
+          {inCorso && <AttesaLetturaPianta fase={fase} anteprima={anteprima} />}
 
           {errore && (
             <div role="alert" className="space-y-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">
@@ -343,32 +404,58 @@ function ChiediPianta({ companyId, modo, onPronta }: { companyId: string; modo: 
 
           <Button className="w-full bg-primary hover:bg-primary/90" disabled={!pronto || inCorso} onClick={avvia}>
             {inCorso ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : modo === "testo" ? <Wand2 className="mr-2 h-4 w-4" /> : modo === "sopralluogo" ? <ClipboardList className="mr-2 h-4 w-4" /> : <FileUp className="mr-2 h-4 w-4" />}
-            {inCorso ? "Sto ricavando la pianta… di solito meno di un minuto" : "Ricava la pianta"}
+            {inCorso ? "Lettura in corso…" : "Ricava la pianta"}
           </Button>
         </CardContent>
       </Card>
+      {ritagliando && file && <Suspense fallback={<p role="status">Apro il ritaglio…</p>}><RitaglioDocumentoPianta file={file} iniziale={ritaglio} onChiudi={() => setRitagliando(false)} onConferma={(r) => { setRitaglio(r); setRitagliando(false); }} /></Suspense>}
+      {ingrandita && anteprima && <Suspense fallback={<p role="status">Ingrandisco il foglio…</p>}><DocumentoPiantaIngrandito src={anteprima} onChiudi={() => setIngrandita(false)} /></Suspense>}
     </div>
   );
 }
 
 function PiantaGenerata({ companyId, generata, onAggiorna, per }: { per: DaDove; companyId: string; generata: Generata; onAggiorna: (g: Generata) => void }) {
   const serveScala = scalaDaConfermare(generata.ingresso, generata.generazione);
+  const [rileggendo, setRileggendo] = useState(false);
+  const [erroreRilettura, setErroreRilettura] = useState<string | null>(null);
+  const [indicazioniRilettura, setIndicazioniRilettura] = useState("");
+  const riletturaAvviata = useRef(false);
+  const rileggi = async () => {
+    if (!generata.sorgente || riletturaAvviata.current) return;
+    riletturaAvviata.current = true; setRileggendo(true); setErroreRilettura(null);
+    let url: string | null = null;
+    try {
+      url = URL.createObjectURL(generata.sorgente.file);
+      const dimensioni = await misureImmagine(url);
+      if (!dimensioni) throw new Error("Il documento originale non è più leggibile.");
+      const nota = [indicazioniRilettura.trim(), generata.richiesta?.nota ?? notaLetturaPianta("ambiente", generata.titolo, "", generata.ingresso === "schizzo")].filter(Boolean).join(" ").slice(0, 500);
+      const richiesta: RichiestaAI = { ...generata.richiesta, company_id: companyId, ingresso: generata.ingresso, mime: generata.sorgente.file.type, file_base64: await inBase64(generata.sorgente.file), nota, ...dimensioni };
+      const esito = await chiediAllAI(richiesta);
+      if (esito.ok === false) { setErroreRilettura(esito.messaggio); return; }
+      onAggiorna({ ...generata, ...esito, planimetria: { ...esito.planimetria, ambitoDocumento: generata.planimetria.ambitoDocumento }, richiesta, letturaId: crypto.randomUUID() });
+    } catch (e) { setErroreRilettura(e instanceof Error ? e.message : "La nuova lettura non è riuscita. La bozza precedente è rimasta disponibile."); }
+    finally { if (url) URL.revokeObjectURL(url); riletturaAvviata.current = false; setRileggendo(false); }
+  };
   return (
     <EditorConSalvataggio
       // dopo la conferma della scala l'editor riparte dalla pianta adeguata
-      key={generata.generazione.scala?.cm_per_unita ?? "senza-scala"}
+      key={`${generata.letturaId ?? "prima-lettura"}:${generata.generazione.scala?.cm_per_unita ?? "senza-scala"}`}
       companyId={companyId}
       titoloPagina="Controlla la pianta e salvala"
       indietro={per.indietro}
       collegamenti={per.collegamenti}
       iniziale={generata.planimetria}
+      sorgenteDocumento={generata.sorgente}
       titoloProposto={per.titolo || generata.titolo}
       origine={generata.origine}
       avvisi={[
         "Le misure in viola con «≈» sono stimate: controllale e correggile toccandole.",
-        ...generata.generazione.avvisi,
       ]}
-      sopra={serveScala ? <ConfermaScala generata={generata} onConferma={onAggiorna} /> : undefined}
+      sopra={<div className="space-y-3"><EsitoLetturaPianta pianta={generata.planimetria} sorgente={generata.sorgente} avvisi={generata.planimetria.letturaDocumento ? [] : generata.generazione.avvisi} />
+        {generata.sorgente && <div className="flex flex-wrap items-center justify-between gap-2"><Input aria-label="Indicazioni per la rilettura" className="h-8 min-w-[200px] flex-1 text-xs" maxLength={250} disabled={rileggendo} value={indicazioniRilettura} onChange={(e) => setIndicazioniRilettura(e.target.value)} placeholder="Indicazioni facoltative per la nuova lettura dello stesso foglio" /><Button type="button" size="sm" variant="outline" disabled={rileggendo} onClick={() => { void rileggi(); }}>{rileggendo ? <Loader2 className="mr-2 h-4 w-4 motion-safe:animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}{rileggendo ? "Rilettura in corso…" : "Rileggi il documento · 1 credito"}</Button></div>}
+        {rileggendo && <AttesaLetturaPianta fase="lettura" />}
+        {erroreRilettura && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">{erroreRilettura}</p>}
+        {serveScala && <ConfermaScala generata={generata} onConferma={onAggiorna} />}</div>}
     />
   );
 }

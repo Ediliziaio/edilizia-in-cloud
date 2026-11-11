@@ -106,6 +106,9 @@ interface Faccia {
   lato: 1 | -1;
   locale: number;
   vertice: number;
+  /** Vertici del contorno ai due estremi da–a, prima degli allineamenti. */
+  verticeDa: number;
+  verticeA: number;
 }
 
 function facceDiLocale(contorno: Punto[], locale: number): { facce: Faccia[]; oblique: Array<[Punto, Punto]> } {
@@ -120,10 +123,10 @@ function facceDiLocale(contorno: Punto[], locale: number): { facce: Faccia[]; ob
     const mezzo = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
     if (dy <= dx * 0.09) {
       const lato = puntoDentro({ x: mezzo.x, y: mezzo.y + 2 }, contorno) ? 1 : -1;
-      facce.push({ asse: 0, quota: mezzo.y, da: Math.min(a.x, b.x), a: Math.max(a.x, b.x), lato, locale, vertice: i });
+      facce.push({ asse: 0, quota: mezzo.y, da: Math.min(a.x, b.x), a: Math.max(a.x, b.x), lato, locale, vertice: i, verticeDa: a.x <= b.x ? i : (i + 1) % contorno.length, verticeA: a.x <= b.x ? (i + 1) % contorno.length : i });
     } else if (dx <= dy * 0.09) {
       const lato = puntoDentro({ x: mezzo.x + 2, y: mezzo.y }, contorno) ? 1 : -1;
-      facce.push({ asse: 1, quota: mezzo.x, da: Math.min(a.y, b.y), a: Math.max(a.y, b.y), lato, locale, vertice: i });
+      facce.push({ asse: 1, quota: mezzo.x, da: Math.min(a.y, b.y), a: Math.max(a.y, b.y), lato, locale, vertice: i, verticeDa: a.y <= b.y ? i : (i + 1) % contorno.length, verticeA: a.y <= b.y ? (i + 1) % contorno.length : i });
     } else {
       oblique.push([a, b]);
     }
@@ -194,19 +197,28 @@ function muroDaGruppo(gruppo: Faccia[]): MuroGrezzo {
   return { asse, p1, p2, spessore, esterno, facce: gruppo };
 }
 
-/** Allunga le estremità fino all'asse del muro perpendicolare vicino: angoli chiusi. */
+/** Chiude ogni angolo con il muro che condivide il vertice originale del locale.
+ * La sola vicinanza non basta: in un rientro corto aggancerebbe entrambi i capi
+ * alla stessa parete, cancellando il rientro. */
 function chiudiAngoli(muri: MuroGrezzo[]): void {
+  const estremi = new Map(muri.map((w) => [w, [{ ...w.p1 }, { ...w.p2 }]]));
   for (const w of muri) {
     if (w.asse === null) continue;
     const k = w.asse === 0 ? "x" : "y";
     const q = w.asse === 0 ? "y" : "x";
     for (const estremo of [w.p1, w.p2]) {
+      const vertici = w.facce.flatMap((f) => [
+        ...(Math.abs(f.da - estremo[k]) < 0.01 ? [{ locale: f.locale, vertice: f.verticeDa }] : []),
+        ...(Math.abs(f.a - estremo[k]) < 0.01 ? [{ locale: f.locale, vertice: f.verticeA }] : []),
+      ]);
+      const adiacenti = muri.filter((v) => v.asse !== null && v.asse !== w.asse && v.facce.some((f) => vertici.some((p) => p.locale === f.locale && (p.vertice === f.verticeDa || p.vertice === f.verticeA))));
       let migliore: number | null = null;
-      for (const v of muri) {
+      for (const v of adiacenti.length ? adiacenti : muri) {
         if (v.asse === null || v.asse === w.asse) continue;
+        const [v1, v2] = estremi.get(v)!;
         const posV = v.p1[k];
-        const daV = Math.min(v.p1[q], v.p2[q]) - TOLLERANZA_MURO;
-        const aV = Math.max(v.p1[q], v.p2[q]) + TOLLERANZA_MURO;
+        const daV = Math.min(v1[q], v2[q]) - TOLLERANZA_MURO;
+        const aV = Math.max(v1[q], v2[q]) + TOLLERANZA_MURO;
         const d = Math.abs(posV - estremo[k]);
         if (d <= TOLLERANZA_MURO + v.spessore / 2 && w.p1[q] >= daV && w.p1[q] <= aV && (migliore === null || d < Math.abs(migliore - estremo[k]))) {
           migliore = posV;
@@ -292,7 +304,7 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
   const locali3 = r.locali.filter((l) => l.contorno.length >= 3);
   if (!locali3.length) throw new ErroreCostruzione("nessun_locale", "Nel documento non ho trovato stanze.");
 
-  const avvisi: string[] = [];
+  const avvisi: string[] = [...(r.avvisi ?? [])];
   let conv: (c: Coppia) => Punto;
   let scala: ScalaPianta;
   let origineForma: (l: LocaleAI) => Origine;
@@ -333,7 +345,7 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
     if (opz.ingresso === "descrizione") {
       avvisi.push("Pianta di esempio costruita dalla descrizione: tutte le misure sono stimate, vanno controllate.");
     } else if (opz.ingresso === "schizzo" && locali3.some((l) => !l.misure_lette)) {
-      avvisi.push("Alcune stanze non avevano misure scritte sullo schizzo: le loro dimensioni sono stimate.");
+      avvisi.push("Alcune dimensioni dello schizzo non sono confermate: quote assenti, poco leggibili o discordanti. Le dimensioni corrispondenti restano stimate.");
     } else if (opz.ingresso === "rilievo") {
       const senza = locali3.filter((l) => !l.misure_lette).map((l) => l.nome);
       avvisi.push("Le misure dettate sono quelle prese sul posto; la posizione delle stanze, delle porte e delle finestre è dedotta: controllala.");
@@ -363,7 +375,7 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
     return { valore: ALTEZZA_LOCALE, origine: "stimata" as Origine };
   });
   if (altezze.some((h) => h.origine === "stimata") && opz.ingresso !== "sopralluogo") {
-    avvisi.push("Altezza dei locali non scritta: ho messo 2,70 m.");
+    avvisi.push("Altezza dei locali non riconosciuta nel documento: ho messo 2,70 m da verificare.");
   }
 
   // Muri
@@ -470,18 +482,35 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
   const origineVani: Origine = scala.metodo === "porte" ? "stimata" : origineMuri;
   const aperture: Apertura[] = vani.map((v, i) => {
     const std = ALTEZZE_APERTURA[v.tipo];
+    const letta = v.sorgente.altezza_m;
+    const davanzaleLetto = v.sorgente.davanzale_m;
+    const haAltezza = typeof letta === "number" && letta >= 0.3 && letta <= altezzaMuri / 100;
+    const haDavanzale = typeof davanzaleLetto === "number" && davanzaleLetto >= 0 && davanzaleLetto <= altezzaMuri / 100 - (haAltezza ? letta : std.h / 100);
+    let verso: Verso | null = null;
+    if (v.tipo !== "varco" && v.sorgente.cardine && v.sorgente.apertura_verso) {
+      const direzioni = { alto: [0, -1], basso: [0, 1], sinistra: [-1, 0], destra: [1, 0] };
+      const [dx, dy] = direzioni[v.sorgente.apertura_verso];
+      const w = muriBuoni[v.muro];
+      const da = conv(v.sorgente.da), a = conv(v.sorgente.a);
+      const concorde = (a.x - da.x) * (w.p2.x - w.p1.x) + (a.y - da.y) * (w.p2.y - w.p1.y) > 0;
+      // Nel modello y cresce verso l'alto: anche la direzione dell'anta va capovolta.
+      const m = muri[v.muro];
+      const cross = (m.p2.x - m.p1.x) * -dy - (m.p2.y - m.p1.y) * dx;
+      if (Math.abs(cross) > 0.01) verso = { cardine: (v.sorgente.cardine === "da") === concorde ? "p1" : "p2", lato: cross > 0 ? "sinistra" : "destra" };
+    }
     return {
       id: `a${i + 1}`,
       muroId: muri[v.muro].id,
       tipo: v.tipo,
       offset: v.inizio,
       larghezza: v.larghezza,
-      altezza: std.h,
-      davanzale: std.davanzale,
+      altezza: haAltezza ? arr(letta * 100) : std.h,
+      davanzale: haDavanzale ? arr(davanzaleLetto * 100) : std.davanzale,
       manovra: v.tipo === "varco" ? "nessuna" : "battente",
-      verso: null as Verso | null,
+      ...(v.tipo !== "varco" && v.sorgente.ante ? { ante: v.sorgente.ante } : {}),
+      verso,
       stato: "esistente",
-      ...origini(origineVani, { altezza: "stimata", davanzale: "stimata" }),
+      ...origini(origineVani, { altezza: haAltezza ? "da_documento" : "stimata", davanzale: haDavanzale ? "da_documento" : "stimata" }),
     };
   });
 

@@ -83,10 +83,10 @@ describe("pianta d'esempio e adattatore", () => {
     expect(v.locali.find((l) => l.id === "l-lavanderia")?.origine).toBe("stimata");
   });
 
-  it("rotazioni: il modello (antiorario, retro in basso a 0°) come il 3D", () => {
-    expect(rotazioneVista(180)).toBe(0);
-    expect(rotazioneVista(0)).toBe(180);
-    expect(rotazioneVista(90)).toBe(90);
+  it("rotazioni: il modello antiorario segue lo stesso verso dell'editor e del 3D", () => {
+    expect(rotazioneVista(180)).toBe(180);
+    expect(rotazioneVista(0)).toBe(0);
+    expect(rotazioneVista(90)).toBe(270);
     expect(tipoElemento("cucina_lineare")).toBe("cucina");
     expect(tipoElemento("Letto matrimoniale")).toBe("letto_matrimoniale");
     expect(tipoElemento("pianoforte")).toBe("generico");

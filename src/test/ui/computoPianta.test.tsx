@@ -143,12 +143,18 @@ describe("«Prendi dalla pianta»", () => {
     expect(arg.righe).toEqual([expect.objectContaining({ descrizione: "Bagno — pavimento", chiavi: ["fatto:locale:bagno.pavimento_mq"], origine: "rilevata" })]);
   });
 
-  it("avvisa se la voce è in un'unità diversa dalla quantità scelta", () => {
+  it("avvisa e impedisce di sommare quantità in un'unità diversa dalla voce", () => {
     render(<OrderComputoTab orderId="o1" companyId="c1" canEdit />);
     apriVoce2();
     fireEvent.click(screen.getByRole("button", { name: "Prendi dalla pianta" }));
     fireEvent.change(screen.getByLabelText("3. Quale quantità"), { target: { value: "battiscopa_ml" } });
     expect(screen.getByText(/La voce è in mq, la quantità scelta è in m/)).toBeInTheDocument();
+    const aggiungiRighe = screen.getByRole("button", { name: /Aggiungi \d+ rig/ });
+    expect(aggiungiRighe).toBeDisabled();
+    fireEvent.click(aggiungiRighe);
+    expect(aggiungi).not.toHaveBeenCalled();
+    expect(screen.queryByText(/La voce passa da/)).toBeNull();
+    expect(screen.getByText(/Totale dalla pianta/)).toBeInTheDocument();
   });
 
   it("non c'è su un computo contrattuale né per chi non può modificare", () => {

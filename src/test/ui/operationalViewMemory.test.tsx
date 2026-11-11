@@ -21,8 +21,8 @@ vi.mock("@/contexts/AuthContext", () => ({
     effectiveCompany: { id: auth.company },
   }),
 }));
-function App() {
-  useOperationalViewMemory("rdo", ["rdo_vista", "rdo_cerca", "rdo_ambito"]);
+function App({ restoreView = true }: { restoreView?: boolean }) {
+  useOperationalViewMemory("rdo", ["rdo_vista", "rdo_cerca", "rdo_ambito"], { restoreView });
   const [params] = useSearchParams();
   const archive = useOperationalArchive("rdo_ambito");
   return (
@@ -38,10 +38,10 @@ function App() {
     </>
   );
 }
-function open(url = "/?tab=offerte") {
+function open(url = "/?tab=offerte", restoreView = true) {
   return render(
     <MemoryRouter initialEntries={[url]}>
-      <App />
+      <App restoreView={restoreView} />
     </MemoryRouter>,
   );
 }
@@ -106,4 +106,12 @@ describe("Preferenze delle viste operative", () => {
     expect(inOperationalScope(true, "all")).toBe(true);
     expect(inOperationalScope(false, "all")).toBe(true);
   });
+});
+
+it("non ripristina la vecchia pipeline quando l'ingresso deve partire dall'elenco", async () => {
+  sessionStorage.setItem("operational-view:u:co:rdo", "rdo_vista=pipeline&rdo_cerca=rame&rdo_ambito=history");
+  open("/?tab=offerte", false);
+  await waitFor(() => expect(screen.getByTestId("url")).toHaveTextContent("rdo_cerca=rame"));
+  expect(screen.getByTestId("url")).not.toHaveTextContent("rdo_vista");
+  expect(screen.getByTestId("url")).toHaveTextContent("rdo_ambito=history");
 });

@@ -1,3 +1,4 @@
+import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
@@ -19,7 +20,6 @@ import { addDays } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { NuovoImpiantoWizard } from "@/components/manutenzione/NuovoImpiantoWizard";
-import { StatTile } from "@/components/common/StatTile";
 import { ExportButton } from "@/components/shared/ExportButton";
 import { ManutenzionePipeline, type ImpiantoStato } from "@/components/manutenzione/ManutenzionePipeline";
 import { ImpiantiTable } from "@/components/manutenzione/ImpiantiTable";
@@ -70,13 +70,10 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
   // Pillola attiva (per STATO, non per tipo): "all" · "urgenti" (scadenza
   // imminente = scadute o in scadenza) · "in_regola" · "senza_piano" · "__contratti__".
   const [pill, setPill] = useState("all");
-  const [vista, setVista] = useState<"tabella" | "kanban">(() => {
-    try { return (localStorage.getItem("manutenzione-vista") as "tabella" | "kanban") || "tabella"; }
-    catch { return "tabella"; }
-  });
+  const [vista, setVista] = useState<"tabella" | "kanban">("tabella");
   const cambiaVista = (v: "tabella" | "kanban") => {
     setVista(v);
-    try { localStorage.setItem("manutenzione-vista", v); } catch { /* private mode */ }
+
   };
   // Selezione righe (come l'assistenza): l'Esporta segue la selezione.
   const [selezionati, setSelezionati] = useState<Set<string>>(new Set());
@@ -130,7 +127,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
 
   // Tutti i piani attivi: servono a dare a ogni impianto la sua prossima
   // manutenzione (e quindi lo stato del kanban), non solo quelli in scadenza.
-  const { data: piani = [], isError: pianiError } = useQuery({
+  const { data: piani = [], isLoading: loadingPiani, isError: pianiError } = useQuery({
     queryKey: ["piani-attivi", effectiveCompany?.id, permissions.onlyAssigned, user?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
@@ -412,14 +409,14 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
         })}
       </div>
 
-      {/* KPI desktop — StatTile come l'assistenza. Su telefono i numeri stanno
-          già nelle pillole in alto (come le assistenze): niente riga in più. */}
-      <div className="hidden grid-cols-2 gap-2 sm:grid sm:grid-cols-4 sm:gap-3">
-        <StatTile label="Impianti" value={impianti.length} tone={impianti.length > 0 ? "blue" : "neutral"} />
-        <StatTile label="Da manutenere" value={nScaduteInScadenza} hint="scadute o in scadenza" tone={nScaduteInScadenza > 0 ? "amber" : "neutral"} />
-        <StatTile label="Contratti attivi" value={contratti.filter((c) => c.stato === "attivo").length} tone={contratti.some((c) => c.stato === "attivo") ? "green" : "neutral"} />
-        <StatTile label="Canoni al mese" value={`${mrr.toLocaleString("it-IT", { maximumFractionDigits: 0, useGrouping: true })} €`} tone={mrr > 0 ? "violet" : "neutral"} />
-      </div>
+      {/* Riepilogo condiviso; i contratti e i canoni restano disponibili sotto. */}
+      <OperationalSummary label="Riepilogo manutenzioni" title="Impianti e scadenze" icon={ClipboardList} error={impiantiError || contrattiError || pianiError} note="Impianti e piani accessibili al tuo utente.">
+        <OperationalSummaryMetric label="Impianti" value={impianti.length} isLoading={loadingImpianti || loadingPiani} onClick={() => setPill("all")} active={pill === "all"} />
+        <OperationalSummaryMetric label="Scadenza imminente" value={nScaduteInScadenza} tone={nScaduteInScadenza > 0 ? "amber" : undefined} isLoading={loadingImpianti || loadingContratti || loadingPiani} onClick={() => setPill("urgenti")} active={pill === "urgenti"} hint="Scadute o in scadenza" />
+        <OperationalSummaryMetric label="In regola" value={contaStato.in_regola} isLoading={loadingImpianti || loadingPiani} onClick={() => setPill("in_regola")} active={pill === "in_regola"} />
+        <OperationalSummaryMetric label="Senza piano" value={contaStato.senza_piano} isLoading={loadingImpianti || loadingPiani} onClick={() => setPill("senza_piano")} active={pill === "senza_piano"} />
+      </OperationalSummary>
+      {!(impiantiError || contrattiError || pianiError) && <details className="rounded-xl border bg-background p-3 text-sm"><summary className="cursor-pointer font-medium">Contratti e canoni</summary><div className="mt-3 grid grid-cols-2 gap-3"><div><p className="text-muted-foreground">Contratti attivi</p><p className="font-semibold">{loadingContratti ? "Caricamento…" : contratti.filter(c => c.stato === "attivo").length}</p></div><div><p className="text-muted-foreground">Canoni al mese</p><p className="font-semibold">{loadingContratti ? "Caricamento…" : `${mrr.toLocaleString("it-IT", { maximumFractionDigits: 0, useGrouping: true })} €`}</p></div></div></details>}
 
       {(impiantiError || contrattiError || pianiError) && (
         <Alert variant="destructive">

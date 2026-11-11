@@ -7,6 +7,7 @@
  */
 import { CostruttoreMesh } from "./costruttore";
 import { CAMPI, definizioneCampo, disegnoCampo, eCampo } from "../campiSport";
+import type { V3 } from "./tipi";
 
 export interface Blocco {
   materiale: string;
@@ -28,27 +29,47 @@ interface ModelloElemento {
 }
 
 const b = (materiale: string, x: number, z: number, y: number, l: number, p: number, h: number): Blocco => ({ materiale, x, z, y, l, p, h });
+const bordoVasca = (l: number, p: number, y: number, h: number, z = 0): Blocco[] => {
+  const s = Math.min(.055, l / 6, p / 6);
+  return [b("ceramica", -l / 2 + s / 2, z, y, s, p, h), b("ceramica", l / 2 - s / 2, z, y, s, p, h), b("ceramica", 0, z - p / 2 + s / 2, y, l - 2 * s, s, h), b("ceramica", 0, z + p / 2 - s / 2, y, l - 2 * s, s, h)];
+};
+const basiCucina = (l: number, p: number, h: number): Blocco[] => {
+  const n = Math.max(1, Math.round(l / .6)), sp = Math.min(.025, p / 6);
+  return [b("laccato", 0, -.02, .1, l, p - .04, h - .14), b("piano_cucina", 0, 0, h - .04, l, p, .04), b("laccato", 0, 0, 0, l * .96, p * .85, .1),
+    ...Array.from({ length: n }, (_, i) => {
+      const x = -l / 2 + (i + .5) * l / n;
+      return [b("laccato", x, p / 2 - sp / 2, .1, l / n - .006, sp, h - .14), b("metallo", x, p / 2 - .008, h * .7, Math.min(.14, l / n * .5), .012, .012)];
+    }).flat()];
+};
 
 export const MODELLI: Record<string, ModelloElemento> = {
   wc: {
     nome: "WC",
     misure: { l: 0.38, p: 0.55, h: 0.4 },
-    blocchi: (l, p, h) => [b("ceramica", 0, 0.05 * p, 0, l * 0.9, p * 0.9, h), b("ceramica", 0, -p / 2 + 0.08, h, l, 0.16, 0.38)],
+    blocchi: (l, p, h) => [b("ceramica", 0, .05 * p, 0, l * .6, p * .65, h * .65), ...bordoVasca(l * .9, p * .75, h * .65, h * .35, .1 * p), b("ceramica", 0, -p / 2 + .08, h, l, .16, .38)],
   },
   bidet: {
     nome: "Bidet",
     misure: { l: 0.38, p: 0.52, h: 0.4 },
-    blocchi: (l, p, h) => [b("ceramica", 0, 0, 0, l * 0.9, p, h)],
+    blocchi: (l, p, h) => [b("ceramica", 0, 0, 0, l * .65, p * .7, h * .65), ...bordoVasca(l * .9, p, h * .65, h * .35), b("metallo", 0, -p * .38, h, .035, .035, .1)],
   },
   lavabo: {
     nome: "Lavabo",
     misure: { l: 0.6, p: 0.45, h: 0.85 },
-    blocchi: (l, p, h) => [b("laccato", 0, -0.02, 0, l * 0.9, p * 0.85, h - 0.15), b("ceramica", 0, 0, h - 0.15, l, p, 0.15)],
+    blocchi: (l, p, h) => [b("laccato", 0, -.02, 0, l * .9, p * .85, h - .15), b("ceramica", 0, 0, h - .15, l, p, .025), ...bordoVasca(l, p, h - .125, .125)],
   },
   doccia: {
     nome: "Doccia",
     misure: { l: 0.8, p: 0.8, h: 2.0 },
-    blocchi: (l, p, h) => [b("ceramica", 0, 0, 0, l, p, 0.05), b("vetro", l / 2 - 0.01, 0, 0.05, 0.02, p, h - 0.05), b("vetro", 0, p / 2 - 0.01, 0.05, l, 0.02, h - 0.05)],
+    blocchi: (l, p, h) => {
+      const s = Math.min(.025, l / 10, p / 10);
+      return [b("ceramica", 0, 0, 0, l, p, .04), ...bordoVasca(l, p, .04, .025),
+        b("metallo", 0, 0, .041, Math.min(.09, l / 4), Math.min(.09, p / 4), .006),
+        b("vetro", l / 2 - s / 2, 0, .065, s, p, h - .065), b("vetro", 0, p / 2 - s / 2, .065, l, s, h - .065),
+        ...[-1, 1].map((z) => b("metallo", l / 2 - s / 2, z * (p / 2 - s / 2), .065, s, s, h - .065)),
+        b("metallo", -l / 2 + s / 2, p / 2 - s / 2, .065, s, s, h - .065),
+        b("metallo", l / 2 - s / 2, 0, h - s, s, p, s), b("metallo", 0, p / 2 - s / 2, h - s, l, s, s)];
+    },
   },
   vasca: {
     nome: "Vasca",
@@ -58,31 +79,41 @@ export const MODELLI: Record<string, ModelloElemento> = {
   letto: {
     nome: "Letto",
     misure: { l: 1.6, p: 2.0, h: 0.5 },
-    blocchi: (l, p, h) => [
-      b("legno", 0, 0, 0, l, p, h * 0.6),
-      b("lenzuola", 0, 0.03, h * 0.6, l * 0.96, p * 0.94, h * 0.4),
-      b("legno", 0, -p / 2 + 0.04, 0, l, 0.08, 1.0),
-    ],
+    blocchi: (l, p, h) => {
+      const cuscini = l >= 1.3 ? 2 : 1;
+      return [b("legno", 0, 0, .06, l, p, h * .42), b("lenzuola", 0, .02 * p, h * .48, l * .96, p * .94, h * .38),
+        b("lenzuola", 0, p * .18, h * .86, l * .97, p * .58, h * .08),
+        ...Array.from({ length: cuscini }, (_, i) => b("lenzuola", (i - (cuscini - 1) / 2) * l / cuscini, -p * .32, h * .86, l * .8 / cuscini, p * .19, h * .14)),
+        b("legno", 0, -p / 2 + .04, 0, l, .08, Math.max(h, 1)),
+        ...[-1, 1].flatMap((x) => [-1, 1].map((z) => b("legno", x * l * .42, z * p * .42, 0, .06, .06, .06)))];
+    },
   },
   comodino: {
     nome: "Comodino",
     misure: { l: 0.45, p: 0.4, h: 0.5 },
-    blocchi: (l, p, h) => [b("legno", 0, 0, 0, l, p, h)],
+    blocchi: (l, p, h) => [b("legno", 0, 0, 0, l, p, h), b("metallo", 0, p / 2 - .008, h * .7, l * .25, .012, .012), b("metallo", 0, p / 2 - .008, h * .32, l * .25, .012, .012)],
   },
   armadio: {
     nome: "Armadio",
     misure: { l: 2.0, p: 0.6, h: 2.3 },
-    blocchi: (l, p, h) => [b("laccato", 0, 0, 0, l, p, h)],
+    blocchi: (l, p, h) => {
+      const ante = Math.max(2, Math.round(l / .6)), s = Math.min(.025, p / 5);
+      return [b("laccato", 0, -s / 2, 0, l, p - s, h), ...Array.from({ length: ante }, (_, i) => {
+        const x = -l / 2 + l / ante * (i + .5);
+        return [b("laccato", x, p / 2 - s / 2, .02, l / ante - .006, s, h - .04), b("metallo", x + l / ante * .34, p / 2 - .008, h * .42, .012, .012, Math.min(.18, h * .12))];
+      }).flat()];
+    },
   },
   divano: {
     nome: "Divano",
     misure: { l: 2.2, p: 0.9, h: 0.85 },
-    blocchi: (l, p, h) => [
-      b("tessuto", 0, 0.05, 0, l - 0.3, p - 0.1, 0.42),
-      b("tessuto", 0, -p / 2 + 0.11, 0, l, 0.22, h),
-      b("tessuto", -l / 2 + 0.08, 0.05, 0, 0.16, p - 0.1, 0.6),
-      b("tessuto", l / 2 - 0.08, 0.05, 0, 0.16, p - 0.1, 0.6),
-    ],
+    blocchi: (l, p, h) => {
+      const posti = Math.max(2, Math.round(l / .75)), braccio = Math.min(.16, l * .1), seduta = h * .5;
+      return [b("tessuto", 0, 0, .08, l, p, seduta * .65), b("tessuto", 0, -p / 2 + p * .11, seduta * .65, l, p * .22, h - seduta * .65),
+        ...Array.from({ length: posti }, (_, i) => b("tessuto", -(l - 2 * braccio) / 2 + (i + .5) * (l - 2 * braccio) / posti, p * .1, seduta * .65, (l - 2 * braccio) / posti - .012, p * .76, seduta * .35)),
+        ...[-1, 1].map((x) => b("tessuto", x * (l / 2 - braccio / 2), 0, .08, braccio, p, Math.min(h * .7, h - .08))),
+        ...[-1, 1].flatMap((x) => [-1, 1].map((z) => b("legno", x * l * .42, z * p * .38, 0, .06, .06, .08)))];
+    },
   },
   tavolo: {
     nome: "Tavolo",
@@ -93,20 +124,36 @@ export const MODELLI: Record<string, ModelloElemento> = {
       return [b("legno", 0, 0, h - 0.04, l, p, 0.04), ...gambe];
     },
   },
+  scrivania: {
+    nome: "Scrivania",
+    misure: { l: 1.2, p: 0.6, h: 0.75 },
+    blocchi: (l, p, h) => {
+      const g = Math.min(.05, l / 8, p / 8), piano = Math.min(.04, h / 5);
+      return [b("laccato", 0, 0, h - piano, l, p, piano), ...[-1, 1].flatMap((x) => [-1, 1].map((z) => b("laccato", x * (l / 2 - g), z * (p / 2 - g), 0, g, g, h - piano)))];
+    },
+  },
   sedia: {
     nome: "Sedia",
     misure: { l: 0.45, p: 0.5, h: 0.9 },
-    blocchi: (l, p, h) => [b("legno", 0, 0, 0.42, l, p, 0.05), b("legno", 0, -p / 2 + 0.02, 0.47, l, 0.04, h - 0.47), b("legno", 0, 0, 0, l * 0.8, p * 0.8, 0.42)],
+    blocchi: (l, p, h) => {
+      const seduta = h * .47, g = Math.min(.045, l / 8, p / 8);
+      return [b("legno", 0, 0, seduta, l, p, .04), b("legno", 0, -p / 2 + .02, seduta + .04, l, .04, Math.max(.01, h - seduta - .04)), ...[-1, 1].flatMap((x) => [-1, 1].map((z) => b("legno", x * (l / 2 - g), z * (p / 2 - g), 0, g, g, seduta)))];
+    },
   },
   cucina: {
     nome: "Cucina",
     misure: { l: 2.4, p: 0.6, h: 0.9 },
-    blocchi: (l, p, h) => [b("laccato", 0, -0.02, 0.1, l, p - 0.04, h - 0.14), b("piano_cucina", 0, 0, h - 0.04, l, p, 0.04)],
+    blocchi: (l, p, h) => basiCucina(l, p, h),
   },
   frigorifero: {
     nome: "Frigorifero",
     misure: { l: 0.6, p: 0.65, h: 1.85 },
-    blocchi: (l, p, h) => [b("metallo", 0, 0, 0, l, p, h)],
+    blocchi: (l, p, h) => [b("metallo", 0, 0, 0, l, p, h), b("piano_cucina", 0, p / 2 - .003, h * .27, l * .94, .006, .008), b("metallo", l * .35, p / 2 - .005, h * .46, .018, .01, h * .18)],
+  },
+  lavatrice: {
+    nome: "Lavatrice",
+    misure: { l: .6, p: .6, h: .85 },
+    blocchi: (l, p, h) => [b("laccato", 0, 0, 0, l, p, h), b("metallo", 0, p / 2 + .002, h * .87, l * .9, .008, h * .08), b("vetro", 0, p / 2 + .004, h * .25, l * .65, .012, h * .45)],
   },
   // ─── nuovi arredi ───
   divano_angolare: {
@@ -130,12 +177,15 @@ export const MODELLI: Record<string, ModelloElemento> = {
   mobile_tv: {
     nome: "Mobile TV",
     misure: { l: 1.8, p: 0.45, h: 0.5 },
-    blocchi: (l, p, h) => [b("laccato", 0, 0, 0.05, l, p, h - 0.05), b("piano_cucina", 0, -p / 2 + 0.05, h + 0.25, Math.min(l * 0.7, 1.3), 0.04, 0.75)],
+    blocchi: (l, p, h) => [b("laccato", 0, 0, .05, l, p, h - .05), b("metallo", 0, 0, h, .22, .18, .06), b("schermo", 0, 0, h + .06, Math.min(l * .72, 1.3), .035, .75)],
   },
   libreria: {
     nome: "Libreria",
     misure: { l: 1.6, p: 0.35, h: 2.0 },
-    blocchi: (l, p, h) => [b("legno", 0, 0, 0, l, p, h)],
+    blocchi: (l, p, h) => {
+      const s = Math.min(.025, l / 10, p / 5, h / 10), ripiani = Math.max(2, Math.round(h / .4));
+      return [b("legno", -l / 2 + s / 2, 0, 0, s, p, h), b("legno", l / 2 - s / 2, 0, 0, s, p, h), ...Array.from({ length: ripiani + 1 }, (_, i) => b("legno", 0, 0, (h - s) * i / ripiani, l - 2 * s, p, s))];
+    },
   },
   tavolo_rotondo: {
     nome: "Tavolo rotondo",
@@ -148,8 +198,8 @@ export const MODELLI: Record<string, ModelloElemento> = {
     blocchi: (l, p, h) => {
       const pr = Math.min(p, 0.62);
       return [
-        b("laccato", 0, -p / 2 + pr / 2, 0.1, l, pr - 0.04, h - 0.14), b("piano_cucina", 0, -p / 2 + pr / 2, h - 0.04, l, pr, 0.04),
-        b("laccato", -l / 2 + pr / 2, pr / 2, 0.1, pr - 0.04, p - pr, h - 0.14), b("piano_cucina", -l / 2 + pr / 2, pr / 2, h - 0.04, pr, p - pr, 0.04),
+        ...basiCucina(l, pr, h).map((v) => ({ ...v, z: v.z - p / 2 + pr / 2 })),
+        ...basiCucina(p - pr, pr, h).map((v) => ({ ...v, x: -l / 2 + pr / 2 + v.z, z: pr / 2 - v.x, girata: -Math.PI / 2 })),
         b("laccato", 0, -p / 2 + 0.18, 1.45, l, 0.35, 0.7),
       ];
     },
@@ -398,11 +448,32 @@ function costruisciCampo(tipo: string, centro: { x: number; z: number }, rotazio
   for (const pr of g.pareti) tratto(pr.a, pr.b, pr.vetro ? "vetro" : "recinzione", 0, 0.05, m(pr.altezza));
 }
 
-export function modelloElemento(tipo: string): ModelloElemento {
+export function chiaveModelloElemento(tipo: string): string | null {
   const t = tipo.toLowerCase();
-  if (MODELLI[t]) return MODELLI[t];
-  const parola = t.split(/[_\s-]+/).find((p) => MODELLI[p]);
-  return parola ? MODELLI[parola] : GENERICO;
+  return MODELLI[t] ? t : t.split(/[_\s-]+/).find((p) => MODELLI[p]) ?? null;
+}
+
+export function modelloElemento(tipo: string): ModelloElemento {
+  const chiave = chiaveModelloElemento(tipo);
+  return chiave ? MODELLI[chiave] : GENERICO;
+}
+
+/** Vaschetta e piedistallo distinguibili da un mobile, negli stessi ingombri del simbolo. */
+function costruisciSanitario(tipo: "wc" | "bidet", centro: { x: number; z: number }, r: number, l: number, p: number, h: number, costruttore: (materiale: string) => CostruttoreMesh) {
+  const c = costruttore("ceramica"), cos = Math.cos(r), sin = Math.sin(r), zc = tipo === "wc" ? p * .06 : 0;
+  const mondo = (x: number, z: number, y: number): V3 => [centro.x + x * cos - z * sin, y, centro.z + x * sin + z * cos];
+  const normale = (x: number, z: number): V3 => [x * cos - z * sin, 0, x * sin + z * cos];
+  const anello = (rx: number, rz: number, y: number) => Array.from({ length: 20 }, (_, i) => mondo(rx * Math.cos(i * Math.PI / 10), zc + rz * Math.sin(i * Math.PI / 10), y));
+  const base = anello(l * .28, p * .29, 0), esterno = anello(l * (tipo === "wc" ? .45 : .5), p * (tipo === "wc" ? .44 : .5), h), interno = anello(l * .32, p * .29, h), fondo = anello(l * .21, p * .20, h * .52);
+  for (let i = 0; i < 20; i++) {
+    const j = (i + 1) % 20, angolo = (i + .5) * Math.PI / 10, nx = Math.cos(angolo), nz = Math.sin(angolo);
+    c.poligono([base[i], base[j], esterno[j], esterno[i]], normale(nx, nz));
+    c.poligono([esterno[i], esterno[j], interno[j], interno[i]], [0, 1, 0]);
+    c.poligono([interno[i], interno[j], fondo[j], fondo[i]], normale(-nx, -nz));
+  }
+  c.poligono(fondo, [0, 1, 0]);
+  if (tipo === "wc") c.scatola(centro.x, centro.z, h, l, .16, .38, r, 0, -p / 2 + .08);
+  else costruttore("metallo").scatola(centro.x, centro.z, h, .035, .035, .1, r, 0, -p * .38);
 }
 
 /**
@@ -421,6 +492,7 @@ export function costruisciElemento(
   const l = misure.l ?? modello.misure.l;
   const p = misure.p ?? modello.misure.p;
   const h = misure.h ?? modello.misure.h;
+  if (modello === MODELLI.wc || modello === MODELLI.bidet) return costruisciSanitario(modello === MODELLI.wc ? "wc" : "bidet", centro, rotazione, l, p, h, costruttore);
   for (const bl of modello.blocchi(l, p, h, { senzaCabina: misure.senzaCabina, interpiano: misure.interpiano })) {
     costruttore(bl.materiale).scatola(centro.x, centro.z, bl.y, bl.l, bl.p, bl.h, rotazione, bl.x, bl.z, bl.girata ?? 0);
   }

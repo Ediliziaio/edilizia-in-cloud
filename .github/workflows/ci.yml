@@ -134,6 +134,9 @@ jobs:
       - name: Run critical tests
         run: bun run test:critical
 
+      - name: Run floorplan, 3D orientation and document verification regressions
+        run: bun run test:planimetrie
+
       - name: Verify photovoltaic quotes, PDF templates and rental isolation
         run: bun run test:fotovoltaico
 
@@ -185,6 +188,27 @@ jobs:
           src/test/ui/acquistiStorico.test.tsx
           src/test/ui/acquistiAnteprima.test.tsx
 
+      - name: Run operational selection, summaries and detail regressions
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/logic/azioniMultipleOperative.test.ts
+          src/test/logic/eliminazioneDocumentiSql.test.ts
+          src/test/logic/anomalieGestione.test.ts
+          src/test/logic/provvigioniContrattoIncassi.test.ts
+          src/test/logic/pipelineTransitions.test.ts
+          src/test/logic/pipelineTransitionPersistence.test.ts
+          src/test/ui/selezioneEliminazioneDocumenti.test.tsx
+          src/test/ui/operationalBoards.test.tsx
+          src/test/ui/supplyDocumentBoards.test.tsx
+          src/test/ui/operationalSummary.test.tsx
+          src/test/ui/operationalViewMemory.test.tsx
+          src/test/ui/acquistiPermessi.test.tsx
+          src/test/ui/acquistiStorico.test.tsx
+          src/test/ui/anomaliePopupGestione.test.tsx
+          src/test/ui/anomalieRegistro.test.tsx
+          src/test/ui/provvigioniElencoOperativo.test.tsx
+          src/test/ui/provvigioniPopupContratto.test.tsx
+
       - name: Run DDT ingestion, deliveries and invoice valuation regressions
         run: >-
           bunx vitest run --maxWorkers=2
@@ -233,6 +257,8 @@ jobs:
           bunx vitest run --maxWorkers=2
           src/test/logic/rapportiniMese.test.ts
           src/test/logic/leggiRapportiniMese.test.ts
+          src/test/logic/documentiCantiere.test.ts
+          src/test/logic/leggiGiornaliPeriodo.test.ts
           src/test/logic/rapportiniPeriodoEconomia.test.ts
           src/test/logic/destinatarioRapporto.test.ts
           src/test/logic/documentiOperativi.test.ts

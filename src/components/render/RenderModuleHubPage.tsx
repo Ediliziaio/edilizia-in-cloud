@@ -1,54 +1,11 @@
-import { classificaBozzeRender } from "@/lib/render/renderDrafts";
-import { loadRenderPlanOrigins, type RenderPlanOrigin } from "@/lib/render/renderPlanOrigin";
-import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import type { LucideIcon } from "lucide-react";
-import {
-  AlertTriangle,
-  ArrowRight,
-  CheckCircle2,
-  Clock,
-  GalleryHorizontalEnd,
-  Image,
-  Link2,
-  Plus,
-  Search,
-  SlidersHorizontal,
-  UserRound,
-  Zap,
-  XCircle,
-} from "lucide-react";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
-import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
+import { RenderCreditsWidget } from "./RenderCreditsWidget";
+import { RenderArchivePanel } from "./RenderArchivePanel";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
-import {
-  loadRenderGalleryMeta,
-  resolveRenderGalleryMeta,
-  type RenderGalleryMeta,
-} from "@/lib/render/renderGalleryMeta";
-import {
-  formatRenderAge,
-  isRenderStale,
-  normalizeRenderStatus,
-  type RenderStatusKey,
-} from "@/lib/render/renderStatus";
-
-const STATUS_CONFIG: Record<RenderStatusKey, { label: string; color: "default" | "secondary" | "destructive" | "outline"; icon: LucideIcon }> = {
-  draft: { label: "Da completare", color: "outline", icon: Clock },
-  pending: { label: "In coda", color: "secondary", icon: Clock },
-  processing: { label: "In elaborazione", color: "default", icon: Zap },
-  completed: { label: "Completato", color: "secondary", icon: CheckCircle2 },
-  failed: { label: "Errore", color: "destructive", icon: XCircle },
-};
+import { useRenderHistory } from "@/lib/render/renderHistory";
 
 export type RenderModuleHubStep = {
   icon: LucideIcon;
@@ -82,506 +39,91 @@ export type RenderModuleHubConfig = {
   imageFit?: "cover" | "contain";
 };
 
-type RecentRenderRow = {
-  id: string;
-  status: string;
-  result_url: string | null;
-  result_urls: string[] | null;
-  created_at: string;
-  render_type: string;
-  created_by: string | null;
-  contact_id: string | null;
-  opportunity_id: string | null;
-  meta: RenderGalleryMeta;
-  planOrigin?: RenderPlanOrigin;
-};
-
-const getRenderDate = (value: string) => {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? "Data non disponibile"
-    : format(date, "d MMM yyyy, HH:mm", { locale: it });
-};
-
 export function RenderModuleHubPage({
   moduleId,
   moduleName,
-  breadcrumbLabel,
-  badgeLabel,
   title,
   description,
-  icon: ModuleIcon,
-  accentClassName,
+  icon: Icon,
   iconBgClassName,
   newPath,
-  galleryPath,
   newButtonLabel = "Nuovo render",
-  galleryButtonLabel = "Apri galleria",
   workflow,
   qualityCards,
-  emptyTitle,
-  emptyDescription,
-  sessionTitle = "Sessioni di lavoro",
-  sessionDescription = "Filtra per stato, CRM, data, autore o collegamento commerciale.",
-  recentDescription = "Anteprime completate salvate in galleria.",
-  unavailableTitle = "Generazione non ancora collegata",
-  unavailableDescription = "Il motore tecnico e pronto, ma il flusso di generazione non e ancora esposto in produzione.",
-  imageFit = "cover",
 }: RenderModuleHubConfig) {
-  const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
+  const navigate = useNavigate();
   const companyId = effectiveCompany?.id;
-  const [sessionSearch, setSessionSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [crmFilter, setCrmFilter] = useState("all");
-
-  const { data: sessions = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ["render-module-hub", companyId, moduleId],
-    queryFn: async () => {
-      if (!companyId) return [] as RecentRenderRow[];
-      const { data, error } = await supabase
-        .from("company_renders_recent" as never)
-        .select("id,status,result_url,result_urls,created_at,render_type,created_by,contact_id,opportunity_id" as never)
-        .eq("company_id", companyId)
-        .eq("render_type", moduleId)
-        .order("created_at", { ascending: false })
-        .limit(24);
-
-      if (error) throw error;
-      const rows = await classificaBozzeRender((data ?? []) as unknown as Omit<RecentRenderRow, "meta">[], companyId);
-      const [metaMaps, origins] = await Promise.all([loadRenderGalleryMeta(rows), loadRenderPlanOrigins(rows, companyId)]);
-      return rows.map((row) => ({
-        ...row,
-        meta: resolveRenderGalleryMeta(row, metaMaps),
-        planOrigin: origins[row.id],
-      }));
-    },
-    enabled: !!companyId,
-    refetchInterval: (query) =>
-      (query.state.data as Array<{ status: string }> | undefined)?.some((item) => normalizeRenderStatus(item.status) === "processing")
-        ? 12_000
-        : false,
-  });
-
-  const stats = useMemo(() => {
-    const completed = sessions.filter((item) => normalizeRenderStatus(item.status) === "completed").length;
-    const processing = sessions.filter((item) => {
-      const status = normalizeRenderStatus(item.status);
-      return status === "processing" || status === "pending";
-    }).length;
-    const linked = sessions.filter((item) => item.contact_id || item.opportunity_id).length;
-    return { total: sessions.length, completed, processing, linked };
-  }, [sessions]);
-
-  const filteredSessions = useMemo(() => {
-    const needle = sessionSearch.trim().toLowerCase();
-    return sessions.filter((session) => {
-      const status = normalizeRenderStatus(session.status);
-      const linked = Boolean(session.contact_id || session.opportunity_id);
-      const haystack = [
-        status,
-        getRenderDate(session.created_at),
-        session.meta.createdByName,
-        session.meta.contactName,
-        session.meta.opportunityName,
-        session.planOrigin?.roomName,
-        session.planOrigin?.projectTitle,
-      ].filter(Boolean).join(" ").toLowerCase();
-
-      return (!needle || haystack.includes(needle)) &&
-        (statusFilter === "all" || status === statusFilter ||
-          (statusFilter === "stale" && isRenderStale(session.status, session.created_at))) &&
-        (crmFilter === "all" || (crmFilter === "linked" ? linked : !linked));
-    });
-  }, [crmFilter, sessionSearch, sessions, statusFilter]);
-
-  const completedPreviews = sessions
-    .filter((item) => normalizeRenderStatus(item.status) === "completed" && (item.result_url || item.result_urls?.[0]))
-    .slice(0, 6);
-
-  const detailPath = (id: string) => galleryPath ? `${galleryPath}/${id}` : null;
-  const hasProcessing = sessions.some((item) => {
-    const status = normalizeRenderStatus(item.status);
-    return status === "processing" || status === "pending";
-  });
-  const staleSessions = sessions.filter((item) => isRenderStale(item.status, item.created_at));
-
-  const statsAvailable = Boolean(companyId) && !isLoading && !isError;
-
-  const statCards = [
-    { label: "Render recenti", value: stats.total, icon: GalleryHorizontalEnd },
-    { label: "Completati", value: stats.completed, icon: CheckCircle2 },
-    { label: "In attesa o elaborazione", value: stats.processing, icon: Zap },
-    { label: "Collegati CRM", value: stats.linked, icon: Link2 },
-  ];
-
+  const history = useRenderHistory(companyId, moduleId);
+  const start = newPath ? () => navigate(newPath) : undefined;
   return (
-    // Telefono: nome del modulo e crediti su una riga, «Nuovo render» che riempie
-    // la riga con la galleria a icona, anteprime 2 per riga e sessioni a righe.
-    // Niente slogan, spiegazioni, riquadro statistiche e filtro CRM.
-    <div className="space-y-8 max-md:space-y-3">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground max-md:hidden">
-        <Link to="/azienda/render" className="hover:text-foreground">Render AI</Link>
-        <span>/</span>
-        <span className="text-foreground">{breadcrumbLabel}</span>
-      </div>
-
-      <section className="overflow-hidden rounded-2xl border bg-[linear-gradient(135deg,#f8fbff_0%,#eef6ff_48%,#f7fbf4_100%)] p-5 shadow-sm sm:p-7 max-md:rounded-none max-md:border-0 max-md:bg-none max-md:p-0 max-md:shadow-none">
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center max-md:gap-0">
+    <div className="space-y-5 sm:space-y-7">
+      <Button asChild variant="ghost" size="sm" className="-ml-3">
+        <Link to="/azienda/render">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Tutti i render
+        </Link>
+      </Button>
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <span
+            className={`hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl sm:flex ${iconBgClassName}`}
+          >
+            <Icon className="h-6 w-6" />
+          </span>
           <div>
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/15 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary shadow-sm max-md:hidden">
-              <ModuleIcon className={`h-3.5 w-3.5 ${accentClassName}`} />
-              {badgeLabel}
-            </div>
-            <h1 className="max-w-3xl text-3xl font-bold leading-tight text-slate-950 sm:text-4xl max-md:hidden">
-              {title}
-            </h1>
-            <div className="hidden items-center justify-between gap-2 max-md:flex">
-              <h1 className="truncate text-lg font-bold text-slate-950">{moduleName}</h1>
-              <RenderCreditsWidget />
-            </div>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 max-md:hidden">
+            <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
               {description}
             </p>
-            <div className="mt-5 flex flex-wrap gap-2 max-md:mt-2 max-md:flex-nowrap">
-              {newPath ? (
-                <Button size="lg" className="gap-2 shadow-sm max-md:h-10 max-md:flex-1" onClick={() => navigate(newPath)}>
-                  <Plus className="h-4 w-4" />
-                  {newButtonLabel}
-                </Button>
-              ) : (
-                <Badge variant="outline" className="h-11 rounded-md bg-white/80 px-4 text-sm text-slate-700">
-                  {unavailableTitle}
-                </Badge>
-              )}
-              {galleryPath && (
-                <Button
-                  variant="outline"
-                  size="lg"
-                  aria-label={galleryButtonLabel}
-                  className="gap-2 bg-white/80 max-md:h-10 max-md:w-10 max-md:shrink-0 max-md:px-0"
-                  onClick={() => navigate(galleryPath)}
-                >
-                  <GalleryHorizontalEnd className="h-4 w-4" />
-                  <span className="max-md:hidden">{galleryButtonLabel}</span>
-                </Button>
-              )}
-            </div>
-            {!newPath && (
-              <p className="mt-3 max-w-2xl text-xs leading-5 text-slate-500 max-md:hidden">
-                {unavailableDescription}
-              </p>
-            )}
-          </div>
-
-          <div className="rounded-2xl border bg-white/90 p-4 shadow-sm max-md:hidden">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold">Credito render</p>
-                <p className="text-xs text-muted-foreground">Disponibilita prima della generazione</p>
-              </div>
-              <RenderCreditsWidget />
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              {statCards.map(({ label, value, icon: Icon }) => (
-                <div key={label} role="group" aria-label={label} className="rounded-xl border bg-slate-50/80 p-3">
-                  <Icon className={`mb-2 h-4 w-4 ${accentClassName}`} />
-                  <p className="text-xl font-bold leading-none">{statsAvailable ? value : "—"}</p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">{label}</p>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
-      </section>
-
-      {/* Sezioni descrittive (workflow + qualità): vetrina → solo desktop, così
-          su mobile si arriva subito a "Render recenti" e "Sessioni". */}
-      <section className="hidden md:block">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          Come funziona
-        </h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {workflow.map(({ icon: Icon, title: stepTitle, description: stepDescription }) => (
-            <Card key={stepTitle} className="bg-muted/20">
-              <CardContent className="flex flex-col gap-2 py-4">
-                <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${iconBgClassName}`}>
-                  <Icon className={`h-4 w-4 ${accentClassName}`} />
-                </div>
-                <p className="text-xs font-semibold">{stepTitle}</p>
-                <p className="text-xs leading-relaxed text-muted-foreground">{stepDescription}</p>
-              </CardContent>
-            </Card>
+        <div className="flex items-center gap-2">
+          <RenderCreditsWidget />
+          {start && (
+            <Button onClick={start} size="sm">
+              <Plus className="mr-1.5 h-4 w-4" />
+              {newButtonLabel}
+            </Button>
+          )}
+        </div>
+      </header>
+      <RenderArchivePanel
+        key={`${companyId}:${moduleId}`}
+        title={`Archivio ${moduleName.toLowerCase()}`}
+        modules={[{ id: moduleId, title: moduleName }]}
+        items={history.items}
+        companyId={companyId}
+        total={history.total}
+        isLoading={history.isLoading}
+        isFetching={history.isFetching}
+        error={history.isError && !history.items.length ? history.error : null}
+        onRefresh={() => {
+          void history.refetch();
+        }}
+        hasMore={history.hasNextPage}
+        loadingMore={history.isFetchingNextPage}
+        moreError={history.isFetchNextPageError}
+        scanning={history.scanAll}
+        onLoadMore={() => {
+          void history.fetchNextPage();
+        }}
+        onExpandHistory={history.expandHistory}
+        onNewRender={start}
+      />
+      <details className="rounded-xl border p-4">
+        <summary className="cursor-pointer text-sm font-medium">
+          Come ottenere un buon risultato
+        </summary>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[...workflow, ...qualityCards].map((step, index) => (
+            <div key={index} className="text-sm">
+              <p className="font-medium">{step.title}</p>
+              <p className="mt-1 text-muted-foreground">{step.description}</p>
+            </div>
           ))}
         </div>
-      </section>
-
-      <section className="hidden md:grid gap-3 lg:grid-cols-3">
-        {qualityCards.map(({ icon: Icon, title: cardTitle, description: cardDescription }) => (
-          <Card key={cardTitle} className="border-primary/10 bg-primary/[0.03]">
-            <CardContent className="flex gap-3 p-4">
-              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${iconBgClassName}`}>
-                <Icon className={`h-4 w-4 ${accentClassName}`} />
-              </div>
-              <div>
-                <p className="text-sm font-semibold">{cardTitle}</p>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{cardDescription}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </section>
-
-      {(completedPreviews.length > 0 || isLoading) && (
-        <section className="space-y-3 max-md:space-y-2">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
-                Render recenti
-              </h2>
-              <p className="text-xs text-muted-foreground max-md:hidden">{recentDescription}</p>
-            </div>
-            {galleryPath && completedPreviews.length > 0 && (
-              <Button variant="ghost" size="sm" className="gap-1 max-md:h-8 max-md:px-2 max-md:text-xs" onClick={() => navigate(galleryPath)}>
-                Vedi tutti
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Button>
-            )}
-          </div>
-          {isLoading ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {[1, 2, 3].map((item) => <Skeleton key={item} className="aspect-[16/10] rounded-xl" />)}
-            </div>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 max-md:grid-cols-2 max-md:gap-2">
-              {completedPreviews.map((item) => {
-                const path = detailPath(item.id);
-                // 2026-05-27 (UX audit): fallback su result_urls[0] per render
-                // tecnici che salvano l'array invece di result_url singolo.
-                // Skip tile se nessuno dei due è disponibile (era un tile
-                // rotto con src vuoto e bordo grigio = confonde l'utente).
-                const previewUrl = item.result_url ?? item.result_urls?.[0] ?? null;
-                if (!previewUrl) return null;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className="group relative aspect-[16/10] overflow-hidden rounded-xl border bg-muted text-left shadow-sm transition-all hover:border-primary/40 hover:shadow-md"
-                    onClick={() => path && navigate(path)}
-                    disabled={!path}
-                  >
-                    <img
-                      src={previewUrl}
-                      alt={`Render ${item.planOrigin?.roomName ?? moduleName}`}
-                      className={`h-full w-full ${imageFit === "contain" ? "object-contain" : "object-cover"} transition-transform duration-300 group-hover:scale-105`}
-                      loading="lazy"
-                      decoding="async"
-                    />
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3 max-md:p-2">
-                      {item.planOrigin && <p className="truncate text-sm font-semibold text-white">{item.planOrigin.roomName} · Da planimetria</p>}
-                      <p className="text-xs font-medium text-white max-md:text-[11px]">{getRenderDate(item.created_at)}</p>
-                      <Badge className="mt-1 border-0 bg-white/90 text-[10px] text-slate-900 max-md:hidden">
-                        {moduleName}
-                      </Badge>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      )}
-
-      {statsAvailable && staleSessions.length > 0 && (
-        <Card className="border-orange-200 bg-orange-50/75">
-          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between max-md:flex-row max-md:items-center max-md:gap-2 max-md:px-3 max-md:py-2">
-            <div className="flex items-start gap-3 max-md:min-w-0 max-md:gap-2">
-              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-orange-700 max-md:h-4 max-md:w-4" />
-              <div className="max-md:min-w-0">
-                <p className="text-sm font-semibold text-orange-950 max-md:text-[13px]">Render da controllare</p>
-                <p className="text-sm text-orange-800 max-md:text-[11px]">
-                  {staleSessions.length} session{staleSessions.length === 1 ? "e" : "i"} non concluse create da oltre 30 minuti.
-                  Creazione più recente {formatRenderAge(staleSessions[0]?.created_at)}.
-                  Possono includere foto caricate senza avviare il render: questa età non misura il tempo di elaborazione.
-                </p>
-              </div>
-            </div>
-            <Button variant="outline" size="sm" className="border-orange-200 bg-white/80 max-md:h-8 max-md:shrink-0 max-md:px-2.5 max-md:text-xs" onClick={() => setStatusFilter("stale")}>
-              <span className="max-md:hidden">Mostra da verificare</span>
-              <span className="hidden max-md:inline">Mostrali</span>
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      <section className="space-y-3 max-md:space-y-2">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between max-md:gap-2">
-          <div>
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
-              {sessionTitle}
-              {hasProcessing && (
-                <span className={`ml-2 inline-flex items-center gap-1 ${accentClassName}`}>
-                  <Zap className="h-3 w-3 animate-pulse" />
-                  Sessioni non concluse
-                </span>
-              )}
-            </h2>
-            <p className="mt-1 text-xs text-muted-foreground max-md:hidden">{sessionDescription}</p>
-          </div>
-          {sessions.length > 0 && (
-            <div className="grid gap-2 sm:grid-cols-[minmax(220px,1fr)_150px_160px] lg:w-[680px] max-sm:grid-cols-[minmax(0,1fr)_130px]">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={sessionSearch}
-                  onChange={(event) => setSessionSearch(event.target.value)}
-                  className="pl-9"
-                  aria-label="Cerca sessioni render"
-                  placeholder="Cerca sessioni..."
-                />
-              </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger aria-label="Filtra sessioni render per stato"><SelectValue placeholder="Stato" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutti gli stati</SelectItem>
-                  <SelectItem value="stale">Da verificare</SelectItem>
-                  <SelectItem value="completed">Completati</SelectItem>
-                  <SelectItem value="processing">In elaborazione</SelectItem>
-                  <SelectItem value="pending">In coda</SelectItem>
-                  <SelectItem value="draft">Da completare</SelectItem>
-                  <SelectItem value="failed">Errori</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={crmFilter} onValueChange={setCrmFilter}>
-                <SelectTrigger aria-label="Filtra sessioni render per collegamento CRM" className="max-sm:hidden"><SelectValue placeholder="CRM" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutti CRM</SelectItem>
-                  <SelectItem value="linked">Collegati</SelectItem>
-                  <SelectItem value="unlinked">Non collegati</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-        </div>
-
-        {isLoading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((item) => <Skeleton key={item} className="h-24 w-full rounded-xl" />)}
-          </div>
-        ) : isError ? (
-          <Card>
-            <CardContent className="space-y-3 py-6" role="alert">
-              <p>Impossibile caricare le sessioni render. I render salvati non sono stati cancellati.</p>
-              <Button variant="outline" onClick={() => void refetch()}>Riprova caricamento</Button>
-            </CardContent>
-          </Card>
-        ) : sessions.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center gap-4 py-14 text-center max-md:gap-0 max-md:py-4">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted max-md:hidden">
-                <ModuleIcon className="h-8 w-8 text-muted-foreground/40" />
-              </div>
-              <div>
-                <p className="font-medium max-md:text-[13px]">{emptyTitle}</p>
-                <p className="mt-1 text-sm text-muted-foreground max-md:hidden">{emptyDescription}</p>
-              </div>
-              {newPath && (
-                <Button onClick={() => navigate(newPath)} className="max-md:hidden">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Crea il primo render
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        ) : filteredSessions.length === 0 ? (
-          <Card>
-            <CardContent className="py-10 text-center">
-              <SlidersHorizontal className="mx-auto h-10 w-10 text-muted-foreground/35" />
-              <p className="mt-3 font-medium">Nessuna sessione con questi filtri</p>
-              <p className="mt-1 text-sm text-muted-foreground">Riduci i filtri o prova una ricerca diversa.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-3 max-md:gap-2">
-            {filteredSessions.map((session) => {
-              const status = normalizeRenderStatus(session.status);
-              const cfg = STATUS_CONFIG[status];
-              const Icon = cfg.icon;
-              const resultUrl = session.result_url ?? session.result_urls?.[0] ?? null;
-              const path = detailPath(session.id);
-              const content = (
-                <Card
-                  className="transition-colors hover:border-primary/40 hover:bg-muted/20"
-                >
-                  <CardContent className="grid gap-3 p-3 sm:grid-cols-[96px_minmax(0,1fr)_auto] sm:items-center max-sm:grid-cols-[64px_minmax(0,1fr)] max-sm:items-center max-sm:gap-2.5 max-sm:p-2">
-                    <div className="h-20 overflow-hidden rounded-xl bg-muted sm:h-16 max-sm:h-12 max-sm:rounded-lg">
-                      {resultUrl ? (
-                        <img
-                          src={resultUrl}
-                          alt={`Render ${moduleName}`}
-                          className={`h-full w-full ${imageFit === "contain" ? "object-contain" : "object-cover"}`}
-                          loading="lazy"
-                          decoding="async"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center">
-                          <Image className="h-5 w-5 text-muted-foreground/40" />
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="min-w-0">
-                      {session.planOrigin && <p className="mb-1 truncate text-sm font-semibold">{session.planOrigin.roomName} · {session.planOrigin.projectTitle ?? "Da planimetria"}</p>}
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <Badge variant={cfg.color} className="h-5 gap-1 text-xs">
-                          <Icon className="h-2.5 w-2.5" />
-                          {cfg.label}
-                        </Badge>
-                        <Badge variant="outline" className="h-5 text-xs max-md:hidden">
-                          {moduleName}
-                        </Badge>
-                        {(session.contact_id || session.opportunity_id) && (
-                          <Badge variant="secondary" className="h-5 gap-1 text-xs">
-                            <Link2 className="h-3 w-3" />
-                            CRM
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground max-md:mt-1 max-md:gap-x-2 max-md:text-[11px]">
-                        <span>{getRenderDate(session.created_at)}</span>
-                        {session.meta.createdByName && (
-                          <span className="inline-flex items-center gap-1 max-md:hidden">
-                            <UserRound className="h-3 w-3" />
-                            {session.meta.createdByName}
-                          </span>
-                        )}
-                        {session.meta.contactName && <span>Contatto: {session.meta.contactName}</span>}
-                        {session.meta.opportunityName && <span>Opportunita: {session.meta.opportunityName}</span>}
-                      </div>
-                    </div>
-
-                    {status === "processing" || status === "pending" ? (
-                      <Zap className={`hidden h-4 w-4 shrink-0 animate-pulse sm:block ${accentClassName}`} />
-                    ) : (
-                      <ArrowRight className="hidden h-4 w-4 shrink-0 text-muted-foreground sm:block" />
-                    )}
-                  </CardContent>
-                </Card>
-              );
-              return path ? (
-                <Link
-                  key={session.id}
-                  to={path}
-                  aria-label={`Apri sessione ${moduleName} del ${getRenderDate(session.created_at)} · ${cfg.label}`}
-                  className="block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                >
-                  {content}
-                </Link>
-              ) : <div key={session.id}>{content}</div>;
-            })}
-          </div>
-        )}
-      </section>
+      </details>
     </div>
   );
 }

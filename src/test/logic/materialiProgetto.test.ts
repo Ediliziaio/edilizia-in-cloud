@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import bilocale from "../../../shared/planimetrie/esempi/bilocale.json";
 import { validaPlanimetria, type Planimetria } from "../../../shared/planimetrie/modello.ts";
-import { applicaMaterialiProgetto, cambiaFormatoPavimento, materialiDelProgetto, pavimentoDaCampione, vincoloInfissiProgetto } from "../../../shared/planimetrie/materialiProgetto.ts";
+import { applicaMaterialiProgetto, cambiaFormatoPavimento, materialiCoerentiDaSalvare, materialiDelProgetto, pavimentoDaCampione, vincoloInfissiProgetto } from "../../../shared/planimetrie/materialiProgetto.ts";
 import { pianteDaPlanimetria, costruisciScena } from "@/lib/planimetrie/tred";
 import { pianiDaPlanimetria } from "@/lib/planimetrie/tred/edificio";
 import { aPlanimetria, daPlanimetria } from "@/components/planimetrie/editor/adattatore";
@@ -59,6 +59,18 @@ describe("materiali comuni a tutto il progetto", () => {
     const cfg = { pavimento: pavimentoDaCampione("marmo"), eccezioni_materiali_progetto: { pavimento: true } };
     expect(applicaMaterialiProgetto(cfg, comuni()).pavimento).toEqual(cfg.pavimento);
     expect(applicaMaterialiProgetto({ ...cfg, eccezioni_materiali_progetto: {} }, comuni()).pavimento).toEqual(comuni().pavimento);
+  });
+  it("salvare una vecchia scelta conserva 20x120 cm e riallinea i listoni a 200x1200 mm", () => {
+    const vecchi = comuni();
+    vecchi.pavimento.formato_piastrella = "20x120";
+    const aggiornati = materialiCoerentiDaSalvare(vecchi);
+    expect(aggiornati.pavimento?.formato_piastrella).toBe("20x120");
+    expect(aggiornati.pavimento?.larghezza_listello_mm).toBe(200);
+    expect(aggiornati.pavimento?.lunghezza_listello_mm).toBe(1200);
+    expect(aggiornati.infissi).toEqual(vecchi.infissi);
+    expect(vecchi.pavimento.larghezza_listello_mm).toBe(180);
+    const gres = materialiCoerentiDaSalvare({ pavimento: { ...vecchi.pavimento, tipo: "gres_porcellanato" } });
+    expect(gres.pavimento?.larghezza_listello_mm).toBe(200);
   });
   it("gli infissi comuni prevalgono anche su una vecchia eccezione rimasta nella configurazione", () => {
     const cfg = { infissi_progetto: { profilo: "legno", colore: "verde" }, eccezioni_materiali_progetto: { infissi: true } };

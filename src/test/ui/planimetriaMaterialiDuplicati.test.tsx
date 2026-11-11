@@ -5,6 +5,10 @@ import bilocale from '../../../shared/planimetrie/esempi/bilocale.json';
 import Scheda from '@/pages/azienda/RenderPlanimetriaScheda';
 vi.mock('@/lib/planimetrie/archivio',()=>({usePlanimetria:()=>({data:{riga:{titolo:'Pianta demo'},versione:{numero:1,documento:bilocale}}})}));
 vi.mock('@/lib/planimetrie/render/renderDallaPianta',()=>({useRenderDellaPianta:()=>({data:[] as never[]})}));
+vi.mock('@/lib/planimetrie/collegamenti',async(importOriginal)=>({
+ ...await importOriginal<typeof import('@/lib/planimetrie/collegamenti')>(),
+ useCollegamentiPiante:(): {data: undefined}=>({data:undefined}),
+}));
 vi.mock('@/hooks/usePermissions',()=>({usePermissions:()=>({solaLettura:false})}));
 vi.mock('@/components/planimetrie/MaterialiProgetto',()=>({MaterialiProgetto:()=> <section aria-label="Materiali comuni">Materiali</section>}));
 vi.mock('@/components/planimetrie/EsportaPiantaDialog',()=>({EsportaPiantaDialog:({aperto,onChiudi}:{aperto:boolean;onChiudi:()=>void})=>aperto?<button onClick={onChiudi}>Chiudi esportazione</button>:null}));

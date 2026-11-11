@@ -39,6 +39,8 @@ vi.mock("@/hooks/useCompanyStaffUsers", () => ({
   useCompanyStaffUsers: () => ({ data: [] as const }),
 }));
 vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+  useMutation: () => ({ mutate: vi.fn(), isPending: false }),
   useQuery: () => ({
     data: state.surveys,
     isLoading: false,
@@ -96,13 +98,14 @@ function Url() {
   const l = useLocation();
   return <output data-testid="url">{l.search}</output>;
 }
-function apri(element: React.ReactNode, url: string) {
+function apri(element: React.ReactNode, url: string, advanced = true) {
   render(
     <MemoryRouter initialEntries={[url]}>
       {element}
       <Url />
     </MemoryRouter>,
   );
+  if (advanced) fireEvent.click(screen.getByText("Altri filtri", { exact: true }));
 }
 function survey(
   id: string,
@@ -169,7 +172,7 @@ afterEach(() => vi.useRealTimers());
 
 describe("sopralluoghi: pipeline ed elenco coerenti", () => {
   it("usa le fasi reali ed esclude gli archiviati, senza ereditare la vista degli acquisti", () => {
-    apri(<SopralluoghiList />, "/azienda/ordini?tab=sopralluoghi&vista=elenco");
+    apri(<SopralluoghiList />, "/azienda/ordini?tab=sopralluoghi&vista=elenco&sop_vista=pipeline");
     expect(screen.getByRole("button", { name: "Pipeline" })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -221,7 +224,7 @@ describe("sopralluoghi: pipeline ed elenco coerenti", () => {
 
 describe("acquisti: gli stessi filtri nelle due viste", () => {
   it("mantiene riepiloghi, emissione e filtro di stato passando all'elenco", () => {
-    apri(<PurchaseOrdersList />, "/azienda/ordini?tab=acquisto&commessa=c1");
+    apri(<PurchaseOrdersList />, "/azienda/ordini?tab=acquisto&commessa=c1&vista=pipeline");
     expect(
       screen.getByRole("combobox", { name: "Emissione OdA" }),
     ).toBeInTheDocument();
@@ -230,12 +233,7 @@ describe("acquisti: gli stessi filtri nelle due viste", () => {
         screen.getByRole("region", { name: "Riepilogo acquisti" }),
       ).getByRole("button", { name: /Da mandare/i }),
     ).toBeInTheDocument();
-    fireEvent.click(
-      within(screen.getByRole("group", { name: "Stato degli OdA" })).getByRole(
-        "button",
-        { name: /Da mandare/ },
-      ),
-    );
+    fireEvent.change(screen.getByRole("combobox", { name: "Stato degli OdA" }), { target: { value: "bozze" } });
     expect(
       screen.getByRole("link", { name: "Ordine ODA-bozza" }),
     ).toBeInTheDocument();
@@ -255,7 +253,7 @@ describe("acquisti: gli stessi filtri nelle due viste", () => {
   it("applica l'emissione anche alla pipeline e mantiene le stesse righe nell'elenco", () => {
     apri(
       <PurchaseOrdersList />,
-      "/azienda/ordini?tab=acquisto&periodo=30&stato=attivi",
+      "/azienda/ordini?tab=acquisto&periodo=30&stato=attivi&vista=pipeline",
     );
     expect(
       screen.getByRole("link", { name: "Ordine ODA-attivo" }),
@@ -273,13 +271,13 @@ describe("acquisti: gli stessi filtri nelle due viste", () => {
     fireEvent.click(screen.getByRole("button", { name: /Azzera/ }));
     expect(screen.getByTestId("url")).not.toHaveTextContent("periodo=");
     expect(screen.getByTestId("url")).not.toHaveTextContent("stato=");
-    expect(screen.getByTestId("url")).toHaveTextContent("vista=elenco");
+    expect(screen.getByRole("button", { name: "Elenco" })).toHaveAttribute("aria-pressed", "true");
   });
   it("offre un passaggio esplicito all'elenco degli annullati e non permette creazioni in sola lettura", () => {
     state.perm.solaLettura = true;
     apri(
       <PurchaseOrdersList />,
-      "/azienda/ordini?tab=acquisto&stato=annullati",
+      "/azienda/ordini?tab=acquisto&stato=annullati&vista=pipeline",
     );
     expect(screen.getByRole("button", { name: /Nuovo OdA/ })).toBeDisabled();
     fireEvent.click(
@@ -364,5 +362,24 @@ describe("Elenco tabellare", () => {
       within(table).getByRole("columnheader", { name: "Fornitore" }),
     ).toBeInTheDocument();
     expect(within(table).getByText("ODA-table")).toBeInTheDocument();
+  });
+});
+
+describe("Ingresso compatto negli elenchi", () => {
+  it("apre i sopralluoghi in elenco con i filtri aggiuntivi chiusi", () => {
+    apri(<SopralluoghiList />, "/azienda/ordini?tab=sopralluoghi", false);
+    expect(screen.getByRole("button", { name: "Elenco" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("table", { name: "Elenco sopralluoghi" })).toBeInTheDocument();
+    expect(screen.getByText("Altri filtri", { exact: true }).closest("details")).not.toHaveAttribute("open");
+    expect(screen.getByRole("combobox", { name: "Fase dei sopralluoghi" })).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Altri filtri", { exact: true }));
+    expect(screen.getByText("Altri filtri", { exact: true }).closest("details")).toHaveAttribute("open");
+  });
+  it("apre gli acquisti in elenco e conserva la pipeline come scelta", () => {
+    apri(<PurchaseOrdersList />, "/azienda/ordini?tab=acquisto", false);
+    expect(screen.getByRole("table", { name: "Elenco ordini d’acquisto" })).toBeInTheDocument();
+    expect(screen.getByText("Altri filtri", { exact: true }).closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByRole("button", { name: "Pipeline" }));
+    expect(screen.getByRole("button", { name: "Pipeline" })).toHaveAttribute("aria-pressed", "true");
   });
 });

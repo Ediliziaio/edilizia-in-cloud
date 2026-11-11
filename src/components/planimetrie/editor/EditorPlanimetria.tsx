@@ -63,6 +63,7 @@ import { btuConsigliati, metriConSfrido, percorsiDaElementi } from "../../../../
 import { COLORI_LINEE } from "./TelaPlanimetria";
 import { annulla, esegui, nuovaStoria, ripeti, type Storia } from "./storia";
 import { TelaPlanimetria, type Camera, type Selezione, type SfondoRicalco, type Sovrapposizioni } from "./TelaPlanimetria";
+import { ConfrontoDocumentoPianta, type SorgenteDocumentoPianta } from "../ConfrontoDocumentoPianta";
 
 export type Strumento = "seleziona" | "stanza" | "poligono" | "area" | "parete" | "porta" | "finestra" | "arredo" | "quota" | "testo";
 
@@ -76,6 +77,7 @@ interface Props {
   className?: string;
   /** Dove si salva l'immagine da ricalcare; senza, resta solo finché la pagina è aperta. */
   ricalco?: ArchivioRicalco;
+  sorgenteDocumento?: SorgenteDocumentoPianta;
 }
 
 type Gesto =
@@ -136,7 +138,7 @@ const SUGGERIMENTI_TELEFONO: Record<Strumento, string> = {
   testo: "Tocca dove vuoi la scritta, poi scrivila qui sotto.",
 };
 
-export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista, className, ricalco: archivio }: Props) {
+export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista, className, ricalco: archivio, sorgenteDocumento }: Props) {
   const telefono = useIsMobile();
   // Tablet (sotto 1280 px, iPad in orizzontale compreso): gli strumenti restano tutti, ma la barra scorre su una riga e il pannello delle stanze
   // sta sopra al disegno solo quando serve, invece di toglierne un terzo.
@@ -150,6 +152,8 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   }, []);
   const stretto = telefono || compatto;
   const [pannelloAperto, setPannelloAperto] = useState(false);
+  const [confrontoAperto, setConfrontoAperto] = useState(!!piantaIniziale?.letturaDocumento);
+  const [evidenzaId, setEvidenzaId] = useState<string>();
   // Sul telefono di serie si guarda e si correggono le misure; «Modifica» apre tutti gli strumenti
   // (per chi disegna in cantiere, col dito: un tocco per gli angoli, due dita per spostarsi).
   const [modificaTelefono, setModificaTelefono] = useState(false);
@@ -1433,7 +1437,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   );
 
   return (
-    <div className={cn("flex h-full min-h-[480px] flex-col overflow-hidden rounded-lg border bg-background", className)}>
+    <div className={cn("flex h-full min-h-[480px] flex-col overflow-hidden rounded-lg border bg-background", confrontoAperto && "max-lg:min-h-[800px]", className)}>
       {/* barra in alto */}
       <div className="flex flex-wrap items-center gap-2 border-b p-2">
         {telefono && soloVista === undefined && (
@@ -1526,6 +1530,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             />
           )}
           {barraVista}
+          {documento.letturaDocumento && <Button type="button" size="sm" variant={confrontoAperto ? "secondary" : "outline"} aria-pressed={confrontoAperto} onClick={() => setConfrontoAperto((v) => !v)}>Confronta foto e pianta</Button>}
           {!sola && vista === "progetto" && livelloCorrente && livelloCorrente.proposte.length > 0 && (
             <BarraProposte
               proposte={livelloCorrente.proposte.map((x) => ({ id: x.id, nome: x.nome }))}
@@ -1551,9 +1556,20 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         </div>
       </div>
 
-      <div className="relative flex min-h-0 flex-1">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b bg-slate-50/80 px-3 py-2 text-xs">
+        <div className="flex items-center gap-2"><label htmlFor="ambito-documento-pianta" className="font-medium">Cosa rappresenta la pianta?</label>
+          <select id="ambito-documento-pianta" className="h-8 rounded-md border bg-background px-2 font-normal" value={documento.ambitoDocumento ?? ""} disabled={soloVista} onChange={(e) => applica({ ...pianta, ambitoDocumento: e.target.value === "ambiente" ? "ambiente" : e.target.value === "alloggio" ? "alloggio" : undefined })}>
+            <option value="">Da specificare</option><option value="ambiente">Singolo ambiente</option><option value="alloggio">Alloggio completo</option>
+          </select>
+        </div>
+        <span className="text-muted-foreground">{documento.ambitoDocumento === "ambiente" ? "Verifiche sui locali rappresentati; esclusi superficie e dotazioni dell’intero alloggio." : documento.ambitoDocumento === "alloggio" ? "Verifiche sui locali e sull’intero alloggio." : "La scelta non conferma misure o aperture."}</span>
+      </div>
+      <div className="relative flex min-h-0 flex-1 max-lg:flex-col">
+        {confrontoAperto && documento.letturaDocumento && <ConfrontoDocumentoPianta documento={documento} sorgente={sorgenteDocumento} archivio={archivio} solaLettura={soloVista}
+          onAggiorna={(d) => { if (soloVista) return; documentoBase.current = d; applica(daPlanimetria(d, livelloId, propostaId)); }}
+          onSeleziona={(v) => { setEvidenzaId(v.id); const r = v.riferimento; if (!r) return; if (r.livelloId !== livelloId) vaiAlPiano(r.livelloId); setVista("fatto"); setSelezione({ tipo: r.tipo, id: r.oggettoId }); setPannelloAperto(true); }} />}
         {/* disegno */}
-        <div ref={contenitoreRef} className="relative min-h-0 min-w-0 flex-1" style={{ cursor: cursore }}>
+        <div ref={contenitoreRef} className="relative min-h-[280px] min-w-0 flex-1 lg:min-h-0" style={{ cursor: cursore }}>
           <TelaPlanimetria
             ref={svgRef}
             pianta={pianta}
@@ -1562,6 +1578,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             misureSoloSelezione={sola || telefono}
             vista={vista}
             selezione={selezione}
+            verificaEvidenziata={vista === "fatto" && confrontoAperto ? documento.letturaDocumento?.verifiche?.find((v) => v.id === evidenzaId && v.riferimento?.livelloId === (livelloId ?? documento.livelli[0]?.id) && v.riferimento?.oggettoId === selezione?.id) : undefined}
             gruppo={gruppo}
             lineeImpianti={mostraLinee ? impianti.percorsi : undefined}
             sfondo={sfondo}

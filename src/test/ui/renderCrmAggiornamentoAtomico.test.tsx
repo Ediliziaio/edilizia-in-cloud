@@ -10,7 +10,7 @@ vi.mock("@/lib/render/renderGalleryMeta", () => ({
   resolveRenderGalleryMeta: (source: { contact_id: string | null; opportunity_id: string | null }) => ({ createdByName: null as null, contactName: source.contact_id ? "Contatto demo" : null, opportunityName: source.opportunity_id ? "Opportunità demo" : null }),
 }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: (table: string) => {
-  if (table === "render_sessions") return { update: (payload: unknown) => { state.payloads.push(payload); return { eq: (key: string, id: string) => state.update(key, id) }; } };
+  if (table === "render_sessions") return { update: (payload: unknown) => { state.payloads.push(payload); const q = { eq: (key: string, id: string) => { if (key === "id") state.update(key, id); return q; }, select: () => q, maybeSingle: async () => { const result = await state.update.mock.results.at(-1)?.value as { error: unknown }; return { data: result?.error ? null : { id: "sessione-demo" }, error: result?.error ?? null }; } }; return q; } };
   const rows = table === "marketing_contacts" ? [{ id: "contatto-demo", first_name: "Contatto", last_name: "demo" }] : [{ id: "opportunita-demo", name: "Opportunità demo" }];
   const q = { select: () => q, eq: () => q, order: () => q, limit: () => q, then: (resolve: (v: unknown) => unknown) => Promise.resolve({ data: rows, error: null }).then(resolve) };
   return q;

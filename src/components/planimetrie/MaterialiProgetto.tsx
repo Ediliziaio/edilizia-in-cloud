@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { ReferenceThumb } from "@/components/render/ReferenceThumb";
 import { useSalvaVersionePlanimetria } from "@/lib/planimetrie/archivio";
 import { PAVIMENTI_STANZA } from "../../../shared/planimetrie/finiture.ts";
-import { COLORI_INFISSI_PROGETTO, PROFILI_PROGETTO, cambiaFormatoPavimento, descrizionePavimento, materialiDelProgetto, pavimentoDaCampione, type MaterialiProgetto, type InfissiProgetto } from "../../../shared/planimetrie/materialiProgetto.ts";
+import { COLORI_INFISSI_PROGETTO, PROFILI_PROGETTO, cambiaFormatoPavimento, descrizionePavimento, materialiCoerentiDaSalvare, materialiDelProgetto, pavimentoDaCampione, type MaterialiProgetto, type InfissiProgetto } from "../../../shared/planimetrie/materialiProgetto.ts";
 import { floorSurfacePhoto } from "../../../shared/render-references/floorReferences.ts";
 import { normalizeRoomFloorConfig } from "../../../shared/render-room/roomRenderConfig.ts";
 import { ROOM_VISUAL_LABELS } from "../../../shared/render-references/roomVisualCatalog.ts";
@@ -18,10 +18,10 @@ export function MaterialiProgetto({ documento, ambito, planimetriaId, versione, 
   const [bozza, setBozza] = useState<MaterialiProgetto>({});
   const salva = useSalvaVersionePlanimetria();
   const comuni = materialiDelProgetto(documento, ambito);
-  const apri = () => { setBozza(structuredClone(comuni)); setAperto(true); };
+  const apri = () => { setBozza(materialiCoerentiDaSalvare(structuredClone(comuni))); setAperto(true); };
   const salvaScelte = async () => {
     try {
-      await salva.mutateAsync({ planimetriaId, versioneAttesa: versione, documento: { ...documento, materialiProgetto: { ...documento.materialiProgetto, [ambito]: bozza } }, nota: "Materiali comuni a tutte le stanze e viste" });
+      await salva.mutateAsync({ planimetriaId, versioneAttesa: versione, documento: { ...documento, materialiProgetto: { ...documento.materialiProgetto, [ambito]: materialiCoerentiDaSalvare(bozza) } }, nota: "Materiali comuni a tutte le stanze e viste" });
       toast.success("Materiali salvati per tutto il progetto"); setAperto(false);
     } catch (e) { toast.error(e instanceof Error ? e.message : "Materiali non salvati: riprova."); }
   };

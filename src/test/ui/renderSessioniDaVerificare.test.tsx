@@ -9,31 +9,34 @@ beforeEach(() => { queryState.error = false; queryState.refetch.mockClear(); });
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "demo" } }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@/components/render/RenderCreditsWidget", () => ({ RenderCreditsWidget: (): null => null }));
-vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({
+vi.mock("@/lib/render/renderHistory", () => ({ useRenderHistory: () => ({
   isLoading: false,
   isError: queryState.error,
+  error: queryState.error ? new Error("offline") : null,
   refetch: queryState.refetch,
-  data: queryState.error ? undefined : [
-    { id: "pending", status: "pending", created_at: "2020-01-01T12:00:00Z", meta: { createdByName: "Sessione mai avviata" } },
-    { id: "processing", status: "processing", created_at: "2020-01-01T12:00:00Z", meta: { createdByName: "Sessione avviata" } },
-    { id: "completed", status: "completed", created_at: "2020-01-01T12:00:00Z", meta: { createdByName: "Sessione completata" } },
-    { id: "recent", status: "pending", created_at: new Date().toISOString(), meta: { createdByName: "Foto appena caricata" } },
+  items: queryState.error ? [] : [
+    { id: "pending", status: "pending", created_at: "2020-01-01T12:00:00Z", render_type: "infissi", result_url: null as string | null, result_urls: [] as string[], meta: { createdByName: "Sessione mai avviata" } },
+    { id: "processing", status: "processing", created_at: "2020-01-01T12:00:00Z", render_type: "infissi", result_url: null as string | null, result_urls: [] as string[], meta: { createdByName: "Sessione avviata" } },
+    { id: "completed", status: "completed", created_at: "2020-01-01T12:00:00Z", render_type: "infissi", result_url: null as string | null, result_urls: [] as string[], meta: { createdByName: "Sessione completata" } },
+    { id: "recent", status: "pending", created_at: new Date().toISOString(), render_type: "infissi", result_url: null as string | null, result_urls: [] as string[], meta: { createdByName: "Foto appena caricata" } },
   ],
 }) }));
 afterEach(cleanup);
 
 it("Mostra da verificare include le attese storiche e le elaborazioni, esclude completate e appena create", () => {
   render(<MemoryRouter><RenderModuleHubPage moduleId="infissi" moduleName="Infissi" breadcrumbLabel="Infissi" badgeLabel="Infissi" title="Render infissi" description="Prova" icon={Image} accentClassName="" iconBgClassName="" workflow={[]} qualityCards={[]} emptyTitle="Vuoto" emptyDescription="Nessun render" galleryPath="/render" /></MemoryRouter>);
-  expect(screen.getByRole("link", { name: /Apri sessione Infissi.*Completato/ })).toHaveAttribute("href", "/render/completed");
-  expect(screen.getAllByRole("link", { name: /^Apri sessione/ })).toHaveLength(4);
-  expect(screen.getByLabelText("Cerca sessioni render")).toBeInTheDocument();
-  expect(screen.getByRole("combobox", { name: "Filtra sessioni render per stato" })).toBeInTheDocument();
-  expect(screen.getByText("Foto appena caricata")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: /^Apri render Infissi/ })).toHaveAttribute("href", expect.stringContaining("/azienda/render/infissi/gallery/completed"));
+  expect(screen.getByLabelText("Cerca nei render recenti")).toBeInTheDocument();
+  expect(screen.getByRole("group", { name: "Stato dei render" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /^Tutti / }));
+  expect(screen.getAllByRole("link", { name: /^Apri render Infissi/ })).toHaveLength(4);
+  fireEvent.click(screen.getByRole("button", { name: /In lavorazione/ }));
+  expect(screen.getByText(/Foto appena caricata/)).toBeInTheDocument();
   expect(screen.getByText(/questa età non misura il tempo di elaborazione/)).toBeInTheDocument();
   expect(screen.queryByText(/Ultimo avvio/)).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: /Mostra da verificare/ }));
-  expect(screen.getByText("Sessione mai avviata")).toBeInTheDocument();
-  expect(screen.getByText("Sessione avviata")).toBeInTheDocument();
+  expect(screen.getByText(/Sessione mai avviata/)).toBeInTheDocument();
+  expect(screen.getByText(/Sessione avviata/)).toBeInTheDocument();
   expect(screen.queryByText("Sessione completata")).not.toBeInTheDocument();
   expect(screen.queryByText("Foto appena caricata")).not.toBeInTheDocument();
 });
@@ -41,11 +44,11 @@ it("Mostra da verificare include le attese storiche e le elaborazioni, esclude c
 it("una lettura fallita non invita a creare il primo render e permette di riprovare", () => {
   queryState.error = true;
   render(<MemoryRouter><RenderModuleHubPage moduleId="infissi" moduleName="Infissi" breadcrumbLabel="Infissi" badgeLabel="Infissi" title="Render infissi" description="Prova" icon={Image} accentClassName="" iconBgClassName="" workflow={[]} qualityCards={[]} emptyTitle="Nessun render salvato" emptyDescription="Nessun render" newPath="/nuovo" /></MemoryRouter>);
-  for (const name of ["Render recenti", "Completati", "In attesa o elaborazione", "Collegati CRM"]) {
-    expect(within(screen.getByRole("group", { name })).getByText("—")).toBeInTheDocument();
+  expect(screen.getByRole("alert")).toHaveTextContent("Impossibile caricare i render");
+  for (const name of ["Pronti", "In lavorazione", "Da completare", "Con errore", "Tutti"]) {
+    expect(within(screen.getByRole("group", { name: "Stato dei render" })).getByRole("button", { name: `${name} —` })).toHaveTextContent("—");
   }
-  expect(screen.getByRole("alert")).toHaveTextContent("Impossibile caricare le sessioni render");
   expect(screen.queryByText("Nessun render salvato")).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Riprova caricamento" }));
+  fireEvent.click(screen.getByRole("button", { name: "Riprova" }));
   expect(queryState.refetch).toHaveBeenCalledOnce();
 });

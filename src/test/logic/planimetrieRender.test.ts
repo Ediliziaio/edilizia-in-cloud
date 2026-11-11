@@ -21,6 +21,8 @@ describe("inventario e inquadratura del render dalla pianta", () => {
     expect(bloccoPartenza3D()).toContain("same footprint, position and orientation");
     const v = vincoliDellaStanza(bilocale, { livello_id: "pt", ambito: "fatto", locale_id: "l1" })!;
     expect(righeQaPianta(v, { partenza: "vista_3d" }).join("\n")).toContain("unrequested_furniture");
+    expect(righeQaPianta(v, { partenza: "vista_3d" }).join("\n")).toContain("matching total item count is NOT enough");
+    expect(righeQaPianta(v, { partenza: "vista_3d" }).join("\n")).toContain("Do not infer a kitchen");
     expect(righeQaPianta(v, { partenza: "foto" }).join("\n")).not.toContain("unrequested_furniture");
   });
   it("il fotogramma per l’AI usa lo stesso rapporto del formato orizzontale del modello", () => {

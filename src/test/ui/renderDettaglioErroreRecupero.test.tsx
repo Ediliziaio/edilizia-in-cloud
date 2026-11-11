@@ -6,9 +6,10 @@ const state = vi.hoisted(() => ({ isError: false, retry: vi.fn() }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "demo" } }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
-vi.mock("@tanstack/react-query", () => ({ useQuery: ({ queryKey }: { queryKey: string[] }) => queryKey[0] === "render-technical-detail"
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ solaLettura: false }) }));
+vi.mock("@tanstack/react-query", () => ({ useQuery: ({ queryKey }: { queryKey: string[] }) => queryKey[0] === "render-stored-session"
   ? { data: null as null, isLoading: false, isError: state.isError, refetch: state.retry }
-  : { data: null as null } }));
+  : { data: null as null }, useInfiniteQuery: () => ({ data: undefined as undefined }) }));
 import RenderTechnicalModuleGalleryDetail from "@/pages/azienda/RenderTechnicalModuleGalleryDetail";
 beforeEach(() => { state.isError = false; state.retry.mockClear(); });
 afterEach(cleanup);
@@ -18,11 +19,11 @@ it("non confonde una lettura fallita con una sessione inesistente e permette di 
   setup();
   expect(screen.getByRole("alert")).toHaveTextContent("Impossibile caricare il render");
   expect(screen.queryByText("Sessione non trovata")).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Riprova caricamento" }));
+  fireEvent.click(screen.getByRole("button", { name: "Riprova" }));
   expect(state.retry).toHaveBeenCalledOnce();
 });
 it("mantiene distinto il caso di una sessione assente dopo una lettura riuscita", () => {
   setup();
-  expect(screen.getByText("Sessione non trovata")).toBeInTheDocument();
+  expect(screen.getByText("Render non disponibile")).toBeInTheDocument();
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });

@@ -24,6 +24,7 @@ export const MATERIALI: Record<string, Materiale3D> = {
   muro_nuovo: { nome: "Muro nuovo", colore: "#d42a2a", opacita: 1, ruvidita: 0.8 },
   soffitto: { nome: "Soffitto", colore: "#f6f4ef", opacita: 1, ruvidita: 0.95 },
   vetro: { nome: "Vetro", colore: "#a9d2ee", opacita: 0.3, ruvidita: 0.05 },
+  schermo: { nome: "Schermo spento", colore: "#1b2330", opacita: 1, ruvidita: .22 },
   pavimento_legno: { nome: "Pavimento in legno", colore: "#b98a5c", opacita: 1, ruvidita: 0.6, tessitura: { trama: "rovere", metri: [1.2, 2.4], tinta: "#ffffff" } },
   pavimento_piastrelle: { nome: "Pavimento in piastrelle", colore: "#cdd3d6", opacita: 1, ruvidita: 0.4 },
   pavimento_gres: { nome: "Pavimento in gres", colore: "#d6c7b0", opacita: 1, ruvidita: 0.5 },

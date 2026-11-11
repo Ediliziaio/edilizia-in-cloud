@@ -12,7 +12,7 @@ import { percorsoProgettoAssociato } from "@/lib/planimetrie/render/percorsi";
 const AnteprimaProgettoAssociato = lazy(() => import("./AnteprimaProgettoAssociato"));
 
 const CONTESTO: Record<DestinazionePianta, string> = {
-  cliente: "a questo cliente", preventivo: "a questo preventivo", commessa: "a questa commessa", computo: "a questo computo",
+  cliente: "a questo cliente", contatto: "a questo contatto CRM", preventivo: "a questo preventivo", commessa: "a questa commessa", computo: "a questo computo",
 };
 const STATO = { bozza: "Bozza", in_uso: "In uso", archiviata: "Archiviata" } as const;
 type Props = { companyId: string | null | undefined; tipo: DestinazionePianta; schedaId: string | null | undefined };

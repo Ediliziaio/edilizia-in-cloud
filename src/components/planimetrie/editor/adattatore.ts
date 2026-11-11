@@ -90,6 +90,8 @@ export interface Apertura {
   zanzariera?: TipoZanzariera;
   /** Da che parte sta la cerniera e verso quale lato (sullo schermo) si apre. */
   verso: { cerniera: "inizio" | "fine"; lato: "sinistra" | "destra" };
+  /** Il documento lascia il verso nullo: il segno convenzionale non va mostrato come letto. */
+  versoDaVerificare?: boolean;
   stato: StatoElemento;
   origine: Origine;
 }
@@ -154,6 +156,8 @@ export interface TestoLavoro {
 }
 
 export interface Pianta {
+  ambitoDocumento?: Planimetria["ambitoDocumento"];
+  letturaDocumento?: Planimetria["letturaDocumento"];
   versione: 1;
   unita: "cm";
   muri: Muro[];
@@ -358,6 +362,7 @@ function aperturaDaModello(a: AperturaModello): Apertura {
     verso: a.verso
       ? { cerniera: a.verso.cardine === "p1" ? "inizio" : "fine", lato: a.verso.lato === "sinistra" ? "destra" : "sinistra" }
       : { cerniera: "inizio", lato: "destra" },
+    ...(a.manovra === "battente" && a.verso === null ? { versoDaVerificare: true } : {}),
     stato: a.stato,
     origine: origineDi(a),
   };
@@ -456,7 +461,7 @@ export function daPlanimetria(doc: Planimetria, livelloId?: string, propostaId: 
   const areeProposta = proposta?.aree;
   const aree: AreaLavoro[] = (fatto.aree ?? []).map((a) => areaDaModello(a, areeProposta && !areeProposta.some((x) => x.id === a.id) ? "da_demolire" : "esistente"));
   for (const a of proposta?.aree ?? []) if (!aree.some((x) => x.id === a.id)) aree.push(areaDaModello(a, "nuovo"));
-  return { ...piantaVuota(), muri, aperture, locali, elementi, quote, testi, ...(aree.length ? { aree } : {}), ...(Object.keys(nomiProgetto).length ? { nomiProgetto } : {}) };
+  return { ...piantaVuota(), ambitoDocumento: doc.ambitoDocumento, ...(doc.letturaDocumento ? { letturaDocumento: { ...doc.letturaDocumento, protocolloVerifica: 1 as const } } : {}), muri, aperture, locali, elementi, quote, testi, ...(aree.length ? { aree } : {}), ...(Object.keys(nomiProgetto).length ? { nomiProgetto } : {}) };
 }
 
 function unisciPerId<T extends { id: string }>(a: T[], b?: T[]): T[] {
@@ -559,7 +564,7 @@ function aperturaAModello(a: Apertura, stato: StatoLavori, prima?: AperturaModel
     ...(a.altezzaCassonetto ? { altezzaCassonetto: a.altezzaCassonetto } : {}),
     ...(a.motore ? { motore: true } : {}),
     ...(a.zanzariera ? { zanzariera: a.zanzariera } : {}),
-    ...(battente
+    ...(battente && a.versoDaVerificare ? { verso: null } : battente
       ? { verso: { cardine: a.verso.cerniera === "inizio" ? "p1" : "p2", lato: a.verso.lato === "sinistra" ? "destra" : "sinistra" } as const }
       : {}),
     stato,
@@ -645,7 +650,7 @@ export function aPlanimetria(pianta: Pianta, base: Planimetria = nuovaPlanimetri
 
   const livello: Livello = { ...livelloBase, fatto, proposte };
   const livelli = base.livelli.length ? base.livelli.map((l, i) => (i === indice ? livello : l)) : [livello];
-  return { ...base, livelli };
+  return { ...base, ambitoDocumento: pianta.ambitoDocumento, ...(pianta.letturaDocumento ? { letturaDocumento: pianta.letturaDocumento } : {}), livelli };
 }
 
 /**

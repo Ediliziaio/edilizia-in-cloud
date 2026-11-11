@@ -20,7 +20,7 @@ import {
   esportaGlb,
   esportaObj,
   vistaDallAlto,
-  vistaDentroLocale,
+  vistaInternaArredata,
   vistaGiroIntorno,
   localeAllaPosizione,
   passoLibero,
@@ -216,7 +216,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
     if (!m) return;
     const aspetto = m.camera.aspect || 1;
     const locale = locali.find((l) => l.id === localeId) ?? locali[0];
-    const t = modo === "alto" ? vistaDallAlto(limiti, aspetto) : modo === "dentro" && locale ? vistaDentroLocale(locale) : vistaGiroIntorno(limiti, aspetto);
+    const t = modo === "alto" ? vistaDallAlto(limiti, aspetto) : modo === "dentro" && locale ? vistaInternaArredata(pianta, locale.id, { vista, aspetto }) : vistaGiroIntorno(limiti, aspetto);
     applicaTelecamera(m.camera, t);
     m.controlli?.dispose();
     const c = new OrbitControls(m.camera, m.renderer.domElement);
@@ -318,9 +318,9 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
       const doveSono = modo === "dentro" ? localeAllaPosizione(pianta, telecamera.posizione) : null;
       const id = doveSono ?? (locali.some((l) => l.id === localeId) ? localeId : locali[0]?.id);
       if (!id) throw new Error("La pianta non ha locali.");
-      return catturaFotogramma({ pianta, localeId: id, telecamera, vista, elementi: arredi, ...misure });
+      return catturaFotogramma({ pianta, localeId: id, telecamera, vista, elementi: arredi, ...misure, annotaElementi: !!onFotogramma });
     },
-    [pianta, locali, localeId, vista, arredi, telecameraAdesso, modo],
+    [pianta, locali, localeId, vista, arredi, telecameraAdesso, modo, onFotogramma],
   );
 
   useImperativeHandle(ref, () => ({ telecamera: telecameraAdesso, fotogramma }), [telecameraAdesso, fotogramma]);

@@ -23,6 +23,7 @@ import { materialiProgettoValidi, type MaterialiProgetto } from "./materialiProg
  */
 
 import { rilievoValido, type Rilievo } from "./rilievo.ts";
+import { verificheLetturaValide, type LetturaDocumento } from "./letturaTipi.ts";
 
 export const VERSIONE_SCHEMA = 1 as const;
 
@@ -333,8 +334,10 @@ export interface Riferimenti {
 }
 
 export interface Planimetria {
+  /** Dichiarato dall'utente, mai dedotto dal numero di stanze. */
+  ambitoDocumento?: "ambiente" | "alloggio";
   /** Segnalazioni della lettura iniziale: restano con il disegno anche dopo salvataggi e modifiche. */
-  letturaDocumento?: { avvisiIniziali: string[]; superficiScritteMq: Record<string, number> };
+  letturaDocumento?: LetturaDocumento;
   /** Materiali comuni, distinti per stato/proposta e salvati con la versione. */
   materialiProgetto?: Record<string, MaterialiProgetto>;
   schema: typeof VERSIONE_SCHEMA;
@@ -472,11 +475,17 @@ export function validaPlanimetria(dato: unknown): EsitoValidazione {
   if (dato.schema !== VERSIONE_SCHEMA) errori.push("La pianta: la versione dello schema manca o non è valida.");
   if (dato.unita !== "cm") errori.push("La pianta: le misure devono essere in centimetri.");
   if (dato.titolo !== undefined && typeof dato.titolo !== "string") errori.push("La pianta: il titolo deve essere un testo.");
+  if (dato.ambitoDocumento !== undefined && !["ambiente", "alloggio"].includes(dato.ambitoDocumento as string)) errori.push("La pianta: specifica singolo ambiente o alloggio completo.");
   if (dato.letturaDocumento !== undefined && !(eOggetto(dato.letturaDocumento)
     && Array.isArray(dato.letturaDocumento.avvisiIniziali) && dato.letturaDocumento.avvisiIniziali.length <= 100
     && dato.letturaDocumento.avvisiIniziali.every((v) => typeof v === "string" && v.length <= 4000)
     && eOggetto(dato.letturaDocumento.superficiScritteMq)
-    && Object.entries(dato.letturaDocumento.superficiScritteMq).every(([id, v]) => ID_VALIDO.test(id) && eNumero(v) && v > 0))) errori.push("La pianta: i controlli del documento originale non sono validi.");
+    && Object.entries(dato.letturaDocumento.superficiScritteMq).every(([id, v]) => ID_VALIDO.test(id) && eNumero(v) && v > 0)
+    && (dato.letturaDocumento.verifiche === undefined || verificheLetturaValide(dato.letturaDocumento.verifiche))
+    && (dato.letturaDocumento.protocolloVerifica === undefined || dato.letturaDocumento.protocolloVerifica === 1)
+    && (dato.letturaDocumento.sorgente === undefined || (eOggetto(dato.letturaDocumento.sorgente)
+      && typeof dato.letturaDocumento.sorgente.percorso === "string" && /^[a-zA-Z0-9_-]+\/ricalco\/[a-zA-Z0-9._-]+$/.test(dato.letturaDocumento.sorgente.percorso)
+      && typeof dato.letturaDocumento.sorgente.nome === "string" && dato.letturaDocumento.sorgente.nome.length <= 250)))) errori.push("La pianta: i controlli del documento originale non sono validi.");
   if (dato.materialiProgetto !== undefined && !materialiProgettoValidi(dato.materialiProgetto)) errori.push("La pianta: i materiali comuni non sono validi.");
   if (dato.scala !== undefined && !(eNumero(dato.scala) && dato.scala > 0)) errori.push("La pianta: la scala deve essere un numero maggiore di zero.");
   if (dato.nord !== undefined && !eNumero(dato.nord)) errori.push("La pianta: il nord deve essere un numero di gradi.");

@@ -12,6 +12,7 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile";
 interface RenderPdfDownloadButtonProps {
   beforeUrl?: string | null;
+  beforeLabel?: string;
   afterUrl?: string | null;
   title: string;
   subtitle?: string;
@@ -20,10 +21,14 @@ interface RenderPdfDownloadButtonProps {
   size?: "sm" | "default";
   variant?: "default" | "outline" | "secondary";
   className?: string;
+  allowMobile?: boolean;
+  label?: string;
+  completeMetadata?: boolean;
 }
 
 export function RenderPdfDownloadButton({
   beforeUrl,
+  beforeLabel,
   afterUrl,
   title,
   subtitle,
@@ -32,6 +37,9 @@ export function RenderPdfDownloadButton({
   size = "sm",
   variant = "outline",
   className,
+  allowMobile = false,
+  label,
+  completeMetadata = false,
 }: RenderPdfDownloadButtonProps) {
   const isMobile = useIsMobile();
   const [loading, setLoading] = useState(false);
@@ -49,12 +57,14 @@ export function RenderPdfDownloadButton({
     try {
       await downloadRenderBeforeAfterPdf({
         beforeUrl,
+        beforeLabel,
         afterUrl,
         title,
         subtitle,
         filename,
         metadata,
         companyLogoUrl,
+        includeAllMetadata: completeMetadata,
       });
       toast.success("PDF render creato");
     } catch (error) {
@@ -64,8 +74,8 @@ export function RenderPdfDownloadButton({
     }
   };
 
-  // Niente scarico su telefono: il render resta visibile, non scaricabile.
-  if (isMobile) return null;
+  // I flussi precedenti mantengono la propria configurazione; il dettaglio comune abilita anche il telefono.
+  if (isMobile && !allowMobile) return null;
 
   return (
     <Button
@@ -80,8 +90,7 @@ export function RenderPdfDownloadButton({
       ) : (
         <FileDown className="h-4 w-4 mr-2" />
       )}
-      <span className="hidden sm:inline">Scarica PDF</span>
-      <span className="sm:hidden">PDF</span>
+      {label || <><span className="hidden sm:inline">Scarica PDF</span><span className="sm:hidden">PDF</span></>}
     </Button>
   );
 }

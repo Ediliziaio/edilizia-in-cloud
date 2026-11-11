@@ -39,12 +39,28 @@ export interface AperturaAI {
   da: Coppia;
   a: Coppia;
   piano?: string | null;
+  altezza_m?: number | null;
+  davanzale_m?: number | null;
+  ante?: number;
+  cardine?: "da" | "a";
+  apertura_verso?: "alto" | "basso" | "sinistra" | "destra";
 }
 
 export interface QuotaAI {
   valore_m: number;
   da: Coppia;
   a: Coppia;
+}
+
+export interface VerificaDocumentoAI {
+  descrizione: string;
+  locale_nome?: string | null;
+  piano?: string | null;
+  /** Indice dell'apertura nell'array, contando da 1. */
+  apertura_indice?: number | null;
+  campo: "larghezza" | "profondita" | "altezza" | "verso" | "posizione" | "contorno";
+  ambito_misura?: "totale_locale" | "vano_apertura" | "segmento" | "dettaglio";
+  valori_cm: number[];
 }
 
 export interface RispostaAI {
@@ -61,6 +77,9 @@ export interface RispostaAI {
   elementi?: ElementoAI[];
   /** Lotto e aree esterne (planimetrie generali, descrizioni con il giardino). */
   aree?: AreaAI[];
+  /** Dubbi della lettura, da mostrare insieme agli avvisi geometrici. */
+  avvisi?: string[];
+  verifiche_documento?: VerificaDocumentoAI[];
 }
 
 export interface AreaAI {
@@ -257,7 +276,12 @@ export function leggiRispostaAI(grezza: unknown, sistemaAtteso: "immagine" | "me
     const tipo = tipoApertura(r.tipo);
     const da = coppia(r.da);
     const a = coppia(r.a);
-    if (tipo && da && a) aperture.push({ tipo, da, a, piano: testoOpzionale(r.piano) });
+    const ante = numero(r.ante);
+    if (tipo && da && a) aperture.push({ tipo, da, a, piano: testoOpzionale(r.piano), altezza_m: numero(r.altezza_m), davanzale_m: numero(r.davanzale_m),
+      ...(ante !== null && Number.isInteger(ante) && ante >= 1 && ante <= 6 ? { ante } : {}),
+      ...(r.cardine === "da" || r.cardine === "a" ? { cardine: r.cardine } : {}),
+      ...(["alto", "basso", "sinistra", "destra"].includes(r.apertura_verso as string) ? { apertura_verso: r.apertura_verso as AperturaAI["apertura_verso"] } : {}),
+    });
   }
   const quote: QuotaAI[] = [];
   for (const raw of Array.isArray(o.quote) ? o.quote : []) {
@@ -288,6 +312,14 @@ export function leggiRispostaAI(grezza: unknown, sistemaAtteso: "immagine" | "me
     const contorno = Array.isArray(r.contorno) ? r.contorno.map(coppia).filter((c): c is Coppia => c !== null) : [];
     if (tipo && contorno.length >= 3) aree.push({ tipo, contorno });
   }
+  const verifiche: VerificaDocumentoAI[] = [];
+  for (const raw of (Array.isArray(o.verifiche_documento) ? o.verifiche_documento : []).slice(0, 60)) {
+    if (!raw || typeof raw !== "object") continue;
+    const r = raw as Record<string, unknown>;
+    if (typeof r.descrizione !== "string" || !r.descrizione.trim() || !["larghezza", "profondita", "altezza", "verso", "posizione", "contorno"].includes(r.campo as string)) continue;
+    const apertura = numero(r.apertura_indice);
+    verifiche.push({ descrizione: r.descrizione.trim().slice(0, 1000), locale_nome: testoOpzionale(r.locale_nome), piano: testoOpzionale(r.piano), apertura_indice: apertura !== null && Number.isInteger(apertura) && apertura > 0 && apertura <= aperture.length ? apertura : null, campo: r.campo as VerificaDocumentoAI["campo"], ambito_misura: ["totale_locale", "vano_apertura", "segmento", "dettaglio"].includes(r.ambito_misura as string) ? r.ambito_misura as VerificaDocumentoAI["ambito_misura"] : "dettaglio", valori_cm: [...new Set((Array.isArray(r.valori_cm) ? r.valori_cm : []).map(numero).filter((n): n is number => n !== null && n > 0 && n <= 100000))].slice(0, 20) });
+  }
   return {
     sistema,
     leggibile: o.leggibile !== false,
@@ -298,5 +330,7 @@ export function leggiRispostaAI(grezza: unknown, sistemaAtteso: "immagine" | "me
     quote,
     elementi,
     aree,
+    avvisi: Array.isArray(o.avvisi) ? [...new Set(o.avvisi.filter((s): s is string => typeof s === "string" && !!s.trim()).map((s) => s.trim().slice(0, 400)))].slice(0, 20) : [],
+    verifiche_documento: verifiche,
   };
 }

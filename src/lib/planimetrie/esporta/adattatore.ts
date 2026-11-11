@@ -9,12 +9,12 @@
  * - sceglie livello e stato (fatto, progetto, confronto);
  * - gira la y (il modello ha y verso l'alto come il DXF, la vista verso il basso
  *   come lo schermo) e con lei le rotazioni: il modello gira gli arredi in senso
- *   antiorario con il retro verso il basso a 0° (negli esempi il wc contro il muro
- *   in alto ha 180°), la vista in senso orario con il retro in alto a 0°. È la
- *   stessa lettura del 3D (`tred/adattatore.ts`, `rotazione3D`);
+ *   antiorario, la vista in senso orario. Il retro del simbolo a 0° è verso
+ *   l'alto del foglio, come nell'editor e nel 3D;
  * - prende superfici e perimetri dalle quantità della fase 1, con la loro origine.
  */
 import { anteDi, misureOscurante, sistemaDi, zanzarieraDi } from "../../../../shared/planimetrie/serramenti.ts";
+import { rotazioneSchermo } from "../../../../shared/planimetrie/orientamento.ts";
 import { curveDiLivello, passoCurve, puntiTerreno, rettangoloPunti, scriviQuota } from "../../../../shared/planimetrie/terreno.ts";
 import type {
   Apertura, Elemento, Livello, Locale, Muro, Planimetria, Punto as PuntoModello, StatoPianta,
@@ -132,7 +132,7 @@ function localeVista(l: Locale, q: MappaQuantita, ambito: string): LocaleVista {
 }
 
 /** Rotazione del modello (antioraria, retro in basso a 0°) → della vista (oraria, retro in alto a 0°). */
-export const rotazioneVista = (gradi: number) => (((180 - gradi) % 360) + 360) % 360;
+export const rotazioneVista = rotazioneSchermo;
 
 function elementoVista(e: Elemento, modo: ModoVista): ElementoVista {
   return {

@@ -1,3 +1,5 @@
+import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
+import { CommissionContractDetails } from "./CommissionContractDetails";
 import { leggiModalitaCommesse } from "@/lib/finanziamenti/leggiModalitaCommesse";
 import type { ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 import { useEffect, useMemo, useState } from "react";
@@ -6,7 +8,6 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
-  Award,
   BadgeCheck,
   CheckCircle2,
   Clock3,
@@ -15,14 +16,11 @@ import {
   FileText,
   Loader2,
   MoreHorizontal,
-  Percent,
   Plus,
   Search,
-  Sparkles,
   Undo2,
   UsersRound,
   WalletCards,
-  type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -190,6 +188,7 @@ interface CompensationViewRow {
   customerName: string;
   ruleLabel: string;
   ruleDetail: string;
+  currentAgreement?: string;
   gross: number;
   bonus: number;
   deductions: number;
@@ -197,6 +196,8 @@ interface CompensationViewRow {
   statusInfo: VariableCompensationStatusInfo;
   statusDate: string | null;
   createdAt: string;
+  expectedDate: string | null;
+  paidDate: string | null;
   breakdown: CommissionBreakdownLine[];
 }
 
@@ -294,17 +295,6 @@ function formatRule(type?: string | null, value?: number | null): string {
   return "Regola non impostata";
 }
 
-function formatContract(row: CommissionRow): string {
-  const salesperson = row.salesperson;
-  const mode = salesperson?.compensation_mode || "only_commission";
-  if (mode === "fixed_only") return "Solo fisso";
-  const base = formatRule(salesperson?.commission_type, salesperson?.commission_value);
-  if (mode === "fixed_plus_commission") {
-    return `${formatCurrency(salesperson?.fixed_monthly_eur || 0)}/mese + ${base}`;
-  }
-  return base;
-}
-
 function formatDate(value: string | null | undefined): string | null {
   if (!value) return null;
   const date = new Date(value);
@@ -343,10 +333,6 @@ function isInPeriod(dateIso: string | null | undefined, period: PeriodFilter): b
   end.setMonth(now.getMonth() + 1, 0);
   end.setHours(23, 59, 59, 999);
   return date >= start && date <= end;
-}
-
-function rowPeriodDate(row: CompensationViewRow): string | null {
-  return row.statusDate || row.createdAt || null;
 }
 
 function positiveAdjustments(entries: LedgerEntry[]): number {
@@ -479,52 +465,17 @@ function deriveDraftStatus(args: {
   }).status;
 }
 
-function KpiCard({
-  label,
-  value,
-  icon: Icon,
-  tone,
-  hint,
-}: {
-  label: string;
-  value: string;
-  icon: LucideIcon;
-  tone?: "green" | "orange" | "red" | "blue";
-  hint?: string;
-}) {
-  const toneClass = tone === "green"
-    ? "text-emerald-700 bg-emerald-50"
-    : tone === "red"
-      ? "text-red-700 bg-red-50"
-      : tone === "orange"
-        ? "text-orange-700 bg-orange-50"
-        : tone === "blue"
-          ? "text-blue-700 bg-blue-50"
-          : "text-slate-700 bg-slate-50";
-
-  return (
-    <Card>
-      <CardContent className="flex flex-wrap min-h-[80px] sm:min-h-[104px] items-center justify-between gap-2 sm:gap-3 p-2.5 sm:p-4">
-        <div className="min-w-0">
-          <p className="text-[10px] sm:text-xs font-medium text-muted-foreground truncate">{label}</p>
-          <p className="mt-0.5 sm:mt-1 break-words text-base sm:text-xl font-semibold tabular-nums">{value}</p>
-          {hint && <p className="hidden sm:block mt-1 truncate text-xs text-muted-foreground">{hint}</p>}
-        </div>
-        <div className={`shrink-0 rounded-md p-1.5 sm:p-2 ${toneClass}`}>
-          <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 export function OrderCommissionsOverview() {
   const queryClient = useQueryClient();
   const { effectiveCompany } = useAuth();
   const [searchParams] = useSearchParams();
   const readOnly = searchParams.get("commercialistaMode") === "1";
   const [liquidateTarget, setLiquidateTarget] = useState<{ name: string; rows: CompensationViewRow[]; amount: number } | null>(null);
+  const [view, setView] = useState<"rows" | "beneficiaries">("rows");
+  const [paymentDate, setPaymentDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [dateBasis, setDateBasis] = useState<"expected" | "paid" | "created">("expected");
+  const [page, setPage] = useState(1);
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
   const [beneficiaryFilter, setBeneficiaryFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -545,7 +496,7 @@ export function OrderCommissionsOverview() {
     setLocalRows(readLocalRows(effectiveCompany?.id));
   }, [effectiveCompany?.id]);
 
-  const { data: legacyRows = [], isLoading: isLoadingLegacy } = useQuery({
+  const { data: legacyRows = [], isLoading: isLoadingLegacy, error: legacyError } = useQuery({
     queryKey: ["orders-commissions-overview", effectiveCompany?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
@@ -590,7 +541,7 @@ export function OrderCommissionsOverview() {
 
   const legacyRowIds = useMemo(() => legacyRows.map((row) => row.id), [legacyRows]);
 
-  const { data: ledgerEntries = [] } = useQuery({
+  const { data: ledgerEntries = [], error: ledgerError } = useQuery({
     queryKey: ["orders-commissions-overview-ledger", effectiveCompany?.id, legacyRowIds],
     queryFn: async () => {
       if (!effectiveCompany?.id || legacyRowIds.length === 0) return [];
@@ -612,7 +563,7 @@ export function OrderCommissionsOverview() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: genericRows = [], isLoading: isLoadingGeneric } = useQuery({
+  const { data: genericRows = [], isLoading: isLoadingGeneric, error: genericError } = useQuery({
     queryKey: ["orders-variable-compensations", effectiveCompany?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
@@ -784,7 +735,9 @@ export function OrderCommissionsOverview() {
         order: row.order,
         customerName: customerName(row.order?.customer),
         ruleLabel: COMMISSION_TYPE_LABELS[row.commission_type] ?? row.commission_type,
-        ruleDetail: formatContract(row),
+        ruleDetail: formatRule(row.commission_type, row.commission_value),
+        currentAgreement: row.salesperson?.compensation_mode === "fixed_only" ? "Solo fisso"
+          : `${row.salesperson?.compensation_mode === "fixed_plus_commission" ? `${formatCurrency(row.salesperson.fixed_monthly_eur || 0)}/mese + ` : ""}${formatRule(row.salesperson?.commission_type, row.salesperson?.commission_value)}`,
         gross,
         bonus,
         deductions,
@@ -792,6 +745,8 @@ export function OrderCommissionsOverview() {
         statusInfo,
         statusDate: row.is_paid ? row.paid_date : row.payment_expected_date,
         createdAt: row.created_at,
+        expectedDate: row.payment_expected_date,
+        paidDate: row.paid_date,
         breakdown: buildCommissionBreakdown({
           grossAmount: gross,
           incentivesAmount: bonus,
@@ -825,6 +780,8 @@ export function OrderCommissionsOverview() {
           statusInfo: statusInfoFromStoredStatus(row.status, net),
           statusDate: row.paid_date || row.expected_payment_date,
           createdAt: row.created_at,
+          expectedDate: row.expected_payment_date,
+          paidDate: row.paid_date,
           breakdown: buildCommissionBreakdown({
             grossAmount: gross,
             incentivesAmount: bonus,
@@ -858,6 +815,8 @@ export function OrderCommissionsOverview() {
         statusInfo: statusInfoFromStoredStatus(row.status, row.net_amount),
         statusDate: row.paid_date || row.expected_payment_date,
         createdAt: row.created_at,
+        expectedDate: row.expected_payment_date,
+        paidDate: row.paid_date,
         breakdown: buildCommissionBreakdown({
           grossAmount: row.gross_amount,
           incentivesAmount: row.bonus_amount,
@@ -870,6 +829,12 @@ export function OrderCommissionsOverview() {
     return [...genericViewRows, ...localViewRows, ...legacyViewRows].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }, [genericRows, ledgerByLegacyRow, legacyRows, localRows, orderOptions, beneficiaryOptions]);
 
+  const filterBeneficiaries = useMemo(() => {
+    const options = new Map<string, string>();
+    viewRows.forEach((row) => options.set(row.beneficiaryId, row.beneficiaryName));
+    return [...options].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [viewRows]);
+
   const filteredRows = useMemo(() => {
     const needle = search.trim().toLowerCase();
 
@@ -877,7 +842,7 @@ export function OrderCommissionsOverview() {
       if (statusFilter === "unpaid" && row.statusInfo.status === "paid") return false;
       if (statusFilter !== "all" && statusFilter !== "unpaid" && row.statusInfo.status !== statusFilter) return false;
       if (beneficiaryFilter !== "all" && row.beneficiaryId !== beneficiaryFilter) return false;
-      if (!isInPeriod(rowPeriodDate(row), periodFilter)) return false;
+      if (!isInPeriod(dateBasis === "expected" ? row.expectedDate : dateBasis === "paid" ? row.paidDate : row.createdAt, periodFilter)) return false;
 
       if (!needle) return true;
       const haystack = [
@@ -890,7 +855,11 @@ export function OrderCommissionsOverview() {
       ].join(" ").toLowerCase();
       return haystack.includes(needle);
     });
-  }, [beneficiaryFilter, periodFilter, search, statusFilter, viewRows]);
+  }, [beneficiaryFilter, periodFilter, dateBasis, search, statusFilter, viewRows]);
+
+  const pageCount = Math.max(1, Math.ceil(filteredRows.length / 25));
+  const currentPage = Math.min(page, pageCount);
+  const visibleRows = filteredRows.slice((currentPage - 1) * 25, currentPage * 25);
 
   const totals = useMemo(() => {
     return filteredRows.reduce(
@@ -1126,10 +1095,13 @@ export function OrderCommissionsOverview() {
 
   // ── Liquidazione: segna pagato/annulla per riga, gestendo le 3 sorgenti ──
   const setPaidMutation = useMutation({
-    mutationFn: async ({ rows, paid }: { rows: CompensationViewRow[]; paid: boolean }) => {
+    mutationFn: async ({ rows, paid, date }: { rows: CompensationViewRow[]; paid: boolean; date?: string }) => {
       if (!effectiveCompany?.id) throw new Error("company_missing");
-      const today = paid ? format(new Date(), "yyyy-MM-dd") : null;
+      if (paid && rows.some((row) => row.statusInfo.status !== "payable")) throw new Error("not_payable");
+      if (paid && (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || date > format(new Date(), "yyyy-MM-dd"))) throw new Error("invalid_payment_date");
+      const today = paid ? date! : null;
 
+      if (legacyError || genericError || ledgerError) throw new Error("incomplete_data");
       const dbTargets = rows.filter((row) => row.source !== "local");
       await Promise.all(
         dbTargets.map(async (row) => {
@@ -1184,6 +1156,7 @@ export function OrderCommissionsOverview() {
       return;
     }
     const amount = rows.reduce((sum, row) => sum + row.net, 0);
+    setPaymentDate(format(new Date(), "yyyy-MM-dd"));
     setLiquidateTarget({ name, rows, amount });
   };
 
@@ -1200,7 +1173,9 @@ export function OrderCommissionsOverview() {
       { key: "decurtazioni", label: "Decurtazioni" },
       { key: "netto", label: "Netto" },
       { key: "stato", label: "Stato" },
-      { key: "data", label: "Data" },
+      { key: "creato", label: "Inserito il" },
+      { key: "previsto", label: "Pagamento previsto" },
+      { key: "pagato", label: "Pagato il" },
     ];
     const data = filteredRows.map((row) => ({
       beneficiario: row.beneficiaryName,
@@ -1213,7 +1188,9 @@ export function OrderCommissionsOverview() {
       decurtazioni: String(row.deductions),
       netto: String(row.net),
       stato: row.statusInfo.label,
-      data: formatDate(rowPeriodDate(row)) ?? "",
+      creato: formatDate(row.createdAt) ?? "",
+      previsto: formatDate(row.expectedDate) ?? "",
+      pagato: formatDate(row.paidDate) ?? "",
     }));
     exportToCSV(data, columns, `provvigioni_${format(new Date(), "yyyy-MM-dd")}.csv`);
   };
@@ -1259,49 +1236,57 @@ export function OrderCommissionsOverview() {
 
   return (
     <div className="space-y-4 min-w-0">
-      <div className="grid gap-2 sm:gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
-        <KpiCard label="Da liquidare" value={formatCurrency(totals.payable)} icon={WalletCards} tone="green" />
-        <KpiCard label="In maturazione" value={formatCurrency(totals.held)} icon={Clock3} tone="orange" />
-        <KpiCard label="Pagate" value={formatCurrency(totals.paid)} icon={CheckCircle2} tone="green" />
-        <KpiCard label="Totale netto" value={formatCurrency(totals.net)} icon={Euro} tone="blue" />
-        <KpiCard label="Premi/Rett." value={formatCurrency(totals.bonus)} icon={Award} tone="green" />
-        <KpiCard label="Decurtazioni" value={formatCurrency(totals.deductions)} icon={Percent} tone="red" />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight">Provvigioni e compensi</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Controlla quanto spetta a ogni venditore o beneficiario e registra i pagamenti.</p>
+        </div>
+        {!readOnly && <Button asChild variant="outline" size="sm"><Link to="/azienda/impostazioni/persone?tab=venditori">Configura venditori</Link></Button>}
       </div>
+      {(legacyError || genericError || ledgerError) && <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
+        Non è stato possibile caricare tutti i compensi. Gli importi potrebbero essere incompleti.
+        <Button variant="outline" size="sm" className="ml-3" onClick={() => { queryClient.invalidateQueries({ queryKey: ["orders-commissions-overview"] }); queryClient.invalidateQueries({ queryKey: ["orders-variable-compensations"] }); queryClient.invalidateQueries({ queryKey: ["orders-commissions-overview-ledger"] }); }}>Riprova</Button>
+      </div>}
+      <OperationalSummary label="Riepilogo provvigioni" title="Compensi e pagamenti" icon={WalletCards} columns={3} error={!!legacyError || !!genericError || !!ledgerError} note="Importi riferiti ai filtri attivi.">
+        <OperationalSummaryMetric label="Da pagare ora" isLoading={isLoading} value={formatCurrency(totals.payable)} icon={WalletCards} tone="green" />
+        <OperationalSummaryMetric label="In attesa" isLoading={isLoading} value={formatCurrency(totals.held)} icon={Clock3} tone="orange" />
+        <OperationalSummaryMetric label="Già pagato" isLoading={isLoading} value={formatCurrency(totals.paid)} icon={CheckCircle2} tone="blue" />
+      </OperationalSummary>
+      <p className="text-xs text-muted-foreground">Importi riferiti ai filtri attivi · Totale netto {formatCurrency(totals.net)} · Premi {formatCurrency(totals.bonus)} · Decurtazioni {formatCurrency(totals.deductions)}. In attesa include stime, scadenze future, verifiche e blocchi.</p>
 
       <Card>
-        <CardContent className="p-3 sm:p-4">
-          {/* Search full-row */}
-          <div className="relative">
+        <CardContent className="flex flex-col gap-2 p-3 lg:flex-row lg:items-center lg:overflow-x-auto">
+          <div className="relative min-w-0 lg:min-w-[180px] lg:flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => { setSearch(event.target.value); setPage(1); }}
               placeholder="Cerca commessa, cliente o beneficiario"
               aria-label="Cerca commessa, cliente o beneficiario"
-              className="pl-9 h-10"
+              className="pl-9 h-9"
             />
           </div>
-          {/* Selects: 2x2 grid mobile, 1 row desktop */}
-          <div className="mt-3 grid gap-2 grid-cols-2 lg:grid-cols-[180px_220px_180px] lg:gap-3 min-w-0">
-            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
-              <SelectTrigger className="h-10 min-w-0"><SelectValue /></SelectTrigger>
+          {/* Keep desktop filters and actions on a single line. */}
+          <div className="grid min-w-0 grid-cols-2 gap-2 lg:contents">
+            <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value as StatusFilter); setPage(1); }}>
+              <SelectTrigger aria-label="Stato del compenso" className="h-9 min-w-0 lg:w-[140px] lg:shrink-0"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {Object.entries(STATUS_FILTER_LABELS).map(([value, label]) => (
                   <SelectItem key={value} value={value}>{label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <Select value={beneficiaryFilter} onValueChange={setBeneficiaryFilter}>
-              <SelectTrigger className="h-10 min-w-0"><SelectValue placeholder="Beneficiario" /></SelectTrigger>
+            <Select value={beneficiaryFilter} onValueChange={(value) => { setBeneficiaryFilter(value); setPage(1); }}>
+              <SelectTrigger aria-label="Beneficiario" className="h-9 min-w-0 lg:w-[170px] lg:shrink-0"><SelectValue placeholder="Beneficiario" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tutti i beneficiari</SelectItem>
-                {beneficiarySummaries.map((summary) => (
-                  <SelectItem key={summary.id} value={summary.id}>{summary.name}</SelectItem>
+                {filterBeneficiaries.map(([id, name]) => (
+                  <SelectItem key={id} value={id}>{name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <Select value={periodFilter} onValueChange={(value) => setPeriodFilter(value as PeriodFilter)}>
-              <SelectTrigger className="h-10 col-span-2 lg:col-span-1 min-w-0"><SelectValue /></SelectTrigger>
+            <Select value={periodFilter} onValueChange={(value) => { setPeriodFilter(value as PeriodFilter); setPage(1); }}>
+              <SelectTrigger aria-label="Periodo" className="h-9 col-span-2 min-w-0 lg:w-[145px] lg:shrink-0"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tutti i periodi</SelectItem>
                 <SelectItem value="current_month">Mese corrente</SelectItem>
@@ -1310,10 +1295,17 @@ export function OrderCommissionsOverview() {
               </SelectContent>
             </Select>
           </div>
-          {/* Actions: primary full-width mobile, secondary outline */}
-          <div className="mt-3 flex flex-col sm:flex-row gap-2">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground lg:contents">
+            <span className="lg:sr-only">Date riferite a:</span>
+            <Select value={dateBasis} onValueChange={(value) => { setDateBasis(value as typeof dateBasis); setPage(1); }}>
+              <SelectTrigger aria-label="Data di riferimento del periodo" className="h-9 w-full lg:w-[180px] lg:shrink-0"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="expected">Pagamento previsto</SelectItem><SelectItem value="paid">Pagamento effettuato</SelectItem><SelectItem value="created">Inserimento compenso</SelectItem></SelectContent>
+            </Select>
+          </div>
+          {/* Actions share the filter row on desktop. */}
+          <div className="flex gap-2 lg:contents">
             {!readOnly && (
-              <Button className="gap-2 h-10 flex-1 sm:flex-none" onClick={openAddDialog}>
+              <Button className="h-9 shrink-0 gap-2 whitespace-nowrap" onClick={openAddDialog}>
                 <Plus className="h-4 w-4" />
                 <span className="sm:hidden">Compenso</span>
                 <span className="hidden sm:inline">Aggiungi compenso</span>
@@ -1321,7 +1313,7 @@ export function OrderCommissionsOverview() {
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="gap-2 h-10 flex-1 sm:flex-none" disabled={filteredRows.length === 0}>
+                <Button variant="outline" className="h-9 shrink-0 gap-2 whitespace-nowrap" disabled={filteredRows.length === 0}>
                   <Download className="h-4 w-4" />
                   Esporta
                 </Button>
@@ -1337,18 +1329,21 @@ export function OrderCommissionsOverview() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button asChild variant="outline" className="gap-2 h-10 flex-1 sm:flex-none">
-              <Link to="/azienda/impostazioni/persone?tab=venditori">
-                <Sparkles className="h-4 w-4" />
-                Regole AI
-              </Link>
-            </Button>
+            {(search || statusFilter !== "all" || beneficiaryFilter !== "all" || periodFilter !== "all") && <Button variant="ghost" className="h-9 shrink-0 whitespace-nowrap" onClick={() => { setSearch(""); setStatusFilter("all"); setBeneficiaryFilter("all"); setPeriodFilter("all"); setPage(1); }}>Azzera filtri</Button>}
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.6fr)] min-w-0">
-        <Card>
+      <div className="flex items-center justify-between gap-3 overflow-x-auto">
+        <div className="flex shrink-0 gap-1 whitespace-nowrap rounded-lg border p-1" aria-label="Vista provvigioni">
+          <Button size="sm" variant={view === "rows" ? "secondary" : "ghost"} aria-pressed={view === "rows"} onClick={() => setView("rows")}>Elenco compensi</Button>
+          <Button size="sm" variant={view === "beneficiaries" ? "secondary" : "ghost"} aria-pressed={view === "beneficiaries"} onClick={() => setView("beneficiaries")}>Per venditore / beneficiario</Button>
+        </div>
+        <span className="shrink-0 whitespace-nowrap text-sm text-muted-foreground">{filteredRows.length} compensi · {beneficiarySummaries.length} beneficiari</span>
+      </div>
+      {periodFilter !== "all" && dateBasis === "expected" && <p className="text-xs text-muted-foreground">I compensi senza una data prevista non rientrano nel periodo scelto. Seleziona “Tutti i periodi” per vederli.</p>}
+      <div className="min-w-0">
+        {view === "beneficiaries" && <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <UsersRound className="h-4 w-4" />
@@ -1356,81 +1351,44 @@ export function OrderCommissionsOverview() {
             </CardTitle>
             <CardDescription>Commerciali, partner, tecnici o altri soggetti remunerati.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {isLoading ? (
-              <div className="space-y-2">
-                {[0, 1, 2].map((i) => (
-                  <div key={i} className="h-24 animate-pulse rounded-md bg-muted" />
-                ))}
-              </div>
-            ) : beneficiarySummaries.length === 0 ? (
-              <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-                Nessun compenso trovato.
-              </div>
-            ) : (
-              beneficiarySummaries.map((summary) => (
-                <div key={summary.id} className="rounded-md border p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">{summary.name}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{summary.role}</p>
-                    </div>
-                    <Badge variant={summary.payable > 0 ? "default" : "secondary"}>
-                      {summary.rowsCount}
-                    </Badge>
-                  </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                    <div>
-                      <p className="text-muted-foreground">Netto</p>
-                      <p className="font-semibold tabular-nums">{formatCurrency(summary.net)}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Liquidabile</p>
-                      <p className="font-semibold tabular-nums text-emerald-700">{formatCurrency(summary.payable)}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Pagato</p>
-                      <p className="font-semibold tabular-nums">{formatCurrency(summary.paid)}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Trattenuto</p>
-                      <p className="font-semibold tabular-nums text-orange-700">{formatCurrency(summary.held)}</p>
-                    </div>
-                  </div>
-                  {!readOnly && summary.payable > 0 && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="mt-3 w-full gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-                      onClick={() => openLiquidateBeneficiary(summary.id, summary.name)}
-                      disabled={setPaidMutation.isPending}
-                    >
-                      <BadgeCheck className="h-3.5 w-3.5" />
-                      Liquida {formatCurrency(summary.payable)}
-                    </Button>
-                  )}
-                </div>
-              ))
-            )}
+          <CardContent className="overflow-x-auto">
+            <Table className="min-w-[700px]">
+              <TableHeader><TableRow><TableHead>Venditore / beneficiario</TableHead><TableHead>Compensi</TableHead><TableHead className="text-right">Da pagare ora</TableHead><TableHead className="text-right">In attesa</TableHead><TableHead className="text-right">Pagato</TableHead><TableHead>Azioni</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {isLoading ? <TableRow><TableCell colSpan={6}>Caricamento…</TableCell></TableRow> : beneficiarySummaries.length === 0 ? <TableRow><TableCell colSpan={6} className="py-8 text-center">Nessun beneficiario per questi filtri.</TableCell></TableRow> : beneficiarySummaries.map((summary) => <TableRow key={summary.id}>
+                  <TableCell><div className="flex items-center gap-2"><button className="text-left font-medium text-primary hover:underline" onClick={() => { setBeneficiaryFilter(summary.id); setPage(1); setView("rows"); }}>{summary.name}</button><p className="text-xs text-muted-foreground">{summary.role}</p></div></TableCell>
+                  <TableCell>{summary.rowsCount}</TableCell>
+                  <TableCell className="text-right font-medium tabular-nums">{formatCurrency(summary.payable)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCurrency(summary.held)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCurrency(summary.paid)}</TableCell>
+                  <TableCell>{!readOnly && summary.payable > 0 && <Button size="sm" variant="outline" onClick={() => openLiquidateBeneficiary(summary.id, summary.name)} disabled={setPaidMutation.isPending}>Registra pagamento</Button>}</TableCell>
+                </TableRow>)}
+              </TableBody>
+            </Table>
           </CardContent>
-        </Card>
+        </Card>}
 
-        <Card>
+        {view === "rows" && <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Euro className="h-4 w-4" />
-              Compensi variabili commesse
+              Elenco compensi
             </CardTitle>
-            <CardDescription>Include storico venditori e nuovi compensi generici.</CardDescription>
+            <CardDescription>Una riga per compenso. Apri il dettaglio per vedere calcolo, date e situazione del pagamento.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
-              <Table className="min-w-[720px]">
+              <Table className="min-w-[1100px] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap [&_td]:py-2.5">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Beneficiario</TableHead>
-                    <TableHead>Commessa</TableHead>
-                    <TableHead>Regola</TableHead>
+                    <TableHead>Venditore / beneficiario</TableHead>
+                    <TableHead>Commessa / contratto</TableHead>
+                    <TableHead>Modalità compenso</TableHead>
+                    <TableHead>Inserito il</TableHead>
+                    <TableHead>Pagamento previsto</TableHead>
+                    <TableHead>Pagato il</TableHead>
+                    <TableHead className="text-right">Base + premi</TableHead>
+                    <TableHead className="text-right">Decurtazioni</TableHead>
                     <TableHead>Stato</TableHead>
                     <TableHead className="text-right">Netto</TableHead>
                     <TableHead className="w-[92px]">Azioni</TableHead>
@@ -1440,29 +1398,29 @@ export function OrderCommissionsOverview() {
                   {isLoading ? (
                     [0, 1, 2, 3, 4].map((i) => (
                       <TableRow key={i}>
-                        <TableCell colSpan={6}>
+                        <TableCell colSpan={11}>
                           <div className="h-8 animate-pulse rounded bg-muted" />
                         </TableCell>
                       </TableRow>
                     ))
                   ) : filteredRows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={11} className="py-10 text-center text-sm text-muted-foreground">
                         Nessun compenso nel periodo selezionato.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredRows.map((row) => (
+                    visibleRows.map((row) => (
                       <TableRow key={row.id}>
                         <TableCell>
-                          <div className="space-y-1">
-                            <p className="font-medium">{row.beneficiaryName}</p>
+                          <div className="flex items-center gap-2">
+                            <button className="text-left font-medium text-primary hover:underline" onClick={() => setSelectedRowId(row.id)}>{row.beneficiaryName}</button>
                             <p className="text-xs text-muted-foreground">{row.role}</p>
                           </div>
                         </TableCell>
                         <TableCell>
                           {row.order ? (
-                            <div className="space-y-1">
+                            <div className="flex items-center gap-2">
                               <Link className="font-medium text-primary hover:underline" to={`/azienda/ordini/${row.order.id}`}>
                                 {orderName(row.order)}
                               </Link>
@@ -1471,29 +1429,33 @@ export function OrderCommissionsOverview() {
                           ) : "—"}
                         </TableCell>
                         <TableCell>
-                          <div className="space-y-1">
-                            <Badge variant="outline">{row.ruleLabel}</Badge>
-                            <p className="text-xs text-muted-foreground">{row.ruleDetail}</p>
-                            {row.source !== "legacy" && (
-                              <p className="text-xs text-blue-700">Compenso generico</p>
-                            )}
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">{row.ruleDetail}</span>
+                            {row.source === "local" && <Badge variant="outline">Solo su questo browser</Badge>}
+
                           </div>
                         </TableCell>
+                        <TableCell className="whitespace-nowrap">{formatDate(row.createdAt)}</TableCell>
+                        <TableCell className="whitespace-nowrap">{formatDate(row.expectedDate) || "Da definire"}</TableCell>
+                        <TableCell className="whitespace-nowrap">{formatDate(row.paidDate) || "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatCurrency(row.gross + row.bonus)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatCurrency(row.deductions)}</TableCell>
                         <TableCell>
                           <div className="space-y-1">
                             <Badge variant="outline" className={STATUS_BADGE_CLASS[row.statusInfo.status]}>
                               {row.statusInfo.label}
                             </Badge>
-                            {row.statusDate && <p className="text-xs text-muted-foreground">{formatDate(row.statusDate)}</p>}
+
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="space-y-1">
                             <p className="font-semibold tabular-nums">{formatCurrency(row.net)}</p>
-                            {row.deductions > 0 && <p className="text-xs tabular-nums text-red-700">-{formatCurrency(row.deductions)}</p>}
                           </div>
                         </TableCell>
                         <TableCell>
+                          <div className="flex items-center gap-1">
+                          <Button variant="outline" size="sm" className="h-8" onClick={() => setSelectedRowId(row.id)}>Apri dettaglio</Button>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Azioni compenso">
@@ -1518,8 +1480,8 @@ export function OrderCommissionsOverview() {
                                     </DropdownMenuItem>
                                   ) : (
                                     <DropdownMenuItem
-                                      onClick={() => setPaidMutation.mutate({ rows: [row], paid: true })}
-                                      disabled={setPaidMutation.isPending}
+                                      onClick={() => { setPaymentDate(format(new Date(), "yyyy-MM-dd")); setLiquidateTarget({ name: row.beneficiaryName, rows: [row], amount: row.net }); }}
+                                      disabled={setPaidMutation.isPending || row.statusInfo.status !== "payable"}
                                     >
                                       <BadgeCheck className="h-4 w-4 mr-2 text-emerald-600" />
                                       Segna come pagato
@@ -1529,6 +1491,7 @@ export function OrderCommissionsOverview() {
                               )}
                             </DropdownMenuContent>
                           </DropdownMenu>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
@@ -1536,20 +1499,27 @@ export function OrderCommissionsOverview() {
                 </TableBody>
               </Table>
             </div>
+            {pageCount > 1 && <div className="mt-4 flex items-center justify-between gap-2 text-sm">
+              <span className="text-muted-foreground">Pagina {currentPage} di {pageCount} · {filteredRows.length} compensi</span>
+              <div className="flex gap-2"><Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Precedente</Button><Button variant="outline" size="sm" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}>Successiva</Button></div>
+            </div>}
           </CardContent>
-        </Card>
+        </Card>}
       </div>
 
       <Dialog open={!!selectedRow} onOpenChange={(open) => !open && setSelectedRowId(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="flex max-h-[90vh] max-w-6xl flex-col gap-0 overflow-hidden p-0">
           {selectedRow && (
             <>
-              <DialogHeader>
+              <DialogHeader className="shrink-0 border-b px-6 pb-4 pt-6">
                 <DialogTitle>Dettaglio compenso</DialogTitle>
                 <DialogDescription>
                   {selectedRow.beneficiaryName} · {orderName(selectedRow.order)}
                 </DialogDescription>
               </DialogHeader>
+              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
+              {selectedRow.order && <CommissionContractDetails key={selectedRow.order.id} orderId={selectedRow.order.id} />}
+              <div className="border-t pt-5"><h3 className="font-semibold">Provvigione del beneficiario</h3><p className="mt-1 text-sm text-muted-foreground">{selectedRow.beneficiaryName} · {selectedRow.role}</p></div>
               <div className="grid gap-3 md:grid-cols-3">
                 <div className="rounded-md border p-3">
                   <p className="text-xs text-muted-foreground">Stato</p>
@@ -1564,20 +1534,34 @@ export function OrderCommissionsOverview() {
                   <p className="mt-1 text-xs text-muted-foreground">{selectedRow.ruleDetail}</p>
                 </div>
                 <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">Origine</p>
-                  <p className="mt-2 font-medium">{selectedRow.source === "legacy" ? "Storico venditori" : selectedRow.source === "generic" ? "Compensi generici DB" : "Locale demo"}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{selectedRow.role}</p>
+                  <p className="text-xs text-muted-foreground">Netto provvigione</p>
+                  <p className="mt-2 text-xl font-semibold tabular-nums">{formatCurrency(selectedRow.net)}</p>
+
                 </div>
               </div>
+              <div className="grid gap-3 rounded-lg bg-muted/40 p-4 text-sm sm:grid-cols-3">
+                <div><p className="text-muted-foreground">Inserito il</p><p className="mt-1 font-medium">{formatDate(selectedRow.createdAt)}</p></div>
+                <div><p className="text-muted-foreground">Pagamento previsto</p><p className="mt-1 font-medium">{formatDate(selectedRow.expectedDate) || "Da definire"}</p></div>
+                <div><p className="text-muted-foreground">Pagato il</p><p className="mt-1 font-medium">{formatDate(selectedRow.paidDate) || "Non registrato"}</p></div>
+              </div>
+              {selectedRow.currentAgreement && <details className="rounded-md border p-3 text-sm"><summary className="cursor-pointer font-medium">Accordo attuale del venditore</summary><p className="mt-2">{selectedRow.currentAgreement}</p><p className="mt-1 text-xs text-muted-foreground">La riga riguarda il compenso della commessa con la regola riportata sopra; l'accordo attuale può essere diverso da quello assegnato alla commessa.</p></details>}
+              {selectedRow.source === "local" && <p role="note" className="rounded-md border p-3 text-sm">Compenso di prova salvato solo in questo browser, non condiviso con gli altri dispositivi.</p>}
+              {selectedRow.source !== "legacy" && <p className="text-xs text-muted-foreground">Il dettaglio mostra il calcolo registrato all'inserimento. Verifica eventuali incassi o variazioni successivi prima del pagamento.</p>}
               <div className="space-y-2">
                 {selectedRow.breakdown.map((line) => (
                   <div key={line.label} className="flex items-center justify-between rounded-md border p-3 text-sm">
                     <span className="text-muted-foreground">{line.label}</span>
                     <span className={line.kind === "malus" ? "font-medium tabular-nums text-red-700" : line.kind === "bonus" ? "font-medium tabular-nums text-emerald-700" : "font-medium tabular-nums"}>
-                      {line.amount < 0 ? `-${formatCurrency(Math.abs(line.amount))}` : formatCurrency(line.amount)}
+                      {Math.abs(line.amount) < 0.005 ? formatCurrency(0) : line.amount < 0 ? `-${formatCurrency(Math.abs(line.amount))}` : formatCurrency(line.amount)}
                     </span>
                   </div>
                 ))}
+              </div>
+              </div>
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t bg-background px-6 py-4">
+                {selectedRow.order && <Button asChild variant="outline"><Link to={`/azienda/ordini/${selectedRow.order.id}`}>Apri commessa / contratto</Link></Button>}
+                {!readOnly && selectedRow.statusInfo.status === "payable" && <Button onClick={() => { setPaymentDate(format(new Date(), "yyyy-MM-dd")); setLiquidateTarget({ name: selectedRow.beneficiaryName, rows: [selectedRow], amount: selectedRow.net }); setSelectedRowId(null); }}>Registra pagamento</Button>}
+                {!readOnly && selectedRow.statusInfo.status === "paid" && <Button variant="outline" disabled={setPaidMutation.isPending} onClick={() => setPaidMutation.mutate({ rows: [selectedRow], paid: false })}>Annulla registrazione pagamento</Button>}
               </div>
             </>
           )}
@@ -1709,13 +1693,12 @@ export function OrderCommissionsOverview() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!liquidateTarget} onOpenChange={(open) => !open && setLiquidateTarget(null)}>
+      <Dialog open={!!liquidateTarget} onOpenChange={(open) => !open && !setPaidMutation.isPending && setLiquidateTarget(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Conferma liquidazione</DialogTitle>
+            <DialogTitle>Registra pagamento</DialogTitle>
             <DialogDescription>
-              Stai per segnare come pagati i compensi pagabili di <strong>{liquidateTarget?.name}</strong>. L'operazione è
-              reversibile dalla riga del compenso.
+              Registra il pagamento già effettuato a <strong>{liquidateTarget?.name}</strong>. Questa operazione non esegue bonifici e si può annullare dal dettaglio.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-md border p-3 text-sm">
@@ -1728,15 +1711,19 @@ export function OrderCommissionsOverview() {
               <span className="font-semibold tabular-nums text-emerald-700">{formatCurrency(liquidateTarget?.amount ?? 0)}</span>
             </div>
           </div>
+          <div className="max-h-40 overflow-y-auto rounded-md border p-3 text-sm space-y-2">
+            {liquidateTarget?.rows.map((row) => <div key={row.id} className="flex justify-between gap-3"><span>{orderName(row.order)}</span><span className="tabular-nums">{formatCurrency(row.net)}</span></div>)}
+          </div>
+          <div className="space-y-2"><Label htmlFor="commission-payment-date">Data del pagamento</Label><Input id="commission-payment-date" type="date" max={format(new Date(), "yyyy-MM-dd")} value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} /></div>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setLiquidateTarget(null)}>Annulla</Button>
+            <Button variant="outline" disabled={setPaidMutation.isPending} onClick={() => setLiquidateTarget(null)}>Annulla</Button>
             <Button
               className="gap-1.5"
-              onClick={() => liquidateTarget && setPaidMutation.mutate({ rows: liquidateTarget.rows, paid: true })}
-              disabled={setPaidMutation.isPending}
+              onClick={() => liquidateTarget && setPaidMutation.mutate({ rows: liquidateTarget.rows, paid: true, date: paymentDate })}
+              disabled={setPaidMutation.isPending || !!legacyError || !!genericError || !!ledgerError || !paymentDate || paymentDate > format(new Date(), "yyyy-MM-dd")}
             >
               {setPaidMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <BadgeCheck className="h-4 w-4" />}
-              Liquida {formatCurrency(liquidateTarget?.amount ?? 0)}
+              Conferma pagamento {formatCurrency(liquidateTarget?.amount ?? 0)}
             </Button>
           </div>
         </DialogContent>

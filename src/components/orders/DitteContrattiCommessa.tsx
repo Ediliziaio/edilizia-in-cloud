@@ -42,6 +42,7 @@ import { clausoleArchivioDelContratto, testoComprende, totaleElencoLavori, unisc
 import { OfficeSelect } from "./OfficeSelect";
 import { AbbinaListinoDialog } from "./AbbinaListinoDialog";
 import { AffidaVociDialog, useAffidamentiCommessa } from "./AffidaVociDialog";
+import { AffidaContrattoDialog } from "./AffidaContrattoDialog";
 import { VarianteVociDialog } from "./VarianteVociDialog";
 import { chiaveAffidamenti, type AffidamentoChiFaCosa } from "@/lib/subappaltatori/affidamentiCommessa";
 
@@ -152,6 +153,7 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
   const [vociAperte, setVociAperte] = useState<string | null>(null);
   const [abbinaAperto, setAbbinaAperto] = useState(false);
   const [affidaAperto, setAffidaAperto] = useState(false);
+  const [affidaContratto, setAffidaContratto] = useState(false);
   const invalida = () => {
     void qc.invalidateQueries({ queryKey: ["ditte-contratti-commessa", companyId, orderId] });
     void qc.invalidateQueries({ queryKey: chiaveVociPreviste(companyId, orderId) });
@@ -226,9 +228,14 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
     <div className="space-y-5">
       {listaVoci.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border px-3 py-2 text-sm">
-          <span className="min-w-0 flex-1">Chi fa cosa: affida fasi o singole voci alle ditte, anche dividendo la quantità, col prezzo del loro listino.</span>
-          <Button size="sm" onClick={() => setAffidaAperto(true)}>Affida le voci alle ditte</Button>
+          <span className="min-w-0 flex-1">Scegli le voci e la ditta, scrivi quantità e prezzi, e manda il contratto: tutto in un passaggio.</span>
+          <Button size="sm" variant="outline" onClick={() => setAffidaAperto(true)} title="Quote divise fra più ditte, prezzi delle quote già affidate">Chi fa cosa</Button>
+          <Button size="sm" onClick={() => setAffidaContratto(true)}>Affida e manda il contratto</Button>
         </div>
+      )}
+      {affidaContratto && (
+        <AffidaContrattoDialog orderId={orderId} companyId={companyId} fasi={d.fasi} voci={listaVoci} contratti={d.contratti} schede={d.schede}
+          onChiudi={() => setAffidaContratto(false)} onFatto={invalida} />
       )}
       {affidaAperto && (
         <AffidaVociDialog orderId={orderId} companyId={companyId} fasi={d.fasi}
