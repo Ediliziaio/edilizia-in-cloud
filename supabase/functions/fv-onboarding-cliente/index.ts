@@ -38,6 +38,8 @@ interface FvSolarLeadInput {
   prima_casa?: boolean;
   anno_costruzione?: number;
   ha_impianto_esistente?: boolean;
+  /** Scelta esplicita del nuovo wizard; i chiamanti precedenti restano invariati. */
+  senza_mappa?: boolean;
   consumo_annuo_kwh: number;
   costo_kwh_attuale?: number;
   tariffa_tipo?: "monoraria" | "bioraria" | "trioraria";
@@ -242,6 +244,7 @@ Deno.serve(async (req: Request) => {
         prima_casa: payload.prima_casa ?? null,
         anno_costruzione: payload.anno_costruzione ?? null,
         ha_impianto_esistente: payload.ha_impianto_esistente ?? false,
+        layout_overlay: payload.senza_mappa === true ? { modalita: "senza_mappa" } : null,
         consumo_annuo_kwh: payload.consumo_annuo_kwh,
         costo_kwh_attuale: payload.costo_kwh_attuale ?? 0.32,
         tariffa_tipo: payload.tariffa_tipo ?? "monoraria",

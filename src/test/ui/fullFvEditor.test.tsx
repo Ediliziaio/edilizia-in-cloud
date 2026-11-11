@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { FotovoltaicoTemplateEditor } from "@/components/fotovoltaico/FotovoltaicoTemplateEditor";
-import { createFullFvTemplate } from "@/lib/moduli-vendita/fullFvModules";
+import { createFullFvTemplate,type FullFvModuleId } from "@/lib/moduli-vendita/fullFvModules";
 const calls = vi.hoisted(() => ({ remote: vi.fn(), error: vi.fn(), success: vi.fn(), company: "company-a", logo: "https://example.test/company-logo.png" as string | null, macros: [] as never[], quotes: [] as never[] }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: calls.company, logo_url: calls.logo } }) }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => calls.company }));
@@ -19,10 +19,10 @@ vi.mock("@/components/ui/rich-text-editor-safe", () => ({ RichTextEditorSafe: ()
 vi.mock("sonner", () => ({ toast: { success: calls.success, error: calls.error } }));
 beforeEach(() => { calls.company = "company-a"; calls.logo = "https://example.test/company-logo.png"; vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); });
 afterEach(() => { cleanup(); vi.clearAllMocks(); vi.unstubAllGlobals(); });
-function mount(save = vi.fn(), logoUrl: string | null = null) {
-  const template = createFullFvTemplate({}, "company-a", "accumulo");
+function mount(save = vi.fn(), logoUrl: string | null = null,id:FullFvModuleId="accumulo") {
+  const template = createFullFvTemplate({}, "company-a", id);
   template.logo_url = logoUrl;
-  render(<MemoryRouter initialEntries={["/?section=page_cover"]}><FotovoltaicoTemplateEditor embedded localModule={{ id: "accumulo", template, saved: false, save, onDirtyChange: vi.fn() }} /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={["/?section=page_cover"]}><FotovoltaicoTemplateEditor embedded localModule={{ id, template, saved: false, save, onDirtyChange: vi.fn() }} /></MemoryRouter>);
   return save;
 }
 describe("Accumulo: editor originale e confine locale", () => {
@@ -71,3 +71,16 @@ it("un modello appena aperto non segnala modifiche mai fatte", () => {
   expect(screen.queryByText(/Modifiche non salvate/)).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Salva" })).toBeEnabled();
 });
+
+it("personalizza il riepilogo aziendale e salva solo la variante aperta",()=>{
+ const save=mount(vi.fn(),null,"aziendale-noleggio");
+ fireEvent.click(screen.getByRole("button",{name:"Azienda · risparmio e pagamenti"}));
+ const titolo=screen.getByLabelText("Titolo pagina aziendale");
+ expect(titolo).toHaveValue("Il noleggio della tua impresa.");
+ fireEvent.change(titolo,{target:{value:"Una proposta personalizzata"}});
+ expect(screen.getByRole("checkbox",{name:"Mostra questa pagina nel PDF"})).toBeDisabled();
+ fireEvent.click(screen.getByRole("button",{name:"Salva"}));
+ expect(save).toHaveBeenCalledOnce();expect(save.mock.calls[0][0].pdf_blocchi.azienda_pagine.azienda_sintesi.titolo).toBe("Una proposta personalizzata");
+ expect(save.mock.calls[0][0].pdf_blocchi.azienda_variante).toBe("aziendale-noleggio");expect(calls.remote).not.toHaveBeenCalled();
+});
+it("i capitoli aziendali restano fuori dal modello accumulo",()=>{mount();expect(screen.queryByRole("button",{name:"Azienda · risparmio e pagamenti"})).toBeNull();});

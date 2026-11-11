@@ -12,10 +12,12 @@
  */
 
 export type FvPdfPageId =
+  | "azienda_sintesi" | "azienda_flussi" | "azienda_scadenze" | "azienda_ipotesi"
   | "recensioni"
   | "investimento"
   | "anteprima"
   | "piano_tetto"
+  | "schede_prodotti" | "giorno_sera" | "monitoraggio"
   | "componenti"
   | "macro_categorie"
   | "produzione"
@@ -71,9 +73,12 @@ export const FV_PDF_PAGES_META: FvPdfPageMeta[] = [
   // Il piano di posa disegnato nel preventivo (editor in Fase 5): esce solo se è stato disegnato.
   { id: "piano_tetto", label: "Piano di posa sul tetto", descrizione: "I pannelli disegnati in scala sulla vista satellitare del tetto. Esce solo se il piano è stato disegnato nella Fase 5.", obbligatoria: false },
   { id: "componenti", label: "Componenti scelti", descrizione: "Prodotti reali scelti nel preventivo e arricchiti dal listino.", obbligatoria: true },
+  { id: "schede_prodotti", label: "Casa · schede prodotto", descrizione: "Foto, modelli, quantità e caratteristiche dei prodotti della proposta.", obbligatoria: false, diSerie: false },
+  { id: "monitoraggio", label: "App e monitoraggio", descrizione: "App inclusa, gratuita o a pagamento e servizi aggiuntivi. Esce solo quando il monitoraggio è attivato nel modello.", obbligatoria: false },
   { id: "macro_categorie", label: "Pagine linee prodotto", descrizione: "Pagine dedicate lette dalle macro-categorie del listino.", obbligatoria: false },
   { id: "produzione", label: "Produzione", descrizione: "Producibilita mensile, fonte dati e qualita tetto.", obbligatoria: false },
   { id: "flussi", label: "Flussi energia", descrizione: "Autoconsumo, autosufficienza e energia ceduta.", obbligatoria: false },
+  { id: "giorno_sera", label: "Casa · giorno e sera", descrizione: "Funzionamento illustrato della casa, con o senza accumulo. Nessuna curva oraria inventata.", obbligatoria: false, diSerie: false },
   // — Atto 3: Valore (quanto guadagna, prima del costo) —
   { id: "risparmio", label: "Risparmio", descrizione: "Bolletta prima/dopo e risparmio mensile.", obbligatoria: false },
   { id: "costi_futuri", label: "Costi futuri", descrizione: "Scenario costo energia nei prossimi anni.", obbligatoria: false },
@@ -81,6 +86,10 @@ export const FV_PDF_PAGES_META: FvPdfPageMeta[] = [
   { id: "co2", label: "Impatto CO2", descrizione: "Beneficio ambientale in equivalenze semplici.", obbligatoria: false },
   // — Atto 4: Offerta (ora il prezzo, e sembra piccolo) —
   { id: "investimento", label: "Investimento", descrizione: "Prezzo, proposta di valore, inclusi e detrazione.", obbligatoria: true },
+  { id:"azienda_sintesi",label:"Azienda · risparmio e pagamenti",descrizione:"Risparmio, formula selezionata, canoni o rate e saldo aziendale.",obbligatoria:false,diSerie:false },
+  { id:"azienda_flussi",label:"Azienda · flussi negli anni",descrizione:"Grafico e tabella dei flussi di cassa aziendali.",obbligatoria:false,diSerie:false },
+  { id:"azienda_scadenze",label:"Azienda · scadenze e bolletta",descrizione:"Bolletta residua e scadenze effettive del primo anno.",obbligatoria:false,diSerie:false },
+  { id:"azienda_ipotesi",label:"Azienda · dati e ipotesi",descrizione:"Fonti, IVA, costi e ipotesi economiche esplicite.",obbligatoria:false,diSerie:false },
   { id: "piano_pagamento", label: "Piano economico", descrizione: "Rata, risparmio e costo netto mensile. Esce solo con un finanziamento.", obbligatoria: false },
   // Spenta di serie dal 22/09/2026: numeri del picco del 2022 (+240% dal 2012) presentati
   // come tendenza, e toni da urgenza. L'azienda che la vuole la riaccende dall'ordine pagine.

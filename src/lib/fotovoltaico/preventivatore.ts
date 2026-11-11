@@ -1,3 +1,4 @@
+import type {IconaEditorialeFv} from "../../../supabase/functions/_shared/fvIconeEditoriali";
 export type FvQualityLevel = "ok" | "warning" | "critical";
 
 export interface FvTemplateQualityItem {
@@ -10,7 +11,7 @@ export interface FvTemplateQualityItem {
 export interface FvGaranziaConversione {
   titolo: string;
   descrizione: string;
-  icona?: "shield" | "award" | "clock" | "tools" | "battery" | "sun" | "custom";
+  icona?: IconaEditorialeFv | "custom";
 }
 
 export interface FvFaqItem {
@@ -195,6 +196,9 @@ export interface FvCommercialReadinessInput {
   listinoCompleto: boolean;
   tariffaInstallazioneConfigurata: boolean;
   tettoMock: boolean;
+  /** Offerta senza disegno: la verifica geometrica resta un avviso esplicito. */
+  senzaMappa?: boolean;
+  disposizioneCommerciale?: boolean;
   payback_anni?: number | null;
   margine_pct?: number | null;
 }
@@ -779,8 +783,10 @@ export function calcolaFvCommercialReadiness(
   if (!input.potenza_max_kwp && !input.numero_pannelli_max) {
     issues.push({
       code: "missing_roof_data",
-      level: "critical",
-      message: "Analisi tetto non disponibile: serve Solar API, PVGIS o dato manuale.",
+      level: input.senzaMappa || input.disposizioneCommerciale ? "warning" : "critical",
+      message: input.disposizioneCommerciale ? "Disposizione commerciale: misure e posa da confermare con sopralluogo." : input.senzaMappa
+        ? "Preventivo senza mappa: capienza del tetto e posa da verificare con sopralluogo."
+        : "Capienza del tetto non disponibile: inserisci un rilievo o scegli il preventivo senza mappa.",
     });
   }
 
@@ -857,7 +863,7 @@ export function calcolaFvCommercialReadiness(
   const warnings = issues.filter((issue) => issue.level === "warning").length;
   const score = Math.max(0, 100 - critical * 35 - warnings * 10);
   const status: FvCommercialStatus =
-    critical > 0 ? "blocked" : warnings >= 3 ? "review" : "ready";
+    critical > 0 ? "blocked" : warnings >= 3 || ((input.senzaMappa || input.disposizioneCommerciale) && issues.some((issue) => issue.code === "missing_roof_data")) ? "review" : "ready";
   const nextAction =
     status === "blocked"
       ? "Correggi i blocchi prima di preparare l'offerta."

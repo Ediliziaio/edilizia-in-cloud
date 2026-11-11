@@ -78,6 +78,8 @@ export const SALES_AREAS: readonly SalesArea[] = [
   ] },
   { id: "fotovoltaico", title: "Fotovoltaico", sourceModule: "fotovoltaico", summary: "Nuovi impianti, accumulo e interventi su impianti esistenti.", interventions: [
     intervention("nuovo", "Nuovo impianto fotovoltaico", "Proposta di impianto con accumulo opzionale.", "Consumi e obiettivi", "Sito e superficie disponibile", "Moduli e inverter", "Accumulo e installazione"),
+    intervention("aziendale", "Fotovoltaico aziende", "Modello aziendale per acquisto diretto, finanziamento o leasing.", "Consumi dell’attività", "Copertura e configurazione", "Fornitura e servizi", "Risparmio e pagamenti"),
+    intervention("aziendale-noleggio", "Fotovoltaico aziende · Noleggio operativo", "Modello aziendale con canoni e condizioni del noleggio.", "Consumi e impianto", "Canoni e durata", "Assicurazione e servizi", "Fine contratto"),
     intervention("accumulo", "Aggiunta accumulo", "Integrazione di batterie nell'impianto esistente.", "Impianto e inverter esistenti", "Compatibilità", "Capacità richiesta", "Installazione e configurazione"),
     intervention("ampliamento", "Ampliamento impianto", "Incremento della potenza e componenti necessari.", "Configurazione esistente", "Potenza aggiuntiva", "Spazi e compatibilità", "Adeguamenti e installazione"),
     intervention("componenti", "Sostituzione componenti", "Inverter e altri componenti da sostituire.", "Componenti esistenti", "Motivo della sostituzione", "Ricambi compatibili", "Installazione e verifiche"),

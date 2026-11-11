@@ -94,7 +94,7 @@ export const INITIAL: WizardData = {
   kit_prezzo: null,
   prezzo_vendita_manuale: null,
   iva_aliquota: 0.1,
-  layout_overlay: null,
+  layout_overlay: { modalita: "senza_mappa" },
   tariffa_installazione_id: null,
   prodotti_extra: [],
   manodopera_righe: [],

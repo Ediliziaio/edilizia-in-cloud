@@ -1,0 +1,33 @@
+VERIFICA LOCALE — FOTOVOLTAICO
+Data: 9 novembre 2026
+Branch: codex/fotovoltaico-tetto-facoltativo
+Base: ff9d53158
+
+TEST
+12 suite FV: 447 test passati.
+2 suite del campo indirizzo e della ricerca località: 31 test passati.
+Totale: 478 test passati in 14 suite.
+Copertura: stima automatica dalla località, retry del servizio, creazione e persistenza della scelta senza mappa, 200 pannelli dal modello scelto, ripresa del disegno, draft, calcoli energetici/finanziari, accesso al modulo, template e pagine PDF.
+Comando: vitest run --maxWorkers=2 --testTimeout=20000, suite fvSenzaMappa, fotovoltaicoWizardGuscio, fotovoltaicoPdfTemplate, fvAuditBozza, fotovoltaicoWizardDraft, fotovoltaicoPreventivatore, fotovoltaicoModuloAccess, modelliPreventivoModuliEdili, fvAuditCalcoli, fvCalcoloServer, fvPianoTettoEditor, fvAuditPdf.
+
+BROWSER
+Anteprima reale della fase Tetto: http://127.0.0.1:8087/
+PVGIS pubblico interrogato senza database: Roma e Milano.
+Stima automatica riuscita per entrambe le località, senza compilare ore equivalenti e mantenendo chiuse le impostazioni avanzate.
+Screenshot: anteprima-senza-mappa.jpg
+
+BUILD
+Build Vite dell'anteprima passata; nessun deploy.
+
+LINT
+Nuovi helper/componenti senza errori.
+Wizard completo: 10 errori e 2 warning preesistenti; confronto del codice base e del codice modificato conferma lo stesso numero e le stesse regole. Non è dichiarato lint completo verde.
+
+TIPI
+Controllo TypeScript mirato passato con zero errori: wizard completo, moduli modificati e dipendenze transitive, usando le stesse opzioni del progetto. Comando: bun ./node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.fotovoltaico-locale.json --pretty false.
+Il controllo globale di tutte le sorgenti del repository non è concluso: è stato interrotto dopo oltre 15 minuti. Non viene dichiarato verde il controllo generale del repository.
+Il controllo precedente è stato interrotto esclusivamente sul processo di questo worktree, perché la correzione richiesta dall'utente ha cambiato il codice durante l'esecuzione.
+
+AMBITO
+Nessun push, nessun deploy, nessuna modifica al database di produzione.
+Il proxy PVGIS esiste solo nella configurazione Vite locale, su 127.0.0.1; consulta il servizio pubblico senza credenziali. Non sono state eseguite chiamate alle funzioni Supabase di produzione.

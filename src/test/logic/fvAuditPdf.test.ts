@@ -86,10 +86,11 @@ describe("PDF a tasso zero: 60 rate da 205,76 € su 12.345,67 €", () => {
     expect(t).toContain("Rata mensile 205,76 €");
     expect(t).toContain("205,76 €/mese × 60 mesi (Tasso zero TAEG 0,00%)");
     expect(t).toContain("Pagamento 205,76 €/mese × 60 mesi · Tasso zero · TAEG 0,00%");
-    // il costo netto reale = rata − risparmio (100): 105,76, scritto uguale in tutte le pagine
-    expect(t).toContain("Costo netto reale: 105,76 €/mese");
-    expect(t).toContain("105,76 € al mese.");
-    expect(t).toContain("205,76 € − 100 €");
+    // La sintesi distingue la rata contrattuale dal beneficio energetico stimato.
+    expect(t).toContain("Il minor costo energetico è stimato separatamente dalla rata");
+    expect(t).toContain("142,21 € / mese in più");
+    expect(t).toContain("Risparmio energetico medio 63,55 €");
+    expect(t).not.toContain("Costo netto reale");
   });
 
   it("nessun importo col punto decimale («205.76 €»): i grafici scrivono come il testo", () => {

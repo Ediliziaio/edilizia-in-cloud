@@ -48,7 +48,7 @@ function basePdfData(): FvPdfTemplateData {
       numero_pannelli: 12,
       has_accumulo: true,
       capacita_accumulo_kwh: 5,
-      consumo_annuo_kwh: 4200,
+      consumo_annuo_kwh: 5100,
       costo_kwh_attuale: 0.32,
       profilo_consumo: "misto",
       ore_sole_annue: 1450,
@@ -1059,4 +1059,38 @@ describe("fotovoltaico PDF — «Dicono di noi» (22/09/2026)", () => {
     const html = renderFvPdfHtml({ ...d, voti_online: [{ piattaforma: "google", voto: 7 }, { voto: 4.5 }] });
     expect(html).not.toContain('class="voto-card"');
   });
+});
+
+it("senza mappa esclude viste satellitari e piano anche se un disegno precedente è ancora disponibile", () => {
+  const piano = { x: 0, y: 0, rot: 0, cols: 4, unita: "m" as const, orient: "v" as const };
+  const base: FvPdfTemplateData = {
+    ...basePdfData(),
+    map_images: { close: "data:image/png;base64,VISTA_SATELLITARE_DA_ESCLUDERE" },
+    piano_tetto: { img: "data:image/png;base64,PIANO_DA_ESCLUDERE", piano, latitudine: 42.56, moduli: 12 },
+  };
+  const completo = renderFvPdfHtml(base);
+  expect(completo).toContain('data-fv-section="anteprima"');
+  expect(completo).toContain('data-fv-section="piano_tetto"');
+  const rapido = { ...base, progetto: { ...base.progetto, layout_overlay: { modalita: "senza_mappa", piano_precedente: piano } } };
+  const html = renderFvPdfHtml(rapido);
+  expect(html).not.toContain('data-fv-section="anteprima"');
+  expect(html).not.toContain('data-fv-section="piano_tetto"');
+  expect(html).not.toContain("VISTA_SATELLITARE_DA_ESCLUDERE");
+  expect(html).not.toContain("PIANO_DA_ESCLUDERE");
+  expect(getFvPdfRenderedPagesCount(rapido)).toBe(getFvPdfRenderedPagesCount(base) - 2);
+});
+
+it("il disegno commerciale compare nel PDF senza alcuna immagine satellitare", async () => {
+  const { creaDisegnoTetto, disponiModuliAutomaticamente } = await import("../../../supabase/functions/_shared/fvDisegnoCommerciale");
+  const piano = disponiModuliAutomaticamente(creaDisegnoTetto("due_falde"), 16);
+  const base = basePdfData();
+  const d: FvPdfTemplateData = { ...base, progetto: { ...base.progetto, layout_overlay: piano, potenza_kwp: 7.2, numero_pannelli:16 }, map_images:{close:"data:image/png;base64,MAPPA_DA_ESCLUDERE"} };
+  const html=renderFvPdfHtml(d);
+  expect(html).toContain('data-fv-section="piano_tetto"');
+  expect(html).toContain('Disposizione proposta<br/>dei pannelli.');
+  expect(html).toContain('16 moduli · 7,20 kWp');
+  expect(html).toContain('non costituisce un progetto tecnico');
+  expect(html).not.toContain('MAPPA_DA_ESCLUDERE');
+  expect(html).not.toContain('data-fv-section="anteprima"');
+  expect(getFvPdfRenderedPagesCount(d)).toBe((html.match(/class="page"/g)??[]).length);
 });

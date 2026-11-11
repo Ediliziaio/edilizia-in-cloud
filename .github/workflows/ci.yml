@@ -98,6 +98,9 @@ jobs:
       - name: Run critical tests
         run: bun run test:critical
 
+      - name: Verify photovoltaic quotes, PDF templates and rental isolation
+        run: bun run test:fotovoltaico
+
       - name: Run catalogue and selected-company regressions
         run: >-
           bunx vitest run --maxWorkers=2
