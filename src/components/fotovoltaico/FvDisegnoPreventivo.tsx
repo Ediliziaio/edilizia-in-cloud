@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, Download, Grid2X2, Hand, Home, LayoutGrid, MousePointer2, PencilRuler, Plus, Redo2, RotateCw, Trash2, Undo2 } from "lucide-react";
 import {
   aggiornaOstacoloConPosa, areaPoligono, arrotondaMetro, creaDisegnoTetto, disponiModuliAutomaticamente, disponiModuliOttimizzati, ingombroModulo,
@@ -11,6 +11,7 @@ import { svgVistaTetto } from "../../../supabase/functions/_shared/fvRenderComme
 
 type Tool = "seleziona" | "pannello" | "falda" | "ostacolo";
 export type FvDisegnoPreventivoProps = {
+  companyId?: string;
   value: DisegnoCommercialeFv | null;
   onChange: (value: DisegnoCommercialeFv) => void;
   modulo: DisegnoCommercialeFv["modulo"];
@@ -50,6 +51,9 @@ export function FvDisegnoPreventivo({ value, onChange, modulo, potenzaModuloW, q
   const [tipoTetto, setTipoTetto] = useState<"due_falde" | "singola" | "elle">(value?.falde.length === 1 ? value.falde[0].punti.length === 6 ? "elle" : "singola" : "due_falde");
   const [larghezza, setLarghezza] = useState(value ? limitiDisegno(value).w : 12);
   const [altezza, setAltezza] = useState(value ? limitiDisegno(value).h : 8);
+  const faldeIds=value?.falde.map(f=>f.id).join("|");
+  const moduliAttivi=value?.pannelli.filter(p=>!faldaAttiva||p.faldaId===faldaAttiva).length;
+  useEffect(()=>{if(!value)return;const attiva=faldaAttiva&&value.falde.some(f=>f.id===faldaAttiva)?faldaAttiva:"";if(attiva!==faldaAttiva)setFaldaAttiva(attiva);setRichiesti(value.pannelli.filter(p=>!attiva||p.faldaId===attiva).length);},[moduliAttivi,value?.rilievo?.id,faldeIds,faldaAttiva]);
   const svg = useRef<SVGSVGElement>(null);
   const drag = useRef<Drag | null>(null);
   const draftRef = useRef<DisegnoCommercialeFv | null>(null);
@@ -203,7 +207,7 @@ export function FvDisegnoPreventivo({ value, onChange, modulo, potenzaModuloW, q
         }}>Confronta pose e allineamenti</button>
         <label className="fv-roof-label">Distanza dal bordo <span>m</span><input aria-label="Distanza dal bordo" type="number" min={0} max={2} step={0.05} value={piano.distanzaBordo} disabled={!modificabile} onChange={e => { const n = Number(e.target.value); if (Number.isFinite(n) && n >= 0 && n <= 2) salva({ ...piano, distanzaBordo: n }); }} /></label>
       </div>
-      <div className="fv-roof-module"><div className="fv-roof-mini-panel" /><div><strong>{nomeModulo || "Modulo selezionato"}</strong><span>{num(potenzaModuloW, 0)} Wp · {num(modulo.corto)} × {num(modulo.lungo)} m</span><small>{modulo.stimato ? "Misure indicative: completa la scheda del pannello." : "Dimensioni dalla scheda del pannello."}</small></div></div>
+      <div className="fv-roof-module"><div className="fv-roof-mini-panel" /><div><strong>{nomeModulo || "Modulo selezionato"}</strong><span>{potenzaModuloW>0?`${num(potenzaModuloW,0)} Wp`:"Potenza da definire"} · {num(modulo.corto)} × {num(modulo.lungo)} m</span><small>{modulo.stimato ? "Misure indicative: completa la scheda del pannello." : "Dimensioni dalla scheda del pannello."}</small></div></div>
     </aside><div className="fv-roof-workspace">{vistaTetto ? <div className="fv-roof-toolbar"><span className="fv-roof-hint">Pannelli full black · resa illustrativa</span><div className="fv-roof-tools"><select aria-label="Copertura della vista illustrativa" value={copertura} onChange={e => setCopertura(e.target.value as "antracite" | "tegole")}><option value="antracite">Tetto antracite</option><option value="tegole">Tetto in tegole</option></select><button type="button" onClick={() => setLatoVista(v => (v + 1) % 4)}><RotateCw size={16} /> Ruota vista</button></div></div> : <div className="fv-roof-toolbar"><div className="fv-roof-tools">{([
       ["seleziona", "Seleziona e sposta", MousePointer2], ["pannello", "Aggiungi pannello", Plus], ["falda", "Disegna una falda", PencilRuler], ["ostacolo", "Aggiungi ostacolo", Home],
     ] as const).map(([t, label, Icon]) => <button key={t} type="button" hidden={contorniBloccati && t === "falda"} title={label} aria-label={label} aria-pressed={tool === t} disabled={!modificabile||(t==="pannello"&&!!piano.industriale&&piano.industriale.posa!=="aderente")} onClick={() => scegliTool(t)}><Icon size={17} /><span>{t === "seleziona" ? "Seleziona" : t === "pannello" ? "Pannello" : t === "falda" ? "Falda" : "Ostacolo"}</span></button>)}</div>
@@ -224,7 +228,7 @@ export function FvDisegnoPreventivo({ value, onChange, modulo, potenzaModuloW, q
       {tool === "falda" && <div className="fv-roof-selection"><label>Contorno <select aria-label="Falda da disegnare" value={faldaAttiva} disabled={!modificabile} onChange={e => { setFaldaAttiva(e.target.value); setPunti([]); }}><option value="">Aggiungi una falda</option>{piano.falde.map(f => <option key={f.id} value={f.id}>Ridisegna {f.nome}</option>)}</select></label><span>{punti.length} punti</span><button type="button" disabled={!modificabile || !poligonoValido(punti)} onClick={chiudi}><Check size={15} /> Chiudi falda</button><button type="button" onClick={() => setPunti([])}>Ricomincia contorno</button></div>}
       {(pSel || oSel) && <div className="fv-roof-selection"><strong>{pSel ? "Pannello selezionato" : "Ostacolo selezionato"}</strong>{oSel && <>{(["x", "y", "w", "h"] as const).map(k => <label key={k}>{({x:"Posizione X",y:"Posizione Y",w:"Larghezza",h:"Profondità"})[k]} (m)<input aria-label={"Ostacolo " + k} type="number" step={.1} min={k === "w" || k === "h" ? .1 : -200} max={k === "w" || k === "h" ? 20 : 200} disabled={!modificabile} value={oSel[k]} onChange={e => { const n = Number(e.target.value); if (Number.isFinite(n) && ((k === "w" || k === "h") ? n >= .1 && n <= 20 : Math.abs(n) <= 200)) applicaOstacolo({...oSel, [k]:n}); }} /></label>)}</>}{pSel && <><button type="button" disabled={!modificabile} aria-label="Sposta pannello a sinistra" onClick={() => cambiaPannello({ x: arrotondaMetro(pSel.x - .05) })}><ArrowLeft size={14} /></button><button type="button" disabled={!modificabile} aria-label="Sposta pannello a destra" onClick={() => cambiaPannello({ x: arrotondaMetro(pSel.x + .05) })}><ArrowRight size={14} /></button><button type="button" disabled={!modificabile} aria-label="Sposta pannello in alto" onClick={() => cambiaPannello({ y: arrotondaMetro(pSel.y - .05) })}><ArrowUp size={14} /></button><button type="button" disabled={!modificabile} aria-label="Sposta pannello in basso" onClick={() => cambiaPannello({ y: arrotondaMetro(pSel.y + .05) })}><ArrowDown size={14} /></button><button type="button" disabled={!modificabile} onClick={() => cambiaPannello({ orizzontale: !pSel.orizzontale })}><RotateCw size={14} /> Ruota</button></>}<button type="button" disabled={!modificabile} className="fv-roof-danger" onClick={elimina}><Trash2 size={14} /> Rimuovi</button></div>}
       {piano.industriale&&piano.industriale.posa!=="aderente"&&<p className="fv-roof-hint">Per aggiungere moduli su supporti usa la quantità e la posa automatica: conserva inclinazione e distanze fra file.</p>}
-      <footer className="fv-roof-canvas-footer"><span><i className="fv-roof-dot" />{piano.pannelli.length} moduli posizionati</span><span>{num(piano.pannelli.length * potenzaModuloW / 1000)} kWp</span><span>{num(piano.falde.reduce((n, f) => n + areaPoligono(f.punti), 0))} m² disegnati</span></footer>
+      <footer className="fv-roof-canvas-footer"><span><i className="fv-roof-dot" />{piano.pannelli.length} moduli posizionati</span><span>{potenzaModuloW>0?`${num(piano.pannelli.length*potenzaModuloW/1000)} kWp`:"Potenza da definire"}</span><span>{num(piano.falde.reduce((n, f) => n + areaPoligono(f.punti), 0))} m² disegnati</span></footer>
     </div></div>
     {nota && <p role="status" className="fv-roof-notice">{nota}</p>}
     {!!bad.size && <p role="alert" className="fv-roof-notice fv-roof-warning">{bad.size} moduli da riposizionare dopo le modifiche: sono evidenziati in rosso.</p>}

@@ -145,7 +145,8 @@ import { anteprimaFotovoltaico, stimaProduzioneFv } from "@/lib/fotovoltaico/ant
 // F16: ricostruisce l'etichetta orientamento (es. "S 180°") dall'azimut numerico
 // salvato in DB (fv_progetti.azimut_tetto) all'idratazione del progetto.
 import { etichettaAzimut } from "@/lib/fotovoltaico/tetto";
-import { FvDisegnoPreventivo, type FvDisegnoPreventivoProps } from "@/components/fotovoltaico/FvDisegnoPreventivo";
+import type { FvDisegnoPreventivoProps } from "@/components/fotovoltaico/FvDisegnoPreventivo";
+import FvEditorTetto from "@/components/fotovoltaico/tetto/FvEditorTetto";
 import { datiDalDisegno } from "@/lib/fotovoltaico/disegnoPreventivo";
 import { leggiDisegnoCommerciale, pannelliDaRivedere, type DisegnoCommercialeFv } from "../../../../supabase/functions/_shared/fvDisegnoCommerciale";
 import { FvSceltaProgettazione } from "@/components/fotovoltaico/FvSceltaProgettazione";
@@ -2233,6 +2234,7 @@ function FotovoltaicoWizard() {
               catalogue={{pannelli,inverter,accumuli,kits:kitFvBundles as unknown as Array<Record<string,unknown>>,labour:tariffeFv as unknown as Array<Record<string,unknown>>,services:serviziCatalogo as unknown as Array<Record<string,unknown>>}}
               onClose={()=>setConversationOpen(false)} onApply={next=>{setData(next);setConversationRevision(n=>n+1);setScenarioFin(null);autoCalcRequested.current=null;}}/></Suspense>}
             <Step5Configurazione
+              companyId={progettoEsistente?.company_id ?? effectiveCompanyId ?? undefined}
               key={`configurazione-${conversationRevision}`}
               data={data}
               update={update}
@@ -3086,6 +3088,7 @@ export function Step4Tetto({
           </details>
         </FvCard>
       )}
+      {!senzaMappa && <p className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">Il simulatore 2D e 3D si apre nella fase Impianto. Puoi preparare il tetto prima di scegliere il pannello. Qui calcoli la stima solare; nel simulatore disegni le falde, importi il rilievo e disponi i moduli.</p>}
       {!senzaMappa && <FvCard title="Sorgente dati">
         {/* Telefono: le tre sorgenti in una fila di tasselli piccoli, senza descrizioni. */}
         <div className="grid grid-cols-3 gap-3 max-sm:gap-2">
@@ -3602,6 +3605,7 @@ export function FvScontoCard({
 }
 
 export function Step5Configurazione({
+  companyId,
   data,
   update,
   readOnlyMode,
@@ -3616,8 +3620,9 @@ export function Step5Configurazione({
   scenario,
   calcolando,
   onRicalcola,
-  EditorDisegno = FvDisegnoPreventivo,
+  EditorDisegno = FvEditorTetto,
 }: {
+  companyId?: string;
   data: WizardData;
   update: <K extends keyof WizardData>(k: K, v: WizardData[K]) => void;
   readOnlyMode: boolean;
@@ -3640,10 +3645,14 @@ export function Step5Configurazione({
   const [extraSearch, setExtraSearch] = useState("");
   const [disegnoAperto, setDisegnoAperto] = useState(false);
   const [disegnoBozza, setDisegnoBozza] = useState<DisegnoCommercialeFv | null>(null);
+  const [geometriaInAttesa,setGeometriaInAttesa]=useState<DisegnoCommercialeFv|null>(null);
   const { data: regoleDisegno = [] } = useDiscountRules();
   const disegnoAttuale = leggiDisegnoCommerciale(data.layout_overlay);
   const daRivedereAttuali = disegnoAttuale ? pannelliDaRivedere(disegnoAttuale).length : 0;
-  const wattDisegno = Number(pannelli.find(p => p.id === data.pannello_id)?.potenza_w);
+  const articoloDisegno=pannelli.find(p=>p.id===data.pannello_id);
+  const wattDisegno = Number(articoloDisegno?.potenza_w);
+  const moduloDisegno=articoloDisegno?misureModulo(articoloDisegno):disegnoBozza?.modulo??disegnoAttuale?.modulo??misureModulo(undefined);
+  useEffect(()=>{if(geometriaInAttesa&&wattDisegno>0&&!readOnlyMode){setDisegnoBozza({...geometriaInAttesa,modulo:misureModulo(articoloDisegno)});setGeometriaInAttesa(null);setDisegnoAperto(true);}},[geometriaInAttesa,wattDisegno,articoloDisegno,readOnlyMode]);
   const problemiDisegno = disegnoBozza ? pannelliDaRivedere(disegnoBozza) : [];
   const datiDisegno = disegnoBozza && wattDisegno > 0 ? { ...data, ...datiDalDisegno(disegnoBozza, wattDisegno, data.prodotti_extra) } : data;
   const totaleDisegno = anteprimaFotovoltaico(datiDisegno, { listino: { pannelli, inverter, accumuli }, regoleSconto: regoleDisegno, impiantoConfigurato: true }).totaleDocumento;
@@ -4139,23 +4148,23 @@ export function Step5Configurazione({
         />
       </div>
 
-      <FvCard title="Piano di posa (facoltativo)" className="mb-4">
+      <FvCard title="Simulatore del tetto · 2D e 3D (facoltativo)" className="mb-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-slate-500">
             {leggiDisegnoCommerciale(data.layout_overlay)
               ? `${data.numero_pannelli_scelti} pannelli nel disegno, collegati alla configurazione e al PDF.`
-              : "Aggiungi il disegno del tetto se vuoi mostrare al cliente la disposizione dei pannelli."}
+              : "Disegna le falde in 2D, controlla la posa in 3D oppure importa il rilievo del cliente. Quantità e potenza seguono la disposizione confermata."}
           </p>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" size="sm" disabled={!!data.kit_bundle_id || (!readOnlyMode && !(Number(pannelli.find(p => p.id === data.pannello_id)?.potenza_w) > 0)) || (readOnlyMode && !leggiDisegnoCommerciale(data.layout_overlay))}
-              onClick={() => { const ripreso = leggiDisegnoCommerciale(cambiaModalitaProgettazione(data.layout_overlay, false)); const articolo = pannelli.find(p => p.id === data.pannello_id); setDisegnoBozza(ripreso ? { ...ripreso, modulo: misureModulo(articolo) } : null); setDisegnoAperto(true); }}>
+            <Button type="button" variant="outline" size="sm" disabled={!!data.kit_bundle_id || (readOnlyMode && !leggiDisegnoCommerciale(data.layout_overlay))}
+              onClick={() => { const ripreso = leggiDisegnoCommerciale(cambiaModalitaProgettazione(data.layout_overlay, false)); const articolo = pannelli.find(p => p.id === data.pannello_id); setDisegnoBozza(ripreso ? { ...ripreso, modulo: articolo?misureModulo(articolo):ripreso.modulo } : geometriaInAttesa); setDisegnoAperto(true); }}>
               {leggiDisegnoCommerciale(data.layout_overlay) ? readOnlyMode ? "Visualizza disposizione pannelli" : "Modifica disposizione pannelli" : "Disegna il tetto"}
             </Button>
             {leggiDisegnoCommerciale(data.layout_overlay) && !readOnlyMode && <Button type="button" variant="ghost" size="sm" onClick={() => update("layout_overlay", cambiaModalitaProgettazione(data.layout_overlay, true))}>Escludi il disegno dal PDF</Button>}
           </div>
         </div>
         {!!daRivedereAttuali && <p role="alert" className="mt-2 text-xs text-amber-700">{daRivedereAttuali} pannelli da riposizionare dopo le modifiche. Apri il disegno prima di salvare o generare il PDF.</p>}
-        {!data.pannello_id && <p className="mt-2 text-[11px] text-slate-400">Seleziona prima il modello pannello nel listino qui sotto.</p>}
+        {!data.pannello_id && <p className="mt-2 text-[11px] text-slate-400">Puoi preparare ora il tetto con dimensioni indicative. Seleziona poi il pannello dal listino per confermare potenza, quantità e prezzo.</p>}
         {data.kit_bundle_id && <p className="mt-2 text-[11px] text-slate-400">Il kit mantiene le proprie quantità: passa alla configurazione a componenti per usare il disegno modificabile.</p>}
       </FvCard>
       <Dialog open={disegnoAperto} onOpenChange={setDisegnoAperto}>
@@ -4163,26 +4172,27 @@ export function Step5Configurazione({
           <DialogHeader className="px-5 py-4 border-b shrink-0"><DialogTitle>Piano di posa dei pannelli</DialogTitle><DialogDescription>Controlla disposizione e totale, poi usa il disegno nel preventivo. Annulla mantiene la configurazione precedente.</DialogDescription></DialogHeader>
           <div className="fv-roof-dialog-content min-h-0 overflow-y-auto px-4 py-3">
           <EditorDisegno
+            companyId={companyId}
             value={disegnoBozza}
-            modulo={misureModulo(pannelli.find(p => p.id === data.pannello_id))}
-            potenzaModuloW={Number(pannelli.find(p => p.id === data.pannello_id)?.potenza_w) || 540}
+            modulo={moduloDisegno}
+            potenzaModuloW={wattDisegno>0?wattDisegno:0}
             nomeModulo={String(pannelli.find(p => p.id === data.pannello_id)?.descrizione || "Scegli il pannello dal listino")}
             localita={data.latitudine!=null&&data.longitudine!=null?{lat:data.latitudine,lng:data.longitudine}:null}
-            riepilogoProposta={p=>{const d={...data,...datiDalDisegno(p,wattDisegno,data.prodotti_extra)};return{kwp:d.potenza_kwp,totale:anteprimaFotovoltaico(d,{listino:{pannelli,inverter,accumuli},regoleSconto:regoleDisegno,impiantoConfigurato:true}).totaleDocumento??null};}}
+            riepilogoProposta={p=>{if(!(wattDisegno>0))return{kwp:0,totale:null};const d={...data,...datiDalDisegno(p,wattDisegno,data.prodotti_extra)};return{kwp:d.potenza_kwp,totale:anteprimaFotovoltaico(d,{listino:{pannelli,inverter,accumuli},regoleSconto:regoleDisegno,impiantoConfigurato:true}).totaleDocumento??null};}}
             quantitaIniziale={data.numero_pannelli_scelti}
-            modificabile={!readOnlyMode && Number(pannelli.find(p => p.id === data.pannello_id)?.potenza_w) > 0}
+            modificabile={!readOnlyMode}
             onChange={setDisegnoBozza} />
           </div>
           <div className="fv-roof-dialog-footer shrink-0 border-t bg-white px-5 py-3">
             <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-500" aria-label="Riepilogo disposizione">
               <span><strong className="text-slate-900">{disegnoBozza?.pannelli.length ?? 0}</strong> pannelli</span>
-              <span><strong className="text-slate-900">{disegnoBozza ? formatDecimalIT(datiDisegno.potenza_kwp) : "—"}</strong> kWp</span>
-              <span>Totale IVA inclusa <strong className="text-slate-900">{disegnoBozza && totaleDisegno != null ? formattaEuro(totaleDisegno, 2) : "—"}</strong></span>
+              <span><strong className="text-slate-900">{disegnoBozza && wattDisegno>0 ? formatDecimalIT(datiDisegno.potenza_kwp) : "Da definire"}</strong> kWp</span>
+              <span>Totale IVA inclusa <strong className="text-slate-900">{disegnoBozza && wattDisegno>0 && totaleDisegno != null ? formattaEuro(totaleDisegno, 2) : "Da calcolare dopo la scelta del pannello"}</strong></span>
             </div>
             {data.prezzo_vendita_manuale != null && data.prezzo_vendita_manuale > 0 && <p className="text-[11px] text-slate-500 mt-1">È mantenuto il prezzo a corpo della configurazione.</p>}
             {!!problemiDisegno.length && <p role="alert" className="text-xs text-amber-700 mt-2">Riposiziona {problemiDisegno.length} pannelli evidenziati prima di usare la disposizione.</p>}
             <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setDisegnoAperto(false)}>{readOnlyMode ? "Chiudi disposizione" : "Annulla"}</Button>
-              {!readOnlyMode && <Button type="button" disabled={!disegnoBozza?.pannelli.length || problemiDisegno.length > 0} onClick={applicaDisegno}>Usa disposizione nel preventivo</Button>}
+              {!readOnlyMode && (wattDisegno>0?<Button type="button" disabled={!disegnoBozza?.pannelli.length || problemiDisegno.length > 0} onClick={applicaDisegno}>Usa disposizione nel preventivo</Button>:<Button type="button" disabled={!disegnoBozza} onClick={()=>{setGeometriaInAttesa(disegnoBozza);setDisegnoAperto(false);window.setTimeout(()=>document.getElementById("fv-modello-pannello")?.focus(),0);}}>Conserva il disegno e scegli il pannello</Button>)}
             </div>
           </div>
         </DialogContent>
@@ -4301,7 +4311,7 @@ export function Step5Configurazione({
         <FvCard title="Modelli da listino">
           <div className="space-y-3">
             <div>
-              <Label>Modello pannello</Label>
+              <Label htmlFor="fv-modello-pannello">Modello pannello</Label>
               <Select
                 value={data.pannello_id ?? ""}
                 onValueChange={(v) => {
@@ -4310,7 +4320,7 @@ export function Step5Configurazione({
                 }}
                 disabled={!!data.kit_bundle_id || readOnlyMode}
               >
-                <SelectTrigger>
+                <SelectTrigger id="fv-modello-pannello" aria-label="Modello pannello">
                   <SelectValue placeholder="Seleziona pannello…" />
                 </SelectTrigger>
                 <SelectContent>

@@ -12,6 +12,7 @@ export type DisegnoCommercialeFv = {
   distanzaBordo: number; spazioModuli: number;
   industriale?: {versione:1;posa:"aderente"|"sud"|"est_ovest";inclinazione:number;interfila:number;costi?:{strutturaModulo:number;inverterAggiuntivi:number;prezzoInverter:number}};
   rilievo?: {versione:1;id:string;nome:string};
+  schema3d?: {altezza:number;pendenza:number};
 };
 const EPS = 0.00001;
 const finito = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
@@ -254,7 +255,9 @@ export function leggiDisegnoCommerciale(raw: unknown): DisegnoCommercialeFv | nu
     if (!record(r) || r.versione!==1 || !idValido(r.id) || typeof r.nome!=="string" || !r.nome.trim() || r.nome.length>160) return null;
     rilievo={versione:1,id:r.id,nome:r.nome};
   }
-  return { modalita: "disegno_commerciale", versione: 1, falde, pannelli, ostacoli, ...(industriale?{industriale}:{}),...(rilievo ? {rilievo} : {}),
+  let schema3d:DisegnoCommercialeFv["schema3d"];
+  if(raw.schema3d!==undefined){const a=raw.schema3d;if(!record(a)||!finito(a.altezza)||a.altezza<2||a.altezza>150||!finito(a.pendenza)||a.pendenza<0||a.pendenza>75)return null;schema3d={altezza:a.altezza,pendenza:a.pendenza};}
+  return { modalita: "disegno_commerciale", versione: 1, falde, pannelli, ostacoli, ...(industriale?{industriale}:{}),...(rilievo ? {rilievo} : {}),...(schema3d?{schema3d}:{}),
     modulo: { corto: m.corto, lungo: m.lungo, stimato: m.stimato !== false }, distanzaBordo: raw.distanzaBordo, spazioModuli: raw.spazioModuli };
 }
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
