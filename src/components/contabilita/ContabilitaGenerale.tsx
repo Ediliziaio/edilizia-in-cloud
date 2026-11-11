@@ -25,6 +25,7 @@ import { FiscalSectionHeader } from "@/components/fatturazione/FiscalSectionLayo
 import { FiscalQueryState } from "@/components/fatturazione/FiscalQueryState";
 import { RateiRiscontiFineAnno } from "@/components/contabilita/RateiRiscontiFineAnno";
 import { RegistroCespiti } from "@/components/contabilita/RegistroCespiti";
+import { ImposteFineAnno } from "@/components/contabilita/ImposteFineAnno";
 import { ContiPerRuolo, type RuoloConto } from "@/components/contabilita/ContiPerRuolo";
 
 /** I conti dell'accantonamento TFR, da scegliere in Fine anno quando il piano non ha i codici standard. */
@@ -947,6 +948,8 @@ function periodiIva(anno: number, trimestrale: boolean) {
 interface EsitoLiquidazione {
   iva_vendite: number; iva_acquisti: number; saldo: number; credito_precedente: number; compensato: number;
   da_versare: number; a_credito: number; gia_liquidato: boolean; sotto_minimo?: boolean;
+  /** Trimestrale: l'1% di interessi che si aggiunge al versamento. */
+  interessi?: number;
 }
 
 /**
@@ -1022,7 +1025,10 @@ function LiquidazioneIva({ companyId, anno }: { companyId: string; anno: number 
                     <td className="p-2 text-right tabular-nums">{euro(r.iva_vendite)}</td>
                     <td className="p-2 text-right tabular-nums">{euro(r.iva_acquisti)}</td>
                     <td className="p-2 text-right tabular-nums text-muted-foreground">{r.compensato ? euro(r.compensato) : ""}</td>
-                    <td className="p-2 text-right font-medium tabular-nums">{r.da_versare ? euro(r.da_versare) : ""}</td>
+                    <td className="p-2 text-right font-medium tabular-nums">
+                      {r.da_versare ? euro(r.da_versare + (r.interessi ?? 0)) : ""}
+                      {r.interessi ? <span className="block text-[11px] font-normal text-muted-foreground">di cui interessi 1%: {euro(r.interessi)}</span> : null}
+                    </td>
                     <td className="p-2 text-right tabular-nums">{r.a_credito ? euro(r.a_credito) : ""}</td>
                     <td className="p-2 text-right">
                       {r.gia_liquidato ? (
@@ -1172,6 +1178,7 @@ interface EsitoFineAnno {
 interface EsitoChiusura {
   utile: number; conti_economici: number; conti_patrimoniali: number; apertura_gia_presente: boolean;
   iva_non_liquidata?: number; ammortamenti_da_registrare?: boolean; tfr_da_registrare?: boolean; conto_utili_a_nuovo?: boolean;
+  imposte_da_stanziare?: boolean;
   /** Il primo esercizio precedente ancora aperto: gli esercizi si chiudono in ordine. */
   esercizio_precedente_aperto?: number | null;
 }
@@ -1283,8 +1290,13 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
         <RateiRiscontiFineAnno companyId={companyId} anno={anno} chiuso={chiuso} />
       </section>
 
+      <section className="space-y-2">
+        <h3 className="text-sm font-semibold">4. Imposte dell'esercizio (IRES e IRAP)</h3>
+        <ImposteFineAnno companyId={companyId} anno={anno} chiuso={chiuso} />
+      </section>
+
       <section className="space-y-2 rounded-xl border p-4">
-        <h3 className="text-sm font-semibold">4. Chiusura dell'esercizio {anno}</h3>
+        <h3 className="text-sm font-semibold">5. Chiusura dell'esercizio {anno}</h3>
         {chiuso ? (
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
             <span>Chiuso il {dataIt(esercizio.data!.chiuso_il!.slice(0, 10))}. Costi e ricavi sono girati sull'utile, i conti sono riaperti al 01/01/{anno + 1}.</span>
@@ -1301,12 +1313,13 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
             </p>
             {/* Senza «utili portati a nuovo» il risultato riaperto si somma a quello dell'anno dopo, nella stessa voce A.IX. */}
             <ContiPerRuolo companyId={companyId} ruoli={chiusura.data!.conto_utili_a_nuovo === false ? RUOLI_CHIUSURA : []} chiuso={chiuso} />
-            {(chiusura.data!.iva_non_liquidata ?? 0) !== 0 || chiusura.data!.ammortamenti_da_registrare || chiusura.data!.tfr_da_registrare || chiusura.data!.esercizio_precedente_aperto ? (
+            {(chiusura.data!.iva_non_liquidata ?? 0) !== 0 || chiusura.data!.ammortamenti_da_registrare || chiusura.data!.tfr_da_registrare || chiusura.data!.esercizio_precedente_aperto || chiusura.data!.imposte_da_stanziare ? (
               <ul className="list-disc rounded-lg border border-amber-200 bg-amber-50 py-2 pl-6 pr-3 text-amber-900">
                 {chiusura.data!.esercizio_precedente_aperto ? <li>L'esercizio {chiusura.data!.esercizio_precedente_aperto} è ancora aperto: gli esercizi si chiudono in ordine, prima quello.</li> : null}
                 {(chiusura.data!.iva_non_liquidata ?? 0) !== 0 ? <li>C'è IVA non ancora liquidata: registra la liquidazione dell'ultimo periodo (la chiusura la rifiuta).</li> : null}
                 {chiusura.data!.ammortamenti_da_registrare ? <li>Ammortamenti non registrati.</li> : null}
                 {chiusura.data!.tfr_da_registrare ? <li>Accantonamento TFR non registrato.</li> : null}
+                {chiusura.data!.imposte_da_stanziare ? <li>Le imposte dell'esercizio (IRES e IRAP) non sono stanziate: l'utile è prima delle imposte.</li> : null}
               </ul>
             ) : null}
             <p className="text-xs text-muted-foreground">
