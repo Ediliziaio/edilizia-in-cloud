@@ -137,7 +137,7 @@ export function useControlloDocumento(id: string | undefined) {
       return {...c,lettura_scaduta:c.stato==='in_lettura'&&Date.now()-new Date(c.updated_at||c.created_at).getTime()>=5*60_000};
     },
   });
-  const aggiorna = () => { void qc.invalidateQueries({ queryKey: chiaviControllo.tutti });void qc.invalidateQueries({queryKey:["fattura-confronto-originali"]}); };
+  const aggiorna = () => { void qc.invalidateQueries({ queryKey: chiaviControllo.tutti });void qc.invalidateQueries({queryKey:["fattura-confronto-originali"]});void qc.invalidateQueries({queryKey:["pdf-richiesta-ordine"]}); };
   const decidi = useMutation({
     mutationFn: async (x: { chiave: string; esito: "verde" | "rosso"; nota?: string }) => {
       const { error } = await db.rpc("controllo_documento_decidi", { p_id: id,p_versione:query.data?.versione, p_chiave: x.chiave, p_esito: x.esito, p_nota: x.nota ?? null });
@@ -163,7 +163,7 @@ export function useControlloDocumento(id: string | undefined) {
   const applicaPrezzi=useMutation({mutationFn:async(righe:string[])=>{
     const {data,error}=await db.rpc("controllo_documento_applica_prezzi",{p_id:id,p_versione:query.data?.versione,p_righe:righe});if(error)throw new Error(error.message);return data as number;
    },onSuccess:n=>{aggiorna();for(const key of ["purchase-orders","purchase-order-detail","purchase-order-items","pdf-richiesta-ordine"])void qc.invalidateQueries({queryKey:[key]});toast.success(`${n} prezzi applicati all’ordine`);},onError:(e:Error)=>toast.error("Prezzi non applicati",{description:e.message})});
-  return { controllo: query.data, caricamento: query.isLoading, decidi, accetta,abbina,applicaPrezzi };
+  return { controllo: query.data, caricamento: query.isLoading, decidi, accetta,abbina,applicaPrezzi,ricarica:aggiorna };
 }
 
 export function useBaseConferma(obiettivo:ObiettivoControllo,abilitato=true) {

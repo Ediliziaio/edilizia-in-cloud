@@ -150,3 +150,8 @@ precedente non deve mostrare il PDF corrente: se l'originale o lo snapshot compl
 non esistono, l'interfaccia lo dichiara e conserva comunque le righe verificate.
 Le letture interrotte restano riprovabili; due elaborazioni non possono sovrascriversi
 quando una nuova lettura ha già preso in carico la stessa revisione.
+
+La seconda simulazione multipagina è stata avviata in background e recuperata dopo
+la chiusura del confronto: 10/10 pagine e 20 posizioni lette. Nel confronto della
+fattura, DDT e OdA selezionati insieme non raddoppiano la quantità consegnata.
+Il comando Aggiorna ricarica decisione aperta, base e originali.

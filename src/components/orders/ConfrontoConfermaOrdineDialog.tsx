@@ -35,7 +35,7 @@ export function ConfrontoConfermaOrdineDialog({companyId,obiettivo,inizialeId,on
  const base=useBaseConferma(obiettivo);
  const [scelto,setScelto]=useState(inizialeId??'');
  const id=scelto||lista.controlli[0]?.id;
- const {controllo,caricamento,accetta,decidi,abbina,applicaPrezzi}=useControlloDocumento(id);
+ const {controllo,caricamento,accetta,decidi,abbina,applicaPrezzi,ricarica:ricaricaControllo}=useControlloDocumento(id);
  const [vistaSinistra,setVistaSinistra]=useState('righe');
  const [pannelloMobile,setPannelloMobile]=useState('sinistra');
  const [tipoCaricamento,setTipoCaricamento]=useState<'offerta'|'conferma'>(obiettivo.purchaseOrderId?'conferma':'offerta');
@@ -87,7 +87,7 @@ export function ConfrontoConfermaOrdineDialog({companyId,obiettivo,inizialeId,on
   <DialogHeader className="shrink-0 border-b px-5 py-3 pr-12"><DialogTitle className="flex items-center gap-2 text-lg"><ArrowLeftRight className="h-5 w-5 text-orange-600"/>Confronto {obiettivo.purchaseOrderId?'ordine e conferma fornitore':'richiesta e offerta fornitore'}</DialogTitle><DialogDescription className="text-xs">{riferimento} · Richiesta inviata, documento ricevuto e differenze da verificare.</DialogDescription></DialogHeader>
   <div className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-slate-50/70 px-5 py-2">
    <span className="mr-auto text-xs text-slate-500">{storico?.fonte==='invio'?`Versione inviata il ${String(storico.inviato_il||'').slice(0,10).split('-').reverse().join('/')}`:'Base: dati correnti; nessun invio conservato.'}</span>
-   <Button size="sm" variant="outline" disabled={busy} onClick={()=>{lista.avvia.reset?.();void base.refetch();void lista.ricarica();}}> <RefreshCw className="mr-1.5 h-3.5 w-3.5"/>Aggiorna</Button>
+   <Button size="sm" variant="outline" disabled={busy} onClick={()=>{lista.avvia.reset?.();ricaricaControllo?.();}}> <RefreshCw className="mr-1.5 h-3.5 w-3.5"/>Aggiorna</Button>
    {modificabile&&<Button size="sm" variant="outline" disabled={busy} onClick={()=>fileInput.current?.click()}><FileUp className="mr-1.5 h-3.5 w-3.5"/>Carica {tipoCaricamento==='conferma'?'conferma':'offerta'}</Button>}
    <Button size="sm" disabled={!modificabile||busy||!controllo?.file_path} onClick={()=>avvia({controlloId:controllo!.id})}>{lista.avvia.isPending||letturaInCorso?<Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin"/>:<Sparkles className="mr-1.5 h-3.5 w-3.5"/>}{lista.avvia.isPending||letturaInCorso?'Lettura del documento…':'Controlla con AI'}</Button>
    <input ref={fileInput} type="file" accept={ACCEPT_DOCUMENTI_DDT} className="hidden" aria-label="Carica documento del fornitore" onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f)avvia({file:f});}}/>

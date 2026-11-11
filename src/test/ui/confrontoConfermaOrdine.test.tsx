@@ -3,12 +3,12 @@ import {fireEvent,render,screen,within} from '@testing-library/react';
 import {ConfrontoConfermaOrdineDialog} from '@/components/orders/ConfrontoConfermaOrdineDialog';
 import type {ControlloDocumento} from '@/lib/acquisti/controlloDocumento';
 import type {BaseConferma} from '../../../supabase/functions/_shared/revisioniConferma';
-const m=vi.hoisted(()=>({c:{} as ControlloDocumento,base:{} as BaseConferma,solaLettura:false,avvia:vi.fn(),decidi:vi.fn(),accetta:vi.fn(),abbina:vi.fn(),prezzi:vi.fn()}));
+const m=vi.hoisted(()=>({c:{} as ControlloDocumento,base:{} as BaseConferma,solaLettura:false,avvia:vi.fn(),decidi:vi.fn(),accetta:vi.fn(),abbina:vi.fn(),prezzi:vi.fn(),ricarica:vi.fn()}));
 vi.mock('@/hooks/usePermissions',()=>({usePermissions:()=>({solaLettura:m.solaLettura,canManagePurchasing:true,canEditOrders:false})}));
 vi.mock('@/hooks/useControlloDocumento',()=>({
  useControlliDocumento:()=>({controlli:[m.c],allegati:[] as unknown[],ricarica:vi.fn(),caricamento:false,errore:false,avvia:{mutate:m.avvia,isPending:false}}),
  useBaseConferma:()=>({data:m.base,isError:false,isFetching:false,refetch:vi.fn()}),
- useControlloDocumento:()=>({controllo:m.c,caricamento:false,decidi:{mutate:m.decidi},accetta:{mutate:m.accetta},abbina:{mutate:m.abbina},applicaPrezzi:{mutate:m.prezzi}}),
+ useControlloDocumento:()=>({controllo:m.c,caricamento:false,decidi:{mutate:m.decidi},accetta:{mutate:m.accetta},abbina:{mutate:m.abbina},applicaPrezzi:{mutate:m.prezzi},ricarica:m.ricarica}),
 }));
 vi.mock('@/components/fatturazione/OriginaliConfronto',()=>({OriginaliConfronto:({files}:{files:Array<{nome:string}>})=><div>{files.map(f=><p key={f.nome}>Originale {f.nome}</p>)}</div>}));
 vi.mock('@/components/acquisti/OriginaliOrdineConfronto',()=>({OriginaliOrdineConfronto:()=> <div>Versione PDF richiesta</div>}));
@@ -56,3 +56,5 @@ it('un abbinamento manuale richiede una motivazione e salva le posizioni selezio
 it('la richiesta di correzione prepara un messaggio che resta da rivedere',()=>{
  mostra();expect(screen.queryByText('Messaggio da rivedere prima dell’invio')).toBeNull();fireEvent.click(screen.getByRole('button',{name:'Prepara correzioni'}));expect(screen.getByText('Messaggio da rivedere prima dell’invio')).toBeInTheDocument();expect(m.accetta).not.toHaveBeenCalled();
 });
+
+it('Aggiorna ricarica anche la decisione e gli originali della revisione aperta',()=>{mostra();fireEvent.click(screen.getByRole('button',{name:'Aggiorna'}));expect(m.ricarica).toHaveBeenCalledOnce();});
