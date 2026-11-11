@@ -140,6 +140,14 @@ begin
   if position(p_segno in v_def) > 0 then
     return;  -- già applicata
   end if;
+  if p_firma='public.mark_scadenza_paid(uuid,numeric,text,date,text,text)' and strpos(v_def,'assert_company_access')=0 and strpos(v_def,E'    RETURN json_build_object(''error'', ''Scadenza non trovata'');\n  END IF;\n')>0 then
+    p_ancora:=E'    RETURN json_build_object(''error'', ''Scadenza non trovata'');\n  END IF;\n';
+    p_aggiunta:=E'  PERFORM public.assert_company_access(v_scadenza.company_id);\n'||p_aggiunta;
+  end if;
+  -- Recovered definitions differ only in SQL keyword casing at this anchor.
+  if strpos(v_def,p_ancora)=0 and strpos(lower(v_def),lower(p_ancora))>0 then
+    p_ancora:=substr(v_def,strpos(lower(v_def),lower(p_ancora)),length(p_ancora));
+  end if;
   v_volte := (length(v_def) - length(replace(v_def, p_ancora, ''))) / length(p_ancora);
   if v_volte <> 1 then
     raise exception '%: punto di aggancio trovato % volte invece di una', p_firma, v_volte;

@@ -26,7 +26,7 @@ BEGIN
         url := current_setting('app.supabase_url', true) || '/functions/v1/email-ai-l3-batch',
         headers := jsonb_build_object(
           'Content-Type', 'application/json',
-          'x-cron-secret', current_setting('app.proactive_cron_secret', true)
+          'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'proactive_cron_secret')
         ),
         body := '{"mode":"live","limit":30}'::jsonb,
         timeout_milliseconds := 120000

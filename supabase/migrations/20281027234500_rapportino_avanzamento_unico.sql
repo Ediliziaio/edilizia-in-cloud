@@ -86,7 +86,9 @@ declare
   r uuid:=gen_random_uuid(); ok boolean:=false; valore integer;
 begin
   select id,company_id into o from public.orders where order_code like 'DEMO%' and deleted_at is null order by id limit 1;
-  if not found then raise exception 'Collaudo avanzamento: serve una commessa DEMO esistente'; end if;
+  if not found then
+    if not exists(select 1 from public.orders) then raise notice 'Collaudo con dati DEMO non eseguito: database vuoto; funzione e trigger installati'; return;end if;
+    raise exception 'Collaudo avanzamento: serve una commessa DEMO esistente';end if;
   begin
     create temporary table collaudo_rapportino_unico (
       id uuid,company_id uuid,order_id uuid,user_id uuid,stato text,

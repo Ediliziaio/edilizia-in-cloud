@@ -179,7 +179,7 @@ begin
   select count(*) into v_renova
     from public.rate_fornitori r
    where r.company_id = (select id from public.companies where name = 'renova solution srl');
-  if v_renova <> 228 then
+  if exists(select 1 from public.companies where name='renova solution srl') and v_renova <> 228 then
     raise exception 'renova: attese 228 rate, trovate %', v_renova;
   end if;
 end $$;

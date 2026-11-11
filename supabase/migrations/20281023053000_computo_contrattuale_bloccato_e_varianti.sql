@@ -1,3 +1,24 @@
+DO $foundation$ BEGIN IF to_regprocedure('public.puo_modificare_commessa(uuid)') IS NULL THEN
+create or replace function public.puo_modificare_commessa(p_order_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((
+           select public.has_permission_for_company((select auth.uid()), 'can_edit_orders', o.company_id)
+              and public.can_see_order(o.id, o.assigned_to, o.destination_warehouse_id)
+             from public.orders o
+            where o.id = p_order_id
+         ), false)
+     and not (select public.utente_bloccato());
+$$;
+
+revoke all on function public.puo_modificare_commessa(uuid) from public,anon;
+grant execute on function public.puo_modificare_commessa(uuid) to authenticated,service_role;
+END IF;END $foundation$;
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- Computo contrattuale bloccato nel database, quadro economico, perizie di variante
 -- ════════════════════════════════════════════════════════════════════════════
@@ -229,13 +250,16 @@ CREATE TRIGGER trg_computo_misure_blocca_contrattuale_ins
 -- Chi può: «Ordini e Commesse» sulla commessa del computo (o, senza commessa,
 -- nell'azienda del computo). Definer: legge computo e commessa senza RLS.
 CREATE OR REPLACE FUNCTION public.puo_modificare_computo(p_upload_id uuid)
-RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''
+RETURNS boolean LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = ''
 AS $fn$
-  SELECT coalesce((
+BEGIN
+  RETURN coalesce((
     SELECT CASE WHEN u.order_id IS NOT NULL THEN public.puo_modificare_commessa(u.order_id)
                 ELSE public.has_permission_for_company((SELECT auth.uid()), 'can_edit_orders', u.company_id)
                      AND NOT (SELECT public.utente_bloccato()) END
       FROM public.computo_uploads u WHERE u.id = p_upload_id), false);
+
+END;
 $fn$;
 REVOKE ALL ON FUNCTION public.puo_modificare_computo(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.puo_modificare_computo(uuid) TO authenticated, service_role;

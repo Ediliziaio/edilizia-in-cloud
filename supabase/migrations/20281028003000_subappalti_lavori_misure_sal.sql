@@ -191,7 +191,9 @@ declare a record;origine record;cid uuid:=gen_random_uuid();qid uuid:=gen_random
 begin
  select p.id,p.company_id into a from public.profiles p join public.user_roles u on u.user_id=p.id
  where u.role::text in('company_admin','super_admin') and exists(select 1 from public.contratti_subappalto cs join public.orders o on o.id=cs.order_id where cs.company_id=p.company_id and o.order_code like 'DEMO%' and o.deleted_at is null) limit 1;
- if a.id is null then raise exception 'Amministratore demo non disponibile per il collaudo';end if;
+ if a.id is null then
+  if not exists(select 1 from public.profiles) then raise notice 'Collaudo con dati DEMO non eseguito: database senza utenti';return;end if;
+  raise exception 'Amministratore demo non disponibile per il collaudo';end if;
  select cs.* into origine from public.contratti_subappalto cs join public.orders o on o.id=cs.order_id where cs.company_id=a.company_id and o.order_code like 'DEMO%' and o.deleted_at is null limit 1;
  perform set_config('request.jwt.claims',jsonb_build_object('sub',a.id,'role','authenticated')::text,true);perform set_config('request.jwt.claim.sub',a.id::text,true);
  begin

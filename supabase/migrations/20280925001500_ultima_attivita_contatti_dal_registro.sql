@@ -104,6 +104,12 @@ begin
   if strpos(v_def, v_nuova) > 0 then
     return;
   end if;
+  -- Recovered trigger uses the exact three-field list with spaced separators.
+  if strpos(v_def, $known$key NOT IN ('updated_at', 'last_seen_at', 'last_contact_at')$known$)>0 then
+    execute replace(v_def,$known$key NOT IN ('updated_at', 'last_seen_at', 'last_contact_at')$known$,
+      $known$key NOT IN ('updated_at', 'last_activity_at', 'last_seen_at', 'last_contact_at')$known$);
+    return;
+  end if;
   v_volte := (length(v_def) - length(replace(v_def, v_ancora, ''))) / length(v_ancora);
   if v_volte <> 1 then
     raise exception 'tg_activity_on_contacts: l''elenco dei campi esclusi c''è % volte, non una', v_volte;

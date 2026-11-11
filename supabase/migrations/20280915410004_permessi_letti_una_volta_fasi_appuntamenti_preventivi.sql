@@ -44,7 +44,10 @@ begin
       ('quotes', 'q_sel_preventivi', '17533952f5ba5f09756fc824b910640c'),
       ('quotes', 'q_upd_preventivi', 'c08ffdc13567f451fb3c48ca39c967ba')
     ) as x(tabella, nome, impronta)
-   where not exists (
+   where not (x.tabella='appointments' and x.nome='Staff can view appointments via marketing'
+     and exists(select 1 from pg_catalog.pg_policy p where p.polrelid='public.appointments'::regclass and p.polname='appointments_lettura_authenticated')
+     and not exists(select 1 from pg_catalog.pg_policy p where p.polrelid='public.appointments'::regclass and p.polname=x.nome))
+     and not exists (
      select 1 from pg_catalog.pg_policy p
       where p.polrelid = pg_catalog.to_regclass('public.' || x.tabella)
         and p.polname = x.nome
@@ -61,10 +64,13 @@ begin
     with check ((select public.has_role((select auth.uid()), 'super_admin'::public.app_role))
                 or company_id in (select unnest(public.aziende_con_permesso('can_view_marketing_appointments'::text))));
 
+  -- The recovered predecessor replaces this policy with appointments_lettura_authenticated.
+  if exists(select 1 from pg_catalog.pg_policy where polrelid='public.appointments'::regclass and polname='Staff can view appointments via marketing') then
   alter policy "Staff can view appointments via marketing" on public.appointments
     using (((select public.has_role((select auth.uid()), 'super_admin'::public.app_role))
             or company_id in (select unnest(public.aziende_con_permesso('can_view_marketing_appointments'::text))))
            and public.check_staff_visibility((select auth.uid()), assigned_to));
+  end if;
 
   alter policy "Staff can view pipeline stages if permitted" on public.marketing_pipeline_stages
     using ((select public.has_role((select auth.uid()), 'super_admin'::public.app_role))

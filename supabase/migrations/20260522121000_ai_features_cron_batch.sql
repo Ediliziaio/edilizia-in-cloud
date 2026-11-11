@@ -46,7 +46,7 @@ BEGIN
       url:=current_setting('app.supabase_url', true) || '/functions/v1/ai-voice-outbound-leads',
       headers:=jsonb_build_object(
         'Content-Type', 'application/json',
-        'x-cron-secret', current_setting('app.proactive_cron_secret', true)
+        'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'proactive_cron_secret')
       ),
       body:='{"source": "pg_cron_5min"}'::jsonb,
       timeout_milliseconds:=120000
@@ -63,7 +63,7 @@ BEGIN
       url:=current_setting('app.supabase_url', true) || '/functions/v1/ai-financial-autopilot-daily',
       headers:=jsonb_build_object(
         'Content-Type', 'application/json',
-        'x-cron-secret', current_setting('app.proactive_cron_secret', true)
+        'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'proactive_cron_secret')
       ),
       body:='{"source": "pg_cron_daily"}'::jsonb,
       timeout_milliseconds:=300000
@@ -80,7 +80,7 @@ BEGIN
       url:=current_setting('app.supabase_url', true) || '/functions/v1/ai-workflow-engine',
       headers:=jsonb_build_object(
         'Content-Type', 'application/json',
-        'x-cron-secret', current_setting('app.proactive_cron_secret', true)
+        'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'proactive_cron_secret')
       ),
       body:='{"source": "pg_cron_1min"}'::jsonb,
       timeout_milliseconds:=60000

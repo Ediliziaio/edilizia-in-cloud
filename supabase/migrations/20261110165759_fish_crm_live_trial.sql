@@ -1,3 +1,12 @@
+-- Fresh reconstruction only: production already applied these recovered files.
+-- Markers are created only where a recovered patch precedes its actual dependencies.
+set local lock_timeout='3s';
+set local statement_timeout='60s';
+create schema if not exists private;
+create table if not exists private.recovered_dependency_patches(id text primary key);
+alter table private.recovered_dependency_patches enable row level security;
+revoke all on private.recovered_dependency_patches from public,anon,authenticated,service_role;
+DO $defer_recovered_0$ BEGIN IF exists(select 1 from information_schema.columns where table_schema='public' and table_name='profiles' and column_name='deleted_at') THEN
 -- Controlled, authenticated CRM trial. It never impersonates a telephone session.
 CREATE FUNCTION public.fish_customer_phone(p_phone text,p_country text) RETURNS text
 LANGUAGE sql IMMUTABLE SET search_path=public AS $$
@@ -71,3 +80,5 @@ END $$;
 REVOKE ALL ON FUNCTION public.fish_create_trial_ticket(uuid,uuid,uuid,uuid,text) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.fish_create_trial_ticket(uuid,uuid,uuid,uuid,text) TO service_role;
 COMMENT ON TABLE public.ai_fish_crm_trials IS 'Admin-started web CRM trials with real tickets. Caller phone is selected for the trial, not obtained from a telephone carrier. Exactly one ticket per trial.';
+
+ELSE INSERT INTO private.recovered_dependency_patches(id) VALUES ('20261110165759_fish_crm_live_trial.sql') ON CONFLICT DO NOTHING; END IF; END $defer_recovered_0$;

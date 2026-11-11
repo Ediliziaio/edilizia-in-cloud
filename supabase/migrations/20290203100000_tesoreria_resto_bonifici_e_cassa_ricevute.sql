@@ -7,6 +7,20 @@
 set local lock_timeout = '3s';
 set local statement_timeout = '60s';
 
+-- Match the same SQL fragment despite recovered formatting, exactly once.
+create or replace function pg_temp.history_fragment(source text, fragment text) returns text
+language plpgsql as $fragment$
+declare pattern text:=''; ch text; matches text[]; n integer;
+begin
+ for ch in select regexp_split_to_table(fragment,'') loop
+  if ch ~ '\s' then pattern:=pattern||'\s*';
+  else pattern:=pattern||case when ch=any(array['(',')','[',']','{','}','.','*','+','?','^','$','|',E'\\']) then E'\\' else '' end||ch;end if;
+ end loop;
+ select count(*),min(m[1]) into n,fragment from regexp_matches(source,'('||pattern||')','g') m;
+ if n<>1 then raise exception 'Recovered SQL fragment must match exactly once, found %',n;end if;
+ return fragment;
+end $fragment$;
+
 do $migrazione$
 declare
   d text;
@@ -27,6 +41,10 @@ declare
 begin
   d := pg_get_functiondef('public.riconcilia_bonifico_fattura(uuid,uuid,text,integer,uuid)'::regprocedure);
   if position('v_parziale' in d) = 0 then
+    if position(a1 in d)=0 then a1:=pg_temp.history_fragment(d,a1);end if;
+    if position(a2 in d)=0 then a2:=pg_temp.history_fragment(d,a2);end if;
+    if position(a3 in d)=0 then a3:=pg_temp.history_fragment(d,a3);end if;
+    if position(a4 in d)=0 then a4:=pg_temp.history_fragment(d,a4);end if;
     if position(a1 in d) = 0 or position(a2 in d) = 0 or position(a3 in d) = 0 or position(a4 in d) = 0 then
       raise exception 'riconcilia_bonifico_fattura è cambiata: rivedere la migrazione';
     end if;
@@ -47,6 +65,9 @@ begin
 
   d := pg_get_functiondef('public.registra_pagamento_costo(uuid,uuid,numeric,date,text,text,uuid,uuid)'::regprocedure);
   if position('v_esistente' in d) = 0 then
+    if position(b1 in d)=0 then b1:=pg_temp.history_fragment(d,b1);end if;
+    if position(b2 in d)=0 then b2:=pg_temp.history_fragment(d,b2);end if;
+    if position(b3 in d)=0 then b3:=pg_temp.history_fragment(d,b3);end if;
     if position(b1 in d) = 0 or position(b2 in d) = 0 or position(b3 in d) = 0 then
       raise exception 'registra_pagamento_costo è cambiata: rivedere la migrazione';
     end if;

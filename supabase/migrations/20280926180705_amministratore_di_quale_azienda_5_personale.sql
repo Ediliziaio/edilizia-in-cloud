@@ -68,7 +68,8 @@ BEGIN
     IF NOT FOUND THEN
       RAISE EXCEPTION 'Policy %.% «%» non trovata: il lotto va rivisto', r.schema_, r.tabella, r.policy;
     END IF;
-    IF md5(v_testo) <> r.impronta AND v_testo !~ r.segno THEN
+    -- Exact recovered predecessor fingerprints; unknown changes still abort.
+    IF md5(v_testo) <> r.impronta AND v_testo !~ r.segno AND NOT((r.schema_='public' AND r.tabella='hr_assenze_eventi' AND r.policy='hr_assenze_admin' AND md5(v_testo)='71856860e389c8d46f920e7fd188635d')) THEN
       RAISE EXCEPTION 'Policy %.% «%» cambiata dopo il censimento: il lotto va rivisto', r.schema_, r.tabella, r.policy;
     END IF;
   END LOOP;

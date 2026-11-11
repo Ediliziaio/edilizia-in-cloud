@@ -1,3 +1,12 @@
+-- Fresh reconstruction only: production already applied these recovered files.
+-- Markers are created only where a recovered patch precedes its actual dependencies.
+set local lock_timeout='3s';
+set local statement_timeout='60s';
+create schema if not exists private;
+create table if not exists private.recovered_dependency_patches(id text primary key);
+alter table private.recovered_dependency_patches enable row level security;
+revoke all on private.recovered_dependency_patches from public,anon,authenticated,service_role;
+DO $defer_recovered_5$ BEGIN IF to_regclass('public.ai_fish_crm_trials') is not null THEN
 -- Spoken AI conversations attached to support tickets; no audio recording enabled.
 CREATE TABLE public.ticket_ai_conversations (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -98,3 +107,5 @@ INSERT INTO public.ticket_ai_conversations(company_id,ticket_id,agent_id,source_
 SELECT tr.company_id,tr.ticket_id,tr.agent_id,'crm_trial','legacy:'||tr.id::text,tr.id,'non_disponibile'
 FROM public.ai_fish_crm_trials tr JOIN public.tickets t ON t.id=tr.ticket_id AND t.company_id=tr.company_id WHERE tr.ticket_id IS NOT NULL
 ON CONFLICT(company_id,source_kind,source_key) DO NOTHING;
+
+ELSE INSERT INTO private.recovered_dependency_patches(id) VALUES ('20261110182217_fish_ticket_conversations.sql') ON CONFLICT DO NOTHING; END IF; END $defer_recovered_5$;

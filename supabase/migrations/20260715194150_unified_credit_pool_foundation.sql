@@ -89,3 +89,111 @@ revoke execute on function public.topup_pool(uuid,numeric,text,jsonb) from publi
 revoke execute on function public.spend_from_pool(uuid,text,numeric,text,jsonb) from public;
 grant execute on function public.topup_pool(uuid,numeric,text,jsonb) to service_role;
 grant execute on function public.spend_from_pool(uuid,text,numeric,text,jsonb) to service_role;
+
+-- Recovered service-only wallet routines; no credit movements run here.
+CREATE OR REPLACE FUNCTION public.pool_consuma(p_company_id uuid, p_service text, p_cost numeric, p_description text DEFAULT NULL::text, p_metadata jsonb DEFAULT '{}'::jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v_prima numeric; v_dopo numeric;
+begin
+  if p_cost is null or p_cost < 0 then
+    raise exception 'importo non valido' using errcode = '22023';
+  end if;
+
+  select balance_eur into v_prima from public.company_credit_pool
+   where company_id = p_company_id for update;
+
+  if not found then
+    insert into public.company_credit_pool (company_id, balance_eur) values (p_company_id, 0)
+    on conflict (company_id) do nothing;
+    v_prima := 0;
+  end if;
+
+  if coalesce(v_prima, 0) < p_cost then
+    raise exception 'Crediti insufficienti: saldo % EUR, servono % EUR',
+      to_char(coalesce(v_prima,0), 'FM999999990.0000'), to_char(p_cost, 'FM999999990.0000')
+      using errcode = 'check_violation';
+  end if;
+
+  update public.company_credit_pool
+     set balance_eur = round((balance_eur - p_cost)::numeric, 4),
+         total_spent_eur = round((coalesce(total_spent_eur,0) + p_cost)::numeric, 4),
+         updated_at = now()
+   where company_id = p_company_id
+  returning balance_eur into v_dopo;
+
+  insert into public.company_credit_pool_ledger
+    (company_id, service, direction, amount_eur, balance_after, description, metadata)
+  values (p_company_id, p_service, 'out', p_cost, v_dopo, p_description, coalesce(p_metadata,'{}'::jsonb));
+
+  perform public.pool_rispecchia(p_company_id, v_dopo);
+  return jsonb_build_object('balance_before', v_prima, 'balance_after', v_dopo);
+end; $function$
+;
+revoke all on function public.pool_consuma(uuid,text,numeric,text,jsonb) from public,anon,authenticated;
+grant execute on function public.pool_consuma(uuid,text,numeric,text,jsonb) to service_role;
+CREATE OR REPLACE FUNCTION public.pool_ricarica(p_company_id uuid, p_service text, p_amount numeric, p_description text DEFAULT NULL::text, p_metadata jsonb DEFAULT '{}'::jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v_prima numeric; v_dopo numeric;
+begin
+  if p_amount is null or p_amount <= 0 then
+    raise exception 'importo non valido' using errcode = '22023';
+  end if;
+
+  select balance_eur into v_prima from public.company_credit_pool
+   where company_id = p_company_id for update;
+  if not found then v_prima := 0; end if;
+
+  insert into public.company_credit_pool (company_id, balance_eur, total_recharged_eur)
+  values (p_company_id, p_amount, p_amount)
+  on conflict (company_id) do update set
+    balance_eur = round((public.company_credit_pool.balance_eur + p_amount)::numeric, 4),
+    total_recharged_eur = round((coalesce(public.company_credit_pool.total_recharged_eur,0) + p_amount)::numeric, 4),
+    low_balance_blocked = false,
+    updated_at = now()
+  returning balance_eur into v_dopo;
+
+  insert into public.company_credit_pool_ledger
+    (company_id, service, direction, amount_eur, balance_after, description, metadata)
+  values (p_company_id, coalesce(nullif(p_service,''),'topup'), 'in', p_amount, v_dopo,
+          coalesce(p_description,'Ricarica portafoglio'), coalesce(p_metadata,'{}'::jsonb));
+
+  perform public.pool_rispecchia(p_company_id, v_dopo);
+  return jsonb_build_object('balance_before', coalesce(v_prima,0), 'balance_after', v_dopo);
+end; $function$
+;
+revoke all on function public.pool_ricarica(uuid,text,numeric,text,jsonb) from public,anon,authenticated;
+grant execute on function public.pool_ricarica(uuid,text,numeric,text,jsonb) to service_role;
+CREATE OR REPLACE FUNCTION public.pool_rispecchia(p_company_id uuid, p_saldo numeric)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  insert into public.email_credits (company_id, balance_eur) values (p_company_id, p_saldo)
+  on conflict (company_id) do update set balance_eur = p_saldo, updated_at = now();
+
+  insert into public.ai_credits (company_id, balance_eur) values (p_company_id, p_saldo)
+  on conflict (company_id) do update set
+    balance_eur = p_saldo,
+    calls_blocked = case when p_saldo > 0 and public.ai_credits.blocked_reason = 'balance_zero'
+                         then false else public.ai_credits.calls_blocked end,
+    updated_at = now();
+
+  insert into public.whatsapp_credits (company_id, balance_eur) values (p_company_id, p_saldo)
+  on conflict (company_id) do update set
+    balance_eur = p_saldo,
+    sends_blocked = case when p_saldo > 0 then false else public.whatsapp_credits.sends_blocked end,
+    updated_at = now();
+end; $function$
+;
+revoke all on function public.pool_rispecchia(uuid,numeric) from public,anon,authenticated;
+grant execute on function public.pool_rispecchia(uuid,numeric) to service_role;

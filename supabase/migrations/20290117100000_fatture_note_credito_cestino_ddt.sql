@@ -9,6 +9,20 @@
 -- Le funzioni si correggono sul testo vivo: se il punto di aggancio non c'è più la
 -- migrazione si ferma, invece di riscrivere una funzione cambiata nel frattempo.
 
+-- Match the same SQL fragment despite recovered formatting, exactly once.
+create or replace function pg_temp.history_fragment(source text, fragment text) returns text
+language plpgsql as $fragment$
+declare pattern text:=''; ch text; matches text[]; n integer;
+begin
+ for ch in select regexp_split_to_table(fragment,'') loop
+  if ch ~ '\s' then pattern:=pattern||'\s*';
+  else pattern:=pattern||case when ch=any(array['(',')','[',']','{','}','.','*','+','?','^','$','|',E'\\']) then E'\\' else '' end||ch;end if;
+ end loop;
+ select count(*),min(m[1]) into n,fragment from regexp_matches(source,'('||pattern||')','g') m;
+ if n<>1 then raise exception 'Recovered SQL fragment must match exactly once, found %',n;end if;
+ return fragment;
+end $fragment$;
+
 do $migrazione$
 declare
   d text := pg_get_functiondef('public.documento_emetti(uuid)'::regprocedure);
@@ -21,6 +35,10 @@ declare
   t1 text := $x$  IF NOT public.documento_fiscale_e_immutabile(OLD.tipo, OLD.stato) THEN$x$;
 begin
   if position('v_stornabile' in d) = 0 then
+    if position(a1 in d)=0 then a1:=pg_temp.history_fragment(d,a1);end if;
+    if position(a2 in d)=0 then a2:=pg_temp.history_fragment(d,a2);end if;
+    if position(a3 in d)=0 then a3:=pg_temp.history_fragment(d,a3);end if;
+    if position(a4 in d)=0 then a4:=pg_temp.history_fragment(d,a4);end if;
     if position(a1 in d) = 0 or position(a2 in d) = 0 or position(a3 in d) = 0 or position(a4 in d) = 0 then
       raise exception 'documento_emetti è cambiata: rivedere la migrazione';
     end if;

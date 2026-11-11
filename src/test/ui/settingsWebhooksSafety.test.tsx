@@ -4,6 +4,8 @@ import SettingsWebhooks from "@/pages/azienda/settings/SettingsWebhooks";
 import type { WebhookDelivery } from "@/types/webhooks";
 
 const state = vi.hoisted(() => ({ error: false, loading: false, logsError: false, refetch: vi.fn(), mutate: vi.fn(), toast: vi.fn(), manage: true }));
+// The incoming-webhook card has its own integration suite and query provider.
+vi.mock("@/components/settings/InboundAutomationWebhooks", () => ({InboundAutomationWebhooks: () => null}));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: state.toast }) }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "c1" }, role: "employee" }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canEditSettingsIntegrations: state.manage }) }));
@@ -56,11 +58,11 @@ describe("Webhook: informazioni affidabili", () => {
     expect(state.mutate).not.toHaveBeenCalled();
     confirm.mockRestore();
   });
-  it("dice in cima, in italiano semplice, che gli avvisi non partono da soli", () => {
+  it("spiega la consegna automatica e la coda in italiano semplice", () => {
     render(<SettingsWebhooks />);
-    expect(screen.getByText("Oggi gli avvisi non partono da soli.")).toBeInTheDocument();
+    expect(screen.getByText("Gli eventi scelti vengono inviati automaticamente.")).toBeInTheDocument();
     // Una riga per chi non sa cos'è un webhook.
-    expect(screen.getByText(/Un webhook è l'indirizzo di un altro programma/)).toBeInTheDocument();
+    expect(screen.getByText(/Gli avvisi entrano in coda/)).toBeInTheDocument();
   });
 
   it("non offre controlli che nessun codice legge: attesa massima e IP consentiti", async () => {

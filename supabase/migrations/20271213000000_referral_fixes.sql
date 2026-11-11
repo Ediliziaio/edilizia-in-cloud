@@ -20,7 +20,7 @@ select cron.schedule(
   $$
   SELECT net.http_post(
     url:='https://rsbrguhkodgnqfomrevo.supabase.co/functions/v1/referral-monthly-cycle',
-    headers:='{"Content-Type":"application/json","x-cron-secret":"INTERNAL_CRON_SECRET_PLACEHOLDER"}'::jsonb,
+    headers:=jsonb_build_object('Content-Type','application/json','x-cron-secret',(select decrypted_secret from vault.decrypted_secrets where name='cron_secret')),
     body:='{}'::jsonb
   ) AS request_id;
   $$
@@ -36,7 +36,7 @@ select cron.schedule(
   $$
   SELECT net.http_post(
     url:='https://rsbrguhkodgnqfomrevo.supabase.co/functions/v1/referral-payout-executor',
-    headers:='{"Content-Type":"application/json","x-cron-secret":"INTERNAL_CRON_SECRET_PLACEHOLDER"}'::jsonb,
+    headers:=jsonb_build_object('Content-Type','application/json','x-cron-secret',(select decrypted_secret from vault.decrypted_secrets where name='cron_secret')),
     body:='{}'::jsonb
   ) AS request_id;
   $$

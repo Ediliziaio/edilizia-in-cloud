@@ -10,12 +10,27 @@
 set local lock_timeout = '3s';
 set local statement_timeout = '60s';
 
+-- Match the same SQL fragment despite recovered formatting, exactly once.
+create or replace function pg_temp.history_fragment(source text, fragment text) returns text
+language plpgsql as $fragment$
+declare pattern text:=''; ch text; matches text[]; n integer;
+begin
+ for ch in select regexp_split_to_table(fragment,'') loop
+  if ch ~ '\s' then pattern:=pattern||'\s*';
+  else pattern:=pattern||case when ch=any(array['(',')','[',']','{','}','.','*','+','?','^','$','|',E'\\']) then E'\\' else '' end||ch;end if;
+ end loop;
+ select count(*),min(m[1]) into n,fragment from regexp_matches(source,'('||pattern||')','g') m;
+ if n<>1 then raise exception 'Recovered SQL fragment must match exactly once, found %',n;end if;
+ return fragment;
+end $fragment$;
+
 create or replace function pg_temp.sostituisci(p_firma text, p_vecchio text, p_nuovo text)
 returns void language plpgsql as $$
 declare v_def text;
 begin
   v_def := pg_get_functiondef(p_firma::regprocedure);
   if position(p_nuovo in v_def) > 0 then return; end if;
+  if position(p_vecchio in v_def) = 0 then p_vecchio:=pg_temp.history_fragment(v_def,p_vecchio);end if;
   if position(p_vecchio in v_def) = 0 then
     raise exception 'Testo non trovato in %: %', p_firma, left(p_vecchio, 80);
   end if;

@@ -4,6 +4,9 @@ name: CI / Edge-function deploy
 on:
   push:
     branches: [main]
+    # Verification tags run the complete checks without creating hosted database
+    # branches. The deployment job remains restricted to refs/heads/main.
+    tags: [verify-automation-completion-*]
   pull_request:
     branches: [main]
   # Avvio a mano. Serve quando il deploy non e' partito da solo: se il job
@@ -24,13 +27,22 @@ on:
 # I deploy su main, invece, non vengono interrotti.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 # ── Shared env ───────────────────────────────────────────────────────────────
 env:
   SUPABASE_PROJECT_ID: rsbrguhkodgnqfomrevo
 
 jobs:
+  migration-history:
+    name: Complete offline database reconstruction
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Replay every migration with network and cron disabled
+        run: python3 scripts/test-migration-history.py
+
   frontend-build:
     name: Frontend production build
     # Playwright 1.60 del lockfile usa i browser distribuiti per Ubuntu 24.04.
@@ -130,6 +142,15 @@ jobs:
 
       - name: Install deps
         run: bun install --frozen-lockfile
+
+      - name: Typecheck webhook edge functions
+        run: npx --yes deno@2.9.6 check supabase/functions/dispatch-global-webhooks/index.ts supabase/functions/send-webhook/index.ts
+
+      - name: Verify global webhook events, permissions and delivery queue
+        run: bun run test:global-webhooks
+
+      - name: Verify recovered migration guards and tenant security
+        run: bun run test:migration-recovery
 
       - name: Run critical tests
         run: bun run test:critical
@@ -595,7 +616,7 @@ jobs:
     runs-on: ubuntu-latest
     # Il contenitore CAD (Docker) non c'entra con le edge function: se la sua
     # prova si rompe, il deploy delle funzioni non deve fermarsi con lui.
-    needs: [typecheck, test]
+    needs: [typecheck, test, migration-history]
     if: >-
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')

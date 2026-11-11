@@ -1,5 +1,5 @@
 import {InboundAutomationWebhooks} from '@/components/settings/InboundAutomationWebhooks';
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -160,10 +160,12 @@ function WebhookFormDialog({
       const { data, error } = await supabase.functions.invoke("send-webhook", {
         body: {
           webhook_id: webhook?.id ?? null,
+          company_id: companyId,
           event_type: "test.ping",
           payload: { message: "Prova dal gestionale", timestamp: new Date().toISOString() },
           is_test: true,
           test_url: webhook ? undefined : validatedUrl.url,
+          test_secret: webhook ? undefined : secret.trim() || undefined,
         },
       });
       if (error) {
@@ -378,8 +380,8 @@ function WebhookHealthIndicator({
             L'indirizzo sembra non rispondere: {recent.length} invii falliti di fila
           </p>
           <p className="text-destructive/80 mt-0.5">
-            Controlla l'indirizzo prima di ripetere gli invii. Puoi mettere in pausa il webhook; gli avvisi
-            automatici, comunque, non sono ancora collegati.
+            Controlla l'indirizzo prima di ripetere gli invii. I tentativi sono automatici; dopo troppi
+            fallimenti consecutivi il webhook viene messo in pausa.
           </p>
           <Button
             variant="outline"
@@ -408,17 +410,25 @@ function DeliveriesSheet({
   webhook: Webhook | null;
   canManage: boolean;
 }) {
-  const { data: deliveries = [], isLoading, isError, refetch } = useWebhookDeliveries(open ? webhook?.id ?? null : null);
+  const { data: deliveries = [], isLoading, isError, refetch } = useWebhookDeliveries(open ? webhook?.id ?? null : null, open);
   const retryMutation = useRetryDelivery(webhook?.id ?? null);
   const { toast } = useToast();
   const [visibleCount, setVisibleCount] = useState(20);
+
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!open) return;
+    const timer = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(timer);
+  }, [open]);
 
   // KPI successi/fallimenti su deliveries caricate
   const stats = (() => {
     const success = deliveries.filter((d) => d.status === "success").length;
     const failed = deliveries.filter((d) => d.status === "failed").length;
     const total = deliveries.length;
-    const successRate = total > 0 ? Math.round((success / total) * 100) : null;
+    const completed = success + failed;
+    const successRate = completed > 0 ? Math.round((success / completed) * 100) : null;
     return { success, failed, total, successRate };
   })();
 
@@ -475,7 +485,7 @@ function DeliveriesSheet({
             <div className="text-center py-12">
               <Activity className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
               <p className="font-medium">Nessun invio ancora</p>
-              <p className="text-xs text-muted-foreground mt-1">Gli invii compaiono qui dopo la prima prova o il primo avviso mandato.</p>
+              <p className="text-xs text-muted-foreground mt-1">Qui compaiono gli eventi aziendali. L'esito della Prova resta nel modulo di configurazione.</p>
             </div>
           ) : (
             visibleDeliveries.map((d) => {
@@ -486,7 +496,7 @@ function DeliveriesSheet({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 flex-wrap">
                       <Badge variant="outline" className={cfg.className}>
-                        <Icon className="h-3 w-3 mr-1" />{cfg.label}
+                        <Icon className="h-3 w-3 mr-1" />{d.status === "retrying" ? (d.lease_until && new Date(d.lease_until).getTime() > now ? "Invio in corso" : "Nuovo tentativo programmato") : cfg.label}
                       </Badge>
                       <span className="text-sm font-medium">{d.event_type}</span>
                       {d.http_status && <Badge variant="secondary">HTTP {d.http_status}</Badge>}
@@ -501,7 +511,7 @@ function DeliveriesSheet({
                           onClick={async () => {
                             try {
                               await retryMutation.mutateAsync(d.id);
-                              toast({ title: "Nuovo invio riuscito" });
+                              toast({ title: "Invio rimesso in coda" });
                             } catch (e) {
                               toast({
                                 title: "Non sono riuscito a ripetere l'invio",
@@ -613,18 +623,14 @@ export default function SettingsWebhooks() {
     <div className="space-y-5">
       <InboundAutomationWebhooks companyId={companyId} canManage={canManageWebhooks}/>
 
-      {/* La verità su cosa fa questa pagina, per prima. `send-webhook` è invocata da due soli posti: il pulsante «Prova»
-          qui sotto e il rinvio manuale di un invio. Nessun evento del prodotto — ordine creato, opportunità vinta,
-          pagamento ricevuto — la chiama. Chi costruisse un'integrazione sugli eventi sottoscritti resterebbe in
-          attesa per sempre, e lo scoprirebbe solo dopo averla scritta. */}
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          <p className="font-medium">Oggi gli avvisi non partono da soli.</p>
+          <p className="font-medium">Gli eventi scelti vengono inviati automaticamente.</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Un webhook è l'indirizzo di un altro programma a cui il gestionale può mandare un avviso quando succede
-            qualcosa (un nuovo contatto, un pagamento…). Per ora puoi salvare l'indirizzo, mandare una «Prova» e
-            ripetere un invio dal registro: gli avvisi automatici non sono ancora collegati.
+            Gli avvisi entrano in coda e vengono consegnati agli indirizzi attivi. In caso di errore, il gestionale
+            riprova dopo 5, 15 e 60 minuti. Ogni evento conserva lo stesso identificativo: il servizio ricevente deve
+            usarlo per scartare gli eventi già elaborati. La «Prova» non genera eventi aziendali.
           </p>
         </AlertDescription>
       </Alert>
@@ -662,7 +668,7 @@ export default function SettingsWebhooks() {
             </div>
             <h3 className="text-lg font-semibold">Nessun webhook configurato</h3>
             <p className="text-muted-foreground text-sm mb-4 text-center max-w-md">
-              Puoi salvare un indirizzo e provarlo; l'invio automatico degli avvisi non è ancora collegato.
+              Crea un webhook e scegli gli eventi da inviare automaticamente al tuo servizio.
             </p>
             <Button onClick={openCreate} disabled={!canManageWebhooks}><Plus className="h-4 w-4 mr-2" />Crea il primo webhook</Button>
           </CardContent>

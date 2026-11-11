@@ -83,8 +83,8 @@ grant execute on function public.sal_sign_with_token(uuid, text) to anon, authen
 --    LEFT JOIN su sal_subappaltatori E ritenute_garanzia faceva fan-out
 --    cartesiano: 2 SAL x 2 ritenute = tutte le somme raddoppiate. Stesse
 --    colonne di prima, aggregazioni spostate in LATERAL.
-create or replace view public.v_subappaltatori_dashboard as
- SELECT ss.id,
+-- Preserve existing ordinals, grants and dependent views while appending new fields.
+DO $stable_view$ DECLARE definition text:=$view_query$SELECT ss.id,
     ss.company_id,
     ss.order_id,
     ss.ragione_sociale,
@@ -123,4 +123,16 @@ create or replace view public.v_subappaltatori_dashboard as
        SELECT sum(r2.importo) FILTER (WHERE r2.stato = 'trattenuta') AS in_corso,
               sum(r2.importo) FILTER (WHERE r2.stato = 'svincolata') AS svincolate
        FROM ritenute_garanzia r2 WHERE r2.contratto_id = cs.id
-     ) rg ON true;
+     ) rg ON true$view_query$; col record; names text[]:='{}'; fields text[]:='{}';
+BEGIN
+ EXECUTE 'CREATE TEMP VIEW pg_temp._replay_v_subappaltatori_dashboard AS '||definition;
+ FOR col IN SELECT attname FROM pg_attribute WHERE attrelid=to_regclass('public.v_subappaltatori_dashboard') AND attnum>0 AND NOT attisdropped ORDER BY attnum LOOP
+  IF NOT EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid='pg_temp._replay_v_subappaltatori_dashboard'::regclass AND attname=col.attname AND attnum>0 AND NOT attisdropped) THEN RAISE EXCEPTION 'Colonna preesistente assente dalla nuova vista: %',col.attname;END IF;
+  names:=array_append(names,col.attname);fields:=array_append(fields,format('q.%I',col.attname));
+ END LOOP;
+ FOR col IN SELECT attname FROM pg_attribute WHERE attrelid='pg_temp._replay_v_subappaltatori_dashboard'::regclass AND attnum>0 AND NOT attisdropped AND NOT(attname=any(names)) ORDER BY attnum LOOP
+  fields:=array_append(fields,format('q.%I',col.attname));
+ END LOOP;
+ EXECUTE 'CREATE OR REPLACE VIEW public.v_subappaltatori_dashboard WITH (security_invoker=true) AS SELECT '||array_to_string(fields,',')||' FROM ('||definition||') q';
+ DROP VIEW pg_temp._replay_v_subappaltatori_dashboard;
+END $stable_view$;

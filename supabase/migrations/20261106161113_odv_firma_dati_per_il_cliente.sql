@@ -1,3 +1,12 @@
+-- Fresh reconstruction only: production already applied these recovered files.
+-- Markers are created only where a recovered patch precedes its actual dependencies.
+set local lock_timeout='3s';
+set local statement_timeout='60s';
+create schema if not exists private;
+create table if not exists private.recovered_dependency_patches(id text primary key);
+alter table private.recovered_dependency_patches enable row level security;
+revoke all on private.recovered_dependency_patches from public,anon,authenticated,service_role;
+DO $defer_recovered_1$ BEGIN IF to_regclass('public.order_variation_documents') is not null THEN
 -- La pagina di firma del cliente (06/11/2026): chi chiede, quanto si paga con l'IVA, dove.
 -- Vale per i link già mandati, che restano su /firma-odv. Tre valori di sola lettura, presi da quello
 -- che il cliente già conosce: la sua commessa e l'impresa con cui ha il contratto. Nessun altro dato
@@ -26,3 +35,5 @@ BEGIN
    'attachments',coalesce((SELECT jsonb_agg(jsonb_build_object('id',x->>'id','name',x->>'name','size',x->'size')) FROM jsonb_array_elements(d.attachments) x),'[]'::jsonb));
 END $function$;
 
+
+ELSE INSERT INTO private.recovered_dependency_patches(id) VALUES ('20261106161113_odv_firma_dati_per_il_cliente.sql') ON CONFLICT DO NOTHING; END IF; END $defer_recovered_1$;

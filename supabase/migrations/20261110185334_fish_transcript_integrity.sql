@@ -1,3 +1,12 @@
+-- Fresh reconstruction only: production already applied these recovered files.
+-- Markers are created only where a recovered patch precedes its actual dependencies.
+set local lock_timeout='3s';
+set local statement_timeout='60s';
+create schema if not exists private;
+create table if not exists private.recovered_dependency_patches(id text primary key);
+alter table private.recovered_dependency_patches enable row level security;
+revoke all on private.recovered_dependency_patches from public,anon,authenticated,service_role;
+DO $defer_recovered_7$ BEGIN IF to_regclass('public.ticket_ai_conversations') is not null THEN
 -- Phone conversations can exceed 500 turns; retain the complete signed transcript.
 ALTER TABLE public.ticket_ai_conversations DROP CONSTRAINT ticket_ai_conversations_transcript_check;
 ALTER TABLE public.ticket_ai_conversations ADD CONSTRAINT ticket_ai_conversations_transcript_check CHECK(jsonb_typeof(transcript)='array' AND jsonb_array_length(transcript)<=10000);
@@ -26,3 +35,5 @@ BEGIN
  UPDATE ticket_ai_conversations SET ticket_id=new_ticket,updated_at=now() WHERE company_id=p_company AND crm_trial_id=p_trial AND agent_id=p_agent;
  RETURN jsonb_build_object('creato',true,'ticket_id',new_ticket,'customer_id',customer.id,'already_created',false);
 END $$;
+
+ELSE INSERT INTO private.recovered_dependency_patches(id) VALUES ('20261110185334_fish_transcript_integrity.sql') ON CONFLICT DO NOTHING; END IF; END $defer_recovered_7$;

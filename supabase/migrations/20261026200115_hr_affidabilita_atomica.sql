@@ -65,7 +65,8 @@ grant execute on function public.hr_importa_festivita(uuid,integer,jsonb) to aut
 
 create or replace function public.hr_collega_candidato(p_company uuid,p_candidato uuid)
 returns uuid language plpgsql security invoker set search_path = public, pg_temp as $$
-declare v_c public.hr_candidati%rowtype; v_id uuid;
+-- La tabella HR viene creata dopo il file recuperato: pianificazione alla chiamata.
+declare v_c record; v_id uuid;
 begin
   if auth.uid() is null or p_company is null or public.utente_sola_lettura(p_company) or (public.e_amministratore_di(p_company) or public.has_role(auth.uid(), 'super_admin'::public.app_role)) is distinct from true then
     raise exception 'Permessi insufficienti';

@@ -36,7 +36,7 @@ BEGIN
         url := current_setting('app.supabase_url', true) || '/functions/v1/email-ai-l1-classify',
         headers := jsonb_build_object(
           'Content-Type', 'application/json',
-          'x-cron-secret', current_setting('app.proactive_cron_secret', true)
+          'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'proactive_cron_secret')
         ),
         body := '{"mode":"backfill","limit":200}'::jsonb,
         timeout_milliseconds := 120000
@@ -52,7 +52,7 @@ BEGIN
         url := current_setting('app.supabase_url', true) || '/functions/v1/email-ai-embed-backfill',
         headers := jsonb_build_object(
           'Content-Type', 'application/json',
-          'x-cron-secret', current_setting('app.proactive_cron_secret', true)
+          'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'proactive_cron_secret')
         ),
         body := '{"limit":50}'::jsonb,
         timeout_milliseconds := 120000

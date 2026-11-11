@@ -16,8 +16,11 @@ BEGIN
     USING (NOT (SELECT public.utente_bloccato())) WITH CHECK (NOT (SELECT public.utente_bloccato()));
   ALTER POLICY blocco_utente_bloccato ON public.email_logs
     USING (NOT (SELECT public.utente_bloccato())) WITH CHECK (NOT (SELECT public.utente_bloccato()));
+  -- Optional/archived table: optimize only an existing policy, never create or weaken one.
+  IF EXISTS(SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='email_message_activity' AND policyname='blocco_utente_bloccato') THEN
   ALTER POLICY blocco_utente_bloccato ON public.email_message_activity
     USING (NOT (SELECT public.utente_bloccato())) WITH CHECK (NOT (SELECT public.utente_bloccato()));
+  END IF;
   ALTER POLICY blocco_utente_bloccato ON public.email_metriche_giorno
     USING (NOT (SELECT public.utente_bloccato())) WITH CHECK (NOT (SELECT public.utente_bloccato()));
   ALTER POLICY blocco_utente_bloccato ON public.email_oauth_connections

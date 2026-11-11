@@ -255,7 +255,7 @@ select pg_temp.correggi_g('public.silvio_tool_quadro_incassi(uuid,integer)',
   'Fonti già separate: rate_commesse_eur comprende');
 
 select pg_temp.correggi_g('public.silvio_tool_rate_commessa(uuid,text,uuid)',
-  $re$SELECT o\.id, o\.order_code, o\.client_name, o\.client_company, o\.total_amount INTO v_order\s+FROM public\.orders o$re$,
+  $re$SELECT o\.id, o\.order_code, o\.client_name, o\.client_company, o\.total_amount\s+INTO v_order\s+FROM public\.orders o$re$,
   $to$SELECT o.id, o.order_code, o.client_name, o.client_company, o.total_amount,
          -- il piano rate è IVA inclusa: si confronta col totale IVA inclusa, varianti comprese
          round(o.total_amount * (1 + coalesce(oo.vat_rate, 22) / 100), 2)

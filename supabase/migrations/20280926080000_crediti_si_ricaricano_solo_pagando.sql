@@ -44,7 +44,8 @@ begin
     execute format('grant execute on function %s to service_role', f.firma);
     n := n + 1;
   end loop;
-  if n <> cardinality(elenco) then
+  -- create_persona_session was explicitly removed by cleanup_doppioni_db.
+  if n <> cardinality(elenco) - (case when to_regprocedure('public.create_persona_session(text,text)') is null then 1 else 0 end) then
     raise exception 'funzioni trovate % su % in elenco', n, cardinality(elenco);
   end if;
 end

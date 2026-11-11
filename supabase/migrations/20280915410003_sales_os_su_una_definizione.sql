@@ -30,7 +30,7 @@ set local lock_timeout = '3s';
 set local statement_timeout = '60s';
 
 create or replace function public.get_sales_velocity(p_company_id uuid, p_days_back integer default 90)
-returns table(open_opportunities bigint, win_rate numeric, avg_deal_size numeric, avg_cycle_days numeric, sales_velocity numeric)
+returns table(open_opportunities bigint, won_in_period bigint, lost_in_period bigint, win_rate numeric, avg_deal_size numeric, avg_cycle_days numeric, sales_velocity numeric)
 language plpgsql
 stable
 security invoker
@@ -51,7 +51,7 @@ begin
            avg(v.giorni_ciclo) filter (where v.vinta) as ciclo
       from public.vendite_opportunita(p_company_id, v_da, v_a) v
   )
-  select o.aperte::bigint,
+  select o.aperte::bigint, o.vinte::bigint, o.perse::bigint,
          round(100.0 * o.vinte / nullif(o.vinte + o.perse, 0), 1),
          round(coalesce(o.ticket, 0), 2),
          round(o.ciclo, 1),
@@ -135,8 +135,8 @@ end;
 $function$;
 
 create or replace function public.get_stalled_opportunities(p_company_id uuid)
-returns table(opportunity_id uuid, opportunity_name text, contact_name text, stage_name text, assigned_to uuid,
-              last_activity_at timestamptz, days_stalled integer, stalled_threshold integer, value numeric)
+returns table(opportunity_id uuid, opportunity_name text, contact_name text, stage_name text, value numeric,
+              days_stalled integer, stalled_threshold integer, assigned_to uuid, last_activity timestamptz)
 language plpgsql
 stable
 security invoker
@@ -160,16 +160,16 @@ begin
          mo.name::text,
          btrim(concat_ws(' ', mc.first_name, mc.last_name))::text,
          s.name::text,
-         mo.assigned_to,
-         att.ultima,
+         mo.value,
          floor(extract(epoch from (now() - att.ultima)) / 86400)::integer,
          coalesce(s.stalled_threshold_days, 14)::integer,
-         mo.value
+         mo.assigned_to,
+         att.ultima
     from att
     join public.marketing_opportunities mo on mo.id = att.opp
     join public.marketing_pipeline_stages s on s.id = mo.stage_id
     left join public.marketing_contacts mc on mc.id = mo.contact_id
    where floor(extract(epoch from (now() - att.ultima)) / 86400) >= coalesce(s.stalled_threshold_days, 14)
-   order by 7 desc;
+   order by 6 desc;
 end;
 $function$;

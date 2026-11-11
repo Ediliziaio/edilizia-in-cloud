@@ -22,7 +22,7 @@
 --     headers:= jsonb_build_object(
 --                 'Content-Type', 'application/json',
 --                 'x-cron-secret', (select coalesce(
---                    current_setting('app.proactive_cron_secret', true),
+--                    (select decrypted_secret from vault.decrypted_secrets where name = 'proactive_cron_secret'),
 --                    '13035e8e9570855959a5bf9c0803d117554d8162cf63e46b'))
 --               ),
 --     body   := '{}'::jsonb

@@ -1,3 +1,12 @@
+-- Fresh reconstruction only: production already applied these recovered files.
+-- Markers are created only where a recovered patch precedes its actual dependencies.
+set local lock_timeout='3s';
+set local statement_timeout='60s';
+create schema if not exists private;
+create table if not exists private.recovered_dependency_patches(id text primary key);
+alter table private.recovered_dependency_patches enable row level security;
+revoke all on private.recovered_dependency_patches from public,anon,authenticated,service_role;
+DO $defer_recovered_4$ BEGIN IF md5(trim(both E'\n' from pg_get_functiondef(to_regprocedure('public.insert_goods_receipt_atomic(uuid,uuid,numeric,text,uuid,text,text,uuid,text,text)')))) = '862d2316b142df4ffdb28ebbb5f31bd5' and md5(trim(both E'\n' from pg_get_functiondef(to_regprocedure('public.oda_registra_arrivo(uuid,jsonb,text,date,uuid,text,text,uuid)')))) = 'e4680252127d9f4e21d69d4b80ece3f5' THEN
 set local lock_timeout='10s';
 set local statement_timeout='120s';
 DO $baseline$ BEGIN
@@ -1297,4 +1306,6 @@ BEGIN
 END;
 $patch$;
 
-;
+
+
+ELSE INSERT INTO private.recovered_dependency_patches(id) VALUES ('20261106075753_registro_anomalie_finanziamenti_mezzi_oda_ddt_ricezioni.sql') ON CONFLICT DO NOTHING; END IF; END $defer_recovered_4$;

@@ -68,7 +68,8 @@ BEGIN
     IF NOT FOUND THEN
       RAISE EXCEPTION 'Policy %.% «%» non trovata: il lotto va rivisto', r.schema_, r.tabella, r.policy;
     END IF;
-    IF md5(v_testo) <> r.impronta AND v_testo !~ r.segno THEN
+    -- Exact recovered predecessor fingerprints; unknown changes still abort.
+    IF md5(v_testo) <> r.impronta AND v_testo !~ r.segno AND NOT((r.schema_='public' AND r.tabella='ai_persona_memory' AND r.policy='ai_persona_memory_delete' AND md5(v_testo)='6f37bfb0fcf4db52a9545b7625a4336f') OR (r.schema_='public' AND r.tabella='ai_persona_memory' AND r.policy='ai_persona_memory_insert' AND md5(v_testo)='b3647dd9edb8bd009b8836a0e5d3b24f') OR (r.schema_='public' AND r.tabella='ai_persona_memory' AND r.policy='ai_persona_memory_update' AND md5(v_testo)='2aa6662d3c97683e48ac8d52a1196d5d') OR (r.schema_='public' AND r.tabella='meta_assets' AND r.policy='Admins can manage own company meta assets' AND md5(v_testo)='24358c42b89e6549309136ad24ced670')) THEN
       RAISE EXCEPTION 'Policy %.% «%» cambiata dopo il censimento: il lotto va rivisto', r.schema_, r.tabella, r.policy;
     END IF;
   END LOOP;

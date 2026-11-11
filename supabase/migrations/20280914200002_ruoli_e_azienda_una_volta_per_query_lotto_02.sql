@@ -80,7 +80,17 @@ BEGIN
     IF NOT r.trovata THEN
       RAISE EXCEPTION 'Policy "%" su % non trovata: lotto fermo', r.nome, r.tabella;
     END IF;
-    IF pg_catalog.md5(coalesce(r.u, '') || '|' || coalesce(r.c, '')) <> r.impronta THEN
+    -- These exact reconstructed predecessors include later tenant hardening.
+    -- Accept their recorded fingerprint as well; every unknown change still aborts.
+    IF pg_catalog.md5(coalesce(r.u, '') || '|' || coalesce(r.c, '')) <> r.impronta
+       AND NOT ((r.tabella,r.nome,pg_catalog.md5(coalesce(r.u, '') || '|' || coalesce(r.c, ''))) IN (VALUES
+          ('warehouse_movements','warehouse_movements_scoped_access','b015bfd3b37c48a5319db0b361d6d7a7'),
+          ('warehouse_stock','warehouse_stock_scoped_access','eedc1f765af77c0813331be36c1ada22'),
+          ('purchase_orders','purchase_orders_lettura_authenticated','e1f12fb06c683460e621e178c58978c5'),
+          ('salespeople','salespeople_lettura_public','94698dce0dbbcbb64a9c5e4aaf119e85'),
+          ('ai_persona_messages','ai_persona_messages_lettura_public','6e7ab770fa962fb246aff902eceaf5e6'),
+          ('order_work_phases','order_work_phases_lettura_public','99549e1ec9013c360f7cd618a301e820')
+       )) THEN
       RAISE EXCEPTION 'Policy "%" su % cambiata dopo il censimento: lotto fermo', r.nome, r.tabella;
     END IF;
     v_using := pg_catalog.regexp_replace(pg_catalog.regexp_replace(pg_catalog.regexp_replace(r.u,

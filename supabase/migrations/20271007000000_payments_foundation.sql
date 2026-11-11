@@ -30,9 +30,11 @@ CREATE TABLE IF NOT EXISTS public.bank_payments (
 CREATE INDEX IF NOT EXISTS idx_bank_payments_company ON public.bank_payments(company_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_bank_payments_provider_pid ON public.bank_payments(provider_payment_id) WHERE provider_payment_id IS NOT NULL;
 ALTER TABLE public.bank_payments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "payments_select" ON public.bank_payments;
 CREATE POLICY "payments_select" ON public.bank_payments FOR SELECT
   USING (company_id IN (SELECT company_id FROM profiles WHERE id = (SELECT auth.uid()))
     AND (has_role((SELECT auth.uid()),'super_admin'::app_role) OR has_role((SELECT auth.uid()),'company_admin'::app_role) OR has_permission((SELECT auth.uid()),'can_view_tesoreria')));
+DROP POLICY IF EXISTS "payments_admin_all" ON public.bank_payments;
 CREATE POLICY "payments_admin_all" ON public.bank_payments FOR ALL
   USING (company_id IN (SELECT company_id FROM profiles WHERE id = (SELECT auth.uid()))
     AND (has_role((SELECT auth.uid()),'super_admin'::app_role) OR has_role((SELECT auth.uid()),'company_admin'::app_role)))
