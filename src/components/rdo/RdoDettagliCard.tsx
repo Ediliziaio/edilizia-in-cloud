@@ -1,7 +1,7 @@
 import type {TablesUpdate} from "@/integrations/supabase/types";
 import {useState,type FormEvent} from "react";
 import {Pencil,Save,Loader2,CalendarClock} from "lucide-react";
-import {QuoteCard} from "@/components/marketing/preventivi/ui/builderUI";
+import {Card,CardContent} from "@/components/ui/card";
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
 import {Label} from "@/components/ui/label";
@@ -9,13 +9,39 @@ import {Textarea} from "@/components/ui/textarea";
 import {CommessaCombobox} from "@/components/orders/CommessaCombobox";
 import type {SupplierRfq} from "@/hooks/useSupplierRfqs";
 import {dataIt} from "@/lib/documentiOperativi/modello";
-type Props={rfq:SupplierRfq;disabled:boolean;onSave:(updates:TablesUpdate<"supplier_rfqs">)=>Promise<unknown>;onEditingChange:(editing:boolean)=>void};
-export function RdoDettagliCard({rfq,disabled,onSave,onEditingChange}:Props){
+type Riepilogo={etichetta:string;valore:string};
+type Props={rfq:SupplierRfq;disabled:boolean;onSave:(updates:TablesUpdate<"supplier_rfqs">)=>Promise<unknown>;onEditingChange:(editing:boolean)=>void;
+ /** Numeri della richiesta mostrati nella stessa striscia (voci, risposte, offerta più bassa). */
+ riepilogo?:Riepilogo[]};
+/**
+ * I dati della richiesta in una striscia sola, come la testata della bolla
+ * (11/11/2026): prima era un riquadro alto con tre campi e la descrizione sotto.
+ */
+export function RdoDettagliCard({rfq,disabled,onSave,onEditingChange,riepilogo=[]}:Props){
  const [editing,setEditing]=useState(false);
  const toggle=(v:boolean)=>{setEditing(v);onEditingChange(v);};
- return <QuoteCard title="Dettagli richiesta" icon={<CalendarClock className="h-4 w-4"/>} action={!disabled && !editing && <Button variant="outline" size="sm" onClick={()=>toggle(true)}><Pencil className="mr-1 h-3.5 w-3.5"/>Modifica dettagli</Button>}>
- {editing ? <RdoForm rfq={rfq} onSave={async patch=>{await onSave(patch);toggle(false);}} onCancel={()=>toggle(false)}/> : <><dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"><div><dt className="text-xs text-slate-500">Commessa (facoltativa)</dt><dd className="mt-1 text-sm font-medium">{rfq.orders?.order_code || "Magazzino / materiali di consumo"}</dd></div><div><dt className="text-xs text-slate-500">Materiale necessario entro</dt><dd className="mt-1 text-sm font-medium">{dataIt(rfq.data_fabbisogno) || "Da indicare"}</dd></div><div><dt className="text-xs text-slate-500">Scadenza offerte</dt><dd className="mt-1 text-sm font-medium">{dataIt(rfq.scadenza_offerte) || "Da indicare"}</dd></div></dl>{rfq.descrizione && <p className="mt-4 whitespace-pre-wrap text-sm text-slate-700">{rfq.descrizione}</p>}{rfq.note && <div className="mt-4 rounded-lg bg-slate-50 p-3"><p className="text-xs font-semibold text-slate-500">Note per i fornitori</p><p className="mt-1 whitespace-pre-wrap text-sm">{rfq.note}</p></div>}</>}
- </QuoteCard>;
+ const celle:Riepilogo[]=[
+  {etichetta:"Commessa",valore:rfq.orders?.order_code || "Magazzino / consumo"},
+  {etichetta:"Serve entro",valore:dataIt(rfq.data_fabbisogno) || "Da indicare"},
+  {etichetta:"Offerte entro",valore:dataIt(rfq.scadenza_offerte) || "Da indicare"},
+  ...riepilogo,
+ ];
+ return <Card>
+  <CardContent className="py-3">
+   {editing ? <RdoForm rfq={rfq} onSave={async patch=>{await onSave(patch);toggle(false);}} onCancel={()=>toggle(false)}/> : <>
+    <div className="flex items-start gap-3">
+     <dl className="grid min-w-0 flex-1 grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3 lg:grid-cols-6">
+      {celle.map(c=><div key={c.etichetta} className="min-w-0"><dt className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">{c.etichetta==="Serve entro"||c.etichetta==="Offerte entro"?<CalendarClock className="h-3 w-3"/>:null}{c.etichetta}</dt><dd className={`mt-0.5 truncate text-sm ${c.valore==="Da indicare"?"italic text-muted-foreground":"font-medium"}`} title={c.valore}>{c.valore}</dd></div>)}
+     </dl>
+     {!disabled && <Button variant="ghost" size="sm" className="shrink-0" aria-label="Modifica dettagli" onClick={()=>toggle(true)}><Pencil className="h-3.5 w-3.5 sm:mr-1"/><span className="hidden sm:inline">Modifica dettagli</span></Button>}
+    </div>
+    {(rfq.descrizione || rfq.note) && <div className="mt-2 space-y-1 border-t pt-2 text-sm">
+     {rfq.descrizione && <p className="whitespace-pre-wrap text-slate-700">{rfq.descrizione}</p>}
+     {rfq.note && <p className="whitespace-pre-wrap"><span className="text-xs font-semibold text-muted-foreground">Note per i fornitori: </span>{rfq.note}</p>}
+    </div>}
+   </>}
+  </CardContent>
+ </Card>;
 }
 function RdoForm({rfq,onSave,onCancel}:{rfq:SupplierRfq;onSave:Props["onSave"];onCancel:()=>void}){
  const [d,setD]=useState(()=>({titolo:rfq.titolo,descrizione:rfq.descrizione || "",note:rfq.note || "",data_fabbisogno:rfq.data_fabbisogno || "",scadenza_offerte:rfq.scadenza_offerte || "",order_id:rfq.order_id}));

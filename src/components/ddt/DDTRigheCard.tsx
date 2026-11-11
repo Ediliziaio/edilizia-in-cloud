@@ -37,6 +37,7 @@ import { useAbbinamentoBolla } from "@/hooks/useAbbinamentoBolla";
 import { arriviDaRegistrare, righeOrdinePerRiga, type RigaOrdine } from "@/lib/ddt/abbinaRigheOrdine";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ArrivoPosizioniPanel } from "@/components/ddt/ArrivoPosizioniPanel";
+import { avvisoQuantitaTestata } from "@/lib/ddt/collegamentiBolla";
 import { importoRiga } from "@/lib/ddt/letturaAI";
 import { cn } from "@/lib/utils";
 
@@ -191,12 +192,9 @@ export function DDTRigheCard({
     quantitaPerUnita.set(um, (quantitaPerUnita.get(um) ?? 0) + r.quantita);
   }
   const senzaPrezzo = righe.filter((r) => importoRiga(r) == null).length;
-  // Scarto fra la quantità in testata e la somma delle righe. Due numeri che
-  // dicono la stessa cosa e non coincidono sono peggio di un numero solo.
-  const scartoQuantita =
-    quantitaInTestata != null && quantitaRighe > 0 && quantitaPerUnita.size === 1
-      ? Math.round((quantitaInTestata - quantitaRighe) * 1000) / 1000
-      : 0;
+  // Scarto fra la quantità in testata e la somma delle righe: una testata a
+  // zero è un campo vuoto, non uno scarto (vedi avvisoQuantitaTestata).
+  const avvisoQuantita = avvisoQuantitaTestata(quantitaInTestata, quantitaRighe, quantitaPerUnita.size);
 
   const apriModifica = (r: DDTRiga) => {
     setInModifica(r.id);
@@ -253,7 +251,7 @@ export function DDTRigheCard({
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <CardTitle className="text-base flex items-center gap-2">
+          <CardTitle className="text-base flex flex-wrap items-center gap-2">
             <ListTree className="h-4 w-4 text-primary" />
             Merce sulla bolla
             <Badge variant="secondary" className="text-xs">
@@ -266,8 +264,9 @@ export function DDTRigheCard({
               </Badge>
             )}
             {ordine.length > 0 && righe.length > 0 && (
-              <Badge variant="outline" className={cn("text-[10px] font-normal", daScegliere > 0 ? "border-amber-300 text-amber-800" : "border-emerald-300 text-emerald-800")}>
-                {abbinate} di {righe.length} abbinate{ordiniToccati.length > 1 ? ` · ${ordiniToccati.length} ordini` : " all'ordine"}
+              <Badge variant="outline" className={cn("gap-1 px-2 py-0.5 text-xs font-medium", daScegliere > 0 ? "border-amber-300 bg-amber-50 text-amber-800" : "border-emerald-300 bg-emerald-50 text-emerald-800")}>
+                {daScegliere > 0 ? <AlertTriangle className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
+                {abbinate === righe.length ? (righe.length === 1 ? "Riga trovata nell'ordine" : `Tutte le ${righe.length} righe trovate nell'ordine`) : `${abbinate} righe su ${righe.length} trovate nell'ordine`}{ordiniToccati.length > 1 ? ` · ${ordiniToccati.length} ordini` : ""}
               </Badge>
             )}
           </CardTitle>
@@ -566,13 +565,10 @@ export function DDTRigheCard({
         )}
 
         {/* Quello che non torna, detto invece che lasciato scoprire */}
-        {scartoQuantita !== 0 && (
-          <p className="flex items-start gap-1.5 text-[11px] text-amber-700">
-            <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
-            La quantità in testata è {numero(quantitaInTestata)}, la somma delle righe
-            è {numero(quantitaRighe)}: {numero(Math.abs(scartoQuantita))} di differenza.
-            Vale quello che c'è sulle righe — la testata è un totale che qualcuno ha
-            digitato.
+        {avvisoQuantita && (
+          <p className="flex items-start gap-1.5 text-xs text-amber-700">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+            {avvisoQuantita}
           </p>
         )}
 

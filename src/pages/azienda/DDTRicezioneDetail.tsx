@@ -18,8 +18,8 @@ import { useFileDDT } from "@/hooks/useFileDDT";
 //
 //   Testata: numero, data, valore della merce, destinazione, stato, e le azioni
 //            (verifica / non conforme / modifica).
-//   Sidebar: dove si incastra — ODA, fornitore, destinazione, commessa,
-//            magazzino — e la timeline.
+//   Colonna destra: collegamenti (ordini, fornitore, commesse, destinazione,
+//            fattura — modificabili), chi l'ha portata, chi l'ha presa, storia.
 //
 // 29/10/2026 — Prima l'ordine era un altro: il file, gli allegati, il corriere,
 // la targa, l'autista, e la merce al sesto posto. Il corriere veniva prima di
@@ -39,6 +39,7 @@ import { PrezziDaFatturaCard } from "@/components/ddt/PrezziDaFatturaCard";
 import { ConsegneDDTCard } from "@/components/ddt/ConsegneDDTCard";
 import { ControlloOrdiniDDTCard } from "@/components/ddt/ControlloOrdiniDDTCard";
 import { ArrivoPosizioniPanel } from "@/components/ddt/ArrivoPosizioniPanel";
+import { CollegamentiDDTCard, TimelineBolla } from "@/components/ddt/CollegamentiDDTCard";
 import { importoRiga } from "@/lib/ddt/letturaAI";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,7 +56,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  ArrowLeft, FileCheck, Loader2, Truck, ShoppingCart, FileText, Warehouse,
+  ArrowLeft, FileCheck, Loader2, Truck, FileText, Warehouse,
   Package, Plus, CheckCircle2, Trash2, Edit3, Save, X, ExternalLink,
   Paperclip, Camera, User, Phone, Clock, MapPin, AlertTriangle, ShieldCheck,
   FilePlus2, Hash, Calendar, Image as ImageIcon, PenLine, ListTree,
@@ -127,12 +128,9 @@ export default function DDTRicezioneDetail() {
       .filter((v): v is number => v != null);
     return importi.length > 0 ? importi.reduce((a, b) => a + b, 0) : null;
   })();
-  // Commessa e fornitore stanno sulla bolla dal 29/10/2026: una bolla senza
-  // ordine d'acquisto li ha solo lì. Prima la colonna propria, poi, per le
-  // bolle vecchie, il giro attraverso l'ODA.
+  // Il fornitore sta sulla bolla dal 29/10/2026: una bolla senza ordine
+  // d'acquisto lo ha solo lì. Prima la colonna propria, poi l'ODA.
   const fornitoreNome = ddt?.suppliers?.name ?? po?.suppliers?.name ?? null;
-  const commessaId = ddt?.order_id ?? po?.orders?.id ?? null;
-  const commessaCodice = ddt?.orders?.order_code ?? po?.orders?.order_code ?? null;
   const { items: poItems, isItemsLoading } = usePurchaseOrderDetail(po?.id ?? null);
 
   // ── Edit header state ────────────────────────────────────
@@ -511,6 +509,8 @@ export default function DDTRicezioneDetail() {
   // cosa la pagina chiede e che cosa mostra.
   const ritiro = ddt.trasporto_a_cura_di === "noi";
   const meta = DDT_STATO_META[ddt.stato] ?? DDT_STATO_META.atteso;
+  const apriConsegne = () =>
+    document.getElementById("consegne-ddt")?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   return (
     <div className="space-y-5 pb-10">
@@ -518,7 +518,7 @@ export default function DDTRicezioneDetail() {
           HEADER — back + title + status + azioni rapide
           ═══════════════════════════════════════════════════════════ */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
+        <div className="flex w-full items-center gap-2 min-w-0 sm:w-auto sm:flex-1">
           {!inPopup && <Button
             variant="ghost"
             size="sm"
@@ -570,6 +570,16 @@ export default function DDTRicezioneDetail() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* L'originale del fornitore a portata di mano: le schede che lo
+              mostrano stanno in fondo alla colonna della merce. */}
+          {fileDocumento.data && (
+            <Button variant="outline" size="sm" asChild>
+              <a href={fileDocumento.data} target="_blank" rel="noreferrer" className="gap-1.5">
+                <FileText className="h-4 w-4" />
+                <span className="hidden sm:inline">Bolla originale</span>
+              </a>
+            </Button>
+          )}
           {canVerify && (
             <Button
               size="sm"
@@ -797,9 +807,9 @@ export default function DDTRicezioneDetail() {
       {/* ═══════════════════════════════════════════════════════════
           GRID: Colonna sx (documenti / consegna / QC / items) + sidebar
           ═══════════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
         {/* ─── MAIN COLUMN ─────────────────────────────────── */}
-        <div className="lg:col-span-2 space-y-5">
+        <div className="lg:col-span-2 space-y-5 min-w-0">
 
           {/* ─── 1. LA MERCE: che cosa è arrivato ───
               Che cosa c'è scritto sul documento, prezzi compresi. Sotto, le
@@ -819,6 +829,12 @@ export default function DDTRicezioneDetail() {
               ddt?.quantita_ricevuta != null ? Number(ddt.quantita_ricevuta) : null
             }
           />
+
+          {/* Sul telefono la colonna destra finisce in fondo, dopo tutta la
+              merce: i collegamenti si vedono qui, subito sotto le righe. */}
+          <div className="lg:hidden">
+            <CollegamentiDDTCard ddt={ddt} ricezioni={receipts.length} onApriConsegne={apriConsegne} />
+          </div>
 
           {/* Le posizioni su misura dell'ordine: la bolla propone, chi riceve conferma. */}
           {ddt?.purchase_order_id && <ArrivoPosizioniPanel odaId={ddt.purchase_order_id} ddtId={ddtId} nascondiSeVuoto />}
@@ -1246,23 +1262,25 @@ export default function DDTRicezioneDetail() {
           </Card>}
         </div>
 
+        {/* ─── COLONNA DESTRA: le schede brevi, una sotto l'altra ───
+            11/11/2026 — Prima «Chi ha portato» stava da sola nella prima riga
+            della griglia, alta quanto tutta la colonna della merce: sotto, uno
+            spazio vuoto enorme, e «Dove si incastra» finiva in fondo alla
+            pagina. Ora le schede brevi stanno insieme in una colonna sola,
+            collegamenti per primi. Non sticky: la colonna è più alta dello
+            schermo e la parte bassa diventerebbe irraggiungibile. */}
+        <div className="space-y-5 min-w-0">
+          <div className="hidden lg:block">
+            <CollegamentiDDTCard ddt={ddt} ricezioni={receipts.length} onApriConsegne={apriConsegne} />
+          </div>
+
           {/* ─── 4. CHI L'HA PORTATA: corriere, mezzo, autista, orari ─── */}
-          <Card className="self-start">
+          <Card>
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Truck className="h-4 w-4" />
                   {ritiro ? "Ritirata da noi" : "Chi ha portato la merce"}
-                  {ddt.trasporto_a_cura_di && (
-                    <Badge variant="secondary" className="text-[10px] font-normal">
-                      {TRASPORTO_ETICHETTA[ddt.trasporto_a_cura_di]}
-                    </Badge>
-                  )}
-                  {ddt.porto && (
-                    <Badge variant="outline" className="text-[10px] font-normal">
-                      porto {ddt.porto}
-                    </Badge>
-                  )}
                 </CardTitle>
                 {!isEditingConsegna ? (
                   <Button size="sm" variant="ghost" onClick={startEditConsegna}>
@@ -1299,8 +1317,13 @@ export default function DDTRicezioneDetail() {
               </div>
             </CardHeader>
             <CardContent className="pt-0">
+              {!isEditingConsegna && (ddt.trasporto_a_cura_di || ddt.porto) && (
+                <p className="mb-2 text-xs text-muted-foreground">
+                  {[ddt.trasporto_a_cura_di ? TRASPORTO_ETICHETTA[ddt.trasporto_a_cura_di] : null, ddt.porto ? `porto ${ddt.porto}` : null].filter(Boolean).join(" · ")}
+                </p>
+              )}
               {!isEditingConsegna ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-3">
                   {/* Su un ritiro non c'è nessun corriere: c'è il nostro
                       furgone e il nostro uomo. Le celle vuote del corriere
                       erano il 99,6% delle bolle. */}
@@ -1553,7 +1576,7 @@ export default function DDTRicezioneDetail() {
             <CardContent className="pt-0 space-y-4">
               {/* Ricevuto da */}
               {!isEditingQC ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <MetaCell
                     icon={User}
                     label="Ricevuto da"
@@ -1579,9 +1602,9 @@ export default function DDTRicezioneDetail() {
                         <ExternalLink className="h-3 w-3 text-muted-foreground" />
                       </a>
                     ) : (
-                      <div className="flex items-center gap-2 mt-0.5">
+                      <div className="flex flex-wrap items-center gap-2 mt-0.5">
                         <span className="text-sm text-muted-foreground italic">
-                          Nessuna firma
+                          Nessuna
                         </span>
                         <input
                           ref={signatureRef}
@@ -1686,115 +1709,7 @@ export default function DDTRicezioneDetail() {
             </CardContent>
           </Card>
 
-          {/* ─── DOVE SI INCASTRA QUESTA BOLLA ───────────────
-              Prima erano cinque schede separate, di cui tre contenevano solo un
-              link: molto spazio per poca informazione, mentre la merce stava
-              compressa in fondo alla pagina. Ora è una scheda sola, una riga
-              per collegamento, e si legge in un colpo d'occhio. */}
-        <div className="space-y-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-1.5 text-muted-foreground">
-                <ExternalLink className="h-3.5 w-3.5" /> Dove si incastra
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0 divide-y">
-              <RigaCollegamento
-                icon={ShoppingCart}
-                etichetta="Ordine d'acquisto"
-                valore={po?.oda_number}
-                dettaglio={po ? `stato: ${po.status}` : undefined}
-                vuoto="La merce è arrivata senza un ordine"
-                onClick={po ? () => navigate(`/azienda/ordini-acquisto/${po.id}`) : undefined}
-                mono
-              />
-              <RigaCollegamento
-                icon={Truck}
-                etichetta="Fornitore"
-                valore={fornitoreNome}
-                dettaglio={po?.suppliers?.email ?? undefined}
-                vuoto="Non indicato"
-              />
-              <RigaCollegamento
-                icon={FileText}
-                etichetta="Commessa"
-                valore={commessaCodice ?? (commessaId ? "Commessa" : null)}
-                vuoto="Non collegata a nessun cantiere"
-                onClick={commessaId ? () => navigate(`/azienda/ordini/${commessaId}`) : undefined}
-                mono
-              />
-              <RigaCollegamento
-                icon={ddt.destinazione === "cantiere" ? Truck : Warehouse}
-                etichetta="Destinazione"
-                vuoto="Non indicata"
-                valore={
-                  ddt.destinazione === "cantiere"
-                    ? (destinazioneMista ? "Cantiere e magazzino" : "Direttamente in cantiere")
-                    : (ddt.warehouses?.name ?? "Magazzino")
-                }
-                dettaglio={
-                  ddt.destinazione === "cantiere"
-                    ? (destinazioneMista ? "Ogni quota segue la destinazione confermata nelle consegne." : "Non passa dal magazzino: in giacenza non entra.")
-                    : ddt.caricata_a_magazzino_at
-                      ? `In giacenza dal ${format(new Date(ddt.caricata_a_magazzino_at), "dd/MM/yyyy", { locale: it })}`
-                      : isReceiptsError ? "Ricezioni non verificabili: ricarica la pagina"
-                        : receipts.length > 0 || odaConQuantitaRicevute
-                          ? "Ricezioni registrate: verifica i carichi nei Movimenti"
-                          : "Carico non confermato da questa bolla: verifica i Movimenti"
-                }
-                onClick={
-                  ddt.destinazione === "cantiere"
-                    ? undefined
-                    : () => navigate("/azienda/magazzino")
-                }
-              />
-            </CardContent>
-          </Card>
-
-          {/* Timeline di audit */}
-          {(ddt.verified_at || ddt.created_at) && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-1.5 text-muted-foreground">
-                  <Clock className="h-3.5 w-3.5" /> Timeline
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <ol className="space-y-2 text-xs">
-                  <li className="flex items-start gap-2">
-                    <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-sky-500 shrink-0" />
-                    <span>
-                      <strong>Creato</strong>
-                      <br />
-                      <span className="text-muted-foreground">
-                        {format(
-                          new Date(ddt.created_at),
-                          "dd/MM/yyyy 'alle' HH:mm",
-                          { locale: it }
-                        )}
-                      </span>
-                    </span>
-                  </li>
-                  {ddt.verified_at && (
-                    <li className="flex items-start gap-2">
-                      <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-emerald-600 shrink-0" />
-                      <span>
-                        <strong>Verificato</strong>
-                        <br />
-                        <span className="text-muted-foreground">
-                          {format(
-                            new Date(ddt.verified_at),
-                            "dd/MM/yyyy 'alle' HH:mm",
-                            { locale: it }
-                          )}
-                        </span>
-                      </span>
-                    </li>
-                  )}
-                </ol>
-              </CardContent>
-            </Card>
-          )}
+          <TimelineBolla ddt={ddt} />
         </div>
       </div>
     </div>
@@ -1836,62 +1751,6 @@ const TRASPORTO_ETICHETTA: Record<"fornitore" | "noi" | "terzi", string> = {
   noi: "ritirata da noi",
   terzi: "portata da un corriere",
 };
-
-// ─── Una riga di collegamento nella scheda «Dove si incastra» ───────────
-// Cliccabile solo quando c'è davvero qualcosa da aprire: un bottone che non
-// porta da nessuna parte è un bottone rotto.
-function RigaCollegamento({
-  icon: Icon,
-  etichetta,
-  valore,
-  dettaglio,
-  vuoto,
-  onClick,
-  mono = false,
-}: {
-  icon: React.ElementType;
-  etichetta: string;
-  valore?: string | null;
-  dettaglio?: string;
-  vuoto: string;
-  onClick?: () => void;
-  mono?: boolean;
-}) {
-  const contenuto = (
-    <div className="flex items-start gap-2 py-2">
-      <Icon className="h-3.5 w-3.5 shrink-0 mt-0.5 text-muted-foreground" />
-      <div className="min-w-0 flex-1">
-        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-          {etichetta}
-        </p>
-        {valore ? (
-          <p className={cn("text-sm truncate", mono && "font-mono", "font-medium")}>
-            {valore}
-          </p>
-        ) : (
-          <p className="text-xs text-muted-foreground italic">{vuoto}</p>
-        )}
-        {valore && dettaglio && (
-          <p className="text-[11px] text-muted-foreground truncate">{dettaglio}</p>
-        )}
-      </div>
-      {onClick && valore && (
-        <ExternalLink className="h-3.5 w-3.5 shrink-0 mt-0.5 text-muted-foreground" />
-      )}
-    </div>
-  );
-  return onClick && valore ? (
-    <button
-      type="button"
-      onClick={onClick}
-      className="w-full text-left hover:bg-muted/40 transition-colors rounded-sm px-1 -mx-1"
-    >
-      {contenuto}
-    </button>
-  ) : (
-    <div className="px-1 -mx-1">{contenuto}</div>
-  );
-}
 
 // ─── Uploader inline che include kind selector + DDTAttachmentUploader ──
 function AttachmentUploaderInline({

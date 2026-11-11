@@ -41,15 +41,13 @@ import {
 } from "@/components/ui/dialog";
 import {
   ArrowLeft, Plus, Trash2, Send, Trophy, Mail, ExternalLink, AlertTriangle,
-  FileQuestion, Users, ClipboardList, CheckCircle2, Sparkles, MoreHorizontal, Paperclip, Inbox, FileDown, Loader2, Eye,
+  FileQuestion, Users, ClipboardList, Scale, CheckCircle2, Sparkles, MoreHorizontal, Paperclip, Inbox, FileDown, Loader2, Eye,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  QuotePageHeader, QuoteCard, QuoteChip, QuotePrimaryButton,
-} from "@/components/marketing/preventivi/ui/builderUI";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   useSupplierRfqDetail, totaleRigaOfferta, CANALE_RICHIESTA_LABELS, type CanaleRichiesta, type RfqSupplier,
 } from "@/hooks/useSupplierRfqs";
@@ -64,7 +62,7 @@ import { buildRdoEmailBody, buildRdoEmailSubject } from "@/lib/rdoEmail";
 import { descrizioneConMisure } from "@/lib/acquisti/misureSuDocumenti";
 import { ControlloDocumentoCard } from "@/components/orders/ControlloDocumentoCard";
 import {
-  RDO_STATUS_LABELS, RDO_FORNITORE_LABELS, RDO_FORNITORE_COLORS,
+  RDO_STATUS_LABELS, RDO_STATUS_COLORS, RDO_FORNITORE_LABELS, RDO_FORNITORE_COLORS,
 } from "@/lib/rdoStatus";
 import { formatCurrency } from "@/lib/formatters";
 import { toast } from "sonner";
@@ -201,6 +199,7 @@ export default function SupplierRfqDetail() {
   const senzaPrezzi = letturaSenzaPrezzi();
   const chiusa = senzaPrezzi || rfq.status === "aggiudicata" || rfq.status === "annullata";
   const haRisposte = fornitori.some((f) => f.status === "risposta");
+  const confrontoVisibile = !senzaPrezzi && fornitori.length > 0 && items.length > 0;
 
   const composeContext = (f: RfqSupplier): ComposeContext => {
     const dati = {
@@ -244,63 +243,77 @@ export default function SupplierRfqDetail() {
     finally{setDownloadingFor(null);}
   };
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {!inPopup && <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/azienda/ordini?tab=offerte")}>
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          <span className="hidden sm:inline">Richieste d'offerta</span>
-          <span className="sm:hidden">Indietro</span>
-        </Button>
-      </div>}
-
-      <QuotePageHeader
-        numero={rfq.rfq_number}
-        stato={
-          <QuoteChip variant={rfq.status === "aggiudicata" ? "green" : rfq.status === "bozza" ? "default" : "blue"}>
-            {RDO_STATUS_LABELS[rfq.status] ?? rfq.status}
-          </QuoteChip>
-        }
-        chips={
-          rfq.purchase_order_id ? (
-            <Link to={`/azienda/ordini-acquisto/${rfq.purchase_order_id}`} className="inline-flex">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 hover:bg-emerald-200 transition-colors">
-                Ordine generato <ExternalLink className="h-3 w-3" />
-              </span>
-            </Link>
-          ) : null
-        }
-        title={rfq.titolo}
-        subtitle={
-          rfq.data_fabbisogno ? `Serve in cantiere entro il ${dataIt(rfq.data_fabbisogno)}` : undefined
-        }
-        icon={<FileQuestion className="h-5 w-5" />}
-        actions={
-          rfq.status !== "aggiudicata" && rfq.status !== "annullata" ? (
-            <>
-              {haRisposte && (
-                <QuotePrimaryButton
-                  size="sm"
-                  disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || updateFornitore.isPending || setQuote.isPending || updateRfq.isPending}
-                  onClick={() => {
-                    const scelto = fornitori.find((f) => f.id === miglioreTotale) ?? fornitori.find((f) => f.status === "risposta");
-                    if (scelto) setAggiudicaA(scelto);
-                  }}
-                >
-                  <Trophy className="h-3.5 w-3.5 mr-1" />
-                  Aggiudica
-                </QuotePrimaryButton>
+    <div className="space-y-5 pb-10">
+      {/* ═══ TESTATA — come la bolla: numero, stato, azioni sulla stessa riga ═══ */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-1">
+          {!inPopup && (
+            <Button variant="ghost" size="sm" className="shrink-0" aria-label="Torna alle richieste d'offerta" onClick={() => navigate("/azienda/ordini?tab=offerte")}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          )}
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-gradient-to-br from-primary/10 to-primary/20 sm:h-12 sm:w-12">
+            <FileQuestion className="h-5 w-5 text-primary sm:h-6 sm:w-6" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="min-w-0 truncate text-lg font-bold sm:text-2xl">{rfq.titolo}</h1>
+              <Badge className={`${RDO_STATUS_COLORS[rfq.status] ?? ""} text-xs font-medium`}>{RDO_STATUS_LABELS[rfq.status] ?? rfq.status}</Badge>
+              {rfq.purchase_order_id && (
+                <Link to={`/azienda/ordini-acquisto/${rfq.purchase_order_id}`} className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 hover:bg-emerald-200">
+                  Ordine generato <ExternalLink className="h-3 w-3" />
+                </Link>
               )}
+            </div>
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+              <span className="font-mono">{rfq.rfq_number}</span>
+              <span>· creata il {dataIt(rfq.created_at)}</span>
+              {rfq.orders?.order_code && <span>· {rfq.orders.order_code}</span>}
+            </p>
+          </div>
+        </div>
+        {rfq.status !== "aggiudicata" && rfq.status !== "annullata" && (
+          <div className="flex flex-wrap items-center gap-2">
+            {haRisposte && (
               <Button
-                variant="outline"
                 size="sm"
-                onClick={() => updateRfq.mutate({ status: "annullata" })}
-                disabled={updateRfq.isPending}
+                className="gap-1.5"
+                disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || updateFornitore.isPending || setQuote.isPending || updateRfq.isPending}
+                onClick={() => {
+                  const scelto = fornitori.find((f) => f.id === miglioreTotale) ?? fornitori.find((f) => f.status === "risposta");
+                  if (scelto) setAggiudicaA(scelto);
+                }}
               >
-                Annulla richiesta
+                <Trophy className="h-4 w-4" />
+                Aggiudica
               </Button>
-            </>
-          ) : null
-        }
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-destructive hover:text-destructive"
+              onClick={() => updateRfq.mutate({ status: "annullata" })}
+              disabled={updateRfq.isPending}
+            >
+              Annulla richiesta
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <RdoDettagliCard
+        key={rfq.id}
+        rfq={rfq}
+        disabled={chiusa}
+        onSave={patch=>updateRfq.mutateAsync(patch)}
+        onEditingChange={editing=>setEditingRfqId(editing ? rfq.id : null)}
+        riepilogo={[
+          { etichetta: "Voci", valore: `${items.length}` },
+          { etichetta: "Risposte", valore: fornitori.length === 0 ? "nessun fornitore" : `${fornitori.filter(f=>f.status==="risposta").length} su ${fornitori.length}` },
+          ...(!senzaPrezzi && miglioreTotale && confronti[miglioreTotale]?.totale != null
+            ? [{ etichetta: "Offerta più bassa", valore: `${formatCurrency(confronti[miglioreTotale].totale ?? 0)} · ${fornitori.find(f=>f.id===miglioreTotale)?.suppliers?.name ?? ""}` }]
+            : []),
+        ]}
       />
 
       {misureCambiate.length > 0 && !chiusa && (
@@ -316,33 +329,46 @@ export default function SupplierRfqDetail() {
         </div>
       )}
       <AttivitaAcquistoCard attivita={attivitaRdo({status:rfq.status,righe:items.length,scadenza:rfq.scadenza_offerte,fornitori:fornitori.map(f=>({status:f.status,nome:f.suppliers?.name??"Fornitore",email:documentoInvio(f).destinatario.email,scadenza:f.validita_offerta,copertura:totaliPerFornitore[f.id]?.righeCoperte??0,aggancio:f.aggancio_da_confermare,trasportoDefinito:confronti[f.id]?.trasportoNoto,coerente:confronti[f.id]?.coerente}))})}/>
-      <div className="grid grid-cols-1 gap-6">
-        <div className="min-w-0 space-y-4">
-          {/* ── Cosa serve ─────────────────────────────────────────── */}
-          <QuoteCard
-            title="Cosa serve"
-            icon={<ClipboardList className="h-4 w-4" />}
-            action={
-              modificabile ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={addItem.isPending}
-                  onClick={() => addItem.mutate({ posizione: items.length })}
-                >
-                  <Plus className="h-3.5 w-3.5 mr-1" /> Aggiungi voce
-                </Button>
-              ) : null
-            }
-          >
+
+      {/* 11/11/2026 — Prima una colonna sola larga quanto lo schermo: le voci
+          in caselle lunghe due metri, il confronto, poi i fornitori in fondo.
+          Ora a sinistra quello che si confronta, a destra a chi si chiede. */}
+      <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-3">
+        <div className="min-w-0 space-y-5 xl:col-span-2">
+          {/* ── Cosa serve ─────────────────────────────────────────────
+              Ad offerte arrivate le voci sono già nella prima colonna del
+              confronto: ripeterle sopra era solo da scorrere. */}
+          {(modificabile || !confrontoVisibile) && <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <ClipboardList className="h-4 w-4 text-primary" />
+                  Cosa serve
+                  <Badge variant="secondary" className="text-xs">{items.length}</Badge>
+                </CardTitle>
+                {modificabile && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1 text-xs"
+                    disabled={addItem.isPending}
+                    onClick={() => addItem.mutate({ posizione: items.length })}
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Aggiungi voce
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
             {items.length === 0 ? (
               <p className="text-center py-6 text-sm text-muted-foreground">
                 Nessuna voce. I fornitori devono sapere cosa quotare.
               </p>
             ) : (
-              <div className="space-y-2">
-                {items.map((it) => (
-                  <div key={it.id} className="flex items-center gap-2">
+              <div className="divide-y rounded-md border">
+                {items.map((it, n) => (
+                  <div key={it.id} className="flex items-center gap-2 px-2 py-1.5">
+                    <span className="w-5 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{n + 1}</span>
                     <CampoVoceRdo campo="descrizione" valore={it.descrizione} disabled={!modificabile} onSave={value=>updateItem.mutateAsync({id:it.id,updates:{descrizione:value}})} />
                     <CampoVoceRdo campo="quantita" valore={Number(it.quantita)} disabled={!modificabile} onSave={value=>updateItem.mutateAsync({id:it.id,updates:{quantita:value}})} />
                     <CampoVoceRdo campo="unita_misura" valore={it.unita_misura ?? "pz"} disabled={!modificabile} onSave={value=>updateItem.mutateAsync({id:it.id,updates:{unita_misura:value}})} />
@@ -362,30 +388,30 @@ export default function SupplierRfqDetail() {
                 ))}
               </div>
             )}
-          </QuoteCard>
-
-          <RdoDettagliCard key={rfq.id} rfq={rfq} disabled={chiusa} onSave={patch=>updateRfq.mutateAsync(patch)} onEditingChange={editing=>setEditingRfqId(editing ? rfq.id : null)}/>
+            </CardContent>
+          </Card>}
 
           {/* ── Confronto ──────────────────────────────────────────── */}
-          {!senzaPrezzi && fornitori.length > 0 && items.length > 0 && (
-            <QuoteCard noHeader className="p-0 sm:p-0">
-              <div className="px-5 sm:px-6 pt-5 pb-3">
-                <h3 className="text-[15px] font-bold text-slate-900 flex items-center gap-2.5">
-                  <span className="block w-1 h-4 rounded-sm bg-gradient-to-b from-orange-500 to-eic-amber" />
+          {confrontoVisibile && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Scale className="h-4 w-4 text-primary" />
                   Confronto offerte
-                </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Importi IVA esclusa. Il confronto complessivo considera trasporto, disponibilità, validità e copertura delle voci. Il più basso è evidenziato solo tra offerte complete, valide e con trasporto definito.
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Prezzi IVA esclusa. In verde il prezzo più basso; il totale più basso vale solo fra offerte complete, valide e col trasporto chiaro.
                 </p>
-              </div>
-              <div className="overflow-x-auto border-t border-slate-100">
+              </CardHeader>
+              <CardContent className="pt-0">
+              <div className="overflow-x-auto rounded-md border">
                 <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b bg-muted/50">
-                      <th className="text-left p-2 pl-4 font-medium min-w-[180px]">Voce</th>
+                  <thead className="bg-muted/40 text-xs text-muted-foreground">
+                    <tr className="border-b">
+                      <th className="text-left p-2 pl-3 font-medium min-w-[180px]">Voce</th>
                       <th className="text-right p-2 font-medium w-20">Q.tà</th>
                       {fornitori.map((f) => (
-                        <th key={f.id} className="text-right p-2 font-medium min-w-[110px]">
+                        <th key={f.id} className="text-right p-2 font-medium text-foreground min-w-[120px]">
                           {f.suppliers?.name ?? "Fornitore"}
                         </th>
                       ))}
@@ -394,7 +420,7 @@ export default function SupplierRfqDetail() {
                   <tbody>
                     {items.map((it) => (
                       <tr key={it.id} className="border-b">
-                        <td className="p-2 pl-4">{it.descrizione}{it.misure_testo && <span className="mt-0.5 block whitespace-pre-line text-xs text-muted-foreground">{it.misure_testo}</span>}</td>
+                        <td className="p-2 pl-3">{it.descrizione}{it.misure_testo && <span className="mt-0.5 block whitespace-pre-line text-xs text-muted-foreground">{it.misure_testo}</span>}</td>
                         <td className="p-2 text-right text-slate-500">
                           {Number(it.quantita).toLocaleString("it-IT")} {it.unita_misura ?? "pz"}
                         </td>
@@ -447,7 +473,7 @@ export default function SupplierRfqDetail() {
                   </tbody>
                   <tfoot>
                     <tr className="bg-muted/30 border-t">
-                      <td colSpan={2} className="p-2 pl-4 text-right font-bold">Somma righe confrontate</td>
+                      <td colSpan={2} className="p-2 pl-3 text-right font-bold">Somma righe confrontate</td>
                       {fornitori.map((f) => {
                         const t = totaliPerFornitore[f.id]?.totale;
                         const vince = miglioreTotale === f.id;
@@ -471,7 +497,7 @@ export default function SupplierRfqDetail() {
                         non torna col PDF?" — il delta è proprio quella parte. */}
                     {fornitori.some((f) => f.totale_offerto != null) && (
                       <tr className="border-t text-xs text-slate-500">
-                        <td colSpan={2} className="p-2 pl-4 text-right">Totale documento (con imballo/trasporto)</td>
+                        <td colSpan={2} className="p-2 pl-3 text-right">Totale documento (con imballo/trasporto)</td>
                         {fornitori.map((f) => {
                           const doc = f.totale_offerto == null ? null : Number(f.totale_offerto);
                           const righe = totaliPerFornitore[f.id]?.totale;
@@ -489,21 +515,27 @@ export default function SupplierRfqDetail() {
                         })}
                       </tr>
                     )}
-                    <tr className="border-t bg-blue-50/40"><th colSpan={2} className="p-2 pl-4 text-right text-xs">Totale complessivo noto</th>{fornitori.map(f=>{const c=confronti[f.id];return <td key={f.id} className={`p-2 text-right text-sm font-semibold ${miglioreTotale===f.id?"bg-emerald-50 text-emerald-800":""}`}>{c.totale==null?"—":formatCurrency(c.totale)}{miglioreTotale===f.id&&<span className="block text-[10px]">Più basso tra offerte confrontabili</span>}{!c.coerente&&<span className="block text-[10px] text-red-700">Totale documento da riconciliare</span>}{!c.trasportoNoto&&<span className="block text-[10px] text-amber-700">Trasporto da definire</span>}</td>;})}</tr>
-                    {(["Trasporto","Consegna","Pagamento","Validità","Disponibilità"] as const).map(label=><tr key={label} className="border-t text-xs"><th colSpan={2} className="p-2 pl-4 text-right font-medium">{label}</th>{fornitori.map(f=><td key={f.id} className="max-w-[18rem] break-words p-2 text-right text-slate-600">{label==="Trasporto"?<>{TRASPORTO_LABELS[f.trasporto_tipo??"da_confermare"]}{f.trasporto_tipo==="extra"&&f.costo_trasporto!=null?` · ${formatCurrency(Number(f.costo_trasporto))}`:""}</>:label==="Consegna"?f.giorni_consegna==null?"Da indicare":`${f.giorni_consegna} giorni`:label==="Pagamento"?f.condizioni_pagamento||"Da indicare":label==="Validità"?<span className={confronti[f.id].scaduta?"text-red-700 font-semibold":""}>{dataIt(f.validita_offerta)}{confronti[f.id].scaduta?" · Scaduta":""}</span>:<>{totaliPerFornitore[f.id]?.righeCoperte??0}/{items.length} voci{f.disponibilita_note&&<span className="mt-1 block whitespace-pre-wrap">{f.disponibilita_note}</span>}</>}</td>)}</tr>)}
+                    <tr className="border-t bg-blue-50/40"><th colSpan={2} className="p-2 pl-3 text-right text-xs">Totale complessivo noto</th>{fornitori.map(f=>{const c=confronti[f.id];return <td key={f.id} className={`p-2 text-right text-sm font-semibold ${miglioreTotale===f.id?"bg-emerald-50 text-emerald-800":""}`}>{c.totale==null?"—":formatCurrency(c.totale)}{miglioreTotale===f.id&&<span className="block text-[10px]">Più basso tra offerte confrontabili</span>}{!c.coerente&&<span className="block text-[10px] text-red-700">Totale documento da riconciliare</span>}{!c.trasportoNoto&&<span className="block text-[10px] text-amber-700">Trasporto da definire</span>}</td>;})}</tr>
+                    {(["Trasporto","Consegna","Pagamento","Validità","Disponibilità"] as const).map(label=><tr key={label} className="border-t text-xs"><th colSpan={2} className="p-2 pl-3 text-right font-medium">{label}</th>{fornitori.map(f=><td key={f.id} className="max-w-[18rem] break-words p-2 text-right text-slate-600">{label==="Trasporto"?<>{TRASPORTO_LABELS[f.trasporto_tipo??"da_confermare"]}{f.trasporto_tipo==="extra"&&f.costo_trasporto!=null?` · ${formatCurrency(Number(f.costo_trasporto))}`:""}</>:label==="Consegna"?f.giorni_consegna==null?"Da indicare":`${f.giorni_consegna} giorni`:label==="Pagamento"?f.condizioni_pagamento||"Da indicare":label==="Validità"?<span className={confronti[f.id].scaduta?"text-red-700 font-semibold":""}>{dataIt(f.validita_offerta)}{confronti[f.id].scaduta?" · Scaduta":""}</span>:<>{totaliPerFornitore[f.id]?.righeCoperte??0}/{items.length} voci{f.disponibilita_note&&<span className="mt-1 block whitespace-pre-wrap">{f.disponibilita_note}</span>}</>}</td>)}</tr>)}
                   </tfoot>
                 </table>
               </div>
-            </QuoteCard>
+              </CardContent>
+            </Card>
           )}
         </div>
 
         {/* ── Fornitori interpellati ───────────────────────────────── */}
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-5">
           {/* Chi ha vinto si legge subito, non in fondo alla colonna. */}
           {rfq.status === "aggiudicata" && (
-            <QuoteCard title="Aggiudicata" icon={<CheckCircle2 className="h-4 w-4" />}>
-              <div className="space-y-2 text-sm">
+            <Card className="border-emerald-200">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Aggiudicata
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 pt-0 text-sm">
                 <p className="text-slate-600">
                   Il {dataIt(rfq.aggiudicata_at)}, fornitore scelto:{" "}
                   <strong>
@@ -523,12 +555,19 @@ export default function SupplierRfqDetail() {
                     Apri l'ordine generato <ExternalLink className="h-3 w-3 ml-1.5" />
                   </Button>
                 )}
-              </div>
-            </QuoteCard>
+              </CardContent>
+            </Card>
           )}
-          <QuoteCard title="A chi lo chiedi" subtitle="Prepara un’email distinta per ogni fornitore: testo completo oppure richiesta in PDF." icon={<Users className="h-4 w-4" />}>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Users className="h-4 w-4 text-primary" /> A chi lo chiedi
+                <Badge variant="secondary" className="text-xs">{fornitori.length}</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
             {erroreAnagrafiche && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-800">Impossibile caricare i recapiti aggiornati dei fornitori. <Button variant="link" size="sm" onClick={()=>void ricaricaAnagrafiche()}>Riprova</Button></p>}
-            <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-1 [&>*]:min-w-0">
               {fornitori.length === 0 && (
                 <p className="text-xs text-slate-500">
                   Nessun fornitore. Chiedere a due o tre è il modo più semplice per non
@@ -536,7 +575,7 @@ export default function SupplierRfqDetail() {
                 </p>
               )}
               {fornitori.map((f) => (
-                <div key={f.id} className="rounded-lg border border-slate-200 p-2.5 space-y-2">
+                <div key={f.id} className="min-w-0 rounded-lg border border-slate-200 p-2.5 space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-slate-900 truncate">
@@ -574,7 +613,7 @@ export default function SupplierRfqDetail() {
                   )}
 
                   {f.status === "risposta" && (
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-2 [&>*]:min-w-0">
                       <div>
                         <Label className="text-[10px] text-slate-500">Consegna (gg)</Label>
                         <Input
@@ -797,8 +836,8 @@ export default function SupplierRfqDetail() {
                 </div>
               )}
             </div>
-          </QuoteCard>
-
+            </CardContent>
+          </Card>
         </div>
       </div>
 
