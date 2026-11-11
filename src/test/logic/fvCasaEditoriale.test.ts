@@ -70,4 +70,10 @@ describe("Schede, ordine e anteprima native",()=>{
   expect(con.scenario.cassa_anno_per_anno[0].cumulato).toBe(-18000);expect(senza.scenario.cassa_anno_per_anno[0].cumulato).toBe(-11000);
   expect(con.scenario.risparmio_anno1_eur).toBe(con.flows.autoconsumo_kwh*.32);expect(senza.scenario.risparmio_anno1_eur).toBe(senza.flows.autoconsumo_kwh*.32);
  });
+ it("mostra le immagini prodotto locali della libreria senza accettare percorsi fuori cartella",()=>{
+  const d=datiCasaCompleta(),src="/templates/fotovoltaico/products/modulo-fotovoltaico-full-black.webp";
+  d.componenti[0].image_url=src;expect(renderFvPdfHtml(d)).toContain(`src="${src}"`);
+  d.componenti[0].image_url="/templates/fotovoltaico/products/../riservato.webp";
+  expect(renderFvPdfHtml(d)).not.toContain('src="/templates/fotovoltaico/products/../');
+ });
 });

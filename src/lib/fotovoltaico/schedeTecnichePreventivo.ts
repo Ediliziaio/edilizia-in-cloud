@@ -11,22 +11,11 @@
  * Lavora sull'HTML già salvato: non serve rigenerare il preventivo lato edge.
  */
 import { supabase } from "@/integrations/supabase/client";
+import { selezionaSchedeProdottoFv } from "../../../supabase/functions/_shared/fvDocumentiProdotto";
 
 // Tabella nuova: non ancora nei tipi generati.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
-
-interface SchedaDoc {
-  nome: string;
-  url: string;
-  ordine: number;
-  articolo_id: string;
-}
-
-interface SchedaRis {
-  url: string;
-  nome: string;
-}
 
 /** Ogni pagina di un PDF (dall'URL) → dataURL JPEG ad alta risoluzione. */
 async function pdfUrlToImmagini(url: string, scale = 2): Promise<string[]> {
@@ -36,22 +25,26 @@ async function pdfUrlToImmagini(url: string, scale = 2): Promise<string[]> {
   const pdfjsLib = await import("pdfjs-dist");
   const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
   pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
-  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const caricamento = pdfjsLib.getDocument({ data: buf });
   const out: string[] = [];
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale });
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    if (!ctx) continue;
-    canvas.width = Math.ceil(viewport.width);
-    canvas.height = Math.ceil(viewport.height);
-    await page.render({ canvasContext: ctx, viewport, canvas }).promise;
-    out.push(canvas.toDataURL("image/jpeg", 0.9));
-    canvas.width = 0;
-    canvas.height = 0;
-  }
-  return out;
+  try {
+    const pdf = await caricamento.promise;
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Impossibile preparare le pagine della scheda tecnica.");
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      try {
+        await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+        out.push(canvas.toDataURL("image/jpeg", 0.9));
+      } finally { canvas.width = 0; canvas.height = 0; }
+    }
+    if (!out.length) throw new Error("La scheda tecnica non contiene pagine.");
+    return out;
+  } finally { await caricamento.destroy(); }
 }
 
 function escapeAttr(s: string): string {
@@ -60,52 +53,28 @@ function escapeAttr(s: string): string {
 
 /**
  * Le pagine HTML (A4 intere) delle schede tecniche AUTORIZZATE dei prodotti
- * usati nel preventivo. Stringa vuota se non ce ne sono. Una scheda illeggibile
- * si salta: il resto del PDF esce comunque.
+ * usati nel preventivo. Stringa vuota se non ce ne sono. Una scheda autorizzata illeggibile
+ * ferma lo scaricamento: il cliente non deve ricevere un allegato incompleto.
  */
-export async function costruisciPagineSchedeTecniche(articoloIds: Array<string | null | undefined>): Promise<string> {
+export async function leggiSchedeTecnichePreventivo(articoloIds: Array<string | null | undefined>, companyId: string): Promise<ReturnType<typeof selezionaSchedeProdottoFv>> {
   const ids = Array.from(new Set(articoloIds.filter((x): x is string => !!x)));
-  if (ids.length === 0) return "";
+  if (ids.length === 0) return [];
 
-  // Le schede da allegare, per articolo, nell'ordine dei prodotti del preventivo.
-  const perArticolo = new Map<string, SchedaRis[]>();
-  for (const id of ids) perArticolo.set(id, []);
+  if (!companyId) throw new Error("Azienda del preventivo non disponibile.");
+  const [nuove, legacy] = await Promise.all([
+    db.from("articoli_native_documenti")
+      .select("nome, url, ordine, articolo_id, autorizzata")
+      .eq("company_id", companyId).in("articolo_id", ids)
+      .order("ordine", { ascending: true }).order("created_at", { ascending: true }),
+    db.from("articoli_native")
+      .select("id, scheda_tecnica_url").eq("company_id", companyId).in("id", ids),
+  ]);
+  if (nuove.error || legacy.error) throw new Error("Impossibile verificare gli allegati tecnici dei prodotti. Riprova prima di scaricare.");
+  return selezionaSchedeProdottoFv(ids, nuove.data ?? [], legacy.data ?? []);
+}
 
-  // 1) Schede nuove AUTORIZZATE (tabella multi-scheda con toggle «Allega»).
-  const { data: nuove } = await db
-    .from("articoli_native_documenti")
-    .select("nome, url, ordine, articolo_id")
-    .in("articolo_id", ids)
-    .eq("autorizzata", true)
-    .order("ordine", { ascending: true })
-    .order("created_at", { ascending: true });
-  for (const d of (nuove ?? []) as SchedaDoc[]) {
-    const arr = perArticolo.get(d.articolo_id);
-    if (arr && d.url) arr.push({ url: d.url, nome: d.nome || "Scheda tecnica" });
-  }
-
-  // 2) Scheda LEGACY (campo singolo articoli_native.scheda_tecnica_url): allegata
-  //    a mano prima del toggle → la trattiamo come autorizzata. Niente doppioni.
-  const { data: legacy } = await db
-    .from("articoli_native")
-    .select("id, scheda_tecnica_url")
-    .in("id", ids);
-  for (const a of (legacy ?? []) as Array<{ id: string; scheda_tecnica_url: string | null }>) {
-    const url = a.scheda_tecnica_url;
-    const arr = perArticolo.get(a.id);
-    if (url && arr && !arr.some((x) => x.url === url)) arr.push({ url, nome: "Scheda tecnica" });
-  }
-
-  // Raccolta in ordine prodotti, deduplicata globalmente per URL.
-  const visti = new Set<string>();
-  const schede: SchedaRis[] = [];
-  for (const id of ids) {
-    for (const s of perArticolo.get(id) ?? []) {
-      if (visti.has(s.url)) continue;
-      visti.add(s.url);
-      schede.push(s);
-    }
-  }
+export async function costruisciPagineSchedeTecniche(articoloIds: Array<string | null | undefined>, companyId: string): Promise<string> {
+  const schede = await leggiSchedeTecnichePreventivo(articoloIds, companyId);
   if (schede.length === 0) return "";
 
   const pagine: string[] = [];
@@ -120,7 +89,7 @@ export async function costruisciPagineSchedeTecniche(articoloIds: Array<string |
         );
       }
     } catch {
-      // scheda illeggibile: si salta, il resto del PDF esce comunque.
+      throw new Error(`Scheda tecnica «${s.nome}» non disponibile. Riprova oppure verifica il PDF e l’opzione Allega nel prodotto.`);
     }
   }
   return pagine.join("");
@@ -133,6 +102,11 @@ export async function costruisciPagineSchedeTecniche(articoloIds: Array<string |
  */
 export function inserisciPagineSchede(html: string, pagineSchede: string): string {
   if (!pagineSchede) return html;
+  for (const sezione of ["condizioni", "firma", "recesso"]) {
+    const idx = html.indexOf(`data-fv-section="${sezione}"`);
+    const start = idx < 0 ? -1 : html.lastIndexOf('<div class="page"', idx);
+    if (start >= 0) return html.slice(0, start) + pagineSchede + html.slice(start);
+  }
   const ancore = ["Condizioni generali di contratto", "Per accettazione", "Modulo di recesso", "Diritto di recesso"];
   for (const a of ancore) {
     const idx = html.indexOf(a);
