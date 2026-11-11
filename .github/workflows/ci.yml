@@ -187,6 +187,27 @@ jobs:
           src/test/ui/acquistiStorico.test.tsx
           src/test/ui/acquistiAnteprima.test.tsx
 
+      - name: Run operational selection, summaries and detail regressions
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/logic/azioniMultipleOperative.test.ts
+          src/test/logic/eliminazioneDocumentiSql.test.ts
+          src/test/logic/anomalieGestione.test.ts
+          src/test/logic/provvigioniContrattoIncassi.test.ts
+          src/test/logic/pipelineTransitions.test.ts
+          src/test/logic/pipelineTransitionPersistence.test.ts
+          src/test/ui/selezioneEliminazioneDocumenti.test.tsx
+          src/test/ui/operationalBoards.test.tsx
+          src/test/ui/supplyDocumentBoards.test.tsx
+          src/test/ui/operationalSummary.test.tsx
+          src/test/ui/operationalViewMemory.test.tsx
+          src/test/ui/acquistiPermessi.test.tsx
+          src/test/ui/acquistiStorico.test.tsx
+          src/test/ui/anomaliePopupGestione.test.tsx
+          src/test/ui/anomalieRegistro.test.tsx
+          src/test/ui/provvigioniElencoOperativo.test.tsx
+          src/test/ui/provvigioniPopupContratto.test.tsx
+
       - name: Run DDT ingestion, deliveries and invoice valuation regressions
         run: >-
           bunx vitest run --maxWorkers=2

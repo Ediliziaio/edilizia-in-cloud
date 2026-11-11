@@ -119,7 +119,9 @@ export function RigaDocumentoInIngresso({
   apri,
   riprova,
   riprovando,
+  colonnaSelezione = false,
 }: {
+  colonnaSelezione?: boolean;
   documento: DocumentoPersistente;
   apri: (j: DocumentoPersistente) => void;
   riprova: (j: DocumentoPersistente) => Promise<void>;
@@ -131,6 +133,7 @@ export function RigaDocumentoInIngresso({
       className="border-b bg-amber-50/30 hover:bg-amber-50/60"
       data-documento-id={j.id}
     >
+      {colonnaSelezione && <td title="Il documento deve essere registrato prima della gestione del DDT">—</td>}
       <td className="p-3">
         <div className="flex items-start gap-2">
           <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />

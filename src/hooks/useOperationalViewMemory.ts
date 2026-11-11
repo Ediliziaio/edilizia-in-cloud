@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
 /** Remember this user's list choices within this tab and company; explicit URLs win. */
-export function useOperationalViewMemory(namespace: string, fields: string[]) {
+export function useOperationalViewMemory(namespace: string, fields: string[], options: { restoreView?: boolean } = {}) {
   const { user, effectiveCompany } = useAuth();
   const [params, setParams] = useSearchParams();
   const restored = useRef<string | null>(null);
@@ -11,6 +11,7 @@ export function useOperationalViewMemory(namespace: string, fields: string[]) {
     user?.id && effectiveCompany?.id
       ? `operational-view:${user.id}:${effectiveCompany.id}:${namespace}`
       : null;
+  const restoreView = options.restoreView !== false;
   const fieldNames = fields.join("|");
   useEffect(() => {
     if (!key) return;
@@ -26,6 +27,7 @@ export function useOperationalViewMemory(namespace: string, fields: string[]) {
               (before) => {
                 const next = new URLSearchParams(before);
                 for (const name of names) {
+                  if (!restoreView && (name === "vista" || name === "raggruppa" || name.endsWith("_vista"))) continue;
                   const value = stored.get(name);
                   if (value !== null) next.set(name, value);
                 }
@@ -46,5 +48,5 @@ export function useOperationalViewMemory(namespace: string, fields: string[]) {
     } catch {
       /* List controls remain usable when browser storage is unavailable. */
     }
-  }, [key, fieldNames, params, setParams]);
+  }, [key, fieldNames, params, setParams, restoreView]);
 }

@@ -1,5 +1,10 @@
+import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
+import { AnomalyDetailDialog, type AnomalyActor } from "@/components/orders/AnomalyDetailDialog";
+import { anomalyNotes, anomalyPriority, anomalyClosed } from "@/lib/orders/anomalyWorkflow";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useSearchParams } from "react-router-dom";
 import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { endOfDay, format, isValid, parseISO, startOfMonth, subMonths } from "date-fns";
@@ -31,7 +36,6 @@ import {
   Clock3,
   Sparkles,
 } from "lucide-react";
-import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -215,6 +219,7 @@ type OrderError = {
   ai_recommendation?: string | null;
   resolved_at?: string | null;
   resolved_by?: string | null;
+  updated_at?: string | null;
   orders: { order_code: string | null; description: string | null } | null;
 };
 
@@ -313,12 +318,6 @@ function inferResponsibility(
   return "unassigned";
 }
 
-function inferSeverity(amount: number): SeverityKey {
-  if (amount >= 1000) return "high";
-  if (amount >= 300) return "medium";
-  return "low";
-}
-
 function getActionHint(
   responsibility: ResponsibilityKey,
   category: NormalizedCategory,
@@ -406,7 +405,7 @@ function enrichError(error: OrderError, actorMaps: ActorMaps): EnrichedOrderErro
   const normalizedType = normalizeType(error.error_type);
   const normalizedCategory = normalizeCategory(error.error_category);
   const responsibility = inferResponsibility(normalizedType, normalizedCategory);
-  const severity = inferSeverity(Number(error.amount ?? 0));
+  const severity = anomalyPriority(error);
   const reporter = error.created_by ? actorMaps.creators.get(error.created_by) ?? null : null;
   return {
     ...error,
@@ -423,7 +422,7 @@ function enrichError(error: OrderError, actorMaps: ActorMaps): EnrichedOrderErro
     verifyRole: error.verify_role ?? extractStructuredField(error.description, "Soggetto da verificare"),
     correctiveAction: error.corrective_action ?? extractStructuredField(error.description, "Azione correttiva"),
     aiRecommendation: error.ai_recommendation ?? null,
-    operationalDetail: extractStructuredField(error.description, "Dettaglio") ?? error.description,
+    operationalDetail: extractStructuredField(anomalyNotes(error).body, "Dettaglio") ?? anomalyNotes(error).body,
   };
 }
 
@@ -590,7 +589,14 @@ function FilterSelect({
 
 export default function GlobalErrors() {
   const companyId = useEffectiveCompanyId();
-  const queryClient = useQueryClient();
+  const permissions = usePermissions();
+  const [params] = useSearchParams();
+  const canEdit = permissions.canEditOrders && params.get("commercialistaMode") !== "1";
+  const [view, setView] = useState<"register" | "analytics">("register");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [page, setPage] = useState(1);
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
@@ -610,6 +616,7 @@ export default function GlobalErrors() {
   };
 
   const handleApplyFilters = () => {
+    setPage(1);
     setFilters(localFilters);
     setFiltersOpen(false);
   };
@@ -618,10 +625,14 @@ export default function GlobalErrors() {
     setLocalFilters(EMPTY_FILTERS);
     setFilters(EMPTY_FILTERS);
     setAttributionFilter("all");
+    setStatusFilter("all");
+    setSearch("");
+    setPage(1);
     setFiltersOpen(false);
   };
 
   const applyQuickFilter = (patch: Partial<FilterState>) => {
+    setPage(1);
     const next = { ...EMPTY_FILTERS, ...patch };
     setLocalFilters(next);
     setFilters(next);
@@ -634,48 +645,18 @@ export default function GlobalErrors() {
     }));
   };
 
-  const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: ReviewStatus }) => {
-      const patch: Record<string, unknown> = {
-        review_status: status,
-        updated_at: new Date().toISOString(),
-      };
-      if (status === "risolta" || status === "non_imputabile") {
-        patch.resolved_at = new Date().toISOString();
-      }
-      const { error: updateError } = await (supabase.from("order_errors") as any)
-        .update(patch)
-        .eq("id", id)
-        .eq("company_id", companyId);
-      if (updateError) throw updateError;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["global-errors", companyId] });
-      toast.success("Stato anomalia aggiornato");
-    },
-    onError: (err: any) => {
-      const message = String(err?.message ?? "");
-      if (/schema cache|column|review_status/i.test(message)) {
-        toast.error("Migration richiesta", {
-          description: "I nuovi campi workflow non sono ancora presenti nel database.",
-        });
-        return;
-      }
-      toast.error("Impossibile aggiornare lo stato");
-    },
-  });
-
   const { data: errors = [], isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ["global-errors", companyId],
     queryFn: async () => {
       if (!companyId) return [];
-      const { data, error: queryError } = await supabase
-        .from("order_errors")
-        .select("*, orders(order_code, description)")
-        .eq("company_id", companyId)
-        .order("error_date", { ascending: false });
-      if (queryError) throw queryError;
-      return (data || []) as unknown as OrderError[];
+      const rows: OrderError[] = [];
+      for (let start = 0; ; start += 500) {
+        const { data, error: queryError } = await supabase.from("order_errors").select("*, orders(order_code, description)")
+          .eq("company_id", companyId).order("error_date", { ascending: false }).order("id").range(start, start + 499);
+        if (queryError) throw queryError;
+        rows.push(...((data ?? []) as unknown as OrderError[]));
+        if ((data?.length ?? 0) < 500) return rows;
+      }
     },
     enabled: !!companyId,
     staleTime: 60 * 1000,
@@ -778,6 +759,9 @@ export default function GlobalErrors() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const result = enrichedErrors.filter((e) => {
+      if (statusFilter === "open" && anomalyClosed(e.reviewStatus)) return false;
+      if (statusFilter === "overdue" && (anomalyClosed(e.reviewStatus) || !e.corrective_due_date || e.corrective_due_date >= format(new Date(), "yyyy-MM-dd"))) return false;
+      if (!["all", "open", "overdue"].includes(statusFilter) && e.reviewStatus !== statusFilter) return false;
       if (filters.category !== "all" && e.normalizedCategory !== filters.category) return false;
       if (filters.type !== "all" && e.normalizedType !== filters.type) return false;
       if (filters.responsibility !== "all" && e.responsibility !== filters.responsibility) return false;
@@ -804,6 +788,7 @@ export default function GlobalErrors() {
           REVIEW_STATUS_META[e.reviewStatus].label,
           ...e.attributions.map((item) => item.actor.name),
           ...e.attributions.map((item) => ATTRIBUTION_META[item.actor.kind].label),
+          e.confirmed_responsibility_name,
           e.reporter?.name,
           e.reporter ? "registrata da" : "",
         ]
@@ -842,7 +827,7 @@ export default function GlobalErrors() {
       const order = compareSortValues(getSortValue(a, sort.key), getSortValue(b, sort.key));
       return sort.direction === "asc" ? order : -order;
     });
-  }, [enrichedErrors, filters, attributionFilter, search, sort]);
+  }, [enrichedErrors, filters, attributionFilter, search, sort, statusFilter]);
 
   const stats = useMemo(() => {
     const totalLoss = filtered.reduce((s, e) => s + getErrorAmount(e.amount), 0);
@@ -966,7 +951,7 @@ export default function GlobalErrors() {
       reasons: Set<string>;
     }>();
 
-    enrichedErrors.forEach((errorRow) => {
+    filtered.forEach((errorRow) => {
       const amount = getErrorAmount(errorRow.amount);
       uniqueActors(errorRow.attributions.map((item) => item.actor)).forEach((actor) => {
         const attribution = errorRow.attributions.find((item) => getActorKey(item.actor) === getActorKey(actor));
@@ -1004,7 +989,7 @@ export default function GlobalErrors() {
       })
       .filter((item) => item.actor.kind !== "creator")
       .sort((a, b) => b.amount - a.amount || b.count - a.count);
-  }, [enrichedErrors]);
+  }, [filtered]);
 
   const filteredAttributionStats = useMemo(() => {
     const currentKeys = new Set(filtered.flatMap((errorRow) => errorRow.attributions.map((item) => getActorKey(item.actor))));
@@ -1056,7 +1041,7 @@ export default function GlobalErrors() {
     if (openCritical.length > 0) parts.push(`${openCritical.length} anomalie critiche sono ancora aperte o in verifica`);
     if (topCause) parts.push(`la causa più costosa è ${topCause.cause} (${formatCurrency(topCause.amount)})`);
     if (topActor) parts.push(`il soggetto più ricorrente da verificare è ${topActor.actor.name}`);
-    return `AI controllo perdite: ${parts.join(", ")}. Azione consigliata: parti dal piano di autocontrollo e chiudi prima le anomalie critiche.`;
+    return `Riepilogo operativo: ${parts.join(", ")}. Azione consigliata: parti dal piano di autocontrollo e chiudi prima le anomalie critiche.`;
   }, [detailedCauseChart, filtered, filteredAttributionStats]);
 
   const highestLoss = filtered[0]
@@ -1080,6 +1065,11 @@ export default function GlobalErrors() {
       "Stato gestione",
       "Responsabilita",
       "Priorita",
+      "Responsabile confermato",
+      "Scadenza intervento",
+      "Costo stimato",
+      "Costo finale",
+      "Recuperi",
       "Attribuzione probabile",
       "Confidenza",
       "Importo",
@@ -1099,6 +1089,11 @@ export default function GlobalErrors() {
       REVIEW_STATUS_META[e.reviewStatus].label,
       RESPONSIBILITY_META[e.responsibility].label,
       SEVERITY_META[e.severity].label,
+      e.confirmed_responsibility_name ?? "",
+      e.corrective_due_date ?? "",
+      String(anomalyNotes(e).estimate),
+      anomalyNotes(e).finalCost == null ? "" : String(anomalyNotes(e).finalCost),
+      String(anomalyNotes(e).recovered),
       e.attributions.map((item) => `${ATTRIBUTION_META[item.actor.kind].label}: ${item.actor.name}`).join(" | "),
       e.attributions.map((item) => item.confidence).join(" | "),
       getErrorAmount(e.amount).toFixed(2),
@@ -1129,7 +1124,7 @@ export default function GlobalErrors() {
     }
     return months.map((m) => {
       const row = { month: m.label, fornitura: 0, esecuzione: 0, logistica: 0, altro: 0 };
-      enrichedErrors.forEach((e) => {
+      filtered.forEach((e) => {
         const d = parseErrorDate(e.error_date);
         if (!d) return;
         if (d < m.start || d >= m.end) return;
@@ -1141,7 +1136,19 @@ export default function GlobalErrors() {
       });
       return row;
     });
-  }, [enrichedErrors]);
+  }, [filtered]);
+
+  const selectedError = errors.find(e => e.id === selectedId);
+  const selectedActors: AnomalyActor[] = selectedError ? uniqueActors([
+    ...(actorMaps.salespeople.get(selectedError.order_id) ?? []), ...(actorMaps.employees.get(selectedError.order_id) ?? []),
+    ...(actorMaps.subcontractors.get(selectedError.order_id) ?? []), ...(actorMaps.suppliers.get(selectedError.order_id) ?? []),
+    ...(selectedError.created_by && actorMaps.creators.has(selectedError.created_by) ? [actorMaps.creators.get(selectedError.created_by)!] : []),
+  ]) : [];
+  const openRows = filtered.filter(e => !anomalyClosed(e.reviewStatus));
+  const overdueRows = openRows.filter(e => e.corrective_due_date && e.corrective_due_date < format(new Date(), "yyyy-MM-dd"));
+  const pageCount = Math.max(1, Math.ceil(filtered.length / 25));
+  const currentPage = Math.min(page, pageCount);
+  const visibleRows = filtered.slice((currentPage - 1) * 25, currentPage * 25);
 
   if (error) {
     return (
@@ -1182,12 +1189,17 @@ export default function GlobalErrors() {
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => { setSearch(event.target.value); setPage(1); }}
               placeholder="Cerca anomalia…"
               aria-label="Cerca commessa, causa o responsabile"
               className="h-10 w-full rounded-md border border-slate-200 bg-background pl-9 pr-3 text-sm shadow-none outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
+          <select aria-label="Stato anomalie" className="h-10 rounded-md border bg-background px-3 text-sm" value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}>
+            <option value="all">Tutti gli stati</option><option value="open">Da gestire</option><option value="overdue">Interventi scaduti</option>{Object.entries(REVIEW_STATUS_META).map(([key, meta]) => <option key={key} value={key}>{meta.label}</option>)}
+          </select>
+          {canEdit && <Button className="h-10 shrink-0" onClick={() => setCreating(true)}>Nuova anomalia</Button>}
+          <Button variant="outline" className="h-10 shrink-0" onClick={exportFilteredCsv} disabled={filtered.length === 0}>Esporta</Button>
           <Button
             variant="outline"
             size="sm"
@@ -1206,16 +1218,28 @@ export default function GlobalErrors() {
         </div>
       </div>
 
+      <OperationalSummary label="Riepilogo anomalie" title="I problemi da gestire" icon={AlertTriangle} columns={3} note="Indicatori riferiti ai filtri attivi.">
+        <OperationalSummaryMetric isLoading={isLoading} label="Anomalie aperte" value={String(openRows.length)} hint="Da verificare, assegnare o risolvere" icon={AlertTriangle} tone="orange" />
+        <OperationalSummaryMetric isLoading={isLoading} label="Interventi scaduti" value={String(overdueRows.length)} hint="Scadenza correttiva superata, caso ancora aperto" icon={Clock3} tone={overdueRows.length ? "red" : "green"} />
+        <OperationalSummaryMetric isLoading={isLoading} label="Costo stimato problemi aperti" value={formatCurrency(openRows.reduce((sum, e) => sum + anomalyNotes(e).estimate, 0))} hint="Stime dei casi aperti nei filtri attivi" icon={TrendingDown} tone="red" />
+      </OperationalSummary>
+      <div className="flex items-center justify-between gap-3 overflow-x-auto"><div className="flex shrink-0 gap-1 rounded-lg border p-1"><Button size="sm" variant={view === "register" ? "secondary" : "ghost"} aria-pressed={view === "register"} onClick={() => setView("register")}>Registro anomalie</Button><Button size="sm" variant={view === "analytics" ? "secondary" : "ghost"} aria-pressed={view === "analytics"} onClick={() => setView("analytics")}>Analisi e statistiche</Button></div><p className="whitespace-nowrap text-sm text-muted-foreground">{filtered.length} anomalie · Importi riferiti ai filtri attivi</p></div>
+      {view === "analytics" && <div className="space-y-5">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <OperationalKpiCard label="Costi finali confermati" value={formatCurrency(filtered.reduce((sum, e) => sum + (anomalyNotes(e).finalCost ?? 0), 0))} hint="Solo casi con costo finale registrato" icon={TrendingDown} tone="orange" />
+        <OperationalKpiCard label="Importi recuperati" value={formatCurrency(filtered.reduce((sum, e) => sum + anomalyNotes(e).recovered, 0))} hint="Recuperi già sottratti ai costi finali" icon={CheckCircle2} tone="green" />
+        <OperationalKpiCard label="Perdita finale netta" value={formatCurrency(filtered.reduce((sum, e) => { const n = anomalyNotes(e); return sum + (n.finalCost == null ? 0 : n.finalCost - n.recovered); }, 0))} hint="Costo finale meno recuperi; stime escluse" icon={Target} tone="red" />
+      </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <OperationalKpiCard
-          label="Totale perdite"
+          label="Costi registrati"
           value={formatCurrency(stats.totalLoss)}
-          hint={`${filtered.length} anomalie nel perimetro`}
+          hint={`${filtered.length} anomalie · stime o costi finali netti`}
           icon={TrendingDown}
           tone="red"
         />
         <OperationalKpiCard
-          label="Responsabilità principale"
+          label="Area da verificare"
           value={stats.topResponsibility ? RESPONSIBILITY_META[stats.topResponsibility[0]].shortLabel : "Nessuna"}
           hint={
             stats.topResponsibility
@@ -1330,7 +1354,7 @@ export default function GlobalErrors() {
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <Sparkles className="h-4 w-4 text-orange-500" />
-              AI controllo perdite
+              Riepilogo operativo
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -1363,7 +1387,7 @@ export default function GlobalErrors() {
         <CardHeader className="pb-2">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <CardTitle className="text-base">Statistiche responsabilità specifiche</CardTitle>
+              <CardTitle className="text-base">Soggetti da verificare</CardTitle>
               <p className="mt-1 text-xs text-muted-foreground">
                 Il sistema incrocia anomalie, causa, commessa, venditori, operai, subappaltatori e fornitori collegati. Chi registra l'anomalia resta tracciato, ma non viene contato come causa.
               </p>
@@ -1501,7 +1525,7 @@ export default function GlobalErrors() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Piano di autocontrollo</CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Prime azioni suggerite dal sistema in base a impatto, frequenza e responsabilità probabile.
+                  Suggerimenti da verificare, non responsabilità accertate. Lo stesso caso può coinvolgere più soggetti: non sommare gli importi tra persone.
                 </p>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -1645,6 +1669,8 @@ export default function GlobalErrors() {
         </CardContent>
       </Card>
 
+      </div>}
+      {view === "register" &&
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -1664,179 +1690,32 @@ export default function GlobalErrors() {
         </CardHeader>
         <CardContent>
           <div className="overflow-auto rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <SortableTableHead active={sort.key === "date"} direction={sort.direction} onClick={() => handleSort("date")}>Data</SortableTableHead>
-                  <SortableTableHead active={sort.key === "order"} direction={sort.direction} onClick={() => handleSort("order")}>Commessa</SortableTableHead>
-                  <SortableTableHead active={sort.key === "type"} direction={sort.direction} onClick={() => handleSort("type")}>Sorgente</SortableTableHead>
-                  <SortableTableHead active={sort.key === "category"} direction={sort.direction} onClick={() => handleSort("category")}>Causa</SortableTableHead>
-                  <SortableTableHead active={sort.key === "responsibility"} direction={sort.direction} onClick={() => handleSort("responsibility")}>Responsabilità</SortableTableHead>
-                  <TableHead>Stato</TableHead>
-                  <SortableTableHead active={sort.key === "severity"} direction={sort.direction} onClick={() => handleSort("severity")}>Priorità</SortableTableHead>
-                  <SortableTableHead className="text-right" align="right" active={sort.key === "amount"} direction={sort.direction} onClick={() => handleSort("amount")}>Importo</SortableTableHead>
-                  <SortableTableHead active={sort.key === "description"} direction={sort.direction} onClick={() => handleSort("description")}>Azione</SortableTableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
-                      Caricamento anomalie...
-                    </TableCell>
-                  </TableRow>
-                ) : filtered.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
-                      Nessuna anomalia trovata
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filtered.map((e) => {
-                    const typeMeta = TYPE_META[e.normalizedType];
-                    const TypeIcon = typeMeta.icon;
-                    const statusMeta = REVIEW_STATUS_META[e.reviewStatus];
-                    const StatusIcon = statusMeta.icon;
-                    const orderLabel = e.orders?.order_code || e.orders?.description?.slice(0, 30) || "Commessa non trovata";
-                    return (
-                      <TableRow key={e.id}>
-                        <TableCell className="whitespace-nowrap">{formatErrorDate(e.error_date)}</TableCell>
-                        <TableCell>
-                          <Link
-                            to={`/azienda/ordini/${e.order_id}`}
-                            className="font-medium text-primary hover:underline"
-                          >
-                            {orderLabel}
-                          </Link>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={cn("gap-1 border", typeMeta.color)}>
-                            <TypeIcon className="h-3 w-3" />
-                            {typeMeta.label}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{CATEGORY_META[e.normalizedCategory].label}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={cn("border", RESPONSIBILITY_META[e.responsibility].color)}>
-                            {RESPONSIBILITY_META[e.responsibility].label}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={cn("gap-1 border", statusMeta.color)}>
-                            <StatusIcon className="h-3 w-3" />
-                            {statusMeta.label}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={cn("border", SEVERITY_META[e.severity].color)}>
-                            {SEVERITY_META[e.severity].label}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right font-semibold text-red-600">
-                          {formatCurrency(getErrorAmount(e.amount))}
-                        </TableCell>
-                        <TableCell className="min-w-[300px] max-w-[360px]">
-                          <div className="space-y-1">
-                            <p className="line-clamp-2 text-sm">{e.operationalDetail || "Nessuna descrizione"}</p>
-                            <div className="flex flex-wrap gap-1">
-                              {e.detailedCause && (
-                                <Badge variant="outline" className="border-orange-200 bg-orange-50 text-[10px] text-orange-700">
-                                  Causa: {e.detailedCause}
-                                </Badge>
-                              )}
-                              {e.processOrigin && (
-                                <Badge variant="outline" className="border-blue-200 bg-blue-50 text-[10px] text-blue-700">
-                                  Origine: {e.processOrigin}
-                                </Badge>
-                              )}
-                            </div>
-                            {e.verifyRole && (
-                              <p className="text-[11px] text-slate-500">
-                                Da verificare: <span className="font-medium text-slate-700">{e.verifyRole}</span>
-                              </p>
-                            )}
-                            {e.reporter && (
-                              <p className="text-[11px] text-slate-500">
-                                Registrata da: <span className="font-medium text-slate-700">{e.reporter.name}</span>
-                              </p>
-                            )}
-                            <div className="flex flex-wrap gap-1">
-                              {e.attributions.slice(0, 2).map((item) => (
-                                <Badge
-                                  key={`${e.id}-${getActorKey(item.actor)}`}
-                                  variant="outline"
-                                  className={cn("border text-[10px]", ATTRIBUTION_META[item.actor.kind].color)}
-                                >
-                                  {ATTRIBUTION_META[item.actor.kind].shortLabel}: {item.actor.name} · {item.confidence}
-                                </Badge>
-                              ))}
-                              {e.attributions.length > 2 && (
-                                <Badge variant="outline" className="text-[10px]">
-                                  +{e.attributions.length - 2}
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              {e.correctiveAction || e.aiRecommendation || e.actionHint}
-                            </p>
-                            <div className="flex flex-wrap gap-1 pt-1">
-                              {e.reviewStatus !== "in_verifica" && e.reviewStatus !== "risolta" && e.reviewStatus !== "non_imputabile" && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 px-2 text-[11px]"
-                                  disabled={updateStatusMutation.isPending}
-                                  onClick={() => updateStatusMutation.mutate({ id: e.id, status: "in_verifica" })}
-                                >
-                                  Verifica
-                                </Button>
-                              )}
-                              {e.reviewStatus !== "assegnata" && e.reviewStatus !== "risolta" && e.reviewStatus !== "non_imputabile" && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 px-2 text-[11px]"
-                                  disabled={updateStatusMutation.isPending}
-                                  onClick={() => updateStatusMutation.mutate({ id: e.id, status: "assegnata" })}
-                                >
-                                  Assegna
-                                </Button>
-                              )}
-                              {e.reviewStatus !== "risolta" && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 border-green-200 px-2 text-[11px] text-green-700 hover:bg-green-50"
-                                  disabled={updateStatusMutation.isPending}
-                                  onClick={() => updateStatusMutation.mutate({ id: e.id, status: "risolta" })}
-                                >
-                                  Risolta
-                                </Button>
-                              )}
-                              {e.reviewStatus !== "non_imputabile" && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 px-2 text-[11px] text-slate-500 hover:text-slate-700"
-                                  disabled={updateStatusMutation.isPending}
-                                  onClick={() => updateStatusMutation.mutate({ id: e.id, status: "non_imputabile" })}
-                                >
-                                  Non imputabile
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
+            <Table className="min-w-[1100px] [&_th]:whitespace-nowrap [&_td]:py-2.5">
+              <TableHeader><TableRow>
+                <SortableTableHead active={sort.key === "date"} direction={sort.direction} onClick={() => handleSort("date")}>Data</SortableTableHead>
+                <SortableTableHead active={sort.key === "order"} direction={sort.direction} onClick={() => handleSort("order")}>Commessa</SortableTableHead>
+                <TableHead>Problema</TableHead><TableHead>Responsabile effettivo</TableHead>
+                <SortableTableHead active={sort.key === "severity"} direction={sort.direction} onClick={() => handleSort("severity")}>Priorità</SortableTableHead>
+                <TableHead>Scadenza intervento</TableHead><TableHead className="text-right">Costo registrato</TableHead><TableHead>Stato</TableHead><TableHead>Azioni</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>{isLoading ? <TableRow><TableCell colSpan={9}>Caricamento anomalie…</TableCell></TableRow> : filtered.length === 0 ? <TableRow><TableCell colSpan={9} className="py-10 text-center">Nessuna anomalia per questi filtri.</TableCell></TableRow> : visibleRows.map(e => <TableRow key={e.id}>
+                <TableCell className="whitespace-nowrap">{formatErrorDate(e.error_date)}</TableCell>
+                <TableCell><Link className="whitespace-nowrap font-medium text-primary hover:underline" to={`/azienda/ordini/${e.order_id}`}>{e.orders?.order_code || "Apri commessa"}</Link></TableCell>
+                <TableCell className="max-w-[280px]"><button className="line-clamp-1 text-left font-medium hover:underline" onClick={() => setSelectedId(e.id)}>{e.operationalDetail || CATEGORY_META[e.normalizedCategory].label}</button></TableCell>
+                <TableCell>{e.confirmed_responsibility_name || <span className="text-muted-foreground">Da assegnare</span>}</TableCell>
+                <TableCell><Badge variant="outline" className={SEVERITY_META[e.severity].color}>{SEVERITY_META[e.severity].label}</Badge></TableCell>
+                <TableCell className={cn("whitespace-nowrap", !anomalyClosed(e.reviewStatus) && e.corrective_due_date && e.corrective_due_date < format(new Date(), "yyyy-MM-dd") && "font-medium text-destructive")}>{e.corrective_due_date ? formatErrorDate(e.corrective_due_date) : "Da definire"}</TableCell>
+                <TableCell className="text-right tabular-nums"><span className="font-semibold">{formatCurrency(getErrorAmount(e.amount))}</span><span className="ml-2 text-xs text-muted-foreground">{anomalyNotes(e).finalCost == null ? "stimato" : "netto finale"}</span></TableCell>
+                <TableCell><Badge variant="outline" className={REVIEW_STATUS_META[e.reviewStatus].color}>{REVIEW_STATUS_META[e.reviewStatus].label}</Badge></TableCell>
+                <TableCell><Button variant="outline" size="sm" className="h-8 whitespace-nowrap" onClick={() => setSelectedId(e.id)}>Apri dettaglio</Button></TableCell>
+              </TableRow>)}</TableBody>
             </Table>
           </div>
+          {pageCount > 1 && <div className="mt-4 flex items-center justify-between gap-3 text-sm"><span>Pagina {currentPage} di {pageCount}</span><div className="flex gap-2"><Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Precedente</Button><Button variant="outline" size="sm" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}>Successiva</Button></div></div>}
         </CardContent>
-      </Card>
+      </Card>}
 
+      {companyId && (creating || selectedError) && <AnomalyDetailDialog key={`${companyId}:${creating ? "new" : selectedError?.id}`} companyId={companyId} record={creating ? null : selectedError ?? null} actors={selectedActors} canEdit={canEdit} onClose={() => { setCreating(false); setSelectedId(null); }} />}
       <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
         <SheetContent side="right" className="flex w-[340px] flex-col sm:w-[380px]">
           <SheetHeader>

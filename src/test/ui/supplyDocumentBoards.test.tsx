@@ -105,7 +105,7 @@ function Url() {
   return <output data-testid="url">{location.search}</output>;
 }
 const clients: QueryClient[] = [];
-function open(node: React.ReactNode, url: string) {
+function open(node: React.ReactNode, url: string, advanced = true) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
@@ -118,6 +118,7 @@ function open(node: React.ReactNode, url: string) {
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  if (advanced) fireEvent.click(screen.getByText("Altri filtri", { exact: true }));
 }
 function rfq(
   id: string,
@@ -215,7 +216,7 @@ describe("Richieste d’offerta", () => {
       rfq("b", "aggiudicata", { purchase_order_id: "po2" }),
     ];
     state.counters = { a: counter(), b: counter() };
-    open(<SupplierRfqsList />, "/azienda/ordini?tab=offerte");
+    open(<SupplierRfqsList />, "/azienda/ordini?tab=offerte&rdo_vista=pipeline");
     expect(screen.getByText("Materiale a")).toBeInTheDocument();
     expect(screen.queryByText("Materiale b")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Elenco" }));
@@ -245,7 +246,7 @@ describe("Richieste d’offerta", () => {
     state.counters = { a: counter(), b: counter(), c: counter() };
     open(
       <SupplierRfqsList />,
-      "/azienda/ordini?tab=offerte&vista=elenco&periodo=30&rdo_ambito=all",
+      "/azienda/ordini?tab=offerte&vista=elenco&periodo=30&rdo_ambito=all&rdo_vista=pipeline",
     );
     expect(
       within(
@@ -280,11 +281,7 @@ describe("Richieste d’offerta", () => {
     expect(screen.getByText("Materiale a")).toBeInTheDocument();
     expect(screen.queryByText("Materiale b")).not.toBeInTheDocument();
     expect(screen.queryByText("Materiale c")).not.toBeInTheDocument();
-    fireEvent.click(
-      within(
-        screen.getByRole("group", { name: "Stato richieste d’offerta" }),
-      ).getByRole("button", { name: /^Aggiudicata/ }),
-    );
+    fireEvent.change(screen.getByRole("combobox", { name: "Stato richieste d’offerta" }), { target: { value: "aggiudicata" } });
     expect(screen.getByText("Materiale c")).toBeInTheDocument();
     expect(screen.getByTestId("url")).not.toHaveTextContent("rdo_focus");
   });
@@ -297,7 +294,7 @@ describe("Richieste d’offerta", () => {
     state.counters = { a: counter(), b: counter({ fornitori: ["s2"] }) };
     open(
       <SupplierRfqsList />,
-      "/azienda/ordini?tab=offerte&rdo_fornitore=s1&rdo_periodo=30&rdo_focus=scadute",
+      "/azienda/ordini?tab=offerte&rdo_fornitore=s1&rdo_periodo=30&rdo_focus=scadute&rdo_vista=pipeline",
     );
     expect(screen.getByText("Materiale a")).toBeInTheDocument();
     expect(screen.queryByText("Materiale b")).not.toBeInTheDocument();
@@ -347,12 +344,7 @@ describe("DDT", () => {
         screen.getByRole("region", { name: "Colonna Non conformi / danni" }),
       ).getByText("DDT-c"),
     ).toBeInTheDocument();
-    fireEvent.click(
-      within(screen.getByRole("group", { name: "Stato DDT" })).getByRole(
-        "button",
-        { name: /Non conformi \/ danni/i },
-      ),
-    );
+    fireEvent.change(screen.getByRole("combobox", { name: "Stato DDT" }), { target: { value: "non_conforme" } });
     fireEvent.click(screen.getByRole("button", { name: "Elenco" }));
     expect(screen.getAllByText("DDT-c").length).toBeGreaterThan(0);
     expect(screen.getAllByText("DDT-d").length).toBeGreaterThan(0);
@@ -389,7 +381,7 @@ describe("DDT", () => {
   it("segnala l’errore di caricamento senza presentare una lista vuota", () => {
     state.error = true;
     open(<DDTRicezioneList />, "/azienda/ordini?tab=ddt");
-    expect(screen.getByRole("alert")).toHaveTextContent("Impossibile caricare");
+    expect(screen.getAllByRole("alert").some(alert => alert.textContent?.includes("Impossibile caricare"))).toBe(true);
     expect(screen.queryByText("Nessun DDT registrato")).not.toBeInTheDocument();
   });
 });
@@ -478,16 +470,16 @@ describe("Colonne dell’elenco documenti", () => {
 });
 
 describe("Elenco DDT operativo", () => {
-  it("parte dall’elenco, mostra Stato nella seconda colonna e apre le azioni dalla riga", async () => {
+  it("parte dall’elenco, mostra la selezione e lo Stato dopo il numero e apre le azioni dalla riga", async () => {
     state.ddt = [ddt("stato", "ricevuto")];
     open(<DDTRicezioneList />, "/azienda/ordini?tab=ddt");
     const table = screen.getByRole("table", { name: "Elenco DDT" });
-    expect(within(table).getAllByRole("columnheader")[1]).toHaveAccessibleName(
+    expect(within(table).getAllByRole("columnheader")[2]).toHaveAccessibleName(
       "Stato",
     );
     expect(
-      screen.queryByRole("region", { name: "Riepilogo DDT" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("region", { name: "Riepilogo DDT" }),
+    ).toBeInTheDocument();
     fireEvent.keyDown(
       screen.getByRole("button", { name: /^Gestisci stato DDT DDT-stato:/ }),
       { key: "Enter", code: "Enter" },
@@ -540,15 +532,36 @@ describe("Elenco DDT operativo", () => {
     expect(
       screen.queryByText("File-gia-registrato.pdf"),
     ).not.toBeInTheDocument();
-    fireEvent.click(
-      within(screen.getByRole("group", { name: "Stato DDT" })).getByRole(
-        "button",
-        { name: /^Da registrare/ },
-      ),
-    );
+    fireEvent.change(screen.getByRole("combobox", { name: "Stato DDT" }), { target: { value: "da_registrare" } });
     expect(screen.getByText("Nuova-bolla.pdf")).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "DDT-gia" }),
     ).not.toBeInTheDocument();
   });
+});
+
+describe("Elenchi documenti con filtri raccolti", () => {
+  it("apre le richieste in elenco e conserva la scelta esplicita della pipeline", () => {
+    state.rfqs = [rfq("a")]; open(<SupplierRfqsList />, "/azienda/ordini?tab=offerte", false);
+    expect(screen.getByRole("table", { name: "Elenco richieste d’offerta" })).toBeInTheDocument();
+    expect(screen.getByText("Altri filtri", { exact: true }).closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByRole("button", { name: "Pipeline" }));
+    expect(screen.getByRole("button", { name: "Pipeline" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("url")).toHaveTextContent("rdo_vista=pipeline");
+  });
+  it("mantiene i DDT in elenco con stato principale e barra superiore condivisa", () => {
+    state.ddt = [ddt("a", "ricevuto")]; open(<DDTRicezioneList />, "/azienda/ordini?tab=ddt", false);
+    expect(screen.getByRole("table", { name: "Elenco DDT" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Scorri elenco ddt" })).toBeInTheDocument();
+    expect(screen.getByText("Altri filtri", { exact: true }).closest("details")).not.toHaveAttribute("open");
+    fireEvent.change(screen.getByRole("combobox", { name: "Stato DDT" }), { target: { value: "non_conforme" } });
+    expect(screen.getByTestId("url")).toHaveTextContent("ddt_stato=non_conforme");
+  });
+});
+
+it("permette di selezionare una richiesta dalla riga senza aprire il documento", () => {
+  state.rfqs = [rfq("selezione")]; open(<SupplierRfqsList />, "/azienda/ordini?tab=offerte", false);
+  fireEvent.click(screen.getByLabelText("Seleziona RDO-selezione"));
+  expect(screen.getByRole("region", { name: "Azioni documenti selezionati" })).toHaveTextContent("1 documento selezionato");
+  expect(screen.getByRole("button", { name: "Elimina selezionati" })).toBeEnabled();
 });
