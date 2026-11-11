@@ -7,6 +7,9 @@ import {
   errorResponse,
 } from "../_shared/headers.ts";
 import { processaDocumento } from "./worker.ts";
+// 11/11/2026: carta mancante, abbonamento sospeso e credito AI finito chiudono
+// subito il lavoro in «error» con un messaggio vero (vedi messaggioBloccoLettura
+// in worker.ts), invece di «Lettura non riuscita… puoi riprovare».
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
 Deno.serve(async (req: Request) => {
   const cors = getCorsHeaders(req);

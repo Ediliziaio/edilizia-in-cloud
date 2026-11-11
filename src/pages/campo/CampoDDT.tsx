@@ -4,6 +4,8 @@ import { Camera, FileUp, Loader2, Receipt, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
+import { useCampoUfficio } from "@/hooks/campo/useCampoUfficio";
+import { cantiereBolla, NESSUN_CANTIERE } from "@/lib/campo/cantiereBolla";
 import { useDocumentiDDT, STATO_DOCUMENTO } from "@/hooks/useDocumentiDDT";
 import {
   contaPagine,
@@ -36,9 +38,19 @@ function CampoDDTEditor() {
   const [scelta, setScelta] = useState("");
   const cantieri = assegnazioni.data ?? [];
   const richiesto = params.get("order");
-  const orderId = cantieri.some((c) => c.order_id === richiesto)
-    ? richiesto!
-    : scelta || (cantieri.length === 1 ? cantieri[0].order_id : "");
+  // Per l'ufficio il cantiere è facoltativo (11/11/2026): la bolla va in ufficio
+  // senza commessa. Per gli operai resta obbligatorio.
+  const ufficio = useCampoUfficio().data === true;
+  const {
+    orderId,
+    valore: valoreCantiere,
+    pronto: cantierePronto,
+  } = cantiereBolla({
+    richiesto,
+    scelta,
+    cantieri: cantieri.map((c) => c.order_id),
+    ufficio,
+  });
   const [files, setFiles] = useState<File[]>([]);
   const [locali, setLocali] = useState<SyncItem[]>([]);
   const [salvando, setSalvando] = useState(false);
@@ -120,7 +132,7 @@ function CampoDDTEditor() {
   };
 
   const accoda = async (pagine: File[]) => {
-    if (!user?.id || !profile?.company_id || !orderId)
+    if (!user?.id || !profile?.company_id || !cantierePronto)
       throw new Error("Scegli prima il cantiere");
     await syncQueue.enqueue({
       type: "documento_ddt",
@@ -130,7 +142,7 @@ function CampoDDTEditor() {
         fileTypes: pagine.map((f) => f.type),
         user_id: user.id,
         company_id: profile.company_id,
-        order_id: orderId,
+        order_id: orderId ?? null,
       },
     });
   };
@@ -139,7 +151,7 @@ function CampoDDTEditor() {
     if (
       blocco.current ||
       !files.length ||
-      !orderId ||
+      !cantierePronto ||
       !user?.id ||
       !profile?.company_id
     )
@@ -186,14 +198,20 @@ function CampoDDTEditor() {
           Cantiere
           <select
             className={campo}
-            value={orderId}
+            value={valoreCantiere}
             disabled={
               assegnazioni.isLoading ||
               cantieri.some((c) => c.order_id === richiesto)
             }
             onChange={(e) => setScelta(e.target.value)}
           >
-            <option value="">Scegli il cantiere</option>
+            {ufficio ? (
+              <option value={NESSUN_CANTIERE}>
+                Nessun cantiere (va in ufficio)
+              </option>
+            ) : (
+              <option value="">Scegli il cantiere</option>
+            )}
             {cantieri.map((c) => (
               <option key={c.order_id} value={c.order_id}>
                 {c.order.order_code} ·{" "}
@@ -212,7 +230,8 @@ function CampoDDTEditor() {
         )}
         {!assegnazioni.isLoading &&
           !assegnazioni.isError &&
-          !cantieri.length && (
+          !cantieri.length &&
+          !ufficio && (
             <p className="text-sm text-muted-foreground">
               L’ufficio deve prima assegnarti un cantiere.
             </p>
@@ -279,7 +298,7 @@ function CampoDDTEditor() {
                 toast.success("PDF divisi e scaricati sul dispositivo");
                 return;
               }
-              if (!orderId) {
+              if (!cantierePronto) {
                 toast.error("Scegli prima il cantiere e ripeti la conferma");
                 return;
               }
@@ -347,7 +366,7 @@ function CampoDDTEditor() {
           className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary font-semibold text-primary-foreground disabled:opacity-50"
           disabled={
             !files.length ||
-            !orderId ||
+            !cantierePronto ||
             salvando ||
             preparandoPdf ||
             pdfDaDividere.length > 0

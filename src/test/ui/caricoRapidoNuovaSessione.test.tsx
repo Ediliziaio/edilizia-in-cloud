@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
@@ -86,4 +87,26 @@ it("il cambio azienda azzera il carico aperto e adotta il magazzino della nuova 
   expect(
     screen.getByRole("combobox", { name: "Magazzino destinazione *" }),
   ).toHaveTextContent("Magazzino azienda-b");
+});
+
+it("il fornitore è facoltativo (11/11/2026): col solo magazzino si va avanti", () => {
+  render(<CaricoRapidoSheet open onOpenChange={vi.fn()} />, {
+    wrapper: MemoryRouter,
+  });
+  expect(screen.getByText("Fornitore (facoltativo)")).toBeInTheDocument();
+  expect(screen.queryByText("Fornitore *")).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: /Inizia scansione/ }),
+  ).toBeEnabled();
+  expect(
+    screen.queryByText(/Scegli prima fornitore/),
+  ).not.toBeInTheDocument();
+});
+
+it("senza fornitore la conferma passa null al carico e al lotto, invece di fermarsi", () => {
+  const src = readFileSync("src/components/warehouse/CaricoRapidoSheet.tsx", "utf8");
+  expect(src).toContain("if (!warehouseId) return;");
+  expect(src).not.toContain("if (!warehouseId || !supplierId) return;");
+  expect(src).toContain("supplierId: supplierId ?? null,");
+  expect(src).toContain("supplier_id: supplierId ?? null,");
 });

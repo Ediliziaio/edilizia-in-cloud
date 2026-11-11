@@ -127,3 +127,37 @@ it("senza lease disponibile non scarica file e non invoca il modello", async () 
   expect(download).not.toHaveBeenCalled();
   expect(m.ai).not.toHaveBeenCalled();
 });
+const erroreRouter = (name: string, message: string) =>
+  Object.assign(new Error(message), { name });
+it("carta mancante (11/11/2026): errore subito, senza tentativi, con il messaggio vero", async () => {
+  m.ai.mockRejectedValue(
+    erroreRouter(
+      "AiRouterError",
+      "Registra una carta di pagamento aziendale per usare questo strumento (Impostazioni → Fatturazione).",
+    ),
+  );
+  job.attempts = 0;
+  expect((await processaDocumento(db)).stato).toBe("error");
+  expect(updates[0]).toMatchObject({
+    status: "error",
+    last_error:
+      "La lettura automatica richiede una carta registrata (Impostazioni → Abbonamento). Intanto compila la bolla a mano.",
+  });
+});
+it("credito AI finito: errore subito con «Credito AI esaurito», anche se il testo contiene un timeout", async () => {
+  m.ai.mockRejectedValue(
+    erroreRouter("AiCompanyCreditError", "Credito insufficiente o bloccato: timeout del saldo"),
+  );
+  job.attempts = 0;
+  expect((await processaDocumento(db)).stato).toBe("error");
+  expect(String(updates[0].last_error)).toMatch(/^Credito AI esaurito/);
+  expect(updates[0].status).toBe("error");
+});
+it("abbonamento sospeso: errore subito con un messaggio che non invita a riprovare", async () => {
+  m.ai.mockRejectedValue(
+    erroreRouter("AiRouterError", "Abbonamento sospeso o scaduto: rinnova per riattivare questo strumento."),
+  );
+  expect((await processaDocumento(db)).stato).toBe("error");
+  expect(String(updates[0].last_error)).toMatch(/abbonamento è sospeso/);
+  expect(String(updates[0].last_error)).not.toMatch(/riprovare/);
+});

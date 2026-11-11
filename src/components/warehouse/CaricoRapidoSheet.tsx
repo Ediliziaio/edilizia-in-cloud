@@ -260,7 +260,8 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
     return Boolean(supplierObj?.uses_gs1);
   }, [supplierObj]);
 
-  const canProceedToScan = !!supplierId && !!warehouseId;
+  // Il fornitore è facoltativo (11/11/2026): basta sapere in quale magazzino entra la merce.
+  const canProceedToScan = !!warehouseId;
   const canContinueReceipt = canProceedToScan && (receiveMode === "scan" || !!ddtFile);
   const continueLabel = receiveMode === "ddt" ? "Carica DDT e registra prodotti" : "Inizia scansione";
   const selectedRelatedOrders = useMemo(
@@ -546,7 +547,7 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
   }, [ddtFile, companyId, warehouseId, suppliers, supplierId]);
 
   async function handleConfirm() {
-    if (!warehouseId || !supplierId) return;
+    if (!warehouseId) return;
 
     // v8.6.121 — Note costruite SENZA esito upload: foto e DDT si caricano DOPO
     // il commit dello stock, in background, così la conferma non resta appesa
@@ -581,7 +582,7 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
     try {
       const result = await batchCarico.mutateAsync({
         warehouseId,
-        supplierId,
+        supplierId: supplierId ?? null,
         entries,
         notes: mergedNotes || undefined,
         sectionId: sectionId ?? null,
@@ -625,7 +626,7 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
                 articolo: articoloNome ?? trimmedLottoCode,
                 descrizione: articoloNome ?? trimmedLottoCode,
                 stock_item_id: singleStockItemId,
-                supplier_id: supplierId,
+                supplier_id: supplierId ?? null,
                 fornitore: supplierObj?.name ?? null,
                 warehouse_id: warehouseId,
                 quantita: scannedSerials.length,
@@ -849,7 +850,7 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
 
           {/* Fornitore */}
           <div className="space-y-2">
-            <Label htmlFor="cr-supplier">Fornitore *</Label>
+            <Label htmlFor="cr-supplier">Fornitore (facoltativo)</Label>
             {suppliersLoading ? (
               <div className="h-10 border rounded-md flex items-center justify-center text-xs text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin mr-2" />
@@ -882,7 +883,7 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
                 onClick={() => onOpenChange(false)}
               >
                 <ExternalLink className="h-3 w-3" />
-                Aggiungi un fornitore prima di continuare
+                Aggiungi un fornitore (facoltativo)
               </Link>
             )}
           </div>
@@ -1237,7 +1238,7 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
                   Carica seriali e prosegui
                 </Button>
                 {!canProceedToScan && (
-                  <p className="text-[10px] text-amber-600">Scegli prima fornitore e magazzino qui sopra.</p>
+                  <p className="text-[10px] text-amber-600">Scegli prima il magazzino qui sopra.</p>
                 )}
               </div>
             )}
@@ -1268,7 +1269,7 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
               <div className="px-3 pb-3 border-t border-muted-foreground/10 pt-3">
                 {!canProceedToScan ? (
                   <p className="text-[11px] text-amber-600">
-                    Scegli prima fornitore e magazzino qui sopra.
+                    Scegli prima il magazzino qui sopra.
                   </p>
                 ) : (
                   <ManualArticleAdder

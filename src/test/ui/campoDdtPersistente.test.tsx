@@ -5,16 +5,21 @@ const m = vi.hoisted(() => ({
   enqueue: vi.fn(),
   process: vi.fn(),
   auth: { user: { id: "operaio" }, profile: { company_id: "azienda" } },
+  ufficio: false,
+  cantieri: [
+    {
+      order_id: "cantiere",
+      order: { order_code: "SIM-1", description: "Cantiere assegnato" },
+    },
+  ] as Array<{ order_id: string; order: { order_code: string; description: string } }>,
+}));
+vi.mock("@/hooks/campo/useCampoUfficio", () => ({
+  useCampoUfficio: () => ({ data: m.ufficio }),
 }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => m.auth }));
 vi.mock("@/hooks/campo/useCampoAssignments", () => ({
   useCampoAssignments: () => ({
-    data: [
-      {
-        order_id: "cantiere",
-        order: { order_code: "SIM-1", description: "Cantiere assegnato" },
-      },
-    ],
+    data: m.cantieri,
     isLoading: false,
     isError: false,
   }),
@@ -41,6 +46,13 @@ vi.mock("@/components/ddt/DividiPdfPannello", () => ({
 }));
 import CampoDDT from "@/pages/campo/CampoDDT";
 beforeEach(() => {
+  m.ufficio = false;
+  m.cantieri = [
+    {
+      order_id: "cantiere",
+      order: { order_code: "SIM-1", description: "Cantiere assegnato" },
+    },
+  ];
   m.enqueue.mockReset().mockResolvedValue("operazione");
   m.process.mockReset().mockResolvedValue(undefined);
 });
@@ -112,6 +124,74 @@ it("rifiuta un formato non supportato prima di salvare e non accetta cantieri es
     },
   });
   expect(m.enqueue).not.toHaveBeenCalled();
+  expect(
+    screen.getByRole("button", { name: "Salva e analizza il DDT" }),
+  ).toBeDisabled();
+});
+
+const dueCantieri = () => {
+  m.cantieri = [
+    { order_id: "a", order: { order_code: "SIM-A", description: "Primo" } },
+    { order_id: "b", order: { order_code: "SIM-B", description: "Secondo" } },
+  ];
+};
+const caricaBolla = async () => {
+  fireEvent.change(screen.getByLabelText("Scegli le pagine del DDT"), {
+    target: {
+      files: [new File(["foto"], "bolla.jpg", { type: "image/jpeg" })],
+    },
+  });
+  await screen.findByText("1. bolla.jpg");
+};
+it("ufficio (11/11/2026): senza cantiere la bolla va in ufficio con order_id null", async () => {
+  m.ufficio = true;
+  dueCantieri();
+  render(
+    <MemoryRouter initialEntries={["/campo/ddt"]}>
+      <CampoDDT />
+    </MemoryRouter>,
+  );
+  expect(
+    screen.getByRole("option", { name: "Nessun cantiere (va in ufficio)" }),
+  ).toBeInTheDocument();
+  await caricaBolla();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Salva e analizza il DDT" }),
+  );
+  await waitFor(() => expect(m.enqueue).toHaveBeenCalledTimes(1));
+  expect(m.enqueue.mock.calls[0][0].payload.order_id).toBeNull();
+});
+it("ufficio con un solo cantiere può comunque scegliere «Nessun cantiere»", async () => {
+  m.ufficio = true;
+  render(
+    <MemoryRouter initialEntries={["/campo/ddt"]}>
+      <CampoDDT />
+    </MemoryRouter>,
+  );
+  const select = screen.getByRole("combobox", { name: "Cantiere" });
+  expect(select).toHaveValue("cantiere");
+  fireEvent.change(select, { target: { value: "__nessun_cantiere__" } });
+  await caricaBolla();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Salva e analizza il DDT" }),
+  );
+  await waitFor(() => expect(m.enqueue).toHaveBeenCalledTimes(1));
+  expect(m.enqueue.mock.calls[0][0].payload.order_id).toBeNull();
+});
+it("per l'operaio il cantiere resta obbligatorio, senza la voce dell'ufficio", async () => {
+  dueCantieri();
+  render(
+    <MemoryRouter initialEntries={["/campo/ddt"]}>
+      <CampoDDT />
+    </MemoryRouter>,
+  );
+  expect(
+    screen.queryByRole("option", { name: "Nessun cantiere (va in ufficio)" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("option", { name: "Scegli il cantiere" }),
+  ).toBeInTheDocument();
+  await caricaBolla();
   expect(
     screen.getByRole("button", { name: "Salva e analizza il DDT" }),
   ).toBeDisabled();

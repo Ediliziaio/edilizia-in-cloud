@@ -9,6 +9,7 @@ import { percorsoStorageSicuro } from "../_shared/storageAmmesso.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
 import { parteFileDdt } from "../_shared/lettoreDdt.ts";
 import { tipoFileDdt } from "../_shared/tipoFileDdt.ts";
+import { erroreAiPerUtente } from "../_shared/erroriAi.ts";
 export interface DocumentoFile {
   path: string;
   name: string;
@@ -28,6 +29,25 @@ export interface DocumentoJob {
   file_hash: string;
   lease_id: string;
   attempts: number;
+}
+/**
+ * Gli errori per cui riprovare è inutile (11/11/2026): la carta non c'è, l'abbonamento
+ * è sospeso, il credito AI dell'azienda è finito. Prima finivano tutti in «Lettura non
+ * riuscita… puoi riprovare», che falliva sempre. Si riconoscono per nome della classe
+ * (vedi _shared/erroriAi.ts), non con instanceof: il router nei test è finto.
+ * Restituisce il messaggio da mostrare, oppure `null` se l'errore è un altro.
+ */
+export function messaggioBloccoLettura(e: unknown): string | null {
+  const nome = e instanceof Error ? e.name : "";
+  const testo = e instanceof Error ? e.message : String(e ?? "");
+  const perUtente = erroreAiPerUtente(e);
+  if (perUtente?.body.code === "payment_method_required")
+    return "La lettura automatica richiede una carta registrata (Impostazioni → Abbonamento). Intanto compila la bolla a mano.";
+  if (nome === "AiRouterError" && /^Abbonamento sospeso/i.test(testo))
+    return "La lettura automatica è ferma perché l'abbonamento è sospeso o scaduto: rinnovalo in Impostazioni → Abbonamento. Intanto compila la bolla a mano.";
+  if (perUtente?.body.code === "insufficient_credits")
+    return "Credito AI esaurito: ricaricalo per riattivare la lettura automatica. Intanto compila la bolla a mano.";
+  return null;
 }
 const impronta = async (bytes: Uint8Array) =>
   Array.from(
@@ -188,7 +208,8 @@ export async function processaDocumento(
     if (error) throw error;
     return { id: j.id, stato: updated?.length ? "review" : "lease_scaduta" };
   } catch (e) {
-    const recuperabile = /timeout|429|tempor|502|503|504|fetch|network/i.test(
+    const blocco = messaggioBloccoLettura(e);
+    const recuperabile = !blocco && /timeout|429|tempor|502|503|504|fetch|network/i.test(
       String((e as Error)?.message ?? e),
     );
     const riprova = recuperabile && j.attempts < 5;
@@ -197,6 +218,7 @@ export async function processaDocumento(
       .update({
         status: riprova ? "queued" : "error",
         last_error:
+          blocco ??
           "Lettura non riuscita. L’originale è conservato: puoi riprovare o farlo verificare all’ufficio.",
         lease_id: null,
         lease_until: null,

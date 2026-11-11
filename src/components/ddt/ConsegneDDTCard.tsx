@@ -11,6 +11,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
+import { useWarehouses } from "@/hooks/useWarehouses";
+import {
+  destinazioneRiga,
+  messaggioErroreConsegna,
+  senzaMagazzini,
+} from "@/lib/ddt/senzaMagazzini";
 import { OrderSelectCombobox } from "@/components/warehouse/OrderSelectCombobox";
 import { useDDTRighe, type DDTRicezione } from "@/hooks/useDDTRicezione";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -50,6 +56,20 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
       permessi.canManagePurchasing ||
       permessi.canEditWarehouse);
   const righe = useDDTRighe(ddt.id);
+  // Senza magazzini (11/11/2026) le righe partono per il cantiere: la commessa
+  // della bolla se c'è, altrimenti si sceglie. Il magazzino non si propone.
+  const elencoMagazzini = useWarehouses();
+  const nessunMagazzino = senzaMagazzini({
+    magazzini: elencoMagazzini.warehouses,
+    caricamento: elencoMagazzini.isLoading || !elencoMagazzini.isFetched,
+    errore: elencoMagazzini.error,
+  });
+  const destinazioneDi = (s: Scelta) =>
+    destinazioneRiga({
+      sceltaRiga: s.destinazione,
+      destinazioneBolla: ddt.destinazione,
+      nessunMagazzino,
+    });
   const qc = useQueryClient();
   const [selezione, setSelezione] = useState<Set<string>>(new Set());
   const [scelte, setScelte] = useState<Record<string, Scelta>>({});
@@ -178,7 +198,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
     .filter((r) => selezione.has(r.id))
     .map((r) => {
       const s = scelte[r.id] ?? {};
-      const dest = s.destinazione ?? ddt.destinazione;
+      const dest = destinazioneDi(s);
       const articolo =
         s.articolo ??
         (r.purchase_order_item_id
@@ -224,6 +244,14 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
         throw new Error(
           "Seleziona le righe e controlla le quantità effettivamente arrivate",
         );
+      if (
+        righeDaInviare.some(
+          (r) => r.destinazione === "cantiere" && !r.order_id,
+        )
+      )
+        throw new Error(
+          "Scegli la commessa di destinazione delle righe che vanno in cantiere",
+        );
       const json = JSON.stringify(righeDaInviare);
       if (operazione.current?.json !== json)
         operazione.current = { json, id: crypto.randomUUID() };
@@ -253,7 +281,9 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
         void qc.invalidateQueries({ queryKey: key });
     },
     onError: (e: Error) => {
-      toast.error("Consegna non confermata", { description: e.message });
+      toast.error("Consegna non confermata", {
+        description: messaggioErroreConsegna(e.message, nessunMagazzino),
+      });
       void consegne.refetch();
     },
   });
@@ -368,7 +398,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                 <ul className="space-y-3">
                   {aperte.map((r) => {
                     const s = scelte[r.id] ?? {};
-                    const dest = s.destinazione ?? ddt.destinazione;
+                    const dest = destinazioneDi(s);
                     const oid = s.orderId ?? ddt.order_id;
                     const wid = s.warehouseId ?? ddt.warehouse_id;
                     const tipo = s.tipo ?? "ingresso";
@@ -484,9 +514,13 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                                   }
                                 >
                                   <option value="cantiere">Cantiere</option>
-                                  {permessi.canEditWarehouse && (
-                                    <option value="magazzino">Magazzino</option>
-                                  )}
+                                  {permessi.canEditWarehouse &&
+                                    (!nessunMagazzino ||
+                                      dest === "magazzino") && (
+                                      <option value="magazzino">
+                                        Magazzino
+                                      </option>
+                                    )}
                                 </select>
                               </label>
                             </div>

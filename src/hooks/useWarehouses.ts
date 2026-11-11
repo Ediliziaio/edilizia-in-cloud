@@ -36,7 +36,7 @@ export function useWarehouses(onlyActive = true) {
   const { isAdmin, isLoading: isLoadingPermissions } = usePermissions();
   const queryClient = useQueryClient();
 
-  const { data: warehouses = [], isLoading, error } = useQuery<Warehouse[]>({
+  const { data: warehouses = [], isLoading, isFetched, error } = useQuery<Warehouse[]>({
     // Include isAdmin e userId nella queryKey: cambiare utente / ruolo → refetch.
     queryKey: [QUERY_KEY, companyId, onlyActive, isAdmin, userId],
     enabled: !!companyId && !!userId && (!isLoadingPermissions || role === "company_admin" || role === "super_admin"),
@@ -217,6 +217,8 @@ export function useWarehouses(onlyActive = true) {
     warehouses,
     defaultWarehouse,
     isLoading,
+    /** L'elenco è arrivato almeno una volta: solo allora «vuoto» vuol dire «nessun magazzino». */
+    isFetched,
     error,
     createWarehouse: createMutation.mutateAsync,
     updateWarehouse: updateMutation.mutateAsync,

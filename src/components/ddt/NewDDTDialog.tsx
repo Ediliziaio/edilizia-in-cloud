@@ -60,6 +60,8 @@ import {
   type DDTRigaNuova,
 } from "@/hooks/useDDTRicezione";
 import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
+import { useWarehouses } from "@/hooks/useWarehouses";
+import { destinazioneBollaNuova, senzaMagazzini } from "@/lib/ddt/senzaMagazzini";
 import { OrderSelectCombobox } from "@/components/warehouse/OrderSelectCombobox";
 import { SupplierSelect } from "@/components/orders/SupplierSelect";
 import { DDTAttachmentUploader } from "./DDTAttachmentUploader";
@@ -177,7 +179,19 @@ export function NewDDTDialog({
   const [oraPartenza, setOraPartenza] = useState("");
 
   // ── Step 3: verifica ─────────────────────────────
-  const [destinazione, setDestinazione] = useState<"magazzino" | "cantiere">(prefillOrderId ? "cantiere" : "magazzino");
+  const [destinazione, setDestinazioneScelta] = useState<"magazzino" | "cantiere">(prefillOrderId ? "cantiere" : "magazzino");
+  // Se l'utente ha scelto lui la destinazione, la sua scelta vale anche senza magazzini.
+  const [destinazioneToccata, setDestinazioneToccata] = useState(false);
+  const setDestinazione = (v: "magazzino" | "cantiere") => {
+    setDestinazioneScelta(v);
+    setDestinazioneToccata(true);
+  };
+  const elencoMagazzini = useWarehouses();
+  const nessunMagazzino = senzaMagazzini({
+    magazzini: elencoMagazzini.warehouses,
+    caricamento: elencoMagazzini.isLoading || !elencoMagazzini.isFetched,
+    errore: elencoMagazzini.error,
+  });
   const [qty, setQty] = useState("");
   const [stato, setStato] = useState<DDTStato>("ricevuto");
   const [warehouseId, setWarehouseId] = useState<string | null>(null);
@@ -284,7 +298,8 @@ export function NewDDTDialog({
         setOraArrivo("");
         setOraPartenza("");
         setQty("");
-        setDestinazione(prefillOrderId ? "cantiere" : "magazzino");
+        setDestinazioneScelta(prefillOrderId ? "cantiere" : "magazzino");
+        setDestinazioneToccata(false);
         setStato("ricevuto");
         setWarehouseId(null);
         setRicevutoDaNome("");
@@ -349,8 +364,13 @@ export function NewDDTDialog({
   // può dire, e si ricade su «magazzino». Si DERIVA, non si corregge in un
   // effetto: così tornare indietro a togliere la commessa non lascia mai una
   // scelta che il database rifiuterebbe.
-  const destinazioneEffettiva: "magazzino" | "cantiere" =
-    commessaNota && destinazione === "cantiere" ? "cantiere" : "magazzino";
+  // Senza magazzini (11/11/2026), con la commessa nota si parte dal cantiere.
+  const destinazioneEffettiva = destinazioneBollaNuova({
+    scelta: destinazione,
+    sceltaToccata: destinazioneToccata,
+    commessaNota,
+    nessunMagazzino,
+  });
 
   const isFinalStep = stepIdx === STEPS.length - 1;
 
@@ -573,6 +593,7 @@ export function NewDDTDialog({
               destinazione={destinazioneEffettiva}
               onDestinazioneChange={setDestinazione}
               commessaNota={commessaNota}
+              nessunMagazzino={nessunMagazzino}
             />
           )}
         </div>
@@ -1240,6 +1261,8 @@ interface VerificaStepProps {
   destinazione: "magazzino" | "cantiere";
   onDestinazioneChange: (v: "magazzino" | "cantiere") => void;
   commessaNota: boolean;
+  /** L'azienda non ha magazzini: niente selettore vuoto col «Default». */
+  nessunMagazzino?: boolean;
 }
 
 function VerificaStep(props: VerificaStepProps) {
@@ -1371,11 +1394,19 @@ function VerificaStep(props: VerificaStepProps) {
               <WarehouseIcon className="h-3.5 w-3.5 text-muted-foreground" />
               Magazzino destinazione
             </Label>
-            <WarehouseSelect
-              value={props.warehouseId}
-              onChange={props.onWarehouseIdChange}
-              placeholder="Default (dal fornitore o dall'ODA)"
-            />
+            {props.nessunMagazzino ? (
+              <p className="text-xs text-muted-foreground">
+                Non hai magazzini: scegli una commessa per mandare la merce in
+                cantiere, oppure crea un magazzino in Impostazioni. La bolla si
+                registra lo stesso.
+              </p>
+            ) : (
+              <WarehouseSelect
+                value={props.warehouseId}
+                onChange={props.onWarehouseIdChange}
+                placeholder="Default (dal fornitore o dall'ODA)"
+              />
+            )}
           </div>
         )}
 
