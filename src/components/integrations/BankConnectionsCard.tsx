@@ -1,4 +1,5 @@
 /** Collegamento, recupero e sincronizzazione dei conti tramite Distyra. */
+import BankAccountSelection from "@/components/tesoreria/BankAccountSelection";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDistyraReturn } from "@/hooks/useDistyraReturn";
@@ -305,6 +306,7 @@ export default function BankConnectionsCard({
           </p>
           {pulsanteCollega}
         </div>
+        {companyId && <BankAccountSelection companyId={companyId} onChanged={onChanged} />}
         {elenco}
         {dialoghi}
       </div>
@@ -321,6 +323,7 @@ export default function BankConnectionsCard({
         {pulsanteCollega}
       </CardHeader>
       <CardContent className="space-y-3">
+        {companyId && <BankAccountSelection companyId={companyId} onChanged={onChanged} />}
         {elenco}
       </CardContent>
       {dialoghi}

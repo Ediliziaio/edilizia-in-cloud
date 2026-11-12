@@ -729,6 +729,8 @@ jobs:
           src/test/logic/fattureEmesseElencoSql.test.ts
           src/test/logic/documentiElencoQuery.test.tsx
           src/test/logic/distyraHandlers.test.ts
+          src/test/logic/bankAccountChoice.test.ts
+          src/test/ui/bankAccountSelection.test.tsx
           src/test/ui/distyraReturn.test.tsx
           src/test/ui/hubFattureEsterne.test.tsx
           src/test/logic/documentiEmissioneOrdine.test.ts

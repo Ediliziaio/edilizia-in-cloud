@@ -32,7 +32,7 @@ export class SaltTestDatabase {
   }
 }
 class SaltQuery {
-  op = "select"; columns = "*"; values: Record<string, unknown>[] = []; filters: Array<[string, string, unknown]> = []; conflict = ""; one = false; max = 0;
+  op = "select"; columns = "*"; values: Record<string, unknown>[] = []; filters: Array<[string, string, unknown]> = []; conflict = ""; one = false; max = 0; sort="";
   constructor(private db: SaltTestDatabase, private table: string) {}
   select(columns = "*") { this.columns = columns; return this; }
   insert(value: Record<string, unknown>) { this.op = "insert"; this.values = [value]; return this; }
@@ -45,6 +45,7 @@ class SaltQuery {
   neq(c: string, v: unknown) { this.filters.push([c, "<>", v]); return this; }
   gt(c: string, v: unknown) { this.filters.push([c, ">", v]); return this; }
   in(c: string, v: unknown[]) { this.filters.push([c, "IN", v]); return this; }
+  order(c:string,{ascending=true}:{ascending?:boolean}={}) { this.sort=` order by ${identifier(c)} ${ascending?"asc":"desc"}`;return this; }
   limit(n: number) { this.max = n; return this; }
   single() { this.one = true; return this; }
   maybeSingle() { this.one = true; return this; }
@@ -55,7 +56,7 @@ class SaltQuery {
     const columns = this.columns === "*" ? "*" : this.columns.split(",").map(c => identifier(c.trim())).join(",");
     const where = () => this.filters.length ? " where " + this.filters.map(([c, op, v]) => op === "IN" ? `${identifier(c)} = any(${param(v)}::text[])` : `${identifier(c)} ${op} ${param(v)}`).join(" and ") : "";
     let sql: string;
-    if (this.op === "select") sql = `select ${columns} from ${identifier(this.table)}${where()}${this.max ? ` limit ${this.max}` : ""}`;
+    if (this.op === "select") sql = `select ${columns} from ${identifier(this.table)}${where()}${this.sort}${this.max ? ` limit ${this.max}` : ""}`;
     else if (this.op === "delete") sql = `delete from ${identifier(this.table)}${where()} returning ${columns}`;
     else if (this.op === "update") sql = `update ${identifier(this.table)} set ${Object.entries(this.values[0]).map(([k, v]) => `${identifier(k)}=${param(v)}`).join(",")}${where()} returning ${columns}`;
     else {

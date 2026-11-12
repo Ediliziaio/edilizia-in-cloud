@@ -13,3 +13,11 @@ Non risulta configurato un cron di sincronizzazione Distyra: l'importazione part
 
 ## Verifiche locali
 39 test mirati superati su sette file: sincronizzazione generale con tre collegamenti, errori parziali, conti salvati con movimenti in attesa, assenza di connessioni, permessi, accesso mobile alle connessioni, assenza di chiamate Salt Edge dal frontend, isolamento aziendale e gestione saldi.
+
+## Scelta dei conti e due aggiornamenti automatici
+
+Su richiesta del titolare: Impresa Vulcano ha limite 3, zero preselezioni. I conti autorizzati restano disponibili per la scelta del cliente. `bank_select_accounts` salva la selezione sotto lock dell'impostazione aziendale, controlla ogni conto/azienda/consenso e aggiorna l'operatività. `bank_set_account_limit` è riservata al superadmin; non seleziona conti. Nessuna scrittura diretta alle due tabelle dal browser. Il trigger protegge anche il refresh metadata/upsert Distyra.
+
+`bank_sync_enqueue` prepara al massimo un giro per collegamento e slot italiano 07/18, usando solo banche con conti scelti. Secret dal Vault, 15 secondi di attesa pg_net, gestore con risposta rapida e lavoro in background. Il job orario sarà acceso soltanto dopo il deploy della funzione. Esiti completato/fallito persistenti e leggibili nella scelta conti; un 429 non diventa un falso successo. Il job non effettua riconciliazioni o pagamenti.
+
+Verifiche: selezione 0/3, quarto conto bloccato, limite riservato, conti di altra azienda/duplicati, refresh/upsert non riattiva esclusi, orari inverno/estate, slot idempotenti, importazione reale del gestore con banca simulata e PostgreSQL locale, 429 persistente, cron senza secret respinto. Nessuna nuova chiamata ai movimenti reali durante il blocco banca.

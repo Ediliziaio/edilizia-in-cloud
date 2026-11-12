@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -127,6 +128,7 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
     return (
       // Mobile: una riga di testo (la scheda Connessioni è solo al desktop).
       <div className="flex flex-col items-center justify-center h-64 gap-4 text-center max-sm:h-auto max-sm:py-3">
+        <Button asChild variant="outline"><Link to="/azienda/tesoreria?tab=connessioni">Scegli i conti da collegare</Link></Button>
         <CreditCard className="h-16 w-16 text-muted-foreground max-sm:hidden" />
         <h2 className="text-xl font-semibold max-sm:text-xs max-sm:font-normal max-sm:text-muted-foreground">Nessun conto collegato</h2>
         <p className="text-muted-foreground max-sm:hidden">Vai al tab Connessioni per collegare la tua prima banca.</p>
@@ -136,6 +138,7 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
 
   return (
     <div className="space-y-6 max-sm:space-y-2">
+      <Button asChild variant="outline" size="sm"><Link to="/azienda/tesoreria?tab=connessioni">Gestisci conti disponibili e limite</Link></Button>
       {/* Header — mobile: totale 18px, via «Mostra IBAN». */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
