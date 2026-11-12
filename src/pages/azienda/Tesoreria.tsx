@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Landmark, LayoutDashboard, CreditCard, ArrowLeftRight, Link, Link2, RefreshCw, Loader2, TrendingUp, Settings, Receipt, ChevronDown } from "lucide-react";
+import { Landmark, LayoutDashboard, CreditCard, ArrowLeftRight, Link2, RefreshCw, Loader2, TrendingUp, Settings, Receipt, ChevronDown } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,7 +34,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
 // Il collegamento e il recupero delle banche devono restare disponibili anche sul telefono.
-const TREASURY_TABS_MOBILE = new Set(["overview", "conti", "transazioni", "connessioni"]);
+const TREASURY_TABS_MOBILE = new Set(["overview", "conti", "transazioni", "riconciliazione"]);
 
 const TREASURY_TABS = new Set([
   "overview",
@@ -49,7 +49,7 @@ const TREASURY_TABS = new Set([
 
 function getSafeTab(searchParams: URLSearchParams) {
   const requested = searchParams.get("tab");
-  return requested && TREASURY_TABS.has(requested) ? requested : "overview";
+  return requested==="connessioni"?"conti":requested && TREASURY_TABS.has(requested) ? requested : "overview";
 }
 
 function getErrorMessage(error: unknown) {
@@ -76,6 +76,7 @@ export default function Tesoreria() {
   const hasManualAccounts = manualAccounts.length > 0;
 
   const handleTabChange = useCallback((value: string) => {
+    if(value==="connessioni")value="conti";
     if (!TREASURY_TABS.has(value)) return;
     setActiveTab(value);
     setSearchParams((prev) => {
@@ -251,7 +252,6 @@ export default function Tesoreria() {
   // spese e Impostazioni (si aprono di rado) finiscono in «Altro», che prende
   // il nome della scheda quando è aperta una di loro.
   const SCHEDE_ALTRO = [
-    { value: "connessioni", label: "Connessioni", icon: Link },
     { value: "note-spese", label: "Note Spese", icon: Receipt },
     { value: "impostazioni", label: "Impostazioni", icon: Settings },
   ];
@@ -296,13 +296,10 @@ export default function Tesoreria() {
             <LayoutDashboard className="h-4 w-4" /> <span>Panoramica</span>
           </TabsTrigger>
           <TabsTrigger value="conti" className="tap-compact gap-2 max-sm:h-8 max-sm:text-xs">
-            <CreditCard className="h-4 w-4" /> Conti
+            <CreditCard className="h-4 w-4" /><span className="max-sm:hidden">Conti e banche</span><span className="sm:hidden">Conti</span>
           </TabsTrigger>
           <TabsTrigger value="transazioni" className="tap-compact gap-2 max-sm:h-8 max-sm:text-xs">
             <ArrowLeftRight className="h-4 w-4" /> <span className="max-sm:hidden">Transazioni</span><span className="sm:hidden">Movimenti</span>
-          </TabsTrigger>
-          <TabsTrigger value="connessioni" className="gap-2 sm:hidden xl:inline-flex">
-            <Link className="h-4 w-4" /><span className="sm:hidden">Banche</span><span className="hidden sm:inline">Connessioni</span>
           </TabsTrigger>
           <TabsTrigger value="riconciliazione" className={cn("gap-2", soloDesktop("riconciliazione"))}>
             <Link2 className="h-4 w-4" /> Riconciliazione
@@ -349,6 +346,7 @@ export default function Tesoreria() {
         </TabsContent>
         <TabsContent value="conti">
           <div className="space-y-8 max-sm:space-y-4">
+            <BankConnectionsCard onChanged={handleConnectionChanged} handleReturn={false} redirectPath="/azienda/tesoreria" />
             {hasConnections && <BankAccountsList companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />}
             {hasConnections && <div className="border-t border-slate-100 max-sm:hidden" />}
             <ManualTreasuryPanel />
@@ -356,9 +354,6 @@ export default function Tesoreria() {
         </TabsContent>
         <TabsContent value="transazioni">
           <TransactionsFeed companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />
-        </TabsContent>
-        <TabsContent value="connessioni">
-          <BankConnectionsCard onChanged={handleConnectionChanged} handleReturn={false} redirectPath="/azienda/tesoreria" />
         </TabsContent>
         <TabsContent value="riconciliazione">
           {permessi.canReconcileBankTransactions ? <BankReconciliation companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} /> : <p className="p-6 text-sm text-muted-foreground">Non hai il permesso di riconciliare i movimenti bancari.</p>}

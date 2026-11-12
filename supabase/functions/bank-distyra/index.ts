@@ -173,7 +173,7 @@ serveConMetricheRapida("bank-distyra", async (req) => {
     if (azione === "finalize") {
       // Si arriva col nostro riferimento (`state`, quello messo nell'URL di ritorno)
       // oppure con l'id della riga, se l'app lo ha gia' in mano.
-      let q = admin.from("bank_connections").select("id, auth_state, provider_connection_id, provider_slug").eq("company_id", companyId).eq("provider_slug", PROVIDER);
+      let q = admin.from("bank_connections").select("id, auth_state, provider_connection_id, provider_slug").eq("company_id", companyId).eq("provider_slug", PROVIDER).neq("status","disconnected");
       q = corpo.state ? q.eq("auth_state", String(corpo.state)) : q.eq("id", String(corpo.connection_id ?? ""));
       const { data: conn, error: connectionError } = await q.maybeSingle();
       if (connectionError) throw new Error("Impossibile leggere il collegamento bancario");
@@ -205,7 +205,7 @@ serveConMetricheRapida("bank-distyra", async (req) => {
         // quello restano i segnaposto.
         institution_id: nomeBanca ? `distyra:${nomeBanca.toLowerCase().replace(/[^a-z0-9]+/g, "-")}` : ISTITUTO_IGNOTO,
         institution_name: nomeBanca ?? "Banca collegata",
-        institution_country: testo(mia.country), accounts_count: quanti, last_sync_at: new Date().toISOString(),
+        institution_country: testo(mia.country), accounts_count: quanti,
       }).eq("id", conn.id);
       if (updateError) throw new Error("Conti salvati, ma il collegamento non è stato aggiornato. Riprova senza ricollegare.");
       return jsonResponse({ ok: true, conti: quanti, connection_id: conn.id }, 200, corsH);
@@ -326,17 +326,25 @@ serveConMetricheRapida("bank-distyra", async (req) => {
     if (azione === "disconnect") {
       const { data: conn } = await admin.from("bank_connections")
         .select("id, provider_connection_id").eq("company_id", companyId)
-        .eq("id", String(corpo.connection_id ?? "")).maybeSingle();
+        .eq("id", String(corpo.connection_id ?? "")).eq("provider_slug",PROVIDER).maybeSingle();
       if (!conn) return errorResponse("Collegamento non trovato", 404, corsH);
       if (conn.provider_connection_id) {
         // Se Distyra l'ha gia' chiusa per conto suo va bene lo stesso: quello che conta
         // e' che da qui in poi non risulti piu' attiva.
         try { await distyra(`/v1/connect/connections/${conn.provider_connection_id}`, { method: "DELETE" }); }
-        catch (e) { console.error("[bank-distyra] chiusura", e instanceof Error ? e.message : e); }
+        catch (e) { if(!(e instanceof DistyraError && [404,410].includes(e.status))) throw e; }
       }
-      await admin.from("bank_connections")
-        .update({ status: "disconnected", error_message: null }).eq("id", conn.id);
-      await admin.from("bank_accounts").update({ is_active: false }).eq("connection_id", conn.id);
+      const {error:disconnectError}=await admin.from("bank_connections")
+        .update({ status: "disconnected", error_message: null }).eq("id", conn.id).eq("company_id",companyId);
+      if(disconnectError) throw new Error("Consenso chiuso ma stato locale non aggiornato: riprova la disconnessione.");
+      const {error:accountError}=await admin.from("bank_accounts").update({ is_active: false }).eq("connection_id", conn.id).eq("company_id",companyId);
+      if(accountError) throw new Error("Consenso chiuso ma conti locali non aggiornati: riprova la disconnessione.");
+      const {data:closedAccounts,error:closedReadError}=await admin.from("bank_accounts").select("id").eq("connection_id",conn.id).eq("company_id",companyId);
+      if(closedReadError) throw new Error("Consenso chiuso: riprova per aggiornare la selezione dei conti.");
+      if(closedAccounts?.length) {
+        const {error}=await admin.from("bank_account_choices").delete().eq("company_id",companyId).in("account_id",closedAccounts.map(a=>a.id));
+        if(error) throw new Error("Consenso chiuso: riprova per liberare i posti dei conti selezionati.");
+      }
       return jsonResponse({ ok: true }, 200, corsH);
     }
 

@@ -1,6 +1,6 @@
 # Piano operativo: Tesoreria, conti e riconciliazione
 
-Richieste del 12 novembre 2026. Questo documento descrive lo sviluppo successivo alle correzioni di collegamento Distyra, selezione conti e fatture emesse della PR 139. Le sezioni qui pianificate non sono dichiarate già pubblicate.
+Richieste del 12 novembre 2026. Questo documento descrive lo sviluppo successivo alle correzioni di collegamento Distyra, selezione conti e fatture emesse della PR 139. La scelta conti e l’unificazione della navigazione sono incluse nella PR 139; il rifacimento esteso di Transazioni e Riconciliazione qui descritto resta lo sviluppo successivo.
 
 ## 1. Navigazione e conti bancari
 

@@ -14,6 +14,7 @@ const fetcher = vi.fn<typeof fetch>();
 beforeAll(async () => {
   await db.setup();
   await db.pg.exec(`alter table bank_connections add column auth_state text;
+   create table bank_account_choices(company_id uuid,account_id uuid);
    create table bank_sync_settings(company_id uuid primary key,automatic_sync boolean);
    create table bank_sync_runs(id uuid primary key,company_id uuid,connection_id uuid,status text,started_at timestamptz,finished_at timestamptz,movements integer,error_message text);`);
   const source = ts.transpileModule(await readFile("supabase/functions/bank-distyra/index.ts", "utf8"), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
@@ -33,7 +34,7 @@ beforeAll(async () => {
 }, 30000);
 beforeEach(async () => {
   db.failTable = ""; denied = false; fetcher.mockReset();
-  await db.pg.exec(`delete from bank_transactions;delete from bank_sync_runs;delete from bank_sync_settings;delete from bank_accounts; delete from bank_connections;
+  await db.pg.exec(`delete from bank_account_choices;delete from bank_transactions;delete from bank_sync_runs;delete from bank_sync_settings;delete from bank_accounts; delete from bank_connections;
     insert into bank_connections(id,company_id,provider_slug,institution_id,institution_name,status,auth_state,created_by)
       values('${conn}','${company}','distyra','ignoto','Banca da scegliere','pending','rif','${user}');`);
 });
@@ -121,4 +122,12 @@ describe("Sincronizzazione programmata: gestore reale con Postgres",()=>{
  it("rifiuta il cron senza segreto prima di consultare il provider",async()=>{
   await prepare();expect((await scheduled("wrong")).status).toBe(401);expect(fetcher).not.toHaveBeenCalled();expect((await db.pg.query<{status:string}>("select status from bank_sync_runs")).rows[0].status).toBe("queued");
  });
+});
+
+it("una revoca bancaria fallita non viene dichiarata disconnessa localmente",async()=>{
+ await db.pg.exec("update bank_connections set status='linked',provider_connection_id='remote'");fetcher.mockResolvedValue(Response.json({error:"provider_unavailable"},{status:503}));const r=await request({action:"disconnect"});expect(r.status).toBe(503);expect((await db.pg.query<{status:string}>("select status from bank_connections")).rows[0].status).toBe("linked");
+});
+
+it("disconnettere libera i posti e disattiva i conti soltanto dopo la revoca",async()=>{
+ await db.pg.exec(`update bank_connections set status='linked',provider_connection_id='remote';insert into bank_accounts(id,company_id,connection_id,external_account_id,is_active) values('eeeeeeee-eeee-4eee-aeee-eeeeeeeeeeee','${company}','${conn}','a1',true);insert into bank_account_choices values('${company}','eeeeeeee-eeee-4eee-aeee-eeeeeeeeeeee');`);fetcher.mockResolvedValue(Response.json({ok:true}));expect((await request({action:"disconnect"})).status).toBe(200);expect((await db.pg.query("select * from bank_account_choices")).rows).toHaveLength(0);expect((await db.pg.query<{is_active:boolean}>("select is_active from bank_accounts")).rows[0].is_active).toBe(false);
 });

@@ -18,7 +18,7 @@ import { toast } from "sonner";
 import { BANKING_QUERY_KEYS } from "@/lib/banking/queryKeys";
 import { invokeDistyra, validDistyraUrl } from "@/lib/banking/distyra";
 import { aggiornaConnessioneBanca } from "@/lib/banking/sincronizzazione";
-import { Landmark, Plus, RefreshCw, Loader2, CheckCircle2, Unlink, AlertTriangle } from "lucide-react";
+import { Circle, Landmark, Plus, RefreshCw, Loader2, CheckCircle2, Unlink, AlertTriangle } from "lucide-react";
 
 interface BankConnection {
   id: string;
@@ -224,7 +224,7 @@ export default function BankConnectionsCard({
         <div key={c.id} className="rounded-lg border p-3 space-y-2">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2">
-              <span className="font-medium text-sm">{c.institution_name ?? "Banca"}</span>
+              <Circle aria-hidden="true" className={`h-2.5 w-2.5 fill-current ${c.status==="linked"&&!contoDaRicollegare(c)?"text-emerald-500":c.status==="disconnected"?"text-red-500":"text-amber-500"}`} /><span className="font-medium text-sm">{c.institution_name ?? "Banca"}</span>
               <Badge className={`text-[10px] px-1.5 py-0 border-0 ${st.cls}`}>{st.label}</Badge>
             </div>
             <div className="flex items-center gap-1.5">
@@ -269,7 +269,7 @@ export default function BankConnectionsCard({
             </div>
           )}
           {c.last_sync_at && (
-            <p className="text-[10px] text-muted-foreground">Ultimo sync: {new Date(c.last_sync_at).toLocaleString("it-IT")}</p>
+            <p className="text-[10px] text-muted-foreground">Ultima importazione movimenti: {new Date(c.last_sync_at).toLocaleString("it-IT")}</p>
           )}
         </div>
       );

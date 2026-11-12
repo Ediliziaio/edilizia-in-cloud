@@ -54,7 +54,7 @@ class SaltQuery {
     const params: unknown[] = [];
     const param = (v: unknown) => { params.push(v && typeof v === "object" && !Array.isArray(v) ? JSON.stringify(v) : v); return `$${params.length}`; };
     const columns = this.columns === "*" ? "*" : this.columns.split(",").map(c => identifier(c.trim())).join(",");
-    const where = () => this.filters.length ? " where " + this.filters.map(([c, op, v]) => op === "IN" ? `${identifier(c)} = any(${param(v)}::text[])` : `${identifier(c)} ${op} ${param(v)}`).join(" and ") : "";
+    const where = () => this.filters.length ? " where " + this.filters.map(([c, op, v]) => op === "IN" ? (Array.isArray(v)&&v.length?`${identifier(c)} in (${v.map(x=>param(x)).join(",")})`:"false") : `${identifier(c)} ${op} ${param(v)}`).join(" and ") : "";
     let sql: string;
     if (this.op === "select") sql = `select ${columns} from ${identifier(this.table)}${where()}${this.sort}${this.max ? ` limit ${this.max}` : ""}`;
     else if (this.op === "delete") sql = `delete from ${identifier(this.table)}${where()} returning ${columns}`;

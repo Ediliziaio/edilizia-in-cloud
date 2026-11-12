@@ -25,7 +25,7 @@ export default function BankAccountSelection({companyId,onChanged}:{companyId:st
   for(const r of[a,c,b]) if(r.error) throw r.error;
   const banks=Object.fromEntries((b.data??[]).map(x=>[x.id,x.institution_name??"Banca"]));
   const s=settings.data as {account_limit:number;automatic_sync:boolean};
-  return {limit:s.account_limit,automatic:s.automatic_sync,selected:((c.data??[]) as {account_id:string}[]).map(x=>x.account_id),accounts:((a.data??[]) as Account[]).filter(x=>!!x.connection_id&&!!banks[x.connection_id]),banks};
+  return {limit:s.account_limit,automatic:s.automatic_sync,selected:((c.data??[]) as {account_id:string}[]).map(x=>x.account_id).filter(id=>(a.data??[]).some(x=>x.id===id&&x.connection_id&&banks[x.connection_id])),accounts:((a.data??[]) as Account[]).filter(x=>!!x.connection_id&&!!banks[x.connection_id]),banks};
  }});
  const invalidate=()=>{[...BANKING_QUERY_KEYS,"bank-account-selection","bank-sync-runs"].forEach(k=>void qc.invalidateQueries({queryKey:[k]}));setDraft(null);onChanged?.();};
  const runs=useQuery({queryKey:["bank-sync-runs",companyId],queryFn:async()=>{const {data,error}=await supabase.from("bank_sync_runs" as never).select("status,error_message,slot,finished_at").eq("company_id",companyId).order("slot",{ascending:false}).limit(2);if(error)throw error;return (data??[]) as {status:string;error_message:string|null;slot:string;finished_at:string|null}[];}});

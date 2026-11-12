@@ -144,7 +144,7 @@ export function useFattureByOrdine(ordineId: string | undefined) {
         .select("id,numero,data_emissione,stato,tipo,totale_da_pagare,totale_documento,importo_pagato,stornato,origine")
         .eq("company_id",companyId!).eq("origine","importata").eq("ordine_id",ordineId!).is("deleted_at",null);
       if(importateError)throw importateError;
-      return [...Array.from(allFatture.values()),...((importate??[]) as FatturaJoined[]).map(f=>({...f,importo_associato:null}))];
+      return [...Array.from(allFatture.values()),...((importate??[]) as FatturaJoined[]).map((f):FatturaJoined=>({...f,importo_associato:null}))];
     },
     enabled: !!ordineId && !!companyId,
   });
