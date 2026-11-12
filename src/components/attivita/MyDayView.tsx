@@ -36,7 +36,7 @@ export function MyDayView({ onNewTask, senzaSaluto = false }: MyDayViewProps) {
     queryFn: async () => {
       if (!companyId || !userId) return [];
       const { data, error } = await supabase
-        .from("tasks")
+        .from("tasks_personali_e_aree" as "tasks")
         .select(`
           *,
           assigned_profile:profiles!tasks_assigned_to_fkey(first_name, last_name),
@@ -47,12 +47,14 @@ export function MyDayView({ onNewTask, senzaSaluto = false }: MyDayViewProps) {
           opportunity:marketing_opportunities!tasks_opportunity_id_fkey(name)
         `)
         .eq("company_id", companyId)
-        .eq("assigned_to", userId)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },
     enabled: !!companyId && !!userId,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
   const observedStatuses = useMemo(() => Array.from(new Set(allTasks.map((task: any) => task.status).filter(Boolean))), [allTasks]);
   const { statuses: statusOptions } = useTaskStatuses(companyId, observedStatuses);

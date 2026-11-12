@@ -27,10 +27,9 @@ export function useMyTaskCount(): { data: TaskCounts | null; isLoading: boolean 
       // le righe in ordine di scadenza (senza data in fondo) mettono in testa
       // scadute e di oggi, che si contano lato client.
       const query = supabase
-        .from("tasks")
+        .from("tasks_personali_e_aree" as "tasks")
         .select("due_date", { count: "exact" })
         .eq("company_id", companyId)
-        .eq("assigned_to", userId)
         // Fuori il chiuso e i passi del flusso ancora "In attesa": il badge
         // conta il lavoro che si puo' fare ADESSO, non quello che aspetta il
         // proprio turno.

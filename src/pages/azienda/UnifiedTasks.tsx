@@ -235,7 +235,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
       const archivedIds = await loadArchivedOrderIds(companyId);
       const rawTasks = await loadDashboardRows((from, to) => {
       let q = supabase
-        .from("tasks")
+        .from((seesTeamTasks ? "tasks" : "tasks_personali_e_aree") as "tasks")
         .select(`
           *,
           assigned_profile:profiles!tasks_assigned_to_fkey(first_name, last_name),
@@ -250,7 +250,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
         .order("created_at", { ascending: false })
         .order("id").range(from, to);
       // Senza "Attività del team": scoping alle proprie (personal-first)
-      if (!seesTeamTasks && user?.id) q = q.eq("assigned_to", user.id);
+
       q = excludeArchivedOrders(q, archivedIds, "order_id");
       return q;
       });
@@ -272,6 +272,9 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
       }));
     },
     enabled: !!companyId && !!user?.id && !permissionsLoading,
+    refetchInterval: activeTab === "all" ? 30_000 : false,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
 
   const requestedTaskId = searchParams.get("attivita");
@@ -632,8 +635,13 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
     onChangeStatus: (status) => { void applicaStato(task, status); },
     onChangePriority: (priority) => { void aggiornaCampo(task, { priority }, `Priorità: ${priority}`, "la priorità"); },
     onChangeDueDate: (date) => { void aggiornaCampo(task, { due_date: date }, date ? `Scadenza: ${format(parseISO(date), "d MMM yyyy", { locale: it })}` : "Scadenza rimossa", "la scadenza"); },
-    onAssignToMe: user?.id && task.assigned_to !== user.id
-      ? () => { void aggiornaCampo(task, { assigned_to: user.id }, "Assegnata a te", "l'assegnatario"); }
+    onAssignToMe: user?.id && task.assigned_to !== user.id && (!task.ufficio_id || !task.assigned_to)
+      ? () => { void (async () => {
+          if (!task.ufficio_id) return aggiornaCampo(task, { assigned_to: user.id }, "Assegnata a te", "l'assegnatario");
+          const { error } = await supabase.rpc("attivita_prendi_in_carico" as never, { p_task: task.id, p_rilascia: false } as never);
+          if (error) toast.error(error.message); else toast.success("Presa in carico confermata");
+          await queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+        })(); }
       : undefined,
     onDuplicate: () => { void duplicaTask(task); },
     onPostpone: (giorni) => {

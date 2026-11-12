@@ -72,6 +72,7 @@ import {
 } from "@/hooks/useWeatherForecast";
 import { TASK_CATEGORY_OPTIONS as CATEGORY_OPTIONS } from "@/lib/taskCategories";
 import { DashboardAgenda } from "@/components/attivita/DashboardAgenda";
+import { useUfficiAttivi } from "@/hooks/useUffici";
 import { useDashboardTasks } from "@/hooks/useDashboardTasks";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { dashboardTasksForAssignee, dashboardTaskStats, dashboardTaskDateGroup, filterDashboardTasks, type DashboardTaskFilter } from "@/lib/attivita/dashboardTasks";
@@ -380,6 +381,10 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
   const [formCategory, setFormCategory] = useState("altro");
   const [formStatus, setFormStatus] = useState("da_fare");
   const [formAssignedTo, setFormAssignedTo] = useState("");
+  const [formOffice, setFormOffice] = useState("");
+  const [areaView, setAreaView] = useState("all");
+  const [claimingTaskId, setClaimingTaskId] = useState<string | null>(null);
+  const offices = useUfficiAttivi(companyId);
   // A chi è attaccata l'attività: cliente o opportunità (23/09/2026).
   const [formCollegamento, setFormCollegamento] = useState<CollegamentoAttivita | null>(null);
 
@@ -389,7 +394,7 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
   const observedStatuses = useMemo(() => [...new Set(allTasks.map(t => t.status))], [allTasks]);
   const { statuses: taskStatuses } = useTaskStatuses(companyId, observedStatuses);
   const today = startOfDay(new Date());
-  const tasksDiChi = useMemo(() => dashboardTasksForAssignee(allTasks, "me", user?.id), [allTasks, user?.id]);
+  const tasksDiChi = useMemo(() => dashboardTasksForAssignee(allTasks, "me", user?.id).filter(t => areaView === "all" || (areaView === "personal" ? !t.ufficio_id : t.ufficio_id === areaView)), [allTasks, user?.id, areaView]);
   const filteredTasks = useMemo(() => filterDashboardTasks(tasksDiChi, filter, today, searchQuery, calendarDate, taskStatuses), [tasksDiChi, filter, today, searchQuery, calendarDate, taskStatuses]);
   const stats = useMemo(() => dashboardTaskStats(tasksDiChi, today, taskStatuses), [tasksDiChi, today, taskStatuses]);
   const [pagination, setPagination] = useState({ key: filterKey, page: 1 });
@@ -425,13 +430,23 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
     queryClient.invalidateQueries({ queryKey: ["my-task-count"] }),
     queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all }),
   ]);
+  const claimAreaTask = async (id: string, release: boolean) => {
+    if (claimingTaskId) return;
+    setClaimingTaskId(id);
+    try {
+      const { error } = await supabase.rpc("attivita_prendi_in_carico" as never, { p_task: id, p_rilascia: release } as never);
+      if (error) throw error;
+      toast.success(release ? "Attività restituita all’area" : "Presa in carico confermata");
+    } catch (error) { toast.error(error instanceof Error ? error.message : String((error as { message?: string })?.message ?? "Presa in carico non confermata")); }
+    finally { setClaimingTaskId(null); await invalidate(); }
+  };
   const checkWrite = () => { if (!companyId || !user?.id || solaLettura) throw new Error("Non puoi modificare le attività in questo momento."); };
 
   const createTask = useMutation({
-    mutationFn: async (task: { title: string; notes?: string; priority: string; due_date?: string; category: string; assigned_to?: string; collegamento?: CollegamentoAttivita | null }) => {
+    mutationFn: async (task: { title: string; notes?: string; priority: string; due_date?: string; category: string; assigned_to?: string; ufficio_id?: string; collegamento?: CollegamentoAttivita | null }) => {
       checkWrite();
       const { error } = await supabase.from("tasks").insert({
-        company_id: companyId!, assigned_to: task.assigned_to || user!.id, created_by: user!.id,
+        company_id: companyId!, ufficio_id: task.ufficio_id || null, assigned_to: task.ufficio_id ? null : task.assigned_to || user!.id, created_by: user!.id,
         title: task.title, notes: task.notes || null,
         priority: task.priority, due_date: task.due_date || null,
         category: task.category, status: "da_fare",
@@ -522,7 +537,7 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
   });
 
   const mutationBusy = createTask.isPending || updateTask.isPending || deleteTask.isPending || bulkUpdateStatus.isPending || bulkDelete.isPending || postponeMutation.isPending;
-  const readOnlyDialog = solaLettura || !!(editingTask && !isAdmin && editingTask.assigned_to !== user?.id);
+  const readOnlyDialog = solaLettura || !!(editingTask && !isAdmin && (editingTask.assigned_to !== user?.id || editingTask.ufficio_id && editingTask.created_by !== user?.id));
 
   const defaultAssignee = user?.id;
 
@@ -535,6 +550,7 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
     setFormDueDate(dueDate ?? ""); setFormCategory("altro"); setFormStatus("da_fare");
     setFormAssignedTo(defaultAssignee ?? "");
     setFormCollegamento(null);
+    setFormOffice("");
     setDialogOpen(true);
   }, [solaLettura, defaultAssignee, setEditingTask, setFormTitle, setFormNotes, setFormPriority, setFormDueDate, setFormCategory, setFormStatus, setFormAssignedTo, setFormCollegamento, setDialogOpen]);
 
@@ -545,6 +561,7 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
     setFormDueDate(t.due_date ?? ""); setFormCategory(t.category ?? "altro");
     setFormStatus(t.status ?? "da_fare");
     setFormAssignedTo(t.assigned_to ?? user?.id ?? "");
+    setFormOffice(t.ufficio_id ?? "");
     setFormCollegamento(collegamentoDelTask(t));
     setDialogOpen(true);
   }, [user?.id, setEditingTask, setFormTitle, setFormNotes, setFormPriority, setFormDueDate, setFormCategory, setFormStatus, setFormAssignedTo, setFormCollegamento, setDialogOpen]);
@@ -574,7 +591,7 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
       if (formStatus !== editingTask.status) Object.assign(updates, buildTaskStatusUpdate(formStatus, taskStatuses));
       updateTask.mutate(updates, { onSuccess: () => setDialogOpen(false) });
     } else {
-      createTask.mutate({ title: formTitle.trim(), notes: formNotes.trim(), priority: formPriority, due_date: formDueDate || undefined, category: formCategory, assigned_to: isAdmin ? formAssignedTo : undefined, collegamento: formCollegamento }, { onSuccess: () => setDialogOpen(false) });
+      createTask.mutate({ ufficio_id: formOffice || undefined, title: formTitle.trim(), notes: formNotes.trim(), priority: formPriority, due_date: formDueDate || undefined, category: formCategory, assigned_to: isAdmin ? formAssignedTo : undefined, collegamento: formCollegamento }, { onSuccess: () => setDialogOpen(false) });
     }
   };
 
@@ -679,7 +696,12 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
           {/* Priority dot */}
           <div className={`w-2 h-2 rounded-full shrink-0 ${cfg.dotClass}`} title={cfg.label} />
           {/* Due date */}
-          {t.due_date && (
+          {t.ufficio_id && <span className="text-xs" onClick={e => e.stopPropagation()}>
+              <span>{(offices.data ?? []).find(o => o.id === t.ufficio_id)?.nome ?? "Area"} · {t.assignee ? [t.assignee.first_name,t.assignee.last_name].filter(Boolean).join(" ") : "Da prendere in carico"}</span>
+              {!solaLettura && !isDone && (!t.assigned_to || t.assigned_to === user?.id) &&
+                <Button variant="outline" size="sm" disabled={claimingTaskId !== null} onClick={() => void claimAreaTask(t.id, !!t.assigned_to)}>{t.assigned_to ? "Rilascia all’area" : "Me ne occupo io"}</Button>}
+            </span>}
+            {t.due_date && (
             <span className={`text-[10px] shrink-0 ${scaduta ? "text-red-500 font-semibold" : isToday(parseISO(t.due_date.slice(0, 10))) ? "text-amber-600" : "text-muted-foreground"}`}>
               {isToday(parseISO(t.due_date.slice(0, 10))) ? "Oggi" : format(parseISO(t.due_date.slice(0, 10)), "d/MM", { locale: it })}
             </span>
@@ -750,6 +772,11 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
           <div className="mt-1 flex items-center gap-1.5 overflow-hidden text-[11px] text-muted-foreground">
             <span className={`h-2 w-2 shrink-0 rounded-full ${cfg.dotClass}`} title={`Priorità ${cfg.label}`} />
             <Badge variant="outline" className={`text-[10px] px-1.5 py-0 shrink-0 ${stCfg.className}`}>{stCfg.label}</Badge>
+            {t.ufficio_id && <span className="text-xs" onClick={e => e.stopPropagation()}>
+              <span>{(offices.data ?? []).find(o => o.id === t.ufficio_id)?.nome ?? "Area"} · {t.assignee ? [t.assignee.first_name,t.assignee.last_name].filter(Boolean).join(" ") : "Da prendere in carico"}</span>
+              {!solaLettura && !isDone && (!t.assigned_to || t.assigned_to === user?.id) &&
+                <Button variant="outline" size="sm" disabled={claimingTaskId !== null} onClick={() => void claimAreaTask(t.id, !!t.assigned_to)}>{t.assigned_to ? "Rilascia all’area" : "Me ne occupo io"}</Button>}
+            </span>}
             {t.due_date && (
               <span className={`shrink-0 ${scaduta ? "text-red-500 font-semibold" : isDone ? "" : isToday(parseISO(t.due_date.slice(0, 10))) ? "text-amber-600 font-medium" : ""}`}>
                 {isToday(parseISO(t.due_date.slice(0, 10))) ? "Oggi" : format(parseISO(t.due_date.slice(0, 10)), t.due_date.slice(0, 4) === String(today.getFullYear()) ? "d MMM" : "d MMM yyyy", { locale: it })}
@@ -825,7 +852,7 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
               <h2 className="flex items-center gap-2 text-base font-semibold shrink-0">
-                <ClipboardCheck className="h-5 w-5 text-primary" />Le mie attività
+                <ClipboardCheck className="h-5 w-5 text-primary" />Attività mie e delle mie aree
                 {!calendarDate && stats.total > 0 && <Badge variant="secondary" className="text-xs">{stats.total}</Badge>}
               </h2>
               {calendarDate && (
@@ -939,6 +966,12 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
         </CardHeader>
 
         <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0">
+          <Select value={areaView} onValueChange={setAreaView}>
+            <SelectTrigger aria-label="Ambito attività" className="mb-3"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">Mie e delle mie aree</SelectItem><SelectItem value="personal">Solo individuali</SelectItem>
+              {(offices.data ?? []).filter(o => o.membri.includes(user?.id ?? "")).map(o => <SelectItem key={o.id} value={o.id}>{o.nome}</SelectItem>)}
+            </SelectContent>
+          </Select>
           {/* Bulk action bar — visibile in modalità selezione o quando c'è già
               una selezione; su mobile wrap, su desktop 1 riga */}
           {(hasSelection || selectionMode) && (
@@ -1089,7 +1122,17 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
             <div className="grid grid-cols-2 gap-3 sm:block sm:space-y-4">
             {/* Assegna a (admin) + Priorità */}
             <div className="grid grid-cols-2 gap-3 max-sm:contents">
-              {isAdmin && (
+              <div className="space-y-1.5">
+                <Label htmlFor="task-office">Area / Ufficio</Label>
+                <Select value={formOffice || "none"} onValueChange={v => setFormOffice(v === "none" ? "" : v)} disabled={!!editingTask}>
+                  <SelectTrigger id="task-office"><SelectValue placeholder="Attività individuale" /></SelectTrigger>
+                  <SelectContent><SelectItem value="none">Attività individuale</SelectItem>
+                    {(offices.data ?? []).filter(o => isAdmin || o.membri.includes(user?.id ?? "")).map(o => <SelectItem key={o.id} value={o.id}>{o.nome}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                {formOffice && <p className="text-xs text-muted-foreground">Visibile all’area secondo i permessi. Un collega potrà prenderla in carico.</p>}
+              </div>
+              {isAdmin && !formOffice && (
                 <div className="space-y-1.5">
                   <Label htmlFor="task-assignee">Assegna a</Label>
                   <Select value={formAssignedTo} onValueChange={setFormAssignedTo}>

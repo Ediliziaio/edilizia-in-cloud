@@ -1,0 +1,29 @@
+Attività condivise per Ufficio — verifica locale 12/11/2026
+
+Riutilizza company_uffici e ufficio_membri: nessun nuovo sistema di gruppi.
+Le code aperte si riconciliano ogni 30 secondi e al ritorno alla finestra, senza polling in background. Le viste personali e i contatori includono le attività delle proprie aree; il permesso di consultare tutte le attività aziendali resta distinto.
+Presa in carico e rilascio passano da una RPC con JWT corrente, RLS e blocco riga: un solo vincitore tra due colleghi concorrenti. Un conflitto applicativo restituisce PT409, senza retry automatico del gateway.
+Un membro può aggiornare stato e propria presa in carico; modificare i contenuti di un’attività altrui richiede i permessi di gestione.
+L’assegnazione non concede accesso a CRM, commesse, costi, magazzino o ticket collegati. Uffici disattivati, utenti bloccati e membri rimossi sono esclusi dal backend.
+Le notifiche delle aree non includono titoli, note o dati dei record collegati, anche quando prodotte dai vecchi sblocchi dei flussi.
+Allegati privati con controllo del task padre: ogni download usa la sessione corrente, senza URL firmato riutilizzabile.
+Silvio legge tramite JWT e crea/prende/rilascia solo dopo conferma. Nessun utente o ruolo può essere passato come scorciatoia nei parametri. Le autorizzazioni aziendali personalizzate restano valide.
+La cronologia è stata allineata con origin/main, includendo la migrazione DDT dell’altro terminale.
+
+Verifiche superate:
+- 53 controlli PostgreSQL/PostgREST reali locali, inclusi tutti i 14 profili, concorrenza, revoche, sola lettura, isolamento CRM e altra azienda.
+- 10 controlli Storage/PostgREST reali locali: upload, download collega, accesso esterno negato, revoca, metadati, upload sola lettura negato.
+- 13 scenari HTTP delle aree con handler chat/azioni reali e modello avversario simulato: proposta senza effetto preventivo, conferma, revoca, altro utente, replay, parametri falsificati, creazione e rilascio.
+- 29 scenari HTTP di regressione della chat su 13 profili.
+- 63 integrazioni native degli strumenti Silvio.
+- 239 controlli della matrice generale dei permessi.
+- 92 test unitari e di interfaccia.
+- Controllo TypeScript mirato: 0 diagnostiche; controllo Deno reale di chat e azioni superato.
+- Ricostruzione completa isolata: 5.826 migrazioni applicative + 74 basi Storage, zero patch differite, rete e cron disattivati. Il fixture SQL delle aree viene verificato anche in CI e annulla tutti i dati con rollback.
+- Prova browser su localhost: creazione dell’attività di area e presa in carico dal profilo tecnico. Screenshot /tmp/eic-area-attivita-presa-in-carico.png.
+
+Limiti delle prove:
+Modello linguistico simulato: sono reali handler, JWT, PostgreSQL, PostgREST, Storage, proposte e notifiche in-app. Nessuna chiamata AI o invio esterno a pagamento. Nessun dato di Squadd modificato.
+Le prove locali non attestano l’avvenuta pubblicazione: quella va verificata separatamente con CI, deploy funzioni, database e Cloudflare.
+
+Riallineamento: recuperato dal journal il file 20290314090000_commessa_cliente_invariante_nel_db.sql, già applicato in produzione da un altro terminale. Il recupero non riesegue SQL remoto.
