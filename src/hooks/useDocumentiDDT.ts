@@ -16,7 +16,7 @@ interface Page {
 }
 // La risposta AI completa si legge solo aprendo il documento, non a ogni poll dell'elenco.
 const CAMPI =
-  "id,company_id,created_by,order_id,source,status,files,split_ids,last_error,ddt_id,created_at,updated_at";
+  "id,company_id,created_by,order_id,source,status,destinazione,warehouse_id,files,split_ids,last_error,ddt_id,created_at,updated_at";
 export function useDocumentiDDT(
   soloMiei = false,
   orderId?: string,
@@ -94,4 +94,5 @@ export const STATO_DOCUMENTO: Record<DocumentoPersistente["status"], string> = {
   review: "Da controllare in ufficio",
   registered: "DDT registrato",
   error: "Lettura da riprovare",
+  da_leggere: "Solo foto, da leggere",
 };

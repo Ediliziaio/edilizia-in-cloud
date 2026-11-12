@@ -39,6 +39,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { BolleDalTelefono } from "@/components/settings/BolleDalTelefonoAI";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -419,6 +420,9 @@ export default function SettingsAIAutomazioni() {
       </details>
 
       <AutomazioniCheParteDaSole companyId={companyId} canEdit={canEdit} />
+
+      {/* 12/11/2026: la lettura AI delle bolle dal telefono, qui e non in Acquisti (Florin). */}
+      <BolleDalTelefono puoModificare={permissions.isAdmin || permissions.canEditSettingsOrders} />
 
       {!canEdit && (
         <Alert>

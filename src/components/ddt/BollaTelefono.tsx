@@ -5,10 +5,13 @@
  *  · `RevisioneBollaTelefono` — l'AI ha letto il documento: si mostra cosa ha
  *    capito (fornitore, numero, righe) e chi può registrare bolle conferma o
  *    corregge. Si registra con `ddt_documento_registra`, come dall'ufficio.
- *  · `CompilaBollaTelefono` — l'AI è spenta: si scrive a mano guardando la foto,
- *    oppure si salva il solo documento e lo compila l'ufficio. Senza lettura non
- *    c'è un documento in coda (`ddt_documento_accoda` lo legge sempre con l'AI),
- *    quindi la bolla nasce direttamente, come dal «Nuovo DDT» del computer.
+ *  · `CompilaBollaTelefono` — l'AI è spenta (interruttore di chi può registrare):
+ *    si scrive a mano guardando la foto, oppure si salva il solo documento e lo
+ *    compila l'ufficio. La bolla nasce direttamente, come dal «Nuovo DDT».
+ *
+ * Con l'impostazione «Solo la foto» (Impostazioni → Acquisti e materiali) chi non
+ * è ufficio non ha l'interruttore: la foto va in `ddt_documento_accoda`, che la
+ * lascia «da leggere» finché l'ufficio non avvia l'AI o la compila a mano.
  *
  * In entrambi i casi la destinazione è quella scelta sul telefono: il cantiere, o
  * il magazzino (che per l'ufficio vuol dire «senza commessa»).
@@ -27,6 +30,7 @@ import {
   type DDTRigaNuova,
 } from "@/hooks/useDDTRicezione";
 import {
+  destinazioneDocumento,
   documentiDb,
   leggiPersistente,
   type DocumentoPersistente,
@@ -74,6 +78,14 @@ const oggi = () => format(new Date(), "yyyy-MM-dd");
 
 // ─── L'AI ha letto: conferma o correggi ─────────────────────────────────────
 
+/** Il magazzino che il telefono propone: quello del documento, il predefinito, il primo. Nessuno: carico in sospeso. */
+export function magazzinoProposto(
+  documento: Pick<DocumentoPersistente, "warehouse_id">,
+  predefinito: { id: string } | null | undefined,
+): string | null {
+  return documento.warehouse_id ?? predefinito?.id ?? null;
+}
+
 export function RevisioneBollaTelefono({
   documento,
   etichettaCantiere,
@@ -88,7 +100,7 @@ export function RevisioneBollaTelefono({
   const permessi = usePermissions();
   const magazzini = useWarehouses();
   const rubrica = useRubrica(documento.company_id);
-  const destinazione: TestataBolla["destinazione"] = documento.order_id ? "cantiere" : "magazzino";
+  const destinazione: TestataBolla["destinazione"] = destinazioneDocumento(documento);
   const caricamento = useQuery({
     queryKey: ["ddt-revisione-telefono", documento.id, documento.updated_at],
     staleTime: Infinity,
@@ -128,8 +140,12 @@ export function RevisioneBollaTelefono({
   const [carica, setCarica] = useState(true);
   const [salvando, setSalvando] = useState(false);
 
-  const magazzino = magazzini.defaultWarehouse?.id ?? null;
-  const senzaMagazzino = destinazione === "magazzino" && !magazzino;
+  // 12/11/2026 — Senza magazzini la bolla si registra lo stesso (warehouse_id nullo,
+  // carico in sospeso); con più magazzini si propone il predefinito o il primo, e
+  // l'ufficio lo cambia dalla pagina della bolla. Se il telefono non vede i
+  // magazzini, sceglie `ddt_documento_registra` (uno solo: quello; più: il predefinito).
+  const magazzino = magazzinoProposto(documento, magazzini.defaultWarehouse);
+  const senzaMagazzino = destinazione === "magazzino" && !magazzino && magazzini.isFetched && !magazzini.warehouses?.length;
   const spunta = mostraSpuntaCarico({ destinazione, puoMagazzino: permessi.canEditWarehouse && !permessi.solaLettura });
 
   const registra = async () => {
@@ -189,16 +205,22 @@ export function RevisioneBollaTelefono({
       fornitoreLetto={testata.supplierId ? null : fornitoreLetto}
       commessaFissa={etichettaCantiere}
       stato={
-        <p className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
-          Controlla fornitore, numero e righe, poi conferma. Si corregge tutto toccando i campi.
-        </p>
+        <>
+          <p className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
+            Controlla fornitore, numero e righe, poi conferma. Si corregge tutto toccando i campi.
+          </p>
+          {senzaMagazzino && (
+            <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+              L'azienda non ha ancora un magazzino: la bolla si registra e il carico resta in sospeso finché l'ufficio non ne sceglie uno.
+            </p>
+          )}
+        </>
       }
       carico={{ visibile: spunta && !senzaMagazzino, valore: carica, onChange: setCarica }}
       conferma={{
         etichetta: "Conferma la bolla",
         onConferma: () => void registra(),
         inCorso: salvando,
-        bloccata: senzaMagazzino ? "non c'è un magazzino di arrivo: la registra l'ufficio" : null,
       }}
       etichettaChiudi="Dopo"
     />

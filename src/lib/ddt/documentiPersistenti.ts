@@ -23,7 +23,11 @@ export interface DocumentoPersistente {
   created_by: string | null;
   order_id: string | null;
   source: "campo" | "desktop" | "whatsapp";
-  status: "queued" | "processing" | "review" | "registered" | "error" | "split";
+  /** «da_leggere»: solo la foto, l'AI la avvia l'ufficio (impostazione «Bolle dal telefono»). */
+  status: "queued" | "processing" | "review" | "registered" | "error" | "split" | "da_leggere";
+  /** Dove va la merce, scelto da chi ha caricato. Nullo sui lavori vecchi e da WhatsApp. */
+  destinazione?: "cantiere" | "magazzino" | null;
+  warehouse_id?: string | null;
   files: FileDocumento[];
   split_ids?: string[];
   result: Record<string, unknown> | null;
@@ -40,6 +44,10 @@ export const documentiDb = supabase as unknown as {
     args: Record<string, unknown>,
   ) => Promise<{ data: any; error: any }>;
 };
+/** La destinazione del documento: quella scelta, altrimenti dedotta dalla commessa. */
+export function destinazioneDocumento(j: Pick<DocumentoPersistente, "destinazione" | "order_id">): "cantiere" | "magazzino" {
+  return j.destinazione ?? (j.order_id ? "cantiere" : "magazzino");
+}
 export async function avviaLetturaPersistente(id: string) {
   const { error } = await supabase.functions.invoke("ddt-documenti-processa", {
     body: { id },
@@ -55,6 +63,9 @@ export async function inviaDocumentoPersistente(input: {
   userId: string;
   orderId: string | null;
   source: "campo" | "desktop";
+  /** Dove va la merce. Con «magazzino» anche l'operaio invia senza commessa. */
+  destinazione?: "cantiere" | "magazzino";
+  warehouseId?: string | null;
   operationId?: string;
   salvaCopiaLocale?: boolean;
 }): Promise<{ id: string | null; duplicate: boolean }> {
@@ -81,6 +92,8 @@ export async function inviaDocumentoPersistente(input: {
           company_id: companyId,
           order_id: orderId,
           source,
+          destinazione: input.destinazione ?? null,
+          warehouse_id: input.warehouseId ?? null,
         },
       })
     : null;
@@ -144,6 +157,10 @@ export async function inviaDocumentoPersistente(input: {
     p_files: metadata,
     p_hash: hash,
     p_source: source,
+    // Solo se detta: un documento senza destinazione segue la regola di prima.
+    ...(input.destinazione
+      ? { p_destinazione: input.destinazione, p_warehouse: input.warehouseId ?? null }
+      : {}),
   });
   if (error) throw new Error(error.message ?? "Documento non accodato");
   if (!data || typeof data.duplicate !== "boolean")
@@ -177,6 +194,8 @@ export async function attendiLetturaPersistente(
     const j = await leggiPersistente(id);
     if ((j.status === "review" || j.status === "registered") && j.result)
       return j.result;
+    if (j.status === "da_leggere")
+      throw new Error("Documento salvato: la lettura con l'AI la avvia l'ufficio.");
     if (j.status === "split")
       throw new Error(
         "Questo PDF è già stato diviso: apri le singole bolle nei documenti in ingresso.",

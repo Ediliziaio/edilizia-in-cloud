@@ -112,3 +112,53 @@ export function useQuantiValidatori() {
     },
   });
 }
+
+/**
+ * Bolle dal telefono (12/11/2026, migrazione 20290313210000):
+ *  · «ai_subito» (predefinito): la bolla fotografata va subito in lettura AI;
+ *  · «solo_foto»: la bolla di chi non è ufficio resta «da leggere»; l'AI la avvia
+ *    l'ufficio da «Documenti da registrare», o la compila a mano.
+ * La regola la applica `ddt_documento_accoda`; il telefono la legge solo per
+ * mostrare i testi giusti. Query a parte (con ripiego sul predefinito) così un
+ * errore qui non spegne il resto delle impostazioni né la pagina del telefono.
+ */
+export type LetturaBolleTelefono = "ai_subito" | "solo_foto";
+
+export const chiaveBolleTelefono = (companyId: string | null | undefined) => ["impostazioni-bolle-telefono", companyId] as const;
+
+export function useLetturaBolleTelefono(companyId: string | null | undefined) {
+  return useQuery({
+    queryKey: chiaveBolleTelefono(companyId),
+    enabled: !!companyId,
+    staleTime: 60_000,
+    queryFn: async (): Promise<LetturaBolleTelefono> => {
+      const { data, error } = await db
+        .from("company_acquisti_impostazioni")
+        .select("bolle_telefono_lettura")
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (error) return "ai_subito";
+      return data?.bolle_telefono_lettura === "solo_foto" ? "solo_foto" : "ai_subito";
+    },
+  });
+}
+
+export function useSalvaLetturaBolleTelefono() {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (modo: LetturaBolleTelefono) => {
+      const { error } = await db.rpc("acquisti_bolle_telefono_salva", { p_company: companyId, p_modo: modo });
+      if (error) throw new Error(error.message);
+      return modo;
+    },
+    onSuccess: (modo) => {
+      qc.setQueryData(chiaveBolleTelefono(companyId), modo);
+      toast.success("Impostazioni degli acquisti salvate");
+    },
+    onError: (e: unknown) => {
+      toast.error("Non riesco a salvare", { description: e instanceof Error ? e.message : String(e) });
+    },
+  });
+}
