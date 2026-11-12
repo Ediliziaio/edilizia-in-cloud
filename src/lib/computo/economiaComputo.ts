@@ -125,14 +125,28 @@ export function testoQuando(r: Rata, rate: readonly Rata[]): string {
 }
 
 /**
- * Il momento della rata nella lingua delle commesse (`lib/orders/rateEventi`). «Al 30% dei lavori» e
- * «a completamento di una fase» sono SAL anche loro: finché il database non conosce quei due eventi
- * (migrazione prevista) viaggiano come SAL numerati, che è quello che sono in cantiere.
+ * Il momento della rata nella lingua delle commesse (`lib/orders/rateEventi`).
+ *
+ * Il database conosce «al 30% dei lavori», «a completamento di una fase» e «al collaudo» dal
+ * 12/11/2026 (colonne, vincolo e `data_attesa_rata`), ma le due funzioni che SCRIVONO le rate —
+ * `order_rate_sostituisci` e `create_order_atomic` — non leggono ancora soglia e fase: una rata
+ * che arrivasse con l'evento nuovo e senza la sua condizione resterebbe senza data attesa, che è
+ * peggio di oggi. Finché non sono aggiornate (SQL pronto in `docs/`), quei momenti viaggiano come
+ * SAL numerati e il collaudo come fine lavori — che è quello che sono in cantiere — e la
+ * condizione per esteso resta scritta nel documento. Soglia e fase si portano comunque dietro:
+ * il giorno che le funzioni le sanno leggere, qui cambia solo la riga dell'evento.
  */
-export function eventoPerCommessa(r: Rata, rate: readonly Rata[]): { evento: string; numero: number | null } {
-  if (MOMENTI_SAL.includes(r.evento)) return { evento: "sal_numero", numero: numeroSal(rate, r) };
-  if (r.evento === "collaudo") return { evento: "fine_lavori", numero: null };
-  return { evento: r.evento, numero: null };
+export function eventoPerCommessa(r: Rata, rate: readonly Rata[]): {
+  evento: string; numero: number | null; soglia: number | null; fase: string | null;
+} {
+  const vuoto: { numero: number | null; soglia: number | null; fase: string | null } = { numero: null, soglia: null, fase: null };
+  switch (r.evento) {
+    case "sal_numero": return { ...vuoto, evento: "sal_numero", numero: numeroSal(rate, r) };
+    case "sal_percentuale": return { ...vuoto, evento: "sal_numero", numero: numeroSal(rate, r), soglia: r.soglia ?? null };
+    case "fase_completata": return { ...vuoto, evento: "sal_numero", numero: numeroSal(rate, r), fase: r.fasi[0]?.trim() || null };
+    case "collaudo": return { ...vuoto, evento: "fine_lavori" };
+    default: return { ...vuoto, evento: r.evento };
+  }
 }
 
 export type RataCalcolata = {

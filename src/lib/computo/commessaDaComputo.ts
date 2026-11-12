@@ -58,6 +58,10 @@ export type RataPerCommessa = {
   aMisura: boolean;
   /** Evento di `lib/orders/rateEventi` e, per un SAL, il suo numero. */
   evento: string; numero: number | null;
+  /** Per «al X% dei lavori» e «a completamento di una fase»: la condizione scritta nel contratto. */
+  soglia: number | null; fase: string | null;
+  /** Termine di pagamento: giorni data fattura e fine mese. */
+  termineGiorni: number; termineFineMese: boolean;
 };
 
 /**
@@ -74,6 +78,10 @@ export function fasiDaRate(rate: DatiCommessaComputo["rate"]) {
     amount: r.importo ?? 0,
     evento: r.evento,
     numero: r.numero,
+    soglia: r.soglia ?? undefined,
+    fase: r.fase ?? undefined,
+    termine_giorni: r.termineGiorni || undefined,
+    termine_fine_mese: r.termineFineMese || undefined,
     /** Una rata a misura nasce con la stima: il verbale SAL la corregge. */
     a_misura: r.aMisura || undefined,
   }));

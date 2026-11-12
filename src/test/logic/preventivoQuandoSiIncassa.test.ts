@@ -23,6 +23,26 @@ describe("le fasi di pagamento del preventivo portano il loro momento d'incasso"
     expect(prefill.installments.map(r => r.importo_da_misurare)).toEqual([false, true]);
   });
 
+  // 12/11/2026: la condizione del contratto arriva intera, non solo il nome dell'evento.
+  it("soglia, fase e termine di pagamento arrivano fino alla rata", () => {
+    const fasi = parseQuotePaymentPhases([
+      { label: "Acconto", type: "deposit", percent: 20, amount: 200, evento: "firma_contratto", termine_giorni: 60, termine_fine_mese: true },
+      { label: "A metà", type: "deposit", percent: 40, amount: 400, evento: "sal_percentuale", soglia: 50 },
+      { label: "Strutture", type: "deposit", percent: 20, amount: 200, evento: "fase_completata", fase: "Strutture in elevazione" },
+    ]);
+    expect(fasi[0]).toMatchObject({ termineGiorni: 60, termineFineMese: true });
+    expect(fasi[1]).toMatchObject({ soglia: 50 });
+    expect(fasi[2]).toMatchObject({ fase: "Strutture in elevazione" });
+    const rate = prefillDaPreventivo({ payment_phases: [
+      { label: "Acconto", type: "deposit", percent: 20, amount: 200, evento: "firma_contratto", termine_giorni: 60, termine_fine_mese: true },
+      { label: "A metà", type: "deposit", percent: 40, amount: 400, evento: "sal_percentuale", soglia: 50 },
+      { label: "Strutture", type: "deposit", percent: 20, amount: 200, evento: "fase_completata", fase: "Strutture in elevazione" },
+    ] }, []).installments;
+    expect(rate[0]).toMatchObject({ termine_giorni: 60, termine_fine_mese: true });
+    expect(rate[1]).toMatchObject({ trigger_evento: "sal_percentuale", trigger_soglia: 50 });
+    expect(rate[2]).toMatchObject({ trigger_evento: "fase_completata", trigger_fase: "Strutture in elevazione" });
+  });
+
   it("legge evento e numero del SAL", () => {
     const fasi = parseQuotePaymentPhases([
       { label: "Acconto", type: "deposit", percent: 20, amount: 200, evento: "firma_contratto" },

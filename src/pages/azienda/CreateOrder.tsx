@@ -1139,6 +1139,10 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         trigger_numero: i.trigger_numero ?? null,
         giorni_preavviso: i.giorni_preavviso ?? 7,
         importo_da_misurare: i.importo_da_misurare ?? false,
+        trigger_soglia: i.trigger_soglia ?? null,
+        trigger_fase: i.trigger_fase ?? null,
+        termine_giorni: i.termine_giorni ?? 0,
+        termine_fine_mese: i.termine_fine_mese ?? false,
       }));
 
       const createOrderAtomic = supabase.rpc.bind(supabase) as unknown as (

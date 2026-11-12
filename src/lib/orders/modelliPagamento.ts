@@ -172,7 +172,10 @@ const QUANDO: Record<EventoModello, string> = {
   inizio_lavori: "all'inizio dei lavori",
   data_posa: "alla posa",
   sal_numero: "al SAL",
+  sal_percentuale: "al raggiungimento della percentuale di lavori",
+  fase_completata: "a completamento della fase",
   fine_lavori: "a fine lavori",
+  collaudo: "al collaudo",
   fattura_acconto: "alla fattura di acconto",
   fattura_saldo: "alla fattura di saldo",
 };

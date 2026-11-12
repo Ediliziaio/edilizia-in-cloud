@@ -482,6 +482,10 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
         trigger_numero: i.trigger_numero,
         giorni_preavviso: i.giorni_preavviso,
         importo_da_misurare: i.importo_da_misurare ?? false,
+        trigger_soglia: i.trigger_soglia ?? null,
+        trigger_fase: i.trigger_fase ?? null,
+        termine_giorni: i.termine_giorni ?? 0,
+        termine_fine_mese: i.termine_fine_mese ?? false,
       })));
       setNumInstallments(dbInstallments.length);
     } else {
@@ -699,6 +703,10 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
         trigger_numero: i.trigger_numero ?? null,
         giorni_preavviso: i.giorni_preavviso ?? 7,
         importo_da_misurare: i.importo_da_misurare ?? false,
+        trigger_soglia: i.trigger_soglia ?? null,
+        trigger_fase: i.trigger_fase ?? null,
+        termine_giorni: i.termine_giorni ?? 0,
+        termine_fine_mese: i.termine_fine_mese ?? false,
       }));
 
       // Con la funzione bonus spenta la card non si vede: mandare un elenco,
