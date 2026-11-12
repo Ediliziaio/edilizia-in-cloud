@@ -728,6 +728,7 @@ export default function CompanyDetail() {
 
       {/* Team Dialogs */}
       <StaffUserDialog
+        companyId={h.company?.id}
         key={h.createStaffRole}
         open={h.createStaffOpen}
         onOpenChange={h.setCreateStaffOpen}

@@ -1,3 +1,4 @@
+import { useEmployeeAccountOptions } from "@/hooks/useEmployeeAccountOptions";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { logger } from "@/utils/logger";
@@ -42,6 +43,7 @@ import { SolaLetturaToggle } from "@/components/users/SolaLetturaToggle";
 import { PermessiDistintiToggle } from "@/components/users/PermessiDistintiToggle";
 
 interface StaffUserDialogProps {
+  companyId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: StaffUserFormData) => Promise<{ temporaryPassword?: string }>;
@@ -63,6 +65,7 @@ export interface StaffUserFormData {
   password?: string;
   permissions?: StaffPermissions;
   inviaBenvenuto?: boolean;
+  employee_id?: string;
 }
 
 
@@ -105,15 +108,19 @@ export function StaffUserDialog({
   isLoading,
   defaultRoleType,
   lockRoleType,
+  companyId,
 }: StaffUserDialogProps) {
   const { toast } = useToast();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [employeeId,setEmployeeId]=useState("");
+
   // Init dal ruolo di default. Il reset al cambio di `defaultRoleType` tra
   // un'apertura e l'altra è gestito dal `key` sul componente (CompanyDetail),
   // che forza il remount — niente setState-in-effect.
   const [roleType, setRoleType] = useState<StaffRoleType>(defaultRoleType ?? "company_staff");
+  const {options:employeeOptions,loading:employeeLoading,error:employeeError}=useEmployeeAccountOptions(open && roleType === "employee",companyId);
   const [permissions, setPermissions] = useState<StaffPermissions>(() => permessiDelRuolo(defaultRoleType ?? "company_staff"));
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -164,6 +171,7 @@ export function StaffUserDialog({
       toast({ title: "Errore", description: "Nome ed email sono obbligatori", variant: "destructive" });
       return;
     }
+    if (roleType === "employee" && companyId && (employeeLoading || employeeError)) return;
     const pwd = password.trim();
     if (pwd && pwd.length < 8) {
       toast({ title: "Errore", description: "La password temporanea deve avere almeno 8 caratteri", variant: "destructive" });
@@ -177,6 +185,7 @@ export function StaffUserDialog({
         role_type: roleType,
         password: pwd || undefined,
         inviaBenvenuto,
+        employee_id: roleType === "employee" && employeeId ? employeeId : undefined,
         permissions: ROLES_WITH_PERMISSIONS.includes(roleType) ? syncLegacyMarketingFlags(permissions) : undefined,
       });
       if (result.temporaryPassword) {
@@ -374,6 +383,18 @@ export function StaffUserDialog({
             </div>
           </div>
 
+          {roleType === "employee" && companyId && (
+            <div className="space-y-2">
+              <Label htmlFor="admin-personale">Scheda del personale</Label>
+              <select id="admin-personale" className="w-full rounded-md border bg-background p-2 text-sm" value={employeeId} disabled={employeeLoading || employeeError}
+                onChange={e=>{setEmployeeId(e.target.value);const p=employeeOptions.find(p=>p.id===e.target.value);if(p){setFirstName(p.first_name);setLastName(p.last_name);if(p.email)setEmail(p.email);}}}>
+                <option value="">Nuova persona, non ancora presente</option>
+                {employeeOptions.map(p=><option key={p.id} value={p.id}>{p.first_name} {p.last_name}</option>)}
+              </select>
+              <p className="text-xs text-muted-foreground">Seleziona la scheda esistente per conservare cantieri e storico.</p>
+              {employeeError && <p role="alert">Non riesco a verificare il personale. Riapri la finestra.</p>}
+            </div>
+          )}
           {ROLES_WITH_PERMISSIONS.includes(roleType) && (
             <>
               <Separator />

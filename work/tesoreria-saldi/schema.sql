@@ -12,15 +12,16 @@ DO $$ BEGIN
 END $$;
 CREATE OR REPLACE FUNCTION public.puo_vedere_saldi_bancari(p_company uuid)
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $$
- SELECT coalesce(auth.role()='service_role',false) OR (
+ SELECT coalesce(auth.role()='service_role',false) OR (auth.uid() IS NULL AND coalesce(auth.role(),'')='' AND session_user IN ('postgres','supabase_admin')) OR (
   auth.uid() IS NOT NULL AND NOT public.utente_bloccato() AND (
    public.has_permission_for_company(auth.uid(),'can_view_bank_balances',p_company)
    OR public.user_can_read_accountant_company(p_company)))
 $$;
 CREATE OR REPLACE FUNCTION public.puo_riconciliare_banca(p_company uuid)
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $$
- SELECT coalesce(auth.role()='service_role',false) OR (
+ SELECT coalesce(auth.role()='service_role',false) OR (auth.uid() IS NULL AND coalesce(auth.role(),'')='' AND session_user IN ('postgres','supabase_admin')) OR (
   auth.uid() IS NOT NULL AND NOT public.utente_bloccato() AND (
+   public.has_permission_for_company(auth.uid(),'__solo_amministratori__',p_company) OR
    (public.has_permission_for_company(auth.uid(),'can_view_tesoreria',p_company)
     AND public.has_permission_for_company(auth.uid(),'can_reconcile_bank_transactions',p_company)
     AND NOT EXISTS(SELECT 1 FROM public.staff_permissions s WHERE s.user_id=auth.uid() AND s.company_id=p_company AND s.sola_lettura))
@@ -147,6 +148,24 @@ END $$;
 REVOKE ALL ON FUNCTION public.bank_transaction_operator_guard() FROM PUBLIC,anon,authenticated;
 DROP TRIGGER IF EXISTS bank_transaction_operator_guard ON public.bank_transactions;
 CREATE TRIGGER bank_transaction_operator_guard BEFORE INSERT OR UPDATE OR DELETE ON public.bank_transactions FOR EACH ROW EXECUTE FUNCTION public.bank_transaction_operator_guard();
+CREATE OR REPLACE FUNCTION public.bank_reconciliation_tenant_guard() RETURNS trigger
+LANGUAGE plpgsql SET search_path='' AS $$
+DECLARE ref record; ref_id uuid; valid boolean;
+BEGIN
+ IF TG_OP='UPDATE' AND NEW.company_id IS DISTINCT FROM OLD.company_id THEN
+  RAISE EXCEPTION 'Non puoi spostare una riconciliazione tra aziende' USING ERRCODE='42501';
+ END IF;
+ FOR ref IN SELECT * FROM (VALUES ('transaction_id','bank_transactions'),('invoice_id','invoices'),('scadenza_id','scadenze'),('movimento_id','movimenti_cassa_native'),('documento_id','documenti_fiscali_native')) AS refs(col,tab) LOOP
+  ref_id:=(to_jsonb(NEW)->>ref.col)::uuid;
+  IF ref_id IS NULL THEN CONTINUE; END IF;
+  EXECUTE format('SELECT EXISTS(SELECT 1 FROM public.%I WHERE id=$1 AND company_id=$2)',ref.tab) INTO valid USING ref_id,NEW.company_id;
+  IF NOT coalesce(valid,false) THEN RAISE EXCEPTION 'Documento o movimento non disponibile in questa azienda' USING ERRCODE='42501'; END IF;
+ END LOOP;
+ RETURN NEW;
+END $$;
+REVOKE ALL ON FUNCTION public.bank_reconciliation_tenant_guard() FROM PUBLIC,anon,authenticated;
+DROP TRIGGER IF EXISTS bank_reconciliation_tenant_guard ON public.bank_reconciliations;
+CREATE TRIGGER bank_reconciliation_tenant_guard BEFORE INSERT OR UPDATE ON public.bank_reconciliations FOR EACH ROW EXECUTE FUNCTION public.bank_reconciliation_tenant_guard();
 -- Existing document/payment authorization stays in each RPC; this is additional.
 DO $$ DECLARE f record; def text; company_expr text; BEGIN
  FOR f IN SELECT p.oid,p.proname,p.proargnames FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace

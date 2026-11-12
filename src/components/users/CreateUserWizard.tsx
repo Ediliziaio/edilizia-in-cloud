@@ -1,3 +1,4 @@
+import { useEmployeeAccountOptions } from "@/hooks/useEmployeeAccountOptions";
 import { OfficeProfileSelector } from "./OfficeProfileSelector";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -243,34 +244,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
   const [alsoEmployee, setAlsoEmployee] = useState<boolean>(false);
   const [grossSalary, setGrossSalary] = useState<string>("");
   const [employeeId, setEmployeeId] = useState("");
-  const [employeeOptions, setEmployeeOptions] = useState<Array<{id:string;first_name:string;last_name:string;email:string|null}>>([]);
-  const [employeeLoading, setEmployeeLoading] = useState(false);
-  const [employeeError, setEmployeeError] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    setEmployeeId(""); setEmployeeOptions([]); setEmployeeError(false);
-    if (!open || !companyId) return;
-    setEmployeeLoading(true);
-    void (async () => {
-      try {
-        const {supabase} = await import("@/integrations/supabase/client");
-        const options: typeof employeeOptions = [];
-        for(let offset=0;;offset+=500) {
-          const {data,error} = await supabase.from("employees")
-            .select("id,first_name,last_name,email")
-            .eq("company_id",companyId).eq("is_active",true)
-            .is("user_id",null).is("portal_user_id",null).order("id").range(offset,offset+499);
-          if(error) throw error;
-          options.push(...(data??[]));
-          if(!data || data.length<500) break;
-        }
-        if(!cancelled) setEmployeeOptions(options);
-      } catch { if(!cancelled) setEmployeeError(true); }
-      finally { if(!cancelled) setEmployeeLoading(false); }
-    })();
-    return () => {cancelled=true;};
-  },[open,companyId]);
-
+  const {options:employeeOptions,loading:employeeLoading,error:employeeError} = useEmployeeAccountOptions(open && (roleType === "employee" || alsoEmployee),companyId);
   // Ogni passo parte dall'alto: prima «Personalizza» apriva i permessi già
   // scorsi in fondo, con lo scorrimento rimasto dal passo precedente.
   const corpoRef = useRef<HTMLDivElement>(null);
