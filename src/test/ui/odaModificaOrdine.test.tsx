@@ -4,13 +4,13 @@ import "@testing-library/jest-dom/vitest";
 import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
-const m = vi.hoisted(() => ({status:"confermato", canEdit:true, orderId:"commessa-1" as string | null, orderUpdate:vi.fn(), update:vi.fn().mockResolvedValue(undefined), pdf:vi.fn(), download:vi.fn(), error:vi.fn()}));
+const m = vi.hoisted(() => ({vociListino:[] as Array<Record<string, unknown>>, status:"confermato", canEdit:true, orderId:"commessa-1" as string | null, orderUpdate:vi.fn(), update:vi.fn().mockResolvedValue(undefined), pdf:vi.fn(), download:vi.fn(), error:vi.fn()}));
 vi.mock("@/lib/documentiOperativi/pdf", () => ({generaPdfOperativo:m.pdf}));
 vi.mock("@/components/orders/generali/vendita/scarica", () => ({scaricaBlob:m.download}));
 vi.mock("sonner", () => ({toast:{error:m.error,success:vi.fn()}}));
 vi.mock("@/contexts/AuthContext", () => ({useAuth: () => ({effectiveCompany:{id:"vulcano",name:"Impresa Vulcano"}})}));
 vi.mock("@/hooks/usePermissions", () => ({usePermissions: () => ({canEditOrders:m.canEdit})}));
-vi.mock("@/hooks/useListinoFornitore", () => ({useVociListinoFornitore: () => ({voci:[] as unknown[]})}));
+vi.mock("@/hooks/useListinoFornitore", () => ({useVociListinoFornitore: () => ({voci:m.vociListino})}));
 vi.mock("@tanstack/react-query", () => ({useQuery: () => ({data:[] as unknown[]}),useQueryClient: () => ({invalidateQueries:vi.fn()})}));
 vi.mock("@/hooks/usePurchaseOrders", () => ({
  usePurchaseOrders: () => ({updateStatus:{mutate:vi.fn()},update:{mutate:m.orderUpdate,mutateAsync:vi.fn()}}),
@@ -31,7 +31,7 @@ vi.mock("@/components/orders/OdaDocumentoCard", () => ({OdaDocumentoCard: (): nu
 vi.mock("@/components/documentiOperativi/DocumentoInvioDialog", () => ({DocumentoInvioDialog: (): null => null}));
 import PurchaseOrderDetail from "@/pages/azienda/PurchaseOrderDetail";
 afterEach(cleanup);
-beforeEach(() => {m.status="confermato";m.canEdit=true;m.orderId="commessa-1";m.orderUpdate.mockReset();m.update.mockClear();m.pdf.mockReset().mockResolvedValue(new Blob(["%PDF-test"],{type:"application/pdf"}));m.download.mockReset();m.error.mockReset();});
+beforeEach(() => {m.vociListino=[];m.status="confermato";m.canEdit=true;m.orderId="commessa-1";m.orderUpdate.mockReset();m.update.mockClear();m.pdf.mockReset().mockResolvedValue(new Blob(["%PDF-test"],{type:"application/pdf"}));m.download.mockReset();m.error.mockReset();});
 const apri = () => render(<MemoryRouter><PurchaseOrderDetail /></MemoryRouter>);
 it.each(["inviato","confermato","parziale"])("l’ordine %s si può modificare dal dettaglio senza tornare in bozza", (status) => {
  m.status = status;
@@ -78,4 +78,28 @@ it("l’acquisto per magazzino può essere scollegato dalla commessa dal riquadr
 });
 it("un ordine senza commessa è un acquisto generico valido",()=>{
  m.orderId=null;apri();expect(screen.getByText("Nessuna commessa necessaria. Potrai collegarla anche in seguito.")).toBeInTheDocument();expect(screen.getByRole("button",{name:"Scarica PDF"})).toBeEnabled();
+});
+
+const voceListino = (prezzo: number, listinoScadutoIl: string | null) => ([{
+  id: "voce", codice: null as string | null, descrizione: "TEGOLE SELECTUM NERO 12 BANCALI",
+  unita: "pz" as string | null, prezzo, sconto_pct: 0, listinoScadutoIl,
+}]);
+
+it("il prezzo di un listino in vigore si propone senza riserve", () => {
+  m.vociListino = voceListino(1.5, null);
+  apri();
+  fireEvent.click(screen.getByRole("button", {name:"Modifica ordine"}));
+  expect(screen.getByRole("button", {name: /Usa listino/})).toHaveTextContent("Usa listino: 1,50");
+  expect(screen.getByRole("button", {name: /Usa listino/})).not.toHaveTextContent("non aggiornato");
+  expect(screen.queryByText(/Listino scaduto il/)).not.toBeInTheDocument();
+});
+
+it("il prezzo di un listino scaduto si propone lo stesso, ma detto chiaramente", () => {
+  // Meglio un prezzo vecchio, con scritto che e' vecchio, che nessun prezzo:
+  // chi compra ha comunque un punto di partenza.
+  m.vociListino = voceListino(1.5, "2026-11-30");
+  apri();
+  fireEvent.click(screen.getByRole("button", {name:"Modifica ordine"}));
+  expect(screen.getByRole("button", {name: /Usa listino/})).toHaveTextContent("Usa listino: 1,50 € (non aggiornato)");
+  expect(screen.getByText("Listino scaduto il 30/11/2026: controlla il prezzo col fornitore.")).toBeInTheDocument();
 });

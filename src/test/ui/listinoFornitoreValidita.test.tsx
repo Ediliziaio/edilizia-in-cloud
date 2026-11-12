@@ -92,12 +92,12 @@ describe("scheda Listino del fornitore", () => {
     expect(screen.queryByText(/listini per questo fornitore/)).not.toBeInTheDocument();
   });
 
-  it("il listino scaduto lo dice, e dice che i prezzi non vengono suggeriti", async () => {
+  it("il listino scaduto lo dice, e dice che i prezzi si propongono come non aggiornati", async () => {
     m.listini = [{ id: "vecchio", nome: "Listino 2025", sconto_default_pct: 0, valido_dal: "2025-01-01", valido_al: "2025-12-31", attivo: true }];
     m.voci = { vecchio: [{ id: "v", codice: "", descrizione: "Stabilizzato", unita: "t", prezzo: 9, sconto_pct: 0 }] };
     apri();
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("scaduto il 31/12/2025"));
-    expect(screen.getByRole("status")).toHaveTextContent("non vengono suggeriti sugli ordini d’acquisto");
+    expect(screen.getByRole("status")).toHaveTextContent("vengono proposti lo stesso, segnalati come non aggiornati");
   });
 
   it("il listino che scade entro un mese avvisa prima, con la data", async () => {

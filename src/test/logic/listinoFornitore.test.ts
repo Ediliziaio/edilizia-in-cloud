@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   normalizza, prezzoNetto, trovaVoce, parseImporto, parseVociIncollate,
   type VoceListinoFornitore,
+  preferisciVociInVigore,
 } from "@/lib/listino/listinoFornitore";
 
 const V = (id: string, codice: string | null, descrizione: string, prezzo = 10, sconto = 0): VoceListinoFornitore =>
@@ -113,5 +114,51 @@ describe("parseVociIncollate — l'incolla da Excel", () => {
   it("normalizza regge il nulla", () => {
     expect(normalizza(null)).toBe("");
     expect(normalizza("  A  B ")).toBe("a b");
+  });
+});
+
+describe("preferisciVociInVigore", () => {
+  const v = (id: string, descrizione: string, scaduto: string | null, codice: string | null = null): VoceListinoFornitore =>
+    ({ id, codice, descrizione, unita: null, prezzo: 1, sconto_pct: 0, listinoScadutoIl: scaduto });
+
+  it("lo stesso articolo nel listino buono e in uno scaduto: resta solo quello buono", () => {
+    // Senza questo, trovaVoce ne vedrebbe due, le chiamerebbe ambigue e non
+    // suggerirebbe piu' niente proprio dove un prezzo valido c'era.
+    const fuse = preferisciVociInVigore([v("a", "Sabbia lavata", null), v("b", "Sabbia lavata", "2025-12-31")]);
+    expect(fuse.map((x) => x.id)).toEqual(["a"]);
+    expect(trovaVoce(fuse, { descrizione: "Sabbia lavata" })?.id).toBe("a");
+  });
+
+  it("l'articolo che sta solo nel listino scaduto resta, con la sua data", () => {
+    const fuse = preferisciVociInVigore([v("a", "Sabbia lavata", null), v("b", "Ghiaia 15-30", "2025-12-31")]);
+    expect(fuse.map((x) => x.id).sort()).toEqual(["a", "b"]);
+    expect(trovaVoce(fuse, { descrizione: "Ghiaia 15-30" })?.listinoScadutoIl).toBe("2025-12-31");
+  });
+
+  it("vale anche per il codice, non solo per la descrizione", () => {
+    const fuse = preferisciVociInVigore([
+      v("a", "Cemento 32.5", null, "CEM-325"),
+      v("b", "Cemento 32,5 R sfuso", "2025-12-31", "CEM-325"),
+    ]);
+    expect(fuse.map((x) => x.id)).toEqual(["a"]);
+  });
+
+  it("due voci ugualmente valide restano due: l'ambiguita' vera non si risolve inventando", () => {
+    const fuse = preferisciVociInVigore([v("a", "Sabbia lavata", null), v("b", "Sabbia lavata", null)]);
+    expect(fuse).toHaveLength(2);
+    expect(trovaVoce(fuse, { descrizione: "Sabbia lavata" })).toBeNull();
+  });
+
+  it("tutte scadute: si tengono tutte, il prezzo vecchio e' meglio di nessun prezzo", () => {
+    const fuse = preferisciVociInVigore([v("a", "Sabbia lavata", "2025-12-31"), v("b", "Ghiaia 15-30", "2024-06-30")]);
+    expect(fuse).toHaveLength(2);
+  });
+
+  it("fra due voci entrambe scadute non sceglie la meno vecchia: restano ambigue", () => {
+    // Nessuna delle due e' un prezzo pattuito, e indovinare quale sia «meno
+    // sbagliata» e' peggio che non suggerire: chi compra chiede al fornitore.
+    const fuse = preferisciVociInVigore([v("a", "Sabbia lavata", "2025-12-31"), v("b", "Sabbia lavata", "2024-06-30")]);
+    expect(fuse).toHaveLength(2);
+    expect(trovaVoce(fuse, { descrizione: "Sabbia lavata" })).toBeNull();
   });
 });

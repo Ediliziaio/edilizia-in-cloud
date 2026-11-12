@@ -16,6 +16,38 @@ export interface VoceListinoFornitore {
   unita: string | null;
   prezzo: number;
   sconto_pct: number;
+  /**
+   * La data in cui e' scaduto il listino da cui viene questa voce, quando e'
+   * scaduto. Il prezzo si propone lo stesso — meglio un prezzo vecchio, detto
+   * chiaramente, che nessun prezzo — ma chi lo usa deve sapere che non e'
+   * aggiornato.
+   */
+  listinoScadutoIl?: string | null;
+}
+
+/**
+ * Mette insieme le voci di piu' listini dello stesso fornitore facendo vincere
+ * quelle in vigore: se lo stesso articolo c'e' sia nel listino buono sia in uno
+ * scaduto, la voce scaduta non deve entrare, altrimenti `trovaVoce` le vede
+ * tutte e due, le chiama ambigue e non suggerisce piu' niente.
+ *
+ * Fra due voci ugualmente valide non sceglie: l'ambiguita' vera resta tale.
+ * Nemmeno fra due voci entrambe scadute si preferisce la meno vecchia —
+ * nessuna delle due e' un prezzo pattuito, e indovinare quale sia «meno
+ * sbagliata» e' peggio che non suggerire niente.
+ */
+export function preferisciVociInVigore(voci: VoceListinoFornitore[]): VoceListinoFornitore[] {
+  const inVigore = voci.filter((v) => !v.listinoScadutoIl);
+  const chiavi = new Set<string>();
+  for (const v of inVigore) {
+    if (normalizza(v.codice)) chiavi.add(`c:${normalizza(v.codice)}`);
+    chiavi.add(`d:${normalizza(v.descrizione)}`);
+  }
+  const scadute = voci.filter((v) =>
+    v.listinoScadutoIl
+    && !chiavi.has(`d:${normalizza(v.descrizione)}`)
+    && !(normalizza(v.codice) && chiavi.has(`c:${normalizza(v.codice)}`)));
+  return [...inVigore, ...scadute];
 }
 
 /** minuscole, spazi collassati: quanto basta per l'uguaglianza esatta. */

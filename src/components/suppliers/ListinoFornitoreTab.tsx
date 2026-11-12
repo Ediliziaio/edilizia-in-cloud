@@ -206,8 +206,8 @@ export function ListinoFornitoreTab({ supplierId }: { supplierId: string }) {
 
       {fuoriVigore && (
         <p role="status" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          Questo listino non è in vigore ({etichettaValidita(corrente!)}): i suoi prezzi non
-          vengono suggeriti sugli ordini d’acquisto.{" "}
+          Questo listino non è in vigore ({etichettaValidita(corrente!)}): sugli ordini d’acquisto
+          i suoi prezzi vengono proposti lo stesso, segnalati come non aggiornati.{" "}
           {puoModificare
             ? "Correggi le date qui sopra, o carica il listino nuovo."
             : "Per correggere le date serve il permesso sui fornitori o sul listino."}
@@ -215,8 +215,8 @@ export function ListinoFornitoreTab({ supplierId }: { supplierId: string }) {
       )}
       {!fuoriVigore && inScadenza && (
         <p role="status" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          Scade il {giornoItaliano(corrente?.valido_al ?? null)}: dopo quella data i prezzi non
-          vengono più suggeriti. Chiedi al fornitore il listino nuovo, o sposta la scadenza qui sopra.
+          Scade il {giornoItaliano(corrente?.valido_al ?? null)}: dopo quella data i prezzi vengono
+          proposti come non aggiornati. Chiedi al fornitore il listino nuovo, o sposta la scadenza qui sopra.
         </p>
       )}
 
@@ -485,7 +485,7 @@ function ListinoEditor({
       toast.success(`Listino salvato: ${n} ${n === 1 ? "voce" : "voci"}`, {
         description: inVigore
           ? "Da adesso i prezzi vengono suggeriti sulle righe degli ordini a questo fornitore."
-          : "Questo listino non è in vigore: i prezzi restano salvati, ma non vengono suggeriti sugli ordini finché le date non lo rimettono in corso.",
+          : "Questo listino non è in vigore: sugli ordini i prezzi vengono proposti come non aggiornati finché le date non lo rimettono in corso.",
       });
     },
     onError: (e: Error) => toast.error("Salvataggio non riuscito", { description: e.message }),

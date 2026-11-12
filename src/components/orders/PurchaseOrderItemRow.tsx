@@ -14,6 +14,7 @@ import {
   prezzoNetto,
   type VoceListinoFornitore,
 } from "@/lib/listino/listinoFornitore";
+import { giornoItaliano } from "@/lib/listino/validitaListino";
 import { useInputDraft } from "@/hooks/useInputDraft";
 import { OfficeSelect } from "./OfficeSelect";
 import {
@@ -94,12 +95,15 @@ export function PurchaseOrderItemRow({
       setSavingCount((n) => n - 1);
     }
   };
-  const prezzoListino = useMemo(() => {
+  // La voce del listino, col suo prezzo netto e la scadenza del listino da cui
+  // viene: un prezzo di un listino scaduto si propone lo stesso, ma dicendolo.
+  const daListino = useMemo(() => {
     const v = vociFornitore?.length
       ? trovaVoce(vociFornitore, { codice: item.sku, descrizione: desc })
       : null;
-    return v ? prezzoNetto(v.prezzo, v.sconto_pct) : null;
+    return v ? { prezzo: prezzoNetto(v.prezzo, v.sconto_pct), scadutoIl: v.listinoScadutoIl ?? null } : null;
   }, [vociFornitore, item.sku, desc]);
+  const prezzoListino = daListino?.prezzo ?? null;
   const rollbackPrezzo = () => {
     setPrice(item.price_pending ? "" : String(item.unit_price));
     setPending(!!item.price_pending);
@@ -275,7 +279,7 @@ export function PurchaseOrderItemRow({
               onBlur={salvaPrezzo}
               className="h-8 w-full text-right text-sm"
             />
-            {prezzoListino != null &&
+            {prezzoListino !== null &&
               (pending || Math.abs(prezzoListino - Number(price)) > 0.004) && (
                 <button
                   className="mt-1 block text-[11px] text-primary hover:underline"
@@ -290,8 +294,14 @@ export function PurchaseOrderItemRow({
                   }}
                 >
                   Usa listino: {formatCurrency(prezzoListino)}
+                  {daListino?.scadutoIl ? " (non aggiornato)" : ""}
                 </button>
               )}
+            {prezzoListino !== null && daListino?.scadutoIl && (
+              <span className="mt-0.5 block text-[11px] text-amber-700">
+                Listino scaduto il {giornoItaliano(daListino.scadutoIl)}: controlla il prezzo col fornitore.
+              </span>
+            )}
           </div>
         ) : item.price_pending ? (
           <span className="text-xs text-amber-700">Da confermare</span>
