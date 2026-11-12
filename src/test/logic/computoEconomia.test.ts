@@ -45,10 +45,8 @@ describe("il momento della rata verso la commessa", () => {
   it("porta l'evento del cantiere, e la soglia anche quando l'evento è tradotto", () => {
     expect(eventoPerCommessa(rate[0], rate)).toMatchObject({ evento: "firma_contratto" });
     expect(eventoPerCommessa(rate[2], rate)).toMatchObject({ evento: "fine_lavori" });
-    // «Al 50% dei lavori» viaggia ancora come SAL numerato: la regola SQL che lo fa maturare
-    // somma un importo già cumulativo (docs/sal-percentuale-importo-progressivo-20261112.sql).
-    // La soglia si porta dietro lo stesso: tolta l'eccezione, qui cambia solo l'evento.
-    expect(eventoPerCommessa(rate[1], rate)).toMatchObject({ evento: "sal_numero", numero: 1, soglia: 50 });
+    // «Al 50% dei lavori» arriva col suo evento e la sua soglia: matura al SAL che la raggiunge.
+    expect(eventoPerCommessa(rate[1], rate)).toMatchObject({ evento: "sal_percentuale", soglia: 50 });
   });
   it("una fase e il collaudo arrivano con la loro condizione", () => {
     const fase = { ...rate[1], evento: "fase_completata" as const, fasi: ["Strutture"] };
