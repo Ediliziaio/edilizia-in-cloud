@@ -45,10 +45,10 @@ import SupplierRfqDetail from "@/pages/azienda/SupplierRfqDetail";
 
 const fornitore = (id: string, nome: string, extra: Record<string, unknown> = {}): Record<string, unknown> => ({
   id, rfq_id: "r", supplier_id: `s-${id}`, status: "risposta", inviata_at: "2026-11-03", inviata_via: "app",
-  risposta_at: "2026-11-04", trasporto_tipo: "incluso", costo_trasporto: null, totale_offerto: null,
-  giorni_consegna: 3, validita_offerta: "2026-12-15", condizioni_pagamento: "60 gg d.f.", note: null,
-  allegato_url: null, email_inbox_id: null, aggancio_da: null, aggancio_confidenza: null, aggancio_da_confermare: false,
-  suppliers: { name: nome, email: null }, ...extra,
+  risposta_at: "2026-11-04", trasporto_tipo: "incluso", costo_trasporto: null as never, totale_offerto: null as never,
+  giorni_consegna: 3, validita_offerta: "2026-12-15", condizioni_pagamento: "60 gg d.f.", note: null as never,
+  allegato_url: null as never, email_inbox_id: null as never, aggancio_da: null as never, aggancio_confidenza: null as never, aggancio_da_confermare: false,
+  suppliers: { name: nome, email: null as never }, ...extra,
 });
 const quota = (f: string, i: string, prezzo: number, extra: Record<string, unknown> = {}): Record<string, unknown> => ({
   id: `${f}-${i}`, rfq_supplier_id: f, rfq_item_id: i, prezzo_unitario: prezzo, sconto_percentuale: 0, aliquota_iva: 22, disponibile: true, note: null, ...extra,
@@ -134,5 +134,5 @@ it("nel confronto niente tendina per cella: disponibile non si scrive, le eccezi
     updates: { disponibile: true, note: "[alternativa] 5 sacchi" },
   });
   fireEvent.change(screen.getByLabelText("Disponibilità Blocchi da Laterizi Sud"), { target: { value: "disponibile" } });
-  expect(m.setQuote).toHaveBeenLastCalledWith({ rfq_supplier_id: "b", rfq_item_id: "i1", updates: { disponibile: true, note: null } });
+  expect(m.setQuote).toHaveBeenLastCalledWith({ rfq_supplier_id: "b", rfq_item_id: "i1", updates: { disponibile: true, note: null as never } });
 });

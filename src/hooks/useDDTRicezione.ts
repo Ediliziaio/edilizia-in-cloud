@@ -550,6 +550,13 @@ export function useDDTRicezioneMutations(poId?: string | null) {
       silenzioso?: boolean;
       /** Import documentale: collega l’OdA senza ricevere il residuo dell’ordine. */
       soloDocumento?: boolean;
+      /** «Salva e compila dopo» (12/11/2026): la bolla nasce col solo documento, il numero si scrive poi. */
+      numeroFacoltativo?: boolean;
+      /**
+       * Senza magazzini la bolla per il magazzino si registra lo stesso (12/11/2026):
+       * il carico resta in sospeso finché un magazzino non c'è.
+       */
+      magazzinoFacoltativo?: boolean;
       /** Facoltativo: in cantiere la merce arriva anche senza ordine. */
       purchase_order_id?: string | null;
       /** La commessa su cui va la merce, quando l'ODA non c'è. */
@@ -585,7 +592,7 @@ export function useDDTRicezioneMutations(poId?: string | null) {
       has_damages?: boolean;
     }) => {
       if (!companyId) throw new Error("Company non disponibile");
-      if (!params.numero_ddt.trim()) throw new Error("Numero DDT obbligatorio");
+      if (!params.numero_ddt.trim() && !params.numeroFacoltativo) throw new Error("Numero DDT obbligatorio");
       const odaId = params.purchase_order_id ?? null;
 
       const inCantiere = params.destinazione === "cantiere";
@@ -609,7 +616,7 @@ export function useDDTRicezioneMutations(poId?: string | null) {
           .maybeSingle();
         warehouseId = (defWh as { id?: string })?.id ?? null;
       }
-      if (!inCantiere && !warehouseId) {
+      if (!inCantiere && !warehouseId && !params.magazzinoFacoltativo) {
         throw new Error(
           "Nessun magazzino disponibile: impostare un magazzino di default per l'azienda"
         );

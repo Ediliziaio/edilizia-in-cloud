@@ -1,11 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Camera, FileUp, Loader2, Receipt, Trash2 } from "lucide-react";
+import { Camera, FileUp, HardHat, Loader2, Receipt, Sparkles, Trash2, Warehouse } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
 import { useCampoUfficio } from "@/hooks/campo/useCampoUfficio";
-import { cantiereBolla, NESSUN_CANTIERE } from "@/lib/campo/cantiereBolla";
+import { cantiereBolla } from "@/lib/campo/cantiereBolla";
+import { usePermissions } from "@/hooks/usePermissions";
+import { Switch } from "@/components/ui/switch";
+import {
+  CompilaBollaTelefono,
+  RevisioneBollaTelefono,
+  puoCompilareSenzaAI,
+  puoRegistrareBolle,
+  useSalvaSoloDocumento,
+} from "@/components/ddt/BollaTelefono";
+import type { DocumentoPersistente } from "@/lib/ddt/documentiPersistenti";
 import { useDocumentiDDT, STATO_DOCUMENTO } from "@/hooks/useDocumentiDDT";
 import {
   contaPagine,
@@ -38,19 +48,33 @@ function CampoDDTEditor() {
   const [scelta, setScelta] = useState("");
   const cantieri = assegnazioni.data ?? [];
   const richiesto = params.get("order");
-  // Per l'ufficio il cantiere è facoltativo (11/11/2026): la bolla va in ufficio
-  // senza commessa. Per gli operai resta obbligatorio.
+  // 12/11/2026 — L'unica scelta è dove va la merce: in magazzino o in cantiere.
+  // «In magazzino» vuol dire senza commessa, e `ddt_documento_accoda` lo accetta
+  // solo da chi è ufficio: per gli operai il cantiere resta obbligatorio (11/11).
   const ufficio = useCampoUfficio().data === true;
-  const {
-    orderId,
-    valore: valoreCantiere,
-    pronto: cantierePronto,
-  } = cantiereBolla({
+  const permessi = usePermissions();
+  const puoRegistrare = puoRegistrareBolle(permessi);
+  const senzaAIPossibile = puoCompilareSenzaAI(permessi);
+  const [dove, setDove] = useState<"magazzino" | "cantiere" | null>(null);
+  const destinazione = dove ?? (ufficio && !richiesto && !cantieri.length ? "magazzino" : "cantiere");
+  const [conAI, setConAI] = useState(true);
+  const [compila, setCompila] = useState(false);
+  const [attesa, setAttesa] = useState<string | null>(null);
+  const [revisione, setRevisione] = useState<DocumentoPersistente | null>(null);
+  const sceltaCantiere = cantiereBolla({
     richiesto,
     scelta,
     cantieri: cantieri.map((c) => c.order_id),
-    ufficio,
+    ufficio: false,
   });
+  const orderId = destinazione === "magazzino" ? null : sceltaCantiere.orderId;
+  const valoreCantiere = sceltaCantiere.valore;
+  const cantierePronto = destinazione === "magazzino" ? ufficio : sceltaCantiere.pronto;
+  const etichettaCantiere = (() => {
+    if (!orderId) return "In magazzino (senza commessa)";
+    const c = cantieri.find((x) => x.order_id === orderId);
+    return c ? `${c.order.order_code} · ${c.order.description || c.order.indirizzo_lavori || ""}` : "Cantiere";
+  })();
   const [files, setFiles] = useState<File[]>([]);
   const [locali, setLocali] = useState<SyncItem[]>([]);
   const [salvando, setSalvando] = useState(false);
@@ -91,6 +115,12 @@ function CampoDDTEditor() {
     // Il cambio identità rimonta l'editor e non mostra bozze di altre persone.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, profile?.company_id]);
+
+  // Letta la bolla appena inviata, si apre la finestra per confermarla.
+  const appenaLetta = attesa
+    ? (documenti.data ?? []).find((j) => j.id === attesa && j.status === "review") ?? null
+    : null;
+  const daRivedere = revisione ?? appenaLetta;
 
   const aggiungi = async (nuovi: File[]) => {
     const errore = nuovi.map(erroreDocumento).find(Boolean);
@@ -134,7 +164,7 @@ function CampoDDTEditor() {
   const accoda = async (pagine: File[]) => {
     if (!user?.id || !profile?.company_id || !cantierePronto)
       throw new Error("Scegli prima il cantiere");
-    await syncQueue.enqueue({
+    return syncQueue.enqueue({
       type: "documento_ddt",
       payload: {
         files: pagine,
@@ -160,8 +190,10 @@ function CampoDDTEditor() {
     setSalvando(true);
     try {
       // Prima IndexedDB, poi rete: la lettura AI non trattiene la pagina aperta.
-      await accoda(files);
+      const id = await accoda(files);
       setFiles([]);
+      // Chi può registrare rivede subito quello che l'AI ha letto.
+      if (puoRegistrare && typeof id === "string") setAttesa(id);
       toast.success(
         navigator.onLine
           ? "Documento salvato: invio e lettura continuano in background"
@@ -186,40 +218,58 @@ function CampoDDTEditor() {
           Bolle e DDT
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Fotografa tutte le pagine dello stesso DDT o scegli un file. L’ufficio
-          controlla la lettura e conferma i materiali arrivati.
+          Scegli dove va la merce, fotografa la bolla e inviala.
         </p>
       </header>
       <section
         className="space-y-4 rounded-2xl border bg-card p-4 shadow-sm"
         aria-label="Nuovo documento di cantiere"
       >
-        <label className="block space-y-1 text-sm font-medium">
-          Cantiere
-          <select
-            className={campo}
-            value={valoreCantiere}
-            disabled={
-              assegnazioni.isLoading ||
-              cantieri.some((c) => c.order_id === richiesto)
-            }
-            onChange={(e) => setScelta(e.target.value)}
-          >
-            {ufficio ? (
-              <option value={NESSUN_CANTIERE}>
-                Nessun cantiere (va in ufficio)
-              </option>
-            ) : (
+        <div className="space-y-1">
+          <p className="text-sm font-medium">Dove va la merce</p>
+          <div className="grid grid-cols-2 gap-2" role="group" aria-label="Dove va la merce">
+            <button
+              type="button"
+              aria-pressed={destinazione === "magazzino"}
+              disabled={!ufficio}
+              title={ufficio ? undefined : "Le bolle del magazzino le carica l'ufficio"}
+              className={`flex min-h-12 items-center justify-center gap-2 rounded-xl border font-semibold disabled:opacity-40 ${destinazione === "magazzino" ? "border-primary bg-primary/10 text-primary" : ""}`}
+              onClick={() => setDove("magazzino")}
+            >
+              <Warehouse className="h-5 w-5" aria-hidden="true" /> In magazzino
+            </button>
+            <button
+              type="button"
+              aria-pressed={destinazione === "cantiere"}
+              className={`flex min-h-12 items-center justify-center gap-2 rounded-xl border font-semibold ${destinazione === "cantiere" ? "border-primary bg-primary/10 text-primary" : ""}`}
+              onClick={() => setDove("cantiere")}
+            >
+              <HardHat className="h-5 w-5" aria-hidden="true" /> In cantiere
+            </button>
+          </div>
+        </div>
+        {destinazione === "cantiere" && (
+          <label className="block space-y-1 text-sm font-medium">
+            Cantiere
+            <select
+              className={campo}
+              value={valoreCantiere}
+              disabled={
+                assegnazioni.isLoading ||
+                cantieri.some((c) => c.order_id === richiesto)
+              }
+              onChange={(e) => setScelta(e.target.value)}
+            >
               <option value="">Scegli il cantiere</option>
-            )}
-            {cantieri.map((c) => (
-              <option key={c.order_id} value={c.order_id}>
-                {c.order.order_code} ·{" "}
-                {c.order.description || c.order.indirizzo_lavori}
-              </option>
-            ))}
-          </select>
-        </label>
+              {cantieri.map((c) => (
+                <option key={c.order_id} value={c.order_id}>
+                  {c.order.order_code} ·{" "}
+                  {c.order.description || c.order.indirizzo_lavori}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {assegnazioni.isError && (
           <button
             className="min-h-11 text-sm text-destructive underline"
@@ -361,25 +411,44 @@ function CampoDDTEditor() {
             </p>
           </>
         )}
-        <button
-          type="button"
-          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary font-semibold text-primary-foreground disabled:opacity-50"
-          disabled={
-            !files.length ||
-            !cantierePronto ||
-            salvando ||
-            preparandoPdf ||
-            pdfDaDividere.length > 0
-          }
-          onClick={() => void salva()}
-        >
-          {salvando && <Loader2 className="h-4 w-4 animate-spin" />}Salva e
-          analizza il DDT
-        </button>
+        {senzaAIPossibile && (
+          <label className="flex min-h-12 items-center justify-between gap-3 rounded-xl border px-3 text-sm font-medium">
+            <span className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" /> Leggi con l'AI
+            </span>
+            <Switch checked={conAI} onCheckedChange={setConAI} aria-label="Leggi con l'AI" />
+          </label>
+        )}
+        {conAI || !senzaAIPossibile ? (
+          <button
+            type="button"
+            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary font-semibold text-primary-foreground disabled:opacity-50"
+            disabled={
+              !files.length ||
+              !cantierePronto ||
+              salvando ||
+              preparandoPdf ||
+              pdfDaDividere.length > 0
+            }
+            onClick={() => void salva()}
+          >
+            {salvando && <Loader2 className="h-4 w-4 animate-spin" />}Invia la bolla
+          </button>
+        ) : (
+          <SenzaAI
+            files={files}
+            orderId={orderId}
+            pronto={!!files.length && cantierePronto && !salvando && !preparandoPdf && !pdfDaDividere.length}
+            onCompila={() => setCompila(true)}
+            onSalvata={() => setFiles([])}
+          />
+        )}
         <p className="text-xs text-muted-foreground">
-          Dopo il salvataggio sul server la lettura continua anche se esci.
-          Senza connessione, riapri l’app per completare l’invio. Nessun prezzo
-          è richiesto.
+          {conAI || !senzaAIPossibile
+            ? puoRegistrare
+              ? "L'AI legge la bolla: appena finisce ti mostra cosa ha letto da confermare. Senza connessione l'invio riparte da solo."
+              : "L'AI legge la bolla e l'ufficio la conferma. Senza connessione l'invio riparte da solo."
+            : "Senza AI: scrivi tu numero, fornitore e righe guardando la foto, oppure lasciala all'ufficio."}
         </p>
       </section>
       {!!locali.length && (
@@ -441,6 +510,15 @@ function CampoDDTEditor() {
                 {STATO_DOCUMENTO[j.status]} ·{" "}
                 {new Date(j.created_at).toLocaleString("it-IT")}
               </p>
+              {j.status === "review" && puoRegistrare && !j.ddt_id && (
+                <button
+                  type="button"
+                  className="mt-2 min-h-11 rounded-lg border px-3 text-sm font-semibold"
+                  onClick={() => setRevisione(j)}
+                >
+                  Controlla e conferma
+                </button>
+              )}
               {j.status === "error" && (
                 <p className="mt-1 text-xs text-amber-800">
                   L’originale è al sicuro: l’ufficio può correggerlo o ripetere
@@ -465,6 +543,36 @@ function CampoDDTEditor() {
           </button>
         )}
       </section>
+      {compila && profile?.company_id && (
+        <CompilaBollaTelefono
+          files={files}
+          companyId={profile.company_id}
+          orderId={orderId}
+          etichettaCantiere={etichettaCantiere}
+          onChiudi={() => setCompila(false)}
+          onFatto={() => {
+            setCompila(false);
+            setFiles([]);
+          }}
+        />
+      )}
+      {daRivedere && (
+        <RevisioneBollaTelefono
+          documento={daRivedere}
+          etichettaCantiere={
+            daRivedere.order_id
+              ? (() => {
+                  const c = cantieri.find((x) => x.order_id === daRivedere.order_id);
+                  return c ? `${c.order.order_code} · ${c.order.description || ""}` : "Cantiere";
+                })()
+              : "In magazzino (senza commessa)"
+          }
+          onChiudi={() => {
+            setRevisione(null);
+            setAttesa(null);
+          }}
+        />
+      )}
       <Link
         to={orderId ? `/campo/merce?order=${orderId}` : "/campo/merce"}
         className="flex min-h-11 items-center text-sm underline"
@@ -472,5 +580,57 @@ function CampoDDTEditor() {
         Hai pagato tu? Registra una spesa o uno scontrino
       </Link>
     </main>
+  );
+}
+
+/** Senza AI: «Compila ora» apre la finestra; «La compila l'ufficio» salva il solo documento. */
+function SenzaAI({
+  files,
+  orderId,
+  pronto,
+  onCompila,
+  onSalvata,
+}: {
+  files: File[];
+  orderId: string | null;
+  pronto: boolean;
+  onCompila: () => void;
+  onSalvata: () => void;
+}) {
+  const salvaSoloDocumento = useSalvaSoloDocumento();
+  const [salvando, setSalvando] = useState(false);
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <button
+        type="button"
+        className="min-h-12 rounded-xl bg-primary font-semibold text-primary-foreground disabled:opacity-50"
+        disabled={!pronto || salvando}
+        onClick={onCompila}
+      >
+        Compila ora
+      </button>
+      <button
+        type="button"
+        className="flex min-h-12 items-center justify-center gap-2 rounded-xl border font-semibold disabled:opacity-50"
+        disabled={!pronto || salvando}
+        onClick={async () => {
+          setSalvando(true);
+          try {
+            await salvaSoloDocumento(files, orderId);
+            toast.success("Bolla salvata: la compila l'ufficio");
+            onSalvata();
+          } catch (e) {
+            toast.error("Bolla non salvata: le foto restano qui", {
+              description: (e as { message?: string })?.message,
+            });
+          } finally {
+            setSalvando(false);
+          }
+        }}
+      >
+        {salvando && <Loader2 className="h-4 w-4 animate-spin" />}
+        La compila l'ufficio
+      </button>
+    </div>
   );
 }

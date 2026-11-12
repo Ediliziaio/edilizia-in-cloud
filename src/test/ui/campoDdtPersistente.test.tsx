@@ -12,7 +12,21 @@ const m = vi.hoisted(() => ({
       order: { order_code: "SIM-1", description: "Cantiere assegnato" },
     },
   ] as Array<{ order_id: string; order: { order_code: string; description: string } }>,
+  permessi: { solaLettura: false, isAdmin: false, canEditOrders: false, canManagePurchasing: false, canEditWarehouse: false },
+  documenti: [] as unknown[],
+  soloDocumento: vi.fn(),
 }));
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => m.permessi }));
+vi.mock("@/components/ddt/BollaTelefono", async (orig) => {
+  const vero = await orig<typeof import("@/components/ddt/BollaTelefono")>();
+  return {
+    puoRegistrareBolle: vero.puoRegistrareBolle,
+    puoCompilareSenzaAI: vero.puoCompilareSenzaAI,
+    useSalvaSoloDocumento: () => m.soloDocumento,
+    RevisioneBollaTelefono: ({ documento }: { documento: { id: string } }) => <div role="dialog">Revisione {documento.id}</div>,
+    CompilaBollaTelefono: ({ orderId, files }: { orderId: string | null; files: File[] }) => <div role="dialog">Compila {String(orderId)} {files.length}</div>,
+  };
+});
 vi.mock("@/hooks/campo/useCampoUfficio", () => ({
   useCampoUfficio: () => ({ data: m.ufficio }),
 }));
@@ -25,7 +39,7 @@ vi.mock("@/hooks/campo/useCampoAssignments", () => ({
   }),
 }));
 vi.mock("@/hooks/useDocumentiDDT", () => ({
-  useDocumentiDDT: () => ({ data: [] as unknown[], refetch: vi.fn() }),
+  useDocumentiDDT: () => ({ data: m.documenti, refetch: vi.fn() }),
   STATO_DOCUMENTO: {},
 }));
 vi.mock("@/lib/campo/sync-queue", () => ({
@@ -47,6 +61,9 @@ vi.mock("@/components/ddt/DividiPdfPannello", () => ({
 import CampoDDT from "@/pages/campo/CampoDDT";
 beforeEach(() => {
   m.ufficio = false;
+  m.permessi = { solaLettura: false, isAdmin: false, canEditOrders: false, canManagePurchasing: false, canEditWarehouse: false };
+  m.documenti = [];
+  m.soloDocumento.mockReset().mockResolvedValue("d");
   m.cantieri = [
     {
       order_id: "cantiere",
@@ -73,7 +90,7 @@ it("salva tutte le foto dello stesso DDT prima di avviare la rete, senza richied
   });
   await screen.findByText("1. fronte.heic");
   fireEvent.click(
-    screen.getByRole("button", { name: "Salva e analizza il DDT" }),
+    screen.getByRole("button", { name: "Invia la bolla" }),
   );
   await waitFor(() => expect(m.enqueue).toHaveBeenCalledTimes(1));
   expect(m.enqueue.mock.calls[0][0]).toMatchObject({
@@ -99,7 +116,7 @@ it("un errore di IndexedDB conserva le foto e non dichiara un invio riuscito", a
   });
   await screen.findByText("1. bolla.jpg");
   fireEvent.click(
-    screen.getByRole("button", { name: "Salva e analizza il DDT" }),
+    screen.getByRole("button", { name: "Invia la bolla" }),
   );
   await waitFor(() => expect(m.enqueue).toHaveBeenCalledTimes(1));
   expect(m.process).not.toHaveBeenCalled();
@@ -125,7 +142,7 @@ it("rifiuta un formato non supportato prima di salvare e non accetta cantieri es
   });
   expect(m.enqueue).not.toHaveBeenCalled();
   expect(
-    screen.getByRole("button", { name: "Salva e analizza il DDT" }),
+    screen.getByRole("button", { name: "Invia la bolla" }),
   ).toBeDisabled();
 });
 
@@ -143,7 +160,7 @@ const caricaBolla = async () => {
   });
   await screen.findByText("1. bolla.jpg");
 };
-it("ufficio (11/11/2026): senza cantiere la bolla va in ufficio con order_id null", async () => {
+it("ufficio (12/11/2026): «In magazzino» manda la bolla senza commessa", async () => {
   m.ufficio = true;
   dueCantieri();
   render(
@@ -151,17 +168,16 @@ it("ufficio (11/11/2026): senza cantiere la bolla va in ufficio con order_id nul
       <CampoDDT />
     </MemoryRouter>,
   );
-  expect(
-    screen.getByRole("option", { name: "Nessun cantiere (va in ufficio)" }),
-  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /In magazzino/ }));
+  expect(screen.queryByRole("combobox", { name: "Cantiere" })).not.toBeInTheDocument();
   await caricaBolla();
   fireEvent.click(
-    screen.getByRole("button", { name: "Salva e analizza il DDT" }),
+    screen.getByRole("button", { name: "Invia la bolla" }),
   );
   await waitFor(() => expect(m.enqueue).toHaveBeenCalledTimes(1));
   expect(m.enqueue.mock.calls[0][0].payload.order_id).toBeNull();
 });
-it("ufficio con un solo cantiere può comunque scegliere «Nessun cantiere»", async () => {
+it("ufficio con un solo cantiere può comunque scegliere il magazzino", async () => {
   m.ufficio = true;
   render(
     <MemoryRouter initialEntries={["/campo/ddt"]}>
@@ -170,10 +186,10 @@ it("ufficio con un solo cantiere può comunque scegliere «Nessun cantiere»", a
   );
   const select = screen.getByRole("combobox", { name: "Cantiere" });
   expect(select).toHaveValue("cantiere");
-  fireEvent.change(select, { target: { value: "__nessun_cantiere__" } });
+  fireEvent.click(screen.getByRole("button", { name: /In magazzino/ }));
   await caricaBolla();
   fireEvent.click(
-    screen.getByRole("button", { name: "Salva e analizza il DDT" }),
+    screen.getByRole("button", { name: "Invia la bolla" }),
   );
   await waitFor(() => expect(m.enqueue).toHaveBeenCalledTimes(1));
   expect(m.enqueue.mock.calls[0][0].payload.order_id).toBeNull();
@@ -185,14 +201,47 @@ it("per l'operaio il cantiere resta obbligatorio, senza la voce dell'ufficio", a
       <CampoDDT />
     </MemoryRouter>,
   );
-  expect(
-    screen.queryByRole("option", { name: "Nessun cantiere (va in ufficio)" }),
-  ).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /In magazzino/ })).toBeDisabled();
   expect(
     screen.getByRole("option", { name: "Scegli il cantiere" }),
   ).toBeInTheDocument();
   await caricaBolla();
   expect(
-    screen.getByRole("button", { name: "Salva e analizza il DDT" }),
+    screen.getByRole("button", { name: "Invia la bolla" }),
   ).toBeDisabled();
+});
+
+it("con l'AI, chi può registrare vede subito cosa ha letto, da confermare", async () => {
+  m.permessi = { ...m.permessi, canEditWarehouse: true };
+  const vista = apri();
+  await caricaBolla();
+  fireEvent.click(screen.getByRole("button", { name: "Invia la bolla" }));
+  await waitFor(() => expect(m.enqueue).toHaveBeenCalledTimes(1));
+  expect(screen.queryByText("Revisione operazione")).not.toBeInTheDocument();
+  m.documenti = [{ id: "operazione", status: "review", files: [{ name: "bolla.jpg" }], created_at: "2026-11-12T08:00:00Z", order_id: "cantiere" }];
+  vista.rerender(
+    <MemoryRouter initialEntries={["/campo/ddt?order=cantiere"]}>
+      <CampoDDT />
+    </MemoryRouter>,
+  );
+  expect(await screen.findByText("Revisione operazione")).toBeInTheDocument();
+});
+
+it("l'operaio senza permessi non ha l'interruttore: l'AI legge e l'ufficio conferma", () => {
+  apri();
+  expect(screen.queryByRole("switch", { name: "Leggi con l'AI" })).not.toBeInTheDocument();
+});
+
+it("AI spenta: si compila sul telefono, oppure la bolla resta all'ufficio", async () => {
+  m.permessi = { ...m.permessi, canManagePurchasing: true };
+  apri();
+  await caricaBolla();
+  fireEvent.click(screen.getByRole("switch", { name: "Leggi con l'AI" }));
+  expect(screen.queryByRole("button", { name: "Invia la bolla" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Compila ora" }));
+  expect(screen.getByRole("dialog")).toHaveTextContent("Compila cantiere 1");
+  expect(m.enqueue).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "La compila l'ufficio" }));
+  await waitFor(() => expect(m.soloDocumento).toHaveBeenCalledWith([expect.any(File)], "cantiere"));
+  expect(m.enqueue).not.toHaveBeenCalled();
 });
