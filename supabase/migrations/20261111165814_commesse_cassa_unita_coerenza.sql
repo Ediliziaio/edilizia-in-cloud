@@ -2,9 +2,9 @@
 -- The registered version predates the native general-project schema in Git.
 -- Fresh databases defer the original SQL until 20290313155500; production does not rerun it.
 create schema if not exists private;
-create table if not exists private.recovered_dependency_patches(id text primary key);
-alter table private.recovered_dependency_patches enable row level security;
-revoke all on private.recovered_dependency_patches from public,anon,authenticated,service_role;
+create table if not exists private.commesse_recovered_patches(id text primary key);
+alter table private.commesse_recovered_patches enable row level security;
+revoke all on private.commesse_recovered_patches from public,anon,authenticated,service_role;
 
 DO $defer_commesse_1$ BEGIN
 IF to_regclass('public.unita_movimenti') IS NOT NULL AND to_regclass('public.generale_piano_voci') IS NOT NULL THEN
@@ -154,5 +154,5 @@ drop trigger if exists z_unita_storno_da_prima_nota on public.prima_nota_entries
 create trigger z_unita_storno_da_prima_nota after insert on public.prima_nota_entries
 for each row when (new.reversal_of is not null) execute function public.generale_unita_storno_da_prima_nota();
 
-ELSE INSERT INTO private.recovered_dependency_patches(id) VALUES ('20261111165814_commesse_cassa_unita_coerenza.sql') ON CONFLICT DO NOTHING;
+ELSE INSERT INTO private.commesse_recovered_patches(id) VALUES ('20261111165814_commesse_cassa_unita_coerenza.sql') ON CONFLICT DO NOTHING;
 END IF; END $defer_commesse_1$;

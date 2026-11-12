@@ -1,10 +1,15 @@
 -- Fresh reconstruction only. These five versions are already applied in production.
 -- Apply after the native worksite schema, before the newer payment-condition RPC revisions.
+-- Isolated markers: the earlier recovery checkpoint must not consume these worksite patches.
+create schema if not exists private;
+create table if not exists private.commesse_recovered_patches(id text primary key);
+alter table private.commesse_recovered_patches enable row level security;
+revoke all on private.commesse_recovered_patches from public,anon,authenticated,service_role;
 set local lock_timeout='3s';
 set local statement_timeout='60s';
 
 DO $complete_commesse_0$ BEGIN
-IF EXISTS(SELECT 1 FROM private.recovered_dependency_patches WHERE id='20261111164624_commesse_incassi_crediti_budget.sql') THEN
+IF EXISTS(SELECT 1 FROM private.commesse_recovered_patches WHERE id='20261111164624_commesse_incassi_crediti_budget.sql') THEN
 -- Applied after native general-project migrations. Historical receipts are not backfilled.
 
 -- Run after the native general-project schema. No historical cash is inferred.
@@ -992,7 +997,7 @@ begin
       raise exception 'Non hai il permesso di approvare il piano economico.' using errcode='42501';
     end if;
     if not pg_try_advisory_xact_lock(hashtextextended('generale_piano:'||new.generale_id::text,0)) then
-      raise exception 'Budget in aggiornamento: aggiorna la pagina e riprova.' using errcode='40001';
+      raise exception 'Budget in aggiornamento: aggiorna la pagina e riprova.' using errcode='PT409';
     end if;
     if not exists(select 1 from public.generale_piano_voci where versione_id=new.id and importo>0)
       or exists(select 1 from public.generale_piano_voci where versione_id=new.id and (
@@ -1514,11 +1519,11 @@ drop trigger if exists fattura_riga_ordine_azienda_guardia on public.fatture_ric
 create trigger fattura_riga_ordine_azienda_guardia before insert or update of righe, company_id on public.fatture_ricevute
 for each row execute function public.fattura_riga_ordine_azienda_guardia();
 
-DELETE FROM private.recovered_dependency_patches WHERE id='20261111164624_commesse_incassi_crediti_budget.sql';
+DELETE FROM private.commesse_recovered_patches WHERE id='20261111164624_commesse_incassi_crediti_budget.sql';
 END IF; END $complete_commesse_0$;
 
 DO $complete_commesse_1$ BEGIN
-IF EXISTS(SELECT 1 FROM private.recovered_dependency_patches WHERE id='20261111165814_commesse_cassa_unita_coerenza.sql') THEN
+IF EXISTS(SELECT 1 FROM private.commesse_recovered_patches WHERE id='20261111165814_commesse_cassa_unita_coerenza.sql') THEN
 -- Follow-up: cashbook reversals, historical fiscal linkage and unit cash in collection history.
 
 create or replace function public.generale_unita_incasso_contabilizza(p_movimento_id uuid,p_importo_cassa numeric,p_prima_nota_id uuid default null)
@@ -1665,11 +1670,11 @@ drop trigger if exists z_unita_storno_da_prima_nota on public.prima_nota_entries
 create trigger z_unita_storno_da_prima_nota after insert on public.prima_nota_entries
 for each row when (new.reversal_of is not null) execute function public.generale_unita_storno_da_prima_nota();
 
-DELETE FROM private.recovered_dependency_patches WHERE id='20261111165814_commesse_cassa_unita_coerenza.sql';
+DELETE FROM private.commesse_recovered_patches WHERE id='20261111165814_commesse_cassa_unita_coerenza.sql';
 END IF; END $complete_commesse_1$;
 
 DO $complete_commesse_2$ BEGIN
-IF EXISTS(SELECT 1 FROM private.recovered_dependency_patches WHERE id='20261111171328_commesse_quadro_cassa_unita.sql') THEN
+IF EXISTS(SELECT 1 FROM private.commesse_recovered_patches WHERE id='20261111171328_commesse_quadro_cassa_unita.sql') THEN
 CREATE OR REPLACE FUNCTION public.rate_da_incassare(p_company uuid)
  RETURNS TABLE(order_id uuid, installment_id uuid, expected_date date, residuo numeric, finanziamento boolean)
  LANGUAGE sql
@@ -2001,11 +2006,11 @@ SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM o) THEN NULL ELSE jsonb_build_object(
 ) END
 $function$;
 
-DELETE FROM private.recovered_dependency_patches WHERE id='20261111171328_commesse_quadro_cassa_unita.sql';
+DELETE FROM private.commesse_recovered_patches WHERE id='20261111171328_commesse_quadro_cassa_unita.sql';
 END IF; END $complete_commesse_2$;
 
 DO $complete_commesse_3$ BEGIN
-IF EXISTS(SELECT 1 FROM private.recovered_dependency_patches WHERE id='20261111185928_commesse_creazione_appaltatore_atomica.sql') THEN
+IF EXISTS(SELECT 1 FROM private.commesse_recovered_patches WHERE id='20261111185928_commesse_creazione_appaltatore_atomica.sql') THEN
 -- Creazione e recupero del lavoro appaltatore sulla RPC atomica già condivisa.
 -- Il registro è interno: nessuna nuova tabella esposta al client.
 create schema if not exists private;
@@ -2384,14 +2389,18 @@ revoke all on function public.crea_lavoro_appaltatore_atomic(jsonb,jsonb) from p
 grant execute on function public.crea_lavoro_appaltatore_atomic(jsonb,jsonb) to authenticated;
 
 
-DELETE FROM private.recovered_dependency_patches WHERE id='20261111185928_commesse_creazione_appaltatore_atomica.sql';
+DELETE FROM private.commesse_recovered_patches WHERE id='20261111185928_commesse_creazione_appaltatore_atomica.sql';
 END IF; END $complete_commesse_3$;
 
 DO $complete_commesse_4$ BEGIN
-IF EXISTS(SELECT 1 FROM private.recovered_dependency_patches WHERE id='20261111191832_commesse_creazione_riferimenti_indici.sql') THEN
+IF EXISTS(SELECT 1 FROM private.commesse_recovered_patches WHERE id='20261111191832_commesse_creazione_riferimenti_indici.sql') THEN
 -- Indici di supporto dei riferimenti interni, senza esposizione al client.
 create index if not exists order_creation_requests_order_idx on private.order_creation_requests(order_id);
 create index if not exists order_creation_requests_actor_idx on private.order_creation_requests(actor_id);
 
-DELETE FROM private.recovered_dependency_patches WHERE id='20261111191832_commesse_creazione_riferimenti_indici.sql';
+DELETE FROM private.commesse_recovered_patches WHERE id='20261111191832_commesse_creazione_riferimenti_indici.sql';
 END IF; END $complete_commesse_4$;
+
+DO $commesse_recovery_complete$ BEGIN
+IF EXISTS(SELECT 1 FROM private.commesse_recovered_patches) THEN RAISE EXCEPTION 'Ricostruzione commesse incompleta'; END IF;
+END $commesse_recovery_complete$;
