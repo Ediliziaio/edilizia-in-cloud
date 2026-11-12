@@ -1480,6 +1480,7 @@ export function UnifiedPreventiviList() {
                 companyId={companyId}
                 onClear={sel.clear}
                 onDone={() => { sel.clear(); void queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && String(q.queryKey[0]).startsWith('unified-prev') }); }}
+                puoModificare={canEditPreventivi}
               />
       <PreventiviCestinoDialog open={cestinoOpen} onOpenChange={setCestinoOpen} companyId={companyId} />
               {/* A 1024 la tabella era larga 876px e scorreva di lato: fino a 1280
@@ -1627,6 +1628,15 @@ export function UnifiedPreventiviList() {
                     : "text-muted-foreground";
                   return (
                     <div key={`${r.tipo}-${r.id}`} className="flex items-center">
+                    {/* Sul telefono si seleziona come da computer (12/11/2026): la barra in alto
+                        segna come persi o sposta nel cestino. Area di tocco 44 px. */}
+                    <label className="flex h-11 w-11 shrink-0 items-center justify-center" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={sel.isSelected(`${r.tipo}:${r.id}`)}
+                        onCheckedChange={() => sel.toggle(`${r.tipo}:${r.id}`)}
+                        aria-label={`Seleziona ${r.numero}`}
+                      />
+                    </label>
                     <div className="min-w-0 flex-1"><RigaMobile
                       onClick={() => navigate(r.href)}
                       // Senza cliente il titolo è il numero (una riga «—» non si riconosce).
