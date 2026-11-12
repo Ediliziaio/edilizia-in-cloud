@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { OfficeProfileSelector } from "./OfficeProfileSelector";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -18,6 +19,7 @@ import {
   sezioniConPermessiDistinti,
   type PermissionSectionDef, type StaffRoleType, type BooleanPermissionKey,
 } from "@/components/users/permissionsDefaults";
+import { OfficeAccessSummary } from "./OfficeAccessSummary";
 import { SolaLetturaToggle } from "@/components/users/SolaLetturaToggle";
 import { PermessiDistintiToggle } from "@/components/users/PermessiDistintiToggle";
 
@@ -30,6 +32,7 @@ export interface StaffPermissions {
   can_view_orders: boolean;
   can_edit_orders: boolean;
   can_view_order_amounts: boolean;
+  can_view_order_payment_status: boolean;
   can_approve_orders: boolean;
   can_approve_variations: boolean;
   can_delete_orders: boolean;
@@ -134,8 +137,9 @@ export interface StaffPermissions {
   can_view_settings_integrations: boolean;
   can_edit_settings_integrations: boolean;
   // ── Speciali ───────────────────────────────────────────
+  office_profile?: string | null;
   only_assigned: boolean;
-  /** Vede tutte e sole le commesse dei magazzini a cui è assegnato. Ignorato se only_assigned è attivo (più stretto). */
+  /** Vede tutte e sole le commesse dei magazzini a cui è assegnato. Indipendente dal limite del portafoglio CRM. */
   only_my_warehouse: boolean;
   /** Vede le sue aree ma non crea e non modifica nulla. Le can_edit_* operative
    *  seguono la visibilità (trigger permessi_modifica_segue_visibilita). */
@@ -265,9 +269,11 @@ export function PermissionsDialog({
 }: PermissionsDialogProps) {
   const [permissions, setPermissions] = useState<StaffPermissions>(currentPermissions);
 
-  useEffect(() => {
+  const [permissionSource, setPermissionSource] = useState(currentPermissions);
+  if (permissionSource !== currentPermissions) {
+    setPermissionSource(currentPermissions);
     setPermissions(currentPermissions);
-  }, [currentPermissions]);
+  }
 
   const handleToggle = (key: BooleanPermissionKey, value: boolean) => {
     setPermissions((prev) => {
@@ -359,6 +365,8 @@ export function PermissionsDialog({
         <Separator />
 
         <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-2">
+          {userRole !== "company_admin" && <OfficeProfileSelector permissions={permissions} onChange={setPermissions} />}
+          <OfficeAccessSummary permissions={permissions} administrator={userRole === "company_admin"} fieldAccess={userRole === "employee" || userRole === "subcontractor"} />
           <PermGroup label="Cruscotto" icon={LayoutGrid} iconColor="text-indigo-600"
             sections={CRUSCOTTO_SECTIONS} permissions={permissions} onToggle={handleToggle} />
           <PermGroup label="Cantieri & Lavori" icon={HardHat} iconColor="text-blue-600"
@@ -401,9 +409,9 @@ export function PermissionsDialog({
 
           <div className="flex items-center justify-between py-2">
             <div>
-              <Label htmlFor="only_assigned" className="font-medium cursor-pointer">Solo i dati assegnati a lui</Label>
+              <Label htmlFor="only_assigned" className="font-medium cursor-pointer">Solo il portafoglio CRM assegnato</Label>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Vede solo commesse, attività e appuntamenti assegnati a lui.
+                Limita contatti, opportunità e attività commerciali. Non restringe le commesse degli uffici.
               </p>
             </div>
             <Switch
@@ -423,26 +431,22 @@ export function PermissionsDialog({
 
           {/* Terza modalità, per chi manda avanti una filiale: tutte le commesse
               del suo magazzino, comprese quelle dei colleghi di quel magazzino,
-              e nessuna delle altre. "Solo elementi assegnati" è più stretta e,
-              se accesa, ha la precedenza. */}
+              e nessuna delle altre. Questo limite è distinto dal portafoglio CRM. */}
           <div className="flex items-center justify-between py-2">
             <div>
               <Label
                 htmlFor="only_my_warehouse"
-                className={`font-medium cursor-pointer ${permissions.only_assigned ? "text-muted-foreground" : ""}`}
+                className="font-medium cursor-pointer"
               >
                 Solo commesse del suo magazzino
               </Label>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {permissions.only_assigned
-                  ? "Ignorato: «Solo i dati assegnati a lui» è più stretto e ha la precedenza."
-                  : "Vede tutte le commesse dei magazzini che gli hai assegnato — anche quelle dei colleghi di quel magazzino — più le proprie. Serve un magazzino assegnato, altrimenti non vedrà nulla."}
+                Limite separato sulle commesse dei magazzini assegnati, più le proprie. Non dipende dal portafoglio CRM.
               </p>
             </div>
             <Switch
               id="only_my_warehouse"
               checked={permissions.only_my_warehouse || false}
-              disabled={permissions.only_assigned || false}
               onCheckedChange={(checked) => setPermissions(prev => ({ ...prev, only_my_warehouse: checked }))}
             />
           </div>

@@ -25,8 +25,10 @@ describe("Manodopera in Fatture e costi", () => {
     expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
   });
   it("tariffa riservata resta nascosta anche se presente in cache", () => {
-    mocks.read.mockReturnValue({ ...state(), readRates: false }); view();
-    expect(screen.getByText("Riservata")).toBeInTheDocument(); expect(screen.queryByText("30,00 € / h", { exact: false })).not.toBeInTheDocument();
+    mocks.read.mockReturnValue({ ...state(), readRates: false, aggregate: {data:{cost:100,budget:120,unpriced:false},isPending:false,isError:false} }); view();
+    expect(screen.getByRole("region", {name:"Costo aggregato del personale"})).toBeInTheDocument();
+    expect(screen.queryByText("Mario Rossi")).not.toBeInTheDocument();
+    expect(screen.queryByRole("table", {name:"Costi dei dipendenti"})).not.toBeInTheDocument(); expect(screen.queryByText("30,00 € / h", { exact: false })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Gestisci tariffe in Personale e HR" })).not.toBeInTheDocument();
   });
   it("nessun costo visibile senza permesso, anche con cache popolata", () => {

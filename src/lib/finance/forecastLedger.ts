@@ -524,7 +524,7 @@ export function moveDay(value: string, days: number): string {
   date.setDate(date.getDate() + days);
   return dayKey(date);
 }
-const grossCents = (amount: Money, vat: Money): number =>
+const grossCents = (amount: Money, vat?: Money): number =>
   Math.round(toCents(amount) * (1 + Math.max(0, Number(vat) || 0) / 100));
 const closed = (status: string): boolean =>
   [

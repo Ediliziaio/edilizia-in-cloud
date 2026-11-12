@@ -244,3 +244,17 @@ end $function$;
 revoke all on function public.ddt_documento_registra(uuid,jsonb,boolean) from public, anon;
 grant execute on function public.ddt_documento_registra(uuid,jsonb,boolean) to authenticated;
 
+
+-- Read-only visibility for a received warehouse document that has no warehouse yet.
+-- Keep tenant, blocked-user and external-customer checks; do not grant writes.
+drop policy if exists ddt_ricezione_magazzino_senza_sede_lettura on public.ddt_ricezione;
+create policy ddt_ricezione_magazzino_senza_sede_lettura on public.ddt_ricezione
+ for select to authenticated using (
+  auth.uid() is not null
+  and not coalesce(public.utente_bloccato(),true)
+  and not coalesce(public.utente_e_cliente_esterno(),true)
+  and company_id=public.get_my_company_id()
+  and coalesce(public.user_can_access_company(company_id),false)
+  and destinazione='magazzino' and warehouse_id is null
+  and (created_by=auth.uid() or coalesce(company_id=any(public.aziende_con_permesso('can_view_warehouse')),false))
+ );

@@ -109,7 +109,7 @@ describe("Scheda utente — ruoli aggiuntivi", () => {
         onToggleAdditionalRole={onToggle}
       />,
     );
-    expect(screen.getByText("Ruoli aggiuntivi")).toBeTruthy();
+    expect(screen.getByText(/Funzioni aggiuntive/)).toBeTruthy();
     expect(screen.getByLabelText(/Anche Venditore/)).toBeTruthy();
     expect(screen.getByLabelText(/Anche Call Center/)).toBeTruthy();
     // Il call center c'è già: la casella è spuntata.
@@ -128,7 +128,7 @@ describe("Scheda utente — ruoli aggiuntivi", () => {
     unmount();
 
     render(<UserRolesPermissionsTab user={persona("subcontractor")} onSave={vi.fn()} onToggleAdditionalRole={vi.fn()} />);
-    expect(screen.queryByText("Ruoli aggiuntivi")).toBeNull();
+    expect(screen.queryByText(/Funzioni aggiuntive/)).toBeNull();
   });
 
   it("al cambio del ruolo principale dice quali ruoli aggiuntivi restano", async () => {
@@ -143,7 +143,7 @@ describe("Scheda utente — ruoli aggiuntivi", () => {
     await scegli(/Amministratore/);
     expect(screen.getByText(/Resta anche Operaio \/ Tecnico/)).toBeTruthy();
     // Mentre il cambio aspetta la conferma, le caselle non si toccano.
-    expect(screen.queryByText("Ruoli aggiuntivi")).toBeNull();
+    expect(screen.queryByText(/Funzioni aggiuntive/)).toBeNull();
 
     await scegli(/Subappaltatore/);
     expect(screen.getByText(/vengono tolti: un subappaltatore non ne ha/)).toBeTruthy();

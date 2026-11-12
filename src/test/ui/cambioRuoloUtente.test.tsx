@@ -116,7 +116,7 @@ function elena() {
 }
 
 async function scegli(ruolo: RegExp) {
-  fireEvent.pointerDown(screen.getByRole("combobox"), { button: 0, ctrlKey: false, pointerType: "mouse" });
+  fireEvent.pointerDown(screen.getByRole("combobox", {name:"Ruolo principale"}), { button: 0, ctrlKey: false, pointerType: "mouse" });
   fireEvent.click(await screen.findByRole("option", { name: ruolo }));
 }
 
@@ -127,9 +127,9 @@ describe("Scheda utente — il menu del ruolo", () => {
     await scegli(/Amministratore/);
 
     // Il menu dice la scelta, non il ruolo vecchio: era questo a far riaprire il menu.
-    expect(screen.getByRole("combobox")).toHaveTextContent("Amministratore");
+    expect(screen.getByRole("combobox", {name:"Ruolo principale"})).toHaveTextContent("Amministratore");
     // La conferma è accanto al menu (stesso contenitore), non in un riquadro più in basso.
-    const riga = screen.getByRole("combobox").parentElement as HTMLElement;
+    const riga = screen.getByRole("combobox", {name:"Ruolo principale"}).parentElement as HTMLElement;
     expect(within(riga).getByRole("button", { name: "Conferma" })).toBeInTheDocument();
     expect(screen.getByText(/Non è ancora salvato/)).toBeInTheDocument();
     // Il vecchio riquadro con tre scelte non c'è più.
@@ -165,8 +165,45 @@ describe("Scheda utente — il menu del ruolo", () => {
     await scegli(/Amministratore/);
     await scegli(/Call Center/);
     expect(screen.queryByText(/Non è ancora salvato/)).toBeNull();
-    expect(screen.getByRole("combobox")).toHaveTextContent("Call Center");
+    expect(screen.getByRole("combobox", {name:"Ruolo principale"})).toHaveTextContent("Call Center");
   }, TIMEOUT);
+});
+
+describe("Scheda utente — modelli e cambio accesso non si sovrappongono", () => {
+  it("scegliere il modello non salva; applicarlo prepara la bozza e blocca il cambio ruolo fino a salvataggio o annullamento", () => {
+    const save = vi.fn();
+    render(<UserRolesPermissionsTab user={{...elena(),role:"company_staff"}} onSave={save} onChangeRole={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("Prepara i permessi da un modello"),{target:{value:"ordini"}});
+    expect(screen.getByRole("combobox",{name:"Ruolo principale"})).toBeEnabled();
+    expect(save).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button",{name:"Applica alla bozza"}));
+    expect(screen.getByRole("combobox",{name:"Ruolo principale"})).toBeDisabled();
+    expect(save).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button",{name:"Salva permessi"}));
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({office_profile:"ordini",can_view_costs:true,can_view_employees:false}));
+    fireEvent.click(screen.getByRole("button",{name:"Annulla"}));
+    expect(screen.getByRole("combobox",{name:"Ruolo principale"})).toBeEnabled();
+  });
+  it("un cambio ruolo in attesa non permette di applicare contemporaneamente un modello",async()=>{
+    render(<UserRolesPermissionsTab user={{...elena(),role:"company_staff"}} onSave={vi.fn()} onChangeRole={vi.fn()} />);
+    await scegli(/Venditore/);
+    expect(screen.getByLabelText("Prepara i permessi da un modello")).toBeDisabled();
+    expect(screen.getByRole("button",{name:"Applica alla bozza"})).toBeDisabled();
+  });
+});
+
+describe("Scheda utente — controlli economici e azioni in blocco",()=>{
+  it("disattivare i moduli non ripristina gli importi predefiniti né perde il modello o i vincoli CRM",()=>{
+    const save=vi.fn();
+    render(<UserRolesPermissionsTab user={{...elena(),role:"company_staff",permissions:{...DEFAULT_PERMISSIONS,office_profile:"tecnico",can_view_orders:true,can_view_order_amounts:false,can_view_order_payment_status:true,only_assigned:true,pipeline_visibili:["pipeline-test"]}}} onSave={save}/>);
+    fireEvent.click(screen.getByRole("button",{name:"Disattiva tutti i moduli"}));
+    fireEvent.click(screen.getByRole("button",{name:/Rivedi modifiche/}));
+    expect(save).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toHaveTextContent("Ordini e Commesse");
+    fireEvent.click(screen.getByRole("button",{name:"Chiudi"}));
+    fireEvent.click(screen.getByRole("button",{name:"Salva permessi"}));
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({office_profile:"tecnico",can_view_orders:false,can_view_order_amounts:false,can_view_order_payment_status:true,only_assigned:true,pipeline_visibili:["pipeline-test"]}));
+  });
 });
 
 describe("Scheda utente — il cambio lo fa il database", () => {
@@ -185,7 +222,7 @@ describe("Scheda utente — il cambio lo fa il database", () => {
 
   it("Call Center → Amministratore: una chiamata a cambia_ruolo_utente, nessuna scrittura su user_roles", async () => {
     pagina();
-    await screen.findByRole("combobox", {}, { timeout: 15_000 });
+    await screen.findByRole("combobox", {name:"Ruolo principale"}, { timeout: 15_000 });
     await scegli(/Amministratore/);
     registro.length = 0;
     fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
@@ -207,7 +244,7 @@ describe("Scheda utente — il cambio lo fa il database", () => {
       error: { message: "È l'ultimo amministratore dell'azienda: nomina prima un altro amministratore.", code: "42501" },
     });
     pagina();
-    await screen.findByRole("combobox", {}, { timeout: 15_000 });
+    await screen.findByRole("combobox", {name:"Ruolo principale"}, { timeout: 15_000 });
     await scegli(/Amministratore/);
     fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
 
@@ -218,7 +255,7 @@ describe("Scheda utente — il cambio lo fa il database", () => {
 
   it("con i permessi del ruolo: prima il ruolo, poi i permessi salvati davvero", async () => {
     pagina();
-    await screen.findByRole("combobox", {}, { timeout: 15_000 });
+    await screen.findByRole("combobox", {name:"Ruolo principale"}, { timeout: 15_000 });
     await scegli(/Venditore/);
     registro.length = 0;
     fireEvent.click(screen.getByRole("button", { name: /Conferma con i permessi del ruolo/ }));
@@ -248,9 +285,9 @@ describe("Scheda utente — i permessi si salvano anche per chi non ha ancora la
   }
 
   async function salvaTutti() {
-    await screen.findByRole("combobox", {}, { timeout: 15_000 });
+    await screen.findByRole("combobox", {name:"Ruolo principale"}, { timeout: 15_000 });
     // «Tutti»: basta un qualunque cambio perché «Salva permessi» si accenda.
-    fireEvent.click(screen.getAllByRole("button", { name: /^Tutti$/ })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Attiva tutti i moduli" })[0]);
     registro.length = 0;
     fireEvent.click(screen.getByRole("button", { name: /Salva permessi/ }));
   }
@@ -283,17 +320,20 @@ describe("I ruoli si scrivono solo dal database", () => {
   const SRC = resolve(__dirname, "../..");
 
   function fileSorgente(dir: string): string[] {
-    return readdirSync(dir).flatMap((nome) => {
-      const p = join(dir, nome);
-      if (statSync(p).isDirectory()) return nome === "test" ? [] : fileSorgente(p);
-      return /\.(ts|tsx)$/.test(nome) ? [p] : [];
+    return readdirSync(dir, {withFileTypes:true}).flatMap((entry) => {
+      const p = join(dir, entry.name);
+      if (entry.isDirectory()) return entry.name === "test" ? [] : fileSorgente(p);
+      return /\.(ts|tsx)$/.test(entry.name) ? [p] : [];
     });
   }
+
+  const sourceCache = new Map<string,string>();
+  const readSource = (file:string) => {if(!sourceCache.has(file))sourceCache.set(file,readFileSync(file,"utf8"));return sourceCache.get(file)!;};
 
   it("nessuna pagina scrive in user_roles: lì scrive solo il super admin, e gli altri ricevono un rifiuto", () => {
     const colpevoli: string[] = [];
     for (const f of fileSorgente(SRC)) {
-      const testo = readFileSync(f, "utf8");
+      const testo = readSource(f);
       if (!testo.includes("user_roles")) continue;
       for (const m of testo.matchAll(/from\(\s*["']user_roles["']\s*\)([\s\S]{0,400})/g)) {
         const catena = m[1].split(/;|\n\s*\n/)[0];
@@ -309,7 +349,7 @@ describe("I ruoli si scrivono solo dal database", () => {
     const colpevoli: string[] = [];
     for (const f of fileSorgente(SRC)) {
       if (f.endsWith("salvaPermessiUtente.ts")) continue;
-      const testo = readFileSync(f, "utf8");
+      const testo = readSource(f);
       if (!testo.includes("staff_permissions")) continue;
       for (const m of testo.matchAll(/from\(\s*["']staff_permissions["']\s*\)([\s\S]{0,300})/g)) {
         const catena = m[1].split(/;|\n\s*\n/)[0];

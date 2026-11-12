@@ -9,23 +9,35 @@ import { assertDailyHoursCompany } from "@/lib/orders/dailyHours";
  * Separate shapes/keys from oes-employees and operational assignment queries.
  */
 export function useOrderLaborEconomics(orderId: string) {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
-  const { canViewCosts, canViewEmployees, canViewGiornaleLavori, isLoading } = usePermissions();
-  const readRates = canViewCosts && canViewEmployees && !isLoading;
+  const { canViewCosts, canViewEmployees, canViewPersone, canViewGiornaleLavori, isLoading } = usePermissions();
+  const readRates = canViewCosts && (canViewEmployees === true || canViewPersone === true) && !isLoading;
   const enabled = !!orderId && !!companyId && canViewCosts && !isLoading;
   const employees = useQuery({
     queryKey: ["order-labor-economics", orderId, companyId, readRates],
-    enabled, staleTime: 2 * 60 * 1000,
+    enabled: enabled && readRates, staleTime: 2 * 60 * 1000,
     queryFn: async () => {
       const employeeFields = readRates
         ? "id,user_id,first_name,last_name,costo_orario,gross_salary,inps_rate,monthly_hours,profilo_costo,role_type,qualifica,area"
         : "id,first_name,last_name";
+      const rateFields = readRates ? ",planned_hourly_rate,hourly_rate" : "";
       const { data, error } = await supabase.from("order_employees")
-        .select(`id,employee_id,hours_worked,total_cost,cost_preventivo,planned_hours,planned_hourly_rate,hourly_rate,employee:employees(${employeeFields}),orders!inner(company_id)`)
+        .select(`id,employee_id,hours_worked,total_cost,cost_preventivo,planned_hours${rateFields},employee:employees(${employeeFields}),orders!inner(company_id)`)
         .eq("order_id", orderId).eq("orders.company_id", companyId!).eq("employee.company_id", companyId!);
       if (error) throw error;
       return (data ?? []) as unknown as LaborLedgerRow[];
+    },
+  });
+  const aggregate = useQuery({
+    queryKey: ["order-labor-aggregate", orderId, companyId, user?.id],
+    enabled: enabled && !readRates, staleTime: 2 * 60 * 1000,
+    queryFn: async () => {
+      const client = supabase as unknown as { rpc(name: string, args: Record<string, unknown>): PromiseLike<{ data: { cost: number; budget: number | null; unpriced: boolean } | null; error: Error | null }> };
+      const { data, error } = await client.rpc("commessa_costo_personale_aggregato", { p_order_id: orderId });
+      if (error) throw error;
+      if (!data) throw new Error("Costo aggregato non disponibile");
+      return data;
     },
   });
   const teams = useQuery({
@@ -41,7 +53,13 @@ export function useOrderLaborEconomics(orderId: string) {
   });
   const pendingReports = useQuery({
     queryKey: ["order-labor-pending",orderId,companyId], enabled:enabled && canViewGiornaleLavori === true,
-    queryFn:async()=>{const {data,error}=await (supabase as any).rpc("ufficio_leggi_ore",{p_order_id:orderId,p_solo_riepilogo:true});if(error)throw error;assertDailyHoursCompany(data,companyId!);return Number(data?.pending??0);},
+    queryFn: async () => {
+      const client = supabase as unknown as { rpc(name: string, args: Record<string, unknown>): PromiseLike<{ data: { company_id: string; pending?: number } | null; error: Error | null }> };
+      const { data, error } = await client.rpc("ufficio_leggi_ore", { p_order_id: orderId, p_solo_riepilogo: true });
+      if (error) throw error;
+      assertDailyHoursCompany(data, companyId!);
+      return Number(data?.pending ?? 0);
+    },
   });
-  return { employees, teams, pendingReports, canCheckPending:canViewGiornaleLavori === true, readRates, allowed: canViewCosts && !isLoading };
+  return { employees, teams, aggregate, pendingReports, canCheckPending:canViewGiornaleLavori === true, readRates, allowed: canViewCosts && !isLoading };
 }

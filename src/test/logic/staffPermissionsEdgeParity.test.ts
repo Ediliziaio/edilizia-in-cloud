@@ -85,6 +85,15 @@ describe("staff_permissions: parità edge ↔ client", () => {
     expect(buildStaffPermissionsRecord("u", "c").pipeline_visibili).toEqual([]);
   });
 
+  it("il profilo è metadato validato e non concede permessi da solo", () => {
+    const record = buildStaffPermissionsRecord("u", "c", { office_profile: "hr" });
+    expect(record.office_profile).toBe("hr");
+    expect(record.can_view_employees).toBe(false);
+    expect(record.can_view_costs).toBe(false);
+    expect(buildStaffPermissionsRecord("u", "c", { office_profile: "inventato" }).office_profile).toBeNull();
+    expect(buildStaffPermissionsRecord("u", "c", { office_profile: true }).office_profile).toBeNull();
+  });
+
   it("senza payload restituisce i puri default (+ user/company)", () => {
     const record = buildStaffPermissionsRecord("u", "c");
     expect(Object.keys(record).length).toBe(Object.keys(STAFF_PERMISSION_DEFAULTS).length + 2);

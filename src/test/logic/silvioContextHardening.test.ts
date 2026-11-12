@@ -1,3 +1,6 @@
+vi.mock("../../../supabase/functions/_shared/silvioAuthorizedTools.ts",()=>({scopedToolContext:async(ctx:unknown)=>ctx,executeAuthorizedRead:vi.fn()}));
+import{SILVIO_PERMISSION_CONTRACTS}from"../../../supabase/functions/_shared/silvioPermissionContracts";
+vi.mock("../../../supabase/functions/_shared/silvioActorRole.ts",()=>({toolActorRoleIsCurrent:async()=>true}));
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { normalizeRagSources, registerBrainToolSources } from '../../../supabase/functions/_shared/ragSources';
 import { validateCitations } from '../../../supabase/functions/_shared/citationValidator';
@@ -122,17 +125,19 @@ describe('estrazione memoria validata', () => {
 
 describe('stesso controllo permessi dopo conferma', () => {
   const name = '__hardening_test__';
-  afterEach(() => { delete SILVIO_TOOLS[name]; });
+  afterEach(() => { delete SILVIO_TOOLS[name];delete SILVIO_PERMISSION_CONTRACTS[name]; });
   function fixture(options: { permissions?: unknown; permissionError?: unknown; proposal?: unknown; output?: unknown; risk?: 'safe' | 'red' } = {}) {
+    SILVIO_PERMISSION_CONTRACTS[name]={all:['can_view_orders','can_edit_orders'],write:true};
     const executor = vi.fn().mockResolvedValue(options.output ?? { ok: true });
     SILVIO_TOOLS[name] = { schema: { type: 'function', function: { name, description: 'test', parameters: { type: 'object', properties: {} } } },
       executor, domain: 'cantiere', riskLevel: options.risk ?? 'safe', allowedRoles: ['company_admin', 'company_staff'] } as SilvioTool;
     const audit = vi.fn().mockResolvedValue({ error: null });
     const db = { from: (table: string) => {
       if (table === 'tool_execution_log') return { insert: audit };
+      if (table === 'profiles') {const q={select:()=>q,eq:()=>q,maybeSingle:async()=>({data:{id:'user',is_blocked:false},error:null as null})};return q;}
       const query = { select: () => query, eq: () => query,
         maybeSingle: async () => table === 'staff_permissions'
-          ? { data: options.permissions ?? null, error: options.permissionError ?? null }
+          ? { data: options.permissions === null ? null : options.permissions ?? {can_view_orders:true,can_edit_orders:true}, error: options.permissionError ?? null }
           : { data: options.proposal, error: null } };
       return query;
     }, rpc: vi.fn().mockResolvedValue({ data: [], error: null }) };

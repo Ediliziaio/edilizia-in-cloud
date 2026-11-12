@@ -216,7 +216,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
   const { unreadByTicket, totalUnread } = useUnreadTicketCounts();
 
   const { data: queryResult, isLoading, isFetching, isError, refetch } = useQuery({
-    queryKey: [...queryKeys.companyTickets.list(effectiveCompany?.id), tipoFilter, statusFilter, priorityFilter, permissions.onlyAssigned, user?.id, fetchLimit],
+    queryKey: [...queryKeys.companyTickets.list(effectiveCompany?.id), tipoFilter, statusFilter, priorityFilter, permissions.onlyAssignedWork, user?.id, fetchLimit],
     queryFn: async () => {
       const controller = new AbortController();
       const timeoutId = window.setTimeout(() => controller.abort(), TICKETS_QUERY_TIMEOUT_MS);
@@ -246,7 +246,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
       // only_assigned=true deve vedere SOLO i suoi ticket. RLS già filtra a
       // monte (check_staff_visibility), ma applichiamo anche qui per ridurre
       // banda + caricamento (no count completo dell'azienda).
-      if (permissions.onlyAssigned && user?.id) {
+      if (permissions.onlyAssignedWork && user?.id) {
         query = query.eq("assigned_to", user.id);
       }
 

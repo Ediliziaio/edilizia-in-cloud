@@ -23,14 +23,23 @@ type Persona = ReturnType<typeof laborEconomics>["people"][number];
 
 /** Registro giornaliero condiviso; stipendi e pagamenti restano separati. */
 export function OrderLaborEconomics({ orderId }: { orderId: string }) {
-  const { employees, teams, pendingReports, canCheckPending, readRates, allowed } = useOrderLaborEconomics(orderId);
+  const { employees, teams, aggregate, pendingReports, canCheckPending, readRates, allowed } = useOrderLaborEconomics(orderId);
   const { data: parametriCosto } = useParametriCostoPersonale();
   const { isAdmin } = usePermissions();
   const [dettaglio, setDettaglio] = useState<string | null>(null);
-  const righe = employees.data ?? [];
+  const righe = useMemo(() => employees.data ?? [], [employees.data]);
   const idPersone = useMemo(() => [...new Set(righe.map((r) => r.employee_id))], [righe]);
   const cedolini = useCostoDaCedolini(orderId, idPersone, allowed && readRates && !!isAdmin);
   if (!allowed) return <p className="rounded-lg border p-4 text-sm">Il tuo ruolo non permette di consultare i costi della manodopera.</p>;
+  if (!readRates) {
+    if (aggregate?.isPending) return <p role="status" className="p-4 text-sm">Caricamento costo aggregato…</p>;
+    if (!aggregate?.data || aggregate.isError) return <div role="alert" className="rounded-lg border p-4"><p>Costo aggregato non disponibile.</p><Button variant="outline" onClick={() => void aggregate?.refetch()}>Riprova</Button></div>;
+    return <section aria-label="Costo aggregato del personale" className="rounded-lg border bg-white p-4">
+      <h3 className="font-medium">Personale interno: costo aggregato</h3>
+      <dl className="mt-3 grid grid-cols-2 gap-3"><Value label="Costo registrato" value={aggregate.data.unpriced ? "Da completare" : money(aggregate.data.cost)} /><Value label="Budget" value={money(aggregate.data.budget)} /></dl>
+      <p className="mt-3 text-sm text-muted-foreground">Il dettaglio economico per persona e le tariffe sono riservati al personale autorizzato.</p>
+    </section>;
+  }
   if (employees.isPending || teams.isPending) return <p role="status" className="p-4 text-sm text-muted-foreground">Caricamento ore e costi…</p>;
   const retry = () => { void employees.refetch(); void teams.refetch(); void pendingReports?.refetch?.(); void cedolini.refetch(); };
   if (employees.isError || teams.isError) return <div role="alert" className="rounded-lg border p-4">

@@ -3,6 +3,7 @@
  * cartella (proposta dal nome del file, correggibile), avanzamento per file.
  * Se un file non sale gli altri proseguono, e quello si riprova.
  */
+import { usePermissions } from "@/hooks/usePermissions";
 import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -85,6 +86,8 @@ export function CaricaDocumentiDialog({
   // sempre dai file che l'hanno aperto.
   const [voci, setVoci] = useState<Voce[]>(() => vociDaFile(filesIniziali, cartelle, cartellaPredefinita));
   const [inCorso, setInCorso] = useState(false);
+  const permissions = usePermissions();
+  const [accessScope,setAccessScope] = useState("operativo");
   const [riduci, setRiduci] = useState(true);
   const { data: spazio } = useSpazioArchiviazione();
   const liberi = byteLiberi(spazio);
@@ -110,6 +113,7 @@ export function CaricaDocumentiDialog({
       const visibile = cartellaDi(v.cartellaId)?.visibile_cliente ?? false;
       const { error: errRiga } = await supabase.from("order_attachments").insert({
         order_id: orderId,
+        access_scope: accessScope,
         file_name: file.name,
         file_url: percorso,
         file_type: file.type || "application/octet-stream",
@@ -129,6 +133,7 @@ export function CaricaDocumentiDialog({
         const autore = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || profile?.email || user.email || "Utente";
         void supabase.from("order_events" as never).insert({
           order_id: orderId,
+        access_scope: accessScope,
           company_id: effectiveCompany.id,
           event_type: "allegato_caricato",
           payload: {
@@ -325,7 +330,8 @@ export function CaricaDocumentiDialog({
 
         {/* Mobile: una riga sola — «+» per aggiungere file e «Carica» che la
             riempie; Annulla/Chiudi c'è già (la X e il gesto verso il basso). */}
-        <DialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:justify-between max-sm:flex-row max-sm:flex-nowrap max-sm:[&>*]:flex-none">
+        <div className="rounded-md border p-3"><label htmlFor="document-access" className="text-sm font-medium">Chi può leggere questi file</label><select id="document-access" className="mt-2 block w-full rounded-md border p-2 text-sm" value={accessScope} disabled={inCorso} onChange={e=>setAccessScope(e.target.value)}><option value="operativo">Uffici con accesso alla commessa</option>{permissions.canViewOrderAmounts && <option value="vendita">Solo chi vede gli importi di vendita</option>}{permissions.canViewCosts && <option value="costi">Solo chi vede i costi</option>}{permissions.canViewCosts && (permissions.canViewEmployees || permissions.canViewPersone) && <option value="personale">Solo personale autorizzato ai dati HR</option>}{permissions.isAdmin && <option value="riservato">Solo amministratori</option>}</select><p className="mt-1 text-xs text-muted-foreground">Contratti, fatture e documenti del personale devono avere il livello di riservatezza adatto al contenuto. La cartella non cambia i permessi.</p></div>
+      <DialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:justify-between max-sm:flex-row max-sm:flex-nowrap max-sm:[&>*]:flex-none">
           <Button type="button" variant="ghost" disabled={inCorso} onClick={() => inputRef.current?.click()} aria-label="Aggiungi file" className="max-sm:w-11 max-sm:px-0">
             <Plus className="h-4 w-4 mr-1 max-sm:mr-0" /><span aria-hidden="true" className="max-sm:hidden">Aggiungi file</span>
           </Button>

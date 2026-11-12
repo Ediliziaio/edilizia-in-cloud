@@ -23,7 +23,7 @@ function dbFinto(tabelle: Record<string, unknown>, rpc: unknown) {
     q.then = (ok: (v: unknown) => unknown) => Promise.resolve({ data: Array.isArray(dati) ? dati : [], error: null as null }).then(ok);
     return q;
   };
-  return { from: (t: string) => query(tabelle[t] ?? []), rpc: async () => ({ data: rpc, error: null as null }) };
+  return { from: (t: string) => query(tabelle[t] ?? []), rpc: async (name: string) => ({ data: name === "commessa_costo_personale_per_fase" ? (tabelle.order_employees ?? []) : rpc, error: null as null }) };
 }
 
 const tabelle: Record<string, unknown> = {

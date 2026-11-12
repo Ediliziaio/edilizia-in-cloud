@@ -201,12 +201,12 @@ describe("Letture complete del calendario e visibilità", () => {
       ).toBe(false);
     },
   );
-  it("only_assigned resta restrittivo anche se è acceso il calendario team", async () => {
+  it("il portafoglio CRM non restringe il calendario lavori autorizzato", async () => {
     state.team = true;
     state.restricted = true;
     useWorkCalendarData("2026-10-01", "2026-10-31", "team");
     await state.options[1].queryFn(context());
-    call("appointments", "eq", ["assigned_to", "me"]);
+    expect(state.calls).not.toContainEqual({table:"appointments",method:"eq",args:["assigned_to","me"]});
   });
   it("la cache separa utenti, aziende e scope personale/team", () => {
     useWorkCalendarData("2026-10-01", "2026-10-31");

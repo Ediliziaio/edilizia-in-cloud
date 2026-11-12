@@ -124,7 +124,7 @@ describe("permessi granulari per dominio", () => {
   });
 
   it("negare un permesso riduce davvero i tool visibili allo staff", () => {
-    const pieno = getToolsForChannel({ channel: "internal_chat", role: "company_staff", personaKey: "silvio" });
+    const pieno = getToolsForChannel({ channel: "internal_chat", role: "company_staff", personaKey: "silvio", staffPermissions:{can_view_orders:true} });
     const ridotto = getToolsForChannel({
       channel: "internal_chat",
       role: "company_staff",

@@ -1,3 +1,5 @@
+import {SILVIO_PERMISSION_CONTRACTS,STAFF_TOOL_ROLES,staffToolRoleAllowed}from"../_shared/silvioPermissionContracts.ts";
+import{silvioDataPermissionIssue}from"../_shared/silvioDataPermission.ts";
 /**
  * Edge Function: silvio-execute-action
  *
@@ -223,7 +225,8 @@ serve(async (req: Request) => {
       );
     }
 
-    const effectiveAllowedRoles = permission.requiresCompanyAdmin
+    const verifiedContract=SILVIO_PERMISSION_CONTRACTS[canonicalType];
+    const effectiveAllowedRoles = verifiedContract && permission.source==="default" ? ['super_admin','company_admin',...STAFF_TOOL_ROLES] : permission.requiresCompanyAdmin
       ? permission.allowedRoles.filter((role) => ["super_admin", "company_admin"].includes(role))
       : permission.allowedRoles;
 
@@ -236,11 +239,11 @@ serve(async (req: Request) => {
     try { ruoli = verifiedActionActorRoles(actorRoles, actorError, effectiveAllowedRoles); }
     catch (error) { return errorResponse(error instanceof Error ? error.message : "Accesso non verificabile", 403, corsHeaders); }
     const primaryRole = ruoloPrincipaleSilvio(ruoli.filter(role => effectiveAllowedRoles.includes(role)));
-    if (usaPermessiStaff(primaryRole) && Object.hasOwn(ACTION_POLICIES, canonicalType)) {
+    if (usaPermessiStaff(primaryRole)) {
       const { data: staffPermissions, error: staffError } = await supabaseAdmin.from("staff_permissions")
         .select("*").eq("company_id", proposal.company_id).eq("user_id", userId).maybeSingle();
       if (staffError) return errorResponse("Non riesco a verificare i permessi. Nessuna azione eseguita.", 403, corsHeaders);
-      const denial = legacyActionPermissionError(canonicalType, staffPermissions);
+      const denial = verifiedContract ? silvioDataPermissionIssue(canonicalType,SILVIO_TOOLS[canonicalType]?.domain,staffPermissions??{},true,primaryRole,body.override_payload??proposal.payload??{}) : legacyActionPermissionError(canonicalType, staffPermissions);
       if (denial) return errorResponse(denial, 403, corsHeaders);
     }
 
@@ -311,6 +314,7 @@ serve(async (req: Request) => {
       companyId: proposal.company_id,
       proposal,
       primaryRole,
+      authToken:req.headers.get("Authorization")??undefined,
     };
 
     // Dispatch (uso il canonical type per il dispatcher → handlers backward-compat)
@@ -424,7 +428,7 @@ async function loadActionPermission(
   const raw = verifiedActionPermission(data, error);
 
   return {
-    source: raw.source === "company_override" ? "company_override" : "default",
+    source: raw.source === "company_override" ? "company_override" : raw.source === "default" ? "default" : "fallback",
     riskLevel: raw.risk_level === "green" || raw.risk_level === "red" ? raw.risk_level : "yellow",
     mode: raw.mode,
     allowedRoles: raw.allowed_roles.filter((role) => fallbackPolicy.allowedRoles.includes(role)),
@@ -505,8 +509,12 @@ function buildFinalPayload(
 async function dispatchAction(
   actionType: string,
   payload: Record<string, unknown>,
-  ctx: { supabase: SupabaseAdmin; userId: string; companyId: string; proposal: Record<string, unknown>; primaryRole: string },
+  ctx: { supabase: SupabaseAdmin; userId: string; companyId: string; proposal: Record<string, unknown>; primaryRole: string;authToken?:string },
 ): Promise<ExecutionResult> {
+  // Certified staff actions always use the actor JWT and common permission/RLS path.
+  if (usaPermessiStaff(ctx.primaryRole) && SILVIO_PERMISSION_CONTRACTS[actionType]) {
+    return await executeRegisteredSilvioTool(actionType,payload,ctx);
+  }
   switch (actionType) {
     case "send_overdue_reminder":
       return await sendOverdueReminder(payload, ctx);
@@ -552,7 +560,7 @@ async function dispatchAction(
 // "Richiamo lead entro 5 minuti" ({{azienda}}, {{nome}}, {{lavoro}}).
 async function makeVoiceCallLead(
   payload: Record<string, unknown>,
-  ctx: { supabase: SupabaseAdmin; userId: string; companyId: string; proposal: Record<string, unknown>; primaryRole: string },
+  ctx: { supabase: SupabaseAdmin; userId: string; companyId: string; proposal: Record<string, unknown>; primaryRole: string;authToken?:string },
 ): Promise<ExecutionResult> {
   const p = payload as {
     agent_id?: string;
@@ -627,7 +635,7 @@ async function makeVoiceCallLead(
 // client_email, title, description, total_estimate, items, ecc.
 async function createQuoteDraft(
   payload: Record<string, unknown>,
-  ctx: { supabase: SupabaseAdmin; userId: string; companyId: string; proposal: Record<string, unknown>; primaryRole: string },
+  ctx: { supabase: SupabaseAdmin; userId: string; companyId: string; proposal: Record<string, unknown>; primaryRole: string;authToken?:string },
 ): Promise<ExecutionResult> {
   const p = payload as {
     client_name?: string;
@@ -700,7 +708,7 @@ async function createQuoteDraft(
 // edge function ai-fattura-genera-bozza che orchestra correttamente.
 async function createInvoiceDraft(
   payload: Record<string, unknown>,
-  _ctx: { supabase: SupabaseAdmin; userId: string; companyId: string; proposal: Record<string, unknown>; primaryRole: string },
+  _ctx: { supabase: SupabaseAdmin; userId: string; companyId: string; proposal: Record<string, unknown>; primaryRole: string;authToken?:string },
 ): Promise<ExecutionResult> {
   const p = payload as {
     client_name?: string;
@@ -788,7 +796,7 @@ function isChannel(value: unknown): value is Channel {
 async function executeRegisteredSilvioTool(
   actionType: string,
   payload: Record<string, unknown>,
-  ctx: { supabase: SupabaseAdmin; userId: string; companyId: string; proposal: Record<string, unknown>; primaryRole: string },
+  ctx: { supabase: SupabaseAdmin; userId: string; companyId: string; proposal: Record<string, unknown>; primaryRole: string;authToken?:string },
 ): Promise<ExecutionResult> {
   const tool = SILVIO_TOOLS[actionType];
   if (!tool) return { ok: false, message: `Tool non registrato: ${actionType}` };
@@ -804,7 +812,7 @@ async function executeRegisteredSilvioTool(
   }
   // Difesa in profondità: ricontrolla il RUOLO anche qui (oltre alla policy a monte),
   // così questo layer è autosufficiente e non dipende solo dal chiamante.
-  if (tool.allowedRoles?.length && !tool.allowedRoles.includes(ctx.primaryRole) && !tool.allowedRoles.includes("*")) {
+  if (!staffToolRoleAllowed(actionType,ctx.primaryRole,tool.allowedRoles??[])) {
     return { ok: false, message: `Ruolo non autorizzato per ${actionType}` };
   }
 
@@ -813,6 +821,7 @@ async function executeRegisteredSilvioTool(
     companyId: ctx.companyId,
     userId: ctx.userId,
     primaryRole: ctx.primaryRole,
+    authToken:ctx.authToken,
     personaKey,
     channel,
     sessionId,

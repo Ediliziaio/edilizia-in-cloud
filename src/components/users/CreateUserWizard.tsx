@@ -1,3 +1,4 @@
+import { OfficeProfileSelector } from "./OfficeProfileSelector";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -652,10 +653,11 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
                 </p>
               </section>
 
+              {roleType === "company_staff" && <OfficeProfileSelector permissions={permissions} onChange={setPermissions} />}
               <label htmlFor="wiz-only_assigned" className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2.5">
                 <span className="min-w-0">
-                  <span className="block text-sm font-medium">Solo i dati assegnati a lui</span>
-                  <span className="block text-[11px] text-muted-foreground">Commesse, attività e appuntamenti suoi, non quelli degli altri.</span>
+                  <span className="block text-sm font-medium">Solo il portafoglio CRM assegnato</span>
+                  <span className="block text-[11px] text-muted-foreground">Contatti e opportunità commerciali propri. Le commesse seguono i permessi dell’ufficio.</span>
                 </span>
                 <Switch
                   id="wiz-only_assigned"

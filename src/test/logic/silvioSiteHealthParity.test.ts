@@ -1,3 +1,4 @@
+vi.mock("../../../supabase/functions/_shared/silvioActorRole.ts",()=>({toolActorRoleIsCurrent:async()=>true}));
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { DbMinimo } from "../helpers/edgeFinto";
@@ -14,6 +15,7 @@ const row = (id = "a") => ({ id, company_id: "demo", order_code: `ORD-${id}`, de
   work_end_date: "2026-09-27", percentuale_avanzamento: 50 });
 function fixture(channel: "internal_chat" | "whatsapp" = "internal_chat") {
   const db = new DbMinimo(); db.tabelle.orders = [row()];
+  db.tabelle.profiles=[{id:"owner",is_blocked:false}];
   db.tabelle.v_ordine_marginalita = [{ id: "a", company_id: "demo", preventivo_totale: 10000, consuntivo: 12000 }];
   const ctx: ToolContext = { supabase: db, companyId: "demo", userId: "owner", primaryRole: "company_admin", channel, personaKey: "silvio" };
   return { db, ctx };

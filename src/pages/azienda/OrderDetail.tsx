@@ -1,3 +1,4 @@
+import { OrderPaymentStatus } from "@/components/orders/OrderPaymentStatus";
 import { nomeCliente as nomeClienteProfilo } from "@/lib/orders/nuovaCommessaProposte";
 import { costoDaSottrarreAlSaldo, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 import { PlanimetrieAssociate } from "@/components/planimetrie/PlanimetrieAssociate";
@@ -1579,6 +1580,7 @@ function OrderDetailInner() {
 
       {/* ── New Header (breadcrumb + title + actions) ──────────── */}
       <OrdineDetailHeader
+        canRegisterPayment={permissions.canViewOrderAmounts && permissions.canEditOrders && !permissions.solaLettura}
         orderCode={order.order_code || "—"}
         descrizione={order.description}
         dataCreazione={order.created_at}
@@ -1678,6 +1680,7 @@ function OrderDetailInner() {
 
           {/* Tab: Panoramica */}
           <TabsContent value="panoramica" className="order-detail-tab-panel space-y-4 mt-4">
+            <OrderPaymentStatus orderId={id!} />
             <OrderViewTransition viewKey="panoramica">
             <PlanimetrieAssociate companyId={companyId} tipo="commessa" schedaId={id} />
             {isMobile && <div className="rounded-xl border bg-card px-3 py-2">{statoCommessa}</div>}

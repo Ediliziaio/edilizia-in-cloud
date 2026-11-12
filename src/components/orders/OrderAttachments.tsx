@@ -1,3 +1,4 @@
+import { AttachmentAccessDialog } from "./AttachmentAccessDialog";
 /**
  * Documenti della commessa, divisi nelle cartelle dell'azienda
  * (Impostazioni → Cantieri & Costi → Cartelle documenti).
@@ -81,6 +82,7 @@ interface OrderAttachment {
   visible_to_customer: boolean;
   created_at: string;
   folder_id: string | null;
+  access_scope?: string;
   /** Miniatura creata al caricamento e salvata accanto al file. */
   thumb_path?: string | null;
   /** Documento personale del cliente (carta d'identità, CF…): sta sul cliente, qui solo si consulta. */
@@ -117,7 +119,7 @@ async function getSignedUrl(filePath: string): Promise<string | null> {
   const target = attachmentStorage(filePath);
   const { data, error } = await supabase.storage
     .from(target.bucket)
-    .createSignedUrl(target.path, 3600);
+    .createSignedUrl(target.path, 60);
   if (error) {
     logger.error("Signed URL error:", error);
     return null;
@@ -610,6 +612,8 @@ function AzioniDocumento({
   const [confermaElimina, setConfermaElimina] = useState(false);
   const [confermaVisibilita, setConfermaVisibilita] = useState(false);
   const [revisioneAperta, setRevisioneAperta] = useState(false);
+  const [accessOpen,setAccessOpen] = useState(false);
+  const {isAdmin} = usePermissions();
   return (
     <div className={`flex items-center gap-1 shrink-0 ${compatta ? "" : "col-span-2 justify-end sm:col-span-1"}`}>
       {!daCliente && !compatta && (editable ? <Button type="button" variant="ghost" size="sm"
@@ -648,6 +652,7 @@ function AzioniDocumento({
                 {attachment.visible_to_customer ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
                 {attachment.visible_to_customer ? "Nascondi al cliente" : "Mostra al cliente"}
               </DropdownMenuItem>
+              {isAdmin && <DropdownMenuItem onSelect={()=>setAccessOpen(true)}>Riservatezza del documento…</DropdownMenuItem>}
               <DropdownMenuItem onSelect={() => setRevisioneAperta(true)}>
                 <FileCheck2 className="h-4 w-4 mr-2" /> Revisione…
               </DropdownMenuItem>
@@ -670,6 +675,7 @@ function AzioniDocumento({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          {accessOpen && <AttachmentAccessDialog file={attachment} onClose={()=>setAccessOpen(false)} />}
           {revisioneAperta && <RevisioneDocumentoDialog open={revisioneAperta} onOpenChange={setRevisioneAperta} doc={attachment} />}
           <AlertDialog open={confermaVisibilita} onOpenChange={setConfermaVisibilita}>
             <AlertDialogContent>

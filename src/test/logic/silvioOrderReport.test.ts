@@ -1,3 +1,4 @@
+vi.mock("../../../supabase/functions/_shared/silvioActorRole.ts",()=>({toolActorRoleIsCurrent:async()=>true}));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DbMinimo } from "../helpers/edgeFinto";
 import { SILVIO_TOOLS, type ToolContext } from "../../../supabase/functions/_shared/silvioTools";
@@ -19,6 +20,7 @@ const snapshot = () => ({ id: "order-a", company_id: "company-a", preventivo_con
 
 beforeEach(() => {
   db = new DbMinimo(); tables = []; failures = new Set();
+  db.tabelle.profiles=[{id:"user",is_blocked:false}];
   db.rpcs.silvio_tool_propose_action = () => ({ proposal_id: "pending-proposal" });
   // Incassato e da incassare con la regola della scheda commessa li calcola il database.
   db.rpcs.commessa_incassi = () => ({ incassato: 3000, da_incassare: 8000, scaduto: 0 });

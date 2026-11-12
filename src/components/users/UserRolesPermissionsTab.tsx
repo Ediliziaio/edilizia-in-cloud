@@ -1,3 +1,8 @@
+import { OrderDataPermissions } from "./OrderDataPermissions";
+import { PipelineVisibilitySelector } from "./PipelineVisibilitySelector";
+import { PermissionsChangeReview } from "./PermissionsChangeReview";
+import { OfficeProfileSelector } from "./OfficeProfileSelector";
+import { OfficeAccessSummary } from "./OfficeAccessSummary";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { AnteprimaAccessi } from "./AnteprimaAccessi";
 import { Button } from "@/components/ui/button";
@@ -40,10 +45,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import {
-  DEFAULT_PERMISSIONS, ROLE_PRESETS, ECONOMIC_LEVELS, detectEconomicLevel,
+  DEFAULT_PERMISSIONS, ROLE_PRESETS,
   CRUSCOTTO_SECTIONS, CANTIERI_SECTIONS, FINANZA_SECTIONS, PERSONE_SECTIONS,
   MARKETING_SECTIONS, AUTOMAZIONI_SECTIONS, IMPOSTAZIONI_SECTIONS, TEAM_VISIBILITY_SECTIONS,
-  isBlockedBySolaLettura, SOLA_LETTURA_BLOCKED_NOTE, conservaPermessiNascosti,
+  isBlockedBySolaLettura, SOLA_LETTURA_BLOCKED_NOTE,
   OPERATIONAL_EDIT_PAIRS,
   type BooleanPermissionKey, type PermissionSectionDef,
 } from "@/components/users/permissionsDefaults";
@@ -119,19 +124,16 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = CATEGORY_DEFS.map((c)
   })),
 }));
 
-// ─── Visibilità dati economici — modello a 3 livelli su 3 toggle ──────────
-// Operativo (niente soldi) · Commerciale (importi sì, costi/margini no) · Pieno.
+// I dati economici hanno un solo gruppo di controlli dedicato.
 const ECONOMIC_KEYS: (keyof StaffPermissions)[] = [
   "can_view_order_amounts",
+  "can_view_order_payment_status",
   "can_view_costs",
   "can_view_margins",
 ];
 const ECONOMIC_KEY_SET = new Set<keyof StaffPermissions>(ECONOMIC_KEYS);
 
-// ECONOMIC_LEVELS/detectEconomicLevel vivono in permissionsDefaults,
-// condivisi col CreateUserWizard (stesso selettore in creazione e gestione).
-
-// Le 3 chiavi economiche hanno un blocco dedicato → escludile dalle categorie
+// Le quattro chiavi economiche hanno un blocco dedicato → escludile dalle categorie
 // generiche per non avere doppi controlli (né doppio conteggio).
 const VISIBLE_CATEGORIES: PermissionCategory[] = PERMISSION_CATEGORIES.map((c) => ({
   ...c,
@@ -266,26 +268,20 @@ export function UserRolesPermissionsTab({
   // cancellata non deve restare «spuntata» di nascosto.
   const { data: pipelines = [] } = usePipelines();
   const pipelineAzienda = pipelines as { id: string; name: string }[];
-  const idPipeline = useMemo(() => new Set(pipelineAzienda.map((p) => p.id)), [pipelineAzienda]);
-  const pipelineScelte = (permissions.pipeline_visibili ?? []).filter((id) => idPipeline.has(id));
-  const togglePipeline = (id: string, attiva: boolean) =>
-    setPermissions((prev) => {
-      const altre = (prev.pipeline_visibili ?? []).filter((x) => idPipeline.has(x) && x !== id);
-      return { ...prev, pipeline_visibili: attiva ? [...altre, id] : altre };
-    });
   const originalPermissions = useMemo(() => user.permissions || DEFAULT_PERMISSIONS, [user.permissions]);
 
-  // Reset state quando cambia l'utente corrente O quando i dati vengono re-fetched
-  useEffect(() => {
-    if (user.permissions) setPermissions(user.permissions);
-  }, [user.id, user.permissions]);
-
-  useEffect(() => {
-    if (user.role) setSelectedRole(user.role);
-    // Il ruolo salvato è cambiato (o è un altro utente): la scelta in sospeso
-    // non vale più.
+  // Adjust owned draft state when its source changes, without cascading effects.
+  const [permissionSource,setPermissionSource] = useState({id:user.id,value:user.permissions});
+  if(permissionSource.id!==user.id || permissionSource.value!==user.permissions) {
+    setPermissionSource({id:user.id,value:user.permissions});
+    setPermissions(user.permissions || DEFAULT_PERMISSIONS);
+  }
+  const [roleSource,setRoleSource] = useState({id:user.id,value:user.role});
+  if(roleSource.id!==user.id || roleSource.value!==user.role) {
+    setRoleSource({id:user.id,value:user.role});
+    setSelectedRole(user.role || "company_staff");
     setPendingRoleChange(null);
-  }, [user.id, user.role]);
+  }
 
   const isDirty = useMemo(() => {
     const keys = Object.keys(DEFAULT_PERMISSIONS) as (keyof StaffPermissions)[];
@@ -412,7 +408,7 @@ export function UserRolesPermissionsTab({
   const handleSelectAll = () => {
     setPermissions((prev) => {
       // Le restrizioni e le aree visibili non sono moduli: «Tutti» non le tocca.
-      const allTrue: StaffPermissions = { ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, only_my_warehouse: prev.only_my_warehouse, sola_lettura: prev.sola_lettura, permessi_dettagliati: prev.permessi_dettagliati, pipeline_visibili: prev.pipeline_visibili, visible_areas: prev.visible_areas };
+      const allTrue: StaffPermissions = { ...prev };
       const allModules = categorieVisibili.flatMap((c) => c.modules);
       const bloccato = (k: BooleanPermissionKey) => !!prev.sola_lettura && isBlockedBySolaLettura(k);
       allModules.forEach((mod) => {
@@ -421,28 +417,21 @@ export function UserRolesPermissionsTab({
       });
       allTrue.can_view_marketing = true;
       allTrue.can_edit_marketing = true;
-      return conservaPermessiNascosti(prev, allTrue);
+      return allTrue;
     });
   };
 
   const handleDeselectAll = () => {
-    setPermissions((prev) => conservaPermessiNascosti(prev, { ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, only_my_warehouse: prev.only_my_warehouse, sola_lettura: prev.sola_lettura, permessi_dettagliati: prev.permessi_dettagliati, pipeline_visibili: prev.pipeline_visibili, visible_areas: prev.visible_areas }));
+    setPermissions(prev => {
+      const next={...prev};
+      categorieVisibili.flatMap(c=>c.modules).forEach(mod=>{
+        next[mod.viewKey]=false;
+        if(mod.editKey) next[mod.editKey]=false;
+      });
+      return next;
+    });
   };
 
-  const handleApplyRolePreset = () => {
-    const preset = ROLE_PRESETS[selectedRole];
-    if (!preset) return;
-    setPermissions((prev) => ({
-      ...DEFAULT_PERMISSIONS,
-      only_assigned: prev.only_assigned,
-      only_my_warehouse: prev.only_my_warehouse,
-      sola_lettura: prev.sola_lettura, permessi_dettagliati: prev.permessi_dettagliati,
-      pipeline_visibili: prev.pipeline_visibili,
-      ...preset,
-    }));
-  };
-
-  const economicLevel = detectEconomicLevel(permissions);
   const isAdmin = selectedRole === "company_admin";
   const roleMeta = ROLE_CONFIG[selectedRole];
 
@@ -452,18 +441,22 @@ export function UserRolesPermissionsTab({
   return (
     <TooltipProvider delayDuration={200}>
       <div className="space-y-5 pb-24 max-md:space-y-3 max-md:pb-40">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold">Accesso e autorizzazioni</h2>
+          <p className="text-sm text-muted-foreground">Scegli come accede questa persona e quali dati può usare. Le modifiche ai permessi si salvano insieme dal pulsante in basso.</p>
+        </div>
         {/* Il riquadro «Ruolo attuale» è stato tolto (25/09/2026): ripeteva il
             ruolo del menu qui sotto e il conteggio dei permessi, che ora sta
             accanto a «Cosa vede». */}
         {/* Role selector + additional roles */}
         <Card>
           {/* Mobile: il titolo ripeteva «Ruolo primario» qui sotto. */}
-          <CardHeader className="pb-3 max-sm:hidden">
+          <CardHeader className="pb-3 max-sm:p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <CardTitle className="text-base">Ruolo</CardTitle>
+                <CardTitle className="text-base">1. Tipo di accesso</CardTitle>
                 <CardDescription className="mt-1.5 text-xs max-sm:hidden">
-                  Il ruolo <strong>principale</strong> decide da dove entra e cosa vede di base.
+                  Determina l’area di ingresso. Per gli utenti d’ufficio, i dati consentiti si configurano nei permessi.
                 </CardDescription>
               </div>
               {isChangingRole && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
@@ -473,7 +466,7 @@ export function UserRolesPermissionsTab({
             {/* Primary role picker */}
             <div>
               <Label className="text-xs text-muted-foreground uppercase tracking-wide mb-1.5 block">
-                Ruolo principale
+                Accesso alla piattaforma
               </Label>
               {/* Il menu mostra subito il ruolo scelto, e la conferma sta sulla
                   STESSA riga, a destra (21/09/2026). Prima il menu restava sul
@@ -485,7 +478,7 @@ export function UserRolesPermissionsTab({
                 <Select
                   value={pendingRoleChange ?? selectedRole}
                   onValueChange={handleRoleChange}
-                  disabled={readOnly || isChangingRole || (isCurrentUser && selectedRole === "company_admin")}
+                  disabled={readOnly || isChangingRole || isDirty || (isCurrentUser && selectedRole === "company_admin")}
                 >
                   <SelectTrigger
                     aria-label="Ruolo principale"
@@ -557,20 +550,21 @@ export function UserRolesPermissionsTab({
               )}
             </div>
 
+            <p className="text-xs text-muted-foreground">{roleMeta.description}</p>
+            {isDirty && <p className="text-xs text-amber-800 dark:text-amber-300">Salva o annulla prima i permessi in bozza per cambiare il tipo di accesso o le funzioni aggiuntive.</p>}
+
             {/* Ruoli aggiuntivi (21/09/2026): per qualunque ruolo principale,
                 amministratore compreso, tranne il Subappaltatore. Nascosti
                 mentre un cambio di ruolo aspetta la conferma. */}
             {onToggleAdditionalRole && !pendingRoleChange && aggiuntiviDisponibili(selectedRole).length > 0 && (
               <>
                 <Separator />
-                <div>
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wide mb-2 block">
-                    Ruoli aggiuntivi
-                  </Label>
-                  <p className="text-xs text-muted-foreground mb-3 flex items-start gap-1.5 max-sm:hidden">
+                <details>
+                  <summary className="cursor-pointer text-sm font-medium">Funzioni aggiuntive <span className="font-normal text-muted-foreground">· {additionalRoles.length} attive</span></summary>
+                  <p className="mt-3 text-xs text-muted-foreground mb-3 flex items-start gap-1.5">
                     <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-blue-500" />
                     Se questa persona fa <strong>anche</strong> altro, attivalo qui: tiene il suo ruolo
-                    e in più compare dove serve.
+                    e in più compare dove serve. Le funzioni aggiuntive si applicano subito.
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                     {aggiuntiviDisponibili(selectedRole).map((r) => {
@@ -594,7 +588,7 @@ export function UserRolesPermissionsTab({
                             onCheckedChange={(checked) =>
                               onToggleAdditionalRole?.(r, checked === true)
                             }
-                            disabled={readOnly || isChangingRole}
+                            disabled={readOnly || isChangingRole || isDirty}
                           />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">
@@ -611,13 +605,17 @@ export function UserRolesPermissionsTab({
                       );
                     })}
                   </div>
-                </div>
+                </details>
               </>
             )}
 
           </CardContent>
         </Card>
 
+        {!isAdmin && selectedRole === "company_staff" && <OfficeProfileSelector permissions={permissions} onChange={setPermissions} disabled={readOnly || isChangingRole || !!pendingRoleChange} />}
+        {pendingRoleChange && <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Conferma o annulla il cambio di accesso prima di modificare i permessi.</p>}
+        <fieldset disabled={!!pendingRoleChange || isChangingRole} className="min-w-0 space-y-5 disabled:opacity-60">
+        <OfficeAccessSummary permissions={permissions} administrator={isAdmin} fieldAccess={selectedRole === "employee" || selectedRole === "subcontractor"} />
         {isAdmin ? (
           <Card>
             <CardContent className="p-6">
@@ -644,16 +642,16 @@ export function UserRolesPermissionsTab({
         ) : (
           <Card>
             {/* Mobile: la scheda si chiama già «Permessi». */}
-            <CardHeader className="pb-3 max-sm:hidden">
+            <CardHeader className="pb-3 max-sm:p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <CardTitle className="text-base">Cosa può fare</CardTitle>
+                  <CardTitle className="text-base">2. Autorizzazioni effettive</CardTitle>
                   <CardDescription className="mt-1.5 text-xs max-sm:hidden">
                     Accendi quello che deve vedere. Dove c'è «Modifica» può anche cambiare i dati.
                   </CardDescription>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-muted-foreground">Permessi accesi</p>
+                  <p className="text-xs text-muted-foreground">Moduli visibili</p>
                   <p className="text-sm font-bold tabular-nums">
                     <span className="text-primary">{totalPermissionsCount.active}</span>
                     <span className="text-muted-foreground">/{totalPermissionsCount.total}</span>
@@ -662,39 +660,7 @@ export function UserRolesPermissionsTab({
               </div>
             </CardHeader>
             <CardContent className="space-y-4 max-sm:space-y-3 max-sm:p-4">
-              {/* ── Importi (modello a 3 livelli) ─────────────────────────────
-                  Tre segmenti come nella creazione dell'utente; i tre
-                  interruttori uno per uno stanno in «Avanzate». */}
-              <div className="space-y-1.5">
-                <p className="flex items-center gap-2 text-sm font-semibold">
-                  <Euro className="h-4 w-4 shrink-0 text-emerald-600" /> Importi
-                </p>
-                <div role="radiogroup" aria-label="Importi" className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1 sm:max-w-md">
-                  {ECONOMIC_LEVELS.map((lvl) => {
-                    const active = economicLevel === lvl.id;
-                    return (
-                      <button
-                        key={lvl.id}
-                        type="button"
-                        role="radio"
-                        aria-checked={active}
-                        disabled={readOnly}
-                        onClick={() => setPermissions((prev) => ({ ...prev, ...lvl.values }))}
-                        className={cn(
-                          "tap-compact rounded-md px-2 py-1.5 text-sm font-medium transition-colors",
-                          active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
-                        )}
-                      >
-                        {lvl.label}
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="text-[11px] leading-snug text-muted-foreground">
-                  {ECONOMIC_LEVELS.find((l) => l.id === economicLevel)?.desc ??
-                    "Combinazione personalizzata: la regoli in «Avanzate»."}
-                </p>
-              </div>
+              <OrderDataPermissions permissions={permissions} disabled={readOnly} onChange={handleToggle} onFindPurchasing={() => setSearchQuery("acquisti")} />
 
               <Separator />
 
@@ -703,10 +669,10 @@ export function UserRolesPermissionsTab({
                 <div className="space-y-0.5 min-w-0">
                   <Label htmlFor="tab-only_assigned" className="font-medium flex items-center gap-2 text-sm">
                     <EyeOff className="h-4 w-4 shrink-0" aria-hidden="true" />
-                    Solo i dati assegnati a lui
+                    Solo il portafoglio CRM assegnato
                   </Label>
                   <p id="tab-only_assigned-descrizione" className="text-xs text-muted-foreground max-sm:hidden">
-                    Vede solo commesse, attività e appuntamenti assegnati a lui.
+                    Limita contatti, opportunità e attività commerciali. Gli uffici vedono le commesse secondo i permessi salvati.
                   </p>
                 </div>
                 <Switch
@@ -742,36 +708,7 @@ export function UserRolesPermissionsTab({
               />
               <PermessiDistintiToggle id="tab-permessi-distinti" checked={!!permissions.permessi_dettagliati} disabled={readOnly} onCheckedChange={checked => setPermissions(prev => ({ ...prev, permessi_dettagliati: checked }))} />
 
-              {/* Pipeline visibili — come «Aree visibili»: nessuna spuntata =
-                  tutte. La applica il database (policy pipeline_visibili_utente),
-                  quindi vale su kanban, elenco, ricerca e scheda contatto. */}
-              {permissions.can_view_marketing_opportunities && pipelineAzienda.length > 1 && (
-                <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
-                  <div className="space-y-0.5">
-                    <Label className="font-medium text-sm">Pipeline visibili</Label>
-                    <p className="text-xs text-muted-foreground">
-                      {pipelineScelte.length === 0
-                        ? "Vede tutte le pipeline. Spunta quelle a cui limitarlo."
-                        : "Vede solo le pipeline spuntate: le opportunità delle altre gli restano nascoste ovunque."}
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                    {pipelineAzienda.map((p) => (
-                      <label
-                        key={p.id}
-                        className="flex items-center gap-2 rounded-md border bg-background/60 px-2.5 py-1.5 cursor-pointer"
-                      >
-                        <Checkbox
-                          checked={pipelineScelte.includes(p.id)}
-                          disabled={readOnly}
-                          onCheckedChange={(c) => togglePipeline(p.id, c === true)}
-                        />
-                        <span className="text-sm truncate">{p.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {permissions.can_view_marketing_opportunities && <PipelineVisibilitySelector pipelines={pipelineAzienda} selected={permissions.pipeline_visibili ?? []} disabled={readOnly} onChange={ids=>setPermissions(prev=>({...prev,pipeline_visibili:ids}))} />}
 
               <Separator />
 
@@ -806,16 +743,11 @@ export function UserRolesPermissionsTab({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={handleSelectAll}>
-                      <Check className="mr-2 h-4 w-4" /> Attiva tutti
+                      <Check className="mr-2 h-4 w-4" /> Attiva tutti i moduli
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={handleDeselectAll}>
-                      <X className="mr-2 h-4 w-4" /> Disattiva tutti
+                      <X className="mr-2 h-4 w-4" /> Disattiva tutti i moduli
                     </DropdownMenuItem>
-                    {ROLE_PRESETS[selectedRole] && Object.keys(ROLE_PRESETS[selectedRole]).length > 0 && !pendingRoleChange && (
-                      <DropdownMenuItem onClick={handleApplyRolePreset}>
-                        <Sparkles className="mr-2 h-4 w-4" /> Come {roleMeta.label}
-                      </DropdownMenuItem>
-                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
                 )}
@@ -823,32 +755,22 @@ export function UserRolesPermissionsTab({
                 <div className="flex items-center gap-1 max-sm:hidden">
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button type="button" variant="outline" size="sm" className="h-9" onClick={handleSelectAll}>
+                      <Button type="button" variant="outline" size="sm" className="h-9" aria-label="Attiva tutti i moduli" onClick={handleSelectAll}>
                         <Check className="h-3.5 w-3.5 mr-1" />
-                        Tutti
+                        Attiva moduli
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Accendi tutti i permessi</TooltipContent>
+                    <TooltipContent>Attiva tutti i moduli. I dati economici restano configurati separatamente.</TooltipContent>
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button type="button" variant="outline" size="sm" className="h-9" onClick={handleDeselectAll}>
+                      <Button type="button" variant="outline" size="sm" className="h-9" aria-label="Disattiva tutti i moduli" onClick={handleDeselectAll}>
                         <X className="h-3.5 w-3.5 mr-1" />
-                        Nessuno
+                        Disattiva moduli
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Spegni tutti i permessi</TooltipContent>
+                    <TooltipContent>Disattiva tutti i moduli. I dati economici restano configurati separatamente.</TooltipContent>
                   </Tooltip>
-                  {ROLE_PRESETS[selectedRole] && Object.keys(ROLE_PRESETS[selectedRole]).length > 0 && !pendingRoleChange && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button type="button" variant="outline" size="sm" className="h-9" onClick={handleApplyRolePreset}>
-                          Come {roleMeta.label}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Riparti dai permessi tipici del ruolo</TooltipContent>
-                    </Tooltip>
-                  )}
                 </div>
                 )}
               </div>
@@ -895,6 +817,7 @@ export function UserRolesPermissionsTab({
                               variant="ghost"
                               size="sm"
                               className="h-7 text-xs shrink-0"
+                              aria-label={`${allActive ? "Disattiva" : "Attiva"} il gruppo ${category.label}`}
                               disabled={readOnly}
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -909,7 +832,7 @@ export function UserRolesPermissionsTab({
                               ) : (
                                 <>
                                   <Check className="h-3 w-3 mr-1" />
-                                  Tutti
+                                  Attiva gruppo
                                 </>
                               )}
                             </Button>
@@ -998,7 +921,7 @@ export function UserRolesPermissionsTab({
                 )}
               </div>
 
-              {/* Avanzate: importi uno per uno e visibilità sul team. */}
+              {/* Visibilità trasversale sul team. */}
               <Collapsible open={avanzateAperte} onOpenChange={setAvanzateAperte}>
                 <CollapsibleTrigger asChild>
                   <button type="button" className="tap-compact flex w-full items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm font-medium">
@@ -1007,24 +930,6 @@ export function UserRolesPermissionsTab({
                   </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="space-y-3 pt-2">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    {([
-                      { key: "can_view_order_amounts" as const, label: "Importi di vendita" },
-                      { key: "can_view_costs" as const, label: "Costi" },
-                      { key: "can_view_margins" as const, label: "Margini" },
-                    ]).map((t) => (
-                      <label key={t.key} className="flex items-center gap-2 rounded-md border bg-background/60 px-2.5 py-2 cursor-pointer">
-                        <Switch checked={!!permissions[t.key]} disabled={readOnly} onCheckedChange={(c) => handleToggle(t.key, c)} />
-                        <span className="text-xs font-medium">{t.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                  {/* Costi non è un interruttore dei gruppi (sta qui e negli «Importi»): la sua spiegazione sta qui. */}
-                  <p className="text-[11px] leading-snug text-muted-foreground">
-                    {FINANZA_SECTIONS.find((s) => s.viewKey === "can_view_costs")?.description}
-                  </p>
-                  {/* Visibilità sul team — trasversale (attività e calendario riguardano
-                  tutta l'azienda, non un modulo): vive qui accanto a only_assigned. */}
               <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
                 {TEAM_VISIBILITY_SECTIONS.map((s) => (
                   <div key={s.viewKey} className="flex items-center justify-between gap-3">
@@ -1053,6 +958,8 @@ export function UserRolesPermissionsTab({
           </Card>
         )}
 
+        </fieldset>
+
         {/* Sticky save bar */}
         {!isAdmin && !readOnly && isDirty && (
           <div
@@ -1067,15 +974,16 @@ export function UserRolesPermissionsTab({
             )}
           >
             <div className="bg-background/95 backdrop-blur-md border-t shadow-lg max-md:rounded-xl max-md:border">
-              <div className="max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between gap-3 flex-wrap max-md:flex-nowrap max-md:px-3 max-md:py-2">
+              <div className="max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between gap-3 flex-wrap max-md:flex-wrap max-md:px-3 max-md:py-2">
                 <div className="flex items-center gap-2 text-sm">
                   <span className="inline-block h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
                   <span className="font-medium max-md:text-xs">Modifiche non salvate</span>
                   <span className="text-muted-foreground hidden sm:inline">
-                    · {totalPermissionsCount.active} permessi accesi
+                    · {totalPermissionsCount.active} moduli visibili
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-2 max-sm:grid max-sm:w-full max-sm:grid-cols-2">
+                  <PermissionsChangeReview before={originalPermissions} after={permissions} pipelines={pipelineAzienda} />
                   <Button
                     type="button"
                     variant="ghost"
@@ -1088,7 +996,7 @@ export function UserRolesPermissionsTab({
                   <Button
                     size="sm"
                     onClick={() => onSave(permissions)}
-                    disabled={isLoading || !isDirty}
+                    disabled={isLoading || !isDirty || !!pendingRoleChange || isChangingRole}
                   >
                     {isLoading ? (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />

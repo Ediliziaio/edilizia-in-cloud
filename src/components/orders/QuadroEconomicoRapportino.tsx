@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCatalogoVociRapportino } from "@/hooks/useCatalogoVociRapportino";
 import { formatCurrency } from "@/lib/formatters";
@@ -19,7 +20,7 @@ interface Riga {
 }
 interface Voce { id: string; descrizione: string; quantita: number; unita: string; costo_unitario: number | null; vendita_unitaria: number | null }
 interface Mezzo { mezzo_id: string; nome: string | null; noleggio: boolean; ore: number; ore_stimate: boolean; costo_orario: number | null; importo: number | null }
-interface Quadro { persone: Riga[]; voci?: Voce[]; mezzi?: Mezzo[]; appalto: boolean; a_corpo: boolean; registrato: boolean }
+interface Quadro { personale_aggregato?: { costo: number | null }; persone: Riga[]; voci?: Voce[]; mezzi?: Mezzo[]; appalto: boolean; a_corpo: boolean; registrato: boolean }
 
 const ore = (n: number) => `${n.toLocaleString("it-IT", { maximumFractionDigits: 2 })} h`;
 const euro = (n: number | null | undefined) => (n == null ? "—" : formatCurrency(Number(n)));
@@ -30,6 +31,7 @@ const VUOTA = { descrizione: "", quantita: "1", unita: "cad", costo: "", vendita
 
 export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false }: { rapportinoId: string; puoModificare?: boolean }) {
   const qc = useQueryClient();
+  const permissions = usePermissions();
   const [nuova, setNuova] = useState<typeof VUOTA | null>(null);
   const chiave = ["rapportino-quadro-economico", rapportinoId];
   const db = supabase as unknown as { from: (t: string) => { insert: (r: object) => Promise<{ error: Error | null }>; delete: () => { eq: (c: string, v: string) => Promise<{ error: Error | null }> } } };
@@ -69,13 +71,13 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
     },
     retry: false,
   });
-  if (!data || !Array.isArray(data.persone) || (!data.persone.length && !data.voci?.length && !puoModificare)) return null;
+  if (!data || !Array.isArray(data.persone) || (!data.persone.length && !data.voci?.length && !data.personale_aggregato && !puoModificare)) return null;
 
   const voci = data.voci ?? [];
-  const conVendita = (data.appalto && !data.a_corpo) || voci.some((v) => Number(v.vendita_unitaria ?? 0) > 0);
+  const conVendita = permissions.canViewOrderAmounts && ((data.appalto && !data.a_corpo) || voci.some((v) => Number(v.vendita_unitaria ?? 0) > 0));
   const costoVoce = (v: Voce) => Number(v.quantita) * Number(v.costo_unitario ?? 0);
   const ricavoVoce = (v: Voce) => Number(v.quantita) * Number(v.vendita_unitaria ?? 0);
-  const totCosto = data.persone.reduce((s, r) => s + Number(r.costo ?? 0), 0) + voci.reduce((s, v) => s + costoVoce(v), 0);
+  const totCosto = Number(data.personale_aggregato?.costo ?? 0) + data.persone.reduce((s, r) => s + Number(r.costo ?? 0), 0) + voci.reduce((s, v) => s + costoVoce(v), 0);
   const totRicavo = data.persone.reduce((s, r) => s + Number(r.ricavo ?? 0), 0) + voci.reduce((s, v) => s + ricavoVoce(v), 0);
   const mezzi = Array.isArray(data.mezzi) ? data.mezzi : [];
   const totOre = data.persone.reduce((s, r) => s + Number(r.ore), 0);
@@ -86,6 +88,7 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
       <h3 className="border-b px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
         {data.registrato ? "Costi registrati" : "Costi stimati"}
       </h3>
+      {data.personale_aggregato && <p className="flex justify-between border-b px-3 py-2"><span>Personale interno · costo aggregato</span><strong>{euro(data.personale_aggregato.costo)}</strong></p>}
       <ul className="divide-y">
         {data.persone.map((r, i) => (
           <li key={`${r.emp ?? r.nome}-${i}`} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 px-3 py-1.5">
@@ -101,7 +104,7 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
                   {r.prezzo != null ? `Vendita ${euro(r.prezzo)}${UNITA[r.unita ?? ""] ?? ""} · ricavo ${euro(r.ricavo)}` : "Vendita da impostare"}
                 </span>
                 <span className={`text-right text-xs font-semibold tabular-nums ${(margine(r) ?? 0) < 0 ? "text-red-700" : "text-emerald-700"}`}>
-                  {margine(r) == null ? "" : `margine ${euro(margine(r))}`}
+                  {!permissions.canViewMargins || margine(r) == null ? "" : `margine ${euro(margine(r))}`}
                 </span>
               </>
             )}
@@ -160,7 +163,7 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
         <div><dt className="text-[11px] text-muted-foreground">Ore</dt><dd className="font-semibold">{ore(totOre)}</dd></div>
         <div><dt className="text-[11px] text-muted-foreground">Costo</dt><dd className="font-semibold">{euro(totCosto)}</dd></div>
         {conVendita && <div><dt className="text-[11px] text-muted-foreground">Ricavo</dt><dd className="font-semibold">{euro(totRicavo)}</dd></div>}
-        {conVendita && <div><dt className="text-[11px] text-muted-foreground">Margine</dt><dd className={`font-semibold ${totRicavo - totCosto < 0 ? "text-red-700" : "text-emerald-700"}`}>{euro(totRicavo - totCosto)}</dd></div>}
+        {conVendita && permissions.canViewMargins && <div><dt className="text-[11px] text-muted-foreground">Margine</dt><dd className={`font-semibold ${totRicavo - totCosto < 0 ? "text-red-700" : "text-emerald-700"}`}>{euro(totRicavo - totCosto)}</dd></div>}
       </dl>
     </section>
   );

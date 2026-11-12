@@ -84,10 +84,10 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
     return next;
   });
 
-  const soloMie = permissions.onlyAssigned && user?.id;
+  const soloMie = permissions.onlyAssignedWork && user?.id;
 
   const { data: impianti = [], isLoading: loadingImpianti, isError: impiantiError } = useQuery({
-    queryKey: ["impianti", effectiveCompany?.id, permissions.onlyAssigned, user?.id],
+    queryKey: ["impianti", effectiveCompany?.id, permissions.onlyAssignedWork, user?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
       let query = supabase
@@ -107,7 +107,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
   });
 
   const { data: contratti = [], isLoading: loadingContratti, isError: contrattiError } = useQuery({
-    queryKey: ["contratti-manutenzione", effectiveCompany?.id, permissions.onlyAssigned, user?.id],
+    queryKey: ["contratti-manutenzione", effectiveCompany?.id, permissions.onlyAssignedWork, user?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
       let query = supabase
@@ -128,7 +128,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
   // Tutti i piani attivi: servono a dare a ogni impianto la sua prossima
   // manutenzione (e quindi lo stato del kanban), non solo quelli in scadenza.
   const { data: piani = [], isLoading: loadingPiani, isError: pianiError } = useQuery({
-    queryKey: ["piani-attivi", effectiveCompany?.id, permissions.onlyAssigned, user?.id],
+    queryKey: ["piani-attivi", effectiveCompany?.id, permissions.onlyAssignedWork, user?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
       let query = supabase

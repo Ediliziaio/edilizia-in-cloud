@@ -159,7 +159,7 @@ jobs:
 
       - name: Typecheck webhook edge functions
         if: matrix.group == 'core'
-        run: npx --yes deno@2.9.6 check supabase/functions/dispatch-global-webhooks/index.ts supabase/functions/send-webhook/index.ts
+        run: npx --yes deno@2.9.6 check supabase/functions/dispatch-global-webhooks/index.ts supabase/functions/send-webhook/index.ts supabase/functions/silvio-chat/index.ts supabase/functions/silvio-execute-action/index.ts
 
       - name: Verify global webhook events, permissions and delivery queue
         if: matrix.group == 'core'
@@ -722,6 +722,26 @@ jobs:
           src/test/security/numeroSoloAllEmissione.test.ts
           src/test/security/fatturaImmutabile.test.ts
           src/test/security/fatturaScartataSiCorregge.test.ts
+
+      - name: Verify office roles, financial projections and Silvio authorization
+        if: matrix.group == 'access'
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/logic/silvioOfficePermissions.test.ts
+          src/test/logic/silvioPublicReply.test.ts
+          src/test/logic/silvioContextHardening.test.ts
+          src/test/logic/silvioExecuteAction.test.ts
+          src/test/logic/silvioToolRegistry.test.ts
+          src/test/logic/officeProfiles.test.ts
+          src/test/logic/officeAccessSummary.test.ts
+          src/test/logic/permissionChanges.test.ts
+          src/test/logic/protectedOrderRequests.test.ts
+          src/test/logic/attachmentDownloadPermissions.test.ts
+          src/test/logic/queryCacheIdentity.test.ts
+          src/test/ui/permissionControls.test.tsx
+          src/test/ui/officeAccessSummary.test.tsx
+          src/test/ui/officeProfileSelector.test.tsx
+          src/test/ui/employeeIndividualCosts.test.tsx
 
       - name: Run CG SQL reconciliation and rating regressions
         if: matrix.group == 'worksite'

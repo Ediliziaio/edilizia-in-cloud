@@ -11,12 +11,12 @@
 // parità di chiavi con DEFAULT_PERMISSIONS lato client (drift = test rosso).
 // NB: must_change_password NON è un permesso e resta fuori (default DB: true).
 
-export const STAFF_PERMISSION_DEFAULTS: Record<string, boolean | string[]> = {
+export const STAFF_PERMISSION_DEFAULTS: Record<string, boolean | string[] | string | null> = {
   // Cruscotto
   can_view_cruscotto: false, can_view_controllo_gestione: false,
   // Cantieri & Lavori
   can_view_dashboard: false, can_view_orders: false, can_edit_orders: false,
-  can_view_order_amounts: true,
+  can_view_order_amounts: true, can_view_order_payment_status: false,
   can_approve_orders: false, can_delete_orders: false,
   can_view_warehouse: false, can_edit_warehouse: false, can_manage_warehouse_items: false,
   can_view_mezzi: false, can_edit_mezzi: false,
@@ -74,6 +74,7 @@ export const STAFF_PERMISSION_DEFAULTS: Record<string, boolean | string[]> = {
   // Speciali
   can_approve_discounts: false,
   can_approve_variations: false,
+  office_profile: null,
   only_assigned: false,
   only_my_warehouse: false,
   // Vede ma non scrive. Le can_edit_* operative le ricalcola comunque il
@@ -188,7 +189,9 @@ export function buildStaffPermissionsRecord(
   if (permissions && typeof permissions === "object") {
     for (const [key, value] of Object.entries(permissions)) {
       if (!(key in STAFF_PERMISSION_DEFAULTS)) continue;
-      if (key === "visible_areas") {
+      if (key === "office_profile") {
+        if (value === null || (typeof value === "string" && ["tecnico","ordini","amministrazione","responsabile","hr","commerciale"].includes(value))) record[key] = value;
+      } else if (key === "visible_areas") {
         if (Array.isArray(value)) record[key] = value.filter((v) => typeof v === "string");
       } else if (key === "pipeline_visibili") {
         if (Array.isArray(value)) record[key] = value.filter((v) => typeof v === "string" && ID_PIPELINE.test(v));

@@ -39,6 +39,7 @@ interface EmployeesTabProps {
   roleType?: 'operaio' | 'staff_interno';
   /** Chi guarda e basta: niente «Nuovo», «Modifica», «Elimina», «Crea l'accesso». */
   soloLettura?: boolean;
+  canViewIndividualCosts?: boolean;
 }
 
 export function EmployeesTab({
@@ -51,6 +52,7 @@ export function EmployeesTab({
   onCreateUser,
   roleType = 'operaio',
   soloLettura = false,
+  canViewIndividualCosts = false,
 }: EmployeesTabProps) {
   const activeEmployees = employees.filter((e) => e.is_active);
   const inactiveEmployees = employees.filter((e) => !e.is_active);
@@ -101,15 +103,15 @@ export function EmployeesTab({
                   <TableHead>Nome</TableHead>
                   <TableHead>Area</TableHead>
                   <TableHead>Contatti</TableHead>
-                  <TableHead className="text-right">Stipendio lordo</TableHead>
-                  <TableHead className="text-right">Stipendio netto</TableHead>
+                  {canViewIndividualCosts && <TableHead className="text-right">Stipendio lordo</TableHead>}
+                  {canViewIndividualCosts && <TableHead className="text-right">Stipendio netto</TableHead>}
                   <TableHead className="text-right">Ore al mese</TableHead>
-                  <TableHead
+                  {canViewIndividualCosts && <TableHead
                     className="text-right"
                     title="Tariffa scritta a mano nella scheda; altrimenti lordo più contributi diviso le ore del mese. È il costo che finisce nelle commesse."
                   >
                     Costo orario
-                  </TableHead>
+                  </TableHead>}
                   <TableHead>Stato</TableHead>
                   <TableHead className="text-right"><span className="sr-only">Azioni</span></TableHead>
                 </TableRow>
@@ -162,18 +164,18 @@ export function EmployeesTab({
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right">
+                    {canViewIndividualCosts && <TableCell className="text-right">
                       {formatCurrency(employee.gross_salary)}
-                    </TableCell>
-                    <TableCell className="text-right">
+                    </TableCell>}
+                    {canViewIndividualCosts && <TableCell className="text-right">
                       {formatCurrency(employee.net_salary)}
-                    </TableCell>
+                    </TableCell>}
                     <TableCell className="text-right">
                       {employee.monthly_hours}h
                     </TableCell>
-                    <TableCell className="text-right font-medium">
+                    {canViewIndividualCosts && <TableCell className="text-right font-medium">
                       {formatCurrency(calculateHourlyCost(employee))}/h
-                    </TableCell>
+                    </TableCell>}
                     <TableCell>
                       <Badge variant={employee.is_active ? "default" : "secondary"}>
                         {employee.is_active ? "Attivo" : "Inattivo"}

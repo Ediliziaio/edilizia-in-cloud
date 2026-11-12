@@ -566,7 +566,7 @@ function SessionTimeoutGuard(): null {
 // 2026-05-27 (PWA/offline audit): buster invalidates la cache su deploy
 // nuovo per evitare di leggere snapshot di una versione UI vecchia con
 // schema diverso (es. nuove colonne dopo migration).
-const PERSIST_BUSTER = (import.meta as { env: Record<string, string> }).env.VITE_APP_VERSION ?? "v1";
+const PERSIST_BUSTER = `${(import.meta as { env: Record<string, string> }).env.VITE_APP_VERSION ?? "v1"}:identity-v2`;
 
 const App = () => (
   <ErrorBoundary title="Errore critico dell'applicazione">

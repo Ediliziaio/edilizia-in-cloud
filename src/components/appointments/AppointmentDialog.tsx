@@ -433,11 +433,10 @@ export function AppointmentDialog({
   const queryClient = useQueryClient();
   const currentAppointment = appointment ?? initialData ?? null;
   const isEditing = !!currentAppointment?.id;
-  const { onlyAssigned, solaLettura } = usePermissions();
+  const { onlyAssigned: onlyAssignedCrm, solaLettura } = usePermissions();
   // Con «Solo i propri» l'appuntamento è di chi lo crea; il responsabile di una
   // squadra (Impostazioni → Team) lo può dare anche ai membri, di cui vede e
   // lavora gli appuntamenti.
-  const { data: membriSquadra = [] } = useMembriMieSquadre(open && onlyAssigned);
   // In sola lettura l'appuntamento si consulta: la policy RESTRICTIVE su
   // appointments rifiuterebbe comunque il salvataggio.
   const bloccoTitle = solaLettura ? "Sei in sola lettura" : undefined;
@@ -456,6 +455,8 @@ export function AppointmentDialog({
   const [appointmentType, setAppointmentType] = useState("generico");
   const [assignedTo, setAssignedTo] = useState("");
   const [orderId, setOrderId] = useState("");
+  const onlyAssigned = onlyAssignedCrm && !(hideMarketingFields || defaultOrderId || orderId || currentAppointment?.order_id);
+  const { data: membriSquadra = [] } = useMembriMieSquadre(open && onlyAssigned);
   const [referenceType, setReferenceType] = useState<ReferenceType>("none");
   const [ticketId, setTicketId] = useState("");
   const [maintenancePlanId, setMaintenancePlanId] = useState("");

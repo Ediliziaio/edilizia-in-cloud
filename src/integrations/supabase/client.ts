@@ -6,6 +6,7 @@ import { traduciErrorePostgrest } from "@/lib/userErrorMessage";
 import { segnalaBloccoDaRisposta } from "@/lib/creditoEsaurito";
 import { authStorage } from "./authStorage";
 import { supabaseRequestTimeout } from "./requestTimeout";
+import { protectedOrderUrl } from "@/lib/orders/protectedOrderRequests";
 import { letturaSenzaPrezzi, urlSenzaPrezzi } from "@/lib/acquisti/letturaSenzaPrezzi";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -77,9 +78,9 @@ function urlDi(input: RequestInfo | URL): string {
  */
 async function fetchTraducendoGliErrori(originale: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   // Chi non vede i costi legge ordini e offerte senza prezzi. Vedi lib/acquisti/letturaSenzaPrezzi.
-  const input = letturaSenzaPrezzi() && !(originale instanceof Request)
-    ? urlSenzaPrezzi(String(originale), init?.method)
-    : originale;
+  const projected = protectedOrderUrl(urlDi(originale));
+  const compatible = letturaSenzaPrezzi() ? urlSenzaPrezzi(projected, init?.method) : projected;
+  const input = originale instanceof Request ? new Request(compatible, originale) : compatible;
   const res = await fetchWithTimeout(input, init);
   if (res.ok) return res;
   const url = urlDi(input);

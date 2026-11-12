@@ -18,7 +18,7 @@ export function isCommessaCampoQueryKey(key: readonly unknown[], orderId: string
   if (isRapportinoQueryKey(key, orderId, companyId)) return true;
   const prefix = key[0];
   if (typeof prefix !== "string") return false;
-  if (["order-labor-economics",
+  if (["order-labor-economics", "order-labor-aggregate",
     "order-labor-pending", "order-subcontract-economics", "order-subcontract-statistics"].includes(prefix)) return key[1] === orderId && key[2] === companyId;
   // One employee/month panel, normally unmounted while viewing a commessa.
   if (prefix === "hr-labor-reconciliation") return key[1] === companyId;

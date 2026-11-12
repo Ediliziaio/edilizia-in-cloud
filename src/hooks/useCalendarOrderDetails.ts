@@ -79,14 +79,14 @@ export function useCalendarOrderFinance(
       company,
       user?.id,
       orderId,
-      p.onlyAssigned,
+      p.onlyAssignedWork,
     ],
     enabled: allowed,
     staleTime: 0,
     refetchOnWindowFocus: true,
     queryFn: async ({ signal }) => {
       if (!allowed) throw new Error("Incassi non accessibili");
-      await requireOrder(company!, user!.id, orderId!, p.onlyAssigned, signal);
+      await requireOrder(company!, user!.id, orderId!, p.onlyAssignedWork, signal);
       const [orderResult, rates, sals, variations, settings, invoiceLinks] =
         await Promise.all([
           supabase
@@ -232,7 +232,7 @@ export function useCalendarOrderPresence(
   const company = effectiveCompany?.id;
   const team =
     scope === "team" &&
-    !p.onlyAssigned &&
+    !p.onlyAssignedWork &&
     p.canViewPersone &&
     (p.isAdmin || p.canViewAllTeamCalendar);
   const allowed =
@@ -251,7 +251,7 @@ export function useCalendarOrderPresence(
       orderId,
       day,
       team,
-      p.onlyAssigned,
+      p.onlyAssignedWork,
     ],
     enabled: allowed,
     staleTime: 0,
@@ -259,7 +259,7 @@ export function useCalendarOrderPresence(
       allowed && day === campoWorkDay(new Date()) ? 60_000 : false,
     queryFn: async ({ signal }) => {
       if (!allowed) throw new Error("Presenze non accessibili");
-      await requireOrder(company!, user!.id, orderId!, p.onlyAssigned, signal);
+      await requireOrder(company!, user!.id, orderId!, p.onlyAssignedWork, signal);
       const window = campoDayWindow(day),
         until = campoDayWindow(shiftWorkDay(day, 1)).end;
       const candidates: {

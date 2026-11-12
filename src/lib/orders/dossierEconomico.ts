@@ -55,7 +55,7 @@ export async function caricaDossierEconomico(db: Db, orderId: string, opzioni: {
   const [ordine, marg, persone, ditte, fasi, materiali, voci, acquisti, movimenti, costiDiretti, costiRipartiti, quadroRaw] = await Promise.all([
     db.from("orders").select("order_code, description, percentuale_avanzamento, work_start_date, work_end_date").eq("id", orderId).maybeSingle(),
     db.from("v_ordine_marginalita").select(ORDER_ECONOMICS_COLUMNS).eq("id", orderId).maybeSingle(),
-    righe<Record<string, unknown>>(db.from("order_employees").select("phase_id, total_cost, cost_preventivo").eq("order_id", orderId)),
+    righe<Record<string, unknown>>(db.rpc("commessa_costo_personale_per_fase", {p_order_id: orderId})),
     righe<Record<string, unknown>>(db.from("order_external_teams").select("phase_id, total_cost, cost_preventivo, vat_rate").eq("order_id", orderId)),
     righe<Record<string, unknown>>(db.from("order_work_phases").select("id, name, position, status, percentuale, start_date, end_date, importo_venduto").eq("order_id", orderId).order("position")),
     righe<Record<string, unknown>>(db.from("order_items").select("id, phase_id, quantity, unit_price, discount_percent, purchase_price, standard_cost").filter("natura_riga", "eq", "materiale").eq("order_id", orderId)),

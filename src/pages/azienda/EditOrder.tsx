@@ -132,7 +132,7 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
-  const { onlyAssigned, canViewCosts } = usePermissions();
+  const { onlyAssignedWork: onlyAssigned, canViewCosts } = usePermissions();
 
   const [customerId, setCustomerId] = useState("");
   const [orderCode, setOrderCode] = useState("");

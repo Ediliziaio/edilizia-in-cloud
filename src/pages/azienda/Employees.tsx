@@ -54,7 +54,8 @@ interface EmployeesProps {
 
 function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: EmployeesProps) {
   const { effectiveCompany } = useAuth();
-  const { canViewCosts } = usePermissions();
+  const { canViewCosts, canViewEmployees, canViewPersone } = usePermissions();
+  const canViewIndividualCosts = canViewCosts && (canViewEmployees || canViewPersone);
 
   const queryClient = useQueryClient();
   const effectiveCompanyId = effectiveCompany?.id;
@@ -358,7 +359,7 @@ function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: Emp
         </TabsList>
 
         <TabsContent value="employees">
-          <EmployeesTab employees={operai} isLoading={loadingEmployees} roleType="operaio"
+          <EmployeesTab canViewIndividualCosts={canViewIndividualCosts} employees={operai} isLoading={loadingEmployees} roleType="operaio"
             onNew={() => { setEditingEmployee(null); setActiveRoleType('operaio'); setEmployeeDialogOpen(true); }}
             onEdit={handleEditEmployee} onDelete={(id) => deleteEmployeeMutation.mutate(id)}
             onViewAttachments={setAttachmentsEmployee} onCreateUser={handleCreateUser} soloLettura={soloLettura} />
@@ -370,7 +371,7 @@ function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: Emp
             onViewAttachments={setAttachmentsTeam} />
         </TabsContent>
         <TabsContent value="staff-interno">
-          <EmployeesTab employees={staffInterno} isLoading={loadingEmployees} roleType="staff_interno"
+          <EmployeesTab canViewIndividualCosts={canViewIndividualCosts} employees={staffInterno} isLoading={loadingEmployees} roleType="staff_interno"
             onNew={() => { setEditingEmployee(null); setActiveRoleType('staff_interno'); setEmployeeDialogOpen(true); }}
             onEdit={handleEditEmployee} onDelete={(id) => deleteEmployeeMutation.mutate(id)}
             onViewAttachments={setAttachmentsEmployee} onCreateUser={handleCreateUser} soloLettura={soloLettura} />
