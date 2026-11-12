@@ -17,6 +17,9 @@ export function useDashboardTasks(scope: "personal" | "team" = "personal") {
     queryKey: [...queryKeys.tasks.all, "dashboard", scope, user?.id, companyId, seesTeam],
     enabled: ready && (scope === "personal" || seesTeam),
     staleTime: 30_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       if (!ready || (scope === "team" && !seesTeam)) throw new Error("Non hai accesso alle attività richieste");
       const archived = await loadArchivedOrderIds(companyId!);

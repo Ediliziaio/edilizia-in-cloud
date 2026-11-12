@@ -52,6 +52,9 @@ export function MyDayView({ onNewTask, senzaSaluto = false }: MyDayViewProps) {
       return data || [];
     },
     enabled: !!companyId && !!userId,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
   const observedStatuses = useMemo(() => Array.from(new Set(allTasks.map((task: any) => task.status).filter(Boolean))), [allTasks]);
   const { statuses: statusOptions } = useTaskStatuses(companyId, observedStatuses);

@@ -272,6 +272,9 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
       }));
     },
     enabled: !!companyId && !!user?.id && !permissionsLoading,
+    refetchInterval: activeTab === "all" ? 30_000 : false,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
 
   const requestedTaskId = searchParams.get("attivita");

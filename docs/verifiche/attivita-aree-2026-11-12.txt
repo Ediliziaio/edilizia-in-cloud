@@ -1,7 +1,7 @@
 Attività condivise per Ufficio — verifica locale 12/11/2026
 
 Riutilizza company_uffici e ufficio_membri: nessun nuovo sistema di gruppi.
-Le viste personali e i contatori includono le attività delle proprie aree; il permesso di consultare tutte le attività aziendali resta distinto.
+Le code aperte si riconciliano ogni 30 secondi e al ritorno alla finestra, senza polling in background. Le viste personali e i contatori includono le attività delle proprie aree; il permesso di consultare tutte le attività aziendali resta distinto.
 Presa in carico e rilascio passano da una RPC con JWT corrente, RLS e blocco riga: un solo vincitore tra due colleghi concorrenti. Un conflitto applicativo restituisce PT409, senza retry automatico del gateway.
 Un membro può aggiornare stato e propria presa in carico; modificare i contenuti di un’attività altrui richiede i permessi di gestione.
 L’assegnazione non concede accesso a CRM, commesse, costi, magazzino o ticket collegati. Uffici disattivati, utenti bloccati e membri rimossi sono esclusi dal backend.
@@ -19,9 +19,11 @@ Verifiche superate:
 - 239 controlli della matrice generale dei permessi.
 - 92 test unitari e di interfaccia.
 - Controllo TypeScript mirato: 0 diagnostiche; controllo Deno reale di chat e azioni superato.
-- Ricostruzione completa isolata: 5.825 migrazioni applicative + 74 basi Storage, zero patch differite, rete e cron disattivati. Il fixture SQL delle aree viene verificato anche in CI e annulla tutti i dati con rollback.
+- Ricostruzione completa isolata: 5.826 migrazioni applicative + 74 basi Storage, zero patch differite, rete e cron disattivati. Il fixture SQL delle aree viene verificato anche in CI e annulla tutti i dati con rollback.
 - Prova browser su localhost: creazione dell’attività di area e presa in carico dal profilo tecnico. Screenshot /tmp/eic-area-attivita-presa-in-carico.png.
 
 Limiti delle prove:
 Modello linguistico simulato: sono reali handler, JWT, PostgreSQL, PostgREST, Storage, proposte e notifiche in-app. Nessuna chiamata AI o invio esterno a pagamento. Nessun dato di Squadd modificato.
 Le prove locali non attestano l’avvenuta pubblicazione: quella va verificata separatamente con CI, deploy funzioni, database e Cloudflare.
+
+Riallineamento: recuperato dal journal il file 20290314090000_commessa_cliente_invariante_nel_db.sql, già applicato in produzione da un altro terminale. Il recupero non riesegue SQL remoto.
