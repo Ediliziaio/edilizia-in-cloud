@@ -1204,3 +1204,7 @@ verify_jwt = false
 
 [functions.ddt-confronta-ordini]
 verify_jwt = true
+
+[functions.bank-distyra]
+# User JWT checked by requireAuth; scheduled calls require cron secret + queued run.
+verify_jwt = false

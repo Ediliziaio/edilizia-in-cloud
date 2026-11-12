@@ -129,7 +129,7 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
       <div className="flex flex-col items-center justify-center h-64 gap-4 text-center max-sm:h-auto max-sm:py-3">
         <CreditCard className="h-16 w-16 text-muted-foreground max-sm:hidden" />
         <h2 className="text-xl font-semibold max-sm:text-xs max-sm:font-normal max-sm:text-muted-foreground">Nessun conto collegato</h2>
-        <p className="text-muted-foreground max-sm:hidden">Vai al tab Connessioni per collegare la tua prima banca.</p>
+        <p className="text-muted-foreground max-sm:hidden">Scegli i conti disponibili nella sezione sopra oppure collega una banca.</p>
       </div>
     );
   }

@@ -14,6 +14,8 @@
  * La chiave sta in DISTYRA_API_KEY (segreto del progetto, mai nel repository: è pubblico).
  * Una chiave `sk_test_` parla con la sandbox: stesso flusso, nessun conto vero e nessun consumo.
  */
+import { cronSecretValido } from "../_shared/cronAuth.ts";
+import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { verificaPermessoAzienda } from "../_shared/permessoAzienda.ts";
@@ -104,15 +106,31 @@ function mappaMovimento(t: Record<string, any>, companyId: string, accountId: st
   };
 }
 
-Deno.serve(async (req) => {
+serveConMetricheRapida("bank-distyra", async (req) => {
   const corsH = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsH });
+  let scheduledRun: string | null = null;
+  let scheduledConnection: string | null = null;
   try {
-    const { userId, supabaseAdmin } = await requireAuth(req, corsH);
     const corpo = await req.json().catch(() => ({})) as Record<string, any>;
     const azione = String(corpo.action ?? "");
     const companyId = String(corpo.company_id ?? "");
     if (!companyId) return errorResponse("company_id richiesto", 400, corsH);
+    const scheduled = azione === "sync-scheduled";
+    let userId = "";
+    if (scheduled) {
+      if (!cronSecretValido(req)) return errorResponse("Accesso interno negato", 401, corsH);
+      const { data: run, error } = await admin.from("bank_sync_runs").update({status:"running",started_at:new Date().toISOString()})
+        .eq("id",String(corpo.run_id ?? "")).eq("company_id",companyId).eq("connection_id",String(corpo.connection_id ?? "")).eq("status","queued").select("id").maybeSingle();
+      if(error) throw new Error("Impossibile prendere in carico la sincronizzazione");
+      if(!run) return jsonResponse({ok:true,skipped:true},200,corsH);
+      scheduledRun=run.id; scheduledConnection=String(corpo.connection_id);
+      const {data:settings,error:settingsError}=await admin.from("bank_sync_settings").select("automatic_sync").eq("company_id",companyId).maybeSingle();
+      if(settingsError || !settings?.automatic_sync) throw new Error("Aggiornamento automatico non abilitato");
+    } else {
+    const auth = await requireAuth(req, corsH);
+    userId = auth.userId;
+    const supabaseAdmin = auth.supabaseAdmin;
     await requireCompanyAccess(supabaseAdmin, userId, companyId, corsH);
     await verificaPermessoAzienda(supabaseAdmin, userId, companyId, ["can_view_tesoreria"], "consultare i movimenti bancari");
     if (azione !== "sync") {
@@ -120,6 +138,8 @@ Deno.serve(async (req) => {
       await verificaPermessoAzienda(supabaseAdmin, userId, companyId, ["can_view_bank_balances"], "autorizzare i conti bancari");
     }
 
+
+    }
 
     // ── 1. Il link che il cliente apre per scegliere la banca ────────────────
     if (azione === "start-link") {
@@ -153,7 +173,7 @@ Deno.serve(async (req) => {
     if (azione === "finalize") {
       // Si arriva col nostro riferimento (`state`, quello messo nell'URL di ritorno)
       // oppure con l'id della riga, se l'app lo ha gia' in mano.
-      let q = admin.from("bank_connections").select("id, auth_state, provider_connection_id, provider_slug").eq("company_id", companyId).eq("provider_slug", PROVIDER);
+      let q = admin.from("bank_connections").select("id, auth_state, provider_connection_id, provider_slug").eq("company_id", companyId).eq("provider_slug", PROVIDER).neq("status","disconnected");
       q = corpo.state ? q.eq("auth_state", String(corpo.state)) : q.eq("id", String(corpo.connection_id ?? ""));
       const { data: conn, error: connectionError } = await q.maybeSingle();
       if (connectionError) throw new Error("Impossibile leggere il collegamento bancario");
@@ -185,30 +205,30 @@ Deno.serve(async (req) => {
         // quello restano i segnaposto.
         institution_id: nomeBanca ? `distyra:${nomeBanca.toLowerCase().replace(/[^a-z0-9]+/g, "-")}` : ISTITUTO_IGNOTO,
         institution_name: nomeBanca ?? "Banca collegata",
-        institution_country: testo(mia.country), accounts_count: quanti, last_sync_at: new Date().toISOString(),
+        institution_country: testo(mia.country), accounts_count: quanti,
       }).eq("id", conn.id);
       if (updateError) throw new Error("Conti salvati, ma il collegamento non è stato aggiornato. Riprova senza ricollegare.");
       return jsonResponse({ ok: true, conti: quanti, connection_id: conn.id }, 200, corsH);
     }
 
     // ── 3. I movimenti ───────────────────────────────────────────────────────
-    if (azione === "sync") {
+    if (azione === "sync" || scheduled) {
       // Come finalize: si arriva col nostro riferimento o con l'id della riga.
-      let qs = admin.from("bank_connections").select("id, provider_connection_id, created_by").eq("company_id", companyId).eq("provider_slug", PROVIDER);
+      let qs = admin.from("bank_connections").select("id, provider_connection_id, created_by").eq("company_id", companyId).eq("provider_slug", PROVIDER).eq("status", "linked");
       qs = corpo.state ? qs.eq("auth_state", String(corpo.state)) : qs.eq("id", String(corpo.connection_id ?? ""));
       const { data: conn, error: connectionError } = await qs.maybeSingle();
       if (connectionError) throw new Error("Impossibile leggere il collegamento bancario");
-      if (!conn?.provider_connection_id) return errorResponse("Collegamento non pronto", 409, corsH);
+      if (!conn?.provider_connection_id) { if(scheduled) throw new Error("Collegamento non pronto"); return errorResponse("Collegamento non pronto", 409, corsH); }
 
       const { data: conti, error: accountsError } = await admin.from("bank_accounts")
-        .select("id, external_account_id").eq("connection_id", conn.id).eq("company_id", companyId);
+        .select("id, external_account_id").eq("connection_id", conn.id).eq("company_id", companyId).eq("is_active", true);
       if (accountsError) throw new Error("Impossibile leggere i conti collegati");
       const perConto = new Map((conti ?? []).map((c) => [c.external_account_id, c.id]));
-      if (!perConto.size) return errorResponse("Completa prima l'importazione dei conti. Non serve creare un nuovo collegamento.", 409, corsH);
-      const psuHeaders = intestazioniPsu(req, corpo.on_screen, conn.created_by, userId);
+      if (!perConto.size) { if(scheduled) throw new Error("Nessun conto selezionato per questa banca"); return errorResponse("Scegli prima i conti da utilizzare nella scheda Banche. Non serve creare un nuovo collegamento.", 409, corsH); }
+      const psuHeaders = scheduled ? {} : intestazioniPsu(req, corpo.on_screen, conn.created_by, userId);
       // I saldi aggiornati sono utili quando il titolare attende sullo schermo.
       // Le sincronizzazioni automatiche non consumano una richiesta extra per i saldi.
-      if (Object.keys(psuHeaders).length) {
+      if (scheduled || Object.keys(psuHeaders).length) {
         const saldi = await distyra(`/v1/connect/connections/${conn.provider_connection_id}/accounts`, { headers: psuHeaders }) as { accounts?: Record<string, unknown>[] };
         for (const a of saldi.accounts ?? []) {
           const riga = contoDistyra(a, companyId, conn.id);
@@ -220,11 +240,15 @@ Deno.serve(async (req) => {
       }
 
       // Da dove ripartire: l'ultimo movimento che abbiamo.
-      const { data: ultimo } = await admin.from("bank_transactions")
-        .select("booking_date").eq("company_id", companyId)
-        .in("account_id", [...perConto.values()])
-        .order("booking_date", { ascending: false }).limit(1).maybeSingle();
-      const ultimoGiorno = ultimo?.booking_date ? String(ultimo.booking_date).slice(0, 10) : null;
+      // A newly selected account may have no history even if the other account
+      // was synchronized today. Never start its import at the other account's watermark.
+      const ultimeDate = await Promise.all([...perConto.values()].map(async accountId => {
+        const {data,error}=await admin.from("bank_transactions").select("booking_date").eq("company_id",companyId)
+          .eq("account_id",accountId).order("booking_date",{ascending:false}).limit(1).maybeSingle();
+        if(error) throw new Error("Impossibile leggere il punto di ripresa dei movimenti");
+        return data?.booking_date?String(data.booking_date).slice(0,10):null;
+      }));
+      const ultimoGiorno=ultimeDate.every(Boolean)?(ultimeDate as string[]).sort()[0]:null;
       const giorno = (d: string, delta: number) =>
         new Date(new Date(d).getTime() + delta * 86400000).toISOString().slice(0, 10);
 
@@ -256,6 +280,17 @@ Deno.serve(async (req) => {
           // («cannot affect row a second time»): si tiene l'ultima.
           const uniche = [...new Map(righe.map((x) => [x.external_transaction_id, x])).values()];
           if (uniche.length) {
+            // The scheduled lookback refreshes booking status without buying the
+            // same enrichment twice or discarding enrichment already paid for.
+            if(!arricchisci && !soloNuovi) {
+              for(let offset=0;offset<uniche.length;offset+=40) {
+                const batch=uniche.slice(offset,offset+40);
+                const {data:stored,error}=await admin.from("bank_transactions").select("external_transaction_id,metadata").eq("company_id",companyId).in("external_transaction_id",batch.map(x=>x.external_transaction_id));
+                if(error) throw new Error("Impossibile conservare i dati dei movimenti già importati");
+                const enrichment=new Map((stored??[]).map(x=>[x.external_transaction_id,x.metadata?.enrichment]));
+                for(const row of batch) if(!row.metadata.enrichment && enrichment.get(row.external_transaction_id)) row.metadata={...row.metadata,enrichment:enrichment.get(row.external_transaction_id)};
+              }
+            }
             const { error } = await admin.from("bank_transactions").upsert(uniche, {
               onConflict: "company_id,external_transaction_id",
               ignoreDuplicates: soloNuovi,
@@ -263,13 +298,19 @@ Deno.serve(async (req) => {
             if (error) throw new Error(`Movimenti non salvati: ${error.message}`);
             n += uniche.length;
           }
+          if(r.complete===false&&!r.continuation) throw new Error("La banca ha restituito uno storico incompleto senza punto di ripresa.");
           continuazione = r.complete === false ? (r.continuation ?? null) : null;
         } while (continuazione && ++giri < 20);
+        if(continuazione) throw new Error("Importazione parziale: la banca richiede ulteriori pagine. Riprova al prossimo aggiornamento.");
         return n;
       };
 
       let scritti = 0;
-      if (!ultimoGiorno) {
+      if (scheduled) {
+        // Two scheduled rounds fit the four automatic reads: one balances call
+        // and one transaction window per round (pagination remains provider-controlled).
+        scritti=await scarica(ultimoGiorno?{date_from:giorno(ultimoGiorno,-GIORNI_DI_SICUREZZA)}:{history:"all"},false,false);
+      } else if (!ultimoGiorno) {
         // Primo scarico: tutto lo storico che la banca concede. Distyra arricchisce da se'
         // solo gli ultimi 90 giorni se non si chiede `enrich_history=all`, quindi il tetto
         // mensile non se ne va in una volta su anni di movimenti.
@@ -286,7 +327,12 @@ Deno.serve(async (req) => {
         );
       }
 
-      await admin.from("bank_connections").update({ last_sync_at: new Date().toISOString() }).eq("id", conn.id);
+      const {error:syncError}=await admin.from("bank_connections").update({ last_sync_at: new Date().toISOString(), error_message:null }).eq("id", conn.id).eq("company_id",companyId);
+      if(syncError) throw new Error("Movimenti salvati, ma aggiornamento dello stato non riuscito");
+      if(scheduledRun) {
+        const {error}=await admin.from("bank_sync_runs").update({status:"completed",movements:scritti,finished_at:new Date().toISOString()}).eq("id",scheduledRun);
+        if(error) throw new Error("Impossibile salvare l'esito della sincronizzazione");
+      }
       return jsonResponse({ ok: true, movimenti: scritti }, 200, corsH);
     }
 
@@ -295,22 +341,35 @@ Deno.serve(async (req) => {
     if (azione === "disconnect") {
       const { data: conn } = await admin.from("bank_connections")
         .select("id, provider_connection_id").eq("company_id", companyId)
-        .eq("id", String(corpo.connection_id ?? "")).maybeSingle();
+        .eq("id", String(corpo.connection_id ?? "")).eq("provider_slug",PROVIDER).maybeSingle();
       if (!conn) return errorResponse("Collegamento non trovato", 404, corsH);
       if (conn.provider_connection_id) {
         // Se Distyra l'ha gia' chiusa per conto suo va bene lo stesso: quello che conta
         // e' che da qui in poi non risulti piu' attiva.
         try { await distyra(`/v1/connect/connections/${conn.provider_connection_id}`, { method: "DELETE" }); }
-        catch (e) { console.error("[bank-distyra] chiusura", e instanceof Error ? e.message : e); }
+        catch (e) { if(!(e instanceof DistyraError && [404,410].includes(e.status))) throw e; }
       }
-      await admin.from("bank_connections")
-        .update({ status: "disconnected", error_message: null }).eq("id", conn.id);
-      await admin.from("bank_accounts").update({ is_active: false }).eq("connection_id", conn.id);
+      const {error:disconnectError}=await admin.from("bank_connections")
+        .update({ status: "disconnected", error_message: null }).eq("id", conn.id).eq("company_id",companyId);
+      if(disconnectError) throw new Error("Consenso chiuso ma stato locale non aggiornato: riprova la disconnessione.");
+      const {error:accountError}=await admin.from("bank_accounts").update({ is_active: false }).eq("connection_id", conn.id).eq("company_id",companyId);
+      if(accountError) throw new Error("Consenso chiuso ma conti locali non aggiornati: riprova la disconnessione.");
+      const {data:closedAccounts,error:closedReadError}=await admin.from("bank_accounts").select("id").eq("connection_id",conn.id).eq("company_id",companyId);
+      if(closedReadError) throw new Error("Consenso chiuso: riprova per aggiornare la selezione dei conti.");
+      if(closedAccounts?.length) {
+        const {error}=await admin.from("bank_account_choices").delete().eq("company_id",companyId).in("account_id",closedAccounts.map(a=>a.id));
+        if(error) throw new Error("Consenso chiuso: riprova per liberare i posti dei conti selezionati.");
+      }
       return jsonResponse({ ok: true }, 200, corsH);
     }
 
     return errorResponse("Azione sconosciuta: usa start-link, finalize, sync o disconnect", 400, corsH);
   } catch (e) {
+    if(scheduledRun) {
+      const message=e instanceof Error?e.message:"Aggiornamento non riuscito";
+      await admin.from("bank_sync_runs").update({status:"failed",error_message:message.slice(0,500),finished_at:new Date().toISOString()}).eq("id",scheduledRun);
+      await admin.from("bank_connections").update({error_message:message.slice(0,500)}).eq("id",scheduledConnection!);
+    }
     // requireAuth e requireCompanyAccess rispondono lanciando una Response gia' pronta.
     if (e instanceof Response) return e;
     if (e instanceof DistyraError) {

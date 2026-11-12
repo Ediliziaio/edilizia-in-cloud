@@ -30,6 +30,8 @@ import { faseSdi } from "@/lib/fatturazione/sdiCassetto";
 import { getScadenzaInfo, STATI_FILTRO_DOCUMENTI } from "@/lib/fatturazione/filtriDocumenti";
 import { DocumentiFooter } from "@/components/fatturazione/DocumentiFooter";
 import { Button } from "@/components/ui/button";
+import { CollegaEmessaDialog } from "@/components/fatturazione/CollegaEmessaDialog";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/contexts/AuthContext";
 import { AbbinaFattureCommesseDialog } from "@/components/fatture/AbbinaFattureCommesseDialog";
 import { Input } from "@/components/ui/input";
@@ -243,6 +245,8 @@ function DocumentiFiscaliListInner() {
   // Fatture importate dal gestionale esterno che non sanno a quale cantiere
   // appartengono: finché non lo sanno, la commessa non sa quanto ha incassato.
   const { effectiveCompany, user } = useAuth();
+  const permissions=usePermissions();
+  const [collegaTarget,setCollegaTarget]=useState<DocumentoFiscale|null>(null);
   const sceltaColonne = useColonneEmesse(effectiveCompany?.id, user?.id);
   const [riquadroTabella, setRiquadroTabella] = useState<HTMLDivElement | null>(null);
   const [filtriEmesse, setFiltriEmesse] = useState<FiltriEmesse>(FILTRI_EMESSE_VUOTI);
@@ -1024,7 +1028,9 @@ function DocumentiFiscaliListInner() {
                         />
                       </TableCell>
 
-                      {elencoEmesse ? <CelleEmesse doc={doc} colonne={sceltaColonne.colonne} apri={() => apriDocumento(doc)} /> : <>
+                      {elencoEmesse ? <CelleEmesse doc={doc} colonne={sceltaColonne.colonne} apri={() => apriDocumento(doc)}
+                      incassa={permissions.canManagePayments && (isDocumentoPagabile(doc)||importataPagabile(doc)) ? ()=>{if(doc.origine==="importata")setIncassoImportata(doc);else setPayTarget(doc);} : undefined}
+                      collega={permissions.canViewBilling && !["bozza","annullata","stornata"].includes(doc.stato) && doc.totale_da_pagare>0 ? ()=>setCollegaTarget(doc):undefined} /> : <>
                       {/* Tipo (solo cestino) */}
                       {showColTipo && (
                         <TableCell>
@@ -1421,6 +1427,8 @@ function DocumentiFiscaliListInner() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <CollegaEmessaDialog doc={collegaTarget} onOpenChange={open=>{if(!open)setCollegaTarget(null);}} />
 
       {/* ── Segna pagata: un incasso vero, con metodo e data ── */}
       <SegnaPagataDialog

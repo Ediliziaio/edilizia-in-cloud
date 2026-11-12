@@ -45,6 +45,7 @@ jobs:
           bun-version: 1.4.4
       - run: bun install --frozen-lockfile
       - run: bunx vitest run src/test/logic/campoAssignments.test.ts src/test/logic/forecastDataset.test.ts src/test/logic/saltedgeHandlers.test.ts src/test/ui/employeeAccountSelector.test.tsx src/test/logic/protectedBankRequests.test.ts src/test/ui/createUserWizardPermessi.test.tsx src/test/security/bankBalancesPermissions.test.ts src/test/logic/employeeAccountLinking.test.ts src/test/ui/tesoreriaSaldoAggiornato.test.tsx src/test/ui/tesoreriaFattureInterne.test.tsx src/test/ui/tesoreriaErrorePersistente.test.tsx src/test/logic/permissionsRegistryParity.test.ts src/test/logic/staffPermissionsEdgeParity.test.ts --maxWorkers=2
+      - run: bunx vitest run src/test/logic/sincronizzazioneBanche.test.ts src/test/ui/tesoreriaSincronizzaDistyra.test.tsx src/test/ui/distyraBankConnections.test.tsx --maxWorkers=2
 
   migration-history:
     name: Complete offline database reconstruction
@@ -171,7 +172,7 @@ jobs:
 
       - name: Typecheck webhook edge functions
         if: matrix.group == 'core'
-        run: npx --yes deno@2.9.6 check supabase/functions/dispatch-global-webhooks/index.ts supabase/functions/send-webhook/index.ts supabase/functions/silvio-chat/index.ts supabase/functions/silvio-execute-action/index.ts
+        run: npx --yes deno@2.9.6 check supabase/functions/bank-distyra/index.ts supabase/functions/dispatch-global-webhooks/index.ts supabase/functions/send-webhook/index.ts supabase/functions/silvio-chat/index.ts supabase/functions/silvio-execute-action/index.ts
 
       - name: Verify global webhook events, permissions and delivery queue
         if: matrix.group == 'core'
@@ -728,8 +729,11 @@ jobs:
           src/test/logic/fattureEmesseElencoSql.test.ts
           src/test/logic/documentiElencoQuery.test.tsx
           src/test/logic/distyraHandlers.test.ts
+          src/test/logic/bankAccountChoice.test.ts
+          src/test/ui/bankAccountSelection.test.tsx
           src/test/ui/distyraReturn.test.tsx
           src/test/ui/hubFattureEsterne.test.tsx
+          src/test/logic/collegaEmessaCommessa.test.ts
           src/test/logic/documentiEmissioneOrdine.test.ts
           src/test/logic/emissioneDataOdiernaSql.test.ts
           src/test/ui/bozzaDataAutomatica.test.tsx

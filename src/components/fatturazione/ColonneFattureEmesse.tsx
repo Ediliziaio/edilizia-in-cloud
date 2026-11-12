@@ -34,6 +34,7 @@ export const COLONNE_EMESSE = [
   { id: "scadenza", label: "Prossima scadenza" },
   { id: "commesse", label: "Collegata a" },
   { id: "note", label: "Note" },
+  { id: "note_interne", label: "Note interne" },
   { id: "allegati", label: "Allegati" },
   { id: "origine", label: "Origine", opzionale: true },
 ] as const;
@@ -42,10 +43,13 @@ const predefinite = () => COLONNE_EMESSE.filter(c => !("opzionale" in c)).map(c 
 
 /** Preferenza distinta dalle ricevute, per persona e azienda, tollerante a storage bloccato. */
 export function useColonneEmesse(companyId?: string, userId?: string) {
-  const key = `fatture-emesse-colonne-v1:${userId ?? "sessione"}:${companyId ?? "nessuna"}`;
+  const oldKey = `fatture-emesse-colonne-v1:${userId ?? "sessione"}:${companyId ?? "nessuna"}`;
+  const key=oldKey.replace("-v1:","-v2:");
   const iniziali = useMemo(() => {
     try {
-      const v: unknown = JSON.parse(localStorage.getItem(key) ?? "null");
+      let saved=localStorage.getItem(key);
+      if(saved===null){const old=JSON.parse(localStorage.getItem(oldKey)??"null");if(Array.isArray(old)){saved=JSON.stringify([...old,"note_interne"]);localStorage.setItem(key,saved);}}
+      const v: unknown = JSON.parse(saved ?? "null");
       if (Array.isArray(v)) return COLONNE_EMESSE.filter(c => ("fissa" in c) || v.includes(c.id)).map(c => c.id);
     } catch { /* preferenze facoltative */ }
     return predefinite();
@@ -76,23 +80,22 @@ export function IntestazioniEmesse({ colonne }: { colonne: ColonnaEmesse[] }) {
     className={`whitespace-nowrap ${"cifra" in c ? "text-right" : ""} ${c.id === "cliente" ? "sticky left-0 z-10 bg-card min-w-[210px]" : ""}`}>{c.label}</TableHead>)}</>;
 }
 
-export function NoteEmessa({ doc }: { doc: DocumentoFiscale }) {
-  const nota = doc.note_interne?.trim() || doc.note_documento?.trim();
+export function NoteEmessa({ doc, interne=false }: { doc: DocumentoFiscale; interne?:boolean }) {
+  const nota = (interne?doc.note_interne:doc.note_documento)?.trim();
   if (!nota) return <span className="text-muted-foreground">—</span>;
   return <Popover><PopoverTrigger asChild>
-    <button type="button" onClick={e => e.stopPropagation()} aria-label={`Leggi le note della fattura ${doc.numero}`}
+    <button type="button" onClick={e => e.stopPropagation()} aria-label={`Leggi le note${interne?" interne":""} della fattura ${doc.numero}`}
       className="flex max-w-[220px] items-center gap-1.5 text-left text-xs hover:text-primary">
       <MessageSquare className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{nota}</span>
     </button>
   </PopoverTrigger><PopoverContent className="w-96 max-w-[90vw] max-h-[60vh] overflow-y-auto text-sm" onClick={e => e.stopPropagation()}>
-    {doc.note_documento?.trim() && <section><h3 className="mb-1 font-semibold">Note del documento</h3><p className="whitespace-pre-wrap break-words">{doc.note_documento}</p></section>}
-    {doc.note_interne?.trim() && <section className={doc.note_documento?.trim() ? "mt-4 border-t pt-3" : ""}><h3 className="mb-1 font-semibold">Note interne · solo azienda</h3><p className="whitespace-pre-wrap break-words">{doc.note_interne}</p></section>}
+    <section><h3 className="mb-1 font-semibold">{interne?"Note interne · solo azienda":"Note del documento"}</h3><p className="whitespace-pre-wrap break-words">{nota}</p></section>
   </PopoverContent></Popover>;
 }
 
-function CommesseEmessa({ doc }: { doc: DocumentoFiscale }) {
+function CommesseEmessa({ doc, collega }: { doc: DocumentoFiscale; collega?:()=>void }) {
   const commesse = doc.commesse ?? [];
-  if (!commesse.length) return <span className="text-muted-foreground">—</span>;
+  if (!commesse.length) return collega?<button type="button" onClick={e=>{e.stopPropagation();collega();}} className="text-xs text-primary hover:underline" aria-label={`Collega la fattura ${doc.numero} a una commessa`}>Collega</button>:<span className="text-muted-foreground">—</span>;
   return <Popover><PopoverTrigger asChild><button type="button" className="flex max-w-[210px] items-center gap-1 text-xs" onClick={e => e.stopPropagation()} aria-label={`Commesse della fattura ${doc.numero}`}>
     <Badge variant="outline" className="max-w-[175px] truncate inline-block">{commesse[0].codice || "Commessa"}</Badge>{commesse.length > 1 && <span>+{commesse.length - 1}</span>}
   </button></PopoverTrigger><PopoverContent onClick={e => e.stopPropagation()} className="max-h-[60vh] overflow-y-auto">
@@ -101,11 +104,12 @@ function CommesseEmessa({ doc }: { doc: DocumentoFiscale }) {
   </PopoverContent></Popover>;
 }
 
-function IncassoEmessa({ doc }: { doc: DocumentoFiscale }) {
+function IncassoEmessa({ doc, incassa }: { doc: DocumentoFiscale; incassa?:()=>void }) {
   if (["bozza", "annullata", "stornata"].includes(doc.stato)) return <StatoBadge stato={doc.stato} />;
   const residuo = residuoDaIncassare(doc);
   const label = residuo <= 0 ? "Incassata" : doc.importo_pagato > 0 ? "Parz. incassata" : "Da incassare";
-  return <Badge variant="outline" className={residuo <= 0 ? "text-emerald-700 border-emerald-200 bg-emerald-50" : "text-amber-700 border-amber-200 bg-amber-50"}>{label}</Badge>;
+  const badge=<Badge variant="outline" className={residuo <= 0 ? "text-emerald-700 border-emerald-200 bg-emerald-50" : "text-amber-700 border-amber-200 bg-amber-50"}>{label}</Badge>;
+  return incassa&&residuo>0?<button type="button" className="rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" onClick={e=>{e.stopPropagation();incassa();}} aria-label={`Registra incasso fattura ${doc.numero}`}>{badge}</button>:badge;
 }
 
 function AllegatiEmessa({ doc, apri }: { doc: DocumentoFiscale; apri: () => void }) {
@@ -119,7 +123,7 @@ function AllegatiEmessa({ doc, apri }: { doc: DocumentoFiscale; apri: () => void
   </PopoverContent></Popover>;
 }
 
-export function CelleEmesse({ doc, colonne, apri }: { doc: DocumentoFiscale; colonne: ColonnaEmesse[]; apri: () => void }) {
+export function CelleEmesse({ doc, colonne, apri, incassa, collega }: { doc: DocumentoFiscale; colonne: ColonnaEmesse[]; apri: () => void; incassa?:()=>void; collega?:()=>void }) {
   const dataScadenza = doc.elenco_prossima_scadenza === undefined ? doc.data_scadenza : doc.elenco_prossima_scadenza ?? undefined;
   const scadenza = getScadenzaInfo({ ...doc, data_scadenza: dataScadenza });
   const cliente = nomeCliente(doc.cliente_snapshot as never) || "—";
@@ -132,13 +136,13 @@ export function CelleEmesse({ doc, colonne, apri }: { doc: DocumentoFiscale; col
     totale: formatCurrency(doc.totale_documento), netto: formatCurrency(doc.totale_da_pagare),
     stato: <StatoBadge stato={doc.stato} />,
     sdi: doc.origine === "importata" ? <Badge variant="outline" title="Esito SDI non disponibile nell'importazione. Verifica nel gestionale di origine.">Gestita esternamente</Badge> : faseSdi(doc) ? <FaseSdiBadge doc={doc} /> : "—",
-    incasso: <IncassoEmessa doc={doc} />,
+    incasso: <IncassoEmessa doc={doc} incassa={incassa} />,
     incassato: formatCurrency(doc.importo_pagato),
     residuo: credito > 0 ? <span title="Credito del cliente, da rimborsare o compensare">Credito {formatCurrency(credito)}</span> : formatCurrency(Math.max(0, residuoDaIncassare(doc))),
     modalita: etichettaModalitaPagamento(doc.metodo_pagamento_nome || doc.metodo_pagamento_codice) || "—",
     scadenza: scadenza && dataScadenza ? <span className={scadenza.scaduta ? "text-destructive font-medium" : scadenza.urgente ? "text-amber-700" : ""}
       title={scadenza.scaduta ? `Scaduta da ${scadenza.giorni} giorni` : `Scade fra ${scadenza.giorni} giorni`}>{formatDateShort(dataScadenza)}{scadenza.scaduta && ` · ${scadenza.giorni} gg fa`}</span> : "—",
-    commesse: <CommesseEmessa doc={doc} />, note: <NoteEmessa doc={doc} />,
+    commesse: <CommesseEmessa doc={doc} collega={collega} />, note: <NoteEmessa doc={doc} />, note_interne:<NoteEmessa doc={doc} interne />,
     allegati: <AllegatiEmessa doc={doc} apri={apri} />,
     origine: doc.origine === "importata" ? (doc.external_provider || "Importata") : "Edilizia in Cloud",
   };

@@ -1,3 +1,4 @@
+import {incassoQuotaCommessa} from "@/lib/fatturazione/incassoQuotaCommessa";
 import { OrderPaymentStatus } from "@/components/orders/OrderPaymentStatus";
 import { nomeCliente as nomeClienteProfilo } from "@/lib/orders/nuovaCommessaProposte";
 import { costoDaSottrarreAlSaldo, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
@@ -371,6 +372,10 @@ interface OrderDocumentSummary {
 }
 
 interface LinkedFiscalDocument {
+  origine?:"nativa"|"importata";
+  importo_pagato?:number;
+  importo_associato?:number|null;
+  stornato?:number;
   id: string;
   numero: string;
   data_emissione: string;
@@ -2149,7 +2154,7 @@ function OrderDetailInner() {
                         className="flex items-center justify-between gap-2 p-2 rounded-md border bg-white text-sm"
                       >
                         <Link
-                          to={`/azienda/documenti/${f.id}`}
+                          to={f.origine==="importata"?`/azienda/documenti/importata/${f.id}`:`/azienda/documenti/${f.id}/dettaglio`}
                           className="min-w-0 flex-1"
                         >
                           <div className="flex items-center gap-2">
@@ -2165,10 +2170,11 @@ function OrderDetailInner() {
                           </Badge>
                         </Link>
                         <div className="flex items-center gap-2">
-                          <span className="text-muted-foreground whitespace-nowrap">
-                            {formatCurrency(f.totale_da_pagare)}
+                          <span className="text-right text-muted-foreground whitespace-nowrap">
+                            {formatCurrency(f.importo_associato??f.totale_da_pagare)}
+                            {permissions.canViewOrderAmounts && f.importo_pagato != null && <span className="block text-xs">Incassato {formatCurrency(incassoQuotaCommessa(f).incassato)} · residuo {formatCurrency(incassoQuotaCommessa(f).residuo)}</span>}
                           </span>
-                          {!isMobile && (
+                          {!isMobile && f.origine!=="importata" && (
                             <Button
                               type="button"
                               variant="ghost"

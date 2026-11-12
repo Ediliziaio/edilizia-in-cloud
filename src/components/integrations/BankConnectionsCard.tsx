@@ -1,17 +1,8 @@
-/**
- * BankConnectionsCard — Salt Edge AIS beta per l'azienda.
- * Collega un conto corrente (consenso PSD2) e importa i movimenti per la
- * riconciliazione. Le chiavi sono esclusivamente nella funzione `bank-saltedge`.
- *
- * Il ritorno porta connection_id e uno stato monouso verificato dal server.
- *
- * In Integrazioni sta nel popup della scheda «Conti bancari» (`senzaCornice`):
- * al ritorno dalla banca la pagina riapre il popup, così questo componente
- * c'è e completa il collegamento. In Tesoreria resta una Card.
- */
+/** Collegamento, recupero e sincronizzazione dei conti tramite Distyra. */
+import BankAccountSelection from "@/components/tesoreria/BankAccountSelection";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSaltEdgeReturn } from "@/hooks/useSaltEdgeReturn";
+import { useDistyraReturn } from "@/hooks/useDistyraReturn";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -19,18 +10,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
-import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { formatTreasuryCurrency } from "@/lib/treasury";
 import { toast } from "sonner";
-import { Checkbox } from "@/components/ui/checkbox";
-import { invokeSaltEdge, validSaltWidgetUrl, BANKING_QUERY_KEYS } from "@/lib/banking/saltedge";
+import { BANKING_QUERY_KEYS } from "@/lib/banking/queryKeys";
 import { invokeDistyra, validDistyraUrl } from "@/lib/banking/distyra";
-import { Landmark, Plus, RefreshCw, Loader2, CheckCircle2, Unlink, AlertTriangle } from "lucide-react";
+import { aggiornaConnessioneBanca } from "@/lib/banking/sincronizzazione";
+import { Circle, Landmark, Plus, RefreshCw, Loader2, CheckCircle2, Unlink, AlertTriangle } from "lucide-react";
 
 interface BankConnection {
   id: string;
@@ -95,13 +83,14 @@ export function useConnessioniBanca(abilitato = true) {
         .from("bank_connections")
         .select("id, institution_name, status, accounts_count, last_sync_at, expires_at, error_message, provider_slug, created_at")
         .eq("company_id", companyId!)
-        .in("provider_slug", ["distyra", "saltedge"])
+        .eq("provider_slug", "distyra")
         .neq("status", "disconnected")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as BankConnection[];
     },
-    refetchInterval: query => query.state.data?.some(c => ((c.provider_slug === "saltedge" && c.status === "created") || (c.provider_slug === "distyra" && c.status === "pending")) && c.created_at && Date.now() - Date.parse(c.created_at) < 15 * 60000) ? 5000 : false,
+    select: rows => rows.filter(c => c.provider_slug === "distyra"),
+    refetchInterval: query => query.state.data?.some(c => c.provider_slug === "distyra" && c.status === "pending" && c.created_at && Date.now() - Date.parse(c.created_at) < 15 * 60000) ? 5000 : false,
   });
 }
 
@@ -118,7 +107,6 @@ function nomeConto(a: BankAccount): string {
 }
 
 export default function BankConnectionsCard({
-  redirectPath = "/azienda/impostazioni/integrazioni",
   onChanged,
   senzaCornice = false,
   handleReturn = true,
@@ -126,19 +114,11 @@ export default function BankConnectionsCard({
   const companyId = useEffectiveCompanyId();
   const { canViewTesoreria, canViewBankBalances, canEditSettingsIntegrations, isLoading: permsLoading } = usePermissions();
   const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [disconnectId, setDisconnectId] = useState<string | null>(null);
   const [disconnecting, setDisconnecting] = useState(false);
   const observedSync = useRef<string | null>(null);
-  const [confirmAccounts, setConfirmAccounts] = useState(false);
-  const [reconnectId, setReconnectId] = useState<string | null>(null);
-  const [widgetAction, setWidgetAction] = useState("start-auth");
-  const bankStatus = useQuery({
-    queryKey: ["saltedge-status", companyId], enabled: !!companyId && canViewTesoreria,
-    queryFn: () => invokeSaltEdge(companyId, { action: "status" }), retry: false,
-  });
   const invalidateBanking = () => {
     BANKING_QUERY_KEYS.forEach(key => qc.invalidateQueries({ queryKey: [key] }));
     onChanged?.();
@@ -170,53 +150,16 @@ export default function BankConnectionsCard({
     },
   });
 
-  useSaltEdgeReturn(companyId, onChanged, handleReturn);
+  useDistyraReturn(companyId, onChanged, handleReturn && canEditSettingsIntegrations && canViewBankBalances);
 
-  const openConnect = (id: string | null = null, action = "reconnect") => {
-    setOpen(true);
-    setConfirmAccounts(false);
-    setReconnectId(id);
-    setWidgetAction(id ? action : "start-auth");
-  };
-
-  const startConnect = async () => {
-    if (!confirmAccounts || !bankStatus.data?.ready || bankStatus.data?.connectReady === false) return;
-    setConnecting(true);
-    try {
-      const data = await invokeSaltEdge(companyId, { action: widgetAction, connection_id: reconnectId, redirect_path: redirectPath, confirm_company_accounts: true });
-      if (!validSaltWidgetUrl(data?.url)) throw new Error("Il servizio non ha restituito un indirizzo di collegamento valido.");
-      window.location.href = data.url; // redirect al consenso banca
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore avvio collegamento");
-      setConnecting(false);
-    }
-  };
-
-  const syncNow = async (connectionId: string, provider?: string) => {
+  const syncNow = async (connectionId: string) => {
     setSyncingId(connectionId);
     const t = toast.loading("Sincronizzazione movimenti…");
     try {
-      if (provider === "distyra") {
-        // Su Distyra il collegamento va prima confermato: il cliente torna dalla banca e
-        // solo allora sappiamo quali conti ha scelto. Se è già confermato non costa nulla.
-        const conti = canEditSettingsIntegrations && canViewBankBalances
-          ? await invokeDistyra(companyId, { action: "finalize", connection_id: connectionId })
-          : { conti: connections.find(c => c.id === connectionId)?.accounts_count ?? 0 };
-        if (!conti?.conti) throw new Error("La banca sta ancora preparando i conti. Riprova senza ricollegare.");
-        // Il collegamento è valido anche se la banca rinvia lo scarico dei movimenti.
-        invalidateBanking();
-        try {
-          const esito = await invokeDistyra(companyId, { action: "sync", connection_id: connectionId }, { onScreen: true });
-          toast.success(`Sincronizzati ${esito?.movimenti ?? 0} movimenti`, { id: t });
-          invalidateBanking();
-        } catch (e) {
-          toast.info(`Conti collegati (${conti.conti}). ${e instanceof Error ? e.message : "Movimenti non ancora disponibili."}`, { id: t });
-        }
-        return;
-      }
-      const data = await invokeSaltEdge(companyId, { action: "sync", connection_id: connectionId });
-      if (data?.processing) toast.info("La banca sta preparando i dati. Riprova fra poco.", { id: t });
-      else toast.success(`Sincronizzati ${data?.imported ?? 0} movimenti`, { id: t });
+      const connessione = connections.find(c => c.id === connectionId);
+      const esito = await aggiornaConnessioneBanca(companyId!, { ...connessione, id: connectionId, provider_slug: "distyra" }, canEditSettingsIntegrations && canViewBankBalances);
+      if (esito.avviso) toast.info(esito.avviso, { id: t });
+      else toast.success(`Sincronizzati ${esito.movimenti} movimenti`, { id: t });
       invalidateBanking();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Errore sincronizzazione", { id: t });
@@ -229,9 +172,7 @@ export default function BankConnectionsCard({
     if (!disconnectId) return;
     setDisconnecting(true);
     try {
-      const riga = connections.find(x => x.id === disconnectId);
-      if (riga?.provider_slug === "distyra") await invokeDistyra(companyId, { action: "disconnect", connection_id: disconnectId });
-      else await invokeSaltEdge(companyId, { action: "disconnect", connection_id: disconnectId });
+      await invokeDistyra(companyId, { action: "disconnect", connection_id: disconnectId });
       toast.success("Conto disconnesso");
       invalidateBanking();
     } catch (e) {
@@ -243,26 +184,28 @@ export default function BankConnectionsCard({
   };
 
   // Sicurezza: solo admin o utenti col permesso Tesoreria possono vedere/gestire
-  // i conti bancari. La RLS + l'edge function bank-saltedge applicano lo stesso vincolo
+  // i conti bancari. La RLS + l'edge function bank-distyra applicano lo stesso vincolo
   // lato server; qui nascondiamo la card a chi non è autorizzato.
   if (permsLoading) return null;
   if (!canViewTesoreria) return null;
 
   // Il server crea il link ospitato; qui si controlla solo che l'indirizzo sia davvero suo.
   async function collegaConDistyra() {
+    if (connecting) return;
+    setConnecting(true);
     try {
       const data = await invokeDistyra(companyId, { action: "start-link" });
       if (!validDistyraUrl(data?.url)) throw new Error("Il servizio non ha restituito un indirizzo di collegamento valido.");
       window.location.href = data.url;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Collegamento non avviato");
+      setConnecting(false);
     }
   }
 
-  // Un solo pulsante: Distyra e' l'unico canale configurato. Le vecchie connessioni
-  // Salt Edge restano visibili e gestibili finche' ci sono, ma non se ne aprono di nuove.
+  // Un unico canale attivo per tutti i pulsanti: Distyra.
   const pulsanteCollega = (
-    <Button size="sm" onClick={() => void collegaConDistyra()} disabled={!canEditSettingsIntegrations || !canViewBankBalances} className="shrink-0">
+    <Button size="sm" onClick={() => void collegaConDistyra()} disabled={connecting || !canEditSettingsIntegrations || !canViewBankBalances} className="shrink-0">
       <Plus className="h-4 w-4 mr-1" /> Collega conto
     </Button>
   );
@@ -281,24 +224,12 @@ export default function BankConnectionsCard({
         <div key={c.id} className="rounded-lg border p-3 space-y-2">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2">
-              <span className="font-medium text-sm">{c.institution_name ?? "Banca"}</span>
+              <Circle aria-hidden="true" className={`h-2.5 w-2.5 fill-current ${c.status==="linked"&&!contoDaRicollegare(c)?"text-emerald-500":c.status==="disconnected"?"text-red-500":"text-amber-500"}`} /><span className="font-medium text-sm">{c.institution_name ?? "Banca"}</span>
               <Badge className={`text-[10px] px-1.5 py-0 border-0 ${st.cls}`}>{st.label}</Badge>
             </div>
             <div className="flex items-center gap-1.5">
-              {c.provider_slug === "saltedge" && c.status === "created" && (
-                <Button size="sm" variant="outline" onClick={() => syncNow(c.id)} disabled={syncingId === c.id}>
-                  {syncingId === c.id ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
-                  Verifica importazione
-                </Button>
-              )}
-              {canEditSettingsIntegrations && canViewBankBalances && c.provider_slug === "saltedge" && c.status === "linked" && !contoDaRicollegare(c) && <Button size="sm" variant="outline" onClick={() => openConnect(c.id, "refresh")}><RefreshCw className="mr-1 h-3.5 w-3.5" />Aggiorna banca</Button>}
-              {canEditSettingsIntegrations && canViewBankBalances && c.provider_slug === "saltedge" && contoDaRicollegare(c) && (
-                <Button size="sm" variant="outline" onClick={() => openConnect(c.id)}>
-                  <RefreshCw className="h-3.5 w-3.5 mr-1" /> Ricollega
-                </Button>
-              )}
               {c.provider_slug === "distyra" && (
-                <Button size="sm" variant="outline" onClick={() => syncNow(c.id, "distyra")} disabled={syncingId === c.id}>
+                <Button size="sm" variant="outline" onClick={() => syncNow(c.id)} disabled={syncingId === c.id}>
                   {syncingId === c.id ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
                   {c.status === "pending" ? "Verifica collegamento" : "Aggiorna movimenti"}
                 </Button>
@@ -306,9 +237,7 @@ export default function BankConnectionsCard({
               {canEditSettingsIntegrations && canViewBankBalances && c.provider_slug === "distyra" && <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-rose-600" onClick={() => setDisconnectId(c.id)} aria-label="Disconnetti conto">
                 <Unlink className="h-3.5 w-3.5" />
               </Button>}
-              {canEditSettingsIntegrations && canViewBankBalances && c.provider_slug === "saltedge" && <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-rose-600" onClick={() => setDisconnectId(c.id)} aria-label="Disconnetti conto">
-                <Unlink className="h-3.5 w-3.5" />
-              </Button>}
+
             </div>
           </div>
           {c.error_message && (
@@ -340,7 +269,7 @@ export default function BankConnectionsCard({
             </div>
           )}
           {c.last_sync_at && (
-            <p className="text-[10px] text-muted-foreground">Ultimo sync: {new Date(c.last_sync_at).toLocaleString("it-IT")}</p>
+            <p className="text-[10px] text-muted-foreground">Ultima importazione movimenti: {new Date(c.last_sync_at).toLocaleString("it-IT")}</p>
           )}
         </div>
       );
@@ -349,28 +278,6 @@ export default function BankConnectionsCard({
 
   const dialoghi = (
     <>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Collega un conto bancario</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <DialogDescription className="text-sm text-muted-foreground">
-              {bankStatus.data?.mode === "pending" ? "Beta con banche simulate: non collegare conti reali." : "Autorizza la sola lettura di saldi e movimenti tramite Salt Edge e la tua banca. La durata del consenso dipende dalla banca."}
-            </DialogDescription>
-            {bankStatus.isLoading ? (
-              <div className="flex items-center justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
-            ) : !bankStatus.data?.ready || bankStatus.data?.connectReady === false ? <div role="alert" className="text-sm text-destructive">{bankStatus.error instanceof Error ? bankStatus.error.message : bankStatus.data?.connectError || bankStatus.data?.error || "Beta Salt Edge non configurata."}<Button variant="ghost" size="sm" onClick={() => bankStatus.refetch()}><RefreshCw className="mr-1 h-4 w-4" />Riprova</Button></div> : null}
-            <label className="flex items-start gap-2 text-sm"><Checkbox checked={confirmAccounts} onCheckedChange={v => setConfirmAccounts(v === true)} />Confermo di collegare esclusivamente conti dell'azienda selezionata. Nessuna disposizione di pagamento.</label>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Annulla</Button>
-            <Button onClick={startConnect} disabled={!confirmAccounts || !bankStatus.data?.ready || bankStatus.data?.connectReady === false || connecting}>
-              {connecting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
-              Continua con Salt Edge
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <AlertDialog open={!!disconnectId} onOpenChange={(o) => { if (!o && !disconnecting) setDisconnectId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -399,6 +306,7 @@ export default function BankConnectionsCard({
           </p>
           {pulsanteCollega}
         </div>
+        {companyId && <BankAccountSelection companyId={companyId} onChanged={onChanged} />}
         {elenco}
         {dialoghi}
       </div>
@@ -415,6 +323,7 @@ export default function BankConnectionsCard({
         {pulsanteCollega}
       </CardHeader>
       <CardContent className="space-y-3">
+        {companyId && <BankAccountSelection companyId={companyId} onChanged={onChanged} />}
         {elenco}
       </CardContent>
       {dialoghi}

@@ -24,6 +24,9 @@ interface OrderJoined {
 }
 
 interface FatturaJoined {
+  origine?: "nativa"|"importata";
+  importo_pagato?:number;
+  stornato?:number;
   id: string;
   numero: string;
   data_emissione: string;
@@ -100,7 +103,7 @@ export function useFattureByOrdine(ordineId: string | undefined) {
       // From direct ordine_id shortcut
       const directQuery = supabase
         .from("documenti_fiscali" as never)
-        .select("id, numero, data_emissione, stato, tipo, totale_da_pagare, totale_documento, company_id")
+        .select("id, numero, data_emissione, stato, tipo, totale_da_pagare, totale_documento, importo_pagato, company_id")
         .eq("ordine_id", ordineId!)
         .is("deleted_at", null);
       const { data: directData, error: dErr } = companyId
@@ -114,7 +117,7 @@ export function useFattureByOrdine(ordineId: string | undefined) {
       if (junctionFatturaIds.length > 0) {
         const fattureQuery = supabase
           .from("documenti_fiscali" as never)
-          .select("id, numero, data_emissione, stato, tipo, totale_da_pagare, totale_documento")
+          .select("id, numero, data_emissione, stato, tipo, totale_da_pagare, totale_documento, importo_pagato")
           .in("id", junctionFatturaIds)
           .is("deleted_at", null);
         const { data: fData, error: fErr } = companyId
@@ -135,7 +138,13 @@ export function useFattureByOrdine(ordineId: string | undefined) {
       for (const f of junctionFatture) allFatture.set(f.id, conQuota(f));
       for (const f of (directData as any[]) ?? []) allFatture.set(f.id, conQuota(f));
 
-      return Array.from(allFatture.values());
+      // Same canonical projection as the issued-invoices list: imported invoices
+      // become visible in the job immediately after the existing reconciliation RPC.
+      const {data:importate,error:importateError}=await supabase.from("documenti_fiscali_elenco_operativo" as never)
+        .select("id,numero,data_emissione,stato,tipo,totale_da_pagare,totale_documento,importo_pagato,stornato,origine")
+        .eq("company_id",companyId!).eq("origine","importata").eq("ordine_id",ordineId!).is("deleted_at",null);
+      if(importateError)throw importateError;
+      return [...Array.from(allFatture.values()),...((importate??[]) as FatturaJoined[]).map((f):FatturaJoined=>({...f,importo_associato:null}))];
     },
     enabled: !!ordineId && !!companyId,
   });

@@ -26,7 +26,7 @@ import {
 
 import { useIsMobile } from "@/hooks/use-mobile";
 interface FileDoc { id: string; file_name: string; file_url: string; file_type?: string | null; file_size?: number | null; thumb_path?: string | null }
-interface FiscalDoc { id: string; numero: string; tipo?: string | null; stato?: string | null; totale_da_pagare?: number | null }
+interface FiscalDoc { origine?:"nativa"|"importata"; id: string; numero: string; tipo?: string | null; stato?: string | null; totale_da_pagare?: number | null }
 interface ItemWithFiles { id: string; name?: string | null; attachments?: FileDoc[] | null }
 
 interface Props {
@@ -156,7 +156,7 @@ export function OrderFilesDialog({
                 {/* Le annullate restano raggiungibili, ma dopo le buone e spente. */}
                 {[...fatture].sort((a, b) => Number(a.stato === "annullata") - Number(b.stato === "annullata")).map((f) => (
                   <li key={f.id} className={`flex items-center justify-between gap-2 rounded-md border bg-card px-2 py-1 text-sm ${f.stato === "annullata" ? "opacity-55" : ""}`}>
-                    <button type="button" className="min-w-0 flex-1 text-left" onClick={() => { onOpenChange(false); navigate(`/azienda/documenti/${f.id}`); }}>
+                    <button type="button" className="min-w-0 flex-1 text-left" onClick={() => { onOpenChange(false); navigate(f.origine==="importata"?`/azienda/documenti/importata/${f.id}`:`/azienda/documenti/${f.id}/dettaglio`); }}>
                       <span className="font-medium truncate inline-flex items-center gap-1">{f.numero} <ExternalLink className="h-3 w-3 opacity-50" /></span>
                       <span className="block text-[11px] text-muted-foreground">{fiscalTypeLabel(f.tipo)}{f.stato ? ` · ${f.stato}` : ""}</span>
                     </button>
@@ -165,7 +165,7 @@ export function OrderFilesDialog({
                       {/* La fattura resta raggiungibile: si tocca la riga e si
                           apre la sua pagina. Sparisce solo lo scarico. */}
                       {!isMobile && (
-                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" aria-label={`Scarica ${f.numero}`} onClick={() => onDownloadFattura(f)}>
+                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" aria-label={`Scarica ${f.numero}`} onClick={() => f.origine==="importata"?navigate(`/azienda/documenti/importata/${f.id}`):onDownloadFattura(f)}>
                           <Download className="h-4 w-4" />
                         </Button>
                       )}

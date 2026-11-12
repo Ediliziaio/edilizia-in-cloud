@@ -4,12 +4,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Landmark, LayoutDashboard, CreditCard, ArrowLeftRight, Link, Link2, RefreshCw, Loader2, TrendingUp, Settings, Receipt, ChevronDown } from "lucide-react";
+import { Landmark, LayoutDashboard, CreditCard, ArrowLeftRight, Link2, RefreshCw, Loader2, TrendingUp, Settings, Receipt, ChevronDown } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { invokeSaltEdge } from "@/lib/banking/saltedge";
-import { useSaltEdgeReturn } from "@/hooks/useSaltEdgeReturn";
+import { BANKING_QUERY_KEYS } from "@/lib/banking/queryKeys";
+import { sincronizzaBancheAzienda } from "@/lib/banking/sincronizzazione";
+import { useQueryClient } from "@tanstack/react-query";
 import { useDistyraReturn } from "@/hooks/useDistyraReturn";
 import { toast } from "sonner";
 import TreasuryOverview from "@/components/tesoreria/TreasuryOverview";
@@ -32,9 +33,8 @@ import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
-// Mobile: tre schede su otto (connessioni, riconciliazione, previsioni, note
-// spese e impostazioni restano al desktop).
-const TREASURY_TABS_MOBILE = new Set(["overview", "conti", "transazioni"]);
+// Il collegamento e il recupero delle banche devono restare disponibili anche sul telefono.
+const TREASURY_TABS_MOBILE = new Set(["overview", "conti", "transazioni", "riconciliazione"]);
 
 const TREASURY_TABS = new Set([
   "overview",
@@ -49,7 +49,7 @@ const TREASURY_TABS = new Set([
 
 function getSafeTab(searchParams: URLSearchParams) {
   const requested = searchParams.get("tab");
-  return requested && TREASURY_TABS.has(requested) ? requested : "overview";
+  return requested==="connessioni"?"conti":requested && TREASURY_TABS.has(requested) ? requested : "overview";
 }
 
 function getErrorMessage(error: unknown) {
@@ -60,6 +60,7 @@ function getErrorMessage(error: unknown) {
 
 export default function Tesoreria() {
   const { effectiveCompany } = useAuth();
+  const queryClient = useQueryClient();
   const permessi = usePermissions();
   const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -75,6 +76,7 @@ export default function Tesoreria() {
   const hasManualAccounts = manualAccounts.length > 0;
 
   const handleTabChange = useCallback((value: string) => {
+    if(value==="connessioni")value="conti";
     if (!TREASURY_TABS.has(value)) return;
     setActiveTab(value);
     setSearchParams((prev) => {
@@ -110,10 +112,8 @@ export default function Tesoreria() {
     await checkConnections();
     setRefreshKey((value) => value + 1);
   }, [checkConnections]);
-  const bankFinalizing = useSaltEdgeReturn(effectiveCompany?.id, handleConnectionChanged);
-  // Distyra torna sulla stessa pagina con ?bank_provider=distyra&dy=<rif>: i due ritorni
-  // si riconoscono dal provider e non si pestano i piedi.
-  const distyraFinalizing = useDistyraReturn(effectiveCompany?.id, handleConnectionChanged);
+  // Al ritorno dalla banca finalizza soltanto il collegamento Distyra.
+  const distyraFinalizing = useDistyraReturn(effectiveCompany?.id, handleConnectionChanged, permessi.canEditSettingsIntegrations && permessi.canViewBankBalances);
 
   useEffect(() => {
     if (effectiveCompany?.id) {
@@ -138,9 +138,16 @@ export default function Tesoreria() {
 
     setSyncing(true);
     try {
-      const data = await invokeSaltEdge(effectiveCompany.id, { action: "sync" });
-      if (data?.processing) toast.info("La banca sta preparando i dati. Riprova fra poco.");
-      else toast.success(`Sincronizzati ${data?.imported ?? 0} movimenti`);
+      const esito = await sincronizzaBancheAzienda(effectiveCompany.id, permessi.canEditSettingsIntegrations && permessi.canViewBankBalances);
+      BANKING_QUERY_KEYS.forEach(key => queryClient.invalidateQueries({ queryKey: [key] }));
+      const dettagli = [...esito.avvisi, ...esito.errori].join(" · ");
+      if (!esito.totale) {
+        toast.info("Collega prima una banca dalla scheda Connessioni.");
+        handleTabChange("connessioni");
+      } else if (esito.aggiornate === esito.totale) toast.success(`Sincronizzati ${esito.movimenti} movimenti da ${esito.aggiornate} collegamenti`);
+      else if (esito.aggiornate > 0) toast.warning(`Aggiornati ${esito.aggiornate} collegamenti su ${esito.totale}`, { description: dettagli });
+      else if (esito.avvisi.length) toast.info("Collegamenti verificati; movimenti in attesa", { description: dettagli });
+      else toast.error("Aggiornamento bancario non completato", { description: dettagli });
       await handleConnectionChanged();
     } catch (e: unknown) {
       toast.error("Errore: " + getErrorMessage(e));
@@ -163,7 +170,7 @@ export default function Tesoreria() {
     );
   }
 
-  if (hasConnections === null || manualLoading || bankFinalizing) {
+  if (hasConnections === null || manualLoading || distyraFinalizing) {
     return (
       <div className="space-y-6">
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6">
@@ -214,10 +221,10 @@ export default function Tesoreria() {
           <div className="flex flex-wrap gap-2 justify-center text-xs text-muted-foreground max-sm:hidden">
             <Badge variant="outline">Open Banking · PSD2</Badge>
             <Badge variant="outline">Sicuro e crittografato</Badge>
-            <Badge variant="outline">Aggiornamento automatico</Badge>
+            <Badge variant="outline">Importazione dei movimenti</Badge>
           </div>
           <Button onClick={() => navigate("/azienda/impostazioni/integrazioni")} className="mt-2 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:mt-0 max-sm:h-9 max-sm:text-xs">
-            <Link className="h-4 w-4 mr-2" />
+            <Link2 className="h-4 w-4 mr-2" />
             Collega primo conto
           </Button>
         </div>
@@ -245,7 +252,6 @@ export default function Tesoreria() {
   // spese e Impostazioni (si aprono di rado) finiscono in «Altro», che prende
   // il nome della scheda quando è aperta una di loro.
   const SCHEDE_ALTRO = [
-    { value: "connessioni", label: "Connessioni", icon: Link },
     { value: "note-spese", label: "Note Spese", icon: Receipt },
     { value: "impostazioni", label: "Impostazioni", icon: Settings },
   ];
@@ -282,21 +288,18 @@ export default function Tesoreria() {
       <Tabs value={schedaVisibile} onValueChange={handleTabChange} className="space-y-6 max-sm:space-y-3">
         {/* Mobile: riga singola scrollabile invece di flex-wrap (8 tab = muro
             di 3-4 righe su 375px). */}
-        {/* Mobile: tre linguette affiancate da 32px, senza icone. */}
+        {/* Mobile: quattro linguette affiancate, compreso l'accesso alle banche. */}
         {/* Da 640: icone delle linguette solo da 1536 (senza, a 1280 ci stanno
             tutte e otto su una riga). */}
-        <TabsList className="flex h-auto w-full flex-nowrap overflow-x-auto scrollbar-hide justify-start gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:flex-wrap sm:overflow-visible [&>button]:shrink-0 sm:max-2xl:[&_[role=tab]>svg]:hidden max-sm:grid max-sm:grid-cols-3 max-sm:rounded-lg max-sm:p-1 max-sm:shadow-none max-sm:[&_svg]:hidden">
+        <TabsList className="flex h-auto w-full flex-nowrap overflow-x-auto scrollbar-hide justify-start gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:flex-wrap sm:overflow-visible [&>button]:shrink-0 sm:max-2xl:[&_[role=tab]>svg]:hidden max-sm:grid max-sm:grid-cols-4 max-sm:rounded-lg max-sm:p-1 max-sm:shadow-none max-sm:[&_svg]:hidden">
           <TabsTrigger value="overview" className="tap-compact gap-2 max-sm:h-8 max-sm:text-xs">
             <LayoutDashboard className="h-4 w-4" /> <span>Panoramica</span>
           </TabsTrigger>
           <TabsTrigger value="conti" className="tap-compact gap-2 max-sm:h-8 max-sm:text-xs">
-            <CreditCard className="h-4 w-4" /> Conti
+            <CreditCard className="h-4 w-4" /><span className="max-sm:hidden">Conti e banche</span><span className="sm:hidden">Conti</span>
           </TabsTrigger>
           <TabsTrigger value="transazioni" className="tap-compact gap-2 max-sm:h-8 max-sm:text-xs">
             <ArrowLeftRight className="h-4 w-4" /> <span className="max-sm:hidden">Transazioni</span><span className="sm:hidden">Movimenti</span>
-          </TabsTrigger>
-          <TabsTrigger value="connessioni" className={cn("gap-2", soloDesktop("connessioni"), "hidden xl:inline-flex")}>
-            <Link className="h-4 w-4" /> Connessioni
           </TabsTrigger>
           <TabsTrigger value="riconciliazione" className={cn("gap-2", soloDesktop("riconciliazione"))}>
             <Link2 className="h-4 w-4" /> Riconciliazione
@@ -343,6 +346,7 @@ export default function Tesoreria() {
         </TabsContent>
         <TabsContent value="conti">
           <div className="space-y-8 max-sm:space-y-4">
+            <BankConnectionsCard onChanged={handleConnectionChanged} handleReturn={false} redirectPath="/azienda/tesoreria" />
             {hasConnections && <BankAccountsList companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />}
             {hasConnections && <div className="border-t border-slate-100 max-sm:hidden" />}
             <ManualTreasuryPanel />
@@ -350,9 +354,6 @@ export default function Tesoreria() {
         </TabsContent>
         <TabsContent value="transazioni">
           <TransactionsFeed companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />
-        </TabsContent>
-        <TabsContent value="connessioni">
-          <BankConnectionsCard onChanged={handleConnectionChanged} handleReturn={false} redirectPath="/azienda/tesoreria" />
         </TabsContent>
         <TabsContent value="riconciliazione">
           {permessi.canReconcileBankTransactions ? <BankReconciliation companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} /> : <p className="p-6 text-sm text-muted-foreground">Non hai il permesso di riconciliare i movimenti bancari.</p>}
