@@ -5,6 +5,7 @@ import { useDocumentoFiscale, useUpdateDocumento, useEmittiDocumento } from "@/h
 import { datiCopiaDocumento, siPuoDuplicare } from "@/lib/fatturazione/duplicaDocumento";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { useAuth } from "@/contexts/AuthContext";
+import { useBillingMode } from "@/contexts/BillingModeContext";
 import { PreviewFattura } from "@/components/fatturazione/PreviewFattura";
 import { creaNotaCredito } from "@/lib/fatturazione/noteCredito";
 import { convertiProformaInFattura } from "@/lib/fatturazione/proforma";
@@ -76,6 +77,7 @@ export default function DocumentoDetail() {
   const { data: rataCommessa } = useRataDellaFattura(id);
   const { data: azienda } = useAnagraficaAzienda();
   const { effectiveCompany } = useAuth();
+  const fatturazioneEsterna = useBillingMode({ facoltativo: true })?.isExternal ?? false;
   const updateMutation = useUpdateDocumento();
   const emittiMutation = useEmittiDocumento();
   const [ncLoading, setNcLoading] = useState(false);
@@ -102,7 +104,7 @@ export default function DocumentoDetail() {
     return <div className="flex items-center justify-center h-96"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   }
 
-  const canCreateNC = NC_ALLOWED_STATES.includes(doc.stato) && ["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria"].includes(doc.tipo);
+  const canCreateNC = !fatturazioneEsterna && NC_ALLOWED_STATES.includes(doc.stato) && ["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria"].includes(doc.tipo);
   const stato = STATO_LABELS[doc.stato] ?? { label: doc.stato, variant: "secondary" as const };
   const tipoLabel = TIPO_LABELS[doc.tipo] ?? doc.tipo;
   // Al netto delle note di credito, come l'incasso sul database.
@@ -116,7 +118,7 @@ export default function DocumentoDetail() {
   // Una bozza fiscale si emette direttamente dal dettaglio: assegna il numero
   // definitivo e la porta a «Da inviare allo SDI». Proforma e preventivo hanno
   // il loro flusso («Converti in Fattura»), quindi niente Emetti per loro.
-  const canEmettere = doc.stato === "bozza" && TIPI_SDI.includes(doc.tipo) && !isProforma && !isPreventivo;
+  const canEmettere = !fatturazioneEsterna && doc.stato === "bozza" && TIPI_SDI.includes(doc.tipo) && !isProforma && !isPreventivo;
   const canSegnaPagata = TIPI_PAGABILI.includes(doc.tipo)
     && ["emessa", "inviata_sdi", "consegnata", "accettata", "scaduta", "parzialmente_pagata"].includes(doc.stato)
     && residuoDaIncassare(doc) > 0;
@@ -229,16 +231,17 @@ export default function DocumentoDetail() {
         </div>
       </div>
 
+      {fatturazioneEsterna && <p role="status" className="mx-auto w-full max-w-4xl rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">L'azienda usa la fatturazione esterna. Puoi consultare e scaricare questo documento; per completare le bozze nell'editor verifica la <Link className="font-medium underline" to="/azienda/impostazioni/fatturazione">modalità di fatturazione</Link>.</p>}
       {/* Le azioni sul documento, tutte in fila e con il loro nome. */}
       <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center justify-center gap-2 max-sm:gap-1.5 max-sm:[&_a]:h-8 max-sm:[&_a]:text-xs max-sm:[&_button]:h-8 max-sm:[&_button]:px-2.5 max-sm:[&_button]:text-xs">
         {/* Modifica: solo finché non è partita allo SDI (bozza) o se lo SDI l'ha scartata. */}
         {!isPreventivo && !isProforma || doc.stato === "bozza" ? (
-          modificabile ? (
+          modificabile && !fatturazioneEsterna ? (
             <Button size="sm" asChild className="gap-1.5">
               <Link to={`/azienda/documenti/${doc.id}`}><Pencil className="h-4 w-4" />{fase === "scartata" ? "Correggi" : "Modifica"}</Link>
             </Button>
           ) : (
-            <span title="Una fattura già emessa o inviata allo SDI non si modifica. Per correggerla emetti una nota di credito." className="inline-flex">
+            <span title={fatturazioneEsterna ? "L'editor richiede la fatturazione nativa. Verifica la modalità nelle impostazioni di fatturazione." : "Una fattura già emessa o inviata allo SDI non si modifica. Per correggerla emetti una nota di credito."} className="inline-flex">
               <Button size="sm" disabled className="gap-1.5"><Lock className="h-4 w-4" />Modifica</Button>
             </span>
           )
@@ -268,7 +271,7 @@ export default function DocumentoDetail() {
             </AlertDialogContent>
           </AlertDialog>
         )}
-        {siPuoDuplicare(doc.tipo) && <Button size="sm" variant="secondary" className="gap-1.5 max-md:hidden" onClick={handleDuplica}><Copy className="h-4 w-4" />Duplica</Button>}
+        {!fatturazioneEsterna && siPuoDuplicare(doc.tipo) && <Button size="sm" variant="secondary" className="gap-1.5 max-md:hidden" onClick={handleDuplica}><Copy className="h-4 w-4" />Duplica</Button>}
         <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" disabled={pdfBusy} onClick={() => void handleApriPdf()}><FileText className="h-4 w-4" />Apri PDF</Button>
         <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" disabled={pdfBusy} onClick={() => void handleStampa(true)}><Save className="h-4 w-4" />Salva PDF</Button>
         <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" disabled={pdfBusy} onClick={() => void handleStampa(false)}><Printer className="h-4 w-4" />Stampa</Button>
@@ -276,7 +279,7 @@ export default function DocumentoDetail() {
           <Button size="sm" variant="secondary" className="gap-1.5" onClick={() => setEmailAperta(true)}><Mail className="h-4 w-4" />Invia per e-mail</Button>
         )}
 
-        {(isProforma || isPreventivo) && doc.stato !== "annullata" && (
+        {!fatturazioneEsterna && (isProforma || isPreventivo) && doc.stato !== "annullata" && (
           <Button size="sm" onClick={handleConvertToFattura} disabled={convertLoading} className="gap-1.5">
             {convertLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             Converti in Fattura

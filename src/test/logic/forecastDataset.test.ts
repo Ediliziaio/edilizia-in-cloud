@@ -27,7 +27,10 @@ function fakeClient(
         not: () => chain,
         gte: () => chain,
         lte: () => chain,
-        or: () => chain,
+        or(value: string, options?: { referencedTable?: string }) {
+          filters.push({ table, column: `or:${options?.referencedTable ?? ""}`, value });
+          return chain;
+        },
         in: () => chain,
         like: () => chain,
         eq(column: string, value: unknown) {
@@ -66,6 +69,93 @@ function fakeClient(
   return { client: client as unknown as Client, filters };
 }
 describe("forecast sources", () => {
+  it("legge la garanzia anche di una fattura contabilizzata da anni, senza ripeterla nel residuo", async () => {
+    const { client, filters } = fakeClient({
+      company_costs: [
+        {
+          id: "sal",
+          name: "SAL Aurora",
+          amount: 40000,
+          vat_rate: 0,
+          due_date: "2026-12-10",
+          is_paid: false,
+        },
+      ],
+      prima_nota_entries: [
+        {
+          id: "acconto",
+          cost_id: "sal",
+          amount: 20000,
+          direction: "uscita",
+          entry_date: "2025-01-10",
+        },
+      ],
+      fatture_ricevute: [
+        {
+          id: "f",
+          company_cost_id: "sal",
+          trattenuta_garanzia: 2000,
+          tipo_documento: "TD01",
+          stato: "contabilizzata",
+          data_fattura: "2023-01-10",
+        },
+      ],
+      ritenute_garanzia: [
+        {
+          id: "g",
+          direzione: "passiva",
+          importo: 2000,
+          stato: "trattenuta",
+          data_svincolo_prevista: "2028-06-30",
+        },
+      ],
+    });
+    const result = await loadForecastDataset("company", "2026-11-11", client);
+    expect(result.movements.find((m) => m.id === "costo:sal")?.cents).toBe(
+      1800000,
+    );
+    expect(result.movements.find((m) => m.id === "garanzia:g")?.cents).toBe(
+      200000,
+    );
+    expect(filters).toContainEqual({
+      table: "fatture_ricevute",
+      column: "or:cost",
+      value: "is_paid.eq.false,is_paid.is.null",
+    });
+    expect(filters).toContainEqual({
+      table: "fatture_ricevute",
+      column: "company_id",
+      value: "company",
+    });
+  });
+  it("porta nel previsionale il residuo delle spese anche con acconti registrati oltre un anno fa", async () => {
+    const { client } = fakeClient({
+      company_costs: [
+        {
+          id: "costo-aperto",
+          name: "Fornitura Aurora",
+          amount: 100000,
+          vat_rate: 10,
+          due_date: "2026-11-30",
+          is_paid: false,
+        },
+      ],
+      prima_nota_entries: [
+        {
+          id: "acconto-storico",
+          cost_id: "costo-aperto",
+          amount: 55000,
+          direction: "uscita",
+          entry_date: "2025-01-10",
+          reversal_of: null,
+        },
+      ],
+    });
+    const result = await loadForecastDataset("company", "2026-11-11", client);
+    expect(
+      result.movements.find((m) => m.id === "costo:costo-aperto")?.cents,
+    ).toBe(5500000);
+  });
   it("suspends the VAT estimate if purchases or fiscal sources fail, even when external sales are available", async () => {
     const { client } = fakeClient(
       {

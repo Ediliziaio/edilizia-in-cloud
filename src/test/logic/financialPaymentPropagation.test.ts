@@ -6,7 +6,7 @@ import { subcontractStatistics } from '@/lib/orders/subcontractStatistics';
 describe('Propagazione dei pagamenti',()=>{
   it('invalida fattura, contratto, noleggio, commessa e cassa conservando le query estranee',()=>{
     const q=new QueryClient();
-    const keys=[['pagamento-costo','c'],['commessa-fatture-fornitori','o'],['contratti-sub','s'],['sal-sub-tutti','s'],['mezzi-piano-fonti','o'],['order-supplier-payments','o'],['prima-nota'],['scadenzario'],['orders','detail','o']];
+    const keys=[['fattura-ricevuta-riepilogo','f'],['pagamento-costo','c'],['commessa-fatture-fornitori','o'],['contratti-sub','s'],['sal-sub-tutti','s'],['mezzi-piano-fonti','o'],['order-supplier-payments','o'],['prima-nota'],['scadenzario'],['orders','detail','o'],['incassi-registrati','o'],['generale-unita','g'],['incassi-unita','o']];
     for(const key of keys)q.setQueryData(key,{ok:true});q.setQueryData(['calendar'],{ok:true});
     refreshFinancialQueries(q,false);
     for(const key of keys)expect(q.getQueryState(key)?.isInvalidated).toBe(true);

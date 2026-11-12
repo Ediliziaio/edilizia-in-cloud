@@ -1,0 +1,1832 @@
+[
+  {
+    "table_name": "appalto_contratti",
+    "column_name": "id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "appalto_contratti",
+    "column_name": "company_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "appalto_contratti",
+    "column_name": "committente_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "appalto_contratti",
+    "column_name": "nome",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "appalto_contratti",
+    "column_name": "valido_dal",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "appalto_contratti",
+    "column_name": "valido_al",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "appalto_contratti",
+    "column_name": "giorni_pagamento",
+    "data_type": "integer",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "appalto_contratti",
+    "column_name": "ritenuta_pct",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "appalto_contratti",
+    "column_name": "maggiorazione_straordinario_pct",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "appalto_contratti",
+    "column_name": "maggiorazione_festivo_pct",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "appalto_contratti",
+    "column_name": "modo_fatturazione",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "appalto_contratti",
+    "column_name": "include_fornitura",
+    "data_type": "boolean",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "appalto_contratti",
+    "column_name": "riferimento_committente",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "appalto_contratti",
+    "column_name": "condizioni",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "appalto_contratti",
+    "column_name": "note",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "appalto_contratti",
+    "column_name": "attivo",
+    "data_type": "boolean",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "appalto_contratti",
+    "column_name": "created_by",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "appalto_contratti",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "appalto_contratti",
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "appalto_contratti",
+    "column_name": "regime_iva",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_installments",
+    "column_name": "id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_installments",
+    "column_name": "order_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_installments",
+    "column_name": "position",
+    "data_type": "integer",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "order_installments",
+    "column_name": "label",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_installments",
+    "column_name": "type",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_installments",
+    "column_name": "amount",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "order_installments",
+    "column_name": "is_paid",
+    "data_type": "boolean",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "order_installments",
+    "column_name": "paid_date",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "order_installments",
+    "column_name": "expected_date",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "order_installments",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "order_installments",
+    "column_name": "trigger_evento",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_installments",
+    "column_name": "trigger_status_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_installments",
+    "column_name": "giorni_preavviso",
+    "data_type": "integer",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "order_installments",
+    "column_name": "trigger_numero",
+    "data_type": "integer",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "order_installments",
+    "column_name": "invoice_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_installments",
+    "column_name": "documento_fiscale_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "order_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "name",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "description",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "quantity",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "status",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "position",
+    "data_type": "integer",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "supplier_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "purchase_price",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "vat_rate",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "stock_item_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "is_paid",
+    "data_type": "boolean",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "paid_date",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "unit_price",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "discount_percent",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "standard_cost",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "payment_method",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "deposit_amount",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "deposit_paid",
+    "data_type": "boolean",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "deposit_paid_date",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "balance_amount",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "balance_paid",
+    "data_type": "boolean",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "balance_paid_date",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "balance_expected_date",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "deposit_expected_date",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "notes",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "section_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "lot_number",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "delivery_date",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "quantity_reserved",
+    "data_type": "integer",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "auto_deducted",
+    "data_type": "boolean",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "destination_warehouse_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "quantity_received",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "receipt_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "last_goods_receipt_date",
+    "data_type": "timestamp without time zone",
+    "udt_name": "timestamp"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "shipment_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "last_shipment_date",
+    "data_type": "timestamp without time zone",
+    "udt_name": "timestamp"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "installation_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "fulfillment_status",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "product_code",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "article_template_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "categoria",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "phase_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "family_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "axis_selections",
+    "data_type": "jsonb",
+    "udt_name": "jsonb"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "misure_preventivo",
+    "data_type": "jsonb",
+    "udt_name": "jsonb"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "misure_rilevate",
+    "data_type": "jsonb",
+    "udt_name": "jsonb"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "measure_status",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "measure_variance",
+    "data_type": "jsonb",
+    "udt_name": "jsonb"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "survey_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "survey_element_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "posizioni",
+    "data_type": "jsonb",
+    "udt_name": "jsonb"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "natura_riga",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "unita_misura",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "specifiche",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "origine_materiale",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "quantita_netta",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "quantita_calcolata",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "sfrido",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "origini",
+    "data_type": "jsonb",
+    "udt_name": "jsonb"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "chiave_materiale",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "computo_voce_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "scomposizione_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "planimetria_documento_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "locale",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "supplier_rfq_item_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "prezzo_fonte",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "prezzo_aggiornato_il",
+    "data_type": "timestamp with time zone",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "data_fabbisogno",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "gruppo_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "riferimento",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "prezzo_prima_ordine",
+    "data_type": "jsonb",
+    "udt_name": "jsonb"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "misure_da_ordinare",
+    "data_type": "jsonb",
+    "udt_name": "jsonb"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "misura_tipo",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "componente",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "diviso_da",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "misura_forma",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "gioco_posa_mm",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "costo_stimato_iniziale",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "ddt_riga_origine_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_items",
+    "column_name": "prezzo_da_definire",
+    "data_type": "boolean",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "order_salespeople",
+    "column_name": "id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_salespeople",
+    "column_name": "order_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_salespeople",
+    "column_name": "salesperson_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_salespeople",
+    "column_name": "commission_type",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_salespeople",
+    "column_name": "commission_value",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "order_salespeople",
+    "column_name": "commission_amount",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "order_salespeople",
+    "column_name": "is_paid",
+    "data_type": "boolean",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "order_salespeople",
+    "column_name": "paid_date",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "order_salespeople",
+    "column_name": "payment_expected_date",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "order_salespeople",
+    "column_name": "notes",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_salespeople",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "order_salespeople",
+    "column_name": "deduction_amount",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "order_status_history",
+    "column_name": "id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_status_history",
+    "column_name": "order_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_status_history",
+    "column_name": "status_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_status_history",
+    "column_name": "changed_by",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_status_history",
+    "column_name": "changed_at",
+    "data_type": "timestamp with time zone",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "order_statuses",
+    "column_name": "id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_statuses",
+    "column_name": "company_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "order_statuses",
+    "column_name": "name",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_statuses",
+    "column_name": "icon",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_statuses",
+    "column_name": "color",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "order_statuses",
+    "column_name": "position",
+    "data_type": "integer",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "order_statuses",
+    "column_name": "is_default",
+    "data_type": "boolean",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "order_statuses",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "order_statuses",
+    "column_name": "is_support_phase",
+    "data_type": "boolean",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "company_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "customer_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "current_status_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "description",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "total_amount",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "deposit_amount",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "balance_amount",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "expected_date",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "internal_notes",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "deposit_2_amount",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "financing_amount",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "payment_type",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "warehouse_arrival_date",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "work_start_date",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "work_end_date",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "vat_rate",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "deposit_paid",
+    "data_type": "boolean",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "deposit_paid_date",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "deposit_2_paid",
+    "data_type": "boolean",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "deposit_2_paid_date",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "balance_paid",
+    "data_type": "boolean",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "balance_paid_date",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "balance_expected_date",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "deposit_expected_date",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "deposit_2_expected_date",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "order_code",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "financing_paid",
+    "data_type": "boolean",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "financing_paid_date",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "financing_expected_date",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "financing_cost",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "has_building_bonus",
+    "data_type": "boolean",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "assigned_to",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "sede_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "quote_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "quote_number",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "client_name",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "client_email",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "client_phone",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "client_company",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "client_address",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "indirizzo_lavori",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "tipo_lavoro",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "created_by",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "status",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "fulfillment_status",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "percentuale_avanzamento",
+    "data_type": "integer",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "fv_progetto_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "order_type",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "work_address",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "work_description",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "materials_location",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "weekly_report_enabled",
+    "data_type": "boolean",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "capomastro_user_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "giornale_auto_enabled",
+    "data_type": "boolean",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "dl_notification_email",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "dl_notification_phone",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "deleted_at",
+    "data_type": "timestamp with time zone",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "deleted_by",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "work_lat",
+    "data_type": "double precision",
+    "udt_name": "float8"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "work_lng",
+    "data_type": "double precision",
+    "udt_name": "float8"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "next_action",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "next_action_date",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "operational_checklist",
+    "data_type": "jsonb",
+    "udt_name": "jsonb"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "opportunity_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "rst_progetto_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "destination_warehouse_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "version",
+    "data_type": "integer",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "work_geocoded_at",
+    "data_type": "timestamp with time zone",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "work_start_time",
+    "data_type": "time without time zone",
+    "udt_name": "time"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "work_end_time",
+    "data_type": "time without time zone",
+    "udt_name": "time"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "distanza_sede_km",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "distanza_sede_minuti",
+    "data_type": "integer",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "distanza_sede_il",
+    "data_type": "timestamp with time zone",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "workflow_kind",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "parent_contract_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "intervention_reference",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "appalto_contratto_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "valorizzazione",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "tetto_importo",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "riferimento_committente",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "commessa_generale_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "orders",
+    "column_name": "financing_cost_mode",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "company_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "first_name",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "last_name",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "email",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "phone",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "address",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "fiscal_code",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "site_address",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "notes",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "salesperson_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "password_changed_at",
+    "data_type": "timestamp with time zone",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "failed_login_count",
+    "data_type": "integer",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "locked_until",
+    "data_type": "timestamp with time zone",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "require_2fa",
+    "data_type": "boolean",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "last_login_at",
+    "data_type": "timestamp with time zone",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "last_login_ip",
+    "data_type": "inet",
+    "udt_name": "inet"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "avatar_url",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "marketing_contact_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "area",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "is_blocked",
+    "data_type": "boolean",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "blocked_at",
+    "data_type": "timestamp with time zone",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "blocked_by",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "block_reason",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "portal_disabled",
+    "data_type": "boolean",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "is_business",
+    "data_type": "boolean",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "business_name",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "city",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "postal_code",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "province",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "country",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "site_city",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "site_postal_code",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "site_province",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "customer_type",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "preferred_briefing_channel",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "winback_opt_out",
+    "data_type": "boolean",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "changelog_last_seen_at",
+    "data_type": "timestamp with time zone",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "address_lat",
+    "data_type": "double precision",
+    "udt_name": "float8"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "address_lng",
+    "data_type": "double precision",
+    "udt_name": "float8"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "site_lat",
+    "data_type": "double precision",
+    "udt_name": "float8"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "site_lng",
+    "data_type": "double precision",
+    "udt_name": "float8"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "vat_number",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "version",
+    "data_type": "integer",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "deleted_at",
+    "data_type": "timestamp with time zone",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "deleted_by",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "company_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "name",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "description",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "quantity",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "unit_cost",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "vat_rate",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "supplier_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "min_stock_level",
+    "data_type": "integer",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "section_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "quantity_reserved",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "reorder_quantity",
+    "data_type": "integer",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "last_delivery_date",
+    "data_type": "date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "last_lot_number",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "warehouse_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "barcode",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "internal_code",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "tracking_mode",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "requires_warranty",
+    "data_type": "boolean",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "default_warranty_months",
+    "data_type": "integer",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "qr_generated_at",
+    "data_type": "timestamp with time zone",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "article_family_id",
+    "data_type": "uuid",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "quantity_available",
+    "data_type": "numeric",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "unita_misura",
+    "data_type": "text",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "warehouse_stock",
+    "column_name": "prezzo_da_definire",
+    "data_type": "boolean",
+    "udt_name": "bool"
+  }
+]

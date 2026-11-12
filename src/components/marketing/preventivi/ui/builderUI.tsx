@@ -59,7 +59,7 @@ export function QuotePageHeader({
   titoloSoloDaComputer,
 }: QuotePageHeaderProps) {
   return (
-    <div
+    <div data-ui="document-header"
       className={cn(
         "rounded-2xl border border-slate-200 bg-white px-3 sm:px-6 pt-3 sm:pt-5 pb-3 sm:pb-5 shadow-sm",
         className,
@@ -135,7 +135,7 @@ export function QuoteCard({
   titoloSoloDaComputer,
 }: QuoteCardProps) {
   return (
-    <div
+    <div data-ui="document-card"
       className={cn(
         "bg-white border border-slate-200 rounded-2xl shadow-sm transition-shadow hover:shadow-md",
         compact ? "p-4" : "p-4 sm:p-6",

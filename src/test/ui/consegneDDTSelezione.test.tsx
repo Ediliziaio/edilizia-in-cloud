@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import { beforeEach, afterEach, it, expect, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -8,6 +8,7 @@ const m = vi.hoisted(() => ({
   toastError: vi.fn(),
   magazzini: [] as Array<{ id: string }>,
   consegne: [] as Array<Record<string, unknown>>,
+  quantita: 10,
 }));
 vi.mock("sonner", () => ({ toast: { error: m.toastError, success: vi.fn() } }));
 vi.mock("@/hooks/useWarehouses", () => ({
@@ -25,7 +26,7 @@ vi.mock("@/hooks/useDDTRicezione", () => ({
       {
         id: "r1",
         descrizione: "Cemento",
-        quantita: 10,
+        quantita: m.quantita,
         unita_misura: "sacchi",
         prezzo_unitario: null as null,
         purchase_order_item_id: null as null,
@@ -76,6 +77,7 @@ beforeEach(() => {
   m.toastError.mockReset();
   m.magazzini = [];
   m.consegne = [];
+  m.quantita = 10;
 });
 afterEach(cleanup);
 
@@ -113,4 +115,44 @@ it("le consegne già confermate restano visibili, una riga ciascuna", () => {
   expect(elenco).toHaveTextContent("4 sacchi");
   expect(elenco).toHaveTextContent("Cemento");
   expect(elenco).toHaveTextContent("Consegnato in cantiere");
+});
+
+it.each(["0", "-1", "non numerico", "11"])("blocca %s prima del salvataggio e spiega la quantità da correggere", (q) => {
+  apri(ddt({ destinazione: "cantiere", order_id: "c1" }));
+  selezionaRiga();
+  fireEvent.click(screen.getByRole("button", { name: "Crea nuovi articoli per le selezionate" }));
+  const campo = screen.getByRole("textbox", { name: "Quantità consegnata Cemento" });
+  fireEvent.change(campo, { target: { value: q } });
+  fireEvent.click(screen.getByRole("checkbox", { name: /Ho controllato quantità/ }));
+  expect(screen.getByRole("button", { name: "Conferma 1 consegna" })).toBeDisabled();
+  expect(campo).toHaveAttribute("aria-invalid", "true");
+  expect(screen.getByRole("alert")).toHaveTextContent(q === "11" ? /massimo 10/ : /maggiore di zero/);
+  expect(m.rpc).not.toHaveBeenCalled();
+});
+
+it("salva una quantità decimale con virgola senza trasformarla in un intero", async () => {
+  m.rpc.mockResolvedValue({ data: { righe: 1 }, error: null });
+  apri(ddt({ destinazione: "cantiere", order_id: "c1" }));
+  selezionaRiga();
+  fireEvent.click(screen.getByRole("button", { name: "Crea nuovi articoli per le selezionate" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Quantità consegnata Cemento" }), { target: { value: "2,5" } });
+  fireEvent.click(screen.getByRole("checkbox", { name: /Ho controllato quantità/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Conferma 1 consegna" }));
+  await waitFor(() => expect(m.rpc).toHaveBeenCalledWith("ddt_conferma_consegna", expect.objectContaining({ p_righe: [expect.objectContaining({ quantita: 2.5, destinazione: "cantiere", crea_articolo: true })] })));
+});
+
+it("non ripropone una consegna già completata dalla somma di decimali", () => {
+  m.quantita = 0.8;
+  m.consegne = [0.1, 0.7].map((q, i) => ({ id: `k${i}`, riga_id: "r1", quantita: q, tipo: "ingresso", destinazione: "cantiere", unita_misura: "sacchi" }));
+  apri(ddt({ destinazione: "cantiere", order_id: "c1" }));
+  expect(screen.queryByRole("button", { name: "Seleziona tutte" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("checkbox", { name: /Cemento Da confermare/ })).not.toBeInTheDocument();
+});
+
+it("propone il residuo decimale della bolla senza cifre spurie", () => {
+  m.quantita = 0.3;
+  m.consegne = [{ id: "k", riga_id: "r1", quantita: 0.1, tipo: "ingresso", destinazione: "cantiere", unita_misura: "sacchi" }];
+  apri(ddt({ destinazione: "cantiere", order_id: "c1" }));
+  selezionaRiga();
+  expect(screen.getByRole("textbox", { name: "Quantità consegnata Cemento" })).toHaveValue("0.2");
 });

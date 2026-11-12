@@ -1,7 +1,7 @@
 // src/components/orders/generali/fatture/FatturaDialog.tsx
 // «Crea fattura» da un SAL di contratto o da un pagamento di un'unità: mostra cosa finirà nella
-// bozza (cliente, importi, IVA), chiede solo le scelte che spettano all'utente e apre l'editor.
-// La fattura nasce sempre bozza: numero ed invio allo SDI restano azioni dell'editor.
+// bozza (cliente, importi, IVA), chiede solo le scelte che spettano all'utente e apre il documento.
+// La fattura nasce sempre bozza: numero ed invio allo SDI restano azioni distinte.
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, FileText, Loader2 } from "lucide-react";
@@ -9,7 +9,8 @@ import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentGenerale as DialogContent } from "@/components/orders/generali/design/DialogGenerale";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useCreaFatturaGenerale, useDatiFatturaGenerale } from "@/hooks/useGeneraleFatture";
@@ -40,7 +41,7 @@ export function FatturaDialog({ generaleId, origine, id, open, onOpenChange }: P
         <DialogHeader>
           <DialogTitle>Crea fattura</DialogTitle>
           <DialogDescription>
-            Nasce una bozza: la controlli nell'editor, e da lì la emetti e la mandi allo SDI.
+            Nasce una bozza da controllare nella scheda del documento prima dell'emissione.
           </DialogDescription>
         </DialogHeader>
         {dati.isLoading ? (
@@ -60,7 +61,8 @@ function Contenuto({ generaleId, origine, id, dati, chiudi }: { generaleId: stri
   const crea = useCreaFatturaGenerale(generaleId);
   const [aliquotaSal, setAliquotaSal] = useState<AliquotaSal>("22");
   const [ivaVendita, setIvaVendita] = useState<IvaVendita>("10");
-  const [ivaInclusa, setIvaInclusa] = useState(true);
+  // Le unità espongono prezzi e movimenti al netto dell'IVA.
+  const [ivaInclusa, setIvaInclusa] = useState(false);
   const [caparraVoluta, setCaparraVoluta] = useState(false);
 
   const bozza: Partial<DocumentoFiscale> = useMemo(
@@ -73,7 +75,7 @@ function Contenuto({ generaleId, origine, id, dati, chiudi }: { generaleId: stri
 
   const apri = (docId: string) => {
     chiudi();
-    navigate(`/azienda/documenti/${docId}`);
+    navigate(`/azienda/documenti/${docId}/dettaglio`);
   };
 
   if (dati.esistente) {
@@ -92,7 +94,7 @@ function Contenuto({ generaleId, origine, id, dati, chiudi }: { generaleId: stri
     if (crea.isPending) return;
     crea.mutate({ origine, id, bozza }, {
       onSuccess: (r) => {
-        toast.success(r.esistente ? "C'era già una fattura: apro quella." : "Bozza di fattura pronta: controllala e emettila dall'editor.");
+        toast.success(r.esistente ? "C'era già una fattura: apro quella." : "Bozza di fattura pronta: controllala nella scheda del documento.");
         apri(r.id);
       },
       onError: (e) => toast.error(messaggioFattura(e)),
@@ -160,6 +162,7 @@ function Contenuto({ generaleId, origine, id, dati, chiudi }: { generaleId: stri
       {pag && (
         <fieldset className="space-y-2">
           <legend className="font-medium">IVA della vendita</legend>
+          <p className="text-xs text-muted-foreground">Il movimento dell'unità è al netto dell'IVA: l'imposta si aggiunge. Se hai inserito un importo già lordo, seleziona lo scorporo qui sotto.</p>
           <RadioGroup value={ivaVendita} onValueChange={(v) => setIvaVendita(v as IvaVendita)} className="gap-1.5">
             {IVA_VENDITA.map((a) => (
               <div key={a.valore} className="flex items-start gap-2">

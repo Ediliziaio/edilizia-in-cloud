@@ -42,7 +42,7 @@ export interface ReadQuery extends PromiseLike<ReadResult> {
   gte(column: string, value: string): ReadQuery;
   lte(column: string, value: string): ReadQuery;
   /** Filtro PostgREST in alternativa, es. «is_paid.eq.false,due_date.gte.2026-10-01». */
-  or(filters: string): ReadQuery;
+  or(filters: string, options?: { referencedTable?: string }): ReadQuery;
   in(column: string, values: string[]): ReadQuery;
   like(column: string, pattern: string): ReadQuery;
   order(column: string): ReadQuery;
@@ -194,7 +194,7 @@ export async function loadForecastDataset(
         scoped(
           "rate_fornitori",
           "id,company_cost_id,numero,scadenza,importo,metodo,stato,cost:company_costs!inner(is_paid)",
-        ).eq("cost.is_paid", false),
+        ).or("is_paid.eq.false,is_paid.is.null", { referencedTable: "cost" }),
     },
     {
       // Fatture ricevute arrivate ma non ancora costo, e quelle con ritenuta d'acconto (per l'F24 1040):
@@ -353,6 +353,30 @@ export async function loadForecastDataset(
         )
           .gte("entry_date", moveDay(today, -366))
           .lte("entry_date", today),
+    },
+    {
+      key: "costPayments",
+      label: "Pagamenti delle spese",
+      build: () =>
+        scoped(
+          "prima_nota_entries",
+          "id,cost_id,amount,entry_date,direction,reversal_of",
+        )
+          .not("cost_id", "is", null)
+          .lte("entry_date", today),
+    },
+    {
+      key: "costWithholdings",
+      label: "Garanzie trattenute sulle spese",
+      // Nessun limite di età: una fattura aperta può precedere di anni lo svincolo.
+      build: () =>
+        scoped(
+          "fatture_ricevute",
+          "id,company_cost_id,trattenuta_garanzia,tipo_documento,stato,cost:company_costs!inner(is_paid)",
+        )
+          .not("company_cost_id", "is", null)
+          .not("trattenuta_garanzia", "lte", "0")
+          .or("is_paid.eq.false,is_paid.is.null", { referencedTable: "cost" }),
     },
   ];
   let primaNota: { saldo?: number; entry_count?: number } | null = null;
@@ -528,4 +552,3 @@ export async function loadForecastDataset(
     updatedAt: new Date().toISOString(),
   };
 }
-

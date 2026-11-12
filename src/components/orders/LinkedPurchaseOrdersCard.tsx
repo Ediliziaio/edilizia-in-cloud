@@ -1,3 +1,4 @@
+import { percorsoDocumentoGenerale, useAspettoOperativo } from "./generali/design/ContestoOperativo";
 import { useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
@@ -58,6 +59,7 @@ interface LinkedPurchaseOrdersCardProps {
 }
 
 export function LinkedPurchaseOrdersCard({ orderId, orderCode, items, riepilogo }: LinkedPurchaseOrdersCardProps) {
+  const aspetto = useAspettoOperativo();
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
@@ -124,14 +126,14 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items, riepilogo 
 
   const colonne: ColonnaTabella<OrdineCollegato>[] = [
     { titolo: "Ordine", principale: true, cella: (po) => (
-      <Link to={`/azienda/ordini-acquisto/${po.id}`} className="font-mono font-medium underline-offset-2 hover:underline" aria-label={`Apri l'ordine d'acquisto ${po.oda_number}`}>
+      <Link to={percorsoDocumentoGenerale(`/azienda/ordini-acquisto/${po.id}`, aspetto?.generaleId)} className="font-mono font-medium underline-offset-2 hover:underline" aria-label={`Apri l'ordine d'acquisto ${po.oda_number}`}>
         {po.oda_number}
       </Link>
     ) },
     { titolo: "Data", cella: (po) => <span className="whitespace-nowrap">{dataIt(po.issue_date)}</span> },
     { titolo: "Fornitore", cella: (po) => po.suppliers?.name || "—" },
     { titolo: "Stato", cella: (po) => (
-      <Link to={`/azienda/ordini-acquisto/${po.id}`} title="Apri per cambiare lo stato" aria-label={`Cambia lo stato dell'ordine ${po.oda_number}`}>
+      <Link to={percorsoDocumentoGenerale(`/azienda/ordini-acquisto/${po.id}`, aspetto?.generaleId)} title="Apri per cambiare lo stato" aria-label={`Cambia lo stato dell'ordine ${po.oda_number}`}>
         <Badge className={`whitespace-nowrap border-0 text-xs ${STATUS_COLORS[po.status] || ""}`}>{STATUS_LABELS[po.status] || po.status}<ChevronDown className="ml-1 h-3 w-3" aria-hidden="true" /></Badge>
       </Link>
     ) },
@@ -157,7 +159,7 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items, riepilogo 
         {avanzamentoOrdine(po, oggi).aperto && canEditOrders && (
           <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 px-2 text-xs">
             {/* L'arrivo si registra dentro l'ordine: si apre già pronto. */}
-            <Link to={`/azienda/ordini-acquisto/${po.id}?arrivo=1`} aria-label={`Merce arrivata per l'ordine ${po.oda_number}`}>
+            <Link to={percorsoDocumentoGenerale(`/azienda/ordini-acquisto/${po.id}?arrivo=1`, aspetto?.generaleId)} aria-label={`Merce arrivata per l'ordine ${po.oda_number}`}>
               <PackageCheck className="h-3.5 w-3.5" /><span className="max-sm:hidden">Merce arrivata</span>
             </Link>
           </Button>
@@ -174,6 +176,7 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items, riepilogo 
     <>
     <RiquadroCommessa
       icona={<Package className="h-5 w-5 text-primary" aria-hidden="true" />}
+      descrizione="Acquisti della commessa, consegne previste e documenti collegati."
       titolo="Ordini ai fornitori" conteggio={linkedPOs.length}
       azioni={<>
         <Button variant="outline" size="sm" disabled={!canEditOrders} onClick={() => setLinkDialogOpen(true)}>
@@ -191,7 +194,7 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items, riepilogo 
       ) : isError ? (
         <div role="alert" className="flex flex-wrap items-center gap-3 text-sm">Impossibile caricare gli ordini collegati.<Button size="sm" variant="outline" disabled={isFetching} onClick={() => refetch()}>Riprova</Button></div>
       ) : linkedPOs.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nessun ordine d'acquisto collegato.</p>
+        <p className="commessa-empty text-sm text-muted-foreground">Nessun ordine d'acquisto collegato.</p>
       ) : (
         <TabellaCommessa etichetta="Ordini ai fornitori" colonne={colonne} righe={linkedPOs} chiave={(po) => po.id} />
       )}

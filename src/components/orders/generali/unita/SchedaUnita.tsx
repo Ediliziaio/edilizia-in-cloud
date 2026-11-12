@@ -4,6 +4,8 @@
 // Da telefono si guarda il tabellone e si cambia lo stato di vendita, nient'altro.
 import { CaricaFileUnita } from "@/components/orders/generali/unita/CaricaFileUnita";
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { FiltroAttivo, IntestazioneScheda } from "../design/ElementiScheda";
 import { LayoutGrid, Plus, ShieldAlert, Table2, FolderUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,6 +26,10 @@ import { avvisoGaranzie, contiUnita, riepilogoVendite } from "@/lib/orders/gener
 import { cn } from "@/lib/utils";
 
 export function SchedaUnita({ riepilogo, puoModificare }: PropsScheda) {
+  const [parametri, setParametri] = useSearchParams();
+  const richiesto = parametri.get("stato-vendita");
+  const filtroStato = STATI_VENDITA.find(s => s === richiesto) ?? null;
+  const filtraStato = (s: string) => { const p = new URLSearchParams(parametri); if (s) p.set("stato-vendita", s); else p.delete("stato-vendita"); setParametri(p, { replace: true }); };
   const generaleId = riepilogo.generale.id;
   const telefono = useIsMobile();
   const { data: e, isLoading, isError, refetch } = useUnitaGenerale(generaleId);
@@ -54,9 +60,14 @@ export function SchedaUnita({ riepilogo, puoModificare }: PropsScheda) {
   const unitaAperta = e.unita.find((u) => u.orderId === aperta) ?? null;
   const divise = e.unita.filter((u) => u.divisaIl).sort((a, b) => confrontaSigle(a.sigla, b.sigla));
   const vuota = vendite.unita === 0;
+  const elencoInVista = filtroStato ? { ...e, unita: e.unita.filter(u => !u.divisaIl && u.stato === filtroStato) } : e;
+  const venditeInVista = filtroStato ? riepilogoVendite(elencoInVista) : vendite;
 
   return (
-    <div className="space-y-3">
+    <div className="generale-sheet space-y-3">
+      <IntestazioneScheda icona={LayoutGrid} titolo="Unità e vendite" descrizione="Disponibilità, acquirenti e incassi. L'analisi economica resta sull'intera operazione." />
+      {!vuota && <div className="generale-table-toolbar"><label>Stato vendita<select aria-label="Filtra unità per stato vendita" value={filtroStato ?? ""} onChange={e => filtraStato(e.target.value)}><option value="">Tutte le unità</option>{STATI_VENDITA.map(s => <option value={s} key={s}>{NOMI_STATO[s].tante}</option>)}</select></label></div>}
+      {filtroStato && <FiltroAttivo onReset={() => filtraStato("")}>{NOMI_STATO[filtroStato].tante}: {venditeInVista.unita} di {vendite.unita} unità. I conteggi in alto riguardano l'intera operazione.</FiltroAttivo>}
       {!vuota && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <ul aria-label="Unità per stato" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
@@ -115,11 +126,11 @@ export function SchedaUnita({ riepilogo, puoModificare }: PropsScheda) {
             <Button size="sm" className="mt-3" onClick={() => setSerie(true)}><Plus className="mr-1.5 h-3.5 w-3.5" /> Nuove unità in serie</Button>
           )}
         </div>
-      ) : vista === "tabella" && !telefono ? (
-        <TabellaUnita elenco={e} conti={conti} riepilogo={vendite} onApri={setAperta} />
+      ) : elencoInVista.unita.length === 0 ? <div className="generale-panel p-6 text-sm text-muted-foreground">Nessuna unità con questo stato. Rimuovi il filtro per tornare all'elenco completo.</div> : vista === "tabella" && !telefono ? (
+        <TabellaUnita elenco={elencoInVista} conti={conti} riepilogo={venditeInVista} onApri={setAperta} />
       ) : (
         <div className={cn(!telefono && "rounded-lg border bg-card p-3")}>
-          <TabelloneUnita unita={e.unita} vedeImporti={e.permessi.importi} onApri={setAperta} telefono={telefono} />
+          <TabelloneUnita unita={elencoInVista.unita} vedeImporti={e.permessi.importi} onApri={setAperta} telefono={telefono} />
         </div>
       )}
 

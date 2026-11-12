@@ -24,11 +24,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigaDocumento } from "@/lib/orders/documentoPopup";
 import { format } from "date-fns";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import { DialogContentOperativo as DialogContent } from "@/components/orders/generali/design/ContestoOperativo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -123,7 +124,7 @@ export function NewDDTDialog({
   restaQui,
   onCreated,
 }: NewDDTDialogProps) {
-  const navigate = useNavigate();
+  const navigate = useNavigaDocumento();
   const { orders } = usePurchaseOrders();
   const { effectiveCompany } = useAuth();
   const permessi = usePermissions();
@@ -416,7 +417,7 @@ export function NewDDTDialog({
   return (
     <>
       <Dialog open={open && fase === "scelta"} onOpenChange={(v) => { if (!isSubmitting) onOpenChange(v); }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent ampiezza="modulo" struttura="scorrevole" className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               <FileCheck className="h-5 w-5 text-primary" />

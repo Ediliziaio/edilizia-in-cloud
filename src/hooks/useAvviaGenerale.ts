@@ -5,7 +5,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCreaGenerale, type NuovaGenerale } from "@/hooks/useCommesseGenerali";
-import { vocePerDb } from "@/hooks/useGeneralePiano";
+import { annotaStimeDiPartenza, vocePerDb } from "@/hooks/useGeneralePiano";
 import type { VoceNuova } from "@/lib/orders/generali/pianoCategorie";
 import type { UnitaDaCreare } from "@/lib/orders/generali/unitaSerie";
 
@@ -31,11 +31,15 @@ export function useAvviaGenerale() {
         if (error) rimasti.push("unita");
       }
       if (voci) {
-        const { error } = await db.rpc("generale_piano_nuova_versione", {
+        const { data, error } = await db.rpc("generale_piano_nuova_versione", {
           p_generale_id: id,
           p_voci: voci.map((v, i) => vocePerDb(v, (i + 1) * 10)),
         });
-        if (error) rimasti.push("piano");
+        if (error || typeof data !== "string") rimasti.push("piano");
+        else {
+          try { await annotaStimeDiPartenza(data, voci); }
+          catch { rimasti.push("piano"); }
+        }
       }
       return { id, rimasti };
     },

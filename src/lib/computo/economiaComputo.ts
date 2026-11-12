@@ -126,16 +126,10 @@ export function testoQuando(r: Rata, rate: readonly Rata[]): string {
 
 /**
  * Il momento della rata nella lingua delle commesse (`lib/orders/rateEventi`). Dal 12/11/2026 la
- * condizione scritta nel contratto arriva intera: «a completamento di una fase» porta il nome
- * della fase e il collaudo resta il collaudo. Il database conosce i momenti (vincolo e
- * `data_attesa_rata`) e le due funzioni che scrivono le rate sanno dove metterli.
- *
- * ECCEZIONE, da togliere: «al X% dei lavori» viaggia ancora come SAL numerato. La regola SQL
- * che lo fa maturare somma gli importi dei SAL, ma `sal_records.importo_totale` è già il
- * cumulativo («lavori a tutto il …»): così la soglia si raggiunge troppo presto e la rata
- * risulterebbe scaduta prima del dovuto. La correzione è pronta in
- * `docs/sal-percentuale-importo-progressivo-20261112.sql`; applicata quella, qui si toglie
- * questa riga e la soglia viaggia col suo evento. La soglia si porta dietro comunque.
+ * condizione scritta nel contratto arriva intera: «al 30% dei lavori» porta la sua soglia e
+ * matura al SAL che la raggiunge, «a completamento di una fase» porta il nome della fase, il
+ * collaudo resta il collaudo. Il database conosce i momenti (vincolo e `data_attesa_rata`) e le
+ * due funzioni che scrivono le rate sanno dove metterli.
  */
 export function eventoPerCommessa(r: Rata, rate: readonly Rata[]): {
   evento: string; numero: number | null; soglia: number | null; fase: string | null;
@@ -143,7 +137,7 @@ export function eventoPerCommessa(r: Rata, rate: readonly Rata[]): {
   const vuoto: { numero: number | null; soglia: number | null; fase: string | null } = { numero: null, soglia: null, fase: null };
   switch (r.evento) {
     case "sal_numero": return { ...vuoto, evento: "sal_numero", numero: numeroSal(rate, r) };
-    case "sal_percentuale": return { ...vuoto, evento: "sal_numero", numero: numeroSal(rate, r), soglia: r.soglia ?? null };
+    case "sal_percentuale": return { ...vuoto, evento: "sal_percentuale", soglia: r.soglia ?? null };
     case "fase_completata": return { ...vuoto, evento: "fase_completata", fase: r.fasi[0]?.trim() || null };
     default: return { ...vuoto, evento: r.evento };
   }

@@ -96,6 +96,16 @@ describe("il modulo", () => {
 });
 
 describe("da computer", () => {
+  it("il filtro per stato conserva le quote dei costi calcolate sull'intera operazione", () => {
+    render(<MemoryRouter initialEntries={["/azienda/ordini/g?stato-vendita=rogitata"]}><SchedaUnita riepilogo={riepilogo} totali={totali} puoModificare={false} /></MemoryRouter>);
+    expect(casella("A3")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /^A1,/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: "Tabella" }));
+    const riga = screen.getByRole("button", { name: "A3" }).closest("tr")!;
+    expect(riga).toHaveTextContent("200.000 €");
+    fireEvent.click(screen.getByRole("button", { name: "Rimuovi filtro" }));
+    expect(screen.getByRole("button", { name: "A1" })).toBeVisible();
+  });
   it("il tabellone: caselle per stato, piani dall'alto, contatori e avviso delle garanzie", () => {
     disegna();
     expect(casella("A1")).toHaveAccessibleName("A1, Libera");
@@ -139,6 +149,7 @@ describe("da computer", () => {
     fireEvent.change(within(finestra).getByLabelText("Acquirente"), { target: { value: "cli-1" } });
     fireEvent.change(within(finestra).getByLabelText("Prezzo del compromesso"), { target: { value: "285.000" } });
     fireEvent.change(within(finestra).getByLabelText(/Caparra/), { target: { value: "25.000" } });
+    fireEvent.change(within(finestra).getByLabelText(/Entrata effettiva/), { target: { value: "27500" } });
     fireEvent.click(conferma);
     expect(m.cambia).toHaveBeenCalledWith(
       { orderId: "o-A1", stato: "compromesso", dati: expect.objectContaining({ acquirenteId: "cli-1", prezzo: 285000, caparra: 25000 }) },
@@ -250,6 +261,7 @@ describe("da telefono, a 375 px", () => {
     expect(within(finestra).queryByLabelText(/Rogito previsto/)).toBeNull();
     fireEvent.change(within(finestra).getByLabelText("Acquirente"), { target: { value: "cli-1" } });
     fireEvent.change(within(finestra).getByLabelText(/Caparra/), { target: { value: "10000" } });
+    fireEvent.change(within(finestra).getByLabelText(/Entrata effettiva/), { target: { value: "11000" } });
     fireEvent.click(within(finestra).getByRole("button", { name: "Segna il compromesso" }));
     const [{ dati }] = m.cambia.mock.calls[0];
     expect(dati).toMatchObject({ acquirenteId: "cli-1", prezzo: null, caparra: 10000 });
@@ -261,7 +273,7 @@ describe("il riquadro in Panoramica", () => {
   it("contatori per stato, venduto e incassato", () => {
     render(<MemoryRouter><RiquadroUnita riepilogo={riepilogo} totali={totali} puoModificare /></MemoryRouter>);
     expect(screen.getByRole("heading", { name: "Vendite · 4 unità" })).toBeVisible();
-    expect(screen.getByText("Rogitate").nextSibling).toHaveTextContent("1");
+    expect(screen.getByRole("link", { name: "Filtra unità: Rogitate" }).closest("li")).toHaveTextContent("1");
     expect(screen.getByText("Venduto").nextSibling).toHaveTextContent("600.000 €");
     expect(screen.getByText("Incassato").nextSibling).toHaveTextContent("360.000 €");
   });

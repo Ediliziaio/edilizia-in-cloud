@@ -6,7 +6,8 @@
 import { Link } from "react-router-dom";
 import { ExternalLink, Scissors, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentGenerale as DialogContent } from "@/components/orders/generali/design/DialogGenerale";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CambioStato } from "@/components/orders/generali/unita/CambioStato";
 import { DatiUnita } from "@/components/orders/generali/unita/DatiUnita";
@@ -37,7 +38,7 @@ interface Props {
 export function UnitaDialog({ generaleId, operazione, unita: u, elenco, conti, gestisci, telefono, onChiudi, onDividi }: Props) {
   return (
     <Dialog open={!!u} onOpenChange={(o) => !o && onChiudi()}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent ampiezza="spazio" className="max-w-2xl">
         {u && <Contenuto generaleId={generaleId} operazione={operazione} u={u} elenco={elenco} conti={conti} gestisci={gestisci} telefono={telefono} onDividi={onDividi} />}
       </DialogContent>
     </Dialog>

@@ -4,6 +4,7 @@
 // commessa_generale_piano_reale e, se il modulo Unità c'è già, unita_immobiliari.
 import { isCategoriaPiano, type TipoVoce } from "@/lib/orders/generali/pianoCategorie";
 import type { DatiUnita, Incasso, RigaReale, VocePiano } from "@/lib/orders/generali/pianoConti";
+import { MOVIMENTO_PREVISTO } from "./movimentiFonti";
 
 export type StatoVersione = "bozza" | "approvata" | "superata";
 
@@ -28,6 +29,7 @@ export interface RealePiano {
 
 export interface FotografiaPiano {
   mese: string;
+  aggiornataIl?: string | null;
   versioneNumero: number | null;
   versioneStato: string | null;
   ricaviPrevisti: number;
@@ -98,11 +100,13 @@ export function leggiVoci(data: unknown): VocePiano[] {
 export function leggiReale(data: unknown): RealePiano {
   const d = (data && typeof data === "object" ? data : {}) as Riga;
   const p = (d.permessi && typeof d.permessi === "object" ? d.permessi : {}) as Riga;
+  const oggi = testo(d.oggi) ?? new Date().toISOString().slice(0, 10);
   return {
-    oggi: testo(d.oggi) ?? new Date().toISOString().slice(0, 10),
+    oggi,
     permessi: { costi: p.costi === true, importi: p.importi === true },
     righe: righe(d.righe)
       .filter((r) => typeof r.id === "string" && typeof r.order_id === "string" && tipoVoce(r.tipo) && numero(r.importo) !== null)
+      .filter(r => r.fonte !== "debito" || (!(testo(r.descrizione) ?? "").includes(MOVIMENTO_PREVISTO) && (!testo(r.data) || String(r.data) <= oggi)))
       .map((r) => ({
         id: r.id as string,
         fonte: testo(r.fonte) ?? "spesa",
@@ -130,6 +134,7 @@ export function leggiFotografie(data: unknown): FotografiaPiano[] {
     .filter((r) => meseDaData(r.mese))
     .map((r) => ({
       mese: meseDaData(r.mese)!,
+      aggiornataIl: testo(r.updated_at),
       versioneNumero: numero(r.versione_numero),
       versioneStato: testo(r.versione_stato),
       ricaviPrevisti: numero(r.ricavi_previsti) ?? 0,

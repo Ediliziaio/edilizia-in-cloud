@@ -4,6 +4,11 @@
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { ATTACHMENTS_BUCKET } from "@/components/orders/filePreviewUtils";
+import { controllaBudget, DA_STIMARE, fonteImportazione } from "@/lib/orders/generali/budgetCompletezza";
+import type { OrigineBusinessPlan } from "@/components/orders/generali/piano/ImportaBusinessPlan";
+import { allPaymentRows } from "./useSupplierPayments";
 import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import type { CategoriaPiano, TipoVoce, VoceNuova } from "@/lib/orders/generali/pianoCategorie";
 import { useCriterioRipartizione } from "@/hooks/useCommesseGenerali";
@@ -39,6 +44,7 @@ export function messaggioPiano(e: unknown, cosa: string): string {
     if (err.message?.includes("violates check constraint")) return `Un valore di ${cosa} non è accettato: controlla importi, mesi e durata.`;
     return err.message ?? `Non è stato possibile salvare ${cosa}.`;
   }
+  if (e instanceof Error && !("code" in e)) return e.message;
   return `Non è stato possibile salvare ${cosa}. Riprova tra poco.`;
 }
 
@@ -129,7 +135,7 @@ export function useFotografieGenerale(generaleId: string | undefined, enabled = 
     queryFn: async (): Promise<FotografiaPiano[]> => {
       const { data, error } = await db
         .from("generale_fotografie")
-        .select("mese, versione_numero, versione_stato, ricavi_previsti, costi_previsti, ricavi_reali, costi_reali, ricavi_stima, costi_stima, capitale_massimo_previsto, capitale_investito, origine")
+        .select("mese, updated_at, versione_numero, versione_stato, ricavi_previsti, costi_previsti, ricavi_reali, costi_reali, ricavi_stima, costi_stima, capitale_massimo_previsto, capitale_investito, origine")
         .eq("generale_id", generaleId!)
         .order("mese", { ascending: true })
         .limit(240);
@@ -242,7 +248,18 @@ export const vocePerDb = (v: VoceNuova, ordine: number, figliaId: string | null 
   durata_mesi: Math.min(120, Math.max(1, Math.round(v.durataMesi))),
   figlia_id: figliaId,
   ordine,
+  ...(v.nota ? { nota: v.nota } : {}),
 });
+
+/** Il backend precedente ignora nota nelle voci iniziali: completa i segnaposto
+ * solo sulle nuove righe ancora a zero. Non altera revisioni con note o importi. */
+export async function annotaStimeDiPartenza(versioneId: string, voci: VoceNuova[], client = db) {
+  const ordini = voci.flatMap((v, i) => v.nota?.includes(DA_STIMARE) ? [(i + 1) * 10] : []);
+  if (!ordini.length) return;
+  const { error } = await client.from("generale_piano_voci").update({ nota: DA_STIMARE })
+    .eq("versione_id", versioneId).in("ordine", ordini).eq("importo", 0).is("nota", null);
+  if (error) throw error;
+}
 
 /** La prima versione (con le voci di partenza) o una nuova revisione dell'approvato. Restituisce l'id della bozza. */
 export function useNuovaVersionePiano(generaleId: string) {
@@ -255,18 +272,25 @@ export function useNuovaVersionePiano(generaleId: string) {
       });
       if (error) throw error;
       if (typeof data !== "string") throw new Error("La versione del piano non risulta creata. Ricarica la pagina.");
+      if (vociDiPartenza) await annotaStimeDiPartenza(data, vociDiPartenza);
       return data;
     },
     onSuccess: () => {
       void invalida.versioni();
     },
+    onError: () => { void invalida.versioni(); },
   });
 }
 
 export function useApprovaPiano(generaleId: string) {
   const invalida = useInvalidaPiano(generaleId);
   return useMutation({
+    meta: { silent: true },
     mutationFn: async (v: { versioneId: string; nota: string | null }) => {
+      // Read again at confirmation: another tab may have changed the draft since it was displayed.
+      const righe = await allPaymentRows((a, b) => db.from("generale_piano_voci").select(COLONNE_VOCE).eq("versione_id", v.versioneId).order("id").range(a, b));
+      const controllo = controllaBudget(leggiVoci(righe));
+      if (!controllo.completo) throw new Error(`Budget incompleto. ${controllo.problemi.join(" ")}`);
       const { error } = await db.rpc("generale_piano_approva", { p_versione_id: v.versioneId, p_nota: v.nota });
       if (error) throw error;
     },
@@ -333,6 +357,11 @@ export function useModificaVoce(generaleId: string, versioneId: string | null) {
       for (const [k, v] of Object.entries(modifica) as [keyof ModificaVoce, unknown][]) {
         riga[CAMPI_DB[k]] = k === "mese" ? dataDaMese(v as string | null) : v;
       }
+      if (modifica.importo !== undefined) {
+        const { data: attuale, error } = await db.from("generale_piano_voci").select("nota").eq("id", id).single();
+        if (error) throw error;
+        if (attuale?.nota?.includes(DA_STIMARE)) riga.nota = String(attuale.nota).replaceAll(DA_STIMARE, "").trim() + " Stima confermata manualmente.";
+      }
       const { error } = await db.from("generale_piano_voci").update(riga).eq("id", id).select("id").single();
       if (error) throw error;
     },
@@ -353,19 +382,76 @@ export function useModificaVoce(generaleId: string, versioneId: string | null) {
   });
 }
 
+type VociDaImportare = (VoceNuova & { figliaId?: string | null; nota?: string })[];
+
+async function inserisciVociPiano(qc: ReturnType<typeof useQueryClient>, versioneId: string, nuove: VociDaImportare): Promise<string[]> {
+  const esistenti = qc.getQueryData<VocePiano[]>(chiaviPiano.voci(versioneId)) ?? [];
+  const ultimo = esistenti.reduce((m, v) => Math.max(m, v.ordine), 0);
+  const righe = nuove.map((v, i) => ({ versione_id: versioneId, ...vocePerDb(v, ultimo + (i + 1) * 10, v.figliaId ?? null), ...(v.nota ? { nota: v.nota.slice(0, 2000) } : {}) }));
+  const { data, error } = await db.from("generale_piano_voci").insert(righe).select("id");
+  if (error) throw error;
+  return ((data ?? []) as { id: string }[]).map((r) => r.id);
+}
+
+/** Previewing a workbook creates no database rows. A draft is created only after confirming its detail. */
+export function useImportaBusinessPlanPiano(generaleId: string, versioneId: string | null) {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const invalida = useInvalidaPiano(generaleId);
+  return useMutation({
+    meta: { silent: true },
+    mutationFn: async (richiesta: VociDaImportare | { voci: VociDaImportare; origine?: OrigineBusinessPlan }) => {
+      const { voci, origine } = Array.isArray(richiesta) ? { voci: richiesta, origine: undefined } : richiesta;
+      if (!voci.length || voci.length > 300) throw new Error("Seleziona da 1 a 300 voci.");
+      if (voci.some(v => !Number.isFinite(v.importo) || v.importo < 0 || !v.descrizione.trim())) throw new Error("Controlla descrizioni e importi prima di importare.");
+      let destinazione = versioneId;
+      if (!destinazione) {
+        const { data, error } = await db.rpc("generale_piano_nuova_versione", { p_generale_id: generaleId, p_voci: [] });
+        if (error) throw error;
+        if (typeof data !== "string") throw new Error("La bozza non risulta creata. Ricarica il piano.");
+        destinazione = data;
+      }
+      const attuali = await allPaymentRows<{ nota: string | null }>((a, b) => db.from("generale_piano_voci").select("nota").eq("versione_id", destinazione).order("id").range(a, b));
+      const fonti = new Set((attuali ?? []).map((v: { nota: string | null }) => fonteImportazione(v.nota)).filter(Boolean));
+      if (voci.some(v => { const fonte = fonteImportazione(v.nota ?? null); return fonte && fonti.has(fonte); })) throw new Error("Questo file e scenario sono già stati importati nella versione. Apri una revisione per confrontare un nuovo piano.");
+      if (origine) {
+        if (!user?.id || !/^[a-f0-9]{64}$/.test(origine.hash)) throw new Error("Sessione o impronta del file non valida. Ricarica il business plan.");
+        const estensione = origine.file.name.split(".").pop()?.toLowerCase();
+        const tipi: Record<string,string> = { xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp" };
+        if (!estensione || !tipi[estensione]) throw new Error("Formato originale non supportato.");
+        const mime = tipi[estensione];
+        const percorso = `${generaleId}/business-plan/${destinazione}/${origine.hash}.${estensione}`;
+        const { data: allegato, error: e2 } = await db.from("order_attachments").select("id").eq("order_id", generaleId).eq("file_url", percorso).maybeSingle();
+        if (e2) throw e2;
+        if (!allegato) {
+          const { error: carica } = await supabase.storage.from(ATTACHMENTS_BUCKET).upload(percorso, origine.file, { contentType: mime });
+          if (carica && String(carica.message).toLowerCase().indexOf("already exists") < 0) throw carica;
+          const { error: registra } = await db.from("order_attachments").insert({ order_id: generaleId, file_name: origine.file.name, file_url: percorso, file_size: origine.file.size, file_type: mime, uploaded_by: user.id, visible_to_customer: false });
+          if (registra) throw new Error("Non riesco ad archiviare l'originale: nessuna voce importata. Riprova.", { cause: registra });
+        }
+      }
+      const ids = await inserisciVociPiano(qc, destinazione, voci);
+      return { versioneId: destinazione, ids };
+    },
+    onSuccess: ({ versioneId: id }) => {
+      void invalida.versioni();
+      void invalida.voci(id);
+      void invalida.reale();
+      void qc.invalidateQueries({ queryKey: ["order-attachments", generaleId] });
+    },
+    // If the draft was created but insertion failed, expose that recoverable draft on the next read.
+    onError: () => { void invalida.versioni(); },
+  });
+}
+
 /** Aggiunge voci in fondo alla versione (una nuova, o le righe incollate da Excel). */
 export function useAggiungiVoci(generaleId: string, versioneId: string | null) {
   const qc = useQueryClient();
   const invalida = useInvalidaPiano(generaleId);
   return useMutation({
-    mutationFn: async (nuove: (VoceNuova & { figliaId?: string | null })[]): Promise<string[]> => {
+    mutationFn: async (nuove: VociDaImportare): Promise<string[]> => {
       if (!versioneId) throw new Error("Nessuna bozza aperta.");
-      const esistenti = qc.getQueryData<VocePiano[]>(chiaviPiano.voci(versioneId)) ?? [];
-      const ultimo = esistenti.reduce((m, v) => Math.max(m, v.ordine), 0);
-      const righe = nuove.map((v, i) => ({ versione_id: versioneId, ...vocePerDb(v, ultimo + (i + 1) * 10, v.figliaId ?? null) }));
-      const { data, error } = await db.from("generale_piano_voci").insert(righe).select("id");
-      if (error) throw error;
-      return ((data ?? []) as { id: string }[]).map((r) => r.id);
+      return inserisciVociPiano(qc, versioneId, nuove);
     },
     onSuccess: () => {
       void invalida.voci(versioneId);

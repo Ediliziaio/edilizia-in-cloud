@@ -12,6 +12,11 @@ interface Documento {
   warehouses?: { name: string } | null;
   consegne?: ConsegnaRiepilogo[];
 }
+/** La precisione delle quantità è sei decimali, come nel confronto ordini. */
+export function quantitaResiduaDDT(totale: number | null, registrata: number): number {
+  const residuo = Number(totale) - registrata;
+  return Number.isFinite(residuo) ? Math.max(0, Math.round(residuo * 1e6) / 1e6) : 0;
+}
 export function riepilogoQuantitaDDT(d: Documento): string {
   if (!d.ricezione_esplicita && !d.consegne?.length)
     return Number(d.quantita_ricevuta ?? 0).toLocaleString("it-IT", {

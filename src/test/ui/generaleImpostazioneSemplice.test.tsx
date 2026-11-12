@@ -100,4 +100,18 @@ describe("impostazione delle commesse generali", () => {
     expect(screen.getByRole("button", { name: "Crea commessa generale" })).toBeDisabled();
     expect(screen.getByText(/numero da 1 a 100/)).toBeInTheDocument();
   });
+
+  it("partendo da Excel non aggiunge voci tipiche e apre l'importazione del piano", () => {
+    m.modelli = ["sviluppo"];
+    disegna();
+    fireEvent.click(screen.getByRole("button", { name: /Crea la prima/ }));
+    fireEvent.change(screen.getByLabelText("Nome"), { target: { value: "Nuova operazione" } });
+    fireEvent.click(screen.getByRole("radio", { name: /Ho già un business plan Excel/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Crea commessa generale" }));
+    const [payload, callback] = m.avvia.mock.calls[0];
+    expect(payload.voci).toBeNull();
+    expect(payload.unita).toEqual([]);
+    callback.onSuccess({ id: "nuova-operazione", rimasti: [] });
+    expect(m.navigate).toHaveBeenCalledWith("/azienda/ordini/nuova-operazione?scheda=piano&importa=1");
+  });
 });

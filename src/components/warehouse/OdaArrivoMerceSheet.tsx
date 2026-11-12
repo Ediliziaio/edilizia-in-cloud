@@ -22,7 +22,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useElencoArrivo } from "@/hooks/useArrivoPosizioni";
 import { ArrivoPosizioniPanel } from "@/components/ddt/ArrivoPosizioniPanel";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Sheet, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { SheetContentOperativo as SheetContent } from "@/components/orders/generali/design/ContestoOperativo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -364,6 +365,7 @@ export function OdaArrivoMerceSheet({
   const avviso = daRicevere.length > 0
     ? "Le quantità sono già quelle che mancavano. Se è arrivato tutto conferma, altrimenti correggi solo la riga che non torna."
     : null;
+  const azioneRegistra = <Button className="w-full min-h-11" disabled={registra.isPending || totale<=0} onClick={()=>registra.mutate()}>{registra.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{mancaQualcosa?'Registra arrivo parziale':'Registra arrivo'}</Button>;
   const corpo = (
     <>
         {inline && suMisura.size > 0 && <div className="mt-3"><ArrivoPosizioniPanel odaId={odaId} compatto /></div>}
@@ -445,6 +447,7 @@ export function OdaArrivoMerceSheet({
                       </div>
                       <Input
                         type="number"
+                        aria-label={`Quantità arrivata di ${r.description}`}
                         min="0"
                         max={res}
                         step="any"
@@ -497,22 +500,24 @@ export function OdaArrivoMerceSheet({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">Numero bolla</Label>
+                <Label htmlFor={`arrivo-numero-${odaId}`} className="text-xs">Numero bolla</Label>
                 <Input
+                  id={`arrivo-numero-${odaId}`}
                   value={numeroBolla}
                   onChange={(e) => setNumeroBolla(e.target.value)}
                   placeholder="Se non ce l'hai, lascia vuoto"
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Data</Label>
-                <Input type="date" value={dataBolla} onChange={(e) => setDataBolla(e.target.value)} />
+                <Label htmlFor={`arrivo-data-${odaId}`} className="text-xs">Data</Label>
+                <Input id={`arrivo-data-${odaId}`} type="date" value={dataBolla} onChange={(e) => setDataBolla(e.target.value)} />
               </div>
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs">Note (facoltative)</Label>
+              <Label htmlFor={`arrivo-note-${odaId}`} className="text-xs">Note (facoltative)</Label>
               <Textarea
+                id={`arrivo-note-${odaId}`}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 rows={2}
@@ -528,14 +533,6 @@ export function OdaArrivoMerceSheet({
               </span>
             </div>
 
-            <Button
-              className="w-full"
-              disabled={registra.isPending || totale <= 0}
-              onClick={() => registra.mutate()}
-            >
-              {registra.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {mancaQualcosa ? "Registra arrivo parziale" : "Registra arrivo"}
-            </Button>
           </div>
         )}
     </>
@@ -543,7 +540,7 @@ export function OdaArrivoMerceSheet({
 
   if (inline) {
     return (
-      <section aria-label="Arrivo merce" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:px-6">
+      <section aria-label="Arrivo merce" className="flex max-h-[72dvh] min-h-0 flex-col gap-4 overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:px-6">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="flex items-center gap-2 text-base font-bold text-slate-900">
@@ -555,15 +552,16 @@ export function OdaArrivoMerceSheet({
             <X className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
-        {corpo}
+        <div className="commessa-modal-body">{corpo}</div>
+        {!isLoading && daRicevere.length>0 && <div className="shrink-0 border-t pt-3">{azioneRegistra}</div>}
       </section>
     );
   }
 
   return (
     <Sheet open={open} onOpenChange={chiudi}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-lg">
-        <SheetHeader>
+      <SheetContent side="right" className="commessa-sheet-layout w-full sm:max-w-lg">
+        <SheetHeader className="shrink-0 pr-8">
           <SheetTitle className="flex items-center gap-2">
             <PackageCheck className="h-5 w-5" /> Arrivata merce
           </SheetTitle>
@@ -580,7 +578,8 @@ export function OdaArrivoMerceSheet({
           </SheetDescription>
         </SheetHeader>
 
-        {corpo}
+        <div className="commessa-modal-body">{corpo}</div>
+        {!isLoading && daRicevere.length>0 && <div className="shrink-0 border-t pt-3">{azioneRegistra}</div>}
       </SheetContent>
     </Sheet>
   );

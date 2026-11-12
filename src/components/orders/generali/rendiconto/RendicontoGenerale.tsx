@@ -9,7 +9,8 @@ import { Download, FileSpreadsheet, FileText, Loader2, Mail, RefreshCw } from "l
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentGenerale as DialogContent } from "@/components/orders/generali/design/DialogGenerale";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -67,7 +68,7 @@ export function BottoneRendiconto({ riepilogo }: { riepilogo: RiepilogoGenerale 
         <FileText className="mr-1.5 h-3.5 w-3.5" /> Rendiconto
       </Button>
       <Dialog open={aperto} onOpenChange={setAperto}>
-        <DialogContent className="flex max-h-[94vh] max-w-6xl flex-col overflow-hidden">
+        <DialogContent ampiezza="spazio" className="flex max-h-[94vh] max-w-6xl flex-col overflow-hidden">
           {aperto && <Contenuto riepilogo={riepilogo} onChiudi={() => setAperto(false)} />}
         </DialogContent>
       </Dialog>

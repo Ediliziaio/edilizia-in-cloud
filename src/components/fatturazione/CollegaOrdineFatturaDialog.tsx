@@ -13,9 +13,8 @@
  */
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentOperativo as DialogContent } from "@/components/orders/generali/design/ContestoOperativo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -164,7 +163,7 @@ export function CollegaOrdineFatturaDialog({
 
   return (
     <Dialog open={open} onOpenChange={chiudi}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent struttura="scorrevole" className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShoppingCart className="h-4 w-4 text-orange-500" />

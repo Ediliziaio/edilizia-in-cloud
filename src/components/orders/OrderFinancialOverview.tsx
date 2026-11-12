@@ -114,10 +114,10 @@ export function OrderFinancialOverview(props: Props) {
     : perRiga === 2 ? "grid-cols-2 sm:grid-cols-[6.5rem_repeat(2,minmax(0,1fr))]" : "grid-cols-1 sm:grid-cols-[6.5rem_minmax(0,1fr)]";
 
   return (
-    <section aria-label="Riepilogo economico commessa" className="overflow-hidden rounded-2xl border border-eic-navy-deep bg-eic-navy-deep p-3 text-white shadow-sm sm:p-4 max-sm:p-2">
+    <section aria-label="Riepilogo economico commessa" className="commessa-financial-overview overflow-hidden rounded-2xl border border-eic-navy-deep bg-eic-navy-deep p-3 text-white shadow-sm sm:p-4 max-sm:p-2">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 max-sm:hidden">
         <div className="flex items-center gap-3">
-          <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_6px_16px_rgba(249,115,22,0.25)]"><LayoutDashboard className="h-4 w-4" /></span>
+          <span aria-hidden="true" className="commessa-summary-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"><LayoutDashboard className="h-4 w-4" /></span>
           <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-100">La commessa in numeri</h2>
         </div>
         <span className="hidden text-xs text-blue-100 sm:block">Importi senza IVA, tranne contratto, incassi e da pagare</span>
@@ -235,12 +235,12 @@ function Cella({ label, value, aside, hint, dettaglio, tone = "text-white", evid
 }) {
   return (
     <button type="button" role="cell" onClick={onClick} aria-label={`Apri dettagli: ${label}`}
-      className="min-w-0 rounded-xl border border-white/20 bg-white/[0.08] px-3 py-2.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition-colors hover:bg-white/[0.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 focus-visible:ring-offset-2 focus-visible:ring-offset-eic-navy-deep max-sm:rounded-lg max-sm:px-2 max-sm:py-1.5">
+      className="commessa-summary-card min-w-0 rounded-xl border border-white/20 bg-white/[0.08] px-3 py-2.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition-colors hover:bg-white/[0.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 focus-visible:ring-offset-2 focus-visible:ring-offset-eic-navy-deep max-sm:rounded-lg max-sm:px-2 max-sm:py-1.5">
       <span className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-blue-100 max-sm:text-[9px] max-sm:leading-tight">
         {label}{apri && <ArrowUpRight className="ml-auto h-3.5 w-3.5 max-sm:hidden" aria-hidden />}
       </span>
       <span className="mt-1 flex flex-wrap items-baseline gap-x-2">
-        <span className={`text-lg font-bold leading-tight tabular-nums max-sm:text-[13px] ${tone}`}>{value}</span>
+        <span className={`commessa-summary-value text-lg font-bold leading-tight tabular-nums max-sm:text-[13px] ${tone}`}>{value}</span>
         {aside && <span className={`text-sm font-semibold tabular-nums max-sm:text-[11px] ${tone}`}>{aside}</span>}
       </span>
       {evidenza && <span title={evidenzaTitolo} className={`mt-1 block text-xs font-semibold tabular-nums ${evidenzaTono} max-sm:mt-0.5 max-sm:text-[10px]`}>{evidenza}</span>}
@@ -250,7 +250,7 @@ function Cella({ label, value, aside, hint, dettaglio, tone = "text-white", evid
           <span className={`block h-full rounded-full ${progressoColore}`} style={{ width: `${progresso}%` }} />
         </span>
       )}
-      {hint && <span className="mt-1 block text-[11px] leading-snug text-blue-100 max-sm:hidden">{hint}</span>}
+      {hint && <span className="commessa-summary-note mt-1 block text-[11px] leading-snug text-blue-100 max-sm:hidden">{hint}</span>}
       {dettaglio && <span className="mt-0.5 block text-[11px] leading-snug text-blue-200/80 tabular-nums max-sm:hidden">{dettaglio}</span>}
     </button>
   );

@@ -24,6 +24,7 @@ import { documentiDb as db } from "@/lib/ddt/documentiPersistenti";
 import { queryKeys } from "@/lib/queryKeys";
 import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 import { useControlloOrdiniDDT } from "@/hooks/useControlloOrdiniDDT";
+import { quantitaResiduaDDT } from "@/lib/ddt/riepilogoConsegne";
 
 interface Scelta {
   ordineAcquisto?: string;
@@ -99,11 +100,12 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
       ),
     [righe.data, consegne.data],
   );
+  const residui = new Map((righe.data ?? []).map((r) => [r.id, quantitaResiduaDDT(r.quantita, Number(fatte.get(r.id) ?? 0))]));
   const aperte = (righe.data ?? []).filter(
     (r) =>
       !(r.arrivo_registrato_il && !fatte.get(r.id)) &&
       !r.movimento_id &&
-      Number(r.quantita) > Number(fatte.get(r.id) ?? 0),
+      (residui.get(r.id) ?? 0) > 0,
   );
   const ordini = [
     ...new Set(
@@ -216,7 +218,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
         quantita: Number(
           (
             s.quantita ??
-            String(Number(r.quantita) - Number(fatte.get(r.id) ?? 0))
+            String(residui.get(r.id) ?? 0)
           ).replace(",", "."),
         ),
         destinazione: dest,
@@ -238,11 +240,22 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
         accetta_eccedenza: !!s.eccedenza,
       };
     });
+  const erroriQuantita = new Map(righeDaInviare.flatMap((r) => {
+    const residuo = residui.get(r.riga_id) ?? 0;
+    const errore = !Number.isFinite(r.quantita) || r.quantita <= 0
+      ? "Inserisci una quantità valida, maggiore di zero."
+      : r.quantita > residuo + 0.000001
+        ? `Puoi confermare al massimo ${numero(residuo)}: è la quantità ancora aperta sulla bolla.`
+        : null;
+    return errore ? [[r.riga_id, errore] as const] : [];
+  }));
   const salva = useMutation({
+    meta: { silent: true }, // L’errore specifico è già gestito qui sotto.
     mutationFn: async () => {
       if (
         !confermo ||
         !righeDaInviare.length ||
+        erroriQuantita.size > 0 ||
         righeDaInviare.some(
           (r) => !Number.isFinite(r.quantita) || r.quantita <= 0,
         )
@@ -454,10 +467,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                             {r.descrizione}
                             <span className="block text-xs font-normal text-muted-foreground">
                               Da confermare:{" "}
-                              {numero(
-                                Number(r.quantita) -
-                                  Number(fatte.get(r.id) ?? 0),
-                              )}{" "}
+                              {numero(residui.get(r.id) ?? 0)}{" "}
                               {r.unita_misura || "· unità da correggere"}
                               {r.prezzo_unitario == null
                                 ? " · Prezzo da definire"
@@ -475,18 +485,18 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                                 Quantità accettata
                                 <Input
                                   aria-label={`Quantità consegnata ${r.descrizione}`}
+                                  aria-invalid={erroriQuantita.has(r.id) || undefined}
+                                  aria-describedby={erroriQuantita.has(r.id) ? `${r.id}-errore-quantita` : undefined}
                                   inputMode="decimal"
                                   value={
                                     s.quantita ??
-                                    String(
-                                      Number(r.quantita) -
-                                        Number(fatte.get(r.id) ?? 0),
-                                    )
+                                    String(residui.get(r.id) ?? 0)
                                   }
                                   onChange={(e) =>
                                     cambia(r.id, { quantita: e.target.value })
                                   }
                                 />
+                                {erroriQuantita.has(r.id) && <p role="alert" id={`${r.id}-errore-quantita`} className="text-xs text-destructive">{erroriQuantita.get(r.id)}</p>}
                               </label>
                               <label className="space-y-1 text-xs">
                                 Operazione
@@ -689,7 +699,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                         type="checkbox"
                         className="mt-0.5 h-4 w-4"
                         checked={confermo}
-                        disabled={!righeDaInviare.length || salva.isPending}
+                        disabled={!righeDaInviare.length || erroriQuantita.size > 0 || salva.isPending}
                         onChange={(e) => setConfermo(e.target.checked)}
                       />
                       Ho controllato quantità, destinazione e articoli delle
@@ -702,6 +712,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                         disabled={
                           !confermo ||
                           !righeDaInviare.length ||
+                          erroriQuantita.size > 0 ||
                           salva.isPending ||
                           catalogo.isError
                         }

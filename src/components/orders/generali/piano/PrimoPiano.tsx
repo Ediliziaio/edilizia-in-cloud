@@ -1,7 +1,7 @@
 // src/components/orders/generali/piano/PrimoPiano.tsx
 // Quando il piano non c'è: il prossimo passo, non una tabella di zeri (piano §3.1 punto 4).
 // Si parte dalle voci tipiche del modello, da zero o da un foglio Excel.
-import { ClipboardPaste, FilePlus2, Loader2, Sparkles } from "lucide-react";
+import { ClipboardPaste, FilePlus2, FileSpreadsheet, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { euro, nomeMese, nomePiano } from "@/components/orders/generali/piano/formato";
@@ -9,12 +9,13 @@ import { messaggioPiano, useNuovaVersionePiano } from "@/hooks/useGeneralePiano"
 import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { CATEGORIE_PIANO, vociDiPartenza } from "@/lib/orders/generali/pianoCategorie";
 
-export function PrimoPiano({ riepilogo, puoModificare, mese, onCreato }: {
+export function PrimoPiano({ riepilogo, puoModificare, mese, onCreato, onImportaFile }: {
   riepilogo: RiepilogoGenerale;
   puoModificare: boolean;
   /** Il mese da cui partono le voci (questo mese). */
   mese: string;
   onCreato: (versioneId: string, incolla: boolean) => void;
+  onImportaFile: () => void;
 }) {
   const g = riepilogo.generale;
   const crea = useNuovaVersionePiano(g.id);
@@ -57,6 +58,9 @@ export function PrimoPiano({ riepilogo, puoModificare, mese, onCreato }: {
 
       {puoModificare ? (
         <div className="mt-4 flex flex-wrap gap-2">
+          <Button variant="outline" onClick={onImportaFile} disabled={crea.isPending}>
+            <FileSpreadsheet className="mr-1.5 h-4 w-4" /> Importa business plan
+          </Button>
           <Button onClick={() => parti(true)} disabled={crea.isPending}>
             {crea.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
             Parti con queste voci

@@ -128,7 +128,8 @@ describe("erogazioni secondo il fabbisogno del piano", () => {
   it("la composizione nel tempo segue i prelievi e mostra il fabbisogno", () => {
     const r = calcolaInvestitori({ fonti, movimenti: [], numeri: numeri({ fabbisogno, capitaleMassimo: 400_000 }), oggi: "2027-01-01" });
     const per = new Map(r.composizione.map((m) => [m.mese, m]));
-    expect(per.get("2027-01")).toMatchObject({ propri: 100_000, investitori: 0, debito: 0, fabbisogno: 100_000, reale: true });
+    // The current month includes projected draws through month end, so it is a projection.
+    expect(per.get("2027-01")).toMatchObject({ propri: 100_000, investitori: 0, debito: 0, fabbisogno: 100_000, reale: false });
     expect(per.get("2027-03")).toMatchObject({ propri: 150_000, debito: 100_000, fabbisogno: 250_000 });
     expect(per.get("2027-06")).toMatchObject({ propri: 150_000, debito: 250_000, reale: false });
     // I mezzi propri tornano a fine operazione, il mutuo alla sua scadenza.

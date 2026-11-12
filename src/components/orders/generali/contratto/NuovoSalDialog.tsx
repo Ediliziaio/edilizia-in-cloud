@@ -7,7 +7,8 @@ import { Link } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentGenerale as DialogContent } from "@/components/orders/generali/design/DialogGenerale";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
@@ -39,7 +40,7 @@ function Procedura({ chiudi, generaleId, contratto, figlie, ultimoAl }: {
 }) {
   const oggi = oggiIso();
   const [passo, setPasso] = useState(0);
-  const [dal, setDal] = useState(ultimoAl ? aggiungiGiorni(ultimoAl, 1) : contratto.dataConsegnaLavori ?? "");
+  const [dal, setDal] = useState(ultimoAl === oggi ? oggi : ultimoAl ? aggiungiGiorni(ultimoAl, 1) : contratto.dataConsegnaLavori ?? "");
   const [al, setAl] = useState(oggi);
   const [note, setNote] = useState("");
   const [avanzamenti, setAvanzamenti] = useState<Record<string, number>>({});

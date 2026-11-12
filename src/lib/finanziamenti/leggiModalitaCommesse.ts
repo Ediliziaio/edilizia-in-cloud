@@ -1,11 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
 import { withClientTimeout } from "@/lib/query-timeout";
 import type { ModalitaCostoFinanziaria } from "./costoFinanziaria";
+import { caricaImportiFinanziari } from '@/lib/orders/importiFinanziari';
 
 type Commessa = { id: string; payment_type?: string | null; financing_cost?: number | null; financing_cost_mode?: ModalitaCostoFinanziaria | null };
 /** Lettura compatibile durante l'aggiornamento: solo una colonna realmente assente
  * autorizza la regola storica. Errori di rete e permessi non diventano importi falsi. */
-export async function leggiModalitaCommesse<T extends Commessa>(companyId: string, rows: T[]): Promise<Array<T & { financing_cost_mode?: ModalitaCostoFinanziaria | null }>> {
+async function leggiModalitaFinanziamenti<T extends Commessa>(companyId: string, rows: T[]): Promise<Array<T & { financing_cost_mode?: ModalitaCostoFinanziaria | null }>> {
   const ids = [...new Set(rows.filter(r => r.financing_cost_mode === undefined && r.payment_type === "financing" && Number(r.financing_cost) > 0).map(r => r.id))];
   if (!ids.length) return rows;
   if (!companyId) throw new Error("Azienda non disponibile per verificare i finanziamenti.");
@@ -32,4 +33,7 @@ export async function leggiModalitaCommesse<T extends Commessa>(companyId: strin
     if (batch.some(id => !modes.has(id))) throw new Error("Una commessa finanziata non è più disponibile. Aggiorna l’elenco.");
   }
   return rows.map(row => modes.has(row.id) ? { ...row, financing_cost_mode: modes.get(row.id)! } : row);
+}
+export async function leggiModalitaCommesse<T extends Commessa>(companyId:string,rows:T[]) {
+  return caricaImportiFinanziari(companyId,await leggiModalitaFinanziamenti(companyId,rows));
 }

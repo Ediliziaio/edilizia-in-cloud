@@ -2,7 +2,8 @@ import { ExpenseBankLink, ExpenseSalLinks } from "./ExpensePaymentLinks";
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { DialogContentOperativo as DialogContent } from "@/components/orders/generali/design/ContestoOperativo";
 import { Button } from '@/components/ui/button';
 import { OfficeSelect } from './OfficeSelect';
 import { Input } from '@/components/ui/input';
@@ -38,23 +39,23 @@ export function ExpensePaymentDialog({ costId, onClose }: {costId: string; onClo
   });
   const pay = useMutation({
     mutationFn: () => registerExpensePayment({costId, requestId, amount:Number(amount.replace(',','.')), date, method, reference}),
-    onSuccess: () => { refreshFinancialQueries(qc); setEditing(false); setRequestId(crypto.randomUUID()); toast.success('Pagamento e contabilità aggiornati'); },
+    onSuccess: () => { refreshFinancialQueries(qc); setEditing(false); setReference(''); setRequestId(crypto.randomUUID()); toast.success('Pagamento e contabilità aggiornati'); },
     onError: (e: Error) => toast.error(e.message),
   });
   const d = detail.data;
   const resetRequest = () => setRequestId(crypto.randomUUID());
   return <Dialog open onOpenChange={open => {if (!open && !pay.isPending) onClose();}}>
-    <DialogContent className="max-w-2xl max-h-[90dvh] overflow-y-auto" onPointerDownOutside={e => {if (pay.isPending) e.preventDefault();}}>
+    <DialogContent struttura="scorrevole" ampiezza="modulo" className="max-w-2xl max-h-[90dvh] overflow-y-auto" onPointerDownOutside={e => {if (pay.isPending) e.preventDefault();}}>
       <DialogHeader><DialogTitle>{d?.nome ?? 'Pagamento fornitore'}</DialogTitle><DialogDescription>Documento, pagamenti e residuo della stessa spesa. Rimani nella commessa.</DialogDescription></DialogHeader>
       {detail.isPending ? <p role="status">Caricamento pagamento…</p> : detail.isError ? <p role="alert">{detail.error.message} <Button variant="link" onClick={() => void detail.refetch()}>Riprova</Button></p> : d && <>
-        <div className="grid grid-cols-3 gap-2">{[['Dovuto', d.totale],['Pagato', d.pagato],['Residuo', d.residuo]].map(([label,value]) => <div key={String(label)} className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-semibold tabular-nums">{formatCurrency(Number(value))}</p></div>)}</div>
+        <div className="commessa-payment-summary grid grid-cols-3 gap-2">{[['Dovuto', d.totale],['Pagato', d.pagato],['Residuo', d.residuo]].map(([label,value]) => <div key={String(label)} data-pagamento={String(label)} className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-semibold tabular-nums">{formatCurrency(Number(value))}</p></div>)}</div>
         {d.da_verificare && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">Ci sono registrazioni storiche da riconciliare. Non aggiungere un pagamento per correggere uno stato.</p>}
         <ExpenseSalLinks costId={costId}/>
         <div className="overflow-x-auto rounded-lg border"><table className="w-full text-sm"><caption className="sr-only">Pagamenti già registrati</caption><thead className="bg-muted/40"><tr><th className="p-3 text-left">Data</th><th className="p-3 text-left">Operazione</th><th className="p-3 text-right">Importo</th><th className="p-3 text-left">Banca</th></tr></thead><tbody>
           {d.movimenti.map(m => <tr key={m.id} className="border-t"><td className="p-3 whitespace-nowrap">{m.data.split('-').reverse().join('/')}</td><td className="p-3">{m.storno_di ? 'Storno' : 'Pagamento'}{m.riferimento && <p className="text-xs text-muted-foreground">{m.riferimento}</p>}</td><td className="p-3 text-right tabular-nums">{m.direzione === 'entrata' ? '− ' : ''}{formatCurrency(m.importo)}</td><td className="p-3 text-xs">{m.banca ? 'Riconciliato' : m.storno_di ? '—' : 'Non riconciliato'}{!m.banca && !m.storno_di && m.direzione==='uscita' && !d.movimenti.some(r=>r.storno_di===m.id) && !permissions.solaLettura && (permissions.canViewTesoreria || permissions.canManagePayments || permissions.isAdmin) && <ExpenseBankLink costId={costId} paymentId={m.id} date={m.data}/>}</td></tr>)}
           {!d.movimenti.length && <tr><td colSpan={4} className="p-5 text-center text-muted-foreground">Nessun pagamento registrato.</td></tr>}
         </tbody></table></div>
-        {editing && <div className="space-y-3 rounded-lg border bg-muted/20 p-4"><p className="text-sm font-medium">Registra un pagamento già eseguito</p><p className="text-xs text-muted-foreground">Aggiorna cassa, scadenze e residuo. Non dispone un bonifico.</p>
+        {editing && <div className="commessa-payment-form space-y-3 rounded-lg border bg-muted/20 p-4"><p className="text-sm font-medium">Registra un pagamento già eseguito</p><p className="text-xs text-muted-foreground">Aggiorna cassa, scadenze e residuo. Non dispone un bonifico.</p>
           <div className="grid grid-cols-2 gap-3"><div><Label htmlFor="expense-amount">Importo</Label><Input id="expense-amount" inputMode="decimal" value={amount} onChange={e=>{setAmount(e.target.value);resetRequest();}}/></div><div><Label htmlFor="expense-date">Data</Label><Input id="expense-date" type="date" max={new Date().toLocaleDateString('en-CA')} value={date} onChange={e=>{setDate(e.target.value);resetRequest();}}/></div></div>
           <div className="grid grid-cols-2 gap-3"><div><Label htmlFor="expense-method">Metodo</Label><OfficeSelect id="expense-method" label="Metodo" value={method} onValueChange={v=>{setMethod(v);resetRequest();}}
             options={[{value:'bonifico',label:'Bonifico'},{value:'contanti',label:'Contanti'},{value:'assegno',label:'Assegno'},{value:'altro',label:'Altro'}]} /></div><div><Label htmlFor="expense-reference">Riferimento</Label><Input id="expense-reference" maxLength={500} value={reference} onChange={e=>{setReference(e.target.value);resetRequest();}} placeholder="CRO o nota"/></div></div>

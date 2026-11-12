@@ -3,7 +3,8 @@
 // da telefono, come gli Input dell'app), numeri scritti all'italiana e numeri che si aprono sulle
 // righe da cui vengono (piano §3.1, punto 2). Le funzioni di formato stanno in formato.ts.
 import { useId, useState, type ReactNode } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentGenerale as DialogContent } from "@/components/orders/generali/design/DialogGenerale";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";

@@ -6,7 +6,8 @@ import { useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentGenerale as DialogContent } from "@/components/orders/generali/design/DialogGenerale";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useImportaElenco } from "@/hooks/useGeneraleContrattoElenco";
@@ -19,7 +20,7 @@ const ANTEPRIMA_RIGHE = 50;
 export function IncollaElencoDialog({ open, onOpenChange, generaleId }: { open: boolean; onOpenChange: (o: boolean) => void; generaleId: string }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+      <DialogContent ampiezza="spazio" className="max-h-[90vh] max-w-4xl overflow-y-auto">
         {open && <Incolla generaleId={generaleId} chiudi={() => onOpenChange(false)} />}
       </DialogContent>
     </Dialog>

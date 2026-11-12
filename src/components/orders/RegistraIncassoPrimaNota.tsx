@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
+import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import type { Installment } from "@/lib/orderUtils";
 
 const chiaveIncassi = (orderId: string | undefined) => ["incassi-registrati", orderId];
@@ -84,6 +85,7 @@ export function RegistraIncassoPrimaNota({ inst, amount, orderId, orderCode, ent
       queryClient.invalidateQueries({ queryKey: queryKeys.primaNota.all });
       // Il grafico 6 mesi della Prima Nota usa un prefisso diverso dalle liste.
       queryClient.invalidateQueries({ queryKey: ["primaNota"] });
+      refreshFinancialQueries(queryClient);
       toast.success("Incasso registrato in Prima Nota", {
         description: `${inst.label} — la trovi tra le entrate della commessa.`,
       });
@@ -91,9 +93,11 @@ export function RegistraIncassoPrimaNota({ inst, amount, orderId, orderCode, ent
     onError: (e) => {
       // 23505 = l'indice UNIQUE ha fermato un doppione (doppio tap, seconda
       // finestra): non e' un errore per l'utente, la registrazione c'e' gia'.
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes("uq_prima_nota_installment") || msg.includes("23505")) {
+      const dbError = e as { message?: string; code?: string };
+      const msg = dbError?.message || String(e);
+      if (dbError?.code === "23505" || msg.includes("uq_prima_nota_installment") || msg.includes("23505")) {
         queryClient.invalidateQueries({ queryKey: chiaveIncassi(orderId) });
+        refreshFinancialQueries(queryClient);
         toast.info("Questa rata era gia' registrata in Prima Nota");
       } else {
         toast.error("Registrazione non riuscita", { description: msg });

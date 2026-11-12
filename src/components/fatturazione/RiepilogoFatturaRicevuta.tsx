@@ -1,3 +1,4 @@
+import { percorsoDocumentoGenerale, useAspettoOperativo } from "@/components/orders/generali/design/ContestoOperativo";
 import { pagamentoDaMostrare } from "@/lib/fatturazione/pagamentoFatturaRicevuta";
 import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
@@ -9,8 +10,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Sheet, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogFooter } from "@/components/ui/dialog";
+import { DialogContentOperativo as DialogContent, SheetContentOperativo as SheetContent } from "@/components/orders/generali/design/ContestoOperativo";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { VerificaFatturaPill } from "@/components/fatturazione/VerificaFatturaPill";
@@ -199,6 +201,7 @@ function ContenutoRiepilogo({
   onClose,
   azioni = {},
 }: PropsRiepilogo) {
+  const aspettoGenerale = useAspettoOperativo();
   const isMobile = useIsMobile();
   // In mezzo allo schermo come gli altri documenti; da telefono resta il foglio dal basso.
   const Radice = isMobile ? Sheet : Dialog;
@@ -315,8 +318,9 @@ function ContenutoRiepilogo({
     <Radice open={!!fatturaId && !confronto} onOpenChange={(o) => { if (!o) onClose(); }}>
       <Contenuto
         {...(isMobile ? { side: "bottom" as const } : { onOpenAutoFocus: (e: Event) => e.preventDefault() })}
-        className={`${isMobile ? "max-h-[90dvh] overflow-y-auto rounded-t-2xl px-4 pb-6" : "block max-h-[92dvh] max-w-3xl overflow-y-auto"} [&_dl_a]:min-h-0 [&_dl_a]:min-w-0`}
+        className={`commessa-modal-layout ${isMobile ? "max-h-[90dvh] rounded-t-2xl px-4 pb-6" : "max-h-[92dvh] max-w-3xl"} [&_dl_a]:min-h-0 [&_dl_a]:min-w-0`}
       >
+        <div className="commessa-modal-body">
         {isLoading || !f ? (
           <div className="space-y-3 pt-6">
             {error ? (
@@ -338,6 +342,9 @@ function ContenutoRiepilogo({
                 {f.data_ricezione_sdi ? ` · arrivata dallo SDI il ${formatDateShort(String(f.data_ricezione_sdi))}` : ""}
               </SheetDescription>
             </SheetHeader>
+            {aspettoGenerale && <dl className="commessa-document-summary" aria-label="Importi del documento">
+              {[["Imponibile", imponibile], ["IVA", iva], ["Totale documento", totale]].map(([titolo, valore]) => <div key={String(titolo)}><dt>{titolo}</dt><dd>{formatCurrency(Number(valore))}</dd></div>)}
+            </dl>}
 
             {permessi.canViewCosts && <Button variant="outline" className="w-full justify-start border-blue-200 bg-blue-50/50 text-blue-900 hover:bg-blue-50" onClick={() => setConfronto(true)}><ArrowLeftRight className="mr-2 h-4 w-4" />Confronta con DDT e ordini</Button>}
 
@@ -409,7 +416,7 @@ function ContenutoRiepilogo({
                 <dt className="text-muted-foreground">Ordine d'acquisto</dt>
                 <dd className="flex flex-wrap items-center gap-1.5">
                   {d.ordini.length === 0 ? <span className="text-muted-foreground">Nessuno</span> : d.ordini.map((o) => (
-                    <Link key={o.id} to={`/azienda/ordini-acquisto/${o.id}`} className="underline-offset-2 hover:underline">
+                    <Link key={o.id} to={percorsoDocumentoGenerale(`/azienda/ordini-acquisto/${o.id}`, aspettoGenerale?.generaleId)} className="underline-offset-2 hover:underline">
                       <Badge variant="outline">{o.oda_number}{o.importo != null ? ` · ${formatCurrency(o.importo)}` : ""}</Badge>
                     </Link>
                   ))}
@@ -500,9 +507,9 @@ function ContenutoRiepilogo({
                 <dt className="text-muted-foreground">Pagamento</dt>
                 <dd>
                   {d.costo && permessi.canViewCosts ? (
-                    <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" onClick={() => setPagamenti(d.costo!.id)}>Pagamenti e residuo</Button>
+                    <span>Collegato alla stessa spesa: dettagli nella barra delle azioni.</span>
                   ) : (
-                    <PagamentoRicevutaCella forma="pulsante" id={String(f.id)} numero={String(f.numero_fattura ?? "")} tipo={String(f.tipo_documento ?? "")} pagataIl={f.pagata_il ? String(f.pagata_il) : null} />
+                    <span>{f.pagata_il ? `Pagata il ${formatDateShort(String(f.pagata_il))}` : 'Non saldata'}</span>
                   )}
                 </dd>
 
@@ -629,7 +636,8 @@ function ContenutoRiepilogo({
               const giorno = (d: string | null) => (d ? d.slice(0, 10).split("-").reverse().join("/") : "senza data");
               return (
                 <section aria-label="Pagamento" className="space-y-2 rounded-lg border p-3 text-sm">
-                  <p className="font-semibold">Pagamento{p.condizioni ? <span className="font-normal text-muted-foreground"> · {p.condizioni}</span> : null}</p>
+                  <p className="font-semibold">Scadenze indicate in fattura{p.condizioni ? <span className="font-normal text-muted-foreground"> · {p.condizioni}</span> : null}</p>
+                  <p className="text-xs text-muted-foreground">Importi e date previsti nel documento. I versamenti effettivi si consultano dalla barra delle azioni.</p>
                   {p.rate.length > 0 && (
                     <ul className="divide-y">
                       {p.rate.map((r, i) => (
@@ -679,6 +687,11 @@ function ContenutoRiepilogo({
             </div>
           </div>
         )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Chiudi riepilogo</Button>
+          {!isLoading && d && f && (d.costo && permessi.canViewCosts ? <Button onClick={()=>setPagamenti(d.costo!.id)}>Pagamenti e residuo</Button> : <PagamentoRicevutaCella forma="pulsante" id={String(f.id)} numero={String(f.numero_fattura??'')} tipo={String(f.tipo_documento??'')} pagataIl={f.pagata_il?String(f.pagata_il):null} />)}
+        </DialogFooter>
       </Contenuto>
     </Radice>
     </>

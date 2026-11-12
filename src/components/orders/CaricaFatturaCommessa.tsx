@@ -43,6 +43,23 @@ async function motivoErrore(error: unknown): Promise<string> {
 }
 
 export async function collegaFatturaACommessa(fatturaId: string, orderId: string): Promise<string> {
+  // L'importazione XML può aver già riconosciuto l'OdA dal documento.
+  // In quel caso si contabilizza sul suo costo nativo, senza creare un secondo costo diretto.
+  const { data: fattura, error: lettura } = await db.from("fatture_ricevute")
+    .select("company_id, purchase_order_id").eq("id", fatturaId).single();
+  if (lettura) throw new Error(lettura.message);
+  if (fattura.purchase_order_id) {
+    const { data: ordine, error: letturaOrdine } = await db.from("purchase_orders")
+      .select("order_id, orders(commessa_generale_id)").eq("id", fattura.purchase_order_id).eq("company_id", fattura.company_id).single();
+    if (letturaOrdine) throw new Error(letturaOrdine.message);
+    const commessa = Array.isArray(ordine.orders) ? ordine.orders[0] : ordine.orders;
+    if (ordine.order_id !== orderId && commessa?.commessa_generale_id !== orderId) {
+      throw new Error("La fattura è già collegata a un ordine d'acquisto di un'altra commessa. Verifica i collegamenti dalla fattura ricevuta.");
+    }
+    const { error } = await db.rpc("contabilizza_fattura_ricevuta", { p_fattura_id: fatturaId });
+    if (error) throw new Error(error.message);
+    return "contabilizzata_su_ordine";
+  }
   const { data, error } = await db.rpc("commessa_collega_fattura_ricevuta", { p_fattura_id: fatturaId, p_order_id: orderId });
   if (error) throw new Error(error.message);
   return (data as { esito?: string } | null)?.esito ?? "collegata";

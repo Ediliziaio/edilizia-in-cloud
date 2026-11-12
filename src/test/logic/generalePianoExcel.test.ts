@@ -233,3 +233,11 @@ describe("lettura dal database", () => {
     expect(dataDaMese("marzo")).toBeNull();
   });
 });
+
+
+it.each(["appalto", "sviluppo", "compravendita"] as const)("le voci tipiche di %s non trasformano costi sconosciuti in zeri confermati", modello => {
+  const voci = vociDiPartenza(modello, "2026-11", 100000);
+  expect(voci.filter(v => v.tipo === "costo").every(v => v.nota === "[EIC:DA_STIMARE]")).toBe(true);
+  expect(voci.find(v => v.tipo === "ricavo")?.nota).toBeNull();
+  expect(vociDiPartenza(modello, "2026-11", null).every(v => v.nota === "[EIC:DA_STIMARE]")).toBe(true);
+});

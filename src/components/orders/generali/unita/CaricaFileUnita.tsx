@@ -6,7 +6,8 @@ import { useMemo, useRef, useState } from "react";
 import { Check, FolderUp, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentGenerale as DialogContent } from "@/components/orders/generali/design/DialogGenerale";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { messaggioDocumenti, useCaricaDocumentoVoce, useVociDocumentiAzienda } from "@/hooks/useGeneraleDocumenti";
@@ -69,7 +70,7 @@ export function CaricaFileUnita({ generaleId, modello, unita, onClose }: {
 
   return (
     <Dialog open onOpenChange={(aperta) => { if (!aperta && inCorso === null) onClose(); }}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent ampiezza="spazio" className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Carica i file delle unità</DialogTitle>
           <DialogDescription>Scegli più file insieme: quelli con la sigla nel nome («A1.pdf») vanno da soli sull'unità giusta.</DialogDescription>

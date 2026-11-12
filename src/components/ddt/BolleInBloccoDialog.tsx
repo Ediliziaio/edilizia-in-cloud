@@ -17,12 +17,12 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DialogContentOperativo as DialogContent } from "@/components/orders/generali/design/ContestoOperativo";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -574,7 +574,7 @@ function BolleAperte({
         if (!salvando) onOpenChange(v);
       }}
     >
-      <DialogContent className="max-h-[94dvh] gap-0 overflow-hidden p-0 sm:max-w-6xl">
+      <DialogContent struttura="contenuta" className="max-h-[94dvh] gap-0 overflow-hidden p-0 sm:max-w-6xl">
         <DialogHeader className="border-b bg-muted/20 px-6 py-5">
           <DialogTitle>Carica più bolle</DialogTitle>
           <DialogDescription>

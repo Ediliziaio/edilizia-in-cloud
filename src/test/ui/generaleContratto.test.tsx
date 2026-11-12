@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RiepilogoGenerale, TotaliGenerale } from "@/lib/orders/commesseGenerali";
 import { CONTRATTO_VUOTO, formattaEuroContratto, type DatiContratto } from "@/lib/orders/generali/contratto";
@@ -39,6 +39,7 @@ vi.mock("@/hooks/useGeneraleContrattoElenco", () => ({
 import { modulo } from "@/components/orders/generali/moduli/ContrattoScheda";
 import { SchedaContratto } from "@/components/orders/generali/contratto/SchedaContratto";
 import { RiquadroContratto } from "@/components/orders/generali/contratto/RiquadroContratto";
+import { NuovoSalDialog } from "@/components/orders/generali/contratto/NuovoSalDialog";
 
 const riepilogo: RiepilogoGenerale = {
   generale: { id: "g", codice: "C-014", nome: "Appalto scuole 2027", cliente: "Comune di Prova", clienteId: "cli", modello: "appalto", creataIl: null, valore: 980_000 },
@@ -89,6 +90,21 @@ describe("il modulo si aggancia alla pagina della generale", () => {
 });
 
 describe("la scheda del contratto", () => {
+  it("un secondo SAL nello stesso giorno parte da un periodo valido", () => {
+    disegna(<NuovoSalDialog open onOpenChange={vi.fn()} generaleId="g" contratto={conContratto().contratto!} figlie={riepilogo.figlie} ultimoAl="2026-10-31" />);
+    expect(screen.getByLabelText("Lavori dal")).toHaveValue("2026-10-31");
+    expect(screen.getByLabelText("Lavori fino al")).toHaveValue("2026-10-31");
+    expect(screen.getByRole("button", { name: "Avanti" })).toBeEnabled();
+  });
+  it("cambiare sezione conserva un collegamento completo al contratto", () => {
+    const Indirizzo = () => <output aria-label="Indirizzo attuale">{useLocation().search}</output>;
+    disegna(<><SchedaContratto riepilogo={riepilogo} totali={totali} puoModificare /><Indirizzo /></>, "/azienda/ordini/g?sezione=sal&filtro=aperti");
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /Elenco prezzi/ }), { button: 0, ctrlKey: false });
+    const query = new URLSearchParams(screen.getByLabelText("Indirizzo attuale").textContent ?? "");
+    expect(query.get("scheda")).toBe("contratto");
+    expect(query.get("sezione")).toBe("elenco");
+    expect(query.get("filtro")).toBe("aperti");
+  });
   it("senza contratto dice il prossimo passo invece di uno zero", () => {
     m.dati = { ...conContratto(), contratto: null, atti: [], garanzie: [], sal: [] };
     disegna(<SchedaContratto riepilogo={riepilogo} totali={totali} puoModificare />);

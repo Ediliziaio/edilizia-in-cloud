@@ -42,9 +42,12 @@ export interface MovimentoUnita {
   importo: number | null;
   data: string;
   descrizione: string | null;
+  importoCassa?: number | null;
+  primaNotaId?: string | null;
 }
 
 export interface UnitaGenerale {
+  aliquotaIva?: number | null;
   /** La commessa figlia: la chiave dell'unità (1:1). */
   orderId: string;
   codice: string | null;
@@ -116,6 +119,7 @@ export function leggiElencoUnita(data: unknown): ElencoUnita | null {
       const movimenti = Array.isArray(u?.movimenti) ? (u!.movimenti as Record<string, unknown>[]) : [];
       return {
         orderId: f.order_id as string,
+        aliquotaIva: numero(f.aliquota_iva),
         codice: testo(f.codice),
         nome: testo(f.nome) ?? "Unità senza nome",
         scheda: !!u,
@@ -150,6 +154,8 @@ export function leggiElencoUnita(data: unknown): ElencoUnita | null {
             importo: numero(m.importo),
             data: testo(m.data) ?? "",
             descrizione: testo(m.descrizione),
+            importoCassa: numero(m.importo_cassa),
+            primaNotaId: testo(m.prima_nota_id),
           })),
         importoCommessa,
         costoDiretto: numero(f.costo),
@@ -231,6 +237,8 @@ export function tipiMovimentoAmmessi(stato: StatoVendita): TipoMovimento[] {
 }
 
 export interface DatiCambioStato {
+  caparraCassa?: number | null;
+  saldoCassa?: number | null;
   acquirenteId: string | null;
   data: string | null;
   prezzo: number | null;
@@ -263,6 +271,15 @@ export function erroriCambioStato(
     if (n !== null && n < 0) errori.push(`${etichetta} non può essere negativo.`);
   }
   return errori;
+}
+
+/** Il movimento paga il prezzo netto dell'unità, comprese le permute. */
+export function errorePagamentoUnita(importo: number | null, residuo: number | null, data: string, oggi: string): string | null {
+  if (importo === null || !Number.isFinite(importo) || importo <= 0) return "Scrivi un importo maggiore di zero.";
+  if (!data || !/^\d{4}-\d{2}-\d{2}$/.test(data)) return "Indica la data del pagamento.";
+  if (data > oggi) return "Un pagamento incassato non può avere una data futura.";
+  if (residuo !== null && Math.round(importo * 100) > Math.round(residuo * 100)) return "L'importo supera il residuo dell'unità.";
+  return null;
 }
 
 // ── Piani ed edifici ─────────────────────────────────────────────────────────

@@ -2,7 +2,8 @@ import "@testing-library/jest-dom/vitest";
 import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
+import { ContestoDocumentoPopup } from "@/lib/orders/documentoPopup";
 const m = vi.hoisted(() => ({
   create: vi.fn(), upload: vi.fn(), close: vi.fn(), created: vi.fn(), invoke: vi.fn(), carica: vi.fn(),
 }));
@@ -53,6 +54,19 @@ function open(prefill: string | null = "p") {
 const compila = () => fireEvent.click(screen.getByRole("button", { name: "Compila ora" }));
 
 describe("Nuovo DDT in un solo passaggio (12/11/2026)", () => {
+  it("dal popup della generale registra col nuovo flusso e apre il DDT senza cambiare pagina", async () => {
+    const vai = vi.fn(() => true);
+    function Indirizzo() { return <output aria-label="Indirizzo attuale">{useLocation().pathname}</output>; }
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter initialEntries={["/azienda/ordini/generale"]}><ContestoDocumentoPopup value={{ vai, dentroIlPopup: true }}><NewDDTDialog open prefillPurchaseOrderId="p" onOpenChange={m.close} /></ContestoDocumentoPopup><Indirizzo /></MemoryRouter></QueryClientProvider>);
+    compila();
+    fireEvent.change(screen.getByLabelText("Numero bolla"), { target: { value: "DDT-SIM" } });
+    fireEvent.change(screen.getByLabelText("Quantità ricevuta"), { target: { value: "5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Registra DDT" }));
+    await waitFor(() => expect(vai).toHaveBeenCalledWith("/azienda/ddt/d"));
+    expect(screen.getByLabelText("Indirizzo attuale")).toHaveTextContent("/azienda/ordini/generale");
+    expect(m.create).toHaveBeenCalledTimes(1);
+  });
+
   it("senza documento non si salva «dopo»; compilando, numero e contenuto bloccano la registrazione", () => {
     open();
     expect(screen.getByRole("button", { name: "Salva e compila dopo" })).toBeDisabled();

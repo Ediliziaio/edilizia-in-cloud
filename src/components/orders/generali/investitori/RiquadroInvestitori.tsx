@@ -3,11 +3,11 @@
 // capitale massimo impegnato del piano, e il rendimento atteso. Lo vede chi vede i margini.
 import { useSearchParams } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Landmark } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { PropsScheda } from "@/components/orders/generali/tipiScheda";
-import { euro, nomeMese, percento } from "@/components/orders/generali/piano/formato";
+import { euro } from "@/components/orders/generali/piano/formato";
 import { useGeneraleInvestitori } from "@/hooks/useGeneraleInvestitori";
 import { cn } from "@/lib/utils";
 
@@ -36,7 +36,7 @@ export function RiquadroInvestitori({ riepilogo }: PropsScheda) {
 
   const intestazione = (
     <div className="flex items-center justify-between gap-2">
-      <h2 className="text-sm font-semibold">Investitori</h2>
+      <h2 className="flex items-center gap-2 text-sm font-semibold"><span className="generale-section-icon"><Landmark aria-hidden="true" /></span>Investitori</h2>
       {!telefono && (
         <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={apri}>
           Apri gli investitori <ArrowRight className="ml-1 h-3.5 w-3.5" />
@@ -67,29 +67,14 @@ export function RiquadroInvestitori({ riepilogo }: PropsScheda) {
   }
 
   const n = inv.numeri;
-  const massimo = n?.capitaleMassimo ?? null;
-  // Rendimento atteso dell'operazione (prima del debito) e dei mezzi propri (dopo debito e investitori).
-  const { progetto, mezziPropri, leva } = c.rendimenti;
-  const rendimento = progetto.roi;
   return (
-    <section aria-label="Investitori" className="rounded-lg border bg-card px-4 py-3">
+    <section aria-label="Investitori" className="generale-panel px-4 py-4">
       {intestazione}
       <div className="mt-2 grid grid-cols-2 gap-3">
         <Numero etichetta="Capitale ancora dentro" valore={euro(c.totali.dentro)} nota={`impegni ${euro(c.totali.impegno)}`} />
-        <Numero etichetta="Capitale massimo impegnato" valore={euro(massimo)} nota={n?.meseCapitaleMassimo ? `a ${nomeMese(n.meseCapitaleMassimo)}` : n ? undefined : "serve il piano economico"} />
-        <Numero
-          etichetta="Rendimento atteso"
-          valore={percento(rendimento)}
-          tono={rendimento !== null && rendimento < 0 ? "text-destructive" : undefined}
-          nota={n ? `ROI dell'operazione${progetto.tir !== null ? ` · TIR ${percento(progetto.tir)}` : ""}` : undefined}
-        />
-        <Numero
-          etichetta="Rendimento dei mezzi propri"
-          valore={percento(mezziPropri?.roe ?? null)}
-          tono={mezziPropri?.roe != null && mezziPropri.roe < 0 ? "text-destructive" : undefined}
-          nota={mezziPropri ? (leva !== null ? `ROE · leva ${leva >= 0 ? "+" : "−"}${Math.abs(Math.round(leva * 1000) / 10).toLocaleString("it-IT")} punti` : "ROE") : "aggiungi i mezzi propri"}
-        />
+        <Numero etichetta="Ancora da versare" valore={euro(c.totali.daVersare)} nota="impegni non ancora versati" />
       </div>
+      <dl className="generale-mini-sources mt-3 border-t pt-3">{c.copertura.map(g => <div key={g.gruppo}><dt>{g.nome}</dt><dd>{euro(g.dentro)}</dd></div>)}</dl>
       {c.costoDebito.totale >= 1 && (
         <p className="mt-2 text-xs text-muted-foreground">Costo del debito stimato: {euro(c.costoDebito.totale)} tra interessi e spese.</p>
       )}

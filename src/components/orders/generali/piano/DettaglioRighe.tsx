@@ -2,7 +2,8 @@
 // «Ogni numero dice da dove viene» (piano §3.1 punto 2): le righe che compongono un numero
 // del reale — spese, ordini d'acquisto, ore, squadre, fatture — con la commessa di ognuna.
 import { Link } from "react-router-dom";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentOperativo as DialogContent } from "../design/ContestoOperativo";
 import { dataBreve, euro } from "@/components/orders/generali/piano/formato";
 import { FONTI_REALI } from "@/lib/orders/generali/pianoCategorie";
 import type { RigaReale } from "@/lib/orders/generali/pianoConti";

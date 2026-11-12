@@ -3,12 +3,12 @@
 // finale) e capitale impegnato. Usa la versione approvata (la bozza se non ce n'è).
 import { useSearchParams } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ChartNoAxesCombined } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { PropsScheda } from "@/components/orders/generali/tipiScheda";
-import { euro, euroSegno, nomeMese, nomePiano, tonoScostamento } from "@/components/orders/generali/piano/formato";
+import { euro, euroSegno, nomePiano, tonoScostamento } from "@/components/orders/generali/piano/formato";
 import { useGeneralePianoNumeri } from "@/hooks/useGeneralePiano";
 import { cn } from "@/lib/utils";
 
@@ -38,7 +38,7 @@ export function RiquadroPiano({ riepilogo }: PropsScheda) {
   const intestazione = (
     <div className="flex items-center justify-between gap-2">
       <h2 className="flex items-center gap-2 text-sm font-semibold">
-        Piano economico
+        <span className="generale-section-icon"><ChartNoAxesCombined aria-hidden="true" /></span>Piano economico
         {n.inVista?.stato === "bozza" && <Badge variant="outline" className="font-normal">bozza, non approvato</Badge>}
       </h2>
       {!telefono && (
@@ -73,24 +73,19 @@ export function RiquadroPiano({ riepilogo }: PropsScheda) {
   const t = n.piano.confronto.totali.margine;
   const c = n.piano.capitale;
   return (
-    <section aria-label="Piano economico" className="rounded-lg border bg-card px-4 py-3">
+    <section aria-label="Piano economico" className="generale-panel px-4 py-4">
       {intestazione}
       <div className="mt-2 grid grid-cols-2 gap-3">
-        <Numero etichetta="Margine previsto" valore={euro(t.previsto)} nota={n.inVista ? `versione ${n.inVista.numero}` : undefined} />
+        <Numero etichetta="Margine previsto" valore={euro(n.piano.budgetCompleto === false ? null : t.previsto)} nota={n.piano.budgetCompleto === false ? "completa le stime mancanti" : n.inVista ? `versione ${n.inVista.numero}` : undefined} />
         <Numero
-          etichetta="Margine a finire (stima)"
-          valore={euro(t.stima)}
-          tono={t.stima < 0 ? "text-destructive" : undefined}
-          nota={`${euroSegno(t.scostamento)} sul previsto`}
-        />
-        <Numero
-          etichetta="Capitale massimo impegnato"
-          valore={euro(c.massimoStima)}
-          nota={c.meseMassimoStima ? `a ${nomeMese(c.meseMassimoStima)}` : undefined}
+          etichetta="Scostamento del margine"
+          valore={n.piano.budgetCompleto === false ? "—" : euroSegno(t.scostamento)}
+          tono={t.scostamento < 0 ? "text-destructive" : undefined}
+          nota={n.piano.budgetCompleto === false ? "completa le stime mancanti" : "stima finale rispetto al previsto"}
         />
         <Numero etichetta="Capitale investito a oggi" valore={euro(c.investitoOggi)} nota="costi registrati meno incassi" />
       </div>
-      {Math.abs(t.scostamento) >= 1 && (
+      {n.piano.budgetCompleto !== false && Math.abs(t.scostamento) >= 1 && (
         <p className={cn("mt-2 text-xs", tonoScostamento(t.scostamento, "margine"))}>
           {t.scostamento < 0
             ? `La stima finale è sotto il previsto di ${euro(-t.scostamento)}: apri il piano per vedere quali voci pesano.`

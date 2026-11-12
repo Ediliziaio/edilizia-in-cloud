@@ -13,6 +13,8 @@ import { isValidEmail } from "@/lib/email/preferencesValidators";
 import type { TablesUpdate } from "@/integrations/supabase/types";
 import { aggiornamentoDettagliOda } from "@/lib/orders/dettagliDocumentoOda";
 import { OfficeSelect } from "./OfficeSelect";
+import { Dialog, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { DialogContentOperativo } from "./generali/design/ContestoOperativo";
 
 export function OdaDettagliCard({documento,orderId,internalNotes,condizioniFornitore,paymentMethod,canEdit,aliquotaFornitore,onImpostaIvaRighe,onSave,onEditingChange}: {
   documento:DocumentoOperativo; orderId:string | null; internalNotes:string | null; condizioniFornitore:string;
@@ -21,8 +23,7 @@ export function OdaDettagliCard({documento,orderId,internalNotes,condizioniForni
   const [editing,setEditing] = useState(false);
   const cambiaEditing = (v:boolean) => {setEditing(v);onEditingChange?.(v);};
   const dato = (label:string,value?:ReactNode) => <div><dt className="text-xs text-slate-500">{label}</dt><dd className="mt-1 whitespace-pre-wrap break-words text-sm font-medium text-slate-800">{value || <span className="font-normal text-slate-400">Non indicato</span>}</dd></div>;
-  return <QuoteCard title="Dettagli ordine e pagamento" icon={<CreditCard className="h-4 w-4" />} action={canEdit && !editing && <Button size="sm" variant="outline" onClick={()=>cambiaEditing(true)}><Pencil className="mr-1.5 h-3.5 w-3.5" />Modifica dettagli</Button>}>
-    {editing ? <DettagliForm documento={documento} orderId={orderId} internalNotes={internalNotes} condizioniFornitore={condizioniFornitore} paymentMethod={paymentMethod} aliquotaFornitore={aliquotaFornitore} onImpostaIvaRighe={onImpostaIvaRighe} onSave={async patch=>{await onSave(patch);cambiaEditing(false);}} onCancel={()=>cambiaEditing(false)} /> : <>
+  return <><QuoteCard title="Dettagli ordine e pagamento" icon={<CreditCard className="h-4 w-4" />} action={canEdit && !editing && <Button size="sm" variant="outline" onClick={()=>cambiaEditing(true)}><Pencil className="mr-1.5 h-3.5 w-3.5" />Modifica dettagli</Button>}>
       <div className="mb-5 rounded-xl border border-orange-100 bg-orange-50/60 p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Condizioni di pagamento dell’ordine</p>
         <p className="mt-1 whitespace-pre-wrap text-sm font-semibold text-slate-900">{documento.pagamento || condizioniFornitore}</p>
@@ -40,8 +41,13 @@ export function OdaDettagliCard({documento,orderId,internalNotes,condizioniForni
         {dato("Indirizzo di destinazione",documento.luogo)}{dato("Referente per la consegna",documento.referenteConsegna)}{dato("Istruzioni di consegna",documento.noteConsegna)}
       </dl>
       {(documento.condizioni || internalNotes) && <dl className="mt-5 grid gap-4 border-t border-slate-100 pt-4 sm:grid-cols-2">{dato("Condizioni aggiuntive",documento.condizioni)}{dato("Note interne (escluse da PDF ed email)",internalNotes)}</dl>}
-    </>}
-  </QuoteCard>;
+  </QuoteCard>
+  {editing && <Dialog open onOpenChange={cambiaEditing}>
+    <DialogContentOperativo struttura="contenuta">
+      <DialogHeader><DialogTitle>Dettagli ordine e pagamento</DialogTitle><DialogDescription>Condizioni, destinatario e istruzioni di consegna dell’ordine.</DialogDescription></DialogHeader>
+      <DettagliForm documento={documento} orderId={orderId} internalNotes={internalNotes} condizioniFornitore={condizioniFornitore} paymentMethod={paymentMethod} aliquotaFornitore={aliquotaFornitore} onImpostaIvaRighe={onImpostaIvaRighe} onSave={async patch=>{await onSave(patch);cambiaEditing(false);}} onCancel={()=>cambiaEditing(false)} />
+    </DialogContentOperativo>
+  </Dialog>}</>;
 }
 
 function DettagliForm({documento,orderId,internalNotes,condizioniFornitore,paymentMethod,aliquotaFornitore,onImpostaIvaRighe,onSave,onCancel}: {
@@ -68,9 +74,9 @@ function DettagliForm({documento,orderId,internalNotes,condizioniFornitore,payme
   catch {setError("Dettagli non salvati. Le modifiche sono ancora qui: riprova.");setSaving(false);}
  };
  const campo=(label:string,key:"data"|"consegna"|"riferimento"|"codiceCliente"|"referente"|"referenteEmail"|"referenteTelefono",type="text")=><div><Label htmlFor={`oda-${key}`}>{label}</Label><Input id={`oda-${key}`} type={type} maxLength={1000} value={d[key] || ""} onChange={e=>cambia(key,e.target.value)} /></div>;
- return <form onSubmit={salva} className="space-y-4">
+ return <form onSubmit={salva} className="commessa-modal-form">
   <p className="text-sm text-slate-500">Questi dati si salvano sull’ordine e vengono ripresi nel PDF e nelle email. L’anagrafica del fornitore si modifica nel riquadro Fornitore.</p>
-  <fieldset disabled={saving} className="space-y-5">
+  <div className="commessa-modal-body"><fieldset disabled={saving} className="min-w-0 space-y-5">
    <div className="rounded-xl border border-orange-100 bg-orange-50/60 p-4">
     <Label htmlFor="oda-metodo-pagamento">Metodo di pagamento</Label>
     <OfficeSelect id="oda-metodo-pagamento" label="Metodo di pagamento" value={metodo} onValueChange={setMetodo} className="mb-3 mt-1"
@@ -107,7 +113,7 @@ function DettagliForm({documento,orderId,internalNotes,condizioniFornitore,payme
    </div>
    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!d.noteNelMessaggio} onChange={e=>cambia("noteNelMessaggio",e.target.checked)} />Riporta le note anche nel messaggio che accompagna il PDF</label>
    {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-   <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4"><Button type="button" variant="ghost" onClick={onCancel}>Annulla</Button><Button type="submit">{saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Salva dettagli ordine</Button></div>
-  </fieldset>
+   </fieldset></div>
+   <div className="commessa-inline-actions"><Button type="button" disabled={saving} variant="ghost" onClick={onCancel}>Annulla</Button><Button type="submit" disabled={saving}>{saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Salva dettagli ordine</Button></div>
  </form>;
 }

@@ -13,6 +13,11 @@ describe("documenti in popup", () => {
     expect(documentoDaPercorso("/azienda/documenti/fatture-ricevute")).toBeNull();
     expect(documentoDaPercorso("/azienda/documenti/tipi-fornitori")).toBeNull();
   });
+  it("conserva il comando di arrivo senza cambiare l’id o il percorso del documento", () => {
+    expect(documentoDaPercorso("/azienda/ordini-acquisto/b2?arrivo=1&commessa-generale=g#righe")).toEqual({
+      tipo: "oda", id: "b2", percorso: "/azienda/ordini-acquisto/b2", ricerca: "?arrivo=1&commessa-generale=g",
+    });
+  });
   it("il resto non si apre in popup", () => {
     for (const p of ["/azienda/ordini/x", "/azienda/ordini-acquisto", "/azienda/ddt/a/b", "https://x.it/azienda/ddt/a", "/azienda/magazzino"]) expect(documentoDaPercorso(p)).toBeNull();
   });

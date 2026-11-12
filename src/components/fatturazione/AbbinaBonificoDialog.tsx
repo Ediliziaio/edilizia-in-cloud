@@ -1,14 +1,8 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Landmark, Loader2, Search } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { DialogBody as CorpoDialogOperativo, Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentOperativo as DialogContent } from "@/components/orders/generali/design/ContestoOperativo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -45,7 +39,7 @@ interface Props {
 export function AbbinaBonificoDialog({ open, onOpenChange, doc, incassi }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent struttura="contenuta" ampiezza="modulo" className="sm:max-w-xl">
         {open && <SceltaNativa doc={doc} incassi={incassi} onOpenChange={onOpenChange} />}
       </DialogContent>
     </Dialog>
@@ -156,6 +150,7 @@ export function SceltaBonifico({ fattura, incassi, banca, inCorso, onAbbina, onC
           {residuo > 0 ? ` · da incassare ${formatCurrency(residuo)}` : " · già incassata"}. Scegli l'accredito che la paga.
         </DialogDescription>
       </DialogHeader>
+      <CorpoDialogOperativo>
 
       {banca.isLoading ? (
         <div className="flex justify-center py-8">
@@ -273,6 +268,7 @@ export function SceltaBonifico({ fattura, incassi, banca, inCorso, onAbbina, onC
         </p>
       )}
 
+      </CorpoDialogOperativo>
       <DialogFooter>
         <Button variant="outline" onClick={onChiudi} disabled={inCorso} className="max-sm:hidden">
           Annulla

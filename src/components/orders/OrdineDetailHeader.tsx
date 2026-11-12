@@ -1,3 +1,4 @@
+import "./commessa-workspace.css";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { Banknote, ChevronRight, HardHat, Pencil, ClipboardList } from "lucide-react";
@@ -12,6 +13,7 @@ interface OrdineDetailHeaderProps {
   descrizione: string;
   dataCreazione: string;
   nomeCliente: string;
+  referente?: string;
   /** Tipo ordine: 'appaltatore_lavoro' mostra badge dedicato. */
   orderType?: "cliente" | "appaltatore_lavoro" | null;
   onModifica: () => void;
@@ -31,6 +33,7 @@ export function OrdineDetailHeader({
   descrizione,
   dataCreazione,
   nomeCliente,
+  referente,
   orderType,
   onModifica,
   onRegistraIncasso,
@@ -42,10 +45,10 @@ export function OrdineDetailHeader({
   const isAppaltatoreLavoro = orderType === "appaltatore_lavoro";
   const navigate = useNavigate();
   return (
-    <div className="bg-white border-b border-slate-200 px-3 sm:px-6 py-3 sm:py-5 max-sm:py-2.5">
+    <header className="commessa-detail-header border-b border-slate-200 bg-white px-3 py-3 sm:px-6">
       {/* Breadcrumb (mobile no: la freccia indietro dell'app c'è già, e il
           codice sta nella riga sotto il titolo) */}
-      <div className="hidden sm:flex items-center gap-1 text-xs text-slate-400 mb-2 sm:mb-3 flex-wrap">
+      <div className="hidden sm:flex items-center gap-1 text-xs text-slate-500 mb-2 flex-wrap">
         <span
           className="cursor-pointer hover:text-orange-500 font-medium"
           onClick={() => navigate("/azienda/ordini")}
@@ -64,34 +67,35 @@ export function OrdineDetailHeader({
         )}
       </div>
       {/* Title row */}
-      <div className="flex items-start justify-between gap-3 sm:gap-4 flex-col sm:flex-row sm:flex-wrap max-sm:gap-2">
-        <div className="flex items-start gap-2.5 sm:gap-3 min-w-0 w-full sm:w-auto">
-          <div className="hidden sm:flex h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+      <div className="commessa-heading-row">
+        <div className="commessa-heading-copy flex items-start gap-3 min-w-0">
+          <div className="commessa-heading-icon hidden sm:flex">
             <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="text-base sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight line-clamp-2 sm:line-clamp-none max-sm:text-[15px]">
+            <h1 className="commessa-heading-title">
               {descrizione || "Commessa senza descrizione"}
             </h1>
             {/* Da telefono codice e cliente dividono la riga con le icone: una fila in meno. */}
             <div className="mt-0.5 flex items-center gap-2">
-              <p className="min-w-0 flex-1 truncate text-xs text-slate-500 sm:text-sm">
+              <p className="min-w-0 flex-1 break-words text-xs text-slate-500 sm:text-sm">
                 <span className="sm:hidden font-mono font-semibold text-slate-600">{orderCode} · </span>
                 <span className="max-sm:hidden">{(() => { try { return format(new Date(dataCreazione), "dd MMM yyyy", { locale: it }); } catch { return "—"; } })()} · </span>
                 <span className="font-medium text-slate-700">{nomeCliente}</span>
               </p>
               {isMobile && azioniTelefono && <div className="flex shrink-0 items-center gap-1.5">{azioniTelefono}</div>}
             </div>
+            {referente?.trim() && referente.trim() !== nomeCliente.trim() && <p className="mt-1 text-xs text-slate-500">Referente: {referente}</p>}
           </div>
         </div>
-        {!isMobile && <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-wrap justify-end w-full sm:w-auto">
+        {!isMobile && <div className="commessa-page-actions">
           {/* Primary: Registra incasso — sempre visibile, porta al piano rate */}
           {/* Da telefono no: gli incassi si registrano da Economia. */}
           {!isMobile && canRegisterPayment && (
             <QuotePrimaryButton
               size="sm"
               onClick={onRegistraIncasso}
-              className="tap-compact flex-1 sm:flex-none whitespace-nowrap max-sm:h-9"
+              className="commessa-primary-action tap-compact whitespace-nowrap"
             >
               <Banknote className="h-3.5 w-3.5" />
               Registra incasso
@@ -113,6 +117,6 @@ export function OrdineDetailHeader({
           )}
         </div>}
       </div>
-    </div>
+    </header>
   );
 }

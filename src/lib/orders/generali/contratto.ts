@@ -9,6 +9,7 @@
 export type TipoAtto = "atto_aggiuntivo" | "variante" | "proroga";
 export type TipoGaranzia = "cauzione_definitiva" | "garanzia_anticipazione" | "car" | "rata_saldo" | "altra";
 export type TipoVoceSal = "avanzamento" | "misure" | "sicurezza";
+export const SEZIONI_CONTRATTO = ["contratto", "sal", "elenco", "misure", "subappalti"] as const;
 
 export const TIPI_ATTO: Record<TipoAtto, string> = {
   atto_aggiuntivo: "Atto aggiuntivo",

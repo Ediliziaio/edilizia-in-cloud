@@ -11,6 +11,7 @@
  * 20281031250000): le stesse regole di chi registra i pagamenti.
  */
 import { useMemo, useState, type ReactNode } from "react";
+import { Link } from 'react-router-dom';
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Paperclip, Receipt, Wallet } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -66,7 +67,7 @@ interface Props {
 
 export function QuadroPagamentiCommessa({ orderId, mostraIncassi, mostraUscite, onApriUscite, incassi, conIva = true }: Props) {
   const { data, isLoading, isError, refetch } = useQuadroPagamenti(orderId);
-  const totali = useMemo(() => totaliQuadro({ rate: data?.rate ?? [], uscite: data?.uscite ?? [] }), [data]);
+  const totali = useMemo(() => totaliQuadro({ rate: data?.rate ?? [], uscite: data?.uscite ?? [],crediti_misura:data?.crediti_misura,incassi_unita:data?.incassi_unita }), [data]);
 
   if (!mostraIncassi && !mostraUscite) return null;
   if (isError) return <ErroreLettura onRiprova={() => void refetch()} />;
@@ -94,7 +95,9 @@ export function QuadroPagamentiCommessa({ orderId, mostraIncassi, mostraUscite, 
       )}
 
       {/* ── Incassi dal cliente: le rate ── */}
-      {incassi}
+      {mostraIncassi && data.crediti_misura ? <Card><CardHeader><CardTitle className="text-base">Crediti da documenti emessi</CardTitle></CardHeader><CardContent className="space-y-3"><p className="text-sm text-muted-foreground">L’importo della commessa a misura è una stima. Rapportini e SAL in bozza restano da rendicontare; diventano crediti solo con il documento emesso.</p>
+        {data.crediti_misura.documenti.length ? <ul className="divide-y">{data.crediti_misura.documenti.map(d=><li key={d.id} className="flex flex-wrap justify-between gap-2 py-3 text-sm"><Link className="font-medium text-primary underline" to={d.nativo?`/azienda/documenti/${d.id}/dettaglio`:'/azienda/documenti/emesse-importate'}>{d.numero}</Link><span>Emesso {formatCurrency(d.totale)} · Incassato {formatCurrency(d.incassato)} · Residuo {formatCurrency(d.residuo)}{d.scadenza?` · ${dataIt(d.scadenza)}`:''}</span></li>)}</ul> : <p className="rounded-md bg-blue-50 p-3 text-sm text-blue-900">Nessun credito emesso. Prosegui dal rendiconto delle lavorazioni.</p>}
+      </CardContent></Card> : mostraIncassi && data.incassi_unita ? <Card><CardHeader><CardTitle className="text-base">Incassi dell’unità collegati alla prima nota</CardTitle></CardHeader><CardContent className="space-y-3"><p className="text-sm text-muted-foreground">Caparra, acconti e saldo si registrano in Unità e vendite. Questa vista legge la stessa cassa effettiva; le permute coprono il prezzo senza generare entrate.</p>{data.incassi_unita.da_collegare>0 && <p className="text-sm text-amber-800">{data.incassi_unita.da_collegare} incassi storici ancora da collegare esplicitamente alla prima nota.</p>}{data.incassi_unita.generale_id && <Link className="text-sm font-medium text-primary underline" to={`/azienda/ordini/${data.incassi_unita.generale_id}?scheda=unita`}>Apri Unità e vendite della commessa generale</Link>}</CardContent></Card> : incassi}
 
       {/* ── SAL al cliente ── */}
       {mostraIncassi && data.sal_cliente.length > 0 && <SalCliente sal={data.sal_cliente} />}
@@ -136,17 +139,18 @@ export function UsciteCommessa({ orderId, onApriSubappalti, onApriMezzi }: {
       {odaAperto && <PurchasePaymentsDialog orderId={odaAperto} onClose={() => setOdaAperto(null)} />}
       <RiquadroCommessa
         icona={<Receipt className="h-5 w-5 text-primary" aria-hidden="true" />}
+        descrizione="Importi pagati e residui, con scadenze e movimenti riconciliati."
         titolo="Pagamenti della commessa" conteggio={uscite.length}
         riassunto={scaduteUscite > 0 ? <span className="font-medium text-red-700">{scaduteUscite} scaduti</span> : undefined}
         numeri={<>
-          <dl className="grid grid-cols-2 gap-3 rounded-md border bg-muted/20 p-3 sm:max-w-xl">
+          <dl className="commessa-totali grid grid-cols-2 gap-3 rounded-md border bg-muted/20 p-3 sm:max-w-xl">
             <NumeroUscite titolo="Pagato" valore={totali.pagato} />
             <NumeroUscite titolo="Da pagare" valore={totali.daPagare} evidenza={totali.pagamentoScaduto > 0 ? "rosso" : "ambra"}
               nota={[totali.pagamentoScaduto > 0 ? `${formatCurrency(totali.pagamentoScaduto)} scaduti` : null,
                 totali.impegnato > 0 ? `+ ${formatCurrency(totali.impegnato)} ordinati senza fattura` : null].filter(Boolean).join(" · ") || undefined} />
           </dl>
           {uscite.length > 0 && (
-            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtra i pagamenti">
+            <div className="commessa-payment-filters flex flex-wrap gap-1.5" role="group" aria-label="Filtra i pagamenti">
               <Filtro attivo={filtro === "aperte"} onClick={() => setFiltro("aperte")}>Da pagare</Filtro>
               {scaduteUscite > 0 && <Filtro attivo={filtro === "scadute"} onClick={() => setFiltro("scadute")}>Scaduti ({scaduteUscite})</Filtro>}
               {categorie.map((c) => (

@@ -707,14 +707,14 @@ dei lavori» porta la sua soglia e matura al SAL che la raggiunge, «a completam
 strutture» porta il nome della fase e matura quando la fase si chiude, il collaudo resta
 il collaudo.
 
-Due code, scritte per intero in `docs/`: la regola di «al X% dei lavori» somma un importo
-che è già cumulativo (`sal_records.importo_totale` è «lavori a tutto il …»), quindi la
-soglia si raggiungerebbe troppo presto — la correzione è in
-`docs/sal-percentuale-importo-progressivo-20261112.sql` e, finché non è applicata, quel
-momento viaggia apposta come SAL numerato. Nessuna rata in produzione lo usa, quindi
-l'errore non ha fatto danni.
+La regola di «al X% dei lavori» è stata corretta il 12/11 (`20290313190000`): sommava gli
+importi dei SAL, ma `sal_records.importo_totale` è già il cumulativo («lavori a tutto il
+…»), e la soglia si sarebbe raggiunta troppo presto. Nessuna rata in produzione la usava,
+quindi l'errore non ha fatto danni; provata sui dati veri, su un contratto da 1.148.252 €
+con diciotto SAL dà il 31/05 al 10%, il 31/08 al 30% e nessuna data al 99%, che quei
+lavori non hanno mai raggiunto.
 
-E resta aperta **la ritenuta a garanzia dopo il preventivo**: la colonna sulla commessa
+Resta aperta **la ritenuta a garanzia dopo il preventivo**: la colonna sulla commessa
 c'è, ma come si comporta in fattura (importo pieno con incasso parziale, o fattura al
 netto con fattura di svincolo) è una decisione di prassi, scritta più sopra, che nessuno
 può prendere al posto del titolare.

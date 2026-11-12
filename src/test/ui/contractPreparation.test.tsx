@@ -18,6 +18,11 @@ describe("conferme del contratto nel modulo", () => {
     expect(screen.getByText("Saldo da Pagare").parentElement).toHaveTextContent("700,00");
     expect(screen.getByRole("combobox",{name:"Aliquota IVA"})).toHaveTextContent("0%");
   });
+  it("segnala la rata omessa e usa lo stesso saldo dichiarato nel riepilogo",()=>{
+    render(<FinancialSummary daContratto nuova totalAmount="1000" vatRate="10" paymentType="standard" installments={[{position:0,label:"Acconto",type:"deposit",amount:100,is_paid:false},{position:1,label:"Saldo",type:"balance",amount:770,is_paid:false,amount_from_contract:true}]} numInstallments={2} balance={1000} onInstallmentsChange={vi.fn()} onNumInstallmentsChange={vi.fn()} onTotalAmountChange={vi.fn()} onVatRateChange={vi.fn()} onPaymentTypeChange={vi.fn()} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Completa o correggi il piano");
+    expect(screen.getByText(/1 acconto per/)).toHaveTextContent("Saldo 770,00");
+  });
   it("IVA e rate assenti non diventano 22%, due rate, saldo o totale ivato", () => {
     render(<FinancialSummary daContratto nuova totalAmount="1000" vatRate="" paymentType="standard" installments={[]} numInstallments={0} balance={0} onInstallmentsChange={vi.fn()} onNumInstallmentsChange={vi.fn()} onTotalAmountChange={vi.fn()} onVatRateChange={vi.fn()} onPaymentTypeChange={vi.fn()} />);
     expect(screen.getByRole("combobox",{name:"Aliquota IVA"})).toHaveTextContent("Da confermare dal contratto");

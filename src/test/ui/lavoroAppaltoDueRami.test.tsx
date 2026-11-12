@@ -67,3 +67,10 @@ it("senza committente scelto il salvataggio resta chiuso e dice cosa manca", () 
   draw();
   expect(screen.getByText("Scegli il committente per continuare.")).toBeVisible();
 });
+
+it("1000 euro netti generano un saldo di 1220 euro IVA inclusa", () => {
+  draw();
+  fireEvent.change(screen.getByLabelText("Importo totale (€) — netto"), { target: { value: "1000" } });
+  expect(screen.getByDisplayValue("1.220,00")).toBeDisabled();
+  expect(screen.getByText("Totale IVA inclusa")).toBeVisible();
+});

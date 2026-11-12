@@ -8,11 +8,16 @@ import {
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ContestoRiconciliazione } from "../../../supabase/functions/_shared/riconciliazioneFattureAI";
+import type { AnalisiFatturaAI } from "@/hooks/useRiconciliazioneFatturaAI";
 const fake = vi.hoisted(() => ({
   documenti: [] as unknown[],
   isError: false,
   originali: false,
   salva: vi.fn(),
+  contesto: null as ContestoRiconciliazione | null,
+  contestoErrore: false,
+  contestoInCaricamento: false,
 }));
 vi.mock("@/hooks/useConfrontoFattura", () => ({
   useConfrontoFattura: () => ({
@@ -51,7 +56,12 @@ vi.mock("@/hooks/useRiconciliazioneFatturaAI", () => ({
     data: null as { ddt: string[]; oda: string[] } | null,
   }),
   useRiconciliazioneFatturaAI: () => ({
-    dati: {},
+    dati: {
+      data: fake.contesto ? { contesto: fake.contesto, analisi: null as AnalisiFatturaAI | null } : undefined,
+      isError: fake.contestoErrore,
+      isFetching: fake.contestoInCaricamento,
+      error: fake.contestoErrore ? new Error("Residui non disponibili") : null,
+    },
     analizza: { isPending: false },
     salva: {},
   }),
@@ -111,6 +121,9 @@ const r = {
   importo: 460,
 };
 beforeEach(() => {
+  fake.contesto = null;
+  fake.contestoErrore = false;
+  fake.contestoInCaricamento = false;
   fake.isError = false;
   fake.originali = false;
   fake.salva.mockReset().mockResolvedValue({ id: "link" });
@@ -163,6 +176,31 @@ const monta = (props = {}) =>
     </QueryClientProvider>,
   );
 describe("confronto affiancato della fattura", () => {
+  it("mostra il residuo fiscale canonico anche quando il caricamento storico non contiene le nuove ripartizioni", () => {
+    fake.contesto = {
+      fattura: { id: "f", company_id: "a", fornitore_id: "fornitore", tipo_documento: "TD01", righe: fattura.righe },
+      ddt: [{ id: "d", righe: [{ id: r.id, descrizione: r.descrizione, codice_articolo: r.codice, unita_misura: r.um, quantita: 40, prezzo_unitario: r.prezzo }] }],
+      oda: [],
+      valorizzazioni: [],
+      consumi: [{ ddt_id: "d", riga_id: r.id, fattura_id: "altra", quantita: 20 }],
+      altre_fatture: [],
+    };
+    fake.documenti[0] = { ...(fake.documenti[0] as object), bolle: [{ ...r, documentoId: "d", giaFatturata: 0, residuoIncerto: false }] };
+    monta();
+    const destra = screen.getByRole("region", { name: "DDT e ordini di confronto" });
+    expect(within(destra).getByText("Già fatturati: 20")).toBeTruthy();
+    expect(within(destra).getByText("Residuo: 20")).toBeTruthy();
+  });
+  it.each(["errore", "caricamento"])("non dà un esito coerente con i residui canonici in %s", (stato) => {
+    fake.contestoErrore = stato === "errore";
+    fake.contestoInCaricamento = stato === "caricamento";
+    fake.documenti[0] = { ...(fake.documenti[0] as object), bolle: [{ ...r, quantita: 60, documentoId: "d", giaFatturata: 0, residuoIncerto: false }] };
+    fake.documenti[1] = { ...(fake.documenti[1] as object), righe: [{ ...r, id: "o1", quantita: 70, prezzo: 12 }] };
+    monta();
+    expect(screen.getByRole("button", { name: "Controlla quantità e prezzi" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Voci coerenti/ })).toHaveTextContent("0");
+    expect(screen.getByText("Residuo da verificare")).toBeTruthy();
+  });
   it("allinea le righe all’ordine della fattura e consente di tornare all’ordine del documento", () => {
     const rete = { ...r, id: "rete", descrizione: "Rete", codice: "RET" };
     fake.documenti[0] = { ...(fake.documenti[0] as object), righe: [rete, r] };

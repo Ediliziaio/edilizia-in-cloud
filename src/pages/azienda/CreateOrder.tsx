@@ -14,8 +14,8 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuotePrefill } from "@/hooks/useQuotePrefill";
 import { ImportFromQuotePicker } from "@/components/orders/ImportFromQuotePicker";
 import { ContractImportDialog } from "@/components/orders/ContractImportDialog";
-import { contractImponibile, contractToInstallments, parseContractExtract, type ContractExtract } from "@/lib/orders/contractExtract";
-import { prepareContract, contractPreparationNotes, storedContractFromDraft, type StoredContractFile } from "@/lib/orders/contractPreparation";
+import { contractImponibile, contractToInstallments, contractInstallmentWarning, contractNeedsAllocation, deriveIvaPct, parseContractExtract, type ContractExtract } from "@/lib/orders/contractExtract";
+import { prepareContract, contractPreparationNotes, storedContractFromDraft, dataFirmaVerificata, type StoredContractFile } from "@/lib/orders/contractPreparation";
 import { ContractPreparationCard } from "@/components/orders/ContractPreparationCard";
 import { saveContractOfficeTasks } from "@/lib/orders/contractOfficeTasks";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -202,6 +202,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const [computoDaCollegare, setComputoDaCollegare] = useState<ComputoDaCollegare | null>(null);
   const [contrattoImportato, setContrattoImportato] = useState<ContractExtract | null>(null);
   const [contractSource, setContractSource] = useState<StoredContractFile | null>(null);
+  const orderCodePrefilledRef = useRef(false);
   // Ripartizione della commessa su più bonus edilizi (pratiche distinte).
   const [bonusLines, setBonusLines] = useState<BonusLine[]>([]);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
@@ -250,7 +251,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     { label: "Importo valido", done: total > 0 && !overAllocatedPayments },
     { label: "Stato iniziale", done: !!statusId },
     { label: "Righe ordine coerenti", done: invalidOrderItems.length === 0 },
-    ...(contrattoImportato ? [{ label: "IVA confermata", done: !!vatRate?.trim() }, { label: "Pagamenti confermati", done: installments.length > 0 }] : []),
+    ...(contrattoImportato ? [{ label: "IVA confermata", done: !!vatRate?.trim() }, { label: "Pagamenti confermati", done: !contractInstallmentWarning(conSaldoFinale(installments, balance, i => !!i.amount_from_contract), totalWithVat) }] : []),
   ];
 
   // Payment type change handler
@@ -526,8 +527,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     for (const campo of ["work_start_date", "work_end_date", "expected_date", "warehouse_arrival_date"] as const) setValue(campo, undefined);
     setDurataLavori("");
     setOrderItems([]);
-    const verifica = statuses.find(s => /da verificare/i.test(s.name));
-    if (verifica) setValue("status_id", verifica.id);
+    const verifica = statuses.find(s => /da verificare|da confermare|bozza/i.test(s.name));
+    setValue("status_id", verifica?.id ?? "");
     // Il contratto firmato va nei Documenti della commessa: entra nei file in
     // coda (non visibile al cliente) e viene caricato alla creazione.
     if (sourceFile) {
@@ -558,8 +559,9 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     setValue("total_amount", imp != null ? formatDecimalIT(imp) : "");
     // Aliquota: dichiarata dal documento, o DEDOTTA dai totali (ivato/imponibile
     // → agganciata a 4/5/10/22). L'aritmetica del modello qui aveva già mentito.
-    setValue("vat_rate", ex.iva_pct != null ? String(ex.iva_pct) : "");
-    if (ex.voci.length > 0 && ex.appalto_pubblico?.ruolo_azienda_importatrice !== "mandante") {
+    const ivaContratto = deriveIvaPct(ex);
+    setValue("vat_rate", ivaContratto != null ? String(ivaContratto) : "");
+    if (ex.voci.length > 0 && !contractNeedsAllocation(ex)) {
       // Le righe "Totale infissi / Totale accessori" sono subtotali del
       // contratto, non merce: come articoli confondevano e doppiavano.
       const vociVere = ex.voci.filter((v) => !/^\s*(sub)?total[ei]?\b/i.test(v.descrizione ?? ""));
@@ -570,13 +572,13 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           quantity: v.quantita || 1,
           status: "da_ordinare",
           position: idx,
-          // Prezzi dal LISTINO al mq quando la voce ha dimensioni e famiglia
-          // riconosciute; altrimenti quello letto dal contratto.
-          unit_price: match?.vendita ?? v.prezzo_unitario_eur,
+          // Il prezzo concordato prevale sul listino corrente; il listino
+          // completa soltanto un prezzo non letto nel documento.
+          unit_price: v.prezzo_unitario_eur > 0 ? v.prezzo_unitario_eur : (match?.vendita ?? v.prezzo_unitario_eur),
           purchase_price: match?.acquisto ?? undefined,
           // Sconto globale del documento (es. sconto rivenditore 15%) → per riga.
           discount_percent: ex.sconto_globale_pct ?? undefined,
-          vat_rate: match?.fam.vat_rate != null ? Number(match.fam.vat_rate) : (ex.iva_pct ?? undefined),
+          vat_rate: ivaContratto ?? undefined,
           // Fornitore dalla famiglia del listino: senza, il pannello "Ordina
           // ai fornitori" non vede l'articolo e l'OdA non parte.
           supplier_id: match?.fam.supplier_id ?? undefined,
@@ -596,7 +598,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         status: "da_ordinare",
         position: itemsMerce.length + i,
         unit_price: a.importo_eur,
-        vat_rate: ex.iva_pct ?? undefined,
+        vat_rate: ivaContratto ?? undefined,
         family_id: null,
         axis_selections: null,
         misure_preventivo: null,
@@ -608,7 +610,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     setInstallments(insts);
     setNumInstallments(insts.length);
     if ((ex.modalita_pagamento ?? "").toLowerCase().includes("finanz")) setValue("payment_type", "financing");
-    if (ex.cliente.nome_completo.trim() && ex.appalto_pubblico?.ruolo_azienda_importatrice !== "mandante") {
+    if (ex.cliente.nome_completo.trim() && !contractNeedsAllocation(ex)) {
       // Match sull'anagrafica PRIMA di proporre "nuovo cliente" (audit
       // 2026-09, punto 4): se il cliente esiste già — nome uguale, anche
       // invertito ("Mandelli Riccardo") — lo si aggancia e basta. Il dialog
@@ -693,6 +695,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
   const handleClearDraft = useCallback(() => {
     if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+    orderCodePrefilledRef.current = false;
     setContrattoImportato(null);
     setOfficeAssignments({});
     setContractSource(null);
@@ -899,7 +902,6 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   // Pre-compila UNA volta il codice quando è una commessa nuova e il campo è vuoto.
   // La RPC è asincrona → risolve DOPO l'eventuale ripristino bozza (sincrono al
   // mount): così rispetta un codice già presente (bozza o digitato) e non lo tocca.
-  const orderCodePrefilledRef = useRef(false);
   useEffect(() => {
     if (orderCodePrefilledRef.current || createdOrderId || !suggestedOrderCode) return;
     if ((getValues("order_code") || "").trim() !== "") {
@@ -908,7 +910,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     }
     orderCodePrefilledRef.current = true;
     setValue("order_code", suggestedOrderCode, { shouldDirty: false });
-  }, [suggestedOrderCode, createdOrderId, getValues, setValue]);
+  }, [suggestedOrderCode, createdOrderId, draftRestored, getValues, setValue]);
 
   // Fetch order statuses for the company
   const { data: statuses = [] } = useQuery({
@@ -932,10 +934,10 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
   // Set default status when statuses are loaded
   useEffect(() => {
-    if (statuses.length > 0 && !statusId) {
+    if (statuses.length > 0 && !statusId && !contrattoImportato) {
       setValue("status_id", statuses.find((status) => status.is_default)?.id ?? statuses[0].id);
     }
-  }, [statuses, statusId, setValue]);
+  }, [statuses, statusId, contrattoImportato, setValue]);
 
   // 2026-05-26 (audit fix P0): timezone bug.
   // PRIMA: `d.toISOString().split("T")[0]` convertiva una Date locale in UTC.
@@ -1023,6 +1025,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       const totalVal = parseDecimalIT(values.total_amount);
       if (!values.vat_rate.trim()) throw new Error("Conferma l’IVA prima di salvare.");
       if (contrattoImportato && !installments.length) throw new Error("Conferma il piano dei pagamenti prima di salvare.");
+      if (contrattoImportato && !values.status_id) throw new Error("Conferma lo stato iniziale della commessa: la lettura del documento non prova che sia firmato.");
       const vatValue = parseDecimalIT(values.vat_rate);
       const fCost = parseDecimalIT(values.financing_cost || "");
       if (values.payment_type === "financing" && fCost > 0 && !financingCostMode) {
@@ -1037,6 +1040,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       // Solo il saldo finale prende il residuo (se il contratto non ne dichiara già l'importo):
       // i SAL intermedi restano col loro importo.
       const installmentsForSave = conSaldoFinale(installments, balance, i => !!i.amount_from_contract);
+      const rateContrattoIncomplete = contrattoImportato ? contractInstallmentWarning(installmentsForSave, totalWithVat) : null;
+      if (rateContrattoIncomplete) throw new Error(rateContrattoIncomplete);
       const legacy = installmentsToLegacyColumns(installmentsForSave);
 
       const orderData = {
@@ -1199,11 +1204,11 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         }
       }
 
-      // Contratto importato con «Carica contratto (AI)»: dietro la commessa nasce il suo contratto,
-      // un preventivo «importato» con il documento firmato (contratto_importato_collega). Se non riesce
-      // la commessa resta valida: lo si dice, il documento è comunque tra i suoi allegati.
-      // L'offerta di un produttore al rivenditore non è un contratto col cliente: niente contratto firmato.
-      if (!selectedQuoteId && contrattoImportato && contractSource && contrattoImportato.natura_documento !== "offerta_fornitore") {
+      // La lettura AI non certifica una firma. Il contratto firmato nasce solo
+      // dopo la verifica esplicita dell'utente e della data effettiva di firma.
+      // Il file non confermato resta tra gli allegati della commessa.
+      const firmaConfermata = dataFirmaVerificata(contractSource, new Date().toLocaleDateString("en-CA"));
+      if (!selectedQuoteId && contrattoImportato && contractSource && firmaConfermata && contrattoImportato.natura_documento !== "offerta_fornitore") {
         const collegaContratto = supabase.rpc.bind(supabase) as unknown as (
           fn: "contratto_importato_collega", args: Record<string, unknown>,
         ) => Promise<{ error: { message: string } | null }>;
@@ -1212,8 +1217,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           p_path: contractSource.path,
           p_nome: contractSource.name,
           p_mime: contractSource.mime,
-          p_firmato_il: contrattoImportato.data_documento && /^\d{4}-\d{2}-\d{2}$/.test(contrattoImportato.data_documento)
-            && contrattoImportato.data_documento <= new Date().toLocaleDateString("en-CA") ? contrattoImportato.data_documento : null,
+          p_firmato_il: firmaConfermata,
         });
         if (erroreContratto) {
           toast.warning("Commessa creata, ma il contratto non è stato registrato", { description: erroreContratto.message, duration: 12000 });
@@ -1453,6 +1457,15 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     if (createOrderMutation.isPending || createdOrderIdRef.current) return;
     if (contrattoImportato && !installments.length) {
       toast.error("Pagamenti da confermare", { description: "Il contratto non dichiara un piano di rate. Definiscilo esplicitamente prima di salvare." });
+      return;
+    }
+    if (contrattoImportato && !values.status_id) {
+      toast.error("Conferma lo stato iniziale",{description:"La lettura del documento non prova che sia firmato. Scegli lo stato corretto prima di salvare."});
+      return;
+    }
+    const rateContrattoIncomplete = contrattoImportato ? contractInstallmentWarning(conSaldoFinale(installments, balance, i => !!i.amount_from_contract), totalWithVat) : null;
+    if (rateContrattoIncomplete) {
+      toast.error("Pagamenti da verificare", {description:rateContrattoIncomplete});
       return;
     }
     if (fasiDalModello && fasiDaCreare.some((fase) => !fase.nome.trim() || fase.sottofasi.some((sotto) => !sotto.nome.trim()))) {
