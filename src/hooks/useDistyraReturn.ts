@@ -11,7 +11,7 @@ import { useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { invokeDistyra } from "@/lib/banking/distyra";
-import { BANKING_QUERY_KEYS } from "@/lib/banking/saltedge";
+import { BANKING_QUERY_KEYS } from "@/lib/banking/queryKeys";
 
 export function useDistyraReturn(companyId: string | null | undefined, onChanged?: () => void, enabled = true) {
   const [params, setParams] = useSearchParams();

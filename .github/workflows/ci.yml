@@ -45,6 +45,7 @@ jobs:
           bun-version: 1.4.4
       - run: bun install --frozen-lockfile
       - run: bunx vitest run src/test/logic/campoAssignments.test.ts src/test/logic/forecastDataset.test.ts src/test/logic/saltedgeHandlers.test.ts src/test/ui/employeeAccountSelector.test.tsx src/test/logic/protectedBankRequests.test.ts src/test/ui/createUserWizardPermessi.test.tsx src/test/security/bankBalancesPermissions.test.ts src/test/logic/employeeAccountLinking.test.ts src/test/ui/tesoreriaSaldoAggiornato.test.tsx src/test/ui/tesoreriaFattureInterne.test.tsx src/test/ui/tesoreriaErrorePersistente.test.tsx src/test/logic/permissionsRegistryParity.test.ts src/test/logic/staffPermissionsEdgeParity.test.ts --maxWorkers=2
+      - run: bunx vitest run src/test/logic/sincronizzazioneBanche.test.ts src/test/ui/tesoreriaSincronizzaDistyra.test.tsx src/test/ui/distyraBankConnections.test.tsx --maxWorkers=2
 
   migration-history:
     name: Complete offline database reconstruction
