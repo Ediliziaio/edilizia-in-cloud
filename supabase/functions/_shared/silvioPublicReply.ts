@@ -1,5 +1,5 @@
 /** A copied tool payload is data, never a user-facing answer or an instruction. */
-const INTERNAL_KEYS = ['commesse','commessa','records','personale','rate','toolName','nota_permessi','limited_to'];
+const INTERNAL_KEYS = ['attivita','aree','creata','eseguito','commesse','commessa','records','personale','rate','toolName','nota_permessi','limited_to'];
 const fallback = 'Non riesco a presentare questi dati in modo leggibile. Chiedimi un riepilogo o un dettaglio specifico.';
 const object = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
 const text = (value: unknown) => typeof value === 'string' ? value.replace(/[\r\n]/g,' ').slice(0,160) : '';
@@ -20,6 +20,9 @@ export function publicSilvioReply(answer:string):string {
  const root=object(parsed);
  if(!root||!INTERNAL_KEYS.some(k=>Object.prototype.hasOwnProperty.call(root,k)))return answer;
  // Only allowlisted display fields; never IDs, prompts, URLs, metadata or permission instructions.
+ if(root.creata===true)return 'Attività creata nell’area richiesta.';
+ if(root.eseguito===true)return 'Operazione sull’attività completata.';
+ if(Array.isArray(root.attivita))return root.attivita.length?root.attivita.slice(0,50).map((r,i)=>{const row=object(r)??{};return '• '+(text(row.title)||`Attività ${i+1}`)+(text(row.status)?' — '+text(row.status).replace(/_/g,' '):'')}).join('\n'):'Nessuna attività consultabile con questi filtri.';
  if(Array.isArray(root.commesse))return root.commesse.length?root.commesse.slice(0,50).map((r,i)=>'• '+orderLine(r,i)).join('\n'):'Nessuna commessa consultabile con questi filtri.';
  if(object(root.commessa))return orderLine(root.commessa,0);
  if(Array.isArray(root.personale))return root.personale.length?root.personale.slice(0,50).map((r,i)=>{const row=object(r)??{};const name=[text(row.first_name),text(row.last_name)].filter(Boolean).join(' ')||`Persona ${i+1}`;const values=[['Retribuzione lorda',row.gross_salary],['Retribuzione netta',row.net_salary],['Costo orario',row.costo_orario]].flatMap(([k,v])=>{const amount=money(v);return amount?[`${k}: ${amount}`]:[]});return '• '+name+(values.length?' — '+values.join('; '):'')}).join('\n'):'Nessuna persona consultabile con questi filtri.';

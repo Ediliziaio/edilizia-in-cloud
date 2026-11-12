@@ -16,11 +16,12 @@ vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "me" },
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ isAdmin: state.role === "company_admin", canViewTeamTasks: state.teamPermission, canViewAllTeamCalendar: true, isLoading: state.permissionsLoading, canViewOrders: true, solaLettura: state.readonly, canViewMarketingContacts: false, canViewMarketingOpportunities: false }) }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/hooks/useCompanyStaffUsers", () => ({ useCompanyStaffUsers: () => ({ data: [] as { id: string; first_name: string; last_name: string }[] }) }));
+vi.mock("@/hooks/useUffici", () => ({ useUfficiAttivi: () => ({ data: [{ id: "office", nome: "Tecnica", membri: ["me"] }], isError: false }) }));
 vi.mock("@/hooks/useDashboardTasks", () => ({ useDashboardTasks: () => ({ data: state.tasks, isLoading: false, isError: false, refetch: vi.fn() }) }));
 vi.mock("@/hooks/useTaskStatuses", () => ({ useTaskStatuses: () => ({ statuses: [...DEFAULT_TASK_STATUS_DEFINITIONS, ...state.extraStatuses] }) }));
 vi.mock("sonner", () => ({ toast: { success: state.success, error: state.error } }));
 vi.mock("@/components/tasks/CollegaAttivitaPicker", () => ({ CollegaAttivitaPicker: () => <div>Collegamento attività</div>, etichettaCollegamento: () => null as null }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => {
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: (...args: unknown[]) => { state.calls.push({method: "rpc",args}); return Promise.resolve(state.fail ? {error:{message:"Già in carico"}} : {data:"task",error:null}); }, from: () => {
   const builder: Record<string, unknown> = {};
   for (const method of ["insert", "update", "delete", "eq", "in", "select"]) builder[method] = (...args: unknown[]) => { state.calls.push({ method, args }); return builder; };
   const reply = () => state.fail ? { data: null as null, error: { message: "Salvataggio rifiutato" } } : { data: { id: "task" }, error: null as null };
@@ -194,4 +195,26 @@ describe("Priorità team e visibilità", () => {
     expect(screen.getByRole("link", { name: "Apri regia" }).getAttribute("href")).toBe("/azienda/attivita?tab=regia");
     expect(screen.queryByRole("button", { name: /Passa a/ })).toBeNull();
   });
+});
+
+describe("Attività condivise dell’area", () => {
+ it("mostra la coda di area insieme alle proprie e prende in carico con RPC personale", async () => {
+  state.role="company_staff"; state.teamPermission=false;
+  state.tasks=[task("shared",{assigned_to:null,ufficio_id:"office",area_mia:true}),task("outside",{assigned_to:"other",area_mia:false})];
+  page(); expect(screen.getByRole("button",{name:"Attività shared"})).toBeTruthy();
+  expect(screen.queryByRole("button",{name:"Attività outside"})).toBeNull();
+  fireEvent.click(screen.getByRole("button",{name:"Me ne occupo io"}));
+  await waitFor(()=>expect(state.calls.some(c=>c.method==="rpc" && c.args[0]==="attivita_prendi_in_carico" && JSON.stringify(c.args[1])===JSON.stringify({p_task:"shared",p_rilascia:false}))).toBe(true));
+ });
+ it("non propone sottrazione o rilascio di un’attività già presa da un collega", () => {
+  state.tasks=[task("claimed",{assigned_to:"other",ufficio_id:"office",area_mia:true})]; page();
+  expect(screen.getByRole("button",{name:"Attività claimed"})).toBeTruthy();
+  expect(screen.queryByRole("button",{name:"Me ne occupo io"})).toBeNull();
+  expect(screen.queryByRole("button",{name:"Rilascia all’area"})).toBeNull();
+ });
+ it("in sola lettura si consulta l’area senza poterla prendere in carico", () => {
+  state.readonly=true;state.tasks=[task("shared",{assigned_to:null,ufficio_id:"office",area_mia:true})];page();
+  expect(screen.getByRole("button",{name:"Attività shared"})).toBeTruthy();
+  expect(screen.queryByRole("button",{name:"Me ne occupo io"})).toBeNull();
+ });
 });

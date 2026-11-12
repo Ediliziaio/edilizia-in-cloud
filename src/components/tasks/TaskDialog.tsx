@@ -1,3 +1,4 @@
+import { useUfficiAttivi } from "@/hooks/useUffici";
 import type { TablesInsert } from "@/integrations/supabase/types";
 import { useMemo, useState, useEffect, useRef, useId } from "react";
 import { useDialogFocusReturn } from "@/hooks/useDialogFocusReturn";
@@ -77,6 +78,8 @@ const RECURRENCE_OPTIONS = [
 ];
 
 interface TaskData {
+  ufficio_id?: string | null;
+  completed_at?: string | null;
   activity_scope?: "generale" | "ufficio" | "cantiere";
   id?: string;
   title: string;
@@ -267,7 +270,7 @@ export function TaskDialog({
   const navigate = useNavigate();
   const companyId = effectiveCompany?.id;
   const isEditing = !!task?.id;
-  const { onlyAssigned: onlyAssignedCrm } = usePermissions();
+  const { onlyAssigned: onlyAssignedCrm, isAdmin: officeAdmin, solaLettura: officeReadOnly } = usePermissions();
   // Mobile: titolo, note, a chi, priorità, scadenza, stato (in modifica) e i
   // collegamenti. Modelli, assistente AI, checklist iniziale, categoria e
   // stima ore restano al desktop: si aggiungono anche dopo, dal dettaglio.
@@ -279,6 +282,8 @@ export function TaskDialog({
   const [priority, setPriority] = useState("normale");
   const [dueDate, setDueDate] = useState<Date | undefined>();
   const [assignedTo, setAssignedTo] = useState<string>("");
+  const [officeId, setOfficeId] = useState("");
+  const offices = useUfficiAttivi(open ? companyId : null);
   const [orderId, setOrderId] = useState<string>("");
   const [stockItemId, setStockItemId] = useState<string>("");
   const [costId, setCostId] = useState<string>("");
@@ -306,6 +311,7 @@ export function TaskDialog({
   );
 
   useEffect(() => {
+    setOfficeId(task?.ufficio_id ?? "");
     if (isEditing && task) {
       // Reset the bounded form snapshot when the selected entity changes.
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -624,6 +630,7 @@ export function TaskDialog({
         ...buildTaskStatusUpdate(status, statusOptions),
         priority,
         due_date: dueDate ? format(dueDate, "yyyy-MM-dd") : null,
+        ufficio_id: officeId || null,
         assigned_to: assignedTo && assignedTo !== "none" ? assignedTo : null,
         // I collegamenti NON dipendono dalla categoria: l'attività resta
         // attaccata a ciò da cui nasce, e con un'opportunità si porta dietro il
@@ -962,7 +969,7 @@ export function TaskDialog({
                 disabled={onlyAssigned || teamAssigneeOptions.length === 0}
               >
                 <Users className="h-4 w-4" />
-                Team
+                Persona
               </Button>
               <Button
                 type="button"
@@ -995,6 +1002,22 @@ export function TaskDialog({
             </Select>
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor={`${fieldId}-office`}>Area / Ufficio</Label>
+            <Select value={officeId || "none"} onValueChange={value => { setOfficeId(value === "none" ? "" : value); setAssignedTo("none"); }}>
+              <SelectTrigger id={`${fieldId}-office`}><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="none">Attività individuale</SelectItem>
+                {(offices.data ?? []).filter(o => officeAdmin || o.membri.includes(user?.id ?? "")).map(o => <SelectItem key={o.id} value={o.id}>{o.nome}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {offices.isError && <p role="alert">Impossibile caricare le aree. Riprova prima di assegnare.</p>}
+            {isEditing && officeId && !officeReadOnly && !task?.completed_at && (!task?.assigned_to || task?.assigned_to === user?.id) &&
+              <Button type="button" variant="outline" onClick={async () => {
+                const { error } = await supabase.rpc("attivita_prendi_in_carico" as never, { p_task: task?.id, p_rilascia: !!task?.assigned_to } as never);
+                if (error) toast.error(error.message); else { onSaved(); onOpenChange(false); }
+              }}>{task?.assigned_to ? "Rilascia all’area" : "Me ne occupo io"}</Button>}
+            {officeId && <p className="text-xs text-muted-foreground">Condivisa con l’area nei limiti dei permessi. Senza persona assegnata è disponibile per la presa in carico.</p>}
+          </div>
           <div className="grid grid-cols-2 gap-3 sm:block sm:space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 max-sm:contents">
               <div className="space-y-2">

@@ -84,6 +84,7 @@ try:
         pending=sql('select count(*) from private.recovered_dependency_patches;').stdout.strip()
         if not pending.endswith('(1 row)') or not __import__('re').search(r'\n\s*0\s*\n', '\n'+pending): raise RuntimeError('Deferred patches remain')
         sql((ROOT/'scripts/fixtures/permessi-retribuzioni-backend.sql').read_text())
+        sql((ROOT/'scripts/fixtures/office-area-tasks.sql').read_text())
         print(json.dumps({'ok':True,'application_migrations':len(applied),'storage_foundations':len(platform),'deferred_patches':0,'network':'none','cron_execution':False}),flush=True)
 except subprocess.CalledProcessError as exc:
     if os.getenv('EIC_LOCAL_PRIVATE_ERROR'): Path(os.environ['EIC_LOCAL_PRIVATE_ERROR']).write_text(exc.stderr or '')

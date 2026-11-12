@@ -38,12 +38,24 @@ export async function executeAuthorizedRead(name:string,args:Record<string,unkno
   if(area==='fatture')return {documenti:checked(await ctx.supabase.from('documenti_fiscali').select('id,tipo,numero,stato,data_emissione,totale_documento,importo_pagato').eq('company_id',ctx.companyId).limit(50))};
   if(area==='fornitori')return {fornitori:checked(await ctx.supabase.from('suppliers').select('id,name,email,phone,is_active').eq('company_id',ctx.companyId).limit(50))};
   if(area==='calendario')return {appuntamenti:checked(await ctx.supabase.from('appointments').select('id,title,appointment_date,appointment_time,order_id,assigned_to').eq('company_id',ctx.companyId).limit(50))};
-  if(area==='attivita')return {attivita:checked(await ctx.supabase.from('tasks').select('id,title,status,due_date,assigned_to,order_id').eq('company_id',ctx.companyId).limit(50))};
+  if(area==='attivita')return {attivita:checked(await ctx.supabase.from('tasks').select('id,title,status,due_date,assigned_to,ufficio_id,order_id').eq('company_id',ctx.companyId).limit(50)),aree:checked(await ctx.supabase.from('company_uffici').select('id,nome').eq('company_id',ctx.companyId).eq('attivo',true))};
   if(area==='documenti'){
    const visible=await orders(ctx,args);if(!visible.length)return {documenti:[]};
    return {documenti:checked(await ctx.supabase.from('order_attachments').select('id,order_id,file_name,access_scope').in('order_id',visible.map(r=>r.id)).limit(50)),nota:'Apri la commessa per scaricare: il file viene autorizzato nuovamente a ogni richiesta.'};
   }
   throw new Error('Categoria non supportata.');
+ }
+ if(['prendi_in_carico_attivita','rilascia_attivita_area'].includes(name)){
+  if(Object.keys(args).some(k=>k!=='id')||!uuid.test(String(args.id??'')))throw new Error('Indica soltanto l’attività, l’utente è quello della tua sessione.');
+  const id=checked(await ctx.supabase.rpc('attivita_prendi_in_carico',{p_task:args.id,p_rilascia:name==='rilascia_attivita_area'}));
+  if(!id)throw new Error('Presa in carico non confermata.');
+  return {id,eseguito:true};
+ }
+ if(name==='crea_attivita_area'){
+  if(Object.keys(args).some(k=>!['ufficio_id','titolo','scadenza','order_id'].includes(k))||!uuid.test(String(args.ufficio_id??''))||typeof args.titolo!=='string'||!args.titolo.trim()||args.titolo.length>500||args.order_id&&!uuid.test(String(args.order_id))||args.scadenza&&!/^\d{4}-\d{2}-\d{2}$/.test(String(args.scadenza)))throw new Error('Dati attività non validi.');
+  const rows=checked(await ctx.supabase.from('tasks').insert({company_id:ctx.companyId,created_by:ctx.userId,ufficio_id:args.ufficio_id,title:args.titolo.trim(),status:'da_fare',assigned_to:null,due_date:args.scadenza??null,order_id:args.order_id??null}).select('id')) as {id:string}[];
+  if(rows.length!==1)throw new Error('Creazione attività non confermata.');
+  return {id:rows[0].id,creata:true};
  }
  if(name==='modifica_contatto_autorizzato'||name==='modifica_opportunita_autorizzata'){
   const contacts=name==='modifica_contatto_autorizzato';const table=contacts?'marketing_contacts':'marketing_opportunities';

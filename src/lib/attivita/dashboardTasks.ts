@@ -11,6 +11,8 @@ export interface DashboardTask {
   due_date: string | null;
   category: string | null;
   assigned_to: string | null;
+  ufficio_id?: string | null;
+  area_mia?: boolean;
   created_by: string | null;
   order_id: string | null;
   stock_item_id: string | null;
@@ -25,8 +27,8 @@ export interface DashboardTask {
 }
 
 export const dashboardDateKey = (date: string | null | undefined) => date?.slice(0, 10) || null;
-export function dashboardTasksForAssignee<T extends Pick<DashboardTask, "assigned_to">>(tasks: T[], assignee: string, userId?: string, seesTeam = false) {
-  if (!seesTeam || assignee === "me") return tasks.filter(t => t.assigned_to === userId);
+export function dashboardTasksForAssignee<T extends Pick<DashboardTask, "assigned_to" | "area_mia">>(tasks: T[], assignee: string, userId?: string, seesTeam = false) {
+  if (!seesTeam || assignee === "me") return tasks.filter(t => t.assigned_to === userId || t.area_mia === true);
   return assignee === "all" ? tasks : tasks.filter(t => t.assigned_to === assignee);
 }
 

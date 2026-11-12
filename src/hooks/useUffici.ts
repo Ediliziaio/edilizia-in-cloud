@@ -110,6 +110,8 @@ export function useSalvaUfficio(companyId?: string | null) {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ufficiKey(companyId) });
+      void qc.invalidateQueries({ queryKey: ["tasks"] });
+      void qc.invalidateQueries({ queryKey: ["my-task-count"] });
       toast.success("Ufficio salvato.");
     },
     onError: (e: unknown) => {
@@ -139,6 +141,8 @@ export function useEliminaUfficio(companyId?: string | null) {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ufficiKey(companyId) });
+      void qc.invalidateQueries({ queryKey: ["tasks"] });
+      void qc.invalidateQueries({ queryKey: ["my-task-count"] });
       toast.success("Ufficio eliminato.");
     },
     onError: (e: unknown) =>

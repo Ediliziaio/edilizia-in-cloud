@@ -220,7 +220,7 @@ export async function executeToolWithRouting(
     ctx = {...ctx, staffPermissions:staffPerms};
   }
 
-  const newScopedTool=['leggi_dati_autorizzati','modifica_contatto_autorizzato','modifica_opportunita_autorizzata'].includes(toolName);
+  const newScopedTool=['leggi_dati_autorizzati','modifica_contatto_autorizzato','modifica_opportunita_autorizzata','crea_attivita_area','prendi_in_carico_attivita','rilascia_attivita_area'].includes(toolName);
   if(newScopedTool && !usaPermessiStaff(ctx.primaryRole))ctx={...ctx,staffPermissions:{can_view_orders:true,can_view_order_amounts:true,can_view_order_payment_status:true,can_view_costs:true,can_view_margins:true,can_view_employees:true,can_view_persone:true,can_view_marketing_contacts:true,can_edit_marketing_contacts:true,can_view_marketing_opportunities:true,can_edit_marketing_opportunities:true,can_view_billing:true,can_manage_suppliers:true,can_manage_purchasing:true,can_view_calendar:true,can_view_team_tasks:true,can_view_marketing_activities:true,only_assigned:false,sola_lettura:false}};
   const permissionContract=usaPermessiStaff(ctx.primaryRole)||newScopedTool?SILVIO_PERMISSION_CONTRACTS[toolName]:undefined;
   let executorContext=ctx;

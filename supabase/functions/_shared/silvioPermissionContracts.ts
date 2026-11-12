@@ -23,11 +23,12 @@ export const SILVIO_PERMISSION_CONTRACTS:Record<string,Contract> = {
 };
 export const AUTHORIZED_AREAS:Record<string,Contract>={
  commesse:{all:['can_view_orders'],fieldOrders:true},economia:{all:['can_view_orders'],fieldOrders:true},incassi:{all:['can_view_orders'],any:['can_view_order_amounts','can_view_order_payment_status']},
- personale:{any:['can_view_employees','can_view_persone']},contatti:{all:['can_view_marketing_contacts']},opportunita:{all:['can_view_marketing_opportunities']},fatture:{all:['can_view_billing']},fornitori:{any:['can_manage_suppliers','can_manage_purchasing']},calendario:{all:['can_view_calendar']},attivita:{any:['can_view_orders','can_view_team_tasks','can_view_marketing_activities']},documenti:{all:['can_view_orders'],fieldOrders:true},
+ personale:{any:['can_view_employees','can_view_persone']},contatti:{all:['can_view_marketing_contacts']},opportunita:{all:['can_view_marketing_opportunities']},fatture:{all:['can_view_billing']},fornitori:{any:['can_manage_suppliers','can_manage_purchasing']},calendario:{all:['can_view_calendar']},attivita:{},documenti:{all:['can_view_orders'],fieldOrders:true},
 };
 SILVIO_PERMISSION_CONTRACTS.leggi_dati_autorizzati={adapter:true};
 SILVIO_PERMISSION_CONTRACTS.modifica_contatto_autorizzato={all:['can_view_marketing_contacts','can_edit_marketing_contacts'],write:true,adapter:true};
 SILVIO_PERMISSION_CONTRACTS.modifica_opportunita_autorizzata={all:['can_view_marketing_opportunities','can_edit_marketing_opportunities'],write:true,adapter:true};
+for (const name of ['crea_attivita_area','prendi_in_carico_attivita','rilascia_attivita_area']) SILVIO_PERMISSION_CONTRACTS[name]={write:true,adapter:true};
 export function contractPermission(name:string,p:Permission,role?:string,args?:Record<string,unknown>):boolean|null {
  if(name==='leggi_dati_autorizzati'){
   if(!args)return Object.keys(AUTHORIZED_AREAS).some(area=>contractPermission(name,p,role,{area})===true);

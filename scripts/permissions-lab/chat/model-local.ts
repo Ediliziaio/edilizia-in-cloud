@@ -9,7 +9,11 @@ export async function aiRouterComplete(options:any){
  }else{
   const question=String([...options.messages].reverse().find((m:any)=>m.role==='user')?.content??'');
   let name='get_orders_summary',args:any={status:'all'};
-  if(/FORZA TEAM|PERSONALE CONSENTITO/i.test(question))name='get_team_summary';
+  if(/AREA PRENDI/i.test(question)){name='prendi_in_carico_attivita';args={id:'e2000000-0000-4000-a000-000000000001',...(/FORZA/i.test(question)?{assigned_to:'10000000-0000-4000-a000-000000000008'}:{})};}
+  else if(/AREA RILASCIA/i.test(question)){name='rilascia_attivita_area';args={id:'e2000000-0000-4000-a000-000000000001'};}
+  else if(/AREA CREA/i.test(question)){name='crea_attivita_area';args={ufficio_id:'e1000000-0000-4000-a000-000000000001',titolo:'LAB Attività creata da Silvio'};}
+  else if(/LEGGI ATTIVITA/i.test(question)){name='leggi_dati_autorizzati';args={area:'attivita'};}
+  else if(/FORZA TEAM|PERSONALE CONSENTITO/i.test(question))name='get_team_summary';
   else if(/FORZA ADMIN/i.test(question))name='get_company_kpi';
   else if(/margini|marginalit/i.test(question))name='get_marginalita_commesse';
   else if(/MODIFICA CONTATTO/i.test(question)){name='modifica_contatto_autorizzato';args={id:'ed000000-0000-4000-a000-000000000010',modifiche:{first_name:'Aggiornato da Silvio'}};}

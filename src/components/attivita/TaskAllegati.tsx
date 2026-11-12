@@ -1,13 +1,14 @@
 /**
  * Allegati di un'attività: foto di cantiere, bolle, DDT, verbali.
  * File nel bucket privato `task-attachments` (cartella azienda/task), riga in
- * `task_attachments`; l'apertura passa da un URL firmato a scadenza.
+ * `task_attachments`; ogni download verifica la sessione e i permessi correnti.
  */
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { FileText, Image as ImageIcon, Loader2, Paperclip, Trash2, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { SezioneCard } from "@/components/attivita/SezioneCard";
@@ -42,10 +43,11 @@ function nomeSicuro(nome: string): string {
 
 export function TaskAllegati({ taskId, companyId }: Props) {
   const { user } = useAuth();
+  const { solaLettura } = usePermissions();
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [caricamento, setCaricamento] = useState(false);
-  const chiave = ["task-attachments", taskId];
+  const chiave = ["task-attachments", taskId, user?.id];
 
   const { data: allegati = [], isLoading } = useQuery<Allegato[]>({
     queryKey: chiave,
@@ -62,7 +64,7 @@ export function TaskAllegati({ taskId, companyId }: Props) {
   });
 
   const carica = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
+    if (solaLettura || !files || files.length === 0) return;
     setCaricamento(true);
     let caricati = 0;
     try {
@@ -99,9 +101,13 @@ export function TaskAllegati({ taskId, companyId }: Props) {
   };
 
   const apri = async (a: Allegato) => {
-    const { data, error } = await supabase.storage.from("task-attachments").createSignedUrl(a.storage_path, 600);
-    if (error || !data?.signedUrl) { toast.error("File non disponibile", { description: error?.message }); return; }
-    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    // Authorize every download using the current session, without a reusable signed link.
+    const { data, error } = await supabase.storage.from("task-attachments").download(a.storage_path);
+    if (error || !data) { toast.error("File non disponibile", { description: error?.message }); return; }
+    const url = URL.createObjectURL(data);
+    const link = document.createElement("a");
+    link.href = url; link.download = a.file_name; link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
   };
 
   const elimina = useMutation({
@@ -120,7 +126,7 @@ export function TaskAllegati({ taskId, companyId }: Props) {
       icon={Paperclip}
       tono="arancio"
       azione={
-        <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" disabled={caricamento} onClick={() => inputRef.current?.click()}>
+        <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" disabled={caricamento || solaLettura} onClick={() => inputRef.current?.click()}>
           {caricamento ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
           Carica
         </Button>
@@ -152,7 +158,7 @@ export function TaskAllegati({ taskId, companyId }: Props) {
                   {a.file_name}
                 </button>
                 <span className="shrink-0 text-[11px] text-muted-foreground">{formatoDimensione(a.size_bytes)}</span>
-                <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive" aria-label={`Elimina ${a.file_name}`} onClick={() => elimina.mutate(a)} disabled={elimina.isPending}>
+                <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive" aria-label={`Elimina ${a.file_name}`} onClick={() => elimina.mutate(a)} disabled={elimina.isPending || solaLettura}>
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </li>
