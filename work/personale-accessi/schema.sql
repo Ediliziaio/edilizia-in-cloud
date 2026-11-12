@@ -13,8 +13,7 @@ BEGIN
  END IF;
  SELECT count(*) INTO candidati FROM public.employees WHERE company_id=p_company AND is_active
  AND ((nullif(trim(p_email),'') IS NOT NULL AND lower(trim(email))=lower(trim(p_email)))
- OR (lower(regexp_replace(trim(first_name),'\s+',' ','g'))=lower(regexp_replace(trim(p_nome),'\s+',' ','g'))
- AND lower(regexp_replace(trim(last_name),'\s+',' ','g'))=lower(regexp_replace(trim(p_cognome),'\s+',' ','g'))));
+ OR (lower(regexp_replace(trim(coalesce(first_name,'')||' '||coalesce(last_name,'')),'\s+',' ','g'))=lower(regexp_replace(trim(coalesce(p_nome,'')||' '||coalesce(p_cognome,'')),'\s+',' ','g'))));
  IF candidati>0 THEN RAISE EXCEPTION 'Persona già presente in Personale. Seleziona la scheda esistente per conservare cantieri e storico; se ha già accesso, gestiscilo dalla sua scheda'; END IF;
  RETURN NULL;
 END $$;

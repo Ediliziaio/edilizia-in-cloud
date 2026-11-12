@@ -189,4 +189,7 @@ CREATE POLICY bank_balances_snapshot_read ON public.cashflow_forecast_snapshots 
 -- Previously generated cash alerts must also disappear after revocation.
 DROP POLICY IF EXISTS bank_balances_lifecycle_read ON public.lifecycle_notifications;
 CREATE POLICY bank_balances_lifecycle_read ON public.lifecycle_notifications AS RESTRICTIVE FOR SELECT TO authenticated USING(notification_type <> 'cash_flow_alert' OR public.puo_vedere_saldi_bancari(company_id));
+-- A saved morning briefing may still contain an earlier authorized balance.
+DROP POLICY IF EXISTS bank_balances_brief_read ON public.silvio_morning_briefings;
+CREATE POLICY bank_balances_brief_read ON public.silvio_morning_briefings AS RESTRICTIVE FOR SELECT TO authenticated USING(NOT coalesce(tools_used ?| ARRAY['get_executive_snapshot','get_cashflow_status'],false) OR public.puo_vedere_saldi_bancari(company_id));
 NOTIFY pgrst,'reload schema';

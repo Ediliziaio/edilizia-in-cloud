@@ -24,6 +24,7 @@ beforeAll(async()=>{
  insert into bank_accounts(id,company_id,account_name,current_balance,available_balance,opening_balance,is_manual) values('${account}','${company}','Banca prova',987654.32,987600,12345,false),(gen_random_uuid(),'${other}','Altra azienda',876543.21,876500,23456,false);
  create table bank_transactions(id uuid primary key,company_id uuid,account_id uuid references bank_accounts,amount numeric,category text,note text,metadata jsonb default '{}');
  create table bank_reconciliations(id uuid primary key,company_id uuid,transaction_id uuid,invoice_id uuid);
+ create table silvio_morning_briefings(company_id uuid,tools_used jsonb);
  create table lifecycle_notifications(company_id uuid,notification_type text);
  create table cashflow_forecast_snapshots(id uuid,company_id uuid,starting_balance_eur numeric);
  insert into bank_transactions values(gen_random_uuid(),'${company}','${account}',100,null,null,'{"provider":"saltedge","amount":100,"currency_code":"EUR","extra":{"balance":765432.1}}');

@@ -18,6 +18,7 @@ beforeAll(async()=>{
 afterAll(()=>pg.close());
 it('riconosce il nome senza email, con maiuscole e spazi diversi, senza creare duplicati',async()=>{
  await expect(pg.query(`select dipendente_accesso_prepara('${company}',' SAURO ',' STACCHETTI ','nuova@example.test',null)`)).rejects.toThrow(/già presente/);
+ await expect(pg.query(`select dipendente_accesso_prepara('${company}','SAURO STACCHETTI','','nuova@example.test',null)`)).rejects.toThrow(/già presente/);
  expect((await pg.query('select count(*)::int as n from employees')).rows[0]).toEqual({n:1});
 });
 it('rifiuta selezioni appartenenti a un’altra azienda',async()=>{
