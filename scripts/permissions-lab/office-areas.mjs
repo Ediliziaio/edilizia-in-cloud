@@ -40,6 +40,7 @@ check(rest(1,`/tasks?id=eq.${task}`,'PATCH',{title:'Sostituito'}).status,403,'me
 check(rest(1,'/rpc/attivita_prendi_in_carico','POST',{p_task:task}).status,200,'claim after release');
 sql(`delete from ufficio_membri where ufficio_id='${office}' and profile_id='${userId(1)}'`);
 check(rest(1,`/tasks?id=eq.${task}`).data.length,0,'membership revocation even when assigned');
+check(rest(1,`/notifications?entity_id=eq.${task}`).data.length,0,'old notifications follow membership revocation');
 check(rest(1,'/rpc/attivita_prendi_in_carico','POST',{p_task:task}).status,403,'revoked actor denied');
 sql(`insert into ufficio_membri(ufficio_id,profile_id,company_id) values('${office}','${userId(1)}','${companyId}')`);
 check(rest(1,`/tasks?id=eq.${task}`).data.length,1,'membership restored');

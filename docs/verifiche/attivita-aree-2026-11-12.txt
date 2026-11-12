@@ -2,7 +2,7 @@ Attività condivise per Ufficio — verifica locale 12/11/2026
 
 Riutilizza company_uffici e ufficio_membri: nessun nuovo sistema di gruppi.
 Le viste personali e i contatori includono le attività delle proprie aree; il permesso di consultare tutte le attività aziendali resta distinto.
-Presa in carico e rilascio passano da una RPC con JWT corrente, RLS e blocco riga: un solo vincitore tra due colleghi concorrenti.
+Presa in carico e rilascio passano da una RPC con JWT corrente, RLS e blocco riga: un solo vincitore tra due colleghi concorrenti. Un conflitto applicativo restituisce PT409, senza retry automatico del gateway.
 Un membro può aggiornare stato e propria presa in carico; modificare i contenuti di un’attività altrui richiede i permessi di gestione.
 L’assegnazione non concede accesso a CRM, commesse, costi, magazzino o ticket collegati. Uffici disattivati, utenti bloccati e membri rimossi sono esclusi dal backend.
 Le notifiche delle aree non includono titoli, note o dati dei record collegati, anche quando prodotte dai vecchi sblocchi dei flussi.
@@ -11,7 +11,7 @@ Silvio legge tramite JWT e crea/prende/rilascia solo dopo conferma. Nessun utent
 La cronologia è stata allineata con origin/main, includendo la migrazione DDT dell’altro terminale.
 
 Verifiche superate:
-- 52 controlli PostgreSQL/PostgREST reali locali, inclusi tutti i 14 profili, concorrenza, revoche, sola lettura, isolamento CRM e altra azienda.
+- 53 controlli PostgreSQL/PostgREST reali locali, inclusi tutti i 14 profili, concorrenza, revoche, sola lettura, isolamento CRM e altra azienda.
 - 10 controlli Storage/PostgREST reali locali: upload, download collega, accesso esterno negato, revoca, metadati, upload sola lettura negato.
 - 13 scenari HTTP delle aree con handler chat/azioni reali e modello avversario simulato: proposta senza effetto preventivo, conferma, revoca, altro utente, replay, parametri falsificati, creazione e rilascio.
 - 29 scenari HTTP di regressione della chat su 13 profili.

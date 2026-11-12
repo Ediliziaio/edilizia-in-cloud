@@ -53,7 +53,7 @@ begin
      (not public.utente_in_ufficio(auth.uid(),old.ufficio_id) or
       old.assigned_to is not null and old.assigned_to<>auth.uid() or
       new.assigned_to is not null and new.assigned_to<>auth.uid()) then
-     raise exception 'Attività già in carico a un collega' using errcode='40001'; end if;
+     raise exception 'Attività già in carico a un collega' using errcode='PT409'; end if;
  end if;
  if new.ufficio_id is not null and new.assigned_to is not null and
     not public.utente_in_ufficio(new.assigned_to,new.ufficio_id) then
@@ -75,7 +75,7 @@ begin
    raise exception 'Attività non disponibile per il tuo utente' using errcode='42501'; end if;
  if t.completed_at is not null then raise exception 'Attività già completata' using errcode='23514'; end if;
  if t.assigned_to is not null and t.assigned_to<>auth.uid() then
-   raise exception 'Un collega ha già preso in carico questa attività' using errcode='40001'; end if;
+   raise exception 'Un collega ha già preso in carico questa attività' using errcode='PT409'; end if;
  update public.tasks set assigned_to=case when p_rilascia then null else auth.uid() end where id=t.id;
  if not found then raise exception 'Presa in carico non autorizzata' using errcode='42501'; end if;
  return t.id;
@@ -170,3 +170,17 @@ revoke all on function private.office_task_notification_guard() from public,anon
 drop trigger if exists office_task_notification_guard on public.notifications;
 create trigger office_task_notification_guard before insert on public.notifications
  for each row execute function private.office_task_notification_guard();
+-- Old notifications must not bypass the parent's current office/CRM visibility.
+-- This helper reveals only whether an ID in the current company is an office task.
+create or replace function private.is_office_notification_task(p_id uuid)
+returns boolean language sql stable security definer set search_path='' as $$
+ select exists(select 1 from public.tasks t where t.id=p_id
+ and t.company_id=public.get_effective_company_id() and t.ufficio_id is not null);
+$$;
+revoke all on function private.is_office_notification_task(uuid) from public,anon;
+grant execute on function private.is_office_notification_task(uuid) to authenticated,service_role;
+drop policy if exists office_notification_parent_scope on public.notifications;
+create policy office_notification_parent_scope on public.notifications as restrictive for select to authenticated
+ using(entity_type is distinct from 'task' or entity_id is null
+ or not private.is_office_notification_task(entity_id)
+ or exists(select 1 from public.tasks t where t.id=entity_id));

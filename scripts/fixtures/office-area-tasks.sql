@@ -29,7 +29,7 @@ do $$begin
  begin
  perform attivita_prendi_in_carico('ae000000-0000-4000-a000-000000000006');
  raise exception 'Second actor stole claimed task';
- exception when serialization_failure then null;end;
+ exception when sqlstate 'PT409' then null;end;
  if not exists(select 1 from tasks_personali_e_aree where id='ae000000-0000-4000-a000-000000000006') then raise exception 'Claim hid task from colleagues';end if;
 end $$;
 reset role;
