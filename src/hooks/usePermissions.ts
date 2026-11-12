@@ -1,6 +1,6 @@
 import { impostaLetturaSenzaPrezzi } from "@/lib/acquisti/letturaSenzaPrezzi";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { logger } from "@/utils/logger";
@@ -93,6 +93,8 @@ export interface Permissions {
   canViewMargins: boolean;
   canViewPrevisionale: boolean;
   canViewTesoreria: boolean;
+  canViewBankBalances: boolean;
+  canReconcileBankTransactions: boolean;
   canViewPersone: boolean;
   /** Fruizione area Formazione (/azienda/formazione) */
   canViewFormazione: boolean;
@@ -240,6 +242,7 @@ export const STAFF_PERMISSIONS_SELECT_KEYS = [
   "can_view_costs",
   "can_view_margins",
   "can_view_tesoreria",
+  "can_view_bank_balances", "can_reconcile_bank_transactions",
   "can_view_persone",
   "can_view_formazione",
   "can_manage_portal",
@@ -310,7 +313,7 @@ const ALL_PERMISSIONS: Permissions = {
   canViewCruscotto: true,
   canViewBilling: true, canViewScadenzario: true,
   canViewPrimaNota: true, canViewCosts: true, canViewMargins: true,
-  canViewPrevisionale: true, canViewTesoreria: true,
+  canViewPrevisionale: true, canViewTesoreria: true, canViewBankBalances: true, canReconcileBankTransactions: true,
   canViewPersone: true,
   canViewFormazione: true, canManagePortal: true, canCreateCourses: true,
   canViewMarketingDashboard: true, canViewCallcenterDashboard: true, canViewMarketingContacts: true,
@@ -365,7 +368,7 @@ const NO_PERMISSIONS: Permissions = {
   canViewCruscotto: false,
   canViewBilling: false, canViewScadenzario: false,
   canViewPrimaNota: false, canViewCosts: false, canViewMargins: false,
-  canViewPrevisionale: false, canViewTesoreria: false,
+  canViewPrevisionale: false, canViewTesoreria: false, canViewBankBalances: false, canReconcileBankTransactions: false,
   canViewPersone: false,
   canViewFormazione: false, canManagePortal: false, canCreateCourses: false,
   canViewMarketingDashboard: false, canViewCallcenterDashboard: false, canViewMarketingContacts: false,
@@ -432,7 +435,7 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   canViewCosts: true,
   canViewMargins: true,
   canViewPrevisionale: true,
-  canViewTesoreria: true,
+  canViewTesoreria: true, canViewBankBalances: true, canReconcileBankTransactions: false,
   canViewForecast: true,
   // Persone (lettura HR)
   canViewPersone: true,
@@ -519,7 +522,7 @@ export function mapDbRowToPermissions(row: Record<string, unknown> | null | unde
     canViewEmployees:  g("can_view_employees"),
     canViewTickets:    g("can_view_tickets"),
     canEditTickets:    g("can_edit_tickets"),
-    canViewForecast:   g("can_view_forecast"),
+    canViewForecast:   g("can_view_forecast") && g("can_view_bank_balances"),
     canViewUsers:      g("can_view_users"),
     canViewSettingsProfile:       g("can_view_settings_profile"),
     canEditSettingsProfile:       g("can_edit_settings_profile"),
@@ -569,8 +572,10 @@ export function mapDbRowToPermissions(row: Record<string, unknown> | null | unde
     // Chi fa gli ordini vede i costi: senza non potrebbe comprare.
     canViewCosts:       g("can_view_costs") || g("can_manage_purchasing"),
     canViewMargins:     g("can_view_margins"),
-    canViewPrevisionale: g("can_view_forecast"),
+    canViewPrevisionale: g("can_view_forecast") && g("can_view_bank_balances"),
     canViewTesoreria:   g("can_view_tesoreria"),
+    canViewBankBalances: g("can_view_bank_balances"),
+    canReconcileBankTransactions: g("can_view_tesoreria") && g("can_reconcile_bank_transactions") && !solaLettura,
     canViewPersone:     g("can_view_persone"),
     canViewFormazione:  g("can_view_formazione"),
     canManagePortal:    g("can_manage_portal"),
@@ -653,6 +658,17 @@ export function mapDbRowToPermissions(row: Record<string, unknown> | null | unde
 
 export function usePermissions(): Permissions {
   const permessi = usePermessiGrezzi();
+  const cache = useQueryClient();
+  const previousBalances = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (permessi.isLoading) return;
+    if (previousBalances.current === true && !permessi.canViewBankBalances) {
+      const filter = {predicate: (q: {queryKey: readonly unknown[]}) => ["bank-accounts","manual-treasury","cashflow","treasury","cg"].includes(String(q.queryKey[0]))};
+      void cache.cancelQueries(filter).then(() => cache.removeQueries(filter));
+    }
+    previousBalances.current = permessi.canViewBankBalances;
+  },[cache,permessi.isLoading,permessi.canViewBankBalances]);
+
   // Fissato durante il disegno: le query delle pagine partono subito dopo, non dopo un effetto.
   impostaLetturaSenzaPrezzi(
     !permessi.isLoading && !permessi.isAdmin && !permessi.canViewCosts && !permessi.canManagePurchasing
@@ -871,6 +887,7 @@ function usePermessiGrezzi(): Permissions {
         canEditWarehouse: true,
         canEditCustomers: true,
         canEditTickets: true,
+        canReconcileBankTransactions: true,
       };
     }
     return COMMERCIALISTA_PERMISSIONS;

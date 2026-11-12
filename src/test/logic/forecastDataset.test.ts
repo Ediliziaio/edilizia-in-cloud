@@ -235,7 +235,7 @@ describe("forecast sources", () => {
   });
   it("keeps the zero bank balance ahead of a positive Prima Nota", async () => {
     const { client } = fakeClient({
-      bank_accounts: [
+      bank_accounts_operativi: [
         {
           id: "b",
           current_balance: 0,
@@ -250,7 +250,7 @@ describe("forecast sources", () => {
   });
   it("surfaces failed bank and cost reads, without pretending the bank returned zero", async () => {
     const { client } = fakeClient({}, [
-      "bank_accounts",
+      "bank_accounts_operativi",
       "company_costs",
       "rpc",
     ]);

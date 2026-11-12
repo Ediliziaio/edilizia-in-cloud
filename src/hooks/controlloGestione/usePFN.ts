@@ -210,7 +210,7 @@ export function useContiPFN() {
     enabled: !!companyId,
     queryFn: async (): Promise<ContoPFN[]> => {
       const { data, error } = await supabase
-        .from("bank_accounts")
+        .from("bank_accounts_operativi")
         .select("id,display_name,account_name,current_balance,available_balance,balance_updated_at")
         .eq("company_id", companyId!)
         .eq("is_active", true)

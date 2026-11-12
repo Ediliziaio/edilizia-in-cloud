@@ -63,6 +63,7 @@ export function strumentoConcesso(nome: string, ruolo: string, permessi: Permess
   const ammessi = tool.allowedRoles && tool.allowedRoles.length > 0 ? tool.allowedRoles : DEFAULT_TOOL_ALLOWED_ROLES;
   if (!ammessi.includes(ruolo) && !ammessi.includes("*")) return false;
   if (RUOLI_AMMINISTRATORE.includes(ruolo)) return true;
+  if (["get_executive_snapshot", "get_cashflow_status"].includes(nome) && permessi?.can_view_bank_balances !== true) return false;
   // Il permesso principale dell'area o una sua alternativa (permessiDellArea),
   // come in chat: lì basta che non siano tutti spenti, qui ne serve uno acceso.
   return permessiDellArea(tool.domain).some((chiave) => permessi?.[chiave] === true);

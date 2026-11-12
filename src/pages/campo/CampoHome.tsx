@@ -73,13 +73,6 @@ interface CampoAiOrder {
   work_end_date?: string | null;
 }
 
-interface CampoAiAssignment {
-  id: string;
-  order_id: string | null;
-  is_capocantiere?: boolean | null;
-  order: CampoAiOrder | null;
-}
-
 interface CampoAiTask {
   id: string;
   title: string;
@@ -199,57 +192,8 @@ function AssistenteCampoOperaio() {
   const companyId = profile?.company_id ?? null;
   const { data: rapportiniMancanti = [] } = useCampoRapportiniDaCompilare(user?.id);
 
-  const { data: employeeId } = useQuery({
-    queryKey: ["campo-ai-employee-id", user?.id, companyId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("employees")
-        .select("id")
-        .eq("user_id", user!.id)
-        .eq("company_id", companyId!)
-        .maybeSingle();
-      if (error) throw error;
-      return data?.id ?? null;
-    },
-    enabled: !!user?.id && !!companyId,
-    staleTime: 60_000,
-  });
-
-  const { data: lavori = [], isLoading } = useQuery<CampoAiAssignment[]>({
-    queryKey: ["campo-ai-lavori-oggi", employeeId, user?.id],
-    queryFn: async () => {
-      // Doppio binario assegnazioni (come Calendario): un operaio assegnato
-      // solo via order_campo_assignments vedeva "Nessun cantiere prioritario
-      // trovato" con il cantiere attivo un riquadro più in su.
-      // NB: is_capocantiere vive SOLO su order_campo_assignments — chiederlo
-      // a order_employees faceva rispondere 400 a tutta la query (era uno dei
-      // 400 silenziosi in console) e la card restava sempre "nessun cantiere".
-      const orderEmbed = `
-          order:orders(
-            id, order_code, description, status,
-            indirizzo_lavori, percentuale_avanzamento,
-            work_start_date, work_end_date
-          )
-        `;
-      const [empRes, campoRes] = await Promise.all([
-        employeeId
-          ? supabase.from("order_employees").select(`id, order_id, ${orderEmbed}`).eq("employee_id", employeeId)
-          : Promise.resolve({ data: [], error: null }),
-        supabase.from("order_campo_assignments").select(`id, order_id, is_capocantiere, ${orderEmbed}`).eq("user_id", user!.id),
-      ]);
-      if (empRes.error) throw empRes.error;
-      if (campoRes.error) throw campoRes.error;
-
-      const seen = new Set<string>();
-      return ([...(empRes.data ?? []), ...(campoRes.data ?? [])] as CampoAiAssignment[]).filter((a) => {
-        if (!a.order?.id || seen.has(a.order.id)) return false;
-        seen.add(a.order.id);
-        return !commessaChiusa(a.order.status);
-      });
-    },
-    enabled: !!user?.id,
-    staleTime: 60_000,
-  });
+  // The home, calendar and assistant share one tenant/user-scoped assignment model.
+  const { data: lavori = [], isLoading } = useCampoAssignments();
 
   const { data: taskAperte = [] } = useQuery<CampoAiTask[]>({
     queryKey: ["campo-ai-task-oggi", user?.id, companyId],

@@ -1,3 +1,4 @@
+import { usePermissions } from "@/hooks/usePermissions";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { formatDateIt } from "@/lib/formatters";
@@ -62,6 +63,7 @@ const RECON_SEVERITY_CLS: Record<ReconSeverity, string> = {
 };
 
 export default function BankReconciliation({ companyId, refreshKey = 0 }: Props) {
+  const { canReconcileBankTransactions } = usePermissions();
   const isMobile = useIsMobile();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -331,6 +333,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
   // Fattura interna: il bonifico diventa il suo incasso (movimento, prima nota,
   // scadenza, stato e rata della commessa) in una sola transazione nel database.
   async function confirmMatchInterna(tx: { id: string }, inv: CandidatoFatturaInterna, matchType: "manual" | "auto", notaScelta?: string) {
+    if (!canReconcileBankTransactions) throw new Error("Non hai il permesso di riconciliare i movimenti");
     if (matching) return;
     setMatching(true);
     try {
@@ -369,6 +372,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
 
   // Fix 5: Sequential reconciliation — execute operations in order, stop on failure
   async function confirmMatch(tx: any, inv: any, matchType: "manual" | "auto", notaScelta?: string) {
+    if (!canReconcileBankTransactions) return;
     if (eFatturaInterna(inv)) return confirmMatchInterna(tx, inv, matchType, notaScelta);
     if (matching) return;
     setMatching(true);

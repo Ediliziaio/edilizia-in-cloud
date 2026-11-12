@@ -1,3 +1,4 @@
+import { usePermissions } from "@/hooks/usePermissions";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,6 +27,7 @@ export function ManualTransactionsSheet({ account, open, onOpenChange }: {
   const { upsertTx, deleteTx } = useManualTreasury();
   const confirm = useConfirm();
   const [importOpen, setImportOpen] = useState(false);
+  const { canViewBankBalances, canReconcileBankTransactions } = usePermissions();
   const [adding, setAdding] = useState(false);
   const [erroreSalvataggio, setErroreSalvataggio] = useState<string | null>(null);
   const [form, setForm] = useState({ date: new Date().toISOString().slice(0, 10), desc: "", amount: "", verso: "uscita" as "entrata" | "uscita" });
@@ -72,15 +74,15 @@ export function ManualTransactionsSheet({ account, open, onOpenChange }: {
         <SheetHeader>
           <SheetTitle>{account?.display_name || account?.account_name || "Conto manuale"}</SheetTitle>
           <SheetDescription>
-            Saldo attuale: <strong>{formatCurrency(Number(account?.current_balance ?? 0))}</strong>
-            {" · "}apertura {formatCurrency(Number(account?.opening_balance ?? 0))}
+            {canViewBankBalances ? <>Saldo attuale: <strong>{formatCurrency(Number(account?.current_balance ?? 0))}</strong></> : "Saldo riservato"}
+            {canViewBankBalances && <> · apertura {formatCurrency(Number(account?.opening_balance ?? 0))}</>}
           </SheetDescription>
         </SheetHeader>
 
         <div className="mt-4 flex gap-2">
-          <Button size="sm" onClick={() => setAdding((v) => !v)}><Plus className="h-4 w-4 mr-1" /> Movimento</Button>
+          <Button size="sm" disabled={!canReconcileBankTransactions} onClick={() => setAdding((v) => !v)}><Plus className="h-4 w-4 mr-1" /> Movimento</Button>
           {/* Mobile no: niente importazioni da telefono. */}
-          <Button size="sm" variant="outline" onClick={() => setImportOpen(true)} className="max-sm:hidden"><Upload className="h-4 w-4 mr-1" /> Importa estratto conto</Button>
+          <Button size="sm" variant="outline" disabled={!canReconcileBankTransactions} onClick={() => setImportOpen(true)} className="max-sm:hidden"><Upload className="h-4 w-4 mr-1" /> Importa estratto conto</Button>
         </div>
 
         {adding && (
@@ -99,7 +101,7 @@ export function ManualTransactionsSheet({ account, open, onOpenChange }: {
             <div><Label className="text-xs">Importo €</Label><Input inputMode="decimal" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0,00" /></div>
             {erroreSalvataggio && <p role="alert" className="text-sm text-destructive">{erroreSalvataggio}</p>}
             <div className="flex justify-end gap-2">
-              <Button size="sm" variant="ghost" onClick={() => setAdding(false)}>Annulla</Button>
+              <Button size="sm" variant="ghost" disabled={!canReconcileBankTransactions} onClick={() => setAdding(false)}>Annulla</Button>
               <Button size="sm" onClick={handleAdd} disabled={upsertTx.isPending}>Salva</Button>
             </div>
           </div>

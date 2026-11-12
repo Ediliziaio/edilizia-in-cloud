@@ -4,6 +4,7 @@ import { commessaChiusa } from "@/lib/campo/cantieriAperti";
 export interface CampoAssignedOrder {
   id: string;
   company_id: string;
+  deleted_at?: string | null;
   order_code: string | null;
   description: string | null;
   status: string | null;
@@ -26,7 +27,7 @@ interface AssignmentRow {
   is_capocantiere?: boolean | null;
   order: CampoAssignedOrder | null;
 }
-const ORDER_SELECT = "id, company_id, order_code, description, status, indirizzo_lavori, percentuale_avanzamento, work_start_date, work_end_date";
+const ORDER_SELECT = "id, deleted_at, company_id, order_code, description, status, indirizzo_lavori, percentuale_avanzamento, work_start_date, work_end_date";
 const ASSIGNMENT_SELECT = `id, order_id, order:orders!inner(${ORDER_SELECT})`;
 
 /** Sources are additive. RLS remains the authority for reads/writes: these
@@ -98,7 +99,7 @@ export async function loadCampoAssignments(
   for (const source of sources) {
     for (const row of source.rows) {
       const order = row.order;
-      if (!order?.id || order.company_id !== companyId || row.order_id !== order.id) continue;
+      if (!order?.id || order.deleted_at || order.company_id !== companyId || row.order_id !== order.id) continue;
       if (options.orderId && order.id !== options.orderId) continue;
       if (!options.includeClosed && commessaChiusa(order.status)) continue;
       const existing: CampoResolvedAssignment = resolved.get(order.id) ?? {

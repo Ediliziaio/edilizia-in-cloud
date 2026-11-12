@@ -100,7 +100,7 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
   async function loadAccounts() {
     try {
       const { data, error } = await supabase
-        .from("bank_accounts")
+        .from("bank_accounts_operativi")
         .select("id, display_name, account_name, iban")
         .eq("company_id", companyId)
         .eq("is_active", true);

@@ -1,3 +1,4 @@
+import { usePermissions } from "@/hooks/usePermissions";
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +32,7 @@ interface Props {
 }
 
 export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
+  const { canViewBankBalances } = usePermissions();
   const [accounts, setAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -46,14 +48,14 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
       setAccounts([]);
       setLoading(false);
     }
-  }, [companyId, refreshKey]);
+  }, [companyId, refreshKey, canViewBankBalances]);
 
   async function loadAccounts() {
     setLoading(true);
     setLoadError(null);
     try {
       const { data, error } = await supabase
-        .from("bank_accounts")
+        .from("bank_accounts_operativi")
         .select("*, bank_connections(institution_name, institution_logo)")
         .eq("company_id", companyId)
         .eq("is_active", true)
@@ -137,7 +139,7 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
       {/* Header — mobile: totale 18px, via «Mostra IBAN». */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <div className="flex flex-wrap gap-x-5 gap-y-1">{totals.map(t => <p key={t.currency} className="text-3xl font-bold max-sm:text-lg max-sm:leading-tight">{formatTreasuryCurrency(t.total, "—", t.currency)}</p>)}</div>
+          <div className="flex flex-wrap gap-x-5 gap-y-1">{canViewBankBalances && totals.map(t => <p key={t.currency} className="text-3xl font-bold max-sm:text-lg max-sm:leading-tight">{formatTreasuryCurrency(t.total, "—", t.currency)}</p>)}</div>
           <p className="text-sm text-muted-foreground max-sm:text-[11px]">
             {accounts.length} conti su {bankCount} banche
           </p>
@@ -167,7 +169,7 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
                   {account.balance_updated_at ? ` · ${formatDistanceToNow(new Date(account.balance_updated_at), { addSuffix: true, locale: it })}` : ""}
                 </p>
               </div>
-              <p className="shrink-0 text-[13px] font-semibold tabular-nums">{formatTreasuryCurrency(account.available_balance ?? account.current_balance, "—", account.currency)}</p>
+              <p className="shrink-0 text-[13px] font-semibold tabular-nums">{canViewBankBalances ? formatTreasuryCurrency(account.available_balance ?? account.current_balance, "—", account.currency) : "Saldo riservato"}</p>
             </div>
           );
         })}
@@ -261,9 +263,9 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
                 {/* Balances */}
                 <div>
                   <p className="text-2xl font-bold">
-                    {formatTreasuryCurrency(account.available_balance ?? account.current_balance, "—", account.currency)}
+                    {canViewBankBalances ? formatTreasuryCurrency(account.available_balance ?? account.current_balance, "—", account.currency) : "Saldo riservato"}
                   </p>
-                  {account.available_balance != null && account.current_balance != null && account.available_balance !== account.current_balance && (
+                  {canViewBankBalances && account.available_balance != null && account.current_balance != null && account.available_balance !== account.current_balance && (
                     <p className="text-xs text-muted-foreground">
                       Saldo corrente: {formatTreasuryCurrency(account.current_balance, "—", account.currency)}
                     </p>

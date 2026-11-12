@@ -270,7 +270,7 @@ export default function ControlloGestione() {
         {/* Da tablet il margine lo dà il layout: niente p-4 in più. */}
         <div className={isMobile ? "p-3 sm:p-4" : undefined}>
           <TabsContent value="dash" className="mt-0">
-            <TabDashboard anno={filters.anno} />
+            {permissions.canViewBankBalances ? <TabDashboard anno={filters.anno} /> : <p className="p-4 text-sm text-muted-foreground">Per questa analisi serve il permesso «Saldi bancari e liquidità».</p>}
           </TabsContent>
           <TabsContent value="ce" className="mt-0">
             <TabCERiclassificato
@@ -280,13 +280,13 @@ export default function ControlloGestione() {
             />
           </TabsContent>
           <TabsContent value="sp" className="mt-0">
-            <TabStatoPatrimoniale anno={filters.anno} />
+            {permissions.canViewBankBalances ? <TabStatoPatrimoniale anno={filters.anno} /> : <p className="p-4 text-sm text-muted-foreground">Per questa analisi serve il permesso «Saldi bancari e liquidità».</p>}
           </TabsContent>
           <TabsContent value="cashflow" className="mt-0">
-            <TabCashFlow anno={filters.anno} />
+            {permissions.canViewBankBalances ? <TabCashFlow anno={filters.anno} /> : <p className="p-4 text-sm text-muted-foreground">Per questa analisi serve il permesso «Saldi bancari e liquidità».</p>}
           </TabsContent>
           <TabsContent value="pfn" className="mt-0">
-            <TabPFNDebiti anno={filters.anno} />
+            {permissions.canViewBankBalances ? <TabPFNDebiti anno={filters.anno} /> : <p className="p-4 text-sm text-muted-foreground">Per questa analisi serve il permesso «Saldi bancari e liquidità».</p>}
           </TabsContent>
           <TabsContent value="commesse" className="mt-0">
             <TabCommesse anno={filters.anno} />
@@ -298,16 +298,16 @@ export default function ControlloGestione() {
             <TabBudget anno={filters.anno} />
           </TabsContent>
           <TabsContent value="indici" className="mt-0">
-            <TabIndiciAvanzati anno={filters.anno} />
+            {permissions.canViewBankBalances ? <TabIndiciAvanzati anno={filters.anno} /> : <p className="p-4 text-sm text-muted-foreground">Per questa analisi serve il permesso «Saldi bancari e liquidità».</p>}
           </TabsContent>
           <TabsContent value="health" className="mt-0">
-            <TabHealthCheck anno={filters.anno} />
+            {permissions.canViewBankBalances ? <TabHealthCheck anno={filters.anno} /> : <p className="p-4 text-sm text-muted-foreground">Per questa analisi serve il permesso «Saldi bancari e liquidità».</p>}
           </TabsContent>
           <TabsContent value="piano" className="mt-0">
             <TabPianoIndustriale scenarioId={filters.scenarioId} onClearScenarioFilter={() => setFilters(prev => ({ ...prev, scenarioId: null }))} />
           </TabsContent>
           <TabsContent value="rating" className="mt-0">
-            <TabRatingBancario anno={filters.anno} />
+            {permissions.canViewBankBalances ? <TabRatingBancario anno={filters.anno} /> : <p className="p-4 text-sm text-muted-foreground">Per questa analisi serve il permesso «Saldi bancari e liquidità».</p>}
           </TabsContent>
           <TabsContent value="pdf" className="mt-0">
             <TabPacchettoBanca anno={filters.anno} />

@@ -65,7 +65,7 @@ export default function Tesoreria() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [syncing, setSyncing] = useState(false);
-  const [activeTab, setActiveTab] = useState(() => getSafeTab(searchParams));
+  const [activeTab, setActiveTab] = useState(() => permessi.canViewBankBalances ? getSafeTab(searchParams) : "transazioni");
   const [refreshKey, setRefreshKey] = useState(0);
   const { isScopriPlan } = useSubscriptionLimits();
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
@@ -355,10 +355,10 @@ export default function Tesoreria() {
           <BankConnectionsCard onChanged={handleConnectionChanged} handleReturn={false} redirectPath="/azienda/tesoreria" />
         </TabsContent>
         <TabsContent value="riconciliazione">
-          <BankReconciliation companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />
+          {permessi.canReconcileBankTransactions ? <BankReconciliation companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} /> : <p className="p-6 text-sm text-muted-foreground">Non hai il permesso di riconciliare i movimenti bancari.</p>}
         </TabsContent>
         <TabsContent value="previsioni">
-          {permessi.canViewForecast ? (
+          {permessi.canViewForecast && permessi.canViewBankBalances ? (
             <Suspense fallback={<Skeleton className="h-80 rounded-2xl" />}>
               <PrevisionaleCompleto />
             </Suspense>

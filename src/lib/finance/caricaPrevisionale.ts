@@ -119,7 +119,7 @@ export async function loadForecastDataset(
       label: "Conti bancari",
       build: () =>
         scoped(
-          "bank_accounts",
+          "bank_accounts_operativi",
           "id,current_balance,available_balance,currency,balance_updated_at",
         ).eq("is_active", true),
     },

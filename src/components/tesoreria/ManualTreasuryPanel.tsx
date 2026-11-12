@@ -1,3 +1,4 @@
+import { usePermissions } from "@/hooks/usePermissions";
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,8 +12,9 @@ import { useManualTreasury, type ManualAccount } from "@/hooks/useManualTreasury
 import { ManualTransactionsSheet } from "./ManualTransactionsSheet";
 
 export function ManualTreasuryPanel({ autoOpenCreate = false, onAfterCreate }: { autoOpenCreate?: boolean; onAfterCreate?: () => void }) {
+  const { canViewBankBalances, solaLettura } = usePermissions();
   const { accounts, isLoading, createAccount, updateAccount } = useManualTreasury();
-  const [createOpen, setCreateOpen] = useState(autoOpenCreate);
+  const [createOpen, setCreateOpen] = useState(autoOpenCreate && canViewBankBalances && !solaLettura);
   const [editing, setEditing] = useState<ManualAccount | null>(null);
   const [sheetAccount, setSheetAccount] = useState<ManualAccount | null>(null);
   const [form, setForm] = useState({ name: "", iban: "", opening: "" });
@@ -20,7 +22,7 @@ export function ManualTreasuryPanel({ autoOpenCreate = false, onAfterCreate }: {
   function resetForm() { setForm({ name: "", iban: "", opening: "" }); }
 
   async function submitCreate() {
-    if (!form.name.trim()) return;
+    if (!form.name.trim() || !canViewBankBalances || solaLettura) return;
     await createAccount.mutateAsync({ name: form.name.trim(), iban: form.iban, opening_balance: Number(String(form.opening).replace(",", ".")) || 0 });
     resetForm(); setCreateOpen(false); onAfterCreate?.();
   }
@@ -65,7 +67,7 @@ export function ManualTreasuryPanel({ autoOpenCreate = false, onAfterCreate }: {
                 <p className="truncate text-[13px] font-semibold leading-tight">{a.display_name || a.account_name || "Conto"}</p>
                 {a.iban && <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">{a.iban}</p>}
               </div>
-              <p className={`shrink-0 text-[13px] font-semibold tabular-nums ${Number(a.current_balance) >= 0 ? "" : "text-destructive"}`}>{formatCurrency(Number(a.current_balance ?? 0))}</p>
+              <p className={`shrink-0 text-[13px] font-semibold tabular-nums ${Number(a.current_balance) >= 0 ? "" : "text-destructive"}`}>{canViewBankBalances ? formatCurrency(Number(a.current_balance ?? 0)) : "Saldo riservato"}</p>
             </button>
           ))}
         </div>
@@ -79,11 +81,11 @@ export function ManualTreasuryPanel({ autoOpenCreate = false, onAfterCreate }: {
                     {a.iban && <p className="text-xs text-muted-foreground truncate">{a.iban}</p>}
                   </div>
                   <button className="text-muted-foreground hover:text-foreground" aria-label="Modifica conto"
-                    onClick={() => { setEditing(a); setForm({ name: a.display_name || a.account_name || "", iban: a.iban || "", opening: String(a.opening_balance ?? 0) }); }}>
+                    disabled={!canViewBankBalances || solaLettura} onClick={() => { setEditing(a); setForm({ name: a.display_name || a.account_name || "", iban: a.iban || "", opening: String(a.opening_balance ?? 0) }); }}>
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
                 </div>
-                <p className={`text-xl font-bold ${Number(a.current_balance) >= 0 ? "text-slate-900" : "text-destructive"}`}>{formatCurrency(Number(a.current_balance ?? 0))}</p>
+                <p className={`text-xl font-bold ${Number(a.current_balance) >= 0 ? "text-slate-900" : "text-destructive"}`}>{canViewBankBalances ? formatCurrency(Number(a.current_balance ?? 0)) : "Saldo riservato"}</p>
                 <Button size="sm" variant="secondary" className="w-full" onClick={() => setSheetAccount(a)}>
                   <ListOrdered className="h-4 w-4 mr-1" /> Movimenti
                 </Button>

@@ -739,6 +739,7 @@ export function UsersConfig() {
           first_name: data.first_name, last_name: data.last_name,
           email: normalizedEmail, company_id: effectiveCompanyId,
           role_type: data.role_type, password: data.password,
+          employee_id: data.employee_id, also_employee: data.also_employee,
           // I permessi viaggiano nell'insert della edge (record completo):
           // l'update client più sotto resta solo come rete di sicurezza.
           permissions: data.permissions
@@ -830,20 +831,9 @@ export function UsersConfig() {
           const { data: existingEmp } = await supabase
             .from("employees").select("id")
             .eq("user_id", createdUserId).eq("company_id", effectiveCompanyId).maybeSingle();
-          if (!existingEmp?.id) {
-            const { error: empErr } = await supabase.from("employees").insert({
-              company_id: effectiveCompanyId,
-              user_id: createdUserId,
-              first_name: data.first_name,
-              last_name: data.last_name,
-              email: normalizedEmail,
-              role_type: empRoleType,
-              gross_salary: data.gross_salary ?? null,
-              is_active: true,
-            });
-            if (empErr) { logger.error("insert scheda dipendente (flag anche-dipendente):", empErr); toast.warning("Utente creato, scheda Dipendente non creata"); }
-          } else if (data.gross_salary != null) {
-            await supabase.from("employees").update({ gross_salary: data.gross_salary }).eq("id", existingEmp.id);
+          if (existingEmp?.id && data.gross_salary != null) {
+            const { error } = await supabase.from("employees").update({ gross_salary: data.gross_salary }).eq("id", existingEmp.id);
+            if (error) toast.warning("Accesso creato; stipendio non aggiornato");
           }
         }
       }
@@ -1625,6 +1615,7 @@ export function UsersConfig() {
         </PannelloFiltri>
 
         <CreateUserWizard
+          companyId={effectiveCompanyId || undefined}
           open={createDialogOpen}
           onOpenChange={setCreateDialogOpen}
           onSubmit={handleCreateUser}

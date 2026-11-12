@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (empError || !employee) throw new Error("Dipendente non trovato");
-    if (employee.user_id) throw new Error("Il dipendente ha già un account utente");
+    if (employee.user_id || employee.portal_user_id) throw new Error("Il dipendente ha già un account utente");
 
     // ISOLAMENTO MULTI-TENANT: un company_admin può creare l'accesso dipendente
     // SOLO per un'azienda a cui ha accesso (prima bastava un employee_id altrui).
@@ -130,10 +130,11 @@ Deno.serve(async (req) => {
       throw new Error("Errore nella creazione permessi");
     }
 
-    const { error: linkError } = await supabaseAdmin
-      .from("employees")
-      .update({ user_id: newUser.user.id })
-      .eq("id", employee_id);
+    const { error: linkError } = await supabaseAdmin.rpc("collega_dipendente_accesso", {
+      p_company: employee.company_id, p_user: newUser.user.id, p_employee: employee_id,
+      p_nome: employee.first_name, p_cognome: employee.last_name, p_email: email,
+      p_phone: phone || employee.phone || null, p_tipo: employee.role_type || "operaio",
+    });
 
     if (linkError) {
       await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);

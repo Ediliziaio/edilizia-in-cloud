@@ -1,3 +1,4 @@
+import { useEmployeeAccountOptions } from "@/hooks/useEmployeeAccountOptions";
 import { OfficeProfileSelector } from "./OfficeProfileSelector";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -45,9 +46,11 @@ export interface WizardUserFormData {
   /** Flag "è anche un dipendente in organico" (per Operatore/Amministratore/Venditore).
    *  Se true si crea anche la scheda Dipendente collegata. Per il Venditore, true = assunto, false = P.IVA a provvigione. */
   also_employee?: boolean;
+  employee_id?: string;
 }
 
 interface CreateUserWizardProps {
+  companyId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: WizardUserFormData) => Promise<{ temporaryPassword?: string }>;
@@ -211,7 +214,7 @@ const WIZARD_GROUPS = [
 ];
 const WIZARD_ECON_KEYS = new Set<string>(["can_view_order_amounts", "can_view_costs", "can_view_margins"]);
 
-export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: CreateUserWizardProps) {
+export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, companyId }: CreateUserWizardProps) {
   const { toast } = useToast();
   // Passi: 1 = chi è (e si può già creare), 2 = permessi (facoltativo), 3 = fatto.
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -240,6 +243,8 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
   const [commissionPercentage, setCommissionPercentage] = useState<string>("");
   const [alsoEmployee, setAlsoEmployee] = useState<boolean>(false);
   const [grossSalary, setGrossSalary] = useState<string>("");
+  const [employeeId, setEmployeeId] = useState("");
+  const {options:employeeOptions,loading:employeeLoading,error:employeeError} = useEmployeeAccountOptions(open && (roleType === "employee" || alsoEmployee),companyId);
   // Ogni passo parte dall'alto: prima «Personalizza» apriva i permessi già
   // scorsi in fondo, con lo scorrimento rimasto dal passo precedente.
   const corpoRef = useRef<HTMLDivElement>(null);
@@ -261,7 +266,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
   }, [permissions, roleType, showPermissions]);
 
   const resetForm = () => {
-    setStep(1); setFirstName(""); setLastName(""); setEmail("");
+    setEmployeeId(""); setStep(1); setFirstName(""); setLastName(""); setEmail("");
     setRoleType("company_staff");
     setPermissions({ ...DEFAULT_PERMISSIONS, ...ROLE_PRESETS.company_staff });
     setPermSearch(""); setAvanzateAperte(false);
@@ -369,6 +374,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
         commission_percentage: commission,
         gross_salary: Number.isFinite(grossSalaryNum) ? grossSalaryNum : undefined,
         also_employee: alsoEmp,
+        employee_id: (roleType === "employee" || alsoEmp) && employeeId ? employeeId : undefined,
       });
       if (result.temporaryPassword) {
         setTemporaryPassword(result.temporaryPassword);
@@ -477,6 +483,24 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
                 />
               </div>
 
+              {(roleType === "employee" || alsoEmployee) && companyId && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="nu-personale">Scheda del personale</Label>
+                  <select id="nu-personale" className="w-full rounded-md border bg-background p-2 text-sm" value={employeeId}
+                    disabled={employeeLoading || employeeError}
+                    onChange={e => {
+                      setEmployeeId(e.target.value);
+                      const employee=employeeOptions.find(p=>p.id===e.target.value);
+                      if(employee){setFirstName(employee.first_name);setLastName(employee.last_name);if(employee.email)setEmail(employee.email);}
+                    }}>
+                    <option value="">Nuova persona, non ancora presente</option>
+                    {employeeOptions.map(p=><option key={p.id} value={p.id}>{p.first_name} {p.last_name}</option>)}
+                  </select>
+                  <p className="text-xs text-muted-foreground">Se è già nel personale, seleziona la sua scheda: conserverà cantieri, presenze e documenti.</p>
+                  {employeeLoading && <p role="status" className="text-xs">Controllo il personale esistente…</p>}
+                  {employeeError && <p role="alert" className="text-xs text-destructive">Non riesco a verificare il personale. Riapri la finestra prima di creare l’accesso.</p>}
+                </div>
+              )}
               <div className="space-y-1.5">
                 <Label id="nu-ruolo">Ruolo</Label>
                 <div role="radiogroup" aria-labelledby="nu-ruolo" className="grid gap-1.5 sm:grid-cols-2">
@@ -842,12 +866,12 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
           ) : (
             <>
               {step === 2 && (
-                <Button variant="outline" onClick={() => setStep(1)} disabled={isLoading}>
+                <Button variant="outline" onClick={() => setStep(1)} disabled={isLoading || ((roleType === "employee" || alsoEmployee) && !!companyId && (employeeLoading || employeeError))}>
                   <ChevronLeft className="mr-1 h-4 w-4" />
                   Indietro
                 </Button>
               )}
-              <Button onClick={() => { void handleSubmit(); }} disabled={isLoading}>
+              <Button onClick={() => { void handleSubmit(); }} disabled={isLoading || ((roleType === "employee" || alsoEmployee) && !!companyId && (employeeLoading || employeeError))}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Crea utente
               </Button>

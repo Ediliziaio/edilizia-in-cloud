@@ -113,7 +113,7 @@ export function useRendicontoCassa(anno: number) {
             const [banche, dopo] = await Promise.all([
               facoltativo("Conti bancari", async () => {
                 const { data, error } = await db
-                  .from("bank_accounts")
+                  .from("bank_accounts_operativi")
                   .select("id,current_balance,available_balance,currency,balance_updated_at")
                   .eq("company_id", companyId)
                   .eq("is_active", true);

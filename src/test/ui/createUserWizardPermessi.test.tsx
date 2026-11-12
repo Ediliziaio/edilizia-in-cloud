@@ -102,7 +102,7 @@ describe("CreateUserWizard — permessi (parità con la scheda utente)", () => {
     expect(screen.getByRole("radio", { name: "Operativo" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Commerciale" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Pieno" })).toBeInTheDocument();
-    expect(screen.getByText("Solo i dati assegnati a lui")).toBeInTheDocument();
+    expect(screen.getByText("Solo il portafoglio CRM assegnato")).toBeInTheDocument();
     expect(screen.getByText("Sola lettura")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Cerca modulo…")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /nessuno/i })).toBeInTheDocument();

@@ -13,7 +13,7 @@ const state = vi.hoisted(() => ({
   invoke: vi.fn(), toast: { error: vi.fn(), success: vi.fn(), loading: vi.fn(() => "toast"), info: vi.fn(), warning: vi.fn() },
 }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => state.company }));
-vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewTesoreria: true, canEditSettingsIntegrations: state.canManage, isLoading: false }) }));
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewTesoreria: true, canViewBankBalances: true, canEditSettingsIntegrations: state.canManage, isLoading: false }) }));
 vi.mock("sonner", () => ({ toast: state.toast }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   functions: { invoke: (...args: unknown[]) => state.invoke(...args) },

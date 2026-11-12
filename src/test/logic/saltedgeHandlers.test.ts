@@ -8,7 +8,7 @@ import { SaltTestDatabase } from "../helpers/saltedgeDatabase";
 
 const company = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa", user = "cccccccc-cccc-4ccc-cccc-cccccccccccc";
 const db = new SaltTestDatabase();
-let vars: Record<string, string>, denied = false;
+let vars: Record<string, string>, denied = false, deniedBalance = false;
 let handler: (req: Request) => Promise<Response>, webhook: typeof handler;
 const fetcher = vi.fn<typeof fetch>();
 async function load(file: string) {
@@ -19,7 +19,7 @@ async function load(file: string) {
     require: (path: string) => {
       if (path.includes("supabase-js")) return { createClient: (_url: string, key: string) => key === "anon" ? { auth: { getUser: async () => ({ data: { user: { id: user, email: "test@example.test" } }, error: null as null }) } } : db };
       if (path.endsWith("/headers.ts")) return { getCorsHeaders: () => ({}) };
-      if (path.endsWith("/permessoAzienda.ts")) return { verificaPermessoAzienda: async (_db: unknown, _user: string, id: string) => { if (denied || id !== company) throw new Error("Non autorizzato"); } };
+      if (path.endsWith("/permessoAzienda.ts")) return { verificaPermessoAzienda: async (_db: unknown, _user: string, id: string, permissions: string[]) => { if (denied || id !== company || (deniedBalance && permissions.includes("can_view_bank_balances"))) throw new Error("Non autorizzato"); } };
       if (path.endsWith("/auth.ts")) return { isSuperAdminEmailAllowed: () => false };
       if (path.endsWith("/saltedge.ts")) return salt;
       if (path.endsWith("/saltedgeStore.ts")) return store;
@@ -41,7 +41,7 @@ beforeAll(async () => {
   webhook = await load("supabase/functions/bank-saltedge-webhook/index.ts");
 });
 beforeEach(async () => {
-  denied = false; fetcher.mockReset(); vi.stubGlobal("fetch", fetcher);
+  denied = false; deniedBalance = false; fetcher.mockReset(); vi.stubGlobal("fetch", fetcher);
   await db.pg.exec("truncate bank_saltedge_customers, bank_saltedge_sessions, bank_saltedge_locks cascade");
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -81,6 +81,11 @@ describe("Gestori veri Salt Edge, identita/API simulate e Postgres locale", () =
   it("richiede la dichiarazione sull'azienda e blocca ritorni senza sessione valida", async () => {
     expect((await request({ action: "start-auth" })).status).toBe(400);
     expect((await request({ action: "finalize", state: "forged", provider_connection_id: "10" })).status).toBe(403);
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it("non apre widget che mostrano saldi a chi vede solo i movimenti", async () => {
+    deniedBalance = true;
+    expect((await request({ action: "start-auth", confirm_company_accounts: true })).status).toBe(403);
     expect(fetcher).not.toHaveBeenCalled();
   });
   it("non considera riuscita una sincronizzazione senza connessioni", async () => {

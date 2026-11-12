@@ -25,7 +25,11 @@ Deno.serve(async req => {
     const roles = await db.from("user_roles").select("role").eq("user_id", user.id); checkSaltDb(roles);
     if (roles.data?.some((r: { role: string }) => r.role === "super_admin") && !isSuperAdminEmailAllowed(user.email)) return json({ error: "Accesso negato" }, 403);
     await verificaPermessoAzienda(db, user.id, companyId, ["can_view_tesoreria"], "gestire i conti in Tesoreria");
-    if (!["status", "sync"].includes(body.action)) await verificaPermessoAzienda(db, user.id, companyId, ["can_edit_settings_integrations"], "modificare i collegamenti bancari");
+    if (!["status", "sync"].includes(body.action)) {
+      await verificaPermessoAzienda(db, user.id, companyId, ["can_edit_settings_integrations"], "modificare i collegamenti bancari");
+      // Provider authorization widgets can display balances outside our app.
+      await verificaPermessoAzienda(db, user.id, companyId, ["can_view_bank_balances"], "autorizzare i conti bancari");
+    }
     let config;
     try { config = saltConfiguration(name => Deno.env.get(name), companyId); }
     catch (e) { if (body.action === "status") return json({ ready: false, ...saltPublicError(e) }); throw e; }

@@ -1,3 +1,4 @@
+import { usePermissions } from "@/hooks/usePermissions";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,8 +19,8 @@ export interface ManualAccount {
   account_name: string | null;
   iban: string | null;
   currency: string | null;
-  opening_balance: number;
-  current_balance: number;
+  opening_balance: number | null;
+  current_balance: number | null;
   is_active: boolean;
 }
 
@@ -38,13 +39,14 @@ export function useManualTreasury() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const qc = useQueryClient();
+  const { canViewBankBalances } = usePermissions();
 
   const accountsQuery = useQuery({
-    queryKey: ["manual-treasury", "accounts", companyId],
+    queryKey: ["manual-treasury", "accounts", companyId, canViewBankBalances],
     enabled: !!companyId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("bank_accounts")
+        .from("bank_accounts_operativi")
         .select("id, display_name, account_name, iban, currency, opening_balance, current_balance, is_active")
         .eq("company_id", companyId!)
         .eq("is_manual", true)

@@ -154,3 +154,5 @@ describe("Tesoreria: le fatture interne si incassano dal bonifico", () => {
     expect(screen.getAllByText("Bonifico acconto")).toHaveLength(1);
   });
 });
+
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewBankBalances: true, canReconcileBankTransactions: true, solaLettura: false }) }));

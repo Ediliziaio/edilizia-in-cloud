@@ -34,6 +34,7 @@ export const STAFF_PERMISSION_DEFAULTS: Record<string, boolean | string[] | stri
   can_validate_bom: false, can_manage_purchasing: false,
   // Finanza
   can_view_billing: false, can_view_scadenzario: false, can_view_tesoreria: false,
+  can_view_bank_balances: false, can_reconcile_bank_transactions: false,
   can_view_prima_nota: false,
   can_view_costs: false, can_view_forecast: false,
   can_view_financial_reports: false, can_view_margins: false,
