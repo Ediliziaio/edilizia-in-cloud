@@ -9,7 +9,7 @@ vi.mock("@/contexts/AuthContext",()=>({useAuth:()=>({effectiveCompany:{id:"azien
 vi.mock("@/hooks/usePermissions",()=>({usePermissions:()=>({canViewTesoreria:true,canViewBankBalances:true,canEditSettingsIntegrations:state.manage})}));
 vi.mock("@/hooks/use-mobile",()=>({useIsMobile:()=>state.mobile}));
 vi.mock("@/hooks/useDistyraReturn",()=>({useDistyraReturn:()=>false}));
-vi.mock("@/hooks/useManualTreasury",()=>({useManualTreasury:()=>({accounts:[],isLoading:false})}));
+vi.mock("@/hooks/useManualTreasury",()=>({useManualTreasury:()=>({accounts:[] as unknown[],isLoading:false})}));
 vi.mock("@/hooks/useSubscriptionLimits",()=>({useSubscriptionLimits:()=>({isScopriPlan:false})}));
 vi.mock("@/lib/banking/sincronizzazione",()=>({sincronizzaBancheAzienda:(...args:unknown[])=>state.sync(...args)}));
 vi.mock("@/integrations/supabase/client",()=>({supabase:{from:()=>{const q:any={select:()=>q,eq:()=>q,neq:()=>q,then:(f:(v:unknown)=>unknown)=>Promise.resolve({count:3,error:null}).then(f)};return q;}}}));
