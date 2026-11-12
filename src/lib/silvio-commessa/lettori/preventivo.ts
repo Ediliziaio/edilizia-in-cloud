@@ -108,6 +108,8 @@ export function rateDelPreventivo(paymentPhases: unknown, totale: number): RataD
     return { label: p.label || (p.type === "balance" ? "Saldo" : "Acconto"), type: p.type, amount, percent: p.percent || null,
       trigger_evento: p.evento && p.evento !== "data_fissa" ? p.evento : evento,
       ...(p.evento === "sal_numero" && p.numero ? { trigger_numero: p.numero } : {}),
+      ...(p.soglia ? { trigger_soglia: p.soglia } : {}),
+      ...(p.fase ? { trigger_fase: p.fase } : {}),
       ...(p.aMisura ? { aMisura: true } : {}) };
   });
 }

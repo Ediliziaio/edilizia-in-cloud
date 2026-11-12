@@ -73,7 +73,8 @@ const SI_NO = new Set<string>(["has_building_bonus", "weekly_report_enabled", "g
 const ID = new Set<string>(["sede_id", "opportunity_id", "assigned_to", "capomastro_user_id"]);
 const EVENTI_RATA = new Set([
   "data_fissa", "firma_contratto", "accettazione_preventivo", "merce_magazzino", "consegna_cantiere",
-  "inizio_lavori", "data_posa", "sal_numero", "fine_lavori", "fattura_acconto", "fattura_saldo", "stato_commessa",
+  "inizio_lavori", "data_posa", "sal_numero", "sal_percentuale", "fase_completata",
+  "fine_lavori", "collaudo", "fattura_acconto", "fattura_saldo", "stato_commessa",
 ]);
 
 export interface SottofaseScritta {
@@ -117,6 +118,9 @@ export interface RataScritta {
   trigger_evento: string;
   trigger_numero: number | null;
   expected_date?: string;
+  /** Per «al X% dei lavori» e «a completamento di una fase»: la condizione del contratto. */
+  trigger_soglia?: number;
+  trigger_fase?: string;
   /** L'importo è la quota prevista di una rata a misura: lo fisserà il verbale SAL (11/11/2026). */
   importo_da_misurare?: boolean;
 }
@@ -272,6 +276,8 @@ function rateScritte(rate: RataDelPiano[]): RataScritta[] {
       trigger_evento: dataVera(r.expected_date) ? "data_fissa" : r.trigger_evento && EVENTI_RATA.has(r.trigger_evento) ? r.trigger_evento : "data_fissa",
       trigger_numero: r.trigger_numero ?? null,
       ...(r.aMisura ? { importo_da_misurare: true } : {}),
+      ...(r.trigger_soglia ? { trigger_soglia: r.trigger_soglia } : {}),
+      ...(r.trigger_fase ? { trigger_fase: r.trigger_fase } : {}),
       ...(typeof r.expected_date === "string" && dataVera(r.expected_date) ? { expected_date: r.expected_date } : {}),
     }));
 }

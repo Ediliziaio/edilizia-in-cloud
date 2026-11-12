@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bozzaVuota, voceVuota } from "@/lib/computo/editorNativo";
-import { analizzaEconomia, giornoIncasso, pianiPredefiniti } from "@/lib/computo/economiaComputo";
+import { analizzaEconomia, eventoPerCommessa, giornoIncasso, pianiPredefiniti } from "@/lib/computo/economiaComputo";
 import { calcolaSconto } from "@/lib/computo/scontoComputo";
 import { generaComputoPdf } from "@/lib/computo/esportaComputo";
 import { vociDaBozza } from "@/lib/computo/editorNativo";
@@ -37,6 +37,24 @@ describe("margini", () => {
     expect(a.margine).toBe(990); expect(a.vociSenzaCosto).toBe(1);
     expect(a.perCapitolo.get("Manto")).toMatchObject({ costo: 2000, ricavo: 3000 });
     expect(a.rischi.map(r => r.testo).join(" ")).toMatch(/senza costo stimato/);
+  });
+});
+
+describe("il momento della rata verso la commessa", () => {
+  const rate = pianiPredefiniti(20)[0].rate(); // acconto alla firma, SAL al 50%, saldo a fine lavori
+  it("porta l'evento del cantiere, e la soglia anche quando l'evento è tradotto", () => {
+    expect(eventoPerCommessa(rate[0], rate)).toMatchObject({ evento: "firma_contratto" });
+    expect(eventoPerCommessa(rate[2], rate)).toMatchObject({ evento: "fine_lavori" });
+    // «Al 50% dei lavori» viaggia ancora come SAL numerato: la regola SQL che lo fa maturare
+    // somma un importo già cumulativo (docs/sal-percentuale-importo-progressivo-20261112.sql).
+    // La soglia si porta dietro lo stesso: tolta l'eccezione, qui cambia solo l'evento.
+    expect(eventoPerCommessa(rate[1], rate)).toMatchObject({ evento: "sal_numero", numero: 1, soglia: 50 });
+  });
+  it("una fase e il collaudo arrivano con la loro condizione", () => {
+    const fase = { ...rate[1], evento: "fase_completata" as const, fasi: ["Strutture"] };
+    expect(eventoPerCommessa(fase, [fase])).toMatchObject({ evento: "fase_completata", fase: "Strutture" });
+    const collaudo = { ...rate[2], evento: "collaudo" as const };
+    expect(eventoPerCommessa(collaudo, [collaudo])).toMatchObject({ evento: "collaudo" });
   });
 });
 

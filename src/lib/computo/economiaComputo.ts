@@ -125,16 +125,17 @@ export function testoQuando(r: Rata, rate: readonly Rata[]): string {
 }
 
 /**
- * Il momento della rata nella lingua delle commesse (`lib/orders/rateEventi`).
+ * Il momento della rata nella lingua delle commesse (`lib/orders/rateEventi`). Dal 12/11/2026 la
+ * condizione scritta nel contratto arriva intera: «a completamento di una fase» porta il nome
+ * della fase e il collaudo resta il collaudo. Il database conosce i momenti (vincolo e
+ * `data_attesa_rata`) e le due funzioni che scrivono le rate sanno dove metterli.
  *
- * Il database conosce «al 30% dei lavori», «a completamento di una fase» e «al collaudo» dal
- * 12/11/2026 (colonne, vincolo e `data_attesa_rata`), ma le due funzioni che SCRIVONO le rate —
- * `order_rate_sostituisci` e `create_order_atomic` — non leggono ancora soglia e fase: una rata
- * che arrivasse con l'evento nuovo e senza la sua condizione resterebbe senza data attesa, che è
- * peggio di oggi. Finché non sono aggiornate (SQL pronto in `docs/`), quei momenti viaggiano come
- * SAL numerati e il collaudo come fine lavori — che è quello che sono in cantiere — e la
- * condizione per esteso resta scritta nel documento. Soglia e fase si portano comunque dietro:
- * il giorno che le funzioni le sanno leggere, qui cambia solo la riga dell'evento.
+ * ECCEZIONE, da togliere: «al X% dei lavori» viaggia ancora come SAL numerato. La regola SQL
+ * che lo fa maturare somma gli importi dei SAL, ma `sal_records.importo_totale` è già il
+ * cumulativo («lavori a tutto il …»): così la soglia si raggiunge troppo presto e la rata
+ * risulterebbe scaduta prima del dovuto. La correzione è pronta in
+ * `docs/sal-percentuale-importo-progressivo-20261112.sql`; applicata quella, qui si toglie
+ * questa riga e la soglia viaggia col suo evento. La soglia si porta dietro comunque.
  */
 export function eventoPerCommessa(r: Rata, rate: readonly Rata[]): {
   evento: string; numero: number | null; soglia: number | null; fase: string | null;
@@ -143,8 +144,7 @@ export function eventoPerCommessa(r: Rata, rate: readonly Rata[]): {
   switch (r.evento) {
     case "sal_numero": return { ...vuoto, evento: "sal_numero", numero: numeroSal(rate, r) };
     case "sal_percentuale": return { ...vuoto, evento: "sal_numero", numero: numeroSal(rate, r), soglia: r.soglia ?? null };
-    case "fase_completata": return { ...vuoto, evento: "sal_numero", numero: numeroSal(rate, r), fase: r.fasi[0]?.trim() || null };
-    case "collaudo": return { ...vuoto, evento: "fine_lavori" };
+    case "fase_completata": return { ...vuoto, evento: "fase_completata", fase: r.fasi[0]?.trim() || null };
     default: return { ...vuoto, evento: r.evento };
   }
 }

@@ -34,6 +34,19 @@ describe("commessa dal computo", () => {
     expect(fasi.map(f => f.evento)).toEqual(["firma_contratto", "sal_numero", "fine_lavori"]);
     expect(fasi[1]).toMatchObject({ numero: 2, a_misura: true, amount: 0, percent: 0 });
   });
+
+  // 12/11/2026: «al 30% dei lavori» e «a completamento di una fase» arrivano con la loro condizione.
+  it("la condizione del contratto arriva intera, non schiacciata su un SAL generico", () => {
+    const fasi = fasiDaRate([
+      { ...vuota, descrizione: "A metà", percentuale: 40, importo: 400, evento: "sal_percentuale", soglia: 50 },
+      { ...vuota, descrizione: "Strutture", percentuale: 30, importo: 300, evento: "fase_completata", fase: "Strutture in elevazione" },
+      { ...vuota, descrizione: "Saldo", percentuale: 30, importo: 300, evento: "collaudo", termineGiorni: 45, termineFineMese: true },
+    ]);
+    expect(fasi.map(f => f.evento)).toEqual(["sal_percentuale", "fase_completata", "collaudo"]);
+    expect(fasi[0].soglia).toBe(50);
+    expect(fasi[1].fase).toBe("Strutture in elevazione");
+    expect(fasi[2]).toMatchObject({ termine_giorni: 45, termine_fine_mese: true });
+  });
 });
 
 describe("costi dal listino", () => {
