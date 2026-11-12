@@ -83,7 +83,7 @@ describe("DocumentoDetail: l'azione «Emetti» sul dettaglio", () => {
 
   it("mostra «Emetti» solo per una bozza di tipo SDI, mai per proforma o preventivo", () => {
     expect(sorgenteDettaglio).toContain(
-      'const canEmettere = doc.stato === "bozza" && TIPI_SDI.includes(doc.tipo) && !isProforma && !isPreventivo;',
+      'const canEmettere = !fatturazioneEsterna && doc.stato === "bozza" && TIPI_SDI.includes(doc.tipo) && !isProforma && !isPreventivo;',
     );
   });
 
