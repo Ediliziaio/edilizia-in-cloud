@@ -1,9 +1,10 @@
 import {beforeEach,describe,expect,it,vi} from "vitest";
-const mock=vi.hoisted(()=>({from:vi.fn(),calls:[] as Array<[string,...unknown[]]>,rows:[] as Array<{id:string;current_status_id:string;company_id:string}>,links:{} as Record<string,Array<Record<string,string>>>,error:null as Error|null}));
-vi.mock("@/integrations/supabase/client",()=>({supabase:{from:mock.from}}));
+const mock=vi.hoisted(()=>({from:vi.fn(),rpc:vi.fn(),calls:[] as Array<[string,...unknown[]]>,rows:[] as Array<{id:string;current_status_id:string;company_id:string}>,links:{} as Record<string,Array<Record<string,string>>>,error:null as Error|null}));
+vi.mock("@/integrations/supabase/client",()=>({supabase:{from:mock.from,rpc:mock.rpc}}));
 import {readOrdersPage,type OrdersReaderFilters} from "@/lib/orders/listQuery";
 const filters:OrdersReaderFilters={companyId:"company-a",focusIds:null,paymentIds:null,salespersonFilter:"all",laborFilter:"all",supplierFilter:"all",sidebarFilters:{dateFrom:"",dateTo:"",createdFrom:"",createdTo:"",orderSearch:"",includeStatuses:[],excludeStatuses:[],paymentStatus:"all",amountMin:"",amountMax:"",salespersonId:"",laborIds:[]},customerFilter:"all",debouncedSearch:"",statusFilter:"all",supportStatusId:"support",lastStatusId:"done",hideCompleted:false,amountMin:"",amountMax:"",isYearCorrente:false,monthFilter:"all",currentYear:2026,hasSelectedYear:false,selectedYear:null,contractDateRange:{from:undefined,to:undefined},warehouseDateRange:{from:undefined,to:undefined},expectedDateRange:{from:undefined,to:undefined},sortField:"id",sortDir:"asc"};
 beforeEach(()=>{
+  mock.rpc.mockReset().mockImplementation(async (_name:string,args:{p_company_id:string;p_ids:string[]})=>({data:args.p_ids.map(id=>({id})),error:null as null}));
   mock.calls=[];mock.error=null;mock.links={};mock.rows=Array.from({length:65},(_,i)=>({id:String(i).padStart(3,"0"),current_status_id:i<30?"open":"risk",company_id:"company-a"}));
   mock.from.mockImplementation((table:string)=>{
     let rows:Array<Record<string,string>>=table==="orders"?[...mock.rows]:[...(mock.links[table]??[])],start=0,end=1000;
@@ -20,6 +21,11 @@ beforeEach(()=>{
   });
 });
 describe("Filtri prima della paginazione delle commesse",()=>{
+  it("completa gli importi finanziari solo per le commesse della pagina e dell'azienda selezionata",async()=>{
+    const result=await readOrdersPage(filters,20,39);
+    expect(mock.rpc).toHaveBeenCalledWith("commesse_importi_finanziari",{p_company_id:"company-a",p_ids:result.orders.map(row=>row.id)});
+    expect(result.orders).toHaveLength(20);
+  });
   it("«Solo generali» tiene anche ciò che contengono; «Senza generale» toglie entrambe; di default nessun filtro",async()=>{
     await readOrdersPage({...filters,generaliFilter:"solo"},0,19);
     expect(mock.calls).toContainEqual(["or","workflow_kind.eq.generale,commessa_generale_id.not.is.null"]);
