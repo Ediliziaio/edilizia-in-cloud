@@ -680,7 +680,7 @@ serve(async (req: Request) => {
     // Only follow-ups wait for the already-started history read. Standalone
     // queries retain parallel retrieval; no extra rewrite/model call is added.
     const conversationPromise = isSilvioReadFollowUp(userMessage) && attachments.length === 0
-      ? historyPromise.then(({ data }) => silvioConversationContext(userMessage, (data ?? []).filter(m => !usaPermessiStaff(primaryRole) || m.sender_id === userId).slice().reverse(), {
+      ? historyPromise.then(({ data }) => silvioConversationContext(userMessage, (data ?? []).filter((m: {sender_id:string}) => !usaPermessiStaff(primaryRole) || m.sender_id === userId).slice().reverse(), {
         userId, currentMessageId: requestMessageId,
       })).catch((error: unknown) => {
         console.warn("[silvio-chat] follow-up context unavailable:", error instanceof Error ? error.message : error);
@@ -963,7 +963,7 @@ serve(async (req: Request) => {
     // Partita in 4.bis insieme alle altre letture.
     const { data: historyRaw } = await historyPromise;
 
-    const history = silvioHistoryMessages((historyRaw ?? []).filter(m => !usaPermessiStaff(primaryRole) || m.sender_id === userId).slice().reverse(), {
+    const history = silvioHistoryMessages((historyRaw ?? []).filter((m: {sender_id:string}) => !usaPermessiStaff(primaryRole) || m.sender_id === userId).slice().reverse(), {
       assistantSenderId: SILVIO_SENDER_ID,
       currentSenderId: userId,
       currentContent: userMessage,

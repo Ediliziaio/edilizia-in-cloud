@@ -1,4 +1,4 @@
-import {contractPermission,SILVIO_PERMISSION_CONTRACTS}from"./silvioPermissionContracts.ts";
+import {contractPermission}from"./silvioPermissionContracts.ts";
 /** These two tools have exact granular gates; legacy aggregate flags are not grants. */
 export function silvioVerifiedToolPermission(name:string,p:Record<string,unknown>,role?:string):boolean|null {
  const contract=contractPermission(name,p,role);if(contract!==null)return contract;
@@ -8,21 +8,12 @@ export function silvioVerifiedToolPermission(name:string,p:Record<string,unknown
 }
 
 /** Server policy, before tool execution. A prompt is never an authorization. */
-export function silvioDataPermissionIssue(name:string,domain:string|undefined,p:Record<string,unknown>,writing=false,role?:string,args?:Record<string,unknown>):string|null {
- if(SILVIO_PERMISSION_CONTRACTS[name])return contractPermission(name,p,role,args) ? null : "Non hai i permessi richiesti per questo strumento. Nessuna operazione eseguita.";
- if(name!=='carica_strumenti')return 'Questo strumento non dispone di un contratto di accesso verificato per il tuo utente. Usa gli strumenti autorizzati.';
- if(writing && ['cantiere','operations'].includes(domain??'') && p.can_edit_orders!==true)return 'Puoi consultare le commesse ma non modificarle.';
- if(/export|esporta/.test(name) && ['crm','sales','marketing'].includes(domain??'') && p.can_export_clients!==true)return 'Non hai il permesso di esportare i contatti.';
- if(name==='universal_search')return 'Usa gli strumenti delle singole aree: la ricerca trasversale non garantisce i tuoi permessi sui dati.';
- if(/marginalit|margin|profit|redditiv/i.test(name) && p.can_view_margins!==true)return 'Non hai il permesso di vedere i margini.';
- if(/overdue_payments|revenue_forecast|pricing_history|customers_ltv|get_top_customers|quotes_summary/.test(name) && p.can_view_order_amounts!==true)return 'Non hai il permesso di vedere gli importi.';
- const legacyCrm = ['crm','sales','marketing','preventivi'].includes(domain??'') && !['cerca_contatti_autorizzati','cerca_opportunita_autorizzate','search_brain'].includes(name);
- if(legacyCrm && writing)return 'Questo strumento non ha ancora una verifica completa dei permessi di modifica. Usa la funzione autorizzata della piattaforma.';
- if(legacyCrm && ['can_view_marketing_contacts','can_view_marketing_opportunities','can_view_marketing_activities','can_view_marketing_appointments','can_view_marketing_reports'].some(k=>p[k]!==true))return 'Questo strumento CRM aggrega più tipi di dati. Usa gli strumenti autorizzati per contatti o opportunità.';
- if(p.only_assigned===true && ['crm','sales','marketing','preventivi'].includes(domain??'') && !['cerca_contatti_autorizzati','cerca_opportunita_autorizzate','search_brain'].includes(name))return 'Per il tuo portafoglio CRM usa cerca_contatti_autorizzati o cerca_opportunita_autorizzate. Questo strumento non garantisce il filtro sui dati assegnati.';
- if(name==='cerca_contatti_autorizzati' && p.can_view_marketing_contacts!==true)return 'Non hai accesso ai contatti CRM.';
- if(name==='cerca_opportunita_autorizzate' && p.can_view_marketing_opportunities!==true)return 'Non hai accesso alle opportunità CRM.';
- return null;
+export function silvioDataPermissionIssue(name:string,_domain:string|undefined,p:Record<string,unknown>,_writing=false,role?:string,args?:Record<string,unknown>):string|null {
+ const allowed=contractPermission(name,p,role,args);
+ if(allowed!==null)return allowed ? null : "Non hai i permessi richiesti per questo strumento. Nessuna operazione eseguita.";
+ // Loading the catalogue grants no business data; every loaded tool is filtered again.
+ if(name==='carica_strumenti')return null;
+ return 'Questo strumento non dispone di un contratto di accesso verificato per il tuo utente. Usa gli strumenti autorizzati.';
 }
 
 /** Early UX denial; data/tool guards remain authoritative for every query. */
