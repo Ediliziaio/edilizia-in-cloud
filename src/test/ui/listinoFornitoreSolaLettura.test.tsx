@@ -9,15 +9,16 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ListinoFornitoreTab } from "@/components/suppliers/ListinoFornitoreTab";
 
 const finto = vi.hoisted(() => {
-  const listino = { id: "listino-demo", sconto_default_pct: 0 };
+  // Un solo listino, in vigore: qui si prova il permesso, non la validita'
+  // (quella sta in listinoFornitoreValidita.test.tsx).
+  const listini = [{ id: "listino-demo", nome: "Listino di prova", sconto_default_pct: 0, valido_dal: null as string | null, valido_al: null as string | null, attivo: true }];
   const voci = [{ id: "voce-demo", codice: "PRF-01", descrizione: "Profilo di prova", unita: "m", prezzo: 10, sconto_pct: 5, immagine_url: null as string | null }];
   const catena = (tabella: string) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const c: any = {};
     for (const m of ["select", "eq", "order", "limit"]) c[m] = () => c;
-    c.maybeSingle = async () => ({ data: listino, error: null as null });
     c.then = (ok: (v: unknown) => unknown, ko: (e: unknown) => unknown) =>
-      Promise.resolve({ data: tabella === "listino_fornitore_voci" ? voci : [], error: null as null }).then(ok, ko);
+      Promise.resolve({ data: tabella === "listino_fornitore_voci" ? voci : listini, error: null as null }).then(ok, ko);
     return c;
   };
   return { catena, permessi: {} as Record<string, boolean> };

@@ -1,15 +1,17 @@
 /**
  * useListinoFornitore — lettura dei prezzi d'acquisto di un fornitore.
  *
- * Le voci arrivano dai listini ATTIVI del fornitore e servono in due posti:
- * il tab Listino sulla scheda fornitore e il suggerimento prezzo sulle righe
- * degli ordini d'acquisto. La lettura e' tollerante: se le tabelle non sono
- * ancora attive (migration da applicare) si degrada a vuoto senza rompere
- * le pagine che la usano.
+ * Le voci arrivano dai listini IN VIGORE OGGI del fornitore — attivi e dentro
+ * le date di validita', non solo attivi: un contratto scaduto ieri non e' un
+ * prezzo pattuito. La regola sta in `validitaListino`, la stessa che usa la
+ * scheda fornitore. La lettura e' tollerante: se le tabelle non sono ancora
+ * attive (migration da applicare) si degrada a vuoto senza rompere le pagine
+ * che la usano.
  */
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { VoceListinoFornitore } from "@/lib/listino/listinoFornitore";
+import { listinoInVigore } from "@/lib/listino/validitaListino";
 
 export function useVociListinoFornitore(supplierId: string | null | undefined) {
   const query = useQuery({
@@ -19,11 +21,13 @@ export function useVociListinoFornitore(supplierId: string | null | undefined) {
       // tipi generati — convenzione di progetto per le tabelle appena nate.
       const { data: listini, error } = await (supabase as any)
         .from("listini_fornitore")
-        .select("id")
+        .select("id, valido_dal, valido_al, attivo")
         .eq("supplier_id", supplierId)
         .eq("attivo", true);
       if (error) return [];
-      const ids = (listini ?? []).map((l: { id: string }) => l.id);
+      const ids = ((listini ?? []) as Array<{ id: string; valido_dal: string | null; valido_al: string | null; attivo: boolean }>)
+        .filter((l) => listinoInVigore(l))
+        .map((l) => l.id);
       if (ids.length === 0) return [];
       const { data: voci, error: e2 } = await (supabase as any)
         .from("listino_fornitore_voci")

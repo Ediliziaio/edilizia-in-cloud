@@ -7,6 +7,17 @@
  * d'acquisto: per questo codice e descrizione contano — l'abbinamento
  * e' solo esatto.
  *
+ * Un fornitore puo' avere PIU' listini attivi (il listino generale, il
+ * contratto per un cantiere, l'offerta dell'anno scorso): si scelgono dalla
+ * tendina, con accanto scritto se sono scaduti o non ancora in vigore, e le
+ * date si correggono da qui. Prima la scheda mostrava solo il primo attivo
+ * mentre il suggerimento prezzo usava tutti: su un fornitore con due listini
+ * si vedevano 42 voci su 64 e le altre non si potevano correggere (12/11/2026).
+ *
+ * I listini DISATTIVATI restano fuori, come prima: in produzione ce ne sono
+ * decine con centinaia di voci, e farli comparire qui vorrebbe dire salvare
+ * dentro un listino che non suggerisce prezzi.
+ *
  * Stessa struttura in due pezzi dell'analisi prezzi: il guscio carica,
  * l'editor interno (con key) si inizializza dai props. Niente setState
  * negli effect.
@@ -18,16 +29,23 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { Loader2, Plus, Trash2, AlertTriangle, ClipboardPaste } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import {
   parseVociIncollate, prezzoNetto,
 } from "@/lib/listino/listinoFornitore";
+import {
+  etichettaValidita, giornoItaliano, listinoDiOggi, listinoInScadenza, listinoInVigore,
+} from "@/lib/listino/validitaListino";
 
 interface RigaVoce {
   id: string;
@@ -39,50 +57,91 @@ interface RigaVoce {
   immagine_url?: string | null;
 }
 
+interface TestataListino {
+  id: string;
+  nome: string | null;
+  sconto_default_pct: number;
+  valido_dal: string | null;
+  valido_al: string | null;
+  attivo: boolean;
+}
+
 interface ListinoEsistente {
   listino: { id: string; sconto_default_pct: number } | null;
   voci: RigaVoce[];
 }
 
+/** Il nome da mostrare nella tendina, con lo stato se non e' in vigore. */
+function etichetta(l: TestataListino): string {
+  const nome = (l.nome ?? "").trim() || "Listino senza nome";
+  const stato = etichettaValidita(l);
+  return stato ? `${nome} — ${stato}` : nome;
+}
+
 export function ListinoFornitoreTab({ supplierId }: { supplierId: string }) {
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["listino-fornitore-editor", supplierId],
-    queryFn: async (): Promise<ListinoEsistente> => {
+  const [sceltoId, setSceltoId] = useState<string | null>(null);
+  // Le voci modificate e non salvate vivono dentro l'editor: cambiando listino
+  // l'editor si rimonta e le perderebbe in silenzio, quindi prima si chiede.
+  const [sporco, setSporco] = useState(false);
+  const [daConfermare, setDaConfermare] = useState<string | null>(null);
+  const permessi = usePermissions();
+  const puoModificare = permessi.canEditSettingsSuppliers || permessi.canManageSuppliers || permessi.canEditSettingsPricing;
+  const qc = useQueryClient();
+
+  const testate = useQuery({
+    queryKey: ["listino-fornitore-testate", supplierId],
+    queryFn: async (): Promise<TestataListino[]> => {
       // `as any`: tabelle nuove (migration 20280201000000), fuori dai tipi
       // generati — convenzione di progetto.
-      const { data: listino, error } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("listini_fornitore")
-        .select("id, sconto_default_pct")
+        .select("id, nome, sconto_default_pct, valido_dal, valido_al, attivo")
         .eq("supplier_id", supplierId)
         .eq("attivo", true)
-        .order("created_at")
-        .limit(1)
-        .maybeSingle();
+        .order("valido_dal", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false });
       if (error) throw error;
-      if (!listino) return { listino: null, voci: [] };
-      const { data: voci, error: e2 } = await (supabase as any)
-        .from("listino_fornitore_voci")
-        .select("id, codice, descrizione, unita, prezzo, sconto_pct, immagine_url")
-        .eq("listino_id", listino.id)
-        .order("sort_order");
-      if (e2) throw e2;
-      return {
-        listino,
-        voci: (voci ?? []).map((v: Record<string, unknown>) => ({
-          id: String(v.id),
-          codice: String(v.codice ?? ""),
-          descrizione: String(v.descrizione ?? ""),
-          unita: String(v.unita ?? ""),
-          prezzo: Number(v.prezzo ?? 0),
-          sconto_pct: Number(v.sconto_pct ?? 0),
-          immagine_url: v.immagine_url ?? null,
-        })),
-      };
+      return (data ?? []).map((l: Record<string, unknown>) => ({
+        id: String(l.id),
+        nome: (l.nome as string | null) ?? null,
+        sconto_default_pct: Number(l.sconto_default_pct ?? 0),
+        valido_dal: (l.valido_dal as string | null) ?? null,
+        valido_al: (l.valido_al as string | null) ?? null,
+        attivo: l.attivo !== false,
+      }));
     },
     staleTime: 30_000,
   });
 
-  if (isLoading) {
+  const lista = testate.data ?? [];
+  // La scelta dell'utente vince; al primo caricamento si apre quello in vigore.
+  const corrente = lista.find((l) => l.id === sceltoId) ?? listinoDiOggi(lista);
+
+  const voci = useQuery({
+    queryKey: ["listino-fornitore-editor", supplierId, corrente?.id ?? null],
+    enabled: !testate.isLoading && !testate.isError,
+    queryFn: async (): Promise<RigaVoce[]> => {
+      if (!corrente) return [];
+      const { data, error } = await (supabase as any)
+        .from("listino_fornitore_voci")
+        .select("id, codice, descrizione, unita, prezzo, sconto_pct, immagine_url")
+        .eq("listino_id", corrente.id)
+        .order("sort_order");
+      if (error) throw error;
+      return (data ?? []).map((v: Record<string, unknown>) => ({
+        id: String(v.id),
+        codice: String(v.codice ?? ""),
+        descrizione: String(v.descrizione ?? ""),
+        unita: String(v.unita ?? ""),
+        prezzo: Number(v.prezzo ?? 0),
+        sconto_pct: Number(v.sconto_pct ?? 0),
+        immagine_url: v.immagine_url ?? null,
+      }));
+    },
+    staleTime: 30_000,
+  });
+
+  if (testate.isLoading) {
     return (
       <div className="flex items-center gap-2 py-8 justify-center text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" /> Carico il listino…
@@ -90,7 +149,7 @@ export function ListinoFornitoreTab({ supplierId }: { supplierId: string }) {
     );
   }
 
-  if (isError) {
+  if (testate.isError || voci.isError) {
     return (
       <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
         <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
@@ -102,21 +161,212 @@ export function ListinoFornitoreTab({ supplierId }: { supplierId: string }) {
     );
   }
 
+  const fuoriVigore = !!corrente && !listinoInVigore(corrente);
+  const inScadenza = !!corrente && listinoInScadenza(corrente, 30);
+
+  const cambiaListino = (id: string) => {
+    if (id === corrente?.id) return;
+    if (sporco) { setDaConfermare(id); return; }
+    setSceltoId(id);
+  };
+
+  const confermaCambio = () => {
+    if (daConfermare) { setSporco(false); setSceltoId(daConfermare); }
+    setDaConfermare(null);
+  };
+
   return (
-    <ListinoEditor
-      key={`${supplierId}:${data?.listino?.id ?? "nuovo"}`}
-      supplierId={supplierId}
-      esistente={data ?? { listino: null, voci: [] }}
-    />
+    <div className="space-y-3">
+      {lista.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground shrink-0">
+            {lista.length} listini per questo fornitore:
+          </span>
+          <Select value={corrente?.id ?? ""} onValueChange={cambiaListino}>
+            <SelectTrigger className="h-8 w-full max-w-md text-sm">
+              <SelectValue placeholder="Scegli il listino" />
+            </SelectTrigger>
+            <SelectContent>
+              {lista.map((l) => (
+                <SelectItem key={l.id} value={l.id}>{etichetta(l)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {corrente && (
+        <ValiditaListino
+          key={corrente.id}
+          listino={corrente}
+          puoModificare={puoModificare}
+          onSalvato={() => void qc.invalidateQueries({ queryKey: ["listino-fornitore-testate", supplierId] })}
+        />
+      )}
+
+      {fuoriVigore && (
+        <p role="status" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          Questo listino non è in vigore ({etichettaValidita(corrente!)}): i suoi prezzi non
+          vengono suggeriti sugli ordini d’acquisto.{" "}
+          {puoModificare
+            ? "Correggi le date qui sopra, o carica il listino nuovo."
+            : "Per correggere le date serve il permesso sui fornitori o sul listino."}
+        </p>
+      )}
+      {!fuoriVigore && inScadenza && (
+        <p role="status" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          Scade il {giornoItaliano(corrente?.valido_al ?? null)}: dopo quella data i prezzi non
+          vengono più suggeriti. Chiedi al fornitore il listino nuovo, o sposta la scadenza qui sopra.
+        </p>
+      )}
+
+      {voci.isLoading ? (
+        <div className="flex items-center gap-2 py-8 justify-center text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Carico le voci…
+        </div>
+      ) : (
+        <ListinoEditor
+          key={`${supplierId}:${corrente?.id ?? "nuovo"}`}
+          supplierId={supplierId}
+          inVigore={!corrente || !fuoriVigore}
+          onModificato={() => setSporco(true)}
+          onSalvato={() => setSporco(false)}
+          esistente={{
+            listino: corrente ? { id: corrente.id, sconto_default_pct: corrente.sconto_default_pct } : null,
+            voci: voci.data ?? [],
+          }}
+        />
+      )}
+
+      <Dialog open={!!daConfermare} onOpenChange={(a) => !a && setDaConfermare(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Modifiche non salvate</DialogTitle>
+            <DialogDescription>
+              Hai cambiato delle voci senza salvare. Cambiando listino le perdi.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setDaConfermare(null)}>Resta qui</Button>
+            <Button variant="destructive" size="sm" onClick={confermaCambio}>Cambia e perdi le modifiche</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+/**
+ * Le date di validita' del listino, modificabili da qui: senza questo campo
+ * l'avviso «non e' in vigore» chiedeva una cosa che dall'interfaccia non si
+ * poteva fare, e un contratto scaduto restava scaduto per sempre.
+ *
+ * Si salva quando si lascia il campo, non a ogni battuta: mentre si riscrive
+ * una data il campo passa dal vuoto, e il vuoto qui vuol dire «senza scadenza»
+ * — salvandolo subito si cancellerebbe la scadenza di un listino per il solo
+ * fatto di averla voluta correggere, rimettendolo in corso senza accorgersene.
+ */
+function ValiditaListino({
+  listino, puoModificare, onSalvato,
+}: {
+  listino: TestataListino;
+  puoModificare: boolean;
+  onSalvato: () => void;
+}) {
+  // Lo stato parte dal listino aperto; il `key` sul componente lo rifa' da capo
+  // quando si cambia listino dalla tendina.
+  const [dal, setDal] = useState(listino.valido_dal ?? "");
+  const [al, setAl] = useState(listino.valido_al ?? "");
+
+  const salva = useMutation({
+    mutationFn: async (patch: { valido_dal?: string | null; valido_al?: string | null }) => {
+      const { error } = await (supabase as any)
+        .from("listini_fornitore")
+        .update(patch)
+        .eq("id", listino.id);
+      if (error) throw error;
+      return patch;
+    },
+    onSuccess: (patch) => {
+      onSalvato();
+      toast.success(patch.valido_al === null && "valido_al" in patch
+        ? "Il listino ora è senza scadenza"
+        : "Date del listino aggiornate");
+    },
+    onError: (e: Error, patch) => {
+      // Il database ha rifiutato: il campo deve tornare a dire la verita'.
+      if ("valido_dal" in patch) setDal(listino.valido_dal ?? "");
+      if ("valido_al" in patch) setAl(listino.valido_al ?? "");
+      toast.error("Date non salvate", { description: e.message });
+    },
+  });
+
+  /**
+   * Date incrociate («dal 2027 al 2026») renderebbero il listino scaduto in
+   * silenzio: il database non ha un CHECK che lo impedisca, quindi la guardia
+   * sta qui e il campo torna com'era.
+   */
+  const incrociate = (quale: "valido_dal" | "valido_al", nuovoValore: string | null) => {
+    const d = quale === "valido_dal" ? nuovoValore : dal || null;
+    const a = quale === "valido_al" ? nuovoValore : al || null;
+    return !!d && !!a && d > a;
+  };
+
+  const campo = (
+    quale: "valido_dal" | "valido_al",
+    etichettaCampo: string,
+    valore: string,
+    scrivi: (v: string) => void,
+  ) => (
+    <div className="flex items-center gap-1.5">
+      <Label htmlFor={`${quale}-${listino.id}`} className="text-xs text-muted-foreground">{etichettaCampo}</Label>
+      <Input
+        id={`${quale}-${listino.id}`}
+        type="date"
+        className="h-8 w-[9.5rem] text-sm"
+        value={valore}
+        disabled={!puoModificare}
+        onChange={(e) => scrivi(e.target.value)}
+        onBlur={() => {
+          const nuovoValore = valore || null;
+          if (!puoModificare || nuovoValore === (listino[quale] ?? null)) return;
+          if (incrociate(quale, nuovoValore)) {
+            scrivi(listino[quale] ?? "");
+            toast.error("La fine della validità viene prima dell'inizio", {
+              description: "Il listino risulterebbe scaduto appena salvato. Controlla le due date.",
+            });
+            return;
+          }
+          salva.mutate({ [quale]: nuovoValore });
+        }}
+      />
+    </div>
+  );
+
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      {campo("valido_dal", "In vigore dal", dal, setDal)}
+      {campo("valido_al", "fino al", al, setAl)}
+      {salva.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+      {!al && <span className="text-xs text-muted-foreground">senza scadenza</span>}
+    </div>
   );
 }
 
 function ListinoEditor({
   supplierId,
   esistente,
+  inVigore,
+  onModificato,
+  onSalvato,
 }: {
   supplierId: string;
   esistente: ListinoEsistente;
+  /** Falso quando il listino aperto e' scaduto o non ancora in vigore: il toast non deve promettere suggerimenti. */
+  inVigore: boolean;
+  /** Si chiama alla prima modifica: il guscio deve sapere che c'e' del lavoro da salvare. */
+  onModificato: () => void;
+  onSalvato: () => void;
 }) {
   const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
@@ -140,12 +390,15 @@ function ListinoEditor({
     );
   }, [voci, filtro]);
 
-  const aggiorna = (id: string, patch: Partial<RigaVoce>) =>
+  const aggiorna = (id: string, patch: Partial<RigaVoce>) => {
+    onModificato();
     setVoci((r) => r.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  };
 
   const importaIncollato = () => {
     const { voci: nuove, scartate } = parseVociIncollate(testoIncolla);
     if (nuove.length > 0) {
+      onModificato();
       setVoci((r) => [
         ...r,
         ...nuove.map((v) => ({
@@ -225,10 +478,14 @@ function ListinoEditor({
       return valide.length;
     },
     onSuccess: (n) => {
+      queryClient.invalidateQueries({ queryKey: ["listino-fornitore-testate", supplierId] });
       queryClient.invalidateQueries({ queryKey: ["listino-fornitore-editor", supplierId] });
       queryClient.invalidateQueries({ queryKey: ["listino-fornitore-voci", supplierId] });
+      onSalvato();
       toast.success(`Listino salvato: ${n} ${n === 1 ? "voce" : "voci"}`, {
-        description: "Da adesso i prezzi vengono suggeriti sulle righe degli ordini a questo fornitore.",
+        description: inVigore
+          ? "Da adesso i prezzi vengono suggeriti sulle righe degli ordini a questo fornitore."
+          : "Questo listino non è in vigore: i prezzi restano salvati, ma non vengono suggeriti sugli ordini finché le date non lo rimettono in corso.",
       });
     },
     onError: (e: Error) => toast.error("Salvataggio non riuscito", { description: e.message }),
@@ -252,12 +509,13 @@ function ListinoEditor({
             <Button
               size="sm"
               variant="outline"
-              onClick={() =>
+              onClick={() => {
+                onModificato();
                 setVoci((r) => [
                   ...r,
                   { id: crypto.randomUUID(), codice: "", descrizione: "", unita: "", prezzo: 0, sconto_pct: 0 },
-                ])
-              }
+                ]);
+              }}
             >
               <Plus className="h-4 w-4 mr-1" />Voce
             </Button>
@@ -338,7 +596,7 @@ function ListinoEditor({
                     {puoModificare && (
                       <Button
                         variant="ghost" size="icon" className="h-8 w-8"
-                        onClick={() => setVoci((r) => r.filter((x) => x.id !== v.id))}
+                        onClick={() => { onModificato(); setVoci((r) => r.filter((x) => x.id !== v.id)); }}
                         aria-label="Rimuovi voce"
                       >
                         <Trash2 className="h-4 w-4 text-muted-foreground" />
