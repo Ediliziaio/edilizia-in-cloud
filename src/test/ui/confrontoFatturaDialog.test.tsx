@@ -9,6 +9,7 @@ import {
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ContestoRiconciliazione } from "../../../supabase/functions/_shared/riconciliazioneFattureAI";
+import type { AnalisiFatturaAI } from "@/hooks/useRiconciliazioneFatturaAI";
 const fake = vi.hoisted(() => ({
   documenti: [] as unknown[],
   isError: false,
@@ -56,7 +57,7 @@ vi.mock("@/hooks/useRiconciliazioneFatturaAI", () => ({
   }),
   useRiconciliazioneFatturaAI: () => ({
     dati: {
-      data: fake.contesto ? { contesto: fake.contesto, analisi: null } : undefined,
+      data: fake.contesto ? { contesto: fake.contesto, analisi: null as AnalisiFatturaAI | null } : undefined,
       isError: fake.contestoErrore,
       isFetching: fake.contestoInCaricamento,
       error: fake.contestoErrore ? new Error("Residui non disponibili") : null,

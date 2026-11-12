@@ -14,7 +14,7 @@ describe("totaleOffertoProposto", () => {
     expect(totaleOffertoProposto(null, null)).toBeNull();
   });
   it("propone lo stesso numero che usano confronto e aggiudicazione a totale vuoto", () => {
-    const f = { status: "risposta", totale_offerto: null, validita_offerta: null, trasporto_tipo: "extra" as const, costo_trasporto: 80 };
+    const f: Parameters<typeof confrontoOfferta>[0] = { status: "risposta", totale_offerto: null, validita_offerta: null, trasporto_tipo: "extra", costo_trasporto: 80 };
     const c = confrontoOfferta(f, { totale: 3718, righeCoperte: 6, daRighe: true }, 6, "2026-11-11");
     expect(totaleOffertoProposto(f.totale_offerto, c.totale, 80)?.valore).toBe(3798);
   });

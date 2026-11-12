@@ -33,6 +33,7 @@ import {
   documentoCompatibileConFornitore,
   type RigaConfronto,
   type RigaBollaConfronto,
+  type EsitoRigaConfronto,
 } from "@/lib/fatturazione/confrontoDocumenti";
 import { originaleDaRiferimento } from "@/lib/fatturazione/originaliConfronto";
 import { messaggioSalvataggio } from "@/lib/fatturazione/salvataggioFattura";
@@ -356,7 +357,7 @@ export function ConfrontoFatturaDialog({
       );
     return stessaVoce(f, r);
   };
-  const esiti = useMemo(() => {
+  const esiti = useMemo<EsitoRigaConfronto[]>(() => {
     if (residuiNonDisponibili) {
       return righe.map(() => ({
         stato: "da_controllare" as const,
