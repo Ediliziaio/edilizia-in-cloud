@@ -1,5 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { nomeCliente } from "@/lib/fatturazione/clienteSnapshot";
+import { CelleEmesse, IntestazioniEmesse, SceltaColonneEmesse, useColonneEmesse } from "@/components/fatturazione/ColonneFattureEmesse";
+import { FILTRI_EMESSE_VUOTI, FiltriEmesseAttivi, FiltriFattureEmesse, type FiltriEmesse } from "@/components/fatturazione/FiltriFattureEmesse";
+import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { documentoDaConservare } from "@/lib/fatturazione/conservazione";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
@@ -239,7 +242,13 @@ function DocumentiFiscaliListInner() {
 
   // Fatture importate dal gestionale esterno che non sanno a quale cantiere
   // appartengono: finché non lo sanno, la commessa non sa quanto ha incassato.
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
+  const sceltaColonne = useColonneEmesse(effectiveCompany?.id, user?.id);
+  const [riquadroTabella, setRiquadroTabella] = useState<HTMLDivElement | null>(null);
+  const [filtriEmesse, setFiltriEmesse] = useState<FiltriEmesse>(FILTRI_EMESSE_VUOTI);
+  const clienteFiltro = useDebounce(filtriEmesse.cliente, 300);
+  const commessaFiltro = useDebounce(filtriEmesse.commessa, 300);
+  const [ordinamento, setOrdinamento] = useState<"progressivo" | "data">("progressivo");
   const [abbinaAperto, setAbbinaAperto] = useState(false);
 
   // Chi fattura con un altro programma: vede anche le importate, non crea documenti.
@@ -278,6 +287,7 @@ function DocumentiFiscaliListInner() {
   // Current tab config
   const currentTab = TIPO_TABS.find((t) => t.id === activeTab) ?? TIPO_TABS[0];
   const isTrash = activeTab === "annullate";
+  const elencoEmesse = activeTab === "fattura";
 
   const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
@@ -287,6 +297,7 @@ function DocumentiFiscaliListInner() {
     setStatoFilter("all");
     setSelectedMonth(null);
     setSearchRaw("");
+    setFiltriEmesse(FILTRI_EMESSE_VUOTI);
     clearSelection();
   };
 
@@ -317,8 +328,8 @@ function DocumentiFiscaliListInner() {
     : undefined;
 
   // Month → date range
-  const dataDa = selectedMonth ? `${selectedMonth}-01` : undefined;
-  const dataA = selectedMonth
+  const dataDa = elencoEmesse && filtriEmesse.dal ? filtriEmesse.dal : selectedMonth ? `${selectedMonth}-01` : undefined;
+  const dataA = elencoEmesse && filtriEmesse.al ? filtriEmesse.al : selectedMonth
     ? (() => {
         const [y, m] = selectedMonth.split("-").map(Number);
         const last = new Date(y, m, 0).getDate();
@@ -337,8 +348,13 @@ function DocumentiFiscaliListInner() {
       page,
       perPage: PER_PAGE,
       showDeleted: isTrash,
-      ordinamento: (activeTab === "fattura" || activeTab === "nota_credito") ? "progressivo" as const : "data" as const,
-      sdi: sdiFilter,
+      ordinamento: elencoEmesse ? ordinamento : activeTab === "nota_credito" ? "progressivo" as const : "data" as const,
+      sdi: elencoEmesse && filtriEmesse.sdi !== "all" ? filtriEmesse.sdi : sdiFilter,
+      incasso: elencoEmesse && filtriEmesse.incasso !== "all" ? filtriEmesse.incasso : undefined,
+      cliente: elencoEmesse ? clienteFiltro : undefined,
+      commessa: elencoEmesse ? commessaFiltro : undefined,
+      conNote: elencoEmesse && filtriEmesse.conNote,
+      conAllegati: elencoEmesse && filtriEmesse.conAllegati,
       // Le importate si leggono sempre, non solo per chi fattura con un altro
       // programma: chi passa a fatturare qui ha lo storico in `invoices` e
       // nessun documento nativo, e l'elenco gli risultava vuoto il giorno del
@@ -479,9 +495,12 @@ function DocumentiFiscaliListInner() {
     return { imp, iva, tot };
   }, [docs]);
 
-  const hasFilters = statoFilter !== "all" || searchRaw || selectedMonth;
+  const nFiltriEmesse = elencoEmesse ? (Object.keys(filtriEmesse) as (keyof FiltriEmesse)[]).filter(k => filtriEmesse[k] !== FILTRI_EMESSE_VUOTI[k]).length : 0;
+  const hasFilters = statoFilter !== "all" || searchRaw || selectedMonth || nFiltriEmesse > 0;
   // Le fasi SDI e le bozze sono del documento nativo: a chi importa non servono.
-  const statiFiltro = esterna
+  const statiFiltro = elencoEmesse
+    ? [{ value: "all", label: "Tutti i documenti" }, { value: "bozza", label: "Bozza" }, { value: "emessa", label: "Emessi" }, { value: "annullata", label: "Annullati" }, { value: "stornata", label: "Stornati" }]
+    : esterna
     ? STATI_FILTRO_DOCUMENTI.filter((o) => o.value !== "bozza" && !o.value.startsWith("sdi:"))
     : STATI_FILTRO_DOCUMENTI;
 
@@ -489,6 +508,14 @@ function DocumentiFiscaliListInner() {
     setStatoFilter("all");
     setSearchRaw("");
     setSelectedMonth(null);
+    setFiltriEmesse(FILTRI_EMESSE_VUOTI);
+    setPage(0);
+    clearSelection();
+  };
+
+  const cambiaFiltriEmesse = (patch: Partial<FiltriEmesse>) => {
+    setFiltriEmesse(v => ({ ...v, ...patch }));
+    if ("dal" in patch || "al" in patch) setSelectedMonth(null);
     setPage(0);
     clearSelection();
   };
@@ -698,6 +725,7 @@ function DocumentiFiscaliListInner() {
             selectedMonth={selectedMonth}
             onSelectMonth={(m) => {
               setSelectedMonth(m);
+              setFiltriEmesse(v => ({ ...v, dal: "", al: "" }));
               setPage(0);
               clearSelection();
             }}
@@ -765,8 +793,8 @@ function DocumentiFiscaliListInner() {
         className="sm:hidden"
         valore={searchRaw}
         onCambia={(v) => { setSearchRaw(v); setPage(0); clearSelection(); }}
-        segnaposto="Cerca numero o cliente"
-        filtriAttivi={(activeTab !== "fattura" ? 1 : 0) + (statoFilter !== "all" ? 1 : 0)}
+        segnaposto="Cliente, numero, importo, data o note…"
+        filtriAttivi={(activeTab !== "fattura" ? 1 : 0) + (statoFilter !== "all" ? 1 : 0) + nFiltriEmesse}
         onApriFiltri={() => setFiltriMobileAperti(true)}
       />
       <div className="flex items-center gap-3 flex-wrap rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm max-sm:hidden">
@@ -781,15 +809,23 @@ function DocumentiFiscaliListInner() {
           </Select>
         )}
 
-        <div className="relative flex-1 max-w-xs">
+        <div className="relative min-w-[260px] flex-1">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Cerca numero, cliente..."
+            placeholder="Cliente, numero, importo, data o note…"
+            aria-label="Cerca fatture per cliente, numero, importo, data o note"
             value={searchRaw}
             onChange={(e) => { setSearchRaw(e.target.value); setPage(0); clearSelection(); }}
             className="pl-8 h-9 text-sm"
           />
         </div>
+
+        {elencoEmesse && <FiltriFattureEmesse valore={filtriEmesse} cambia={cambiaFiltriEmesse} />}
+        {elencoEmesse && <Select value={ordinamento} onValueChange={v => { setOrdinamento(v as "progressivo" | "data"); setPage(0); clearSelection(); }}>
+          <SelectTrigger aria-label="Ordina fatture" className="h-9 w-[170px] text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="progressivo">Anno e numero ↓</SelectItem><SelectItem value="data">Data emissione ↓</SelectItem></SelectContent>
+        </Select>}
+        {elencoEmesse && <SceltaColonneEmesse {...sceltaColonne} />}
 
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 text-xs">
@@ -797,6 +833,7 @@ function DocumentiFiscaliListInner() {
           </Button>
         )}
       </div>
+      {elencoEmesse && <FiltriEmesseAttivi valore={filtriEmesse} cambia={cambiaFiltriEmesse} />}
 
       {!isTrash && !esterna && (activeTab === "fattura" || activeTab === "nota_credito") && (
         <p className="text-xs text-muted-foreground">Ordine per anno e numero decrescente. Le bozze senza numero sono in fondo all'anno; le trovi anche con il filtro Bozza.</p>
@@ -940,9 +977,10 @@ function DocumentiFiscaliListInner() {
           })}
         </div>
         <div className="border rounded-lg overflow-hidden max-sm:hidden">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
+          {elencoEmesse && <BarraScorrimentoOrizzontale contenitore={riquadroTabella} className="mx-3 my-2" />}
+          <div>
+            <Table wrapperRef={setRiquadroTabella} wrapperClassName={elencoEmesse ? "max-h-[70vh] tabella-scorrevole" : undefined} className={elencoEmesse ? "[&_td]:whitespace-nowrap [&_th]:whitespace-nowrap" : undefined}>
+              <TableHeader className={elencoEmesse ? "sticky top-0 z-10 bg-card shadow-[0_1px_0_hsl(var(--border))]" : undefined}>
                  <TableRow>
                   <TableHead className="w-10" onClick={(e) => e.stopPropagation()}>
                     <Checkbox
@@ -951,6 +989,7 @@ function DocumentiFiscaliListInner() {
                       aria-label="Seleziona tutti"
                     />
                   </TableHead>
+                  {elencoEmesse ? <IntestazioniEmesse colonne={sceltaColonne.colonne} /> : <>
                   {showColTipo && <TableHead className="w-28">Tipo</TableHead>}
                   {showColEliminazione && <TableHead className="w-36">Eliminazione</TableHead>}
                   <TableHead className="w-28">Stato</TableHead>
@@ -960,7 +999,8 @@ function DocumentiFiscaliListInner() {
                   {showColScadenza && <TableHead className="w-40">Prox. Scadenza</TableHead>}
                   {showColFatturaCollegata && <TableHead className="w-36">Fattura Collegata</TableHead>}
                   <TableHead className="text-right w-28">Importo</TableHead>
-                  <TableHead className="w-20" />
+                  </>}
+                  <TableHead className={elencoEmesse ? "sticky right-0 z-10 bg-card w-24" : "w-20"}><span className="sr-only">Azioni</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -984,6 +1024,7 @@ function DocumentiFiscaliListInner() {
                         />
                       </TableCell>
 
+                      {elencoEmesse ? <CelleEmesse doc={doc} colonne={sceltaColonne.colonne} apri={() => apriDocumento(doc)} /> : <>
                       {/* Tipo (solo cestino) */}
                       {showColTipo && (
                         <TableCell>
@@ -1127,9 +1168,10 @@ function DocumentiFiscaliListInner() {
                       <TableCell className={cn("text-right font-mono font-semibold text-sm", activeTab === "nota_credito" && "text-destructive")}>
                         {formatCurrency(doc.totale_documento)}
                       </TableCell>
+                      </>}
 
                       {/* Azioni: l'icona «Segna incassata» finché c'è da incassare, il resto nel menu. */}
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell className={elencoEmesse ? "sticky right-0 z-[1] bg-card py-2" : undefined} onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
                         {!isTrash && (doc.origine === "importata" ? importataPagabile(doc) : isDocumentoPagabile(doc)) && (
                           <Button
@@ -1312,8 +1354,8 @@ function DocumentiFiscaliListInner() {
       <PannelloFiltri
         aperto={filtriMobileAperti}
         onAperto={setFiltriMobileAperti}
-        attivi={(activeTab !== "fattura" ? 1 : 0) + (statoFilter !== "all" ? 1 : 0)}
-        onAzzera={() => { handleTabChange("fattura"); setStatoFilter("all"); }}
+        attivi={(activeTab !== "fattura" ? 1 : 0) + (statoFilter !== "all" ? 1 : 0) + nFiltriEmesse}
+        onAzzera={() => { handleTabChange("fattura"); clearFilters(); }}
         risultati={total}
       >
         <PilloleFiltro
@@ -1334,6 +1376,7 @@ function DocumentiFiscaliListInner() {
             scelte={statiFiltro}
           />
         )}
+        {elencoEmesse && <div className="flex flex-wrap gap-2"><FiltriFattureEmesse valore={filtriEmesse} cambia={cambiaFiltriEmesse} /></div>}
       </PannelloFiltri>
 
       {/* ── Delete Confirmation Dialog ───────────────── */}

@@ -245,6 +245,11 @@ export interface DocumentoFiscale {
   origine?: "nativa" | "importata";
   /** Il gestionale da cui arriva una fattura importata (fattureincloud, xml_import…). */
   external_provider?: string;
+  /** Metadati aggregati dell'elenco; non si salvano nel documento fiscale. */
+  commesse?: { id: string; codice: string | null; descrizione: string | null }[];
+  elenco_allegati?: number;
+  elenco_incasso?: string;
+  elenco_prossima_scadenza?: string | null;
   tipo: TipoDocumento;
   numero: string;
   numero_progressivo: number;

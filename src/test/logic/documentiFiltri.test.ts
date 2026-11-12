@@ -2,7 +2,7 @@ import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { getScadenzaInfo, giornoItaliano, ricercaDocumenti, STATI_FILTRO_DOCUMENTI } from "@/lib/fatturazione/filtriDocumenti";
+import { dataRicercaDocumenti, importoRicercaDocumenti, getScadenzaInfo, giornoItaliano, ricercaDocumenti, STATI_FILTRO_DOCUMENTI } from "@/lib/fatturazione/filtriDocumenti";
 import { faseSdi, TIPI_SDI, type DocFaseSdi } from "@/lib/fatturazione/sdiCassetto";
 
 const db = new PGlite();
@@ -51,6 +51,17 @@ describe("Scadenza: calendario italiano e residuo, non il solo stato salvato", (
 });
 
 describe("Ricerca letterale sicura, inclusi punteggiatura e privati", () => {
+  it.each(["3.235,00", "3235,00", "3235.00", "€ 3.235,00", "3.235"])("%s trova lo stesso importo senza perdere i numeri fattura", v => {
+    expect(importoRicercaDocumenti(v)).toBe(3235);
+    expect(ricercaDocumenti(v, true)).toContain("totale_documento.eq.3235");
+    expect(ricercaDocumenti(v, true)).toContain("elenco_residuo.eq.3235");
+    expect(ricercaDocumenti(v)).toContain("numero.imatch.");
+  });
+  it.each(["12/11/2026", "12-11-2026", "2026-11-12"])("%s interpreta la data", v => expect(dataRicercaDocumenti(v)).toBe("2026-11-12"));
+  it.each(["31/02/2026", "29/02/2026", "2026-13-01", "2026-11-31", "1.234.56", "1,2,3", "NaN", "1e8"])("%s non viene forzato in un tipo sbagliato", v => {
+    expect(dataRicercaDocumenti(v)).toBeUndefined(); expect(importoRicercaDocumenti(v)).toBeUndefined();
+  });
+  it("ricerca anche le note interne nella stessa query", () => expect(ricercaDocumenti("acconto")).toContain("note_interne.imatch."));
   it.each(['Rossi, Mario (S.r.l.)','Quote:"test"','C:\\clienti','100%_reale*','a)|numero.eq.qualunque','FPR 74/26','[A-Z]+$'])('%s resta un solo valore PostgREST e una regex letterale', async term => {
     const filter = ricercaDocumenti(term)!;
     // Decodifica la stringa quotata nello stesso modo della grammatica PostgREST.

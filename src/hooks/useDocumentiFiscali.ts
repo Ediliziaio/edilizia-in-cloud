@@ -5,10 +5,20 @@ import { queryKeys } from "@/lib/queryKeys";
 import { createTimeoutSignal, withClientTimeout } from "@/lib/query-timeout";
 import { toast } from "sonner";
 import type { DocumentoFiscale, TipoDocumento, StatoDocumento } from "@/types/fatturazione";
-import { ricercaDocumenti } from "@/lib/fatturazione/filtriDocumenti";
+import { giornoItaliano, ricercaDocumenti } from "@/lib/fatturazione/filtriDocumenti";
 import { stornatoDellaFattura } from "@/lib/fatturazione/noteCredito";
 
 const DOCUMENTI_QUERY_TIMEOUT_MS = 12_000;
+// Nel listato bastano conteggi e prossima rata: gli eventuali allegati
+// incorporati e i piani completi si leggono solo aprendo il documento.
+const COLONNE_ELENCO = [
+  "id", "company_id", "origine", "external_provider", "tipo", "numero", "numero_progressivo", "anno", "serie",
+  "data_emissione", "data_scadenza", "anagrafica_id", "cliente_snapshot", "stato", "sdi_id_trasmissione", "sdi_stato",
+  "sdi_file_xml_url", "trasmissione", "imponibile_totale", "iva_totale", "totale_documento", "totale_da_pagare",
+  "importo_pagato", "pagato_at", "documento_correlato_id", "ddt_fattura_id", "ddt_fatturato", "note_documento",
+  "deleted_at", "created_at", "updated_at", "note_interne", "metodo_pagamento_nome", "ordine_id", "pdf_url",
+  "stornato", "elenco_allegati", "elenco_incasso", "elenco_prossima_scadenza", "commesse",
+].join(",");
 
 // ─── Filters ──────────────────────────────────────────────────
 
@@ -30,7 +40,12 @@ export interface DocumentiFiscaliFilters {
   /** When true, show soft-deleted docs (cestino) instead of active docs */
   showDeleted?: boolean;
   /** Fase verso lo SDI: le fatture da inviare, quelle che aspettano l'esito, le scartate. */
-  sdi?: "da_inviare" | "in_elaborazione" | "scartata";
+  sdi?: string;
+  incasso?: string;
+  cliente?: string;
+  commessa?: string;
+  conNote?: boolean;
+  conAllegati?: boolean;
   /** Anche le fatture importate dal gestionale esterno (`invoices`): l'hub di chi non fattura in nativo. */
   conImportate?: boolean;
 }
@@ -43,6 +58,11 @@ function mapRow(row: Record<string, unknown>): DocumentoFiscale {
     company_id: row.company_id as string,
     origine: (row.origine as DocumentoFiscale["origine"]) ?? "nativa",
     external_provider: row.external_provider as string | undefined,
+    commesse: (row.commesse ?? []) as DocumentoFiscale["commesse"],
+    elenco_allegati: row.elenco_allegati == null ? undefined : Number(row.elenco_allegati),
+    elenco_incasso: row.elenco_incasso as string | undefined,
+    elenco_prossima_scadenza: row.elenco_prossima_scadenza as string | null | undefined,
+    stornato: Number(row.stornato ?? 0),
     tipo: row.tipo as TipoDocumento,
     numero: row.numero as string,
     numero_progressivo: row.numero_progressivo as number,
@@ -176,8 +196,8 @@ export function useDocumentiFiscali(filters: DocumentiFiscaliFilters = {}) {
       const timeout = createTimeoutSignal(DOCUMENTI_QUERY_TIMEOUT_MS);
       try {
         let query = supabase
-          .from((filters.conImportate ? "documenti_fiscali_elenco_con_importate" : "documenti_fiscali_elenco") as never)
-          .select("*", { count: "exact" })
+          .from((filters.conImportate ? "documenti_fiscali_elenco_operativo" : "documenti_fiscali_elenco") as never)
+          .select(filters.conImportate ? COLONNE_ELENCO : "*", { count: "exact" })
           .eq("company_id", companyId!);
 
         if (filters.showDeleted) {
@@ -218,8 +238,19 @@ export function useDocumentiFiscali(filters: DocumentiFiscaliFilters = {}) {
           query = query.eq("anagrafica_id", filters.anagrafica_id);
         }
         if (filters.sdi && !filters.showDeleted) {
-          query = query.eq("elenco_fase_sdi", filters.sdi)
+          query = (filters.sdi === "esterna" ? query.eq("origine", "importata") : query.eq("elenco_fase_sdi", filters.sdi))
             .not("stato", "in", "(annullata,stornata)");
+        }
+        if (filters.conImportate) {
+          // Filtri AND distinti dalla OR della barra libera (anche insieme).
+          const contiene = (v: string) => `%${v.trim().replace(/[\\%_]/g, "\\$&")}%`;
+          if (filters.cliente?.trim()) query = query.ilike("elenco_cliente", contiene(filters.cliente));
+          if (filters.commessa?.trim()) query = query.ilike("elenco_commesse", contiene(filters.commessa));
+          if (filters.conNote) query = query.eq("elenco_con_note", true);
+          if (filters.conAllegati) query = query.gt("elenco_allegati", 0);
+          if (filters.incasso === "scaduta") query = query.gt("elenco_residuo", 0)
+            .lt("elenco_prossima_scadenza", giornoItaliano()).not("elenco_incasso", "eq", "non_previsto");
+          else if (filters.incasso) query = query.eq("elenco_incasso", filters.incasso);
         }
         if (filters.data_da) {
           query = query.gte("data_emissione", filters.data_da);
@@ -227,14 +258,10 @@ export function useDocumentiFiscali(filters: DocumentiFiscaliFilters = {}) {
         if (filters.data_a) {
           query = query.lte("data_emissione", filters.data_a);
         }
-        const ricerca = ricercaDocumenti(filters.search ?? "");
-        if (ricerca) {
-          // Anche nelle note interne: stanno fuori dalle viste dell'elenco, si chiedono a parte.
-          const { data: conNota } = await (supabase as unknown as { rpc: (f: string, a: unknown) => PromiseLike<{ data: Array<{ id: string }> | null }> })
-            .rpc("ricerca_note_fatture", { p_company_id: companyId, p_testo: filters.search ?? "" });
-          const ids = (conNota ?? []).map((r) => r.id);
-          query = query.or(ids.length ? `${ricerca},id.in.(${ids.join(",")})` : ricerca);
-        }
+        const ricerca = ricercaDocumenti(filters.search ?? "", filters.conImportate);
+        // Note autorizzate nella stessa query: nessuna ricerca parziale né errore
+        // ignorato di una seconda RPC. Count e range vedono lo stesso predicato.
+        if (ricerca) query = query.or(ricerca);
 
         const { data, error, count } = await withClientTimeout(
           query.abortSignal(timeout.signal),

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, FileText, Loader2, Paperclip, Send, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { formatDateShort } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -140,7 +141,7 @@ export function AllegatiFattura({
   const [colonna, idMadre] = colonnaMadre(madre);
   const db = supabase as any;
 
-  const { data: allegati = [], isLoading } = useQuery({
+  const { data: allegati = [], isLoading, isError, refetch } = useQuery({
     queryKey: allegatiQueryKey(madre),
     enabled: !!companyId && !!idMadre,
     queryFn: async () => {
@@ -153,6 +154,7 @@ export function AllegatiFattura({
   });
   const aggiorna = () => {
     void queryClient.invalidateQueries({ queryKey: ["fattura-allegati-conteggi"] });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
     return queryClient.invalidateQueries({ queryKey: allegatiQueryKey(madre) });
   };
 
@@ -217,7 +219,7 @@ export function AllegatiFattura({
         )}
       </div>
 
-      {isLoading ? null : allegati.length === 0 ? (
+      {isError ? <div className="rounded-lg border p-3 text-xs" role="alert">Impossibile caricare gli allegati. <Button variant="link" size="sm" onClick={() => void refetch()}>Riprova</Button></div> : isLoading ? <p className="text-xs text-muted-foreground">Caricamento allegati…</p> : allegati.length === 0 ? (
         <p className="rounded-lg border border-dashed px-3 py-3 text-center text-xs text-muted-foreground">
           {sola_lettura ? "Nessun allegato." : "Nessun allegato: trascina qui un file o usa «Allega»."}
         </p>
