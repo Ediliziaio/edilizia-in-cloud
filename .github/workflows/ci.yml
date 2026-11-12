@@ -172,7 +172,7 @@ jobs:
 
       - name: Typecheck webhook edge functions
         if: matrix.group == 'core'
-        run: npx --yes deno@2.9.6 check supabase/functions/dispatch-global-webhooks/index.ts supabase/functions/send-webhook/index.ts supabase/functions/silvio-chat/index.ts supabase/functions/silvio-execute-action/index.ts
+        run: npx --yes deno@2.9.6 check supabase/functions/bank-distyra/index.ts supabase/functions/dispatch-global-webhooks/index.ts supabase/functions/send-webhook/index.ts supabase/functions/silvio-chat/index.ts supabase/functions/silvio-execute-action/index.ts
 
       - name: Verify global webhook events, permissions and delivery queue
         if: matrix.group == 'core'

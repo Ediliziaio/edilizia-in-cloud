@@ -224,7 +224,7 @@ export default function Tesoreria() {
             <Badge variant="outline">Importazione dei movimenti</Badge>
           </div>
           <Button onClick={() => navigate("/azienda/impostazioni/integrazioni")} className="mt-2 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:mt-0 max-sm:h-9 max-sm:text-xs">
-            <Link className="h-4 w-4 mr-2" />
+            <Link2 className="h-4 w-4 mr-2" />
             Collega primo conto
           </Button>
         </div>
