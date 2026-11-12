@@ -248,7 +248,7 @@ export const COLONNE_IGNORATE: Readonly<Record<string, string>> = {
   tetto_importo: "limite contrattuale: si verifica nel percorso contratti, non si deduce dall'importo della commessa",
   valorizzazione: "modalità di valorizzazione del contratto: scelta esplicita nel percorso dedicato",
   financing_cost_mode: "trattamento del costo finanziario: scelta contabile esplicita, non impostata dal creatore AI",
-  ritenuta_garanzia: "parametri di trattenuta e svincolo gestiti nel piano pagamenti; il creatore AI standard non li imposta",
+  ritenuta_garanzia: "ritenuta a garanzia concordata: arriva dal preventivo firmato, non si deduce dal testo",
   work_start_time: "fascia oraria puntuale gestita nell'agenda; il creatore AI standard propone la data, non l'ora",
   work_end_time: "fascia oraria puntuale gestita nell'agenda; il creatore AI standard propone la data, non l'ora",
   percentuale_avanzamento: CONSUNTIVO,

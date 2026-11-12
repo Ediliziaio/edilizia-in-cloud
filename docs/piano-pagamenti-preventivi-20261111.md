@@ -693,15 +693,31 @@ con la sua previsione; e il termine di pagamento e la rata a misura sono anche n
 altri otto preventivatori (`PianoPagamentoCard`, `lib/preventivi/pianoPagamento.ts`,
 PDF edile).
 
-Resta una cosa sola, e non si può fare da qui: **la migrazione
-`docs/rate-momenti-termine-ritenuta-20261111.sql`**. Aggiunge i momenti che oggi si
-perdono al confine (`sal_percentuale`, `fase_completata`, `collaudo`), le colonne del
-termine di pagamento e `orders.ritenuta_garanzia`, e insegna a `data_attesa_rata` le tre
-regole nuove. La prova a secco è passata; il tool MCP l'ha rifiutata come «Production
-Deploy». Finché non si applica: «al 30% dei lavori» e «a completamento di una fase»
-arrivano in commessa come SAL numerati, «al collaudo» come «a fine lavori», il termine
-di pagamento resta scritto nel documento e la ritenuta a garanzia si ferma al
-preventivo.
+**Il 12/11 è stato chiuso anche l'ultimo pezzo.** Tre migrazioni:
+`20290313140000` (i momenti `sal_percentuale`, `fase_completata` e `collaudo`, le colonne
+`trigger_soglia`, `trigger_fase`, `termine_giorni`, `termine_fine_mese`,
+`orders.ritenuta_garanzia`, e `data_attesa_rata` che sa cosa farne),
+`20290313160000` (`order_rate_sostituisci` le salva) e `20290313170000`
+(`create_order_atomic` le scrive sulla commessa nuova). Quest'ultima non riscrive a mano
+17 KB di funzione: prende la definizione dal catalogo e sostituisce il solo INSERT delle
+rate, fermandosi se non lo riconosce.
+
+Quindi la condizione scritta nel contratto arriva intera fino allo scadenzario: «al 30%
+dei lavori» porta la sua soglia e matura al SAL che la raggiunge, «a completamento delle
+strutture» porta il nome della fase e matura quando la fase si chiude, il collaudo resta
+il collaudo.
+
+Due code, scritte per intero in `docs/`: la regola di «al X% dei lavori» somma un importo
+che è già cumulativo (`sal_records.importo_totale` è «lavori a tutto il …»), quindi la
+soglia si raggiungerebbe troppo presto — la correzione è in
+`docs/sal-percentuale-importo-progressivo-20261112.sql` e, finché non è applicata, quel
+momento viaggia apposta come SAL numerato. Nessuna rata in produzione lo usa, quindi
+l'errore non ha fatto danni.
+
+E resta aperta **la ritenuta a garanzia dopo il preventivo**: la colonna sulla commessa
+c'è, ma come si comporta in fattura (importo pieno con incasso parziale, o fattura al
+netto con fattura di svincolo) è una decisione di prassi, scritta più sopra, che nessuno
+può prendere al posto del titolare.
 
 **Storico: la migrazione delle rate a misura non era applicata.** Sta pronta in
 `docs/rate-a-misura-commessa-20261111.sql`: aggiunge `order_installments.importo_da_misurare`

@@ -229,6 +229,9 @@ export interface RataDelPiano {
    * non una cifra del contratto. In commessa diventa `order_installments.importo_da_misurare`.
    */
   aMisura?: boolean;
+  /** «Al X% dei lavori»: la soglia di avanzamento. «A completamento di una fase»: il suo nome. */
+  trigger_soglia?: number | null;
+  trigger_fase?: string | null;
 }
 
 /** Il costo previsto di una fase, in `costi.previsti`. */
