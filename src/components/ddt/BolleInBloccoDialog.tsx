@@ -56,7 +56,11 @@ import {
   MAX_PAGINE_DIVISIONE,
   type PdfDaDividere,
 } from "@/lib/ddt/dividiPdf";
-import { CorreggiRigheBolla } from "@/components/ddt/CorreggiRigheBolla";
+import { FinestraBollaFotoRighe, SpuntaCaricoMagazzino } from "@/components/ddt/FinestraBollaFotoRighe";
+import {
+  avvisaEsitoCarico,
+  caricaAlSalvataggio,
+} from "@/lib/ddt/caricoAlSalvataggio";
 import { CollegamentiBolla } from "@/components/ddt/CollegamentiBolla";
 import { AzioniBolle } from "@/components/ddt/AzioniBolle";
 import { NuovoFornitoreDaBolla } from "@/components/ddt/NuovoFornitoreDaBolla";
@@ -75,6 +79,7 @@ import {
   chiaveBolla,
   eUnPdf,
   conLettura,
+  compilaAMano,
   doppioni,
   dubbi,
   motivoScartoFile,
@@ -166,6 +171,11 @@ function BolleAperte({
   const [preparando, setPreparando] = useState(0);
   const annullato = useRef(false);
   const daAbbinare = useRef(0);
+  // «Controlla la bolla»: la finestra con l'originale a fianco, per una bolla alla volta.
+  const [finestraPer, setFinestraPer] = useState<string | null>(null);
+  const giaAperte = useRef(new Set<string>());
+  const puoMagazzino = !permissions.solaLettura && Boolean(permissions.canEditWarehouse);
+  const [caricaMagazzino, setCaricaMagazzino] = useState(true);
 
   const {
     data: rubrica = [],
@@ -409,11 +419,35 @@ function BolleAperte({
     (b) => b.stato === "da_leggere" || b.stato === "in_lettura",
   );
   const salvate = bolle.filter((b) => b.esito === "salvata").length;
+  const caricoVisibile =
+    puoMagazzino &&
+    bolle.some(
+      (b) =>
+        b.stato === "letta" && b.esito !== "salvata" && b.destinazione === "magazzino",
+    );
+  const bollaInFinestra = bolle.find((b) => b.id === finestraPer) ?? null;
 
-  const conferma = async () => {
+  // La finestra si apre da sola sulla prima bolla da compilare a mano o senza righe;
+  // chiusa quella, sulla successiva. Una volta per bolla: chi la chiude ha deciso.
+  useEffect(() => {
+    if (finestraPer || salvando) return;
+    const prossima = elenco.find(
+      (b) =>
+        b.stato === "letta" &&
+        b.esito !== "salvata" &&
+        !b.ddtCreatoId &&
+        (b.compilaAMano || b.righe.length === 0) &&
+        !giaAperte.current.has(b.id),
+    );
+    if (!prossima) return;
+    giaAperte.current.add(prossima.id);
+    setFinestraPer(prossima.id);
+  }, [elenco, finestraPer, salvando]);
+
+  const conferma = async (lista: BollaLetta[] = daSalvare) => {
     setSalvando(true);
     daAbbinare.current = 0;
-    await inParallelo(daSalvare, QUANTE_INSIEME, async (b) => {
+    await inParallelo(lista, QUANTE_INSIEME, async (b) => {
       try {
         const creata = b.ddtCreatoId
           ? {
@@ -487,6 +521,14 @@ function BolleAperte({
             file: b.file,
             silenzioso: true,
           });
+        // Resi, noleggi e destinazioni miste non entrano da soli: si confermano dalla bolla.
+        if (
+          caricoVisibile &&
+          caricaMagazzino &&
+          b.destinazione === "magazzino" &&
+          !richiedeCaricoManuale(b.grezzo)
+        )
+          avvisaEsitoCarico(await caricaAlSalvataggio(creata.id), b.numero.trim());
         daAbbinare.current += b.righe.length;
         cambia(b.id, { esito: "salvata", motivoEsito: null });
         setSelezionate((ids) => new Set([...ids].filter((id) => id !== b.id)));
@@ -905,9 +947,25 @@ function BolleAperte({
                       </a>
                     )}
                     {b.stato === "non_letta" && (
-                      <p className="text-xs text-amber-800 dark:text-amber-300">
-                        Non letta: {b.errore}. Toglila e riprova, o caricala da
-                        «Nuovo DDT».
+                      <p className="flex flex-wrap items-center gap-2 text-xs text-amber-800 dark:text-amber-300">
+                        Non letta: {b.errore}.
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7"
+                          disabled={salvando}
+                          onClick={() => {
+                            giaAperte.current.add(b.id);
+                            setBolle((p) =>
+                              p.map((x) => (x.id === b.id ? compilaAMano(x) : x)),
+                            );
+                            setFinestraPer(b.id);
+                          }}
+                        >
+                          Compila a mano
+                        </Button>
+                        <span>oppure toglila e riprova.</span>
                       </p>
                     )}
 
@@ -1085,12 +1143,17 @@ function BolleAperte({
                             DDT.
                           </p>
                         )}
-                        <CorreggiRigheBolla
-                          file={b.file}
-                          righe={b.righe}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={b.righe.length ? "outline" : "default"}
                           disabled={salvando || !!b.ddtCreatoId}
-                          onChange={(righe) => cambia(b.id, { righe })}
-                        />
+                          onClick={() => setFinestraPer(b.id)}
+                        >
+                          {b.righe.length
+                            ? "Controlla la bolla con la foto a fianco"
+                            : "Compila le righe guardando la foto"}
+                        </Button>
                         {companyId && (
                           <CollegamentiBolla
                             bolla={b}
@@ -1179,7 +1242,64 @@ function BolleAperte({
             }}
           />
         )}
+        {bollaInFinestra && (
+          <FinestraBollaFotoRighe
+            open
+            onOpenChange={(v) => {
+              if (!v) setFinestraPer(null);
+            }}
+            files={[bollaInFinestra.file]}
+            companyId={companyId}
+            testata={bollaInFinestra}
+            onTestataChange={(patch) =>
+              cambia(bollaInFinestra.id, {
+                ...patch,
+                ...(patch.supplierId !== undefined ? { abbinatoPer: null } : {}),
+              })
+            }
+            righe={bollaInFinestra.righe}
+            onRigheChange={(righe) => cambia(bollaInFinestra.id, { righe })}
+            fornitoreLetto={bollaInFinestra.supplierId ? null : bollaInFinestra.fornitoreLetto}
+            mostraDestinazione
+            disabled={salvando || !!bollaInFinestra.ddtCreatoId}
+            avvisi={[
+              ...(doppi.get(bollaInFinestra.id) && !bollaInFinestra.caricaComunque
+                ? ["stesso numero, data e fornitore già presenti: decidi nella lista"]
+                : []),
+              ...(conflittoFornitore(bollaInFinestra, rubrica)
+                ? ["P.IVA del fornitore diversa da quella letta"]
+                : []),
+            ]}
+            carico={{
+              visibile: puoMagazzino && bollaInFinestra.destinazione === "magazzino",
+              valore: caricaMagazzino,
+              onChange: setCaricaMagazzino,
+            }}
+            conferma={{
+              etichetta: "Registra la bolla",
+              inCorso: salvando,
+              bloccata:
+                inLettura
+                  ? "aspetta la fine delle letture"
+                  : doppi.get(bollaInFinestra.id) && !bollaInFinestra.caricaComunque
+                    ? "doppione: spunta «Carica comunque» nella lista"
+                    : null,
+              onConferma: () => {
+                const b = bollaInFinestra;
+                setFinestraPer(null);
+                void conferma([b]);
+              },
+            }}
+          />
+        )}
         <DialogFooter className="items-center border-t bg-background px-6 py-4">
+          {caricoVisibile && (
+            <SpuntaCaricoMagazzino
+              checked={caricaMagazzino}
+              onChange={setCaricaMagazzino}
+              disabled={salvando}
+            />
+          )}
           <p className="mr-auto text-xs text-muted-foreground">
             {selezionate.size
               ? "Registri solo le selezionate idonee."

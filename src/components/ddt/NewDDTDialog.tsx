@@ -1,57 +1,50 @@
-import { erroreVerificaDDT } from "@/lib/ddt/verificaNuovoDDT";
 // ============================================================================
-// NewDDTDialog — Wizard procedurale per la registrazione di un nuovo DDT
+// NewDDTDialog — la bolla del fornitore, in un solo passaggio (12/11/2026)
 // ----------------------------------------------------------------------------
-// 3 step:
-//   1) Documento — da dove nasce la bolla, numero, data, foto/PDF e lettura AI
-//   2) Consegna & corriere — corriere, targa, autista, ore arrivo
-//   3) Verifica & conferma — righe lette, quantità, stato, magazzino, difformità
+// Prima era un percorso a 3 step (documento, trasporto, verifica) e la foto
+// caricata al primo passo non si vedeva più al terzo, dove si correggevano le
+// righe. Florin: «Scatto la foto, carico la bolla e poi da lì modifico e inserisco
+// a mano le cose». Ora:
+//   1) si carica la bolla (foto, anche più pagine, o PDF);
+//   2) si sceglie: «Salva e compila dopo» (la bolla nasce col solo documento, più
+//      fornitore e numero se si sanno) oppure «Compila ora», che apre la finestra
+//      grande: a sinistra l'originale con lo zoom, a destra testata, righe,
+//      trasporto, destinazione, ricevimento. Con l'AI i campi si riempiono da
+//      soli (prezzi compresi quando sono sulla bolla), senza si scrivono a mano.
 //
-// Appena confermato lo step 3 crea il DDT nel DB. Gli upload file avvengono
-// post-creazione (serve l'id DDT per il path storage {company_id}/{ddt_id}/).
-//
-// 29/10/2026 — L'ORDINE D'ACQUISTO NON È PIÙ OBBLIGATORIO. Prima la maschera
-// pretendeva un ODA e diceva «Nessun ODA disponibile. Crea prima un Ordine
-// d'Acquisto»: in cantiere la merce arriva anche senza ordine, e la bolla non si
-// caricava proprio. Ora la bolla nasce in tre modi (da ODA, da commessa, da
-// sola) e la prima scelta decide che cosa viene chiesto dopo.
-//
-// E LE RIGHE LETTE DALL'AI SI SALVANO. Prima la chiamata chiedeva
-// `legacy_format: true` — il formato piatto — e di ogni prodotto restava solo la
-// somma delle quantità in un campo: codici, descrizioni e PREZZI venivano letti
-// dal modello e buttati via da noi. Ora passano da `leggiDDTdaAI` e finiscono
-// in `ddt_righe`, col loro prezzo.
+// Regole che restano (vedi lo storico in git):
+//   · l'ordine d'acquisto NON è obbligatorio (29/10, e Florin l'11/11);
+//   · le righe lette dall'AI si salvano in `ddt_righe` col loro prezzo;
+//   · «in cantiere» solo con la commessa; senza magazzini, con la commessa nota,
+//     si parte dal cantiere (11/11).
+// Nuovo: senza magazzini la bolla «in magazzino» si registra lo stesso, col carico
+// in sospeso; l'amministratore può creare il magazzino da qui. Al salvataggio la
+// spunta «Carica in magazzino» fa entrare la merce in giacenza.
 // ============================================================================
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import {
-  FileCheck, Truck, ClipboardCheck, Loader2, ChevronLeft, ChevronRight,
-  Check, ShoppingCart, Package, Calendar, Clock, User, Phone, Hash,
-  AlertTriangle, FileText, Warehouse as WarehouseIcon, Paperclip,
-  Info, MapPin, Sparkles, Wand2, HardHat, Building2, ListTree,
-} from "lucide-react";
+import { FileCheck, FileText, Loader2, Paperclip, Sparkles, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import {
   useDDTRicezioneMutations,
   useDDTAttachments,
@@ -62,69 +55,47 @@ import {
 import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { destinazioneBollaNuova, senzaMagazzini } from "@/lib/ddt/senzaMagazzini";
-import { OrderSelectCombobox } from "@/components/warehouse/OrderSelectCombobox";
 import { SupplierSelect } from "@/components/orders/SupplierSelect";
 import { DDTAttachmentUploader } from "./DDTAttachmentUploader";
-import { leggiDDTdaAI, quantitaTotale, importoTotale } from "@/lib/ddt/letturaAI";
+import { FinestraBollaFotoRighe, SezioneBolla } from "./FinestraBollaFotoRighe";
+import { CampoConProposte } from "./CampoConProposte";
+import { useProposteTrasporto } from "@/hooks/useProposteTrasporto";
+import { leggiDDTdaAI, quantitaTotale } from "@/lib/ddt/letturaAI";
 import { abbinaFornitore, type FornitoreInRubrica } from "@/lib/ddt/abbinaFornitore";
-
-/** Da dove nasce la bolla: è la scelta che decide tutto il resto dello step 1. */
-type OrigineBolla = "oda" | "commessa" | "sola";
+import { erroreVerificaDDT } from "@/lib/ddt/verificaNuovoDDT";
+import { problemiBolla } from "@/lib/ddt/righeBolla";
+import {
+  avvisaEsitoCarico, caricaAlSalvataggio, mostraSpuntaCarico,
+} from "@/lib/ddt/caricoAlSalvataggio";
 
 /**
- * Chi ha portato la merce. Non è un dettaglio: con «noi» non c'è nessun
- * corriere da registrare — siamo andati a ritirarla col nostro furgone, e i
- * campi da chiedere sono altri. Misurato il 29/10/2026: su 232 bolle, 231 non
- * avevano nessun corriere, e il riquadro restava vuoto.
+ * Chi ha portato la merce. Con «noi» non c'è corriere: siamo andati a ritirarla
+ * col nostro furgone, e si chiedono targa e chi è andato.
  */
 type TrasportoACuraDi = "fornitore" | "noi" | "terzi";
 
-const TRASPORTI: { key: TrasportoACuraDi; label: string; aiuto: string; icona: typeof Truck }[] = [
-  { key: "fornitore", label: "L'ha portata il fornitore", aiuto: "Col suo mezzo, fino a noi.", icona: Building2 },
-  { key: "noi", label: "Siamo andati a ritirarla", aiuto: "Nostro furgone, nostro uomo.", icona: Package },
-  { key: "terzi", label: "Un corriere", aiuto: "GLS, DHL, un padroncino.", icona: Truck },
+const TRASPORTI: { key: TrasportoACuraDi; label: string }[] = [
+  { key: "fornitore", label: "L'ha portata il fornitore" },
+  { key: "noi", label: "Siamo andati a ritirarla" },
+  { key: "terzi", label: "Un corriere" },
 ];
 
-const ORIGINI: { key: OrigineBolla; label: string; icona: typeof ShoppingCart; aiuto: string }[] = [
-  { key: "oda", label: "Da un ordine", icona: ShoppingCart, aiuto: "La merce era ordinata: commessa e fornitore li prende dall'ODA." },
-  { key: "commessa", label: "Da una commessa", icona: HardHat, aiuto: "Nessun ordine a monte, ma si sa su quale cantiere va la merce." },
-  { key: "sola", label: "Solo la bolla", icona: FileText, aiuto: "La foto e il fornitore. Il cantiere si aggancia dopo." },
+const STATI: { key: DDTStato; label: string }[] = [
+  { key: "ricevuto", label: "Ricevuto completo" },
+  { key: "parziale", label: "Parziale" },
+  { key: "verificato", label: "Verificato (controllato)" },
+  { key: "non_conforme", label: "Non conforme" },
+  { key: "atteso", label: "Atteso (pre-avviso)" },
 ];
 
-// ─── Step definition ────────────────────────────────────────────────────
-const STEPS = [
-  {
-    key: "documento" as const,
-    title: "Documento DDT",
-    short: "Documento",
-    icon: FileCheck,
-    description: "Da dove nasce la bolla, e il documento come foto o PDF",
-  },
-  {
-    key: "consegna" as const,
-    title: "Chi ha portato la merce",
-    short: "Trasporto",
-    icon: Truck,
-    description: "Consegnata, ritirata da noi o da un corriere, e gli orari",
-  },
-  {
-    key: "verifica" as const,
-    title: "Verifica & conferma",
-    short: "Verifica",
-    icon: ClipboardCheck,
-    description: "Righe lette, quantità, stato ed eventuali non conformità",
-  },
-];
+const NOME_MAGAZZINO = "Magazzino principale";
 
 interface NewDDTDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Pre-seleziona un ODA (usato dal dettaglio PO per "Registra DDT") */
   prefillPurchaseOrderId?: string | null;
-  /**
-   * Parte già sulla commessa (la bolla caricata dalla commessa): origine
-   * «commessa», merce in cantiere. Resta modificabile al primo passo.
-   */
+  /** Parte già sulla commessa (la bolla caricata dalla commessa): merce in cantiere. */
   prefillOrderId?: string | null;
   /** Dopo il salvataggio resta dov'è (la commessa) invece di aprire la bolla. */
   restaQui?: boolean;
@@ -133,6 +104,16 @@ interface NewDDTDialogProps {
 }
 
 type LocalFile = { file: File; kind: DDTAttachmentKind; id: string };
+
+async function inBase64(file: File): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+const bottoneScelta = (attivo: boolean) =>
+  cn("h-8 rounded-md border px-2.5 text-xs font-medium transition-colors", attivo ? "border-primary bg-primary/10 text-primary" : "hover:bg-muted/50");
 
 export function NewDDTDialog({
   open,
@@ -145,30 +126,29 @@ export function NewDDTDialog({
   const navigate = useNavigate();
   const { orders } = usePurchaseOrders();
   const { effectiveCompany } = useAuth();
+  const permessi = usePermissions();
   const companyId = effectiveCompany?.id ?? null;
-  const [stepIdx, setStepIdx] = useState(0);
-  const currentStep = STEPS[stepIdx];
+  const [fase, setFase] = useState<"scelta" | "compila">("scelta");
 
-  // ── Step 1: documento ─────────────────────────────
-  const origineIniziale: OrigineBolla = prefillOrderId && !prefillPurchaseOrderId ? "commessa" : "oda";
-  const [origine, setOrigine] = useState<OrigineBolla>(origineIniziale);
+  // ── Documento e testata ───────────────────────────
+  const [pagine, setPagine] = useState<LocalFile[]>([]);
+  const [extraFiles, setExtraFiles] = useState<LocalFile[]>([]);
+  const [conAI, setConAI] = useState(true);
   const [poId, setPoId] = useState(prefillPurchaseOrderId ?? "");
   const [orderId, setOrderId] = useState<string | null>(prefillOrderId ?? null);
   const [supplierId, setSupplierId] = useState<string | undefined>(undefined);
   const [numero, setNumero] = useState("");
   const [data, setData] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [ddtFile, setDdtFile] = useState<LocalFile | null>(null);
-  const [extraFiles, setExtraFiles] = useState<LocalFile[]>([]);
 
   // ── Quello che l'AI ha letto ──────────────────────
+  const [lettura, setLettura] = useState<"no" | "in_corso" | "fatta" | "errore">("no");
   const [righe, setRighe] = useState<DDTRigaNuova[]>([]);
   const [aiLettura, setAiLettura] = useState<Record<string, unknown> | null>(null);
   const [aiConfidenza, setAiConfidenza] = useState<number | null>(null);
   const [aiAvvisi, setAiAvvisi] = useState<string[]>([]);
   const [fornitoreLetto, setFornitoreLetto] = useState<string | null>(null);
-  const [fornitoreAbbinatoPer, setFornitoreAbbinatoPer] = useState<string | null>(null);
 
-  // ── Step 2: chi ha portato la merce ──────────────
+  // ── Trasporto ─────────────────────────────────────
   const [trasportoACuraDi, setTrasportoACuraDi] = useState<TrasportoACuraDi | null>(null);
   const [porto, setPorto] = useState<"franco" | "assegnato" | null>(null);
   const [corriere, setCorriere] = useState("");
@@ -178,9 +158,8 @@ export function NewDDTDialog({
   const [oraArrivo, setOraArrivo] = useState("");
   const [oraPartenza, setOraPartenza] = useState("");
 
-  // ── Step 3: verifica ─────────────────────────────
+  // ── Destinazione e ricevimento ────────────────────
   const [destinazione, setDestinazioneScelta] = useState<"magazzino" | "cantiere">(prefillOrderId ? "cantiere" : "magazzino");
-  // Se l'utente ha scelto lui la destinazione, la sua scelta vale anche senza magazzini.
   const [destinazioneToccata, setDestinazioneToccata] = useState(false);
   const setDestinazione = (v: "magazzino" | "cantiere") => {
     setDestinazioneScelta(v);
@@ -195,17 +174,19 @@ export function NewDDTDialog({
   const [qty, setQty] = useState("");
   const [stato, setStato] = useState<DDTStato>("ricevuto");
   const [warehouseId, setWarehouseId] = useState<string | null>(null);
+  const [nomeMagazzino, setNomeMagazzino] = useState(NOME_MAGAZZINO);
+  const [creandoMagazzino, setCreandoMagazzino] = useState(false);
   const [ricevutoDaNome, setRicevutoDaNome] = useState("");
   const [hasDamages, setHasDamages] = useState(false);
   const [nonConformita, setNonConformita] = useState("");
   const [note, setNote] = useState("");
+  const [caricaMagazzino, setCaricaMagazzino] = useState(true);
 
   const { createDDT } = useDDTRicezioneMutations(poId || null);
   const { uploadMainDDT, uploadAttachments } = useDDTAttachments();
+  const proposte = useProposteTrasporto(companyId, open && fase === "compila" && trasportoACuraDi === "noi");
 
-  // La rubrica fornitori, leggera: serve solo a riconoscere il mittente letto
-  // sulla bolla. Senza questo confronto il nome estratto non serviva a nulla e
-  // chi carica doveva ritrovare il fornitore a mano fra centinaia.
+  // La rubrica fornitori, leggera: serve a riconoscere il mittente letto sulla bolla.
   const { data: fornitori = [] } = useQuery<FornitoreInRubrica[]>({
     queryKey: ["ddt-fornitori-abbinamento", companyId],
     queryFn: async () => {
@@ -222,182 +203,162 @@ export function NewDDTDialog({
   });
 
   /**
-   * Quello che l'AI ha letto, messo nei campi. Lo schema è quello ricco di
-   * `ddt-ai-extract`: righe con codice, unità di misura, quantità e PREZZO.
-   * I campi già scritti a mano non si sovrascrivono: chi ha corretto ha ragione.
+   * Quello che l'AI ha letto, messo nei campi. I campi già scritti a mano non si
+   * sovrascrivono: chi ha corretto ha ragione. Il prezzo resta vuoto se sulla
+   * bolla non c'è (succede quasi sempre): si mette dopo, o arriva dalla fattura.
    */
   const applicaLetturaAI = (grezzo: unknown) => {
     const letta = leggiDDTdaAI(grezzo);
-    if (letta.numero && !numero) setNumero(letta.numero);
+    setNumero((n) => n || letta.numero || "");
     if (letta.data) setData(letta.data);
-    if (letta.corriere && !corriere) setCorriere(letta.corriere);
-    // Chi ha portato la merce e il porto: l'AI li legge dal documento, e fino
-    // al 29/10/2026 li buttavamo via.
-    if (letta.trasportoACuraDi && !trasportoACuraDi) setTrasportoACuraDi(letta.trasportoACuraDi);
-    if (letta.porto && !porto) setPorto(letta.porto);
-    if (letta.targaMezzo && !targaMezzo) setTargaMezzo(letta.targaMezzo.toUpperCase());
-    if (letta.autistaNome && !autistaNome) setAutistaNome(letta.autistaNome);
-    if (letta.oraInizioTrasporto && !oraArrivo) setOraArrivo(letta.oraInizioTrasporto);
-    if (letta.note && !note) setNote(letta.note);
-
-    setRighe(letta.righe);
+    setCorriere((c) => c || letta.corriere || "");
+    setTrasportoACuraDi((t) => t ?? letta.trasportoACuraDi ?? null);
+    setPorto((p) => p ?? letta.porto ?? null);
+    setTargaMezzo((t) => t || (letta.targaMezzo ?? "").toUpperCase());
+    setAutistaNome((a) => a || letta.autistaNome || "");
+    setOraArrivo((o) => o || letta.oraInizioTrasporto || "");
+    setNote((n) => n || letta.note || "");
+    setRighe((attuali) => (attuali.length ? attuali : letta.righe));
     const totale = quantitaTotale(letta.righe);
-    if (totale > 0 && !qty) setQty(String(totale));
-
+    setQty((q) => q || (totale > 0 ? String(totale) : ""));
     setAiLettura(grezzo && typeof grezzo === "object" ? (grezzo as Record<string, unknown>) : null);
     setAiConfidenza(letta.confidenza);
     setAiAvvisi(letta.avvisi);
     setFornitoreLetto(letta.fornitoreNome);
-
-    // Il fornitore: si abbina solo quando è certo (partita IVA, codice fiscale,
-    // o un unico nome che corrisponde). Nel dubbio resta la tendina.
-    if (!supplierId) {
-      const trovato = abbinaFornitore(letta, fornitori);
-      if (trovato) {
-        setSupplierId(trovato.id);
-        setFornitoreAbbinatoPer(trovato.motivo);
-      } else {
-        setFornitoreAbbinatoPer(null);
-      }
-    }
-
-    toast.success(
-      letta.righe.length > 0
-        ? `Letti ${letta.righe.length} ${letta.righe.length === 1 ? "articolo" : "articoli"} dalla bolla`
-        : "Dati del documento letti (nessuna riga merce riconosciuta)",
-    );
+    setSupplierId((s) => s ?? abbinaFornitore(letta, fornitori)?.id);
   };
 
-  // Reset al chiudere (con cleanup: senza clearTimeout, se il componente
-  // smonta nei 200ms tra dialog close e timeout fire, setState scatta su
-  // unmounted → warning React + timer handle leak).
+  const leggiConAI = async (file: File) => {
+    if (!companyId) return;
+    setLettura("in_corso");
+    try {
+      // Lo schema RICCO (righe con codice, unità, quantità e prezzo), non il formato piatto.
+      const { data: aiData, error } = await supabase.functions.invoke("ddt-ai-extract", {
+        body: { image_base64: await inBase64(file), mime_type: file.type || "image/jpeg", file_name: file.name, company_id: companyId },
+      });
+      if (error) throw new Error(await edgeErrorMessage(error, "Lettura non riuscita"));
+      if (!aiData?.success) throw new Error(aiData?.error ?? "Lettura non riuscita");
+      applicaLetturaAI(aiData.ddt ?? {});
+      setLettura("fatta");
+    } catch (err) {
+      setLettura("errore");
+      toast.error(`Lettura AI non riuscita: ${err instanceof Error ? err.message : String(err)}. Compila a mano.`);
+    }
+  };
+
+  // Reset alla chiusura (con cleanup del timer).
   useEffect(() => {
-    if (!open) {
-      const timerId = window.setTimeout(() => {
-        setStepIdx(0);
-        setOrigine(origineIniziale);
-        setPoId(prefillPurchaseOrderId ?? "");
-        setOrderId(prefillOrderId ?? null);
-        setSupplierId(undefined);
-        setRighe([]);
-        setAiLettura(null);
-        setAiConfidenza(null);
-        setAiAvvisi([]);
-        setFornitoreLetto(null);
-        setFornitoreAbbinatoPer(null);
-        setNumero("");
-        setData(format(new Date(), "yyyy-MM-dd"));
-        setDdtFile(null);
-        setExtraFiles([]);
-        setTrasportoACuraDi(null);
-        setPorto(null);
-        setCorriere("");
-        setTargaMezzo("");
-        setAutistaNome("");
-        setAutistaTelefono("");
-        setOraArrivo("");
-        setOraPartenza("");
-        setQty("");
-        setDestinazioneScelta(prefillOrderId ? "cantiere" : "magazzino");
-        setDestinazioneToccata(false);
-        setStato("ricevuto");
-        setWarehouseId(null);
-        setRicevutoDaNome("");
-        setHasDamages(false);
-        setNonConformita("");
-        setNote("");
-      }, 200);
-      return () => window.clearTimeout(timerId);
-    }
-  }, [open, prefillPurchaseOrderId, prefillOrderId, origineIniziale]);
+    if (open) return;
+    const timerId = window.setTimeout(() => {
+      setFase("scelta");
+      setPagine([]); setExtraFiles([]); setConAI(true);
+      setPoId(prefillPurchaseOrderId ?? ""); setOrderId(prefillOrderId ?? null);
+      setSupplierId(undefined); setNumero(""); setData(format(new Date(), "yyyy-MM-dd"));
+      setLettura("no"); setRighe([]); setAiLettura(null); setAiConfidenza(null); setAiAvvisi([]); setFornitoreLetto(null);
+      setTrasportoACuraDi(null); setPorto(null); setCorriere(""); setTargaMezzo(""); setAutistaNome("");
+      setAutistaTelefono(""); setOraArrivo(""); setOraPartenza("");
+      setDestinazioneScelta(prefillOrderId ? "cantiere" : "magazzino"); setDestinazioneToccata(false);
+      setQty(""); setStato("ricevuto"); setWarehouseId(null); setNomeMagazzino(NOME_MAGAZZINO);
+      setRicevutoDaNome(""); setHasDamages(false); setNonConformita(""); setNote(""); setCaricaMagazzino(true);
+    }, 200);
+    return () => window.clearTimeout(timerId);
+  }, [open, prefillPurchaseOrderId, prefillOrderId]);
 
-  const availablePOs = useMemo(
-    () => orders.filter((o) => o.status !== "annullato"),
-    [orders]
-  );
+  const availablePOs = useMemo(() => orders.filter((o) => o.status !== "annullato"), [orders]);
+  const selectedPO = useMemo(() => availablePOs.find((o) => o.id === poId) ?? null, [availablePOs, poId]);
 
-  const selectedPO = useMemo(
-    () => availablePOs.find((o) => o.id === poId) ?? null,
-    [availablePOs, poId]
-  );
-
-  /**
-   * Scegliere l'ODA propone anche il corriere, se il campo è vuoto: su un
-   * trasporto proprio è il fornitore stesso. Prima lo faceva un effetto che
-   * rincorreva lo stato a ogni render; è un gesto dell'utente, e va qui.
-   */
-  const scegliOda = (id: string) => {
-    setPoId(id);
-    if (!corriere && trasportoACuraDi !== "noi") {
-      const po = availablePOs.find((o) => o.id === id);
-      if (po?.suppliers?.name) setCorriere(po.suppliers.name);
-    }
-  };
-
-  const erroreVerifica = erroreVerificaDDT({data,stato,quantita:qty,righe,haDocumento:!!ddtFile});
-  // ── Validation per step ───────────────────────────
-  const canGoNext = useMemo(() => {
-    if (currentStep.key === "documento") {
-      // Il numero della bolla serve sempre. L'ordine e la commessa solo a chi
-      // ha scelto di partire da lì: è questo che prima bloccava il cantiere.
-      if (numero.trim().length === 0) return false;
-      if (origine === "oda") return !!poId;
-      if (origine === "commessa") return !!orderId;
-      return true;
-    }
-    if (currentStep.key === "consegna") {
-      return true; // tutto opzionale
-    }
-    return !erroreVerifica;
-  }, [currentStep.key, poId, orderId, origine, numero, erroreVerifica]);
-
-  // «Va in cantiere» si può dire solo se si sa quale: con l'ODA la commessa
-  // arriva dall'ordine, altrimenti è quella scelta a mano. Senza commessa la
-  // merce non ha un cantiere dove andare, e il database rifiuta la riga.
-  const commessaNota = useMemo(() => {
-    if (origine === "oda") return !!selectedPO?.orders?.order_code;
-    if (origine === "commessa") return !!orderId;
-    return false;
-  }, [origine, selectedPO, orderId]);
-
-  // La destinazione che vale davvero: senza una commessa «in cantiere» non si
-  // può dire, e si ricade su «magazzino». Si DERIVA, non si corregge in un
-  // effetto: così tornare indietro a togliere la commessa non lascia mai una
-  // scelta che il database rifiuterebbe.
-  // Senza magazzini (11/11/2026), con la commessa nota si parte dal cantiere.
+  // «In cantiere» si può dire solo se si sa quale: con l'ODA la commessa arriva
+  // dall'ordine, altrimenti è quella scelta a mano.
+  const commessaNota = poId ? !!selectedPO?.orders?.order_code : !!orderId;
+  const commessaEffettiva = poId ? selectedPO?.order_id ?? null : orderId;
   const destinazioneEffettiva = destinazioneBollaNuova({
     scelta: destinazione,
     sceltaToccata: destinazioneToccata,
     commessaNota,
     nessunMagazzino,
   });
+  // Con l'ODA e «ricevuto completo» la merce la carica già l'arrivo dell'ordine.
+  const caricoDallOrdine = !!poId && (stato === "ricevuto" || stato === "verificato");
+  const spuntaCarico = !caricoDallOrdine && mostraSpuntaCarico({
+    destinazione: destinazioneEffettiva,
+    puoMagazzino: permessi.canEditWarehouse && !permessi.solaLettura,
+  });
 
-  const isFinalStep = stepIdx === STEPS.length - 1;
+  const documento = pagine[0] ?? null;
+  const erroreVerifica = erroreVerificaDDT({ data, stato, quantita: qty, righe, haDocumento: !!documento });
+  const problemi = problemiBolla({ numero, data, destinazione: destinazioneEffettiva, orderId: commessaEffettiva, righe });
+  const bloccata = problemi.length ? problemi.join(" · ") : erroreVerifica;
 
-  // ── Confirm submit (all'ultimo step) ───────────────
+  // ── Salvataggio ───────────────────────────────────
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitInCorso = useRef(false);
 
-  const handleSubmit = async () => {
-    // Guard interno contro double-submit: prima c'erano solo button
-    // `disabled={isSubmitting}` ma tra primo click e setIsSubmitting(true)
-    // c'è micro-finestra che doppio click ravvicinato attraversa → 2 DDT
-    // duplicati creati. Pattern identico al P2 FIX di QuoteBuilder.
+  const caricaFile = async (ddtId: string) => {
+    if (documento) await uploadMainDDT.mutateAsync({ ddtId, file: documento.file });
+    const altri = [...pagine.slice(1), ...extraFiles];
+    if (altri.length) await uploadAttachments.mutateAsync({ ddtId, files: altri.map((f) => ({ file: f.file, kind: f.kind })) });
+  };
+
+  const dopoIlSalvataggio = (id: string, etichetta: string) => {
+    onCreated?.(id);
+    onOpenChange(false);
+    if (restaQui) {
+      toast.success(`Bolla ${etichetta} caricata`, {
+        action: { label: "Apri", onClick: () => navigate(`/azienda/ddt/${id}`) },
+      });
+    } else {
+      navigate(`/azienda/ddt/${id}`);
+    }
+  };
+
+  /** Doppio clic: due bolle. Il guardiano nel ref chiude la finestra fra i due clic. */
+  const conGuardia = async (lavoro: () => Promise<void>) => {
     if (submitInCorso.current) return;
-    if (erroreVerifica) {toast.error(erroreVerifica);return;}
-    if (!numero.trim()) return;
-    if (origine === "oda" && !poId) return;
-    if (origine === "commessa" && !orderId) return;
     submitInCorso.current = true;
     setIsSubmitting(true);
     try {
+      await lavoro();
+    } catch {
+      // Toast gestito dalle mutation
+    } finally {
+      submitInCorso.current = false;
+      setIsSubmitting(false);
+    }
+  };
+
+  /** «Salva e compila dopo»: il documento, più fornitore e numero se ci sono. */
+  const salvaDopo = () =>
+    conGuardia(async () => {
       const created = await createDDT.mutateAsync({
-        // Con «solo la bolla» non si manda né ordine né commessa: il database
-        // accetta il vuoto, e l'aggancio si fa dopo dalla scheda della bolla.
-        purchase_order_id: origine === "oda" ? poId : null,
-        order_id: origine === "commessa" ? orderId : null,
-        supplier_id: origine === "oda" ? null : supplierId ?? null,
+        soloDocumento: true,
+        numeroFacoltativo: true,
+        magazzinoFacoltativo: true,
+        purchase_order_id: poId || null,
+        order_id: poId ? null : orderId,
+        supplier_id: poId ? null : supplierId ?? null,
         destinazione: destinazioneEffettiva,
+        numero_ddt: numero.trim(),
+        data_ricezione: data,
+        quantita_ricevuta: 0,
+        stato: "ricevuto",
+        righe: [],
+      });
+      await caricaFile(created.id);
+      dopoIlSalvataggio(created.id, numero.trim() || "da compilare");
+    });
+
+  const registra = () => {
+    if (bloccata) {
+      toast.error(bloccata);
+      return;
+    }
+    return conGuardia(async () => {
+      const created = await createDDT.mutateAsync({
+        purchase_order_id: poId || null,
+        order_id: poId ? null : orderId,
+        supplier_id: poId ? null : supplierId ?? null,
+        destinazione: destinazioneEffettiva,
+        magazzinoFacoltativo: nessunMagazzino,
         trasporto_a_cura_di: trasportoACuraDi,
         porto,
         righe,
@@ -406,8 +367,8 @@ export function NewDDTDialog({
         ai_avvisi: aiAvvisi,
         numero_ddt: numero.trim(),
         data_ricezione: data,
-        quantita_ricevuta: parseFloat(qty) || 0,
-        stato: stato,
+        quantita_ricevuta: parseFloat(qty) || quantitaTotale(righe) || 0,
+        stato,
         note: note.trim() || null,
         warehouse_id: warehouseId,
         corriere: corriere.trim() || null,
@@ -420,1179 +381,361 @@ export function NewDDTDialog({
         non_conformita: nonConformita.trim() || null,
         has_damages: hasDamages,
       });
+      await caricaFile(created.id);
+      if (spuntaCarico && caricaMagazzino) avvisaEsitoCarico(await caricaAlSalvataggio(created.id), numero.trim());
+      dopoIlSalvataggio(created.id, numero.trim());
+    });
+  };
 
-      // Upload DDT principale
-      if (ddtFile) {
-        await uploadMainDDT.mutateAsync({ ddtId: created.id, file: ddtFile.file });
-      }
+  const compilaOra = () => {
+    setFase("compila");
+    if (conAI && documento && lettura === "no") void leggiConAI(documento.file);
+  };
 
-      // Upload allegati extra
-      if (extraFiles.length > 0) {
-        await uploadAttachments.mutateAsync({
-          ddtId: created.id,
-          files: extraFiles.map((f) => ({ file: f.file, kind: f.kind })),
-        });
-      }
-
-      onCreated?.(created.id);
-      onOpenChange(false);
-      if (restaQui) {
-        toast.success(`Bolla ${numero.trim()} caricata`, {
-          action: { label: "Apri", onClick: () => navigate(`/azienda/ddt/${created.id}`) },
-        });
-      } else {
-        navigate(`/azienda/ddt/${created.id}`);
-      }
+  const creaMagazzino = async () => {
+    setCreandoMagazzino(true);
+    try {
+      const creato = await elencoMagazzini.createWarehouse({
+        name: nomeMagazzino.trim() || NOME_MAGAZZINO,
+        type: "main",
+        is_active: true,
+        is_default: true,
+        position: 0,
+      });
+      setWarehouseId(creato.id);
     } catch {
-      // Toast gestito dalle mutation
+      // toast dal hook
     } finally {
-      submitInCorso.current = false;
-      setIsSubmitting(false);
+      setCreandoMagazzino(false);
     }
   };
 
-  const goNext = () => {
-    if (isFinalStep) {
-      void handleSubmit();
-    } else {
-      setStepIdx((i) => Math.min(STEPS.length - 1, i + 1));
-    }
-  };
-  const goBack = () => setStepIdx((i) => Math.max(0, i - 1));
+  const files = useMemo(() => pagine.map((p) => p.file), [pagine]);
 
-  // ── Render ───────────────────────────────────────
+  // ── La prima finestra: il documento e la scelta ───
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl w-[95vw] p-0 overflow-hidden flex flex-col max-h-[95vh]">
-        {/* ── Header with stepper ─── */}
-        <DialogHeader className="px-5 pt-5 pb-3 border-b bg-gradient-to-br from-primary/5 to-transparent">
-          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
-            <FileCheck className="h-5 w-5 text-primary" />
-            Nuovo DDT fornitore
-            <Badge variant="secondary" className="ml-auto mr-6 text-[10px] font-normal">
-              Step {stepIdx + 1} / {STEPS.length}
-            </Badge>
-          </DialogTitle>
+    <>
+      <Dialog open={open && fase === "scelta"} onOpenChange={(v) => { if (!isSubmitting) onOpenChange(v); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <FileCheck className="h-5 w-5 text-primary" />
+              Nuovo DDT fornitore
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Carica la bolla, poi registrala subito col solo documento o compilala ora guardando la foto.
+            </DialogDescription>
+          </DialogHeader>
 
-          {/* Step progress */}
-          <div className="flex items-center gap-1 sm:gap-2 mt-3 overflow-x-auto scrollbar-none">
-            {STEPS.map((s, idx) => {
-              const StepIcon = s.icon;
-              const isActive = idx === stepIdx;
-              const isDone = idx < stepIdx;
-              return (
-                <div key={s.key} className="flex items-center gap-1 sm:gap-2 min-w-0">
-                  <button
-                    type="button"
-                    onClick={() => idx < stepIdx && setStepIdx(idx)}
-                    disabled={idx > stepIdx}
-                    className={cn(
-                      "flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap",
-                      isActive && "bg-primary text-primary-foreground shadow-sm",
-                      isDone && "bg-primary/20 text-primary cursor-pointer hover:bg-primary/30",
-                      !isActive && !isDone && "bg-muted/50 text-muted-foreground",
-                    )}
-                  >
-                    {isDone ? (
-                      <Check className="h-3.5 w-3.5" />
-                    ) : (
-                      <StepIcon className="h-3.5 w-3.5" />
-                    )}
-                    <span className="hidden xs:inline">{s.short}</span>
-                    <span className="xs:hidden">{idx + 1}</span>
-                  </button>
-                  {idx < STEPS.length - 1 && (
-                    <div className={cn(
-                      "h-[2px] w-4 sm:w-8 rounded-full",
-                      idx < stepIdx ? "bg-primary" : "bg-muted"
-                    )} />
-                  )}
+          <div className="space-y-3">
+            {pagine.length === 0 ? (
+              <DDTAttachmentUploader
+                title="Carica la bolla"
+                description="Foto (anche più pagine) o PDF."
+                defaultKind="ddt"
+                multiple
+                onFilesSelected={(nuovi) =>
+                  setPagine(nuovi.map((n, i) => ({ file: n.file, kind: i === 0 ? "ddt" : "bolla", id: crypto.randomUUID() })))
+                }
+              />
+            ) : (
+              <ul className="space-y-1" aria-label="Pagine della bolla">
+                {pagine.map((p, i) => (
+                  <li key={p.id} className="flex items-center gap-2 rounded-md border bg-primary/5 px-2 py-1.5 text-sm">
+                    <FileText className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                    <span className="min-w-0 flex-1 truncate">{p.file.name}</span>
+                    <span className="text-[11px] text-muted-foreground">{(p.file.size / 1024 / 1024).toFixed(1)} MB</span>
+                    <Button
+                      type="button" size="icon" variant="ghost" className="h-7 w-7"
+                      aria-label={`Togli ${p.file.name}`}
+                      onClick={() => {
+                        setPagine((x) => x.filter((_, j) => j !== i).map((f, j) => ({ ...f, kind: j === 0 ? "ddt" : "bolla" })));
+                        setLettura("no");
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {documento && (
+              <label className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm">
+                <span className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
+                  Leggi con l'AI
+                  <span className="text-xs text-muted-foreground">compila i campi da sola</span>
+                </span>
+                <Switch checked={conAI} onCheckedChange={setConAI} aria-label="Leggi con l'AI" />
+              </label>
+            )}
+
+            {selectedPO ? (
+              <p className="rounded-md bg-muted/50 px-3 py-2 text-xs">
+                Dall'ordine <span className="font-medium">{selectedPO.oda_number}</span>
+                {selectedPO.suppliers?.name ? ` · ${selectedPO.suppliers.name}` : ""}
+              </p>
+            ) : null}
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Numero DDT</Label>
+                <Input aria-label="Numero DDT" value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="Se lo sai" className="h-9 font-mono" />
+              </div>
+              {!poId && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Fornitore</Label>
+                  <SupplierSelect
+                    searchable
+                    value={supplierId}
+                    onValueChange={(v) => setSupplierId(v)}
+                    placeholder="Se lo sai"
+                    fallbackCompanyId={companyId ?? undefined}
+                  />
                 </div>
-              );
-            })}
+              )}
+            </div>
+
+            <AltriAllegati files={extraFiles} onChange={setExtraFiles} />
           </div>
 
-          <p className="text-xs text-muted-foreground mt-2">
-            {currentStep.description}
-          </p>
-        </DialogHeader>
-
-        {/* ── Step body ──────────────────────────────── */}
-        <div className="px-5 py-4 flex-1 overflow-y-auto">
-          {currentStep.key === "documento" && (
-            <DocumentoStep
-              origine={origine}
-              onOrigineChange={setOrigine}
-              orderId={orderId}
-              onOrderIdChange={setOrderId}
-              supplierId={supplierId}
-              onSupplierIdChange={setSupplierId}
-              fornitoreLetto={fornitoreLetto}
-              fornitoreAbbinatoPer={fornitoreAbbinatoPer}
-              righeLette={righe}
-              aiConfidenza={aiConfidenza}
-              aiAvvisi={aiAvvisi}
-              poId={poId}
-              onPoIdChange={scegliOda}
-              numero={numero}
-              onNumeroChange={setNumero}
-              data={data}
-              onDataChange={setData}
-              ddtFile={ddtFile}
-              onDdtFileChange={setDdtFile}
-              extraFiles={extraFiles}
-              onExtraFilesChange={setExtraFiles}
-              selectedPO={selectedPO}
-              availablePOs={availablePOs}
-              disabledPOSelect={!!prefillPurchaseOrderId}
-              onLetturaAI={applicaLetturaAI}
-              companyId={companyId}
-            />
-          )}
-
-          {currentStep.key === "consegna" && (
-            <ConsegnaStep
-              trasportoACuraDi={trasportoACuraDi}
-              onTrasportoACuraDiChange={setTrasportoACuraDi}
-              porto={porto}
-              onPortoChange={setPorto}
-              corriere={corriere}
-              onCorriereChange={setCorriere}
-              targaMezzo={targaMezzo}
-              onTargaMezzoChange={setTargaMezzo}
-              autistaNome={autistaNome}
-              onAutistaNomeChange={setAutistaNome}
-              autistaTelefono={autistaTelefono}
-              onAutistaTelefonoChange={setAutistaTelefono}
-              oraArrivo={oraArrivo}
-              onOraArrivoChange={setOraArrivo}
-              oraPartenza={oraPartenza}
-              onOraPartenzaChange={setOraPartenza}
-            />
-          )}
-
-          {currentStep.key === "verifica" && (
-            <VerificaStep
-              qty={qty}
-              onQtyChange={setQty}
-              stato={stato}
-              onStatoChange={setStato}
-              warehouseId={warehouseId}
-              onWarehouseIdChange={setWarehouseId}
-              ricevutoDaNome={ricevutoDaNome}
-              onRicevutoDaNomeChange={setRicevutoDaNome}
-              hasDamages={hasDamages}
-              onHasDamagesChange={setHasDamages}
-              nonConformita={nonConformita}
-              onNonConformitaChange={setNonConformita}
-              note={note}
-              onNoteChange={setNote}
-              selectedPO={selectedPO}
-              righe={righe}
-              onRigheChange={setRighe}
-              destinazione={destinazioneEffettiva}
-              onDestinazioneChange={setDestinazione}
-              commessaNota={commessaNota}
-              nessunMagazzino={nessunMagazzino}
-            />
-          )}
-        </div>
-
-        {isFinalStep && erroreVerifica && <p role="alert" className="px-4 text-sm text-amber-700">{erroreVerifica}</p>}
-        {/* ── Footer nav ─────────────────────────────── */}
-        <DialogFooter className="flex-row justify-between sm:justify-between border-t px-4 py-3 bg-muted/30 gap-2">
-          {stepIdx === 0 ? (
-            <Button
-              variant="ghost"
-              onClick={() => onOpenChange(false)}
-              disabled={isSubmitting}
-              className="text-muted-foreground"
-            >
+          <DialogFooter className="flex-row flex-wrap justify-end gap-2 sm:justify-end">
+            <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isSubmitting} className="mr-auto text-muted-foreground">
               Annulla
             </Button>
-          ) : (
-            <Button variant="outline" onClick={goBack} disabled={isSubmitting}>
-              <ChevronLeft className="h-4 w-4 mr-1" />
-              Indietro
+            <Button variant="outline" onClick={() => void salvaDopo()} disabled={!documento || isSubmitting}>
+              {isSubmitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />}
+              Salva e compila dopo
             </Button>
-          )}
-          <Button
-            onClick={goNext}
-            disabled={!canGoNext || isSubmitting}
-            className="gap-1.5 min-w-[120px]"
-          >
-            {isSubmitting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : isFinalStep ? (
-              <>
-                <Check className="h-4 w-4" />
-                Registra DDT
-              </>
-            ) : (
-              <>
-                Avanti
-                <ChevronRight className="h-4 w-4" />
-              </>
-            )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
+            <Button onClick={compilaOra} disabled={isSubmitting}>
+              Compila ora
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-// ============================================================================
-// STEP 1 — Documento DDT
-// ============================================================================
-interface DocumentoStepProps {
-  origine: OrigineBolla;
-  onOrigineChange: (v: OrigineBolla) => void;
-  orderId: string | null;
-  onOrderIdChange: (v: string | null) => void;
-  supplierId: string | undefined;
-  onSupplierIdChange: (v: string | undefined) => void;
-  fornitoreLetto: string | null;
-  fornitoreAbbinatoPer: string | null;
-  righeLette: DDTRigaNuova[];
-  aiConfidenza: number | null;
-  aiAvvisi: string[];
-  poId: string;
-  onPoIdChange: (v: string) => void;
-  numero: string;
-  onNumeroChange: (v: string) => void;
-  data: string;
-  onDataChange: (v: string) => void;
-  ddtFile: LocalFile | null;
-  onDdtFileChange: (f: LocalFile | null) => void;
-  extraFiles: LocalFile[];
-  onExtraFilesChange: (f: LocalFile[]) => void;
-  selectedPO: { id: string; oda_number: string; suppliers?: { name: string } | null; orders?: { order_code: string } | null; status: string; expected_delivery_date?: string | null } | null;
-  availablePOs: Array<{ id: string; oda_number: string; suppliers?: { name: string } | null; orders?: { order_code: string } | null; status: string; expected_delivery_date?: string | null }>;
-  disabledPOSelect?: boolean;
-  /** Riceve il JSON ricco di `ddt-ai-extract`, non il formato piatto. */
-  onLetturaAI?: (grezzo: unknown) => void;
-  companyId?: string | null;
-}
-
-function DocumentoStep({
-  origine, onOrigineChange, orderId, onOrderIdChange,
-  supplierId, onSupplierIdChange, fornitoreLetto, fornitoreAbbinatoPer,
-  righeLette, aiConfidenza, aiAvvisi,
-  poId, onPoIdChange, numero, onNumeroChange, data, onDataChange,
-  ddtFile, onDdtFileChange, extraFiles, onExtraFilesChange,
-  selectedPO, availablePOs, disabledPOSelect,
-  onLetturaAI, companyId,
-}: DocumentoStepProps) {
-  const [isAIExtracting, setIsAIExtracting] = useState(false);
-
-  const runAIExtract = async () => {
-    if (!ddtFile || !companyId || !onLetturaAI) return;
-    setIsAIExtracting(true);
-    try {
-      const file = ddtFile.file;
-      const arrayBuf = await file.arrayBuffer();
-      const bytes = new Uint8Array(arrayBuf);
-      let bin = "";
-      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-      const base64 = btoa(bin);
-
-      // Lo schema RICCO, non più `legacy_format: true`. Il formato piatto
-      // perdeva codice articolo, unità di misura e prezzo di ogni riga: era il
-      // motivo per cui «l'AI non prendeva i prodotti».
-      const { data: aiData, error } = await supabase.functions.invoke("ddt-ai-extract", {
-        body: {
-          image_base64: base64,
-          mime_type: file.type || "image/jpeg",
-          file_name: file.name,
-          company_id: companyId,
-        },
-      });
-      if (error) throw new Error(await edgeErrorMessage(error, "Estrazione fallita"));
-      if (!aiData?.success) throw new Error(aiData?.error ?? "Estrazione fallita");
-      onLetturaAI(aiData.ddt ?? {});
-    } catch (err) {
-      toast.error(`AI: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setIsAIExtracting(false);
-    }
-  };
-  return (
-    <div className="space-y-5">
-      {/* ── Da dove nasce la bolla: la scelta che decide il resto ── */}
-      <div className="space-y-1.5">
-        <Label className="text-xs font-medium">Da dove nasce questa bolla</Label>
-        <div className="grid grid-cols-3 gap-1.5">
-          {ORIGINI.map((o) => {
-            const Icona = o.icona;
-            const attiva = origine === o.key;
-            return (
-              <button
-                key={o.key}
-                type="button"
-                onClick={() => onOrigineChange(o.key)}
-                disabled={disabledPOSelect && o.key !== "oda"}
-                className={cn(
-                  "flex flex-col items-start gap-1 rounded-md border p-2.5 text-left transition-colors disabled:opacity-40",
-                  attiva ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "hover:bg-muted/40",
-                )}
-              >
-                <span className="flex items-center gap-1.5 text-xs font-medium">
-                  <Icona className={cn("h-3.5 w-3.5", attiva ? "text-primary" : "text-muted-foreground")} />
-                  {o.label}
-                </span>
-                <span className="text-[10px] leading-tight text-muted-foreground">{o.aiuto}</span>
+      <FinestraBollaFotoRighe
+        open={open && fase === "compila"}
+        onOpenChange={(v) => { if (!v) setFase("scelta"); }}
+        titolo="Nuovo DDT fornitore"
+        files={files}
+        companyId={companyId}
+        testata={{ numero, data, supplierId: supplierId ?? null, orderId: commessaEffettiva, destinazione: destinazioneEffettiva }}
+        onTestataChange={(p) => {
+          if (p.numero !== undefined) setNumero(p.numero);
+          if (p.data !== undefined) setData(p.data);
+          if (p.supplierId !== undefined) setSupplierId(p.supplierId ?? undefined);
+          if (p.orderId !== undefined) setOrderId(p.orderId);
+        }}
+        righe={righe}
+        onRigheChange={setRighe}
+        fornitoreLetto={supplierId ? null : fornitoreLetto}
+        ordineAcquisto={selectedPO ? `${selectedPO.oda_number}${selectedPO.suppliers?.name ? ` · ${selectedPO.suppliers.name}` : ""}` : null}
+        testataExtra={
+          !prefillPurchaseOrderId && availablePOs.length > 0 ? (
+            <div className="col-span-2 space-y-1 text-xs font-medium text-muted-foreground sm:col-span-4">
+              Ordine d'acquisto (facoltativo)
+              <Select value={poId || "nessuno"} onValueChange={(v) => setPoId(v === "nessuno" ? "" : v)}>
+                <SelectTrigger className="h-9 text-sm text-foreground" aria-label="Ordine d'acquisto">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px]">
+                  <SelectItem value="nessuno">Nessun ordine</SelectItem>
+                  {availablePOs.map((o) => (
+                    <SelectItem key={o.id} value={o.id}>
+                      {o.oda_number} · {o.suppliers?.name || "Fornitore ignoto"}{o.orders?.order_code ? ` · ${o.orders.order_code}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null
+        }
+        stato={
+          lettura === "in_corso" ? (
+            <p role="status" className="flex items-center gap-2 rounded-md bg-primary/5 px-3 py-2 text-xs">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Sto leggendo la bolla: i campi si riempiono da soli. Intanto puoi scrivere.
+            </p>
+          ) : lettura === "fatta" ? (
+            <p role="status" className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
+              Letta dall'AI: {righe.length} {righe.length === 1 ? "riga" : "righe"}. Controlla e correggi guardando l'originale.
+            </p>
+          ) : lettura === "errore" ? (
+            <p role="status" className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+              Lettura non riuscita: scrivi i dati guardando l'originale.
+            </p>
+          ) : null
+        }
+        carico={{ visibile: spuntaCarico, valore: caricaMagazzino, onChange: setCaricaMagazzino }}
+        conferma={{ etichetta: "Registra DDT", onConferma: () => void registra(), inCorso: isSubmitting, bloccata }}
+        etichettaChiudi="Indietro"
+      >
+        <SezioneBolla titolo="Trasporto">
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Chi ha portato la merce">
+            {TRASPORTI.map((t) => (
+              <button key={t.key} type="button" aria-pressed={trasportoACuraDi === t.key} className={bottoneScelta(trasportoACuraDi === t.key)}
+                onClick={() => setTrasportoACuraDi(trasportoACuraDi === t.key ? null : t.key)}>
+                {t.label}
               </button>
-            );
-          })}
-        </div>
-      </div>
+            ))}
+            <span className="mx-1 self-center text-xs text-muted-foreground">Porto</span>
+            {(["franco", "assegnato"] as const).map((p) => (
+              <button key={p} type="button" aria-pressed={porto === p} className={bottoneScelta(porto === p)}
+                title={p === "franco" ? "Compreso nel prezzo: in fattura non arriva" : "A nostro carico: in fattura c'è anche il trasporto"}
+                onClick={() => setPorto(porto === p ? null : p)}>
+                {p === "franco" ? "Franco" : "Assegnato"}
+              </button>
+            ))}
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {trasportoACuraDi !== "noi" && (
+              <label className="col-span-2 space-y-1 text-xs text-muted-foreground">
+                {trasportoACuraDi === "terzi" ? "Corriere" : "Chi l'ha portata"}
+                <Input aria-label="Corriere" value={corriere} onChange={(e) => setCorriere(e.target.value)} placeholder="GLS, DHL, il fornitore…" className="h-9 text-sm text-foreground" />
+              </label>
+            )}
+            <div className="space-y-1 text-xs text-muted-foreground">
+              {trasportoACuraDi === "noi" ? "Targa del nostro mezzo" : "Targa mezzo"}
+              <CampoConProposte
+                ariaLabel="Targa mezzo"
+                valore={targaMezzo}
+                onChange={setTargaMezzo}
+                proposte={trasportoACuraDi === "noi" ? proposte.data?.mezzi ?? [] : []}
+                placeholder={trasportoACuraDi === "noi" ? "Cerca fra i mezzi o scrivi" : "AB123CD"}
+                maiuscolo
+              />
+            </div>
+            <div className="space-y-1 text-xs text-muted-foreground">
+              {trasportoACuraDi === "noi" ? "Chi è andato" : "Autista"}
+              <CampoConProposte
+                ariaLabel="Autista"
+                valore={autistaNome}
+                onChange={setAutistaNome}
+                proposte={trasportoACuraDi === "noi" ? proposte.data?.autisti ?? [] : []}
+                placeholder={trasportoACuraDi === "noi" ? "Cerca fra il personale o scrivi" : "Mario Rossi"}
+              />
+            </div>
+            {trasportoACuraDi !== "noi" && (
+              <label className="space-y-1 text-xs text-muted-foreground">
+                Telefono autista
+                <Input type="tel" aria-label="Telefono autista" value={autistaTelefono} onChange={(e) => setAutistaTelefono(e.target.value)} className="h-9 text-sm text-foreground" />
+              </label>
+            )}
+            <label className="space-y-1 text-xs text-muted-foreground">
+              Ora arrivo
+              <Input type="time" aria-label="Ora arrivo" value={oraArrivo} onChange={(e) => setOraArrivo(e.target.value)} className="h-9 text-sm text-foreground" />
+            </label>
+            <label className="space-y-1 text-xs text-muted-foreground">
+              Ora partenza
+              <Input type="time" aria-label="Ora partenza" value={oraPartenza} onChange={(e) => setOraPartenza(e.target.value)} className="h-9 text-sm text-foreground" />
+            </label>
+          </div>
+        </SezioneBolla>
 
-      {/* ODA: solo quando la bolla nasce da un ordine */}
-      {origine === "oda" && (
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium flex items-center gap-1.5">
-            <ShoppingCart className="h-3.5 w-3.5 text-muted-foreground" />
-            Ordine di Acquisto *
-          </Label>
-          <Select value={poId} onValueChange={onPoIdChange} disabled={disabledPOSelect}>
-            <SelectTrigger className="h-11">
-              <SelectValue placeholder="Seleziona l'ODA corrispondente al DDT ricevuto…" />
-            </SelectTrigger>
-            <SelectContent className="max-h-[300px]">
-              {availablePOs.length === 0 ? (
-                <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-                  Nessun ODA disponibile. Scegli «Da una commessa» o «Solo la bolla».
+        <SezioneBolla titolo="Dove va la merce">
+          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Dove va la merce">
+            <button type="button" aria-pressed={destinazioneEffettiva === "magazzino"} className={bottoneScelta(destinazioneEffettiva === "magazzino")} onClick={() => setDestinazione("magazzino")}>
+              In magazzino
+            </button>
+            <button type="button" aria-pressed={destinazioneEffettiva === "cantiere"} disabled={!commessaNota} className={cn(bottoneScelta(destinazioneEffettiva === "cantiere"), "disabled:opacity-40")}
+              title={commessaNota ? "Non passa dal magazzino: è già sul posto" : "Serve prima la commessa"} onClick={() => setDestinazione("cantiere")}>
+              Direttamente in cantiere
+            </button>
+            {!commessaNota && <span className="text-[11px] text-muted-foreground">Per il cantiere scegli prima la commessa.</span>}
+          </div>
+          {destinazioneEffettiva === "magazzino" && (
+            <div className="mt-2">
+              {!nessunMagazzino ? (
+                <WarehouseSelect value={warehouseId} onChange={setWarehouseId} placeholder="Default (dal fornitore o dall'ODA)" />
+              ) : warehouseId ? (
+                <p className="text-xs text-emerald-800 dark:text-emerald-300">Magazzino creato: la merce entra lì.</p>
+              ) : permessi.isAdmin ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="w-full text-xs text-muted-foreground">Non hai ancora un magazzino: crealo ora, oppure registra la bolla e il carico resta in sospeso.</p>
+                  <Input aria-label="Nome del magazzino" value={nomeMagazzino} onChange={(e) => setNomeMagazzino(e.target.value)} className="h-9 max-w-xs text-sm" />
+                  <Button type="button" size="sm" variant="outline" disabled={creandoMagazzino} onClick={() => void creaMagazzino()}>
+                    {creandoMagazzino && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
+                    Crea il magazzino
+                  </Button>
                 </div>
               ) : (
-                availablePOs.map((o) => (
-                  <SelectItem key={o.id} value={o.id}>
-                    <div className="flex flex-col gap-0.5 text-left">
-                      <span className="font-mono text-xs font-medium">{o.oda_number}</span>
-                      <span className="text-[11px] text-muted-foreground">
-                        {o.suppliers?.name || "Fornitore ignoto"}
-                        {o.orders?.order_code ? ` · ${o.orders.order_code}` : ""}
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
-          {selectedPO && (
-            <div className="rounded-md bg-muted/40 px-2.5 py-1.5 text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
-              <Info className="h-3 w-3 shrink-0" />
-              Stato ODA: <strong className="text-foreground">{selectedPO.status}</strong>
-              {selectedPO.expected_delivery_date && (
-                <>
-                  <span>·</span>
-                  <span className="inline-flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    consegna prevista {format(new Date(selectedPO.expected_delivery_date), "dd/MM/yyyy", { locale: it })}
-                  </span>
-                </>
-              )}
-              <span>·</span>
-              <span>commessa e fornitore li prende dall'ordine</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Commessa: obbligatoria solo quando la bolla nasce da lì */}
-      {origine === "commessa" && (
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium flex items-center gap-1.5">
-            <HardHat className="h-3.5 w-3.5 text-muted-foreground" />
-            Commessa *
-          </Label>
-          <OrderSelectCombobox
-            companyId={companyId ?? undefined}
-            value={orderId ?? undefined}
-            onChange={(id) => onOrderIdChange(id)}
-            placeholder="Su quale cantiere va questa merce…"
-          />
-        </div>
-      )}
-
-      {/* Fornitore: a mano o proposto dalla lettura, tranne quando c'è l'ODA */}
-      {origine !== "oda" && (
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium flex items-center gap-1.5">
-            <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-            Fornitore
-          </Label>
-          <SupplierSelect
-            searchable
-            value={supplierId}
-            onValueChange={(v) => onSupplierIdChange(v)}
-            placeholder="Chi ha consegnato (si può mettere dopo)"
-            fallbackCompanyId={companyId ?? undefined}
-          />
-          {fornitoreLetto && (
-            <p className="text-[11px] text-muted-foreground">
-              {fornitoreAbbinatoPer
-                ? `Riconosciuto dalla bolla per ${fornitoreAbbinatoPer}: ${fornitoreLetto}`
-                : `Sulla bolla c'è scritto «${fornitoreLetto}», ma in rubrica non c'è un unico fornitore che corrisponde: scegli tu.`}
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Numero DDT + data — grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium flex items-center gap-1.5">
-            <Hash className="h-3.5 w-3.5 text-muted-foreground" />
-            Numero DDT *
-          </Label>
-          <Input
-            aria-label="Numero DDT"
-            value={numero}
-            onChange={(e) => onNumeroChange(e.target.value)}
-            placeholder="es. DDT-2026-001"
-            className="h-11 font-mono"
-            autoFocus
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium flex items-center gap-1.5">
-            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-            Data ricezione
-          </Label>
-          <Input
-            type="date"
-            aria-label="Data ricezione"
-            value={data}
-            onChange={(e) => onDataChange(e.target.value)}
-            className="h-11"
-          />
-        </div>
-      </div>
-
-      {/* Upload zone — DDT principale */}
-      <div className="space-y-2">
-        {!ddtFile ? (
-          <DDTAttachmentUploader
-            title="Carica DDT cartaceo"
-            description="Fotografa il DDT ricevuto dal corriere o carica il PDF. È il documento ufficiale di riferimento."
-            defaultKind="ddt"
-            multiple={false}
-            onFilesSelected={(files) => {
-              const first = files[0];
-              if (first) {
-                onDdtFileChange({
-                  file: first.file,
-                  kind: "ddt",
-                  id: crypto.randomUUID(),
-                });
-              }
-            }}
-          />
-        ) : (
-          <div className="space-y-2">
-            <Label className="text-xs font-medium flex items-center gap-1.5">
-              <FileCheck className="h-3.5 w-3.5 text-primary" />
-              DDT caricato (pronto per upload al salvataggio)
-            </Label>
-            <div className="flex items-center gap-3 p-3 rounded-lg border-2 border-primary/30 bg-primary/5">
-              <FileText className="h-8 w-8 text-primary shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{ddtFile.file.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {(ddtFile.file.size / 1024 / 1024).toFixed(1)} MB · {ddtFile.file.type}
+                  Non hai magazzini: la bolla si registra lo stesso, e il carico resta in sospeso finché l'amministratore non ne crea uno (Impostazioni, Magazzini). Poi lo confermi dalla pagina della bolla.
                 </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onDdtFileChange(null)}
-                className="text-muted-foreground hover:text-destructive"
-              >
-                Rimuovi
-              </Button>
-            </div>
-            {onLetturaAI && companyId && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={runAIExtract}
-                disabled={isAIExtracting}
-                className="w-full gap-2 border-violet-300 text-violet-700 hover:bg-violet-50"
-              >
-                {isAIExtracting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Wand2 className="h-4 w-4" />
-                )}
-                <Sparkles className="h-3.5 w-3.5" />
-                Leggi la bolla con l'AI
-              </Button>
-            )}
-
-            {/* Che cosa ha letto: il numero delle righe si vede subito, non a
-                salvataggio fatto. Prima non si vedeva mai, perché le righe
-                non venivano nemmeno chieste al modello. */}
-            {(righeLette.length > 0 || aiAvvisi.length > 0) && (
-              <div className="rounded-md border border-violet-200 bg-violet-50/60 p-2.5 space-y-1.5">
-                <p className="text-xs font-medium text-violet-900 flex items-center gap-1.5">
-                  <ListTree className="h-3.5 w-3.5" />
-                  {righeLette.length > 0
-                    ? `${righeLette.length} ${righeLette.length === 1 ? "articolo letto" : "articoli letti"}`
-                    : "Nessun articolo riconosciuto"}
-                  {aiConfidenza != null && (
-                    <Badge variant="secondary" className="ml-auto text-[10px] font-normal">
-                      affidabilità {Math.round(aiConfidenza * 100)}%
-                    </Badge>
-                  )}
-                </p>
-                {importoTotale(righeLette) != null && (
-                  <p className="text-[11px] text-violet-800">
-                    Merce per {importoTotale(righeLette)!.toLocaleString("it-IT", {
-                      style: "currency", currency: "EUR", useGrouping: true,
-                    })}
-                  </p>
-                )}
-                {aiAvvisi.length > 0 && (
-                  <ul className="text-[11px] text-amber-800 space-y-0.5">
-                    {aiAvvisi.map((a) => (
-                      <li key={a} className="flex items-start gap-1">
-                        <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
-                        {a}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <p className="text-[10px] text-violet-700">
-                  Le righe si controllano e si correggono allo step «Verifica».
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Extra allegati (opzionale) */}
-      <ExtraAllegatiField files={extraFiles} onChange={onExtraFilesChange} />
-    </div>
-  );
-}
-
-// ─── Extra allegati con tipologia ──────────────────────────────────────
-function ExtraAllegatiField({
-  files,
-  onChange,
-}: {
-  files: LocalFile[];
-  onChange: (f: LocalFile[]) => void;
-}) {
-  const [pickerKind, setPickerKind] = useState<DDTAttachmentKind>("bolla");
-  return (
-    <div className="space-y-2">
-      <details className="rounded-md border bg-muted/10 group">
-        <summary className="cursor-pointer px-3 py-2 text-xs font-medium flex items-center gap-2 select-none hover:bg-muted/30 transition-colors">
-          <Paperclip className="h-3.5 w-3.5 text-muted-foreground" />
-          Aggiungi altri allegati (opzionale)
-          {files.length > 0 && (
-            <Badge variant="secondary" className="ml-auto text-[10px]">
-              {files.length}
-            </Badge>
-          )}
-          <ChevronRight className="h-3.5 w-3.5 ml-auto group-open:rotate-90 transition-transform" />
-        </summary>
-        <div className="p-3 space-y-3 border-t">
-          <div className="flex items-center gap-2">
-            <Label className="text-xs shrink-0">Tipologia:</Label>
-            <Select
-              value={pickerKind}
-              onValueChange={(v) => setPickerKind(v as DDTAttachmentKind)}
-            >
-              <SelectTrigger className="h-8 text-xs flex-1">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="bolla">Bolla di consegna</SelectItem>
-                <SelectItem value="packing_list">Packing list</SelectItem>
-                <SelectItem value="danni">Foto danni / non conformità</SelectItem>
-                <SelectItem value="firma">Firma ricevente</SelectItem>
-                <SelectItem value="altro">Altro</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <DDTAttachmentUploader
-            compact
-            defaultKind={pickerKind}
-            multiple
-            onFilesSelected={(added) => {
-              onChange([
-                ...files,
-                ...added.map((a) => ({
-                  file: a.file,
-                  kind: a.kind,
-                  id: crypto.randomUUID(),
-                })),
-              ]);
-            }}
-          />
-          {files.length > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
-              {files.map((f) => (
-                <div key={f.id} className="flex flex-col gap-1 rounded-md border p-2">
-                  <p className="text-[10px] font-medium truncate">{f.file.name}</p>
-                  <p className="text-[9px] text-muted-foreground">
-                    {(f.file.size / 1024 / 1024).toFixed(1)} MB · {f.kind}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => onChange(files.filter((x) => x.id !== f.id))}
-                    className="text-[10px] text-rose-600 hover:underline text-left"
-                  >
-                    Rimuovi
-                  </button>
-                </div>
-              ))}
+              )}
             </div>
           )}
-        </div>
-      </details>
-    </div>
+        </SezioneBolla>
+
+        <SezioneBolla titolo="Ricevimento">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <label className="space-y-1 text-xs text-muted-foreground">
+              Stato
+              <Select value={stato} onValueChange={(v) => setStato(v as DDTStato)}>
+                <SelectTrigger className="h-9 text-sm text-foreground" aria-label="Stato DDT"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {STATI.map((s) => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </label>
+            <label className="space-y-1 text-xs text-muted-foreground">
+              Quantità ricevuta
+              <Input type="number" min="0" step="0.01" aria-label="Quantità ricevuta" value={qty} onChange={(e) => setQty(e.target.value)}
+                placeholder={righe.length ? String(quantitaTotale(righe)) : "0"} className="h-9 text-right text-sm text-foreground" />
+            </label>
+            <label className="col-span-2 space-y-1 text-xs text-muted-foreground">
+              Ricevuto da
+              <Input aria-label="Ricevuto da" value={ricevutoDaNome} onChange={(e) => setRicevutoDaNome(e.target.value)} placeholder="Chi ha preso la merce" className="h-9 text-sm text-foreground" />
+            </label>
+          </div>
+          <label className="mt-2 flex items-center gap-2 text-sm">
+            <Switch checked={hasDamages} onCheckedChange={setHasDamages} aria-label="Danni o non conformità" />
+            Danni o non conformità
+          </label>
+          {hasDamages && (
+            <Textarea aria-label="Descrizione non conformità" value={nonConformita} onChange={(e) => setNonConformita(e.target.value)} rows={2}
+              placeholder="Pezzi mancanti, articoli danneggiati, imballo rotto…" className="mt-2 text-sm" />
+          )}
+          <Textarea aria-label="Note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Note interne (facoltative)" className="mt-2 text-sm" />
+        </SezioneBolla>
+      </FinestraBollaFotoRighe>
+    </>
   );
 }
 
-// ============================================================================
-// STEP 2 — Consegna & corriere
-// ============================================================================
-interface ConsegnaStepProps {
-  trasportoACuraDi: TrasportoACuraDi | null;
-  onTrasportoACuraDiChange: (v: TrasportoACuraDi) => void;
-  porto: "franco" | "assegnato" | null;
-  onPortoChange: (v: "franco" | "assegnato") => void;
-  corriere: string;
-  onCorriereChange: (v: string) => void;
-  targaMezzo: string;
-  onTargaMezzoChange: (v: string) => void;
-  autistaNome: string;
-  onAutistaNomeChange: (v: string) => void;
-  autistaTelefono: string;
-  onAutistaTelefonoChange: (v: string) => void;
-  oraArrivo: string;
-  onOraArrivoChange: (v: string) => void;
-  oraPartenza: string;
-  onOraPartenzaChange: (v: string) => void;
-}
-
-function ConsegnaStep(props: ConsegnaStepProps) {
-  // Con un ritiro non c'è nessun corriere: c'è il nostro furgone e il nostro
-  // uomo. Chiedere «telefono dell'autista» a chi è andato lui a prendere la
-  // merce è il modo di farsi lasciare il riquadro vuoto.
-  const ritiro = props.trasportoACuraDi === "noi";
+// ─── Allegati in più: packing list, foto dei danni, firma ──────────────────
+function AltriAllegati({ files, onChange }: { files: LocalFile[]; onChange: (f: LocalFile[]) => void }) {
+  const [pickerKind, setPickerKind] = useState<DDTAttachmentKind>("packing_list");
   return (
-    <div className="space-y-5">
-      {/* La scelta che decide che cosa viene chiesto sotto */}
-      <div className="space-y-1.5">
-        <Label className="text-xs font-medium">Chi ha portato la merce</Label>
-        <div className="grid grid-cols-3 gap-1.5">
-          {TRASPORTI.map((t) => {
-            const Icona = t.icona;
-            const attiva = props.trasportoACuraDi === t.key;
-            return (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => props.onTrasportoACuraDiChange(t.key)}
-                className={cn(
-                  "flex flex-col items-start gap-1 rounded-md border p-2.5 text-left transition-colors",
-                  attiva ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "hover:bg-muted/40",
-                )}
-              >
-                <span className="flex items-center gap-1.5 text-xs font-medium">
-                  <Icona className={cn("h-3.5 w-3.5", attiva ? "text-primary" : "text-muted-foreground")} />
-                  {t.label}
-                </span>
-                <span className="text-[10px] leading-tight text-muted-foreground">{t.aiuto}</span>
-              </button>
-            );
-          })}
-        </div>
-        {props.trasportoACuraDi === null && (
-          <p className="text-[11px] text-muted-foreground">
-            Si può lasciare in bianco: non si sa è meglio di un dato inventato.
-          </p>
-        )}
-      </div>
-
-      {/* Il porto: dice se nella fattura ci sarà anche una riga di trasporto */}
-      <div className="space-y-1.5">
-        <Label className="text-xs font-medium">Il trasporto chi lo paga</Label>
-        <div className="grid grid-cols-2 gap-1.5">
-          {([
-            { key: "franco" as const, label: "Compreso nel prezzo", aiuto: "Porto franco: in fattura non arriva." },
-            { key: "assegnato" as const, label: "A nostro carico", aiuto: "Porto assegnato: in fattura c'è anche il trasporto." },
-          ]).map((o) => (
-            <button
-              key={o.key}
-              type="button"
-              onClick={() => props.onPortoChange(o.key)}
-              className={cn(
-                "flex flex-col items-start gap-0.5 rounded-md border p-2.5 text-left transition-colors",
-                props.porto === o.key
-                  ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                  : "hover:bg-muted/40",
-              )}
-            >
-              <span className="text-xs font-medium">{o.label}</span>
-              <span className="text-[10px] leading-tight text-muted-foreground">{o.aiuto}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {/* Il corriere non esiste su un ritiro */}
-        {!ritiro && (
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label className="text-xs font-medium flex items-center gap-1.5">
-              <Truck className="h-3.5 w-3.5 text-muted-foreground" />
-              {props.trasportoACuraDi === "terzi" ? "Corriere" : "Chi l'ha portata"}
-            </Label>
-            <Input
-              value={props.corriere}
-              onChange={(e) => props.onCorriereChange(e.target.value)}
-              placeholder="es. GLS, DHL, SDA, oppure il nome del fornitore"
-              className="h-11"
-            />
-          </div>
-        )}
-
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium flex items-center gap-1.5">
-            <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-            {ritiro ? "Targa del nostro mezzo" : "Targa mezzo"}
-          </Label>
-          <Input
-            value={props.targaMezzo}
-            onChange={(e) => props.onTargaMezzoChange(e.target.value.toUpperCase())}
-            placeholder="es. AB123CD"
-            className="h-11 font-mono uppercase"
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium flex items-center gap-1.5">
-            <User className="h-3.5 w-3.5 text-muted-foreground" />
-            {ritiro ? "Chi è andato a ritirarla" : "Nome autista"}
-          </Label>
-          <Input
-            value={props.autistaNome}
-            onChange={(e) => props.onAutistaNomeChange(e.target.value)}
-            placeholder="es. Mario Rossi"
-            className="h-11"
-          />
-        </div>
-
-        {/* A chi è andato lui a prendere la merce il telefono non si chiede */}
-        {!ritiro && (
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label className="text-xs font-medium flex items-center gap-1.5">
-              <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-              Telefono autista (per contatti futuri)
-            </Label>
-            <Input
-              type="tel"
-              value={props.autistaTelefono}
-              onChange={(e) => props.onAutistaTelefonoChange(e.target.value)}
-              placeholder="+39 123 456 7890"
-              className="h-11"
-            />
-          </div>
-        )}
-
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium flex items-center gap-1.5">
-            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-            Ora arrivo
-          </Label>
-          <Input
-            type="time"
-            value={props.oraArrivo}
-            onChange={(e) => props.onOraArrivoChange(e.target.value)}
-            className="h-11"
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium flex items-center gap-1.5">
-            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-            Ora partenza
-          </Label>
-          <Input
-            type="time"
-            value={props.oraPartenza}
-            onChange={(e) => props.onOraPartenzaChange(e.target.value)}
-            className="h-11"
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
-// STEP 3 — Verifica & conferma
-// ============================================================================
-interface VerificaStepProps {
-  qty: string;
-  onQtyChange: (v: string) => void;
-  stato: DDTStato;
-  onStatoChange: (v: DDTStato) => void;
-  warehouseId: string | null;
-  onWarehouseIdChange: (v: string | null) => void;
-  ricevutoDaNome: string;
-  onRicevutoDaNomeChange: (v: string) => void;
-  hasDamages: boolean;
-  onHasDamagesChange: (v: boolean) => void;
-  nonConformita: string;
-  onNonConformitaChange: (v: string) => void;
-  note: string;
-  onNoteChange: (v: string) => void;
-  selectedPO: { suppliers?: { name: string } | null } | null;
-  righe: DDTRigaNuova[];
-  onRigheChange: (r: DDTRigaNuova[]) => void;
-  destinazione: "magazzino" | "cantiere";
-  onDestinazioneChange: (v: "magazzino" | "cantiere") => void;
-  commessaNota: boolean;
-  /** L'azienda non ha magazzini: niente selettore vuoto col «Default». */
-  nessunMagazzino?: boolean;
-}
-
-function VerificaStep(props: VerificaStepProps) {
-  return (
-    <div className="space-y-5">
-      <RigheMerceField righe={props.righe} onChange={props.onRigheChange} />
-      {/* Quantità + stato */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium flex items-center gap-1.5">
-            <Package className="h-3.5 w-3.5 text-muted-foreground" />
-            Quantità ricevuta
-          </Label>
-          <Input
-            type="number"
-            min="0"
-            step="0.01"
-            aria-label="Quantità ricevuta"
-            value={props.qty}
-            onChange={(e) => props.onQtyChange(e.target.value)}
-            placeholder="0"
-            className="h-11 text-right font-semibold"
-          />
-          <p className="text-[10px] text-muted-foreground">
-            Totale (aggregato). Le righe sopra restano quelle della bolla.
-          </p>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium">Stato DDT</Label>
-          <Select
-            value={props.stato}
-            onValueChange={(v) => props.onStatoChange(v as DDTStato)}
-          >
-            <SelectTrigger className="h-11">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="atteso">
-                <span className="flex items-center gap-1.5">
-                  <span className="inline-block h-2 w-2 rounded-full bg-sky-500" />
-                  Atteso (pre-avviso)
-                </span>
-              </SelectItem>
-              <SelectItem value="ricevuto">
-                <span className="flex items-center gap-1.5">
-                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-                  Ricevuto completo
-                </span>
-              </SelectItem>
-              <SelectItem value="parziale">
-                <span className="flex items-center gap-1.5">
-                  <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
-                  Parziale
-                </span>
-              </SelectItem>
-              <SelectItem value="verificato">
-                <span className="flex items-center gap-1.5">
-                  <span className="inline-block h-2 w-2 rounded-full bg-green-600" />
-                  Verificato (controllato)
-                </span>
-              </SelectItem>
-              <SelectItem value="non_conforme">
-                <span className="flex items-center gap-1.5">
-                  <span className="inline-block h-2 w-2 rounded-full bg-rose-500" />
-                  Non conforme
-                </span>
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* ── Dove va la merce ──────────────────────────────────────────
-            Due cose diverse: in magazzino entra in giacenza e ne uscirà con
-            uno scarico su commessa; in cantiere scende dal camion e si posa,
-            e in giacenza non deve entrare mai — altrimenti il magazzino
-            risulta pieno di roba che è già murata. */}
-        <div className="space-y-1.5 sm:col-span-2">
-          <Label className="text-xs font-medium flex items-center gap-1.5">
-            <Truck className="h-3.5 w-3.5 text-muted-foreground" />
-            Dove va questa merce
-          </Label>
-          <div className="grid grid-cols-2 gap-1.5">
-            <button
-              type="button"
-              onClick={() => props.onDestinazioneChange("magazzino")}
-              className={cn(
-                "flex flex-col items-start gap-0.5 rounded-md border p-2.5 text-left transition-colors",
-                props.destinazione === "magazzino"
-                  ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                  : "hover:bg-muted/40",
-              )}
-            >
-              <span className="flex items-center gap-1.5 text-xs font-medium">
-                <WarehouseIcon className="h-3.5 w-3.5" />
-                In magazzino
-              </span>
-              <span className="text-[10px] leading-tight text-muted-foreground">
-                Entra in giacenza. Andrà in cantiere con uno scarico.
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => props.onDestinazioneChange("cantiere")}
-              disabled={!props.commessaNota}
-              className={cn(
-                "flex flex-col items-start gap-0.5 rounded-md border p-2.5 text-left transition-colors disabled:opacity-40",
-                props.destinazione === "cantiere"
-                  ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                  : "hover:bg-muted/40",
-              )}
-            >
-              <span className="flex items-center gap-1.5 text-xs font-medium">
-                <HardHat className="h-3.5 w-3.5" />
-                Direttamente in cantiere
-              </span>
-              <span className="text-[10px] leading-tight text-muted-foreground">
-                {props.commessaNota
-                  ? "Non passa dal magazzino: è già sul posto."
-                  : "Serve prima una commessa: «in cantiere» senza dire quale non vuol dire niente."}
-              </span>
-            </button>
-          </div>
-        </div>
-
-        {props.destinazione === "magazzino" && (
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label className="text-xs font-medium flex items-center gap-1.5">
-              <WarehouseIcon className="h-3.5 w-3.5 text-muted-foreground" />
-              Magazzino destinazione
-            </Label>
-            {props.nessunMagazzino ? (
-              <p className="text-xs text-muted-foreground">
-                Non hai magazzini: scegli una commessa per mandare la merce in
-                cantiere, oppure crea un magazzino in Impostazioni. La bolla si
-                registra lo stesso.
-              </p>
-            ) : (
-              <WarehouseSelect
-                value={props.warehouseId}
-                onChange={props.onWarehouseIdChange}
-                placeholder="Default (dal fornitore o dall'ODA)"
-              />
-            )}
-          </div>
-        )}
-
-        <div className="space-y-1.5 sm:col-span-2">
-          <Label className="text-xs font-medium flex items-center gap-1.5">
-            <User className="h-3.5 w-3.5 text-muted-foreground" />
-            Ricevuto da (nome ricevente fisico)
-          </Label>
-          <Input
-            value={props.ricevutoDaNome}
-            onChange={(e) => props.onRicevutoDaNomeChange(e.target.value)}
-            placeholder="es. Luca Bianchi (magazziniere)"
-            className="h-11"
-          />
-        </div>
-      </div>
-
-      {/* Danni toggle */}
-      <div className="rounded-lg border p-3 space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-start gap-2">
-            <AlertTriangle className={cn(
-              "h-4 w-4 shrink-0 mt-0.5",
-              props.hasDamages ? "text-rose-500" : "text-muted-foreground"
-            )} />
-            <div>
-              <p className="text-sm font-medium">Presenza di danni o non conformità</p>
-              <p className="text-xs text-muted-foreground">
-                Attiva se la merce presenta difformità rispetto all'ODA.
-              </p>
-            </div>
-          </div>
-          <Switch
-            checked={props.hasDamages}
-            onCheckedChange={props.onHasDamagesChange}
-          />
-        </div>
-
-        {props.hasDamages && (
-          <Textarea
-            value={props.nonConformita}
-            onChange={(e) => props.onNonConformitaChange(e.target.value)}
-            rows={3}
-            placeholder="Descrivi la non conformità: pezzi mancanti, articoli danneggiati, imballo rotto, errori di quantità…"
-            className="text-sm"
-          />
-        )}
-      </div>
-
-      {/* Note */}
-      <div className="space-y-1.5">
-        <Label className="text-xs font-medium">Note aggiuntive (opzionale)</Label>
-        <Textarea
-          rows={2}
-          value={props.note}
-          onChange={(e) => props.onNoteChange(e.target.value)}
-          placeholder="Eventuali osservazioni interne…"
+    <details className="rounded-md border bg-muted/10">
+      <summary className="flex cursor-pointer select-none items-center gap-2 px-3 py-2 text-xs font-medium">
+        <Paperclip className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+        Altri allegati (facoltativi){files.length > 0 ? ` · ${files.length}` : ""}
+      </summary>
+      <div className="space-y-2 border-t p-3">
+        <Select value={pickerKind} onValueChange={(v) => setPickerKind(v as DDTAttachmentKind)}>
+          <SelectTrigger className="h-8 text-xs" aria-label="Tipo di allegato"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="packing_list">Packing list</SelectItem>
+            <SelectItem value="danni">Foto danni / non conformità</SelectItem>
+            <SelectItem value="firma">Firma ricevente</SelectItem>
+            <SelectItem value="altro">Altro</SelectItem>
+          </SelectContent>
+        </Select>
+        <DDTAttachmentUploader
+          compact
+          defaultKind={pickerKind}
+          multiple
+          onFilesSelected={(added) => onChange([...files, ...added.map((a) => ({ file: a.file, kind: a.kind, id: crypto.randomUUID() }))])}
         />
-      </div>
-    </div>
-  );
-}
-
-// ─── Le righe della merce, correggibili ────────────────────────────────────
-// Quello che l'AI ha letto si controlla PRIMA di salvare: una riga sbagliata
-// qui diventa un costo sbagliato in commessa, e poi una fattura che non torna.
-function RigheMerceField({
-  righe,
-  onChange,
-}: {
-  righe: DDTRigaNuova[];
-  onChange: (r: DDTRigaNuova[]) => void;
-}) {
-  const cambia = (i: number, campo: keyof DDTRigaNuova, valore: string) => {
-    const copia = [...righe];
-    const numerico = campo === "quantita" || campo === "prezzo_unitario";
-    copia[i] = {
-      ...copia[i],
-      [campo]: numerico ? (valore.trim() === "" ? null : Number(valore.replace(",", "."))) : valore,
-      // Toccata a mano: l'importo del documento non vale più, si ricalcola.
-      ...(numerico ? { importo: null } : {}),
-      origine: "manuale" as const,
-    };
-    onChange(copia);
-  };
-
-  const aggiungi = () =>
-    onChange([
-      ...righe,
-      {
-        posizione: righe.length + 1,
-        codice_articolo: null,
-        descrizione: "",
-        unita_misura: null,
-        quantita: null,
-        prezzo_unitario: null,
-        importo: null,
-        iva_percentuale: null,
-        order_item_id: null,
-        origine: "manuale",
-        ai_originale: null,
-        testo_grezzo: null,
-        note: null,
-      },
-    ]);
-
-  const totale = importoTotale(righe);
-
-  return (
-    <div className="rounded-lg border">
-      <div className="flex items-center gap-2 px-3 py-2 border-b bg-muted/30">
-        <ListTree className="h-3.5 w-3.5 text-muted-foreground" />
-        <p className="text-sm font-medium">Merce sulla bolla</p>
-        <Badge variant="secondary" className="text-[10px] font-normal">
-          {righe.length} {righe.length === 1 ? "riga" : "righe"}
-        </Badge>
-        {totale != null && (
-          <span className="ml-auto text-xs font-semibold tabular-nums">
-            {totale.toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: true })}
-          </span>
-        )}
-      </div>
-
-      {righe.length === 0 ? (
-        <div className="px-3 py-4 text-xs text-muted-foreground space-y-2">
-          <p>
-            Nessuna riga. Leggi la bolla con l'AI allo step «Documento», oppure
-            scrivi le righe a mano: senza righe la bolla non si può confrontare
-            con la fattura del fornitore.
+        {files.map((f) => (
+          <p key={f.id} className="flex items-center gap-2 text-xs">
+            <span className="min-w-0 flex-1 truncate">{f.file.name} · {f.kind}</span>
+            <button type="button" className="text-rose-600 hover:underline" onClick={() => onChange(files.filter((x) => x.id !== f.id))}>Rimuovi</button>
           </p>
-          <Button type="button" variant="outline" size="sm" onClick={aggiungi} className="h-7 text-xs">
-            Aggiungi una riga
-          </Button>
-        </div>
-      ) : (
-        <div className="divide-y">
-          {righe.map((r, i) => (
-            <div key={i} className="grid grid-cols-12 gap-1.5 px-2 py-2 items-center">
-              <Input
-                value={r.codice_articolo ?? ""}
-                onChange={(e) => cambia(i, "codice_articolo", e.target.value)}
-                placeholder="codice"
-                className="col-span-2 h-8 text-xs font-mono"
-              />
-              <Input
-                value={r.descrizione}
-                onChange={(e) => cambia(i, "descrizione", e.target.value)}
-                placeholder="descrizione"
-                className="col-span-5 h-8 text-xs"
-              />
-              <Input
-                value={r.quantita ?? ""}
-                onChange={(e) => cambia(i, "quantita", e.target.value)}
-                placeholder="q.tà"
-                inputMode="decimal"
-                className="col-span-1 h-8 text-xs text-right"
-              />
-              <Input
-                value={r.unita_misura ?? ""}
-                onChange={(e) => cambia(i, "unita_misura", e.target.value)}
-                placeholder="um"
-                className="col-span-1 h-8 text-xs"
-              />
-              <Input
-                value={r.prezzo_unitario ?? ""}
-                onChange={(e) => cambia(i, "prezzo_unitario", e.target.value)}
-                placeholder="€/um"
-                inputMode="decimal"
-                className="col-span-2 h-8 text-xs text-right"
-              />
-              <button
-                type="button"
-                onClick={() => onChange(righe.filter((_, j) => j !== i))}
-                className="col-span-1 text-[10px] text-rose-600 hover:underline"
-              >
-                togli
-              </button>
-            </div>
-          ))}
-          <div className="px-2 py-2">
-            <Button type="button" variant="ghost" size="sm" onClick={aggiungi} className="h-7 text-xs">
-              Aggiungi una riga
-            </Button>
-          </div>
-        </div>
-      )}
-    </div>
+        ))}
+      </div>
+    </details>
   );
 }

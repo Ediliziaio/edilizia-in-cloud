@@ -158,3 +158,30 @@ export async function scansioneComeFoto(file: File): Promise<File> {
     await doc.loadingTask.destroy();
   }
 }
+
+/**
+ * Le pagine del PDF come immagini, per guardarle accanto alle righe con lo zoom
+ * (12/11/2026). Larghe abbastanza da leggere un codice articolo ingrandendo.
+ */
+export async function paginePdfComeImmagini(file: File, larghezza = 1600, massimo = 30): Promise<string[]> {
+  const lib = await pdfjs();
+  const doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()), wasmUrl: `${import.meta.env.BASE_URL}pdfjs-wasm/` }).promise;
+  try {
+    const pagine: string[] = [];
+    for (let n = 1; n <= Math.min(doc.numPages, massimo); n++) {
+      const pagina = await doc.getPage(n);
+      const base = pagina.getViewport({ scale: 1 });
+      const viewport = pagina.getViewport({ scale: larghezza / base.width });
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      await pagina.render({ canvas, viewport, background: "#ffffff" }).promise;
+      pagine.push(canvas.toDataURL("image/jpeg", 0.85));
+      canvas.width = 0; canvas.height = 0;
+      pagina.cleanup();
+    }
+    return pagine;
+  } finally {
+    void doc.loadingTask.destroy();
+  }
+}

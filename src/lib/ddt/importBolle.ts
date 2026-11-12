@@ -7,6 +7,7 @@
 import type { DDTRigaNuova } from "@/hooks/useDDTRicezione";
 import { leggiDDTdaAI, type LetturaDDT } from "@/lib/ddt/letturaAI";
 import { normalizzaPiva, abbinaFornitore, type FornitoreInRubrica } from "@/lib/ddt/abbinaFornitore";
+import { problemiBolla } from "@/lib/ddt/righeBolla";
 
 /** Il limite di `ddt-ai-extract`. */
 export const MAX_BYTE_BOLLA = 18 * 1024 * 1024;
@@ -53,6 +54,8 @@ export interface BollaLetta {
   targaMezzo: string | null;
   autistaNome: string | null;
   note: string | null;
+  /** Da compilare a mano: la finestra con l'originale a fianco si apre da sola. */
+  compilaAMano?: boolean;
   /** Un doppione si carica solo se la persona lo dice. */
   caricaComunque: boolean;
   esito: "salvata" | "errore" | null;
@@ -131,13 +134,16 @@ export function doppioni(bolle: ReadonlyArray<BollaLetta>, esistenti: ReadonlySe
 
 /** Cosa manca per poterla salvare: finché c'è qualcosa, la riga non parte. */
 export function problemiBloccanti(b: BollaLetta): string[] {
-  const p: string[] = [];
-  if (!b.numero.trim()) p.push("manca il numero");
-  if (!b.data) p.push("manca la data");
-  if (b.destinazione === "cantiere" && !b.orderId) p.push("in cantiere serve la commessa");
-  if (b.righe.some(r => r.quantita != null && (!Number.isFinite(r.quantita) || r.quantita < 0))) p.push("quantità non valida nelle righe");
-  if (b.righe.some(r => r.prezzo_unitario != null && (!Number.isFinite(r.prezzo_unitario) || r.prezzo_unitario < 0))) p.push("prezzo non valido nelle righe");
-  return p;
+  return problemiBolla(b);
+}
+
+/**
+ * La lettura non è riuscita (o non si vuole): la bolla si compila a mano guardando
+ * l'originale. Diventa «letta» con le righe che ha (di solito nessuna), e la finestra
+ * con la foto a fianco si apre da sola.
+ */
+export function compilaAMano(b: BollaLetta): BollaLetta {
+  return { ...b, stato: "letta", errore: null, compilaAMano: true, confidenza: null };
 }
 
 /**

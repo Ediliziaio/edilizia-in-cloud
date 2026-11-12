@@ -65,7 +65,12 @@ export function RevisioneDocumento({
       const pagine =
         f.mime === "application/pdf" ? await contaPagine(originale) : 1;
       return {
-        bolla: { ...letta, documentoJobId: documento.id },
+        // «Compila a mano» (lettura fallita): la finestra con l'originale si apre da sola.
+        bolla: {
+          ...letta,
+          documentoJobId: documento.id,
+          ...(aggiornato.status === "error" ? { compilaAMano: true } : {}),
+        },
         dividere: (pagine ?? 1) > 1,
         originale,
         pdf: (pagine ?? 1) > 1 ? await leggiPerDividere(originale) : undefined,
