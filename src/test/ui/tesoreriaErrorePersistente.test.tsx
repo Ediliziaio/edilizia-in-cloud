@@ -14,7 +14,7 @@ it('mantiene il movimento e mostra l’errore nel modulo quando il server rifiut
  fireEvent.click(screen.getByRole('button',{name:'Movimento'}));
  fireEvent.change(screen.getByPlaceholderText('0,00'),{target:{value:'1'}});
  fireEvent.click(screen.getByRole('button',{name:'Salva'}));
- expect(await screen.findByRole('alert')).toHaveTextContent('Movimento non salvato: Non hai i permessi per questa operazione. Contatta l\'amministratore.');
+ expect(await screen.findByRole('alert')).toHaveTextContent("Movimento non salvato: Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso.");
  expect(screen.getByPlaceholderText('0,00')).toHaveValue('1');
 });
 
