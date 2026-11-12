@@ -196,6 +196,26 @@ describe("Hub fatture per chi fattura con un altro programma", () => {
     expect(screen.queryByRole("columnheader", { name: "SDI" })).not.toBeInTheDocument();
   });
 
+  it("le colonne opzionali si possono attivare e restano scelte alla riapertura", async () => {
+    monta();
+    expect(screen.queryByRole("columnheader", { name: "IVA" })).not.toBeInTheDocument();
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Colonne" }), { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "IVA" }));
+    // Il menu resta aperto per consentire più scelte; la tabella è aria-hidden.
+    cleanup();
+    monta();
+    expect(screen.getByRole("columnheader", { name: "IVA" })).toBeInTheDocument();
+  });
+
+  it("mostra tutti i lavori collegati senza aprire la fattura", () => {
+    s.documenti = [{ ...importata, commesse: [{ id: "o1", codice: "C-1", descrizione: "Tetto" }, { id: "o2", codice: "C-2", descrizione: "Facciata" }] }];
+    monta();
+    fireEvent.click(screen.getByRole("button", { name: "Commesse della fattura FPR 12/26" }));
+    expect(screen.getByRole("link", { name: /C-1.*Tetto/ })).toHaveAttribute("href", "/azienda/ordini/o1");
+    expect(screen.getByRole("link", { name: /C-2.*Facciata/ })).toHaveAttribute("href", "/azienda/ordini/o2");
+    expect(screen.getByTestId("dove")).toHaveTextContent("/azienda/documenti");
+  });
+
   it("chi fattura con Edilizia in Cloud continua a creare e vede comunque lo storico importato", () => {
     s.esterna = false;
     monta();

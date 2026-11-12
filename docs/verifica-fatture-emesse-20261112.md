@@ -60,14 +60,14 @@ nella verifica del 12/11, senza includere rete e rendering.
 
 ## ✅ CHECKLIST TEST FINALE
 
-- 256 test superati su 15 file; 2 test esistenti saltati.
+- 258 test superati su 15 file; 2 test esistenti saltati.
 - Test SQL sulla migrazione reale: riapplicazione, RLS, commesse multiple,
   allegati, storni, rate aperte, ricerca di 225 note con pagina oltre la 200ª.
 - Test interfaccia: SDI e incasso indipendenti, note, navigazione e vista DDT.
 - Test query: filtri AND insieme alla ricerca OR, azienda e cancellazione
   logica, conteggio completo, paginazione, errori e caricamento leggero.
 - Test di ricerca: formati degli importi, calendario valido, caratteri speciali.
-- Compilazione TypeScript completa: zero errori nella prima verifica.
+- Compilazione TypeScript completa: zero errori, anche alla verifica finale.
 - Build di produzione e prerender: 243/243 pagine riuscite.
 - Migrazione applicata via MCP e registro allineato a `20290316100000`.
 - Nessun invio SDI, incasso o pagamento reale eseguito per collaudare la UI.
