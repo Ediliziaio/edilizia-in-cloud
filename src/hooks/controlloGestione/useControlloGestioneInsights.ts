@@ -25,6 +25,7 @@ import {
 } from "@/lib/controlloGestione/interpreter";
 
 function useRatingStorico(months = 12) {
+  const { canViewBankBalances } = usePermissions();
   const companyId = useEffectiveCompanyId();
   return useQuery({
     queryKey: ["cg", "rating-storico", months, companyId] as const,
@@ -62,7 +63,7 @@ function useSnapshotOperativo() {
   const companyId = useEffectiveCompanyId();
   return useQuery({
     queryKey: ["cg", "insights-operativo", companyId, canViewBankBalances] as const,
-    enabled: !!companyId,
+    enabled: !!companyId && canViewBankBalances,
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<SnapshotOperativo> => {
       const today = new Date();
