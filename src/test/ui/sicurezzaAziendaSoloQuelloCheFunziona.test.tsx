@@ -238,7 +238,7 @@ describe("Regole di sicurezza: salvataggio", () => {
     await scegli("Blocca l'account dopo", /4 password sbagliate/);
     fireEvent.click(screen.getByRole("button", { name: "Salva regole" }));
     await waitFor(() => expect(stato.error).toHaveBeenCalledOnce());
-    expect(stato.error.mock.calls[0][1]).toEqual({ description: "Non hai i permessi per questa operazione. Contatta l'amministratore." });
+    expect(stato.error.mock.calls[0][1]).toEqual({ description: "Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso." });
     // la bozza resta
     expect(screen.getByRole("status")).toHaveTextContent("Modifiche non salvate");
   });

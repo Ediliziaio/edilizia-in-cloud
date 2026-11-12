@@ -52,6 +52,13 @@ const TABELLE_VERIFICATE: Record<string, string> = {
  */
 const VISTE_CHE_FILTRANO_DENTRO: Record<string, string> = {
   v_appalto_rapportini_da_rendicontare: "puo_vedere_commessa + has_permission_for_company('can_view_order_amounts')",
+  // 20290314000002: security_barrier e diritti economici dentro (private.office_*_rights);
+  // provate il 12/11/2026 con un cliente esterno: 0 righe in tutte.
+  campo_rapportini_visibili: "private.office_order_rights(order_id)",
+  orders_visibili: "private.office_order_rights(id)",
+  employees_visibili: "private.office_company_rights(company_id)",
+  order_installments_visibili: "private.office_order_rights(order_id)",
+  order_employees_visibili: "private.office_order_rights(order_id)",
 };
 
 function rotteSenzaPermesso(sorgente: string): string[] {
@@ -66,10 +73,18 @@ function rotteSenzaPermesso(sorgente: string): string[] {
   return trovate;
 }
 
-function migrazioniNuove(): { nome: string; testo: string }[] {
+/** Toglie i commenti `-- …` (fino a fine riga), lasciando il resto com'è. */
+const senzaCommenti = (sql: string) => sql.replace(/--[^\n]*/g, "");
+
+function migrazioniNuove(): { nome: string; testo: string; codice: string }[] {
   return readdirSync(CARTELLA)
     .filter((f) => f.endsWith(".sql") && f.slice(0, 14) >= PRIMA_MIGRAZIONE_CONTROLLATA)
-    .map((nome) => ({ nome, testo: readFileSync(join(CARTELLA, nome), "utf8") }));
+    .map((nome) => {
+      const testo = readFileSync(join(CARTELLA, nome), "utf8");
+      // `testo` com'è (le tabelle dichiarano chi le vede in un commento «permesso tabella:»);
+      // `codice` senza commenti, per le viste: «un CREATE OR REPLACE VIEW lo azzera» non è una vista.
+      return { nome, testo, codice: senzaCommenti(testo) };
+    });
 }
 
 describe("le novità nascono con un permesso", () => {
@@ -112,15 +127,18 @@ describe("le novità nascono con un permesso", () => {
     // `alter view … set (security_invoker = on)` la rimette dopo un CREATE OR REPLACE, che la toglie:
     // vale nello stesso file o in uno successivo, perché conta come la vista è alla fine.
     const rimessaFinoA = (vista: string, da: number) =>
-      migrazioni.slice(da).some(({ testo }) =>
+      migrazioni.slice(da).some(({ codice: testo }) =>
         new RegExp(
           `alter\\s+view\\s+(if\\s+exists\\s+)?(public\\.)?${vista}\\s+set\\s*\\([^)]*security_invoker\\s*=\\s*(on|true)`, "i",
         ).test(testo));
-    migrazioni.forEach(({ nome, testo }, i) => {
+    migrazioni.forEach(({ nome, codice }, i) => {
       // Viste «senza prezzi» (blocco costi, 08/11/2026): devono leggere ciò che la regola nega alle
       // GET dirette, quindi girano col proprietario e filtrano l'azienda dentro, con security_barrier.
       if (VISTE_SENZA_PREZZI.test(nome)) return;
-      for (const m of testo.matchAll(/create (?:or replace )?view\s+(?:public\.)?(\w+)([\s\S]*?)\bas\b/gi)) {
+      // `create or replace view public.%I with(security_barrier=true)` dentro un format(): il nome è
+      // un segnaposto e la vista filtra dentro come le «senza prezzi». Non è una vista da riconoscere qui.
+      // Solo le viste di public: quelle di `private` il browser non le può leggere.
+      for (const m of codice.matchAll(/create (?:or replace )?view\s+(?!public\.%)(?!(?!public\.)\w+\.)(?:public\.)?(\w+)([\s\S]*?)\bas\b/gi)) {
         const filtraDentro = m[1] in VISTE_CHE_FILTRANO_DENTRO;
         expect(/security_invoker/i.test(m[2]) || rimessaFinoA(m[1], i) || filtraDentro, `${nome}: la vista ${m[1]} deve avere security_invoker`).toBe(true);
       }

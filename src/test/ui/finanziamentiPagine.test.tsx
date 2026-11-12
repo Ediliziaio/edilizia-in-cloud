@@ -380,7 +380,7 @@ describe("Elenco", () => {
     fireEvent.click(screen.getByRole("button", { name: "Disattiva Prima" }));
     await waitFor(() => expect(state.error).toHaveBeenCalled());
     expect(state.error).toHaveBeenCalledWith("Non sono riuscito a cambiare lo stato della tabella", {
-      description: "Non hai i permessi per questa operazione. Contatta l'amministratore.",
+      description: "Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso.",
     });
   });
 

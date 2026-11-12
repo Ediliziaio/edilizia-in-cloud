@@ -87,6 +87,33 @@ export function nomeFileSicuro(nome: string): string {
   return (pulito.replace(/^[._]+/, "") || "file").slice(-120);
 }
 
+/**
+ * Carica i file e scrive la riga di ciascuno. Usata qui e dalle finestre che scelgono i file
+ * prima che il documento esista (l'uscita senza fattura li carica appena salvata).
+ */
+export async function caricaAllegati({ companyId, madre, tipo, files }: { companyId: string; madre: MadreAllegato; tipo: string; files: File[] }): Promise<number> {
+  const [colonna, idMadre] = colonnaMadre(madre);
+  let fatti = 0;
+  for (const file of files) {
+    if (file.size > MAX_BYTES) throw new Error(`«${file.name}» supera i 20 MB.`);
+    const percorso = `${companyId}/${colonna.replace("_id", "")}/${idMadre}/${crypto.randomUUID()}-${nomeFileSicuro(file.name)}`;
+    const { error: e1 } = await supabase.storage.from("fatture-allegati").upload(percorso, file, { contentType: file.type || undefined, upsert: false });
+    if (e1) throw new Error(/mime|type/i.test(e1.message) ? `«${file.name}»: formato non accettato. Vanno bene PDF, immagini, Word, Excel, XML, ZIP.` : e1.message);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: e2 } = await (supabase as any).from("fattura_allegati").insert({
+      company_id: companyId, [colonna]: idMadre, tipo,
+      file_name: file.name.slice(0, 200), mime_type: file.type || null, size_bytes: file.size, storage_path: percorso,
+    });
+    if (e2) {
+      // Senza la riga il file resterebbe orfano nel contenitore.
+      await supabase.storage.from("fatture-allegati").remove([percorso]);
+      throw new Error(e2.code === "42501" ? "Non hai il permesso di allegare file. Chiedi al titolare dell'azienda di darti l'accesso." : e2.message);
+    }
+    fatti += 1;
+  }
+  return fatti;
+}
+
 export function dimensioneLeggibile(bytes: number | null | undefined): string {
   const b = Number(bytes) || 0;
   if (b >= 1024 * 1024) return `${(b / 1024 / 1024).toLocaleString("it-IT", { maximumFractionDigits: 1 })} MB`;
@@ -130,26 +157,7 @@ export function AllegatiFattura({
   };
 
   const carica = useMutation({
-    mutationFn: async (files: File[]) => {
-      let fatti = 0;
-      for (const file of files) {
-        if (file.size > MAX_BYTES) throw new Error(`«${file.name}» supera i 20 MB.`);
-        const percorso = `${companyId}/${colonna.replace("_id", "")}/${idMadre}/${crypto.randomUUID()}-${nomeFileSicuro(file.name)}`;
-        const { error: e1 } = await supabase.storage.from("fatture-allegati").upload(percorso, file, { contentType: file.type || undefined, upsert: false });
-        if (e1) throw new Error(/mime|type/i.test(e1.message) ? `«${file.name}»: formato non accettato. Vanno bene PDF, immagini, Word, Excel, XML, ZIP.` : e1.message);
-        const { error: e2 } = await db.from("fattura_allegati").insert({
-          company_id: companyId, [colonna]: idMadre, tipo: tipoNuovo,
-          file_name: file.name.slice(0, 200), mime_type: file.type || null, size_bytes: file.size, storage_path: percorso,
-        });
-        if (e2) {
-          // Senza la riga il file resterebbe orfano nel contenitore.
-          await supabase.storage.from("fatture-allegati").remove([percorso]);
-          throw new Error(e2.code === "42501" ? "Non hai il permesso di allegare file alle fatture." : e2.message);
-        }
-        fatti += 1;
-      }
-      return fatti;
-    },
+    mutationFn: (files: File[]) => caricaAllegati({ companyId, madre, tipo: tipoNuovo, files }),
     onSuccess: (n) => { aggiorna(); toast.success(n === 1 ? "File allegato" : `${n} file allegati`); },
     onError: (e: Error) => { aggiorna(); toast.error("Allegato non caricato", { description: e.message }); },
   });

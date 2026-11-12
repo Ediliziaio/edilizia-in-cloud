@@ -23,7 +23,7 @@ describe("messaggioErroreListino", () => {
   it("rete e permessi hanno la frase di tutte le impostazioni, non il testo del database", () => {
     expect(messaggioErroreListino(new TypeError("Failed to fetch"))).toBe("Connessione persa. Controlla la rete e riprova.");
     expect(messaggioErroreListino({ code: "42501", message: 'new row violates row-level security policy for table "article_families"' }))
-      .toBe("Non hai i permessi per questa operazione. Contatta l'amministratore.");
+      .toBe("Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso.");
   });
 
   it("lo schema appena aggiornato dice di aspettare", () => {

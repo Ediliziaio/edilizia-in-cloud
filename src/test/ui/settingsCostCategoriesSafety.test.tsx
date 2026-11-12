@@ -377,7 +377,7 @@ describe("Categorie costi: errori in italiano", () => {
     open(); await screen.findByText("Materiali");
     fireEvent.change(screen.getByLabelText("Nuova categoria"), { target: { value: "Trasferte" } });
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi" }));
-    await waitFor(() => expect(state.error).toHaveBeenCalledWith("Non hai i permessi per questa operazione. Contatta l'amministratore."));
+    await waitFor(() => expect(state.error).toHaveBeenCalledWith("Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso."));
     expect(state.error.mock.calls[0][0]).not.toMatch(/row-level|violates/i);
   });
   it("un errore che nessuna regola riconosce ripiega su una frase italiana con «Riprova»", async () => {

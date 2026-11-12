@@ -1227,7 +1227,7 @@ describe("Fornitori: accessibilità e errori in italiano", () => {
     await waitFor(() =>
       expect(state.toastError).toHaveBeenCalledWith("Errore", {
         description:
-          "Non hai i permessi per questa operazione. Contatta l'amministratore.",
+          "Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso.",
       }),
     );
   });

@@ -238,7 +238,7 @@ describe("Avvisi sulle scadenze: solo quello che qualcuno legge, e parole oneste
     await waitFor(() => expect(state.toastError).toHaveBeenCalledOnce());
     const [titolo, opzioni] = state.toastError.mock.calls[0];
     expect(titolo).toBe("Impostazioni non salvate");
-    expect(opzioni.description).toBe("Non hai i permessi per questa operazione. Contatta l'amministratore.");
+    expect(opzioni.description).toBe("Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso.");
     expect(JSON.stringify(state.toastError.mock.calls[0])).not.toMatch(/Error:|permission denied/);
   });
 });

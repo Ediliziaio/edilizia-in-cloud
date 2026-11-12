@@ -716,7 +716,7 @@ describe("Sopralluoghi: le finestre non perdono ciò che si è scritto", () => {
     fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(state.toastErr).toHaveBeenCalled());
     expect(state.toastErr.mock.calls[0][0]).toBe("Modello non salvato");
-    expect(state.toastErr.mock.calls[0][1].description).toBe("Non hai i permessi per questa operazione. Contatta l'amministratore.");
+    expect(state.toastErr.mock.calls[0][1].description).toBe("Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso.");
   });
 
   it("una copia che fallisce non mostra il testo del database né la parola «template»", async () => {

@@ -33,7 +33,7 @@ describe("traduciErrorePostgrest", () => {
     expect(traduciErrorePostgrest({ code: "23502", message: 'null value in column "name" violates not-null constraint' })!.message)
       .toBe("Mancano alcuni dati obbligatori. Completa i campi richiesti.");
     expect(traduciErrorePostgrest({ code: "42501", message: 'new row violates row-level security policy for table "orders"' })!.message)
-      .toBe("Non hai i permessi per questa operazione. Contatta l'amministratore.");
+      .toBe("Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso.");
     expect(traduciErrorePostgrest({ code: "22001", message: "value too long for type character varying(50)" })!.message)
       .toBe("Un testo è troppo lungo per il campo. Accorcialo e riprova.");
   });

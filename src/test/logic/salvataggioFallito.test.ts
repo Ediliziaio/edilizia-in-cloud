@@ -20,8 +20,8 @@ describe("motivoSalvataggioNonRiuscito", () => {
     ["Safari senza rete", new TypeError("Load failed"), "Connessione persa. Controlla la rete e riprova."],
     ["troppo lento", new Error("canceling statement due to statement timeout"), "L'operazione ha impiegato troppo tempo. Riprova."],
     ["sessione scaduta", new Error("JWT expired"), "Sessione scaduta. Accedi di nuovo per continuare."],
-    ["permesso tolto (RLS)", new Error('new row violates row-level security policy for table "bgn_progetti"'), "Non hai i permessi per questa operazione. Contatta l'amministratore."],
-    ["permesso negato (codice 42501, non un Error)", { code: "42501" }, "Non hai i permessi per questa operazione. Contatta l'amministratore."],
+    ["permesso tolto (RLS)", new Error('new row violates row-level security policy for table "bgn_progetti"'), "Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso."],
+    ["permesso negato (codice 42501, non un Error)", { code: "42501" }, "Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso."],
   ])("%s → frase italiana", (_nome, errore, atteso) => {
     expect(motivoSalvataggioNonRiuscito(errore)).toBe(atteso);
   });

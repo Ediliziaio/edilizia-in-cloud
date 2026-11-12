@@ -338,7 +338,7 @@ function ContenutoRiepilogo({
             <SheetHeader className="text-left space-y-1">
               <SheetTitle className="pr-6 text-lg leading-tight">{String(f.cedente_ragione_sociale || "Fornitore senza nome")}</SheetTitle>
               <SheetDescription className="text-sm">
-                {nomeTipoDocumento(String(f.tipo_documento ?? ""))} n. {String(f.numero_fattura ?? "—")} del {formatDateShort(String(f.data_fattura ?? ""))}
+                {nomeTipoDocumento(String(f.tipo_documento ?? ""))} n. {String(f.numero_fattura ?? "—")} · emessa il {formatDateShort(String(f.data_fattura ?? ""))}
                 {f.data_ricezione_sdi ? ` · arrivata dallo SDI il ${formatDateShort(String(f.data_ricezione_sdi))}` : ""}
               </SheetDescription>
             </SheetHeader>

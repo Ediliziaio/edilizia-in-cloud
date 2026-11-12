@@ -133,7 +133,7 @@ describe("Ricarica automatica: gli errori dicono il motivo, il resto non cambia"
     fireEvent.click(screen.getByRole("button", { name: "Salva per tutti i servizi" }));
     await waitFor(() => expect(stato.error).toHaveBeenCalledOnce());
     expect(stato.error).toHaveBeenCalledWith("Ricarica automatica non salvata", {
-      description: "Non hai i permessi per questa operazione. Contatta l'amministratore.",
+      description: "Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso.",
     });
   });
 

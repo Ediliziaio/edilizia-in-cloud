@@ -484,7 +484,7 @@ describe("Editor del prodotto: errori in italiano", () => {
     apri("/azienda/impostazioni/listino/famiglie/fam-1");
     fireEvent.click(screen.getByRole("button", { name: "Salva" }));
     await waitFor(() => expect(state.error).toHaveBeenCalledOnce());
-    expect(state.error).toHaveBeenCalledWith("Prodotto non salvato", { description: "Non hai i permessi per questa operazione. Contatta l'amministratore." });
+    expect(state.error).toHaveBeenCalledWith("Prodotto non salvato", { description: "Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso." });
   });
 
   it("senza nome dice «Scrivi il nome del prodotto»", async () => {

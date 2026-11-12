@@ -12,7 +12,7 @@ describe("testoErrore", () => {
 
   it("un permesso negato dal database non mostra il testo del database", () => {
     expect(testoErrore({ code: "42501", message: 'new row violates row-level security policy for table "x"' }))
-      .toBe("Non hai i permessi per questa operazione. Contatta l'amministratore.");
+      .toBe("Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso.");
   });
 
   it("una modifica che il database ignora (PGRST116) dice che non è cambiato niente", () => {

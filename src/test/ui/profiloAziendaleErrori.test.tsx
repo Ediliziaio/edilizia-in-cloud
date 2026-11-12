@@ -103,7 +103,7 @@ describe("Dati aziendali: il motivo del rifiuto", () => {
     stato.rifiuto = { code: "42501", message: "permission denied for table companies" };
     await modificaTelefonoESalva();
     await waitFor(() => expect(stato.toastSonner.error).toHaveBeenCalledOnce());
-    expect(stato.toastSonner.error.mock.calls[0][1]).toEqual({ description: "Non hai i permessi per questa operazione. Contatta l'amministratore." });
+    expect(stato.toastSonner.error.mock.calls[0][1]).toEqual({ description: "Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso." });
   });
 
   it("se le regole di accesso non lasciano toccare la riga lo dice chiaro", async () => {
@@ -152,7 +152,7 @@ describe("Logo", () => {
     stato.rifiuto = { code: "42501", message: "new row violates row-level security policy for table \"companies\"" };
     scegli();
     await waitFor(() => expect(stato.toastSonner.error).toHaveBeenCalledOnce());
-    expect(stato.toastSonner.error.mock.calls[0][1]).toEqual({ description: "Non hai i permessi per questa operazione. Contatta l'amministratore." });
+    expect(stato.toastSonner.error.mock.calls[0][1]).toEqual({ description: "Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso." });
   });
 
   it("rimuovere il logo: prima il database, poi i file; se il database rifiuta i file restano", async () => {

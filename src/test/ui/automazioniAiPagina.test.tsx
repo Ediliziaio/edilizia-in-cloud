@@ -251,7 +251,7 @@ describe("Automazioni AI: salvare dà un solo messaggio", () => {
     fireEvent.click(screen.getByRole("button", { name: /Salva tutte/ }));
     await waitFor(() => expect(stato.error).toHaveBeenCalledTimes(1));
     expect(stato.error).toHaveBeenCalledWith("Salvate 2 scelte su 3", {
-      description: "«Sollecito di pagamento»: Non hai i permessi per questa operazione. Contatta l'amministratore.",
+      description: "«Sollecito di pagamento»: Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso.",
     });
     expect(stato.success).not.toHaveBeenCalled();
     expect(await screen.findByText("1 scelta da salvare")).toBeInTheDocument();

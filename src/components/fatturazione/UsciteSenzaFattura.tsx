@@ -2,15 +2,15 @@
  * Le uscite senza fattura: bollo, tassa, F24 di un cantiere. Stanno accanto alle fatture dei fornitori con
  * un'etichetta chiara, ma non sono fatture: fuori dal registro IVA e dai totali dei documenti.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown, Paperclip, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { tutteLePagine } from "@/lib/fatturazione/registroVendite";
-import { erroreUscita, rigaUscita, type FormUscita } from "@/lib/costi/usciteSenzaFattura";
-import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
+import { erroreUscita, meseMostrato, partiUguali, rigaUscita, type FormUscita } from "@/lib/costi/usciteSenzaFattura";
+import { AllegatiFattura, caricaAllegati, dimensioneLeggibile } from "@/components/fatturazione/AllegatiFattura";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,6 +20,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ViaggioSelect } from "@/components/mezzi/ViaggioSelect";
 import { SupplierSelect } from "@/components/orders/SupplierSelect";
+import { Textarea } from "@/components/ui/textarea";
+import { userErrorMessage } from "@/lib/userErrorMessage";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -27,7 +29,8 @@ const NESSUNO = "__nessuno__";
 
 interface Uscita {
   id: string; name: string; amount: number; vat_rate: number | null; documento_data: string | null; due_date: string; documento_riferimento: string | null;
-  mese_competenza: string | null; is_paid: boolean; suppliers: { name: string } | null; orders: { order_code: string | null } | null; mezzi: { nome: string } | null;
+  mese_competenza: string | null; is_paid: boolean; notes: string | null; allocations: Array<{ order_id: string; pct: number }> | null;
+  suppliers: { name: string } | null; orders: { order_code: string | null } | null; mezzi: { nome: string } | null;
 }
 
 export function UsciteSenzaFattura({ companyId, puoModificare }: { companyId: string; puoModificare: boolean }) {
@@ -36,13 +39,23 @@ export function UsciteSenzaFattura({ companyId, puoModificare }: { companyId: st
   const [dialogo, setDialogo] = useState(false);
   const [dettaglio, setDettaglio] = useState<string | null>(null);
   const oggi = useMemo(() => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Rome" }), []);
-  const vuoto: FormUscita = { descrizione: "", imponibile: "", aliquota: "0", data: oggi, mese: "", riferimento: "", fornitoreId: "", commessaId: "", mezzoId: "", pagata: true };
+  const vuoto: FormUscita = { descrizione: "", imponibile: "", aliquota: "0", data: oggi, mese: "", riferimento: "", fornitoreId: "", commesse: [{ id: "", pct: "100" }], mezzoId: "", pagata: true, note: "" };
   const [form, setForm] = useState<FormUscita>(vuoto);
   const set = <K extends keyof FormUscita>(k: K, v: FormUscita[K]) => setForm((f) => ({ ...f, [k]: v }));
+  // I documenti si scelgono subito, con il resto; si caricano appena l'uscita è salvata.
+  const [file, setFile] = useState<File[]>([]);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const chiudi = () => { setDialogo(false); setForm(vuoto); setFile([]); };
+  const cambiaCommessa = (i: number, id: string) => set("commesse", form.commesse.map((c, j) => (j === i ? { ...c, id } : c)));
+  const cambiaQuota = (i: number, pct: string) => set("commesse", form.commesse.map((c, j) => (j === i ? { ...c, pct } : c)));
+  // Aggiungere o togliere una commessa rifà le parti uguali: poi si correggono a mano.
+  const ridividi = (commesse: FormUscita["commesse"]) => { const parti = partiUguali(commesse.length); return commesse.map((c, i) => ({ ...c, pct: parti[i] })); };
+  const aggiungiCommessa = () => set("commesse", ridividi([...form.commesse, { id: "", pct: "" }]));
+  const togliCommessa = (i: number) => set("commesse", ridividi(form.commesse.filter((_, j) => j !== i)));
   const { data: uscite = [] } = useQuery({
     queryKey: ["uscite-senza-fattura", companyId],
     queryFn: () => tutteLePagine<Uscita>((from, to) => db.from("company_costs")
-      .select("id, name, amount, vat_rate, documento_data, due_date, documento_riferimento, mese_competenza, is_paid, suppliers(name), orders(order_code), mezzi(nome)")
+      .select("id, name, amount, vat_rate, documento_data, due_date, documento_riferimento, mese_competenza, is_paid, notes, allocations, suppliers(name), orders(order_code), mezzi(nome)")
       .eq("company_id", companyId).eq("senza_fattura", true).order("due_date", { ascending: false }).order("id").range(from, to)),
   });
   const { data: scelte } = useQuery({
@@ -61,16 +74,28 @@ export function UsciteSenzaFattura({ companyId, puoModificare }: { companyId: st
     mutationFn: async () => {
       const { data, error } = await db.from("company_costs").insert(rigaUscita(form, companyId)).select("id").single();
       if (error) throw error;
-      return data.id as string;
+      const id = data.id as string;
+      // L'uscita è salvata comunque: se un file non passa, lo si riallega dal dettaglio.
+      let erroreFile: string | null = null;
+      if (file.length) {
+        try { await caricaAllegati({ companyId, madre: { costoId: id }, tipo: "altro", files: file }); }
+        catch (e) { erroreFile = e instanceof Error ? e.message : String(e); }
+      }
+      return { id, erroreFile, conFile: file.length };
     },
-    onSuccess: (id) => {
-      toast.success("Uscita registrata: ora puoi allegare i documenti");
-      setDialogo(false); setForm(vuoto); setAperto(true); setDettaglio(id);
+    onSuccess: ({ id, erroreFile, conFile }) => {
+      if (erroreFile) toast.warning("Uscita registrata, ma un documento non è stato caricato", { description: `${erroreFile} Riallegalo qui sotto.` });
+      else toast.success(conFile ? `Uscita registrata con ${conFile === 1 ? "il documento" : `${conFile} documenti`}` : "Uscita registrata");
+      chiudi(); setAperto(true); setDettaglio(id);
       void qc.invalidateQueries({ queryKey: ["uscite-senza-fattura"] });
+      void qc.invalidateQueries({ queryKey: ["fattura-allegati"] });
+      void qc.invalidateQueries({ queryKey: ["fattura-allegati-conteggi"] });
     },
-    onError: (e) => toast.error("Uscita non salvata", { description: e instanceof Error ? e.message : String(e) }),
+    // Il messaggio tecnico («violates row-level security policy») non diceva cosa fare.
+    onError: (e) => toast.error("Uscita non salvata", { description: userErrorMessage(e, "Non sono riuscito a salvarla. Riprova.") }),
   });
   const errore = erroreUscita(form);
+  const opzioniCommesse = useMemo(() => (scelte?.commesse ?? []).map((x) => ({ value: x.id, label: [x.order_code, x.description].filter(Boolean).join(" · ") || "Commessa" })), [scelte]);
   const totale = uscite.reduce((s, u) => s + Number(u.amount ?? 0), 0);
   return (
     <Card>
@@ -90,18 +115,18 @@ export function UsciteSenzaFattura({ companyId, puoModificare }: { companyId: st
                 <button type="button" className="flex w-full flex-wrap items-center gap-2 text-left" aria-expanded={dettaglio === u.id} onClick={() => setDettaglio((d) => (d === u.id ? null : u.id))}>
                   <Badge variant="outline">Senza fattura</Badge>
                   <span className="min-w-0 flex-1 truncate font-medium">{u.name}</span>
-                  <span className="text-xs text-muted-foreground">{[u.suppliers?.name, u.orders?.order_code, u.mezzi?.nome, u.documento_riferimento, formatDateShort(u.documento_data ?? u.due_date)].filter(Boolean).join(" · ")}</span>
+                  <span className="text-xs text-muted-foreground">{[u.suppliers?.name, u.orders?.order_code, u.allocations?.length ? `${u.allocations.length} commesse` : null, u.mezzi?.nome, u.documento_riferimento, formatDateShort(u.documento_data ?? u.due_date)].filter(Boolean).join(" · ")}</span>
                   <span className="font-medium tabular-nums">{formatCurrency(u.amount)}</span>
                   <span className={`text-xs ${u.is_paid ? "text-emerald-600" : "text-amber-700"}`}>{u.is_paid ? "Pagata" : "Da pagare"}</span>
                 </button>
-                {dettaglio === u.id && <div className="mt-2 border-t pt-2"><AllegatiFattura companyId={companyId} madre={{ costoId: u.id }} sola_lettura={!puoModificare} /></div>}
+                {dettaglio === u.id && <div className="mt-2 space-y-2 border-t pt-2">{u.notes && <p className="whitespace-pre-wrap text-xs text-muted-foreground">{u.notes}</p>}<AllegatiFattura companyId={companyId} madre={{ costoId: u.id }} sola_lettura={!puoModificare} /></div>}
               </div>
             ))}
           </div>
         )}
       </CardContent>
-      <Dialog open={dialogo} onOpenChange={setDialogo}>
-        <DialogContent className="max-h-[85vh] overflow-auto">
+      <Dialog open={dialogo} onOpenChange={(v) => (v ? setDialogo(true) : chiudi())}>
+        <DialogContent className="max-h-[90vh] overflow-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Nuova uscita senza fattura</DialogTitle>
             <DialogDescription>Non è una fattura: non entra nel registro IVA. Se poi arriva la fattura vera, questa va tolta per non contare il costo due volte.</DialogDescription>
@@ -111,7 +136,7 @@ export function UsciteSenzaFattura({ companyId, puoModificare }: { companyId: st
             <div className="space-y-1"><Label htmlFor="us-imp">Importo €</Label><Input id="us-imp" inputMode="decimal" value={form.imponibile} onChange={(e) => set("imponibile", e.target.value)} /></div>
             <div className="space-y-1"><Label htmlFor="us-iva">IVA %</Label><Input id="us-iva" inputMode="decimal" value={form.aliquota} onChange={(e) => set("aliquota", e.target.value)} /></div>
             <div className="space-y-1"><Label htmlFor="us-data">Data</Label><Input id="us-data" type="date" value={form.data} onChange={(e) => set("data", e.target.value)} /></div>
-            <div className="space-y-1"><Label htmlFor="us-mese">Mese di competenza</Label><Input id="us-mese" type="month" value={form.mese} onChange={(e) => set("mese", e.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor="us-mese">Mese di competenza</Label><Input id="us-mese" type="month" value={meseMostrato(form)} onChange={(e) => set("mese", e.target.value)} /></div>
             <div className="space-y-1 sm:col-span-2"><Label htmlFor="us-rif">Riferimento del documento</Label><Input id="us-rif" value={form.riferimento} maxLength={100} onChange={(e) => set("riferimento", e.target.value)} placeholder="Numero ricevuta, avviso…" /></div>
             {/* Fornitore con la ricerca e il «+» per crearlo (12/11/2026): era una tendina con
                 tutti i fornitori, senza ricerca, che non si scorreva bene con le frecce o col
@@ -120,13 +145,50 @@ export function UsciteSenzaFattura({ companyId, puoModificare }: { companyId: st
               <Label>Fornitore o ente</Label>
               <SupplierSelect value={form.fornitoreId} onValueChange={(v) => set("fornitoreId", v ?? "")} fallbackCompanyId={companyId} searchable allowCreate />
             </div>
-            <Scelta etichetta="Commessa" valore={form.commessaId} cambia={(v) => set("commessaId", v)} opzioni={(scelte?.commesse ?? []).map((x) => [x.id, [x.order_code, x.description].filter(Boolean).join(" · ") || "Commessa"])} />
+            <div className="space-y-1 sm:col-span-2">
+              <Label>{form.commesse.length > 1 ? "Commesse e quota" : "Commessa"}</Label>
+              {form.commesse.map((c, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <ViaggioSelect
+                      label={`Commessa ${i + 1}`}
+                      value={c.id || NESSUNO}
+                      onValueChange={(v) => cambiaCommessa(i, v === NESSUNO ? "" : v)}
+                      emptyMessage="Nessuna corrispondenza."
+                      options={[{ value: NESSUNO, label: "Nessuna" }, ...opzioniCommesse]}
+                    />
+                  </div>
+                  {form.commesse.length > 1 && (
+                    <>
+                      <Input aria-label={`Quota commessa ${i + 1} %`} inputMode="decimal" className="w-20" value={c.pct} onChange={(e) => cambiaQuota(i, e.target.value)} />
+                      <span className="text-xs text-muted-foreground">%</span>
+                      <Button type="button" size="icon" variant="ghost" className="h-8 w-8" aria-label={`Togli commessa ${i + 1}`} onClick={() => togliCommessa(i)}><X className="h-4 w-4" /></Button>
+                    </>
+                  )}
+                </div>
+              ))}
+              <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={aggiungiCommessa}><Plus className="mr-1 h-3 w-3" />Dividi su un'altra commessa</Button>
+            </div>
             <Scelta etichetta="Mezzo" valore={form.mezzoId} cambia={(v) => set("mezzoId", v)} opzioni={(scelte?.mezzi ?? []).map((x) => [x.id, x.targa ? `${x.nome} · ${x.targa}` : x.nome])} />
             <label className="flex items-center gap-2 self-end text-sm"><Checkbox checked={form.pagata} onCheckedChange={(v) => set("pagata", v === true)} />Già pagata</label>
+            <div className="space-y-1 sm:col-span-2"><Label htmlFor="us-note">Note</Label><Textarea id="us-note" rows={2} maxLength={2000} value={form.note} onChange={(e) => set("note", e.target.value)} placeholder="A cosa si riferisce, chi l'ha pagata…" /></div>
+            <div className="space-y-1 sm:col-span-2">
+              <Label>Documenti</Label>
+              <input ref={fileInput} type="file" multiple className="hidden" aria-label="Scegli i documenti" onChange={(e) => { const nuovi = Array.from(e.target.files ?? []); setFile((f) => [...f, ...nuovi]); e.target.value = ""; }} />
+              {file.map((f, i) => (
+                <div key={`${f.name}-${i}`} className="flex items-center gap-2 rounded border px-2 py-1 text-sm">
+                  <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                  <span className="text-xs text-muted-foreground">{dimensioneLeggibile(f.size)}</span>
+                  <Button type="button" size="icon" variant="ghost" className="h-6 w-6" aria-label={`Togli ${f.name}`} onClick={() => setFile((l) => l.filter((_, j) => j !== i))}><X className="h-3.5 w-3.5" /></Button>
+                </div>
+              ))}
+              <Button type="button" size="sm" variant="outline" onClick={() => fileInput.current?.click()}><Paperclip className="mr-1.5 h-3.5 w-3.5" />Allega ricevuta, F24, foto…</Button>
+            </div>
           </div>
           {errore && form.descrizione && <p className="text-xs text-muted-foreground">{errore}</p>}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogo(false)}>Annulla</Button>
+            <Button variant="outline" onClick={chiudi}>Annulla</Button>
             <Button disabled={!!errore || salva.isPending} onClick={() => salva.mutate()}>Salva</Button>
           </DialogFooter>
         </DialogContent>

@@ -362,7 +362,7 @@ describe("Nuova voce: se non va a buon fine lo dice in italiano", () => {
     fireEvent.click(salva());
     await waitFor(() => expect(api.error).toHaveBeenCalledOnce());
     const testo = String(api.error.mock.calls[0][0]);
-    expect(testo).toBe("Voce non salvata. Non hai i permessi per questa operazione. Contatta l'amministratore.");
+    expect(testo).toBe("Voce non salvata. Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso.");
     expect(testo).not.toMatch(/row-level|violates/i);
   });
 

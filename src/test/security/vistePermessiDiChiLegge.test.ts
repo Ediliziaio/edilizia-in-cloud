@@ -43,7 +43,8 @@ function censimento() {
   const definita = new Map<string, number[]>();
   const invoker = new Map<string, number[]>();
   files.forEach((f, i) => {
-    const sql = readFileSync(join(DIR, f), "utf8");
+    // I commenti SQL non contano: una vista citata in un commento non è una vista.
+    const sql = readFileSync(join(DIR, f), "utf8").replace(/--[^\n]*/g, "");
     for (const m of sql.matchAll(/create\s+(or\s+replace\s+)?view\s+(if\s+not\s+exists\s+)?public\.(\w+)/gi)) {
       const v = m[3].toLowerCase();
       definita.set(v, [...(definita.get(v) ?? []), i]);

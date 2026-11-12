@@ -30,7 +30,7 @@ const RIPIEGO = "Non sono riuscito a salvarlo. Riprova tra poco.";
 describe("erroreInItaliano", () => {
   it("un salvataggio rifiutato dalla regola del database dice che mancano i permessi", () => {
     const rifiutato = { message: 'new row violates row-level security policy for table "quote_templates"', code: "42501" };
-    expect(erroreInItaliano(rifiutato, RIPIEGO)).toBe("Non hai i permessi per questa operazione. Contatta l'amministratore.");
+    expect(erroreInItaliano(rifiutato, RIPIEGO)).toBe("Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso.");
   });
 
   it("senza rete, a sessione scaduta e con un nome già preso dice cosa fare", () => {

@@ -112,7 +112,7 @@ export function userErrorMessage(error: unknown, fallback = "Operazione non rius
     msg.includes("not allowed") ||
     msg.includes("forbidden")
   ) {
-    return "Non hai i permessi per questa operazione. Contatta l'amministratore.";
+    return "Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso.";
   }
 
   // ── Vincoli DB (Postgres) ───────────────────────────────────────────────

@@ -451,7 +451,7 @@ describe("Preventivo generico: gli errori si leggono in italiano", () => {
     apriModello("Offerta premium");
     fireEvent.click(bottone("Salva bozza"));
     await waitFor(() => expect(state.errore).toHaveBeenCalledOnce());
-    expect(state.errore).toHaveBeenCalledWith("Modello non salvato", { description: "Non hai i permessi per questa operazione. Contatta l'amministratore." });
+    expect(state.errore).toHaveBeenCalledWith("Modello non salvato", { description: "Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso." });
   });
 
   it("senza rete dice di controllare la connessione", async () => {
@@ -510,7 +510,7 @@ describe("Preventivo generico: gli errori si leggono in italiano", () => {
     expect(finestra.textContent).not.toMatch(/template/i);
     fireEvent.click(within(finestra).getByRole("button", { name: "Elimina" }));
     await waitFor(() => expect(state.errore).toHaveBeenCalledOnce());
-    expect(state.errore).toHaveBeenCalledWith("Modello non eliminato", { description: "Non hai i permessi per questa operazione. Contatta l'amministratore." });
+    expect(state.errore).toHaveBeenCalledWith("Modello non eliminato", { description: "Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso." });
   });
 });
 

@@ -145,7 +145,7 @@ describe("Memoria dell'Assistente AI: gli errori dicono il motivo", () => {
     await attendi();
     fireEvent.click(screen.getByTitle("Elimina"));
     await waitFor(() => expect(stato.error).toHaveBeenCalledOnce());
-    expect(stato.error).toHaveBeenCalledWith("Non sono riuscito a eliminare il ricordo", { description: "Non hai i permessi per questa operazione. Contatta l'amministratore." });
+    expect(stato.error).toHaveBeenCalledWith("Non sono riuscito a eliminare il ricordo", { description: "Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso." });
   });
 
   it("disattivare: zero righe toccate lo dice", async () => {

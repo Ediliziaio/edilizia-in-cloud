@@ -68,7 +68,7 @@ describe("testoErrore: cosa si legge quando un'azione non riesce", () => {
 
   it("senza permesso: la frase dell'app, non quella del database", () => {
     const rifiuto = { code: "42501", message: "new row violates row-level security policy for table \"tariffe_aziendali\"" };
-    expect(testoErrore(rifiuto, "Voce non salvata.")).toBe("Voce non salvata. Non hai i permessi per questa operazione. Contatta l'amministratore.");
+    expect(testoErrore(rifiuto, "Voce non salvata.")).toBe("Voce non salvata. Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso.");
   });
 
   it("un vincolo del database", () => {

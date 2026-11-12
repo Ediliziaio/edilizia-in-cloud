@@ -60,36 +60,152 @@ const SelectScrollDownButton = React.forwardRef<
 ));
 SelectScrollDownButton.displayName = SelectPrimitive.ScrollDownButton.displayName;
 
+/** Da quante voci in su la tendina ha il campo di ricerca in cima. */
+export const SOGLIA_RICERCA_TENDINA = 12;
+
+const normalizza = (t: string) =>
+  t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+/**
+ * La lista della tendina (12/11/2026): con tante voci (490 fornitori) non si
+ * trovava niente. Sopra le {@link SOGLIA_RICERCA_TENDINA} voci compare «Cerca…»;
+ * basta cominciare a scrivere con la lista aperta e le lettere finiscono lì.
+ * Le voci che non corrispondono si nascondono (senza accenti, più parole in
+ * qualsiasi ordine); le frecce e Invio funzionano come prima, e dal campo la
+ * freccia giù porta al primo risultato.
+ */
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
->(({ className, children, position = "popper", ...props }, ref) => (
-  <SelectPrimitive.Portal>
-    <SelectPrimitive.Content
-      ref={ref}
-      className={cn(
-        "relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-        position === "popper" &&
-          "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
-        className,
-      )}
-      position={position}
-      {...props}
-    >
-      <SelectScrollUpButton />
-      <SelectPrimitive.Viewport
+>(({ className, children, position = "popper", onKeyDownCapture, onCloseAutoFocus, onEscapeKeyDown, onPointerDownOutside, ...props }, ref) => {
+  const viewportRef = React.useRef<HTMLDivElement | null>(null);
+  const cercaRef = React.useRef<HTMLInputElement | null>(null);
+  // La lista vera nasce quando la tendina si apre (da chiusa Radix la disegna in un
+  // frammento a parte): il conteggio delle voci parte da lì, non dal primo disegno.
+  const [viewport, setViewport] = React.useState<HTMLDivElement | null>(null);
+  const [conRicerca, setConRicerca] = React.useState(false);
+  const [ricerca, setRicerca] = React.useState("");
+  const [nessuna, setNessuna] = React.useState(false);
+  const agganciaViewport = React.useCallback((el: HTMLDivElement | null) => {
+    // Ogni apertura riparte da capo: la ricerca di prima non resta scritta.
+    if (el !== viewportRef.current) setRicerca("");
+    viewportRef.current = el;
+    setViewport(el);
+  }, []);
+
+  React.useLayoutEffect(() => {
+    if (!viewport) { setConRicerca(false); return; }
+    const conta = () => setConRicerca(viewport.querySelectorAll('[role="option"]').length > SOGLIA_RICERCA_TENDINA);
+    conta();
+    const osserva = typeof MutationObserver !== "undefined" ? new MutationObserver(conta) : null;
+    osserva?.observe(viewport, { childList: true, subtree: true });
+    return () => osserva?.disconnect();
+  }, [viewport]);
+
+  React.useEffect(() => {
+    if (!viewport) return;
+    const termini = normalizza(ricerca).trim().split(/\s+/).filter(Boolean);
+    let visibili = 0;
+    viewport.querySelectorAll<HTMLElement>('[role="option"]').forEach((voce) => {
+      const testo = normalizza(voce.textContent ?? "");
+      const va = termini.every((t) => testo.includes(t));
+      // Lo stile della voce («flex») vince sull'attributo hidden: si nasconde in linea.
+      voce.style.display = va ? "" : "none";
+      voce.toggleAttribute("data-nascosta", !va);
+      if (va) visibili++;
+    });
+    setNessuna(termini.length > 0 && visibili === 0);
+  }, [ricerca, children, viewport]);
+
+  const primaVisibile = () =>
+    viewportRef.current?.querySelector<HTMLElement>('[role="option"]:not([data-nascosta]):not([data-disabled])') ?? null;
+
+  return (
+    <SelectPrimitive.Portal>
+      <SelectPrimitive.Content
+        ref={ref}
         className={cn(
-          "p-1",
+          "relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
           position === "popper" &&
-            "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]",
+            "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
+          className,
         )}
+        position={position}
+        // Chiusa in qualunque modo (scelta, Esc, clic fuori): la ricerca riparte vuota.
+        onCloseAutoFocus={(e) => { setRicerca(""); onCloseAutoFocus?.(e); }}
+        onEscapeKeyDown={(e) => { setRicerca(""); onEscapeKeyDown?.(e); }}
+        onPointerDownOutside={(e) => { setRicerca(""); onPointerDownOutside?.(e); }}
+        onKeyDownCapture={(e) => {
+          onKeyDownCapture?.(e);
+          // Una lettera scritta con la lista aperta va nel campo di ricerca, non
+          // salta alla prima voce che comincia così.
+          if (
+            conRicerca &&
+            e.target !== cercaRef.current &&
+            e.key.length === 1 &&
+            !e.ctrlKey && !e.metaKey && !e.altKey &&
+            e.key !== " "
+          ) {
+            e.preventDefault();
+            e.stopPropagation();
+            setRicerca((r) => r + e.key);
+            cercaRef.current?.focus();
+          }
+        }}
+        {...props}
       >
-        {children}
-      </SelectPrimitive.Viewport>
-      <SelectScrollDownButton />
-    </SelectPrimitive.Content>
-  </SelectPrimitive.Portal>
-));
+        {conRicerca && (
+          <div className="border-b p-1">
+            <input
+              ref={cercaRef}
+              type="search"
+              value={ricerca}
+              onChange={(e) => setRicerca(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  primaVisibile()?.focus();
+                  return;
+                }
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  // Invio sul campo sceglie il primo risultato, come Invio su una voce.
+                  const voce = primaVisibile();
+                  voce?.focus();
+                  voce?.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+                  return;
+                }
+                if (e.key === "Escape") { setRicerca(""); return; }
+                if (e.key === "Tab") return;
+                // Il resto (lettere, spazio, cancella) è del campo, non della lista.
+                e.stopPropagation();
+              }}
+              placeholder="Cerca…"
+              aria-label="Cerca nella tendina"
+              autoComplete="off"
+              className="h-8 w-full rounded-sm bg-transparent px-2 text-sm outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+        )}
+        <SelectScrollUpButton />
+        <SelectPrimitive.Viewport
+          ref={agganciaViewport}
+          className={cn(
+            "p-1",
+            position === "popper" &&
+              "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]",
+          )}
+        >
+          {children}
+        </SelectPrimitive.Viewport>
+        {nessuna && <p className="px-3 py-2 text-sm text-muted-foreground">Nessuna corrispondenza.</p>}
+        <SelectScrollDownButton />
+      </SelectPrimitive.Content>
+    </SelectPrimitive.Portal>
+  );
+});
 SelectContent.displayName = SelectPrimitive.Content.displayName;
 
 const SelectLabel = React.forwardRef<

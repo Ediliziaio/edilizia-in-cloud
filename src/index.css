@@ -609,6 +609,14 @@ html.capacitor [role="button"] {
 }
 .tabella-scorrevole::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.5); background-clip: content-box; }
 
+/* Le tendine (12/11/2026): Radix nasconde la barra di scorrimento della lista, e con
+   centinaia di voci non si capiva dove si era né si poteva trascinarla. Ora c'è, a lato,
+   e si trascina col mouse. */
+[data-radix-select-viewport] { scrollbar-width: thin !important; -ms-overflow-style: auto !important; scrollbar-color: hsl(var(--muted-foreground) / 0.45) transparent; }
+[data-radix-select-viewport]::-webkit-scrollbar { display: block !important; -webkit-appearance: none; width: 10px; }
+[data-radix-select-viewport]::-webkit-scrollbar-track { background: transparent; }
+[data-radix-select-viewport]::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.45); border-radius: 9999px; border: 2px solid transparent; background-clip: content-box; }
+
 /* ──────────────────────────────────────────────────────────────────────────
  * P3.5 — Stampa Cruscotto / Dashboard
  *

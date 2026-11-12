@@ -164,7 +164,7 @@ describe("Catalogo render: eliminare", () => {
     render(<SettingsCatalogoRender />);
     fireEvent.click(screen.getByRole("button", { name: "Elimina «Lavabo rovere»" }));
     await waitFor(() => expect(stato.error).toHaveBeenCalledOnce());
-    expect(stato.error).toHaveBeenCalledWith("Non sono riuscito a eliminare «Lavabo rovere»", { description: "Non hai i permessi per questa operazione. Contatta l'amministratore." });
+    expect(stato.error).toHaveBeenCalledWith("Non sono riuscito a eliminare «Lavabo rovere»", { description: "Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso." });
     expect(stato.rimossi).toHaveLength(0);
   });
 });

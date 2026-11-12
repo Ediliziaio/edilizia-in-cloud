@@ -124,7 +124,7 @@ describe("Avvisi: si salva subito, una scrittura per tocco", () => {
     apri(); await caricati();
     fireEvent.click(interruttore("Messaggi dai contatti, nell'app"));
     await waitFor(() => expect(stato.errori).toHaveBeenCalledOnce());
-    expect(stato.errori.mock.calls[0]).toEqual(["Non sono riuscito a salvare", { description: "Non hai i permessi per questa operazione. Contatta l'amministratore." }]);
+    expect(stato.errori.mock.calls[0]).toEqual(["Non sono riuscito a salvare", { description: "Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso." }]);
     await waitFor(() => expect(interruttore("Messaggi dai contatti, nell'app")).toBeChecked());
   });
 });

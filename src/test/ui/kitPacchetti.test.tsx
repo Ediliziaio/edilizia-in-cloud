@@ -536,16 +536,16 @@ describe("Kit e pacchetti: gli errori si leggono in italiano", () => {
   it("un permesso negato dal database: nel browser il messaggio inglese arriva già tradotto dal client, e la frase non si perde", async () => {
     // Come in produzione: il client Supabase riscrive il corpo dell'errore prima che l'hook lo legga.
     const comeArrivaDalClient = traduciErrorePostgrest({ message: 'new row violates row-level security policy for table "bundle_prodotti"', code: "42501" });
-    expect(comeArrivaDalClient).toMatchObject({ message: "Non hai i permessi per questa operazione. Contatta l'amministratore." });
+    expect(comeArrivaDalClient).toMatchObject({ message: "Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso." });
     const [titolo, opzioni] = await salvaConErrore(comeArrivaDalClient);
     expect(titolo).toBe("Salvataggio non riuscito");
-    expect(opzioni.description).toBe("Non hai i permessi per questa operazione. Contatta l'amministratore.");
+    expect(opzioni.description).toBe("Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso.");
     expect(screen.getByRole("dialog")).toBeInTheDocument(); // la finestra resta aperta, le modifiche non si perdono
   });
 
   it("lo stesso permesso negato, se arriva ancora in inglese, è tradotto lo stesso", async () => {
     const [, opzioni] = await salvaConErrore({ message: 'new row violates row-level security policy for table "bundle_prodotti"', code: "42501" });
-    expect(opzioni.description).toBe("Non hai i permessi per questa operazione. Contatta l'amministratore.");
+    expect(opzioni.description).toBe("Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso.");
   });
 
   it("un valore duplicato o non valido, già tradotto dal client, si legge com'è", async () => {

@@ -609,7 +609,7 @@ describe("QR & Codici: gli errori sono in italiano", () => {
   it("un permesso negato dal database si legge come permesso, non come «row-level security»", async () => {
     state.erroreLettura = { message: 'new row violates row-level security policy for table "company_qr_codes"', code: "42501" };
     apri();
-    expect(await screen.findByText("Non hai i permessi per questa operazione. Contatta l'amministratore.")).toBeInTheDocument();
+    expect(await screen.findByText("Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso.")).toBeInTheDocument();
     expect(testoVisibile()).not.toMatch(/row-level/);
   });
 

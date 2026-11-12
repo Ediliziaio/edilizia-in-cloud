@@ -126,7 +126,7 @@ describe("Fornitori: errore della modifica rapida", () => {
     await modifica();
     expect(state.toastErr).toHaveBeenCalledWith("Fornitore non aggiornato", {
       description:
-        "Non hai i permessi per questa operazione. Contatta l'amministratore.",
+        "Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso.",
     });
   });
 

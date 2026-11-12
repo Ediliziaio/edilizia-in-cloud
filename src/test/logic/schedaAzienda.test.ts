@@ -157,7 +157,7 @@ describe("l'errore di un salvataggio, in italiano", () => {
   it("gli errori di rete e di permessi non arrivano grezzi", () => {
     expect(messaggioErroreSalvataggio(new Error("FetchError: Failed to fetch"))).toBe("Connessione persa. Controlla la rete e riprova.");
     expect(messaggioErroreSalvataggio({ code: "42501", message: "permission denied for table x" })).toBe(
-      "Non hai i permessi per questa operazione. Contatta l'amministratore.",
+      "Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso.",
     );
   });
 

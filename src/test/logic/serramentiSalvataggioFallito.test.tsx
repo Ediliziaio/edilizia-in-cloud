@@ -30,7 +30,7 @@ beforeEach(() => { finto.aggiorna.mockReset(); vi.mocked(toast.error).mockClear(
 describe("useUpdateProgetto: l'avviso quando il salvataggio non riesce", () => {
   it.each([
     ["senza rete", new TypeError("Failed to fetch"), "Connessione persa. Controlla la rete e riprova."],
-    ["permesso tolto", new Error('new row violates row-level security policy for table "sr_progetti"'), "Non hai i permessi per questa operazione. Contatta l'amministratore."],
+    ["permesso tolto", new Error('new row violates row-level security policy for table "sr_progetti"'), "Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso."],
     ["sessione scaduta", new Error("JWT expired"), "Sessione scaduta. Accedi di nuovo per continuare."],
   ])("%s: «Salvataggio fallito» col motivo in italiano e l'id fisso", async (_nome, errore, frase) => {
     finto.aggiorna.mockRejectedValue(errore);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { erroreUscita, rigaUscita, type FormUscita } from "@/lib/costi/usciteSenzaFattura";
+import { erroreUscita, meseMostrato, partiUguali, rigaUscita, type FormUscita } from "@/lib/costi/usciteSenzaFattura";
 
-const base: FormUscita = { descrizione: "Bollo furgone", imponibile: "1.234,50", aliquota: "0", data: "2026-03-15", mese: "", riferimento: "", fornitoreId: "", commessaId: "", mezzoId: "", pagata: true };
+const base: FormUscita = { descrizione: "Bollo furgone", imponibile: "1.234,50", aliquota: "0", data: "2026-03-15", mese: "", riferimento: "", fornitoreId: "", commesse: [{ id: "", pct: "100" }], mezzoId: "", pagata: true, note: "" };
 
 describe("uscita senza fattura", () => {
   it("un'uscita completa si può salvare", () => expect(erroreUscita(base)).toBeNull());
@@ -22,5 +22,38 @@ describe("uscita senza fattura", () => {
   });
   it("da pagare non ha la data di pagamento", () => {
     expect(rigaUscita({ ...base, pagata: false }, "co").paid_date).toBeNull();
+  });
+
+  it("senza commessa è un costo generale; con una sola, tutto a lei", () => {
+    expect(rigaUscita(base, "co")).toMatchObject({ order_id: null, allocations: null });
+    expect(rigaUscita({ ...base, commesse: [{ id: "o1", pct: "100" }] }, "co")).toMatchObject({ order_id: "o1", allocations: null });
+  });
+  it("su più commesse va nella ripartizione, con le percentuali scritte all'italiana", () => {
+    const f = { ...base, commesse: [{ id: "o1", pct: "60" }, { id: "o2", pct: "40" }] };
+    expect(erroreUscita(f)).toBeNull();
+    expect(rigaUscita(f, "co")).toMatchObject({ order_id: null, allocations: [{ order_id: "o1", pct: 60 }, { order_id: "o2", pct: 40 }] });
+    expect(rigaUscita({ ...base, commesse: [{ id: "o1", pct: "33,5" }, { id: "o2", pct: "33.5" }] }, "co").allocations).toEqual([{ order_id: "o1", pct: 33.5 }, { order_id: "o2", pct: 33.5 }]);
+  });
+  it("le righe vuote non contano: una commessa scelta e una vuota è una sola commessa", () => {
+    expect(rigaUscita({ ...base, commesse: [{ id: "o1", pct: "50" }, { id: "", pct: "50" }] }, "co")).toMatchObject({ order_id: "o1", allocations: null });
+  });
+  it("percentuali sbagliate o commessa doppia si dicono prima di salvare", () => {
+    expect(erroreUscita({ ...base, commesse: [{ id: "o1", pct: "70" }, { id: "o2", pct: "40" }] })).toMatch(/superano il 100/);
+    expect(erroreUscita({ ...base, commesse: [{ id: "o1", pct: "0" }, { id: "o2", pct: "40" }] })).toMatch(/tra 1 e 100/);
+    expect(erroreUscita({ ...base, commesse: [{ id: "o1", pct: "" }, { id: "o2", pct: "40" }] })).toMatch(/tra 1 e 100/);
+    expect(erroreUscita({ ...base, commesse: [{ id: "o1", pct: "50" }, { id: "o1", pct: "50" }] })).toMatch(/due volte/);
+  });
+  it("le parti uguali fanno sempre 100", () => {
+    expect(partiUguali(2)).toEqual(["50", "50"]);
+    expect(partiUguali(3)).toEqual(["33,33", "33,33", "33,34"]);
+    expect(partiUguali(1)).toEqual(["100"]);
+  });
+  it("il mese di competenza si vede già compilato, dalla data", () => {
+    expect(meseMostrato(base)).toBe("2026-03");
+    expect(meseMostrato({ ...base, mese: "2026-01" })).toBe("2026-01");
+  });
+  it("le note si salvano, vuote diventano null", () => {
+    expect(rigaUscita({ ...base, note: "  pagata in contanti  " }, "co").notes).toBe("pagata in contanti");
+    expect(rigaUscita(base, "co").notes).toBeNull();
   });
 });

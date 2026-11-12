@@ -132,12 +132,21 @@ export function giorniDallaFattura(f: { data_fattura: string; data_ricezione_sdi
   return Number.isFinite(giorni) ? giorni : null;
 }
 
-/** La data della fattura. L'arrivo dallo SDI si legge passando il mouse; se è arrivata dopo, lo dice un piccolo «+3 gg». */
-function DataFattura({ f }: { f: { data_fattura: string; data_ricezione_sdi: string | null } }) {
-  const giorni = f.data_ricezione_sdi ? giorniDallaFattura(f) : null;
+/**
+ * Le due date di una fattura ricevuta (12/11/2026): quando l'ha emessa il fornitore e
+ * quando è arrivata dallo SDI. Possono essere lontane (una fattura di settembre che
+ * arriva oggi): ognuna ha la sua colonna, e l'arrivo dice quanti giorni dopo.
+ */
+function DataEmissione({ f }: { f: { data_fattura: string } }) {
+  return <span>{formatDateShort(f.data_fattura)}</span>;
+}
+
+function DataArrivo({ f }: { f: { data_fattura: string; data_ricezione_sdi: string | null } }) {
+  if (!f.data_ricezione_sdi) return <span className="text-muted-foreground" title="Data di arrivo non disponibile">—</span>;
+  const giorni = giorniDallaFattura(f);
   return (
-    <span title={f.data_ricezione_sdi ? `Consegnata dallo SDI il ${formatDateTime(f.data_ricezione_sdi)}` : "Data di arrivo non disponibile"}>
-      {formatDateShort(f.data_fattura)}
+    <span title={`Consegnata dallo SDI il ${formatDateTime(f.data_ricezione_sdi)}`}>
+      {formatDateShort(f.data_ricezione_sdi)}
       {giorni != null && giorni > 0 && <span className="ml-1 text-[11px] text-muted-foreground">+{giorni} gg</span>}
     </span>
   );
@@ -1600,7 +1609,7 @@ export default function FattureRicevutePage() {
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13px] font-semibold leading-tight">{f.cedente_ragione_sociale}</div>
                 <div className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
-                  N. {f.numero_fattura} · {formatDateShort(f.data_fattura)}
+                  N. {f.numero_fattura} · emessa {formatDateShort(f.data_fattura)}
                   {f.data_ricezione_sdi ? ` · arrivata ${formatDateShort(f.data_ricezione_sdi)}` : ""}
                   {f.categoria_ai ? ` · ${etichettaCategoria(f.categoria_ai)}` : ""}
                 </div>
@@ -1632,7 +1641,8 @@ export default function FattureRicevutePage() {
                 )}
                 <IntestazioneOrdinabile campo="fornitore" ordinamento={ordinamento} onOrdina={ordinaPer}>Fornitore</IntestazioneOrdinabile>
                 <TableHead>Numero</TableHead>
-                <IntestazioneOrdinabile campo="data" ordinamento={ordinamento} onOrdina={ordinaPer}>Data</IntestazioneOrdinabile>
+                <IntestazioneOrdinabile campo="data" ordinamento={ordinamento} onOrdina={ordinaPer}>Emessa il</IntestazioneOrdinabile>
+                <TableHead>Arrivata il</TableHead>
                 {colonne.has("imponibile") && <TableHead className="text-right">Imponibile</TableHead>}
                 <IntestazioneOrdinabile campo="totale" ordinamento={ordinamento} onOrdina={ordinaPer} className="text-right">Totale</IntestazioneOrdinabile>
                 {colonne.has("netto") && <TableHead className="text-right">Netto</TableHead>}
@@ -1684,7 +1694,10 @@ export default function FattureRicevutePage() {
                     </div>
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
-                    <DataFattura f={f} />
+                    <DataEmissione f={f} />
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    <DataArrivo f={f} />
                   </TableCell>
                   {colonne.has("imponibile") && <TableCell className="text-right">
                     {f.imponibile_totale != null ? formatCurrency(f.imponibile_totale) : <span className="text-muted-foreground">—</span>}
@@ -1894,8 +1907,8 @@ export default function FattureRicevutePage() {
                 <SheetTitle className="pr-6 text-base leading-tight">{dettaglioMobile.cedente_ragione_sociale}</SheetTitle>
               </SheetHeader>
               <p className="mt-1 text-xs text-muted-foreground">
-                N. {dettaglioMobile.numero_fattura} · {formatDateShort(dettaglioMobile.data_fattura)}
-                {dettaglioMobile.data_ricezione_sdi ? ` · arrivata ${formatDateTime(dettaglioMobile.data_ricezione_sdi)}` : ""}
+                N. {dettaglioMobile.numero_fattura} · emessa il {formatDateShort(dettaglioMobile.data_fattura)}
+                {dettaglioMobile.data_ricezione_sdi ? ` · arrivata dallo SDI il ${formatDateTime(dettaglioMobile.data_ricezione_sdi)}` : ""}
                 {dettaglioMobile.cedente_piva ? ` · P.IVA ${dettaglioMobile.cedente_piva}` : ""}
               </p>
               <div className="mt-3 grid grid-cols-3 gap-2 text-center">
