@@ -704,6 +704,24 @@ jobs:
           src/test/security/fatturaImmutabile.test.ts
           src/test/security/fatturaScartataSiCorregge.test.ts
 
+      - name: Verify office roles, financial projections and Silvio authorization
+        if: matrix.group == 'access'
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/logic/silvioOfficePermissions.test.ts
+          src/test/logic/silvioContextHardening.test.ts
+          src/test/logic/silvioExecuteAction.test.ts
+          src/test/logic/silvioToolRegistry.test.ts
+          src/test/logic/officeProfiles.test.ts
+          src/test/logic/officeAccessSummary.test.ts
+          src/test/logic/permissionChanges.test.ts
+          src/test/logic/protectedOrderRequests.test.ts
+          src/test/logic/attachmentDownloadPermissions.test.ts
+          src/test/logic/queryCacheIdentity.test.ts
+          src/test/ui/permissionControls.test.tsx
+          src/test/ui/officeAccessSummary.test.tsx
+          src/test/ui/officeProfileSelector.test.tsx
+
       - name: Run CG SQL reconciliation and rating regressions
         if: matrix.group == 'worksite'
         run: >-

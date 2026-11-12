@@ -1,3 +1,4 @@
+import { assignOfficeEmployee } from "@/lib/orders/assignOfficeEmployee";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
@@ -188,39 +189,7 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
       let avvisoCosti: string | null = null;
       try {
         if (formRoleType === "employee") {
-          const { data: emp, error: employeeError } = await supabase
-            .from("employees")
-            .select("id")
-            .eq("company_id", effectiveCompanyId!)
-            .eq("user_id", formUserId)
-            .maybeSingle();
-          if (employeeError) throw employeeError;
-          if (emp?.id) {
-            const { data: giaPresente, error: laborError } = await supabase
-              .from("order_employees")
-              .select("id")
-              .eq("order_id", orderId)
-              .eq("employee_id", emp.id)
-              .limit(1)
-              .maybeSingle();
-            if (laborError) throw laborError;
-            if (!giaPresente) {
-              // La tariffa la calcola il database, con i parametri del tipo di dipendente.
-              const { data: tariffa, error: tariffaError } = await supabase.rpc("costo_orario_dipendente", { p_employee_id: emp.id });
-              if (tariffaError) throw tariffaError;
-              const { error: eIns } = await supabase.from("order_employees").insert({
-                order_id: orderId,
-                employee_id: emp.id,
-                phase_id: null,
-                hourly_rate: Number(tariffa) || 0,
-                hours_worked: 0,
-                total_cost: 0,
-              });
-              if (eIns) avvisoCosti = eIns.message;
-            }
-          } else {
-            avvisoCosti = "Account senza scheda dipendente collegata: verifica l'anagrafica per registrare correttamente ore e costi.";
-          }
+          await assignOfficeEmployee(orderId, { userId: formUserId });
         }
       } catch (e) {
         avvisoCosti = e instanceof Error ? e.message : String(e);

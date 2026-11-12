@@ -79,7 +79,7 @@ export function useWorkCalendarData(
   const company = effectiveCompany?.id;
   const ready = !!company && !!user?.id && !p.isLoading && p.canViewCalendar;
   const canViewTeam =
-    !p.onlyAssigned && (p.isAdmin || p.canViewAllTeamCalendar);
+    !p.onlyAssignedWork && (p.isAdmin || p.canViewAllTeamCalendar);
   const scope: CalendarScope =
     requestedScope === "team" && canViewTeam ? "team" : "personal";
   const teamAppointments = scope === "team";

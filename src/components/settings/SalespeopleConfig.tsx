@@ -461,7 +461,7 @@ export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boole
                   <div className="flex items-center space-x-2">
                     <Checkbox id="sp-only_assigned" checked={accountPermissions.only_assigned || false}
                       onCheckedChange={(checked) => setAccountPermissions((prev) => ({ ...prev, only_assigned: checked as boolean }))} />
-                    <Label htmlFor="sp-only_assigned" className="font-medium text-sm">Solo i dati assegnati a lui</Label>
+                    <Label htmlFor="sp-only_assigned" className="font-medium text-sm">Solo il portafoglio CRM assegnato</Label>
                   </div>
                   <p className="text-xs text-muted-foreground ml-6">Vede solo commesse, attività e appuntamenti assegnati a lui.</p>
                 </div>

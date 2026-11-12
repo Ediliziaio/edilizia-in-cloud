@@ -18,6 +18,7 @@ interface OrdineDetailHeaderProps {
   onRegistraIncasso: () => void;
   /** Le altre voci (registro, PDF, duplica, elimina) stanno in «Altre azioni». */
   canEdit?: boolean;
+  canRegisterPayment?: boolean;
   /**
    * Telefono (06/10/2026): le icone delle azioni rapide (attività, documenti,
    * altro) nella fila di «Registra incasso», invece di una fila a parte.
@@ -34,6 +35,7 @@ export function OrdineDetailHeader({
   onModifica,
   onRegistraIncasso,
   canEdit = true,
+  canRegisterPayment = false,
   azioniTelefono,
 }: OrdineDetailHeaderProps) {
   const isMobile = useIsMobile();
@@ -85,7 +87,7 @@ export function OrdineDetailHeader({
         {!isMobile && <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-wrap justify-end w-full sm:w-auto">
           {/* Primary: Registra incasso — sempre visibile, porta al piano rate */}
           {/* Da telefono no: gli incassi si registrano da Economia. */}
-          {!isMobile && (
+          {!isMobile && canRegisterPayment && (
             <QuotePrimaryButton
               size="sm"
               onClick={onRegistraIncasso}

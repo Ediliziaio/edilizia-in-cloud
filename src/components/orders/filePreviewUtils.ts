@@ -39,14 +39,13 @@ export function toStoragePath(fileUrl: string): string {
   return fileUrl;
 }
 
-/** Apre un allegato in una scheda nuova via signed URL. */
+/** Read with the current JWT. No reusable server-signed download capability. */
 export async function openAttachmentInTab(fileUrl: string, bucket: string = ATTACHMENTS_BUCKET) {
   const target = attachmentStorage(fileUrl, bucket);
-  const { data, error } = await supabase.storage
-    .from(target.bucket)
-    .createSignedUrl(target.path, 3600);
-  if (error || !data?.signedUrl) { toast.error("Impossibile aprire il file"); return; }
-  window.open(data.signedUrl, "_blank", "noopener");
+  const {data,error}=await supabase.storage.from(target.bucket).download(target.path);
+  if(error||!data){toast.error("Impossibile aprire il file");return;}
+  const url=URL.createObjectURL(data);window.open(url,"_blank","noopener");
+  window.setTimeout(()=>URL.revokeObjectURL(url),60000);
 }
 
 /** Il tipo si decide dal MIME quando c'e', altrimenti dall'estensione del nome. */
@@ -90,13 +89,13 @@ export function useSignedUrls(files: PreviewableFile[], enabled: boolean, bucket
   return useQuery({
     queryKey: ["order-files-signed", bucket, paths.join("|")],
     enabled: enabled && paths.length > 0,
-    staleTime: 45 * 60 * 1000, // gli URL durano un'ora: non rifirmare a ogni apertura
+    staleTime: 30 * 1000, // miniature firmate per un minuto; ricontrolla i permessi frequentemente
     queryFn: async (): Promise<Record<string, string>> => {
       const map: Record<string, string> = {};
       const groups = new Map<string, {key:string;path:string}[]>();
       for(const key of paths) {const target=attachmentStorage(key,bucket);groups.set(target.bucket,[...(groups.get(target.bucket)??[]),{key,path:target.path}]);}
       await Promise.all([...groups].map(async([id,items])=>{
-        const {data,error}=await supabase.storage.from(id).createSignedUrls(items.map(item=>item.path),3600);
+        const {data,error}=await supabase.storage.from(id).createSignedUrls(items.map(item=>item.path),60);
         if(error)return;
         for(const row of data??[]){const item=items.find(item=>item.path===row.path);if(item&&row.signedUrl)map[item.key]=row.signedUrl;}
       }));
@@ -114,9 +113,9 @@ export function useUrlMiniature(percorsi: (string | null | undefined)[], enabled
   return useQuery({
     queryKey: ["order-files-thumbs", bucket, paths.join("|")],
     enabled: enabled && paths.length > 0,
-    staleTime: 45 * 60 * 1000,
+    staleTime: 30 * 1000,
     queryFn: async (): Promise<Record<string, string>> => {
-      const { data, error } = await supabase.storage.from(bucket).createSignedUrls(paths, 3600);
+      const { data, error } = await supabase.storage.from(bucket).createSignedUrls(paths, 60);
       if (error) return {};
       const map: Record<string, string> = {};
       (data ?? []).forEach((r) => { if (r.signedUrl && r.path) map[r.path] = r.signedUrl; });
@@ -125,17 +124,12 @@ export function useUrlMiniature(percorsi: (string | null | undefined)[], enabled
   });
 }
 
-/** Scarica davvero il file (con il suo nome), invece di aprirlo in una scheda. */
+/** Every download revalidates the current actor against Storage RLS. */
 export async function scaricaAllegato(fileUrl: string, nome: string, bucket: string = ATTACHMENTS_BUCKET) {
-  const target = attachmentStorage(fileUrl, bucket);
-  const { data, error } = await supabase.storage
-    .from(target.bucket)
-    .createSignedUrl(target.path, 300, { download: nome });
-  if (error || !data?.signedUrl) { toast.error("Impossibile scaricare il file"); return; }
-  const a = document.createElement("a");
-  a.href = data.signedUrl;
-  a.rel = "noopener";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+  const target=attachmentStorage(fileUrl,bucket);
+  const {data,error}=await supabase.storage.from(target.bucket).download(target.path);
+  if(error||!data){toast.error("Impossibile scaricare il file");return;}
+  const url=URL.createObjectURL(data);const a=document.createElement("a");
+  a.href=url;a.download=nome;a.rel="noopener";document.body.appendChild(a);a.click();a.remove();
+  window.setTimeout(()=>URL.revokeObjectURL(url),60000);
 }

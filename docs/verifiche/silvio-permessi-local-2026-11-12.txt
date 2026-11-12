@@ -1,0 +1,59 @@
+SILVIO — PERMESSI E CHAT, SOLO LOCALE — 12 novembre 2026
+
+Regola: la conversazione non concede autorizzazioni. Il backend rilegge ruolo,
+accesso aziendale, blocco e permessi prima di ogni strumento e conferma.
+Il catalogo degli strumenti e la loro esecuzione seguono le stesse autorizzazioni.
+Le letture e scritture certificate dello staff usano il JWT dell'utente reale:
+RLS, viste protette e RPC native restano attive; nessuna impersonificazione service-role.
+
+Copertura implementata:
+- Commesse, venduto/costi/margini, stato incassi, personale, CRM e pipeline.
+- Lettura nativa di 11 aree, inclusi fatture, fornitori, calendario, attività,
+  metadati documenti. Nessun URL firmato consegnato dal lettore documenti:
+  il download passa dall'autorizzazione normale della piattaforma.
+- Contratti granulari per cambio stato, pagamenti, rapportini, opportunità,
+  bozze preventivi, appuntamenti e modifica dei contatti/opportunità.
+- Modifica CRM limitata a campi espliciti: nessun cambio di azienda,
+  assegnatario o pipeline attraverso il campo modifiche.
+- Sola lettura, soli assegnati CRM e perimetro commesse restano distinti.
+- Conferme vincolate al proprietario della proposta, ai permessi attuali,
+  alla policy AI dell'azienda e allo stato della proposta; replay respinto.
+- Errori e rifiuti degli strumenti producono un esito server: il modello non
+  può sostituirlo con una falsa conferma. Streaming del turno successivo
+  e metadati strutturati disabilitati dopo il fallimento di uno strumento.
+- Strumenti legacy senza contratto granulare restano negati allo staff.
+  Non sono stati aperti indiscriminatamente né convertiti tutti in operazioni native.
+  Le funzioni di amministrazione della piattaforma restano riservate.
+
+Prove ripetibili:
+- 61 integrazioni sul vero database sintetico, con login reali GoTrue e RLS.
+- 29 scenari HTTP dei veri handler chat e conferma su 13 profili: lettura,
+  forzatura HR/admin, ruolo contraffatto, revoca, blocco, canale altrui,
+  record fuori perimetro, modifica e conferma tecnico, replay, CRM assegnato,
+  modifica assegnatario/azienda tentata tramite override.
+- 175 regressioni in 10 file di test.
+- Controllo TypeScript mirato: 0 diagnostiche nei quattro moduli centrali
+  e relative dichiarazioni locali. Lint dei tre nuovi moduli centrali senza errori.
+- Interfaccia reale: login tecnico, invio richiesta consentita e forzatura;
+  risposta e rifiuto visibili nella chat. Screenshot allegato.
+
+LIMITE DEL COLLAUDO: il trasporto del modello è deterministico e simulato,
+intenzionalmente ostile. Handler, autenticazione, database, autorizzazioni,
+proposte, conferme e salvataggio messaggi sono reali, eseguiti soltanto in locale.
+Non è una prova delle risposte linguistiche di un LLM reale. Embedding/RAG,
+estrazione memoria, OCR, voce e invii a provider esterni non sono stati attivati.
+Nessun costo/provider esterno: il runner rifiuta fetch fuori dal gateway locale.
+Non si dichiara compilazione Deno completa o CI globale verde; controlli estesi
+con Node incontrano import Deno e diagnostiche legacy, riportati nel log separato.
+
+Riproduzione (solo fixture sintetico già inizializzato):
+1. node scripts/permissions-lab/chat/prepare.mjs
+2. node scripts/permissions-lab/chat/build.mjs
+3. node scripts/permissions-lab/chat/server.mjs
+4. EIC_LOCAL_CHAT=true node scripts/permissions-lab/server.mjs
+5. npx vite --config vite.permissions-platform.config.ts
+6. node scripts/permissions-lab/chat/verify.mjs
+7. npx vitest run --config vitest.permissions-integration.config.ts
+Non eseguire contemporaneamente i due collaudi che revocano permessi temporanei.
+
+Nessun push, deploy, aggiornamento di produzione o intervento su Squadd.

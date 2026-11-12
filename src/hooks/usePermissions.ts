@@ -15,6 +15,7 @@ export interface Permissions {
   canApproveVariations: boolean;
   /** Vede gli importi di VENDITA in commesse/preventivi (importo, prezzi, acconti). Default true. */
   canViewOrderAmounts: boolean;
+  canViewOrderPaymentStatus: boolean;
   canViewWarehouse: boolean;
   canEditWarehouse: boolean;
   /** Mezzi e attrezzature: furgoni, mezzi e attrezzi con scadenze e tagliandi. */
@@ -153,6 +154,8 @@ export interface Permissions {
   isLoading: boolean;
   loadError?: string | null;
   onlyAssigned: boolean;
+  /** Work/field scope is independent from the CRM portfolio switch. */
+  onlyAssignedWork?: boolean;
   /** Vede tutte e sole le commesse dei magazzini a cui è assegnato (più le proprie). */
   onlyMyWarehouse: boolean;
   /** Aree visibili all'utente. Vuoto = tutte le aree. */
@@ -175,6 +178,7 @@ export const STAFF_PERMISSIONS_SELECT_KEYS = [
   "can_edit_orders",
   "can_approve_variations",
   "can_view_order_amounts",
+  "can_view_order_payment_status",
   "can_view_warehouse",
   "can_edit_warehouse",
   "can_view_mezzi",
@@ -270,6 +274,7 @@ export const STAFF_PERMISSIONS_SELECT_KEYS = [
   "can_manage_suppliers",
   "can_manage_warehouse_items",
   "can_view_financial_reports",
+  "office_profile",
   "only_assigned",
   "only_my_warehouse",
   "sola_lettura",
@@ -282,6 +287,7 @@ const STAFF_PERMISSIONS_SELECT = STAFF_PERMISSIONS_SELECT_KEYS.join(",");
 const ALL_PERMISSIONS: Permissions = {
   canViewDashboard: true, canViewOrders: true, canEditOrders: true, canApproveVariations:true,
   canViewOrderAmounts: true,
+  canViewOrderPaymentStatus: true,
   canViewWarehouse: true, canEditWarehouse: true, canViewCalendar: true,
   canViewMezzi: true, canEditMezzi: true,
   canViewOperai: true, canEditOperai: true,
@@ -336,6 +342,7 @@ const ALL_PERMISSIONS: Permissions = {
 const NO_PERMISSIONS: Permissions = {
   canViewDashboard: false, canViewOrders: false, canEditOrders: false, canApproveVariations:false,
   canViewOrderAmounts: false,
+  canViewOrderPaymentStatus: false,
   canViewWarehouse: false, canEditWarehouse: false, canViewCalendar: false,
   canViewMezzi: false, canEditMezzi: false,
   canViewOperai: false, canEditOperai: false,
@@ -400,6 +407,7 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   // Cantieri & Lavori
   canViewOrders: true, canEditOrders: false, canApproveVariations:false,
   canViewOrderAmounts: true,
+  canViewOrderPaymentStatus: true,
   canViewWarehouse: true, canEditWarehouse: false,
   // Il parco mezzi è gestione interna dell'impresa: al commercialista no.
   canViewMezzi: false, canEditMezzi: false,
@@ -486,7 +494,7 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
 // Estratto per essere riusato sia per l'utente loggato sia per "Visualizza come"
 // (quando un super_admin vuole vedere esattamente quello che vede un suo utente).
 // ─────────────────────────────────────────────────────────────────────────────
-function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined): Permissions {
+export function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined): Permissions {
   const r = (row ?? {}) as Record<string, unknown>;
   const g = (key: string): boolean => r[key] === true;
   const solaLettura = r["sola_lettura"] === true;
@@ -498,6 +506,7 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canApproveVariations: g("can_approve_variations"),
     // Default VISIBILE: importi mostrati salvo esplicito false (retrocompat).
     canViewOrderAmounts: r["can_view_order_amounts"] !== false,
+    canViewOrderPaymentStatus: r["can_view_order_amounts"] !== false || g("can_view_order_payment_status"),
     canViewWarehouse:  g("can_view_warehouse"),
     canEditWarehouse:  g("can_edit_warehouse"),
     canViewMezzi:      g("can_view_mezzi"),
@@ -622,6 +631,7 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     isAdmin: false,
     isLoading: false,
     onlyAssigned:  r["only_assigned"] === true,
+    onlyAssignedWork: false,
     onlyMyWarehouse: r["only_my_warehouse"] === true,
     visibleAreas:  Array.isArray(r["visible_areas"]) ? (r["visible_areas"] as string[]) : [],
     pipelineVisibili: Array.isArray(r["pipeline_visibili"]) ? (r["pipeline_visibili"] as string[]) : [],
@@ -721,7 +731,11 @@ function usePermessiGrezzi(): Permissions {
       return data;
     },
     enabled: needsStaffPermsFetch && !!user?.id && !!effectiveCompanyId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: "always",
+    refetchOnReconnect: "always",
     gcTime: 10 * 60 * 1000,
   });
 

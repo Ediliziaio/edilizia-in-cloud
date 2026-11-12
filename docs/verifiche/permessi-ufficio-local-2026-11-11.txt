@@ -1,0 +1,65 @@
+PERMESSI UFFICIO — VERSIONE 6 — SOLO LOCALE — 11/11/2026
+
+MODELLO APPLICATO
+Gli uffici con accesso alle commesse vedono tutte le commesse della propria azienda. I permessi salvati determinano dati visibili e operazioni consentite. Il profilo (tecnico, ordini, amministrazione, responsabile, HR, commerciale) è un punto di partenza modificabile: il nome non concede diritti.
+Solo assegnati limita il portafoglio commerciale nel CRM. Le restrizioni specifiche per operai, magazzino e appuntamenti privati restano indipendenti. Un appuntamento operativo collegato alla commessa segue i relativi accessi.
+Rimosso il precedente modello di assegnazione dei collaboratori d’ufficio su ogni commessa. Stato incassi in Panoramica, senza importi quando non autorizzati. Timbra dipende dal collegamento al profilo personale, non dal permesso di leggere stipendi.
+
+PROTEZIONI
+Backend: protezione degli importi di vendita, rate/incassi, costi e margini; aggregati separati da tariffe e retribuzioni individuali. Controllati letture dirette e scritture con risposta minimale, isolamento aziendale e sola lettura.
+Documenti: classi operativo, vendita, costi, personale, riservato. I documenti esistenti non classificati sono riservati all’amministratore finché revisionati. Download autenticato con verifica dei diritti ad ogni richiesta. Link pubblici bloccati; portale cliente limitato ai documenti condivisi esplicitamente. Le copie già scaricate non sono revocabili; le anteprime firmate hanno scadenza di 60 secondi.
+Silvio: permessi ricaricati prima degli strumenti, blocco delle domande chiaramente non autorizzate, risultati filtrati, nessun riutilizzo delle vecchie risposte dell’assistente per utenti limitati. Nuovi strumenti CRM di lettura con assegnazione verificata. Strumenti CRM legacy non certificati per utenti limitati bloccati, comprese le scritture: usare l’interfaccia per queste azioni. Nessuna concessione basata sul solo nome del reparto.
+
+VERIFICHE ESEGUITE
+89 controlli HTTP passati contro PostgREST e PostgreSQL reali locali.
+39 controlli passati contro Storage locale reale: classi documentali per sette utenti, revoca, URL pubblico e portale cliente.
+158 test passati in 17 file frontend/logica. Dopo l’ultima normalizzazione del profilo: 8 test Edge/client passati, incluso il nuovo controllo che il profilo non conceda diritti da solo (suite sovrapposta, non sommare i conteggi).
+TypeScript mirato: passato. ESLint mirato: nessun errore, un avviso preesistente react-refresh sull’editor permessi. Non è una CI completa né una compilazione Deno dell’intero backend.
+Interfaccia reale localhost: accessi con utenti sintetici, visibilità per ruolo, timbratura tecnico, download operativo, modifica profilo tecnico→ordini→tecnico salvata e verificata nel database. Prove attuali nella cartella prove-v3.
+
+LIMITI ESPLICITI
+Nessuna conversazione completa con modello AI esterno: gli endpoint Edge/provider del laboratorio sono disabilitati; testati controlli e strumenti senza servizi a pagamento. Non inviati email, WhatsApp o notifiche reali.
+Database locale costruito da schema di fixture locale, non da dati produttivi. Non completato il replay dell’intera storia migrazioni: blocco fingerprint delle policy lasciato intatto. Le quattro migrazioni sono bozze locali da revisionare prima di qualunque rilascio.
+Nessun push, deploy, modifica a Squadd o intervento sul database di produzione.
+
+PROVA MANUALE
+Piattaforma: http://127.0.0.1:5188
+Account sintetici: u1@example.test tecnico; u2 ordini; u3 commerciale; u4 amministrazione; u5 responsabile; u6 operaio; u7 HR; u8 amministratore.
+Password comune ESCLUSIVAMENTE locale: LocalePermessi2026!
+La scheda è lasciata sulle impostazioni dell’utente tecnico, con amministratore u8 collegato. Il tecnico è ripristinato al profilo tecnico dopo la simulazione.
+Il database contiene due aziende sintetiche per provare l’isolamento e cinque documenti sintetici per provare le classi. Alcuni permessi della fixture sono intenzionalmente personalizzati, indipendenti dal nome del profilo.
+
+RIPRODUZIONE TECNICA
+Worktree: /tmp/edilizia-permissions-local-20261111, base 429f1bf0f.
+Servizi locali mantenuti: Vite 5188; gateway 5189; PostgreSQL container eic-history-10fd4bba52 (network none), database audit_permissions; PostgREST eic-permissions-rest-20261111; GoTrue eic-permissions-auth-20261111; Storage eic-permissions-storage-20261111. Nessun provider esterno abilitato.
+Avvio applicazione: npx vite --config vite.permissions-platform.config.ts
+Gateway: node scripts/permissions-lab/server.mjs
+Storage: node scripts/permissions-lab/start-storage.mjs (richiede gli altri container del laboratorio).
+Controlli: node scripts/permissions-lab/verify.mjs e node scripts/permissions-lab/verify-storage.mjs.
+Fixture e verifica SQL: scripts/test-permessi-ufficio-local.py; leggere gli argomenti --help. Il guard limita l’esecuzione al database sintetico isolato.
+La fixture piattaforma ripristina anche auth.uid/auth.role dopo un eventuale riavvio GoTrue. La configurazione Vite usa dipendenze Fish aggiuntive in /tmp/eic-permissions-extra-deps/node_modules se assenti nel progetto; non installare pacchetti nel node_modules condiviso.
+PATCH_LOCALE.diff include tutte le modifiche locali rispetto alla base, anche quelle delle precedenti fasi. Applicare solo in una copia compatibile, mai direttamente in produzione. MIGRAZIONE_SOLO_LOCALE.sql raccoglie le quattro migrazioni in transazione per revisione, non è stato eseguito online.
+
+AGGIORNAMENTO UX — 11/11/2026 ORE 21:15
+Pagina riorganizzata: prima tipo di accesso, poi modello facoltativo, riepilogo compatto e autorizzazioni effettive. Modello di partenza distinto dai permessi personalizzati. Selezione modello senza applicazione automatica: anteprima completa delle modifiche, Applica alla bozza, successivo salvataggio esplicito. Rimossi i comandi duplicati Come Operatore. Modello conserva i vincoli di magazzino, pipeline, aree e sola lettura. Cambio ruolo bloccato durante una bozza; applicazione modello bloccata durante cambio ruolo. Funzioni aggiuntive espandibili, con indicazione dell’applicazione immediata. Riepilogo distingue anche accessi di cantiere assegnati.
+Verifica nella piattaforma reale: tecnico→modello ordini in anteprima→applicazione alla bozza→annullamento, senza cambiare i diritti salvati. Test UX e regressioni: 47 test passati in 7 file. TypeScript mirato passato; ESLint senza errori, stesso avviso react-refresh preesistente. Nessuna nuova modifica al database o pubblicazione. Prova visiva: prove-v3/accesso-permessi-ux.jpg.
+
+ULTERIORE AGGIORNAMENTO UX — 11/11/2026
+Sostituiti nella scheda utente i livelli Operativo/Commerciale/Pieno con quattro controlli espliciti: venduto/importi, stato incassi, costi, margini. Eliminati i controlli economici duplicati nelle categorie e nelle opzioni avanzate. Stato incassi incluso nel venduto e costi inclusi negli acquisti sono rappresentati come accessi effettivi; i relativi controlli spiegano la dipendenza. Link Trova Gestione acquisti apre la ricerca del permesso.
+Pipeline: scelta esplicita fra tutte (comprese quelle future) e solo le selezionate. Non si può togliere l’ultima pipeline tornando involontariamente ad accesso completo. Pipeline eliminate vengono segnalate, senza cambiare automaticamente la restrizione salvata. Per negare le opportunità si disattiva il relativo modulo.
+Nuovo Rivedi modifiche vicino al salvataggio, con confronto fra configurazione salvata e bozza: nomi leggibili dei permessi e delle pipeline, incluse le modifiche ereditate, senza duplicare i flag aggregati. Anteprima dei modelli allineata alle regole effettive di salvataggio e sola lettura. Il confronto è facoltativo, non salva e non aggiunge passaggi obbligatori.
+Corretto il reset involontario dei permessi nei comandi Tutti/Nessuno: ora Attiva/Disattiva moduli conserva modello di partenza, dati economici e limiti personalizzati. Eventuali costi derivanti dall’attivazione del modulo acquisti restano espliciti. Conteggio rinominato Moduli visibili; comandi di gruppo con nomi accessibili distinti. Barra di salvataggio adattata per andare a capo su schermi stretti.
+VERIFICA CORRENTE: 58 test passati in 9 file, TypeScript mirato senza errori, ESLint senza errori e stesso avviso react-refresh preesistente. Nella piattaforma reale: costi in bozza, confronto Non consentito→Consentito, chiusura e annullamento; disattivazione moduli senza riattivazione importi, poi annullamento. Nessun permesso salvato modificato dalle prove di questo aggiornamento. Selettore pipeline provato nei test dei componenti; nella fixture del tecnico non è presente l’accesso alle opportunità CRM.
+Prove: prove-v3/permessi-economici-espliciti.jpg e prove-v3/confronto-permessi.jpg. Nessuna modifica al database, servizio esterno o pubblicazione in questa fase.
+
+SIMULAZIONE COMPLETA DEI RUOLI — SOLO LOCALE — 11/11/2026
+Matrice leggibile: MATRICE_RUOLI.html. Dettagli e configurazioni effettive: MATRICE_RUOLI.json. Provati 13 profili: tecnico, ordini, commerciale d’ufficio, amministrazione, responsabile, operaio, HR, amministratore, venditore, call center, subappaltatore, magazzino limitato, sola lettura. Accessi normali nell’interfaccia, senza simulatore di autorizzazioni; Aree Campo distinte per operaio e subappaltatore.
+239 controlli HTTP/Storage per ruolo passati; 12 controlli sui rapportini passati; 45 test degli strumenti Silvio reali su database locale passati; 223 test frontend/logica di regressione passati (16 file, compresi 13 test di recupero autenticazione e 5 di isolamento cache). Anche le basi da 89 controlli backend e 39 download erano passate prima dell’estensione. I conteggi si sovrappongono: non sommarli come scenari unici.
+Problemi corretti: scrittura/eliminazione Storage senza diritto di modifica; vecchio flag CRM che negava strumenti granulari autorizzati; account bloccato con contesto Silvio ancora valido; filtro pipeline mancante negli strumenti opportunità; stato incassi booleano nascosto insieme agli importi; totali aziendali rimasti dopo il filtro delle commesse autorizzate; cache di un utente mostrata all’identità successiva.
+Aggiunta quarta migrazione locale: 20290312190004_protezione_scrittura_file_commessa.sql. Le nuove policy sono restrittive e mantengono le autorizzazioni originali. I file esistenti restano non sovrascrivibili; un nuovo caricamento richiede modifica commesse e perimetro valido.
+Cache IndexedDB separata per utente, vecchia cache globale scartata, pulizia della memoria prima del cambio identità; al logout viene eliminata la cache dell’utente. Cache offline della stessa identità mantenuta. Ripetuta con esito corretto nell’interfaccia la sequenza amministratore→magazzino: la commessa fuori perimetro non compare più.
+Operaio e subappaltatore creano e modificano le proprie ore; respinti autore diverso, commessa non assegnata, altra azienda e tentativo di forzare il costo. Il costo registrato è uno snapshot interno, distinto dalle ore inserite dall’utente.
+Il gateway locale è stato reso asincrono per non serializzare tutte le richieste dell’interfaccia; sempre solo loopback e container isolato. Nessuna modifica a servizi online.
+LIMITI: nessuna conversazione completa con modello AI esterno e nessun endpoint Edge/provider attivato. Testati i controlli e gli strumenti reali, non una risposta inventata in un’interfaccia finta. Gli strumenti economici esecutivi legacy rimangono riservati agli amministratori: un permesso dati non significa che esista già uno strumento dedicato per ogni domanda. Portale cliente verificato nelle API/Storage; altri portali esterni e super admin di piattaforma non rientrano nei sei ruoli aziendali assegnabili. Non è un audit completo di tutte le schermate del gestionale.
+TypeScript mirato passato. Il lint dei moduli cache non ha errori (11 avvisi preesistenti). Il lint esteso Edge segnala 16 errori già presenti nella base Git, verificati con confronto: non si dichiara CI globale verde. Nessun replay storico completo delle migrazioni né compilazione Deno completa.
+Nessun dato o utente reale modificato. Solo account e dati sintetici locali; le prove mutative ripristinano i dati. Nessuna pubblicazione, push, modifica a Squadd o servizio a pagamento. Per ripetere: node scripts/permissions-lab/prepare-all-roles.mjs; node scripts/permissions-lab/verify-all-roles.mjs; node scripts/permissions-lab/verify-field.mjs; npx vitest run --config vitest.permissions-integration.config.ts.

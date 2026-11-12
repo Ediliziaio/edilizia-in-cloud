@@ -5,7 +5,7 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   can_view_cruscotto: false, can_view_controllo_gestione: false,
   // Cantieri & Lavori
   can_view_dashboard: false, can_view_orders: false, can_edit_orders: false,
-  can_view_order_amounts: true,
+  can_view_order_amounts: true, can_view_order_payment_status: false,
   can_approve_orders: false, can_approve_variations: false, can_delete_orders: false,
   can_view_warehouse: false, can_edit_warehouse: false, can_manage_warehouse_items: false,
   can_view_mezzi: false, can_edit_mezzi: false,
@@ -65,6 +65,7 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   can_view_settings_suppliers: false, can_edit_settings_suppliers: false,
   can_view_settings_integrations: false, can_edit_settings_integrations: false,
   // Speciali
+  office_profile: null,
   only_assigned: false,
   only_my_warehouse: false,
   sola_lettura: false,
@@ -190,6 +191,7 @@ export const CANTIERI_SECTIONS: PermissionSectionDef[] = [
   { label: "Dashboard",              viewKey: "can_view_dashboard",          editKey: null, description: "Visualizza la dashboard principale" },
   { label: "Ordini e Commesse",      viewKey: "can_view_orders",             editKey: null, description: "Vede, crea e modifica le commesse (e registra il cliente da intestare), salvo «Sola lettura»" },
   { label: "Importi di vendita",     viewKey: "can_view_order_amounts",      editKey: null, description: "Vede importi e prezzi di vendita in commesse e preventivi" },
+  { label: "Solo stato degli incassi", viewKey: "can_view_order_payment_status", editKey: null, description: "Controlla lo stato delle rate senza importi o fatture. È già incluso negli importi di vendita." },
   { label: "Elimina Ordini",         viewKey: "can_delete_orders",           editKey: null, description: "Può eliminare ordini e commesse" },
   { label: "Magazzino",              viewKey: "can_view_warehouse",          editKey: null, description: "Inventario e movimenti: chi lo vede li registra, salvo «Sola lettura»" },
   { label: "Operai",                 viewKey: "can_view_operai",             editKey: null, description: "Operai di cantiere: chi è al lavoro oggi, elenco, scheda e costo orario. Chi li vede li gestisce, salvo «Sola lettura»" },
@@ -222,7 +224,7 @@ export const FINANZA_SECTIONS: PermissionSectionDef[] = [
 ];
 
 export const PERSONE_SECTIONS: PermissionSectionDef[] = [
-  { label: "Personale & HR",                  viewKey: "can_view_persone",          editKey: null, description: "Schede del personale, presenze e timbrature (la chat del team è di tutti)" },
+  { label: "Personale & HR",                  viewKey: "can_view_persone",          editKey: null, description: "Schede del personale, presenze e timbrature, con accesso ai dati individuali riservati del personale. La chat del team è di tutti." },
   { label: "Schede dei dipendenti",           viewKey: "can_view_employees",         editKey: null, description: "Legge le schede dei dipendenti, con stipendio lordo e netto e costo orario. Le modifica solo l'amministratore (Persone & Accessi → Dipendenti)." },
   { label: "Elenco utenti",                   viewKey: "can_view_users",             editKey: null, description: "Mostra l'elenco degli utenti dentro Persone & Accessi. Serve anche «Persone & Accessi» più sotto, in Impostazioni." },
   { label: "Giornale Lavori",                 viewKey: "can_view_giornale_lavori",   editKey: null, description: "Rapportini e giornale lavori: chi li vede li compila, salvo «Sola lettura»" },

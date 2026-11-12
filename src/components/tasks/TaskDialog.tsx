@@ -267,7 +267,7 @@ export function TaskDialog({
   const navigate = useNavigate();
   const companyId = effectiveCompany?.id;
   const isEditing = !!task?.id;
-  const { onlyAssigned } = usePermissions();
+  const { onlyAssigned: onlyAssignedCrm } = usePermissions();
   // Mobile: titolo, note, a chi, priorità, scadenza, stato (in modifica) e i
   // collegamenti. Modelli, assistente AI, checklist iniziale, categoria e
   // stima ore restano al desktop: si aggiungono anche dopo, dal dettaglio.
@@ -284,6 +284,7 @@ export function TaskDialog({
   const [costId, setCostId] = useState<string>("");
   const [contactId, setContactId] = useState<string>("");
   const [opportunityId, setOpportunityId] = useState<string>("");
+  const onlyAssigned = onlyAssignedCrm && !(orderId || defaultOrderId) && !!(contactId || opportunityId || defaultContactId || task?.contact_id);
   const [ticketId, setTicketId] = useState<string>("");
   const [category, setCategory] = useState("generale");
   const [estimatedHours, setEstimatedHours] = useState("");

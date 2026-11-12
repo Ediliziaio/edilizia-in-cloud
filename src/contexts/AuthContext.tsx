@@ -1,3 +1,4 @@
+import { bindQueryCacheIdentity, storedQueryCacheIdentity, removeIdentityQueryCache } from "@/lib/queryPersister";
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -311,6 +312,7 @@ async function endSession() {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
+  const queryIdentityRef = useRef<string|null>(storedQueryCacheIdentity());
 
   // SIGNED_IN può rendere disponibile il ruolo prima che setSession().then
   // abbia applicato azienda e token del relay. Le route devono attendere
@@ -1175,6 +1177,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // NB: callback SINCRONO — vedi processAuthEvent sopra.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        // Clear before any async profile work or rendering the next identity.
+        const nextIdentity=session?.user?.id ?? null;
+        if(event==="SIGNED_OUT" || (nextIdentity && nextIdentity!==queryIdentityRef.current)) {
+          const previousIdentity=queryIdentityRef.current;
+          queryClient.clear();
+          bindQueryCacheIdentity(nextIdentity);
+          queryIdentityRef.current=nextIdentity;
+          if(event==="SIGNED_OUT")void removeIdentityQueryCache(previousIdentity).catch(()=>{});
+        }
         // Keep the module-level token cache fresh — allows getCachedTokens() to
         // return the current tokens WITHOUT acquiring the Supabase storage lock.
         if (session?.access_token) {
@@ -1297,7 +1308,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       authGenRef.current++;
       subscription.unsubscribe();
     };
-  }, [fetchUserData, refreshAuth, recoverInvalidAuthSession]);
+  }, [fetchUserData, refreshAuth, recoverInvalidAuthSession, queryClient]);
 
   // Sicurezza del login: blocco account dopo N tentativi falliti e allowlist
   // IP per azienda. La edge function esisteva già completa ma NON era invocata
@@ -1409,8 +1420,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearMultiCompanySession();
     // v8.6.99 — clear session_started_at marker per useSessionTimeout
     try { localStorage.removeItem("eic_session_started_at"); } catch { /* ignore */ }
+    queryClient.clear();
+    bindQueryCacheIdentity(null);
     await supabase.auth.signOut();
-  }, []);
+  }, [queryClient]);
 
   
 

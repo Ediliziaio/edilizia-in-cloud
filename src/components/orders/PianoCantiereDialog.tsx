@@ -1,3 +1,4 @@
+import { assignOfficeEmployee } from "@/lib/orders/assignOfficeEmployee";
 /**
  * «Calcola come finire» (2/11/2026): ore, operai, persone, mezzi e margine per finire la commessa
  * entro una data. I numeri vengono da shared/piano-cantiere, ogni ipotesi si può cambiare e ogni
@@ -43,26 +44,17 @@ export function PianoCantiereDialog({ orderId, puoModificare, open, onOpenChange
 
   const assegna = useMutation({
     mutationFn: async () => {
-      // Si rilegge prima di scrivere: dopo un errore a metà chi è già passato non si ripete.
-      const { data: presenti, error: errPresenti } = await supabase.from("order_employees").select("employee_id, phase_id").eq("order_id", orderId);
-      if (errPresenti) throw errPresenti;
-      const gia = new Set((presenti ?? []).map((r) => `${r.employee_id}|${r.phase_id ?? ""}`));
-      const nuove = (e?.risorse.persone ?? []).filter((p) => !p.gia && !gia.has(`${p.employee_id}|${p.faseId ?? ""}`));
+      // La RPC è idempotente: rileggere qui righe economiche esporrebbe tariffe.
+      const nuove = (e?.risorse.persone ?? []).filter(p => !p.gia);
       for (const p of nuove) {
-        const { data: costo, error: errCosto } = await supabase.rpc("costo_orario_dipendente", { p_employee_id: p.employee_id });
-        if (errCosto) throw errCosto;
-        const fase = e?.piano.fasi.find((f) => f.nome === p.fase);
-        const tariffa = Number(costo) > 0 ? Math.round(Number(costo) * 100) / 100 : 0;
-        const { error: errIns } = await supabase.from("order_employees").insert({
-          order_id: orderId, employee_id: p.employee_id, phase_id: p.faseId ?? null, hours_worked: 0, hourly_rate: tariffa, total_cost: 0,
-          planned_hours: fase && fase.operaiNecessari ? Math.round(fase.ore / fase.operaiNecessari * 10) / 10 : null, planned_hourly_rate: tariffa,
-        });
-        if (errIns) throw errIns;
+        const fase = e?.piano.fasi.find(f => f.nome === p.fase);
+        await assignOfficeEmployee(orderId, { employeeId: p.employee_id }, p.faseId ?? null,
+          fase && fase.operaiNecessari ? Math.round(fase.ore / fase.operaiNecessari * 10) / 10 : null);
       }
       return nuove.length;
     },
     onSuccess: async (n) => {
-      toast.success(n === 1 ? "Una persona assegnata" : `${n} assegnazioni fatte`);
+      toast.success(n === 1 ? "Una assegnazione confermata" : `${n} assegnazioni confermate`);
       refreshWorkQueries(qc, orderId, e?.commessa.company_id);
       await qc.invalidateQueries({ queryKey: ["piano-cantiere", orderId] });
     },

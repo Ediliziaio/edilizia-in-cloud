@@ -165,7 +165,7 @@ function CalendarInner() {
   const { effectiveCompany, user } = useAuth();
   const permissions = usePermissions();
   const canViewTeam =
-    !permissions.onlyAssigned &&
+    !permissions.onlyAssignedWork &&
     (permissions.isAdmin || permissions.canViewAllTeamCalendar);
   const companyId = effectiveCompany?.id;
   const isMobile = useIsMobile();

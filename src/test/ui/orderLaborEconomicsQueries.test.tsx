@@ -5,8 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useOrderLaborEconomics } from "@/hooks/useOrderLaborEconomics";
 import { refreshCommessaCampoQueries } from "@/lib/orders/refreshCommessaCampoQueries";
 
-const mocks = vi.hoisted(() => ({ from: vi.fn(), companyId: "c", permission: { canViewCosts: true, canViewEmployees: true, isLoading: false } }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from } }));
+const mocks = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn(), companyId: "c", permission: { canViewCosts: true, canViewEmployees: true, isLoading: false } }));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from, rpc: mocks.rpc } }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: mocks.companyId } }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => mocks.permission }));
 const reads: { table: string; select: string; filters: Record<string, unknown> }[] = [];
@@ -20,6 +20,7 @@ function mount() {
 beforeEach(() => {
   vi.clearAllMocks(); reads.length = 0; error = null; mocks.companyId = "c";
   Object.assign(mocks.permission, { canViewCosts: true, canViewEmployees: true, isLoading: false });
+  mocks.rpc.mockResolvedValue({ data: {cost:350,budget:400,unpriced:false}, error:null });
   mocks.from.mockImplementation((table: string) => {
     const record = { table, select: "", filters: {} as Record<string, unknown> };
     const builder = {
@@ -51,8 +52,9 @@ describe("Letture manodopera: azienda, permessi, cache e recupero", () => {
     mocks.permission.isLoading = true; mount(); expect(mocks.from).not.toHaveBeenCalled();
   });
   it("non legge stipendio, INPS o tariffa corrente senza accesso dipendenti", async () => {
-    mocks.permission.canViewEmployees = false; const { result } = mount(); await waitFor(() => expect(result.current.employees.isSuccess).toBe(true));
-    expect(reads.find(r => r.table === "order_employees")?.select).not.toMatch(/gross_salary|inps_rate|monthly_hours|costo_orario/);
+    mocks.permission.canViewEmployees = false; const { result } = mount(); await waitFor(() => expect(result.current.aggregate.isSuccess).toBe(true));
+    expect(reads.some(r => r.table === "order_employees")).toBe(false);
+    expect(result.current.aggregate.data).toEqual({cost:350,budget:400,unpriced:false});
     expect(result.current.readRates).toBe(false);
   });
   it("non mescola la cache con selezioni oes-employees o operative", async () => {
@@ -63,7 +65,10 @@ describe("Letture manodopera: azienda, permessi, cache e recupero", () => {
   });
   it("perdita del permesso dipendenti seleziona una cache senza dati retributivi", async () => {
     const { result, rerender } = mount(); await waitFor(() => expect(result.current.employees.isSuccess).toBe(true));
-    mocks.permission.canViewEmployees = false; rerender(); await waitFor(() => expect(reads).toHaveLength(3));
+    mocks.permission.canViewEmployees = false; rerender(); await waitFor(() => expect(result.current.aggregate.isSuccess).toBe(true));
+    expect(reads).toHaveLength(2);
+    expect(result.current.employees.data).toBeUndefined();
+    expect(mocks.rpc).toHaveBeenCalledWith("commessa_costo_personale_aggregato", {p_order_id:"o"});
     expect(reads.at(-1)?.select).not.toContain("gross_salary"); expect(result.current.readRates).toBe(false);
   });
   it("cambio azienda non riusa lo stesso ordine in una cache di un'altra azienda", async () => {

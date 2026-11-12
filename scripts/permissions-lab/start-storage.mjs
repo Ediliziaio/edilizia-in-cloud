@@ -1,0 +1,13 @@
+import{execFileSync}from'node:child_process';
+import{mkdirSync}from'node:fs';
+import{createHmac}from'node:crypto';
+import{assertLocalFixture,sql,fixture}from'./backend.mjs';
+assertLocalFixture();
+sql(`grant usage on schema storage to anon,authenticated,service_role;alter role supabase_storage_admin password 'local-storage-fixture-only';alter schema storage owner to supabase_storage_admin;
+do $$declare r record;begin for r in select c.relname,c.relkind from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='storage' and c.relkind in('r','p','S','v') loop execute format('alter %s storage.%I owner to supabase_storage_admin',case r.relkind when 'S' then 'sequence' when 'v' then 'view' else 'table' end,r.relname);end loop;for r in select p.oid from pg_proc p where p.pronamespace='storage'::regnamespace loop execute 'alter function '||r.oid::regprocedure||' owner to supabase_storage_admin';end loop;end$$;`);
+const secret='local-permissions-fixture-only-secret-20261111';
+const token=role=>{const b=Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url')+'.'+Buffer.from(JSON.stringify({role,iss:'supabase',exp:4102444800})).toString('base64url');return b+'.'+createHmac('sha256',secret).update(b).digest('base64url')};
+const dir='/tmp/eic-permissions-storage-files';mkdirSync(dir,{recursive:true});
+const env={SERVER_PORT:'5000',SERVER_HOST:'0.0.0.0',ANON_KEY:token('anon'),SERVICE_KEY:token('service_role'),PGRST_JWT_SECRET:secret,AUTH_JWT_SECRET:secret,POSTGREST_URL:'http://127.0.0.1:3002',DATABASE_URL:'postgresql://supabase_storage_admin:local-storage-fixture-only@127.0.0.1:5432/audit_permissions',FILE_SIZE_LIMIT:'52428800',UPLOAD_FILE_SIZE_LIMIT:'52428800',STORAGE_BACKEND:'file',FILE_STORAGE_BACKEND_PATH:'/var/lib/storage',STORAGE_FILE_BACKEND_PATH:'/var/lib/storage',TENANT_ID:'local-permissions',REGION:'local',GLOBAL_S3_BUCKET:'local-permissions',IMAGE_TRANSFORMATION_ENABLED:'false',ENABLE_IMAGE_TRANSFORMATION:'false',PG_QUEUE_ENABLE:'false',DB_INSTALL_ROLES:'false',DB_SUPER_USER:'supabase_admin',OTEL_METRICS_ENABLED:'false'};
+const args=['run','-d','--name','eic-permissions-storage-20261111','--network',`container:${fixture}`,'-v',`${dir}:/var/lib/storage`];for(const[k,v]of Object.entries(env))args.push('-e',`${k}=${v}`);args.push('public.ecr.aws/supabase/storage-api:v1.84.19');
+console.log(execFileSync('docker',args,{encoding:'utf8'}).trim());

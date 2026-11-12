@@ -627,7 +627,7 @@ export function AccessGovernancePanel({ puoAprireScheda = false }: { puoAprireSc
                         </div>
                         {(user.onlyAssigned || user.visibleAreasCount > 0) && (
                           <p className="mt-1 text-[11px] text-muted-foreground">
-                            {user.onlyAssigned ? "Vede solo i dati assegnati a lui" : "Vede tutti i dati"}
+                            {user.onlyAssigned ? "CRM: solo dati assegnati" : "CRM: tutti i dati consentiti"}
                             {user.visibleAreasCount > 0 ? ` · ${user.visibleAreasCount} aree visibili` : ""}
                           </p>
                         )}

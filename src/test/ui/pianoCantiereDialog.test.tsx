@@ -20,7 +20,10 @@ const inserite: unknown[] = [];
 vi.mock("../../../shared/piano-cantiere/costruisci.ts", () => ({ costruisciPiano: vi.fn(async () => esito) }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    rpc: vi.fn(async () => ({ data: 27, error: null as null })),
+    rpc: vi.fn(async (name: string, args: unknown) => {
+      if (name !== "commessa_assegna_persona") throw new Error("RPC inattesa");
+      inserite.push(args); return { data: "riga-assegnata", error: null as null };
+    }),
     from: () => ({
       insert: async (r: unknown) => { inserite.push(r); return { error: null as null }; },
       select: () => ({ eq: async () => ({ data: [] as unknown[], error: null as null }) }),
@@ -51,7 +54,8 @@ describe("Calcola come finire", () => {
     expect(inserite).toHaveLength(0);
     fireEvent.click(await screen.findByRole("button", { name: /Assegna questa persona/ }));
     await waitFor(() => expect(inserite).toHaveLength(1));
-    expect(inserite[0]).toMatchObject({ employee_id: "e", phase_id: "f", planned_hours: 60, hourly_rate: 27 });
+    expect(inserite[0]).toMatchObject({ p_employee_id: "e", p_phase_id: "f", p_planned_hours: 60 });
+    expect(inserite[0]).not.toHaveProperty("hourly_rate");
   });
   it("chi non può modificare vede i conti ma non assegna", async () => {
     apri(false);

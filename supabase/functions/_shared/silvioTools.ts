@@ -1,3 +1,6 @@
+import {staffToolRoleAllowed,SILVIO_PERMISSION_CONTRACTS}from"./silvioPermissionContracts.ts";
+import { silvioDataPermissionIssue, silvioVerifiedToolPermission } from "./silvioDataPermission.ts";
+import { usaPermessiStaff } from "./ruoloSilvio.ts";
 /**
  * Silvio Tool Catalog — JSON Schema OpenAI-compatible per tool calling.
  *
@@ -293,6 +296,35 @@ async function callRpc(supabase: SupabaseClient, fn: string, args: Record<string
 // ─── TOOL DEFINITIONS ───────────────────────────────────────────────────────
 
 export const SILVIO_TOOLS: Record<string, SilvioTool> = {
+  leggi_dati_autorizzati:{schema:{type:'function',function:{name:'leggi_dati_autorizzati',description:'Legge i dati consentiti al tuo utente nelle singole aree. Usa questo strumento per commesse, economia, incassi, personale, CRM, fatture, fornitori, calendario, attività e documenti; i campi riservati restano nascosti.',parameters:{type:'object',properties:{area:{type:'string',enum:['commesse','economia','incassi','personale','contatti','opportunita','fatture','fornitori','calendario','attivita','documenti']},commessa_codice:{type:'string',description:'Codice o UUID della commessa, obbligatorio per economia'}},required:['area'],additionalProperties:false}}},executor:async()=>({error:'Usa il motore di autorizzazione'}),allowedRoles:['super_admin','company_admin','company_staff','salesperson','call_center','employee','subcontractor'],allowedPersonas:['*'],riskLevel:'safe',domain:'meta'},
+  modifica_contatto_autorizzato:{schema:{type:'function',function:{name:'modifica_contatto_autorizzato',description:'Prepara la modifica di un contatto consultabile e modificabile dal tuo utente. Campi ammessi: first_name,last_name,email,phone.',parameters:{type:'object',properties:{id:{type:'string'},modifiche:{type:'object',additionalProperties:{type:'string'}}},required:['id','modifiche'],additionalProperties:false}}},executor:async()=>({error:'Usa il motore di autorizzazione'}),allowedRoles:['company_admin','company_staff','salesperson','call_center'],allowedPersonas:['*'],riskLevel:'yellow',domain:'crm'},
+  modifica_opportunita_autorizzata:{schema:{type:'function',function:{name:'modifica_opportunita_autorizzata',description:'Prepara la modifica di nome o stato di una opportunità nel tuo portafoglio e nelle pipeline consentite.',parameters:{type:'object',properties:{id:{type:'string'},modifiche:{type:'object',additionalProperties:{type:'string'}}},required:['id','modifiche'],additionalProperties:false}}},executor:async()=>({error:'Usa il motore di autorizzazione'}),allowedRoles:['company_admin','company_staff','salesperson','call_center'],allowedPersonas:['*'],riskLevel:'yellow',domain:'crm'},
+
+  cerca_contatti_autorizzati: {
+    schema: {type:"function",function:{name:"cerca_contatti_autorizzati",description:"Cerca soltanto i dati CRM consentiti all’utente corrente. Usalo anche quando il portafoglio è limitato ai propri dati.",parameters:{type:"object",properties:{},required:[]}}},
+    executor: async (_args,ctx) => {
+      const p=ctx.staffPermissions;
+      if (usaPermessiStaff(ctx.primaryRole) && p?.can_view_marketing_contacts !== true) return {error:"Accesso CRM non consentito"};
+      let q=ctx.supabase.from("marketing_contacts").select("id,first_name,last_name,email,phone,assigned_to").eq("company_id",ctx.companyId).limit(50);
+      if(p?.only_assigned===true)q=q.eq("assigned_to",ctx.userId);
+      const {data,error}=await q;if(error)throw error;return {records:data??[],limited_to:50,scope:p?.only_assigned===true?"own":"company"};
+    },
+    allowedRoles:["company_admin","company_staff","salesperson","call_center"],allowedPersonas:["silvio","*"],riskLevel:"safe",domain:"crm",
+  },
+
+  cerca_opportunita_autorizzate: {
+    schema: {type:"function",function:{name:"cerca_opportunita_autorizzate",description:"Cerca soltanto i dati CRM consentiti all’utente corrente. Usalo anche quando il portafoglio è limitato ai propri dati.",parameters:{type:"object",properties:{},required:[]}}},
+    executor: async (_args,ctx) => {
+      const p=ctx.staffPermissions;
+      if (usaPermessiStaff(ctx.primaryRole) && p?.can_view_marketing_opportunities !== true) return {error:"Accesso CRM non consentito"};
+      let q=ctx.supabase.from("marketing_opportunities").select("id,name,assigned_to,status").eq("company_id",ctx.companyId).limit(50);
+      if(p?.only_assigned===true)q=q.eq("assigned_to",ctx.userId);
+      if(Array.isArray(p?.pipeline_visibili) && p.pipeline_visibili.length>0)q=q.in("pipeline_id",p.pipeline_visibili);
+      const {data,error}=await q;if(error)throw error;return {records:data??[],limited_to:50,scope:p?.only_assigned===true?"own":"company"};
+    },
+    allowedRoles:["company_admin","company_staff","salesperson","call_center"],allowedPersonas:["silvio","*"],riskLevel:"safe",domain:"crm",
+  },
+
   get_company_kpi: {
     schema: {
       type: "function",
@@ -9020,7 +9052,7 @@ export function getToolsForRole(role: string): SilvioTool[] {
   // FAIL-CLOSED: senza allowedRoles il tool è riservato a DEFAULT_TOOL_ALLOWED_ROLES.
   return Object.values(SILVIO_TOOLS).filter(t => {
     const roles = t.allowedRoles && t.allowedRoles.length > 0 ? t.allowedRoles : DEFAULT_TOOL_ALLOWED_ROLES;
-    return roles.includes(role) || roles.includes("*");
+    return staffToolRoleAllowed(t.schema.function.name,role,roles);
   });
 }
 
@@ -9218,6 +9250,7 @@ export function getToolsForChannel(opts: {
   gruppoFisso?: ReadonlySet<string>;
 }): SilvioTool[] {
   const out: SilvioTool[] = [];
+  const permissions=usaPermessiStaff(opts.role)?opts.staffPermissions??{}:opts.staffPermissions;
   const domainSet = opts.domains && opts.domains.length > 0 ? new Set(opts.domains) : null;
   for (const tool of Object.values(SILVIO_TOOLS)) {
     // Channel filter
@@ -9229,7 +9262,7 @@ export function getToolsForChannel(opts: {
     const toolRoles = tool.allowedRoles && tool.allowedRoles.length > 0
       ? tool.allowedRoles
       : DEFAULT_TOOL_ALLOWED_ROLES;
-    if (!toolRoles.includes(opts.role) && !toolRoles.includes("*")) continue;
+    if (!staffToolRoleAllowed(tool.schema.function.name,opts.role,toolRoles)) continue;
     // Persona filter
     if (opts.personaKey && tool.allowedPersonas && tool.allowedPersonas.length > 0) {
       if (!tool.allowedPersonas.includes(opts.personaKey) && !tool.allowedPersonas.includes("*")) continue;
@@ -9239,11 +9272,12 @@ export function getToolsForChannel(opts: {
     // Domain-set filter (token-opt): tool senza domain = sempre incluso
     if (opts.gruppoFisso) {
       const ricaricato = !!(domainSet && tool.domain && domainSet.has(tool.domain));
-      if (!ricaricato && !opts.gruppoFisso.has(tool.schema.function.name)) continue;
+      if (!ricaricato && !opts.gruppoFisso.has(tool.schema.function.name) && !SILVIO_PERMISSION_CONTRACTS[tool.schema.function.name]) continue;
     } else if (domainSet && tool.domain && !domainSet.has(tool.domain)) continue;
     // RBAC granulare per-utente (MVP): esclude il tool SOLO se il permesso
     // staff mappato sul suo dominio è esplicitamente false.
-    if (opts.staffPermissions && tool.domain && areaSpentaPerPermessi(opts.staffPermissions, tool.domain)) continue;
+    if (permissions && tool.domain && (silvioVerifiedToolPermission(tool.schema.function.name,permissions,opts.role) ?? !areaSpentaPerPermessi(permissions,tool.domain)) === false) continue;
+    if (permissions && silvioDataPermissionIssue(tool.schema.function.name, tool.domain, permissions, (tool.riskLevel ?? "safe") !== "safe",opts.role)) continue;
     if (opts.soloLettura && (tool.riskLevel ?? "safe") !== "safe") continue;
     out.push(tool);
   }
@@ -9271,6 +9305,12 @@ export async function executeTool(
   args: Record<string, unknown>,
   ctx: ToolContext,
 ): Promise<unknown> {
+  if(usaPermessiStaff(ctx.primaryRole)||SILVIO_PERMISSION_CONTRACTS[name]){
+    const {executeToolWithRouting}=await import("./silvioToolExecution.ts");
+    const result=await executeToolWithRouting(name,args,ctx);
+    return result.success ? result.proposalId ? {requires_confirmation:true,proposal_id:result.proposalId} : result.data : {error:result.error?.message??"Operazione non consentita"};
+  }
+
   const tool = SILVIO_TOOLS[name];
   if (!tool) return { error: `Tool sconosciuto: ${name}` };
   const channel = ctx.channel ?? "internal_chat";

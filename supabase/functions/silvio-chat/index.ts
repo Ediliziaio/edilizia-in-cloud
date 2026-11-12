@@ -1,3 +1,4 @@
+import { silvioQuestionPermissionIssue } from "../_shared/silvioDataPermission.ts";
 /**
  * Edge Function: silvio-chat
  *
@@ -435,6 +436,10 @@ serve(async (req: Request) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAdmin = auth.supabaseAdmin as any;
 
+    // Stop before model classification, RAG, conversation history or any provider call.
+    const {data:activeActor,error:actorError} = await supabaseAdmin.from("profiles").select("id,is_blocked").eq("id",userId).maybeSingle();
+    if(actorError || !activeActor?.id || activeActor.is_blocked === true) return errorResponse("Accesso non consentito: utente bloccato o non verificabile",403,corsHeaders);
+
     const body = (await req.json()) as ChatPayload;
     const channelId = body?.channel_id?.trim();
     const userMessage = body?.message?.trim() ?? "";
@@ -674,7 +679,7 @@ serve(async (req: Request) => {
     // Only follow-ups wait for the already-started history read. Standalone
     // queries retain parallel retrieval; no extra rewrite/model call is added.
     const conversationPromise = isSilvioReadFollowUp(userMessage) && attachments.length === 0
-      ? historyPromise.then(({ data }) => silvioConversationContext(userMessage, (data ?? []).slice().reverse(), {
+      ? historyPromise.then(({ data }) => silvioConversationContext(userMessage, (data ?? []).filter(m => !usaPermessiStaff(primaryRole) || m.sender_id === userId).slice().reverse(), {
         userId, currentMessageId: requestMessageId,
       })).catch((error: unknown) => {
         console.warn("[silvio-chat] follow-up context unavailable:", error instanceof Error ? error.message : error);
@@ -957,7 +962,7 @@ serve(async (req: Request) => {
     // Partita in 4.bis insieme alle altre letture.
     const { data: historyRaw } = await historyPromise;
 
-    const history = silvioHistoryMessages((historyRaw ?? []).slice().reverse(), {
+    const history = silvioHistoryMessages((historyRaw ?? []).filter(m => !usaPermessiStaff(primaryRole) || m.sender_id === userId).slice().reverse(), {
       assistantSenderId: SILVIO_SENDER_ID,
       currentSenderId: userId,
       currentContent: userMessage,
@@ -996,11 +1001,17 @@ serve(async (req: Request) => {
     let staffPermissions: Record<string, unknown> | null = null;
     if (staffPermsPromise) {
       try {
-        const { data: spRow } = await staffPermsPromise;
+        const { data: spRow, error: spError } = await staffPermsPromise;
+        if (spError || !spRow) throw new Error("Permessi non verificabili");
         staffPermissions = (spRow as Record<string, unknown> | null) ?? null;
       } catch (e) {
-        console.warn("[silvio-chat] staff_permissions fetch failed (nessun filtro extra):", e);
+        return errorResponse("Non riesco a verificare i tuoi permessi. Nessun dato recuperato.", 403, corsHeaders);
       }
+    }
+
+    if (staffPermissions) {
+      const deniedQuestion = silvioQuestionPermissionIssue(userMessage, staffPermissions);
+      if (deniedQuestion) return errorResponse(deniedQuestion, 403, corsHeaders);
     }
 
     // ── Catalogo a due stadi (audit 2026-09-03) ─────────────────────────
@@ -1372,6 +1383,8 @@ serve(async (req: Request) => {
     let lastResult: Awaited<ReturnType<typeof aiRouterComplete>> | null = null;
     let iteration = 0;
     let totalCostEur = 0;
+    const authorizationDenials:string[]=[];
+    const executionFailures:string[]=[];
     const toolCallsLog: Array<{
       name: string;
       args: unknown;
@@ -1563,7 +1576,7 @@ serve(async (req: Request) => {
           // AI Test Lab override (demo only) > persona.recommended_model > config primary
           forceModel: aiTestLabForceModel ?? persona.recommended_model ?? undefined,
           // The shared reader emits only the public answer, including partial structured output.
-          onDelta: STREAMING_ATTIVO && !skipToolsForModel
+          onDelta: STREAMING_ATTIVO && !skipToolsForModel && authorizationDenials.length===0 && executionFailures.length===0
             ? mostraInStreaming
             : undefined,
         });
@@ -1668,6 +1681,8 @@ serve(async (req: Request) => {
         for (let k = 0; k < chiamate.length; k++) {
           const { tc, toolName, toolArgs } = chiamate[k];
           const toolResult = risultati[k];
+          if(!toolResult.success)executionFailures.push(toolResult.error?.message??'Operazione non eseguita');
+          if(!toolResult.success && /^(forbidden_|actor_|session_|permissions_)/.test(toolResult.error?.code??''))authorizationDenials.push(toolResult.error?.message??'Operazione non consentita');
           if (toolName === "search_brain") registerBrainToolSources(toolResult, ragSources);
           const resultStr = silvioToolResultForPrompt(toolResult, risparmioToken ? limiteRisultatoStrumento(charRisultati) : undefined);
           charRisultati += resultStr.length;
@@ -1800,6 +1815,9 @@ serve(async (req: Request) => {
     // leak (tool names, opener narrativi tipo "Ho i dati dai tool. Analizzo:").
     // Anche con BAD/GOOD example nel prompt, Claude Haiku/Mistral Medium
     // dumpano internals dentro answer. Questo è l'ultimo guardiano.
+    if(authorizationDenials.length)finalContent='Non ho eseguito le richieste non autorizzate. '+[...new Set(authorizationDenials)].slice(0,3).join(' ');
+    else if(executionFailures.length)finalContent='Non ho completato le operazioni richieste. '+[...new Set(executionFailures)].slice(0,3).join(' ');
+    if(executionFailures.length)structured=null;
     if (finalContent) {
       const sanitized = sanitizeAnswer(finalContent);
       if (sanitized.wasModified) {

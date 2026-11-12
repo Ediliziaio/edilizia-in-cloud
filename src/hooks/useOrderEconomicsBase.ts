@@ -57,12 +57,11 @@ export function useOrderEconomicsBase(orderId: string, totalAmount: number, item
     enabled: enabled && !!orderId,
     staleTime: 2 * 60 * 1000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_employees")
-        .select("total_cost, cost_preventivo")
-        .eq("order_id", orderId);
+      const client = supabase as unknown as { rpc(name: string, args: Record<string, unknown>): PromiseLike<{ data: { cost: number; budget: number | null } | null; error: Error | null }> };
+      const { data, error } = await client.rpc("commessa_costo_personale_aggregato", { p_order_id: orderId });
       if (error) throw error;
-      return (data ?? []) as { total_cost: number; cost_preventivo: number | null }[];
+      return data ? [{ total_cost: data.cost, cost_preventivo: data.budget }] : [];
+
     },
   });
 

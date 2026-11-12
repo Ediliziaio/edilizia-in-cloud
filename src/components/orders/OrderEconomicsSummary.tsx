@@ -99,7 +99,7 @@ export function OrderEconomicsSummary({
 
   const {
     actual,
-    quality,
+    quality: baseQuality,
     vehicleCosts,
     vehicleCostsError,
     isPending: basePending,
@@ -145,6 +145,7 @@ export function OrderEconomicsSummary({
   const [controlliAperti, setControlliAperti] = useState(false);
   // «Scarica conto economico»: macro-voci, fasi, incassi e pagamenti in un documento da stampare o salvare in PDF.
   const permessi = usePermissions();
+  const quality = { ...baseQuality, canShowMargin: baseQuality.canShowMargin && permessi.canViewMargins };
   const [documento, setDocumento] = useState<{ html: string; nome: string } | null>(null);
   const [preparando, setPreparando] = useState(false);
   const scaricaConto = async () => {
@@ -161,7 +162,7 @@ export function OrderEconomicsSummary({
             : null),
       ]);
       const html = htmlContoEconomico(dossier, { ragione_sociale: azienda?.name ?? "", logo_url: azienda?.logo_url ?? null },
-        { mostraMargini: quality.canShowMargin && (permessi.canViewMargins || permessi.canViewCosts), mostraIncassi: permessi.canViewOrderAmounts });
+        { mostraMargini: quality.canShowMargin, mostraIncassi: permessi.canViewOrderAmounts });
       setDocumento({ html, nome: `conto-economico-${dossier.ordine.codice ?? orderId.slice(0, 8)}` });
     } catch (e) {
       console.error("[conto economico] documento non preparato:", e);

@@ -16,8 +16,27 @@
  */
 import type { PersistedClient, Persister } from "@tanstack/react-query-persist-client";
 import { get, set, del } from "idb-keyval";
+import { authStorage } from "@/integrations/supabase/authStorage";
 
-const KEY = "rq-cache-v1";
+const LEGACY_KEY = "rq-cache-v1";
+const KEY = "rq-cache-v2";
+/** Cache ownership is not authentication; it prevents hydrating another user's data. */
+export function storedQueryCacheIdentity(): string | null {
+  try {
+    const url=new URL(import.meta.env.VITE_SUPABASE_URL);
+    const raw=authStorage.getItem(`sb-${url.hostname.split(".")[0]}-auth-token`);
+    const value=raw ? JSON.parse(raw) : null;
+    return typeof value?.user?.id === "string" ? value.user.id : null;
+  } catch {return null;}
+}
+let cacheIdentity=storedQueryCacheIdentity();
+let identityGeneration=0;
+export function bindQueryCacheIdentity(userId:string|null) {
+  cacheIdentity=userId;identityGeneration++;
+}
+export async function removeIdentityQueryCache(userId:string|null) {
+  await Promise.all([del(LEGACY_KEY),...(userId?[del(`${KEY}:${userId}`)]:[])]);
+}
 
 let persistErrorLogged = false;
 
@@ -40,11 +59,13 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | undefined> {
   });
 }
 
-export function createIdbPersister(): Persister {
+export function createIdbPersister(resolveOwner:()=>string|null=storedQueryCacheIdentity): Persister {
   return {
     persistClient: async (client: PersistedClient) => {
+      const owner=resolveOwner();
+      if(!owner || owner!==cacheIdentity)return;
       try {
-        await set(KEY, client);
+        await set(`${KEY}:${owner}`, {owner,client});
       } catch (err) {
         // Difesa: se lo snapshot contiene dati non clonabili (DataCloneError —
         // es. una Promise nei dati di una query), idb-keyval lancia. La persistenza
@@ -59,11 +80,15 @@ export function createIdbPersister(): Persister {
     restoreClient: async () => {
       // Timeout 3s: se IndexedDB si blocca all'apertura (WKWebView iOS), riparti
       // senza cache invece di lasciare l'app in "isRestoring" per sempre.
-      const restored = await withTimeout(get<PersistedClient>(KEY), 3000);
-      return restored ?? undefined;
+      const owner=resolveOwner(),generation=identityGeneration;
+      void del(LEGACY_KEY).catch(()=>{});
+      if(!owner || owner!==cacheIdentity)return undefined;
+      const restored=await withTimeout(get<{owner:string;client:PersistedClient}>(`${KEY}:${owner}`),3000);
+      if(owner!==resolveOwner() || owner!==cacheIdentity || generation!==identityGeneration || restored?.owner!==owner)return undefined;
+      return restored.client;
     },
     removeClient: async () => {
-      await del(KEY);
+      await removeIdentityQueryCache(resolveOwner());
     },
   };
 }

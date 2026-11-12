@@ -177,9 +177,8 @@ describe("legacy granular permissions and truthful outcomes", () => {
     actorResult(["company_staff"]);
     runtime.db.tabelle.staff_permissions = [{ company_id: "company-a", user_id: "actor", sola_lettura: false,
       can_view_preventivi: true, can_edit_preventivi: true, only_assigned: true, only_my_warehouse: false }];
-    expect((await run()).status).toBe(403);
-    runtime.db.tabelle.staff_permissions[0].only_assigned = false;
-    expect((await run()).body.ok).toBe(true);
+    expect((await run(false)).body.ok).toBe(true);
+    expect(runtime.execute).toHaveBeenCalledWith(expect.any(String),expect.any(Object),expect.objectContaining({authToken:"Bearer local-user",userId:"actor"}),expect.anything());
   });
   it.each([{ message: "database unavailable" }, null, "throw" as const])("does not report success or release the claim when outcome saving fails: %j", async error => {
     failOutcomeSave(error);

@@ -118,7 +118,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const { user, effectiveCompany } = useAuth();
   const { vertical } = useVertical();
   const queryClient = useQueryClient();
-  const { onlyAssigned, canViewCosts } = usePermissions();
+  const { onlyAssignedWork: onlyAssigned, canViewCosts } = usePermissions();
   const { canCreateOrder, isScopriPlan, currentPlan, remainingOrders } = useSubscriptionLimits();
   const track = useTrack();
 

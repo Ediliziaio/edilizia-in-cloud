@@ -1,3 +1,7 @@
+import{toolActorRoleIsCurrent}from"./silvioActorRole.ts";
+import {SILVIO_PERMISSION_CONTRACTS,staffToolRoleAllowed}from"./silvioPermissionContracts.ts";
+import{scopedToolContext,executeAuthorizedRead}from"./silvioAuthorizedTools.ts";
+import { silvioDataPermissionIssue, silvioVerifiedToolPermission } from "./silvioDataPermission.ts";
 /**
  * MP-AIE-01 v2 — Helper di esecuzione tool con risk-level routing + audit.
  *
@@ -92,6 +96,8 @@ export async function executeToolWithRouting(
     };
   }
 
+  if(!await toolActorRoleIsCurrent(ctx))return{success:false,toolName,durationMs:Date.now()-t0,error:{code:"forbidden_actor",message:"Il ruolo o l’accesso all’azienda non è più valido. Nessuna operazione eseguita."}};
+
   // ── Permission: roles ──
   // FAIL-CLOSED: un tool senza allowedRoles è riservato agli admin
   // (DEFAULT_TOOL_ALLOWED_ROLES), mai eseguibile da qualsiasi ruolo.
@@ -99,7 +105,7 @@ export async function executeToolWithRouting(
     const toolRoles = tool.allowedRoles && tool.allowedRoles.length > 0
       ? tool.allowedRoles
       : DEFAULT_TOOL_ALLOWED_ROLES;
-    if (!toolRoles.includes(ctx.primaryRole) && !toolRoles.includes("*")) {
+    if (!staffToolRoleAllowed(toolName,ctx.primaryRole,toolRoles)) {
       await logAudit(ctx, tool, toolName, {
         inputPayload: sanitize(input),
         outputPayload: null,
@@ -118,6 +124,17 @@ export async function executeToolWithRouting(
     }
   }
 
+  // A previously issued JWT/chat context must not bypass a freshly blocked account.
+  if (ctx.userId) {
+    try {
+      const {data:actor,error} = await ctx.supabase.from("profiles").select("id,is_blocked").eq("id",ctx.userId).maybeSingle();
+      if(error || !actor?.id || actor.is_blocked === true) return {
+        success:false,toolName,durationMs:Date.now()-t0,
+        error:{code:"actor_unavailable",message:"Accesso non consentito: utente bloccato o non verificabile."},
+      };
+    } catch { return {success:false,toolName,durationMs:Date.now()-t0,error:{code:"actor_unavailable",message:"Non riesco a verificare l’accesso dell’utente. Nessun dato recuperato."}}; }
+  }
+
   // ── Permission: permessi granulari per-dominio (staff_permissions) ──
   // getToolsForChannel li applica solo alla LISTA mostrata al modello, e solo
   // se il chiamante li passa (silvio-chat sì, telegram/ai-orchestrator no).
@@ -130,7 +147,7 @@ export async function executeToolWithRouting(
   // Tutti i ruoli che nell'app lavorano coi permessi della riga (venditore,
   // call center, operaio, subappaltatore), non solo company_staff.
   if (usaPermessiStaff(ctx.primaryRole)) {
-    staffPerms = ctx.staffPermissions ?? null;
+    staffPerms = null; // Re-read for every execution: cached chat permissions may have been revoked.
     if (!staffPerms) {
       // Non passati dal chiamante: li leggiamo noi. Una query in più è
       // preferibile a un permesso granulare aggirato.
@@ -151,13 +168,17 @@ export async function executeToolWithRouting(
       }
     }
   }
+  if (usaPermessiStaff(ctx.primaryRole) && !staffPerms) return {
+    success: false, toolName, durationMs: Date.now()-t0,
+    error: {code:"permissions_unavailable", message:"Non riesco a verificare i permessi. Nessun dato recuperato."},
+  };
   if (usaPermessiStaff(ctx.primaryRole) && tool.domain) {
     const permKey = DOMAIN_STAFF_PERMISSION[tool.domain] ?? "area_senza_permesso";
     {
       // Nessuna riga permessi = nessuna restrizione esplicita (comportamento
       // storico dell'app): si nega solo quando i permessi che aprono l'area
       // sono tutti esplicitamente false.
-      if (areaSpentaPerPermessi(staffPerms, tool.domain)) {
+      if ((silvioVerifiedToolPermission(toolName,staffPerms!,ctx.primaryRole) ?? !areaSpentaPerPermessi(staffPerms,tool.domain)) === false) {
         await logAudit(ctx, tool, toolName, {
           inputPayload: sanitize(input),
           outputPayload: null,
@@ -179,6 +200,34 @@ export async function executeToolWithRouting(
       }
     }
   }
+
+  if (usaPermessiStaff(ctx.primaryRole) && staffPerms) {
+    const writing = (tool.riskLevel ?? "safe") !== "safe" || /^(crea|create|update|aggiorna|delete|elimina|segna|registra|assegna|invia|send|chiudi|approva|importa|sposta)_/.test(toolName);
+    const issue = staffPerms.sola_lettura === true && writing ? "Il tuo accesso è in sola lettura. Nessuna azione eseguita." : silvioDataPermissionIssue(toolName, tool.domain, staffPerms, writing,ctx.primaryRole,input??{});
+    if (issue) return {success:false,toolName,durationMs:Date.now()-t0,error:{code:"forbidden_data",message:issue}};
+    if (writing) {
+      const restrictedInput = applyStaffScope(input, {
+        codiciConsentiti:new Set(), idConsentiti:new Set(), commesseRistrette:false,
+        nascondiImporti:staffPerms.can_view_order_amounts!==true,
+        nascondiMargini:staffPerms.can_view_margins!==true,
+        nascondiCosti:staffPerms.can_view_costs!==true && staffPerms.can_manage_purchasing!==true,
+        nascondiPersonale:staffPerms.can_view_costs!==true || (staffPerms.can_view_employees!==true && staffPerms.can_view_persone!==true),
+        nascondiIncassi:staffPerms.can_view_order_amounts!==true,
+      },tool.domain);
+      if ((JSON.stringify(restrictedInput) ?? "").includes(VALORE_NASCOSTO)) return {success:false,toolName,durationMs:Date.now()-t0,error:{code:"forbidden_data",message:"L’azione contiene campi economici o personali che non puoi modificare. Nessuna azione eseguita."}};
+    }
+
+    ctx = {...ctx, staffPermissions:staffPerms};
+  }
+
+  const newScopedTool=['leggi_dati_autorizzati','modifica_contatto_autorizzato','modifica_opportunita_autorizzata'].includes(toolName);
+  if(newScopedTool && !usaPermessiStaff(ctx.primaryRole))ctx={...ctx,staffPermissions:{can_view_orders:true,can_view_order_amounts:true,can_view_order_payment_status:true,can_view_costs:true,can_view_margins:true,can_view_employees:true,can_view_persone:true,can_view_marketing_contacts:true,can_edit_marketing_contacts:true,can_view_marketing_opportunities:true,can_edit_marketing_opportunities:true,can_view_billing:true,can_manage_suppliers:true,can_manage_purchasing:true,can_view_calendar:true,can_view_team_tasks:true,can_view_marketing_activities:true,only_assigned:false,sola_lettura:false}};
+  const permissionContract=usaPermessiStaff(ctx.primaryRole)||newScopedTool?SILVIO_PERMISSION_CONTRACTS[toolName]:undefined;
+  let executorContext=ctx;
+  if(permissionContract){
+    try{executorContext=await scopedToolContext(ctx);}catch(e){return{success:false,toolName,durationMs:Date.now()-t0,error:{code:"session_required",message:e instanceof Error?e.message:"Sessione non verificabile"}};}
+  }
+  const runTool=()=>permissionContract?.adapter?executeAuthorizedRead(toolName,input??{},executorContext):tool.executor(input,executorContext);
 
   // ── Permission: persona ──
   if (ctx.personaKey && tool.allowedPersonas && tool.allowedPersonas.length > 0) {
@@ -329,7 +378,7 @@ export async function executeToolWithRouting(
       const rule = await matchDecisionRule(ctx, tool, input);
       if (rule && rule.azione === "auto_approva") {
         try {
-          const raw = await tool.executor(input, ctx);
+          const raw = await runTool();
           assertToolSucceeded(raw);
           const data = scope ? applyStaffScope(raw, scope, tool.domain) : raw;
           await logAudit(ctx, tool, toolName, {
@@ -391,7 +440,7 @@ export async function executeToolWithRouting(
 
   // ── Esecuzione (safe oppure yellow preApproved) ──
   try {
-    const raw = await tool.executor(input, ctx);
+    const raw = await runTool();
     assertToolSucceeded(raw);
     const data = scope ? applyStaffScope(raw, scope, tool.domain) : raw;
     await logAudit(ctx, tool, toolName, {
@@ -449,7 +498,7 @@ export async function executeToolWithRouting(
    solo sui campi che si riconoscono per nome. Chi non ha restrizioni non passa
    nemmeno di qua (loadStaffScope ritorna null). */
 
-interface StaffScope {
+export interface StaffScope {
   /** Codici delle commesse che l'utente puo' vedere (upper-case). */
   codiciConsentiti: Set<string>;
   /** Id delle commesse che l'utente puo' vedere. */
@@ -458,6 +507,9 @@ interface StaffScope {
   commesseRistrette: boolean;
   nascondiImporti: boolean;
   nascondiMargini: boolean;
+  nascondiCosti: boolean;
+  nascondiPersonale: boolean;
+  nascondiIncassi: boolean;
 }
 
 /** Chiavi che identificano UNA commessa dentro il risultato di un tool. */
@@ -488,10 +540,13 @@ async function loadStaffScope(
   if (!usaPermessiStaff(ctx.primaryRole) || !perms) return null;
   // Due modalita' ristrette sulle commesse, entrambe da rispettare:
   // "solo quelle assegnate a me" e "solo quelle del mio magazzino".
-  const commesseRistrette = perms.only_assigned === true || perms.only_my_warehouse === true;
-  const nascondiImporti = perms.can_view_order_amounts === false;
-  const nascondiMargini = perms.can_view_margins === false;
-  if (!commesseRistrette && !nascondiImporti && !nascondiMargini) return null;
+  const commesseRistrette = ["employee", "subcontractor", "worker"].includes(ctx.primaryRole) || perms.only_my_warehouse === true;
+  const nascondiImporti = perms.can_view_order_amounts !== true;
+  const nascondiMargini = perms.can_view_margins !== true;
+  const nascondiCosti = perms.can_view_costs !== true && perms.can_manage_purchasing !== true;
+  const nascondiPersonale = nascondiCosti || (perms.can_view_employees !== true && perms.can_view_persone !== true);
+  const nascondiIncassi = nascondiImporti && perms.can_view_order_payment_status !== true;
+  if (!commesseRistrette && !nascondiImporti && !nascondiMargini && !nascondiCosti && !nascondiPersonale && !nascondiIncassi) return null;
 
   const codici = new Set<string>();
   const ids = new Set<string>();
@@ -515,7 +570,7 @@ async function loadStaffScope(
       // doveva vedere.
     }
   }
-  return { codiciConsentiti: codici, idConsentiti: ids, commesseRistrette, nascondiImporti, nascondiMargini };
+  return { codiciConsentiti: codici, idConsentiti: ids, commesseRistrette, nascondiImporti, nascondiMargini, nascondiCosti, nascondiPersonale, nascondiIncassi };
 }
 
 /** Il nome del campo indica una commessa? Ritorna il valore normalizzato. */
@@ -557,29 +612,47 @@ function orderCodeNotAllowed(input: unknown, scope: StaffScope): string | null {
  * valori di importo/margine che non puo vedere. Non tocca la struttura, cosi
  * il modello legge lo stesso formato di sempre.
  */
-function applyStaffScope(data: unknown, scope: StaffScope, domain?: string): unknown {
+export function applyStaffScope(data: unknown, scope: StaffScope, domain?: string): unknown {
   const importiQui = scope.nascondiImporti && (!domain || DOMINI_IMPORTI_COMMESSA.has(domain));
-  let righeTolte = 0;
 
-  const walk = (node: unknown): unknown => {
+  const walk = (node: unknown, personal = false, insideOrder = false): unknown => {
+    if (typeof node === "string") {
+      if (/\/object\/sign\/|[?&](token|access_token)=/i.test(node)) return VALORE_NASCOSTO;
+      if (/\d/.test(node) && (
+        (scope.nascondiPersonale && /stipend|retribuz|bust[ae][ _-]?pag|cedolin|costo[ _-]?orario|hourly|salary/i.test(node)) ||
+        (scope.nascondiCosti && /cost[oi]|acquist|spes[ae]/i.test(node)) ||
+        (scope.nascondiMargini && /margin|margine|utile|redditiv/i.test(node)) ||
+        (importiQui && /€|euro|vendut|contratt|fattur|incassat|prezz|import/i.test(node))
+      )) return VALORE_NASCOSTO;
+    }
     if (Array.isArray(node)) {
       const out: unknown[] = [];
       for (const el of node) {
         if (scope.commesseRistrette && el && typeof el === "object" && !Array.isArray(el)) {
           const rif = estraiCommessa(el as Record<string, unknown>);
-          if (rif && !commessaConsentita(rif, scope)) { righeTolte++; continue; }
+          if (rif && !commessaConsentita(rif, scope)) { continue; }
         }
-        out.push(walk(el));
+        out.push(walk(el, personal, insideOrder));
       }
       return out;
     }
     if (node && typeof node === "object") {
       const src = node as Record<string, unknown>;
+      const reference = estraiCommessa(src);
+      insideOrder = insideOrder || !!(reference && commessaConsentita(reference,scope));
+      personal = personal || ["employee_id","dipendente_id","costo_orario","hourly_rate"].some(k => k in src);
       const out: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(src)) {
+        // Company-wide aggregates cannot be made safe by filtering their detail rows.
+        if(scope.commesseRistrette && !insideOrder && (typeof v === "number" || typeof v === "boolean" || /^(kpi|totali|totals|summary)$/i.test(k) || ((RE_IMPORTO.test(k)||RE_MARGINE.test(k)||/total|count|contegg/i.test(k)) && !Array.isArray(v)))) {out[k]=VALORE_NASCOSTO;continue;}
+        if(!scope.nascondiIncassi && typeof v === "boolean" && /^(incassata_tutta|is_paid|deposit_paid|balance_paid|is_fully_paid)$/i.test(k)) {out[k]=v;continue;}
+        const economicPersonal = /salary|stipend|retribuz|hourly|costo_orario|tariffa|cedolin|net_salary|gross_salary|inps/i.test(k) || (personal && /cost|costo|budget|preventivo|note/i.test(k));
+        if (scope.nascondiPersonale && economicPersonal) { out[k] = VALORE_NASCOSTO; continue; }
+        if (scope.nascondiCosti && /cost|costo|acquist|consuntivo|costi|spes[ae]/i.test(k) && typeof v !== "object") { out[k] = VALORE_NASCOSTO; continue; }
+        if (scope.nascondiIncassi && /is_paid|paid_date|deposit_paid|balance_paid|incassata_tutta|is_fully_paid|stato_incass|stato_pagament/i.test(k)) { out[k] = VALORE_NASCOSTO; continue; }
         if (scope.nascondiMargini && RE_MARGINE.test(k)) { out[k] = VALORE_NASCOSTO; continue; }
-        if (importiQui && RE_IMPORTO.test(k) && typeof v !== "object") { out[k] = VALORE_NASCOSTO; continue; }
-        out[k] = walk(v);
+        if (importiQui && RE_IMPORTO.test(k) && !/cost|costo|acquist/i.test(k) && typeof v !== "object") { out[k] = VALORE_NASCOSTO; continue; }
+        out[k] = walk(v, personal || /^(persone|employees|dipendenti|presenze_registrate|personale)$/i.test(k), insideOrder);
       }
       return out;
     }
@@ -589,10 +662,8 @@ function applyStaffScope(data: unknown, scope: StaffScope, domain?: string): unk
   const scremato = walk(data);
   if (scremato && typeof scremato === "object" && !Array.isArray(scremato)) {
     const note: string[] = [];
-    if (righeTolte > 0) {
-      note.push(righeTolte === 1
-        ? "1 riga non mostrata: riguarda una commessa fuori dalla visibilita di chi sta chiedendo."
-        : `${righeTolte} righe non mostrate: riguardano commesse fuori dalla visibilita di chi sta chiedendo.`);
+    if (scope.commesseRistrette) {
+      note.push("Il risultato è limitato alle commesse che puoi consultare. Conteggi e totali aziendali non sono mostrati perché possono includere commesse fuori dal tuo perimetro.");
     }
     if (scope.nascondiMargini) note.push("I margini non sono visibili con i permessi di questo utente.");
     if (importiQui) note.push("Gli importi di commessa non sono visibili con i permessi di questo utente.");
