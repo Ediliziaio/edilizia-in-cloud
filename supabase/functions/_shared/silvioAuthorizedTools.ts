@@ -1,7 +1,7 @@
-import {createClient}from'https://esm.sh/@supabase/supabase-js@2';
-import {protectedOrderUrl}from'../../../src/lib/orders/protectedOrderRequests.ts';
-import type{ToolContext}from'./silvioTools.ts';
-import{SILVIO_PERMISSION_CONTRACTS,contractPermission}from'./silvioPermissionContracts.ts';
+import {createClient} from 'https://esm.sh/@supabase/supabase-js@2';
+import {protectedOrderUrl} from '../../../src/lib/orders/protectedOrderRequests.ts';
+import type{ToolContext} from './silvioTools.ts';
+import {SILVIO_PERMISSION_CONTRACTS,contractPermission} from './silvioPermissionContracts.ts';
 
 /** The user JWT is bound to the actor and kept on every DB request, including RPCs. */
 export async function scopedToolContext(ctx:ToolContext):Promise<ToolContext>{

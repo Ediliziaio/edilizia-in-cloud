@@ -1,4 +1,4 @@
-import {contractPermission}from"./silvioPermissionContracts.ts";
+import {contractPermission} from "./silvioPermissionContracts.ts";
 /** These two tools have exact granular gates; legacy aggregate flags are not grants. */
 export function silvioVerifiedToolPermission(name:string,p:Record<string,unknown>,role?:string):boolean|null {
  const contract=contractPermission(name,p,role);if(contract!==null)return contract;
