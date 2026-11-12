@@ -197,7 +197,8 @@ function ContenutoPurchaseOrderDetail() {
   const infoOrigine = ODA_ORIGINE_INFO[origine] ?? ODA_ORIGINE_INFO.email;
   // I passaggi dipendono da come si e' ordinato: chi compra al banco ha gia'
   // la merce, "inviato" e "confermato" sarebbero due clic per finta.
-  const nextStatuses = prossimiStatiOda(order.status, origine);
+  const arrivato = ddtList.length > 0 || items.some((i) => Number(i.quantity_received ?? 0) > 0);
+  const nextStatuses = prossimiStatiOda(order.status, origine, arrivato);
 
   // Oggetto e corpo precompilati per il compositore: sono solo una bozza, chi
   // invia li puo' riscrivere come vuole prima di mandare.

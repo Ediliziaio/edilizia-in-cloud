@@ -105,8 +105,10 @@ export const ODA_ORIGINE_LABELS: Record<string, string> = {
  * Chi compra al banco salta dritto a "ricevuto": non c'e' niente da inviare
  * ne' da farsi confermare. Chi compra online parte da "confermato": l'ordine
  * e' gia' andato, il sito ha gia' risposto.
+ * `arrivato`: c'e' merce ricevuta o un DDT collegato. Di serie si da' per vero, cosi'
+ * chi non lo sa non apre l'annullamento di un ordine gia' consegnato.
  */
-export function prossimiStatiOda(status: string, origine: string | null | undefined): string[] {
+export function prossimiStatiOda(status: string, origine: string | null | undefined, arrivato = true): string[] {
   const org = (origine ?? "email") as OdaOrigine;
   if (status === "bozza") {
     if (org === "negozio") return ["ricevuto", "annullato"];
@@ -114,7 +116,9 @@ export function prossimiStatiOda(status: string, origine: string | null | undefi
     return ["inviato", "annullato"];
   }
   if (status === "inviato") return ["confermato", "annullato"];
-  if (status === "confermato") return ["parziale", "ricevuto"];
-  if (status === "parziale") return ["ricevuto"];
+  // Confermato o parziale si annulla finché non è arrivato niente (12/11/2026): prima non si
+  // poteva, e l'eliminazione rimandava all'annullamento che non c'era. Con merce o DDT, no.
+  if (status === "confermato") return arrivato ? ["parziale", "ricevuto"] : ["parziale", "ricevuto", "annullato"];
+  if (status === "parziale") return arrivato ? ["ricevuto"] : ["ricevuto", "annullato"];
   return [];
 }
