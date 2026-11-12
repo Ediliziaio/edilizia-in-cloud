@@ -32,6 +32,8 @@ import {
   stessaVoce,
   documentoCompatibileConFornitore,
   type RigaConfronto,
+  type RigaBollaConfronto,
+  type EsitoRigaConfronto,
 } from "@/lib/fatturazione/confrontoDocumenti";
 import { originaleDaRiferimento } from "@/lib/fatturazione/originaliConfronto";
 import { messaggioSalvataggio } from "@/lib/fatturazione/salvataggioFattura";
@@ -86,12 +88,14 @@ function TabellaDocumenti({
   riferimenti,
   onSeleziona,
   allinea,
+  disponibilita,
 }: {
   righe: RigaConfronto[];
   evidenziate: Set<string>;
   riferimenti: Map<string, number[]>;
   onSeleziona: (indice: number) => void;
   allinea: boolean;
+  disponibilita?: ReadonlyMap<string, RigaBollaConfronto>;
 }) {
   const visualizzate = useMemo(
     () =>
@@ -172,6 +176,18 @@ function TabellaDocumenti({
               </td>
               <td className="p-2 text-right tabular-nums">
                 {quantita(r.quantita)}
+                {disponibilita && (
+                  <div className="mt-1 whitespace-nowrap text-[10px] text-muted-foreground">
+                    {(disponibilita.get(r.id)?.giaFatturata ?? 0) > 0 && (
+                      <p>Già fatturati: {quantita(disponibilita.get(r.id)!.giaFatturata)}</p>
+                    )}
+                    <p title="Quantità del DDT non attribuita ad altre fatture, al netto delle note di credito registrate.">
+                      {!disponibilita.has(r.id) || disponibilita.get(r.id)!.residuoIncerto || r.quantita == null
+                        ? "Residuo da verificare"
+                        : `Residuo: ${quantita(Math.max(0, r.quantita - disponibilita.get(r.id)!.giaFatturata))}`}
+                    </p>
+                  </div>
+                )}
               </td>
               <td className="p-2">{r.um || "—"}</td>
               <td className="whitespace-nowrap p-2 text-right tabular-nums">
@@ -311,6 +327,18 @@ export function ConfrontoFatturaDialog({
     ai.dati.data &&
     JSON.stringify(datiRiconciliazione(ai.dati.data.contesto).fattura) ===
       JSON.stringify(righe);
+  const residuiNonDisponibili = !!(
+    ai.dati.isError || ai.dati.isLoading || ai.dati.isFetching ||
+    (ai.dati.data && !datiAllineatiAI)
+  );
+  const disponibilitaDDT = useMemo(
+    () => new Map(
+      ai.dati.data && datiAllineatiAI && !residuiNonDisponibili
+        ? datiRiconciliazione(ai.dati.data.contesto).bolle.map((b) => [b.id, b] as const)
+        : [],
+    ),
+    [ai.dati.data, datiAllineatiAI, residuiNonDisponibili],
+  );
   const abbinamentiAI = useMemo(
     () =>
       analisiAI && datiAllineatiAI
@@ -329,7 +357,20 @@ export function ConfrontoFatturaDialog({
       );
     return stessaVoce(f, r);
   };
-  const esiti = useMemo(() => {
+  const esiti = useMemo<EsitoRigaConfronto[]>(() => {
+    if (residuiNonDisponibili) {
+      return righe.map((): EsitoRigaConfronto => ({
+        stato: "da_controllare" as const,
+        motivo: ai.dati.isError
+          ? "Residui delle altre fatture non disponibili. Aggiorna il confronto prima di controllare le quantità."
+          : "Sto aggiornando i residui delle altre fatture collegate.",
+        quantitaDisponibile: null,
+        prezzoConcordato: null,
+        deltaPrezzo: null,
+        deltaImporto: null,
+        ddtRighe: [],
+      }));
+    }
     if (ai.dati.data && datiAllineatiAI) {
       const c = ai.dati.data.contesto,
         d = datiRiconciliazione(c);
@@ -382,6 +423,8 @@ export function ConfrontoFatturaDialog({
     ai.dati.data,
     datiAllineatiAI,
     analisiAI,
+    residuiNonDisponibili,
+    ai.dati.isError,
   ]);
   const riferimenti = new Map(
     (doc?.righe ?? []).map((r) => [
@@ -478,7 +521,7 @@ export function ConfrontoFatturaDialog({
           <Button
             size="sm"
             disabled={
-              q.isError || q.isFetching || !righe.length || !scelti.size
+              q.isError || q.isFetching || residuiNonDisponibili || !righe.length || !scelti.size
             }
             onClick={() => setControllo(true)}
           >
@@ -1127,6 +1170,7 @@ export function ConfrontoFatturaDialog({
                       riferimenti={riferimenti}
                       onSeleziona={selezionaRiga}
                       allinea={allineaVoci}
+                      disponibilita={doc.tipo === "ddt" ? disponibilitaDDT : undefined}
                     />
                     {doc.tipo === "ddt" && (
                       <p className="text-xs text-muted-foreground">
@@ -1137,7 +1181,7 @@ export function ConfrontoFatturaDialog({
                             ? "magazzino"
                             : "da verificare"}
                         .
-                        {doc.bolle.some((b) => b.giaFatturata > 0) &&
+                        {doc.righe.some((r) => (disponibilitaDDT.get(r.id)?.giaFatturata ?? 0) > 0) &&
                           " Parte delle quantità è già presente in precedenti confronti fattura."}
                       </p>
                     )}

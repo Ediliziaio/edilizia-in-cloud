@@ -49,8 +49,10 @@ BEGIN
              SELECT rolname::text FROM pg_roles WHERE oid = ANY(p.polroles) ORDER BY rolname), ','),
              '') AS ruoli,
            count(*)::int AS quante,
-           string_agg('(' || pg_get_expr(p.polqual, p.polrelid) || ')', E'\n    OR ') AS condizione,
-           array_agg(p.polname::text) AS nomi
+           -- Il nome dà lo stesso ordine dell’indice del catalogo, anche quando
+           -- il pianificatore sceglie una scansione sequenziale.
+           string_agg('(' || pg_get_expr(p.polqual, p.polrelid) || ')', E'\n    OR ' ORDER BY p.polname) AS condizione,
+           array_agg(p.polname::text ORDER BY p.polname) AS nomi
       FROM pg_policy p
      WHERE p.polrelid = p_tabella
        AND p.polpermissive

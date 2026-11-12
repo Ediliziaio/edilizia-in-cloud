@@ -72,7 +72,12 @@ try:
             elif 'statement timeout' in result.stderr: reason = 'statement_timeout'
             elif 'cambiata dopo il censimento' in result.stderr: reason = 'policy_fingerprint_changed'
             elif 'non trovata: lotto fermo' in result.stderr: reason = 'policy_missing'
-            print(json.dumps({'ok':False,'file':applied[-1] if applied else 'foundation','completed':max(0,len(applied)-1),'reason':reason}),flush=True)
+            metadata = {'ok':False,'file':applied[-1] if applied else 'foundation','completed':max(0,len(applied)-1),'reason':reason}
+            # Identify the failed guard without exposing SQL bodies or legacy credentials.
+            policy = re.search(r'Policy "([^"\r\n]{1,160})" su ([a-zA-Z_][a-zA-Z0-9_]*) cambiata dopo il censimento', result.stderr)
+            if reason == 'policy_fingerprint_changed' and policy:
+                metadata['policy'] = {'table':policy[2], 'name':policy[1]}
+            print(json.dumps(metadata),flush=True)
             if os.getenv('EIC_LOCAL_PRIVATE_ERROR'):
                 Path(os.environ['EIC_LOCAL_PRIVATE_ERROR']).write_text(result.stderr)
             raise RuntimeError('Migration replay failed; SQL context withheld')
