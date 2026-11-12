@@ -58,6 +58,11 @@ export async function processCampoOffline(item: SyncItem): Promise<void> {
       userId: owner,
       orderId: typeof payload.order_id === "string" ? payload.order_id : null,
       source: payload.source === "desktop" ? "desktop" : "campo",
+      destinazione:
+        payload.destinazione === "magazzino" || payload.destinazione === "cantiere"
+          ? payload.destinazione
+          : undefined,
+      warehouseId: typeof payload.warehouse_id === "string" ? payload.warehouse_id : null,
       operationId: await syncOperationId(item),
     });
     return;

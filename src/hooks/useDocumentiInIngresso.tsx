@@ -35,7 +35,11 @@ export function useDocumentiInIngresso(enabled = true) {
       if (error) throw error;
       void avviaLetturaPersistente(j.id).catch(() => {});
       await qc.invalidateQueries({ queryKey: ["ddt-documenti"] });
-      toast.success("Lettura rimessa in coda");
+      toast.success(
+        j.status === "da_leggere"
+          ? "Lettura con l'AI avviata"
+          : "Lettura rimessa in coda",
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Non riesco a riprovare");
     } finally {

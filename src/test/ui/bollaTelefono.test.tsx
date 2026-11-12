@@ -9,7 +9,7 @@ const m = vi.hoisted(() => ({
   magazzino: { id: "w" } as { id: string } | null,
 }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => m.permessi }));
-vi.mock("@/hooks/useWarehouses", () => ({ useWarehouses: () => ({ defaultWarehouse: m.magazzino }) }));
+vi.mock("@/hooks/useWarehouses", () => ({ useWarehouses: () => ({ defaultWarehouse: m.magazzino, warehouses: m.magazzino ? [m.magazzino] : [], isFetched: true }) }));
 vi.mock("@/hooks/useDDTRicezione", () => ({
   useDDTRicezioneMutations: () => ({ createDDT: { mutateAsync: m.create } }),
   useDDTAttachments: () => ({ uploadMainDDT: { mutateAsync: m.upload }, uploadAttachments: { mutateAsync: m.upload } }),
@@ -19,7 +19,11 @@ vi.mock("@/integrations/supabase/client", () => {
   Object.assign(q, { select: () => q, eq: () => q, limit: () => Promise.resolve({ data: [{ id: "f1", name: "Edil Srl", vat_number: "01234567890", fiscal_code: null }], error: null }) });
   return { supabase: { from: () => q, storage: { from: () => ({ download: async () => ({ data: new Blob(["x"], { type: "image/jpeg" }), error: null as null }) }) } } };
 });
-vi.mock("@/lib/ddt/documentiPersistenti", () => ({ documentiDb: { rpc: m.rpc }, leggiPersistente: m.leggi }));
+vi.mock("@/lib/ddt/documentiPersistenti", () => ({
+  documentiDb: { rpc: m.rpc },
+  leggiPersistente: m.leggi,
+  destinazioneDocumento: (j: { destinazione?: string | null; order_id: string | null }) => j.destinazione ?? (j.order_id ? "cantiere" : "magazzino"),
+}));
 vi.mock("@/lib/ddt/caricoAlSalvataggio", async (orig) => ({
   ...(await orig<typeof import("@/lib/ddt/caricoAlSalvataggio")>()),
   caricaAlSalvataggio: m.carica,
@@ -88,7 +92,7 @@ it("con l'AI: si vede cosa ha letto (fornitore riconosciuto, numero, righe) e si
   expect(m.carica).not.toHaveBeenCalled();
 });
 
-it("con l'AI, per il magazzino senza magazzini registrati la conferma resta all'ufficio", async () => {
+it("con l'AI, per il magazzino senza magazzini la bolla si conferma lo stesso: magazzino nullo, carico in sospeso (12/11)", async () => {
   m.magazzino = null;
   m.leggi.mockResolvedValue({ files: [{ path: "p", name: "b.jpg", mime: "image/jpeg", size: 1 }], result: { intestazione: { numero_ddt: "1", data_ddt: "2026-11-10" }, righe_merce: [] } });
   conClient(
@@ -99,6 +103,27 @@ it("con l'AI, per il magazzino senza magazzini registrati la conferma resta all'
     />,
   );
   const conferma = await screen.findByRole("button", { name: "Conferma la bolla" });
-  expect(conferma).toBeDisabled();
-  expect(conferma).toHaveAttribute("title", expect.stringMatching(/la registra l'ufficio/));
+  expect(conferma).toBeEnabled();
+  expect(screen.getByText(/non ha ancora un magazzino/)).toBeInTheDocument();
+  expect(screen.queryByRole("checkbox", { name: "Carica in magazzino" })).not.toBeInTheDocument();
+  fireEvent.click(conferma);
+  await waitFor(() => expect(m.rpc).toHaveBeenCalledWith("ddt_documento_registra", expect.objectContaining({
+    p_dati: expect.objectContaining({ destinazione: "magazzino", warehouse_id: null }),
+  })));
+});
+
+it("l'operaio ha mandato in magazzino senza commessa: la destinazione del documento vale, con il magazzino proposto", async () => {
+  m.magazzino = { id: "w-predefinito" };
+  m.leggi.mockResolvedValue({ files: [{ path: "p", name: "b.jpg", mime: "image/jpeg", size: 1 }], result: { intestazione: { numero_ddt: "5", data_ddt: "2026-11-10" }, righe_merce: [] } });
+  conClient(
+    <RevisioneBollaTelefono
+      documento={{ id: "j3", company_id: "c", order_id: null, destinazione: "magazzino", status: "review", files: [], created_by: "u", source: "campo", result: null, last_error: null, ddt_id: null, created_at: "", updated_at: "x" }}
+      etichettaCantiere="In magazzino (senza commessa)"
+      onChiudi={vi.fn()}
+    />,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Conferma la bolla" }));
+  await waitFor(() => expect(m.rpc).toHaveBeenCalledWith("ddt_documento_registra", expect.objectContaining({
+    p_dati: expect.objectContaining({ destinazione: "magazzino", warehouse_id: "w-predefinito" }),
+  })));
 });

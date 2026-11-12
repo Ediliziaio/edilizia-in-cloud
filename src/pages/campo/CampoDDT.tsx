@@ -15,7 +15,8 @@ import {
   puoRegistrareBolle,
   useSalvaSoloDocumento,
 } from "@/components/ddt/BollaTelefono";
-import type { DocumentoPersistente } from "@/lib/ddt/documentiPersistenti";
+import { destinazioneDocumento, type DocumentoPersistente } from "@/lib/ddt/documentiPersistenti";
+import { useLetturaBolleTelefono } from "@/hooks/useImpostazioniAcquisti";
 import { useDocumentiDDT, STATO_DOCUMENTO } from "@/hooks/useDocumentiDDT";
 import {
   contaPagine,
@@ -49,14 +50,19 @@ function CampoDDTEditor() {
   const cantieri = assegnazioni.data ?? [];
   const richiesto = params.get("order");
   // 12/11/2026 — L'unica scelta è dove va la merce: in magazzino o in cantiere.
-  // «In magazzino» vuol dire senza commessa, e `ddt_documento_accoda` lo accetta
-  // solo da chi è ufficio: per gli operai il cantiere resta obbligatorio (11/11).
+  // «In magazzino» vuol dire senza commessa, anche per l'operaio: la destinazione
+  // arriva a `ddt_documento_accoda`. «In cantiere» vuole un cantiere suo.
   const ufficio = useCampoUfficio().data === true;
   const permessi = usePermissions();
-  const puoRegistrare = puoRegistrareBolle(permessi);
-  const senzaAIPossibile = puoCompilareSenzaAI(permessi);
+  // Impostazioni → Acquisti e materiali → «Bolle dal telefono». Con «solo la foto»
+  // chi non è ufficio invia e basta: l'AI la avvia l'ufficio (la regola è nel server).
+  const letturaBolle = useLetturaBolleTelefono(profile?.company_id);
+  const soloFoto = !ufficio && letturaBolle.data === "solo_foto";
+  const puoRegistrare = puoRegistrareBolle(permessi) && !soloFoto;
+  const senzaAIPossibile = puoCompilareSenzaAI(permessi) && !soloFoto;
   const [dove, setDove] = useState<"magazzino" | "cantiere" | null>(null);
-  const destinazione = dove ?? (ufficio && !richiesto && !cantieri.length ? "magazzino" : "cantiere");
+  const destinazione =
+    dove ?? (!richiesto && !assegnazioni.isLoading && !cantieri.length ? "magazzino" : "cantiere");
   const [conAI, setConAI] = useState(true);
   const [compila, setCompila] = useState(false);
   const [attesa, setAttesa] = useState<string | null>(null);
@@ -69,7 +75,7 @@ function CampoDDTEditor() {
   });
   const orderId = destinazione === "magazzino" ? null : sceltaCantiere.orderId;
   const valoreCantiere = sceltaCantiere.valore;
-  const cantierePronto = destinazione === "magazzino" ? ufficio : sceltaCantiere.pronto;
+  const cantierePronto = destinazione === "magazzino" ? true : sceltaCantiere.pronto;
   const etichettaCantiere = (() => {
     if (!orderId) return "In magazzino (senza commessa)";
     const c = cantieri.find((x) => x.order_id === orderId);
@@ -173,6 +179,8 @@ function CampoDDTEditor() {
         user_id: user.id,
         company_id: profile.company_id,
         order_id: orderId ?? null,
+        destinazione,
+        warehouse_id: null,
       },
     });
   };
@@ -195,9 +203,13 @@ function CampoDDTEditor() {
       // Chi può registrare rivede subito quello che l'AI ha letto.
       if (puoRegistrare && typeof id === "string") setAttesa(id);
       toast.success(
-        navigator.onLine
-          ? "Documento salvato: invio e lettura continuano in background"
-          : "Salvato su questo telefono: verrà inviato quando torna la connessione",
+        soloFoto
+          ? navigator.onLine
+            ? "Inviata: l'ufficio la controlla"
+            : "Salvata su questo telefono: parte appena torna la connessione, poi la controlla l'ufficio"
+          : navigator.onLine
+            ? "Documento salvato: invio e lettura continuano in background"
+            : "Salvato su questo telefono: verrà inviato quando torna la connessione",
       );
       void syncQueue.processQueue();
     } catch {
@@ -231,8 +243,6 @@ function CampoDDTEditor() {
             <button
               type="button"
               aria-pressed={destinazione === "magazzino"}
-              disabled={!ufficio}
-              title={ufficio ? undefined : "Le bolle del magazzino le carica l'ufficio"}
               className={`flex min-h-12 items-center justify-center gap-2 rounded-xl border font-semibold disabled:opacity-40 ${destinazione === "magazzino" ? "border-primary bg-primary/10 text-primary" : ""}`}
               onClick={() => setDove("magazzino")}
             >
@@ -281,9 +291,10 @@ function CampoDDTEditor() {
         {!assegnazioni.isLoading &&
           !assegnazioni.isError &&
           !cantieri.length &&
-          !ufficio && (
+          !ufficio &&
+          destinazione === "cantiere" && (
             <p className="text-sm text-muted-foreground">
-              L’ufficio deve prima assegnarti un cantiere.
+              L’ufficio deve prima assegnarti un cantiere. La merce per il magazzino puoi già mandarla.
             </p>
           )}
         <div className="grid grid-cols-2 gap-3">
@@ -444,7 +455,9 @@ function CampoDDTEditor() {
           />
         )}
         <p className="text-xs text-muted-foreground">
-          {conAI || !senzaAIPossibile
+          {soloFoto
+            ? "Scatta e invia: la bolla la legge e la registra l'ufficio. Senza connessione l'invio riparte da solo."
+            : conAI || !senzaAIPossibile
             ? puoRegistrare
               ? "L'AI legge la bolla: appena finisce ti mostra cosa ha letto da confermare. Senza connessione l'invio riparte da solo."
               : "L'AI legge la bolla e l'ufficio la conferma. Senza connessione l'invio riparte da solo."
@@ -560,7 +573,7 @@ function CampoDDTEditor() {
         <RevisioneBollaTelefono
           documento={daRivedere}
           etichettaCantiere={
-            daRivedere.order_id
+            destinazioneDocumento(daRivedere) === "cantiere" && daRivedere.order_id
               ? (() => {
                   const c = cantieri.find((x) => x.order_id === daRivedere.order_id);
                   return c ? `${c.order.order_code} · ${c.order.description || ""}` : "Cantiere";

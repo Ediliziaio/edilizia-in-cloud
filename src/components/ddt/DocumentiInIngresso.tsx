@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { STATO_DOCUMENTO } from "@/hooks/useDocumentiDDT";
 import {
+  destinazioneDocumento,
   leggiPersistente,
   type DocumentoPersistente,
 } from "@/lib/ddt/documentiPersistenti";
@@ -54,7 +55,7 @@ export function RevisioneDocumento({
       ).lettura;
       const partenza = bollaDaFile(file, crypto.randomUUID(), {
         orderId: documento.order_id,
-        destinazione: documento.order_id ? "cantiere" : "magazzino",
+        destinazione: destinazioneDocumento(documento),
       });
       const letta = conLettura(
         partenza,
@@ -65,11 +66,14 @@ export function RevisioneDocumento({
       const pagine =
         f.mime === "application/pdf" ? await contaPagine(originale) : 1;
       return {
-        // «Compila a mano» (lettura fallita): la finestra con l'originale si apre da sola.
+        // «Compila a mano» (lettura fallita, o solo foto mai letta): la finestra
+        // con l'originale si apre da sola, con le righe vuote.
         bolla: {
           ...letta,
           documentoJobId: documento.id,
-          ...(aggiornato.status === "error" ? { compilaAMano: true } : {}),
+          ...(aggiornato.status === "error" || aggiornato.status === "da_leggere"
+            ? { compilaAMano: true }
+            : {}),
         },
         dividere: (pagine ?? 1) > 1,
         originale,
@@ -113,7 +117,8 @@ export function RevisioneDocumento({
       }
       documentoOrigineId={caricamento.data.dividere ? documento.id : undefined}
       orderId={documento.order_id}
-      destinazione={documento.order_id ? "cantiere" : "magazzino"}
+      destinazione={destinazioneDocumento(documento)}
+      warehouseId={documento.warehouse_id ?? null}
     />
   );
 }
@@ -133,6 +138,8 @@ export function RigaDocumentoInIngresso({
   riprovando: string | null;
 }) {
   const inLettura = ["queued", "processing"].includes(j.status);
+  // Solo la foto (impostazione «Bolle dal telefono»): l'ufficio sceglie se spendere l'AI.
+  const daLeggere = j.status === "da_leggere";
   return (
     <tr
       className="border-b bg-amber-50/30 hover:bg-amber-50/60"
@@ -166,7 +173,7 @@ export function RigaDocumentoInIngresso({
       </td>
       <td className="p-3">
         <span
-          className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium ${j.status === "error" ? "bg-rose-100 text-rose-800" : inLettura ? "bg-blue-50 text-blue-800" : "bg-amber-100 text-amber-900"}`}
+          className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium ${j.status === "error" ? "bg-rose-100 text-rose-800" : inLettura ? "bg-blue-50 text-blue-800" : daLeggere ? "bg-slate-100 text-slate-800" : "bg-amber-100 text-amber-900"}`}
         >
           {inLettura && <Loader2 className="h-3 w-3 animate-spin" />}
           {STATO_DOCUMENTO[j.status]}
@@ -178,7 +185,9 @@ export function RigaDocumentoInIngresso({
       <td className="p-3 text-xs text-muted-foreground">Da riconoscere</td>
       <td className="p-3 text-muted-foreground">—</td>
       <td className="p-3 text-xs">
-        {j.order_id ? (
+        {destinazioneDocumento(j) === "magazzino" && !j.order_id ? (
+          <span className="text-muted-foreground">In magazzino</span>
+        ) : j.order_id ? (
           <Link
             to={`/azienda/ordini/${j.order_id}`}
             className="text-primary hover:underline"
@@ -200,6 +209,19 @@ export function RigaDocumentoInIngresso({
           <span className="text-xs text-muted-foreground">
             Analisi in corso…
           </span>
+        ) : daLeggere ? (
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              disabled={riprovando === j.id}
+              onClick={() => void riprova(j)}
+            >
+              {riprovando === j.id ? "Avvio…" : "Leggi con l'AI"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => apri(j)}>
+              Compila a mano
+            </Button>
+          </div>
         ) : (
           <div className="flex gap-2">
             {j.status === "error" && (

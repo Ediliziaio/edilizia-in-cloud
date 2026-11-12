@@ -84,3 +84,18 @@ it("il processore di ripresa non genera altre copie locali", async () => {
   await inviaDocumentoPersistente({ ...input(), salvaCopiaLocale: false });
   expect(m.enqueue).not.toHaveBeenCalled();
 });
+
+it("la destinazione scelta sul telefono arriva al server; «da leggere» non avvia la lettura (12/11/2026)", async () => {
+  m.rpc.mockResolvedValue({ data: { id: "job", status: "da_leggere", duplicate: false }, error: null });
+  await inviaDocumentoPersistente({ ...input(), source: "campo", destinazione: "magazzino", warehouseId: null });
+  expect(m.rpc).toHaveBeenCalledWith("ddt_documento_accoda", expect.objectContaining({
+    p_order: null, p_destinazione: "magazzino", p_warehouse: null,
+  }));
+  expect(m.invoke).not.toHaveBeenCalled();
+  expect(m.enqueue.mock.calls[0][0].payload).toMatchObject({ destinazione: "magazzino" });
+});
+
+it("senza destinazione la chiamata resta quella di prima", async () => {
+  await inviaDocumentoPersistente(input());
+  expect(Object.keys(m.rpc.mock.calls[0][1])).not.toContain("p_destinazione");
+});

@@ -30,7 +30,7 @@ import { useFileDDT } from "@/hooks/useFileDDT";
 // ============================================================================
 
 import { useMemo, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { useDentroPopupDocumento, useIdDocumento, useNavigaDocumento } from "@/lib/orders/documentoPopup";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -811,6 +811,21 @@ function ContenutoDDTRicezioneDetail() {
           {ddt?.purchase_order_id && <ArrivoPosizioniPanel odaId={ddt.purchase_order_id} ddtId={ddtId} nascondiSeVuoto />}
 
           <ControlloOrdiniDDTCard key={`controllo:${ddt.id}`} ddt={ddt} />
+          {/* 12/11/2026 — Bolla per il magazzino registrata senza magazzino (l'azienda
+              non ne aveva, o dal telefono non è stato scelto): il carico resta in
+              sospeso finché non se ne sceglie uno. */}
+          {ddt.destinazione === "magazzino" && !ddt.warehouse_id && (
+            <div role="status" data-testid="avviso-magazzino-mancante" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+              <span className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+                Merce per il magazzino: crea o scegli un magazzino per caricarla
+              </span>
+              <span className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={startEditHeader}>Scegli il magazzino</Button>
+                <Button size="sm" variant="ghost" asChild><Link to="/azienda/magazzino/gestione">Crea un magazzino</Link></Button>
+              </span>
+            </div>
+          )}
           <div id="consegne-ddt" className="scroll-mt-5"><ConsegneDDTCard key={ddt.id} ddt={ddt} /></div>
           {/* ─── 2. I DOCUMENTI: l'originale in cima, poi gli allegati ───
               11/11/2026 — Erano due schede con due caricatori grandi
