@@ -43,6 +43,7 @@ import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import {
   inviaDocumentoPersistente,
   attendiLetturaPersistente,
+  scartaDocumentoPersistente,
   documentiDb,
 } from "@/lib/ddt/documentiPersistenti";
 import { ACCEPT_DOCUMENTI_DDT } from "@/lib/ddt/preparaDocumento";
@@ -924,11 +925,26 @@ function BolleAperte({
                         disabled={salvando || b.esito === "salvata"}
                         aria-label={`Togli ${b.file.name}`}
                         onClick={() => {
-                          setBolle((p) => p.filter((x) => x.id !== b.id));
-                          setSelezionate(
-                            (ids) =>
-                              new Set([...ids].filter((id) => id !== b.id)),
-                          );
+                          const togli = () => {
+                            setBolle((p) => p.filter((x) => x.id !== b.id));
+                            setSelezionate(
+                              (ids) =>
+                                new Set([...ids].filter((id) => id !== b.id)),
+                            );
+                          };
+                          // Già caricata: si scarta davvero, altrimenti ricompare nell'elenco «Da controllare».
+                          if (!b.documentoJobId) return togli();
+                          void scartaDocumentoPersistente(b.documentoJobId)
+                            .then(() => {
+                              togli();
+                              toast.success(`${b.file.name}: scartata`);
+                              void queryClient.invalidateQueries({ queryKey: ["ddt-documenti"] });
+                            })
+                            .catch((e: unknown) =>
+                              toast.error("Bolla non scartata", {
+                                description: e instanceof Error ? e.message : String(e),
+                              }),
+                            );
                         }}
                       >
                         <Trash2 className="h-3.5 w-3.5" />

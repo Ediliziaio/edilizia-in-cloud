@@ -1,4 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Link } from "react-router-dom";
 import { FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,6 +10,7 @@ import { STATO_DOCUMENTO } from "@/hooks/useDocumentiDDT";
 import {
   destinazioneDocumento,
   leggiPersistente,
+  scartaDocumentoPersistente,
   type DocumentoPersistente,
 } from "@/lib/ddt/documentiPersistenti";
 import {
@@ -138,6 +142,30 @@ export function RigaDocumentoInIngresso({
   riprovando: string | null;
 }) {
   const inLettura = ["queued", "processing"].includes(j.status);
+  const confirm = useConfirm();
+  const queryClient = useQueryClient();
+  const [scartando, setScartando] = useState(false);
+  // Una bolla doppia o sbagliata si toglie dall'elenco (12/11/2026): prima restava lì per sempre.
+  const scarta = async () => {
+    if (!(await confirm({
+      title: "Scartare questa bolla?",
+      description: `${j.files[0]?.name ?? "Il documento"} non è registrato come DDT: sparisce dall'elenco insieme al file caricato.`,
+      confirmLabel: "Scarta", cancelLabel: "Tienila", variant: "destructive",
+    }))) return;
+    setScartando(true);
+    try {
+      await scartaDocumentoPersistente(j.id);
+      toast.success("Bolla scartata");
+      void queryClient.invalidateQueries({ queryKey: ["ddt-documenti"] });
+    } catch (e) {
+      toast.error("Bolla non scartata", { description: e instanceof Error ? e.message : String(e) });
+    } finally { setScartando(false); }
+  };
+  const bottoneScarta = (
+    <Button variant="ghost" size="sm" className="text-destructive" disabled={scartando} onClick={() => void scarta()}>
+      {scartando ? "Scarto…" : "Scarta"}
+    </Button>
+  );
   // Solo la foto (impostazione «Bolle dal telefono»): l'ufficio sceglie se spendere l'AI.
   const daLeggere = j.status === "da_leggere";
   return (
@@ -221,6 +249,7 @@ export function RigaDocumentoInIngresso({
             <Button variant="outline" size="sm" onClick={() => apri(j)}>
               Compila a mano
             </Button>
+            {bottoneScarta}
           </div>
         ) : (
           <div className="flex gap-2">
@@ -241,6 +270,7 @@ export function RigaDocumentoInIngresso({
             >
               {j.status === "error" ? "Compila a mano" : "Controlla e registra"}
             </Button>
+            {bottoneScarta}
           </div>
         )}
       </td>

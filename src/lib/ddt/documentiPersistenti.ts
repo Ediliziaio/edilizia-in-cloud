@@ -210,3 +210,21 @@ export async function attendiLetturaPersistente(
     "La lettura continua in background. Puoi riprenderla dai documenti in ingresso.",
   );
 }
+
+/**
+ * Scarta una bolla caricata e non ancora registrata (12/11/2026): una bolla doppia restava
+ * nell'elenco «Da controllare in ufficio» e non si toglieva. I file si tolgono dall'archivio
+ * se si può; altrimenti restano, senza più comparire da nessuna parte.
+ */
+export async function scartaDocumentoPersistente(id: string): Promise<void> {
+  const { data, error } = await documentiDb.rpc("ddt_documento_scarta", { p_id: id });
+  if (error) {
+    if (error.code === "PGRST202" || error.code === "42883") throw new Error("Scartare le bolle non è ancora attivo: serve un aggiornamento del database.");
+    if (error.code === "42501") throw new Error("Non hai i permessi per scartare questa bolla. Chiedi al titolare dell'azienda di darti l'accesso.");
+    throw new Error(error.message || "Non sono riuscito a scartarla");
+  }
+  const percorsi = (Array.isArray(data?.files) ? data.files : [])
+    .map((f: { path?: string }) => f?.path)
+    .filter((p: unknown): p is string => typeof p === "string" && p.length > 0);
+  if (percorsi.length) await supabase.storage.from("ddt-documenti").remove(percorsi).catch((): undefined => undefined);
+}
