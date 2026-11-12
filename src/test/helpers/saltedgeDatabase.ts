@@ -52,7 +52,7 @@ class SaltQuery {
     if (this.db.failTable === this.table && this.op !== "select") return { data: null as null, error: { message: "Simulated database failure" } };
     const params: unknown[] = [];
     const param = (v: unknown) => { params.push(v && typeof v === "object" && !Array.isArray(v) ? JSON.stringify(v) : v); return `$${params.length}`; };
-    const columns = this.columns === "*" ? "*" : this.columns.split(",").map(identifier).join(",");
+    const columns = this.columns === "*" ? "*" : this.columns.split(",").map(c => identifier(c.trim())).join(",");
     const where = () => this.filters.length ? " where " + this.filters.map(([c, op, v]) => op === "IN" ? `${identifier(c)} = any(${param(v)}::text[])` : `${identifier(c)} ${op} ${param(v)}`).join(" and ") : "";
     let sql: string;
     if (this.op === "select") sql = `select ${columns} from ${identifier(this.table)}${where()}${this.max ? ` limit ${this.max}` : ""}`;
@@ -68,5 +68,5 @@ class SaltQuery {
     try { const r = await this.db.pg.query(sql, params); return { data: this.one ? r.rows[0] ?? null : r.rows, error: null as null }; }
     catch (error) { return { data: null as null, error }; }
   }
-  then<T>(resolve: (v: Awaited<ReturnType<SaltQuery["run"]>>) => T) { return this.run().then(resolve); }
+  then<T>(resolve: (v: Awaited<ReturnType<SaltQuery["run"]>>) => T, reject?: (error: unknown) => never) { return this.run().then(resolve, reject); }
 }

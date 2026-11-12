@@ -34,11 +34,14 @@ export function useDistyraReturn(companyId: string | null | undefined, onChanged
     void (async () => {
       try {
         const conti = await invokeDistyra(companyId, { action: "finalize", state: rif });
-        const mov = await invokeDistyra(companyId, { action: "sync", connection_id: conti?.connection_id ?? undefined, state: rif })
+        if (!conti?.conti) throw new Error("La banca sta ancora preparando i conti. Riprova senza ricollegare.");
+        let erroreMovimenti: string | null = null;
+        const mov = await invokeDistyra(companyId, { action: "sync", connection_id: conti?.connection_id ?? undefined, state: rif }, { onScreen: true })
           // I conti sono collegati comunque: se i movimenti non arrivano subito si
           // riprendono al prossimo giro, senza far fallire il collegamento.
-          .catch((): null => null);
-        toast.success(`Conto collegato: ${conti?.conti ?? 0} conti, ${mov?.movimenti ?? 0} movimenti`, { id: avviso });
+          .catch((e): null => { erroreMovimenti = e instanceof Error ? e.message : "Movimenti non ancora disponibili."; return null; });
+        if (erroreMovimenti) toast.info(`Conto collegato (${conti.conti}). ${erroreMovimenti}`, { id: avviso });
+        else toast.success(`Conto collegato: ${conti.conti} conti, ${mov?.movimenti ?? 0} movimenti`, { id: avviso });
         BANKING_QUERY_KEYS.forEach(key => qc.invalidateQueries({ queryKey: [key] }));
         cambiato.current?.();
       } catch (e) {

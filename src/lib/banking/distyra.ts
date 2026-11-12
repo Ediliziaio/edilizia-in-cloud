@@ -8,9 +8,10 @@
 import { supabase } from "@/integrations/supabase/client";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 
-export async function invokeDistyra(companyId: string | null | undefined, body: Record<string, unknown>) {
+export async function invokeDistyra(companyId: string | null | undefined, body: Record<string, unknown>, options: { onScreen?: boolean } = {}) {
   if (!companyId) throw new Error("Seleziona un'azienda per collegare il conto.");
-  const { data, error } = await supabase.functions.invoke("bank-distyra", { body: { ...body, company_id: companyId } });
+  const onScreen = options.onScreen === true && typeof document !== "undefined" && document.visibilityState === "visible";
+  const { data, error } = await supabase.functions.invoke("bank-distyra", { body: { ...body, company_id: companyId, on_screen: onScreen } });
   if (error) {
     const ripiego = "Collegamento bancario non disponibile. Riprova fra poco.";
     const messaggio = await edgeErrorMessage(error, ripiego);
