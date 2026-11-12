@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { erroreUscita, meseMostrato, partiUguali, rigaUscita, type FormUscita } from "@/lib/costi/usciteSenzaFattura";
+import { erroreUscita, formDaUscita, meseMostrato, partiUguali, rigaUscita, type FormUscita, type UscitaSalvata } from "@/lib/costi/usciteSenzaFattura";
 
 const base: FormUscita = { descrizione: "Bollo furgone", imponibile: "1.234,50", aliquota: "0", data: "2026-03-15", mese: "", riferimento: "", fornitoreId: "", commesse: [{ id: "", pct: "100" }], mezzoId: "", pagata: true, note: "" };
 
@@ -55,5 +55,22 @@ describe("uscita senza fattura", () => {
   it("le note si salvano, vuote diventano null", () => {
     expect(rigaUscita({ ...base, note: "  pagata in contanti  " }, "co").notes).toBe("pagata in contanti");
     expect(rigaUscita(base, "co").notes).toBeNull();
+  });
+
+  it("un'uscita salvata si riapre con tutto: commesse e quote, note, mese diverso dalla data", () => {
+    const u: UscitaSalvata = { name: "Tassa", amount: 1234.5, vat_rate: 22, documento_data: "2026-03-15", due_date: "2026-03-15",
+      documento_riferimento: "R1", mese_competenza: "2026-02-01", is_paid: false, notes: "allo sportello",
+      supplier_id: "s1", order_id: null, mezzo_id: "m1", allocations: [{ order_id: "o1", pct: 70 }, { order_id: "o2", pct: 30 }] };
+    const f = formDaUscita(u);
+    expect(f).toMatchObject({ descrizione: "Tassa", imponibile: "1234,5", aliquota: "22", data: "2026-03-15", mese: "2026-02", riferimento: "R1",
+      fornitoreId: "s1", mezzoId: "m1", pagata: false, note: "allo sportello", commesse: [{ id: "o1", pct: "70" }, { id: "o2", pct: "30" }] });
+    // Salvata di nuovo senza toccare niente, è la stessa uscita.
+    expect(rigaUscita(f, "co")).toMatchObject({ amount: 1234.5, vat_rate: 22, mese_competenza: "2026-02-01", order_id: null,
+      allocations: [{ order_id: "o1", pct: 70 }, { order_id: "o2", pct: 30 }], notes: "allo sportello", supplier_id: "s1", mezzo_id: "m1", is_paid: false });
+  });
+  it("con una sola commessa e il mese della data, il modulo è semplice", () => {
+    const f = formDaUscita({ name: "Bollo", amount: 16, vat_rate: null, documento_data: null, due_date: "2026-05-02", documento_riferimento: null,
+      mese_competenza: "2026-05-01", is_paid: true, notes: null, supplier_id: null, order_id: "o1", mezzo_id: null, allocations: null });
+    expect(f).toMatchObject({ data: "2026-05-02", mese: "", commesse: [{ id: "o1", pct: "100" }], aliquota: "0", note: "" });
   });
 });

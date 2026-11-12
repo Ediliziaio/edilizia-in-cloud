@@ -14,6 +14,9 @@ const stato = vi.hoisted(() => ({
   inseriti: [] as Array<{ tabella: string; riga: Record<string, unknown> }>,
   caricati: [] as string[],
   erroreUpload: null as null | { message: string },
+  uscite: [] as unknown[],
+  aggiornati: [] as Array<Record<string, unknown>>,
+  eliminati: [] as string[],
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "c1" } }) }));
@@ -27,7 +30,19 @@ vi.mock("@/integrations/supabase/client", () => {
     const catena: Record<string, unknown> = {};
     for (const m of ["select", "eq", "is", "order", "in", "not"]) catena[m] = () => catena;
     catena.limit = async () => ({ data: dati, error: null as unknown });
-    catena.range = async () => ({ data: [] as unknown[], error: null as unknown });
+    catena.range = async () => ({ data: tabella === "company_costs" ? stato.uscite : [], error: null as unknown });
+    catena.update = (riga: Record<string, unknown>) => {
+      stato.aggiornati.push(riga);
+      const fine: Record<string, unknown> = {};
+      fine.eq = () => fine; fine.select = () => fine; fine.single = async () => ({ data: { id: "u1" }, error: null as unknown });
+      return fine;
+    };
+    catena.delete = () => {
+      const fine: Record<string, unknown> = {};
+      fine.eq = (_c: string, v: string) => { if (_c === "id") stato.eliminati.push(v); return fine; };
+      fine.select = async () => ({ data: [{ id: "u1" }], error: null as unknown });
+      return fine;
+    };
     catena.insert = (riga: Record<string, unknown>) => {
       stato.inseriti.push({ tabella, riga });
       const fine = { select: () => fine, single: async () => ({ data: { id: "costo-1" }, error: null as unknown }), then: (r: (v: unknown) => void) => r({ error: null as unknown }) };
@@ -55,7 +70,7 @@ class RO { observe() {} unobserve() {} disconnect() {} }
 (globalThis as unknown as { ResizeObserver: typeof RO }).ResizeObserver ??= RO;
 Element.prototype.scrollIntoView ??= () => {};
 
-beforeEach(() => { stato.inseriti = []; stato.caricati = []; stato.erroreUpload = null; vi.clearAllMocks(); });
+beforeEach(() => { stato.inseriti = []; stato.caricati = []; stato.erroreUpload = null; stato.uscite = []; stato.aggiornati = []; stato.eliminati = []; vi.clearAllMocks(); });
 afterEach(cleanup);
 
 function apri() {
@@ -132,5 +147,33 @@ describe("Nuova uscita senza fattura", () => {
     fireEvent.change(within(finestra).getByLabelText("Quota commessa 1 %"), { target: { value: "80" } });
     expect(within(finestra).getByText(/superano il 100%/)).toBeInTheDocument();
     expect(within(finestra).getByRole("button", { name: "Salva" })).toBeDisabled();
+  });
+
+  it("un'uscita registrata si riapre compilata, si corregge e si elimina", async () => {
+    stato.uscite = [{ id: "u1", name: "Bollo furgone", amount: 16, vat_rate: 0, documento_data: "2026-11-10", due_date: "2026-11-10",
+      documento_riferimento: null, mese_competenza: "2026-11-01", is_paid: true, notes: "contanti", allocations: null,
+      supplier_id: null, order_id: "o1", mezzo_id: null, suppliers: null, orders: { order_code: "C-1" }, mezzi: null }];
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <UsciteSenzaFattura companyId="c1" puoModificare />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /Uscite senza fattura · 1/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Bollo furgone/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Modifica" }));
+    const finestra = screen.getByRole("dialog");
+    expect(within(finestra).getByText("Modifica uscita senza fattura")).toBeInTheDocument();
+    expect(within(finestra).getByLabelText("Cos'è")).toHaveValue("Bollo furgone");
+    expect(within(finestra).getByLabelText("Note")).toHaveValue("contanti");
+    fireEvent.change(within(finestra).getByLabelText("Importo €"), { target: { value: "32" } });
+    fireEvent.click(within(finestra).getByRole("button", { name: "Salva modifiche" }));
+    await waitFor(() => expect(stato.aggiornati).toHaveLength(1));
+    expect(stato.aggiornati[0]).toMatchObject({ amount: 32, name: "Bollo furgone", order_id: "o1", notes: "contanti" });
+    expect(stato.inseriti.filter((i) => i.tabella === "company_costs")).toHaveLength(0);
+    expect(toast.success).toHaveBeenCalledWith("Uscita aggiornata");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Elimina" }));
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Elimina" }));
+    await waitFor(() => expect(stato.eliminati).toEqual(["u1"]));
   });
 });

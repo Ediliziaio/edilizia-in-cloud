@@ -4,18 +4,19 @@
  */
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, Paperclip, Plus, X } from "lucide-react";
+import { ChevronDown, Paperclip, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { tutteLePagine } from "@/lib/fatturazione/registroVendite";
-import { erroreUscita, meseMostrato, partiUguali, rigaUscita, type FormUscita } from "@/lib/costi/usciteSenzaFattura";
+import { erroreUscita, formDaUscita, meseMostrato, partiUguali, rigaUscita, type FormUscita } from "@/lib/costi/usciteSenzaFattura";
 import { AllegatiFattura, caricaAllegati, dimensioneLeggibile } from "@/components/fatturazione/AllegatiFattura";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ViaggioSelect } from "@/components/mezzi/ViaggioSelect";
@@ -30,6 +31,7 @@ const NESSUNO = "__nessuno__";
 interface Uscita {
   id: string; name: string; amount: number; vat_rate: number | null; documento_data: string | null; due_date: string; documento_riferimento: string | null;
   mese_competenza: string | null; is_paid: boolean; notes: string | null; allocations: Array<{ order_id: string; pct: number }> | null;
+  supplier_id: string | null; order_id: string | null; mezzo_id: string | null;
   suppliers: { name: string } | null; orders: { order_code: string | null } | null; mezzi: { nome: string } | null;
 }
 
@@ -45,7 +47,10 @@ export function UsciteSenzaFattura({ companyId, puoModificare }: { companyId: st
   // I documenti si scelgono subito, con il resto; si caricano appena l'uscita è salvata.
   const [file, setFile] = useState<File[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
-  const chiudi = () => { setDialogo(false); setForm(vuoto); setFile([]); };
+  // Un'uscita già registrata si riapre nella stessa finestra e si corregge (12/11/2026).
+  const [inModifica, setInModifica] = useState<string | null>(null);
+  const chiudi = () => { setDialogo(false); setForm(vuoto); setFile([]); setInModifica(null); };
+  const apriModifica = (u: Uscita) => { setForm(formDaUscita(u)); setFile([]); setInModifica(u.id); setDialogo(true); };
   const cambiaCommessa = (i: number, id: string) => set("commesse", form.commesse.map((c, j) => (j === i ? { ...c, id } : c)));
   const cambiaQuota = (i: number, pct: string) => set("commesse", form.commesse.map((c, j) => (j === i ? { ...c, pct } : c)));
   // Aggiungere o togliere una commessa rifà le parti uguali: poi si correggono a mano.
@@ -55,7 +60,7 @@ export function UsciteSenzaFattura({ companyId, puoModificare }: { companyId: st
   const { data: uscite = [] } = useQuery({
     queryKey: ["uscite-senza-fattura", companyId],
     queryFn: () => tutteLePagine<Uscita>((from, to) => db.from("company_costs")
-      .select("id, name, amount, vat_rate, documento_data, due_date, documento_riferimento, mese_competenza, is_paid, notes, allocations, suppliers(name), orders(order_code), mezzi(nome)")
+      .select("id, name, amount, vat_rate, documento_data, due_date, documento_riferimento, mese_competenza, is_paid, notes, allocations, supplier_id, order_id, mezzo_id, suppliers(name), orders(order_code), mezzi(nome)")
       .eq("company_id", companyId).eq("senza_fattura", true).order("due_date", { ascending: false }).order("id").range(from, to)),
   });
   const { data: scelte } = useQuery({
@@ -72,7 +77,10 @@ export function UsciteSenzaFattura({ companyId, puoModificare }: { companyId: st
   });
   const salva = useMutation({
     mutationFn: async () => {
-      const { data, error } = await db.from("company_costs").insert(rigaUscita(form, companyId)).select("id").single();
+      const riga = rigaUscita(form, companyId);
+      const { data, error } = inModifica
+        ? await db.from("company_costs").update(riga).eq("id", inModifica).eq("company_id", companyId).eq("senza_fattura", true).select("id").single()
+        : await db.from("company_costs").insert(riga).select("id").single();
       if (error) throw error;
       const id = data.id as string;
       // L'uscita è salvata comunque: se un file non passa, lo si riallega dal dettaglio.
@@ -81,11 +89,12 @@ export function UsciteSenzaFattura({ companyId, puoModificare }: { companyId: st
         try { await caricaAllegati({ companyId, madre: { costoId: id }, tipo: "altro", files: file }); }
         catch (e) { erroreFile = e instanceof Error ? e.message : String(e); }
       }
-      return { id, erroreFile, conFile: file.length };
+      return { id, erroreFile, conFile: file.length, modificata: !!inModifica };
     },
-    onSuccess: ({ id, erroreFile, conFile }) => {
-      if (erroreFile) toast.warning("Uscita registrata, ma un documento non è stato caricato", { description: `${erroreFile} Riallegalo qui sotto.` });
-      else toast.success(conFile ? `Uscita registrata con ${conFile === 1 ? "il documento" : `${conFile} documenti`}` : "Uscita registrata");
+    onSuccess: ({ id, erroreFile, conFile, modificata }) => {
+      const fatto = modificata ? "Uscita aggiornata" : "Uscita registrata";
+      if (erroreFile) toast.warning(`${fatto}, ma un documento non è stato caricato`, { description: `${erroreFile} Riallegalo qui sotto.` });
+      else toast.success(conFile ? `${fatto} con ${conFile === 1 ? "il documento" : `${conFile} documenti`}` : fatto);
       chiudi(); setAperto(true); setDettaglio(id);
       void qc.invalidateQueries({ queryKey: ["uscite-senza-fattura"] });
       void qc.invalidateQueries({ queryKey: ["fattura-allegati"] });
@@ -93,6 +102,21 @@ export function UsciteSenzaFattura({ companyId, puoModificare }: { companyId: st
     },
     // Il messaggio tecnico («violates row-level security policy») non diceva cosa fare.
     onError: (e) => toast.error("Uscita non salvata", { description: userErrorMessage(e, "Non sono riuscito a salvarla. Riprova.") }),
+  });
+  // Se poi arriva la fattura vera, l'uscita si toglie: prima la finestra lo diceva ma non si poteva.
+  const [daEliminare, setDaEliminare] = useState<Uscita | null>(null);
+  const elimina = useMutation({
+    mutationFn: async (id: string) => {
+      const { data: allegati } = await db.from("fattura_allegati").select("storage_path").eq("company_id", companyId).eq("company_cost_id", id);
+      const { data, error } = await db.from("company_costs").delete().eq("id", id).eq("company_id", companyId).eq("senza_fattura", true).select("id");
+      if (error) throw error;
+      if (!data?.length) throw new Error("Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso.");
+      // Le righe degli allegati vanno via col costo; i file si tolgono dall'archivio.
+      const percorsi = ((allegati ?? []) as Array<{ storage_path: string }>).map((a) => a.storage_path).filter(Boolean);
+      if (percorsi.length) await supabase.storage.from("fatture-allegati").remove(percorsi);
+    },
+    onSuccess: () => { toast.success("Uscita eliminata"); setDaEliminare(null); setDettaglio(null); void qc.invalidateQueries({ queryKey: ["uscite-senza-fattura"] }); },
+    onError: (e) => toast.error("Uscita non eliminata", { description: userErrorMessage(e, "Non sono riuscito a eliminarla. Riprova.") }),
   });
   const errore = erroreUscita(form);
   const opzioniCommesse = useMemo(() => (scelte?.commesse ?? []).map((x) => ({ value: x.id, label: [x.order_code, x.description].filter(Boolean).join(" · ") || "Commessa" })), [scelte]);
@@ -119,7 +143,7 @@ export function UsciteSenzaFattura({ companyId, puoModificare }: { companyId: st
                   <span className="font-medium tabular-nums">{formatCurrency(u.amount)}</span>
                   <span className={`text-xs ${u.is_paid ? "text-emerald-600" : "text-amber-700"}`}>{u.is_paid ? "Pagata" : "Da pagare"}</span>
                 </button>
-                {dettaglio === u.id && <div className="mt-2 space-y-2 border-t pt-2">{u.notes && <p className="whitespace-pre-wrap text-xs text-muted-foreground">{u.notes}</p>}<AllegatiFattura companyId={companyId} madre={{ costoId: u.id }} sola_lettura={!puoModificare} /></div>}
+                {dettaglio === u.id && <div className="mt-2 space-y-2 border-t pt-2">{puoModificare && <div className="flex gap-2"><Button size="sm" variant="outline" className="h-7" onClick={() => apriModifica(u)}><Pencil className="mr-1.5 h-3.5 w-3.5" />Modifica</Button><Button size="sm" variant="ghost" className="h-7 text-destructive" onClick={() => setDaEliminare(u)}><Trash2 className="mr-1.5 h-3.5 w-3.5" />Elimina</Button></div>}{u.notes && <p className="whitespace-pre-wrap text-xs text-muted-foreground">{u.notes}</p>}<AllegatiFattura companyId={companyId} madre={{ costoId: u.id }} sola_lettura={!puoModificare} /></div>}
               </div>
             ))}
           </div>
@@ -128,7 +152,7 @@ export function UsciteSenzaFattura({ companyId, puoModificare }: { companyId: st
       <Dialog open={dialogo} onOpenChange={(v) => (v ? setDialogo(true) : chiudi())}>
         <DialogContent className="max-h-[90vh] overflow-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Nuova uscita senza fattura</DialogTitle>
+            <DialogTitle>{inModifica ? "Modifica uscita senza fattura" : "Nuova uscita senza fattura"}</DialogTitle>
             <DialogDescription>Non è una fattura: non entra nel registro IVA. Se poi arriva la fattura vera, questa va tolta per non contare il costo due volte.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -189,10 +213,22 @@ export function UsciteSenzaFattura({ companyId, puoModificare }: { companyId: st
           {errore && form.descrizione && <p className="text-xs text-muted-foreground">{errore}</p>}
           <DialogFooter>
             <Button variant="outline" onClick={chiudi}>Annulla</Button>
-            <Button disabled={!!errore || salva.isPending} onClick={() => salva.mutate()}>Salva</Button>
+            <Button disabled={!!errore || salva.isPending} onClick={() => salva.mutate()}>{inModifica ? "Salva modifiche" : "Salva"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={!!daEliminare} onOpenChange={(v) => { if (!v) setDaEliminare(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare «{daEliminare?.name}»?</AlertDialogTitle>
+            <AlertDialogDescription>Il costo esce dai conti, insieme ai documenti allegati. Non si recupera.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={elimina.isPending} onClick={() => daEliminare && elimina.mutate(daEliminare.id)}>Elimina</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

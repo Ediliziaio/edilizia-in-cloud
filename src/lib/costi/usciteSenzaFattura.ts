@@ -87,3 +87,27 @@ export function partiUguali(n: number): string[] {
 
 /** Il mese di competenza che si vede: quello scelto, altrimenti quello della data. */
 export const meseMostrato = (f: Pick<FormUscita, "mese" | "data">) => (f.mese || f.data).slice(0, 7);
+
+/** Un'uscita già salvata, come la legge l'elenco: serve per riaprirla e modificarla. */
+export interface UscitaSalvata {
+  name: string; amount: number; vat_rate: number | null; documento_data: string | null; due_date: string;
+  documento_riferimento: string | null; mese_competenza: string | null; is_paid: boolean; notes: string | null;
+  supplier_id: string | null; order_id: string | null; mezzo_id: string | null;
+  allocations: Array<{ order_id: string; pct: number }> | null;
+}
+
+const testoNumero = (n: number) => String(n).replace(".", ",");
+
+/** Il modulo compilato con un'uscita salvata (12/11/2026: prima un'uscita non si correggeva più). */
+export function formDaUscita(u: UscitaSalvata): FormUscita {
+  const data = u.documento_data ?? u.due_date;
+  const quote = Array.isArray(u.allocations) && u.allocations.length > 0
+    ? u.allocations.map((a) => ({ id: a.order_id, pct: testoNumero(Number(a.pct)) }))
+    : [{ id: u.order_id ?? "", pct: "100" }];
+  const mese = u.mese_competenza ? u.mese_competenza.slice(0, 7) : "";
+  return {
+    descrizione: u.name ?? "", imponibile: testoNumero(Number(u.amount)), aliquota: testoNumero(Number(u.vat_rate ?? 0)),
+    data, mese: mese === data.slice(0, 7) ? "" : mese, riferimento: u.documento_riferimento ?? "",
+    fornitoreId: u.supplier_id ?? "", commesse: quote, mezzoId: u.mezzo_id ?? "", pagata: !!u.is_paid, note: u.notes ?? "",
+  };
+}
