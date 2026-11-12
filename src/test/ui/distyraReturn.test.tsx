@@ -20,7 +20,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   },
 } }));
 beforeEach(() => { cleanup(); vi.clearAllMocks(); state.canManage=true; state.count=0; vi.spyOn(document,"visibilityState","get").mockReturnValue("visible"); });
-function Root() { useDistyraReturn(state.company); return null; }
+function Root(): null { useDistyraReturn(state.company); return null; }
 function mount(element = <Root />) {
   const client = new QueryClient({ defaultOptions: {queries:{retry:false,gcTime:0}} });
   return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={["/azienda/tesoreria?bank_provider=distyra&dy=rif"]}>{element}</MemoryRouter></QueryClientProvider>);

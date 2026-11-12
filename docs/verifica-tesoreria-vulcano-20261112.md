@@ -22,7 +22,7 @@ Verifiche azienda, utente e permessi conservate. Nessun nuovo segreto, nessuna m
 ## Prove
 39 test superati su sei file: gestore effettivo con banca simulata e PostgreSQL locale, tre conti, saldi positivi/negativi/zero/sconosciuti, idempotenza, errore di salvataggio, consenso pending, limite 429, separazione aziende e permessi, ritorno nell'app e ripresa manuale. Inclusi i controlli esistenti su Salt Edge, richieste protette e riservatezza dei saldi.
 
-Controllo Deno della funzione: superato. Controllo TypeScript completo: zero errori. Compilazione frontend e generazione pagine: da confermare nella pubblicazione.
+Controllo Deno della funzione: superato. Controllo TypeScript completo iniziale: zero errori; nel nuovo test dell'interfaccia aggiunta l'annotazione esplicita del ritorno nullo richiesta dal controllo CI. Compilazione frontend di produzione e generazione pagine: superate in CI. Servizio bancario versione 20 attivo in produzione, con codice pubblicato riletto e verificato.
 
 ## Limiti della verifica
 La prova dimostra il salvataggio e la gestione di tre conti; non equivale a tre conti reali già collegati. La disponibilità dei conti e la conferma del consenso dipendono dalla banca. Un limite ancora attivo non richiede di creare un nuovo consenso.
