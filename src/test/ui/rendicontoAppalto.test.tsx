@@ -1,4 +1,4 @@
-import {cleanup, render, screen} from "@testing-library/react";
+import {cleanup, fireEvent, render, screen} from "@testing-library/react";
 import {afterEach, beforeAll, beforeEach, expect, it, vi} from "vitest";
 import {RendicontoAppalto} from "@/components/orders/RendicontoAppalto";
 
@@ -92,6 +92,13 @@ it("non avvisa se il rendicontato sta dentro il tetto", () => {
   expect(screen.queryByText(/su un tetto concordato di/)).not.toBeInTheDocument();
 });
 
+it("il tetto considera anche il lavoro già entrato in un rendiconto", () => {
+  m.righe = [riga({importo: 1400, stato: "in_sal"}), riga({id: "r2", importo: 200})];
+  draw({tettoImporto: 1500});
+  expect(screen.getByText(/su un tetto concordato di/)).toHaveTextContent("1.600,00");
+  expect(screen.getByText(/rendicontato finora/)).toHaveTextContent("1.600,00");
+});
+
 it("le righe fuori contratto si vedono come tali", () => {
   m.righe = [riga({extra_contratto: true, importo: 150, descrizione: "Smaltimento"})];
   draw();
@@ -145,4 +152,20 @@ it("senza «Costi» il costo è riservato", () => {
   m.costi = false;
   draw();
   expect(screen.getByText("Costo", {selector: "p"}).parentElement).toHaveTextContent("riservato");
+});
+
+
+it("un costo non numerico resta visibile e blocca il salvataggio, mentre lo zero esplicito resta zero", () => {
+  draw(); fireEvent.click(screen.getByRole("button", {name: "Riga"}));
+  fireEvent.change(screen.getByLabelText("Quantità"),{target:{value:"2"}});
+  fireEvent.change(screen.getByLabelText("Descrizione"),{target:{value:"Demo"}});
+  fireEvent.change(screen.getByLabelText("Prezzo unitario"),{target:{value:"250"}});
+  const costo=screen.getByLabelText("Costo tuo (facoltativo)");
+  fireEvent.change(costo,{target:{value:"abc"}}); fireEvent.blur(costo);
+  expect(costo).toHaveValue("abc");
+  expect(screen.getByText(/Il costo deve essere un numero/)).toBeVisible();
+  expect(screen.getByRole("button",{name:"Salva",exact:true})).toBeDisabled();
+  fireEvent.change(costo,{target:{value:"0"}}); fireEvent.blur(costo);
+  expect(costo).toHaveValue("0,00");
+  expect(screen.queryByText(/Il costo deve essere un numero/)).not.toBeInTheDocument();
 });

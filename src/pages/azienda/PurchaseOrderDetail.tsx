@@ -1,3 +1,4 @@
+import { PaginaDocumentoGenerale, useAspettoOperativo } from "@/components/orders/generali/design/ContestoOperativo";
 import { DocumentoAnteprimaDialog } from "@/components/acquisti/DocumentoAnteprimaDialog";
 import { StoricoAcquistiCard } from "@/components/acquisti/StoricoAcquistiCard";
 import { AttivitaAcquistoCard } from "@/components/acquisti/AttivitaAcquistoCard";
@@ -17,8 +18,8 @@ import {
   ODA_STATUS_LABELS as STATUS_LABELS,
   ODA_STATUS_CHIP_VARIANT as STATUS_CHIP_VARIANT,
 } from "@/lib/odaStatus";
-import { useParams, useSearchParams, Link } from "react-router-dom";
-import { useDentroPopupDocumento, useIdDocumento, useNavigaDocumento } from "@/lib/orders/documentoPopup";
+import { useParams, Link } from "react-router-dom";
+import { useDentroPopupDocumento, useIdDocumento, useNavigaDocumento, useParametriDocumento } from "@/lib/orders/documentoPopup";
 import { useVociListinoFornitore } from "@/hooks/useListinoFornitore";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -85,10 +86,15 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
 };
 
 export default function PurchaseOrderDetail() {
+  return <PaginaDocumentoGenerale><ContenutoPurchaseOrderDetail /></PaginaDocumentoGenerale>;
+}
+
+function ContenutoPurchaseOrderDetail() {
   const { odaId: odaIdIndirizzo } = useParams();
   const odaId = useIdDocumento(odaIdIndirizzo);
   const navigate = useNavigaDocumento();
   const inPopup = useDentroPopupDocumento();
+  const aspettoGenerale = useAspettoOperativo();
   const { effectiveCompany } = useAuth();
   const { order, isLoading, items, isItemsLoading, addItem, updateItem, deleteItem, impostaIvaRighe } = usePurchaseOrderDetail(odaId || null);
   // Prezzi d'acquisto del fornitore: alimentano il suggerimento sulle righe.
@@ -108,7 +114,7 @@ export default function PurchaseOrderDetail() {
   const [ddtDialogOpen, setDdtDialogOpen] = useState(false);
   const [receiveScanOpen, setReceiveScanOpen] = useState(false);
   // ?arrivo=1: chi arriva dalla commessa con «Merce arrivata» trova già aperto l'arrivo.
-  const [parametri] = useSearchParams();
+  const parametri = useParametriDocumento();
   const [arrivoOpen, setArrivoOpen] = useState(parametri.get("arrivo") === "1");
 
   // Invio al fornitore: si usa il compositore email dell'app, lo stesso di
@@ -359,7 +365,7 @@ export default function PurchaseOrderDetail() {
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Back link — visible on all viewports */}
-      {!inPopup && <div className="flex items-center gap-3">
+      {!inPopup && !aspettoGenerale && <div className="flex items-center gap-3">
         <Button
           variant="ghost"
           size="sm"

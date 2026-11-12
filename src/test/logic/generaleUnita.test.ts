@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  bloccoCambioStato, erroriCambioStato, etichettaPiano, leggiElencoUnita, ordinePiano, prezzoProposto,
+  bloccoCambioStato, errorePagamentoUnita, erroriCambioStato, etichettaPiano, leggiElencoUnita, ordinePiano, prezzoProposto,
   raggruppaTabellone, requisitiStato, tipiMovimentoAmmessi, type DatiCambioStato, type ElencoUnita, type MovimentoUnita, type UnitaGenerale,
 } from "@/lib/orders/generali/unita";
 import {
@@ -71,7 +71,7 @@ describe("lettura dell'elenco", () => {
     expect(e.permessi).toEqual({ importi: true, costi: false, margini: true, modifica: false });
     expect(e.unita).toHaveLength(2);
     expect(e.unita[0]).toMatchObject({ sigla: "A1", stato: "compromesso", mq: 95.5, trattato: 290000, scheda: true, costoDiretto: 1000 });
-    expect(e.unita[0].movimenti).toEqual([{ id: "m", tipo: "caparra", importo: 30000, data: "2026-10-01", descrizione: null }]);
+    expect(e.unita[0].movimenti).toEqual([{ id: "m", tipo: "caparra", importo: 30000, data: "2026-10-01", descrizione: null, importoCassa: null, primaNotaId: null }]);
     // Senza scheda: libera, sigla dal codice, listino dall'importo della commessa.
     expect(e.unita[1]).toMatchObject({ scheda: false, sigla: "O-2", stato: "libera", listino: 180000, id: null });
   });
@@ -338,5 +338,19 @@ describe("nuove unità in serie", () => {
     ]);
     expect(r.errori).toBe(5);
     expect(r.unita[0]).toEqual({ sigla: "A1", edificio: null, piano: null, tipologia: null, mq_commerciali: 95.5, millesimi: null, prezzo_listino: 250000 });
+  });
+});
+
+
+describe("pagamenti oltre il residuo e date", () => {
+  it.each([
+    [1, 0, "2026-11-11", "L'importo supera il residuo dell'unità."],
+    [100.01, 100, "2026-11-11", "L'importo supera il residuo dell'unità."],
+    [100, 100, "2026-11-12", "Un pagamento incassato non può avere una data futura."],
+    [100, 100, "", "Indica la data del pagamento."],
+    [100, 100, "2026-11-11", null],
+    [100, null, "2026-11-11", null],
+  ])("controlla importo %s su residuo %s e data %s", (n, residuo, data, errore) => {
+    expect(errorePagamentoUnita(n as number, residuo as number | null, data as string, "2026-11-11")).toBe(errore);
   });
 });

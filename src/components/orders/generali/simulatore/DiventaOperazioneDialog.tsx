@@ -7,7 +7,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentGenerale as DialogContent } from "@/components/orders/generali/design/DialogGenerale";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { euro } from "@/components/orders/generali/piano/formato";
@@ -36,8 +37,8 @@ export function DiventaOperazioneDialog({ open, onOpenChange, salvata, modelliAt
   const op = operazioneDaIpotesi(ip, { nome, conUnita });
 
   const conferma = () => {
-    if (!nome.trim()) return;
-    crea.mutate({ ipotesiId: salvata.id, operazione: op }, {
+    if (!nome.trim() || (ip.importazione && !ip.importazione.confermata)) return;
+    crea.mutate({ ipotesiId: salvata.id, operazione: op, origine: ip.importazione?.originale }, {
       onSuccess: (id) => {
         toast.success("Operazione creata", { description: "Il piano economico è in bozza: controllalo e approvalo." });
         onOpenChange(false);
@@ -85,7 +86,7 @@ export function DiventaOperazioneDialog({ open, onOpenChange, salvata, modelliAt
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
-          {acceso && <Button onClick={conferma} disabled={!nome.trim() || crea.isPending}>{crea.isPending ? "Creazione…" : "Crea l'operazione"}</Button>}
+          {acceso && <Button onClick={conferma} disabled={!nome.trim() || crea.isPending || (ip.importazione && !ip.importazione.confermata)}>{crea.isPending ? "Creazione…" : "Crea l'operazione"}</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -9,15 +9,15 @@ export interface NumeroChiave {
   valore: number | null;
 }
 
-export interface PianoPerNumeri { margineStima: number; capitaleMassimo: number }
+export interface PianoPerNumeri { margineStima: number | null; capitaleMassimo: number | null }
 
 /**
  * Il piano dice qualcosa sul margine solo se ha almeno un costo con un importo: le voci tipiche
  * di partenza hanno ricavo e costi a zero, e una generale nuova mostrerebbe un margine pari al valore.
  */
-export function pianoPerNumeri(p: { confronto: { totali: { costi: { previsto: number }; margine: { stima: number } } }; capitale: { massimoStima: number } } | null | undefined): PianoPerNumeri | null {
+export function pianoPerNumeri(p: { calendarioCompleto?: boolean; budgetCompleto?: boolean; confronto: { totali: { costi: { previsto: number }; margine: { stima: number } } }; capitale: { massimoStima: number } } | null | undefined): PianoPerNumeri | null {
   if (!p || !(p.confronto.totali.costi.previsto > 0)) return null;
-  return { margineStima: p.confronto.totali.margine.stima, capitaleMassimo: p.capitale.massimoStima };
+  return { margineStima: p.budgetCompleto === false ? null : p.confronto.totali.margine.stima, capitaleMassimo: p.calendarioCompleto === false ? null : p.capitale.massimoStima };
 }
 
 export function numeriChiave(

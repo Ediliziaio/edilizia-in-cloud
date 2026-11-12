@@ -27,6 +27,15 @@ export interface ContractExtractAltroCosto {
   importo_eur: number;
 }
 export interface ContractExtract {
+  dati_appalto?: {
+    valorizzazione: "a_corpo" | "a_misura" | null;
+    stima_eur: number | null; tetto_eur: number | null;
+    riferimento: string | null; importo_base_eur: number | null;
+    ribasso_pct: number | null; oneri_sicurezza_eur: number | null;
+    anticipazione_pct: number | null; ritenuta_pct: number | null;
+    penale_giornaliera_eur: number | null; penale_massima_pct: number | null;
+    cup: string | null; split_payment: boolean | null; reverse_charge: boolean | null;
+  };
   appalto_pubblico?: {
     presente: boolean;
     ruolo_azienda_importatrice: string | null;
@@ -92,16 +101,30 @@ export function parseContractExtract(raw: unknown): ContractExtract {
   const voci = Array.isArray(r.voci) ? r.voci : [];
   const fasi = Array.isArray(r.fasi_pagamento) ? r.fasi_pagamento : [];
   const a = (r.appalto_pubblico && typeof r.appalto_pubblico === "object" ? r.appalto_pubblico : {}) as Record<string, unknown>;
+  const d = (r.dati_appalto && typeof r.dati_appalto === "object" ? r.dati_appalto : {}) as Record<string, unknown>;
   return {
+    dati_appalto: {
+      valorizzazione: d.valorizzazione === "a_corpo" || d.valorizzazione === "a_misura" ? d.valorizzazione : null,
+      stima_eur: toNum(d.stima_eur), tetto_eur: toNum(d.tetto_eur), riferimento: toStr(d.riferimento),
+      importo_base_eur: toNum(d.importo_base_eur), ribasso_pct: toNum(d.ribasso_pct), oneri_sicurezza_eur: toNum(d.oneri_sicurezza_eur),
+      anticipazione_pct: toNum(d.anticipazione_pct), ritenuta_pct: toNum(d.ritenuta_pct), penale_giornaliera_eur: toNum(d.penale_giornaliera_eur), penale_massima_pct: toNum(d.penale_massima_pct),
+      cup: toStr(d.cup), split_payment: typeof d.split_payment === "boolean" ? d.split_payment : null, reverse_charge: typeof d.reverse_charge === "boolean" ? d.reverse_charge : null,
+    },
     appalto_pubblico: {
       presente: a.presente === true,
-      ruolo_azienda_importatrice: toStr(a.ruolo_azienda_importatrice),
+      ruolo_azienda_importatrice: (() => {
+        const ruolo = toStr(a.ruolo_azienda_importatrice)?.toLowerCase();
+        if (!ruolo) return null;
+        if (/\bmandante\b/.test(ruolo) && !/\bnon\s+mandante\b/.test(ruolo)) return "mandante";
+        if (/\bmandataria\b/.test(ruolo) && !/\bnon\s+mandataria\b/.test(ruolo)) return "mandataria";
+        return ruolo === "esecutrice_singola" ? ruolo : null;
+      })(),
       quota_azienda_eur: toNum(a.quota_azienda_eur),
       importo_totale_appalto_eur: toNum(a.importo_totale_appalto_eur),
       durata_giorni: toNum(a.durata_giorni),
       contratto_applicativo: toStr(a.contratto_applicativo),
       cig: toStr(a.cig), cig_derivato: toStr(a.cig_derivato), sil: toStr(a.sil),
-      informazioni_da_confermare: Array.isArray(a.informazioni_da_confermare) ? a.informazioni_da_confermare.filter((v): v is string => typeof v === "string") : [],
+      informazioni_da_confermare: Array.isArray(a.informazioni_da_confermare) ? a.informazioni_da_confermare.filter((v): v is string => typeof v === "string") : typeof a.informazioni_da_confermare === "string" && a.informazioni_da_confermare.trim() ? [a.informazioni_da_confermare.trim()] : [],
     },
     cliente: {
       nome_completo: toStr(c.nome_completo) ?? "",
@@ -168,6 +191,12 @@ export function parseContractExtract(raw: unknown): ContractExtract {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+/** L'importo dell'RTI non è automaticamente il ricavo dell'azienda. */
+export function contractNeedsAllocation(extract: ContractExtract): boolean {
+  const a = extract.appalto_pubblico;
+  return a?.ruolo_azienda_importatrice === "mandante" || (a?.presente === true && a.ruolo_azienda_importatrice !== "esecutrice_singola");
+}
+
 /** Somma quantita×prezzo delle voci (0 se non ci sono voci prezzate). */
 export function contractSommaVoci(extract: ContractExtract): number {
   return round2(extract.voci.reduce((s, v) => s + (v.quantita || 1) * (v.prezzo_unitario_eur || 0), 0));
@@ -199,10 +228,10 @@ export function deriveIvaPct(extract: ContractExtract): number | null {
  *   1. scorporo DETERMINISTICO ivato/(1+iva) quando abbiamo entrambi;
  *   2. somma delle voci, se prezzate e coerente;
  *   3. l'imponibile dichiarato dal modello;
- *   4. il solo totale ivato (meglio di niente).
+ * Il solo totale ivato senza aliquota non identifica un imponibile.
  */
 export function contractImponibile(extract: ContractExtract): number | null {
-  if (extract.appalto_pubblico?.ruolo_azienda_importatrice === "mandante") return null;
+  if (contractNeedsAllocation(extract)) return null;
   const iva = deriveIvaPct(extract);
   // Anche con IVA 0 lo scorporo vale (imponibile = ivato): il "Totale
   // Pagamento" e' il numero piu' affidabile del documento, mentre il campo
@@ -215,7 +244,7 @@ export function contractImponibile(extract: ContractExtract): number | null {
   const sommaVoci = contractSommaVoci(extract);
   if (sommaVoci > 0 && extract.importo_totale_eur == null) return sommaVoci;
   if (extract.importo_totale_eur != null) return extract.importo_totale_eur;
-  return extract.importo_totale_ivato_eur;
+  return null;
 }
 
 /**
@@ -334,12 +363,14 @@ export function contractCoherenceWarnings(extract: ContractExtract): string[] {
   return out;
 }
 
-/** Fasi del contratto → rate della commessa (Installment). Tipo inferito dal testo. */
+/** Fasi del contratto → rate con IVA della commessa. `total` è l'imponibile. */
 export function contractToInstallments(extract: ContractExtract, total: number): Installment[] {
-  if (extract.appalto_pubblico?.ruolo_azienda_importatrice === "mandante") return [];
+  if (contractNeedsAllocation(extract)) return [];
   const phases = extract.fasi_pagamento;
   if (phases.length === 0) return [];
-  return phases.filter(p => (p.importo_eur != null && p.importo_eur > 0) || (p.percentuale != null && p.percentuale > 0 && total > 0)).map((p, idx, dichiarate) => {
+  const iva = deriveIvaPct(extract);
+  const lordo = iva != null && total > 0 ? round2(total * (1 + iva / 100)) : null;
+  return phases.filter(p => (p.importo_eur != null && p.importo_eur > 0) || (p.percentuale != null && p.percentuale > 0 && lordo != null)).map((p, idx, dichiarate) => {
     const low = p.descrizione.toLowerCase();
     const type: Installment["type"] =
       /saldo|a fine|balance/.test(low) ? "balance"
@@ -347,8 +378,18 @@ export function contractToInstallments(extract: ContractExtract, total: number):
       : idx === dichiarate.length - 1 && /saldo/.test(low) ? "balance" : "deposit";
     const amount =
       p.importo_eur != null ? round2(p.importo_eur)
-      : p.percentuale != null && total > 0 ? round2((total * p.percentuale) / 100)
+      : p.percentuale != null && lordo != null ? round2((lordo * p.percentuale) / 100)
       : 0;
     return { position: idx, label: p.descrizione, type, amount, is_paid: false, amount_from_contract: true };
   });
+}
+
+/** Una lettura parziale delle rate richiede correzione, non un saldo inventato. */
+export function contractInstallmentWarning(rate: readonly Pick<Installment, "amount">[], totaleLordo: number): string | null {
+  if (!rate.length || !Number.isFinite(totaleLordo) || totaleLordo <= 0) return null;
+  if (rate.some(r => !Number.isFinite(r.amount) || r.amount < 0)) return "Controlla gli importi delle rate del contratto.";
+  const totaleRate = rate.reduce((somma, r) => somma + Math.round(r.amount * 100), 0);
+  if (totaleRate === Math.round(totaleLordo * 100)) return null;
+  const euro = (n: number) => n.toLocaleString("it-IT", {style:"currency",currency:"EUR"});
+  return `Le rate sommano ${euro(totaleRate / 100)}; il totale con IVA è ${euro(totaleLordo)}. Completa o correggi il piano dei pagamenti prima di salvare.`;
 }

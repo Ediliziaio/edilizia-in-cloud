@@ -2,6 +2,8 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { QuadroPagamenti } from "@/lib/orders/quadroPagamenti";
+import { MemoryRouter } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 
 // Risposta di commessa_quadro_pagamenti() come arriva dal database (DEMO-2026-N008,
 // ridotta) più una tassa comunale senza fattura scaduta e un ordine senza fattura.
@@ -30,9 +32,11 @@ vi.mock("@/components/orders/PurchasePaymentsDialog", () => ({ PurchasePaymentsD
 import { QuadroPagamentiCommessa, UsciteCommessa } from "@/components/orders/QuadroPagamentiCommessa";
 
 const mostra = (p: Partial<Parameters<typeof QuadroPagamentiCommessa>[0]> = {}) => render(
+  <MemoryRouter>
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
     <QuadroPagamentiCommessa orderId="o1" mostraIncassi mostraUscite {...p} />
-  </QueryClientProvider>,
+  </QueryClientProvider>
+  </MemoryRouter>,
 );
 const mostraUscite = (p: Partial<Parameters<typeof UsciteCommessa>[0]> = {}) => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -42,6 +46,22 @@ const mostraUscite = (p: Partial<Parameters<typeof UsciteCommessa>[0]> = {}) => 
 afterEach(cleanup);
 
 describe("Incassi e pagamenti della commessa", () => {
+  it('legge la cassa dell’unità una volta sola e porta alla gestione centrale dei versamenti',async()=>{
+    vi.mocked(supabase.rpc).mockResolvedValueOnce({data:{...quadro,incassi_unita:{incassato:1210,residuo:306779,scaduto:0,generale_id:'generale',da_collegare:0}},error:null} as never);
+    mostra({incassi:<p>Vecchio piano rate</p>});
+    expect(await screen.findByText('Incassi dell’unità collegati alla prima nota')).toBeInTheDocument();
+    expect(screen.getByText('Incassato').parentElement).toHaveTextContent('1.210,00');
+    expect(screen.queryByText('Vecchio piano rate')).toBeNull();
+    expect(screen.getByRole('link',{name:'Apri Unità e vendite della commessa generale'})).toHaveAttribute('href','/azienda/ordini/generale?scheda=unita');
+  });
+  it('mostra il residuo delle fatture a misura invece delle rate sulla stima',async()=>{
+    vi.mocked(supabase.rpc).mockResolvedValueOnce({data:{...quadro,crediti_misura:{fatturato:549,incassato:100,residuo:449,scaduto:449,documenti:[{id:'ft-demo',nativo:true,numero:'DEMO-1',totale:549,incassato:100,residuo:449,scadenza:null}]}},error:null} as never);
+    mostra({incassi:<p>Vecchio piano rate</p>});
+    expect(await screen.findByText('Crediti da documenti emessi')).toBeInTheDocument();
+    expect(screen.getByText('Da incassare').parentElement).toHaveTextContent('449,00');
+    expect(screen.queryByText('Vecchio piano rate')).toBeNull();
+    expect(screen.getByRole('link',{name:'DEMO-1'})).toHaveAttribute('href','/azienda/documenti/ft-demo/dettaglio');
+  });
   it("dice in quattro numeri quanto è entrato, quanto deve entrare, quanto è uscito e quanto resta", async () => {
     mostra();
     expect(await screen.findByText("Incassato")).toBeInTheDocument();

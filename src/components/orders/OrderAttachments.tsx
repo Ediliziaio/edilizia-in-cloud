@@ -339,8 +339,8 @@ function OrderAttachmentsPanel({ orderId, editable = true, actions }: OrderAttac
   const conteggi = useMemo(() => contaPerCartella(tutti), [tutti]);
   const nomeCartella = useMemo(() => {
     const m = new Map(cartelle.map((c) => [c.id, c.nome]));
-    return (id: string | null) => (id ? m.get(id) ?? "Cartella archiviata" : "Senza cartella");
-  }, [cartelle]);
+    return (id: string | null) => (id ? m.get(id) ?? (caricoCartelle ? "Caricamento categoria…" : erroreCartelle ? "Categoria non disponibile" : "Cartella non disponibile") : "Senza cartella");
+  }, [cartelle, caricoCartelle, erroreCartelle]);
   const mancanti = useMemo(() => cartelleMancanti(cartelle, tutti), [cartelle, tutti]);
   const orfani = tutti.filter((a) => a.folder_id && !cartelle.some((c) => c.id === a.folder_id)).length;
   const senzaCartella = (conteggi[""] ?? 0) + orfani;

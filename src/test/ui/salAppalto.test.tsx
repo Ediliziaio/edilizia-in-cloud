@@ -4,8 +4,9 @@ import {SalAppalto} from "@/components/orders/SalAppalto";
 
 const m = vi.hoisted(() => ({
   sal: [] as unknown[], componi: vi.fn(), stato: vi.fn(),
-  stampa: vi.fn(), naviga: vi.fn(), billing: true, documenti: [] as unknown[],
+  stampa: vi.fn(), naviga: vi.fn(), billing: true, external: false, documenti: [] as unknown[],
 }));
+vi.mock("@/contexts/BillingModeContext", () => ({useBillingMode: () => ({isExternal: m.external})}));
 vi.mock("@/hooks/use-toast", () => ({useToast: () => ({toast: vi.fn()})}));
 vi.mock("@/integrations/supabase/client", () => ({supabase: {}}));
 vi.mock("@/hooks/usePermissions", () => ({usePermissions: () => ({canViewBilling: m.billing})}));
@@ -49,7 +50,7 @@ beforeAll(() => {
 });
 beforeEach(() => {
   m.sal = [doc()]; m.componi = vi.fn(); m.stampa = vi.fn(); m.naviga = vi.fn();
-  m.billing = true; m.documenti = [];
+  m.billing = true; m.external = false; m.documenti = [];
 });
 afterEach(cleanup);
 
@@ -149,7 +150,7 @@ it("quando una fattura è agganciata si dice QUALE, con il link", () => {
   })];
   draw();
   const link = screen.getByRole("link", {name: /FT\/2026\/41/});
-  expect(link).toHaveAttribute("href", "/azienda/documenti/d9");
+  expect(link).toHaveAttribute("href", "/azienda/documenti/d9/dettaglio");
   expect(screen.queryByRole("button", {name: /Prepara la fattura/})).not.toBeInTheDocument();
 });
 
@@ -184,4 +185,11 @@ it("un rendiconto mandato si segna accettato o si manda da firmare, e non cambia
   fireEvent.click(screen.getByRole("button", {name: /Manda da firmare/}));
   expect(screen.getByText("popup firma")).toBeInTheDocument();
   expect(m.componi).not.toHaveBeenCalled();
+});
+
+
+it("con fatturazione esterna spiega il requisito e non apre un editor irraggiungibile", () => {
+  m.sal = [doc({stato: "approvato"})]; m.external = true; draw();
+  expect(screen.getByRole("button", {name: "Prepara la fattura"})).toBeDisabled();
+  expect(screen.getByRole("link", {name: "fatturazione nativa"})).toHaveAttribute("href", "/azienda/impostazioni/fatturazione");
 });

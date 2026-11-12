@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { leggiDatiFattura, type DatiFattura, type ElencoFattureGenerale } from "@/lib/orders/generali/fatture";
 
@@ -43,7 +43,15 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Crea fattura da un pagamento dell'unità", () => {
-  it("prepara la bozza al 10% con l'IVA scorporata", () => {
+  it.each([false, true])("dopo la preparazione apre il dettaglio consultabile anche con fatturazione esterna (esistente: %s)", esistente => {
+    const Indirizzo = () => <output aria-label="Indirizzo attuale">{useLocation().pathname}</output>;
+    m.crea.mockImplementation((_input, options) => options.onSuccess({ id: "doc-nuovo", numero: "Bozza", esistente }));
+    render(<MemoryRouter><BottoneFattura generaleId="g" origine="movimento" id="mov-1" /><Indirizzo /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: /Crea fattura/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Prepara la bozza/ }));
+    expect(screen.getByLabelText("Indirizzo attuale")).toHaveTextContent("/azienda/documenti/doc-nuovo/dettaglio");
+  });
+  it("prepara la bozza al 10% aggiungendo l'IVA al movimento netto dell'unità", () => {
     disegna();
     fireEvent.click(screen.getByRole("button", { name: /Crea fattura/ }));
     expect(screen.getByText("Mario Rossi")).toBeVisible();
@@ -53,8 +61,8 @@ describe("Crea fattura da un pagamento dell'unità", () => {
     const arg = m.crea.mock.calls[0][0] as { origine: string; id: string; bozza: { totale_documento: number; imponibile_totale: number } };
     expect(arg.origine).toBe("movimento");
     expect(arg.id).toBe("mov-1");
-    expect(arg.bozza.totale_documento).toBe(22000);
-    expect(arg.bozza.imponibile_totale).toBe(20000);
+    expect(arg.bozza.totale_documento).toBe(24200);
+    expect(arg.bozza.imponibile_totale).toBe(22000);
   });
 
   it("la caparra confirmatoria avvisa e chiede una conferma esplicita", () => {
@@ -71,7 +79,7 @@ describe("Crea fattura da un pagamento dell'unità", () => {
   it("con la fattura già nata mostra il link, non il bottone", () => {
     m.elenco = { puoFatturare: true, fatture: [{ documentoId: "doc-1", salId: null, movimentoId: "mov-1", numero: "FT-2026-0012", stato: "emessa", data: null, totale: 22000, pagato: 0 }] };
     disegna();
-    expect(screen.getByRole("link", { name: /Fattura FT-2026-0012 \(emessa\)/ })).toHaveAttribute("href", "/azienda/documenti/doc-1");
+    expect(screen.getByRole("link", { name: /Fattura FT-2026-0012 \(emessa\)/ })).toHaveAttribute("href", "/azienda/documenti/doc-1/dettaglio");
     expect(screen.queryByRole("button", { name: /Crea fattura/ })).toBeNull();
   });
 

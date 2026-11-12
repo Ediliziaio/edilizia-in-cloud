@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseContractExtract, contractImponibile, contractToInstallments, contractCoherenceWarnings } from "@/lib/orders/contractExtract";
-import { prepareContract as prepareConfiguredContract, contractConfirmations, contractPreparationNotes, storedContractFromDraft } from "@/lib/orders/contractPreparation";
+import { prepareContract as prepareConfiguredContract, contractConfirmations, contractPreparationNotes, storedContractFromDraft, dataFirmaVerificata, contractAnalysisHint } from "@/lib/orders/contractPreparation";
 import type { ModelloFasi } from "@/lib/orders/modelliFasi";
 
 const prepareContract = (ex: Parameters<typeof prepareConfiguredContract>[0], models: readonly ModelloFasi[]) => prepareConfiguredContract(ex, models, "manutenzione_stradale_su_ordine");
@@ -47,6 +47,16 @@ describe("preparazione da contratto e separazione ufficio/cantiere", () => {
     const ex = recurring(); ex.importo_totale_eur = 123456; ex.fasi_pagamento = [{ descrizione:"Saldo", percentuale:100, importo_eur:123456 }];
     expect(contractImponibile(ex)).toBeNull(); expect(contractToInstallments(ex,123456)).toEqual([]);
   });
+  it("normalizza Mandante restituito dal modello e non trasferisce il totale RTI",()=>{
+    const ex=parseContractExtract({appalto_pubblico:{presente:true,ruolo_azienda_importatrice:"Mandante",quota_azienda_eur:100000,importo_totale_appalto_eur:500000,informazioni_da_confermare:"IVA da confermare"},importo_totale_eur:500000,fasi_pagamento:[{descrizione:"Saldo",importo_eur:500000}]});
+    expect(ex.appalto_pubblico?.ruolo_azienda_importatrice).toBe("mandante");
+    expect(ex.appalto_pubblico?.informazioni_da_confermare).toEqual(["IVA da confermare"]);
+    expect(contractImponibile(ex)).toBeNull();expect(contractToInstallments(ex,500000)).toEqual([]);
+  });
+  it("richiede la ripartizione anche se il ruolo dell'appalto pubblico è sconosciuto",()=>{
+    const ex=parseContractExtract({appalto_pubblico:{presente:true,ruolo_azienda_importatrice:null},importo_totale_eur:500000,iva_pct:22,fasi_pagamento:[{descrizione:"Saldo",percentuale:100}]});
+    expect(contractImponibile(ex)).toBeNull();expect(contractToInstallments(ex,500000)).toEqual([]);
+  });
   it("non genera pagamenti da soli nomi o percentuali senza importo totale", () => {
     const ex = parseContractExtract({ fasi_pagamento: [{ descrizione:"SAL" }, { descrizione:"Saldo", percentuale:50 }] });
     expect(contractToInstallments(ex,0)).toEqual([]);
@@ -64,5 +74,29 @@ describe("preparazione da contratto e separazione ufficio/cantiere", () => {
     expect(conferme.map(x=>x.key)).not.toContain("iva"); expect(conferme.map(x=>x.key)).toContain("interventi");
     expect(conferme.map(x=>x.testo).join(" ")).not.toContain("quota_azienda_eur");
     expect(contractCoherenceWarnings(recurring()).join(" ")).not.toContain("estrazione incompleta");
+  });
+});
+
+describe("firma e contesto dell'importazione",()=>{
+  const source={bucket:"order-attachments",path:"azienda-a/ai-contratti/file.pdf",name:"file.pdf",mime:"application/pdf"};
+  it("un documento o una vecchia bozza senza conferma non diventano firmati",()=>{
+    expect(dataFirmaVerificata(source,"2026-11-11")).toBeNull();
+    expect(dataFirmaVerificata(null,"2026-11-11")).toBeNull();
+    expect(storedContractFromDraft(source,"azienda-a")).not.toHaveProperty("firmaConfermataIl");
+  });
+  it("ammette solo la data di firma verificata, reale e non futura",()=>{
+    expect(dataFirmaVerificata({...source,firmaConfermataIl:"2026-11-10"},"2026-11-11")).toBe("2026-11-10");
+    for(const data of ["2026-02-31","2026-11-12","11/11/2026",""]){
+      expect(dataFirmaVerificata({...source,firmaConfermataIl:data},"2026-11-11")).toBeNull();
+    }
+    expect(storedContractFromDraft({...source,firmaConfermataIl:"2020-11-10"},"azienda-a")).toMatchObject({firmaConfermataIl:"2020-11-10"});
+  });
+  it("chiede al lettore i dati RTI che il modulo usa, entro il limite API",()=>{
+    const hint=contractAnalysisHint("A".repeat(100),"N".repeat(600));
+    expect(hint.length).toBeLessThanOrEqual(600);
+    expect(hint).toContain("ruolo_azienda_importatrice");
+    expect(hint).toContain("quota_azienda_eur");
+    expect(hint).toContain("importo_totale_appalto_eur");
+    expect(contractAnalysisHint("Demo Azienda S.r.l.","IVA da verificare")).toContain("Note: IVA da verificare");
   });
 });

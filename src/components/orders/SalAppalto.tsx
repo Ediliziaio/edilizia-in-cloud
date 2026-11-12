@@ -32,6 +32,7 @@ import { useToast } from "@/hooks/use-toast";
 import { logger } from "@/utils/logger";
 import { euro } from "@/lib/clienti/schedaCliente";
 import { periodoDaRendicontare, periodoDaRigheInAttesa, STATI_SAL } from "@/lib/appalto/rendiconto";
+import { useBillingMode } from "@/contexts/BillingModeContext";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -98,6 +99,7 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const permessi = usePermissions();
+  const fatturazioneEsterna = useBillingMode({ facoltativo: true })?.isExternal ?? false;
   const { stampa, isGenerating } = useRendicontoAppaltoPDF();
   /* Le date delle righe gia' confermate e non ancora in un rendiconto: servono
      solo a proporre il periodo giusto (vedi `periodoDaRigheInAttesa`). */
@@ -171,7 +173,7 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
       setForm(null);
       queryClient.invalidateQueries({ queryKey: ["appalto-sal"] });
       queryClient.invalidateQueries({ queryKey: ["appalto-rendiconto"] });
-      toast({ title: "Rendiconto composto", description: "Le righe che vi sono entrate ora sono congelate." });
+      toast({ title: "Rendiconto composto", description: "Le righe sono raccolte nella bozza. Si congelano quando segni il rendiconto come mandato." });
     },
     onError: (e) => {
       logger.error("appalto_sal_crea", e);
@@ -465,7 +467,7 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
                   <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-slate-50 px-2 py-1.5 text-xs">
                     <Receipt className="h-3.5 w-3.5 text-slate-500" />
                     <Link
-                      to={`/azienda/documenti/${s.documento_fiscale_id}`}
+                      to={`/azienda/documenti/${s.documento_fiscale_id}/dettaglio`}
                       className="font-medium text-blue-700 underline-offset-2 hover:underline"
                     >
                       Fattura {s.documenti_fiscali?.numero ?? "collegata"}
@@ -534,7 +536,7 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
                           non è già dichiarato fatturato: dopo, quello che manca
                           è il documento da agganciare, non uno nuovo. */}
                       {permessi.canViewBilling && s.stato !== "fatturato" && (
-                        <Button size="sm" variant="outline" disabled={preparaFattura.isPending}
+                        <Button size="sm" variant="outline" disabled={preparaFattura.isPending || fatturazioneEsterna}
                           onClick={() => preparaFattura.mutate(s)}>
                           {preparaFattura.isPending
                             ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
@@ -542,6 +544,7 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
                           Prepara la fattura
                         </Button>
                       )}
+                      {permessi.canViewBilling && fatturazioneEsterna && s.stato !== "fatturato" && <p className="text-xs text-amber-800">Per usare l'editor serve la <Link className="underline" to="/azienda/impostazioni/fatturazione">fatturazione nativa</Link>. La modalità attuale è esterna.</p>}
                       <Button size="sm" variant="ghost" onClick={() => setDaCollegare(s)}>
                         <Link2 className="mr-1.5 h-3.5 w-3.5" /> Collega una fattura già fatta
                       </Button>
@@ -562,12 +565,12 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
 
       {/* ─── Comporre ─── */}
       <Dialog open={!!form} onOpenChange={(o) => !o && setForm(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent ampiezza="modulo" struttura="scorrevole">
           <DialogHeader>
             <DialogTitle>Componi il rendiconto</DialogTitle>
             <DialogDescription>
               Entrano le righe <strong>confermate</strong> del periodo che non sono già in un altro
-              rendiconto. Dopo, quelle righe non si toccano più.
+              rendiconto. Le righe si congelano quando il rendiconto è segnato come mandato.
             </DialogDescription>
           </DialogHeader>
           {form && (
@@ -611,7 +614,7 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
 
       {/* ─── Collegare una fattura già fatta ─── */}
       <Dialog open={!!daCollegare} onOpenChange={(o) => !o && setDaCollegare(null)}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent ampiezza="spazio" struttura="scorrevole">
           <DialogHeader>
             <DialogTitle>Collega una fattura al rendiconto n. {daCollegare?.numero}</DialogTitle>
             <DialogDescription>

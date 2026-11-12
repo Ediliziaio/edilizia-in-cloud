@@ -4,7 +4,8 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentGenerale as DialogContent } from "@/components/orders/generali/design/DialogGenerale";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -79,6 +80,7 @@ function Modulo({ onOpenChange, generaleId, fonte, oggi, unita = [] }: Props) {
           <div className="space-y-1.5">
             <Label htmlFor="mov-data">Data</Label>
             <Input id="mov-data" type="date" value={data} onChange={(e) => setData(e.target.value)} aria-invalid={(tentato && !!errData) || undefined} />
+            {data > oggi && <p className="text-xs text-amber-700">Data futura: resta previsto fino alla conferma del movimento effettivo.</p>}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="mov-importo">Importo (€)</Label>

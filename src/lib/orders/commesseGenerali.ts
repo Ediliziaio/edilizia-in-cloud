@@ -39,7 +39,7 @@ export const DEFINIZIONI_MODELLI: Record<ModelloGenerale, DefinizioneModello> = 
   sviluppo: {
     id: "sviluppo",
     nome: "Sviluppo immobiliare",
-    perChi: "Compri un terreno, costruisci un complesso e vendi le unità a acquirenti diversi.",
+    perChi: "Acquisti o costruisci per vendere. Gestisci costi e cantiere sull'intera operazione; le unità seguono le vendite.",
     figlia: { una: "unità", tante: "Unità", nuova: "Nuova unità" },
     valore: { etichetta: "Ricavi previsti", aiuto: "Quanto pensi di incassare vendendo tutte le unità." },
     cliente: { etichetta: "Società dell'operazione", facoltativo: true },

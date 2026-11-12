@@ -1,6 +1,7 @@
 // src/components/orders/generali/fatture/BottoneFattura.tsx
 // Accanto a un SAL di contratto o a un pagamento di un'unità: la fattura già nata da lì (link
-// all'editor) oppure «Crea fattura». Da telefono si vede la fattura, non la si crea (piano §3.4).
+// al dettaglio) oppure «Crea fattura». Il dettaglio è consultabile anche quando l'azienda
+// usa la fatturazione esterna e l'editor nativo non è disponibile.
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { FileText, Receipt } from "lucide-react";
@@ -31,7 +32,7 @@ export function BottoneFattura({ generaleId, origine, id, crea = true, compatto 
   if (fattura) {
     return (
       <Link
-        to={`/azienda/documenti/${fattura.documentoId}`}
+        to={`/azienda/documenti/${fattura.documentoId}/dettaglio`}
         className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
       >
         <Receipt className="h-3.5 w-3.5" /> {etichettaFattura(fattura)}

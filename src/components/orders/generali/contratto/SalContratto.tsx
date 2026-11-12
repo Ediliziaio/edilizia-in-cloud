@@ -3,13 +3,15 @@
 // lordo → ritenuta → recupero dell'anticipazione → netto. Documento e firma del committente sono
 // gli stessi dei SAL di commessa (generate-sal-pdf, firma via link).
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
+import { FiltroAttivo } from "../design/ElementiScheda";
 import { CheckCircle2, ChevronDown, FileText, Link2, Loader2, Plus, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentGenerale as DialogContent } from "@/components/orders/generali/design/DialogGenerale";
 import { Input } from "@/components/ui/input";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 import { BottoneFattura } from "@/components/orders/generali/fatture/BottoneFattura";
@@ -26,8 +28,11 @@ export function SalContratto({ generaleId, dati, figlie, puoModificare, apriCont
   generaleId: string; dati: DatiContratto; figlie: FigliaGenerale[]; puoModificare: boolean; apriContratto: () => void;
 }) {
   const [nuovo, setNuovo] = useState(false);
+  const [parametri, setParametri] = useSearchParams();
+  const soloEmessi = parametri.get("stato-sal") === "emessi";
+  const rimuoviFiltro = () => { const p = new URLSearchParams(parametri); p.delete("stato-sal"); setParametri(p, { replace: true }); };
   const t = totaliSal(dati.sal);
-  const ordinati = [...dati.sal].sort((a, b) => b.numero - a.numero);
+  const ordinati = [...dati.sal].filter(s => !soloEmessi || s.diContratto && salEmesso(s)).sort((a, b) => b.numero - a.numero);
   const perFiglia = useMemo(() => new Map(figlie.map((f) => [f.id, f])), [figlie]);
 
   if (!dati.contratto) {
@@ -49,7 +54,8 @@ export function SalContratto({ generaleId, dati, figlie, puoModificare, apriCont
           </Button>
         )}
       </div>
-      {ordinati.length === 0 ? (
+      {soloEmessi && <FiltroAttivo onReset={rimuoviFiltro}>SAL emessi sul contratto: {ordinati.length}. Bozze e SAL annullati sono esclusi.</FiltroAttivo>}
+      {soloEmessi && ordinati.length === 0 ? <p className="generale-panel p-5 text-sm text-muted-foreground">Nessun SAL emesso sul contratto.</p> : ordinati.length === 0 ? (
         <ProssimoPasso
           testo={figlie.length === 0
             ? "Aggiungi gli ordini di lavoro: il SAL si compone dai loro avanzamenti e dalle misure."

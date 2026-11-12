@@ -4,7 +4,8 @@
 // ogni numero si apre sulle righe da cui viene. Sotto: contratto, SAL, elenco prezzi, misure.
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { AlertTriangle, Info, Pencil } from "lucide-react";
+import { AlertTriangle, FileCheck2, Info, Pencil } from "lucide-react";
+import { IntestazioneScheda } from "../design/ElementiScheda";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,7 +13,7 @@ import { SubappaltiContratto } from "@/components/orders/generali/subappalti/Sub
 import type { PropsScheda } from "@/components/orders/generali/tipiScheda";
 import { useDatiContratto } from "@/hooks/useGeneraleContratto";
 import {
-  TIPI_ATTO, anticipazione, fineAggiornata, oggiIso, penaleMaturata, ritenute, salEmesso, scadenzeContratto, totaliSal, valoreContratto,
+  SEZIONI_CONTRATTO, TIPI_ATTO, anticipazione, fineAggiornata, oggiIso, penaleMaturata, ritenute, salEmesso, scadenzeContratto, totaliSal, valoreContratto,
   type DatiContratto,
 } from "@/lib/orders/generali/contratto";
 import { cn } from "@/lib/utils";
@@ -25,8 +26,7 @@ import { FattureContratto, SalContratto } from "./SalContratto";
 import { NumeroCheSiApre, ProssimoPasso, type RigaOrigine } from "./campi";
 import { dataIt, euro, percentoIt } from "./formato";
 
-const SEZIONI = ["contratto", "sal", "elenco", "misure", "subappalti"] as const;
-type Sezione = typeof SEZIONI[number];
+type Sezione = typeof SEZIONI_CONTRATTO[number];
 
 export function SchedaContratto({ riepilogo, puoModificare }: PropsScheda) {
   const generaleId = riepilogo.generale.id;
@@ -51,16 +51,18 @@ export function SchedaContratto({ riepilogo, puoModificare }: PropsScheda) {
 
   const modifiche = puoModificare && dati.permessi.modifica;
   const richiesta = parametri.get("sezione");
-  const sezione: Sezione = (SEZIONI as readonly string[]).includes(richiesta ?? "") ? (richiesta as Sezione) : "contratto";
+  const sezione: Sezione = (SEZIONI_CONTRATTO as readonly string[]).includes(richiesta ?? "") ? (richiesta as Sezione) : "contratto";
   const apriSezione = (s: string) => {
     const dopo = new URLSearchParams(parametri);
+    dopo.set("scheda", "contratto");
     if (s === "contratto") dopo.delete("sezione"); else dopo.set("sezione", s);
     setParametri(dopo, { replace: true });
   };
   const scadenze = scadenzeContratto(dati, oggiIso());
 
   return (
-    <div className="space-y-4">
+    <div className="generale-sheet generale-contratto space-y-4">
+      <IntestazioneScheda icona={FileCheck2} titolo="Contratto e SAL" descrizione="Valore aggiornato, avanzamento contrattuale, ritenute e scadenze dell'appalto." />
       {dati.contratto?.importoBase != null ? (
         <NumeriContratto dati={dati} />
       ) : (
@@ -88,7 +90,7 @@ export function SchedaContratto({ riepilogo, puoModificare }: PropsScheda) {
       )}
 
       <Tabs value={sezione} onValueChange={apriSezione}>
-        <TabsList className="h-auto max-w-full flex-wrap justify-start">
+        <TabsList className="generale-subtabs h-auto max-w-full flex-wrap justify-start">
           <TabsTrigger value="contratto">Contratto</TabsTrigger>
           <TabsTrigger value="sal">SAL{dati.sal.length > 0 ? ` · ${dati.sal.length}` : ""}</TabsTrigger>
           <TabsTrigger value="elenco">Elenco prezzi{dati.elencoVoci > 0 ? ` · ${dati.elencoVoci}` : ""}</TabsTrigger>
@@ -119,7 +121,7 @@ export function SchedaContratto({ riepilogo, puoModificare }: PropsScheda) {
       </Tabs>
 
       {modifiche && (
-        <DatiContrattoDialog open={modifica} onOpenChange={setModifica} generaleId={generaleId} valoreGenerale={riepilogo.generale.valore} contratto={dati.contratto} atti={dati.atti} />
+        <DatiContrattoDialog open={modifica || parametri.get("importa-contratto") === "1"} avviaImportAi={parametri.get("importa-contratto") === "1"} onOpenChange={o => { setModifica(o); if (!o && parametri.has("importa-contratto")) { const p = new URLSearchParams(parametri); p.delete("importa-contratto"); setParametri(p, { replace: true }); } }} generaleId={generaleId} valoreGenerale={riepilogo.generale.valore} contratto={dati.contratto} atti={dati.atti} />
       )}
     </div>
   );

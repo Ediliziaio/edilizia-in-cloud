@@ -8,7 +8,8 @@ import { AlertTriangle, CheckCircle2, ExternalLink, FileUp, Loader2, Trash2 } fr
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentOperativo as DialogContent } from "@/components/orders/generali/design/ContestoOperativo";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { OrderSelectCombobox } from "@/components/warehouse/OrderSelectCombobox";
@@ -235,7 +236,7 @@ export function BolleInBloccoDialog({ open, onOpenChange, orderId, destinazione 
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!salvando) onOpenChange(v); }}>
-      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-5xl">
+      <DialogContent struttura="scorrevole" className="max-h-[92dvh] overflow-y-auto sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle>Carica più bolle</DialogTitle>
           <DialogDescription>Scegli i file: leggiamo ogni bolla e ti mostriamo cosa abbiamo capito. Non si salva niente finché non confermi.</DialogDescription>

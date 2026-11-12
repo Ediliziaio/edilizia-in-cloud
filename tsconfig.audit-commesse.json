@@ -1,0 +1,27 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "incremental": true,
+    "tsBuildInfoFile": "./node_modules/.cache/audit-commesse.tsbuildinfo",
+    "types": [
+      "vite/client"
+    ]
+  },
+  "include": [
+    "src/vite-env.d.ts",
+    "src/types/pdfmake.d.ts",
+    "src/components/orders/generali/**/*.tsx",
+    "src/pages/azienda/DDTRicezioneDetail.tsx",
+    "src/hooks/useGeneralePiano.ts",
+    "src/hooks/useGeneraleInvestitori.ts",
+    "src/lib/orders/generali/**/*.ts",
+    "src/lib/orders/commesseGenerali.ts",
+    "src/pages/azienda/CreateLavoroAppaltatore.tsx",
+    "src/pages/azienda/OrderDetail.tsx",
+    "src/pages/azienda/fatturazione/DocumentoDetail.tsx"
+  ],
+  "exclude": [
+    "src/test/**/*"
+  ]
+}

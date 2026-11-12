@@ -4,7 +4,7 @@
 // generale da src/components/orders/generali/schede.tsx.
 import type { ModelloGenerale } from "@/lib/orders/commesseGenerali";
 
-export const MODULI = ["contratto", "piano", "unita", "investitori", "documenti"] as const;
+export const MODULI = ["contratto", "piano", "unita", "investitori", "documenti", "cantiere"] as const;
 export type ModuloGenerale = typeof MODULI[number];
 
 /**
@@ -12,9 +12,9 @@ export type ModuloGenerale = typeof MODULI[number];
  * «piano» comprende costi comuni e flusso di cassa (vedi il piano, §2.2 e §4).
  */
 export const MODULI_PER_MODELLO: Record<ModelloGenerale, readonly ModuloGenerale[]> = {
-  appalto: ["contratto", "piano", "documenti"],
-  sviluppo: ["unita", "piano", "investitori", "documenti"],
-  compravendita: ["unita", "piano", "investitori", "documenti"],
+  appalto: ["contratto", "piano", "cantiere", "documenti"],
+  sviluppo: ["unita", "piano", "cantiere", "investitori", "documenti"],
+  compravendita: ["unita", "piano", "cantiere", "investitori", "documenti"],
 };
 
 export const moduliDelModello = (modello: ModelloGenerale): readonly ModuloGenerale[] => MODULI_PER_MODELLO[modello];

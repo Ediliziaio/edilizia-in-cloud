@@ -26,7 +26,7 @@ export function currentManagementScope<T extends OrderWithDetails>(orders: T[], 
 export function orderEconomics(orders: OrderWithDetails[], incassiUnita?: ReadonlyMap<string, number>, permuteUnita?: ReadonlyMap<string, number>) {
   return orders.reduce((total, order) => {
     const daRate = getAmountCollected(order);
-    const inPiu = Math.max(0, nettoUnitaInLordo(incassiUnita?.get(order.id) ?? 0, order.vat_rate) - daRate);
+    const inPiu = order.incasso_unita_lordo!=null ? 0 : Math.max(0, nettoUnitaInLordo(incassiUnita?.get(order.id) ?? 0, order.vat_rate) - daRate);
     return {
       count: total.count + 1,
       sold: total.sold + getGrossOrderAmount(order),

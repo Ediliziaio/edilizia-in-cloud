@@ -12,3 +12,9 @@ it("mantiene visibile un recapito reale nello snapshot senza anagrafica", () => 
   render(<MemoryRouter><OrdineCliente customer={null} snapshot={{ name: "Demo", email: "info@example.com" }} /></MemoryRouter>);
   expect(screen.getByText("info@example.com")).toBeInTheDocument();
 });
+it("presenta l'impresa committente e il referente come informazioni distinte", () => {
+  render(<MemoryRouter><OrdineCliente ruolo="committente" customer={{id:"demo",business_name:"Edil Aurora S.r.l.",first_name:"Marco",last_name:"Rossi",email:"demo@example.invalid",phone:null,address:null}}/></MemoryRouter>);
+  expect(screen.getByRole("heading",{name:"Committente"})).toBeVisible();
+  expect(screen.getByRole("link",{name:"Edil Aurora S.r.l."})).toBeVisible();
+  expect(screen.getByText("Referente: Marco Rossi")).toBeVisible();
+});

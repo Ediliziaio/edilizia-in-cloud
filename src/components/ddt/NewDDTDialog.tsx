@@ -25,12 +25,11 @@ import { erroreVerificaDDT } from "@/lib/ddt/verificaNuovoDDT";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigaDocumento } from "@/lib/orders/documentoPopup";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
+import { Dialog, DialogHeader, DialogTitle, DialogFooter,  } from "@/components/ui/dialog";
+import { DialogContentOperativo as DialogContent } from "@/components/orders/generali/design/ContestoOperativo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -140,7 +139,7 @@ export function NewDDTDialog({
   restaQui,
   onCreated,
 }: NewDDTDialogProps) {
-  const navigate = useNavigate();
+  const navigate = useNavigaDocumento();
   const { orders } = usePurchaseOrders();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? null;
@@ -443,7 +442,7 @@ export function NewDDTDialog({
   // ── Render ───────────────────────────────────────
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl w-[95vw] p-0 overflow-hidden flex flex-col max-h-[95vh]">
+      <DialogContent struttura="contenuta" className="max-w-3xl w-[95vw] p-0 overflow-hidden flex flex-col max-h-[95vh]">
         {/* ── Header with stepper ─── */}
         <DialogHeader className="px-5 pt-5 pb-3 border-b bg-gradient-to-br from-primary/5 to-transparent">
           <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
@@ -455,7 +454,7 @@ export function NewDDTDialog({
           </DialogTitle>
 
           {/* Step progress */}
-          <div className="flex items-center gap-1 sm:gap-2 mt-3 overflow-x-auto scrollbar-none">
+          <div className="flex items-center gap-1 sm:gap-2 mt-3 flex-wrap">
             {STEPS.map((s, idx) => {
               const StepIcon = s.icon;
               const isActive = idx === stepIdx;
@@ -498,7 +497,7 @@ export function NewDDTDialog({
         </DialogHeader>
 
         {/* ── Step body ──────────────────────────────── */}
-        <div className="px-5 py-4 flex-1 overflow-y-auto">
+        <div className="px-5 py-4 min-h-0 flex-1 overflow-y-auto">
           {currentStep.key === "documento" && (
             <DocumentoStep
               origine={origine}
@@ -1513,43 +1512,46 @@ function RigheMerceField({
       ) : (
         <div className="divide-y">
           {righe.map((r, i) => (
-            <div key={i} className="grid grid-cols-12 gap-1.5 px-2 py-2 items-center">
+            <div key={i} className="grid grid-cols-12 gap-3 px-3 py-3 items-center">
+              <div className="col-span-12 space-y-1">
+                <Label htmlFor={`ddt-descrizione-${i}`}>Descrizione · riga {i+1}</Label>
+                <Textarea id={`ddt-descrizione-${i}`} value={r.descrizione} onChange={(e)=>cambia(i,'descrizione',e.target.value)} placeholder="descrizione" rows={2} className="min-h-16 text-sm" />
+              </div>
               <Input
+                aria-label={`Codice riga ${i+1}`}
                 value={r.codice_articolo ?? ""}
                 onChange={(e) => cambia(i, "codice_articolo", e.target.value)}
                 placeholder="codice"
-                className="col-span-2 h-8 text-xs font-mono"
+                className="col-span-6 sm:col-span-4 text-sm font-mono"
               />
               <Input
-                value={r.descrizione}
-                onChange={(e) => cambia(i, "descrizione", e.target.value)}
-                placeholder="descrizione"
-                className="col-span-5 h-8 text-xs"
-              />
-              <Input
+                aria-label={`Quantità riga ${i+1}`}
                 value={r.quantita ?? ""}
                 onChange={(e) => cambia(i, "quantita", e.target.value)}
                 placeholder="q.tà"
                 inputMode="decimal"
-                className="col-span-1 h-8 text-xs text-right"
+                className="col-span-3 sm:col-span-2 text-sm text-right"
               />
               <Input
+                aria-label={`Unità riga ${i+1}`}
                 value={r.unita_misura ?? ""}
                 onChange={(e) => cambia(i, "unita_misura", e.target.value)}
                 placeholder="um"
-                className="col-span-1 h-8 text-xs"
+                className="col-span-3 sm:col-span-2 text-sm"
               />
               <Input
+                aria-label={`Prezzo unitario riga ${i+1}`}
                 value={r.prezzo_unitario ?? ""}
                 onChange={(e) => cambia(i, "prezzo_unitario", e.target.value)}
                 placeholder="€/um"
                 inputMode="decimal"
-                className="col-span-2 h-8 text-xs text-right"
+                className="col-span-9 sm:col-span-3 text-sm text-right"
               />
               <button
+                aria-label={`Togli riga ${i+1}`}
                 type="button"
                 onClick={() => onChange(righe.filter((_, j) => j !== i))}
-                className="col-span-1 text-[10px] text-rose-600 hover:underline"
+                className="col-span-3 sm:col-span-1 min-h-10 text-sm text-rose-600 hover:underline"
               >
                 togli
               </button>

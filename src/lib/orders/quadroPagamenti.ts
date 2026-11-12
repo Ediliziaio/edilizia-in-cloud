@@ -1,3 +1,4 @@
+import { leggiCreditiMisura } from './importiFinanziari';
 /**
  * Quadro incassi e pagamenti della commessa (Economia → Incassi e Fatture e costi).
  * I dati li calcola commessa_quadro_pagamenti() nel database; qui solo totali,
@@ -64,6 +65,8 @@ export interface Uscita {
 }
 
 export interface QuadroPagamenti {
+  incassi_unita?: {incassato:number;residuo:number;scaduto:number;generale_id:string|null;da_collegare:number} | null;
+  crediti_misura?: import('./importiFinanziari').CreditiMisura | null;
   oggi: string;
   rate: RataCliente[];
   sal_cliente: SalCliente[];
@@ -79,6 +82,8 @@ export function normalizzaQuadro(raw: unknown): QuadroPagamenti | null {
   if (!raw || typeof raw !== "object") return null;
   const q = raw as Partial<QuadroPagamenti>;
   return {
+    incassi_unita:q.incassi_unita ? {...q.incassi_unita,incassato:n(q.incassi_unita.incassato),residuo:n(q.incassi_unita.residuo),scaduto:n(q.incassi_unita.scaduto),da_collegare:n(q.incassi_unita.da_collegare)} : null,
+    crediti_misura: leggiCreditiMisura((raw as Record<string,unknown>).crediti_misura),
     oggi: String(q.oggi ?? ""),
     rate: (q.rate ?? []).map((r) => ({ ...r, amount: n(r.amount), is_paid: !!r.is_paid, scaduta: !!r.scaduta })),
     sal_cliente: (q.sal_cliente ?? []).map((s) => ({ ...s, importo_totale: s.importo_totale == null ? null : n(s.importo_totale),
@@ -110,7 +115,7 @@ export interface TotaliQuadro {
   cassa: number;
 }
 
-export function totaliQuadro(q: Pick<QuadroPagamenti, "rate" | "uscite">): TotaliQuadro {
+export function totaliQuadro(q: Pick<QuadroPagamenti, "rate" | "uscite"> & Pick<QuadroPagamenti,'crediti_misura'|'incassi_unita'>): TotaliQuadro {
   const t = { incassato: 0, daIncassare: 0, incassoScaduto: 0, pagato: 0, daPagare: 0, pagamentoScaduto: 0, impegnato: 0 };
   for (const r of q.rate) {
     if (r.is_paid) t.incassato += r.amount;
@@ -118,6 +123,14 @@ export function totaliQuadro(q: Pick<QuadroPagamenti, "rate" | "uscite">): Total
       t.daIncassare += r.amount;
       if (r.scaduta) t.incassoScaduto += r.amount;
     }
+  }
+  if(q.incassi_unita) {
+    t.incassato=q.incassi_unita.incassato;t.daIncassare=q.incassi_unita.residuo;t.incassoScaduto=q.incassi_unita.scaduto;
+  }
+  if(q.crediti_misura) {
+    t.incassato=q.crediti_misura.incassato;
+    t.daIncassare=q.crediti_misura.residuo;
+    t.incassoScaduto=q.crediti_misura.scaduto;
   }
   for (const u of q.uscite) {
     if (u.stato === "fattura_da_arrivare") { t.impegnato += u.importo; continue; }

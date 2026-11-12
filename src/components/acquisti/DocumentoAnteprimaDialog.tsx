@@ -1,12 +1,7 @@
 import { lazy, Suspense, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { Dialog, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { DialogContentOperativo as DialogContent } from "@/components/orders/generali/design/ContestoOperativo";
 import { supabase } from "@/integrations/supabase/client";
 import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import {
@@ -38,7 +33,7 @@ export function DocumentoAnteprimaDialog({
         if (!open) onClose();
       }}
     >
-      <DialogContent className="flex h-[90dvh] max-w-5xl flex-col overflow-hidden rounded-2xl p-4 sm:p-6">
+      <DialogContent struttura="contenuta" className="flex h-[90dvh] max-w-5xl flex-col overflow-hidden rounded-2xl p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>
             Anteprima PDF · {snapshot?.numero ?? originalFile?.name}

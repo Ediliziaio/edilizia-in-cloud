@@ -1,14 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Loader2 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { DialogBody as CorpoDialogOperativo, Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentOperativo as DialogContent } from "@/components/orders/generali/design/ContestoOperativo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,7 +55,7 @@ export function SegnaPagataDialog({
 }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent struttura="contenuta" ampiezza="modulo" className="sm:max-w-md">
         {/* Montato a ogni apertura: metodo e data ripartono dalla fattura e da oggi. */}
         {open && (
           <ModuloIncasso
@@ -125,6 +119,7 @@ function ModuloIncasso({
               : `Un incasso per fattura, per quanto resta da incassare: ${formatCurrency(totale)} in tutto. Entrano nel registro incassi e in prima nota, e chiudono le scadenze.`}
         </DialogDescription>
       </DialogHeader>
+      <CorpoDialogOperativo>
 
       {escluse > 0 && (
         <p className="text-xs text-muted-foreground">
@@ -206,6 +201,7 @@ function ModuloIncasso({
         </p>
       )}
 
+      </CorpoDialogOperativo>
       <DialogFooter>
         {/* Mobile: «Annulla» no, c'è la X (resta «Chiudi» quando non c'è altro). */}
         <Button

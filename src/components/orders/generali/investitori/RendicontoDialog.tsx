@@ -7,7 +7,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Download, Loader2, Mail, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentGenerale as DialogContent } from "@/components/orders/generali/design/DialogGenerale";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -78,7 +79,7 @@ function useAzienda() {
 export function RendicontoDialog(props: Props) {
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent className="flex max-h-[94vh] max-w-5xl flex-col overflow-hidden">
+      <DialogContent ampiezza="spazio" className="flex max-h-[94vh] max-w-5xl flex-col overflow-hidden">
         {props.open && <Contenuto {...props} />}
       </DialogContent>
     </Dialog>

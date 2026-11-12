@@ -1,0 +1,393 @@
+/* Solo il contesto della commessa generale attiva queste regole. */
+.generale-operativo-card {
+  border-radius: 12px;
+  border-top: 3px solid rgb(var(--brand-accent, 249 115 22));
+  box-shadow: 0 3px 14px -10px hsl(215 40% 20% / 0.2);
+  overflow: hidden;
+}
+.generale-operativo-card > [data-ui="card-header"] {
+  padding: 18px 20px 16px;
+  gap: 0;
+}
+.generale-operativo-card > [data-ui="card-content"] {
+  padding: 0 20px 20px;
+}
+.generale-operativo-card [data-ui="card-title"] {
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+}
+.generale-operativo-card .commessa-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: rgb(var(--brand-accent, 249 115 22) / 0.1);
+}
+.generale-operativo-card .commessa-card-icon svg {
+  width: 17px;
+  height: 17px;
+  color: rgb(var(--brand-accent, 249 115 22));
+}
+.generale-operativo-description {
+  margin: 5px 0 0 42px;
+  color: hsl(var(--muted-foreground));
+  font-size: 12px;
+  line-height: 1.6;
+}
+.generale-operativo-card .commessa-card-numeri {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+.generale-operativo-card button {
+  border-radius: 7px;
+}
+.generale-operativo-card .commessa-empty {
+  border: 1px dashed hsl(var(--border));
+  border-radius: 10px;
+  background: hsl(var(--muted) / 0.25);
+  padding: 24px;
+  line-height: 1.7;
+}
+.generale-operativo-table {
+  border: 1px solid hsl(var(--border));
+  border-radius: 9px;
+}
+.generale-operativo-table th {
+  padding: 11px 12px;
+  background: rgb(var(--brand-navy-deep, 23 59 103) / 0.055);
+  color: hsl(var(--muted-foreground));
+  font-size: 10px;
+  letter-spacing: 0.025em;
+}
+.generale-operativo-table td {
+  padding: 14px 12px;
+  font-size: 12px;
+}
+.generale-operativo-table td a,
+.generale-operativo-table td button.font-medium {
+  color: rgb(var(--brand-primary, 37 99 235));
+}
+.generale-operativo-table tbody tr:hover {
+  background: rgb(var(--brand-navy-deep, 23 59 103) / 0.025);
+}
+.generale-operativo-filters {
+  display: grid;
+  gap: 8px;
+}
+.generale-operativo-counters {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  gap: 8px;
+}
+.generale-operativo-counters button {
+  border: 1px solid hsl(var(--border));
+  border-top: 3px solid rgb(var(--brand-navy-deep, 23 59 103) / 0.6);
+  background: hsl(var(--card));
+  padding: 12px;
+  border-radius: 9px;
+  min-width: 0;
+}
+.generale-operativo-counters button[data-avviso="true"] {
+  border-top-color: hsl(35 90% 50%);
+}
+.generale-operativo-counters button[aria-pressed="true"] {
+  outline: 2px solid rgb(var(--brand-accent, 249 115 22));
+  outline-offset: 1px;
+  background: rgb(var(--brand-accent, 249 115 22) / 0.045);
+}
+.generale-operativo-counters button:disabled {
+  opacity: 0.55;
+}
+.generale-operativo-counters button > span:last-child {
+  font-size: 23px;
+  font-weight: 650;
+}
+.generale-operativo-reset {
+  display: inline-flex;
+  justify-self: end;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+}
+.generale-operativo-reset svg {
+  width: 13px;
+  height: 13px;
+}
+.generale-operativo-card .commessa-totali {
+  max-width: none;
+  background: var(--generale-navy);
+  color: white;
+  border: 0;
+  border-radius: 10px;
+  padding: 18px;
+}
+.generale-operativo-card .commessa-totali dt {
+  color: hsl(214 50% 86%);
+  font-size: 11px;
+}
+.generale-operativo-card .commessa-totali dd {
+  color: white;
+  font-size: clamp(17px, 1.6vw, 24px);
+}
+.generale-operativo-card .commessa-totali dd.text-xs {
+  color: hsl(214 50% 83%);
+  font-size: 10px;
+  margin-top: 5px;
+}
+.commessa-payment-filters button[aria-pressed="true"] {
+  box-shadow: inset 0 -2px 0 rgb(var(--brand-accent, 249 115 22));
+}
+.generale-operativo-dialog {
+  border-top: 3px solid var(--generale-orange);
+  border-radius: 14px;
+  background: hsl(var(--card));
+  box-shadow: 0 20px 80px -20px hsl(215 50% 8% / 0.45);
+}
+.generale-operativo-dialog :is(h2, [data-ui="card-title"]) {
+  letter-spacing: -0.025em;
+}
+.generale-operativo-dialog
+  > :is(div, header):has(> h2):not(.commessa-document-bar) {
+  border-bottom: 1px solid hsl(var(--border));
+  padding-bottom: 16px;
+  padding-right: 24px;
+}
+.generale-operativo-dialog h2 {
+  color: hsl(var(--foreground));
+  font-size: 19px;
+  font-weight: 650;
+}
+.generale-operativo-dialog h2 svg {
+  color: var(--generale-orange);
+}
+.generale-operativo-dialog section > h3 {
+  color: hsl(var(--foreground));
+}
+.generale-operativo-dialog section > h3 svg {
+  color: var(--generale-orange);
+}
+.generale-operativo-dialog section > dl {
+  padding: 14px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 10px;
+  background: hsl(var(--muted) / 0.2);
+}
+.generale-operativo-dialog :is(input, textarea, [role="combobox"]) {
+  border-radius: 7px;
+}
+.generale-operativo-dialog table th {
+  background: rgb(var(--brand-navy-deep, 23 59 103) / 0.055);
+  color: hsl(var(--muted-foreground));
+  font-size: 10px;
+  font-weight: 500;
+}
+.generale-operativo-dialog .commessa-document-bar {
+  background: var(--generale-navy);
+  color: white;
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+.generale-operativo-dialog .commessa-document-bar h2 {
+  color: white;
+  font-size: 13px;
+}
+.generale-operativo-dialog .commessa-document-bar a {
+  color: hsl(214 50% 86%);
+}
+.generale-operativo-dialog:has(.commessa-document-bar) > button {
+  color: white;
+  opacity: 0.85;
+}
+.generale-operativo-dialog .commessa-payment-summary {
+  gap: 10px;
+}
+.generale-operativo-dialog .commessa-document-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 16px;
+  border-radius: 10px;
+  background: var(--generale-navy);
+  color: white;
+}
+.generale-operativo-dialog .commessa-document-summary dt {
+  font-size: 10px;
+  color: hsl(214 50% 86%);
+}
+.generale-operativo-dialog .commessa-document-summary dd {
+  margin-top: 7px;
+  font-size: clamp(17px, 2vw, 23px);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  overflow-wrap: anywhere;
+}
+.generale-operativo-dialog .commessa-payment-summary > div {
+  border: 1px solid hsl(var(--border));
+  border-top: 3px solid var(--generale-navy);
+  background: hsl(var(--muted) / 0.2);
+  padding: 16px 12px;
+  border-radius: 10px;
+}
+.generale-operativo-dialog .commessa-payment-summary [data-pagamento="Pagato"] {
+  border-top-color: hsl(160 70% 38%);
+}
+.generale-operativo-dialog
+  .commessa-payment-summary
+  [data-pagamento="Residuo"] {
+  border-top-color: hsl(35 90% 50%);
+}
+.generale-operativo-dialog .commessa-payment-summary p:last-child {
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  overflow-wrap: anywhere;
+}
+.generale-operativo-dialog .commessa-payment-form {
+  border-radius: 10px;
+  border-color: rgb(var(--brand-accent, 249 115 22) / 0.3);
+}
+.generale-documento-pagina {
+  min-width: 0;
+}
+.generale-documento-pagina
+  :is([data-ui="document-header"], .commessa-document-header) {
+  padding: 20px;
+  border: 1px solid hsl(var(--border));
+  border-top: 3px solid var(--generale-orange);
+  border-radius: 12px;
+  background: hsl(var(--card));
+}
+.generale-documento-pagina :is([data-ui="document-card"], [data-ui="card"]) {
+  border-color: hsl(var(--border));
+  border-radius: 12px;
+  background: hsl(var(--card));
+  box-shadow: 0 2px 10px -8px hsl(215 40% 20% / 0.2);
+}
+.generale-documento-pagina
+  :is([data-ui="card-title"], [data-ui="document-card"] h3) {
+  font-size: 15px;
+  font-weight: 650;
+  color: hsl(var(--foreground));
+}
+.generale-documento-pagina
+  :is([data-ui="card-title"], [data-ui="document-card"] h3)
+  svg {
+  color: var(--generale-orange);
+}
+.generale-documento-pagina [data-ui="card-header"] {
+  padding: 18px 20px 14px;
+}
+.generale-documento-pagina [data-ui="card-content"] {
+  padding-left: 20px;
+  padding-right: 20px;
+}
+.generale-documento-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--generale-navy);
+  color: white;
+  font-size: 12px;
+}
+.generale-documento-context :is(a, span) {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.generale-documento-context > span {
+  opacity: 0.75;
+  font-size: 11px;
+}
+.generale-documento-context svg {
+  width: 14px;
+  height: 14px;
+}
+.generale-operativo-dialog :is(button, a):focus-visible,
+.generale-operativo-card :is(button, a):focus-visible {
+  outline: 2px solid rgb(var(--brand-accent, 249 115 22));
+  outline-offset: 3px;
+}
+.generale-documento-pagina .commessa-document-header .bg-gradient-to-br {
+  background: rgb(var(--brand-accent, 249 115 22) / 0.1);
+  border-color: rgb(var(--brand-accent, 249 115 22) / 0.2);
+}
+.generale-documento-pagina .commessa-document-header .bg-gradient-to-br svg {
+  color: var(--generale-orange);
+}
+@media (max-width: 639px) {
+  .generale-documento-pagina .commessa-document-header > div:first-child {
+    flex-basis: 100%;
+  }
+  .generale-documento-pagina .commessa-document-header h1,
+  .generale-documento-pagina [data-ui="document-header"] h1,
+  .generale-documento-pagina .commessa-document-meta > .truncate {
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    line-height: 1.4;
+  }
+  .generale-operativo-card > [data-ui="card-header"] {
+    padding: 14px;
+  }
+  .generale-operativo-card > [data-ui="card-content"] {
+    padding: 0 14px 14px;
+  }
+  .generale-operativo-description {
+    margin-left: 0;
+  }
+  .generale-operativo-table {
+    border: 0;
+  }
+  .generale-operativo-table tbody {
+    display: grid;
+    gap: 10px;
+  }
+  .generale-operativo-table tr {
+    border: 1px solid hsl(var(--border));
+    border-radius: 9px;
+    padding: 12px;
+  }
+  .generale-operativo-table td {
+    font-size: 12px;
+    padding: 3px 0;
+    overflow-wrap: anywhere;
+  }
+  .generale-operativo-table td:first-child {
+    margin-bottom: 8px;
+  }
+  .generale-operativo-counters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .generale-operativo-counters button {
+    padding: 10px;
+  }
+  .generale-operativo-dialog {
+    border-radius: 14px 14px 0 0;
+  }
+  .generale-operativo-dialog .commessa-payment-summary {
+    gap: 6px;
+  }
+  .generale-operativo-dialog .commessa-payment-summary > div {
+    padding: 12px 8px;
+  }
+  .generale-operativo-dialog .commessa-payment-summary p:last-child {
+    font-size: 17px;
+  }
+  .generale-documento-pagina
+    :is([data-ui="document-header"], .commessa-document-header) {
+    padding: 14px;
+  }
+}

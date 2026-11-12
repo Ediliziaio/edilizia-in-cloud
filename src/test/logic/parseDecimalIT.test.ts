@@ -12,9 +12,18 @@
  * già la regola giusta dal suo audit: qui allineiamo i due helper.
  */
 import { describe, expect, it } from "vitest";
-import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
+import { parseDecimalIT, parseDecimalITStrict, formatDecimalIT } from "@/lib/parseDecimalIT";
 import { parseListinoNumber } from "@/lib/catalogo/listinoParser";
 import { orderSchema } from "@/lib/orderSchema";
+
+describe("importi da validare prima del salvataggio", () => {
+  it.each(["abc", "12abc", "1,2,3", "NaN", "Infinity", "", "0x10"])("%s non diventa uno zero confermato", testo => {
+    expect(parseDecimalITStrict(testo)).toBeNaN();
+  });
+  it.each([["0",0],["1.500",1500],["1.234,56",1234.56],["€ 9,50",9.5],["-2,50",-2.5],["-1.500",-1500],["+1.500",1500],["-0.500",-0.5]])("legge %s come %s", (testo, valore) => {
+    expect(parseDecimalITStrict(testo)).toBe(valore);
+  });
+});
 
 describe("parseDecimalIT — regressione: comportamenti già garantiti", () => {
   it("virgola decimale italiana", () => {

@@ -3,28 +3,77 @@
 // sull'operazione, poi su ogni ordine di lavoro o unità) e, sotto, l'archivio della generale.
 // Da telefono si legge soltanto: un elenco compatto, toccando una voce si apre il file.
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { ChevronDown, ChevronRight, MoreHorizontal, Settings2, Upload } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+import {
+  ChevronDown,
+  ChevronRight,
+  FolderOpen,
+  MoreHorizontal,
+  Settings2,
+  Upload,
+} from "lucide-react";
+import { IntestazioneScheda, FiltroAttivo } from "../design/ElementiScheda";
+import {
+  documentoNelFiltro,
+  type FiltroDocumenti,
+} from "@/lib/orders/generali/documentiFiltri";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { openAttachmentInTab } from "@/components/orders/filePreviewUtils";
 import { PannelloVoce } from "@/components/orders/generali/documenti/PannelloVoce";
 import { IconaStato } from "@/components/orders/generali/documenti/IconaStato";
-import { COLORE_TONO, nomeBreve, testoBreve, tonoCasella } from "@/components/orders/generali/documenti/statoVisivo";
+import {
+  COLORE_TONO,
+  nomeBreve,
+  testoBreve,
+  tonoCasella,
+} from "@/components/orders/generali/documenti/statoVisivo";
 import type { PropsScheda } from "@/components/orders/generali/tipiScheda";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissions } from "@/hooks/usePermissions";
-import { useChecklistGenerale, type ChecklistGenerale } from "@/hooks/useGeneraleDocumenti";
-import { DEFINIZIONI_MODELLI, type FigliaGenerale, type RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import {
-  etichettaAmbito, riepilogoVoceFiglie, testoCasella, testoConteggi,
-  type CasellaDocumento, type ChecklistDocumenti, type ConteggiDocumenti,
+  useChecklistGenerale,
+  type ChecklistGenerale,
+} from "@/hooks/useGeneraleDocumenti";
+import {
+  DEFINIZIONI_MODELLI,
+  type FigliaGenerale,
+  type RiepilogoGenerale,
+} from "@/lib/orders/commesseGenerali";
+import {
+  etichettaAmbito,
+  riepilogoVoceFiglie,
+  testoCasella,
+  testoConteggi,
+  type CasellaDocumento,
+  type ChecklistDocumenti,
+  type ConteggiDocumenti,
 } from "@/lib/orders/generali/documenti";
 import { cn } from "@/lib/utils";
 
 export function SchedaDocumenti({ riepilogo: r, puoModificare }: PropsScheda) {
+  const [parametri, setParametri] = useSearchParams();
+  const [cerca, setCerca] = useState("");
+  const filtro: FiltroDocumenti = [
+    "presenti",
+    "mancanti",
+    "in_scadenza",
+    "scaduti",
+  ].includes(parametri.get("stato-documenti") ?? "")
+    ? (parametri.get("stato-documenti") as FiltroDocumenti)
+    : "tutti";
+  const filtra = (s: FiltroDocumenti) => {
+    const p = new URLSearchParams(parametri);
+    if (s === "tutti") p.delete("stato-documenti");
+    else p.set("stato-documenti", s);
+    setParametri(p, { replace: true });
+  };
   const isMobile = useIsMobile();
   const dati = useChecklistGenerale(r);
   if (dati.isLoading) {
@@ -39,54 +88,298 @@ export function SchedaDocumenti({ riepilogo: r, puoModificare }: PropsScheda) {
     return (
       <div role="alert" className="space-y-3 rounded-lg border p-4 text-sm">
         <p>Non riesco a leggere i documenti di questa commessa generale.</p>
-        <Button size="sm" variant="outline" onClick={dati.refetch}>Riprova</Button>
+        <Button size="sm" variant="outline" onClick={dati.refetch}>
+          Riprova
+        </Button>
       </div>
     );
   }
-  return isMobile
-    ? <DocumentiTelefono r={r} checklist={dati.checklist} />
-    : <DocumentiComputer r={r} dati={dati} checklist={dati.checklist} puoModificare={puoModificare} />;
+  const checklist = dati.checklist;
+  const c = checklist.conteggi;
+  const conteggi: {
+    id: FiltroDocumenti;
+    nome: string;
+    valore: number;
+    tono: string;
+  }[] = [
+    {
+      id: "presenti",
+      nome: "Obbligatori presenti",
+      valore: c.presenti,
+      tono: "verde",
+    },
+    {
+      id: "mancanti",
+      nome: "Obbligatori mancanti",
+      valore: c.mancanti,
+      tono: "ambra",
+    },
+    {
+      id: "in_scadenza",
+      nome: "In scadenza",
+      valore: c.inScadenza,
+      tono: "ambra",
+    },
+    { id: "scaduti", nome: "Scaduti", valore: c.scaduti, tono: "rosso" },
+  ];
+  const lista = [
+    ...checklist.generale.map((casella) => ({
+      casella,
+      orderId: r.generale.id,
+      dove: r.generale.codice ?? "Commessa generale",
+    })),
+    ...checklist.figlie.flatMap((g) =>
+      g.caselle.map((casella, i) => ({
+        casella,
+        orderId: r.figlie[i]?.id ?? r.generale.id,
+        dove: r.figlie[i] ? nomeFiglia(r.figlie[i]) : "Commessa collegata",
+      })),
+    ),
+  ];
+  const visibili = lista
+    .filter(
+      (x) =>
+        documentoNelFiltro(x.casella, filtro) &&
+        `${x.casella.voce.nome} ${x.dove}`
+          .toLocaleLowerCase("it-IT")
+          .includes(cerca.trim().toLocaleLowerCase("it-IT")),
+    )
+    .sort((a, b) => ORDINE_GRAVITA(a.casella) - ORDINE_GRAVITA(b.casella));
+  const filtrata = filtro !== "tutti" || !!cerca.trim();
+  return (
+    <div className="generale-sheet generale-documenti space-y-4">
+      <IntestazioneScheda
+        icona={FolderOpen}
+        titolo="Archivio e scadenze"
+        descrizione="Documenti dell'operazione e delle commesse collegate, con le priorità da seguire."
+      />
+      <div className="generale-indicators">
+        {conteggi.map((x) => (
+          <button
+            type="button"
+            className={`generale-indicator generale-indicator--${x.tono}`}
+            key={x.id}
+            aria-pressed={filtro === x.id}
+            onClick={() => filtra(filtro === x.id ? "tutti" : x.id)}
+          >
+            <span>{x.nome}</span>
+            <strong>{x.valore}</strong>
+            <small>
+              {x.id === "presenti"
+                ? `su ${c.richiesti} richiesti`
+                : "apri l'elenco"}
+            </small>
+          </button>
+        ))}
+      </div>
+      <div className="generale-table-toolbar">
+        <label>
+          Cerca documento
+          <input
+            aria-label="Cerca nei documenti della commessa"
+            placeholder="Nome documento o commessa…"
+            value={cerca}
+            onChange={(e) => setCerca(e.target.value)}
+          />
+        </label>
+        <button
+          type="button"
+          className="generale-text-link"
+          onClick={() => {
+            filtra("tutti");
+            setCerca("");
+          }}
+        >
+          Tutti i documenti
+        </button>
+      </div>
+      {filtrata && (
+        <FiltroAttivo
+          onReset={() => {
+            filtra("tutti");
+            setCerca("");
+          }}
+        >
+          {visibili.length} voci corrispondenti al filtro. I conteggi in alto
+          riguardano l'intera operazione.
+        </FiltroAttivo>
+      )}
+      {filtrata ? (
+        <>
+          <div className="generale-panel overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr>
+                  <th className="px-4 py-3 text-left">Documento</th>
+                  <th className="px-4 py-3 text-left">Commessa</th>
+                  <th className="px-4 py-3 text-left">Stato</th>
+                  <th className="px-4 py-3">
+                    <span className="sr-only">Azioni documento</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {visibili.map(({ casella: x, orderId, dove }) => (
+                  <tr key={`${orderId}-${x.voce.id}`}>
+                    <td className="px-4 py-3">
+                      <span className="flex items-center gap-2">
+                        <IconaStato c={x} />
+                        {x.voce.nome}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                      {dove}
+                    </td>
+                    <td
+                      className={cn(
+                        "px-4 py-3 text-xs",
+                        COLORE_TONO[tonoCasella(x)],
+                      )}
+                    >
+                      {testoCasella(x)}
+                    </td>
+                    <td className="px-4 py-3">
+                      {isMobile ? (
+                        x.documenti[0] && (
+                          <button
+                            type="button"
+                            className="generale-text-link"
+                            onClick={() =>
+                              void openAttachmentInTab(
+                                x.documenti[0].allegato.file_url,
+                              )
+                            }
+                          >
+                            Apri
+                          </button>
+                        )
+                      ) : (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              aria-label={`Gestisci ${x.voce.nome}, ${dove}`}
+                            >
+                              {puoModificare && x.stato === "mancante"
+                                ? "Carica"
+                                : "Dettagli"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent align="end" className="w-80">
+                            <PannelloVoce
+                              casella={x}
+                              generaleId={r.generale.id}
+                              dove={dove}
+                              allegati={dati.allegatiPer.get(orderId) ?? []}
+                              puoModificare={puoModificare}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {visibili.length === 0 && (
+              <p className="p-6 text-sm text-muted-foreground">
+                Nessun documento corrisponde al filtro.
+              </p>
+            )}
+          </div>
+          {!isMobile && (
+            <OrderAttachments
+              orderId={r.generale.id}
+              editable={puoModificare}
+            />
+          )}
+        </>
+      ) : isMobile ? (
+        <DocumentiTelefono r={r} checklist={checklist} />
+      ) : (
+        <DocumentiComputer
+          r={r}
+          dati={dati}
+          checklist={checklist}
+          puoModificare={puoModificare}
+        />
+      )}
+    </div>
+  );
 }
 
 /** «12 di 15 presenti · 3 documenti mancanti, 1 in scadenza». */
 function riassunto(c: ConteggiDocumenti): string {
-  const parti = [c.richiesti === 0 ? "Nessun documento obbligatorio" : `${c.presenti} di ${c.richiesti} obbligatori presenti`];
+  const parti = [
+    c.richiesti === 0
+      ? "Nessun documento obbligatorio"
+      : `${c.presenti} di ${c.richiesti} obbligatori presenti`,
+  ];
   const testo = testoConteggi(c);
   if (testo) parti.push(testo);
-  if (c.senzaData > 0) parti.push(c.senzaData === 1 ? "1 senza scadenza" : `${c.senzaData} senza scadenza`);
+  if (c.senzaData > 0)
+    parti.push(
+      c.senzaData === 1 ? "1 senza scadenza" : `${c.senzaData} senza scadenza`,
+    );
   return parti.join(" · ");
 }
 
 const ORDINE_GRAVITA = (c: CasellaDocumento) =>
-  c.stato === "scaduto" ? 0
-    : c.stato === "mancante" && c.obbligatoria ? 1
-      : c.stato === "in_scadenza" ? 2
-        : c.senzaData ? 3
-          : c.stato === "mancante" ? 4
-            : c.stato === "presente" ? 5 : 6;
+  c.stato === "scaduto"
+    ? 0
+    : c.stato === "mancante" && c.obbligatoria
+      ? 1
+      : c.stato === "in_scadenza"
+        ? 2
+        : c.senzaData
+          ? 3
+          : c.stato === "mancante"
+            ? 4
+            : c.stato === "presente"
+              ? 5
+              : 6;
 /** La casella che dice com'è messa una voce su tutte le figlie: la più grave. */
-const peggiore = (caselle: readonly CasellaDocumento[]) => [...caselle].sort((a, b) => ORDINE_GRAVITA(a) - ORDINE_GRAVITA(b))[0];
+const peggiore = (caselle: readonly CasellaDocumento[]) =>
+  [...caselle].sort((a, b) => ORDINE_GRAVITA(a) - ORDINE_GRAVITA(b))[0];
 
-const nomeFiglia = (f: Pick<FigliaGenerale, "codice" | "nome">) => [f.codice, f.nome].filter(Boolean).join(" · ");
+const nomeFiglia = (f: Pick<FigliaGenerale, "codice" | "nome">) =>
+  [f.codice, f.nome].filter(Boolean).join(" · ");
 
 // ── Computer e tablet ────────────────────────────────────────────────────────
 
-function DocumentiComputer({ r, dati, checklist, puoModificare }: {
-  r: RiepilogoGenerale; dati: ChecklistGenerale; checklist: ChecklistDocumenti; puoModificare: boolean;
+function DocumentiComputer({
+  r,
+  dati,
+  checklist,
+  puoModificare,
+}: {
+  r: RiepilogoGenerale;
+  dati: ChecklistGenerale;
+  checklist: ChecklistDocumenti;
+  puoModificare: boolean;
 }) {
   const permissions = usePermissions();
   const def = DEFINIZIONI_MODELLI[r.generale.modello];
   const modello = r.generale.modello;
-  const puoCambiareElenco = permissions.isAdmin || permissions.canViewSettingsOrders;
+  const puoCambiareElenco =
+    permissions.isAdmin || permissions.canViewSettingsOrders;
   const allegatiDi = (orderId: string) => dati.allegatiPer.get(orderId) ?? [];
 
   return (
     <div className="space-y-4">
-      <section aria-labelledby="documenti-titolo" className="rounded-lg border bg-card">
+      <section
+        aria-labelledby="documenti-titolo"
+        className="rounded-lg border bg-card"
+      >
         <header className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
           <div className="min-w-0">
-            <h2 id="documenti-titolo" className="text-base font-semibold">Documenti richiesti</h2>
-            <p className="text-xs text-muted-foreground">{riassunto(checklist.conteggi)}</p>
+            <h2 id="documenti-titolo" className="text-base font-semibold">
+              Documenti richiesti
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              {riassunto(checklist.conteggi)}
+            </p>
           </div>
           {puoCambiareElenco && (
             <Button asChild variant="ghost" size="sm">
@@ -99,36 +392,84 @@ function DocumentiComputer({ r, dati, checklist, puoModificare }: {
 
         {checklist.generale.length > 0 && (
           <div className="py-2">
-            <h3 className="px-4 py-1 text-xs font-medium text-muted-foreground">{etichettaAmbito(modello, "generale")}</h3>
+            <h3 className="px-4 py-1 text-xs font-medium text-muted-foreground">
+              {etichettaAmbito(modello, "generale")}
+            </h3>
             <table className="w-full text-sm">
               <tbody className="divide-y">
                 {checklist.generale.map((c) => (
                   <tr key={c.voce.id} className="hover:bg-muted/30">
-                    <td className="w-9 py-2 pl-4 pr-1"><IconaStato c={c} /></td>
+                    <td className="w-9 py-2 pl-4 pr-1">
+                      <IconaStato c={c} />
+                    </td>
                     <td className="px-2 py-2">
                       <span className="font-medium">{c.voce.nome}</span>
-                      {!c.obbligatoria && c.stato !== "non_serve" && <span className="ml-1.5 text-xs text-muted-foreground">facoltativo</span>}
+                      {!c.obbligatoria && c.stato !== "non_serve" && (
+                        <span className="ml-1.5 text-xs text-muted-foreground">
+                          facoltativo
+                        </span>
+                      )}
                     </td>
                     <td className="max-w-[16rem] px-2 py-2 text-xs">
-                      {c.documenti.length === 0 ? <span className="text-muted-foreground">—</span> : (
-                        <button type="button" onClick={() => void openAttachmentInTab(c.documenti[0].allegato.file_url)} className="block max-w-full truncate text-left hover:underline">
+                      {c.documenti.length === 0 ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void openAttachmentInTab(
+                              c.documenti[0].allegato.file_url,
+                            )
+                          }
+                          className="block max-w-full truncate text-left hover:underline"
+                        >
                           {c.documenti[0].allegato.file_name}
-                          {c.documenti.length > 1 && <span className="text-muted-foreground"> +{c.documenti.length - 1}</span>}
+                          {c.documenti.length > 1 && (
+                            <span className="text-muted-foreground">
+                              {" "}
+                              +{c.documenti.length - 1}
+                            </span>
+                          )}
                         </button>
                       )}
                     </td>
-                    <td className={cn("whitespace-nowrap px-2 py-2 text-xs", COLORE_TONO[tonoCasella(c)])}>{testoCasella(c)}</td>
+                    <td
+                      className={cn(
+                        "whitespace-nowrap px-2 py-2 text-xs",
+                        COLORE_TONO[tonoCasella(c)],
+                      )}
+                    >
+                      {testoCasella(c)}
+                    </td>
                     <td className="w-32 py-1.5 pl-2 pr-4 text-right">
                       <Popover>
                         <PopoverTrigger asChild>
                           {puoModificare && c.stato === "mancante" ? (
-                            <Button size="sm" variant="ghost" className="h-8 text-primary"><Upload className="mr-1.5 h-3.5 w-3.5" /> Carica</Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 text-primary"
+                            >
+                              <Upload className="mr-1.5 h-3.5 w-3.5" /> Carica
+                            </Button>
                           ) : (
-                            <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={`Dettagli di ${c.voce.nome}`}><MoreHorizontal className="h-4 w-4" /></Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8"
+                              aria-label={`Dettagli di ${c.voce.nome}`}
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
                           )}
                         </PopoverTrigger>
                         <PopoverContent align="end" className="w-80">
-                          <PannelloVoce casella={c} generaleId={r.generale.id} allegati={allegatiDi(r.generale.id)} puoModificare={puoModificare} />
+                          <PannelloVoce
+                            casella={c}
+                            generaleId={r.generale.id}
+                            allegati={allegatiDi(r.generale.id)}
+                            puoModificare={puoModificare}
+                          />
                         </PopoverContent>
                       </Popover>
                     </td>
@@ -141,21 +482,36 @@ function DocumentiComputer({ r, dati, checklist, puoModificare }: {
 
         {checklist.figlie.length > 0 && (
           <div className="border-t py-2">
-            <h3 className="px-4 py-1 text-xs font-medium text-muted-foreground">{etichettaAmbito(modello, "figlia")}</h3>
+            <h3 className="px-4 py-1 text-xs font-medium text-muted-foreground">
+              {etichettaAmbito(modello, "figlia")}
+            </h3>
             {r.figlie.length === 0 ? (
               <p className="px-4 py-3 text-sm text-muted-foreground">
-                Quando aggiungi {def.figlia.tante.toLowerCase()}, qui vedi per ognuna: {checklist.figlie.map((g) => nomeBreve(g.voce.nome)).join(", ")}.
+                Quando aggiungi {def.figlia.tante.toLowerCase()}, qui vedi per
+                ognuna:{" "}
+                {checklist.figlie.map((g) => nomeBreve(g.voce.nome)).join(", ")}
+                .
               </p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-left text-xs text-muted-foreground">
-                      <th className="px-4 py-2 font-medium">{def.figlia.tante}</th>
+                      <th className="px-4 py-2 font-medium">
+                        {def.figlia.tante}
+                      </th>
                       {checklist.figlie.map((g) => (
-                        <th key={g.voce.id} className="px-2 py-2 font-medium" title={g.voce.aiuto ?? g.voce.nome}>
+                        <th
+                          key={g.voce.id}
+                          className="px-2 py-2 font-medium"
+                          title={g.voce.aiuto ?? g.voce.nome}
+                        >
                           {nomeBreve(g.voce.nome)}
-                          {!g.voce.obbligatoria && <span className="block font-normal">facoltativo</span>}
+                          {!g.voce.obbligatoria && (
+                            <span className="block font-normal">
+                              facoltativo
+                            </span>
+                          )}
                         </th>
                       ))}
                     </tr>
@@ -164,8 +520,15 @@ function DocumentiComputer({ r, dati, checklist, puoModificare }: {
                     {r.figlie.map((f, i) => (
                       <tr key={f.id} className="hover:bg-muted/30">
                         <td className="max-w-[16rem] px-4 py-1.5">
-                          <Link to={`/azienda/ordini/${f.id}`} className="block truncate hover:underline">
-                            {f.codice && <span className="mr-1.5 text-xs text-muted-foreground">{f.codice}</span>}
+                          <Link
+                            to={`/azienda/ordini/${f.id}`}
+                            className="block truncate hover:underline"
+                          >
+                            {f.codice && (
+                              <span className="mr-1.5 text-xs text-muted-foreground">
+                                {f.codice}
+                              </span>
+                            )}
                             <span className="font-medium">{f.nome}</span>
                           </Link>
                         </td>
@@ -181,11 +544,24 @@ function DocumentiComputer({ r, dati, checklist, puoModificare }: {
                                     aria-label={`${g.voce.nome}, ${nomeFiglia(f)}: ${testoCasella(c)}`}
                                   >
                                     <IconaStato c={c} className="h-3.5 w-3.5" />
-                                    <span className={cn("truncate", COLORE_TONO[tonoCasella(c)])}>{testoBreve(c)}</span>
+                                    <span
+                                      className={cn(
+                                        "truncate",
+                                        COLORE_TONO[tonoCasella(c)],
+                                      )}
+                                    >
+                                      {testoBreve(c)}
+                                    </span>
                                   </button>
                                 </PopoverTrigger>
                                 <PopoverContent align="start" className="w-80">
-                                  <PannelloVoce casella={c} generaleId={r.generale.id} dove={nomeFiglia(f)} allegati={allegatiDi(f.id)} puoModificare={puoModificare} />
+                                  <PannelloVoce
+                                    casella={c}
+                                    generaleId={r.generale.id}
+                                    dove={nomeFiglia(f)}
+                                    allegati={allegatiDi(f.id)}
+                                    puoModificare={puoModificare}
+                                  />
                                 </PopoverContent>
                               </Popover>
                             </td>
@@ -200,7 +576,14 @@ function DocumentiComputer({ r, dati, checklist, puoModificare }: {
                         <td className="px-4 py-2 font-medium">Presenti</td>
                         {checklist.figlie.map((g) => {
                           const s = riepilogoVoceFiglie(g.caselle);
-                          return <td key={g.voce.id} className="px-2.5 py-2 tabular-nums">{s.presenti} di {s.valgono}</td>;
+                          return (
+                            <td
+                              key={g.voce.id}
+                              className="px-2.5 py-2 tabular-nums"
+                            >
+                              {s.presenti} di {s.valgono}
+                            </td>
+                          );
                         })}
                       </tr>
                     </tfoot>
@@ -214,7 +597,9 @@ function DocumentiComputer({ r, dati, checklist, puoModificare }: {
 
       <div className="space-y-1.5">
         <p className="text-xs text-muted-foreground">
-          L'archivio della commessa generale. I file di {def.figlia.tante.toLowerCase()} stanno nelle loro pagine e qui sopra spuntano le loro voci.
+          L'archivio della commessa generale. I file di{" "}
+          {def.figlia.tante.toLowerCase()} stanno nelle loro pagine e qui sopra
+          spuntano le loro voci.
         </p>
         <OrderAttachments orderId={r.generale.id} editable={puoModificare} />
       </div>
@@ -224,22 +609,39 @@ function DocumentiComputer({ r, dati, checklist, puoModificare }: {
 
 // ── Telefono: sola lettura, compatta ─────────────────────────────────────────
 
-function DocumentiTelefono({ r, checklist }: { r: RiepilogoGenerale; checklist: ChecklistDocumenti }) {
+function DocumentiTelefono({
+  r,
+  checklist,
+}: {
+  r: RiepilogoGenerale;
+  checklist: ChecklistDocumenti;
+}) {
   const modello = r.generale.modello;
   const [aperta, setAperta] = useState<string | null>(null);
-  const apri = (c: CasellaDocumento) => { if (c.documenti[0]) void openAttachmentInTab(c.documenti[0].allegato.file_url); };
+  const apri = (c: CasellaDocumento) => {
+    if (c.documenti[0])
+      void openAttachmentInTab(c.documenti[0].allegato.file_url);
+  };
   const figlie = r.figlie.length > 0 ? checklist.figlie : [];
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">{riassunto(checklist.conteggi)}</p>
+      <p className="text-xs text-muted-foreground">
+        {riassunto(checklist.conteggi)}
+      </p>
       {checklist.generale.length > 0 && (
         <section aria-label={etichettaAmbito(modello, "generale")}>
-          <h3 className="mb-1 text-xs font-medium text-muted-foreground">{etichettaAmbito(modello, "generale")}</h3>
+          <h3 className="mb-1 text-xs font-medium text-muted-foreground">
+            {etichettaAmbito(modello, "generale")}
+          </h3>
           <ul className="divide-y rounded-lg border bg-card">
             {checklist.generale.map((c) => (
               <li key={c.voce.id}>
-                <RigaTelefono c={c} nome={nomeBreve(c.voce.nome)} onClick={c.documenti[0] ? () => apri(c) : undefined} />
+                <RigaTelefono
+                  c={c}
+                  nome={nomeBreve(c.voce.nome)}
+                  onClick={c.documenti[0] ? () => apri(c) : undefined}
+                />
               </li>
             ))}
           </ul>
@@ -247,7 +649,9 @@ function DocumentiTelefono({ r, checklist }: { r: RiepilogoGenerale; checklist: 
       )}
       {figlie.length > 0 && (
         <section aria-label={etichettaAmbito(modello, "figlia")}>
-          <h3 className="mb-1 text-xs font-medium text-muted-foreground">{etichettaAmbito(modello, "figlia")}</h3>
+          <h3 className="mb-1 text-xs font-medium text-muted-foreground">
+            {etichettaAmbito(modello, "figlia")}
+          </h3>
           <ul className="divide-y rounded-lg border bg-card">
             {figlie.map((g) => {
               const s = riepilogoVoceFiglie(g.caselle);
@@ -261,9 +665,17 @@ function DocumentiTelefono({ r, checklist }: { r: RiepilogoGenerale; checklist: 
                     className="flex w-full items-center gap-2 px-3 py-2 text-left active:bg-muted/60"
                   >
                     <IconaStato c={peggiore(g.caselle)} />
-                    <span className="min-w-0 flex-1 truncate text-[13px]">{nomeBreve(g.voce.nome)}</span>
-                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{s.presenti} di {s.valgono}</span>
-                    {espansa ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                    <span className="min-w-0 flex-1 truncate text-[13px]">
+                      {nomeBreve(g.voce.nome)}
+                    </span>
+                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                      {s.presenti} di {s.valgono}
+                    </span>
+                    {espansa ? (
+                      <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    )}
                   </button>
                   {espansa && (
                     <ul className="divide-y border-t bg-muted/20">
@@ -271,7 +683,14 @@ function DocumentiTelefono({ r, checklist }: { r: RiepilogoGenerale; checklist: 
                         const c = g.caselle[i];
                         return (
                           <li key={f.id}>
-                            <RigaTelefono c={c} nome={f.codice ?? f.nome} rientrata onClick={c.documenti[0] ? () => apri(c) : undefined} />
+                            <RigaTelefono
+                              c={c}
+                              nome={f.codice ?? f.nome}
+                              rientrata
+                              onClick={
+                                c.documenti[0] ? () => apri(c) : undefined
+                              }
+                            />
                           </li>
                         );
                       })}
@@ -287,16 +706,39 @@ function DocumentiTelefono({ r, checklist }: { r: RiepilogoGenerale; checklist: 
   );
 }
 
-function RigaTelefono({ c, nome, rientrata, onClick }: { c: CasellaDocumento; nome: string; rientrata?: boolean; onClick?: () => void }) {
+function RigaTelefono({
+  c,
+  nome,
+  rientrata,
+  onClick,
+}: {
+  c: CasellaDocumento;
+  nome: string;
+  rientrata?: boolean;
+  onClick?: () => void;
+}) {
   const contenuto = (
     <>
       <IconaStato c={c} className={rientrata ? "h-3.5 w-3.5" : undefined} />
       <span className="min-w-0 flex-1 truncate text-[13px]">{nome}</span>
-      <span className={cn("shrink-0 text-xs", COLORE_TONO[tonoCasella(c)])}>{testoBreve(c)}</span>
+      <span className={cn("shrink-0 text-xs", COLORE_TONO[tonoCasella(c)])}>
+        {testoBreve(c)}
+      </span>
     </>
   );
-  const classe = cn("flex w-full items-center gap-2 py-2 text-left", rientrata ? "pl-6 pr-3" : "px-3");
-  return onClick
-    ? <button type="button" onClick={onClick} className={cn(classe, "active:bg-muted/60")}>{contenuto}</button>
-    : <div className={classe}>{contenuto}</div>;
+  const classe = cn(
+    "flex w-full items-center gap-2 py-2 text-left",
+    rientrata ? "pl-6 pr-3" : "px-3",
+  );
+  return onClick ? (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(classe, "active:bg-muted/60")}
+    >
+      {contenuto}
+    </button>
+  ) : (
+    <div className={classe}>{contenuto}</div>
+  );
 }

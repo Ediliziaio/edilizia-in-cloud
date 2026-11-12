@@ -39,13 +39,14 @@ export function emailDaMostrare(email: string | null | undefined): string | null
 
 export interface ClienteDaCercare {
   id: string;
+  business_name?: string | null;
   first_name: string | null;
   last_name: string | null;
   email?: string | null;
 }
 
 export function nomeCliente(c: ClienteDaCercare): string {
-  return `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "Cliente senza nome";
+  return c.business_name?.trim() || `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "Cliente senza nome";
 }
 
 const senzaAccenti = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -54,7 +55,7 @@ const senzaAccenti = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").t
 export function cercaClienti<T extends ClienteDaCercare>(clienti: ReadonlyArray<T>, testo: string, massimo = 50): { risultati: T[]; altri: number } {
   const parole = senzaAccenti(testo).split(/\s+/).filter(Boolean);
   const trovati = clienti.filter((c) => {
-    const dove = senzaAccenti(`${nomeCliente(c)} ${emailDaMostrare(c.email) ?? ""}`);
+    const dove = senzaAccenti(`${nomeCliente(c)} ${c.first_name ?? ""} ${c.last_name ?? ""} ${emailDaMostrare(c.email) ?? ""}`);
     return parole.every((p) => dove.includes(p));
   });
   return { risultati: trovati.slice(0, massimo), altri: Math.max(0, trovati.length - massimo) };

@@ -2,6 +2,7 @@
  * La stessa veste per le viste di «Materiali e acquisti»: riquadro con titolo e azioni, numeri in cima, tabella.
  * Da telefono la tabella diventa una scheda per riga: stesso DOM, così niente è scritto due volte.
  */
+import { useAspettoOperativo } from "./generali/design/ContestoOperativo";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,8 +21,9 @@ export interface ColonnaTabella<T> {
 export function TabellaCommessa<T>({ etichetta, colonne, righe, chiave }: {
   etichetta: string; colonne: ColonnaTabella<T>[]; righe: T[]; chiave: (riga: T) => string;
 }) {
+  const aspetto = useAspettoOperativo();
   return (
-    <div className="sm:overflow-x-auto">
+    <div className={cn("sm:overflow-x-auto", aspetto && "generale-operativo-table")}>
       <table aria-label={etichetta} className="w-full text-sm max-sm:block">
         <thead className="max-sm:hidden">
           <tr className="border-b">
@@ -65,21 +67,23 @@ export function StatoPill({ tono, children }: { tono: TonoStato; children: React
 }
 
 /** Il riquadro comune: icona, titolo, quante righe, un riassunto, le azioni; sotto i numeri e il contenuto. */
-export function RiquadroCommessa({ icona, titolo, conteggio, riassunto, azioni, numeri, children, id }: {
-  icona: ReactNode; titolo: string; conteggio?: number; riassunto?: ReactNode; azioni?: ReactNode; numeri?: ReactNode; children: ReactNode; id?: string;
+export function RiquadroCommessa({ icona, titolo, descrizione, conteggio, riassunto, azioni, numeri, children, id }: {
+  icona: ReactNode; titolo: string; descrizione?: string; conteggio?: number; riassunto?: ReactNode; azioni?: ReactNode; numeri?: ReactNode; children: ReactNode; id?: string;
 }) {
+  const aspetto = useAspettoOperativo();
   return (
-    <Card id={id} className="scroll-mt-24">
+    <Card id={id} className={cn("scroll-mt-24", aspetto && "generale-operativo-card")}>
       <CardHeader className="space-y-2 pb-3 max-sm:p-3 max-sm:pb-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="flex min-w-0 flex-wrap items-center gap-2 text-base">
-            {icona}{titolo}
+            <span className="commessa-card-icon">{icona}</span>{titolo}
             {!!conteggio && <Badge variant="outline">{conteggio}</Badge>}
             {riassunto && <span className="text-sm font-normal text-muted-foreground">· {riassunto}</span>}
           </CardTitle>
           {azioni && <div className="flex flex-wrap items-center gap-2">{azioni}</div>}
         </div>
-        {numeri}
+        {aspetto && descrizione && <p className="generale-operativo-description">{descrizione}</p>}
+        {numeri && <div className="commessa-card-numeri">{numeri}</div>}
       </CardHeader>
       <CardContent className="max-sm:p-3 max-sm:pt-0">{children}</CardContent>
     </Card>

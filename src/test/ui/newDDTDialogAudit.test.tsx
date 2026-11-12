@@ -2,7 +2,8 @@ import "@testing-library/jest-dom/vitest";
 import {render,screen,fireEvent,cleanup,waitFor} from "@testing-library/react";
 import {beforeEach,afterEach,describe,it,expect,vi} from "vitest";
 import {QueryClient,QueryClientProvider} from "@tanstack/react-query";
-import {MemoryRouter} from "react-router-dom";
+import {MemoryRouter,useLocation} from "react-router-dom";
+import {ContestoDocumentoPopup} from "@/lib/orders/documentoPopup";
 const m=vi.hoisted(()=>({create:vi.fn(),upload:vi.fn(),close:vi.fn(),created:vi.fn()}));
 vi.mock("@/contexts/AuthContext",()=>({useAuth:()=>({effectiveCompany:null as null})}));
 vi.mock("@/hooks/usePurchaseOrders",()=>({usePurchaseOrders:()=>({orders:[{id:"p",oda_number:"ODA-P",status:"bozza",order_id:null as string | null,suppliers:{name:"Fornitore demo"}}]})}));
@@ -17,6 +18,14 @@ beforeEach(()=>{m.create.mockReset().mockResolvedValue({id:"d"});m.upload.mockRe
 function open(){render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><MemoryRouter><NewDDTDialog open prefillPurchaseOrderId="p" restaQui onOpenChange={m.close} onCreated={m.created}/></MemoryRouter></QueryClientProvider>);}
 function final(){fireEvent.change(screen.getByLabelText("Numero DDT"),{target:{value:"DDT-SIM"}});fireEvent.click(screen.getByRole("button",{name:"Avanti"}));fireEvent.click(screen.getByRole("button",{name:"Avanti"}));}
 describe("Pulsanti DDT con registrazione simulata",()=>{
+ it("dal dettaglio ordine in popup apre il DDT senza uscire dalla commessa generale",async()=>{
+  const vai=vi.fn(()=>true);
+  function Indirizzo(){return <output aria-label="Indirizzo attuale">{useLocation().pathname}</output>;}
+  render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><MemoryRouter initialEntries={["/azienda/ordini/generale"]}><ContestoDocumentoPopup value={{vai,dentroIlPopup:true}}><NewDDTDialog open prefillPurchaseOrderId="p" onOpenChange={m.close}/></ContestoDocumentoPopup><Indirizzo/></MemoryRouter></QueryClientProvider>);
+  final();fireEvent.change(screen.getByLabelText("Quantità ricevuta"),{target:{value:"5"}});fireEvent.click(screen.getByRole("button",{name:"Registra DDT"}));
+  await waitFor(()=>expect(vai).toHaveBeenCalledWith("/azienda/ddt/d"));
+  expect(screen.getByLabelText("Indirizzo attuale")).toHaveTextContent("/azienda/ordini/generale");expect(m.create).toHaveBeenCalledTimes(1);
+ });
  it("numero obbligatorio e riepilogo vuoto bloccano la registrazione",()=>{open();expect(screen.getByRole("button",{name:"Avanti"})).toBeDisabled();final();expect(screen.getByRole("button",{name:"Registra DDT"})).toBeDisabled();expect(screen.getByRole("alert")).toHaveTextContent("Aggiungi il documento");expect(m.create).not.toHaveBeenCalled();});
  it("il pulsante finale invia una sola registrazione e chiude soltanto a salvataggio completato",async()=>{let done!:(v:{id:string})=>void;m.create.mockImplementation(()=>new Promise(r=>{done=r;}));open();final();fireEvent.change(screen.getByLabelText("Quantità ricevuta"),{target:{value:"5"}});const b=screen.getByRole("button",{name:"Registra DDT"});fireEvent.click(b);fireEvent.click(b);expect(m.create).toHaveBeenCalledTimes(1);expect(m.close).not.toHaveBeenCalled();expect(m.create).toHaveBeenCalledWith(expect.objectContaining({purchase_order_id:"p",numero_ddt:"DDT-SIM",quantita_ricevuta:5,destinazione:"magazzino"}));done({id:"d"});await waitFor(()=>expect(m.close).toHaveBeenCalledWith(false));expect(m.created).toHaveBeenCalledWith("d");expect(m.upload).not.toHaveBeenCalled();});
  it("l'errore di registrazione lascia i dati e permette di riprovare",async()=>{m.create.mockRejectedValueOnce(new Error("Connessione assente"));open();final();fireEvent.change(screen.getByLabelText("Quantità ricevuta"),{target:{value:"3"}});fireEvent.click(screen.getByRole("button",{name:"Registra DDT"}));await waitFor(()=>expect(screen.getByRole("button",{name:"Registra DDT"})).toBeEnabled());expect(screen.getByLabelText("Quantità ricevuta")).toHaveValue(3);expect(m.close).not.toHaveBeenCalled();fireEvent.click(screen.getByRole("button",{name:"Registra DDT"}));await waitFor(()=>expect(m.close).toHaveBeenCalledWith(false));expect(m.create).toHaveBeenCalledTimes(2);});

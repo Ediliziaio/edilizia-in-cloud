@@ -5,7 +5,8 @@
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentOperativo as DialogContent } from "../design/ContestoOperativo";
 import { Input } from "@/components/ui/input";
 import { normalizzaCategoria } from "@/lib/controlloGestione/vociCassa";
 import { CATEGORIE_PIANO } from "@/lib/orders/generali/pianoCategorie";

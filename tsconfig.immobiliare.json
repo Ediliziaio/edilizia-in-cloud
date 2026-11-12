@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "incremental": true,
+    "tsBuildInfoFile": "./node_modules/.cache/immobiliare.tsbuildinfo",
+    "types": ["vite/client"]
+  },
+  "include": [
+    "src/vite-env.d.ts",
+    "src/types/pdfmake.d.ts",
+    "src/components/orders/generali/**/*.tsx",
+    "src/pages/azienda/DDTRicezioneDetail.tsx",
+    "src/hooks/useGeneralePiano.ts",
+    "src/hooks/useGeneraleInvestitori.ts",
+    "src/lib/orders/generali/**/*.ts",
+    "src/lib/orders/commesseGenerali.ts"
+  ],
+  "exclude": ["src/test/**/*"]
+}

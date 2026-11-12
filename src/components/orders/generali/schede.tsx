@@ -6,11 +6,12 @@ import { modulo as documenti } from "@/components/orders/generali/moduli/Documen
 import { modulo as investitori } from "@/components/orders/generali/moduli/InvestitoriScheda";
 import { modulo as piano } from "@/components/orders/generali/moduli/PianoScheda";
 import { modulo as unita } from "@/components/orders/generali/moduli/UnitaScheda";
+import { modulo as cantiere } from "@/components/orders/generali/moduli/CantiereScheda";
 import type { ModuloScheda } from "@/components/orders/generali/tipiScheda";
 import type { ModelloGenerale } from "@/lib/orders/commesseGenerali";
 import { moduliDelModello, type ModuloGenerale } from "@/lib/orders/generali/moduli";
 
-const MODULI_SCHEDA: Record<ModuloGenerale, ModuloScheda> = { contratto, piano, unita, investitori, documenti };
+const MODULI_SCHEDA: Record<ModuloGenerale, ModuloScheda> = { contratto, piano, unita, investitori, documenti, cantiere };
 
 export interface SchedaGenerale extends ModuloScheda { id: ModuloGenerale }
 

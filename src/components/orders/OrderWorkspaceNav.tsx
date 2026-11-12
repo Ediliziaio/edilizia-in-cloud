@@ -32,9 +32,9 @@ export function OrderWorkspaceNav<T extends string>({
   // (riquadro + arancio). Il livello si capisce dalla forma, non solo dal colore;
   // la descrizione sta sulla stessa riga e a destra, non su una riga a parte.
   return (
-    <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-1 border-b border-slate-200">
+    <div className="commessa-section-toolbar">
       {/* min-h-0: il CSS globale dà `nav { min-height: 64px }` e allungava le schede. */}
-      <nav data-order-navigation aria-label={label} className="-mb-px flex min-h-0 flex-wrap gap-x-1">
+      <nav data-order-navigation aria-label={label} className="commessa-sub-navigation flex min-h-0 flex-wrap">
         {views.map((view) => {
           const n = counts?.[view.value];
           return (
@@ -63,7 +63,7 @@ export function OrderWorkspaceNav<T extends string>({
           );
         })}
       </nav>
-      <p className="pb-2.5 text-xs text-slate-500">
+      <p className="commessa-section-description">
         {views.find((view) => view.value === value)?.description}
       </p>
     </div>

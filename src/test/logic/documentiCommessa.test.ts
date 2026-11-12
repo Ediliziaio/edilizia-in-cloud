@@ -13,6 +13,12 @@ describe("bolle: cosa manca", () => {
     expect(cosaManca("fornitore", { stato: "ricevuto" }).daFare).toBe("conferma");
     expect(cosaManca("fornitore", { stato: "ricevuto", purchase_order_id: "o" }).daFare).toBe("controllo");
   });
+  it("una bolla diretta già attribuita alla commessa richiede il controllo merce, senza imporre un OdA", () => {
+    expect(cosaManca("fornitore", { stato: "ricevuto", order_id: "generale", purchase_order_id: null })).toEqual({
+      daFare: "controllo", motivo: "Attribuita alla commessa, merce da controllare",
+    });
+    expect(cosaManca("fornitore", { stato: "ricevuto", order_id: "generale", ai_avvisi: ["numero incerto"] }).daFare).toBe("conferma");
+  });
   it("i dubbi dell'AI chiedono di confermare l'abbinamento", () => {
     expect(cosaManca("fornitore", { stato: "ricevuto", purchase_order_id: "o", ai_avvisi: ["numero incerto"] }).daFare).toBe("conferma");
   });

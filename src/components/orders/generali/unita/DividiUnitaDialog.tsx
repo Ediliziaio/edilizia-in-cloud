@@ -6,7 +6,8 @@ import { useState } from "react";
 import { Loader2, Minus, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentGenerale as DialogContent } from "@/components/orders/generali/design/DialogGenerale";
 import { Input } from "@/components/ui/input";
 import { inCampo, leggiCampo } from "@/components/orders/generali/unita/aspetto";
 import { messaggioGenerale } from "@/hooks/useCommesseGenerali";
@@ -25,7 +26,7 @@ interface Props {
 export function DividiUnitaDialog({ unita, onChiudi, ...resto }: Props) {
   return (
     <Dialog open={!!unita} onOpenChange={(o) => !o && onChiudi()}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent ampiezza="spazio" className="max-w-2xl">
         {unita && <Modulo key={unita.orderId} u={unita} onChiudi={onChiudi} {...resto} />}
       </DialogContent>
     </Dialog>

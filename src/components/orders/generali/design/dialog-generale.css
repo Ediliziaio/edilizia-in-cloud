@@ -1,0 +1,12 @@
+[role="dialog"].generale-sheet table th { font-size: 13px; line-height: 1.4; white-space: normal; }
+[role="dialog"].generale-sheet { width: min(1120px, calc(100vw - 48px)); max-width: calc(100vw - 48px); min-width: 0; overflow-x: hidden; font-size: 15px; }
+.generale-sheet > * { min-width: 0; }
+.generale-sheet .text-sm { font-size: 15px; }
+.generale-sheet .text-xs { font-size: 13px; }
+[role="dialog"].generale-sheet[data-lato="bottom"] { left: 50%; right: auto; translate: -50% 0; max-height: 92dvh; }
+.generale-sheet :is(input, textarea, select) { min-width: 0; max-width: 100%; }
+[role="dialog"].commessa-sheet-layout { display: flex; flex-direction: column; gap: 16px; overflow: hidden; }
+@media (max-width: 639px) {
+  [role="dialog"].generale-sheet { width: 100%; max-width: 100%; }
+  [role="dialog"].generale-sheet[data-lato="bottom"] { left: 0; translate: none; }
+}

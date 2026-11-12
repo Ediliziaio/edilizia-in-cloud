@@ -6,14 +6,8 @@ import {
   Receipt, Sparkles, Check, User, Package, Loader2, Info, Plus, Trash2, Eye, Scale, RotateCcw, AlertTriangle, Landmark, ClipboardCheck, Layers, ChevronRight,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { DialogContentOperativo as DialogContent } from "@/components/orders/generali/design/ContestoOperativo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1101,7 +1095,7 @@ export function CreaFatturaDialog({
   // ── Render ───────────────────────────────────────────────────
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto grid-cols-[minmax(0,1fr)]">
+      <DialogContent struttura="scorrevole" className="sm:max-w-3xl max-h-[90vh] overflow-y-auto grid-cols-[minmax(0,1fr)]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Receipt className="h-5 w-5 text-primary" />
@@ -1933,7 +1927,7 @@ export function CreaFatturaDialog({
 
       {/* Come esce: lo stesso foglio del PDF. */}
       <Dialog open={anteprima} onOpenChange={setAnteprima}>
-        <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 gap-0">
+        <DialogContent struttura="contenuta" className="max-w-4xl h-[90vh] flex flex-col p-0 gap-0">
           <DialogHeader className="px-4 py-3 border-b shrink-0">
             <DialogTitle className="text-sm font-medium">Anteprima — come la riceverà il cliente</DialogTitle>
             <DialogDescription className="text-xs">

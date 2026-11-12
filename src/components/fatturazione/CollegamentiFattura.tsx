@@ -1,3 +1,4 @@
+import { percorsoDocumentoGenerale, useAspettoOperativo } from "@/components/orders/generali/design/ContestoOperativo";
 /**
  * Mezzi, DDT, subappalto e note di credito di una fattura ricevuta: righe di «A cosa è collegata», come
  * fornitore e commessa. A vuoto occupano una riga con «Collega»: il modulo si apre solo a chi lo chiede.
@@ -40,6 +41,7 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
   /** Chi non può aprire quelle pagine vede il testo, senza link. */
   vaiPrimaNota?: boolean; vaiTesoreria?: boolean; vaiEmail?: boolean;
 }) {
+  const aspettoGenerale = useAspettoOperativo();
   const qc = useQueryClient();
   const chiave = ["fattura-collegamenti", fatturaId];
   const { data } = useQuery({
@@ -203,7 +205,7 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
       <dd className="flex flex-wrap items-center gap-x-3 gap-y-1">
         {ddtVisti.map((d) => (
           <span key={d.id} className="inline-flex items-center gap-1">
-            {d.ddt_ricezione_id ? <Link className="underline underline-offset-2" to={`/azienda/ddt/${d.ddt_ricezione_id}`}>{d.numero_ddt}</Link> : d.numero_ddt}
+            {d.ddt_ricezione_id ? <Link className="underline underline-offset-2" to={percorsoDocumentoGenerale(`/azienda/ddt/${d.ddt_ricezione_id}`, aspettoGenerale?.generaleId)}>{d.numero_ddt}</Link> : d.numero_ddt}
             {d.data_ddt && <span className="text-xs text-muted-foreground">{formatDateShort(d.data_ddt)}</span>}
             {puoModificare && <button type="button" className="text-muted-foreground hover:text-foreground" aria-label={`Togli DDT ${d.numero_ddt}`} title="Togli" onClick={() => togliDdt.mutate(d.id)}><X className="h-3 w-3" /></button>}
           </span>

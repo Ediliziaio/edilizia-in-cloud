@@ -1,3 +1,4 @@
+import { nomeCliente as nomeClienteProfilo } from "@/lib/orders/nuovaCommessaProposte";
 import { costoDaSottrarreAlSaldo, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 import { PlanimetrieAssociate } from "@/components/planimetrie/PlanimetrieAssociate";
 import { IncarichiCantiere } from '@/components/sicurezza/IncarichiCantiere';
@@ -14,6 +15,7 @@ import { avanzamentoFasi, seminaSchedaCommessa, type SchedaCommessa } from "@/li
 import { DuplicaLavoroDialog } from "@/components/orders/DuplicaLavoroDialog";
 import { useState, useMemo, useCallback, useRef, lazy, Suspense } from "react";
 import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
+import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { AlertTriangle, BellRing, ChevronRight, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, ArrowRight } from "lucide-react";
@@ -139,6 +141,7 @@ import { DaApprovareAvviso, DaApprovareCommessa } from "@/components/orders/DaAp
 import { CollaudiDalCantiere } from "@/components/orders/CollaudiDalCantiere";
 import { conIncassiUnita, incassiDellaCommessa, nettoUnitaInLordo, totaleFatturato } from "@/lib/orders/incassiCommessa";
 import { useIncassiUnita } from "@/hooks/useCommesseGenerali";
+import { caricaImportiFinanziari } from '@/lib/orders/importiFinanziari';
 import { costoMaterialiIvato } from "@/lib/orders/cassaMateriali";
 import { OrderBolleDdtCard, OrderFattureFornitoriCard, useBolleCommessa, useFattureFornitoriCommessa } from "@/components/orders/OrderDocumentiFornitore";
 import { OrderCostiCommessaCard } from "@/components/orders/OrderCostiCommessa";
@@ -328,6 +331,7 @@ interface OrderDetail extends Pick<Tables<"orders">, "status" | "quote_number" |
   has_building_bonus: boolean;
   customer: {
     id: string;
+    business_name?: string | null;
     first_name: string;
     last_name: string;
     email: string;
@@ -416,6 +420,8 @@ function OrderDetailInner() {
   const contractLink = useOrderContractLink(schedaPronta ? id : undefined);
   // Commessa di un'unità in vendita: caparre, acconti e saldi registrati sull'unità contano come incassato.
   const incassiUnita = useIncassiUnita(id);
+  const importiFinanziari=useQuery({queryKey:['commessa-importi-finanziari',companyId,id],enabled:!!companyId && !!id && permissions.canViewOrderAmounts,
+    queryFn:async()=>(await caricaImportiFinanziari(companyId!,[{id:id!}]))[0],staleTime:30000});
   const isNativeBilling = (effectiveCompany as { billing_mode?: string } | null | undefined)?.billing_mode === "native";
 
   const { getPDFBlob, isGenerating: isGeneratingPDF } = useOrdinePDF();
@@ -451,7 +457,7 @@ function OrderDetailInner() {
       if (!effectiveCompany?.id) throw new Error("Azienda non trovata");
       const { data, error } = await supabase
         .from("orders")
-        .select(`*, customer:profiles!orders_customer_id_fkey(id, first_name, last_name, email, phone, address)`)
+        .select(`*, customer:profiles!orders_customer_id_fkey(id, first_name, last_name, business_name, email, phone, address)`)
         .eq("id", id!)
         .eq("company_id", effectiveCompany.id)
         .single();
@@ -860,6 +866,7 @@ function OrderDetailInner() {
       }
     },
     onSuccess: (_, { paid, installment }) => {
+      refreshFinancialQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.installments(id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
@@ -1398,9 +1405,9 @@ function OrderDetailInner() {
     </section>;
   }
 
-  // Una commessa generale non ha cantiere, materiali o rate sue: ha la sua pagina, che raccoglie le commesse dentro.
+  // La commessa generale usa la vista consolidata e i moduli operativi condivisi con le commesse collegate.
   if (contractLink.data?.workflow_kind === "generale") {
-    return <div className="px-3 py-3 sm:px-6 sm:py-6"><CommessaGeneraleDettaglio generaleId={id!} /></div>;
+    return <div className="px-3 py-3 sm:px-6 sm:py-4"><CommessaGeneraleDettaglio generaleId={id!} /></div>;
   }
 
   const operationalIntervention = contractLink.data?.workflow_kind === "intervento";
@@ -1414,7 +1421,7 @@ function OrderDetailInner() {
   const contractFinanceNotice = <QuoteCard title={operationalIntervention ? "Intervento operativo" : "Dati economici da confermare"}><p className="text-sm text-slate-600">{operationalIntervention ? "Importi, IVA, SAL e pagamenti si gestiscono sul contratto di origine. Qui si organizzano le lavorazioni." : "Conferma cliente di fatturazione, quota economica, aliquota e regime IVA e pagamenti. La bozza non applica aliquote o rate predefinite."}</p>{!operationalIntervention && permissions.canEditOrders && <Button variant="link" className="mt-2 h-auto p-0" onClick={()=>navigate(`/azienda/ordini/${id}/modifica`)}>Completa i dati del contratto</Button>}</QuoteCard>;
 
   // Incassato e da incassare: una regola sola, la stessa del piano rate (incassiDellaCommessa).
-  const incassi = conIncassiUnita(incassiDellaCommessa({
+  const incassiBase = conIncassiUnita(incassiDellaCommessa({
     installments: displayInstallments,
     totalAmount: agreedAmount,
     vatRate: order.vat_rate ?? 22,
@@ -1422,10 +1429,13 @@ function OrderDetailInner() {
     financingCost: order.financing_cost,
     financingCostMode: order.financing_cost_mode,
     varianti: variantiDatate,
-  }), nettoUnitaInLordo(incassiUnita.data?.incassi ?? 0, order.vat_rate ?? 22), order.vat_rate ?? 22, nettoUnitaInLordo(incassiUnita.data?.permute ?? 0, order.vat_rate ?? 22));
+  }), incassiUnita.data?.cassa ?? 0, order.vat_rate ?? 22, nettoUnitaInLordo(incassiUnita.data?.permute ?? 0, order.vat_rate ?? 22));
+  const aMisura=order.order_type==='appaltatore_lavoro' && order.valorizzazione==='a_misura';
+  const creditiMisura=importiFinanziari.data?.crediti_misura;
+  const incassi=aMisura?{totaleLordo:creditiMisura?.fatturato??0,incassatoLordo:creditiMisura?.incassato??0,daIncassareLordo:creditiMisura?.residuo??0,incassatoNetto:(creditiMisura?.incassato??0)/(1+(order.vat_rate??22)/100),costoFinanziaria:0}:incassiBase;
   const collectedAmount = incassi.incassatoNetto;
   const collectedGross = incassi.incassatoLordo;
-  const cashTotalGross = incassi.totaleLordo;
+  const cashTotalGross = Math.max(0,incassi.totaleLordo-nettoUnitaInLordo(incassiUnita.data?.permute??0,order.vat_rate??22));
   // Avanzamento fisico (media % fasi) per esposizione e proiezione margine.
   const avanzamentoPct = avanzamentoDellaCommessa(phaseProgress?.avgPct ?? null);
 
@@ -1448,7 +1458,7 @@ function OrderDetailInner() {
   // circolante immobilizzato fino al saldo di fine lavori).
   // Materiali IVA inclusa, come gli incassi con cui si confrontano.
   const costoMaterialiGross = costoMaterialiIvato(displayItems);
-  const saldoResiduoGross = Math.max(0, cashTotalGross - collectedGross);
+  const saldoResiduoGross = incassi.daIncassareLordo;
   // One data/permission boundary, placed in the active Cantiere layout only.
   // Framework contracts keep their intervention workspace, without losing figures.
   const figureResponsabilita = companyId && id ? <div id="section-figure-responsabilita" className="scroll-mt-24"><ErrorBoundary><IncarichiCantiere key={`${companyId}:${id}`} companyId={companyId} orderId={id} compact /></ErrorBoundary></div> : null;
@@ -1485,7 +1495,7 @@ function OrderDetailInner() {
           ? {
               id: order.customer.id,
               name:
-                `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() ||
+                nomeClienteProfilo(order.customer) ||
                 "Cliente",
               // Il profilo può non avere il recapito scritto sulla commessa.
               phone: order.customer.phone || order.client_phone,
@@ -1555,8 +1565,8 @@ function OrderDetailInner() {
   // Lo stesso contesto per le varianti in Economia e per il popup «Lavori extra» delle Lavorazioni.
   const contestoVarianti = { currentNet: agreedAmount, vatRate: order.vat_rate ?? undefined, customerName: [order.customer?.first_name, order.customer?.last_name].filter(Boolean).join(" "), customerEmail: order.customer?.email ?? undefined, orderCode: order.order_code, companyName: effectiveCompany?.name, customerAddress: order.customer?.address ?? undefined, siteAddress: order.indirizzo_lavori || order.work_address || undefined };
   return (
-    // commessa-elevated: ombra più marcata su tutte le Card della pagina (vedi index.css)
-    <div id="order-detail-overview" className="commessa-elevated min-h-screen bg-slate-50 scroll-mt-4">
+    // Presentazione condivisa per testata, navigazione e riepiloghi delle commesse.
+    <div id="order-detail-overview" className="commessa-workspace min-h-screen bg-slate-50 scroll-mt-4">
       {/* Dentro una commessa generale: torna alla generale e passa alle commesse sorelle. */}
       <PercorsoGenerale orderId={id!} />
       {lavoroExtraDa && permissions.canEditOrders && permissions.canViewOrderAmounts && companyId && (
@@ -1571,9 +1581,11 @@ function OrderDetailInner() {
         dataCreazione={order.created_at}
         nomeCliente={
           order.customer
-            ? `${order.customer.first_name} ${order.customer.last_name}`
+            ? nomeClienteProfilo(order.customer)
             : order.client_name || "Cliente non disponibile"
         }
+        referente={order.order_type === "appaltatore_lavoro" && order.customer?.business_name
+          ? [order.customer.first_name, order.customer.last_name].filter(Boolean).join(" ") : undefined}
         orderType={order.order_type}
         onModifica={() => navigate(`/azienda/ordini/${id}/modifica`)}
         onRegistraIncasso={() => vaiAllaFinanza("section-pagamenti")}
@@ -1736,6 +1748,7 @@ function OrderDetailInner() {
               <div className="space-y-4">
               <OrdineCliente
                 customer={order.customer}
+                ruolo={inAppalto ? "committente" : "cliente"}
                 snapshot={{ name: order.client_name, email: order.client_email, phone: order.client_phone }}
                 indirizzoLavori={order.indirizzo_lavori || order.work_address}
               />
@@ -2040,7 +2053,7 @@ function OrderDetailInner() {
                     onInstallmentDateChange={handleInstallmentDateChange}
                     orderCode={order.order_code}
                     conPrimaNota={permissions.canViewPrimaNota}
-                    clienteNome={order.customer ? `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() : null}
+                    clienteNome={order.customer ? nomeClienteProfilo(order.customer) : null}
                     customerId={order.customer_id}
                     pivaImpresa={effectiveCompany?.vat_number ?? null}
                   />
@@ -2424,7 +2437,7 @@ function OrderDetailInner() {
             customerEmail={order.customer?.email}
             customerName={
               order.customer
-                ? `${order.customer.first_name} ${order.customer.last_name}`
+                ? nomeClienteProfilo(order.customer)
                 : undefined
             }
           />
@@ -2511,7 +2524,7 @@ function OrderDetailInner() {
         customerId={order.customer?.id ?? null}
         customerName={
           order.customer
-            ? `${order.customer.first_name} ${order.customer.last_name}`
+            ? nomeClienteProfilo(order.customer)
             : "Cliente sconosciuto"
         }
         installments={displayInstallments}
@@ -2529,7 +2542,7 @@ function OrderDetailInner() {
         customerId={order.customer?.id ?? null}
         customerName={
           order.customer
-            ? `${order.customer.first_name} ${order.customer.last_name}`
+            ? nomeClienteProfilo(order.customer)
             : "Cliente sconosciuto"
         }
       />
@@ -2546,7 +2559,7 @@ function OrderDetailInner() {
         customerId={order.customer?.id ?? null}
         customerName={
           order.customer
-            ? `${order.customer.first_name} ${order.customer.last_name}`
+            ? nomeClienteProfilo(order.customer)
             : "Cliente sconosciuto"
         }
       />
@@ -2563,7 +2576,7 @@ function OrderDetailInner() {
         customerId={order.customer?.id ?? null}
         customerName={
           order.customer
-            ? `${order.customer.first_name} ${order.customer.last_name}`
+            ? nomeClienteProfilo(order.customer)
             : "Cliente sconosciuto"
         }
       />

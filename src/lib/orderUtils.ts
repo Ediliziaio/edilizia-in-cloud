@@ -1,5 +1,6 @@
 import { costoTrattenuto, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 import type { Tables } from "@/integrations/supabase/types";
+import type { ImportiFinanziari } from '@/lib/orders/importiFinanziari';
 import { dimenticaCommesseArchiviate } from "@/lib/orders/archivedOrderScope";
 import { indiceSaldoFinale } from "@/lib/orders/saldoFinale";
 import { supabase } from "@/integrations/supabase/client";
@@ -232,7 +233,7 @@ export function installmentsToLegacyColumns(installments: Installment[]) {
 
 // ── Existing types (unchanged) ────────────────────────────────────
 
-export interface OrderWithDetails extends Partial<Pick<Tables<"orders">, "customer_id">> {
+export interface OrderWithDetails extends Partial<Pick<Tables<"orders">, "customer_id">>, ImportiFinanziari {
   id: string;
   order_code: string | null;
   description: string;
@@ -470,7 +471,8 @@ function rateDellaCommessa(order: OrderWithDetails): InstallmentLike[] {
  * viene sommato per intero, senza perdere rate.
  */
 export function getAmountCollected(order: OrderWithDetails): number {
-  return calculateCollectedGrossFromInstallments({
+  if(order.order_type==='appaltatore_lavoro' && order.valorizzazione==='a_misura') return order.crediti_misura?.incassato ?? 0;
+  return Math.max(order.incasso_unita_lordo ?? 0, calculateCollectedGrossFromInstallments({
     installments: rateDellaCommessa(order),
     totalAmount: contrattoPattuito(order),
     vatRate: order.vat_rate ?? 22,
@@ -478,7 +480,7 @@ export function getAmountCollected(order: OrderWithDetails): number {
     financingCostMode: order.financing_cost_mode,
     includeFinancing: true,
     varianti: order.variazioni ? variantiApprovateDatate(order.variazioni) : undefined,
-  });
+  }));
 }
 
 /**
@@ -488,6 +490,7 @@ export function getAmountCollected(order: OrderWithDetails): number {
  * la regola legacy, senza ricalcolare i movimenti già registrati.
  */
 export function getAmountDue(order: OrderWithDetails): number {
+  if(order.order_type==='appaltatore_lavoro' && order.valorizzazione==='a_misura') return order.crediti_misura?.residuo ?? 0;
   const incassabile = getGrossOrderAmount(order) - costoTrattenuto(financingCostForOrder(order), order.financing_cost_mode);
   // Arrotondato ai centesimi: toglie il rumore in virgola mobile del totale
   // ivato (es. 110000.000…1) così la somma su molte commesse resta pulita.
@@ -495,6 +498,7 @@ export function getAmountDue(order: OrderWithDetails): number {
 }
 
 export function getPendingPayments(order: OrderWithDetails): string[] {
+  if(order.order_type==='appaltatore_lavoro' && order.valorizzazione==='a_misura') return order.crediti_misura?.residuo ? ['Fatture emesse'] : [];
   const pending: string[] = [];
   if (order.deposit_amount > 0 && !order.deposit_paid) pending.push("Acc. 1");
   if (order.deposit_2_amount && order.deposit_2_amount > 0 && !order.deposit_2_paid) pending.push("Acc. 2");
@@ -503,7 +507,8 @@ export function getPendingPayments(order: OrderWithDetails): string[] {
   return pending;
 }
 
-export function getGrossOrderAmount(order: Pick<OrderWithDetails, "total_amount" | "vat_rate"> & { variazioni?: VarianteDellaCommessa[] | null }): number {
+export function getGrossOrderAmount(order: Pick<OrderWithDetails, "total_amount" | "vat_rate"> & { variazioni?: VarianteDellaCommessa[] | null } & import("@/lib/orders/importiFinanziari").ImportiFinanziari): number {
+  if(order.order_type==='appaltatore_lavoro' && order.valorizzazione==='a_misura') return order.crediti_misura?.fatturato ?? 0;
   // Contratto più varianti approvate, IVA inclusa, al centesimo come la scheda commessa.
   return Math.round(contrattoPattuito(order) * (1 + ((order.vat_rate ?? 22) / 100)) * 100) / 100;
 }

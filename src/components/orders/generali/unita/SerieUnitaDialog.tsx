@@ -6,7 +6,8 @@ import { useMemo, useState, type ClipboardEvent } from "react";
 import { Loader2, Plus, Trash2, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentGenerale as DialogContent } from "@/components/orders/generali/design/DialogGenerale";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { messaggioGenerale } from "@/hooks/useCommesseGenerali";
@@ -30,7 +31,7 @@ interface Props {
 export function SerieUnitaDialog({ open, onOpenChange, ...resto }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl">
+      <DialogContent ampiezza="spazio" className="max-w-5xl">
         {/* Il modulo nasce a ogni apertura: si riparte da una tabella vuota. */}
         <Modulo onOpenChange={onOpenChange} {...resto} />
       </DialogContent>

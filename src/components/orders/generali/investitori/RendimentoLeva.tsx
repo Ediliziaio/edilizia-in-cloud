@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 
 const PUNTI = [-1, -0.5, 0, 0.5, 1, 2];
 const DEBITO = [-50, -30, -20, -10, 0, 10, 20];
-const COLORI = { propri: "#64748b", investitori: "#0284c7", debito: "#f59e0b", fabbisogno: "#0f172a" };
+const COLORI = { propri: "#64748b", investitori: "#0284c7", debito: "rgb(var(--brand-accent, 249 115 22))", fabbisogno: "hsl(var(--foreground))" };
 
 const punti = (n: number | null) =>
   n === null || !Number.isFinite(n) ? "—" : `${n >= 0 ? "+" : "−"}${(Math.abs(n) * 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })} punti`;

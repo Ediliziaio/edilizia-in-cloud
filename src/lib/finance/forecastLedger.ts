@@ -37,6 +37,8 @@ export interface ForecastMovement {
   expectedDate?: string | null;
   note?: string;
   orderId?: string | null;
+  /** Cost owner, retained so a general project can apply its existing allocation exactly once. */
+  costId?: string | null;
   /** Codice e cliente della commessa, per il filtro comune della pagina. */
   orderLabel?: string;
   /**
@@ -110,6 +112,24 @@ export interface CostRow {
   recurrence_end_date?: string | null;
   supplier_id?: string | null;
   supplier?: { vat_rate: Money } | null;
+}
+/** Pagamenti delle spese aperte: anche gli acconti più vecchi di un anno riducono il debito. */
+export interface CostPaymentRow {
+  id: string;
+  cost_id: string | null;
+  amount: Money;
+  entry_date: string;
+  direction: string;
+  reversal_of?: string | null;
+}
+/** Quote trattenute sulle fatture già contabilizzate: il costo resta intero,
+ * ma questa parte esce soltanto allo svincolo del registro garanzie. */
+export interface CostWithholdingRow {
+  id: string;
+  company_cost_id: string | null;
+  trattenuta_garanzia: Money;
+  tipo_documento: string | null;
+  stato: string | null;
 }
 /**
  * Una rata di pagamento verso un fornitore (`rate_fornitori`, dal 29/10/2026).
@@ -198,7 +218,11 @@ export interface MutuoCG {
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 /** Le rate future dei mutui (piano alla francese dal capitale residuo di oggi), divise in capitale e interessi. */
-export function rateMutui(mutui: MutuoCG[], today: string, fino: string): ForecastMovement[] {
+export function rateMutui(
+  mutui: MutuoCG[],
+  today: string,
+  fino: string,
+): ForecastMovement[] {
   const out: ForecastMovement[] = [];
   for (const l of mutui) {
     if (l.is_active === false) continue;
@@ -206,8 +230,13 @@ export function rateMutui(mutui: MutuoCG[], today: string, fino: string): Foreca
     const rata = toCents(l.rata_mensile);
     const tasso = Number(l.tasso_pct) || 0;
     if (residuo <= 0 || rata <= 0) continue;
-    const giorno = Math.min(28, Number((l.data_inizio ?? "").slice(8, 10)) || 1);
-    const nome = [l.descrizione || "Mutuo", l.banca].filter(Boolean).join(" · ");
+    const giorno = Math.min(
+      28,
+      Number((l.data_inizio ?? "").slice(8, 10)) || 1,
+    );
+    const nome = [l.descrizione || "Mutuo", l.banca]
+      .filter(Boolean)
+      .join(" · ");
     let [y, m] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))];
     while (residuo > 0) {
       const data = `${y}-${pad2(m)}-${pad2(giorno)}`;
@@ -226,12 +255,27 @@ export function rateMutui(mutui: MutuoCG[], today: string, fino: string): Foreca
           estimated: false,
         };
         if (capitale > 0)
-          out.push({ ...base, id: `mutuo:${l.id}:${data}:capitale`, description: `${nome} · quota capitale`, cents: capitale, sourceCategory: "mutuo" });
+          out.push({
+            ...base,
+            id: `mutuo:${l.id}:${data}:capitale`,
+            description: `${nome} · quota capitale`,
+            cents: capitale,
+            sourceCategory: "mutuo",
+          });
         if (interessi > 0)
-          out.push({ ...base, id: `mutuo:${l.id}:${data}:interessi`, description: `${nome} · interessi`, cents: interessi, sourceCategory: "interessi" });
+          out.push({
+            ...base,
+            id: `mutuo:${l.id}:${data}:interessi`,
+            description: `${nome} · interessi`,
+            cents: interessi,
+            sourceCategory: "interessi",
+          });
       }
       m += 1;
-      if (m > 12) { m = 1; y += 1; }
+      if (m > 12) {
+        m = 1;
+        y += 1;
+      }
     }
   }
   return out;
@@ -260,7 +304,14 @@ export interface ReceivedInvoiceRow {
   pagata_il?: string | null;
   company_cost_id: string | null;
   purchase_order_id?: string | null;
-  piano_pagamento: { scadenza: string | null; importo: Money | null; modalita?: string | null; pagata_il?: string | null }[] | null;
+  piano_pagamento:
+    | {
+        scadenza: string | null;
+        importo: Money | null;
+        modalita?: string | null;
+        pagata_il?: string | null;
+      }[]
+    | null;
   netto_a_pagare: Money | null;
   totale_documento: Money | null;
   ritenuta_importo: Money | null;
@@ -268,7 +319,17 @@ export interface ReceivedInvoiceRow {
   cedente_piva?: string | null;
 }
 const NOTE_CREDITO_RICEVUTE = ["TD04", "TD08", "passive_credit_note"];
-const AUTOFATTURE_RICEVUTE = ["TD16", "TD17", "TD18", "TD19", "TD20", "TD21", "TD27", "TD28", "self_invoice"];
+const AUTOFATTURE_RICEVUTE = [
+  "TD16",
+  "TD17",
+  "TD18",
+  "TD19",
+  "TD20",
+  "TD21",
+  "TD27",
+  "TD28",
+  "self_invoice",
+];
 /** Il 16 del mese dopo (giorno della ritenuta d'acconto in F24). */
 export function sediciDelMeseDopo(day: string): string {
   const [y, m] = day.slice(0, 7).split("-").map(Number);
@@ -284,7 +345,10 @@ export interface TeamRow {
   is_paid: boolean | null;
   order_id: string;
   order?: OrderRow | null;
-  external_team?: { name: string; subappaltatore?: { piva: string | null } | null } | null;
+  external_team?: {
+    name: string;
+    subappaltatore?: { piva: string | null } | null;
+  } | null;
 }
 export interface CommissionRow {
   id: string;
@@ -360,11 +424,18 @@ export interface ForecastSources {
   payroll: PayrollRow[];
   taxes: TaxRow[];
   /** F24 1001, 1040 e DM10 registrati in qualunque stato: il loro mese non si stima. */
-  f24Ritenute?: { anno: number | null; mese: number | null; tributo_code: string | null; stato?: string }[];
+  f24Ritenute?: {
+    anno: number | null;
+    mese: number | null;
+    tributo_code: string | null;
+    stato?: string;
+  }[];
   loans?: MutuoCG[];
   teams: TeamRow[];
   commissions: CommissionRow[];
   notes: NoteRow[];
+  costPayments?: CostPaymentRow[];
+  costWithholdings?: CostWithholdingRow[];
   blocked: ForecastMovement[];
   purchases: PurchaseRow[];
   purchaseItems: { purchase_order_id: string; order_item_id: string | null }[];
@@ -420,6 +491,8 @@ export const emptyForecastSources = (): ForecastSources => ({
   teams: [],
   commissions: [],
   notes: [],
+  costPayments: [],
+  costWithholdings: [],
   blocked: [],
   purchases: [],
   purchaseItems: [],
@@ -570,6 +643,31 @@ export function buildForecastLedger(
   const warnings = new Set<string>();
   const orderMap = new Map(s.orders.map((o) => [o.id, o]));
   const costById = new Map(s.costs.map((c) => [c.id, c]));
+  const pagamentiCosti = [
+    ...new Map((s.costPayments ?? []).map((p) => [p.id, p])).values(),
+  ];
+  const annullatiCosti = new Set(
+    pagamentiCosti
+      .filter((p) => p.entry_date <= today)
+      .map((p) => p.reversal_of)
+      .filter(Boolean),
+  );
+  const pagatoPerCosto = new Map<string, number>();
+  for (const p of pagamentiCosti) {
+    if (
+      !p.cost_id ||
+      p.entry_date > today ||
+      p.reversal_of ||
+      annullatiCosti.has(p.id)
+    )
+      continue;
+    const segno =
+      p.direction === "uscita" ? 1 : p.direction === "entrata" ? -1 : 0;
+    pagatoPerCosto.set(
+      p.cost_id,
+      (pagatoPerCosto.get(p.cost_id) ?? 0) + segno * toCents(p.amount),
+    );
+  }
   const invoices = new Map(s.invoices.map((i) => [i.id, i]));
   // Note di credito collegate a una fattura: ne riducono il dovuto (parziali)
   // o la stornano (totali, già chiuse). Centesimi sommati per fattura.
@@ -591,16 +689,23 @@ export function buildForecastLedger(
   // sulla fattura non risulta, e non deve tornare fra gli incassi attesi per l'intero.
   const invoiceDeadlines = new Set(
     s.deadlines
-      .filter((d) => d.invoice_id && (!closed(d.status) || d.rata_numero != null))
+      .filter(
+        (d) => d.invoice_id && (!closed(d.status) || d.rata_numero != null),
+      )
       .map((d) => d.invoice_id),
   );
   // Una nota di credito riduce il credito una volta sola: si consuma sulle scadenze aperte della
   // fattura dalla più vicina, invece di togliere l'intero importo a ciascuna rata.
   const notaSuScadenza = new Map<string, number>();
   const notaResidua = new Map(creditedTo);
-  for (const d of [...s.deadlines].sort((a, b) => (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999"))) {
+  for (const d of [...s.deadlines].sort((a, b) =>
+    (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999"),
+  )) {
     if (closed(d.status) || !d.invoice_id) continue;
-    const quota = Math.min(notaResidua.get(d.invoice_id) ?? 0, Math.max(0, toCents(d.amount) - toCents(d.paid_amount)));
+    const quota = Math.min(
+      notaResidua.get(d.invoice_id) ?? 0,
+      Math.max(0, toCents(d.amount) - toCents(d.paid_amount)),
+    );
     if (quota <= 0) continue;
     notaSuScadenza.set(d.id, quota);
     notaResidua.set(d.invoice_id, (notaResidua.get(d.invoice_id) ?? 0) - quota);
@@ -730,6 +835,7 @@ export function buildForecastLedger(
       );
     add({
       id: `scadenza:${d.id}`,
+      costId: d.cost_id,
       description: d.description,
       counterparty: invoice?.client_company_name ?? "",
       category:
@@ -872,17 +978,47 @@ export function buildForecastLedger(
     else installmentsByCost.set(r.company_cost_id, [r]);
   }
   for (const c of s.costs)
-    if (!c.is_paid && !costDeadlines.has(c.id) && installmentsByCost.has(c.id)) {
+    if (
+      !c.is_paid &&
+      !costDeadlines.has(c.id) &&
+      installmentsByCost.has(c.id)
+    ) {
       // Il costo ha le sue rate: esce rata per rata, ognuna alla sua data e col
       // suo importo (lordo, dal documento). Le rate già pagate non escono più.
       const rate = installmentsByCost.get(c.id)!;
       // «Stornata»: chiusa da una nota di credito, non esce più dalla cassa.
-      const aperte = rate.filter((r) => r.stato !== "pagata" && r.stato !== "stornata");
+      const aperte = rate.filter(
+        (r) => r.stato !== "pagata" && r.stato !== "stornata",
+      );
       const vat = c.vat_rate ?? c.supplier?.vat_rate;
       // Una rata senza importo: la sua parte del lordo del costo, alla pari con
       // le altre. Capita quando l'XML non lo dice; di solito lo dice.
-      const quotaSenzaImporto = Math.round(grossCents(c.amount, vat) / rate.length);
-      for (const r of aperte) {
+      const quotaSenzaImporto = Math.round(
+        grossCents(c.amount, vat) / rate.length,
+      );
+      // Le rate chiuse assorbono già una parte dei pagamenti. Il resto degli
+      // acconti sulla spesa riduce le prime rate aperte, senza sottrarlo due volte.
+      let acconti = Math.max(
+        0,
+        (pagatoPerCosto.get(c.id) ?? 0) -
+          rate
+            .filter((r) => r.stato === "pagata")
+            .reduce(
+              (tot, r) =>
+                tot +
+                (r.importo != null ? toCents(r.importo) : quotaSenzaImporto),
+              0,
+            ),
+      );
+      for (const r of [...aperte].sort(
+        (a, b) =>
+          (a.scadenza ?? "9999").localeCompare(b.scadenza ?? "9999") ||
+          a.numero - b.numero,
+      )) {
+        const lordoRata =
+          r.importo != null ? toCents(r.importo) : quotaSenzaImporto;
+        const compensato = Math.min(acconti, lordoRata);
+        acconti -= compensato;
         const riba = r.metodo === "riba";
         const nota =
           r.stato === "avvisata"
@@ -896,6 +1032,7 @@ export function buildForecastLedger(
                   : undefined;
         add({
           id: `rata-fornitore:${r.id}`,
+          costId: c.id,
           description: `${c.name} · ${riba ? "RiBa" : "rata"} ${r.numero} di ${rate.length}`,
           counterparty: "",
           category:
@@ -905,7 +1042,7 @@ export function buildForecastLedger(
                 ? "fornitori"
                 : "altri",
           direction: "out",
-          cents: r.importo != null ? toCents(r.importo) : quotaSenzaImporto,
+          cents: lordoRata - compensato,
           // senza data, come una spesa senza scadenza
           date: r.scadenza ?? c.due_date,
           source: riba ? "RiBa fornitore" : "Rata fornitore",
@@ -919,7 +1056,11 @@ export function buildForecastLedger(
       }
     }
   for (const c of s.costs)
-    if (!c.is_paid && !costDeadlines.has(c.id) && !installmentsByCost.has(c.id)) {
+    if (
+      !c.is_paid &&
+      !costDeadlines.has(c.id) &&
+      !installmentsByCost.has(c.id)
+    ) {
       const vat = c.vat_rate ?? c.supplier?.vat_rate;
       if (vat == null)
         warnings.add(
@@ -927,6 +1068,7 @@ export function buildForecastLedger(
         );
       add({
         id: `costo:${c.id}`,
+        costId: c.id,
         description: c.name,
         counterparty: "",
         category:
@@ -936,7 +1078,11 @@ export function buildForecastLedger(
               ? "fornitori"
               : "altri",
         direction: "out",
-        cents: grossCents(c.amount, vat),
+        cents: Math.max(
+          0,
+          grossCents(c.amount, vat) -
+            Math.max(0, pagatoPerCosto.get(c.id) ?? 0),
+        ),
         date: c.due_date,
         source: "Spesa registrata",
         href: "/azienda/costi",
@@ -1060,10 +1206,13 @@ export function buildForecastLedger(
   const odaConFattura = new Set<string>();
   // L'ordine ricevuto ha già il suo costo da pagare (nasce alla ricezione): la sua fattura, finché non è
   // registrata, è lo stesso debito.
-  const odaConCosto = new Set(s.costs.map((c) => c.purchase_order_id).filter((x): x is string => !!x));
+  const odaConCosto = new Set(
+    s.costs.map((c) => c.purchase_order_id).filter((x): x is string => !!x),
+  );
   // La ditta ancora da pagare in commessa e la sua fattura non ancora registrata sono lo stesso debito:
   // la fattura resta fuori dal piano (da collegare) e conta la riga della commessa.
-  const soloCifre = (v: string | null | undefined) => (v ?? "").replace(/\D/g, "").replace(/^0+(?=\d{11}$)/, "");
+  const soloCifre = (v: string | null | undefined) =>
+    (v ?? "").replace(/\D/g, "").replace(/^0+(?=\d{11}$)/, "");
   const pivaDitteDaPagare = new Set(
     s.teams
       .filter((t) => !t.is_paid && !t.order?.deleted_at)
@@ -1074,19 +1223,26 @@ export function buildForecastLedger(
     if (f.company_cost_id || f.storico_esterno) continue;
     // Pagata per intero (data sulla fattura, le rate restano senza): non è più un'uscita da prevedere.
     if (f.pagata_il) continue;
-    if (["rifiutata", "annullata", "scartata"].includes(f.stato ?? "")) continue;
+    if (["rifiutata", "annullata", "scartata"].includes(f.stato ?? ""))
+      continue;
     const tipo = f.tipo_documento ?? "";
-    if (NOTE_CREDITO_RICEVUTE.includes(tipo) || AUTOFATTURE_RICEVUTE.includes(tipo)) continue;
+    if (
+      NOTE_CREDITO_RICEVUTE.includes(tipo) ||
+      AUTOFATTURE_RICEVUTE.includes(tipo)
+    )
+      continue;
     // La fattura di un ordine d'acquisto prende il posto della stima dell'ordine.
     if (f.purchase_order_id) odaConFattura.add(f.purchase_order_id);
     const netto = toCents(f.netto_a_pagare ?? f.totale_documento ?? 0);
-    const piano = Array.isArray(f.piano_pagamento) && f.piano_pagamento.length
-      ? f.piano_pagamento
-      : [{ scadenza: null, importo: null }];
+    const piano =
+      Array.isArray(f.piano_pagamento) && f.piano_pagamento.length
+        ? f.piano_pagamento
+        : [{ scadenza: null, importo: null }];
     const quota = Math.round(netto / piano.length);
     const fornitore = f.cedente_ragione_sociale || "Fornitore";
     const dittaInCommessa = pivaDitteDaPagare.has(soloCifre(f.cedente_piva));
-    const ordineConCosto = !!f.purchase_order_id && odaConCosto.has(f.purchase_order_id);
+    const ordineConCosto =
+      !!f.purchase_order_id && odaConCosto.has(f.purchase_order_id);
     const doppione = dittaInCommessa || ordineConCosto;
     piano.forEach((r, i) => {
       if ("pagata_il" in r && r.pagata_il) return;
@@ -1099,7 +1255,9 @@ export function buildForecastLedger(
         direction: "out",
         cents: r.importo != null ? toCents(r.importo) : quota,
         date: validDay(r.scadenza),
-        source: riba ? "RiBa da fattura da registrare" : "Fattura da registrare",
+        source: riba
+          ? "RiBa da fattura da registrare"
+          : "Fattura da registrare",
         href: "/azienda/documenti/fatture-ricevute",
         estimated: true,
         note: ordineConCosto
@@ -1122,10 +1280,14 @@ export function buildForecastLedger(
   const f24Ritenute = f24Registrati("1040");
   for (const f of s.receivedInvoices ?? []) {
     if (!(Number(f.ritenuta_importo) > 0) || f.storico_esterno) continue;
-    if (["rifiutata", "annullata", "scartata"].includes(f.stato ?? "")) continue;
+    if (["rifiutata", "annullata", "scartata"].includes(f.stato ?? ""))
+      continue;
     if (NOTE_CREDITO_RICEVUTE.includes(f.tipo_documento ?? "")) continue;
     const piano = Array.isArray(f.piano_pagamento) ? f.piano_pagamento : [];
-    const pagata = f.pagata_il ?? piano.map((r) => ("pagata_il" in r ? r.pagata_il : null)).find(Boolean) ?? null;
+    const pagata =
+      f.pagata_il ??
+      piano.map((r) => ("pagata_il" in r ? r.pagata_il : null)).find(Boolean) ??
+      null;
     const base = validDay(pagata ?? piano[0]?.scadenza ?? f.data_fattura);
     if (!base) continue;
     const date = sediciDelMeseDopo(base);
@@ -1153,7 +1315,8 @@ export function buildForecastLedger(
   // committente ci deve la quota trattenuta; passiva = la dobbiamo noi al subappaltatore.
   for (const g of s.garanzie ?? []) {
     // Sostituita da fideiussione: i soldi sono già tornati, allo svincolo non si muove denaro.
-    if (g.stato !== "trattenuta" || g.fideiussione || !(Number(g.importo) > 0)) continue;
+    if (g.stato !== "trattenuta" || g.fideiussione || !(Number(g.importo) > 0))
+      continue;
     const attiva = g.direzione === "attiva";
     const chi = g.controparte || (attiva ? "Committente" : "Subappaltatore");
     add({
@@ -1164,7 +1327,9 @@ export function buildForecastLedger(
       direction: attiva ? "in" : "out",
       cents: toCents(g.importo),
       date: validDay(g.data_svincolo_prevista),
-      source: attiva ? "Garanzia da svincolare (da ricevere)" : "Garanzia da svincolare (da pagare)",
+      source: attiva
+        ? "Garanzia da svincolare (da ricevere)"
+        : "Garanzia da svincolare (da pagare)",
       href: "/azienda/ritenute-garanzia",
       estimated: true,
       orderId: g.order_id,
@@ -1368,13 +1533,17 @@ export function buildForecastLedger(
   for (const p of s.payroll) {
     if (p.stato === "bozza") continue;
     const competenza = `${p.anno}-${String(p.mese).padStart(2, "0")}`;
-    const pagamento = (validDay(p.data_pagamento) ?? `${competenza}-28`).slice(0, 7);
+    const pagamento = (validDay(p.data_pagamento) ?? `${competenza}-28`).slice(
+      0,
+      7,
+    );
     const vi = perMese.get(pagamento) ?? { irpef: 0, inps: 0, n: 0 };
     vi.irpef += toCents(p.ritenute_irpef ?? 0);
     vi.n += 1;
     perMese.set(pagamento, vi);
     const vc = perMese.get(competenza) ?? { irpef: 0, inps: 0, n: 0 };
-    vc.inps += toCents(p.contributi_dipendente ?? 0) + toCents(p.contributi_datore ?? 0);
+    vc.inps +=
+      toCents(p.contributi_dipendente ?? 0) + toCents(p.contributi_datore ?? 0);
     perMese.set(competenza, vc);
   }
   for (const [key, v] of perMese) {
@@ -1419,9 +1588,14 @@ export function buildForecastLedger(
     fine.setFullYear(fine.getFullYear() + 1);
     const giaScritti =
       s.costs.some((c) => !c.is_paid && /mutu|finanziament/i.test(c.name)) ||
-      s.deadlines.some((d) => !closed(d.status) && /mutu|finanziament/i.test(d.description ?? ""));
+      s.deadlines.some(
+        (d) =>
+          !closed(d.status) && /mutu|finanziament/i.test(d.description ?? ""),
+      );
     if ((s.loans ?? []).length && giaScritti)
-      warnings.add("Rate dei mutui del Controllo di gestione non aggiunte: tra spese e scadenze c'è già una rata di mutuo o finanziamento.");
+      warnings.add(
+        "Rate dei mutui del Controllo di gestione non aggiunte: tra spese e scadenze c'è già una rata di mutuo o finanziamento.",
+      );
     else for (const m of rateMutui(s.loans ?? [], today, dayKey(fine))) add(m);
   }
 
@@ -1603,8 +1777,79 @@ export function buildForecastLedger(
   const vat = vatEstimates(s, today);
   vat.movements.forEach((m) => add(m));
   vat.warnings.forEach((w) => warnings.add(w));
+  const trattenutoPerCosto = new Map<string, number>();
+  for (const f of new Map(
+    (s.costWithholdings ?? []).map((f) => [f.id, f]),
+  ).values()) {
+    if (
+      !f.company_cost_id ||
+      ["rifiutata", "annullata", "scartata"].includes(f.stato ?? "") ||
+      AUTOFATTURE_RICEVUTE.includes(f.tipo_documento ?? "")
+    )
+      continue;
+    const segno = NOTE_CREDITO_RICEVUTE.includes(f.tipo_documento ?? "")
+      ? -1
+      : 1;
+    trattenutoPerCosto.set(
+      f.company_cost_id,
+      (trattenutoPerCosto.get(f.company_cost_id) ?? 0) +
+        segno * Math.max(0, toCents(f.trattenuta_garanzia)),
+    );
+  }
+  const residuiNetti = new Map<string, number>();
+  for (const [costId, trattenuto] of trattenutoPerCosto) {
+    const c = costById.get(costId);
+    if (!c || trattenuto <= 0) continue;
+    const pagatoRate = (installmentsByCost.get(costId) ?? [])
+      .filter((r) => r.stato === "pagata")
+      .reduce((n, r) => n + toCents(r.importo), 0);
+    const pagatoScadenze = s.deadlines
+      .filter((d) => d.cost_id === costId)
+      .reduce((n, d) => n + toCents(d.paid_amount), 0);
+    residuiNetti.set(
+      costId,
+      Math.max(
+        0,
+        grossCents(c.amount, c.vat_rate ?? c.supplier?.vat_rate) -
+          trattenuto -
+          Math.max(
+            0,
+            pagatoPerCosto.get(costId) ?? 0,
+            pagatoRate,
+            pagatoScadenze,
+          ),
+      ),
+    );
+  }
+  // Un tetto al residuo, non una seconda sottrazione dalle rate già nette.
+  // La garanzia non ha costId: resta distinta e segue la sua data di svincolo.
+  const previsteNette = movements
+    .sort(
+      (a, b) =>
+        (a.date ?? "9999").localeCompare(b.date ?? "9999") ||
+        a.id.localeCompare(b.id),
+    )
+    .map((m) => {
+      if (m.direction !== "out" || !m.costId || !residuiNetti.has(m.costId))
+        return m;
+      const cents = Math.min(m.cents, residuiNetti.get(m.costId)!);
+      residuiNetti.set(m.costId, residuiNetti.get(m.costId)! - cents);
+      return cents === m.cents
+        ? m
+        : {
+            ...m,
+            cents,
+            note: [
+              m.note,
+              "Residuo al netto della ritenuta di garanzia; lo svincolo segue il registro garanzie.",
+            ]
+              .filter(Boolean)
+              .join(" "),
+          };
+    })
+    .filter((m) => m.cents > 0);
   return {
-    movements: movements.sort(
+    movements: previsteNette.sort(
       (a, b) =>
         (a.date ?? "9999").localeCompare(b.date ?? "9999") ||
         a.id.localeCompare(b.id),

@@ -1,3 +1,4 @@
+import { percorsoDocumentoGenerale, useAspettoOperativo } from "./generali/design/ContestoOperativo";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { ExpensePaymentDialog } from "./ExpensePaymentDialog";
@@ -114,7 +115,7 @@ export function materialiDaRighe(righe: unknown): MaterialeBolla[] {
  */
 export function cosaManca(
   origine: "fornitore" | "cantiere",
-  d: { stato: string | null; purchase_order_id?: string | null; has_damages?: boolean | null; ai_avvisi?: unknown },
+  d: { stato: string | null; purchase_order_id?: string | null; order_id?: string | null; has_damages?: boolean | null; ai_avvisi?: unknown },
 ): Pick<RigaBolla, "daFare" | "motivo"> {
   const avvisiAI = Array.isArray(d.ai_avvisi) ? d.ai_avvisi.length : 0;
   if (origine === "cantiere") {
@@ -123,7 +124,10 @@ export function cosaManca(
   }
   if (d.stato === "non_conforme" || d.has_damages) return { daFare: "controllo", motivo: "Merce non conforme o danneggiata" };
   if (d.stato === "ricevuto" || d.stato === "parziale") {
-    if (!d.purchase_order_id) return { daFare: "conferma", motivo: "Senza ordine d’acquisto: conferma a cosa appartiene" };
+    if (!d.purchase_order_id && avvisiAI > 0) return { daFare: "conferma", motivo: "Letta dall’AI con dei dubbi: controlla i dati della bolla" };
+    if (!d.purchase_order_id) return d.order_id
+      ? { daFare: "controllo", motivo: "Attribuita alla commessa, merce da controllare" }
+      : { daFare: "conferma", motivo: "Senza ordine d’acquisto: conferma a cosa appartiene" };
     if (avvisiAI > 0) return { daFare: "conferma", motivo: "Letta dall’AI con dei dubbi: controlla l’abbinamento all’ordine" };
     return { daFare: "controllo", motivo: "Arrivata, merce da controllare" };
   }
@@ -198,7 +202,7 @@ export function useBolleCommessa(orderId: string, abilitato = true) {
           attenzione: d.stato === "non_conforme" || !!d.has_damages || d.stato === "ricevuto",
           link: `/azienda/ddt/${d.id}`,
           purchaseOrderId: d.purchase_order_id,
-          ...cosaManca("fornitore", d),
+          ...cosaManca("fornitore", { ...d, order_id: orderId }),
           verifica: statoVerificaBolla("fornitore", d),
           materiali: materialiBolla.get(d.id) ?? [],
         })),
@@ -278,6 +282,7 @@ function StatoBolla({ riga, orderId, puoCambiare, onCambia }: {
 }
 
 export function OrderBolleDdtCard({ orderId, puoAprireDocumenti = true }: { orderId: string; puoAprireDocumenti?: boolean }) {
+  const aspetto = useAspettoOperativo();
   const { data = [], isLoading, isError, refetch } = useBolleCommessa(orderId);
   const [filtro, setFiltro] = useState<string | null>(null);
   const filtri: Record<string, (r: RigaBolla) => boolean> = {
@@ -297,7 +302,7 @@ export function OrderBolleDdtCard({ orderId, puoAprireDocumenti = true }: { orde
   const [carica, setCarica] = useState(false);
   const [caricaPiu, setCaricaPiu] = useState(false);
   const { updateDDT } = useDDTRicezioneMutations(null);
-  const linkDi = (r: RigaBolla) => (r.origine === "cliente" && !puoAprireDocumenti ? undefined : r.link);
+  const linkDi = (r: RigaBolla) => (r.origine === "cliente" && !puoAprireDocumenti || !r.link ? undefined : percorsoDocumentoGenerale(r.link, aspetto?.generaleId));
   const colonne: ColonnaTabella<RigaBolla>[] = [
     { titolo: "Numero", principale: true, cella: (r) => {
       const testo = r.numero ? `N° ${r.numero}` : "Senza numero";
@@ -319,6 +324,7 @@ export function OrderBolleDdtCard({ orderId, puoAprireDocumenti = true }: { orde
     <>
     <RiquadroCommessa
       icona={<Truck className="h-5 w-5 text-primary" aria-hidden="true" />}
+      descrizione="Merce ricevuta, provenienza e verifica delle consegne, anche senza ordine d’acquisto."
       titolo="Bolle e DDT" conteggio={data.length}
       azioni={puoCaricare ? <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => setCaricaPiu(true)}>Più bolle</Button><Button size="sm" onClick={() => setCarica(true)}><Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />Carica bolla</Button></div> : undefined}
       numeri={data.length > 0 ? (
@@ -336,7 +342,7 @@ export function OrderBolleDdtCard({ orderId, puoAprireDocumenti = true }: { orde
         ) : isLoading ? (
           <Skeleton className="h-24 w-full" />
         ) : data.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nessuna bolla su questa commessa. Caricala da «Carica bolla» (foto o PDF, l’AI legge le righe), oppure arriva quando registri la merce sull’ordine d’acquisto.</p>
+          <p className="commessa-empty text-sm text-muted-foreground">Nessuna bolla su questa commessa. Caricala da «Carica bolla» (foto o PDF, l’AI legge le righe), oppure arriva quando registri la merce sull’ordine d’acquisto.</p>
         ) : (
           <TabellaCommessa etichetta="Bolle e DDT della commessa" colonne={colonne} righe={visibili} chiave={(r) => `${r.origine}-${r.id}`} />
         )}
@@ -721,6 +727,7 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
     )}
     <RiquadroCommessa
       icona={<Receipt className="h-5 w-5 text-primary" aria-hidden="true" />}
+      descrizione="Fatture, quote della commessa, controlli e pagamenti della stessa spesa."
       titolo="Fatture dei fornitori" conteggio={collegate.length}
       riassunto={mostraImporti && collegate.length > 0 ? `${formatCurrency(totale)} IVA inclusa` : undefined}
       azioni={puoModificare ? <CaricaFatturaCommessaButton orderId={orderId} /> : undefined}
@@ -745,7 +752,7 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
       ) : (
         <div className="space-y-3">
           {data.length === 0
-            ? <p className="text-sm text-muted-foreground">Nessuna fattura collegata. Caricala da qui, oppure collegala dalla fattura ricevuta scegliendo l’ordine d’acquisto o la commessa.</p>
+            ? <p className="commessa-empty text-sm text-muted-foreground">Nessuna fattura collegata. Caricala da qui, oppure collegala dalla fattura ricevuta scegliendo l’ordine d’acquisto o la commessa.</p>
             : <TabellaCommessa etichetta="Fatture dei fornitori" colonne={colonne} righe={visibili} chiave={(f) => f.id} />}
           {suggerite.length > 0 && <p className="text-xs text-muted-foreground">Le fatture «Da collegare» le ha riconosciute l’AI: finché non le colleghi non entrano nei costi.</p>}
           {puoAprireFatture && <Link to="/azienda/documenti/fatture-ricevute" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline underline-offset-4">

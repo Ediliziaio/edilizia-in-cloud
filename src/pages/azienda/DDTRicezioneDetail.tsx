@@ -1,3 +1,4 @@
+import { PaginaDocumentoGenerale, useAspettoOperativo } from "@/components/orders/generali/design/ContestoOperativo";
 import { ricezioneNonAllineata } from "@/lib/magazzino/ricezioneNonAllineata";
 // ============================================================================
 // DDTRicezioneDetail — la scheda di una bolla ricevuta
@@ -94,10 +95,15 @@ const QUALITY_COLORS: Record<string, string> = {
 };
 
 export default function DDTRicezioneDetail() {
+  return <PaginaDocumentoGenerale><ContenutoDDTRicezioneDetail /></PaginaDocumentoGenerale>;
+}
+
+function ContenutoDDTRicezioneDetail() {
   const { ddtId: ddtIdIndirizzo } = useParams();
   const ddtId = useIdDocumento(ddtIdIndirizzo);
   const navigate = useNavigaDocumento();
   const inPopup = useDentroPopupDocumento();
+  const aspettoGenerale = useAspettoOperativo();
   const { ddt, isLoading, receipts, isReceiptsLoading, isReceiptsError } = useDDTRicezioneDetail(ddtId);
   const permessiCarico = usePermissions();
   const { updateDDT, deleteDDT, createGoodsReceipt, deleteGoodsReceipt } =
@@ -365,7 +371,9 @@ export default function DDTRicezioneDetail() {
       // Senza articoli d'ordine non c'è niente a cui abbinare le righe: dirlo
       // sarebbe un allarme per una cosa che non si può fare.
       righeNonAbbinate:
-        poItems.length > 0 ? righeMerce.filter((r) => !r.order_item_id).length : 0,
+        poItems.length > 0
+          ? righeMerce.filter((r) => !r.purchase_order_item_id && !r.order_item_id).length
+          : 0,
     };
   }, [poItems, righeMerce, receipts]);
 
@@ -508,9 +516,9 @@ export default function DDTRicezioneDetail() {
       {/* ═══════════════════════════════════════════════════════════
           HEADER — back + title + status + azioni rapide
           ═══════════════════════════════════════════════════════════ */}
-      <div className="flex items-start justify-between gap-3 flex-wrap">
+      <div className={cn("commessa-document-header flex items-start justify-between gap-3 flex-wrap", inPopup && isEditingHeader && "sticky top-0 z-20 rounded-lg bg-background p-3 shadow-sm")}>
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          {!inPopup && <Button
+          {!inPopup && !aspettoGenerale && <Button
             variant="ghost"
             size="sm"
             onClick={() => navigate("/azienda/ordini?tab=ddt")}
@@ -699,15 +707,16 @@ export default function DDTRicezioneDetail() {
               {ddt.note && (
                 <div className="col-span-2 sm:col-span-5 pt-1 border-t">
                   <p className="text-xs text-muted-foreground">Note</p>
-                  <p className="text-sm">{ddt.note}</p>
+                  <p className="whitespace-pre-wrap break-words text-sm">{ddt.note}</p>
                 </div>
               )}
             </div>
           ) : editHeader ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">Numero DDT *</Label>
+                <Label htmlFor="ddt-edit-numero" className="text-xs">Numero DDT *</Label>
                 <Input
+                  id="ddt-edit-numero"
                   value={editHeader.numero_ddt}
                   onChange={(e) =>
                     setEditHeader({ ...editHeader, numero_ddt: e.target.value })
@@ -716,8 +725,9 @@ export default function DDTRicezioneDetail() {
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Data ricezione</Label>
+                <Label htmlFor="ddt-edit-data" className="text-xs">Data ricezione</Label>
                 <Input
+                  id="ddt-edit-data"
                   type="date"
                   value={editHeader.data_ricezione}
                   onChange={(e) =>
@@ -726,14 +736,14 @@ export default function DDTRicezioneDetail() {
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Stato</Label>
+                <Label htmlFor="ddt-edit-stato" className="text-xs">Stato</Label>
                 <Select
                   value={editHeader.stato}
                   onValueChange={(v) =>
                     setEditHeader({ ...editHeader, stato: v as DDTStato })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="ddt-edit-stato">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -747,8 +757,9 @@ export default function DDTRicezioneDetail() {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Quantità ricevuta</Label>
+                <Label htmlFor="ddt-edit-quantita" className="text-xs">Quantità ricevuta</Label>
                 <Input
+                  id="ddt-edit-quantita"
                   type="number"
                   min="0"
                   step="0.01"
@@ -771,8 +782,9 @@ export default function DDTRicezioneDetail() {
                 />
               </div>
               <div className="space-y-1 sm:col-span-2">
-                <Label className="text-xs">Note</Label>
+                <Label htmlFor="ddt-edit-note" className="text-xs">Note</Label>
                 <Textarea
+                  id="ddt-edit-note"
                   rows={2}
                   value={editHeader.note}
                   onChange={(e) =>
@@ -1800,7 +1812,7 @@ function MetaCell({
   muted?: boolean;
 }) {
   return (
-    <div className="min-w-0">
+    <div className="commessa-document-meta min-w-0">
       <p className="text-[10px] uppercase tracking-wide text-muted-foreground flex items-center gap-1">
         <Icon className="h-3 w-3" />
         {label}

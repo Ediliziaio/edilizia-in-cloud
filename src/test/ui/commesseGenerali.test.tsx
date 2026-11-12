@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactElement } from "react";
 import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
@@ -79,6 +79,7 @@ const riepilogo = (permessi = permessiPieni): RiepilogoGenerale => ({
 });
 
 const disegna = () => render(<MemoryRouter><CommessaGeneraleDettaglio generaleId="g" /></MemoryRouter>);
+const IndirizzoAttuale = () => <output aria-label="Indirizzo attuale">{useLocation().search}</output>;
 
 beforeEach(() => {
   m.riepilogo = riepilogo();
@@ -139,7 +140,7 @@ describe("la pagina della commessa generale", () => {
   it("generale vuota: il prossimo passo, non una tabella di zeri", () => {
     m.riepilogo = { ...riepilogo(), figlie: [] };
     disegna();
-    expect(screen.getByText("Qui dentro non c'è ancora niente.")).toBeVisible();
+    expect(screen.getByText(/Puoi lavorare direttamente sulla commessa generale/)).toBeVisible();
     expect(screen.getByRole("button", { name: /Collega commesse esistenti/ })).toBeVisible();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
@@ -163,6 +164,28 @@ describe("Impostazioni → Commesse generali", () => {
 });
 
 describe("le schede dei moduli", () => {
+  it.each(["sal", "elenco", "misure", "subappalti"])("il collegamento diretto alla sezione %s apre il contratto anche senza scheda", sezione => {
+    render(<MemoryRouter initialEntries={[`/azienda/ordini/g?sezione=${sezione}`]}><CommessaGeneraleDettaglio generaleId="g" /></MemoryRouter>);
+    expect(screen.getByRole("tab", { name: "Contratto e SAL" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("rispetta la scheda esplicita e non apre il contratto da una sezione residua", () => {
+    render(<MemoryRouter initialEntries={["/azienda/ordini/g?scheda=panoramica&sezione=elenco"]}><CommessaGeneraleDettaglio generaleId="g" /></MemoryRouter>);
+    expect(screen.getByRole("tab", { name: "Panoramica" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("tornare alla Panoramica toglie la sezione del contratto ma conserva gli altri filtri", () => {
+    render(<MemoryRouter initialEntries={["/azienda/ordini/g?sezione=elenco&filtro=aperti"]}><CommessaGeneraleDettaglio generaleId="g" /><IndirizzoAttuale /></MemoryRouter>);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Panoramica" }), { button: 0, ctrlKey: false });
+    expect(screen.getByRole("tab", { name: "Panoramica" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByLabelText("Indirizzo attuale")).toHaveTextContent("?filtro=aperti");
+  });
+
+  it("una sezione del contratto non apre moduli non disponibili sul modello", () => {
+    m.riepilogo = { ...riepilogo(), generale: { ...riepilogo().generale, modello: "sviluppo" } };
+    render(<MemoryRouter initialEntries={["/azienda/ordini/g?sezione=elenco"]}><CommessaGeneraleDettaglio generaleId="g" /></MemoryRouter>);
+    expect(screen.getByRole("tab", { name: "Panoramica" })).toHaveAttribute("aria-selected", "true");
+  });
   it("un modulo pronto del modello aggiunge la sua scheda e il suo riquadro in Panoramica; quelli non pronti no", () => {
     disegna();
     expect(screen.getByRole("tab", { name: "Panoramica" })).toHaveAttribute("aria-selected", "true");
@@ -181,7 +204,7 @@ describe("le schede dei moduli", () => {
     m.riepilogo = { ...riepilogo(), generale: { ...riepilogo().generale, modello: "sviluppo" } };
     disegna();
     expect(screen.queryByRole("tab", { name: "Contratto e SAL" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Cantiere" })).toBeInTheDocument();
   });
 
   it("da telefono una scheda che non lo dichiara non compare, ma il suo riquadro in Panoramica sì", () => {

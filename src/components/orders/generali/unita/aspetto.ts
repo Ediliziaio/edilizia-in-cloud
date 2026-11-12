@@ -29,6 +29,11 @@ export const STILE_STATO: Record<StatoVendita, { casella: string; punto: string;
   },
 };
 
+/** Stessa tavolozza dei badge e del tabellone, per gli spicchi SVG. */
+export const COLORE_STATO: Record<StatoVendita, string> = {
+  libera: "#10b981", prenotata: "#fbbf24", compromesso: "rgb(var(--brand-accent, 249 115 22))", rogitata: "#f43f5e",
+};
+
 export const euro = (n: number | null | undefined) => (n === null || n === undefined ? "—" : formattaEuro(n));
 
 /** Nelle caselle: 245k €, 1,2 M€. */

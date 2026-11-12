@@ -3,8 +3,10 @@
 // scritture, tutte via RPC (migrazione 20281031120000). Ogni scrittura può cambiare l'importo
 // delle commesse figlie (il prezzo dell'unità), quindi rilegge anche il riepilogo della generale.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { chiaviGenerali } from "@/hooks/useCommesseGenerali";
+import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { caricaVarianti } from "@/hooks/useGeneraleVarianti";
 import { conVarianti } from "@/lib/orders/generali/varianti";
 import { leggiElencoUnita, type DatiCambioStato, type ElencoUnita, type StatoVendita, type TipoMovimento } from "@/lib/orders/generali/unita";
@@ -41,6 +43,7 @@ export function useUnitaGenerale(generaleId: string | undefined) {
 function useRileggi(generaleId: string) {
   const qc = useQueryClient();
   return (nuoveCommesse = false) => {
+    refreshFinancialQueries(qc);
     void qc.invalidateQueries({ queryKey: chiaviUnita.elenco(generaleId) });
     void qc.invalidateQueries({ queryKey: chiaviGenerali.riepilogo(generaleId) });
     // Un pagamento cambia anche l'elenco delle commesse e i suoi riquadri.
@@ -80,6 +83,7 @@ export function useSalvaUnita(generaleId: string) {
 
 export function useCambiaStatoUnita(generaleId: string) {
   const rileggi = useRileggi(generaleId);
+  const richiesta=useRef<{chiave:string;id:string}|null>(null);
   return useMutation({
     mutationFn: async ({ orderId, stato, dati }: { orderId: string; stato: StatoVendita; dati: Partial<DatiCambioStato> }) => {
       // Solo le chiavi scritte: un prezzo non scritto lo decide il database (trattato, poi listino).
@@ -89,25 +93,42 @@ export function useCambiaStatoUnita(generaleId: string) {
       if (dati.prezzo !== undefined && dati.prezzo !== null) p.prezzo = dati.prezzo;
       if (dati.caparra) p.caparra = dati.caparra;
       if (dati.saldo) p.saldo = dati.saldo;
+      if(dati.caparraCassa!=null) p.caparra_cassa=dati.caparraCassa;
+      if(dati.saldoCassa!=null) p.saldo_cassa=dati.saldoCassa;
       if (dati.rogitoPrevisto !== undefined) p.rogito_previsto = dati.rogitoPrevisto;
+      const chiave=JSON.stringify({orderId,stato,p});
+      if(richiesta.current?.chiave!==chiave) richiesta.current={chiave,id:crypto.randomUUID()};
+      p.richiesta_id=richiesta.current.id;
       const { error } = await db.rpc("generale_unita_stato", { p_order_id: orderId, p_stato: stato, p_dati: p });
       if (error) throw error;
     },
-    onSuccess: () => rileggi(),
+    onSuccess: () => { richiesta.current=null; rileggi(); },
   });
 }
 
 export function useAggiungiMovimento(generaleId: string) {
   const rileggi = useRileggi(generaleId);
+  const richiesta=useRef<{chiave:string;id:string}|null>(null);
   return useMutation({
-    mutationFn: async (v: { orderId: string; tipo: TipoMovimento; importo: number; data: string | null; descrizione: string | null }) => {
-      const { error } = await db.rpc("generale_unita_movimento_aggiungi", {
-        p_order_id: v.orderId, p_tipo: v.tipo, p_importo: v.importo, p_data: v.data, p_descrizione: v.descrizione,
+    mutationFn: async (v: { orderId: string; tipo: TipoMovimento; importo: number; importoCassa: number; data: string | null; descrizione: string | null }) => {
+      const chiave=JSON.stringify(v);
+      if(richiesta.current?.chiave!==chiave) richiesta.current={chiave,id:crypto.randomUUID()};
+      const { error } = await db.rpc("generale_unita_incasso_registra", {
+        p_order_id: v.orderId, p_richiesta:richiesta.current.id,p_importo_cassa:v.importoCassa,
+        p_tipo: v.tipo, p_importo: v.importo, p_data: v.data, p_descrizione: v.descrizione,
       });
       if (error) throw error;
     },
-    onSuccess: () => rileggi(),
+    onSuccess: () => { richiesta.current=null; rileggi(); },
   });
+}
+
+export function useContabilizzaIncassoUnita(generaleId:string) {
+  const rileggi=useRileggi(generaleId);
+  return useMutation({mutationFn:async(v:{movimentoId:string;importoCassa:number;primaNotaId:string|null})=>{
+    const {error}=await db.rpc('generale_unita_incasso_contabilizza',{p_movimento_id:v.movimentoId,p_importo_cassa:v.importoCassa,p_prima_nota_id:v.primaNotaId});
+    if(error) throw error;
+  },onSuccess:()=>rileggi()});
 }
 
 export function useEliminaMovimento(generaleId: string) {

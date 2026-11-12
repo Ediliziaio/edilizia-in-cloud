@@ -51,7 +51,8 @@ import {
 } from "@/lib/orders/rateEventi";
 import { BonusLinesCard } from "@/components/orders/BonusLinesCard";
 import { quandoSiIncassa } from "@/lib/orders/modelliPagamento";
-import { indiceSaldoFinale, importoSaldoFinale } from "@/lib/orders/saldoFinale";
+import { indiceSaldoFinale, importoSaldoFinale, conSaldoFinale } from "@/lib/orders/saldoFinale";
+import { contractInstallmentWarning } from "@/lib/orders/contractExtract";
 import {
   type BonusLine,
   type DatiCausale,
@@ -389,6 +390,7 @@ export function FinancialSummary({
   const total = parseDecimalIT(totalAmount) || 0;
   const vatAmount = total * (vat / 100);
   const totalWithVat = total + vatAmount;
+  const avvisoRateContratto = nuova && daContratto && ivaConfermata ? contractInstallmentWarning(conSaldoFinale(installments, balance, i=>!!i.amount_from_contract),totalWithVat) : null;
   useEffect(() => { if (!ivaConfermata) setInputMode('net'); }, [ivaConfermata]);
 
   // Sync raw total input
@@ -406,6 +408,8 @@ export function FinancialSummary({
   // Il saldo finale non ha un campo: è il residuo. I SAL intermedi («balance» non finali) sì.
   const posSaldoFinaleModulo = installments[indiceSaldoFinale(installments)]?.position ?? null;
   const isSaldoFinaleModulo = (i: Installment) => i.type === 'balance' && i.position === posSaldoFinaleModulo;
+  const saldoFinaleModulo = installments.find(isSaldoFinaleModulo);
+  const saldoVisualizzato = saldoFinaleModulo?.amount_from_contract ? saldoFinaleModulo.amount : balance;
   const installmentsStructureKey = installments
     .filter(i => !isSaldoFinaleModulo(i))
     .map(i => `${i.position}:${i.amount}`)
@@ -614,7 +618,7 @@ export function FinancialSummary({
   const renderBalance = (labelText: string) => {
     // Il saldo finale è l'ULTIMA rata «balance»; i SAL intermedi hanno il loro campo sopra.
     const balanceInst = installments.find(isSaldoFinaleModulo);
-    const balanceShown = balanceInst?.amount_from_contract ? balanceInst.amount : balance;
+    const balanceShown = saldoVisualizzato;
     return (
       <div className="pt-4 border-t space-y-3">
         <div className="flex justify-between items-center text-lg font-semibold">
@@ -802,6 +806,7 @@ export function FinancialSummary({
 
         {paymentType === 'standard' ? (
           <>
+            {avvisoRateContratto && <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{avvisoRateContratto}</p>}
             {/* Number of installments selector */}
             {!readOnly && (
               <div className="space-y-2">
@@ -839,7 +844,7 @@ export function FinancialSummary({
                   const depositsTotal = deposits.reduce((s, d) => s + (d.amount || 0), 0);
                   return (
                     <p className="text-xs text-muted-foreground">
-                      {deposits.length} {deposits.length === 1 ? 'acconto' : 'acconti'} per {formatCurrency(depositsTotal)} · Saldo {formatCurrency(balance)}
+                      {deposits.length} {deposits.length === 1 ? 'acconto' : 'acconti'} per {formatCurrency(depositsTotal)} · Saldo {formatCurrency(saldoVisualizzato)}
                     </p>
                   );
                 })()}

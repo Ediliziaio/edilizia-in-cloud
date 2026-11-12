@@ -1,0 +1,233 @@
+.generale-cash-toolbar,
+.generale-history-filters {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+}
+.generale-cash-toolbar {
+  padding: 0 22px 16px;
+}
+.generale-cash-toolbar label,
+.generale-history-filters label {
+  display: grid;
+  gap: 7px;
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+}
+.generale-cash-toolbar select,
+.generale-history-filters select {
+  height: 36px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 7px;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  padding: 0 10px;
+  font-size: 12px;
+}
+.generale-history-filters > span {
+  margin-left: auto;
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+}
+.generale-cash-caption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  padding: 0 22px 12px;
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+}
+.generale-cash-in {
+  color: hsl(160 70% 32%);
+  font-weight: 600;
+}
+.generale-cash-out {
+  color: hsl(350 75% 42%);
+  font-weight: 600;
+}
+.generale-cash-chart {
+  height: 280px;
+  padding: 0 16px 0 4px;
+}
+.generale-cash-table {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.generale-cash-table table {
+  width: 100%;
+  min-width: 650px;
+  font-size: 12px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.generale-cash-table thead {
+  background: rgb(var(--brand-navy-deep, 23 59 103) / 0.045);
+  font-size: 10px;
+  color: hsl(var(--muted-foreground));
+}
+.generale-cash-table th {
+  font-weight: 500;
+}
+.generale-cash-table :is(td, th) {
+  padding: 13px 16px;
+  border-bottom: 1px solid hsl(var(--border));
+  white-space: nowrap;
+}
+.generale-cash-table tr > :first-child {
+  text-align: left;
+}
+.generale-cash-table tbody tr:hover {
+  background: hsl(var(--muted) / 0.2);
+}
+.generale-cash-funding {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding: 0 22px 20px;
+}
+.generale-cash-funding > div {
+  min-width: 0;
+  border-left: 3px solid rgb(var(--brand-accent, 249 115 22));
+  padding: 5px 12px;
+}
+.generale-cash-funding span {
+  display: block;
+  font-size: 10px;
+  color: hsl(var(--muted-foreground));
+}
+.generale-cash-funding strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 20px;
+  letter-spacing: -0.03em;
+  font-weight: 650;
+}
+.generale-cash-funding-detail > summary {
+  padding: 0 22px 18px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.generale-cash-notice {
+  padding: 14px 18px;
+  border: 1px solid hsl(35 85% 55% / 0.4);
+  border-radius: 10px;
+  background: hsl(35 85% 55% / 0.07);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.generale-history-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 40px 24px;
+  text-align: center;
+}
+.generale-history-empty > svg {
+  width: 44px;
+  height: 44px;
+  padding: 10px;
+  border-radius: 12px;
+  color: rgb(var(--brand-accent, 249 115 22));
+  background: rgb(var(--brand-accent, 249 115 22) / 0.1);
+}
+.generale-history-empty h3 {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+.generale-history-empty p {
+  max-width: 640px;
+  font-size: 12px;
+  line-height: 1.8;
+  color: hsl(var(--muted-foreground));
+}
+.generale-history-date,
+.generale-history-meta {
+  display: block;
+  color: hsl(var(--muted-foreground));
+  font-size: 11px;
+}
+.generale-history-meta {
+  margin-top: 6px;
+  font-size: 10px;
+}
+.generale-history-link {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.generale-history-link > svg {
+  color: rgb(var(--brand-accent, 249 115 22));
+  width: 22px;
+  height: 22px;
+}
+.generale-history-link > div {
+  flex: 1;
+}
+.generale-history-link strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.generale-history-link p {
+  margin-top: 5px;
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+}
+.generale-piano .generale-cassa-piano > section {
+  border-radius: 12px;
+  border-color: hsl(var(--border));
+}
+.generale-piano .generale-cassa-piano > section:first-child {
+  border-top: 3px solid rgb(var(--brand-accent, 249 115 22));
+}
+.generale-cassa-piano #scenari-titolo {
+  color: hsl(var(--foreground));
+  font-size: 16px;
+  font-weight: 650;
+}
+.generale-cassa-piano #scenari-titolo::before {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 15px;
+  margin-right: 8px;
+  border-radius: 3px;
+  background: rgb(var(--brand-accent, 249 115 22));
+}
+.generale-cassa-piano #cassa-titolo {
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+}
+.generale-cassa-piano .recharts-cartesian-axis-tick text {
+  fill: hsl(var(--muted-foreground));
+}
+.generale-cash-chart .recharts-default-tooltip {
+  border-color: hsl(var(--border)) !important;
+  border-radius: 10px;
+  background: hsl(var(--card)) !important;
+  font-size: 11px;
+}
+.dark .generale-cash-in {
+  color: hsl(160 65% 65%);
+}
+.dark .generale-cash-out {
+  color: hsl(350 85% 75%);
+}
+@media (max-width: 1100px) {
+  .generale-cash-funding {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 639px) {
+  .generale-cash-toolbar {
+    padding-inline: 16px;
+  }
+  .generale-cash-funding {
+    padding-inline: 16px;
+  }
+}

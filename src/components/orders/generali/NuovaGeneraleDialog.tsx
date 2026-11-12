@@ -6,7 +6,8 @@ import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentGenerale as DialogContent } from "@/components/orders/generali/design/DialogGenerale";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScegliCliente } from "@/components/orders/generali/ScegliCliente";
@@ -31,7 +32,7 @@ interface Props {
 export function NuovaGeneraleDialog({ open, onOpenChange, modelli, iniziale }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
         {/* Il modulo nasce a ogni apertura: si riparte sempre da campi vuoti. */}
         <Modulo onOpenChange={onOpenChange} modelli={modelli} iniziale={iniziale} />
       </DialogContent>
@@ -51,6 +52,8 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
   const [valoreTesto, setValoreTesto] = useState("");
   const [quanteTesto, setQuanteTesto] = useState("");
   const [conPiano, setConPiano] = useState(true);
+  const [originePiano, setOriginePiano] = useState<"tipiche" | "excel">("tipiche");
+  const [importaContratto, setImportaContratto] = useState(false);
 
   const def = modello ? DEFINIZIONI_MODELLI[modello] : null;
   const valore = valoreTesto.trim() === "" ? null : leggiImporto(valoreTesto);
@@ -65,7 +68,7 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
       {
         nuova: { modello, nome: nome.trim(), clienteId, valore },
         unita: unitaDiPartenza(quante ?? 0),
-        voci: conPiano && puoFarePiano ? vociDiPartenza(modello, meseCorrente(), valore) : null,
+        voci: conPiano && puoFarePiano && originePiano === "tipiche" ? vociDiPartenza(modello, meseCorrente(), valore) : null,
       },
       {
         onSuccess: ({ id, rimasti }) => {
@@ -75,7 +78,7 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
             toast.success("Commessa generale creata");
           }
           onOpenChange(false);
-          navigate(`/azienda/ordini/${id}`);
+          navigate(`/azienda/ordini/${id}${modello === "appalto" && importaContratto ? "?scheda=contratto&importa-contratto=1" : conPiano && puoFarePiano && originePiano === "excel" ? "?scheda=piano&importa=1" : ""}`);
         },
         onError: (e) => toast.error(messaggioGenerale(e, "la commessa generale")),
       },
@@ -86,7 +89,7 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
     <>
         <DialogHeader>
           <DialogTitle>Nuova commessa generale</DialogTitle>
-          <DialogDescription>Raccoglie più commesse e ne somma i numeri. Le commesse dentro restano commesse normali.</DialogDescription>
+          <DialogDescription>Gestisci budget, documenti e lavoro dell'intera operazione. Puoi aggiungere le unità o collegare le commesse anche in seguito.</DialogDescription>
         </DialogHeader>
 
         <form
@@ -127,6 +130,7 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
               {def?.cliente.etichetta ?? "Cliente"} <span className="font-normal text-muted-foreground">(facoltativo)</span>
             </Label>
             <ScegliCliente id="generale-cliente" valore={clienteId} onCambia={setClienteId} />
+            {conUnita && <p className="text-xs text-muted-foreground">È un riferimento dell'anagrafica clienti. La commessa e i documenti appartengono all'azienda attiva nel gestionale.</p>}
           </div>
 
           <div className="space-y-1.5">
@@ -161,15 +165,21 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
                 aria-describedby="generale-quante-aiuto"
               />
               <p id="generale-quante-aiuto" className={cn("text-xs", quante === null ? "text-destructive" : "text-muted-foreground")}>
-                {quante === null ? "Scrivi un numero da 1 a 100." : quante > 0 ? `Le prepariamo come A1…A${quante}: nomi e prezzi li completi dopo.` : "Le puoi aggiungere anche dopo."}
+                {quante === null ? "Scrivi un numero da 1 a 100." : quante > 0 ? `Le prepariamo come A1…A${quante}: nomi e prezzi li completi dopo.` : "Le puoi aggiungere dopo. Costi e rapportini possono stare sulla generale."}
               </p>
             </div>
           )}
 
+          {modello === "appalto" && <label className="flex items-start gap-2 rounded-lg border p-3 text-sm"><input type="checkbox" checked={importaContratto} onChange={e => setImportaContratto(e.target.checked)} className="mt-1"/><span>Importa il contratto con l’AI dopo la creazione<span className="mt-1 block text-xs text-muted-foreground">PDF o immagine, poi verifica i dati in Contratto e SAL prima di salvarli.</span></span></label>}
           {puoFarePiano && <div className="flex items-center gap-2">
             <Switch id="generale-con-piano" checked={conPiano} onCheckedChange={setConPiano} />
-            <Label htmlFor="generale-con-piano" className="text-sm font-normal">Prepara il piano con le voci tipiche</Label>
+            <Label htmlFor="generale-con-piano" className="text-sm font-normal">Prepara il piano economico</Label>
           </div>}
+          {puoFarePiano && conPiano && <fieldset className="space-y-2 rounded-lg border p-3">
+            <legend className="px-1 text-xs font-medium">Da dove vuoi partire?</legend>
+            <label className="flex items-start gap-2 text-sm"><input type="radio" name="origine-piano" value="tipiche" checked={originePiano === "tipiche"} onChange={() => setOriginePiano("tipiche")} /><span>Voci tipiche da compilare</span></label>
+            <label className="flex items-start gap-2 text-sm"><input type="radio" name="origine-piano" value="excel" checked={originePiano === "excel"} onChange={() => setOriginePiano("excel")} /><span>Ho già un business plan Excel o PDF<span className="mt-0.5 block text-xs text-muted-foreground">Dopo la creazione scegli il file e lo scenario. Le voci tipiche non vengono aggiunte.</span></span></label>
+          </fieldset>}
 
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Annulla</Button>

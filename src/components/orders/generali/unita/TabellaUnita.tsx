@@ -17,7 +17,7 @@ export function TabellaUnita({ elenco, conti, riepilogo, onApri }: Props) {
   const p = elenco.permessi;
   const vive = [...unitaVive(elenco.unita)].sort((a, b) => confrontaSigle(a.sigla, b.sigla));
   const margini = p.margini && conti.costiComuni !== null;
-  const totaleMargine = margini ? [...conti.perUnita.values()].reduce((t, c) => t + (c.margine ?? 0), 0) : null;
+  const totaleMargine = margini ? vive.reduce((t, u) => t + (conti.perUnita.get(u.orderId)?.margine ?? 0), 0) : null;
   const somma = (f: (u: (typeof vive)[number]) => number | null) => vive.reduce((t, u) => t + (f(u) ?? 0), 0);
   return (
     <div className="overflow-x-auto rounded-lg border bg-card">

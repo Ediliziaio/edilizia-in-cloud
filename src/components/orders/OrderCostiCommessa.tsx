@@ -30,7 +30,8 @@ import { Button } from "@/components/ui/button";
 import { ContatoriFiltro } from "./ContatoriFiltro";
 import { RiquadroCommessa, StatoPill, TabellaCommessa } from "./TabellaCommessa";
 import { ExpensePaymentDialog } from "./ExpensePaymentDialog";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogBody as CorpoDialogOperativo, Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentOperativo as DialogContent } from "@/components/orders/generali/design/ContestoOperativo";
 import { SupplierSelect } from "./SupplierSelect";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -219,10 +220,11 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
     {pagamentiDi && <ExpensePaymentDialog key={pagamentiDi} costId={pagamentiDi} onClose={() => { setPagamentiDi(null); aggiorna(); }} />}
     <RiquadroCommessa id="costi-commessa"
       icona={<Wallet className="h-5 w-5 text-primary" aria-hidden="true" />}
+      descrizione="Spese dirette, ricevute e costi in attesa di fattura della commessa."
       titolo="Altri costi" conteggio={costi.length}
       riassunto={costi.length > 0 ? `${formatCurrency(totale)} nel margine` : undefined}
       numeri={!isLoading && !isError ? <>
-        <dl className="grid grid-cols-3 gap-3 rounded-md border bg-muted/20 p-3 sm:max-w-xl" aria-label="Totali degli altri costi, IVA compresa">
+        <dl className="commessa-totali grid grid-cols-3 gap-3 rounded-md border bg-muted/20 p-3 sm:max-w-xl" aria-label="Totali degli altri costi, IVA compresa">
           {([["Totale", totali.totale, false], ["Saldati", totali.saldati, false], ["Da saldare", totali.daSaldare, totali.daSaldare > 0]] as const).map(([titolo, valore, evidenza]) => (
             <div key={titolo}>
               <dt className="text-xs text-muted-foreground">{titolo}</dt>
@@ -401,18 +403,19 @@ export function NuovoCostoDialog({ orderId, companyId, fasi, iniziale, costo, on
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o && !salva.isPending) onClose(); }}>
-      <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
+      <DialogContent struttura="contenuta" ampiezza="modulo" className="max-h-[85vh] max-w-lg overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{costo ? "Modifica costo" : "Aggiungi costo alla commessa"}</DialogTitle>
           <DialogDescription>Per le spese senza fattura (tassa comunale, bolli, F24) o quelle che aspettano ancora la fattura.</DialogDescription>
         </DialogHeader>
         <form
-          className="space-y-3"
+          className="commessa-modal-form"
           onSubmit={(e) => { e.preventDefault(); salva.mutate(); }}
         >
+          <CorpoDialogOperativo>
           <div>
             <Label htmlFor="costo-descrizione">Che costo è *</Label>
-            <Input id="costo-descrizione" value={form.descrizione} onChange={(e) => set("descrizione", e.target.value)} placeholder="es. Tassa comunale occupazione suolo" maxLength={200} autoFocus />
+            <Textarea id="costo-descrizione" rows={2} value={form.descrizione} onChange={(e) => set("descrizione", e.target.value)} placeholder="es. Tassa comunale occupazione suolo" maxLength={200} autoFocus />
             {!costo && !form.descrizione && (
               <div className="mt-1.5 flex flex-wrap gap-1" aria-label="Costi pronti">
                 {COSTI_PRONTI.map((c) => (
@@ -498,6 +501,7 @@ export function NuovoCostoDialog({ orderId, companyId, fasi, iniziale, costo, on
             <Label htmlFor="costo-note">Note</Label>
             <Textarea id="costo-note" value={form.note} onChange={(e) => set("note", e.target.value)} rows={2} maxLength={200} />
           </div>
+          </CorpoDialogOperativo>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} disabled={salva.isPending}>Annulla</Button>
             <Button type="submit" disabled={salva.isPending || !form.descrizione.trim() || !form.importo}>
