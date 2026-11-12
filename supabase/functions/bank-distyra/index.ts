@@ -16,6 +16,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { verificaPermessoAzienda } from "../_shared/permessoAzienda.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 
 const BASE = "https://api.distyra.com";
@@ -113,6 +114,12 @@ Deno.serve(async (req) => {
     const companyId = String(corpo.company_id ?? "");
     if (!companyId) return errorResponse("company_id richiesto", 400, corsH);
     await requireCompanyAccess(supabaseAdmin, userId, companyId, corsH);
+    await verificaPermessoAzienda(supabaseAdmin, userId, companyId, ["can_view_tesoreria"], "consultare i movimenti bancari");
+    if (azione !== "sync") {
+      await verificaPermessoAzienda(supabaseAdmin, userId, companyId, ["can_edit_settings_integrations"], "modificare i collegamenti bancari");
+      await verificaPermessoAzienda(supabaseAdmin, userId, companyId, ["can_view_bank_balances"], "autorizzare i conti bancari");
+    }
+
 
     // ── 1. Il link che il cliente apre per scegliere la banca ────────────────
     if (azione === "start-link") {
@@ -295,6 +302,7 @@ Deno.serve(async (req) => {
     // requireAuth e requireCompanyAccess rispondono lanciando una Response gia' pronta.
     if (e instanceof Response) return e;
     const msg = e instanceof Error ? e.message : String(e);
+    if (msg.startsWith("Non autorizzato")) return errorResponse("Accesso negato ai collegamenti bancari", 403, corsH);
     console.error("[bank-distyra]", msg);
     return errorResponse(msg, 500, getCorsHeaders(req));
   }

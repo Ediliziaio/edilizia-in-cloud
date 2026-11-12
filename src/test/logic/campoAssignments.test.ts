@@ -53,6 +53,12 @@ describe("Unione incarichi Campo: non un fallback esclusivo", () => {
     arrange({ order_campo_assignments: { data: [row("A"), row("X", "in_corso", "other"), { ...row("B"), order: null as null }, { ...row("C"), order_id: "mismatch" }] } });
     expect((await loadCampoAssignments("u", "c")).map(a => a.id)).toEqual(["A"]);
   });
+  it("non ripropone nell’app i cantieri nel cestino dopo il collegamento dell’anagrafica storica", async () => {
+    const deleted = {...row("OLD"),order:{...row("OLD").order,deleted_at:"2026-11-05T12:00:00Z"}};
+    arrange({employees:{data:[{id:"canonical-employee"}]},order_employees:{data:[row("ACTIVE"),deleted]}});
+    expect((await loadCampoAssignments("u","c")).map(a=>a.id)).toEqual(["ACTIVE"]);
+    expect((await loadCampoAssignments("u","c",{includeClosed:true})).map(a=>a.id)).toEqual(["ACTIVE"]);
+  });
   it("chiusi/annullati esclusi dalla lista, ma storico esplicitamente richiedibile", async () => {
     arrange({ order_campo_assignments: { data: [row("A"), row("B", "chiuso"), row("C", "ANNULLATO")] } });
     expect((await loadCampoAssignments("u", "c")).map(a => a.id)).toEqual(["A"]);

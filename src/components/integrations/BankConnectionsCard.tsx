@@ -253,7 +253,7 @@ export default function BankConnectionsCard({
   // Un solo pulsante: Distyra e' l'unico canale configurato. Le vecchie connessioni
   // Salt Edge restano visibili e gestibili finche' ci sono, ma non se ne aprono di nuove.
   const pulsanteCollega = (
-    <Button size="sm" onClick={() => void collegaConDistyra()} disabled={!canEditSettingsIntegrations} className="shrink-0">
+    <Button size="sm" onClick={() => void collegaConDistyra()} disabled={!canEditSettingsIntegrations || !canViewBankBalances} className="shrink-0">
       <Plus className="h-4 w-4 mr-1" /> Collega conto
     </Button>
   );
@@ -282,8 +282,8 @@ export default function BankConnectionsCard({
                   Verifica importazione
                 </Button>
               )}
-              {canEditSettingsIntegrations && c.provider_slug === "saltedge" && c.status === "linked" && !contoDaRicollegare(c) && <Button size="sm" variant="outline" onClick={() => openConnect(c.id, "refresh")}><RefreshCw className="mr-1 h-3.5 w-3.5" />Aggiorna banca</Button>}
-              {canEditSettingsIntegrations && c.provider_slug === "saltedge" && contoDaRicollegare(c) && (
+              {canEditSettingsIntegrations && canViewBankBalances && c.provider_slug === "saltedge" && c.status === "linked" && !contoDaRicollegare(c) && <Button size="sm" variant="outline" onClick={() => openConnect(c.id, "refresh")}><RefreshCw className="mr-1 h-3.5 w-3.5" />Aggiorna banca</Button>}
+              {canEditSettingsIntegrations && canViewBankBalances && c.provider_slug === "saltedge" && contoDaRicollegare(c) && (
                 <Button size="sm" variant="outline" onClick={() => openConnect(c.id)}>
                   <RefreshCw className="h-3.5 w-3.5 mr-1" /> Ricollega
                 </Button>
@@ -294,10 +294,10 @@ export default function BankConnectionsCard({
                   {c.status === "pending" ? "Verifica collegamento" : "Aggiorna movimenti"}
                 </Button>
               )}
-              {canEditSettingsIntegrations && c.provider_slug === "distyra" && <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-rose-600" onClick={() => setDisconnectId(c.id)} aria-label="Disconnetti conto">
+              {canEditSettingsIntegrations && canViewBankBalances && c.provider_slug === "distyra" && <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-rose-600" onClick={() => setDisconnectId(c.id)} aria-label="Disconnetti conto">
                 <Unlink className="h-3.5 w-3.5" />
               </Button>}
-              {canEditSettingsIntegrations && c.provider_slug === "saltedge" && <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-rose-600" onClick={() => setDisconnectId(c.id)} aria-label="Disconnetti conto">
+              {canEditSettingsIntegrations && canViewBankBalances && c.provider_slug === "saltedge" && <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-rose-600" onClick={() => setDisconnectId(c.id)} aria-label="Disconnetti conto">
                 <Unlink className="h-3.5 w-3.5" />
               </Button>}
             </div>
