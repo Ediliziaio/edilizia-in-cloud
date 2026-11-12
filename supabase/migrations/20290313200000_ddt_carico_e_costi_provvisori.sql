@@ -231,12 +231,14 @@ begin
  -- passa dalle consegne. Prima lo scriveva solo bolla_carica_magazzino, che
  -- nessuno chiamava più, e la scheda Collegamenti diceva «Carico non ancora
  -- confermato» a merce già in giacenza. La data si mette quando c'è almeno un
- -- ingresso in magazzino e, se la bolla è per il magazzino, non resta nessuna
- -- riga da confermare (stessa regola delle «righe aperte» della scheda).
+ -- ingresso in magazzino, la bolla è per il magazzino (il vincolo
+ -- ddt_ricezione_cantiere_non_carica_magazzino lo vieta alle bolle per il cantiere:
+ -- per quelle lo stato si legge da ddt_consegne) e non resta nessuna riga da
+ -- confermare (stessa regola delle «righe aperte» della scheda).
  update ddt_ricezione d2 set caricata_a_magazzino_at=now()
   where d2.id=d.id and d2.caricata_a_magazzino_at is null
   and exists(select 1 from ddt_consegne k where k.ddt_id=d.id and k.company_id=d.company_id and k.destinazione='magazzino' and k.tipo='ingresso')
-  and (d.destinazione is distinct from 'magazzino' or not exists(
+  and d.destinazione='magazzino' and (not exists(
    select 1 from ddt_righe x where x.ddt_ricezione_id=d.id and x.movimento_id is null
    and not (x.arrivo_registrato_il is not null and not exists(select 1 from ddt_consegne k2 where k2.riga_id=x.id))
    and coalesce(x.quantita,0)>(select coalesce(sum(k3.quantita),0) from ddt_consegne k3 where k3.riga_id=x.id)));
@@ -429,7 +431,7 @@ update public.ddt_ricezione d
    and exists (select 1 from public.ddt_consegne k
                 where k.ddt_id = d.id and k.company_id = d.company_id
                   and k.destinazione = 'magazzino' and k.tipo = 'ingresso')
-   and (d.destinazione is distinct from 'magazzino' or not exists (
+   and d.destinazione = 'magazzino' and (not exists (
      select 1 from public.ddt_righe x
       where x.ddt_ricezione_id = d.id and x.movimento_id is null
         and not (x.arrivo_registrato_il is not null

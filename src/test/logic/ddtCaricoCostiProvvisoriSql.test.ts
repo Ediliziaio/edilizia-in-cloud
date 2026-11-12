@@ -131,10 +131,11 @@ it("la conferma delle consegne segna la bolla caricata solo quando non resta nie
   expect(await caricata()).not.toBeNull();
 });
 
-it("in una bolla per il cantiere, la riga mandata in magazzino basta per la data del carico", async () => {
+it("in una bolla per il cantiere la data del carico non si scrive (vincolo ddt_ricezione_cantiere_non_carica_magazzino): lo stato si legge dalle consegne", async () => {
   await db.exec("update ddt_ricezione set destinazione='cantiere'");
   await conferma(81, [{ riga: r, q: 10 }]);
-  expect(await caricata()).not.toBeNull();
+  expect(await caricata()).toBeNull();
+  expect((await db.query("select count(*)::int n from ddt_consegne where destinazione='magazzino' and tipo='ingresso'")).rows).toEqual([{ n: 1 }]);
 });
 
 it("carico senza prezzo → scarico provvisorio → fattura parziale → scarico rivalutato e margine rifatto", async () => {
