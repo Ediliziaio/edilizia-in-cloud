@@ -119,6 +119,36 @@ const ricevi = (q: number, op = 20, doc = ddt, item = riga, patch = {}) =>
       },
     ]),
   ]);
+
+it("due ordini in due bolle: tre conferme parziali, retry e reso mantengono il residuo corretto", async () => {
+  const odaFiltri=id(70),filtro=id(71),rFiltro1=id(72),d2=id(73),rClima2=id(74),rTapp2=id(75),rFiltro2=id(76),dReso=id(77),rReso=id(78);
+  await db.exec(`update ddt_righe set quantita=6 where id='${riga}';
+    insert into purchase_orders(id,company_id,supplier_id,order_id,status) values('${odaFiltri}','${azienda}','${fornitore}','${commessa}','confermato');
+    insert into purchase_order_items(id,purchase_order_id,company_id,quantity,unit_of_measure) values('${filtro}','${odaFiltri}','${azienda}',5,'pz');
+    insert into ddt_righe(id,ddt_ricezione_id,company_id,descrizione,quantita,unita_misura,purchase_order_item_id,abbinamento) values('${rFiltro1}','${ddt}','${azienda}','Filtri',2,'pz','${filtro}','manuale');
+    insert into ddt_ricezione(id,company_id,order_id,supplier_id,purchase_order_id,numero_ddt,data_ricezione,destinazione) values('${d2}','${azienda}','${commessa}','${fornitore}','${oda}','SIMULAZIONE-SALDO','2026-11-12','cantiere'),('${dReso}','${azienda}','${commessa}','${fornitore}','${oda}','SIMULAZIONE-RESO','2026-11-12','cantiere');
+    insert into ddt_righe(id,ddt_ricezione_id,company_id,descrizione,quantita,unita_misura,purchase_order_item_id,abbinamento) values('${rClima2}','${d2}','${azienda}','Condizionatori',4,'pz','${clima}','manuale'),('${rTapp2}','${d2}','${azienda}','Tapparelle',2,'pz','${tapp}','manuale'),('${rFiltro2}','${d2}','${azienda}','Filtri',3,'pz','${filtro}','manuale'),('${rReso}','${dReso}','${azienda}','Reso condizionatore',1,'pz','${clima}','manuale');`);
+  const conferma=(doc:string,op:number,righe:Array<{riga_id:string;quantita:number;tipo?:string;consegna_origine_id?:string}>)=>db.query<{esito:{gia_registrata:boolean}}>("select ddt_conferma_consegna($1,$2,$3::jsonb) esito",[id(op),doc,JSON.stringify(righe.map(r=>({destinazione:"cantiere",order_id:commessa,crea_articolo:true,...r})))]);
+  const ricevute=async()=>Object.fromEntries((await db.query<{id:string;quantity_received:string}>("select id,quantity_received from purchase_order_items")).rows.map(r=>[r.id,Number(r.quantity_received)]));
+  const prima=[{riga_id:riga,quantita:4},{riga_id:rFiltro1,quantita:1}];
+  await conferma(ddt,80,prima);
+  expect(await ricevute()).toEqual({[clima]:4,[tapp]:0,[filtro]:1});
+  expect((await conferma(ddt,80,prima)).rows[0].esito.gia_registrata).toBe(true);
+  expect(await ricevute()).toEqual({[clima]:4,[tapp]:0,[filtro]:1});
+  await conferma(d2,81,[{riga_id:rClima2,quantita:4},{riga_id:rTapp2,quantita:2},{riga_id:rFiltro2,quantita:3}]);
+  expect(await ricevute()).toEqual({[clima]:8,[tapp]:2,[filtro]:4});
+  await conferma(ddt,82,[{riga_id:riga,quantita:2},{riga_id:rFiltro1,quantita:1}]);
+  expect(await ricevute()).toEqual({[clima]:10,[tapp]:2,[filtro]:5});
+  expect((await db.query("select status from purchase_orders order by id")).rows).toEqual([{status:"ricevuto"},{status:"ricevuto"}]);
+  expect((await db.query("select * from ddt_ordini_collegati where ddt_id<>$1",[dReso])).rows).toHaveLength(4);
+  const origine=(await db.query<{id:string}>("select id from ddt_consegne where operazione_id=$1 and riga_id=$2",[id(80),riga])).rows[0].id;
+  await conferma(dReso,83,[{riga_id:rReso,quantita:1,tipo:"reso",consegna_origine_id:origine}]);
+  expect(await ricevute()).toEqual({[clima]:9,[tapp]:2,[filtro]:5});
+  expect((await db.query("select status from purchase_orders where id=$1",[oda])).rows[0]).toEqual({status:"parziale"});
+  await expect(conferma(ddt,80,[{riga_id:riga,quantita:3}])).rejects.toThrow("Identità dell’operazione già usata");
+  expect(await ricevute()).toEqual({[clima]:9,[tapp]:2,[filtro]:5});
+  expect((await db.query("select * from warehouse_movements")).rows).toHaveLength(0);
+});
 it("10 condizionatori, poi 2 tapparelle: parziale → ricevuto, due DDT, nessun magazzino", async () => {
   await ricevi(10);
   expect((await db.query("select status from purchase_orders")).rows).toEqual([
