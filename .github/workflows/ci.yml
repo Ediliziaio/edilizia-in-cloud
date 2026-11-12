@@ -709,6 +709,7 @@ jobs:
         run: >-
           bunx vitest run --maxWorkers=2
           src/test/logic/silvioOfficePermissions.test.ts
+          src/test/logic/silvioPublicReply.test.ts
           src/test/logic/silvioContextHardening.test.ts
           src/test/logic/silvioExecuteAction.test.ts
           src/test/logic/silvioToolRegistry.test.ts

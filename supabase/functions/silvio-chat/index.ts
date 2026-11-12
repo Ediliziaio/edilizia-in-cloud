@@ -1,3 +1,4 @@
+import { publicSilvioReply } from "../_shared/silvioPublicReply.ts";
 import { silvioQuestionPermissionIssue } from "../_shared/silvioDataPermission.ts";
 /**
  * Edge Function: silvio-chat
@@ -1830,6 +1831,7 @@ serve(async (req: Request) => {
       }
     }
 
+    finalContent = publicSilvioReply(finalContent);
     finalContent = appendEvidenceFooter(finalContent, toolCallsLog, lastResult);
     finalContent = silvioCompletionNotice(finalContent, answerFinishReason, partialToolContext);
     if (structured && partialToolContext && structured.confidence === "high") structured.confidence = "medium";
