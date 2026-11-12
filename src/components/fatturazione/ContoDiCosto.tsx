@@ -65,8 +65,8 @@ export function ContoDiCosto({ companyId, fatturaId, costoId, attuale, onCambiat
       const nonRifatta = stornate > 0 && (data?.esito?.fatture_ricevute ?? 0) === 0;
       return { stornate, nonRifatta, motivo: data?.esito?.errori?.[0] ?? null, errGiornale: errGiornale?.message ?? null };
     },
-    onSuccess: ({ stornate, nonRifatta, motivo, errGiornale }) => {
-      toast.success(costoId ? "Conto di costo cambiato" : "Conto di costo fissato: si userà alla contabilizzazione", {
+    onSuccess: ({ stornate, nonRifatta, motivo, errGiornale }, categoria) => {
+      toast.success(costoId ? `Conto di costo cambiato in «${categoria}»` : `Conto di costo salvato: «${categoria}», si userà alla contabilizzazione`, {
         description: stornate > 0 && !nonRifatta ? "Anche la contabilità generale: la scrittura è stata stornata e rifatta col conto nuovo." : undefined,
       });
       if (nonRifatta) {
@@ -75,9 +75,9 @@ export function ContoDiCosto({ companyId, fatturaId, costoId, attuale, onCambiat
           duration: 12000,
         });
       } else if (errGiornale) {
-        toast.warning("Contabilità generale non aggiornata", {
+        toast.warning("Conto salvato · contabilità generale da aggiornare", {
           description: /Accesso negato/.test(errGiornale)
-            ? "La scrittura della fattura la rifà chi ha il permesso della contabilità: avvisalo del conto cambiato."
+            ? "Il conto è salvato sulla fattura. Se usate la contabilità generale, la sua scrittura la rifà chi ne ha il permesso: avvisalo."
             : errGiornale,
           duration: 12000,
         });
@@ -88,7 +88,9 @@ export function ContoDiCosto({ companyId, fatturaId, costoId, attuale, onCambiat
     onError: (e) => toast.error("Conto di costo non cambiato", { description: e instanceof Error ? e.message : String(e) }),
   });
 
-  const valore = attuale || CATEGORIA_PREDEFINITA;
+  // Il conto appena scelto si vede subito: prima restava quello vecchio finché la fattura non si
+  // rileggeva, e sembrava che il cambio non fosse passato.
+  const valore = (cambia.isSuccess ? cambia.variables : null) ?? attuale ?? CATEGORIA_PREDEFINITA;
   const proprie = categorie.map((c) => c.name).filter(Boolean);
   const nomi = Array.from(new Set([...(proprie.length > 0 ? proprie : CATEGORIE_DI_BASE), valore]));
 

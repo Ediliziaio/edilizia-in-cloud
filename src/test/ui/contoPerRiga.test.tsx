@@ -55,6 +55,6 @@ it("se la contabilità generale non segue il conto nuovo lo dice, anche senza il
   disegna({ "2": "trasporti" });
   await waitFor(() => expect(screen.getByText(/1 riga ha un conto proposto/)).toBeTruthy());
   fireEvent.click(screen.getByRole("button", { name: "Conferma le proposte" }));
-  await waitFor(() => expect(m.avviso).toHaveBeenCalledWith("Contabilità generale non aggiornata",
-    expect.objectContaining({ description: expect.stringMatching(/permesso della contabilità/) })));
+  await waitFor(() => expect(m.avviso).toHaveBeenCalledWith("Conto salvato · contabilità generale da aggiornare",
+    expect.objectContaining({ description: expect.stringMatching(/Il conto è salvato/) })));
 });

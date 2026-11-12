@@ -135,9 +135,9 @@ export function useContiRighe({ companyId, fatturaId, salvati, righe, onCambiato
       toast.success(messaggio);
       // La fattura ha il conto nuovo; se il giornale non lo segue, deve dirlo (prima l'«Accesso negato» spariva).
       if (errGiornale) {
-        toast.warning("Contabilità generale non aggiornata", {
+        toast.warning("Conto salvato · contabilità generale da aggiornare", {
           description: /Accesso negato/.test(errGiornale.message)
-            ? "La scrittura della fattura la rifà chi ha il permesso della contabilità: avvisalo del conto cambiato."
+            ? "Il conto è salvato sulla fattura. Se usate la contabilità generale, la sua scrittura la rifà chi ne ha il permesso: avvisalo."
             : errGiornale.message,
           duration: 12000,
         });
