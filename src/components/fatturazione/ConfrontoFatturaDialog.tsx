@@ -359,7 +359,7 @@ export function ConfrontoFatturaDialog({
   };
   const esiti = useMemo<EsitoRigaConfronto[]>(() => {
     if (residuiNonDisponibili) {
-      return righe.map(() => ({
+      return righe.map((): EsitoRigaConfronto => ({
         stato: "da_controllare" as const,
         motivo: ai.dati.isError
           ? "Residui delle altre fatture non disponibili. Aggiorna il confronto prima di controllare le quantità."
