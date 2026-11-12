@@ -478,7 +478,7 @@ export function NuovoCostoDialog({ orderId, companyId, fasi, iniziale, costo, on
             </div>
             <div>
               <Label>Fornitore</Label>
-              <SupplierSelect value={form.fornitoreId ?? ""} onValueChange={(v) => set("fornitoreId", v || null)} placeholder="Nessuno" searchable allowCreate={false} />
+              <SupplierSelect value={form.fornitoreId ?? ""} onValueChange={(v) => set("fornitoreId", v || null)} placeholder="Nessuno" searchable allowCreate />
             </div>
           </div>
           <div>

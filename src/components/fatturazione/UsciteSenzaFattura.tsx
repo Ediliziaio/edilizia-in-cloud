@@ -18,7 +18,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ViaggioSelect } from "@/components/mezzi/ViaggioSelect";
+import { SupplierSelect } from "@/components/orders/SupplierSelect";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -48,12 +49,12 @@ export function UsciteSenzaFattura({ companyId, puoModificare }: { companyId: st
     queryKey: ["uscite-senza-fattura-scelte", companyId],
     enabled: dialogo,
     queryFn: async () => {
-      const [f, o, m] = await Promise.all([
-        tutteLePagine<{ id: string; name: string }>((from, to) => db.from("suppliers").select("id, name").eq("company_id", companyId).order("name").order("id").range(from, to)),
+      // I fornitori li carica SupplierSelect, che li cerca e ne crea di nuovi.
+      const [o, m] = await Promise.all([
         db.from("orders").select("id, order_code, description").eq("company_id", companyId).is("deleted_at", null).order("created_at", { ascending: false }).limit(500),
         db.from("mezzi").select("id, nome, targa").eq("company_id", companyId).is("deleted_at", null).order("nome").limit(1000),
       ]);
-      return { fornitori: f, commesse: (o.data ?? []) as Array<{ id: string; order_code: string | null; description: string | null }>, mezzi: (m.data ?? []) as Array<{ id: string; nome: string; targa: string | null }> };
+      return { commesse: (o.data ?? []) as Array<{ id: string; order_code: string | null; description: string | null }>, mezzi: (m.data ?? []) as Array<{ id: string; nome: string; targa: string | null }> };
     },
   });
   const salva = useMutation({
@@ -112,7 +113,13 @@ export function UsciteSenzaFattura({ companyId, puoModificare }: { companyId: st
             <div className="space-y-1"><Label htmlFor="us-data">Data</Label><Input id="us-data" type="date" value={form.data} onChange={(e) => set("data", e.target.value)} /></div>
             <div className="space-y-1"><Label htmlFor="us-mese">Mese di competenza</Label><Input id="us-mese" type="month" value={form.mese} onChange={(e) => set("mese", e.target.value)} /></div>
             <div className="space-y-1 sm:col-span-2"><Label htmlFor="us-rif">Riferimento del documento</Label><Input id="us-rif" value={form.riferimento} maxLength={100} onChange={(e) => set("riferimento", e.target.value)} placeholder="Numero ricevuta, avviso…" /></div>
-            <Scelta etichetta="Fornitore" valore={form.fornitoreId} cambia={(v) => set("fornitoreId", v)} opzioni={(scelte?.fornitori ?? []).map((x) => [x.id, x.name])} />
+            {/* Fornitore con la ricerca e il «+» per crearlo (12/11/2026): era una tendina con
+                tutti i fornitori, senza ricerca, che non si scorreva bene con le frecce o col
+                trackpad; e chi non c'era (il Comune, per una tassa) non si poteva aggiungere. */}
+            <div className="space-y-1 sm:col-span-2">
+              <Label>Fornitore o ente</Label>
+              <SupplierSelect value={form.fornitoreId} onValueChange={(v) => set("fornitoreId", v ?? "")} fallbackCompanyId={companyId} searchable allowCreate />
+            </div>
             <Scelta etichetta="Commessa" valore={form.commessaId} cambia={(v) => set("commessaId", v)} opzioni={(scelte?.commesse ?? []).map((x) => [x.id, [x.order_code, x.description].filter(Boolean).join(" · ") || "Commessa"])} />
             <Scelta etichetta="Mezzo" valore={form.mezzoId} cambia={(v) => set("mezzoId", v)} opzioni={(scelte?.mezzi ?? []).map((x) => [x.id, x.targa ? `${x.nome} · ${x.targa}` : x.nome])} />
             <label className="flex items-center gap-2 self-end text-sm"><Checkbox checked={form.pagata} onCheckedChange={(v) => set("pagata", v === true)} />Già pagata</label>
@@ -129,16 +136,17 @@ export function UsciteSenzaFattura({ companyId, puoModificare }: { companyId: st
 }
 
 function Scelta({ etichetta, valore, cambia, opzioni }: { etichetta: string; valore: string; cambia: (v: string) => void; opzioni: Array<[string, string]> }) {
+  // Con la ricerca, come il fornitore: frecce, Invio e scorrimento funzionano anche dentro la finestra.
   return (
     <div className="space-y-1">
       <Label>{etichetta}</Label>
-      <Select value={valore || NESSUNO} onValueChange={(v) => cambia(v === NESSUNO ? "" : v)}>
-        <SelectTrigger aria-label={etichetta}><SelectValue /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value={NESSUNO}>Nessuno</SelectItem>
-          {opzioni.map(([id, testo]) => <SelectItem key={id} value={id}>{testo}</SelectItem>)}
-        </SelectContent>
-      </Select>
+      <ViaggioSelect
+        label={etichetta}
+        value={valore || NESSUNO}
+        onValueChange={(v) => cambia(v === NESSUNO ? "" : v)}
+        emptyMessage="Nessuna corrispondenza."
+        options={[{ value: NESSUNO, label: "Nessuno" }, ...opzioni.map(([value, label]) => ({ value, label }))]}
+      />
     </div>
   );
 }
