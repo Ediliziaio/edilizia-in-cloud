@@ -181,7 +181,7 @@ describe("Scheda utente — modelli e cambio accesso non si sovrappongono", () =
     expect(save).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button",{name:"Salva permessi"}));
     expect(save).toHaveBeenCalledWith(expect.objectContaining({office_profile:"ordini",can_view_costs:true,can_view_employees:false}));
-    fireEvent.click(screen.getByRole("button",{name:"Annulla",exact:true}));
+    fireEvent.click(screen.getByRole("button",{name:"Annulla"}));
     expect(screen.getByRole("combobox",{name:"Ruolo principale"})).toBeEnabled();
   });
   it("un cambio ruolo in attesa non permette di applicare contemporaneamente un modello",async()=>{

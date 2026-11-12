@@ -116587,6 +116587,7 @@ export type Database = {
           can_view_mezzi: boolean
           can_view_operai: boolean
           can_view_order_amounts: boolean
+          can_view_order_payment_status: boolean
           can_view_orders: boolean | null
           can_view_persone: boolean
           can_view_preventivi: boolean
@@ -116622,6 +116623,7 @@ export type Database = {
           id: string
           must_change_password: boolean | null
           only_assigned: boolean
+          office_profile: string | null
           only_my_warehouse: boolean
           permessi_dettagliati: boolean
           pipeline_visibili: string[]
@@ -116701,6 +116703,7 @@ export type Database = {
           can_view_mezzi?: boolean
           can_view_operai?: boolean
           can_view_order_amounts?: boolean
+          can_view_order_payment_status?: boolean
           can_view_orders?: boolean | null
           can_view_persone?: boolean
           can_view_preventivi?: boolean
@@ -116736,6 +116739,7 @@ export type Database = {
           id?: string
           must_change_password?: boolean | null
           only_assigned?: boolean
+          office_profile?: string | null
           only_my_warehouse?: boolean
           permessi_dettagliati?: boolean
           pipeline_visibili?: string[]
@@ -116815,6 +116819,7 @@ export type Database = {
           can_view_mezzi?: boolean
           can_view_operai?: boolean
           can_view_order_amounts?: boolean
+          can_view_order_payment_status?: boolean
           can_view_orders?: boolean | null
           can_view_persone?: boolean
           can_view_preventivi?: boolean
@@ -116850,6 +116855,7 @@ export type Database = {
           id?: string
           must_change_password?: boolean | null
           only_assigned?: boolean
+          office_profile?: string | null
           only_my_warehouse?: boolean
           permessi_dettagliati?: boolean
           pipeline_visibili?: string[]

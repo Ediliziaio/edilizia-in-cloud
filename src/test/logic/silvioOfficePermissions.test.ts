@@ -22,8 +22,8 @@ describe('Silvio applica i permessi dei dati',()=>{
  it('rilegge i permessi revocati prima di eseguire, anche con cache permissiva',async()=>{
  const name='__office_permission_probe';let calls=0;
  SILVIO_TOOLS[name]={schema:{type:'function',function:{name,description:'probe',parameters:{type:'object',properties:{}}}},domain:'cantiere',riskLevel:'safe',allowedRoles:['company_staff'],executor:async()=>{calls++;return {total_amount:9999}}} as SilvioTool;
- const q={select:()=>q,eq:()=>q,maybeSingle:async()=>({data:{can_view_orders:false},error:null})};
- try{const result=await executeToolWithRouting(name,{}, {supabase:{from:(t:string)=>t==='tool_execution_log'?{insert:async()=>({error:null})}:t==='profiles'?(()=>{const a={select:()=>a,eq:()=>a,maybeSingle:async()=>({data:{id:'u',is_blocked:false},error:null})};return a})():q},companyId:'c',userId:'u',primaryRole:'company_staff',channel:'internal_chat',staffPermissions:{can_view_orders:true}} as unknown as ToolContext);expect(result.success).toBe(false);expect(calls).toBe(0);}finally{delete SILVIO_TOOLS[name]}
+ const q={select:()=>q,eq:()=>q,maybeSingle:async()=>({data:{can_view_orders:false},error:null as null})};
+ try{const result=await executeToolWithRouting(name,{}, {supabase:{from:(t:string)=>t==='tool_execution_log'?{insert:async()=>({error:null as null})}:t==='profiles'?(()=>{const a={select:()=>a,eq:()=>a,maybeSingle:async()=>({data:{id:'u',is_blocked:false},error:null as null})};return a})():q},companyId:'c',userId:'u',primaryRole:'company_staff',channel:'internal_chat',staffPermissions:{can_view_orders:true}} as unknown as ToolContext);expect(result.success).toBe(false);expect(calls).toBe(0);}finally{delete SILVIO_TOOLS[name]}
  });
  it('il catalogo usa il permesso CRM granulare anche con il vecchio flag generale spento',()=>{
   const tools=getToolsForChannel({channel:'internal_chat',role:'salesperson',staffPermissions:{can_view_marketing:false,can_view_marketing_contacts:true,only_assigned:true}});
@@ -31,7 +31,7 @@ describe('Silvio applica i permessi dei dati',()=>{
   expect(tools).not.toContain(SILVIO_TOOLS.cerca_opportunita_autorizzate);
  });
  it.each([{id:'u',is_blocked:true},null])('nega un attore bloccato o mancante prima di interrogare i dati: %j',async actor=>{
-  const q={select:()=>q,eq:()=>q,maybeSingle:async()=>({data:actor,error:null})};
+  const q={select:()=>q,eq:()=>q,maybeSingle:async()=>({data:actor,error:null as null})};
   const result=await executeToolWithRouting('get_orders_summary',{}, {supabase:{from:()=>q},companyId:'c',userId:'u',primaryRole:'company_staff'} as unknown as ToolContext);
   expect(result.success).toBe(false);expect(result.error?.code).toBe('actor_unavailable');
  });

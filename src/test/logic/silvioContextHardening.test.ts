@@ -134,7 +134,7 @@ describe('stesso controllo permessi dopo conferma', () => {
     const audit = vi.fn().mockResolvedValue({ error: null });
     const db = { from: (table: string) => {
       if (table === 'tool_execution_log') return { insert: audit };
-      if (table === 'profiles') {const q={select:()=>q,eq:()=>q,maybeSingle:async()=>({data:{id:'user',is_blocked:false},error:null})};return q;}
+      if (table === 'profiles') {const q={select:()=>q,eq:()=>q,maybeSingle:async()=>({data:{id:'user',is_blocked:false},error:null as null})};return q;}
       const query = { select: () => query, eq: () => query,
         maybeSingle: async () => table === 'staff_permissions'
           ? { data: options.permissions === null ? null : options.permissions ?? {can_view_orders:true,can_edit_orders:true}, error: options.permissionError ?? null }

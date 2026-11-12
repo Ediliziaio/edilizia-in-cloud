@@ -72,7 +72,12 @@ try:
             elif 'statement timeout' in result.stderr: reason = 'statement_timeout'
             elif 'cambiata dopo il censimento' in result.stderr: reason = 'policy_fingerprint_changed'
             elif 'non trovata: lotto fermo' in result.stderr: reason = 'policy_missing'
-            print(json.dumps({'ok':False,'file':applied[-1] if applied else 'foundation','completed':max(0,len(applied)-1),'reason':reason}),flush=True)
+            # Policy names are schema metadata; never expose the SQL body/context.
+            details = {}
+            policy = re.search(r'ERROR:\s+Policy "([^"\r\n]+)" su ([a-z_0-9]+) cambiata', result.stderr)
+            if policy:
+                details = {'policy': policy.group(1), 'table': policy.group(2)}
+            print(json.dumps({'ok':False,'file':applied[-1] if applied else 'foundation','completed':max(0,len(applied)-1),'reason':reason,**details}),flush=True)
             if os.getenv('EIC_LOCAL_PRIVATE_ERROR'):
                 Path(os.environ['EIC_LOCAL_PRIVATE_ERROR']).write_text(result.stderr)
             raise RuntimeError('Migration replay failed; SQL context withheld')
