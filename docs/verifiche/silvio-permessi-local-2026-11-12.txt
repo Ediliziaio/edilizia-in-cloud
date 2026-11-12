@@ -26,7 +26,7 @@ Copertura implementata:
   Le funzioni di amministrazione della piattaforma restano riservate.
 
 Prove ripetibili:
-- 61 integrazioni sul vero database sintetico, con login reali GoTrue e RLS.
+- 63 integrazioni sul vero database sintetico, con login reali GoTrue e RLS.
 - 29 scenari HTTP dei veri handler chat e conferma su 13 profili: lettura,
   forzatura HR/admin, ruolo contraffatto, revoca, blocco, canale altrui,
   record fuori perimetro, modifica e conferma tecnico, replay, CRM assegnato,
@@ -57,3 +57,9 @@ Riproduzione (solo fixture sintetico già inizializzato):
 Non eseguire contemporaneamente i due collaudi che revocano permessi temporanei.
 
 Nessun push, deploy, aggiornamento di produzione o intervento su Squadd.
+
+Preparazione rilascio: l’anagrafica employees usa anch’essa una proiezione server.
+HR senza costi legge i dati operativi, senza retribuzioni e tariffe: lettura REST
+grezza bloccata e tentativi di modifica negati; gli amministratori mantengono
+le modifiche autorizzate. Il replay CI esegue anche una verifica SQL con JWT
+authenticated e rollback, oltre alla ricostruzione integrale delle migrazioni.

@@ -49,7 +49,7 @@ returns boolean language plpgsql stable security definer set search_path=''
 as $f$
 declare predicate text; answer boolean; cmd "char";
 begin
- if auth.uid() is null or public.utente_bloccato() or p_table not in ('orders','order_installments','order_employees','campo_rapportini') then return false; end if;
+ if auth.uid() is null or public.utente_bloccato() or p_table not in ('orders','order_installments','order_employees','campo_rapportini','employees') then return false; end if;
  cmd:=case p_command when 'INSERT' then 'a' when 'UPDATE' then 'w' when 'DELETE' then 'd' else '?' end;
  select '('||coalesce(string_agg('('||coalesce(case when p_check then pg_get_expr(coalesce(polwithcheck,polqual),polrelid) else pg_get_expr(polqual,polrelid) end,'true')||')',' OR ') filter(where polpermissive),'false')||') AND ('||coalesce(string_agg('('||coalesce(case when p_check then pg_get_expr(coalesce(polwithcheck,polqual),polrelid) else pg_get_expr(polqual,polrelid) end,'true')||')',' AND ') filter(where not polpermissive),'true')||')'
  into predicate from pg_policy where polrelid=format('public.%I',p_table)::regclass and polcmd in (cmd,'*') and polname not like 'office_%'
@@ -64,6 +64,7 @@ create table if not exists private.office_projection_fields(
  primary key(table_name,column_name));
 revoke all on private.office_projection_fields from public,anon,authenticated;
 insert into private.office_projection_fields values
+ ('employees','gross_salary','personal'),('employees','net_salary','personal'),('employees','inps_rate','personal'),('employees','retribuzione_lorda_annua','personal'),('employees','costo_orario','personal'),('employees','profilo_costo','personal'),
  ('orders','total_amount','amounts'),('orders','deposit_amount','amounts'),('orders','deposit_2_amount','amounts'),('orders','balance_amount','amounts'),('orders','financing_amount','amounts'),('orders','vat_rate','amounts'),('orders','payment_type','amounts'),('orders','tetto_importo','amounts'),
  ('orders','financing_cost','costs'),('orders','financing_cost_mode','costs'),
  ('orders','deposit_paid','payments'),('orders','deposit_paid_date','payments'),('orders','deposit_2_paid','payments'),('orders','deposit_2_paid_date','payments'),('orders','balance_paid','payments'),('orders','balance_paid_date','payments'),('orders','financing_paid','payments'),('orders','financing_paid_date','payments'),
@@ -74,22 +75,27 @@ on conflict(table_name,column_name) do update set right_name=excluded.right_name
 -- The security-definer projections explicitly enforce the original row policies.
 -- Clients cannot select the unmasked rows without the relevant economic rights.
 do $views$
-declare t text; cols text; predicate text; d record;
+declare t text; cols text; predicate text; rights_expression text; d record;
 begin
- foreach t in array array['orders','order_installments','order_employees'] loop
+ foreach t in array array['orders','order_installments','order_employees','employees'] loop
   if t='orders' then predicate:='private.office_visible_order(orders.id)';
   else
    select '('||coalesce(string_agg('('||coalesce(pg_get_expr(polqual,polrelid),'true')||')',' OR ') filter(where polpermissive),'false')||') AND ('||coalesce(string_agg('('||coalesce(pg_get_expr(polqual,polrelid),'true')||')',' AND ') filter(where not polpermissive),'true')||')'
    into predicate from pg_policy where polrelid=format('public.%I',t)::regclass and polcmd in ('r','*') and polname not like 'office_%' and polname<>'costi_solo_con_permesso'
    and (0=any(polroles) or 'authenticated'::regrole::oid=any(polroles));
-   predicate:='('||predicate||') AND private.office_visible_order('||quote_ident(t)||'.order_id)';
+   if t='employees' then
+    predicate:='('||predicate||') AND auth.uid() is not null AND not public.utente_bloccato()';
+   else
+    predicate:='('||predicate||') AND private.office_visible_order('||quote_ident(t)||'.order_id)';
+   end if;
    if t='order_installments' then predicate:=predicate||' AND coalesce((r.rights->>''payments'')::boolean,false)'; end if;
   end if;
   select string_agg(case when f.column_name is null then format('%I.%I',t,a.attname)
     else format('case when coalesce((r.rights->>%L)::boolean,false) then %I.%I else null::%s end as %I',f.right_name,t,a.attname,format_type(a.atttypid,a.atttypmod),a.attname) end,',' order by a.attnum)
   into cols from pg_attribute a left join private.office_projection_fields f on f.table_name=t and f.column_name=a.attname
   where a.attrelid=format('public.%I',t)::regclass and a.attnum>0 and not a.attisdropped;
-  execute format('create or replace view public.%I with(security_barrier=true) as select %s from public.%I %I cross join lateral (select private.office_order_rights(%I.%I) as rights offset 0) r where %s',t||'_visibili',cols,t,t,t,case when t='orders' then 'id' else 'order_id' end,predicate);
+  rights_expression:=case when t='employees' then 'private.office_company_rights(employees.company_id)' else format('private.office_order_rights(%I.%I)',t,case when t='orders' then 'id' else 'order_id' end) end;
+  execute format('create or replace view public.%I with(security_barrier=true) as select %s from public.%I %I cross join lateral (select %s as rights offset 0) r where %s',t||'_visibili',cols,t,t,rights_expression,predicate);
   execute format('revoke all on public.%I from public,anon',t||'_visibili');
   execute format('grant select,insert,update,delete on public.%I to authenticated',t||'_visibili');
   for d in select a.attname,pg_get_expr(ad.adbin,ad.adrelid) expr from pg_attribute a join pg_attrdef ad on ad.adrelid=a.attrelid and ad.adnum=a.attnum where a.attrelid=format('public.%I',t)::regclass loop
@@ -103,19 +109,20 @@ returns trigger language plpgsql security definer set search_path=''
 as $f$
 declare t text:=replace(tg_table_name,'_visibili',''); before_row jsonb; changed jsonb:='{}'; result jsonb; rights jsonb; key text; val jsonb; order_id uuid; company_id uuid; cols text; sets text; protected record;
 begin
- if t not in ('orders','order_installments','order_employees','campo_rapportini') or auth.uid() is null then raise exception 'Operazione non consentita' using errcode='42501'; end if;
+ if t not in ('orders','order_installments','order_employees','campo_rapportini','employees') or auth.uid() is null then raise exception 'Operazione non consentita' using errcode='42501'; end if;
  if tg_op<>'INSERT' then
   execute format('select to_jsonb(x) from public.%I x where id=$1 for update',t) into before_row using old.id;
   if before_row is null or not private.office_write_allowed(t,tg_op,before_row,false) then raise exception 'Operazione non consentita' using errcode='42501'; end if;
  end if;
  if tg_op='DELETE' then execute format('delete from public.%I where id=$1',t) using old.id; return old; end if;
  order_id:=case when t='orders' then new.id else (to_jsonb(new)->>'order_id')::uuid end;
- if tg_op='INSERT' and t='orders' then rights:=private.office_company_rights((to_jsonb(new)->>'company_id')::uuid); else rights:=private.office_order_rights(order_id); end if;
+ if t='employees' then rights:=private.office_company_rights((to_jsonb(new)->>'company_id')::uuid);
+ elsif tg_op='INSERT' and t='orders' then rights:=private.office_company_rights((to_jsonb(new)->>'company_id')::uuid); else rights:=private.office_order_rights(order_id); end if;
  for key,val in select * from jsonb_each(to_jsonb(new)) loop
   if tg_op='INSERT' then if val<>'null'::jsonb then changed:=changed||jsonb_build_object(key,val); end if;
   elsif val is distinct from (to_jsonb(old)->key) then changed:=changed||jsonb_build_object(key,val); end if;
  end loop;
- if tg_op='UPDATE' and (changed ? 'id' or changed ? 'company_id' or changed ? 'order_id' or changed ? 'employee_id') then raise exception 'Identità della riga non modificabile' using errcode='42501'; end if;
+ if tg_op='UPDATE' and (changed ? 'id' or changed ? 'company_id' or changed ? 'order_id' or changed ? 'employee_id' or (t='employees' and changed ? 'user_id')) then raise exception 'Identità della riga non modificabile' using errcode='42501'; end if;
  for protected in select * from private.office_projection_fields where table_name=t loop
   if not coalesce((rights->>protected.right_name)::boolean,false) or (protected.right_name='payments' and not coalesce((rights->>'amounts')::boolean,false)) then changed:=changed-protected.column_name; end if;
  end loop;
@@ -136,7 +143,7 @@ end $f$;
 revoke all on function private.office_projection_write() from public,anon,authenticated;
 do $triggers$
 declare t text;
-begin foreach t in array array['orders','order_installments','order_employees'] loop
+begin foreach t in array array['orders','order_installments','order_employees','employees'] loop
  execute format('drop trigger if exists office_projection_write on public.%I',t||'_visibili');
  execute format('create trigger office_projection_write instead of insert or update or delete on public.%I for each row execute function private.office_projection_write()',t||'_visibili');
 end loop;end $triggers$;
@@ -164,6 +171,12 @@ begin
   execute format('create or replace view public.%I with(security_barrier=true,security_invoker=true) as %s',v.relname,body);
  end loop;
 end $rebind$;
+
+-- Personnel access alone does not grant wages: the same cost + HR gate
+-- applies to direct REST, embedding, writes and Silvio, not only the UI.
+drop policy if exists office_financial_select on public.employees;
+create policy office_financial_select on public.employees as restrictive for select to authenticated
+ using(coalesce((private.office_company_rights(company_id)->>'personal')::boolean,false));
 
 create or replace function public.commessa_costo_personale_aggregato(p_order_id uuid)
 returns jsonb language plpgsql stable security definer set search_path=''
@@ -250,9 +263,9 @@ returns void language plpgsql security definer set search_path=''
 as $f$
 declare rights jsonb; field record; oid_row uuid; default_expr text; default_value jsonb;
 begin
- if p_table not in ('orders','order_installments','order_employees','campo_rapportini') or auth.uid() is null then raise exception 'Scrittura non consentita' using errcode='42501'; end if;
+ if p_table not in ('orders','order_installments','order_employees','campo_rapportini','employees') or auth.uid() is null then raise exception 'Scrittura non consentita' using errcode='42501'; end if;
  oid_row:=case when p_table='orders' then (p_new->>'id')::uuid else (p_new->>'order_id')::uuid end;
- rights:=case when p_table='orders' and p_old is null then private.office_company_rights((p_new->>'company_id')::uuid) else private.office_order_rights(oid_row) end;
+ rights:=case when p_table='employees' or (p_table='orders' and p_old is null) then private.office_company_rights((p_new->>'company_id')::uuid) else private.office_order_rights(oid_row) end;
  for field in select * from private.office_projection_fields where table_name=p_table loop
   if coalesce((rights->>field.right_name)::boolean,false) and (field.right_name<>'payments' or coalesce((rights->>'amounts')::boolean,false)) then continue; end if;
   if p_old is not null and (p_new->field.column_name) is not distinct from (p_old->field.column_name) then continue; end if;
@@ -278,7 +291,7 @@ end $f$;
 revoke all on function private.office_direct_write_guard() from public,anon,authenticated;
 do $guard$
 declare t text;
-begin foreach t in array array['orders','order_installments','order_employees'] loop
+begin foreach t in array array['orders','order_installments','order_employees','employees'] loop
  execute format('drop trigger if exists aaa_office_direct_write on public.%I',t);
  execute format('create trigger aaa_office_direct_write before insert or update on public.%I for each row execute function private.office_direct_write_guard()',t);
 end loop;end $guard$;
@@ -440,3 +453,5 @@ notify pgrst,'reload schema';
 -- Pure projection helper: it processes only the supplied JSON and returns no
 -- database rows. View callers require EXECUTE; private schema is not API-exposed.
 grant execute on function private.office_log_values(text,jsonb,jsonb) to authenticated;
+
+notify pgrst, 'reload schema';

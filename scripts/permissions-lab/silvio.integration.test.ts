@@ -96,4 +96,25 @@ describe('strumenti Silvio reali sul database locale',()=>{
   const purchasing=await executeToolWithRouting('get_team_summary',{},context(2));expect(purchasing.success).toBe(false);
  });
 
+ it('HR senza costi: anagrafica operativa visibile ma retribuzioni protette anche via REST e PATCH',async()=>{
+  const actor=createClient('http://127.0.0.1:5189',key,{auth:{persistSession:false,autoRefreshToken:false},global:{headers:{Authorization:`Bearer ${tokens.get(7)}`}}});
+  const employee='e0000000-0000-4000-a000-000000000001';
+  const originalName=sql(`select first_name from employees where id='${employee}'`).trim();
+  sql(`update staff_permissions set can_view_costs=false where user_id='${userId(7)}'`);
+  try{
+   const raw=await actor.from('employees').select('id,gross_salary,costo_orario');expect(raw.error).toBeNull();expect(raw.data).toEqual([]);
+   const projected=await actor.from('employees_visibili').select('id,first_name,gross_salary,net_salary,inps_rate,costo_orario,retribuzione_lorda_annua,profilo_costo');expect(projected.error,JSON.stringify(projected.error)).toBeNull();expect(projected.data!.length).toBeGreaterThan(0);
+   for(const row of projected.data!)for(const field of ['gross_salary','net_salary','inps_rate','costo_orario','retribuzione_lorda_annua','profilo_costo'])expect(row[field]).toBeNull();
+   const team=await executeToolWithRouting('get_team_summary',{},context(7));expect(team.success,JSON.stringify(team)).toBe(true);expect(JSON.stringify(team.data)).not.toContain('2800');
+   const updated=await actor.from('employees_visibili').update({first_name:'Anagrafica senza costi',gross_salary:99999}).eq('id',employee).select('id,first_name,gross_salary');expect(updated.error?.code).toBe('42501');
+   const admin=createClient('http://127.0.0.1:5189',key,{auth:{persistSession:false,autoRefreshToken:false},global:{headers:{Authorization:`Bearer ${tokens.get(8)}`}}});
+   const permitted=await admin.from('employees_visibili').update({first_name:'Anagrafica amministratore'}).eq('id',employee).select('id,first_name,gross_salary');expect(permitted.error,JSON.stringify(permitted.error)).toBeNull();expect(permitted.data).toHaveLength(1);expect(permitted.data![0].first_name).toBe('Anagrafica amministratore');expect(permitted.data![0].gross_salary).not.toBeNull();
+   expect(sql(`select gross_salary from employees where id='${employee}'`).trim()).not.toBe('99999');
+  }finally{sql(`update employees set first_name='${originalName.replaceAll("'","''")}' where id='${employee}'`);const {error}=await client.from('staff_permissions').update(fixtures.get(7)!.permissions).eq('user_id',userId(7));expect(error).toBeNull();}
+ });
+ it('i collegamenti commessa-personale funzionano anche attraverso le viste protette',async()=>{
+  const actor=createClient('http://127.0.0.1:5189',key,{auth:{persistSession:false,autoRefreshToken:false},global:{headers:{Authorization:`Bearer ${tokens.get(8)}`}}});
+  const r=await actor.from('order_employees_visibili').select('id,employees_visibili(id,first_name,gross_salary)');expect(r.error,JSON.stringify(r.error)).toBeNull();expect(r.data!.length).toBeGreaterThan(0);
+ });
+
 });

@@ -200,7 +200,7 @@ describe("Scheda utente — controlli economici e azioni in blocco",()=>{
     fireEvent.click(screen.getByRole("button",{name:/Rivedi modifiche/}));
     expect(save).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toHaveTextContent("Ordini e Commesse");
-    fireEvent.click(screen.getByRole("button",{name:"Chiudi",exact:true}));
+    fireEvent.click(screen.getByRole("button",{name:"Chiudi"}));
     fireEvent.click(screen.getByRole("button",{name:"Salva permessi"}));
     expect(save).toHaveBeenCalledWith(expect.objectContaining({office_profile:"tecnico",can_view_orders:false,can_view_order_amounts:false,can_view_order_payment_status:true,only_assigned:true,pipeline_visibili:["pipeline-test"]}));
   });

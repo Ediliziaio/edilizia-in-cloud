@@ -7,6 +7,11 @@ describe('Richieste commessa con proiezione server',()=>{
  });
  it('preserva gli alias annidati e gli hint dei join',()=>expect(protectedOrderSelect('id,orders!inner(id,righe:order_installments!order_id(amount)),order_employees(hours_worked)')).toBe('id,orders:orders_visibili!inner(id,righe:order_installments_visibili!order_id(amount)),order_employees:order_employees_visibili(hours_worked)'));
  it('non riscrive RPC o relazioni estranee',()=>{
- const u='https://example.test/rest/v1/rpc/orders';expect(protectedOrderUrl(u)).toBe(u);expect(protectedOrderSelect('employees(id),external_teams(name)')).toBe('employees(id),external_teams(name)');
+ const u='https://example.test/rest/v1/rpc/orders';expect(protectedOrderUrl(u)).toBe(u);expect(protectedOrderSelect('external_teams(name)')).toBe('external_teams(name)');
  });
+});
+
+it('protegge anche le retribuzioni dell’anagrafica, inclusi i collegamenti annidati',()=>{
+ expect(protectedOrderUrl('https://example.test/rest/v1/employees?select=id,gross_salary')).toContain('/employees_visibili?');
+ expect(protectedOrderSelect('employee:employees!employee_id(id,gross_salary)')).toBe('employee:employees_visibili!employee_id(id,gross_salary)');
 });

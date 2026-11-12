@@ -2,7 +2,7 @@
  * Routing is for compatibility; direct requests to the base tables are denied
  * independently of this client code. Aliases keep existing result shapes intact.
  */
-const relations = ["orders", "order_installments", "order_employees", "campo_rapportini"];
+const relations = ["orders", "order_installments", "order_employees", "campo_rapportini", "employees"];
 const embed = new RegExp(`(^|[,(])(?:(\\w+):)?(${relations.join("|")})((?:![\\w]+)*)\\(`, "g");
 export function protectedOrderSelect(select: string) {
   return select.replace(embed, (_match, before: string, alias: string | undefined, relation: string, hints: string) =>
