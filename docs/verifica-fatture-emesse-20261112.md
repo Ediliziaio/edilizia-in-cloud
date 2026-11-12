@@ -79,3 +79,23 @@ L'esito SDI non disponibile per un'importazione resta «Gestita esternamente»:
 va verificato nel gestionale di origine. Eventuali duplicati già presenti come
 documenti distinti nelle fonti non vengono fusi automaticamente.
 Le verifiche non costituiscono un audit globale di tutta la piattaforma.
+
+## Verifica in produzione e correzione dei conteggi
+
+La verifica nell'app con i permessi reali ha rilevato un timeout di PostgreSQL
+a 8 secondi: anche il conteggio rileggeva le commesse per tutte le fatture,
+eseguendone ogni volta le policy di visibilità. La lettura come amministratore
+del database non riproduceva questo costo.
+
+Le migrazioni `20290316111000` e `20290316111500` aggiungono l'indice dei documenti
+correlati, leggono le sole commesse collegate tramite ID indicizzati e rendono
+gli aggregati eliminabili dal piano del conteggio quando non servono. Nessuna
+policy o autorizzazione è stata allargata. Conteggio con ruolo authenticated
+misurato a circa 16 ms; prima circa 3,8 secondi per il solo conteggio.
+
+103 controlli mirati superati dopo la correzione, incluso un test che verifica
+che il conteggio non esegua le policy delle commesse, ma che la loro apertura
+continui a eseguirle. Nell'app reale: elenco da 1.380 fatture caricato, ricerca
+`69.435,12` con 12 risultati e `12/11/2026` con 4 risultati.
+
+Il controllo del filtro per commessa ha evidenziato anche la necessità di leggere solo i metadati della proiezione canonica `orders_visibili`. La funzione privata, security invoker e con ricerca per ID, conserva i controlli di visibilità senza chiedere i diritti sugli importi non mostrati. Il conteggio filtrato autenticato su Demo Azienda 2 termina in circa 1,68 secondi, sotto il limite del servizio. Aggiunta prova PostgreSQL che esclude una commessa pur mantenendo leggibile la fattura e verifica il confine aziendale.
