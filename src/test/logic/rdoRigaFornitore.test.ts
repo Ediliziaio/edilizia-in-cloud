@@ -14,7 +14,7 @@ describe("totaleOffertoProposto", () => {
     expect(totaleOffertoProposto(null, null)).toBeNull();
   });
   it("propone lo stesso numero che usano confronto e aggiudicazione a totale vuoto", () => {
-    const f = { status: "risposta", totale_offerto: null, validita_offerta: null, trasporto_tipo: "extra" as const, costo_trasporto: 80 };
+    const f = { status: "risposta", totale_offerto: null as never, validita_offerta: null as never, trasporto_tipo: "extra" as const, costo_trasporto: 80 };
     const c = confrontoOfferta(f, { totale: 3718, righeCoperte: 6, daRighe: true }, 6, "2026-11-11");
     expect(totaleOffertoProposto(f.totale_offerto, c.totale, 80)?.valore).toBe(3798);
   });
@@ -38,8 +38,8 @@ describe("statoRigaFornitore", () => {
 describe("statoVoceOfferta", () => {
   it("legge lo stato già salvato", () => {
     expect(statoVoceOfferta(undefined)).toBe("da_quotare");
-    expect(statoVoceOfferta({ disponibile: true, note: null })).toBe("disponibile");
-    expect(statoVoceOfferta({ disponibile: false, note: null })).toBe("non_disponibile");
+    expect(statoVoceOfferta({ disponibile: true, note: null as never })).toBe("disponibile");
+    expect(statoVoceOfferta({ disponibile: false, note: null as never })).toBe("non_disponibile");
     expect(statoVoceOfferta({ disponibile: true, note: "[parziale] solo 200 pz" })).toBe("parziale");
     expect(statoVoceOfferta({ disponibile: true, note: "[alternativa]" })).toBe("alternativa");
   });
@@ -47,7 +47,7 @@ describe("statoVoceOfferta", () => {
     expect(aggiornamentoStatoVoce("parziale", "solo 200 pz")).toEqual({ disponibile: true, note: "[parziale] solo 200 pz" });
     expect(aggiornamentoStatoVoce("alternativa", "[parziale] solo 200 pz")).toEqual({ disponibile: true, note: "[alternativa] solo 200 pz" });
     expect(aggiornamentoStatoVoce("non_disponibile", "[parziale] solo 200 pz")).toEqual({ disponibile: false, note: "solo 200 pz" });
-    expect(aggiornamentoStatoVoce("disponibile", "[alternativa]")).toEqual({ disponibile: true, note: null });
+    expect(aggiornamentoStatoVoce("disponibile", "[alternativa]")).toEqual({ disponibile: true, note: null as never });
     expect(notaVoceOfferta("[parziale] solo 200 pz")).toBe("solo 200 pz");
   });
 });
